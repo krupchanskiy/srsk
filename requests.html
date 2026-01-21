@@ -154,6 +154,26 @@
 
     <div id="footer-placeholder"></div>
 
+    <!-- Print-only container (outside modal) -->
+    <div id="printContainer" class="hidden print:block">
+        <div id="printHeader" style="margin-bottom: 1rem; padding-bottom: 0.5rem; border-bottom: 2px solid black;">
+            <div style="display: flex; justify-content: space-between;">
+                <div>
+                    <div style="font-size: 14px; font-weight: bold;" data-i18n="org_name">Шри Рупа Сева Кунджа</div>
+                    <div style="font-size: 12px; opacity: 0.7;" id="printContainerLocation"></div>
+                </div>
+                <div style="text-align: right;">
+                    <div style="font-size: 16px; font-weight: bold;" id="printContainerTitle"></div>
+                    <div style="font-size: 11px;" id="printContainerPeriod"></div>
+                </div>
+            </div>
+        </div>
+        <div id="printContainerItems" class="print-columns"></div>
+        <div style="margin-top: 1rem; font-size: 12px;">
+            <span data-i18n="total_items_short">Позиций</span>: <span id="printContainerCount"></span>
+        </div>
+    </div>
+
     <!-- Add Product Modal -->
     <dialog id="productModal" class="modal">
         <div class="modal-box max-w-lg relative">
@@ -245,40 +265,27 @@
                 </div>
             </div>
 
-            <!-- Print Header -->
-            <div class="hidden print:block mb-4 pb-4 border-b-2 border-black">
-                <div class="flex justify-between items-center">
-                    <div>
-                        <div class="text-lg font-bold" data-i18n="org_name">Шри Рупа Сева Кунджа</div>
-                        <div class="text-sm opacity-70" id="printLocation"></div>
-                    </div>
-                    <div class="text-right">
-                        <div class="text-xl font-bold" id="printRequestTitle"></div>
-                        <div class="text-sm" id="printRequestPeriod"></div>
-                    </div>
-                </div>
-            </div>
-
-            <div class="overflow-x-auto">
+            <!-- Экранная версия (таблица) -->
+            <div class="overflow-x-auto no-print">
                 <table class="table table-sm">
                     <thead class="bg-base-200">
                         <tr>
-                            <th data-i18n="product">Продукт</th>
-                            <th data-i18n="category">Категория</th>
+                            <th colspan="2" data-i18n="product">Продукт</th>
                             <th class="text-right w-32" data-i18n="to_purchase">Закупить</th>
                             <th class="text-right" data-i18n="est_price">≈ Сумма</th>
-                            <th class="w-10 no-print"></th>
+                            <th class="w-10"></th>
                         </tr>
                     </thead>
                     <tbody id="viewRequestItems"></tbody>
                 </table>
             </div>
 
+            
             <div class="mt-4 flex justify-between items-center border-t pt-4">
                 <div class="text-sm opacity-60">
                     <span data-i18n="total_items_short">Позиций</span>: <span class="font-bold" id="viewRequestCount">0</span>
                 </div>
-                <div>
+                <div class="no-print">
                     <span data-i18n="total">Итого</span>: <span class="font-bold text-lg" id="viewRequestTotal">—</span>
                 </div>
             </div>
@@ -403,9 +410,17 @@
             return { value: grams, unit: 'g' };
         }
 
-        // Округление для закупки: кг до 1, г до 50
-        // Для овощей - всегда до 1 кг
-        function roundForPurchase(value, unit, category = null) {
+        // Округление для закупки
+        // Приоритет: min_purchase продукта > стандартное округление
+        function roundForPurchase(value, unit, category = null, minPurchaseGrams = null) {
+            // Если задана мин. закупка - округляем до неё
+            if (minPurchaseGrams && minPurchaseGrams > 0) {
+                const valueGrams = unit === 'kg' ? value * 1000 : value;
+                const rounded = Math.ceil(valueGrams / minPurchaseGrams) * minPurchaseGrams;
+                return unit === 'kg' ? rounded / 1000 : rounded;
+            }
+
+            // Стандартное округление
             const isVegetable = category === 'vegetables';
 
             if (isVegetable) {
@@ -572,8 +587,8 @@
                     const inStock = useKg ? stockGrams / 1000 : stockGrams;
                     const toPurchase = useKg ? toPurchaseGrams / 1000 : toPurchaseGrams;
 
-                    // Округляем количество для закупки
-                    const roundedPurchase = roundForPurchase(toPurchase, unit, categorySlug);
+                    // Округляем количество для закупки (учитываем min_purchase)
+                    const roundedPurchase = roundForPurchase(toPurchase, unit, categorySlug, product?.min_purchase);
 
                     // Get last price from stock (price per kg)
                     const lastPrice = stock?.last_price || null;
@@ -864,17 +879,35 @@
             });
             const sumDisplay = totalSum > 0 ? (hasAllPrices ? '' : '≈ ') + '₹' + Math.round(totalSum).toLocaleString() : '';
 
+            // Items list preview
+            const itemsList = (req.items || []).map(item => {
+                const product = item.products;
+                const grams = item.quantity || 0;
+                const display = fromGrams(grams);
+                const name = Layout.getName(product);
+                const qty = formatQty(display.value);
+                const unit = localizeUnit(display.unit);
+                return `${name} ${qty}${unit}`;
+            }).join(', ');
+
             // Подсветка новой заявки
             const isHighlighted = req.id === highlightRequestId;
-            const highlightStyle = isHighlighted ? 'background-color: rgba(var(--current-color-rgb, 234, 179, 8), 0.15); border: 2px solid var(--current-color);' : '';
+            const isInProgress = req.status === 'in_progress';
+            let cardStyle = '';
+            if (isInProgress) {
+                cardStyle = 'background-color: rgba(59, 130, 246, 0.1); border: 2px solid #3b82f6;';
+            } else if (isHighlighted) {
+                cardStyle = 'background-color: rgba(var(--current-color-rgb, 234, 179, 8), 0.15); border: 2px solid var(--current-color);';
+            }
 
             return `
-                <div class="bg-base-100 rounded-lg p-4 shadow-sm" style="${highlightStyle}" ${isHighlighted ? 'id="highlightedRequest"' : ''}>
+                <div class="bg-base-100 rounded-lg p-4 shadow-sm" style="${cardStyle}" ${isHighlighted ? 'id="highlightedRequest"' : ''}>
+                    ${isInProgress ? `<div class="text-sm font-medium text-blue-600 mb-2 flex items-center gap-1"><svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" /></svg> ${tr('request_in_progress', 'Заявка в работе')}</div>` : ''}
                     <div class="flex flex-col md:flex-row md:items-center gap-4">
-                        <div class="flex-1 min-w-0">
+                        <div class="min-w-0 flex-shrink-0">
                             <div class="flex items-center gap-2 flex-wrap">
                                 <span class="font-semibold">${tr('request', 'Заявка')} #${formatNumberWithYear(req.number)}</span>
-                                <span class="badge badge-sm" style="background-color: var(--current-color); color: white;">${itemsCount} ${tr('items_short', 'поз.')}</span>
+                                <span class="badge badge-sm badge-ghost md:hidden">${itemsCount} ${tr('items_short', 'поз.')}</span>
                                 ${sumDisplay ? `<span class="badge badge-sm badge-ghost">${sumDisplay}</span>` : ''}
                             </div>
                             ${hasPeriod ? `<div class="text-sm opacity-60 mt-1">${tr('period', 'Период')}: ${periodFrom} — ${periodTo}</div>` : ''}
@@ -883,33 +916,40 @@
                             </div>
                         </div>
 
-                        <div class="flex items-center gap-2">
-                            <button class="btn btn-ghost btn-md" onclick="viewSavedRequest('${req.id}')" title="${tr('view', 'Просмотр')}">
-                                <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        ${itemsList ? `<div class="hidden md:block flex-1 text-sm opacity-60 line-clamp-3 px-4 self-start">${itemsList}</div>` : ''}
+
+                        <div class="flex items-center gap-1 flex-shrink-0">
+                            <button class="btn btn-ghost btn-sm" onclick="viewSavedRequest('${req.id}')" title="${tr('view', 'Просмотр')}">
+                                <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
                                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
                                 </svg>
                             </button>
-                            <button class="btn btn-ghost btn-md" onclick="printSavedRequest('${req.id}')" title="${tr('print', 'Печать')}">
-                                <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <button class="btn btn-ghost btn-sm" onclick="printSavedRequest('${req.id}')" title="${tr('print', 'Печать')}">
+                                <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" />
                                 </svg>
                             </button>
                             ${!isArchived ? `
-                                <button class="btn btn-ghost btn-md text-warning" onclick="archiveRequest('${req.id}')" title="${tr('to_archive', 'В архив')}">
-                                    <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <button class="btn btn-ghost btn-sm ${isInProgress ? 'text-blue-600' : 'text-blue-400'}" onclick="toggleInProgress('${req.id}')" title="${tr('in_progress', 'В работе')}">
+                                    <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="${isInProgress ? '2.5' : '2'}">
+                                        <path stroke-linecap="round" stroke-linejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                                    </svg>
+                                </button>
+                                <button class="btn btn-ghost btn-sm text-warning" onclick="archiveRequest('${req.id}')" title="${tr('to_archive', 'В архив')}">
+                                    <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 8h14M5 8a2 2 0 110-4h14a2 2 0 110 4M5 8v10a2 2 0 002 2h10a2 2 0 002-2V8m-9 4h4" />
                                     </svg>
                                 </button>
                             ` : `
-                                <button class="btn btn-ghost btn-md text-success" onclick="restoreRequest('${req.id}')" title="${tr('restore', 'Восстановить')}">
-                                    <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <button class="btn btn-ghost btn-sm text-success" onclick="restoreRequest('${req.id}')" title="${tr('restore', 'Восстановить')}">
+                                    <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 10h10a8 8 0 018 8v2M3 10l6 6m-6-6l6-6" />
                                     </svg>
                                 </button>
                             `}
-                            <button class="btn btn-ghost btn-md text-error" onclick="deleteRequest('${req.id}')" title="${tr('delete', 'Удалить')}">
-                                <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <button class="btn btn-ghost btn-sm text-error" onclick="deleteRequest('${req.id}')" title="${tr('delete', 'Удалить')}">
+                                <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
                                 </svg>
                             </button>
@@ -964,6 +1004,26 @@
             }
 
             container.innerHTML = filtered.map(req => renderRequestCard(req, true)).join('');
+        }
+
+        async function toggleInProgress(id) {
+            const req = savedRequests.find(r => r.id === id);
+            if (!req) return;
+
+            const newStatus = req.status === 'in_progress' ? 'pending' : 'in_progress';
+
+            const { error } = await Layout.db
+                .from('purchase_requests')
+                .update({ status: newStatus })
+                .eq('id', id);
+
+            if (error) {
+                console.error('Error updating request status:', error);
+                showAlert(tr('save_error', 'Ошибка'));
+                return;
+            }
+
+            await loadSavedRequests();
         }
 
         async function archiveRequest(id) {
@@ -1049,13 +1109,15 @@
 
             Layout.$('#viewRequestTitle').textContent = `${tr('request', 'Заявка')} #${formatNumberWithYear(req.number)}`;
             Layout.$('#viewRequestPeriod').textContent = `${tr('period', 'Период')}: ${periodFrom} — ${periodTo}`;
-            Layout.$('#printRequestTitle').textContent = `${tr('request', 'Заявка')} #${formatNumberWithYear(req.number)}`;
-            Layout.$('#printRequestPeriod').textContent = `${tr('period', 'Период')}: ${periodFrom} — ${periodTo}`;
+
+            // Print container header
+            Layout.$('#printContainerTitle').textContent = `${tr('request', 'Заявка')} #${formatNumberWithYear(req.number)}`;
+            Layout.$('#printContainerPeriod').textContent = `${tr('period', 'Период')}: ${periodFrom} — ${periodTo}`;
 
             // Get location name
             const loc = Layout.locations?.find(l => l.slug === Layout.currentLocation);
             if (loc) {
-                Layout.$('#printLocation').textContent = Layout.getName(loc);
+                Layout.$('#printContainerLocation').textContent = Layout.getName(loc);
             }
 
             renderViewedRequest();
@@ -1068,56 +1130,95 @@
             let totalSum = 0;
             let hasAllPrices = true;
 
-            tbody.innerHTML = viewingItems.map((item, index) => {
-                const product = item.product;
-                const cat = product?.product_categories;
-                const unit = localizeUnit(item.unit);
-                const estSum = item.est_sum !== null ? '₹' + Math.round(item.est_sum).toLocaleString() : '—';
-
-                if (item.est_sum !== null) {
-                    totalSum += item.est_sum;
-                } else {
-                    hasAllPrices = false;
+            // Группируем по категориям
+            const grouped = {};
+            viewingItems.forEach((item, index) => {
+                const cat = item.product?.product_categories;
+                const catId = cat?.id || 'uncategorized';
+                if (!grouped[catId]) {
+                    grouped[catId] = { cat, items: [] };
                 }
+                grouped[catId].items.push({ ...item, originalIndex: index });
+            });
 
-                const translit = product?.translit || Layout.transliterateHindi(product?.name_hi);
+            // Сортируем категории по sort_order
+            const sortedGroups = Object.values(grouped).sort((a, b) =>
+                (a.cat?.sort_order || 999) - (b.cat?.sort_order || 999)
+            );
 
-                return `
-                    <tr>
-                        <td>
-                            <div class="font-medium">${Layout.getName(product)}</div>
-                            ${translit ? `<div class="text-xs opacity-50 italic">${translit}</div>` : ''}
-                        </td>
-                        <td>
-                            <span class="badge badge-sm" style="background-color: ${cat?.color || '#999'}20; color: ${cat?.color || '#999'}">
-                                ${Layout.getName(cat) || '—'}
-                            </span>
-                        </td>
-                        <td class="text-right">
-                            <div class="join no-print">
-                                <input type="number"
-                                    class="input input-bordered input-sm join-item w-20 text-right font-bold"
-                                    style="color: var(--current-color)"
-                                    value="${formatQty(item.quantity)}"
-                                    min="0"
-                                    step="1"
-                                    onchange="updateViewedItemQty(${index}, this.value)"
-                                />
-                                <span class="btn btn-sm join-item no-animation pointer-events-none bg-base-200">${unit}</span>
-                            </div>
-                            <span class="hidden print:inline font-bold" style="color: var(--current-color)">${formatQty(item.quantity)} ${unit}</span>
-                        </td>
-                        <td class="text-right opacity-70">${estSum}</td>
-                        <td class="no-print">
-                            <button class="btn btn-ghost btn-sm btn-square text-error/60 hover:text-error hover:bg-error/10" onclick="removeViewedItem(${index})">
-                                <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
-                                </svg>
-                            </button>
-                        </td>
-                    </tr>
-                `;
-            }).join('');
+            let html = '';
+            sortedGroups.forEach(group => {
+                const cat = group.cat;
+                // Заголовок категории
+                html += `<tr class="print-category-header"><td colspan="4" class="font-semibold" style="background-color: ${cat?.color || '#999'}15;">${cat?.emoji || ''} ${Layout.getName(cat) || tr('uncategorized', 'Без категории')}</td></tr>`;
+
+                group.items.forEach(item => {
+                    const index = item.originalIndex;
+                    const product = item.product;
+                    const unit = localizeUnit(item.unit);
+                    const estSum = item.est_sum !== null ? '₹' + Math.round(item.est_sum).toLocaleString() : '—';
+
+                    if (item.est_sum !== null) {
+                        totalSum += item.est_sum;
+                    } else {
+                        hasAllPrices = false;
+                    }
+
+                    const translit = product?.translit || Layout.transliterateHindi(product?.name_hi);
+
+                    html += `
+                        <tr>
+                            <td colspan="2">
+                                <div class="font-medium">${Layout.getName(product)}</div>
+                                ${translit ? `<div class="text-xs opacity-50 italic">${translit}</div>` : ''}
+                            </td>
+                            <td class="text-right">
+                                <div class="join no-print">
+                                    <input type="number"
+                                        class="input input-bordered input-sm join-item w-20 text-right font-bold"
+                                        style="color: var(--current-color)"
+                                        value="${formatQty(item.quantity)}"
+                                        min="0"
+                                        step="1"
+                                        onchange="updateViewedItemQty(${index}, this.value)"
+                                    />
+                                    <span class="btn btn-sm join-item no-animation pointer-events-none bg-base-200">${unit}</span>
+                                </div>
+                                <span class="hidden print:inline font-bold" style="color: var(--current-color)">${formatQty(item.quantity)} ${unit}</span>
+                            </td>
+                            <td class="text-right opacity-70 no-print">${estSum}</td>
+                            <td class="no-print">
+                                <button class="btn btn-ghost btn-sm btn-square text-error/60 hover:text-error hover:bg-error/10" onclick="removeViewedItem(${index})">
+                                    <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+                                    </svg>
+                                </button>
+                            </td>
+                        </tr>
+                    `;
+                });
+            });
+
+            tbody.innerHTML = html;
+
+            // Печатная версия (две колонки) - в отдельном контейнере
+            let printHtml = '';
+            sortedGroups.forEach(group => {
+                const cat = group.cat;
+                printHtml += `<div class="print-category">`;
+                printHtml += `<div class="print-category-title">${cat?.emoji || ''} ${Layout.getName(cat) || tr('uncategorized', 'Без категории')}</div>`;
+                group.items.forEach(item => {
+                    const product = item.product;
+                    const unit = localizeUnit(item.unit);
+                    printHtml += `<div class="print-item">
+                        <span class="print-item-name">${Layout.getName(product)}</span>
+                        <span class="print-item-qty">${formatQty(item.quantity)} ${unit}</span>
+                    </div>`;
+                });
+                printHtml += `</div>`;
+            });
+            Layout.$('#printContainerItems').innerHTML = printHtml;
+            Layout.$('#printContainerCount').textContent = viewingItems.length;
 
             Layout.$('#viewRequestCount').textContent = viewingItems.length;
             Layout.$('#viewRequestTotal').textContent = totalSum > 0
@@ -1181,6 +1282,10 @@
         window.onLanguageChange = function() {
             Layout.updateAllTranslations();
             if (requestItems.length > 0) renderResults();
+            if (savedRequests.length > 0) {
+                renderSavedRequests();
+                renderArchivedRequests();
+            }
         };
 
         // ==================== PRODUCT MODAL ====================
@@ -1393,6 +1498,11 @@
             const item = requestItems[index];
             item.to_purchase = newQty;
 
+            // Для ручных позиций (in_stock = 0) обновляем и "нужно"
+            if (item.in_stock === 0) {
+                item.needed = newQty;
+            }
+
             // Recalculate estimated sum
             const quantityGrams = toGrams(newQty, item.unit);
             item.est_sum = item.last_price ? (quantityGrams / 1000) * item.last_price : null;
@@ -1451,27 +1561,52 @@
             color: white !important;
         }
 
-        /* Печать модалки */
+        /* Печать */
         @media print {
-            body * {
-                visibility: hidden;
+            body > *:not(#printContainer) {
+                display: none !important;
             }
-            #viewRequestModal, #viewRequestModal * {
-                visibility: visible;
-            }
-            #viewRequestModal {
-                position: absolute;
-                left: 0;
-                top: 0;
-                width: 100%;
-            }
-            #viewRequestModal .modal-box {
-                max-width: 100%;
-                max-height: none;
-                box-shadow: none;
+            #printContainer {
+                display: block !important;
+                position: static !important;
+                width: 100% !important;
+                padding: 0 !important;
+                margin: 0 !important;
             }
             .no-print {
                 display: none !important;
+            }
+            .print-columns {
+                column-count: 2;
+                column-gap: 1.5rem;
+                font-size: 11px;
+            }
+            .print-category {
+                break-inside: avoid;
+                margin-bottom: 0.5rem;
+            }
+            .print-category-title {
+                font-weight: 600;
+                font-size: 12px;
+                padding: 2px 4px;
+                margin-bottom: 2px;
+                background-color: #f0f0f0 !important;
+                -webkit-print-color-adjust: exact;
+                print-color-adjust: exact;
+            }
+            .print-item {
+                display: flex;
+                justify-content: space-between;
+                padding: 1px 4px;
+                border-bottom: 1px dotted #ddd;
+            }
+            .print-item-name {
+                flex: 1;
+            }
+            .print-item-qty {
+                font-weight: 600;
+                white-space: nowrap;
+                margin-left: 8px;
             }
         }
 
@@ -1493,6 +1628,14 @@
         .tabs-boxed .tab.tab-active {
             background-color: var(--current-color) !important;
             color: white !important;
+        }
+
+        /* Line clamp for items list */
+        .line-clamp-2 {
+            display: -webkit-box;
+            -webkit-line-clamp: 2;
+            -webkit-box-orient: vertical;
+            overflow: hidden;
         }
     </style>
 </body>

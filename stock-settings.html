@@ -38,6 +38,7 @@
         <div class="tabs tabs-boxed bg-base-100 p-1 mb-6 inline-flex" id="mainTabs">
             <button class="tab tab-active" data-tab="buyers" onclick="switchTab('buyers')" data-i18n="buyers_tab">Закупщики</button>
             <button class="tab" data-tab="minStock" onclick="switchTab('minStock')" data-i18n="min_stock_tab">Несгораемый остаток</button>
+            <button class="tab" data-tab="minPurchase" onclick="switchTab('minPurchase')" data-i18n="min_purchase_tab">Мин. закупка</button>
         </div>
 
         <!-- Tab: Buyers -->
@@ -98,6 +99,36 @@
                             </thead>
                             <tbody id="minStockTableBody">
                                 <tr><td colspan="5" class="text-center py-8 opacity-50">Загрузка...</td></tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Tab: Min Purchase -->
+        <div id="tabContentMinPurchase" class="hidden">
+            <div class="bg-base-100 rounded-lg p-6 shadow-sm">
+                <div class="flex flex-col md:flex-row md:justify-between md:items-center gap-4 mb-4">
+                    <div>
+                        <h3 class="text-lg font-semibold" data-i18n="min_purchase_title">Минимальная закупка</h3>
+                        <p class="text-sm opacity-60" data-i18n="min_purchase_desc">Минимальное количество продукта, которое можно закупить</p>
+                    </div>
+                    <input type="text" id="minPurchaseSearch" class="input input-bordered input-sm w-full md:w-64" placeholder="Поиск по названию..." data-i18n-placeholder="search_placeholder" />
+                </div>
+                <p class="text-sm opacity-50 mb-4" data-i18n="min_purchase_hint">Заявки будут округляться до этого значения</p>
+                <div class="border border-base-300 rounded-lg overflow-hidden">
+                    <div class="overflow-x-auto">
+                        <table class="table">
+                            <thead class="bg-base-200">
+                                <tr>
+                                    <th data-i18n="product">Продукт</th>
+                                    <th data-i18n="category">Категория</th>
+                                    <th class="w-48" data-i18n="min_purchase_tab">Мин. закупка</th>
+                                </tr>
+                            </thead>
+                            <tbody id="minPurchaseTableBody">
+                                <tr><td colspan="3" class="text-center py-8 opacity-50">Загрузка...</td></tr>
                             </tbody>
                         </table>
                     </div>
@@ -177,6 +208,7 @@
         let currentTab = 'buyers';
         let editingBuyerId = null;
         let minStockSearch = '';
+        let minPurchaseSearch = '';
 
         const t = key => Layout.t(key);
 
@@ -287,6 +319,10 @@
             // Show/hide content
             Layout.$('#tabContentBuyers').classList.toggle('hidden', tab !== 'buyers');
             Layout.$('#tabContentMinStock').classList.toggle('hidden', tab !== 'minStock');
+            Layout.$('#tabContentMinPurchase').classList.toggle('hidden', tab !== 'minPurchase');
+
+            // Render tab content on switch
+            if (tab === 'minPurchase') renderMinPurchase();
         }
 
         // ==================== BUYERS ====================
@@ -539,11 +575,104 @@
             }
         }
 
+        // ==================== MIN PURCHASE ====================
+        function renderMinPurchase() {
+            const tbody = Layout.$('#minPurchaseTableBody');
+            const search = minPurchaseSearch.toLowerCase();
+
+            let items = [...products];
+
+            // Filter by search
+            if (search) {
+                items = items.filter(p =>
+                    p.name_ru?.toLowerCase().includes(search) ||
+                    p.name_en?.toLowerCase().includes(search)
+                );
+            }
+
+            if (items.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="3" class="text-center py-8 opacity-50">Нет продуктов</td></tr>';
+                return;
+            }
+
+            tbody.innerHTML = items.map(product => {
+                const cat = product.product_categories;
+                const unit = product.unit || 'kg';
+
+                // Convert stored grams to display unit
+                const minPurchaseGrams = product.min_purchase || 0;
+                let displayValue = minPurchaseGrams;
+                let displayUnit = unit;
+
+                if (unit === 'kg' && minPurchaseGrams > 0) {
+                    displayValue = minPurchaseGrams / 1000;
+                } else if (unit === 'l' && minPurchaseGrams > 0) {
+                    displayValue = minPurchaseGrams / 1000;
+                }
+
+                return `
+                    <tr>
+                        <td>
+                            <div class="font-medium">${Layout.getName(product)}</div>
+                            <div class="text-xs opacity-50">${product.name_en || ''}</div>
+                        </td>
+                        <td>
+                            <span class="badge badge-sm" style="background-color: ${cat?.color || '#999'}20; color: ${cat?.color || '#999'}">
+                                ${Layout.getName(cat) || '—'}
+                            </span>
+                        </td>
+                        <td>
+                            <div class="join">
+                                <input type="number"
+                                    class="input input-bordered input-sm join-item w-20 no-spinners"
+                                    value="${displayValue || ''}"
+                                    min="0"
+                                    step="0.5"
+                                    placeholder="—"
+                                    data-product-id="${product.id}"
+                                    data-unit="${unit}"
+                                    onchange="updateMinPurchase(this)"
+                                />
+                                <span class="btn btn-sm join-item no-animation pointer-events-none bg-base-200">${localizeUnit(unit)}</span>
+                            </div>
+                        </td>
+                    </tr>
+                `;
+            }).join('');
+        }
+
+        async function updateMinPurchase(input) {
+            const productId = input.dataset.productId;
+            const unit = input.dataset.unit;
+            const displayValue = parseFloat(input.value) || 0;
+
+            // Convert to grams for storage
+            let gramsValue = displayValue;
+            if (unit === 'kg' || unit === 'l') {
+                gramsValue = displayValue * 1000;
+            }
+
+            const { error } = await Layout.db
+                .from('products')
+                .update({ min_purchase: gramsValue || null })
+                .eq('id', productId);
+
+            if (error) {
+                console.error('Error updating min purchase:', error);
+                showAlert(tr('save_error', 'Ошибка сохранения'));
+            } else {
+                // Update local data
+                const product = products.find(p => p.id === productId);
+                if (product) product.min_purchase = gramsValue || null;
+            }
+        }
+
         // ==================== EVENT LISTENERS ====================
         window.onLanguageChange = function(lang) {
             Layout.updateAllTranslations();
             renderBuyers();
             renderMinStock();
+            renderMinPurchase();
         };
 
         // ==================== INIT ====================
@@ -555,10 +684,15 @@
             activeBtn.style.backgroundColor = 'var(--current-color)';
             activeBtn.style.color = 'white';
 
-            // Setup search listener after Layout is ready
+            // Setup search listeners after Layout is ready
             Layout.$('#minStockSearch')?.addEventListener('input', (e) => {
                 minStockSearch = e.target.value;
                 renderMinStock();
+            });
+
+            Layout.$('#minPurchaseSearch')?.addEventListener('input', (e) => {
+                minPurchaseSearch = e.target.value;
+                renderMinPurchase();
             });
 
             await loadBuyers();

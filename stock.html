@@ -50,6 +50,11 @@
                     </svg>
                 </button>
             </div>
+            <select id="sortSelect" class="select select-bordered w-full sm:w-auto">
+                <option value="priority" data-i18n="sort_priority">По важности</option>
+                <option value="name_asc" data-i18n="sort_name_asc">А → Я</option>
+                <option value="name_desc" data-i18n="sort_name_desc">Я → А</option>
+            </select>
         </div>
 
         <div class="flex flex-wrap gap-2 mb-6" id="categoryFilters">
@@ -73,6 +78,7 @@
         // ==================== STATE ====================
         let currentCategory = 'all';
         let searchQuery = '';
+        let currentSort = 'priority';
         let stockItems = [];
         let products = [];
         let categories = [];
@@ -214,10 +220,25 @@
                 return matchesCategory && matchesSearch;
             });
 
-            // Sort by status: critical first
+            // Sort based on selected option
             filtered.sort((a, b) => {
-                const order = { critical: 0, low: 1, ok: 2 };
-                return (order[getStatus(a)] || 3) - (order[getStatus(b)] || 3);
+                const nameA = (Layout.getName(a.products) || '').toLowerCase();
+                const nameB = (Layout.getName(b.products) || '').toLowerCase();
+
+                switch (currentSort) {
+                    case 'name_asc':
+                        return nameA.localeCompare(nameB, 'ru');
+                    case 'name_desc':
+                        return nameB.localeCompare(nameA, 'ru');
+                    case 'priority':
+                    default:
+                        // По важности: критичные → низкие → норма
+                        const order = { critical: 0, low: 1, ok: 2, none: 3 };
+                        const statusA = order[getStatus(a)] ?? 3;
+                        const statusB = order[getStatus(b)] ?? 3;
+                        if (statusA !== statusB) return statusA - statusB;
+                        return nameA.localeCompare(nameB, 'ru');
+                }
             });
 
             Layout.$('#stockCount').textContent = Layout.pluralize(filtered.length, ITEM_FORMS);
@@ -266,20 +287,29 @@
                                     <div class="text-xs opacity-50 mt-1">${tr('stock_should_be', 'мин.')} ≥ ${item.min_quantity} ${localizeUnit(product?.unit)}</div>
                                 </div>
 
-                                ${item.last_price ? `
-                                <div class="text-center min-w-16">
-                                    <div class="font-medium">₹${item.last_price}</div>
-                                </div>
-                                ` : ''}
-                            </div>
+                                                            </div>
                         </div>
                     </div>
                 `;
             }).join('');
         }
 
+        function renderSortSelect() {
+            const select = Layout.$('#sortSelect');
+            const options = [
+                { value: 'priority', key: 'sort_priority', fallback: 'По важности' },
+                { value: 'name_asc', key: 'sort_name_asc', fallback: 'А → Я' },
+                { value: 'name_desc', key: 'sort_name_desc', fallback: 'Я → А' }
+            ];
+            select.innerHTML = options.map(opt => {
+                const label = tr(opt.key, opt.fallback);
+                return `<option value="${opt.value}" ${currentSort === opt.value ? 'selected' : ''}>${label}</option>`;
+            }).join('');
+        }
+
         function updatePageLanguage() {
             Layout.updateAllTranslations();
+            renderSortSelect();
             renderCategoryFilters();
             renderStock();
         }
@@ -302,6 +332,12 @@
                 clearBtn.classList.add('hidden');
                 renderStock();
                 searchInput.focus();
+            });
+
+            // Sort select
+            Layout.$('#sortSelect')?.addEventListener('change', e => {
+                currentSort = e.target.value;
+                renderStock();
             });
         });
 
