@@ -1,0 +1,435 @@
+<!DOCTYPE html>
+<html lang="ru" data-theme="light">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Справочники — ШРСК</title>
+    <link href="https://cdn.jsdelivr.net/npm/daisyui@4.12.14/dist/full.min.css" rel="stylesheet" />
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script>tailwind.config = { theme: { extend: { screens: { 'desktop': '1200px' } } } }</script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans:wght@400;500;600;700&family=Noto+Sans+Devanagari:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="css/common.css">
+    <style>
+        .color-preview {
+            width: 24px;
+            height: 24px;
+            border-radius: 4px;
+            border: 1px solid rgba(0,0,0,0.1);
+        }
+        .drag-handle {
+            cursor: grab;
+            opacity: 0.4;
+        }
+        .drag-handle:hover {
+            opacity: 1;
+        }
+        tr.dragging {
+            opacity: 0.5;
+            background: var(--current-color);
+        }
+        /* Активный таб использует цвет локации */
+        .tab.tab-active {
+            background-color: var(--current-color) !important;
+            color: white !important;
+        }
+    </style>
+</head>
+<body class="bg-base-200 min-h-screen flex flex-col">
+
+    <div id="header-placeholder"></div>
+
+    <main class="container mx-auto px-4 py-6 flex-1">
+
+        <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6">
+            <div>
+                <h1 class="text-2xl font-bold" data-i18n="dictionaries_title">Справочники</h1>
+                <p class="text-sm opacity-60" data-i18n="dictionaries_subtitle">Категории, единицы измерения и другие списки</p>
+            </div>
+        </div>
+
+        <!-- Tabs -->
+        <div class="tabs tabs-boxed bg-base-100 p-1 mb-6 inline-flex">
+            <button class="tab tab-active" data-tab="recipe_categories" data-i18n="dict_recipe_categories">Категории блюд</button>
+            <button class="tab" data-tab="product_categories" data-i18n="dict_product_categories">Категории продуктов</button>
+            <button class="tab" data-tab="units" data-i18n="dict_units">Единицы измерения</button>
+            <button class="tab" data-tab="departments" data-i18n="dict_departments">Департаменты</button>
+        </div>
+
+        <!-- Tab Content -->
+        <div id="tabContent">
+            <!-- Динамический контент -->
+        </div>
+
+    </main>
+
+    <div id="footer-placeholder"></div>
+
+    <!-- Add/Edit Modal -->
+    <dialog id="editModal" class="modal">
+        <div class="modal-box relative">
+            <button type="button" class="btn btn-sm btn-circle btn-ghost absolute right-2 top-2" onclick="editModal.close()">✕</button>
+            <h3 class="font-bold text-lg mb-4" id="modalTitle">Добавить</h3>
+            <form id="editForm" class="space-y-4">
+                <input type="hidden" name="id" />
+                <input type="hidden" name="table" />
+                <!-- Динамические поля -->
+                <div id="modalFields"></div>
+                <div class="modal-action">
+                    <button type="button" class="btn btn-ghost" onclick="editModal.close()" data-i18n="cancel">Отмена</button>
+                    <button type="submit" class="btn btn-primary" data-i18n="save">Сохранить</button>
+                </div>
+            </form>
+        </div>
+        <form method="dialog" class="modal-backdrop"><button>close</button></form>
+    </dialog>
+
+    <script src="js/layout.js"></script>
+    <script>
+        // ==================== STATE ====================
+        let currentTab = 'recipe_categories';
+        let data = {
+            recipe_categories: [],
+            product_categories: [],
+            units: [],
+            departments: []
+        };
+
+        const t = key => Layout.t(key);
+
+        // Конфигурация таблиц
+        const tableConfig = {
+            recipe_categories: {
+                table: 'recipe_categories',
+                titleKey: 'dict_recipe_categories',
+                columns: [
+                    { key: 'emoji', label: '', width: 'w-12' },
+                    { key: 'color', label: '', width: 'w-12', type: 'color' },
+                    { key: 'name_ru', label: 'col_russian', editable: true },
+                    { key: 'name_en', label: 'col_english', editable: true },
+                    { key: 'name_hi', label: 'col_hindi', editable: true },
+                    { key: 'slug', label: 'col_code', editable: true }
+                ],
+                fields: [
+                    { name: 'slug', label: 'col_code', type: 'text', required: true, placeholder: 'например: main' },
+                    { name: 'name_ru', label: 'col_russian', type: 'text', required: true },
+                    { name: 'name_en', label: 'col_english', type: 'text', required: true },
+                    { name: 'name_hi', label: 'col_hindi', type: 'text', required: true },
+                    { name: 'emoji', label: 'emoji', type: 'text', placeholder: '🍛' },
+                    { name: 'color', label: 'color', type: 'color', defaultValue: '#A67B5B' }
+                ],
+                orderBy: 'sort_order'
+            },
+            product_categories: {
+                table: 'product_categories',
+                titleKey: 'dict_product_categories',
+                columns: [
+                    { key: 'name_ru', label: 'col_russian', editable: true },
+                    { key: 'name_en', label: 'col_english', editable: true },
+                    { key: 'name_hi', label: 'col_hindi', editable: true },
+                    { key: 'slug', label: 'col_code', editable: true }
+                ],
+                fields: [
+                    { name: 'slug', label: 'col_code', type: 'text', required: true, placeholder: 'например: vegetables' },
+                    { name: 'name_ru', label: 'col_russian', type: 'text', required: true },
+                    { name: 'name_en', label: 'col_english', type: 'text', required: true },
+                    { name: 'name_hi', label: 'col_hindi', type: 'text', required: true }
+                ],
+                orderBy: 'sort_order'
+            },
+            units: {
+                table: 'units',
+                titleKey: 'dict_units',
+                columns: [
+                    { key: 'code', label: 'col_code', width: 'w-20' },
+                    { key: 'short_ru', label: 'short', width: 'w-16' },
+                    { key: 'name_ru', label: 'col_russian', editable: true },
+                    { key: 'name_en', label: 'col_english', editable: true },
+                    { key: 'name_hi', label: 'col_hindi', editable: true },
+                    { key: 'type', label: 'type', width: 'w-24' }
+                ],
+                fields: [
+                    { name: 'code', label: 'col_code', type: 'text', required: true, placeholder: 'kg, g, l, ml, pcs' },
+                    { name: 'name_ru', label: 'name_full_ru', type: 'text', required: true, placeholder: 'Килограмм' },
+                    { name: 'name_en', label: 'name_full_en', type: 'text', required: true, placeholder: 'Kilogram' },
+                    { name: 'name_hi', label: 'name_full_hi', type: 'text', required: true, placeholder: 'किलोग्राम' },
+                    { name: 'short_ru', label: 'short_ru', type: 'text', required: true, placeholder: 'кг' },
+                    { name: 'short_en', label: 'short_en', type: 'text', required: true, placeholder: 'kg' },
+                    { name: 'short_hi', label: 'short_hi', type: 'text', required: true, placeholder: 'किग्रा' },
+                    { name: 'type', label: 'type', type: 'select', required: true, options: [
+                        { value: 'weight', label: 'type_weight' },
+                        { value: 'volume', label: 'type_volume' },
+                        { value: 'count', label: 'type_count' }
+                    ]}
+                ],
+                orderBy: 'sort_order'
+            },
+            departments: {
+                table: 'departments',
+                titleKey: 'dict_departments',
+                columns: [
+                    { key: 'color', label: '', width: 'w-12', type: 'color' },
+                    { key: 'name_ru', label: 'col_russian', editable: true },
+                    { key: 'name_en', label: 'col_english', editable: true },
+                    { key: 'name_hi', label: 'col_hindi', editable: true }
+                ],
+                fields: [
+                    { name: 'name_ru', label: 'col_russian', type: 'text', required: true, placeholder: 'Кухня' },
+                    { name: 'name_en', label: 'col_english', type: 'text', required: false, placeholder: 'Kitchen' },
+                    { name: 'name_hi', label: 'col_hindi', type: 'text', required: false, placeholder: 'रसोई' },
+                    { name: 'color', label: 'color', type: 'color', defaultValue: '#6366f1' }
+                ],
+                orderBy: 'sort_order'
+            }
+        };
+
+        // ==================== DATA LOADING ====================
+        async function loadData(tab) {
+            const config = tableConfig[tab];
+            const { data: rows, error } = await Layout.db
+                .from(config.table)
+                .select('*')
+                .order(config.orderBy);
+
+            if (error) {
+                console.error('Error loading data:', error);
+                return;
+            }
+            data[tab] = rows;
+            renderTable();
+        }
+
+        // ==================== RENDERING ====================
+        function renderTable() {
+            const config = tableConfig[currentTab];
+            const rows = data[currentTab];
+            const container = Layout.$('#tabContent');
+
+            const headerCells = config.columns.map(col =>
+                `<th class="bg-base-100 ${col.width || ''}">${col.label ? t(col.label) : ''}</th>`
+            ).join('') + '<th class="bg-base-100 w-24"></th>';
+
+            const bodyRows = rows.length === 0
+                ? `<tr><td colspan="${config.columns.length + 1}" class="text-center py-8 opacity-50">${t('no_data')}</td></tr>`
+                : rows.map(row => {
+                    const cells = config.columns.map(col => {
+                        if (col.type === 'color') {
+                            return `<td><div class="color-preview" style="background-color: ${row[col.key] || '#ccc'}"></div></td>`;
+                        }
+                        return `<td>${row[col.key] || ''}</td>`;
+                    }).join('');
+
+                    return `
+                        <tr class="border-b border-base-200 hover:bg-base-50" data-id="${row.id}">
+                            ${cells}
+                            <td class="flex gap-1">
+                                <button class="btn btn-ghost btn-sm btn-square" onclick="openEditModal('${row.id}')">
+                                    <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                                    </svg>
+                                </button>
+                                <button class="btn btn-ghost btn-sm btn-square text-error" onclick="deleteItem('${row.id}')">
+                                    <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                                    </svg>
+                                </button>
+                            </td>
+                        </tr>
+                    `;
+                }).join('');
+
+            container.innerHTML = `
+                <div class="flex justify-between items-center mb-4">
+                    <span class="text-sm opacity-60">${rows.length} ${t('items')}</span>
+                    <button class="btn btn-primary btn-sm gap-2" onclick="openAddModal()">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" />
+                        </svg>
+                        <span data-i18n="add">${t('add')}</span>
+                    </button>
+                </div>
+                <div class="bg-base-100 rounded-xl shadow-sm overflow-hidden">
+                    <div class="overflow-x-auto">
+                        <table class="table w-full">
+                            <thead><tr class="border-b border-base-200">${headerCells}</tr></thead>
+                            <tbody>${bodyRows}</tbody>
+                        </table>
+                    </div>
+                </div>
+            `;
+        }
+
+        // ==================== MODAL ====================
+        function buildModalFields(item = null) {
+            const config = tableConfig[currentTab];
+            const container = Layout.$('#modalFields');
+
+            container.innerHTML = config.fields.map(field => {
+                const value = item ? (item[field.name] || '') : (field.defaultValue || '');
+                const required = field.required ? 'required' : '';
+                const label = t(field.label) || field.label;
+
+                if (field.type === 'select') {
+                    const options = field.options.map(opt =>
+                        `<option value="${opt.value}" ${value === opt.value ? 'selected' : ''}>${t(opt.label) || opt.label}</option>`
+                    ).join('');
+                    return `
+                        <div>
+                            <label class="label"><span class="label-text font-medium">${label}</span></label>
+                            <select name="${field.name}" class="select select-bordered w-full" ${required}>${options}</select>
+                        </div>
+                    `;
+                }
+
+                if (field.type === 'color') {
+                    return `
+                        <div>
+                            <label class="label"><span class="label-text font-medium">${label}</span></label>
+                            <input type="color" name="${field.name}" class="w-full h-10 rounded cursor-pointer" value="${value}" />
+                        </div>
+                    `;
+                }
+
+                return `
+                    <div>
+                        <label class="label"><span class="label-text font-medium">${label}</span></label>
+                        <input type="text" name="${field.name}" class="input input-bordered w-full" value="${value}" placeholder="${field.placeholder || ''}" ${required} />
+                    </div>
+                `;
+            }).join('');
+        }
+
+        function openAddModal() {
+            const config = tableConfig[currentTab];
+            Layout.$('#modalTitle').textContent = t('add') + ' — ' + t(config.titleKey);
+            Layout.$('input[name="id"]').value = '';
+            Layout.$('input[name="table"]').value = currentTab;
+            buildModalFields();
+            editModal.showModal();
+        }
+
+        function openEditModal(id) {
+            const config = tableConfig[currentTab];
+            const item = data[currentTab].find(r => r.id === id);
+            if (!item) return;
+
+            Layout.$('#modalTitle').textContent = t('edit') + ' — ' + t(config.titleKey);
+            Layout.$('input[name="id"]').value = id;
+            Layout.$('input[name="table"]').value = currentTab;
+            buildModalFields(item);
+            editModal.showModal();
+        }
+
+        // ==================== CRUD ====================
+        async function saveItem(formData) {
+            const config = tableConfig[currentTab];
+            const id = formData.get('id');
+            const isNew = !id;
+
+            // Собираем данные
+            const itemData = {};
+            config.fields.forEach(field => {
+                itemData[field.name] = formData.get(field.name);
+            });
+
+            // Для новых записей добавляем sort_order
+            if (isNew) {
+                itemData.sort_order = data[currentTab].length + 1;
+            }
+
+            let error;
+            if (isNew) {
+                const result = await Layout.db.from(config.table).insert(itemData).select();
+                error = result.error;
+                if (!error && result.data?.[0]) {
+                    data[currentTab].push(result.data[0]);
+                }
+            } else {
+                const result = await Layout.db.from(config.table).update(itemData).eq('id', id);
+                error = result.error;
+                if (!error) {
+                    // Обновляем локальные данные вручную
+                    const idx = data[currentTab].findIndex(r => r.id === id);
+                    if (idx !== -1) {
+                        data[currentTab][idx] = { ...data[currentTab][idx], ...itemData };
+                    }
+                }
+            }
+
+            if (error) {
+                alert(t('error') + ': ' + error.message);
+                return false;
+            }
+
+            renderTable();
+            return true;
+        }
+
+        async function deleteItem(id) {
+            if (!confirm(t('confirm_delete'))) return;
+
+            const config = tableConfig[currentTab];
+            const { error } = await Layout.db.from(config.table).delete().eq('id', id);
+
+            if (error) {
+                alert(t('error') + ': ' + error.message);
+                return;
+            }
+
+            data[currentTab] = data[currentTab].filter(r => r.id !== id);
+            renderTable();
+        }
+
+        // ==================== TABS ====================
+        function switchTab(tab) {
+            currentTab = tab;
+
+            // Обновляем активный таб
+            Layout.$$('.tab').forEach(btn => {
+                btn.classList.toggle('tab-active', btn.dataset.tab === tab);
+            });
+
+            // Загружаем данные если ещё не загружены
+            if (data[tab].length === 0) {
+                loadData(tab);
+            } else {
+                renderTable();
+            }
+        }
+
+        // ==================== EVENT LISTENERS ====================
+        document.addEventListener('DOMContentLoaded', () => {
+            // Клик по табам
+            Layout.$$('.tab').forEach(btn => {
+                btn.addEventListener('click', () => switchTab(btn.dataset.tab));
+            });
+
+            // Отправка формы
+            Layout.$('#editForm')?.addEventListener('submit', async e => {
+                e.preventDefault();
+                const formData = new FormData(e.target);
+                const success = await saveItem(formData);
+                if (success) editModal.close();
+            });
+        });
+
+        // ==================== UI UPDATE ====================
+        function updatePageUI() {
+            Layout.updateAllTranslations();
+            renderTable();
+        }
+
+        window.onLanguageChange = () => updatePageUI();
+
+        // ==================== INIT ====================
+        async function init() {
+            await Layout.init({ menuId: 'settings', itemId: 'dictionaries' });
+            await loadData(currentTab);
+        }
+
+        init();
+    </script>
+</body>
+</html>

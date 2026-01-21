@@ -1,0 +1,1173 @@
+<!DOCTYPE html>
+<html lang="ru" data-theme="light">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Команда — Кухня Ашрама</title>
+    <link href="https://cdn.jsdelivr.net/npm/daisyui@4.12.14/dist/full.min.css" rel="stylesheet" type="text/css" />
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = { theme: { extend: { screens: { 'desktop': '1200px' } } },
+            daisyui: {
+                themes: ["light"],
+            },
+        }
+    </script>
+    <style>
+:root {
+            --color-main: #f49800;
+            --color-cafe: #10b981;
+            --color-guest: #3b82f6;
+            --current-color: #f49800;
+        }
+        * { font-family: 'Noto Sans', 'Noto Sans Devanagari', sans-serif; }
+        .nav-link { transition: all 0.15s ease; }
+        .nav-link:hover { opacity: 1; }
+        .nav-link.active { opacity: 1; color: var(--current-color); }
+        .lang-btn.active { background-color: var(--color-main) !important; color: white !important; border-color: var(--color-main) !important; }
+        .submenu-link { transition: all 0.15s ease; }
+        .submenu-link.active { background-color: white; color: var(--current-color) !important; }
+        #submenuBar { background-color: var(--current-color); }
+        .logo-svg path { transition: fill 0.3s ease; }
+        @media (max-width: 1199px) { #submenuBar { display: none !important; } }
+        .mobile-menu { max-height: 0; overflow: hidden; transition: max-height 0.3s ease; }
+        .mobile-menu.open { max-height: 500px; }
+        .mobile-nav-item.open > button { color: var(--current-color); }
+        .mobile-nav-item.open .arrow-icon { transform: rotate(180deg); }
+        .mobile-nav-item .submenu { display: none; }
+        .mobile-nav-item.open .submenu { display: block; }
+
+        
+
+        [data-theme="light"] {
+            --p: 65% 0.12 45;
+            --pf: 55% 0.12 45;
+            --pc: 100% 0 0;
+        }
+        
+        
+        .nav-link.active {
+            color: #CC7C5E;
+            opacity: 1;
+            border-bottom-color: #CC7C5E;
+        }
+        
+        .kitchen-option.active {
+            background-color: rgba(204, 124, 94, 0.1);
+            color: #CC7C5E;
+        }
+        
+        .period-bar {
+            background: linear-gradient(90deg, #4CAF50, #8BC34A);
+            height: 6px;
+            border-radius: 3px;
+        }
+        
+        .status-present {
+            background-color: #E8F5E9;
+            border-left: 4px solid #4CAF50;
+        }
+        
+        .status-absent {
+            background-color: #FAFAFA;
+            border-left: 4px solid #BDBDBD;
+        }
+        
+        /* Print Styles */
+        @media print {
+            body {
+                background: white !important;
+            }
+            header, footer, .no-print {
+                display: none !important;
+            }
+            main {
+                padding: 0 !important;
+            }
+            .shadow-sm, .shadow-md {
+                box-shadow: none !important;
+            }
+            @page {
+                margin: 1cm;
+            }
+        }
+    </style>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans:wght@400;500;600;700&family=Noto+Sans+Devanagari:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        * {
+            font-family: 'Noto Sans', 'Noto Sans Devanagari', sans-serif;
+        }
+    </style>
+</head>
+<body class="bg-base-200 min-h-screen">
+    
+    <header class="bg-base-100 shadow-sm sticky top-0 z-50">
+        <div class="container mx-auto px-4">
+            <div class="flex items-center justify-between h-20">
+                
+                <!-- Logo + Location Selector -->
+                <div class="flex items-center gap-3 flex-shrink-0">
+                    <a href="kitchen-menu.html" class="hover:opacity-80 transition-opacity">
+                        <svg class="h-14 w-auto logo-svg" viewBox="0 0 122.03 312.54" xmlns="http://www.w3.org/2000/svg">
+                            <path fill="var(--current-color)" d="M102,15.99h-15.18v81.89c0,6.21.12,11.58-.88,15.98-1.01,4.45-2.6,7.98-4.77,10.58-2.02,2.81-4.85,4.83-8.51,6.05-2.38,1-5.08,1.62-8.1,1.83-1.01.21-2.02.32-3.02.32h-.64c-3.81-.21-7.23-.83-10.25-1.83-3.81-1.22-7.02-3.13-9.62-5.73-2.65-2.81-4.56-6.44-5.73-10.89-1.22-4.4-1.83-9.83-1.83-16.3V15.99h-15.1v89.12c0,13.68,3.81,23.94,11.45,30.77,3.81,3.44,8.56,5.96,14.23,7.55,1.17.42,2.57.74,4.21.96-13.89,5.03-23.35,11.87-28.38,20.51-7.05,10.65-7.26,24.14-.64,40.46l41.34,100.45,39.91-100.45c6.41-16.32,6.2-29.82-.64-40.46-4.82-8.48-13.97-15.21-27.43-20.2,1.59-.43,3.18-.85,4.77-1.27,5.25-1.59,9.67-4.19,13.27-7.79,3.82-3.66,6.65-8.18,8.51-13.59,2.02-5.62,3.02-12.27,3.02-19.95V15.99M87.45,172.46c4.03,7.26,3.84,16.4-.56,27.43l-26.31,68.13-27.75-68.13c-4.61-11.03-4.8-20.17-.55-27.43,4.61-7.47,13.76-13.01,27.43-16.62,13.67,3.61,22.93,9.15,27.75,16.62"/>
+                        </svg>
+                    </a>
+                    
+                    <!-- Desktop: full name + selector -->
+                    <div class="hidden md:flex flex-col">
+                        <a href="kitchen-menu.html" class="text-xl font-semibold whitespace-nowrap hover:opacity-80 transition-opacity">Шри Рупа Сева Кунджа</a>
+                        <div class="relative location-selector" id="locationDesktop">
+                            <button class="flex items-center justify-between gap-2 w-full text-xl opacity-70 hover:opacity-100 transition-opacity" data-toggle="location">
+                                <span class="location-name">Основная кухня</span>
+                                <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 transition-transform location-arrow" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                                    <path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7" />
+                                </svg>
+                            </button>
+                            <div class="absolute top-full left-0 mt-1 bg-white rounded-lg shadow-lg py-1 w-full hidden z-50 location-dropdown"></div>
+                        </div>
+                    </div>
+                    
+                    <!-- Mobile: ШРСК + selector -->
+                    <div class="flex items-center gap-2 md:hidden">
+                        <span class="text-xl font-semibold whitespace-nowrap">ШРСК</span>
+                        <span class="text-xl opacity-50">·</span>
+                        <div class="relative location-selector" id="locationMobile">
+                            <button class="flex items-center gap-1 text-xl opacity-70" data-toggle="location">
+                                <span class="location-name">Основная кухня</span>
+                                <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 transition-transform location-arrow" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                                    <path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7" />
+                                </svg>
+                            </button>
+                            <div class="absolute top-full left-0 mt-1 bg-white rounded-lg shadow-lg py-1 min-w-44 hidden z-50 location-dropdown"></div>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Desktop Navigation -->
+                <nav class="hidden desktop:flex items-center gap-2" id="mainNav">
+                    <a href="#" class="nav-link px-5 py-6 text-base font-semibold tracking-wide uppercase opacity-60" data-submenu="kitchen">Кухня</a>
+                    <a href="#" class="nav-link px-5 py-6 text-base font-semibold tracking-wide uppercase opacity-60" data-submenu="stock">Склад</a>
+                    <a href="#" class="nav-link px-5 py-6 text-base font-semibold tracking-wide uppercase opacity-60">Ретриты</a>
+                    <a href="#" class="nav-link px-5 py-6 text-base font-semibold tracking-wide uppercase opacity-60" data-submenu="team">Команда</a>
+                    <a href="#" class="nav-link px-5 py-6 text-base font-semibold tracking-wide uppercase opacity-60" data-submenu="settings">Настройки</a>
+                </nav>
+                
+                <!-- Right: Language, User, Mobile Menu Button -->
+                <div class="flex items-center gap-3 sm:gap-5">
+                    <div class="hidden md:flex join">
+                        <button class="join-item btn btn-sm lang-btn active" data-lang="ru">RU</button>
+                        <button class="join-item btn btn-sm lang-btn" data-lang="en">EN</button>
+                        <button class="join-item btn btn-sm lang-btn" data-lang="hi">HI</button>
+                    </div>
+                    <div class="hidden desktop:block">
+                        <div class="w-10 h-10 rounded-full overflow-hidden ring-2 ring-base-200">
+                            <img src="https://i.pravatar.cc/150?img=5" alt="User" class="w-full h-full object-cover" />
+                        </div>
+                    </div>
+                    <button class="btn btn-ghost btn-md btn-square desktop:hidden" id="mobileMenuBtn">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-7 w-7 menu-icon" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M4 6h16M4 12h16M4 18h16" />
+                        </svg>
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-7 w-7 close-icon hidden" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
+                        </svg>
+                    </button>
+                </div>
+            </div>
+            
+            <!-- Mobile Menu -->
+            <div class="mobile-menu desktop:hidden border-t border-base-200" id="mobileMenu">
+                <nav class="py-3 space-y-0" id="mobileNav"></nav>
+                <div class="border-t border-base-200 py-4 px-4">
+                    <div class="flex items-center justify-between">
+                        <div class="flex items-center gap-3">
+                            <div class="w-10 h-10 rounded-full overflow-hidden ring-2 ring-base-200">
+                                <img src="https://i.pravatar.cc/150?img=5" alt="User" class="w-full h-full object-cover" />
+                            </div>
+                            <span class="font-medium">Ганга деви даси</span>
+                        </div>
+                        <div class="md:hidden join">
+                            <button class="join-item btn btn-sm lang-btn active" data-lang="ru">RU</button>
+                            <button class="join-item btn btn-sm lang-btn" data-lang="en">EN</button>
+                            <button class="join-item btn btn-sm lang-btn" data-lang="hi">HI</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Submenu Bar (Desktop) -->
+        <div class="hidden -mt-1" id="submenuBar"></div>
+    </header>
+
+    <!-- Main Content -->
+    <main class="container mx-auto px-4 py-6">
+        
+        <!-- Page Header -->
+        <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6">
+            <div>
+                <h1 class="text-2xl font-bold">Команда</h1>
+                <p class="text-sm opacity-60">Учёт членов команды и периодов присутствия</p>
+            </div>
+            <button class="btn btn-primary gap-2" onclick="openMemberModal()">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" />
+                </svg>
+                Добавить
+            </button>
+        </div>
+        
+        <!-- Stats -->
+        <div class="stats shadow-sm bg-base-100 mb-6 w-full">
+            <div class="stat">
+                <div class="stat-title">Всего в команде</div>
+                <div class="stat-value text-primary" id="statTotal">0</div>
+            </div>
+            <div class="stat">
+                <div class="stat-title">Сейчас присутствуют</div>
+                <div class="stat-value text-success" id="statPresent">0</div>
+            </div>
+            <div class="stat">
+                <div class="stat-title">Ожидаются</div>
+                <div class="stat-value" id="statExpected">0</div>
+            </div>
+        </div>
+        
+        <!-- Search & Filter -->
+        <div class="flex flex-col sm:flex-row gap-4 mb-6">
+            <div class="form-control flex-1">
+                <div class="input-group">
+                    <input type="text" id="searchInput" placeholder="Поиск по имени..." class="input input-bordered w-full" oninput="renderMembers()">
+                </div>
+            </div>
+            <div class="flex gap-2">
+                <select class="select select-bordered" id="filterStatus" onchange="renderMembers()">
+                    <option value="all">Все</option>
+                    <option value="present">Присутствуют</option>
+                    <option value="absent">Отсутствуют</option>
+                </select>
+                <button class="btn btn-ghost btn-sm gap-2 no-print" onclick="window.print()">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" />
+                    </svg>
+                    Печать
+                </button>
+            </div>
+        </div>
+        
+        <!-- Members List -->
+        <div class="space-y-4" id="membersList">
+            <!-- Will be generated by JS -->
+        </div>
+        
+    </main>
+
+    <!-- Footer -->
+    <footer class="bg-base-100 border-t border-base-200 mt-12">
+        <div class="container mx-auto px-4 py-6">
+            <div class="flex flex-col sm:flex-row justify-between items-center gap-4">
+                <nav class="flex gap-6">
+                    <a href="kitchen-menu.html" class="text-sm font-medium uppercase tracking-wide opacity-60 hover:opacity-100">Меню</a>
+                    <a href="kitchen-recipes.html" class="text-sm font-medium uppercase tracking-wide opacity-60 hover:opacity-100">Рецепты</a>
+                    <a href="kitchen-products.html" class="text-sm font-medium uppercase tracking-wide opacity-60 hover:opacity-100">Продукты</a>
+                    <a href="kitchen-stock.html" class="text-sm font-medium uppercase tracking-wide opacity-60 hover:opacity-100">Склад</a>
+                    <a href="kitchen-retreats.html" class="text-sm font-medium uppercase tracking-wide opacity-60 hover:opacity-100">Ретриты</a>
+                    <a href="kitchen-team.html" class="text-sm font-medium uppercase tracking-wide text-primary">Команда</a>
+                </nav>
+                
+                <button onclick="window.scrollTo({top: 0, behavior: 'smooth'})" class="btn btn-ghost btn-sm gap-1 opacity-60 hover:opacity-100">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 15l7-7 7 7" />
+                    </svg>
+                    Наверх
+                </button>
+            </div>
+            
+            <div class="text-center mt-4 text-xs opacity-40">
+                ШРСК · Шри Рупа Сева Кунджа
+            </div>
+        </div>
+    </footer>
+
+    <!-- Add/Edit Member Modal -->
+    <dialog id="memberModal" class="modal">
+        <div class="modal-box max-w-2xl">
+            <h3 class="font-bold text-lg mb-4" id="memberModalTitle">Добавить члена команды</h3>
+            
+            <form id="memberForm" class="space-y-4">
+                <input type="hidden" id="memberId" value="">
+                
+                <!-- Basic Info -->
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div class="form-control md:col-span-2">
+                        <label class="label">
+                            <span class="label-text font-medium">ФИО <span class="text-error">*</span></span>
+                        </label>
+                        <input type="text" id="memberName" class="input input-bordered" placeholder="Иванов Иван Иванович" required>
+                    </div>
+                    
+                    <div class="form-control">
+                        <label class="label">
+                            <span class="label-text font-medium">Духовное имя</span>
+                        </label>
+                        <input type="text" id="memberSpiritualName" class="input input-bordered" placeholder="Кришна дас">
+                    </div>
+                    
+                    <div class="form-control">
+                        <label class="label">
+                            <span class="label-text font-medium">Роль</span>
+                        </label>
+                        <select id="memberRole" class="select select-bordered">
+                            <option value="volunteer">Волонтёр</option>
+                            <option value="cook">Повар</option>
+                            <option value="manager">Менеджер</option>
+                            <option value="pujari">Пуджари</option>
+                            <option value="other">Другое</option>
+                        </select>
+                    </div>
+                </div>
+                
+                <!-- Contacts -->
+                <div class="divider text-sm opacity-60">Контакты</div>
+                
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div class="form-control">
+                        <label class="label">
+                            <span class="label-text font-medium">Телефон</span>
+                        </label>
+                        <input type="tel" id="memberPhone" class="input input-bordered" placeholder="+7 999 123-45-67">
+                    </div>
+                    
+                    <div class="form-control">
+                        <label class="label">
+                            <span class="label-text font-medium">Email</span>
+                        </label>
+                        <input type="email" id="memberEmail" class="input input-bordered" placeholder="email@example.com">
+                    </div>
+                    
+                    <div class="form-control">
+                        <label class="label">
+                            <span class="label-text font-medium">Telegram</span>
+                        </label>
+                        <input type="text" id="memberTelegram" class="input input-bordered" placeholder="@username">
+                    </div>
+                    
+                    <div class="form-control">
+                        <label class="label">
+                            <span class="label-text font-medium">WhatsApp</span>
+                        </label>
+                        <input type="text" id="memberWhatsapp" class="input input-bordered" placeholder="+7 999 123-45-67">
+                    </div>
+                </div>
+                
+                <!-- Documents -->
+                <div class="divider text-sm opacity-60">Документы</div>
+                
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div class="form-control">
+                        <label class="label">
+                            <span class="label-text font-medium">Паспорт (серия, номер)</span>
+                        </label>
+                        <input type="text" id="memberPassport" class="input input-bordered" placeholder="1234 567890">
+                    </div>
+                    
+                    <div class="form-control">
+                        <label class="label">
+                            <span class="label-text font-medium">Дата рождения</span>
+                        </label>
+                        <input type="date" id="memberBirthdate" class="input input-bordered">
+                    </div>
+                </div>
+                
+                <div class="form-control">
+                    <label class="label">
+                        <span class="label-text font-medium">Заметки</span>
+                    </label>
+                    <textarea id="memberNotes" class="textarea textarea-bordered" rows="2" placeholder="Дополнительная информация..."></textarea>
+                </div>
+                
+                <div class="modal-action">
+                    <button type="button" class="btn btn-ghost" onclick="closeMemberModal()">Отмена</button>
+                    <button type="submit" class="btn btn-primary">Сохранить</button>
+                </div>
+            </form>
+        </div>
+        <form method="dialog" class="modal-backdrop">
+            <button>close</button>
+        </form>
+    </dialog>
+
+    <!-- Add Period Modal -->
+    <dialog id="periodModal" class="modal">
+        <div class="modal-box">
+            <h3 class="font-bold text-lg mb-4">Добавить период присутствия</h3>
+            
+            <form id="periodForm" class="space-y-4">
+                <input type="hidden" id="periodMemberId" value="">
+                <input type="hidden" id="periodIndex" value="">
+                
+                <div class="grid grid-cols-2 gap-4">
+                    <div class="form-control">
+                        <label class="label">
+                            <span class="label-text font-medium">Дата приезда</span>
+                        </label>
+                        <input type="date" id="periodStart" class="input input-bordered" required>
+                    </div>
+                    <div class="form-control">
+                        <label class="label">
+                            <span class="label-text font-medium">Дата отъезда</span>
+                        </label>
+                        <input type="date" id="periodEnd" class="input input-bordered" required>
+                    </div>
+                </div>
+                
+                <div class="form-control">
+                    <label class="label">
+                        <span class="label-text font-medium">Комментарий</span>
+                    </label>
+                    <input type="text" id="periodComment" class="input input-bordered" placeholder="Например: Картика-врата">
+                </div>
+                
+                <div class="modal-action">
+                    <button type="button" class="btn btn-ghost" onclick="closePeriodModal()">Отмена</button>
+                    <button type="submit" class="btn btn-primary">Сохранить</button>
+                </div>
+            </form>
+        </div>
+        <form method="dialog" class="modal-backdrop">
+            <button>close</button>
+        </form>
+    </dialog>
+
+    <!-- Member Details Modal -->
+    <dialog id="detailsModal" class="modal">
+        <div class="modal-box max-w-2xl">
+            <h3 class="font-bold text-lg mb-4" id="detailsTitle">Информация</h3>
+            <div id="detailsContent"></div>
+            <div class="modal-action">
+                <form method="dialog">
+                    <button class="btn">Закрыть</button>
+                </form>
+            </div>
+        </div>
+        <form method="dialog" class="modal-backdrop">
+            <button>close</button>
+        </form>
+    </dialog>
+
+    <script>
+        // ==================== DATA ====================
+        let members = [
+            {
+                id: 1,
+                name: "Шарма Раджеш Кумар",
+                spiritualName: "Радха Рамана дас",
+                role: "cook",
+                phone: "+91 98765 43210",
+                email: "radhramana@example.com",
+                telegram: "@radharamana",
+                whatsapp: "+91 98765 43210",
+                passport: "",
+                birthdate: "1985-03-15",
+                notes: "Главный повар, 10 лет опыта",
+                periods: [
+                    { start: "2024-10-01", end: "2025-03-31", comment: "Зимний сезон" }
+                ]
+            },
+            {
+                id: 2,
+                name: "Петрова Анна Сергеевна",
+                spiritualName: "Ганга деви даси",
+                role: "manager",
+                phone: "+7 916 123-45-67",
+                email: "anna@example.com",
+                telegram: "@anna_ganga",
+                whatsapp: "+7 916 123-45-67",
+                passport: "4515 678901",
+                birthdate: "1990-07-22",
+                notes: "Координатор кухни",
+                periods: [
+                    { start: "2024-01-01", end: "2025-12-31", comment: "Постоянно" }
+                ]
+            },
+            {
+                id: 3,
+                name: "Сидоров Михаил Петрович",
+                spiritualName: "Мадхава дас",
+                role: "volunteer",
+                phone: "+7 926 987-65-43",
+                email: "",
+                telegram: "@madhava_das",
+                whatsapp: "",
+                passport: "4510 123456",
+                birthdate: "1995-11-08",
+                notes: "",
+                periods: [
+                    { start: "2025-01-10", end: "2025-01-25", comment: "Зимний ретрит" },
+                    { start: "2025-03-01", end: "2025-03-20", comment: "Гаура-пурнима" }
+                ]
+            },
+            {
+                id: 4,
+                name: "Кузнецова Елена Викторовна",
+                spiritualName: "Лалита деви даси",
+                role: "pujari",
+                phone: "+7 903 456-78-90",
+                email: "lalita@example.com",
+                telegram: "",
+                whatsapp: "+7 903 456-78-90",
+                passport: "4512 234567",
+                birthdate: "1988-05-30",
+                notes: "Пуджари, помогает на кухне",
+                periods: [
+                    { start: "2024-11-01", end: "2025-02-28", comment: "Картика + зима" }
+                ]
+            },
+            {
+                id: 5,
+                name: "Гупта Амит",
+                spiritualName: "",
+                role: "cook",
+                phone: "+91 87654 32109",
+                email: "",
+                telegram: "",
+                whatsapp: "+91 87654 32109",
+                passport: "",
+                birthdate: "",
+                notes: "Помощник повара",
+                periods: [
+                    { start: "2025-02-01", end: "2025-04-30", comment: "Весенний сезон" }
+                ]
+            }
+        ];
+        
+        let editingMemberId = null;
+        let editingPeriodIndex = null;
+        
+        const roleNames = {
+            volunteer: "Волонтёр",
+            cook: "Повар",
+            manager: "Менеджер",
+            pujari: "Пуджари",
+            other: "Другое"
+        };
+        
+        const today = new Date().toISOString().split('T')[0];
+        
+        // ==================== HELPERS ====================
+        function formatDate(dateStr) {
+            if (!dateStr) return '';
+            const date = new Date(dateStr);
+            const day = date.getDate();
+            const months = ['янв', 'фев', 'мар', 'апр', 'май', 'июн', 'июл', 'авг', 'сен', 'окт', 'ноя', 'дек'];
+            const month = months[date.getMonth()];
+            const year = date.getFullYear();
+            return `${day} ${month} ${year}`;
+        }
+        
+        function isPresent(member) {
+            return member.periods.some(p => p.start <= today && p.end >= today);
+        }
+        
+        function getNextPeriod(member) {
+            const futurePeriods = member.periods
+                .filter(p => p.start > today)
+                .sort((a, b) => a.start.localeCompare(b.start));
+            return futurePeriods[0] || null;
+        }
+        
+        function getCurrentPeriod(member) {
+            return member.periods.find(p => p.start <= today && p.end >= today);
+        }
+        
+        // ==================== STATS ====================
+        function updateStats() {
+            const total = members.length;
+            const present = members.filter(m => isPresent(m)).length;
+            const expected = members.filter(m => !isPresent(m) && getNextPeriod(m)).length;
+            
+            document.getElementById('statTotal').textContent = total;
+            document.getElementById('statPresent').textContent = present;
+            document.getElementById('statExpected').textContent = expected;
+        }
+        
+        // ==================== RENDER ====================
+        function renderMembers() {
+            const list = document.getElementById('membersList');
+            const search = document.getElementById('searchInput').value.toLowerCase();
+            const filter = document.getElementById('filterStatus').value;
+            
+            let filtered = members.filter(m => {
+                // Search
+                const matchSearch = m.name.toLowerCase().includes(search) || 
+                                   (m.spiritualName && m.spiritualName.toLowerCase().includes(search));
+                if (!matchSearch) return false;
+                
+                // Filter
+                if (filter === 'present') return isPresent(m);
+                if (filter === 'absent') return !isPresent(m);
+                return true;
+            });
+            
+            // Sort: present first, then by name
+            filtered.sort((a, b) => {
+                const aPresent = isPresent(a);
+                const bPresent = isPresent(b);
+                if (aPresent && !bPresent) return -1;
+                if (!aPresent && bPresent) return 1;
+                return a.name.localeCompare(b.name);
+            });
+            
+            if (filtered.length === 0) {
+                list.innerHTML = `
+                    <div class="text-center py-12 opacity-60">
+                        <div class="text-4xl mb-2">👥</div>
+                        <div>Никого не найдено</div>
+                    </div>
+                `;
+                return;
+            }
+            
+            list.innerHTML = filtered.map(member => {
+                const present = isPresent(member);
+                const currentPeriod = getCurrentPeriod(member);
+                const nextPeriod = getNextPeriod(member);
+                const displayName = member.spiritualName || member.name.split(' ')[0];
+                
+                return `
+                    <div class="bg-base-100 rounded-lg shadow-sm overflow-hidden ${present ? 'status-present' : 'status-absent'}">
+                        <div class="p-4">
+                            <div class="flex flex-col md:flex-row md:items-start justify-between gap-4">
+                                <!-- Main Info -->
+                                <div class="flex-1">
+                                    <div class="flex items-center gap-3 mb-2">
+                                        <div class="avatar placeholder">
+                                            <div class="bg-primary text-primary-content rounded-full w-10 h-10">
+                                                <span class="text-lg">${displayName.charAt(0)}</span>
+                                            </div>
+                                        </div>
+                                        <div>
+                                            <div class="font-semibold">${member.spiritualName ? member.spiritualName : ''}</div>
+                                            <div class="text-sm opacity-60">${member.name}</div>
+                                        </div>
+                                        <span class="badge badge-ghost badge-sm">${roleNames[member.role]}</span>
+                                        ${present ? '<span class="badge badge-success badge-sm">Здесь</span>' : ''}
+                                    </div>
+                                    
+                                    <!-- Status -->
+                                    <div class="text-sm mt-2">
+                                        ${present && currentPeriod ? `
+                                            <span class="text-success">● Присутствует до ${formatDate(currentPeriod.end)}</span>
+                                            ${currentPeriod.comment ? `<span class="opacity-60 ml-2">(${currentPeriod.comment})</span>` : ''}
+                                        ` : ''}
+                                        ${!present && nextPeriod ? `
+                                            <span class="opacity-60">Ожидается ${formatDate(nextPeriod.start)}</span>
+                                            ${nextPeriod.comment ? `<span class="opacity-40 ml-1">(${nextPeriod.comment})</span>` : ''}
+                                        ` : ''}
+                                        ${!present && !nextPeriod ? `
+                                            <span class="opacity-40">Нет запланированных визитов</span>
+                                        ` : ''}
+                                    </div>
+                                    
+                                    <!-- Periods preview -->
+                                    <div class="flex flex-wrap gap-2 mt-3">
+                                        ${member.periods.slice(0, 3).map(p => `
+                                            <span class="badge badge-outline badge-sm">
+                                                ${formatDate(p.start)} — ${formatDate(p.end)}
+                                            </span>
+                                        `).join('')}
+                                        ${member.periods.length > 3 ? `<span class="badge badge-ghost badge-sm">+${member.periods.length - 3}</span>` : ''}
+                                    </div>
+                                </div>
+                                
+                                <!-- Actions -->
+                                <div class="flex items-center gap-2">
+                                    <button class="btn btn-ghost btn-sm" title="Подробнее" onclick="showDetails(${member.id})">
+                                        <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
+                                            <path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                                            <path stroke-linecap="round" stroke-linejoin="round" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                                        </svg>
+                                    </button>
+                                    <button class="btn btn-ghost btn-sm" title="Добавить период" onclick="openPeriodModal(${member.id})">
+                                        <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
+                                            <path stroke-linecap="round" stroke-linejoin="round" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                                        </svg>
+                                    </button>
+                                    <button class="btn btn-ghost btn-sm" title="Редактировать" onclick="editMember(${member.id})">
+                                        <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
+                                            <path stroke-linecap="round" stroke-linejoin="round" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                                        </svg>
+                                    </button>
+                                    <span class="text-base-300">|</span>
+                                    <a href="#" class="link link-hover text-sm opacity-60 text-error" onclick="deleteMember(${member.id}); return false;">Удалить</a>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                `;
+            }).join('');
+        }
+        
+        // ==================== DETAILS ====================
+        function showDetails(id) {
+            const member = members.find(m => m.id === id);
+            if (!member) return;
+            
+            const displayName = member.spiritualName || member.name;
+            document.getElementById('detailsTitle').textContent = displayName;
+            
+            let html = `
+                <div class="space-y-4">
+                    <!-- Basic Info -->
+                    <div class="grid grid-cols-2 gap-4">
+                        <div>
+                            <div class="text-sm opacity-60">ФИО</div>
+                            <div class="font-medium">${member.name}</div>
+                        </div>
+                        ${member.spiritualName ? `
+                        <div>
+                            <div class="text-sm opacity-60">Духовное имя</div>
+                            <div class="font-medium">${member.spiritualName}</div>
+                        </div>
+                        ` : ''}
+                        <div>
+                            <div class="text-sm opacity-60">Роль</div>
+                            <div class="font-medium">${roleNames[member.role]}</div>
+                        </div>
+                        ${member.birthdate ? `
+                        <div>
+                            <div class="text-sm opacity-60">Дата рождения</div>
+                            <div class="font-medium">${formatDate(member.birthdate)}</div>
+                        </div>
+                        ` : ''}
+                    </div>
+                    
+                    <!-- Contacts -->
+                    <div class="divider text-sm opacity-60">Контакты</div>
+                    <div class="grid grid-cols-2 gap-4">
+                        ${member.phone ? `<div><div class="text-sm opacity-60">Телефон</div><div class="font-medium">${member.phone}</div></div>` : ''}
+                        ${member.email ? `<div><div class="text-sm opacity-60">Email</div><div class="font-medium">${member.email}</div></div>` : ''}
+                        ${member.telegram ? `<div><div class="text-sm opacity-60">Telegram</div><div class="font-medium">${member.telegram}</div></div>` : ''}
+                        ${member.whatsapp ? `<div><div class="text-sm opacity-60">WhatsApp</div><div class="font-medium">${member.whatsapp}</div></div>` : ''}
+                    </div>
+                    
+                    ${member.passport ? `
+                    <!-- Documents -->
+                    <div class="divider text-sm opacity-60">Документы</div>
+                    <div>
+                        <div class="text-sm opacity-60">Паспорт</div>
+                        <div class="font-medium">${member.passport}</div>
+                    </div>
+                    ` : ''}
+                    
+                    ${member.notes ? `
+                    <!-- Notes -->
+                    <div class="divider text-sm opacity-60">Заметки</div>
+                    <div>${member.notes}</div>
+                    ` : ''}
+                    
+                    <!-- Periods -->
+                    <div class="divider text-sm opacity-60">Периоды присутствия</div>
+                    <div class="space-y-2">
+                        ${member.periods.length === 0 ? '<div class="opacity-60">Нет периодов</div>' : ''}
+                        ${member.periods.map((p, idx) => {
+                            const isCurrent = p.start <= today && p.end >= today;
+                            const isPast = p.end < today;
+                            return `
+                                <div class="flex items-center justify-between p-2 rounded ${isCurrent ? 'bg-success/10' : isPast ? 'bg-base-200/50 opacity-60' : 'bg-base-200/30'}">
+                                    <div>
+                                        <span class="font-medium">${formatDate(p.start)} — ${formatDate(p.end)}</span>
+                                        ${p.comment ? `<span class="text-sm opacity-60 ml-2">(${p.comment})</span>` : ''}
+                                        ${isCurrent ? '<span class="badge badge-success badge-sm ml-2">Сейчас</span>' : ''}
+                                    </div>
+                                    <button class="btn btn-ghost btn-xs text-error" onclick="deletePeriod(${member.id}, ${idx})">✕</button>
+                                </div>
+                            `;
+                        }).join('')}
+                        <button class="btn btn-ghost btn-sm mt-2" onclick="document.getElementById('detailsModal').close(); openPeriodModal(${member.id})">
+                            + Добавить период
+                        </button>
+                    </div>
+                </div>
+            `;
+            
+            document.getElementById('detailsContent').innerHTML = html;
+            document.getElementById('detailsModal').showModal();
+        }
+        
+        // ==================== MEMBER MODAL ====================
+        function openMemberModal() {
+            editingMemberId = null;
+            document.getElementById('memberModalTitle').textContent = 'Добавить члена команды';
+            document.getElementById('memberForm').reset();
+            document.getElementById('memberId').value = '';
+            document.getElementById('memberModal').showModal();
+        }
+        
+        function editMember(id) {
+            const member = members.find(m => m.id === id);
+            if (!member) return;
+            
+            editingMemberId = id;
+            document.getElementById('memberModalTitle').textContent = 'Редактировать';
+            document.getElementById('memberId').value = id;
+            document.getElementById('memberName').value = member.name;
+            document.getElementById('memberSpiritualName').value = member.spiritualName || '';
+            document.getElementById('memberRole').value = member.role;
+            document.getElementById('memberPhone').value = member.phone || '';
+            document.getElementById('memberEmail').value = member.email || '';
+            document.getElementById('memberTelegram').value = member.telegram || '';
+            document.getElementById('memberWhatsapp').value = member.whatsapp || '';
+            document.getElementById('memberPassport').value = member.passport || '';
+            document.getElementById('memberBirthdate').value = member.birthdate || '';
+            document.getElementById('memberNotes').value = member.notes || '';
+            
+            document.getElementById('memberModal').showModal();
+        }
+        
+        function closeMemberModal() {
+            document.getElementById('memberModal').close();
+        }
+        
+        function deleteMember(id) {
+            const member = members.find(m => m.id === id);
+            if (!member) return;
+            
+            const name = member.spiritualName || member.name;
+            if (confirm(`Удалить "${name}" из команды?`)) {
+                members = members.filter(m => m.id !== id);
+                renderMembers();
+                updateStats();
+            }
+        }
+        
+        document.getElementById('memberForm').addEventListener('submit', (e) => {
+            e.preventDefault();
+            
+            const data = {
+                name: document.getElementById('memberName').value.trim(),
+                spiritualName: document.getElementById('memberSpiritualName').value.trim(),
+                role: document.getElementById('memberRole').value,
+                phone: document.getElementById('memberPhone').value.trim(),
+                email: document.getElementById('memberEmail').value.trim(),
+                telegram: document.getElementById('memberTelegram').value.trim(),
+                whatsapp: document.getElementById('memberWhatsapp').value.trim(),
+                passport: document.getElementById('memberPassport').value.trim(),
+                birthdate: document.getElementById('memberBirthdate').value,
+                notes: document.getElementById('memberNotes').value.trim()
+            };
+            
+            if (editingMemberId) {
+                const member = members.find(m => m.id === editingMemberId);
+                if (member) {
+                    Object.assign(member, data);
+                }
+            } else {
+                const newId = Math.max(0, ...members.map(m => m.id)) + 1;
+                members.push({
+                    id: newId,
+                    ...data,
+                    periods: []
+                });
+            }
+            
+            closeMemberModal();
+            renderMembers();
+            updateStats();
+        });
+        
+        // ==================== PERIOD MODAL ====================
+        function openPeriodModal(memberId, periodIndex = null) {
+            document.getElementById('periodMemberId').value = memberId;
+            document.getElementById('periodIndex').value = periodIndex !== null ? periodIndex : '';
+            document.getElementById('periodForm').reset();
+            
+            if (periodIndex !== null) {
+                const member = members.find(m => m.id === memberId);
+                if (member && member.periods[periodIndex]) {
+                    const p = member.periods[periodIndex];
+                    document.getElementById('periodStart').value = p.start;
+                    document.getElementById('periodEnd').value = p.end;
+                    document.getElementById('periodComment').value = p.comment || '';
+                }
+            }
+            
+            document.getElementById('periodModal').showModal();
+        }
+        
+        function closePeriodModal() {
+            document.getElementById('periodModal').close();
+        }
+        
+        function deletePeriod(memberId, periodIndex) {
+            const member = members.find(m => m.id === memberId);
+            if (!member) return;
+            
+            if (confirm('Удалить этот период?')) {
+                member.periods.splice(periodIndex, 1);
+                renderMembers();
+                updateStats();
+                // Refresh details if open
+                showDetails(memberId);
+            }
+        }
+        
+        document.getElementById('periodForm').addEventListener('submit', (e) => {
+            e.preventDefault();
+            
+            const memberId = parseInt(document.getElementById('periodMemberId').value);
+            const periodIndex = document.getElementById('periodIndex').value;
+            const start = document.getElementById('periodStart').value;
+            const end = document.getElementById('periodEnd').value;
+            const comment = document.getElementById('periodComment').value.trim();
+            
+            if (end < start) {
+                alert('Дата отъезда не может быть раньше даты приезда');
+                return;
+            }
+            
+            const member = members.find(m => m.id === memberId);
+            if (!member) return;
+            
+            const periodData = { start, end, comment };
+            
+            if (periodIndex !== '') {
+                member.periods[parseInt(periodIndex)] = periodData;
+            } else {
+                member.periods.push(periodData);
+            }
+            
+            // Sort periods by start date
+            member.periods.sort((a, b) => a.start.localeCompare(b.start));
+            
+            closePeriodModal();
+            renderMembers();
+            updateStats();
+        });
+        
+        // ==================== KITCHEN SELECTOR ====================
+        document.querySelectorAll('.kitchen-option').forEach(option => {
+            option.addEventListener('click', (e) => {
+                e.preventDefault();
+                document.querySelectorAll('.kitchen-option').forEach(o => o.classList.remove('active'));
+                option.classList.add('active');
+                document.getElementById('currentKitchen').textContent = option.textContent;
+                document.activeElement.blur();
+            });
+        });
+        
+        // ==================== LANGUAGE ====================
+        document.querySelectorAll('.lang-btn').forEach(btn => {
+            btn.addEventListener('click', () => {
+                document.querySelectorAll('.lang-btn').forEach(b => b.classList.remove('active'));
+                btn.classList.add('active');
+            });
+        });
+        
+        // ==================== INIT ====================
+        renderMembers();
+        updateStats();
+    </script>
+
+    <script>
+        const DESKTOP_BP = 1200;
+        
+        // Config
+        const locations = {
+            main:  { name: 'Основная кухня', color: 'var(--color-main)' },
+            cafe:  { name: 'Кухня кафе',     color: 'var(--color-cafe)' },
+            guest: { name: 'Гостевая кухня', color: 'var(--color-guest)' }
+        };
+        
+        const menuConfig = [
+            { id: 'kitchen',  label: 'Кухня',     items: [
+                { name: 'Меню', href: 'kitchen-menu.html' },
+                { name: 'Рецепты', href: 'kitchen-recipes.html' },
+                { name: 'Продукты', href: 'kitchen-products.html' }
+            ]},
+            { id: 'stock',    label: 'Склад',     items: [
+                { name: 'Остатки', href: 'kitchen-stock.html#stock' },
+                { name: 'Заявки', href: 'kitchen-stock.html#requests' },
+                { name: 'Получить', href: 'kitchen-stock.html#receipts' },
+                { name: 'Выдать', href: 'kitchen-stock.html#issues' },
+                { name: 'Настройки', href: 'kitchen-stock.html#settings' }
+            ]},
+            { id: null,       label: 'Ретриты',   href: 'kitchen-retreats.html', items: null },
+            { id: 'team',     label: 'Команда',   items: [
+                { name: 'Вайшнавы', href: 'kitchen-team.html' },
+                { name: 'Проживание', href: 'kitchen-team.html#housing' }
+            ]},
+            { id: 'settings', label: 'Настройки', items: [
+                { name: 'Общие', href: '#' },
+                { name: 'Пользователи', href: '#' },
+                { name: 'Праздники', href: '#' }
+            ]}
+        ];
+        
+        let currentLocation = 'main';
+        
+        // Utils
+        const $ = (sel, ctx = document) => ctx.querySelector(sel);
+        const $$ = (sel, ctx = document) => ctx.querySelectorAll(sel);
+        const setColor = color => document.documentElement.style.setProperty('--current-color', color);
+        
+        // Build location dropdown options
+        function buildLocationOptions() {
+            const html = Object.entries(locations).map(([key, loc]) => 
+                `<button class="w-full text-left px-4 py-2 hover:bg-base-200 text-base-content ${key === currentLocation ? 'font-medium' : ''}" data-loc="${key}">${loc.name}</button>`
+            ).join('');
+            $$('.location-dropdown').forEach(el => el.innerHTML = html);
+        }
+        
+        // Build mobile menu
+        function buildMobileMenu() {
+            const nav = $('#mobileNav');
+            nav.innerHTML = menuConfig.map(({ id, label, href, items }) => {
+                if (!items) return `<a href="${href || '#'}" class="block px-4 py-3 text-base font-semibold uppercase tracking-wide hover:bg-base-200 rounded-lg">${label}</a>`;
+                return `
+                    <div class="mobile-nav-item" data-has-submenu>
+                        <button class="w-full flex items-center px-4 py-3 text-base font-semibold uppercase tracking-wide hover:bg-base-200 rounded-lg">
+                            ${label}
+                            <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 ml-2 transition-transform arrow-icon" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                                <path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7" />
+                            </svg>
+                        </button>
+                        <div class="submenu pl-4">
+                            ${items.map(item => `<a href="${item.href}" class="block px-4 py-3 text-base font-medium rounded-lg hover:bg-base-200">${item.name}</a>`).join('')}
+                        </div>
+                    </div>`;
+            }).join('');
+            
+            // Bind accordion
+            $$('.mobile-nav-item[data-has-submenu] button', nav).forEach(btn => {
+                btn.addEventListener('click', () => {
+                    const item = btn.closest('.mobile-nav-item');
+                    const wasOpen = item.classList.contains('open');
+                    $$('.mobile-nav-item.open', nav).forEach(i => i.classList.remove('open'));
+                    if (!wasOpen) item.classList.add('open');
+                });
+            });
+        }
+        
+        // Build desktop submenu bar
+        function buildSubmenuBar() {
+            const bar = $('#submenuBar');
+            bar.innerHTML = menuConfig.filter(m => m.items).map(({ id, items }) => `
+                <nav class="flex items-center submenu-group ${id !== 'kitchen' ? 'hidden' : ''}" data-group="${id}">
+                    ${items.map(item => `<a href="${item.href}" class="submenu-link px-5 py-2 text-base font-semibold tracking-wide uppercase text-white/70 hover:text-white">${item.name}</a>`).join('')}
+                </nav>
+            `).join('');
+            
+            // Bind submenu clicks
+            $$('.submenu-link', bar).forEach(link => {
+                link.addEventListener('click', () => {
+                    const group = link.closest('.submenu-group');
+                    $$('.submenu-link', group).forEach(l => l.classList.remove('active'));
+                    link.classList.add('active');
+                    // Allow navigation - don't prevent default
+                });
+            });
+        }
+        
+        // Align submenu under КУХНЯ
+        function alignSubmenu() {
+            const kitchenNav = $('.nav-link[data-submenu="kitchen"]');
+            const activeGroup = $('.submenu-group:not(.hidden)');
+            const firstLink = activeGroup?.querySelector('.submenu-link');
+            if (!kitchenNav || !firstLink) return;
+            
+            $$('.submenu-link', activeGroup).forEach(l => l.style.marginLeft = '0');
+            const navCenter = kitchenNav.getBoundingClientRect().left + kitchenNav.offsetWidth / 2;
+            firstLink.style.marginLeft = (navCenter - firstLink.offsetWidth / 2) + 'px';
+        }
+        
+        // Location selector
+        function toggleLocation(selector) {
+            const dropdown = $('.location-dropdown', selector);
+            const arrow = $('.location-arrow', selector);
+            dropdown.classList.toggle('hidden');
+            arrow.classList.toggle('rotate-180');
+        }
+        
+        function selectLocation(key) {
+            currentLocation = key;
+            const loc = locations[key];
+            
+            $$('.location-name').forEach(el => el.textContent = loc.name);
+            $$('.location-dropdown').forEach(d => d.classList.add('hidden'));
+            $$('.location-arrow').forEach(a => a.classList.remove('rotate-180'));
+            $$('.location-dropdown button').forEach(btn => {
+                btn.classList.toggle('font-medium', btn.dataset.loc === key);
+            });
+            
+            setColor(loc.color);
+        }
+        
+        // Init
+        buildLocationOptions();
+        buildMobileMenu();
+        buildSubmenuBar();
+        
+        // Mobile menu toggle
+        $('#mobileMenuBtn').addEventListener('click', () => {
+            $('#mobileMenu').classList.toggle('open');
+            $('.menu-icon').classList.toggle('hidden');
+            $('.close-icon').classList.toggle('hidden');
+        });
+        
+        // Location selector clicks
+        $$('[data-toggle="location"]').forEach(btn => {
+            btn.addEventListener('click', () => toggleLocation(btn.closest('.location-selector')));
+        });
+        
+        // Global click handler
+        document.addEventListener('click', e => {
+            if (e.target.dataset.loc) {
+                selectLocation(e.target.dataset.loc);
+            } else if (!e.target.closest('.location-selector')) {
+                $$('.location-dropdown').forEach(d => d.classList.add('hidden'));
+                $$('.location-arrow').forEach(a => a.classList.remove('rotate-180'));
+            }
+        });
+        
+        // Desktop nav clicks
+        $$('.nav-link').forEach(link => {
+            link.addEventListener('click', e => {
+                e.preventDefault();
+                $$('.nav-link').forEach(l => l.classList.remove('active'));
+                link.classList.add('active');
+                
+                const submenuId = link.dataset.submenu;
+                
+                $$('.submenu-group').forEach(g => g.classList.add('hidden'));
+                
+                if (submenuId && innerWidth >= DESKTOP_BP) {
+                    $('#submenuBar').classList.remove('hidden');
+                    const group = $(`.submenu-group[data-group="${submenuId}"]`);
+                    if (group) {
+                        group.classList.remove('hidden');
+                        $$('.submenu-link', group).forEach(l => l.classList.remove('active'));
+                        $('.submenu-link', group)?.classList.add('active');
+                    }
+                    requestAnimationFrame(alignSubmenu);
+                } else {
+                    $('#submenuBar').classList.add('hidden');
+                }
+            });
+        });
+        
+        // Language switcher
+        $$('.lang-btn').forEach(btn => {
+            btn.addEventListener('click', () => {
+                const lang = btn.dataset.lang;
+                $$('.lang-btn').forEach(b => b.classList.remove('active'));
+                $$(`.lang-btn[data-lang="${lang}"]`).forEach(b => b.classList.add('active'));
+            });
+        });
+        
+        addEventListener('resize', alignSubmenu);
+    </script>
+</body>
+</html>

@@ -1,0 +1,2751 @@
+<!DOCTYPE html>
+<html lang="ru" data-theme="light">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Склад — Кухня Ашрама</title>
+    <link href="https://cdn.jsdelivr.net/npm/daisyui@4.12.14/dist/full.min.css" rel="stylesheet" type="text/css" />
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = { theme: { extend: { screens: { 'desktop': '1200px' } } },
+            daisyui: {
+                themes: ["light"],
+            },
+        }
+    </script>
+    <style>
+:root {
+            --color-main: #f49800;
+            --color-cafe: #10b981;
+            --color-guest: #3b82f6;
+            --current-color: #f49800;
+        }
+        * { font-family: 'Noto Sans', 'Noto Sans Devanagari', sans-serif; }
+        .nav-link { transition: all 0.15s ease; }
+        .nav-link:hover { opacity: 1; }
+        .nav-link.active { opacity: 1; color: var(--current-color); }
+        .lang-btn.active { background-color: var(--color-main) !important; color: white !important; border-color: var(--color-main) !important; }
+        .submenu-link { transition: all 0.15s ease; }
+        .submenu-link.active { background-color: white; color: var(--current-color) !important; }
+        #submenuBar { background-color: var(--current-color); }
+        .logo-svg path { transition: fill 0.3s ease; }
+        @media (max-width: 1199px) { #submenuBar { display: none !important; } }
+        .mobile-menu { max-height: 0; overflow: hidden; transition: max-height 0.3s ease; }
+        .mobile-menu.open { max-height: 500px; }
+        .mobile-nav-item.open > button { color: var(--current-color); }
+        .mobile-nav-item.open .arrow-icon { transform: rotate(180deg); }
+        .mobile-nav-item .submenu { display: none; }
+        .mobile-nav-item.open .submenu { display: block; }
+
+        
+
+        [data-theme="light"] {
+            --p: 65% 0.12 45;
+            --pf: 55% 0.12 45;
+            --pc: 100% 0 0;
+        }
+        
+        
+        .nav-link.active {
+            color: #CC7C5E;
+            opacity: 1;
+            border-bottom-color: #CC7C5E;
+        }
+        
+        .kitchen-option.active {
+            background-color: rgba(204, 124, 94, 0.1);
+            color: #CC7C5E;
+        }
+        
+        /* Status colors */
+        .status-ok { background-color: rgba(107, 158, 90, 0.15); border-left: 4px solid #6B9E5A; }
+        .status-low { background-color: rgba(212, 168, 75, 0.15); border-left: 4px solid #D4A84B; }
+        .status-critical { background-color: rgba(220, 38, 38, 0.15); border-left: 4px solid #DC2626; }
+        
+        /* Category colors */
+        .cat-all { --cat-color: #CC7C5E; }
+        .cat-vegetables { --cat-color: #6B9E5A; }
+        .cat-fruits { --cat-color: #E08A4A; }
+        .cat-grains { --cat-color: #D4A84B; }
+        .cat-legumes { --cat-color: #A67B5B; }
+        .cat-dairy { --cat-color: #4A9E9A; }
+        .cat-spices { --cat-color: #C75D7E; }
+        .cat-oils { --cat-color: #8B6B9E; }
+        .cat-other { --cat-color: #6B7280; }
+        
+        .filter-btn.active {
+            background-color: var(--cat-color) !important;
+            color: white !important;
+            border-color: var(--cat-color) !important;
+        }
+        
+        /* Price trend */
+        .trend-up { color: #DC2626; }
+        .trend-down { color: #6B9E5A; }
+        .trend-stable { color: #6B7280; }
+    </style>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans:wght@400;500;600;700&family=Noto+Sans+Devanagari:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        * {
+            font-family: 'Noto Sans', 'Noto Sans Devanagari', sans-serif;
+        }
+    </style>
+</head>
+<body class="min-h-screen bg-base-200/30">
+    <header class="bg-base-100 shadow-sm sticky top-0 z-50">
+        <div class="container mx-auto px-4">
+            <div class="flex items-center justify-between h-20">
+                
+                <!-- Logo + Location Selector -->
+                <div class="flex items-center gap-3 flex-shrink-0">
+                    <a href="kitchen-menu.html" class="hover:opacity-80 transition-opacity">
+                        <svg class="h-14 w-auto logo-svg" viewBox="0 0 122.03 312.54" xmlns="http://www.w3.org/2000/svg">
+                            <path fill="var(--current-color)" d="M102,15.99h-15.18v81.89c0,6.21.12,11.58-.88,15.98-1.01,4.45-2.6,7.98-4.77,10.58-2.02,2.81-4.85,4.83-8.51,6.05-2.38,1-5.08,1.62-8.1,1.83-1.01.21-2.02.32-3.02.32h-.64c-3.81-.21-7.23-.83-10.25-1.83-3.81-1.22-7.02-3.13-9.62-5.73-2.65-2.81-4.56-6.44-5.73-10.89-1.22-4.4-1.83-9.83-1.83-16.3V15.99h-15.1v89.12c0,13.68,3.81,23.94,11.45,30.77,3.81,3.44,8.56,5.96,14.23,7.55,1.17.42,2.57.74,4.21.96-13.89,5.03-23.35,11.87-28.38,20.51-7.05,10.65-7.26,24.14-.64,40.46l41.34,100.45,39.91-100.45c6.41-16.32,6.2-29.82-.64-40.46-4.82-8.48-13.97-15.21-27.43-20.2,1.59-.43,3.18-.85,4.77-1.27,5.25-1.59,9.67-4.19,13.27-7.79,3.82-3.66,6.65-8.18,8.51-13.59,2.02-5.62,3.02-12.27,3.02-19.95V15.99M87.45,172.46c4.03,7.26,3.84,16.4-.56,27.43l-26.31,68.13-27.75-68.13c-4.61-11.03-4.8-20.17-.55-27.43,4.61-7.47,13.76-13.01,27.43-16.62,13.67,3.61,22.93,9.15,27.75,16.62"/>
+                        </svg>
+                    </a>
+                    
+                    <!-- Desktop: full name + selector -->
+                    <div class="hidden md:flex flex-col">
+                        <a href="kitchen-menu.html" class="text-xl font-semibold whitespace-nowrap hover:opacity-80 transition-opacity">Шри Рупа Сева Кунджа</a>
+                        <div class="relative location-selector" id="locationDesktop">
+                            <button class="flex items-center justify-between gap-2 w-full text-xl opacity-70 hover:opacity-100 transition-opacity" data-toggle="location">
+                                <span class="location-name">Основная кухня</span>
+                                <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 transition-transform location-arrow" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                                    <path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7" />
+                                </svg>
+                            </button>
+                            <div class="absolute top-full left-0 mt-1 bg-white rounded-lg shadow-lg py-1 w-full hidden z-50 location-dropdown"></div>
+                        </div>
+                    </div>
+                    
+                    <!-- Mobile: ШРСК + selector -->
+                    <div class="flex items-center gap-2 md:hidden">
+                        <span class="text-xl font-semibold whitespace-nowrap">ШРСК</span>
+                        <span class="text-xl opacity-50">·</span>
+                        <div class="relative location-selector" id="locationMobile">
+                            <button class="flex items-center gap-1 text-xl opacity-70" data-toggle="location">
+                                <span class="location-name">Основная кухня</span>
+                                <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 transition-transform location-arrow" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                                    <path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7" />
+                                </svg>
+                            </button>
+                            <div class="absolute top-full left-0 mt-1 bg-white rounded-lg shadow-lg py-1 min-w-44 hidden z-50 location-dropdown"></div>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Desktop Navigation -->
+                <nav class="hidden desktop:flex items-center gap-2" id="mainNav">
+                    <a href="#" class="nav-link px-5 py-6 text-base font-semibold tracking-wide uppercase opacity-60" data-submenu="kitchen">Кухня</a>
+                    <a href="#" class="nav-link px-5 py-6 text-base font-semibold tracking-wide uppercase opacity-60" data-submenu="stock">Склад</a>
+                    <a href="#" class="nav-link px-5 py-6 text-base font-semibold tracking-wide uppercase opacity-60">Ретриты</a>
+                    <a href="#" class="nav-link px-5 py-6 text-base font-semibold tracking-wide uppercase opacity-60" data-submenu="team">Команда</a>
+                    <a href="#" class="nav-link px-5 py-6 text-base font-semibold tracking-wide uppercase opacity-60" data-submenu="settings">Настройки</a>
+                </nav>
+                
+                <!-- Right: Language, User, Mobile Menu Button -->
+                <div class="flex items-center gap-3 sm:gap-5">
+                    <div class="hidden md:flex join">
+                        <button class="join-item btn btn-sm lang-btn active" data-lang="ru">RU</button>
+                        <button class="join-item btn btn-sm lang-btn" data-lang="en">EN</button>
+                        <button class="join-item btn btn-sm lang-btn" data-lang="hi">HI</button>
+                    </div>
+                    <div class="hidden desktop:block">
+                        <div class="w-10 h-10 rounded-full overflow-hidden ring-2 ring-base-200">
+                            <img src="https://i.pravatar.cc/150?img=5" alt="User" class="w-full h-full object-cover" />
+                        </div>
+                    </div>
+                    <button class="btn btn-ghost btn-md btn-square desktop:hidden" id="mobileMenuBtn">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-7 w-7 menu-icon" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M4 6h16M4 12h16M4 18h16" />
+                        </svg>
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-7 w-7 close-icon hidden" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
+                        </svg>
+                    </button>
+                </div>
+            </div>
+            
+            <!-- Mobile Menu -->
+            <div class="mobile-menu desktop:hidden border-t border-base-200" id="mobileMenu">
+                <nav class="py-3 space-y-0" id="mobileNav"></nav>
+                <div class="border-t border-base-200 py-4 px-4">
+                    <div class="flex items-center justify-between">
+                        <div class="flex items-center gap-3">
+                            <div class="w-10 h-10 rounded-full overflow-hidden ring-2 ring-base-200">
+                                <img src="https://i.pravatar.cc/150?img=5" alt="User" class="w-full h-full object-cover" />
+                            </div>
+                            <span class="font-medium">Ганга деви даси</span>
+                        </div>
+                        <div class="md:hidden join">
+                            <button class="join-item btn btn-sm lang-btn active" data-lang="ru">RU</button>
+                            <button class="join-item btn btn-sm lang-btn" data-lang="en">EN</button>
+                            <button class="join-item btn btn-sm lang-btn" data-lang="hi">HI</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Submenu Bar (Desktop) -->
+        <div class="hidden -mt-1" id="submenuBar"></div>
+    </header>
+
+    <!-- Main Content -->
+    <main class="container mx-auto px-4 py-6">
+        
+        <!-- Page Header -->
+        <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6">
+            <div>
+                <h1 class="text-2xl font-bold">Склад</h1>
+                <p class="text-sm opacity-60">Учёт запасов продуктов</p>
+            </div>
+        </div>
+        
+        <!-- Tabs -->
+        <div class="tabs tabs-boxed bg-base-100 p-1 mb-6">
+            <a class="tab tab-lg tab-active" id="tabStock" onclick="switchTab('stock')">Остатки</a>
+            <a class="tab tab-lg" id="tabRequests" onclick="switchTab('requests')">Заявки</a>
+            <a class="tab tab-lg" id="tabReceipts" onclick="switchTab('receipts')">Получить</a>
+            <a class="tab tab-lg" id="tabIssues" onclick="switchTab('issues')">Выдать</a>
+            <a class="tab tab-lg" id="tabSettings" onclick="switchTab('settings')">Настройки</a>
+        </div>
+        
+        <!-- ==================== TAB: STOCK (Остатки) ==================== -->
+        <div id="tabContentStock">
+            
+            <!-- Filters -->
+        <div class="mb-6">
+            <!-- Search -->
+            <input type="text" 
+                   id="searchInput" 
+                   class="input input-bordered w-full max-w-md" 
+                   placeholder="Поиск по названию..."
+                   oninput="filterStock()"
+            />
+        </div>
+        
+        <!-- Category Filters -->
+        <div class="flex flex-wrap gap-2 mb-6">
+            <button class="btn btn-sm cat-all filter-btn active" id="catBtn_all" onclick="setCategoryFilter('all')">Все</button>
+            <button class="btn btn-sm cat-vegetables filter-btn" id="catBtn_vegetables" onclick="setCategoryFilter('vegetables')">Овощи</button>
+            <button class="btn btn-sm cat-fruits filter-btn" id="catBtn_fruits" onclick="setCategoryFilter('fruits')">Фрукты</button>
+            <button class="btn btn-sm cat-grains filter-btn" id="catBtn_grains" onclick="setCategoryFilter('grains')">Крупы</button>
+            <button class="btn btn-sm cat-legumes filter-btn" id="catBtn_legumes" onclick="setCategoryFilter('legumes')">Бобовые</button>
+            <button class="btn btn-sm cat-dairy filter-btn" id="catBtn_dairy" onclick="setCategoryFilter('dairy')">Молочное</button>
+            <button class="btn btn-sm cat-spices filter-btn" id="catBtn_spices" onclick="setCategoryFilter('spices')">Специи</button>
+            <button class="btn btn-sm cat-oils filter-btn" id="catBtn_oils" onclick="setCategoryFilter('oils')">Масла</button>
+            <button class="btn btn-sm cat-other filter-btn" id="catBtn_other" onclick="setCategoryFilter('other')">Прочее</button>
+        </div>
+        
+        <!-- Summary Cards -->
+        <div class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6" id="summaryCards">
+            <div class="bg-base-100 rounded-lg p-4 shadow-sm">
+                <div class="text-2xl font-bold" id="totalItems">0</div>
+                <div class="text-sm opacity-60">Всего позиций</div>
+            </div>
+            <div class="bg-base-100 rounded-lg p-4 shadow-sm border-l-4 border-red-500">
+                <div class="text-2xl font-bold text-red-600" id="criticalItems">0</div>
+                <div class="text-sm opacity-60">Критично</div>
+            </div>
+            <div class="bg-base-100 rounded-lg p-4 shadow-sm border-l-4 border-yellow-500">
+                <div class="text-2xl font-bold text-yellow-600" id="lowItems">0</div>
+                <div class="text-sm opacity-60">Заканчивается</div>
+            </div>
+            <div class="bg-base-100 rounded-lg p-4 shadow-sm border-l-4 border-green-500">
+                <div class="text-2xl font-bold text-green-600" id="okItems">0</div>
+                <div class="text-sm opacity-60">В норме</div>
+            </div>
+        </div>
+        
+        <!-- Stock List -->
+        <div class="space-y-3" id="stockList">
+            <!-- Items will be generated by JS -->
+        </div>
+        
+        </div><!-- END TAB: STOCK -->
+        
+        <!-- ==================== TAB: REQUESTS (Заявки) ==================== -->
+        <div id="tabContentRequests" class="hidden">
+            
+            <!-- Header with action button and archive toggle -->
+            <div class="flex justify-between items-center mb-4">
+                <div class="join">
+                    <button class="btn btn-sm join-item btn-active" id="requestsActiveBtn" onclick="showActiveRequests()">Активные</button>
+                    <button class="btn btn-sm join-item" id="requestsArchiveBtn" onclick="showArchivedRequests()">Архив</button>
+                </div>
+                <a href="kitchen-purchase-request.html" class="btn btn-primary gap-2">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" />
+                    </svg>
+                    Новая заявка
+                </a>
+            </div>
+            
+            <!-- Requests List -->
+            <div class="space-y-3" id="requestsList">
+                <!-- Demo requests -->
+                <div class="bg-base-100 rounded-lg p-4 shadow-sm border-l-4 border-primary">
+                    <div class="flex flex-col md:flex-row md:items-center justify-between gap-4">
+                        <div>
+                            <div class="font-semibold text-lg">Заявка №3</div>
+                            <div class="text-sm opacity-60">15 янв 2025 · Период: 15–21 янв</div>
+                        </div>
+                        <div class="flex items-center gap-4">
+                            <div class="text-center">
+                                <div class="font-bold">12</div>
+                                <div class="text-xs opacity-60">позиций</div>
+                            </div>
+                            <div class="text-center">
+                                <div class="font-bold">₹4,850</div>
+                                <div class="text-xs opacity-60">сумма</div>
+                            </div>
+                            <div class="flex items-center gap-2">
+                                <button class="btn btn-ghost btn-sm btn-square" title="Просмотр">
+                                    <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
+                                        <path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                                        <path stroke-linecap="round" stroke-linejoin="round" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                                    </svg>
+                                </button>
+                                <button class="btn btn-ghost btn-sm btn-square" title="Печать">
+                                    <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
+                                        <path stroke-linecap="round" stroke-linejoin="round" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" />
+                                    </svg>
+                                </button>
+                                <span class="text-base-300">|</span>
+                                <a href="#" class="link link-hover text-sm opacity-60" onclick="archiveRequest(3); return false;">В архив</a>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="bg-base-100 rounded-lg p-4 shadow-sm border-l-4 border-green-500">
+                    <div class="flex flex-col md:flex-row md:items-center justify-between gap-4">
+                        <div>
+                            <div class="font-semibold text-lg">Заявка №2 <span class="badge badge-success badge-sm ml-2">Закрыта</span></div>
+                            <div class="text-sm opacity-60">10 янв 2025 · Период: 10–14 янв</div>
+                        </div>
+                        <div class="flex items-center gap-4">
+                            <div class="text-center">
+                                <div class="font-bold">8</div>
+                                <div class="text-xs opacity-60">позиций</div>
+                            </div>
+                            <div class="text-center">
+                                <div class="font-bold">₹3,200</div>
+                                <div class="text-xs opacity-60">сумма</div>
+                            </div>
+                            <div class="flex items-center gap-2">
+                                <button class="btn btn-ghost btn-sm btn-square" title="Просмотр">
+                                    <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
+                                        <path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                                        <path stroke-linecap="round" stroke-linejoin="round" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                                    </svg>
+                                </button>
+                                <button class="btn btn-ghost btn-sm btn-square" title="Печать">
+                                    <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
+                                        <path stroke-linecap="round" stroke-linejoin="round" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" />
+                                    </svg>
+                                </button>
+                                <span class="text-base-300">|</span>
+                                <a href="#" class="link link-hover text-sm opacity-60" onclick="archiveRequest(2); return false;">В архив</a>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="bg-base-100 rounded-lg p-4 shadow-sm border-l-4 border-green-500">
+                    <div class="flex flex-col md:flex-row md:items-center justify-between gap-4">
+                        <div>
+                            <div class="font-semibold text-lg">Заявка №1 <span class="badge badge-success badge-sm ml-2">Закрыта</span></div>
+                            <div class="text-sm opacity-60">5 янв 2025 · Период: 5–9 янв</div>
+                        </div>
+                        <div class="flex items-center gap-4">
+                            <div class="text-center">
+                                <div class="font-bold">15</div>
+                                <div class="text-xs opacity-60">позиций</div>
+                            </div>
+                            <div class="text-center">
+                                <div class="font-bold">₹6,100</div>
+                                <div class="text-xs opacity-60">сумма</div>
+                            </div>
+                            <div class="flex items-center gap-2">
+                                <button class="btn btn-ghost btn-sm btn-square" title="Просмотр">
+                                    <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
+                                        <path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                                        <path stroke-linecap="round" stroke-linejoin="round" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                                    </svg>
+                                </button>
+                                <button class="btn btn-ghost btn-sm btn-square" title="Печать">
+                                    <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
+                                        <path stroke-linecap="round" stroke-linejoin="round" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" />
+                                    </svg>
+                                </button>
+                                <span class="text-base-300">|</span>
+                                <a href="#" class="link link-hover text-sm opacity-60" onclick="archiveRequest(1); return false;">В архив</a>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+        </div><!-- END TAB: REQUESTS -->
+        
+        <!-- ==================== TAB: RECEIPTS (Получить) ==================== -->
+        <div id="tabContentReceipts" class="hidden">
+            
+            <!-- Header with action button and archive toggle -->
+            <div class="flex justify-between items-center mb-4">
+                <div class="join">
+                    <button class="btn btn-sm join-item btn-active" id="receiptsActiveBtn" onclick="showActiveReceipts()">Активные</button>
+                    <button class="btn btn-sm join-item" id="receiptsArchiveBtn" onclick="showArchivedReceipts()">Архив</button>
+                </div>
+                <button class="btn btn-primary gap-2" onclick="openReceiptModal()">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" />
+                    </svg>
+                    Оформить получение
+                </button>
+            </div>
+            
+            <!-- Receipts List -->
+            <div class="space-y-3" id="receiptsList">
+                <div class="bg-base-100 rounded-lg p-4 shadow-sm border-l-4 border-green-500">
+                    <div class="flex flex-col md:flex-row md:items-center justify-between gap-4">
+                        <div>
+                            <div class="font-semibold text-lg">Получение №2</div>
+                            <div class="text-sm opacity-60">12 янв 2025 · Закупщик: Рамеш</div>
+                        </div>
+                        <div class="flex items-center gap-4">
+                            <div class="text-center">
+                                <div class="font-bold">10</div>
+                                <div class="text-xs opacity-60">позиций</div>
+                            </div>
+                            <div class="text-center">
+                                <div class="font-bold">₹3,450</div>
+                                <div class="text-xs opacity-60">сумма</div>
+                            </div>
+                            <div class="flex items-center gap-2">
+                                <button class="btn btn-ghost btn-sm btn-square" title="Просмотр">
+                                    <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
+                                        <path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                                        <path stroke-linecap="round" stroke-linejoin="round" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                                    </svg>
+                                </button>
+                                <button class="btn btn-ghost btn-sm btn-square" title="Печать">
+                                    <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
+                                        <path stroke-linecap="round" stroke-linejoin="round" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" />
+                                    </svg>
+                                </button>
+                                <span class="text-base-300">|</span>
+                                <a href="#" class="link link-hover text-sm opacity-60" onclick="archiveReceipt(2); return false;">В архив</a>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="bg-base-100 rounded-lg p-4 shadow-sm border-l-4 border-green-500">
+                    <div class="flex flex-col md:flex-row md:items-center justify-between gap-4">
+                        <div>
+                            <div class="font-semibold text-lg">Получение №1</div>
+                            <div class="text-sm opacity-60">7 янв 2025 · Закупщик: Виджай</div>
+                        </div>
+                        <div class="flex items-center gap-4">
+                            <div class="text-center">
+                                <div class="font-bold">18</div>
+                                <div class="text-xs opacity-60">позиций</div>
+                            </div>
+                            <div class="text-center">
+                                <div class="font-bold">₹6,800</div>
+                                <div class="text-xs opacity-60">сумма</div>
+                            </div>
+                            <div class="flex items-center gap-2">
+                                <button class="btn btn-ghost btn-sm btn-square" title="Просмотр">
+                                    <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
+                                        <path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                                        <path stroke-linecap="round" stroke-linejoin="round" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                                    </svg>
+                                </button>
+                                <button class="btn btn-ghost btn-sm btn-square" title="Печать">
+                                    <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
+                                        <path stroke-linecap="round" stroke-linejoin="round" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" />
+                                    </svg>
+                                </button>
+                                <span class="text-base-300">|</span>
+                                <a href="#" class="link link-hover text-sm opacity-60" onclick="archiveReceipt(1); return false;">В архив</a>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+        </div><!-- END TAB: RECEIPTS -->
+        
+        <!-- ==================== TAB: ISSUES (Выдать) ==================== -->
+        <div id="tabContentIssues" class="hidden">
+            
+            <!-- Header with action button and archive toggle -->
+            <div class="flex justify-between items-center mb-4">
+                <div class="join">
+                    <button class="btn btn-sm join-item btn-active" id="issuesActiveBtn" onclick="showActiveIssues()">Активные</button>
+                    <button class="btn btn-sm join-item" id="issuesArchiveBtn" onclick="showArchivedIssues()">Архив</button>
+                </div>
+                <button class="btn btn-primary gap-2" onclick="openIssueModal()">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" />
+                    </svg>
+                    Оформить выдачу
+                </button>
+            </div>
+            
+            <!-- Issues List -->
+            <div class="space-y-3" id="issuesList">
+                <div class="bg-base-100 rounded-lg p-4 shadow-sm">
+                    <div class="flex flex-col md:flex-row md:items-center justify-between gap-4">
+                        <div>
+                            <div class="font-semibold text-lg">Выдача №5</div>
+                            <div class="text-sm opacity-60">15 янв 2025, 06:30 · Получатель: Анна (завтрак)</div>
+                        </div>
+                        <div class="flex items-center gap-4">
+                            <div class="text-center">
+                                <div class="font-bold">6</div>
+                                <div class="text-xs opacity-60">позиций</div>
+                            </div>
+                            <div class="flex items-center gap-2">
+                                <button class="btn btn-ghost btn-sm btn-square" title="Просмотр">
+                                    <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
+                                        <path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                                        <path stroke-linecap="round" stroke-linejoin="round" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                                    </svg>
+                                </button>
+                                <button class="btn btn-ghost btn-sm btn-square" title="Печать">
+                                    <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
+                                        <path stroke-linecap="round" stroke-linejoin="round" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" />
+                                    </svg>
+                                </button>
+                                <span class="text-base-300">|</span>
+                                <a href="#" class="link link-hover text-sm opacity-60" onclick="archiveIssue(5); return false;">В архив</a>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="bg-base-100 rounded-lg p-4 shadow-sm">
+                    <div class="flex flex-col md:flex-row md:items-center justify-between gap-4">
+                        <div>
+                            <div class="font-semibold text-lg">Выдача №4</div>
+                            <div class="text-sm opacity-60">14 янв 2025, 16:00 · Получатель: Мария (ужин)</div>
+                        </div>
+                        <div class="flex items-center gap-4">
+                            <div class="text-center">
+                                <div class="font-bold">8</div>
+                                <div class="text-xs opacity-60">позиций</div>
+                            </div>
+                            <div class="flex items-center gap-2">
+                                <button class="btn btn-ghost btn-sm btn-square" title="Просмотр">
+                                    <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
+                                        <path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                                        <path stroke-linecap="round" stroke-linejoin="round" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                                    </svg>
+                                </button>
+                                <button class="btn btn-ghost btn-sm btn-square" title="Печать">
+                                    <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
+                                        <path stroke-linecap="round" stroke-linejoin="round" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" />
+                                    </svg>
+                                </button>
+                                <span class="text-base-300">|</span>
+                                <a href="#" class="link link-hover text-sm opacity-60" onclick="archiveIssue(4); return false;">В архив</a>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="bg-base-100 rounded-lg p-4 shadow-sm">
+                    <div class="flex flex-col md:flex-row md:items-center justify-between gap-4">
+                        <div>
+                            <div class="font-semibold text-lg">Выдача №3</div>
+                            <div class="text-sm opacity-60">14 янв 2025, 10:00 · Получатель: Анна (обед)</div>
+                        </div>
+                        <div class="flex items-center gap-4">
+                            <div class="text-center">
+                                <div class="font-bold">12</div>
+                                <div class="text-xs opacity-60">позиций</div>
+                            </div>
+                            <div class="flex items-center gap-2">
+                                <button class="btn btn-ghost btn-sm btn-square" title="Просмотр">
+                                    <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
+                                        <path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                                        <path stroke-linecap="round" stroke-linejoin="round" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                                    </svg>
+                                </button>
+                                <button class="btn btn-ghost btn-sm btn-square" title="Печать">
+                                    <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
+                                        <path stroke-linecap="round" stroke-linejoin="round" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" />
+                                    </svg>
+                                </button>
+                                <span class="text-base-300">|</span>
+                                <a href="#" class="link link-hover text-sm opacity-60" onclick="archiveIssue(3); return false;">В архив</a>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+        </div><!-- END TAB: ISSUES -->
+        
+        <!-- ==================== TAB: SETTINGS (Настройки) ==================== -->
+        <div id="tabContentSettings" class="hidden">
+            
+            <!-- Sub-tabs -->
+            <div class="tabs tabs-bordered mb-6">
+                <a class="tab tab-active" id="settingsTabCooks" onclick="switchSettingsTab('cooks')">Повара</a>
+                <a class="tab" id="settingsTabBuyers" onclick="switchSettingsTab('buyers')">Закупщики</a>
+                <a class="tab" id="settingsTabStock" onclick="switchSettingsTab('stock')">Несгораемый остаток</a>
+            </div>
+            
+            <!-- Sub-tab: Cooks -->
+            <div id="settingsContentCooks">
+                <div class="flex justify-between items-center mb-4">
+                    <h3 class="font-semibold">Список поваров</h3>
+                    <button class="btn btn-primary btn-sm gap-1" onclick="addCook()">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" />
+                        </svg>
+                        Добавить
+                    </button>
+                </div>
+                <div class="bg-base-100 rounded-lg shadow-sm overflow-hidden">
+                    <div class="overflow-x-auto">
+                        <table class="table">
+                            <thead>
+                                <tr class="bg-base-200">
+                                    <th>Имя</th>
+                                    <th>Email</th>
+                                    <th>Телефон (Индия)</th>
+                                    <th>Телефон (мессенджеры)</th>
+                                    <th class="w-16"></th>
+                                </tr>
+                            </thead>
+                            <tbody id="cooksTableBody">
+                                <!-- Rows will be generated by JS -->
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Sub-tab: Buyers -->
+            <div id="settingsContentBuyers" class="hidden">
+                <div class="flex justify-between items-center mb-4">
+                    <h3 class="font-semibold">Список закупщиков</h3>
+                    <button class="btn btn-primary btn-sm gap-1" onclick="addBuyer()">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" />
+                        </svg>
+                        Добавить
+                    </button>
+                </div>
+                <div class="bg-base-100 rounded-lg shadow-sm overflow-hidden">
+                    <table class="table">
+                        <thead>
+                            <tr class="bg-base-200">
+                                <th>Имя</th>
+                                <th>Телефон</th>
+                                <th class="w-16"></th>
+                            </tr>
+                        </thead>
+                        <tbody id="buyersTableBody">
+                            <!-- Rows will be generated by JS -->
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+            
+            <!-- Sub-tab: Stock minimums -->
+            <div id="settingsContentStock" class="hidden">
+                <div class="mb-4">
+                    <h3 class="font-semibold mb-2">Несгораемый остаток по продуктам</h3>
+                    <input type="text" 
+                           id="settingsSearchInput" 
+                           class="input input-bordered w-full max-w-md" 
+                           placeholder="Поиск по названию..."
+                           oninput="renderSettingsStock()"
+                    />
+                </div>
+                <div class="bg-base-100 rounded-lg shadow-sm overflow-hidden">
+                    <div class="overflow-x-auto">
+                        <table class="table">
+                            <thead>
+                                <tr class="bg-base-200">
+                                    <th>Продукт</th>
+                                    <th class="w-48">Несгораемый остаток</th>
+                                </tr>
+                            </thead>
+                            <tbody id="settingsStockTableBody">
+                                <!-- Rows will be generated by JS -->
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+            
+        </div><!-- END TAB: SETTINGS -->
+
+    </main>
+
+    <!-- Add/Edit Stock Modal -->
+    <dialog id="stockModal" class="modal">
+        <div class="modal-box max-w-lg">
+            <form method="dialog">
+                <button class="btn btn-sm btn-circle btn-ghost absolute right-2 top-2">✕</button>
+            </form>
+            <h3 class="font-bold text-lg mb-4" id="stockModalTitle">Добавить продукт</h3>
+            
+            <div class="space-y-4">
+                <!-- Product Search/Select -->
+                <div id="productSelectSection">
+                    <label class="label"><span class="label-text font-medium">Продукт</span></label>
+                    <div class="relative">
+                        <input type="text" 
+                               id="productSearch" 
+                               class="input input-bordered w-full" 
+                               placeholder="Начните вводить название..."
+                               autocomplete="off"
+                               oninput="filterProducts(this.value)"
+                               onfocus="showProductDropdown()"
+                        />
+                        <div id="productDropdown" class="absolute z-50 w-full bg-base-100 border border-base-300 rounded-lg shadow-lg mt-1 max-h-64 overflow-y-auto hidden">
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Selected Product Display -->
+                <div id="selectedProductDisplay" class="hidden">
+                    <div class="flex items-center justify-between p-3 bg-primary/10 rounded-lg border-2 border-primary">
+                        <div>
+                            <div class="font-medium" id="selectedProductName"></div>
+                            <div class="text-sm opacity-50" id="selectedProductNameEn"></div>
+                        </div>
+                        <button type="button" class="btn btn-ghost btn-sm btn-square" onclick="clearSelectedProduct()">
+                            <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+                            </svg>
+                        </button>
+                    </div>
+                </div>
+                
+                <!-- Current Stock -->
+                <div class="grid grid-cols-2 gap-4">
+                    <div>
+                        <label class="label"><span class="label-text font-medium">Текущий остаток</span></label>
+                        <div class="join w-full">
+                            <input type="number" id="currentStock" class="input input-bordered join-item w-full" value="0" min="0" step="0.1" />
+                            <span id="stockUnit" class="btn join-item no-animation pointer-events-none bg-base-200">кг</span>
+                        </div>
+                    </div>
+                    <div>
+                        <label class="label"><span class="label-text font-medium">Несгораемый остаток</span></label>
+                        <div class="join w-full">
+                            <input type="number" id="minStock" class="input input-bordered join-item w-full" value="0" min="0" step="0.1" />
+                            <span id="minStockUnit" class="btn join-item no-animation pointer-events-none bg-base-200">кг</span>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Supplier -->
+                <div>
+                    <label class="label"><span class="label-text font-medium">Поставщик</span></label>
+                    <textarea id="supplierInfo" class="textarea textarea-bordered w-full" rows="2" placeholder="Название, контакт, примечания..."></textarea>
+                </div>
+                
+                <!-- Price -->
+                <div>
+                    <label class="label"><span class="label-text font-medium">Текущая цена (₹ за единицу)</span></label>
+                    <input type="number" id="currentPrice" class="input input-bordered w-full" value="" min="0" step="0.5" placeholder="Оставьте пустым, если неизвестна" />
+                </div>
+            </div>
+            
+            <!-- Modal Actions -->
+            <div class="modal-action">
+                <button type="button" class="btn btn-ghost" onclick="closeStockModal()">Отмена</button>
+                <button type="button" class="btn btn-primary" id="saveStockBtn" onclick="saveStock()">Сохранить</button>
+            </div>
+        </div>
+        <form method="dialog" class="modal-backdrop">
+            <button>close</button>
+        </form>
+    </dialog>
+
+    <!-- Edit Quantity Modal -->
+    <dialog id="quantityModal" class="modal">
+        <div class="modal-box max-w-sm">
+            <form method="dialog">
+                <button class="btn btn-sm btn-circle btn-ghost absolute right-2 top-2">✕</button>
+            </form>
+            <h3 class="font-bold text-lg mb-4" id="quantityModalTitle">Изменить остаток</h3>
+            
+            <div class="space-y-4">
+                <div class="text-center">
+                    <div class="text-3xl font-bold" id="quantityCurrentValue">0</div>
+                    <div class="text-sm opacity-60" id="quantityProductName">Продукт</div>
+                </div>
+                
+                <!-- Quick buttons -->
+                <div class="flex justify-center gap-2">
+                    <button class="btn btn-sm btn-outline" onclick="adjustQuantity(-10)">−10</button>
+                    <button class="btn btn-sm btn-outline" onclick="adjustQuantity(-5)">−5</button>
+                    <button class="btn btn-sm btn-outline" onclick="adjustQuantity(-1)">−1</button>
+                    <button class="btn btn-sm btn-outline" onclick="adjustQuantity(1)">+1</button>
+                    <button class="btn btn-sm btn-outline" onclick="adjustQuantity(5)">+5</button>
+                    <button class="btn btn-sm btn-outline" onclick="adjustQuantity(10)">+10</button>
+                </div>
+                
+                <!-- Direct input -->
+                <div>
+                    <label class="label"><span class="label-text font-medium">Или введите новое значение</span></label>
+                    <div class="join w-full">
+                        <input type="number" id="newQuantity" class="input input-bordered join-item w-full" value="0" min="0" step="0.1" />
+                        <span id="quantityUnit" class="btn join-item no-animation pointer-events-none bg-base-200">кг</span>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="modal-action">
+                <button type="button" class="btn btn-ghost" onclick="closeQuantityModal()">Отмена</button>
+                <button type="button" class="btn btn-primary" onclick="saveQuantity()">Сохранить</button>
+            </div>
+        </div>
+        <form method="dialog" class="modal-backdrop">
+            <button>close</button>
+        </form>
+    </dialog>
+
+    <!-- Price History Modal -->
+    <dialog id="priceModal" class="modal">
+        <div class="modal-box max-w-md">
+            <form method="dialog">
+                <button class="btn btn-sm btn-circle btn-ghost absolute right-2 top-2">✕</button>
+            </form>
+            <h3 class="font-bold text-lg mb-4" id="priceModalTitle">История цен</h3>
+            
+            <div class="space-y-4">
+                <!-- Add new price -->
+                <div class="flex gap-2">
+                    <input type="number" id="newPrice" class="input input-bordered flex-1" placeholder="Новая цена ₹" min="0" step="0.5" />
+                    <button class="btn btn-primary" onclick="addPrice()">Добавить</button>
+                </div>
+                
+                <!-- Price history list -->
+                <div class="divider">История</div>
+                <div id="priceHistoryList" class="space-y-2 max-h-64 overflow-y-auto">
+                    <!-- Prices will be listed here -->
+                </div>
+            </div>
+            
+            <div class="modal-action">
+                <button type="button" class="btn btn-ghost" onclick="closePriceModal()">Закрыть</button>
+            </div>
+        </div>
+        <form method="dialog" class="modal-backdrop">
+            <button>close</button>
+        </form>
+    </dialog>
+
+    <!-- Receipt Modal (Получение) -->
+    <dialog id="receiptModal" class="modal">
+        <div class="modal-box max-w-2xl">
+            <form method="dialog">
+                <button class="btn btn-sm btn-circle btn-ghost absolute right-2 top-2">✕</button>
+            </form>
+            <h3 class="font-bold text-lg mb-4">Оформить получение</h3>
+            
+            <div class="space-y-4">
+                <!-- Date and Buyer -->
+                <div class="grid grid-cols-2 gap-4">
+                    <div>
+                        <label class="label"><span class="label-text font-medium">Дата</span></label>
+                        <input type="date" id="receiptDate" class="input input-bordered w-full" />
+                    </div>
+                    <div>
+                        <label class="label"><span class="label-text font-medium">Кто закупал</span></label>
+                        <select id="receiptBuyer" class="select select-bordered w-full">
+                            <option value="">Выберите закупщика</option>
+                        </select>
+                    </div>
+                </div>
+                
+                <!-- Items -->
+                <div>
+                    <div class="flex justify-between items-center">
+                        <label class="label"><span class="label-text font-medium">Продукты</span></label>
+                        <button type="button" class="btn btn-ghost btn-sm gap-1" onclick="showLoadFromRequestModal()">
+                            <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" />
+                            </svg>
+                            Из заявки
+                        </button>
+                    </div>
+                    <div class="border border-base-300 rounded-lg overflow-hidden">
+                        <table class="table table-sm">
+                            <thead class="bg-base-200">
+                                <tr>
+                                    <th>Продукт</th>
+                                    <th class="w-24">Кол-во</th>
+                                    <th class="w-24">Цена</th>
+                                    <th class="w-24">Сумма</th>
+                                    <th class="w-10"></th>
+                                </tr>
+                            </thead>
+                            <tbody id="receiptItems">
+                                <!-- Items added dynamically -->
+                            </tbody>
+                        </table>
+                    </div>
+                    
+                    <!-- Add item -->
+                    <div class="flex gap-2 mt-2">
+                        <div class="flex-1 relative">
+                            <input type="text" 
+                                   id="receiptProductSearch" 
+                                   class="input input-bordered input-sm w-full" 
+                                   placeholder="Добавить продукт..."
+                                   oninput="filterReceiptProducts(this.value)"
+                                   onfocus="showReceiptProductDropdown()"
+                            />
+                            <div id="receiptProductDropdown" class="absolute z-50 w-full bg-base-100 border border-base-300 rounded-lg shadow-lg mt-1 max-h-48 overflow-y-auto hidden">
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Notes -->
+                <div>
+                    <label class="label"><span class="label-text font-medium">Примечания</span></label>
+                    <textarea id="receiptNotes" class="textarea textarea-bordered w-full" rows="2" placeholder="Примечания по поставщикам, качеству..."></textarea>
+                </div>
+                
+                <!-- Total -->
+                <div class="flex justify-end">
+                    <div class="text-right">
+                        <div class="text-sm opacity-60">Итого</div>
+                        <div class="text-2xl font-bold" id="receiptTotal">₹0</div>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="modal-action">
+                <button type="button" class="btn btn-ghost" onclick="closeReceiptModal()">Отмена</button>
+                <button type="button" class="btn btn-primary" onclick="saveReceipt()">Сохранить</button>
+            </div>
+        </div>
+        <form method="dialog" class="modal-backdrop">
+            <button>close</button>
+        </form>
+    </dialog>
+
+    <!-- Issue Modal (Выдача) -->
+    <dialog id="issueModal" class="modal">
+        <div class="modal-box max-w-2xl">
+            <form method="dialog">
+                <button class="btn btn-sm btn-circle btn-ghost absolute right-2 top-2">✕</button>
+            </form>
+            <h3 class="font-bold text-lg mb-4">Оформить выдачу</h3>
+            
+            <div class="space-y-4">
+                <!-- Date and Recipient -->
+                <div class="grid grid-cols-2 gap-4">
+                    <div>
+                        <label class="label"><span class="label-text font-medium">Дата и время</span></label>
+                        <input type="datetime-local" id="issueDate" class="input input-bordered w-full" />
+                    </div>
+                    <div>
+                        <label class="label"><span class="label-text font-medium">Кому выдано</span></label>
+                        <select id="issueRecipient" class="select select-bordered w-full">
+                            <option value="">Выберите повара</option>
+                        </select>
+                    </div>
+                </div>
+                
+                <!-- Items -->
+                <div>
+                    <div class="flex justify-between items-center">
+                        <label class="label"><span class="label-text font-medium">Продукты</span></label>
+                        <button type="button" class="btn btn-ghost btn-sm gap-1" onclick="showLoadFromMenuModal()">
+                            <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" />
+                            </svg>
+                            Из меню
+                        </button>
+                    </div>
+                    <div class="border border-base-300 rounded-lg overflow-hidden">
+                        <table class="table table-sm">
+                            <thead class="bg-base-200">
+                                <tr>
+                                    <th>Продукт</th>
+                                    <th class="w-24">На складе</th>
+                                    <th class="w-24">Выдать</th>
+                                    <th class="w-10"></th>
+                                </tr>
+                            </thead>
+                            <tbody id="issueItems">
+                                <!-- Items added dynamically -->
+                            </tbody>
+                        </table>
+                    </div>
+                    
+                    <!-- Add item -->
+                    <div class="flex gap-2 mt-2">
+                        <div class="flex-1 relative">
+                            <input type="text" 
+                                   id="issueProductSearch" 
+                                   class="input input-bordered input-sm w-full" 
+                                   placeholder="Добавить продукт..."
+                                   oninput="filterIssueProducts(this.value)"
+                                   onfocus="showIssueProductDropdown()"
+                            />
+                            <div id="issueProductDropdown" class="absolute z-50 w-full bg-base-100 border border-base-300 rounded-lg shadow-lg mt-1 max-h-48 overflow-y-auto hidden">
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Notes -->
+                <div>
+                    <label class="label"><span class="label-text font-medium">Примечания</span></label>
+                    <textarea id="issueNotes" class="textarea textarea-bordered w-full" rows="2" placeholder="Для какого приёма пищи, особые указания..."></textarea>
+                </div>
+            </div>
+            
+            <div class="modal-action">
+                <button type="button" class="btn btn-ghost" onclick="closeIssueModal()">Отмена</button>
+                <button type="button" class="btn btn-primary" onclick="saveIssue()">Сохранить</button>
+            </div>
+        </div>
+        <form method="dialog" class="modal-backdrop">
+            <button>close</button>
+        </form>
+    </dialog>
+
+    <!-- Load from Request Modal -->
+    <dialog id="loadFromRequestModal" class="modal">
+        <div class="modal-box max-w-md">
+            <form method="dialog">
+                <button class="btn btn-sm btn-circle btn-ghost absolute right-2 top-2">✕</button>
+            </form>
+            <h3 class="font-bold text-lg mb-4">Загрузить из заявки</h3>
+            
+            <div class="space-y-2" id="requestsListForLoad">
+                <!-- Requests will be listed here -->
+            </div>
+            
+            <div class="modal-action">
+                <button type="button" class="btn btn-ghost" onclick="closeLoadFromRequestModal()">Отмена</button>
+            </div>
+        </div>
+        <form method="dialog" class="modal-backdrop">
+            <button>close</button>
+        </form>
+    </dialog>
+
+    <!-- Load from Menu Modal -->
+    <dialog id="loadFromMenuModal" class="modal">
+        <div class="modal-box max-w-md">
+            <form method="dialog">
+                <button class="btn btn-sm btn-circle btn-ghost absolute right-2 top-2">✕</button>
+            </form>
+            <h3 class="font-bold text-lg mb-4">Загрузить из меню</h3>
+            
+            <div class="space-y-4">
+                <div>
+                    <label class="label"><span class="label-text font-medium">Дата</span></label>
+                    <input type="date" id="menuLoadDate" class="input input-bordered w-full" />
+                </div>
+                
+                <div>
+                    <label class="label"><span class="label-text font-medium">Приём пищи</span></label>
+                    <div class="flex gap-2">
+                        <label class="label cursor-pointer gap-2">
+                            <input type="checkbox" id="menuLoadBreakfast" class="checkbox checkbox-sm" checked />
+                            <span class="label-text">Завтрак</span>
+                        </label>
+                        <label class="label cursor-pointer gap-2">
+                            <input type="checkbox" id="menuLoadLunch" class="checkbox checkbox-sm" checked />
+                            <span class="label-text">Обед</span>
+                        </label>
+                        <label class="label cursor-pointer gap-2">
+                            <input type="checkbox" id="menuLoadDinner" class="checkbox checkbox-sm" checked />
+                            <span class="label-text">Ужин</span>
+                        </label>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="modal-action">
+                <button type="button" class="btn btn-ghost" onclick="closeLoadFromMenuModal()">Отмена</button>
+                <button type="button" class="btn btn-primary" onclick="loadFromMenu()">Загрузить</button>
+            </div>
+        </div>
+        <form method="dialog" class="modal-backdrop">
+            <button>close</button>
+        </form>
+    </dialog>
+
+    <!-- Footer -->
+    <footer class="bg-base-100 border-t border-base-200 mt-12">
+        <div class="container mx-auto px-4 py-6">
+            <div class="flex flex-col sm:flex-row justify-between items-center gap-4">
+                <nav class="flex gap-6">
+                    <a href="kitchen-menu.html" class="text-sm font-medium uppercase tracking-wide opacity-60 hover:opacity-100">Меню</a>
+                    <a href="kitchen-recipes.html" class="text-sm font-medium uppercase tracking-wide opacity-60 hover:opacity-100">Рецепты</a>
+                    <a href="kitchen-products.html" class="text-sm font-medium uppercase tracking-wide opacity-60 hover:opacity-100">Продукты</a>
+                    <a href="kitchen-stock.html" class="text-sm font-medium uppercase tracking-wide text-primary">Склад</a>
+                    <a href="kitchen-retreats.html" class="text-sm font-medium uppercase tracking-wide opacity-60 hover:opacity-100">Ретриты</a>
+                    <a href="kitchen-team.html" class="text-sm font-medium uppercase tracking-wide opacity-60 hover:opacity-100">Команда</a>
+                </nav>
+                
+                <button onclick="window.scrollTo({top: 0, behavior: 'smooth'})" class="btn btn-ghost btn-sm gap-1 opacity-60 hover:opacity-100">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 15l7-7 7 7" />
+                    </svg>
+                    Наверх
+                </button>
+            </div>
+            
+            <div class="text-center mt-4 text-xs opacity-40">
+                ШРСК · Шри Рупа Сева Кунджа
+            </div>
+        </div>
+    </footer>
+
+    <script>
+        // ==================== DATA ====================
+        const products = [
+            { id: 1, name_ru: "Картофель", name_en: "Potato", name_hi: "आलू", category: "vegetables", unit: "кг" },
+            { id: 2, name_ru: "Лук репчатый", name_en: "Onion", name_hi: "प्याज", category: "vegetables", unit: "кг" },
+            { id: 3, name_ru: "Морковь", name_en: "Carrot", name_hi: "गाजर", category: "vegetables", unit: "кг" },
+            { id: 4, name_ru: "Томаты", name_en: "Tomatoes", name_hi: "टमाटर", category: "vegetables", unit: "кг" },
+            { id: 5, name_ru: "Огурцы", name_en: "Cucumber", name_hi: "खीरा", category: "vegetables", unit: "кг" },
+            { id: 6, name_ru: "Капуста", name_en: "Cabbage", name_hi: "पत्ता गोभी", category: "vegetables", unit: "кг" },
+            { id: 7, name_ru: "Цветная капуста", name_en: "Cauliflower", name_hi: "फूल गोभी", category: "vegetables", unit: "кг" },
+            { id: 8, name_ru: "Шпинат", name_en: "Spinach", name_hi: "पालक", category: "vegetables", unit: "кг" },
+            { id: 9, name_ru: "Имбирь", name_en: "Ginger", name_hi: "अदरक", category: "vegetables", unit: "кг" },
+            { id: 10, name_ru: "Чеснок", name_en: "Garlic", name_hi: "लहसुन", category: "vegetables", unit: "кг" },
+            { id: 20, name_ru: "Бананы", name_en: "Banana", name_hi: "केला", category: "fruits", unit: "кг" },
+            { id: 21, name_ru: "Манго", name_en: "Mango", name_hi: "आम", category: "fruits", unit: "кг" },
+            { id: 22, name_ru: "Лимон", name_en: "Lemon", name_hi: "नींबू", category: "fruits", unit: "кг" },
+            { id: 30, name_ru: "Рис басмати", name_en: "Basmati Rice", name_hi: "बासमती चावल", category: "grains", unit: "кг" },
+            { id: 31, name_ru: "Пшеница", name_en: "Wheat", name_hi: "गेहूं", category: "grains", unit: "кг" },
+            { id: 32, name_ru: "Манка (суджи)", name_en: "Semolina", name_hi: "सूजी", category: "grains", unit: "кг" },
+            { id: 33, name_ru: "Овёс", name_en: "Oats", name_hi: "ओट्स", category: "grains", unit: "кг" },
+            { id: 40, name_ru: "Мунг дал", name_en: "Moong Dal", name_hi: "मूंग दाल", category: "legumes", unit: "кг" },
+            { id: 41, name_ru: "Чана дал", name_en: "Chana Dal", name_hi: "चना दाल", category: "legumes", unit: "кг" },
+            { id: 42, name_ru: "Тур дал", name_en: "Toor Dal", name_hi: "तूर दाल", category: "legumes", unit: "кг" },
+            { id: 43, name_ru: "Нут", name_en: "Chickpeas", name_hi: "छोले", category: "legumes", unit: "кг" },
+            { id: 50, name_ru: "Молоко", name_en: "Milk", name_hi: "दूध", category: "dairy", unit: "л" },
+            { id: 51, name_ru: "Йогурт", name_en: "Yogurt", name_hi: "दही", category: "dairy", unit: "кг" },
+            { id: 52, name_ru: "Панир", name_en: "Paneer", name_hi: "पनीर", category: "dairy", unit: "кг" },
+            { id: 53, name_ru: "Гхи", name_en: "Ghee", name_hi: "घी", category: "dairy", unit: "кг" },
+            { id: 60, name_ru: "Куркума", name_en: "Turmeric", name_hi: "हल्दी", category: "spices", unit: "кг" },
+            { id: 61, name_ru: "Кумин (зира)", name_en: "Cumin", name_hi: "जीरा", category: "spices", unit: "кг" },
+            { id: 62, name_ru: "Кориандр", name_en: "Coriander", name_hi: "धनिया", category: "spices", unit: "кг" },
+            { id: 63, name_ru: "Гарам масала", name_en: "Garam Masala", name_hi: "गरम मसाला", category: "spices", unit: "кг" },
+            { id: 64, name_ru: "Красный чили", name_en: "Red Chili", name_hi: "लाल मिर्च", category: "spices", unit: "кг" },
+            { id: 70, name_ru: "Подсолнечное масло", name_en: "Sunflower Oil", name_hi: "सूरजमुखी तेल", category: "oils", unit: "л" },
+            { id: 71, name_ru: "Горчичное масло", name_en: "Mustard Oil", name_hi: "सरसों का तेल", category: "oils", unit: "л" },
+            { id: 80, name_ru: "Сахар", name_en: "Sugar", name_hi: "चीनी", category: "other", unit: "кг" },
+            { id: 81, name_ru: "Соль", name_en: "Salt", name_hi: "नमक", category: "other", unit: "кг" },
+            { id: 82, name_ru: "Мёд", name_en: "Honey", name_hi: "शहद", category: "other", unit: "кг" },
+        ];
+
+        // Stock data: product_id -> stock info
+        let stockData = {
+            1: { current: 25, min: 10, supplier: "Рынок Лой Базар, Рамеш +91-98765-43210", priceHistory: [{date: '2025-01-15', price: 30}, {date: '2025-01-01', price: 28}, {date: '2024-12-15', price: 32}] },
+            2: { current: 8, min: 5, supplier: "Рынок Лой Базар", priceHistory: [{date: '2025-01-15', price: 25}, {date: '2025-01-01', price: 22}] },
+            3: { current: 3, min: 5, supplier: "Рынок Лой Базар", priceHistory: [{date: '2025-01-10', price: 35}] },
+            4: { current: 2, min: 8, supplier: "", priceHistory: [{date: '2025-01-14', price: 40}, {date: '2025-01-07', price: 35}] },
+            5: { current: 4, min: 3, supplier: "", priceHistory: [] },
+            6: { current: 12, min: 5, supplier: "", priceHistory: [{date: '2025-01-12', price: 20}] },
+            30: { current: 45, min: 20, supplier: "Оптовый склад, Джайпур Роуд", priceHistory: [{date: '2025-01-10', price: 65}, {date: '2024-12-20', price: 60}, {date: '2024-12-01', price: 58}] },
+            31: { current: 15, min: 20, supplier: "Оптовый склад", priceHistory: [{date: '2025-01-05', price: 35}] },
+            40: { current: 18, min: 10, supplier: "Шарма Трейдерс", priceHistory: [{date: '2025-01-12', price: 120}, {date: '2024-12-28', price: 115}] },
+            41: { current: 8, min: 10, supplier: "Шарма Трейдерс", priceHistory: [{date: '2025-01-08', price: 95}] },
+            50: { current: 20, min: 15, supplier: "Молочная ферма, ежедневная доставка", priceHistory: [{date: '2025-01-15', price: 60}, {date: '2025-01-01', price: 58}] },
+            52: { current: 5, min: 3, supplier: "Молочная ферма", priceHistory: [{date: '2025-01-14', price: 320}, {date: '2025-01-01', price: 300}] },
+            53: { current: 8, min: 5, supplier: "Патанджали", priceHistory: [{date: '2025-01-10', price: 550}] },
+            60: { current: 2, min: 1, supplier: "Магазин специй", priceHistory: [{date: '2025-01-05', price: 180}] },
+            61: { current: 1.5, min: 1, supplier: "Магазин специй", priceHistory: [{date: '2025-01-05', price: 220}] },
+            70: { current: 15, min: 10, supplier: "Фортуна Ойл", priceHistory: [{date: '2025-01-10', price: 140}, {date: '2024-12-15', price: 145}] },
+            80: { current: 25, min: 15, supplier: "", priceHistory: [{date: '2025-01-08', price: 45}] },
+            81: { current: 10, min: 5, supplier: "", priceHistory: [{date: '2025-01-01', price: 22}] },
+        };
+
+        const categoryNames = {
+            vegetables: 'Овощи',
+            fruits: 'Фрукты',
+            grains: 'Крупы',
+            legumes: 'Бобовые',
+            dairy: 'Молочное',
+            spices: 'Специи',
+            oils: 'Масла',
+            other: 'Прочее'
+        };
+
+        // Staff lists (editable)
+        let buyers = [
+            { id: 1, name: 'Рамеш', phone: '+91 98765 43210' },
+            { id: 2, name: 'Виджай', phone: '+91 87654 32109' },
+            { id: 3, name: 'Сурен', phone: '+91 76543 21098' },
+        ];
+        
+        let cooks = [
+            { id: 1, name: 'Анна Петрова', email: 'anna@example.com', phoneIndian: '+91 99887 76655', phoneMessenger: '+7 999 123-45-67' },
+            { id: 2, name: 'Мария Иванова', email: 'maria@example.com', phoneIndian: '+91 88776 65544', phoneMessenger: '+7 999 234-56-78' },
+            { id: 3, name: 'Лакшми', email: 'lakshmi@example.com', phoneIndian: '+91 77665 54433', phoneMessenger: '' },
+            { id: 4, name: 'Прабху', email: 'prabhu@example.com', phoneIndian: '+91 66554 43322', phoneMessenger: '' },
+        ];
+
+        // Demo requests data
+        const savedRequests = [
+            {
+                id: 3,
+                date: '2025-01-15',
+                period: '15–21 янв',
+                items: [
+                    { productId: 1, quantity: 20, price: 30 },
+                    { productId: 2, quantity: 10, price: 25 },
+                    { productId: 4, quantity: 15, price: 40 },
+                    { productId: 30, quantity: 25, price: 65 },
+                    { productId: 50, quantity: 30, price: 60 },
+                    { productId: 52, quantity: 5, price: 320 },
+                ]
+            },
+            {
+                id: 2,
+                date: '2025-01-10',
+                period: '10–14 янв',
+                status: 'closed',
+                items: [
+                    { productId: 1, quantity: 15, price: 28 },
+                    { productId: 3, quantity: 8, price: 35 },
+                    { productId: 40, quantity: 10, price: 120 },
+                ]
+            },
+            {
+                id: 1,
+                date: '2025-01-05',
+                period: '5–9 янв',
+                status: 'closed',
+                items: [
+                    { productId: 30, quantity: 20, price: 60 },
+                    { productId: 50, quantity: 25, price: 58 },
+                ]
+            }
+        ];
+
+        // Demo menu data
+        const menuData = {
+            '2026-01-19': {
+                breakfast: {
+                    recipes: [
+                        { name: 'Овсянка с фруктами', portions: 50, ingredients: [
+                            { productId: 33, amount: 2.5 }, // Овёс
+                            { productId: 50, amount: 5 }, // Молоко
+                            { productId: 20, amount: 3 }, // Бананы
+                            { productId: 80, amount: 0.5 }, // Сахар
+                        ]},
+                    ]
+                },
+                lunch: {
+                    recipes: [
+                        { name: 'Рис с овощами', portions: 50, ingredients: [
+                            { productId: 30, amount: 5 }, // Рис
+                            { productId: 1, amount: 3 }, // Картофель
+                            { productId: 3, amount: 2 }, // Морковь
+                            { productId: 4, amount: 2 }, // Томаты
+                            { productId: 70, amount: 0.5 }, // Масло
+                            { productId: 60, amount: 0.05 }, // Куркума
+                            { productId: 61, amount: 0.03 }, // Кумин
+                        ]},
+                        { name: 'Дал', portions: 50, ingredients: [
+                            { productId: 40, amount: 2 }, // Мунг дал
+                            { productId: 4, amount: 1 }, // Томаты
+                            { productId: 9, amount: 0.1 }, // Имбирь
+                            { productId: 53, amount: 0.3 }, // Гхи
+                        ]},
+                    ]
+                },
+                dinner: {
+                    recipes: [
+                        { name: 'Сабджи из капусты', portions: 50, ingredients: [
+                            { productId: 6, amount: 4 }, // Капуста
+                            { productId: 1, amount: 2 }, // Картофель
+                            { productId: 4, amount: 1 }, // Томаты
+                            { productId: 70, amount: 0.3 }, // Масло
+                            { productId: 63, amount: 0.05 }, // Гарам масала
+                        ]},
+                    ]
+                }
+            },
+            '2026-01-20': {
+                breakfast: {
+                    recipes: [
+                        { name: 'Упма', portions: 50, ingredients: [
+                            { productId: 32, amount: 3 }, // Манка
+                            { productId: 2, amount: 1 }, // Лук
+                            { productId: 9, amount: 0.1 }, // Имбирь
+                            { productId: 53, amount: 0.5 }, // Гхи
+                        ]},
+                    ]
+                },
+                lunch: {
+                    recipes: [
+                        { name: 'Панир масала', portions: 50, ingredients: [
+                            { productId: 52, amount: 3 }, // Панир
+                            { productId: 4, amount: 2 }, // Томаты
+                            { productId: 2, amount: 1 }, // Лук
+                            { productId: 53, amount: 0.3 }, // Гхи
+                            { productId: 63, amount: 0.05 }, // Гарам масала
+                        ]},
+                    ]
+                },
+                dinner: {
+                    recipes: [
+                        { name: 'Кичри', portions: 50, ingredients: [
+                            { productId: 30, amount: 3 }, // Рис
+                            { productId: 40, amount: 2 }, // Мунг дал
+                            { productId: 53, amount: 0.3 }, // Гхи
+                            { productId: 60, amount: 0.03 }, // Куркума
+                        ]},
+                    ]
+                }
+            }
+        };
+
+        // ==================== STATE ====================
+        let currentLang = 'ru';
+        let currentCategoryFilter = 'all';
+        let selectedProductId = null;
+        let editingStockId = null;
+
+        // ==================== FUNCTIONS ====================
+        function getProduct(id) {
+            return products.find(p => p.id === id);
+        }
+
+        function getProductName(product) {
+            return currentLang === 'ru' ? product.name_ru : currentLang === 'en' ? product.name_en : product.name_hi;
+        }
+
+        function getStatus(stock) {
+            if (!stock) return 'none';
+            if (stock.current <= 0) return 'critical';
+            if (stock.current < stock.min) return 'critical';
+            if (stock.current < stock.min * 1.5) return 'low';
+            return 'ok';
+        }
+
+        function getLastPrice(stock) {
+            if (!stock || !stock.priceHistory || stock.priceHistory.length === 0) return null;
+            return stock.priceHistory[0].price;
+        }
+
+        function getPriceTrend(stock) {
+            if (!stock || !stock.priceHistory || stock.priceHistory.length < 2) return 'stable';
+            const current = stock.priceHistory[0].price;
+            const previous = stock.priceHistory[1].price;
+            if (current > previous) return 'up';
+            if (current < previous) return 'down';
+            return 'stable';
+        }
+
+        function formatDate(dateStr) {
+            const d = new Date(dateStr);
+            return d.toLocaleDateString('ru-RU', { day: 'numeric', month: 'short' });
+        }
+
+        // ==================== RENDERING ====================
+        function renderStock() {
+            const container = document.getElementById('stockList');
+            const searchQuery = document.getElementById('searchInput').value.toLowerCase();
+            
+            // Get all stock items with product info
+            let items = Object.entries(stockData).map(([productId, stock]) => {
+                const product = getProduct(parseInt(productId));
+                if (!product) return null;
+                return {
+                    productId: parseInt(productId),
+                    product,
+                    stock,
+                    status: getStatus(stock)
+                };
+            }).filter(Boolean);
+            
+            // Apply filters
+            if (searchQuery) {
+                items = items.filter(item => 
+                    item.product.name_ru.toLowerCase().includes(searchQuery) ||
+                    item.product.name_en.toLowerCase().includes(searchQuery) ||
+                    item.product.name_hi.includes(searchQuery)
+                );
+            }
+            
+            if (currentCategoryFilter !== 'all') {
+                items = items.filter(item => item.product.category === currentCategoryFilter);
+            }
+            
+            // Sort: critical first, then low, then ok
+            items.sort((a, b) => {
+                const order = { critical: 0, low: 1, ok: 2 };
+                return order[a.status] - order[b.status];
+            });
+            
+            // Update summary
+            const allItems = Object.entries(stockData);
+            document.getElementById('totalItems').textContent = allItems.length;
+            document.getElementById('criticalItems').textContent = allItems.filter(([id, s]) => getStatus(s) === 'critical').length;
+            document.getElementById('lowItems').textContent = allItems.filter(([id, s]) => getStatus(s) === 'low').length;
+            document.getElementById('okItems').textContent = allItems.filter(([id, s]) => getStatus(s) === 'ok').length;
+            
+            // Render list
+            if (items.length === 0) {
+                container.innerHTML = '<div class="text-center py-8 opacity-50">Нет продуктов</div>';
+                return;
+            }
+            
+            container.innerHTML = items.map(item => {
+                const statusClass = item.status === 'critical' ? 'status-critical' : item.status === 'low' ? 'status-low' : 'status-ok';
+                const lastPrice = getLastPrice(item.stock);
+                const trend = getPriceTrend(item.stock);
+                const trendIcon = trend === 'up' ? '↑' : trend === 'down' ? '↓' : '→';
+                const trendClass = trend === 'up' ? 'trend-up' : trend === 'down' ? 'trend-down' : 'trend-stable';
+                
+                return `
+                    <div class="bg-base-100 rounded-lg p-4 ${statusClass}">
+                        <div class="flex flex-col md:flex-row md:items-center gap-4">
+                            <!-- Product Info -->
+                            <div class="flex-1 min-w-0">
+                                <div class="flex items-center gap-2">
+                                    <span class="font-semibold text-lg">${getProductName(item.product)}</span>
+                                    <span class="text-sm opacity-50">${item.product.name_en}</span>
+                                </div>
+                                <div class="text-sm opacity-60">${categoryNames[item.product.category] || item.product.category}</div>
+                                ${item.stock.supplier ? `<div class="text-xs opacity-50 mt-1 truncate" title="${item.stock.supplier}">📦 ${item.stock.supplier}</div>` : ''}
+                            </div>
+                            
+                            <!-- Stock Info -->
+                            <div class="flex items-center gap-6">
+                                <!-- Current Stock -->
+                                <div class="text-center">
+                                    <div class="text-2xl font-bold ${item.status === 'critical' ? 'text-red-600' : item.status === 'low' ? 'text-yellow-600' : ''}">${item.stock.current} ${item.product.unit}</div>
+                                    <div class="text-xs opacity-50">Должно быть ≥ ${item.stock.min}</div>
+                                </div>
+                                
+                                <!-- Price -->
+                                <div class="text-center min-w-20 cursor-pointer hover:bg-base-200 rounded-lg p-2 -m-2" onclick="openPriceModal(${item.productId})">
+                                    ${lastPrice ? `
+                                        <div class="font-medium">₹${lastPrice}</div>
+                                        <div class="text-xs ${trendClass}">${trendIcon}</div>
+                                    ` : '<div class="text-sm opacity-40">—</div>'}
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                `;
+            }).join('');
+        }
+
+        // ==================== FILTERS ====================
+        function filterStock() {
+            renderStock();
+        }
+
+        function setCategoryFilter(category) {
+            currentCategoryFilter = category;
+            
+            ['all', 'vegetables', 'fruits', 'grains', 'legumes', 'dairy', 'spices', 'oils', 'other'].forEach(cat => {
+                const btn = document.getElementById('catBtn_' + cat);
+                if (btn) {
+                    btn.classList.toggle('active', cat === category);
+                }
+            });
+            
+            // Show/hide summary cards
+            const summaryCards = document.getElementById('summaryCards');
+            summaryCards.classList.toggle('hidden', category !== 'all');
+            
+            renderStock();
+        }
+
+        // ==================== MODALS ====================
+        function openAddStockModal() {
+            editingStockId = null;
+            selectedProductId = null;
+            
+            document.getElementById('stockModalTitle').textContent = 'Добавить продукт';
+            document.getElementById('productSelectSection').classList.remove('hidden');
+            document.getElementById('selectedProductDisplay').classList.add('hidden');
+            document.getElementById('productSearch').value = '';
+            document.getElementById('currentStock').value = 0;
+            document.getElementById('minStock').value = 0;
+            document.getElementById('supplierInfo').value = '';
+            document.getElementById('currentPrice').value = '';
+            document.getElementById('stockUnit').textContent = 'кг';
+            document.getElementById('minStockUnit').textContent = 'кг';
+            
+            document.getElementById('stockModal').showModal();
+        }
+
+        function openEditStockModal(productId) {
+            const product = getProduct(productId);
+            const stock = stockData[productId];
+            if (!product || !stock) return;
+            
+            editingStockId = productId;
+            selectedProductId = productId;
+            
+            document.getElementById('stockModalTitle').textContent = 'Редактировать';
+            document.getElementById('productSelectSection').classList.add('hidden');
+            document.getElementById('selectedProductDisplay').classList.remove('hidden');
+            document.getElementById('selectedProductName').textContent = getProductName(product);
+            document.getElementById('selectedProductNameEn').textContent = product.name_en;
+            document.getElementById('currentStock').value = stock.current;
+            document.getElementById('minStock').value = stock.min;
+            document.getElementById('supplierInfo').value = stock.supplier || '';
+            document.getElementById('currentPrice').value = getLastPrice(stock) || '';
+            document.getElementById('stockUnit').textContent = product.unit;
+            document.getElementById('minStockUnit').textContent = product.unit;
+            
+            document.getElementById('stockModal').showModal();
+        }
+
+        function closeStockModal() {
+            document.getElementById('stockModal').close();
+        }
+
+        function filterProducts(query) {
+            const dropdown = document.getElementById('productDropdown');
+            
+            if (query.length < 1) {
+                dropdown.classList.add('hidden');
+                return;
+            }
+            
+            const q = query.toLowerCase();
+            // Exclude products already in stock
+            const existingIds = Object.keys(stockData).map(Number);
+            const filtered = products.filter(p => 
+                !existingIds.includes(p.id) && (
+                    p.name_ru.toLowerCase().includes(q) ||
+                    p.name_en.toLowerCase().includes(q) ||
+                    p.name_hi.includes(query)
+                )
+            ).slice(0, 8);
+            
+            if (filtered.length === 0) {
+                dropdown.innerHTML = '<div class="p-3 text-sm opacity-50">Ничего не найдено</div>';
+            } else {
+                dropdown.innerHTML = filtered.map(p => `
+                    <div class="p-3 hover:bg-base-200 cursor-pointer border-b border-base-200 last:border-0" onclick="selectProduct(${p.id})">
+                        <div class="font-medium">${getProductName(p)}</div>
+                        <div class="text-xs opacity-50">${p.name_en} · ${categoryNames[p.category]}</div>
+                    </div>
+                `).join('');
+            }
+            
+            dropdown.classList.remove('hidden');
+        }
+
+        function showProductDropdown() {
+            const input = document.getElementById('productSearch');
+            if (input.value.length >= 1) {
+                filterProducts(input.value);
+            }
+        }
+
+        function selectProduct(productId) {
+            const product = getProduct(productId);
+            if (!product) return;
+            
+            selectedProductId = productId;
+            
+            document.getElementById('productSearch').classList.add('hidden');
+            document.getElementById('productDropdown').classList.add('hidden');
+            document.getElementById('selectedProductDisplay').classList.remove('hidden');
+            document.getElementById('selectedProductName').textContent = getProductName(product);
+            document.getElementById('selectedProductNameEn').textContent = product.name_en;
+            document.getElementById('stockUnit').textContent = product.unit;
+            document.getElementById('minStockUnit').textContent = product.unit;
+        }
+
+        function clearSelectedProduct() {
+            selectedProductId = null;
+            document.getElementById('productSearch').value = '';
+            document.getElementById('productSearch').classList.remove('hidden');
+            document.getElementById('selectedProductDisplay').classList.add('hidden');
+        }
+
+        function saveStock() {
+            if (!selectedProductId) {
+                alert('Выберите продукт');
+                return;
+            }
+            
+            const current = parseFloat(document.getElementById('currentStock').value) || 0;
+            const min = parseFloat(document.getElementById('minStock').value) || 0;
+            const supplier = document.getElementById('supplierInfo').value.trim();
+            const price = parseFloat(document.getElementById('currentPrice').value);
+            
+            if (!stockData[selectedProductId]) {
+                stockData[selectedProductId] = { current: 0, min: 0, supplier: '', priceHistory: [] };
+            }
+            
+            stockData[selectedProductId].current = current;
+            stockData[selectedProductId].min = min;
+            stockData[selectedProductId].supplier = supplier;
+            
+            // Add price to history if provided and different from last
+            if (price && price > 0) {
+                const lastPrice = getLastPrice(stockData[selectedProductId]);
+                if (!lastPrice || lastPrice !== price) {
+                    stockData[selectedProductId].priceHistory.unshift({
+                        date: new Date().toISOString().split('T')[0],
+                        price: price
+                    });
+                }
+            }
+            
+            closeStockModal();
+            renderStock();
+        }
+
+        function deleteStock(productId) {
+            const product = getProduct(productId);
+            if (!product) return;
+            
+            if (confirm(`Удалить "${getProductName(product)}" со склада?`)) {
+                delete stockData[productId];
+                renderStock();
+            }
+        }
+
+        // ==================== QUANTITY MODAL ====================
+        let quantityProductId = null;
+
+        function openQuantityModal(productId) {
+            const product = getProduct(productId);
+            const stock = stockData[productId];
+            if (!product || !stock) return;
+            
+            quantityProductId = productId;
+            
+            document.getElementById('quantityModalTitle').textContent = 'Изменить остаток';
+            document.getElementById('quantityCurrentValue').textContent = stock.current;
+            document.getElementById('quantityProductName').textContent = getProductName(product);
+            document.getElementById('newQuantity').value = stock.current;
+            document.getElementById('quantityUnit').textContent = product.unit;
+            
+            document.getElementById('quantityModal').showModal();
+        }
+
+        function closeQuantityModal() {
+            document.getElementById('quantityModal').close();
+        }
+
+        function adjustQuantity(delta) {
+            const input = document.getElementById('newQuantity');
+            const current = parseFloat(input.value) || 0;
+            const newValue = Math.max(0, current + delta);
+            input.value = newValue;
+            document.getElementById('quantityCurrentValue').textContent = newValue;
+        }
+
+        function saveQuantity() {
+            if (!quantityProductId) return;
+            
+            const newValue = parseFloat(document.getElementById('newQuantity').value) || 0;
+            stockData[quantityProductId].current = newValue;
+            
+            closeQuantityModal();
+            renderStock();
+        }
+
+        // ==================== PRICE MODAL ====================
+        let priceProductId = null;
+
+        function openPriceModal(productId) {
+            const product = getProduct(productId);
+            const stock = stockData[productId];
+            if (!product || !stock) return;
+            
+            priceProductId = productId;
+            
+            document.getElementById('priceModalTitle').textContent = `Цены: ${getProductName(product)}`;
+            document.getElementById('newPrice').value = '';
+            
+            renderPriceHistory();
+            
+            document.getElementById('priceModal').showModal();
+        }
+
+        function closePriceModal() {
+            document.getElementById('priceModal').close();
+        }
+
+        function renderPriceHistory() {
+            const list = document.getElementById('priceHistoryList');
+            const stock = stockData[priceProductId];
+            
+            if (!stock || !stock.priceHistory || stock.priceHistory.length === 0) {
+                list.innerHTML = '<div class="text-center opacity-50">Нет данных о ценах</div>';
+                return;
+            }
+            
+            list.innerHTML = stock.priceHistory.map((p, i) => {
+                const prevPrice = stock.priceHistory[i + 1]?.price;
+                let change = '';
+                if (prevPrice) {
+                    const diff = p.price - prevPrice;
+                    const pct = ((diff / prevPrice) * 100).toFixed(1);
+                    if (diff > 0) {
+                        change = `<span class="text-red-500">+${diff} (+${pct}%)</span>`;
+                    } else if (diff < 0) {
+                        change = `<span class="text-green-500">${diff} (${pct}%)</span>`;
+                    }
+                }
+                
+                return `
+                    <div class="flex justify-between items-center p-2 bg-base-200/50 rounded">
+                        <div>
+                            <span class="font-medium">₹${p.price}</span>
+                            ${change ? `<span class="text-xs ml-2">${change}</span>` : ''}
+                        </div>
+                        <span class="text-sm opacity-60">${formatDate(p.date)}</span>
+                    </div>
+                `;
+            }).join('');
+        }
+
+        function addPrice() {
+            const price = parseFloat(document.getElementById('newPrice').value);
+            if (!price || price <= 0) {
+                alert('Введите корректную цену');
+                return;
+            }
+            
+            if (!stockData[priceProductId]) return;
+            
+            stockData[priceProductId].priceHistory.unshift({
+                date: new Date().toISOString().split('T')[0],
+                price: price
+            });
+            
+            document.getElementById('newPrice').value = '';
+            renderPriceHistory();
+            renderStock();
+        }
+
+        // ==================== TABS ====================
+        let currentTab = 'stock';
+        
+        // Archive functions
+        function showActiveRequests() {
+            document.getElementById('requestsActiveBtn').classList.add('btn-active');
+            document.getElementById('requestsArchiveBtn').classList.remove('btn-active');
+            // TODO: filter list to show active only
+        }
+        
+        function showArchivedRequests() {
+            document.getElementById('requestsActiveBtn').classList.remove('btn-active');
+            document.getElementById('requestsArchiveBtn').classList.add('btn-active');
+            // TODO: filter list to show archived only
+        }
+        
+        function archiveRequest(id) {
+            if (confirm(`Переместить заявку №${id} в архив?`)) {
+                alert(`Заявка №${id} перемещена в архив (функция в разработке)`);
+            }
+        }
+        
+        function showActiveReceipts() {
+            document.getElementById('receiptsActiveBtn').classList.add('btn-active');
+            document.getElementById('receiptsArchiveBtn').classList.remove('btn-active');
+        }
+        
+        function showArchivedReceipts() {
+            document.getElementById('receiptsActiveBtn').classList.remove('btn-active');
+            document.getElementById('receiptsArchiveBtn').classList.add('btn-active');
+        }
+        
+        function archiveReceipt(id) {
+            if (confirm(`Переместить получение №${id} в архив?`)) {
+                alert(`Получение №${id} перемещено в архив (функция в разработке)`);
+            }
+        }
+        
+        function showActiveIssues() {
+            document.getElementById('issuesActiveBtn').classList.add('btn-active');
+            document.getElementById('issuesArchiveBtn').classList.remove('btn-active');
+        }
+        
+        function showArchivedIssues() {
+            document.getElementById('issuesActiveBtn').classList.remove('btn-active');
+            document.getElementById('issuesArchiveBtn').classList.add('btn-active');
+        }
+        
+        function archiveIssue(id) {
+            if (confirm(`Переместить выдачу №${id} в архив?`)) {
+                alert(`Выдача №${id} перемещена в архив (функция в разработке)`);
+            }
+        }
+        
+        function switchTab(tab) {
+            currentTab = tab;
+            
+            // Update tab buttons
+            ['stock', 'requests', 'receipts', 'issues', 'settings'].forEach(t => {
+                const tabBtn = document.getElementById('tab' + t.charAt(0).toUpperCase() + t.slice(1));
+                const tabContent = document.getElementById('tabContent' + t.charAt(0).toUpperCase() + t.slice(1));
+                
+                if (tabBtn) {
+                    tabBtn.classList.toggle('tab-active', t === tab);
+                }
+                if (tabContent) {
+                    tabContent.classList.toggle('hidden', t !== tab);
+                }
+            });
+            
+            // Render settings when switching to that tab
+            if (tab === 'settings') {
+                renderSettings();
+            }
+        }
+
+        // ==================== RECEIPT MODAL (Получение) ====================
+        let receiptItems = [];
+        
+        function openReceiptModal() {
+            receiptItems = [];
+            document.getElementById('receiptDate').value = new Date().toISOString().split('T')[0];
+            
+            // Fill buyers select
+            const buyerSelect = document.getElementById('receiptBuyer');
+            buyerSelect.innerHTML = '<option value="">Выберите закупщика</option>' + 
+                buyers.map(b => `<option value="${b.id}">${b.name}</option>`).join('');
+            buyerSelect.value = '';
+            
+            document.getElementById('receiptNotes').value = '';
+            document.getElementById('receiptProductSearch').value = '';
+            renderReceiptItems();
+            document.getElementById('receiptModal').showModal();
+        }
+        
+        function closeReceiptModal() {
+            document.getElementById('receiptModal').close();
+        }
+        
+        function renderReceiptItems() {
+            const tbody = document.getElementById('receiptItems');
+            
+            if (receiptItems.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="5" class="text-center opacity-50">Добавьте продукты</td></tr>';
+                document.getElementById('receiptTotal').textContent = '₹0';
+                return;
+            }
+            
+            tbody.innerHTML = receiptItems.map((item, idx) => {
+                const sum = (item.quantity || 0) * (item.price || 0);
+                return `
+                    <tr>
+                        <td>
+                            <div class="font-medium">${item.product.name_ru}</div>
+                            <div class="text-xs opacity-50">${item.product.name_en}</div>
+                        </td>
+                        <td>
+                            <div class="flex items-center gap-1">
+                                <input type="number" class="input input-xs input-bordered w-16" 
+                                       value="${item.quantity || ''}" min="0" step="0.1"
+                                       onchange="updateReceiptItem(${idx}, 'quantity', this.value)" />
+                                <span class="text-xs opacity-60">${item.product.unit}</span>
+                            </div>
+                        </td>
+                        <td>
+                            <input type="number" class="input input-xs input-bordered w-16" 
+                                   value="${item.price || ''}" min="0" step="0.5" placeholder="₹"
+                                   onchange="updateReceiptItem(${idx}, 'price', this.value)" />
+                        </td>
+                        <td class="text-right">${sum > 0 ? '₹' + Math.round(sum) : '—'}</td>
+                        <td>
+                            <button class="btn btn-ghost btn-xs btn-square text-error" onclick="removeReceiptItem(${idx})">✕</button>
+                        </td>
+                    </tr>
+                `;
+            }).join('');
+            
+            const total = receiptItems.reduce((sum, item) => sum + (item.quantity || 0) * (item.price || 0), 0);
+            document.getElementById('receiptTotal').textContent = '₹' + Math.round(total);
+        }
+        
+        function updateReceiptItem(idx, field, value) {
+            if (receiptItems[idx]) {
+                receiptItems[idx][field] = parseFloat(value) || 0;
+                renderReceiptItems();
+            }
+        }
+        
+        function removeReceiptItem(idx) {
+            receiptItems.splice(idx, 1);
+            renderReceiptItems();
+        }
+        
+        function filterReceiptProducts(query) {
+            const dropdown = document.getElementById('receiptProductDropdown');
+            if (query.length < 1) {
+                dropdown.classList.add('hidden');
+                return;
+            }
+            
+            const q = query.toLowerCase();
+            const existingIds = receiptItems.map(i => i.product.id);
+            const filtered = products.filter(p => 
+                !existingIds.includes(p.id) && (
+                    p.name_ru.toLowerCase().includes(q) ||
+                    p.name_en.toLowerCase().includes(q)
+                )
+            ).slice(0, 6);
+            
+            if (filtered.length === 0) {
+                dropdown.innerHTML = '<div class="p-2 text-sm opacity-50">Ничего не найдено</div>';
+            } else {
+                dropdown.innerHTML = filtered.map(p => `
+                    <div class="p-2 hover:bg-base-200 cursor-pointer" onclick="addReceiptProduct(${p.id})">
+                        <div class="font-medium">${p.name_ru}</div>
+                        <div class="text-xs opacity-50">${p.name_en}</div>
+                    </div>
+                `).join('');
+            }
+            dropdown.classList.remove('hidden');
+        }
+        
+        function showReceiptProductDropdown() {
+            const input = document.getElementById('receiptProductSearch');
+            if (input.value.length >= 1) {
+                filterReceiptProducts(input.value);
+            }
+        }
+        
+        function addReceiptProduct(productId) {
+            const product = getProduct(productId);
+            if (!product) return;
+            
+            // Get last known price
+            const stock = stockData[productId];
+            const lastPrice = stock?.priceHistory?.[0]?.price || 0;
+            
+            receiptItems.push({ product, quantity: 0, price: lastPrice });
+            document.getElementById('receiptProductSearch').value = '';
+            document.getElementById('receiptProductDropdown').classList.add('hidden');
+            renderReceiptItems();
+        }
+        
+        function saveReceipt() {
+            if (receiptItems.length === 0) {
+                alert('Добавьте хотя бы один продукт');
+                return;
+            }
+            
+            const date = document.getElementById('receiptDate').value;
+            const buyerId = document.getElementById('receiptBuyer').value;
+            
+            if (!buyerId) {
+                alert('Выберите закупщика');
+                return;
+            }
+            
+            const buyer = buyers.find(b => b.id == buyerId);
+            
+            // Update stock
+            receiptItems.forEach(item => {
+                const productId = item.product.id;
+                
+                if (!stockData[productId]) {
+                    stockData[productId] = { current: 0, min: 0, supplier: '', priceHistory: [] };
+                }
+                
+                // Add to stock
+                stockData[productId].current += item.quantity;
+                
+                // Add price to history
+                if (item.price > 0) {
+                    stockData[productId].priceHistory.unshift({
+                        date: date,
+                        price: item.price
+                    });
+                }
+            });
+            
+            const total = receiptItems.reduce((sum, item) => sum + (item.quantity || 0) * (item.price || 0), 0);
+            alert(`Получение сохранено!\n\nПозиций: ${receiptItems.length}\nСумма: ₹${Math.round(total)}`);
+            
+            closeReceiptModal();
+            renderStock();
+        }
+
+        // ==================== ISSUE MODAL (Выдача) ====================
+        let issueItems = [];
+        
+        function openIssueModal() {
+            issueItems = [];
+            const now = new Date();
+            now.setMinutes(now.getMinutes() - now.getTimezoneOffset());
+            document.getElementById('issueDate').value = now.toISOString().slice(0, 16);
+            
+            // Fill cooks select
+            const cookSelect = document.getElementById('issueRecipient');
+            cookSelect.innerHTML = '<option value="">Выберите повара</option>' + 
+                cooks.map(c => `<option value="${c.id}">${c.name}</option>`).join('');
+            cookSelect.value = '';
+            
+            document.getElementById('issueNotes').value = '';
+            document.getElementById('issueProductSearch').value = '';
+            renderIssueItems();
+            document.getElementById('issueModal').showModal();
+        }
+        
+        function closeIssueModal() {
+            document.getElementById('issueModal').close();
+        }
+        
+        function renderIssueItems() {
+            const tbody = document.getElementById('issueItems');
+            
+            if (issueItems.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="4" class="text-center opacity-50">Добавьте продукты</td></tr>';
+                return;
+            }
+            
+            tbody.innerHTML = issueItems.map((item, idx) => {
+                const inStock = stockData[item.product.id]?.current || 0;
+                const isOverLimit = item.quantity > inStock;
+                return `
+                    <tr class="${isOverLimit ? 'bg-error/10' : ''}">
+                        <td>
+                            <div class="font-medium">${item.product.name_ru}</div>
+                            <div class="text-xs opacity-50">${item.product.name_en}</div>
+                        </td>
+                        <td class="text-center opacity-60">${inStock} ${item.product.unit}</td>
+                        <td>
+                            <div class="flex items-center gap-1">
+                                <input type="number" class="input input-xs input-bordered w-16 ${isOverLimit ? 'input-error' : ''}" 
+                                       value="${item.quantity || ''}" min="0" max="${inStock}" step="0.1"
+                                       onchange="updateIssueItem(${idx}, this.value)" />
+                                <span class="text-xs opacity-60">${item.product.unit}</span>
+                            </div>
+                        </td>
+                        <td>
+                            <button class="btn btn-ghost btn-xs btn-square text-error" onclick="removeIssueItem(${idx})">✕</button>
+                        </td>
+                    </tr>
+                `;
+            }).join('');
+        }
+        
+        function updateIssueItem(idx, value) {
+            if (issueItems[idx]) {
+                issueItems[idx].quantity = parseFloat(value) || 0;
+                renderIssueItems();
+            }
+        }
+        
+        function removeIssueItem(idx) {
+            issueItems.splice(idx, 1);
+            renderIssueItems();
+        }
+        
+        function filterIssueProducts(query) {
+            const dropdown = document.getElementById('issueProductDropdown');
+            if (query.length < 1) {
+                dropdown.classList.add('hidden');
+                return;
+            }
+            
+            const q = query.toLowerCase();
+            const existingIds = issueItems.map(i => i.product.id);
+            // Only show products that are in stock
+            const filtered = products.filter(p => 
+                !existingIds.includes(p.id) && 
+                stockData[p.id]?.current > 0 && (
+                    p.name_ru.toLowerCase().includes(q) ||
+                    p.name_en.toLowerCase().includes(q)
+                )
+            ).slice(0, 6);
+            
+            if (filtered.length === 0) {
+                dropdown.innerHTML = '<div class="p-2 text-sm opacity-50">Ничего не найдено</div>';
+            } else {
+                dropdown.innerHTML = filtered.map(p => `
+                    <div class="p-2 hover:bg-base-200 cursor-pointer" onclick="addIssueProduct(${p.id})">
+                        <div class="font-medium">${p.name_ru}</div>
+                        <div class="text-xs opacity-50">${p.name_en} · на складе: ${stockData[p.id]?.current || 0} ${p.unit}</div>
+                    </div>
+                `).join('');
+            }
+            dropdown.classList.remove('hidden');
+        }
+        
+        function showIssueProductDropdown() {
+            const input = document.getElementById('issueProductSearch');
+            if (input.value.length >= 1) {
+                filterIssueProducts(input.value);
+            }
+        }
+        
+        function addIssueProduct(productId) {
+            const product = getProduct(productId);
+            if (!product) return;
+            
+            issueItems.push({ product, quantity: 0 });
+            document.getElementById('issueProductSearch').value = '';
+            document.getElementById('issueProductDropdown').classList.add('hidden');
+            renderIssueItems();
+        }
+        
+        function saveIssue() {
+            if (issueItems.length === 0) {
+                alert('Добавьте хотя бы один продукт');
+                return;
+            }
+            
+            const recipientId = document.getElementById('issueRecipient').value;
+            
+            if (!recipientId) {
+                alert('Выберите повара');
+                return;
+            }
+            
+            const cook = cooks.find(c => c.id == recipientId);
+            
+            // Check limits
+            for (const item of issueItems) {
+                const inStock = stockData[item.product.id]?.current || 0;
+                if (item.quantity > inStock) {
+                    alert(`Недостаточно "${item.product.name_ru}" на складе!\nНа складе: ${inStock}, запрошено: ${item.quantity}`);
+                    return;
+                }
+            }
+            
+            // Update stock
+            issueItems.forEach(item => {
+                const productId = item.product.id;
+                if (stockData[productId]) {
+                    stockData[productId].current -= item.quantity;
+                }
+            });
+            
+            alert(`Выдача сохранена!\n\nПозиций: ${issueItems.length}\nПолучатель: ${cook?.name || ''}`);
+            
+            closeIssueModal();
+            renderStock();
+        }
+
+        // ==================== LOAD FROM REQUEST ====================
+        function showLoadFromRequestModal() {
+            const container = document.getElementById('requestsListForLoad');
+            
+            if (savedRequests.length === 0) {
+                container.innerHTML = '<div class="text-center opacity-50">Нет сохранённых заявок</div>';
+            } else {
+                container.innerHTML = savedRequests.map(req => {
+                    const total = req.items.reduce((sum, i) => sum + (i.quantity * i.price), 0);
+                    return `
+                        <div class="p-3 border border-base-300 rounded-lg hover:bg-base-200 cursor-pointer" onclick="loadFromRequest(${req.id})">
+                            <div class="flex justify-between items-center">
+                                <div>
+                                    <div class="font-medium">Заявка №${req.id}</div>
+                                    <div class="text-sm opacity-60">${req.date} · ${req.period}</div>
+                                </div>
+                                <div class="text-right">
+                                    <div class="font-medium">${req.items.length} поз.</div>
+                                    <div class="text-sm opacity-60">₹${Math.round(total)}</div>
+                                </div>
+                            </div>
+                        </div>
+                    `;
+                }).join('');
+            }
+            
+            document.getElementById('loadFromRequestModal').showModal();
+        }
+        
+        function closeLoadFromRequestModal() {
+            document.getElementById('loadFromRequestModal').close();
+        }
+        
+        function loadFromRequest(requestId) {
+            const request = savedRequests.find(r => r.id === requestId);
+            if (!request) return;
+            
+            // Clear existing items and add from request
+            receiptItems = [];
+            
+            request.items.forEach(item => {
+                const product = getProduct(item.productId);
+                if (product) {
+                    receiptItems.push({
+                        product,
+                        quantity: item.quantity,
+                        price: item.price
+                    });
+                }
+            });
+            
+            renderReceiptItems();
+            closeLoadFromRequestModal();
+        }
+
+        // ==================== LOAD FROM MENU ====================
+        function showLoadFromMenuModal() {
+            // Set default date to today
+            document.getElementById('menuLoadDate').value = new Date().toISOString().split('T')[0];
+            document.getElementById('menuLoadBreakfast').checked = true;
+            document.getElementById('menuLoadLunch').checked = true;
+            document.getElementById('menuLoadDinner').checked = true;
+            
+            document.getElementById('loadFromMenuModal').showModal();
+        }
+        
+        function closeLoadFromMenuModal() {
+            document.getElementById('loadFromMenuModal').close();
+        }
+        
+        function loadFromMenu() {
+            const date = document.getElementById('menuLoadDate').value;
+            const includeBreakfast = document.getElementById('menuLoadBreakfast').checked;
+            const includeLunch = document.getElementById('menuLoadLunch').checked;
+            const includeDinner = document.getElementById('menuLoadDinner').checked;
+            
+            console.log('Looking for date:', date);
+            console.log('Available dates:', Object.keys(menuData));
+            
+            const dayMenu = menuData[date];
+            
+            if (!dayMenu) {
+                alert(`На выбранную дату (${date}) меню не найдено.\n\nДоступные даты: ${Object.keys(menuData).join(', ')}`);
+                return;
+            }
+            
+            // Collect all ingredients
+            const ingredientsMap = {};
+            
+            const addIngredients = (mealData) => {
+                if (!mealData?.recipes) return;
+                mealData.recipes.forEach(recipe => {
+                    recipe.ingredients.forEach(ing => {
+                        if (!ingredientsMap[ing.productId]) {
+                            ingredientsMap[ing.productId] = 0;
+                        }
+                        ingredientsMap[ing.productId] += ing.amount;
+                    });
+                });
+            };
+            
+            if (includeBreakfast) addIngredients(dayMenu.breakfast);
+            if (includeLunch) addIngredients(dayMenu.lunch);
+            if (includeDinner) addIngredients(dayMenu.dinner);
+            
+            if (Object.keys(ingredientsMap).length === 0) {
+                alert('Для выбранных приёмов пищи нет блюд');
+                return;
+            }
+            
+            // Clear existing items and add from menu
+            issueItems = [];
+            
+            Object.entries(ingredientsMap).forEach(([productId, amount]) => {
+                const product = getProduct(parseInt(productId));
+                if (product) {
+                    issueItems.push({
+                        product,
+                        quantity: Math.round(amount * 10) / 10 // Round to 1 decimal
+                    });
+                }
+            });
+            
+            renderIssueItems();
+            closeLoadFromMenuModal();
+        }
+
+        // ==================== SETTINGS ====================
+        let currentSettingsTab = 'cooks';
+        
+        function switchSettingsTab(tab) {
+            currentSettingsTab = tab;
+            
+            ['cooks', 'buyers', 'stock'].forEach(t => {
+                const tabBtn = document.getElementById('settingsTab' + t.charAt(0).toUpperCase() + t.slice(1));
+                const tabContent = document.getElementById('settingsContent' + t.charAt(0).toUpperCase() + t.slice(1));
+                
+                if (tabBtn) {
+                    tabBtn.classList.toggle('tab-active', t === tab);
+                }
+                if (tabContent) {
+                    tabContent.classList.toggle('hidden', t !== tab);
+                }
+            });
+            
+            renderCurrentSettingsTab();
+        }
+        
+        function renderCurrentSettingsTab() {
+            if (currentSettingsTab === 'cooks') renderSettingsCooks();
+            else if (currentSettingsTab === 'buyers') renderSettingsBuyers();
+            else if (currentSettingsTab === 'stock') renderSettingsStock();
+        }
+        
+        function renderSettings() {
+            renderCurrentSettingsTab();
+        }
+        
+        // --- Cooks ---
+        function renderSettingsCooks() {
+            const tbody = document.getElementById('cooksTableBody');
+            
+            if (cooks.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="5" class="text-center opacity-50">Список пуст</td></tr>';
+                return;
+            }
+            
+            tbody.innerHTML = cooks.map(cook => `
+                <tr>
+                    <td>
+                        <input type="text" 
+                               class="input input-sm input-bordered w-full" 
+                               value="${cook.name}" 
+                               placeholder="Имя"
+                               onchange="updateCook(${cook.id}, 'name', this.value)"
+                        />
+                    </td>
+                    <td>
+                        <input type="email" 
+                               class="input input-sm input-bordered w-full" 
+                               value="${cook.email || ''}" 
+                               placeholder="email@example.com"
+                               onchange="updateCook(${cook.id}, 'email', this.value)"
+                        />
+                    </td>
+                    <td>
+                        <input type="tel" 
+                               class="input input-sm input-bordered w-full" 
+                               value="${cook.phoneIndian || ''}" 
+                               placeholder="+91 XXXXX XXXXX"
+                               onchange="updateCook(${cook.id}, 'phoneIndian', this.value)"
+                        />
+                    </td>
+                    <td>
+                        <div class="flex gap-1">
+                            <input type="tel" 
+                                   class="input input-sm input-bordered flex-1" 
+                                   value="${cook.phoneMessenger || ''}" 
+                                   placeholder="+7 XXX XXX-XX-XX"
+                                   onchange="updateCook(${cook.id}, 'phoneMessenger', this.value)"
+                            />
+                            ${cook.phoneMessenger ? `
+                                <a href="https://wa.me/${cook.phoneMessenger.replace(/[^0-9]/g, '')}" 
+                                   target="_blank" 
+                                   class="btn btn-sm btn-ghost btn-square text-green-500" 
+                                   title="Написать в WhatsApp">
+                                    <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 24 24" fill="currentColor">
+                                        <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z"/>
+                                    </svg>
+                                </a>
+                            ` : ''}
+                        </div>
+                    </td>
+                    <td>
+                        <button class="btn btn-ghost btn-sm btn-square text-error" onclick="deleteCook(${cook.id})" title="Удалить">
+                            <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                            </svg>
+                        </button>
+                    </td>
+                </tr>
+            `).join('');
+        }
+        
+        function addCook() {
+            const newId = cooks.length > 0 ? Math.max(...cooks.map(c => c.id)) + 1 : 1;
+            cooks.push({ id: newId, name: '', email: '', phoneIndian: '', phoneMessenger: '' });
+            renderSettingsCooks();
+        }
+        
+        function updateCook(id, field, value) {
+            const cook = cooks.find(c => c.id === id);
+            if (cook) cook[field] = value.trim();
+        }
+        
+        function deleteCook(id) {
+            if (confirm('Удалить повара?')) {
+                cooks = cooks.filter(c => c.id !== id);
+                renderSettingsCooks();
+            }
+        }
+        
+        // --- Buyers ---
+        function renderSettingsBuyers() {
+            const tbody = document.getElementById('buyersTableBody');
+            
+            if (buyers.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="3" class="text-center opacity-50">Список пуст</td></tr>';
+                return;
+            }
+            
+            tbody.innerHTML = buyers.map(buyer => `
+                <tr>
+                    <td>
+                        <input type="text" 
+                               class="input input-sm input-bordered w-full" 
+                               value="${buyer.name}" 
+                               placeholder="Имя"
+                               onchange="updateBuyer(${buyer.id}, 'name', this.value)"
+                        />
+                    </td>
+                    <td>
+                        <div class="flex gap-1">
+                            <input type="tel" 
+                                   class="input input-sm input-bordered flex-1" 
+                                   value="${buyer.phone || ''}" 
+                                   placeholder="+91 XXXXX XXXXX"
+                                   onchange="updateBuyer(${buyer.id}, 'phone', this.value)"
+                            />
+                            ${buyer.phone ? `
+                                <a href="https://wa.me/${buyer.phone.replace(/[^0-9]/g, '')}" 
+                                   target="_blank" 
+                                   class="btn btn-sm btn-ghost btn-square text-green-500" 
+                                   title="Написать в WhatsApp">
+                                    <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 24 24" fill="currentColor">
+                                        <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z"/>
+                                    </svg>
+                                </a>
+                            ` : ''}
+                        </div>
+                    </td>
+                    <td>
+                        <button class="btn btn-ghost btn-sm btn-square text-error" onclick="deleteBuyer(${buyer.id})" title="Удалить">
+                            <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                            </svg>
+                        </button>
+                    </td>
+                </tr>
+            `).join('');
+        }
+        
+        function addBuyer() {
+            const newId = buyers.length > 0 ? Math.max(...buyers.map(b => b.id)) + 1 : 1;
+            buyers.push({ id: newId, name: '', phone: '' });
+            renderSettingsBuyers();
+        }
+        
+        function updateBuyer(id, field, value) {
+            const buyer = buyers.find(b => b.id === id);
+            if (buyer) buyer[field] = value.trim();
+        }
+        
+        function deleteBuyer(id) {
+            if (confirm('Удалить закупщика?')) {
+                buyers = buyers.filter(b => b.id !== id);
+                renderSettingsBuyers();
+            }
+        }
+        
+        // --- Stock minimums ---
+        function renderSettingsStock() {
+            const tbody = document.getElementById('settingsStockTableBody');
+            const searchQuery = document.getElementById('settingsSearchInput')?.value.toLowerCase() || '';
+            
+            // Get all products that are or were on stock
+            let items = Object.entries(stockData).map(([productId, stock]) => {
+                const product = getProduct(parseInt(productId));
+                if (!product) return null;
+                return {
+                    productId: parseInt(productId),
+                    product,
+                    stock
+                };
+            }).filter(Boolean);
+            
+            // Filter by search
+            if (searchQuery) {
+                items = items.filter(item => 
+                    item.product.name_ru.toLowerCase().includes(searchQuery) ||
+                    item.product.name_en.toLowerCase().includes(searchQuery)
+                );
+            }
+            
+            // Sort alphabetically
+            items.sort((a, b) => a.product.name_ru.localeCompare(b.product.name_ru));
+            
+            if (items.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="2" class="text-center opacity-50">Нет продуктов на складе</td></tr>';
+                return;
+            }
+            
+            tbody.innerHTML = items.map(item => `
+                <tr>
+                    <td>
+                        <div class="font-medium">${getProductName(item.product)}</div>
+                        <div class="text-xs opacity-50">${item.product.name_en}</div>
+                    </td>
+                    <td>
+                        <div class="flex items-center gap-2">
+                            <input type="number" 
+                                   class="input input-sm input-bordered w-20" 
+                                   value="${item.stock.min}" 
+                                   min="0" 
+                                   step="0.5"
+                                   onchange="updateMinStock(${item.productId}, this.value)"
+                            />
+                            <span class="text-sm opacity-60">${item.product.unit}</span>
+                        </div>
+                    </td>
+                </tr>
+            `).join('');
+        }
+        
+        function updateMinStock(productId, value) {
+            if (stockData[productId]) {
+                stockData[productId].min = parseFloat(value) || 0;
+                renderStock();
+            }
+        }
+
+        // ==================== INIT ====================
+        document.addEventListener('DOMContentLoaded', () => {
+            renderStock();
+            
+            // Close dropdowns on outside click
+            document.addEventListener('click', (e) => {
+                if (!e.target.closest('#productSearch') && !e.target.closest('#productDropdown')) {
+                    document.getElementById('productDropdown')?.classList.add('hidden');
+                }
+                if (!e.target.closest('#receiptProductSearch') && !e.target.closest('#receiptProductDropdown')) {
+                    document.getElementById('receiptProductDropdown')?.classList.add('hidden');
+                }
+                if (!e.target.closest('#issueProductSearch') && !e.target.closest('#issueProductDropdown')) {
+                    document.getElementById('issueProductDropdown')?.classList.add('hidden');
+                }
+            });
+            
+            // Kitchen selector
+            document.querySelectorAll('.kitchen-option').forEach(option => {
+                option.addEventListener('click', (e) => {
+                    e.preventDefault();
+                    document.querySelectorAll('.kitchen-option').forEach(o => o.classList.remove('active'));
+                    option.classList.add('active');
+                    document.getElementById('currentKitchen').textContent = option.textContent;
+                    document.activeElement.blur();
+                });
+            });
+        });
+    </script>
+
+    <script>
+        const DESKTOP_BP = 1200;
+        
+        // Config
+        const locations = {
+            main:  { name: 'Основная кухня', color: 'var(--color-main)' },
+            cafe:  { name: 'Кухня кафе',     color: 'var(--color-cafe)' },
+            guest: { name: 'Гостевая кухня', color: 'var(--color-guest)' }
+        };
+        
+        const menuConfig = [
+            { id: 'kitchen',  label: 'Кухня',     items: [
+                { name: 'Меню', href: 'kitchen-menu.html' },
+                { name: 'Рецепты', href: 'kitchen-recipes.html' },
+                { name: 'Продукты', href: 'kitchen-products.html' }
+            ]},
+            { id: 'stock',    label: 'Склад',     items: [
+                { name: 'Остатки', href: 'kitchen-stock.html#stock' },
+                { name: 'Заявки', href: 'kitchen-stock.html#requests' },
+                { name: 'Получить', href: 'kitchen-stock.html#receipts' },
+                { name: 'Выдать', href: 'kitchen-stock.html#issues' },
+                { name: 'Настройки', href: 'kitchen-stock.html#settings' }
+            ]},
+            { id: null,       label: 'Ретриты',   href: 'kitchen-retreats.html', items: null },
+            { id: 'team',     label: 'Команда',   items: [
+                { name: 'Вайшнавы', href: 'kitchen-team.html' },
+                { name: 'Проживание', href: 'kitchen-team.html#housing' }
+            ]},
+            { id: 'settings', label: 'Настройки', items: [
+                { name: 'Общие', href: '#' },
+                { name: 'Пользователи', href: '#' },
+                { name: 'Праздники', href: '#' }
+            ]}
+        ];
+        
+        let currentLocation = 'main';
+        
+        // Utils
+        const $ = (sel, ctx = document) => ctx.querySelector(sel);
+        const $$ = (sel, ctx = document) => ctx.querySelectorAll(sel);
+        const setColor = color => document.documentElement.style.setProperty('--current-color', color);
+        
+        // Build location dropdown options
+        function buildLocationOptions() {
+            const html = Object.entries(locations).map(([key, loc]) => 
+                `<button class="w-full text-left px-4 py-2 hover:bg-base-200 text-base-content ${key === currentLocation ? 'font-medium' : ''}" data-loc="${key}">${loc.name}</button>`
+            ).join('');
+            $$('.location-dropdown').forEach(el => el.innerHTML = html);
+        }
+        
+        // Build mobile menu
+        function buildMobileMenu() {
+            const nav = $('#mobileNav');
+            nav.innerHTML = menuConfig.map(({ id, label, href, items }) => {
+                if (!items) return `<a href="${href || '#'}" class="block px-4 py-3 text-base font-semibold uppercase tracking-wide hover:bg-base-200 rounded-lg">${label}</a>`;
+                return `
+                    <div class="mobile-nav-item" data-has-submenu>
+                        <button class="w-full flex items-center px-4 py-3 text-base font-semibold uppercase tracking-wide hover:bg-base-200 rounded-lg">
+                            ${label}
+                            <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 ml-2 transition-transform arrow-icon" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                                <path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7" />
+                            </svg>
+                        </button>
+                        <div class="submenu pl-4">
+                            ${items.map(item => `<a href="${item.href}" class="block px-4 py-3 text-base font-medium rounded-lg hover:bg-base-200">${item.name}</a>`).join('')}
+                        </div>
+                    </div>`;
+            }).join('');
+            
+            // Bind accordion
+            $$('.mobile-nav-item[data-has-submenu] button', nav).forEach(btn => {
+                btn.addEventListener('click', () => {
+                    const item = btn.closest('.mobile-nav-item');
+                    const wasOpen = item.classList.contains('open');
+                    $$('.mobile-nav-item.open', nav).forEach(i => i.classList.remove('open'));
+                    if (!wasOpen) item.classList.add('open');
+                });
+            });
+        }
+        
+        // Build desktop submenu bar
+        function buildSubmenuBar() {
+            const bar = $('#submenuBar');
+            bar.innerHTML = menuConfig.filter(m => m.items).map(({ id, items }) => `
+                <nav class="flex items-center submenu-group ${id !== 'kitchen' ? 'hidden' : ''}" data-group="${id}">
+                    ${items.map(item => `<a href="${item.href}" class="submenu-link px-5 py-2 text-base font-semibold tracking-wide uppercase text-white/70 hover:text-white">${item.name}</a>`).join('')}
+                </nav>
+            `).join('');
+            
+            // Bind submenu clicks
+            $$('.submenu-link', bar).forEach(link => {
+                link.addEventListener('click', () => {
+                    const group = link.closest('.submenu-group');
+                    $$('.submenu-link', group).forEach(l => l.classList.remove('active'));
+                    link.classList.add('active');
+                    // Allow navigation - don't prevent default
+                });
+            });
+        }
+        
+        // Align submenu under КУХНЯ
+        function alignSubmenu() {
+            const kitchenNav = $('.nav-link[data-submenu="kitchen"]');
+            const activeGroup = $('.submenu-group:not(.hidden)');
+            const firstLink = activeGroup?.querySelector('.submenu-link');
+            if (!kitchenNav || !firstLink) return;
+            
+            $$('.submenu-link', activeGroup).forEach(l => l.style.marginLeft = '0');
+            const navCenter = kitchenNav.getBoundingClientRect().left + kitchenNav.offsetWidth / 2;
+            firstLink.style.marginLeft = (navCenter - firstLink.offsetWidth / 2) + 'px';
+        }
+        
+        // Location selector
+        function toggleLocation(selector) {
+            const dropdown = $('.location-dropdown', selector);
+            const arrow = $('.location-arrow', selector);
+            dropdown.classList.toggle('hidden');
+            arrow.classList.toggle('rotate-180');
+        }
+        
+        function selectLocation(key) {
+            currentLocation = key;
+            const loc = locations[key];
+            
+            $$('.location-name').forEach(el => el.textContent = loc.name);
+            $$('.location-dropdown').forEach(d => d.classList.add('hidden'));
+            $$('.location-arrow').forEach(a => a.classList.remove('rotate-180'));
+            $$('.location-dropdown button').forEach(btn => {
+                btn.classList.toggle('font-medium', btn.dataset.loc === key);
+            });
+            
+            setColor(loc.color);
+        }
+        
+        // Init
+        buildLocationOptions();
+        buildMobileMenu();
+        buildSubmenuBar();
+        
+        // Mobile menu toggle
+        $('#mobileMenuBtn').addEventListener('click', () => {
+            $('#mobileMenu').classList.toggle('open');
+            $('.menu-icon').classList.toggle('hidden');
+            $('.close-icon').classList.toggle('hidden');
+        });
+        
+        // Location selector clicks
+        $$('[data-toggle="location"]').forEach(btn => {
+            btn.addEventListener('click', () => toggleLocation(btn.closest('.location-selector')));
+        });
+        
+        // Global click handler
+        document.addEventListener('click', e => {
+            if (e.target.dataset.loc) {
+                selectLocation(e.target.dataset.loc);
+            } else if (!e.target.closest('.location-selector')) {
+                $$('.location-dropdown').forEach(d => d.classList.add('hidden'));
+                $$('.location-arrow').forEach(a => a.classList.remove('rotate-180'));
+            }
+        });
+        
+        // Desktop nav clicks
+        $$('.nav-link').forEach(link => {
+            link.addEventListener('click', e => {
+                e.preventDefault();
+                $$('.nav-link').forEach(l => l.classList.remove('active'));
+                link.classList.add('active');
+                
+                const submenuId = link.dataset.submenu;
+                
+                $$('.submenu-group').forEach(g => g.classList.add('hidden'));
+                
+                if (submenuId && innerWidth >= DESKTOP_BP) {
+                    $('#submenuBar').classList.remove('hidden');
+                    const group = $(`.submenu-group[data-group="${submenuId}"]`);
+                    if (group) {
+                        group.classList.remove('hidden');
+                        $$('.submenu-link', group).forEach(l => l.classList.remove('active'));
+                        $('.submenu-link', group)?.classList.add('active');
+                    }
+                    requestAnimationFrame(alignSubmenu);
+                } else {
+                    $('#submenuBar').classList.add('hidden');
+                }
+            });
+        });
+        
+        // Language switcher
+        $$('.lang-btn').forEach(btn => {
+            btn.addEventListener('click', () => {
+                const lang = btn.dataset.lang;
+                $$('.lang-btn').forEach(b => b.classList.remove('active'));
+                $$(`.lang-btn[data-lang="${lang}"]`).forEach(b => b.classList.add('active'));
+            });
+        });
+        
+        addEventListener('resize', alignSubmenu);
+    </script>
+</body>
+</html>

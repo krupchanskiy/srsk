@@ -1,0 +1,520 @@
+<!DOCTYPE html>
+<html lang="ru" data-theme="light">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Рецепт — ШРСК</title>
+    <link href="https://cdn.jsdelivr.net/npm/daisyui@4.12.14/dist/full.min.css" rel="stylesheet" />
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script>tailwind.config = { theme: { extend: { screens: { 'desktop': '1200px' } } } }</script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans:wght@400;500;600;700&family=Noto+Sans+Devanagari:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="css/common.css">
+    <style>
+        @page {
+            margin: 10mm;
+            size: auto;
+        }
+        @media print {
+            header, footer, .no-print { display: none !important; }
+            .print-only { display: flex !important; }
+            main { padding: 0 !important; font-size: 12px !important; }
+            .print-break { page-break-before: always; }
+
+            /* Убираем фото и категорию */
+            .print-hide { display: none !important; }
+
+            /* Шапка печати */
+            .print-header {
+                display: flex !important;
+                justify-content: space-between;
+                align-items: center;
+                padding-bottom: 8px;
+                margin-bottom: 12px;
+                border-bottom: 2px solid var(--current-color);
+            }
+            .print-header-left {
+                display: flex;
+                align-items: center;
+                gap: 8px;
+            }
+            .print-header-logo { width: 20pt; height: auto; }
+            .print-header-title { font-weight: 600; font-size: 22pt; }
+            .print-header-location { font-size: 9pt; opacity: 0.7; }
+            .print-header-right { text-align: right; }
+            #printPortionsInfo { display: block !important; font-size: 14pt !important; font-weight: 600 !important; }
+
+            /* Шапка рецепта на всю ширину */
+            .print-full { width: 100% !important; }
+
+            /* Ингредиенты и инструкции в две колонки */
+            .print-row {
+                display: flex !important;
+                flex-direction: row !important;
+                gap: 1rem !important;
+                margin-top: 0.5rem !important;
+            }
+            .print-col {
+                width: 48% !important;
+                flex: 0 0 48% !important;
+                padding-left: 0 !important;
+            }
+
+            /* Компактный шрифт и интервалы */
+            body { font-size: 11px !important; line-height: 1.3 !important; }
+            h1 { font-size: 18px !important; margin-bottom: 0.25rem !important; }
+            h2 { font-size: 14px !important; margin-bottom: 0.25rem !important; padding-left: 0 !important; }
+            p { margin-bottom: 0.25rem !important; line-height: 1.3 !important; }
+
+            .table { font-size: 10px !important; }
+            .table td, .table th { padding: 2px 4px !important; line-height: 1.1 !important; }
+            .table .text-xs { font-size: 8px !important; }
+            #ingredientsTable tr { border-bottom: none !important; }
+            #ingredientsTable .py-3 { padding-top: 1px !important; padding-bottom: 1px !important; }
+
+            #instructionsList { padding-left: 0 !important; }
+            #instructionsList > div { padding: 0.25rem 0 !important; gap: 0.5rem !important; }
+            #instructionsList p { font-size: 11px !important; line-height: 1.3 !important; }
+
+            .bg-base-100 { box-shadow: none !important; padding: 0 !important; }
+            .rounded-xl { border-radius: 0.25rem !important; padding: 0 !important; }
+            .mb-8 { margin-bottom: 0.5rem !important; }
+            .mb-4 { margin-bottom: 0.25rem !important; }
+            .gap-8 { gap: 1rem !important; }
+            .gap-4 { gap: 0.5rem !important; }
+            .py-3 { padding-top: 0.25rem !important; padding-bottom: 0.25rem !important; }
+
+            section { padding: 0 !important; }
+        }
+        .print-only { display: none; }
+        .print-header { display: none; }
+        /* Убираем стрелки у number input */
+        input[type="number"]::-webkit-outer-spin-button,
+        input[type="number"]::-webkit-inner-spin-button {
+            -webkit-appearance: none;
+            margin: 0;
+        }
+        input[type="number"] {
+            -moz-appearance: textfield;
+        }
+    </style>
+</head>
+<body class="bg-base-200 min-h-screen flex flex-col">
+
+    <div id="header-placeholder"></div>
+
+    <main class="container mx-auto px-4 py-6 flex-1">
+
+        <!-- Back link + Actions -->
+        <div class="flex justify-between items-center mb-4 no-print">
+            <a href="recipes.html" class="inline-flex items-center gap-1 text-sm opacity-60 hover:opacity-100">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7" />
+                </svg>
+                <span data-i18n="back_to_recipes">Назад к рецептам</span>
+            </a>
+            <div class="flex gap-2">
+                <button class="btn btn-primary btn-sm gap-1" onclick="window.print()">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" />
+                    </svg>
+                    <span data-i18n="print">Печать</span>
+                </button>
+                <button class="btn btn-ghost btn-sm gap-1" id="editBtn">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                    </svg>
+                    <span data-i18n="edit">Редактировать</span>
+                </button>
+            </div>
+        </div>
+
+        <!-- Loading skeleton -->
+        <div id="loadingSkeleton">
+            <div class="flex flex-col lg:flex-row gap-6 mb-8">
+                <div class="lg:w-1/3"><div class="skeleton aspect-[4/3] rounded-xl w-full"></div></div>
+                <div class="lg:w-2/3">
+                    <div class="skeleton h-6 w-24 mb-2"></div>
+                    <div class="skeleton h-10 w-3/4 mb-2"></div>
+                    <div class="skeleton h-4 w-1/2 mb-4"></div>
+                    <div class="skeleton h-20 w-full mb-4"></div>
+                    <div class="flex gap-4">
+                        <div class="skeleton h-6 w-24"></div>
+                        <div class="skeleton h-6 w-24"></div>
+                        <div class="skeleton h-6 w-24"></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Recipe Content (hidden until loaded) -->
+        <div id="recipeContent" class="hidden">
+
+            <!-- Print Header -->
+            <div class="print-header print-only" id="printHeader">
+                <!-- Will be filled by JS -->
+            </div>
+
+            <!-- Recipe Header -->
+            <div class="flex flex-col lg:flex-row gap-6 mb-8">
+                <!-- Photo -->
+                <div class="lg:w-1/3 print-hide">
+                    <div class="aspect-[4/3] rounded-xl overflow-hidden bg-base-200">
+                        <img id="recipePhoto" src="" alt="" class="w-full h-full object-cover" />
+                    </div>
+                </div>
+
+                <!-- Info -->
+                <div class="lg:w-2/3 print-full">
+                    <span class="badge category-badge text-white mb-2 no-print" id="categoryBadge">—</span>
+                    <h1 class="text-3xl font-bold mb-1" id="recipeName">—</h1>
+                    <p class="text-base opacity-50 mb-2" id="recipeNameSub">—</p>
+                    <p class="text-lg font-semibold mb-4 print-only" id="printPortionsInfo" style="display: none;">—</p>
+                    <p class="text-base mb-4 leading-relaxed" id="recipeDescription">—</p>
+
+                    <!-- Meta -->
+                    <div class="flex flex-wrap gap-4 text-sm no-print">
+                        <div class="flex items-center gap-2">
+                            <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 opacity-40" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                            </svg>
+                            <span><strong id="cookingTime">—</strong> <span data-i18n="minutes">мин</span></span>
+                        </div>
+                        <div class="flex items-center gap-2">
+                            <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 opacity-40" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 6l3 1m0 0l-3 9a5.002 5.002 0 006.001 0M6 7l3 9M6 7l6-2m6 2l3-1m-3 1l-3 9a5.002 5.002 0 006.001 0M18 7l3 9m-3-9l-6-2m0-2v2m0 16V5m0 16H9m3 0h3" />
+                            </svg>
+                            <span><span data-i18n="output">Выход</span>: <strong id="outputAmount">—</strong></span>
+                        </div>
+                        <div class="flex items-center gap-2">
+                            <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 opacity-40" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
+                            </svg>
+                            <span><span data-i18n="portion">Порция</span>: <strong id="portionAmount">—</strong></span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Ingredients + Instructions Grid -->
+            <div class="flex flex-col lg:flex-row gap-8 print-row">
+
+                <!-- Left Column: Ingredients -->
+                <section class="lg:w-1/2 print-col">
+                    <div class="flex items-center justify-between gap-4 mb-4 flex-wrap">
+                        <h2 class="text-xl font-bold" data-i18n="ingredients_title">Ингредиенты</h2>
+
+                        <!-- Calculator -->
+                        <div class="flex items-center gap-1 bg-base-100 rounded-lg px-4 py-2 no-print">
+                            <span class="opacity-60" data-i18n="calc_for">на</span>
+                            <input type="number" id="portionsInput" value="30" min="1" class="input input-bordered w-20 px-2 text-center font-bold text-lg" />
+                            <span class="opacity-60" data-i18n="calc_persons">чел.</span>
+                            <span class="opacity-40 mx-1">×</span>
+                            <input type="number" id="portionSizeInput" value="150" min="1" class="input input-bordered w-20 px-2 text-center font-bold text-lg" />
+                            <span class="opacity-60" data-i18n="calc_grams">г</span>
+                        </div>
+                    </div>
+
+                    <!-- Ingredients Table -->
+                    <div class="bg-base-100 rounded-xl overflow-hidden">
+                        <table class="table w-full table-fixed">
+                            <thead>
+                                <tr class="border-b border-base-200">
+                                    <th class="bg-base-100" data-i18n="ingredient">Продукт</th>
+                                    <th class="bg-base-100 text-right w-28" data-i18n="amount">Количество</th>
+                                </tr>
+                            </thead>
+                            <tbody id="ingredientsTable"></tbody>
+                        </table>
+                    </div>
+                </section>
+
+                <!-- Right Column: Instructions -->
+                <section class="lg:w-1/2 print-col">
+                    <div class="flex items-center mb-4 h-10">
+                        <h2 class="text-xl font-bold" data-i18n="instructions_title">Приготовление</h2>
+                    </div>
+                    <div class="space-y-4 bg-base-100 rounded-xl p-4" id="instructionsList"></div>
+                </section>
+
+            </div>
+        </div>
+
+        <!-- Error state -->
+        <div id="errorState" class="hidden text-center py-12">
+            <div class="text-6xl mb-4">😕</div>
+            <h2 class="text-xl font-bold mb-2" data-i18n="recipe_not_found">Рецепт не найден</h2>
+            <a href="recipes.html" class="btn btn-primary mt-4" data-i18n="back_to_recipes">Назад к рецептам</a>
+        </div>
+
+    </main>
+
+    <div id="footer-placeholder"></div>
+
+    <script src="js/layout.js"></script>
+    <script>
+        // ==================== STATE ====================
+        let recipe = null;
+        let ingredients = [];
+        let portions = 30;
+        let portionSize = 150;
+
+        const t = key => Layout.t(key);
+
+        // ==================== DATA LOADING ====================
+        async function loadRecipe(id) {
+            const { data, error } = await Layout.db
+                .from('recipes')
+                .select('*, recipe_categories(slug, name_ru, name_en, name_hi, color, emoji)')
+                .eq('id', id)
+                .single();
+
+            if (error || !data) {
+                console.error('Error loading recipe:', error);
+                Layout.$('#loadingSkeleton').classList.add('hidden');
+                Layout.$('#errorState').classList.remove('hidden');
+                return null;
+            }
+
+            return data;
+        }
+
+        async function loadIngredients(recipeId) {
+            const { data, error } = await Layout.db
+                .from('recipe_ingredients')
+                .select('*, products(id, name_ru, name_en, name_hi, translit, unit)')
+                .eq('recipe_id', recipeId)
+                .order('sort_order');
+
+            if (error) {
+                console.error('Error loading ingredients:', error);
+                return [];
+            }
+
+            return data || [];
+        }
+
+        // ==================== LOGO ====================
+        const LOGO_SVG = `<svg class="print-header-logo" viewBox="0 0 122.03 312.54" xmlns="http://www.w3.org/2000/svg">
+            <path fill="currentColor" d="M102,15.99h-15.18v81.89c0,6.21.12,11.58-.88,15.98-1.01,4.45-2.6,7.98-4.77,10.58-2.02,2.81-4.85,4.83-8.51,6.05-2.38,1-5.08,1.62-8.1,1.83-1.01.21-2.02.32-3.02.32h-.64c-3.81-.21-7.23-.83-10.25-1.83-3.81-1.22-7.02-3.13-9.62-5.73-2.65-2.81-4.56-6.44-5.73-10.89-1.22-4.4-1.83-9.83-1.83-16.3V15.99h-15.1v89.12c0,13.68,3.81,23.94,11.45,30.77,3.81,3.44,8.56,5.96,14.23,7.55,1.17.42,2.57.74,4.21.96-13.89,5.03-23.35,11.87-28.38,20.51-7.05,10.65-7.26,24.14-.64,40.46l41.34,100.45,39.91-100.45c6.41-16.32,6.2-29.82-.64-40.46-4.82-8.48-13.97-15.21-27.43-20.2,1.59-.43,3.18-.85,4.77-1.27,5.25-1.59,9.67-4.19,13.27-7.79,3.82-3.66,6.65-8.18,8.51-13.59,2.02-5.62,3.02-12.27,3.02-19.95V15.99M87.45,172.46c4.03,7.26,3.84,16.4-.56,27.43l-26.31,68.13-27.75-68.13c-4.61-11.03-4.8-20.17-.55-27.43,4.61-7.47,13.76-13.01,27.43-16.62,13.67,3.61,22.93,9.15,27.75,16.62"/>
+        </svg>`;
+
+        // ==================== RENDERING ====================
+        function renderPrintHeader() {
+            const location = Layout.currentLocation;
+
+            Layout.$('#printHeader').innerHTML = `
+                <div class="print-header-left">
+                    ${LOGO_SVG}
+                    <div>
+                        <div class="print-header-title">${t('app_name')}</div>
+                        <div class="print-header-location">${Layout.getName(location) || ''}</div>
+                    </div>
+                </div>
+            `;
+        }
+
+        function getPrintPortionsInfo() {
+            const portionsVal = Layout.$('#portionsInput')?.value || portions;
+            const portionSizeVal = Layout.$('#portionSizeInput')?.value || portionSize;
+            return `${t('calc_for')} ${portionsVal} ${t('calc_persons')} × ${portionSizeVal} ${t('calc_grams')}`;
+        }
+
+        function renderRecipeHeader() {
+            const lang = Layout.currentLang;
+            const cat = recipe.recipe_categories;
+
+            // Title
+            document.title = `${Layout.getName(recipe)} — ШРСК`;
+
+            // Photo
+            const photo = Layout.$('#recipePhoto');
+            if (recipe.photo_url) {
+                photo.src = recipe.photo_url;
+                photo.alt = Layout.getName(recipe);
+            } else {
+                photo.parentElement.innerHTML = `<div class="h-full w-full flex items-center justify-center text-6xl bg-base-200">${cat?.emoji || '🍽️'}</div>`;
+            }
+
+            // Category badge
+            const badge = Layout.$('#categoryBadge');
+            badge.textContent = Layout.getName(cat) || '—';
+            badge.style.backgroundColor = cat?.color || '#999';
+
+            // Name
+            Layout.$('#recipeName').textContent = Layout.getName(recipe);
+
+            // Sub name (other languages)
+            let subName;
+            if (lang === 'ru') {
+                subName = `${recipe.name_en}${recipe.translit ? ' · ' + recipe.translit : ''}`;
+            } else if (lang === 'en') {
+                subName = `${recipe.name_ru}${recipe.translit ? ' · ' + recipe.translit : ''}`;
+            } else {
+                subName = `${recipe.name_en} · ${recipe.name_ru}`;
+            }
+            Layout.$('#recipeNameSub').textContent = subName;
+
+            // Description
+            Layout.$('#recipeDescription').textContent = recipe[`description_${lang}`] || recipe.description_ru || '';
+
+            // Meta
+            Layout.$('#cookingTime').textContent = recipe.cooking_time || '—';
+            Layout.$('#outputAmount').textContent = `${recipe.output_amount || '—'} ${recipe.output_unit || ''}`;
+            Layout.$('#portionAmount').textContent = `${recipe.portion_amount || '—'} ${recipe.portion_unit || ''}`;
+
+            // Set default calculator values from recipe
+            if (recipe.portion_amount) {
+                portionSize = recipe.portion_amount;
+                Layout.$('#portionSizeInput').value = portionSize;
+            }
+
+            // Render print header and portions info
+            renderPrintHeader();
+            updatePrintPortionsInfo();
+        }
+
+        function updatePrintPortionsInfo() {
+            Layout.$('#printPortionsInfo').textContent = getPrintPortionsInfo();
+        }
+
+        function calculateAmount(baseAmount) {
+            // Base recipe output in grams
+            const baseOutputGrams = (recipe.output_amount || 1) * (recipe.output_unit === 'kg' ? 1000 : recipe.output_unit === 'l' ? 1000 : 1);
+            const targetGrams = portions * portionSize;
+            const multiplier = targetGrams / baseOutputGrams;
+            return baseAmount * multiplier;
+        }
+
+        function formatAmount(amount) {
+            if (amount >= 100) return Math.round(amount);
+            if (amount >= 10) return Math.round(amount * 10) / 10;
+            if (amount >= 1) return Math.round(amount * 100) / 100;
+            return Math.round(amount * 1000) / 1000;
+        }
+
+        function renderIngredients() {
+            const tbody = Layout.$('#ingredientsTable');
+            const lang = Layout.currentLang;
+
+            tbody.innerHTML = ingredients.map((ing, idx) => {
+                const product = ing.products;
+                const name = Layout.getName(product);
+
+                // Secondary names
+                let subName;
+                if (lang === 'ru') {
+                    subName = `${product.name_en}${product.translit ? ' · ' + product.translit : ''}`;
+                } else if (lang === 'en') {
+                    subName = `${product.name_ru}${product.translit ? ' · ' + product.translit : ''}`;
+                } else {
+                    subName = `${product.name_en} · ${product.name_ru}`;
+                }
+
+                const calculated = formatAmount(calculateAmount(ing.amount));
+                const zebraClass = idx % 2 === 0 ? '' : 'bg-base-200/30';
+
+                return `
+                    <tr class="${zebraClass}">
+                        <td class="py-3">
+                            <div class="font-medium">${name}</div>
+                            <div class="text-xs opacity-50">${subName}</div>
+                            ${ing.notes ? `<div class="text-xs opacity-50 italic">${ing.notes}</div>` : ''}
+                        </td>
+                        <td class="text-right py-3 whitespace-nowrap">
+                            <span class="font-bold text-lg">${calculated}</span>
+                            <span class="text-sm opacity-60 ml-1">${ing.unit}</span>
+                        </td>
+                    </tr>
+                `;
+            }).join('');
+        }
+
+        function renderInstructions() {
+            const list = Layout.$('#instructionsList');
+            const lang = Layout.currentLang;
+
+            // Instructions stored as text with line breaks
+            const instructionsText = recipe[`instructions_${lang}`] || recipe.instructions_ru || '';
+            const steps = instructionsText.split('\n').filter(s => s.trim());
+
+            if (steps.length === 0) {
+                list.innerHTML = `<p class="opacity-50" data-i18n="no_instructions">Инструкции не добавлены</p>`;
+                return;
+            }
+
+            list.innerHTML = steps.map((step, idx) => `
+                <div class="flex gap-4">
+                    <div class="flex-shrink-0 w-8 h-8 rounded-full bg-base-200 flex items-center justify-center font-bold text-sm">
+                        ${idx + 1}
+                    </div>
+                    <div class="flex-1 pt-1">
+                        <p class="leading-relaxed">${step}</p>
+                    </div>
+                </div>
+            `).join('');
+        }
+
+        function updateUI() {
+            Layout.updateAllTranslations();
+            renderRecipeHeader();
+            renderIngredients();
+            renderInstructions();
+        }
+
+        // ==================== EVENT LISTENERS ====================
+        document.addEventListener('DOMContentLoaded', () => {
+            Layout.$('#portionsInput')?.addEventListener('input', e => {
+                portions = parseInt(e.target.value) || 1;
+                renderIngredients();
+                updatePrintPortionsInfo();
+            });
+
+            Layout.$('#portionSizeInput')?.addEventListener('input', e => {
+                portionSize = parseInt(e.target.value) || 1;
+                renderIngredients();
+                updatePrintPortionsInfo();
+            });
+
+            Layout.$('#editBtn')?.addEventListener('click', () => {
+                if (recipe?.id) {
+                    window.location.href = `recipe-edit.html?id=${recipe.id}`;
+                }
+            });
+        });
+
+        window.onLanguageChange = () => updateUI();
+
+        // ==================== INIT ====================
+        async function init() {
+            await Layout.init({ menuId: 'kitchen', itemId: 'recipes' });
+
+            // Get recipe ID from URL
+            const params = new URLSearchParams(window.location.search);
+            const id = params.get('id');
+
+            if (!id) {
+                Layout.$('#loadingSkeleton').classList.add('hidden');
+                Layout.$('#errorState').classList.remove('hidden');
+                return;
+            }
+
+            // Load data
+            recipe = await loadRecipe(id);
+            if (!recipe) return;
+
+            ingredients = await loadIngredients(id);
+
+            // Show content
+            Layout.$('#loadingSkeleton').classList.add('hidden');
+            Layout.$('#recipeContent').classList.remove('hidden');
+
+            updateUI();
+        }
+
+        init();
+    </script>
+</body>
+</html>

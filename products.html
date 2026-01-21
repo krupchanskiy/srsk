@@ -1,0 +1,617 @@
+<!DOCTYPE html>
+<html lang="ru" data-theme="light">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Продукты — ШРСК</title>
+    <link href="https://cdn.jsdelivr.net/npm/daisyui@4.12.14/dist/full.min.css" rel="stylesheet" />
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script>tailwind.config = { theme: { extend: { screens: { 'desktop': '1200px' } } } }</script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans:wght@400;500;600;700&family=Noto+Sans+Devanagari:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="css/common.css">
+    <style>
+        .product-row:hover { background-color: rgba(0,0,0,0.02); }
+        .translate-btn {
+            padding: 2px 8px;
+            font-size: 11px;
+            border-radius: 4px;
+            background: #e5e7eb;
+            color: #6b7280;
+            cursor: pointer;
+            transition: all 0.15s;
+        }
+        .translate-btn:hover {
+            background: var(--current-color);
+            color: white;
+        }
+        .translate-btn.loading {
+            opacity: 0.5;
+            pointer-events: none;
+        }
+    </style>
+</head>
+<body class="bg-base-200 min-h-screen flex flex-col">
+
+    <div id="header-placeholder"></div>
+
+    <main class="container mx-auto px-4 py-6 flex-1">
+
+        <!-- Page Title -->
+        <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6">
+            <div>
+                <h1 class="text-2xl font-bold" data-i18n="products_title">Продукты</h1>
+                <p class="text-sm opacity-60" id="productsCount">Загрузка...</p>
+            </div>
+            <button class="btn btn-primary gap-2" onclick="openAddModal()">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" />
+                </svg>
+                <span data-i18n="add_product">Добавить продукт</span>
+            </button>
+        </div>
+
+        <!-- Search + Filters -->
+        <div class="flex flex-col sm:flex-row gap-4 mb-4">
+            <div class="flex-1 max-w-md relative">
+                <input type="text" id="searchInput" placeholder="Поиск по названию..." class="input input-bordered w-full pr-10" data-i18n-placeholder="search_placeholder" />
+                <button type="button" id="clearSearch" class="absolute right-3 top-1/2 -translate-y-1/2 text-base-content/40 hover:text-base-content hidden">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+                    </svg>
+                </button>
+            </div>
+        </div>
+
+        <!-- Category Filters -->
+        <div class="flex flex-wrap gap-2 mb-6" id="categoryFilters">
+            <div class="skeleton h-8 w-20"></div>
+            <div class="skeleton h-8 w-24"></div>
+            <div class="skeleton h-8 w-20"></div>
+        </div>
+
+        <!-- Products Table -->
+        <div class="bg-base-100 rounded-xl shadow-sm overflow-hidden">
+            <div class="overflow-x-auto">
+                <table class="table w-full">
+                    <thead>
+                        <tr class="border-b border-base-200">
+                            <th class="bg-base-100" data-i18n="col_name">Название</th>
+                            <th class="bg-base-100 hidden sm:table-cell" data-i18n="col_category">Категория</th>
+                            <th class="bg-base-100 w-24" data-i18n="col_unit">Ед. изм.</th>
+                            <th class="bg-base-100 w-20"></th>
+                        </tr>
+                    </thead>
+                    <tbody id="productsTable">
+                        <!-- Skeleton rows -->
+                        <tr><td colspan="4"><div class="skeleton h-6 w-full my-2"></div></td></tr>
+                        <tr><td colspan="4"><div class="skeleton h-6 w-full my-2"></div></td></tr>
+                        <tr><td colspan="4"><div class="skeleton h-6 w-full my-2"></div></td></tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+    </main>
+
+    <div id="footer-placeholder"></div>
+
+    <!-- Add/Edit Modal -->
+    <dialog id="editModal" class="modal">
+        <div class="modal-box relative">
+            <button type="button" class="btn btn-sm btn-circle btn-ghost absolute right-2 top-2" onclick="editModal.close()">✕</button>
+            <h3 class="font-bold text-lg mb-4" id="modalTitle">Добавить продукт</h3>
+            <form id="editForm" class="space-y-4">
+                <input type="hidden" name="id" />
+
+                <!-- Категория -->
+                <div>
+                    <label class="label"><span class="label-text font-medium" data-i18n="col_category">Категория</span></label>
+                    <select name="category_id" class="select select-bordered w-full" required id="categorySelect"></select>
+                </div>
+
+                <!-- Русский и English -->
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div>
+                        <label class="label"><span class="label-text font-medium" data-i18n="col_russian">Русский</span></label>
+                        <input type="text" name="name_ru" class="input input-bordered w-full" required placeholder="Рис" />
+                    </div>
+                    <div>
+                        <label class="label">
+                            <span class="label-text font-medium" data-i18n="col_english">English</span>
+                            <button type="button" class="translate-btn" onclick="autoTranslate('name_ru', 'name_en', 'ru', 'en', this)">🌐 Auto</button>
+                        </label>
+                        <input type="text" name="name_en" class="input input-bordered w-full" required placeholder="Rice" />
+                    </div>
+                </div>
+
+                <!-- Хинди + Транслит -->
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div>
+                        <label class="label">
+                            <span class="label-text font-medium" data-i18n="col_hindi">हिंदी</span>
+                            <button type="button" class="translate-btn" onclick="autoTranslate('name_ru', 'name_hi', 'ru', 'hi', this)">🌐 Auto</button>
+                        </label>
+                        <input type="text" name="name_hi" id="hindiInput" class="input input-bordered w-full" required placeholder="चावल" />
+                    </div>
+                    <div>
+                        <label class="label"><span class="label-text font-medium">IAST</span></label>
+                        <input type="text" name="translit" id="translitInput" class="input input-bordered w-full" placeholder="cāval" />
+                        <label class="label"><span class="label-text-alt opacity-60">Автоматически из хинди</span></label>
+                    </div>
+                </div>
+
+                <!-- Единица измерения -->
+                <div>
+                    <label class="label"><span class="label-text font-medium" data-i18n="col_unit">Единица измерения</span></label>
+                    <select name="unit" class="select select-bordered w-full" required id="unitSelect"></select>
+                </div>
+
+                <div class="modal-action">
+                    <button type="button" class="btn btn-ghost" onclick="editModal.close()" data-i18n="cancel">Отмена</button>
+                    <button type="submit" class="btn btn-primary" data-i18n="save">Сохранить</button>
+                </div>
+            </form>
+        </div>
+        <form method="dialog" class="modal-backdrop"><button>close</button></form>
+    </dialog>
+
+    <script src="js/layout.js"></script>
+    <script>
+        // ==================== STATE ====================
+        let currentCategory = 'all';
+        let searchQuery = '';
+        let products = [];
+        let categories = [];
+        let units = [];
+
+        const t = key => Layout.t(key);
+        const editForm = () => document.getElementById('editForm');
+
+        // ==================== AUTO-TRANSLATE ====================
+        async function autoTranslate(fromField, toField, fromLang, toLang, btn) {
+            const fromEl = editForm()[fromField];
+            const toEl = editForm()[toField];
+            if (!fromEl || !toEl) return;
+
+            const text = fromEl.value.trim();
+            if (!text) {
+                toEl.focus();
+                return;
+            }
+
+            btn.classList.add('loading');
+            btn.textContent = '...';
+
+            try {
+                const translated = await Layout.translate(text, fromLang, toLang);
+                toEl.value = translated;
+                // Обновляем транслит если переводим на хинди
+                if (toField === 'name_hi') {
+                    toEl.dispatchEvent(new Event('input'));
+                }
+            } catch (e) {
+                console.error('Translation error:', e);
+            }
+
+            btn.classList.remove('loading');
+            btn.textContent = '🌐 Auto';
+        }
+
+        const PRODUCT_FORMS = {
+            ru: ['продукт', 'продукта', 'продуктов'],
+            en: ['product', 'products'],
+            hi: 'उत्पाद'
+        };
+
+        // ==================== ТРАНСЛИТЕРАЦИЯ ====================
+        function transliterate(hindi) {
+            if (!hindi) return '';
+
+            const CONSONANTS = {
+                'क': 'k', 'ख': 'kh', 'ग': 'g', 'घ': 'gh', 'ङ': 'ṅ',
+                'च': 'c', 'छ': 'ch', 'ज': 'j', 'झ': 'jh', 'ञ': 'ñ',
+                'ट': 'ṭ', 'ठ': 'ṭh', 'ड': 'ḍ', 'ढ': 'ḍh', 'ण': 'ṇ',
+                'त': 't', 'थ': 'th', 'द': 'd', 'ध': 'dh', 'न': 'n',
+                'प': 'p', 'फ': 'ph', 'ब': 'b', 'भ': 'bh', 'म': 'm',
+                'य': 'y', 'र': 'r', 'ल': 'l', 'व': 'v',
+                'श': 'ś', 'ष': 'ṣ', 'स': 's', 'ह': 'h'
+            };
+            const VOWELS = { 'अ': 'a', 'आ': 'ā', 'इ': 'i', 'ई': 'ī', 'उ': 'u', 'ऊ': 'ū', 'ऋ': 'ṛ', 'ए': 'e', 'ऐ': 'ai', 'ओ': 'o', 'औ': 'au' };
+            const MATRAS = { 'ा': 'ā', 'ि': 'i', 'ी': 'ī', 'ु': 'u', 'ू': 'ū', 'ृ': 'ṛ', 'े': 'e', 'ै': 'ai', 'ो': 'o', 'ौ': 'au' };
+            const NUKTA_MAP = { 'क': 'q', 'ख': 'kh', 'ग': 'ġ', 'ज': 'z', 'फ': 'f', 'ड': 'ṛ', 'ढ': 'ṛh' };
+
+            // Анусвара зависит от следующей согласной
+            const ANUSVARA_MAP = {
+                'क': 'ṅ', 'ख': 'ṅ', 'ग': 'ṅ', 'घ': 'ṅ', 'ङ': 'ṅ',  // велярные
+                'च': 'ñ', 'छ': 'ñ', 'ज': 'ñ', 'झ': 'ñ', 'ञ': 'ñ',  // палатальные
+                'ट': 'ṇ', 'ठ': 'ṇ', 'ड': 'ṇ', 'ढ': 'ṇ', 'ण': 'ṇ',  // ретрофлексные
+                'त': 'n', 'थ': 'n', 'द': 'n', 'ध': 'n', 'न': 'n',  // дентальные
+                'प': 'm', 'फ': 'm', 'ब': 'm', 'भ': 'm', 'म': 'm'   // лабиальные
+            };
+
+            const text = hindi.normalize('NFC');
+            let result = '';
+            let i = 0;
+
+            while (i < text.length) {
+                const char = text[i];
+                const next = text[i + 1];
+
+                // Независимая гласная
+                if (VOWELS[char]) {
+                    result += VOWELS[char];
+                    i++;
+                    continue;
+                }
+
+                // Согласная
+                if (CONSONANTS[char]) {
+                    // Проверяем нукту
+                    if (next === '़') {
+                        result += NUKTA_MAP[char] || CONSONANTS[char];
+                        i += 2;
+                    } else {
+                        result += CONSONANTS[char];
+                        i++;
+                    }
+
+                    // Что после согласной?
+                    const after = text[i];
+                    if (after === '्') {
+                        // Вирама — без 'a'
+                        i++;
+                    } else if (MATRAS[after]) {
+                        // Матра
+                        result += MATRAS[after];
+                        i++;
+                    } else if (after === 'ं') {
+                        // Анусвара — добавляем 'a', потом обработаем анусвару
+                        result += 'a';
+                    } else if (after === 'ः') {
+                        result += 'aḥ';
+                        i++;
+                    } else if (after === 'ँ') {
+                        result += 'am̐';
+                        i++;
+                    } else if (!CONSONANTS[after] && !VOWELS[after] && after !== undefined) {
+                        // Следующий символ не деванагари — добавляем 'a'
+                        result += 'a';
+                    } else if (after === undefined) {
+                        // Конец слова — НЕ добавляем 'a' (schwa deletion в хинди)
+                    } else {
+                        // Перед следующей согласной/гласной — добавляем 'a'
+                        result += 'a';
+                    }
+                    continue;
+                }
+
+                // Анусвара
+                if (char === 'ं') {
+                    const nextCons = text[i + 1];
+                    result += ANUSVARA_MAP[nextCons] || 'ṃ';
+                    i++;
+                    continue;
+                }
+
+                // Висарга
+                if (char === 'ः') {
+                    result += 'ḥ';
+                    i++;
+                    continue;
+                }
+
+                // Чандрабинду
+                if (char === 'ँ') {
+                    result += 'm̐';
+                    i++;
+                    continue;
+                }
+
+                // Матра отдельно (редко)
+                if (MATRAS[char]) {
+                    result += MATRAS[char];
+                    i++;
+                    continue;
+                }
+
+                // Вирама отдельно
+                if (char === '्') {
+                    i++;
+                    continue;
+                }
+
+                // Нукта отдельно
+                if (char === '़') {
+                    i++;
+                    continue;
+                }
+
+                // Остальное (пробелы, цифры)
+                result += char;
+                i++;
+            }
+            return result;
+        }
+
+        // ==================== DATA LOADING ====================
+        async function loadCategories() {
+            const { data, error } = await Layout.db.from('product_categories').select('*').order('sort_order');
+            if (error) { console.error('Error loading categories:', error); return; }
+            categories = data;
+            renderCategoryFilters();
+            renderCategorySelect();
+        }
+
+        async function loadUnits() {
+            const { data, error } = await Layout.db.from('units').select('*').order('sort_order');
+            if (error) { console.error('Error loading units:', error); return; }
+            units = data;
+            renderUnitSelect();
+        }
+
+        async function loadProducts() {
+            const { data, error } = await Layout.db
+                .from('products')
+                .select('*, product_categories(slug, name_ru, name_en, name_hi)')
+                .order('name_ru');
+            if (error) { console.error('Error loading products:', error); return; }
+            products = data;
+            renderProducts();
+        }
+
+        // ==================== RENDERING ====================
+        function renderCategoryFilters() {
+            const container = Layout.$('#categoryFilters');
+            const counts = { all: products.length };
+            products.forEach(p => {
+                const slug = p.product_categories?.slug;
+                if (slug) counts[slug] = (counts[slug] || 0) + 1;
+            });
+
+            let html = `<button class="btn btn-sm filter-btn ${currentCategory === 'all' ? 'active btn-neutral' : 'btn-ghost'}" data-category="all">${t('all')}<sup class="ml-1 opacity-60">${counts.all}</sup></button>`;
+
+            categories.forEach(cat => {
+                const isActive = currentCategory === cat.slug;
+                html += `<button class="btn btn-sm filter-btn ${isActive ? 'active btn-neutral' : 'btn-ghost'}" data-category="${cat.slug}">${Layout.getName(cat)}<sup class="ml-1 opacity-60">${counts[cat.slug] || 0}</sup></button>`;
+            });
+
+            container.innerHTML = html;
+            container.querySelectorAll('.filter-btn').forEach(btn => {
+                btn.addEventListener('click', () => {
+                    currentCategory = btn.dataset.category;
+                    renderCategoryFilters();
+                    renderProducts();
+                });
+            });
+        }
+
+        function renderCategorySelect() {
+            const select = Layout.$('#categorySelect');
+            select.innerHTML = categories.map(cat =>
+                `<option value="${cat.id}">${Layout.getName(cat)}</option>`
+            ).join('');
+        }
+
+        function renderUnitSelect() {
+            const select = Layout.$('#unitSelect');
+            select.innerHTML = units.map(u =>
+                `<option value="${u.code}">${Layout.getName(u)} (${u['short_' + Layout.currentLang] || u.short_ru})</option>`
+            ).join('');
+        }
+
+        function renderProducts() {
+            const tbody = Layout.$('#productsTable');
+            const countEl = Layout.$('#productsCount');
+            const lang = Layout.currentLang;
+
+            const filtered = products.filter(product => {
+                const matchesCategory = currentCategory === 'all' || product.product_categories?.slug === currentCategory;
+                const matchesSearch = searchQuery === '' ||
+                    product.name_ru.toLowerCase().includes(searchQuery.toLowerCase()) ||
+                    product.name_en.toLowerCase().includes(searchQuery.toLowerCase()) ||
+                    product.name_hi.includes(searchQuery);
+                return matchesCategory && matchesSearch;
+            });
+
+            countEl.textContent = Layout.pluralize(filtered.length, PRODUCT_FORMS);
+
+            if (filtered.length === 0) {
+                tbody.innerHTML = `<tr><td colspan="4" class="text-center py-12 opacity-50">
+                    <div class="text-4xl mb-2">📦</div>
+                    <div>${t('no_products') || 'Продукты не найдены'}</div>
+                </td></tr>`;
+                return;
+            }
+
+            tbody.innerHTML = filtered.map(product => {
+                const cat = product.product_categories;
+                const unit = units.find(u => u.code === product.unit);
+                const unitShort = unit ? (unit['short_' + lang] || unit.short_ru) : product.unit;
+
+                // Собираем дополнительные языки (все кроме текущего)
+                const otherNames = [];
+                if (lang !== 'ru' && product.name_ru) otherNames.push(product.name_ru);
+                if (lang !== 'en' && product.name_en) otherNames.push(product.name_en);
+                if (lang !== 'hi' && product.name_hi) {
+                    otherNames.push(product.name_hi + (product.translit ? ' · ' + product.translit : ''));
+                }
+
+                return `
+                    <tr class="product-row border-b border-base-200" data-id="${product.id}">
+                        <td>
+                            <div class="flex flex-col desktop:flex-row desktop:items-baseline desktop:gap-4">
+                                <div class="font-medium">${Layout.getName(product)}</div>
+                                ${otherNames.map(name => `<div class="text-xs desktop:text-base opacity-50">${name}</div>`).join('')}
+                            </div>
+                        </td>
+                        <td class="hidden sm:table-cell">
+                            <span class="badge badge-ghost">${Layout.getName(cat) || '—'}</span>
+                        </td>
+                        <td>${unitShort}</td>
+                        <td>
+                            <div class="flex gap-1">
+                                <button class="btn btn-ghost btn-sm btn-square" onclick="openEditModal('${product.id}')">
+                                    <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                                    </svg>
+                                </button>
+                                <button class="btn btn-ghost btn-sm btn-square text-error" onclick="deleteProduct('${product.id}')">
+                                    <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                                    </svg>
+                                </button>
+                            </div>
+                        </td>
+                    </tr>
+                `;
+            }).join('');
+        }
+
+        // ==================== MODAL ====================
+        function openAddModal() {
+            Layout.$('#modalTitle').textContent = t('add_product');
+            Layout.$('#editForm').reset();
+            Layout.$('input[name="id"]').value = '';
+            editModal.showModal();
+        }
+
+        function openEditModal(id) {
+            const product = products.find(p => p.id === id);
+            if (!product) return;
+
+            Layout.$('#modalTitle').textContent = t('edit') + ' — ' + Layout.getName(product);
+            Layout.$('input[name="id"]').value = id;
+            Layout.$('select[name="category_id"]').value = product.category_id || '';
+            Layout.$('input[name="name_ru"]').value = product.name_ru || '';
+            Layout.$('input[name="name_en"]').value = product.name_en || '';
+            Layout.$('input[name="name_hi"]').value = product.name_hi || '';
+            Layout.$('input[name="translit"]').value = product.translit || '';
+            Layout.$('select[name="unit"]').value = product.unit || '';
+
+            editModal.showModal();
+        }
+
+        // ==================== CRUD ====================
+        async function saveProduct(formData) {
+            const id = formData.get('id');
+            const isNew = !id;
+
+            const productData = {
+                category_id: formData.get('category_id'),
+                name_ru: formData.get('name_ru'),
+                name_en: formData.get('name_en'),
+                name_hi: formData.get('name_hi'),
+                translit: formData.get('translit') || null,
+                unit: formData.get('unit')
+            };
+
+            let error;
+            if (isNew) {
+                const result = await Layout.db.from('products').insert(productData).select('*, product_categories(slug, name_ru, name_en, name_hi)');
+                error = result.error;
+                if (!error && result.data?.[0]) {
+                    products.push(result.data[0]);
+                }
+            } else {
+                const result = await Layout.db.from('products').update(productData).eq('id', id);
+                error = result.error;
+                if (!error) {
+                    const idx = products.findIndex(p => p.id === id);
+                    if (idx !== -1) {
+                        // Обновляем локально, включая связанную категорию
+                        const cat = categories.find(c => c.id === productData.category_id);
+                        products[idx] = {
+                            ...products[idx],
+                            ...productData,
+                            product_categories: cat ? { slug: cat.slug, name_ru: cat.name_ru, name_en: cat.name_en, name_hi: cat.name_hi } : null
+                        };
+                    }
+                }
+            }
+
+            if (error) {
+                alert(t('error') + ': ' + error.message);
+                return false;
+            }
+
+            renderCategoryFilters();
+            renderProducts();
+            return true;
+        }
+
+        async function deleteProduct(id) {
+            if (!confirm(t('confirm_delete'))) return;
+
+            const { error } = await Layout.db.from('products').delete().eq('id', id);
+            if (error) {
+                alert(t('error') + ': ' + error.message);
+                return;
+            }
+
+            products = products.filter(p => p.id !== id);
+            renderCategoryFilters();
+            renderProducts();
+        }
+
+        // ==================== EVENT LISTENERS ====================
+        document.addEventListener('DOMContentLoaded', () => {
+            const searchInput = Layout.$('#searchInput');
+            const clearBtn = Layout.$('#clearSearch');
+            const debouncedSearch = Layout.debounce(() => renderProducts(), 200);
+
+            searchInput?.addEventListener('input', e => {
+                searchQuery = e.target.value;
+                clearBtn?.classList.toggle('hidden', !e.target.value);
+                debouncedSearch();
+            });
+
+            clearBtn?.addEventListener('click', () => {
+                searchInput.value = '';
+                searchQuery = '';
+                clearBtn.classList.add('hidden');
+                renderProducts();
+                searchInput.focus();
+            });
+
+            Layout.$('#editForm')?.addEventListener('submit', async e => {
+                e.preventDefault();
+                const formData = new FormData(e.target);
+                const success = await saveProduct(formData);
+                if (success) editModal.close();
+            });
+
+            // Автотранслитерация хинди → IAST
+            Layout.$('#hindiInput')?.addEventListener('input', e => {
+                const translitInput = Layout.$('#translitInput');
+                if (translitInput) {
+                    translitInput.value = transliterate(e.target.value);
+                }
+            });
+        });
+
+        // ==================== LANGUAGE UPDATE ====================
+        function updatePageUI() {
+            Layout.updateAllTranslations();
+            renderCategoryFilters();
+            renderCategorySelect();
+            renderUnitSelect();
+            renderProducts();
+        }
+
+        window.onLanguageChange = () => updatePageUI();
+
+        // ==================== INIT ====================
+        async function init() {
+            await Layout.init({ menuId: 'kitchen', itemId: 'products' });
+            await Promise.all([loadCategories(), loadUnits()]);
+            await loadProducts();
+            updatePageUI();
+        }
+
+        init();
+    </script>
+</body>
+</html>

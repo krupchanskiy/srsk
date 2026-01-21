@@ -1,0 +1,964 @@
+<!DOCTYPE html>
+<html lang="ru" data-theme="light">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Редактирование рецепта — Кухня Ашрама</title>
+    <link href="https://cdn.jsdelivr.net/npm/daisyui@4.12.14/dist/full.min.css" rel="stylesheet" type="text/css" />
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = { theme: { extend: { screens: { 'desktop': '1200px' } } },
+            daisyui: {
+                themes: ["light"],
+            },
+        }
+    </script>
+    <style>
+:root {
+            --color-main: #f49800;
+            --color-cafe: #10b981;
+            --color-guest: #3b82f6;
+            --current-color: #f49800;
+        }
+        * { font-family: 'Noto Sans', 'Noto Sans Devanagari', sans-serif; }
+        .nav-link { transition: all 0.15s ease; }
+        .nav-link:hover { opacity: 1; }
+        .nav-link.active { opacity: 1; color: var(--current-color); }
+        .lang-btn.active { background-color: var(--color-main) !important; color: white !important; border-color: var(--color-main) !important; }
+        .submenu-link { transition: all 0.15s ease; }
+        .submenu-link.active { background-color: white; color: var(--current-color) !important; }
+        #submenuBar { background-color: var(--current-color); }
+        .logo-svg path { transition: fill 0.3s ease; }
+        @media (max-width: 1199px) { #submenuBar { display: none !important; } }
+        .mobile-menu { max-height: 0; overflow: hidden; transition: max-height 0.3s ease; }
+        .mobile-menu.open { max-height: 500px; }
+        .mobile-nav-item.open > button { color: var(--current-color); }
+        .mobile-nav-item.open .arrow-icon { transform: rotate(180deg); }
+        .mobile-nav-item .submenu { display: none; }
+        .mobile-nav-item.open .submenu { display: block; }
+
+        
+
+        [data-theme="light"] {
+            --p: 65% 0.12 45; /* #CC7C5E в oklch */
+            --pf: 55% 0.12 45; /* darker for focus */
+            --pc: 100% 0 0; /* white text on primary */
+        }
+        
+        /* Active language button */
+        
+        /* Active nav link */
+        .nav-link.active {
+            color: #CC7C5E;
+            opacity: 1;
+            border-bottom-color: #CC7C5E;
+        }
+        
+        /* Kitchen dropdown active */
+        .kitchen-option.active {
+            background-color: rgba(204, 124, 94, 0.1);
+            color: #CC7C5E;
+        }
+        
+        /* Category colors */
+        .cat-all { --cat-color: #CC7C5E; }
+        .cat-main { --cat-color: #A67B5B; }
+        .cat-garnish { --cat-color: #D4A84B; }
+        .cat-soup { --cat-color: #E08A4A; }
+        .cat-salad { --cat-color: #6B9E5A; }
+        .cat-drink { --cat-color: #4A9E9A; }
+        .cat-sweet { --cat-color: #C75D7E; }
+        .cat-snack { --cat-color: #8B6B9E; }
+        
+        .filter-btn.active {
+            background-color: var(--cat-color) !important;
+            color: white !important;
+            border-color: var(--cat-color) !important;
+        }
+        
+        .badge-main { background-color: #A67B5B; color: white; border: none; }
+        .badge-garnish { background-color: #D4A84B; color: white; border: none; }
+        .badge-soup { background-color: #E08A4A; color: white; border: none; }
+        .badge-salad { background-color: #6B9E5A; color: white; border: none; }
+        .badge-drink { background-color: #4A9E9A; color: white; border: none; }
+        .badge-sweet { background-color: #C75D7E; color: white; border: none; }
+        .badge-snack { background-color: #8B6B9E; color: white; border: none; }
+    </style>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans:wght@400;500;600;700&family=Noto+Sans+Devanagari:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        * {
+            font-family: 'Noto Sans', 'Noto Sans Devanagari', sans-serif;
+        }
+        .recipe-card:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 25px -5px rgba(0,0,0,0.1);
+        }
+        .recipe-card {
+            transition: all 0.2s ease;
+        }
+        .category-badge {
+            font-size: 0.7rem;
+            padding: 0.2rem 0.5rem;
+        }
+        .sub-text {
+            font-size: 0.7rem;
+            opacity: 0.5;
+        }
+        .filter-btn.active {
+            background: oklch(var(--p));
+            color: oklch(var(--pc));
+        }
+    </style>
+</head>
+<body class="bg-base-200 min-h-screen">
+    
+    <header class="bg-base-100 shadow-sm sticky top-0 z-50">
+        <div class="container mx-auto px-4">
+            <div class="flex items-center justify-between h-20">
+                
+                <!-- Logo + Location Selector -->
+                <div class="flex items-center gap-3 flex-shrink-0">
+                    <a href="kitchen-menu.html" class="hover:opacity-80 transition-opacity">
+                        <svg class="h-14 w-auto logo-svg" viewBox="0 0 122.03 312.54" xmlns="http://www.w3.org/2000/svg">
+                            <path fill="var(--current-color)" d="M102,15.99h-15.18v81.89c0,6.21.12,11.58-.88,15.98-1.01,4.45-2.6,7.98-4.77,10.58-2.02,2.81-4.85,4.83-8.51,6.05-2.38,1-5.08,1.62-8.1,1.83-1.01.21-2.02.32-3.02.32h-.64c-3.81-.21-7.23-.83-10.25-1.83-3.81-1.22-7.02-3.13-9.62-5.73-2.65-2.81-4.56-6.44-5.73-10.89-1.22-4.4-1.83-9.83-1.83-16.3V15.99h-15.1v89.12c0,13.68,3.81,23.94,11.45,30.77,3.81,3.44,8.56,5.96,14.23,7.55,1.17.42,2.57.74,4.21.96-13.89,5.03-23.35,11.87-28.38,20.51-7.05,10.65-7.26,24.14-.64,40.46l41.34,100.45,39.91-100.45c6.41-16.32,6.2-29.82-.64-40.46-4.82-8.48-13.97-15.21-27.43-20.2,1.59-.43,3.18-.85,4.77-1.27,5.25-1.59,9.67-4.19,13.27-7.79,3.82-3.66,6.65-8.18,8.51-13.59,2.02-5.62,3.02-12.27,3.02-19.95V15.99M87.45,172.46c4.03,7.26,3.84,16.4-.56,27.43l-26.31,68.13-27.75-68.13c-4.61-11.03-4.8-20.17-.55-27.43,4.61-7.47,13.76-13.01,27.43-16.62,13.67,3.61,22.93,9.15,27.75,16.62"/>
+                        </svg>
+                    </a>
+                    
+                    <!-- Desktop: full name + selector -->
+                    <div class="hidden md:flex flex-col">
+                        <a href="kitchen-menu.html" class="text-xl font-semibold whitespace-nowrap hover:opacity-80 transition-opacity">Шри Рупа Сева Кунджа</a>
+                        <div class="relative location-selector" id="locationDesktop">
+                            <button class="flex items-center justify-between gap-2 w-full text-xl opacity-70 hover:opacity-100 transition-opacity" data-toggle="location">
+                                <span class="location-name">Основная кухня</span>
+                                <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 transition-transform location-arrow" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                                    <path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7" />
+                                </svg>
+                            </button>
+                            <div class="absolute top-full left-0 mt-1 bg-white rounded-lg shadow-lg py-1 w-full hidden z-50 location-dropdown"></div>
+                        </div>
+                    </div>
+                    
+                    <!-- Mobile: ШРСК + selector -->
+                    <div class="flex items-center gap-2 md:hidden">
+                        <span class="text-xl font-semibold whitespace-nowrap">ШРСК</span>
+                        <span class="text-xl opacity-50">·</span>
+                        <div class="relative location-selector" id="locationMobile">
+                            <button class="flex items-center gap-1 text-xl opacity-70" data-toggle="location">
+                                <span class="location-name">Основная кухня</span>
+                                <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 transition-transform location-arrow" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                                    <path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7" />
+                                </svg>
+                            </button>
+                            <div class="absolute top-full left-0 mt-1 bg-white rounded-lg shadow-lg py-1 min-w-44 hidden z-50 location-dropdown"></div>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Desktop Navigation -->
+                <nav class="hidden desktop:flex items-center gap-2" id="mainNav">
+                    <a href="#" class="nav-link px-5 py-6 text-base font-semibold tracking-wide uppercase opacity-60" data-submenu="kitchen">Кухня</a>
+                    <a href="#" class="nav-link px-5 py-6 text-base font-semibold tracking-wide uppercase opacity-60" data-submenu="stock">Склад</a>
+                    <a href="#" class="nav-link px-5 py-6 text-base font-semibold tracking-wide uppercase opacity-60">Ретриты</a>
+                    <a href="#" class="nav-link px-5 py-6 text-base font-semibold tracking-wide uppercase opacity-60" data-submenu="team">Команда</a>
+                    <a href="#" class="nav-link px-5 py-6 text-base font-semibold tracking-wide uppercase opacity-60" data-submenu="settings">Настройки</a>
+                </nav>
+                
+                <!-- Right: Language, User, Mobile Menu Button -->
+                <div class="flex items-center gap-3 sm:gap-5">
+                    <div class="hidden md:flex join">
+                        <button class="join-item btn btn-sm lang-btn active" data-lang="ru">RU</button>
+                        <button class="join-item btn btn-sm lang-btn" data-lang="en">EN</button>
+                        <button class="join-item btn btn-sm lang-btn" data-lang="hi">HI</button>
+                    </div>
+                    <div class="hidden desktop:block">
+                        <div class="w-10 h-10 rounded-full overflow-hidden ring-2 ring-base-200">
+                            <img src="https://i.pravatar.cc/150?img=5" alt="User" class="w-full h-full object-cover" />
+                        </div>
+                    </div>
+                    <button class="btn btn-ghost btn-md btn-square desktop:hidden" id="mobileMenuBtn">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-7 w-7 menu-icon" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M4 6h16M4 12h16M4 18h16" />
+                        </svg>
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-7 w-7 close-icon hidden" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
+                        </svg>
+                    </button>
+                </div>
+            </div>
+            
+            <!-- Mobile Menu -->
+            <div class="mobile-menu desktop:hidden border-t border-base-200" id="mobileMenu">
+                <nav class="py-3 space-y-0" id="mobileNav"></nav>
+                <div class="border-t border-base-200 py-4 px-4">
+                    <div class="flex items-center justify-between">
+                        <div class="flex items-center gap-3">
+                            <div class="w-10 h-10 rounded-full overflow-hidden ring-2 ring-base-200">
+                                <img src="https://i.pravatar.cc/150?img=5" alt="User" class="w-full h-full object-cover" />
+                            </div>
+                            <span class="font-medium">Ганга деви даси</span>
+                        </div>
+                        <div class="md:hidden join">
+                            <button class="join-item btn btn-sm lang-btn active" data-lang="ru">RU</button>
+                            <button class="join-item btn btn-sm lang-btn" data-lang="en">EN</button>
+                            <button class="join-item btn btn-sm lang-btn" data-lang="hi">HI</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Submenu Bar (Desktop) -->
+        <div class="hidden -mt-1" id="submenuBar"></div>
+    </header>
+
+    <!-- Main Content -->
+    <main class="container mx-auto px-4 py-6">
+        
+        <!-- Back link + Actions -->
+        <div class="flex justify-between items-center mb-6">
+            <a href="kitchen-recipes.html" class="inline-flex items-center gap-1 text-sm opacity-60 hover:opacity-100">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7" />
+                </svg>
+                <span data-i18n="back_to_recipes">Назад к рецептам</span>
+            </a>
+            <div class="flex gap-2">
+                <button class="btn btn-ghost btn-sm" onclick="history.back()">
+                    <span data-i18n="cancel">Отмена</span>
+                </button>
+                <button class="btn btn-primary btn-sm gap-1" onclick="saveRecipe()">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
+                    </svg>
+                    <span data-i18n="save_recipe">Сохранить</span>
+                </button>
+            </div>
+        </div>
+
+        <!-- Page Title -->
+        <h1 class="text-2xl font-bold mb-6" id="pageTitle" data-i18n="edit_recipe_title">Редактирование рецепта</h1>
+
+        <!-- Form -->
+        <form id="recipeForm" class="space-y-8">
+            
+            <!-- Basic Info Section -->
+            <section class="bg-base-100 rounded-xl p-6 shadow-sm">
+                <h2 class="text-lg font-bold mb-4" data-i18n="section_basic">Основная информация</h2>
+                
+                <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                    
+                    <!-- Photo -->
+                    <div>
+                        <label class="label">
+                            <span class="label-text font-medium" data-i18n="field_photo">Фото</span>
+                        </label>
+                        <div class="aspect-[4/3] rounded-lg border-2 border-dashed border-base-300 bg-base-200 flex flex-col items-center justify-center cursor-pointer hover:border-primary transition-colors" onclick="document.getElementById('photoInput').click()">
+                            <img id="photoPreview" src="https://images.unsplash.com/photo-1601050690597-df0568f70950?w=400&h=300&fit=crop" class="w-full h-full object-cover rounded-lg" />
+                            <input type="file" id="photoInput" accept="image/*" class="hidden" onchange="previewPhoto(this)" />
+                        </div>
+                        <p class="text-xs opacity-50 mt-1" data-i18n="photo_hint">Нажмите чтобы загрузить</p>
+                    </div>
+                    
+                    <!-- Names + Category -->
+                    <div class="lg:col-span-2 space-y-4">
+                        
+                        <!-- Names in 3 languages -->
+                        <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                            <div>
+                                <label class="label">
+                                    <span class="label-text font-medium">Название (RU)</span>
+                                </label>
+                                <input type="text" name="name_ru" value="Палак Панир" class="input input-bordered w-full" required />
+                            </div>
+                            <div>
+                                <label class="label">
+                                    <span class="label-text font-medium">Name (EN)</span>
+                                </label>
+                                <input type="text" name="name_en" value="Palak Paneer" class="input input-bordered w-full" required />
+                            </div>
+                            <div>
+                                <label class="label">
+                                    <span class="label-text font-medium">नाम (HI)</span>
+                                </label>
+                                <input type="text" name="name_hi" value="पालक पनीर" class="input input-bordered w-full" required />
+                            </div>
+                        </div>
+                        
+                        <!-- Transliteration -->
+                        <div>
+                            <label class="label">
+                                <span class="label-text font-medium" data-i18n="field_translit">Транслитерация (IAST)</span>
+                            </label>
+                            <input type="text" name="translit" value="Pālak Panīr" class="input input-bordered w-full" placeholder="Pālak Panīr" />
+                        </div>
+                        
+                        <!-- Category + Time -->
+                        <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
+                            <div>
+                                <label class="label">
+                                    <span class="label-text font-medium" data-i18n="field_category">Категория</span>
+                                </label>
+                                <select name="category" class="select select-bordered w-full">
+                                    <option value="main" selected>Основное</option>
+                                    <option value="garnish">Гарнир</option>
+                                    <option value="soup">Суп</option>
+                                    <option value="salad">Салат</option>
+                                    <option value="drink">Напиток</option>
+                                    <option value="sweet">Сладость</option>
+                                    <option value="snack">Закуска</option>
+                                </select>
+                            </div>
+                            <div>
+                                <label class="label">
+                                    <span class="label-text font-medium" data-i18n="field_time">Время (мин)</span>
+                                </label>
+                                <input type="number" name="time" value="40" min="1" class="input input-bordered w-full" required />
+                            </div>
+                            <div>
+                                <label class="label">
+                                    <span class="label-text font-medium" data-i18n="field_output">Выход</span>
+                                </label>
+                                <div class="flex gap-2">
+                                    <input type="number" name="output" value="5" min="0.1" step="0.1" class="input input-bordered w-full" required />
+                                    <select name="output_unit" class="select select-bordered w-20">
+                                        <option value="кг" selected>кг</option>
+                                        <option value="л">л</option>
+                                        <option value="шт">шт</option>
+                                    </select>
+                                </div>
+                            </div>
+                            <div>
+                                <label class="label">
+                                    <span class="label-text font-medium" data-i18n="field_portion">Порция</span>
+                                </label>
+                                <div class="flex gap-2">
+                                    <input type="number" name="portion" value="150" min="1" class="input input-bordered w-full" required />
+                                    <select name="portion_unit" class="select select-bordered w-20">
+                                        <option value="г" selected>г</option>
+                                        <option value="мл">мл</option>
+                                        <option value="шт">шт</option>
+                                    </select>
+                                </div>
+                            </div>
+                        </div>
+                        
+                    </div>
+                </div>
+                
+                <!-- Description in 3 languages -->
+                <div class="mt-6 space-y-4">
+                    <h3 class="font-medium" data-i18n="field_description">Описание</h3>
+                    <div class="grid grid-cols-1 lg:grid-cols-3 gap-4">
+                        <div>
+                            <label class="label"><span class="label-text">RU</span></label>
+                            <textarea name="description_ru" rows="3" class="textarea textarea-bordered w-full">Классическое североиндийское блюдо из шпината и домашнего сыра панир. Нежный сливочный вкус со специями. Подаётся с рисом или чапати.</textarea>
+                        </div>
+                        <div>
+                            <label class="label"><span class="label-text">EN</span></label>
+                            <textarea name="description_en" rows="3" class="textarea textarea-bordered w-full">Classic North Indian dish made with spinach and homemade paneer cheese. Delicate creamy taste with spices. Served with rice or chapati.</textarea>
+                        </div>
+                        <div>
+                            <label class="label"><span class="label-text">HI</span></label>
+                            <textarea name="description_hi" rows="3" class="textarea textarea-bordered w-full">पालक और घर के बने पनीर से बना उत्तर भारतीय व्यंजन। मसालों के साथ नरम मलाईदार स्वाद। चावल या चपाती के साथ परोसें।</textarea>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Ingredients Section -->
+            <section class="bg-base-100 rounded-xl p-6 shadow-sm">
+                <h2 class="text-lg font-bold mb-4" data-i18n="section_ingredients">Ингредиенты</h2>
+                
+                <div class="space-y-2" id="ingredientsList">
+                    <!-- Will be generated by JS -->
+                </div>
+                
+                <!-- Add ingredient row -->
+                <div class="flex gap-2 mt-4 items-end">
+                    <div class="flex-1 relative">
+                        <label class="label"><span class="label-text text-xs opacity-60">Добавить продукт</span></label>
+                        <input type="text" 
+                               id="productSearch" 
+                               class="input input-bordered w-full" 
+                               placeholder="Начните вводить название..."
+                               autocomplete="off"
+                               oninput="filterProducts(this.value)"
+                               onfocus="showProductDropdown()"
+                        />
+                        <div id="productDropdown" class="absolute z-50 w-full bg-base-100 border border-base-300 rounded-lg shadow-lg mt-1 max-h-48 overflow-y-auto hidden">
+                            <!-- Filtered products will appear here -->
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Instructions Section -->
+            <section class="bg-base-100 rounded-xl p-6 shadow-sm">
+                <h2 class="text-lg font-bold mb-4" data-i18n="section_instructions">Приготовление</h2>
+                
+                <div id="instructionsList" class="space-y-4">
+                    <!-- Will be generated by JS -->
+                </div>
+                
+                <button type="button" class="btn btn-ghost btn-sm gap-1 mt-4" onclick="addStep()">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" />
+                    </svg>
+                    <span data-i18n="add_step">Добавить шаг</span>
+                </button>
+            </section>
+
+            <!-- Bottom Actions -->
+            <div class="flex justify-between items-center pt-4">
+                <button type="button" class="btn btn-ghost btn-error gap-1" onclick="deleteRecipe()">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                    </svg>
+                    <span data-i18n="delete_recipe">Удалить рецепт</span>
+                </button>
+                <div class="flex gap-2">
+                    <button type="button" class="btn btn-ghost" onclick="history.back()">
+                        <span data-i18n="cancel">Отмена</span>
+                    </button>
+                    <button type="submit" class="btn btn-primary gap-1">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
+                        </svg>
+                        <span data-i18n="save_recipe">Сохранить</span>
+                    </button>
+                </div>
+            </div>
+            
+        </form>
+
+    </main>
+
+    <!-- Footer -->
+    <footer class="bg-base-100 border-t border-base-200 mt-12">
+        <div class="container mx-auto px-4 py-6">
+            <div class="flex flex-col sm:flex-row justify-between items-center gap-4">
+                <!-- Footer Navigation -->
+                <nav class="flex gap-6">
+                    <a href="kitchen-menu.html" class="text-sm font-medium uppercase tracking-wide opacity-60 hover:opacity-100" data-i18n="nav_menu">Меню</a>
+                    <a href="kitchen-recipes.html" class="text-sm font-medium uppercase tracking-wide text-primary" data-i18n="nav_recipes">Рецепты</a>
+                    <a href="kitchen-products.html" class="text-sm font-medium uppercase tracking-wide opacity-60 hover:opacity-100" data-i18n="nav_products">Продукты</a>
+                    <a href="kitchen-stock.html" class="text-sm font-medium uppercase tracking-wide opacity-60 hover:opacity-100" data-i18n="nav_stock">Склад</a>
+                    <a href="kitchen-retreats.html" class="text-sm font-medium uppercase tracking-wide opacity-60 hover:opacity-100">Ретриты</a>
+                    <a href="kitchen-team.html" class="text-sm font-medium uppercase tracking-wide opacity-60 hover:opacity-100">Команда</a>
+                </nav>
+                
+                <!-- Back to top -->
+                <button onclick="window.scrollTo({top: 0, behavior: 'smooth'})" class="btn btn-ghost btn-sm gap-1 opacity-60 hover:opacity-100">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 15l7-7 7 7" />
+                    </svg>
+                    <span data-i18n="back_to_top">Наверх</span>
+                </button>
+            </div>
+            
+            <div class="text-center mt-4 text-xs opacity-40">
+                ШРСК · Шри Рупа Сева Кунджа
+            </div>
+        </div>
+    </footer>
+
+    <script>
+        // ==================== DATA ====================
+        const products = [
+            { id: 11, name_ru: "Шпинат", name_en: "Spinach", name_hi: "पालक", translit: "Pālak", unit: "кг" },
+            { id: 57, name_ru: "Панир", name_en: "Paneer", name_hi: "पनीर", translit: "Panīr", unit: "кг" },
+            { id: 5, name_ru: "Помидоры", name_en: "Tomatoes", name_hi: "टमाटर", translit: "Ṭamāṭar", unit: "кг" },
+            { id: 20, name_ru: "Имбирь", name_en: "Ginger", name_hi: "अदरक", translit: "Adrak", unit: "кг" },
+            { id: 21, name_ru: "Перец чили зелёный", name_en: "Green Chili", name_hi: "हरी मिर्च", translit: "Harī Mirch", unit: "кг" },
+            { id: 60, name_ru: "Сливки", name_en: "Cream", name_hi: "क्रीम", translit: "Krīm", unit: "л" },
+            { id: 58, name_ru: "Гхи", name_en: "Ghee", name_hi: "घी", translit: "Ghī", unit: "кг" },
+            { id: 80, name_ru: "Кумин (зира)", name_en: "Cumin", name_hi: "जीरा", translit: "Jīrā", unit: "г" },
+            { id: 83, name_ru: "Гарам масала", name_en: "Garam Masala", name_hi: "गरम मसाला", translit: "Garam Masālā", unit: "г" },
+            { id: 77, name_ru: "Соль", name_en: "Salt", name_hi: "नमक", translit: "Namak", unit: "г" },
+            { id: 107, name_ru: "Кешью", name_en: "Cashews", name_hi: "काजू", translit: "Kājū", unit: "кг" },
+            { id: 1, name_ru: "Рис басмати", name_en: "Basmati Rice", name_hi: "बासमती चावल", translit: "Bāsmatī Chāval", unit: "кг" },
+            { id: 2, name_ru: "Лук репчатый", name_en: "Onion", name_hi: "प्याज", translit: "Pyāz", unit: "кг" },
+            { id: 3, name_ru: "Чеснок", name_en: "Garlic", name_hi: "लहसुन", translit: "Lahsun", unit: "кг" },
+            { id: 4, name_ru: "Картофель", name_en: "Potato", name_hi: "आलू", translit: "Ālū", unit: "кг" },
+            { id: 6, name_ru: "Морковь", name_en: "Carrot", name_hi: "गाजर", translit: "Gājar", unit: "кг" },
+            { id: 7, name_ru: "Цветная капуста", name_en: "Cauliflower", name_hi: "फूल गोभी", translit: "Phūl Gobhī", unit: "кг" },
+            { id: 8, name_ru: "Капуста белокочанная", name_en: "Cabbage", name_hi: "पत्ता गोभी", translit: "Pattā Gobhī", unit: "кг" },
+            { id: 9, name_ru: "Баклажан", name_en: "Eggplant", name_hi: "बैंगन", translit: "Baiṅgan", unit: "кг" },
+            { id: 10, name_ru: "Зелёный горошек", name_en: "Green Peas", name_hi: "मटर", translit: "Maṭar", unit: "кг" },
+            { id: 12, name_ru: "Кориандр свежий", name_en: "Fresh Coriander", name_hi: "हरा धनिया", translit: "Harā Dhaniyā", unit: "пучок" },
+            { id: 13, name_ru: "Мята свежая", name_en: "Fresh Mint", name_hi: "पुदीना", translit: "Pudīnā", unit: "пучок" },
+            { id: 50, name_ru: "Молоко", name_en: "Milk", name_hi: "दूध", translit: "Dūdh", unit: "л" },
+            { id: 51, name_ru: "Йогурт", name_en: "Yogurt", name_hi: "दही", translit: "Dahī", unit: "кг" },
+            { id: 52, name_ru: "Сливочное масло", name_en: "Butter", name_hi: "मक्खन", translit: "Makkhan", unit: "кг" },
+            { id: 70, name_ru: "Подсолнечное масло", name_en: "Sunflower Oil", name_hi: "सूरजमुखी तेल", translit: "Sūrajmukhī Tel", unit: "л" },
+            { id: 81, name_ru: "Куркума", name_en: "Turmeric", name_hi: "हल्दी", translit: "Haldī", unit: "г" },
+            { id: 82, name_ru: "Красный перец чили", name_en: "Red Chili Powder", name_hi: "लाल मिर्च", translit: "Lāl Mirch", unit: "г" },
+            { id: 84, name_ru: "Кориандр молотый", name_en: "Coriander Powder", name_hi: "धनिया पाउडर", translit: "Dhaniyā Pāuḍar", unit: "г" },
+            { id: 85, name_ru: "Асафетида", name_en: "Asafoetida", name_hi: "हींग", translit: "Hīṅg", unit: "г" },
+            { id: 90, name_ru: "Мунг дал", name_en: "Moong Dal", name_hi: "मूंग दाल", translit: "Mūṅg Dāl", unit: "кг" },
+            { id: 91, name_ru: "Тур дал", name_en: "Toor Dal", name_hi: "तूर दाल", translit: "Tūr Dāl", unit: "кг" },
+            { id: 92, name_ru: "Чана дал", name_en: "Chana Dal", name_hi: "चना दाल", translit: "Chanā Dāl", unit: "кг" },
+            { id: 100, name_ru: "Сахар", name_en: "Sugar", name_hi: "चीनी", translit: "Chīnī", unit: "кг" },
+            { id: 101, name_ru: "Джаггери", name_en: "Jaggery", name_hi: "गुड़", translit: "Guṛ", unit: "кг" },
+        ];
+
+        let ingredients = [
+            { product_id: 11, amount: 2, unit: "кг", waste: 30 },
+            { product_id: 57, amount: 1, unit: "кг", waste: 0 },
+            { product_id: 5, amount: 0.3, unit: "кг", waste: 5 },
+            { product_id: 20, amount: 0.03, unit: "кг", waste: 15 },
+            { product_id: 21, amount: 0.03, unit: "кг", waste: 5 },
+            { product_id: 60, amount: 0.2, unit: "л", waste: 0 },
+            { product_id: 58, amount: 0.1, unit: "кг", waste: 0 },
+            { product_id: 80, amount: 15, unit: "г", waste: 0 },
+            { product_id: 83, amount: 10, unit: "г", waste: 0 },
+            { product_id: 77, amount: 30, unit: "г", waste: 0 },
+            { product_id: 107, amount: 0.05, unit: "кг", waste: 0 },
+        ];
+
+        let instructions = [
+            { ru: "Шпинат тщательно промыть, бланшировать в кипящей воде 2-3 минуты. Откинуть на дуршлаг и сразу опустить в холодную воду.", en: "Wash spinach thoroughly, blanch in boiling water for 2-3 minutes. Drain and immediately plunge into cold water.", hi: "पालक को अच्छी तरह धोएं, उबलते पानी में 2-3 मिनट के लिए ब्लांच करें। छान लें और तुरंत ठंडे पानी में डालें।" },
+            { ru: "Измельчить шпинат в блендере до однородной пасты. Отложить.", en: "Blend spinach into a smooth paste. Set aside.", hi: "पालक को ब्लेंडर में पीसकर पेस्ट बना लें। अलग रख दें।" },
+            { ru: "Панир нарезать кубиками 2x2 см. Слегка обжарить в гхи до золотистой корочки. Отложить.", en: "Cut paneer into 2x2 cm cubes. Lightly fry in ghee until golden. Set aside.", hi: "पनीर को 2x2 सेमी के टुकड़ों में काटें। घी में हल्का सुनहरा होने तक भूनें। अलग रख दें।" },
+        ];
+
+        // ==================== STATE ====================
+        let currentLang = 'ru';
+
+        // ==================== FUNCTIONS ====================
+        function getProduct(id) {
+            return products.find(p => p.id === id);
+        }
+
+        function renderIngredients() {
+            const list = document.getElementById('ingredientsList');
+            
+            list.innerHTML = ingredients.map((ing, index) => {
+                const product = getProduct(ing.product_id);
+                if (!product) return '';
+                
+                const zebraClass = index % 2 === 0 ? 'bg-base-100' : 'bg-base-200/30';
+                
+                return `
+                    <div class="flex gap-3 items-center ${zebraClass} rounded-lg p-3">
+                        <div class="flex-1">
+                            <div class="font-medium">${product.name_ru}</div>
+                            <div class="text-xs opacity-50">${product.name_en} / ${product.translit}</div>
+                        </div>
+                        <div class="flex items-center gap-2">
+                            <input type="number" value="${ing.amount}" step="0.01" min="0" 
+                                   class="input input-bordered input-sm w-20 text-center"
+                                   onchange="updateIngredient(${index}, 'amount', parseFloat(this.value))" />
+                            <span class="text-sm opacity-60 w-12">${product.unit}</span>
+                        </div>
+                        <button type="button" class="btn btn-ghost btn-sm btn-square opacity-40 hover:opacity-100 hover:text-error" onclick="removeIngredient(${index})">
+                            <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+                            </svg>
+                        </button>
+                    </div>
+                `;
+            }).join('');
+        }
+
+        function filterProducts(query) {
+            const dropdown = document.getElementById('productDropdown');
+            
+            if (query.length < 1) {
+                dropdown.classList.add('hidden');
+                return;
+            }
+            
+            const q = query.toLowerCase();
+            const filtered = products.filter(p => 
+                p.name_ru.toLowerCase().includes(q) ||
+                p.name_en.toLowerCase().includes(q) ||
+                p.name_hi.includes(query) ||
+                p.translit.toLowerCase().includes(q)
+            ).slice(0, 8); // Максимум 8 результатов
+            
+            if (filtered.length === 0) {
+                dropdown.innerHTML = '<div class="p-3 text-sm opacity-50">Ничего не найдено</div>';
+            } else {
+                dropdown.innerHTML = filtered.map(p => `
+                    <div class="p-3 hover:bg-base-200 cursor-pointer border-b border-base-200 last:border-0" onclick="selectProduct(${p.id})">
+                        <div class="font-medium">${p.name_ru}</div>
+                        <div class="text-xs opacity-50">${p.name_en} / ${p.translit}</div>
+                    </div>
+                `).join('');
+            }
+            
+            dropdown.classList.remove('hidden');
+        }
+
+        function showProductDropdown() {
+            const input = document.getElementById('productSearch');
+            if (input.value.length >= 1) {
+                filterProducts(input.value);
+            }
+        }
+
+        function selectProduct(productId) {
+            const product = getProduct(productId);
+            if (!product) return;
+            
+            // Проверяем, не добавлен ли уже
+            if (ingredients.some(i => i.product_id === productId)) {
+                alert('Этот продукт уже добавлен');
+                return;
+            }
+            
+            ingredients.push({ 
+                product_id: productId, 
+                amount: 0.1, 
+                unit: product.unit || "кг", 
+                waste: 0 
+            });
+            
+            renderIngredients();
+            
+            // Очищаем поле поиска
+            document.getElementById('productSearch').value = '';
+            document.getElementById('productDropdown').classList.add('hidden');
+        }
+
+        // Закрываем dropdown при клике вне его
+        document.addEventListener('click', (e) => {
+            const dropdown = document.getElementById('productDropdown');
+            const input = document.getElementById('productSearch');
+            if (dropdown && input && !dropdown.contains(e.target) && e.target !== input) {
+                dropdown.classList.add('hidden');
+            }
+        });
+
+        function renderInstructions() {
+            const list = document.getElementById('instructionsList');
+            
+            list.innerHTML = instructions.map((step, index) => `
+                <div class="flex gap-3 items-start ${index % 2 === 0 ? 'bg-base-100' : 'bg-base-200/30'} rounded-lg p-3">
+                    <div class="flex-shrink-0 w-6 text-lg font-bold opacity-40 pt-2">
+                        ${index + 1}.
+                    </div>
+                    <div class="flex-1 space-y-2">
+                        <div>
+                            <label class="text-xs opacity-50">RU</label>
+                            <textarea rows="2" class="textarea textarea-bordered w-full textarea-sm" 
+                                      onchange="updateInstruction(${index}, 'ru', this.value)">${step.ru}</textarea>
+                        </div>
+                        <div class="grid grid-cols-2 gap-2">
+                            <div>
+                                <label class="text-xs opacity-50">EN</label>
+                                <textarea rows="2" class="textarea textarea-bordered w-full textarea-sm" 
+                                          onchange="updateInstruction(${index}, 'en', this.value)">${step.en}</textarea>
+                            </div>
+                            <div>
+                                <label class="text-xs opacity-50">HI</label>
+                                <textarea rows="2" class="textarea textarea-bordered w-full textarea-sm" 
+                                          onchange="updateInstruction(${index}, 'hi', this.value)">${step.hi}</textarea>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="flex flex-col gap-1">
+                        <button type="button" class="btn btn-ghost btn-xs btn-square opacity-40 hover:opacity-100" onclick="moveStep(${index}, -1)" ${index === 0 ? 'disabled' : ''}>
+                            <svg xmlns="http://www.w3.org/2000/svg" class="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 15l7-7 7 7" />
+                            </svg>
+                        </button>
+                        <button type="button" class="btn btn-ghost btn-xs btn-square opacity-40 hover:opacity-100" onclick="moveStep(${index}, 1)" ${index === instructions.length - 1 ? 'disabled' : ''}>
+                            <svg xmlns="http://www.w3.org/2000/svg" class="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" />
+                            </svg>
+                        </button>
+                        <button type="button" class="btn btn-ghost btn-xs btn-square opacity-40 hover:opacity-100 hover:text-error" onclick="removeStep(${index})">
+                            <svg xmlns="http://www.w3.org/2000/svg" class="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+                            </svg>
+                        </button>
+                    </div>
+                </div>
+            `).join('');
+        }
+
+        function updateIngredient(index, field, value) {
+            ingredients[index][field] = value;
+        }
+
+        function removeIngredient(index) {
+            ingredients.splice(index, 1);
+            renderIngredients();
+        }
+
+        function updateInstruction(index, lang, value) {
+            instructions[index][lang] = value;
+        }
+
+        function addStep() {
+            instructions.push({ ru: "", en: "", hi: "" });
+            renderInstructions();
+        }
+
+        function removeStep(index) {
+            instructions.splice(index, 1);
+            renderInstructions();
+        }
+
+        function moveStep(index, direction) {
+            const newIndex = index + direction;
+            if (newIndex < 0 || newIndex >= instructions.length) return;
+            
+            [instructions[index], instructions[newIndex]] = [instructions[newIndex], instructions[index]];
+            renderInstructions();
+        }
+
+        function previewPhoto(input) {
+            if (input.files && input.files[0]) {
+                const reader = new FileReader();
+                reader.onload = function(e) {
+                    document.getElementById('photoPreview').src = e.target.result;
+                }
+                reader.readAsDataURL(input.files[0]);
+            }
+        }
+
+        function saveRecipe() {
+            // В реальном приложении - отправка на сервер
+            alert('Рецепт сохранён!\n\n(В реальном приложении данные отправятся на сервер)');
+        }
+
+        function deleteRecipe() {
+            if (confirm('Удалить этот рецепт? Это действие нельзя отменить.')) {
+                alert('Рецепт удалён!\n\n(В реальном приложении произойдёт удаление и редирект)');
+            }
+        }
+
+        // ==================== EVENT LISTENERS ====================
+        document.querySelectorAll('.lang-btn').forEach(btn => {
+            btn.addEventListener('click', () => {
+                currentLang = btn.dataset.lang;
+                document.querySelectorAll('.lang-btn').forEach(b => b.classList.remove('active'));
+                btn.classList.add('active');
+            });
+        });
+
+        document.querySelectorAll('.kitchen-option').forEach(option => {
+            option.addEventListener('click', (e) => {
+                e.preventDefault();
+                document.querySelectorAll('.kitchen-option').forEach(o => o.classList.remove('active'));
+                option.classList.add('active');
+                document.getElementById('currentKitchen').textContent = option.textContent;
+                document.activeElement.blur();
+            });
+        });
+
+        document.getElementById('recipeForm').addEventListener('submit', (e) => {
+            e.preventDefault();
+            saveRecipe();
+        });
+
+        // ==================== INIT ====================
+        renderIngredients();
+        renderInstructions();
+    </script>
+
+    <script>
+        const DESKTOP_BP = 1200;
+        
+        // Config
+        const locations = {
+            main:  { name: 'Основная кухня', color: 'var(--color-main)' },
+            cafe:  { name: 'Кухня кафе',     color: 'var(--color-cafe)' },
+            guest: { name: 'Гостевая кухня', color: 'var(--color-guest)' }
+        };
+        
+        const menuConfig = [
+            { id: 'kitchen',  label: 'Кухня',     items: [
+                { name: 'Меню', href: 'kitchen-menu.html' },
+                { name: 'Рецепты', href: 'kitchen-recipes.html' },
+                { name: 'Продукты', href: 'kitchen-products.html' }
+            ]},
+            { id: 'stock',    label: 'Склад',     items: [
+                { name: 'Остатки', href: 'kitchen-stock.html#stock' },
+                { name: 'Заявки', href: 'kitchen-stock.html#requests' },
+                { name: 'Получить', href: 'kitchen-stock.html#receipts' },
+                { name: 'Выдать', href: 'kitchen-stock.html#issues' },
+                { name: 'Настройки', href: 'kitchen-stock.html#settings' }
+            ]},
+            { id: null,       label: 'Ретриты',   href: 'kitchen-retreats.html', items: null },
+            { id: 'team',     label: 'Команда',   items: [
+                { name: 'Вайшнавы', href: 'kitchen-team.html' },
+                { name: 'Проживание', href: 'kitchen-team.html#housing' }
+            ]},
+            { id: 'settings', label: 'Настройки', items: [
+                { name: 'Общие', href: '#' },
+                { name: 'Пользователи', href: '#' },
+                { name: 'Праздники', href: '#' }
+            ]}
+        ];
+        
+        let currentLocation = 'main';
+        
+        // Utils
+        const $ = (sel, ctx = document) => ctx.querySelector(sel);
+        const $$ = (sel, ctx = document) => ctx.querySelectorAll(sel);
+        const setColor = color => document.documentElement.style.setProperty('--current-color', color);
+        
+        // Build location dropdown options
+        function buildLocationOptions() {
+            const html = Object.entries(locations).map(([key, loc]) => 
+                `<button class="w-full text-left px-4 py-2 hover:bg-base-200 text-base-content ${key === currentLocation ? 'font-medium' : ''}" data-loc="${key}">${loc.name}</button>`
+            ).join('');
+            $$('.location-dropdown').forEach(el => el.innerHTML = html);
+        }
+        
+        // Build mobile menu
+        function buildMobileMenu() {
+            const nav = $('#mobileNav');
+            nav.innerHTML = menuConfig.map(({ id, label, href, items }) => {
+                if (!items) return `<a href="${href || '#'}" class="block px-4 py-3 text-base font-semibold uppercase tracking-wide hover:bg-base-200 rounded-lg">${label}</a>`;
+                return `
+                    <div class="mobile-nav-item" data-has-submenu>
+                        <button class="w-full flex items-center px-4 py-3 text-base font-semibold uppercase tracking-wide hover:bg-base-200 rounded-lg">
+                            ${label}
+                            <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 ml-2 transition-transform arrow-icon" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                                <path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7" />
+                            </svg>
+                        </button>
+                        <div class="submenu pl-4">
+                            ${items.map(item => `<a href="${item.href}" class="block px-4 py-3 text-base font-medium rounded-lg hover:bg-base-200">${item.name}</a>`).join('')}
+                        </div>
+                    </div>`;
+            }).join('');
+            
+            // Bind accordion
+            $$('.mobile-nav-item[data-has-submenu] button', nav).forEach(btn => {
+                btn.addEventListener('click', () => {
+                    const item = btn.closest('.mobile-nav-item');
+                    const wasOpen = item.classList.contains('open');
+                    $$('.mobile-nav-item.open', nav).forEach(i => i.classList.remove('open'));
+                    if (!wasOpen) item.classList.add('open');
+                });
+            });
+        }
+        
+        // Build desktop submenu bar
+        function buildSubmenuBar() {
+            const bar = $('#submenuBar');
+            bar.innerHTML = menuConfig.filter(m => m.items).map(({ id, items }) => `
+                <nav class="flex items-center submenu-group ${id !== 'kitchen' ? 'hidden' : ''}" data-group="${id}">
+                    ${items.map(item => `<a href="${item.href}" class="submenu-link px-5 py-2 text-base font-semibold tracking-wide uppercase text-white/70 hover:text-white">${item.name}</a>`).join('')}
+                </nav>
+            `).join('');
+            
+            // Bind submenu clicks
+            $$('.submenu-link', bar).forEach(link => {
+                link.addEventListener('click', () => {
+                    const group = link.closest('.submenu-group');
+                    $$('.submenu-link', group).forEach(l => l.classList.remove('active'));
+                    link.classList.add('active');
+                    // Allow navigation - don't prevent default
+                });
+            });
+        }
+        
+        // Align submenu under КУХНЯ
+        function alignSubmenu() {
+            const kitchenNav = $('.nav-link[data-submenu="kitchen"]');
+            const activeGroup = $('.submenu-group:not(.hidden)');
+            const firstLink = activeGroup?.querySelector('.submenu-link');
+            if (!kitchenNav || !firstLink) return;
+            
+            $$('.submenu-link', activeGroup).forEach(l => l.style.marginLeft = '0');
+            const navCenter = kitchenNav.getBoundingClientRect().left + kitchenNav.offsetWidth / 2;
+            firstLink.style.marginLeft = (navCenter - firstLink.offsetWidth / 2) + 'px';
+        }
+        
+        // Location selector
+        function toggleLocation(selector) {
+            const dropdown = $('.location-dropdown', selector);
+            const arrow = $('.location-arrow', selector);
+            dropdown.classList.toggle('hidden');
+            arrow.classList.toggle('rotate-180');
+        }
+        
+        function selectLocation(key) {
+            currentLocation = key;
+            const loc = locations[key];
+            
+            $$('.location-name').forEach(el => el.textContent = loc.name);
+            $$('.location-dropdown').forEach(d => d.classList.add('hidden'));
+            $$('.location-arrow').forEach(a => a.classList.remove('rotate-180'));
+            $$('.location-dropdown button').forEach(btn => {
+                btn.classList.toggle('font-medium', btn.dataset.loc === key);
+            });
+            
+            setColor(loc.color);
+        }
+        
+        // Init
+        buildLocationOptions();
+        buildMobileMenu();
+        buildSubmenuBar();
+        
+        // Mobile menu toggle
+        $('#mobileMenuBtn').addEventListener('click', () => {
+            $('#mobileMenu').classList.toggle('open');
+            $('.menu-icon').classList.toggle('hidden');
+            $('.close-icon').classList.toggle('hidden');
+        });
+        
+        // Location selector clicks
+        $$('[data-toggle="location"]').forEach(btn => {
+            btn.addEventListener('click', () => toggleLocation(btn.closest('.location-selector')));
+        });
+        
+        // Global click handler
+        document.addEventListener('click', e => {
+            if (e.target.dataset.loc) {
+                selectLocation(e.target.dataset.loc);
+            } else if (!e.target.closest('.location-selector')) {
+                $$('.location-dropdown').forEach(d => d.classList.add('hidden'));
+                $$('.location-arrow').forEach(a => a.classList.remove('rotate-180'));
+            }
+        });
+        
+        // Desktop nav clicks
+        $$('.nav-link').forEach(link => {
+            link.addEventListener('click', e => {
+                e.preventDefault();
+                $$('.nav-link').forEach(l => l.classList.remove('active'));
+                link.classList.add('active');
+                
+                const submenuId = link.dataset.submenu;
+                
+                $$('.submenu-group').forEach(g => g.classList.add('hidden'));
+                
+                if (submenuId && innerWidth >= DESKTOP_BP) {
+                    $('#submenuBar').classList.remove('hidden');
+                    const group = $(`.submenu-group[data-group="${submenuId}"]`);
+                    if (group) {
+                        group.classList.remove('hidden');
+                        $$('.submenu-link', group).forEach(l => l.classList.remove('active'));
+                        $('.submenu-link', group)?.classList.add('active');
+                    }
+                    requestAnimationFrame(alignSubmenu);
+                } else {
+                    $('#submenuBar').classList.add('hidden');
+                }
+            });
+        });
+        
+        // Language switcher
+        $$('.lang-btn').forEach(btn => {
+            btn.addEventListener('click', () => {
+                const lang = btn.dataset.lang;
+                $$('.lang-btn').forEach(b => b.classList.remove('active'));
+                $$(`.lang-btn[data-lang="${lang}"]`).forEach(b => b.classList.add('active'));
+            });
+        });
+        
+        addEventListener('resize', alignSubmenu);
+    </script>
+</body>
+</html>

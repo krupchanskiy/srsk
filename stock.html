@@ -1,0 +1,268 @@
+<!DOCTYPE html>
+<html lang="ru" data-theme="light">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Остатки — ШРСК</title>
+    <link href="https://cdn.jsdelivr.net/npm/daisyui@4.12.14/dist/full.min.css" rel="stylesheet" />
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script>tailwind.config = { theme: { extend: { screens: { 'desktop': '1200px' } } } }</script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans:wght@400;500;600;700&family=Noto+Sans+Devanagari:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="css/common.css">
+    <style>
+        .status-ok { background-color: rgba(107, 158, 90, 0.15); border-left: 4px solid #6B9E5A; }
+        .status-low { background-color: rgba(212, 168, 75, 0.15); border-left: 4px solid #D4A84B; }
+        .status-critical { background-color: rgba(220, 38, 38, 0.15); border-left: 4px solid #DC2626; }
+        .trend-up { color: #DC2626; }
+        .trend-down { color: #6B9E5A; }
+        .trend-stable { color: #6B7280; }
+    </style>
+</head>
+<body class="bg-base-200 min-h-screen flex flex-col">
+
+    <div id="header-placeholder"></div>
+
+    <main class="container mx-auto px-4 py-6 flex-1">
+
+        <div class="mb-6">
+            <h1 class="text-2xl font-bold" data-i18n="stock_inventory_title">Остатки на складе</h1>
+            <p class="text-sm opacity-60" id="stockCount">Загрузка...</p>
+        </div>
+
+        <div class="flex flex-col sm:flex-row gap-4 mb-4">
+            <div class="flex-1 max-w-md relative">
+                <input type="text" id="searchInput" placeholder="Поиск по названию..." class="input input-bordered w-full pr-10" data-i18n-placeholder="search_placeholder" />
+                <button type="button" id="clearSearch" class="absolute right-3 top-1/2 -translate-y-1/2 text-base-content/40 hover:text-base-content hidden">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+                    </svg>
+                </button>
+            </div>
+        </div>
+
+        <div class="flex flex-wrap gap-2 mb-6" id="categoryFilters">
+            <div class="skeleton h-8 w-16"></div>
+            <div class="skeleton h-8 w-20"></div>
+            <div class="skeleton h-8 w-20"></div>
+        </div>
+
+        <div class="space-y-3" id="stockList">
+            <div class="bg-base-100 rounded-lg p-4 shadow-sm skeleton h-20"></div>
+            <div class="bg-base-100 rounded-lg p-4 shadow-sm skeleton h-20"></div>
+            <div class="bg-base-100 rounded-lg p-4 shadow-sm skeleton h-20"></div>
+        </div>
+
+    </main>
+
+    <div id="footer-placeholder"></div>
+
+    <script src="js/layout.js"></script>
+    <script>
+        // ==================== STATE ====================
+        let currentCategory = 'all';
+        let searchQuery = '';
+        let stockItems = [];
+        let products = [];
+        let categories = [];
+
+        const t = key => Layout.t(key);
+
+        const ITEM_FORMS = {
+            ru: ['позиция', 'позиции', 'позиций'],
+            en: ['item', 'items'],
+            hi: 'आइटम'
+        };
+
+        // ==================== DATA LOADING ====================
+        async function loadCategories() {
+            const { data, error } = await Layout.db.from('product_categories').select('*').order('sort_order');
+            if (error) { console.error('Error loading categories:', error); return; }
+            categories = data;
+            renderCategoryFilters();
+        }
+
+        async function loadProducts() {
+            const { data, error } = await Layout.db.from('products').select('*, product_categories(slug, name_ru, name_en, name_hi)');
+            if (error) { console.error('Error loading products:', error); return; }
+            products = data;
+        }
+
+        async function loadStock() {
+            const { data, error } = await Layout.db
+                .from('stock')
+                .select('*, products(*, product_categories(slug, name_ru, name_en, name_hi))')
+                .order('created_at', { ascending: false });
+
+            if (error) { console.error('Error loading stock:', error); return; }
+            stockItems = data;
+            renderStock();
+        }
+
+        // ==================== HELPERS ====================
+        const UNITS = {
+            kg: { ru: 'кг', en: 'kg', hi: 'किग्रा' },
+            g: { ru: 'г', en: 'g', hi: 'ग्रा' },
+            l: { ru: 'л', en: 'l', hi: 'ली' },
+            ml: { ru: 'мл', en: 'ml', hi: 'मिली' },
+            pcs: { ru: 'шт', en: 'pcs', hi: 'पीस' }
+        };
+
+        function localizeUnit(unit) {
+            const u = (unit || '').toLowerCase();
+            // Не показывать единицы времени
+            if (['мин', 'min', 'мин.', 'минут'].includes(u)) return '';
+            return UNITS[u]?.[Layout.currentLang] || unit;
+        }
+
+        // ==================== RENDERING ====================
+
+        function getStatus(item) {
+            if (!item) return 'none';
+            if (item.current_quantity <= 0) return 'critical';
+            if (item.current_quantity < item.min_quantity) return 'critical';
+            if (item.current_quantity < item.min_quantity * 1.5) return 'low';
+            return 'ok';
+        }
+
+        function renderCategoryFilters() {
+            const container = Layout.$('#categoryFilters');
+            const counts = { all: stockItems.length };
+
+            stockItems.forEach(item => {
+                const slug = item.products?.product_categories?.slug;
+                if (slug) counts[slug] = (counts[slug] || 0) + 1;
+            });
+
+            let html = `<button class="btn btn-sm ${currentCategory === 'all' ? '' : 'btn-ghost'}" data-category="all" style="${currentCategory === 'all' ? 'background-color: var(--current-color); border-color: var(--current-color); color: white;' : ''}">${t('all')}<sup class="ml-1 opacity-60">${counts.all || 0}</sup></button>`;
+
+            categories.forEach(cat => {
+                const isActive = currentCategory === cat.slug;
+                html += `<button class="btn btn-sm ${isActive ? '' : 'btn-ghost'}" data-category="${cat.slug}" style="${isActive ? 'background-color: var(--current-color); border-color: var(--current-color); color: white;' : ''}">${cat.emoji || ''} ${Layout.getName(cat)}<sup class="ml-1 opacity-60">${counts[cat.slug] || 0}</sup></button>`;
+            });
+
+            container.innerHTML = html;
+            container.querySelectorAll('button').forEach(btn => {
+                btn.addEventListener('click', () => {
+                    currentCategory = btn.dataset.category;
+                    renderCategoryFilters();
+                    renderStock();
+                });
+            });
+        }
+
+        function renderStock() {
+            const container = Layout.$('#stockList');
+            const lang = Layout.currentLang;
+
+            let filtered = stockItems.filter(item => {
+                const matchesCategory = currentCategory === 'all' || item.products?.product_categories?.slug === currentCategory;
+                const product = item.products;
+                const matchesSearch = searchQuery === '' ||
+                    product?.name_ru?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+                    product?.name_en?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+                    product?.name_hi?.includes(searchQuery);
+                return matchesCategory && matchesSearch;
+            });
+
+            // Sort by status: critical first
+            filtered.sort((a, b) => {
+                const order = { critical: 0, low: 1, ok: 2 };
+                return (order[getStatus(a)] || 3) - (order[getStatus(b)] || 3);
+            });
+
+            Layout.$('#stockCount').textContent = Layout.pluralize(filtered.length, ITEM_FORMS);
+
+            if (filtered.length === 0) {
+                container.innerHTML = `<div class="text-center py-12 opacity-50"><div class="text-4xl mb-2">📦</div><div>${t('no_items')}</div></div>`;
+                return;
+            }
+
+            container.innerHTML = filtered.map(item => {
+                const product = item.products;
+                const cat = product?.product_categories;
+                const status = getStatus(item);
+                const statusClass = status === 'critical' ? 'status-critical' : status === 'low' ? 'status-low' : 'status-ok';
+                const secondaryLang = lang === 'ru' ? 'en' : 'ru';
+
+                return `
+                    <div class="bg-base-100 rounded-lg p-4 shadow-sm ${statusClass}">
+                        <div class="flex flex-col md:flex-row md:items-center gap-4">
+                            <div class="flex-1 min-w-0">
+                                <div class="flex items-center gap-2 flex-wrap">
+                                    <span class="font-semibold text-lg">${Layout.getName(product)}</span>
+                                    <span class="text-sm opacity-50">${product?.[`name_${secondaryLang}`] || ''}</span>
+                                </div>
+                                <div class="text-sm opacity-60">${Layout.getName(cat) || ''}</div>
+                                ${item.placement || item.supplier ? `
+                                <div class="text-xs opacity-50 mt-1 flex flex-wrap gap-3">
+                                    ${item.placement ? `<span title="${t('placement') || 'Размещение'}">📍 ${item.placement}</span>` : ''}
+                                    ${item.supplier ? `<span title="${t('supplier') || 'Поставщик'}">📦 ${item.supplier}</span>` : ''}
+                                </div>
+                                ` : ''}
+                            </div>
+
+                            <div class="flex items-center gap-6">
+                                <div class="text-center">
+                                    <div class="text-2xl font-bold ${status === 'critical' ? 'text-red-600' : status === 'low' ? 'text-yellow-600' : ''}">${item.current_quantity} ${localizeUnit(product?.unit)}</div>
+                                    <div class="text-xs opacity-50">${t('stock_should_be')} ≥ ${item.min_quantity} ${localizeUnit(product?.unit)}</div>
+                                </div>
+
+                                ${item.last_price ? `
+                                <div class="text-center min-w-16">
+                                    <div class="font-medium">₹${item.last_price}</div>
+                                </div>
+                                ` : ''}
+                            </div>
+                        </div>
+                    </div>
+                `;
+            }).join('');
+        }
+
+        function updatePageLanguage() {
+            Layout.updateAllTranslations();
+            renderCategoryFilters();
+            renderStock();
+        }
+
+        // ==================== EVENT LISTENERS ====================
+        document.addEventListener('DOMContentLoaded', () => {
+            const searchInput = Layout.$('#searchInput');
+            const clearBtn = Layout.$('#clearSearch');
+            const debouncedSearch = Layout.debounce(() => renderStock(), 200);
+
+            searchInput?.addEventListener('input', e => {
+                searchQuery = e.target.value;
+                clearBtn?.classList.toggle('hidden', !e.target.value);
+                debouncedSearch();
+            });
+
+            clearBtn?.addEventListener('click', () => {
+                searchInput.value = '';
+                searchQuery = '';
+                clearBtn.classList.add('hidden');
+                renderStock();
+                searchInput.focus();
+            });
+        });
+
+        window.onLanguageChange = function(lang) {
+            updatePageLanguage();
+        };
+
+        // ==================== INIT ====================
+        async function init() {
+            await Layout.init({ menuId: 'stock', itemId: 'inventory' });
+            await loadCategories();
+            await loadProducts();
+            await loadStock();
+            updatePageLanguage();
+        }
+
+        init();
+    </script>
+</body>
+</html>

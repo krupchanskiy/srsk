@@ -1,0 +1,1668 @@
+<!DOCTYPE html>
+<html lang="ru" data-theme="light">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Меню — Кухня Ашрама</title>
+    <link href="https://cdn.jsdelivr.net/npm/daisyui@4.12.14/dist/full.min.css" rel="stylesheet" type="text/css" />
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = { theme: { extend: { screens: { 'desktop': '1200px' } } },
+            daisyui: {
+                themes: ["light"],
+            },
+        }
+    </script>
+    <style>
+:root {
+            --color-main: #f49800;
+            --color-cafe: #10b981;
+            --color-guest: #3b82f6;
+            --current-color: #f49800;
+        }
+        * { font-family: 'Noto Sans', 'Noto Sans Devanagari', sans-serif; }
+        .nav-link { transition: all 0.15s ease; }
+        .nav-link:hover { opacity: 1; }
+        .nav-link.active { opacity: 1; color: var(--current-color); }
+        .lang-btn.active { background-color: var(--color-main) !important; color: white !important; border-color: var(--color-main) !important; }
+        .submenu-link { transition: all 0.15s ease; }
+        .submenu-link.active { background-color: white; color: var(--current-color) !important; }
+        #submenuBar { background-color: var(--current-color); }
+        .logo-svg path { transition: fill 0.3s ease; }
+        @media (max-width: 1199px) { #submenuBar { display: none !important; } }
+        .mobile-menu { max-height: 0; overflow: hidden; transition: max-height 0.3s ease; }
+        .mobile-menu.open { max-height: 500px; }
+        .mobile-nav-item.open > button { color: var(--current-color); }
+        .mobile-nav-item.open .arrow-icon { transform: rotate(180deg); }
+        .mobile-nav-item .submenu { display: none; }
+        .mobile-nav-item.open .submenu { display: block; }
+
+        
+
+        [data-theme="light"] {
+            --p: 65% 0.12 45; /* #CC7C5E в oklch */
+            --pf: 55% 0.12 45; /* darker for focus */
+            --pc: 100% 0 0; /* white text on primary */
+        }
+        
+        /* Active language button */
+        
+        /* Active nav link */
+        .nav-link.active {
+            color: #CC7C5E;
+            opacity: 1;
+            border-bottom-color: #CC7C5E;
+        }
+        
+        /* Kitchen dropdown active */
+        .kitchen-option.active {
+            background-color: rgba(204, 124, 94, 0.1);
+            color: #CC7C5E;
+        }
+        
+        /* Category colors */
+        .cat-all { --cat-color: #CC7C5E; }
+        .cat-main { --cat-color: #A67B5B; }
+        .cat-garnish { --cat-color: #D4A84B; }
+        .cat-soup { --cat-color: #E08A4A; }
+        .cat-salad { --cat-color: #6B9E5A; }
+        .cat-drink { --cat-color: #4A9E9A; }
+        .cat-sweet { --cat-color: #C75D7E; }
+        .cat-snack { --cat-color: #8B6B9E; }
+        
+        .filter-btn.active {
+            background-color: var(--cat-color) !important;
+            color: white !important;
+            border-color: var(--cat-color) !important;
+        }
+        
+        .badge-main { background-color: #A67B5B; color: white; border: none; }
+        .badge-garnish { background-color: #D4A84B; color: white; border: none; }
+        .badge-soup { background-color: #E08A4A; color: white; border: none; }
+        .badge-salad { background-color: #6B9E5A; color: white; border: none; }
+        .badge-drink { background-color: #4A9E9A; color: white; border: none; }
+        .badge-sweet { background-color: #C75D7E; color: white; border: none; }
+        .badge-snack { background-color: #8B6B9E; color: white; border: none; }
+    </style>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans:wght@400;500;600;700&family=Noto+Sans+Devanagari:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        * {
+            font-family: 'Noto Sans', 'Noto Sans Devanagari', sans-serif;
+        }
+        .recipe-card:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 25px -5px rgba(0,0,0,0.1);
+        }
+        .recipe-card {
+            transition: all 0.2s ease;
+        }
+        .category-badge {
+            font-size: 0.7rem;
+            padding: 0.2rem 0.5rem;
+        }
+        .sub-text {
+            font-size: 0.7rem;
+            opacity: 0.5;
+        }
+        .filter-btn.active {
+            background: oklch(var(--p));
+            color: oklch(var(--pc));
+        }
+        
+        /* Print Styles */
+        @media print {
+            body {
+                background: white !important;
+            }
+            header, footer, .btn, .no-print {
+                display: none !important;
+            }
+            main {
+                padding: 0 !important;
+            }
+            .shadow-sm, .shadow-md {
+                box-shadow: none !important;
+            }
+            .bg-base-100, .bg-base-200, .bg-base-200\/30, .bg-base-200\/50 {
+                background: white !important;
+            }
+            .rounded-xl, .rounded-lg, .rounded {
+                border: 1px solid #ddd !important;
+            }
+            #dayView, #weekView, #monthView {
+                display: block !important;
+            }
+            #dayView.hidden, #weekView.hidden, #monthView.hidden {
+                display: none !important;
+            }
+            .ring-2 {
+                ring: none !important;
+            }
+            @page {
+                margin: 1cm;
+            }
+        }
+    </style>
+</head>
+<body class="bg-base-200 min-h-screen">
+    
+    <header class="bg-base-100 shadow-sm sticky top-0 z-50">
+        <div class="container mx-auto px-4">
+            <div class="flex items-center justify-between h-20">
+                
+                <!-- Logo + Location Selector -->
+                <div class="flex items-center gap-3 flex-shrink-0">
+                    <a href="kitchen-menu.html" class="hover:opacity-80 transition-opacity">
+                        <svg class="h-14 w-auto logo-svg" viewBox="0 0 122.03 312.54" xmlns="http://www.w3.org/2000/svg">
+                            <path fill="var(--current-color)" d="M102,15.99h-15.18v81.89c0,6.21.12,11.58-.88,15.98-1.01,4.45-2.6,7.98-4.77,10.58-2.02,2.81-4.85,4.83-8.51,6.05-2.38,1-5.08,1.62-8.1,1.83-1.01.21-2.02.32-3.02.32h-.64c-3.81-.21-7.23-.83-10.25-1.83-3.81-1.22-7.02-3.13-9.62-5.73-2.65-2.81-4.56-6.44-5.73-10.89-1.22-4.4-1.83-9.83-1.83-16.3V15.99h-15.1v89.12c0,13.68,3.81,23.94,11.45,30.77,3.81,3.44,8.56,5.96,14.23,7.55,1.17.42,2.57.74,4.21.96-13.89,5.03-23.35,11.87-28.38,20.51-7.05,10.65-7.26,24.14-.64,40.46l41.34,100.45,39.91-100.45c6.41-16.32,6.2-29.82-.64-40.46-4.82-8.48-13.97-15.21-27.43-20.2,1.59-.43,3.18-.85,4.77-1.27,5.25-1.59,9.67-4.19,13.27-7.79,3.82-3.66,6.65-8.18,8.51-13.59,2.02-5.62,3.02-12.27,3.02-19.95V15.99M87.45,172.46c4.03,7.26,3.84,16.4-.56,27.43l-26.31,68.13-27.75-68.13c-4.61-11.03-4.8-20.17-.55-27.43,4.61-7.47,13.76-13.01,27.43-16.62,13.67,3.61,22.93,9.15,27.75,16.62"/>
+                        </svg>
+                    </a>
+                    
+                    <!-- Desktop: full name + selector -->
+                    <div class="hidden md:flex flex-col">
+                        <a href="kitchen-menu.html" class="text-xl font-semibold whitespace-nowrap hover:opacity-80 transition-opacity">Шри Рупа Сева Кунджа</a>
+                        <div class="relative location-selector" id="locationDesktop">
+                            <button class="flex items-center justify-between gap-2 w-full text-xl opacity-70 hover:opacity-100 transition-opacity" data-toggle="location">
+                                <span class="location-name">Основная кухня</span>
+                                <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 transition-transform location-arrow" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                                    <path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7" />
+                                </svg>
+                            </button>
+                            <div class="absolute top-full left-0 mt-1 bg-white rounded-lg shadow-lg py-1 w-full hidden z-50 location-dropdown"></div>
+                        </div>
+                    </div>
+                    
+                    <!-- Mobile: ШРСК + selector -->
+                    <div class="flex items-center gap-2 md:hidden">
+                        <span class="text-xl font-semibold whitespace-nowrap">ШРСК</span>
+                        <span class="text-xl opacity-50">·</span>
+                        <div class="relative location-selector" id="locationMobile">
+                            <button class="flex items-center gap-1 text-xl opacity-70" data-toggle="location">
+                                <span class="location-name">Основная кухня</span>
+                                <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 transition-transform location-arrow" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                                    <path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7" />
+                                </svg>
+                            </button>
+                            <div class="absolute top-full left-0 mt-1 bg-white rounded-lg shadow-lg py-1 min-w-44 hidden z-50 location-dropdown"></div>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Desktop Navigation -->
+                <nav class="hidden desktop:flex items-center gap-2" id="mainNav">
+                    <a href="#" class="nav-link px-5 py-6 text-base font-semibold tracking-wide uppercase opacity-60" data-submenu="kitchen">Кухня</a>
+                    <a href="#" class="nav-link px-5 py-6 text-base font-semibold tracking-wide uppercase opacity-60" data-submenu="stock">Склад</a>
+                    <a href="#" class="nav-link px-5 py-6 text-base font-semibold tracking-wide uppercase opacity-60">Ретриты</a>
+                    <a href="#" class="nav-link px-5 py-6 text-base font-semibold tracking-wide uppercase opacity-60" data-submenu="team">Команда</a>
+                    <a href="#" class="nav-link px-5 py-6 text-base font-semibold tracking-wide uppercase opacity-60" data-submenu="settings">Настройки</a>
+                </nav>
+                
+                <!-- Right: Language, User, Mobile Menu Button -->
+                <div class="flex items-center gap-3 sm:gap-5">
+                    <div class="hidden md:flex join">
+                        <button class="join-item btn btn-sm lang-btn active" data-lang="ru">RU</button>
+                        <button class="join-item btn btn-sm lang-btn" data-lang="en">EN</button>
+                        <button class="join-item btn btn-sm lang-btn" data-lang="hi">HI</button>
+                    </div>
+                    <div class="hidden desktop:block">
+                        <div class="w-10 h-10 rounded-full overflow-hidden ring-2 ring-base-200">
+                            <img src="https://i.pravatar.cc/150?img=5" alt="User" class="w-full h-full object-cover" />
+                        </div>
+                    </div>
+                    <button class="btn btn-ghost btn-md btn-square desktop:hidden" id="mobileMenuBtn">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-7 w-7 menu-icon" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M4 6h16M4 12h16M4 18h16" />
+                        </svg>
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-7 w-7 close-icon hidden" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
+                        </svg>
+                    </button>
+                </div>
+            </div>
+            
+            <!-- Mobile Menu -->
+            <div class="mobile-menu desktop:hidden border-t border-base-200" id="mobileMenu">
+                <nav class="py-3 space-y-0" id="mobileNav"></nav>
+                <div class="border-t border-base-200 py-4 px-4">
+                    <div class="flex items-center justify-between">
+                        <div class="flex items-center gap-3">
+                            <div class="w-10 h-10 rounded-full overflow-hidden ring-2 ring-base-200">
+                                <img src="https://i.pravatar.cc/150?img=5" alt="User" class="w-full h-full object-cover" />
+                            </div>
+                            <span class="font-medium">Ганга деви даси</span>
+                        </div>
+                        <div class="md:hidden join">
+                            <button class="join-item btn btn-sm lang-btn active" data-lang="ru">RU</button>
+                            <button class="join-item btn btn-sm lang-btn" data-lang="en">EN</button>
+                            <button class="join-item btn btn-sm lang-btn" data-lang="hi">HI</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Submenu Bar (Desktop) -->
+        <div class="hidden -mt-1" id="submenuBar"></div>
+    </header>
+
+    <!-- Main Content -->
+    <main class="container mx-auto px-4 py-6">
+        
+        <!-- Navigation Row -->
+        <div class="flex justify-start mb-4">
+            <div class="flex items-center gap-1">
+                <!-- Today (с навигацией по дням) -->
+                <div id="todayNav">
+                    <div class="join bg-primary rounded-lg">
+                        <button class="join-item btn btn-sm btn-ghost text-primary-content" onclick="prevDay()">
+                            <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7" />
+                            </svg>
+                        </button>
+                        <button class="join-item btn btn-sm btn-ghost font-bold text-primary-content" onclick="goToToday()">Сегодня</button>
+                        <button class="join-item btn btn-sm btn-ghost text-primary-content" onclick="nextDay()">
+                            <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" />
+                            </svg>
+                        </button>
+                    </div>
+                </div>
+                <button id="todayBtn" class="btn btn-sm btn-ghost hidden" onclick="setView('day')">Сегодня</button>
+                
+                <!-- Week -->
+                <div id="weekNav" class="hidden">
+                    <div class="join bg-primary rounded-lg">
+                        <button class="join-item btn btn-sm btn-ghost text-primary-content" onclick="prevPeriod()">
+                            <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7" />
+                            </svg>
+                        </button>
+                        <button class="join-item btn btn-sm btn-ghost font-bold text-primary-content">Неделя</button>
+                        <button class="join-item btn btn-sm btn-ghost text-primary-content" onclick="nextPeriod()">
+                            <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" />
+                            </svg>
+                        </button>
+                    </div>
+                </div>
+                <button id="weekBtn" class="btn btn-sm btn-ghost" onclick="setView('week')">Неделя</button>
+                
+                <!-- Month -->
+                <div id="monthNav" class="hidden">
+                    <div class="join bg-primary rounded-lg">
+                        <button class="join-item btn btn-sm btn-ghost text-primary-content" onclick="prevPeriod()">
+                            <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7" />
+                            </svg>
+                        </button>
+                        <button class="join-item btn btn-sm btn-ghost font-bold text-primary-content">Месяц</button>
+                        <button class="join-item btn btn-sm btn-ghost text-primary-content" onclick="nextPeriod()">
+                            <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" />
+                            </svg>
+                        </button>
+                    </div>
+                </div>
+                <button id="monthBtn" class="btn btn-sm btn-ghost" onclick="setView('month')">Месяц</button>
+            </div>
+        </div>
+        
+        <!-- Title Row -->
+        <div class="flex justify-between items-center mb-6">
+            <h1 class="text-2xl font-bold">
+                <span data-i18n="page_title">Меню</span>
+                <span class="opacity-60 ml-2" id="periodRange"></span>
+            </h1>
+            <button class="btn btn-ghost btn-sm gap-2" onclick="printMenu()" title="Печать">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" />
+                </svg>
+                Распечатать
+            </button>
+        </div>
+
+        <!-- Day View -->
+        <div id="dayView">
+            <div class="max-w-2xl mx-auto" id="dayContent">
+                <!-- Day will be generated by JS -->
+            </div>
+        </div>
+
+        <!-- Week View -->
+        <div id="weekView" class="hidden">
+            <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4" id="weekGrid">
+                <!-- Days will be generated by JS -->
+            </div>
+        </div>
+        
+        <!-- Month View -->
+        <div id="monthView" class="hidden">
+            <!-- Day names header -->
+            <div class="grid grid-cols-7 gap-1 mb-1">
+                <div class="text-center text-sm font-medium opacity-60 py-2">Пн</div>
+                <div class="text-center text-sm font-medium opacity-60 py-2">Вт</div>
+                <div class="text-center text-sm font-medium opacity-60 py-2">Ср</div>
+                <div class="text-center text-sm font-medium opacity-60 py-2">Чт</div>
+                <div class="text-center text-sm font-medium opacity-60 py-2">Пт</div>
+                <div class="text-center text-sm font-medium opacity-60 py-2">Сб</div>
+                <div class="text-center text-sm font-medium opacity-60 py-2">Вс</div>
+            </div>
+            <div class="grid grid-cols-7 gap-1" id="monthGrid">
+                <!-- Days will be generated by JS -->
+            </div>
+        </div>
+
+        <!-- Actions -->
+        <div class="flex justify-end gap-2 mt-6">
+            <button class="btn btn-ghost gap-2" onclick="generateShoppingList()">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01" />
+                </svg>
+                Список закупок
+            </button>
+        </div>
+
+    </main>
+
+    <!-- Add Meal Modal -->
+    <dialog id="mealModal" class="modal">
+        <div class="modal-box max-w-lg">
+            <form method="dialog">
+                <button class="btn btn-sm btn-circle btn-ghost absolute right-2 top-2">✕</button>
+            </form>
+            <h3 class="font-bold text-lg mb-4" id="mealModalTitle">Добавить блюдо</h3>
+            
+            <div class="space-y-4">
+                <!-- Tabs: Search / Browse -->
+                <div class="tabs tabs-boxed">
+                    <a class="tab tab-active" id="tabSearch" onclick="switchRecipeTab('search')">Поиск</a>
+                    <a class="tab" id="tabBrowse" onclick="switchRecipeTab('browse')">По категории</a>
+                </div>
+                
+                <!-- Search Tab -->
+                <div id="searchTab">
+                    <div class="relative">
+                        <input type="text" 
+                               id="recipeSearch" 
+                               class="input input-bordered w-full" 
+                               placeholder="Начните вводить название..."
+                               autocomplete="off"
+                               oninput="filterRecipes(this.value)"
+                               onfocus="showRecipeDropdown()"
+                        />
+                        <div id="recipeDropdown" class="absolute z-50 w-full bg-base-100 border border-base-300 rounded-lg shadow-lg mt-1 max-h-64 overflow-y-auto hidden">
+                            <!-- Filtered recipes will appear here -->
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Browse Tab -->
+                <div id="browseTab" class="hidden">
+                    <!-- Category selector -->
+                    <div class="flex flex-wrap gap-2 mb-3">
+                        <button type="button" class="btn btn-sm cat-all filter-btn active" id="catBtn_all" onclick="filterByCategory('all')">Все</button>
+                        <button type="button" class="btn btn-sm cat-main filter-btn" id="catBtn_main" onclick="filterByCategory('main')">Основное</button>
+                        <button type="button" class="btn btn-sm cat-garnish filter-btn" id="catBtn_garnish" onclick="filterByCategory('garnish')">Гарнир</button>
+                        <button type="button" class="btn btn-sm cat-soup filter-btn" id="catBtn_soup" onclick="filterByCategory('soup')">Суп</button>
+                        <button type="button" class="btn btn-sm cat-salad filter-btn" id="catBtn_salad" onclick="filterByCategory('salad')">Салат</button>
+                        <button type="button" class="btn btn-sm cat-drink filter-btn" id="catBtn_drink" onclick="filterByCategory('drink')">Напиток</button>
+                        <button type="button" class="btn btn-sm cat-sweet filter-btn" id="catBtn_sweet" onclick="filterByCategory('sweet')">Сладкое</button>
+                    </div>
+                    <!-- Recipe list -->
+                    <div id="categoryRecipeList" class="max-h-64 overflow-y-auto border border-base-300 rounded-lg">
+                        <!-- Recipes by category will appear here -->
+                    </div>
+                </div>
+                
+                <!-- Selected Recipe Display -->
+                <div id="selectedRecipeDisplay" class="hidden">
+                    <div class="flex items-center justify-between p-3 bg-primary/10 rounded-lg border-2 border-primary">
+                        <div>
+                            <div class="font-medium" id="selectedRecipeName"></div>
+                            <div class="text-sm opacity-50" id="selectedRecipeNameEn"></div>
+                        </div>
+                        <button type="button" class="btn btn-ghost btn-sm btn-square" onclick="clearSelectedRecipe()">
+                            <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+                            </svg>
+                        </button>
+                    </div>
+                </div>
+                
+                <!-- Portion Size -->
+                <div>
+                    <label class="label"><span class="label-text font-medium">Размер порции</span></label>
+                    <div class="join w-full">
+                        <input type="number" id="portionSize" class="input input-bordered join-item w-full" value="200" min="1" />
+                        <span id="portionUnit" class="btn join-item no-animation pointer-events-none bg-base-200">г</span>
+                    </div>
+                </div>
+                
+                <!-- Total calculation -->
+                <div class="text-lg font-semibold" id="totalCalculation">
+                    —
+                </div>
+            </div>
+            
+            <!-- Modal Actions -->
+            <div class="modal-action">
+                <button type="button" class="btn btn-ghost" onclick="closeMealModal()">Отмена</button>
+                <button type="button" class="btn btn-primary" id="saveMealBtn" onclick="saveMeal()" disabled>Сохранить</button>
+            </div>
+        </div>
+        <form method="dialog" class="modal-backdrop">
+            <button>close</button>
+        </form>
+    </dialog>
+
+    <!-- Footer -->
+    <footer class="bg-base-100 border-t border-base-200 mt-12">
+        <div class="container mx-auto px-4 py-6">
+            <div class="flex flex-col sm:flex-row justify-between items-center gap-4">
+                <!-- Footer Navigation -->
+                <nav class="flex gap-6">
+                    <a href="kitchen-menu.html" class="text-sm font-medium uppercase tracking-wide text-primary" data-i18n="nav_menu">Меню</a>
+                    <a href="kitchen-recipes.html" class="text-sm font-medium uppercase tracking-wide opacity-60 hover:opacity-100" data-i18n="nav_recipes">Рецепты</a>
+                    <a href="kitchen-products.html" class="text-sm font-medium uppercase tracking-wide opacity-60 hover:opacity-100" data-i18n="nav_products">Продукты</a>
+                    <a href="kitchen-stock.html" class="text-sm font-medium uppercase tracking-wide opacity-60 hover:opacity-100" data-i18n="nav_stock">Склад</a>
+                    <a href="kitchen-retreats.html" class="text-sm font-medium uppercase tracking-wide opacity-60 hover:opacity-100">Ретриты</a>
+                    <a href="kitchen-team.html" class="text-sm font-medium uppercase tracking-wide opacity-60 hover:opacity-100">Команда</a>
+                </nav>
+                
+                <!-- Back to top -->
+                <button onclick="window.scrollTo({top: 0, behavior: 'smooth'})" class="btn btn-ghost btn-sm gap-1 opacity-60 hover:opacity-100">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 15l7-7 7 7" />
+                    </svg>
+                    <span data-i18n="back_to_top">Наверх</span>
+                </button>
+            </div>
+            
+            <div class="text-center mt-4 text-xs opacity-40">
+                ШРСК · Шри Рупа Сева Кунджа
+            </div>
+        </div>
+    </footer>
+
+    <script>
+        // ==================== DATA ====================
+        const recipes = [
+            // ekadashi: true = подходит для Экадаши (без зерновых и бобовых)
+            { id: 1, name_ru: "Кичри с овощами", name_en: "Vegetable Khichdi", name_hi: "सब्जी खिचड़ी", translit: "Sabjī Khicṛī", category: "main", time: 40, portion_size: 200, portion_unit: 'г', ekadashi: false },
+            { id: 2, name_ru: "Овсяная каша с фруктами", name_en: "Oats Porridge with Fruits", name_hi: "फलों के साथ ओट्स", translit: "Phalõ ke Sāth Oṭs", category: "main", time: 20, portion_size: 200, portion_unit: 'г', ekadashi: false },
+            { id: 3, name_ru: "Упма", name_en: "Upma", name_hi: "उपमा", translit: "Upmā", category: "main", time: 25, portion_size: 180, portion_unit: 'г', ekadashi: false },
+            { id: 4, name_ru: "Поха с овощами", name_en: "Vegetable Poha", name_hi: "सब्जी पोहा", translit: "Sabjī Pohā", category: "main", time: 20, portion_size: 180, portion_unit: 'г', ekadashi: false },
+            { id: 5, name_ru: "Далия", name_en: "Daliya Porridge", name_hi: "दलिया", translit: "Daliyā", category: "main", time: 30, portion_size: 200, portion_unit: 'г', ekadashi: false },
+            { id: 6, name_ru: "Идли", name_en: "Idli", name_hi: "इडली", translit: "Iḍlī", category: "main", time: 30, portion_size: 3, portion_unit: 'шт', ekadashi: false },
+            { id: 9, name_ru: "Рис басмати", name_en: "Steamed Basmati Rice", name_hi: "बासमती चावल", translit: "Bāsmatī Chāval", category: "garnish", time: 25, portion_size: 150, portion_unit: 'г', ekadashi: false },
+            { id: 10, name_ru: "Дал тадка", name_en: "Dal Tadka", name_hi: "दाल तड़का", translit: "Dāl Taṛkā", category: "main", time: 35, portion_size: 150, portion_unit: 'г', ekadashi: false },
+            { id: 11, name_ru: "Дал фрай", name_en: "Dal Fry", name_hi: "दाल फ्राई", translit: "Dāl Phrāī", category: "main", time: 30, portion_size: 150, portion_unit: 'г', ekadashi: false },
+            { id: 12, name_ru: "Самбар", name_en: "Sambar", name_hi: "सांभर", translit: "Sāmbhar", category: "soup", time: 45, portion_size: 180, portion_unit: 'г', ekadashi: false },
+            { id: 16, name_ru: "Алу гоби", name_en: "Aloo Gobi", name_hi: "आलू गोभी", translit: "Ālū Gobhī", category: "main", time: 35, portion_size: 150, portion_unit: 'г', ekadashi: true },
+            { id: 17, name_ru: "Палак панир", name_en: "Palak Paneer", name_hi: "पालक पनीर", translit: "Pālak Panīr", category: "main", time: 40, portion_size: 150, portion_unit: 'г', ekadashi: true },
+            { id: 23, name_ru: "Чана масала", name_en: "Chana Masala", name_hi: "छोले मसाला", translit: "Chhole Masālā", category: "main", time: 50, portion_size: 150, portion_unit: 'г', ekadashi: false },
+            { id: 25, name_ru: "Качумбер", name_en: "Kachumber Salad", name_hi: "कचूंबर सलाद", translit: "Kachūmbar Salād", category: "salad", time: 15, portion_size: 80, portion_unit: 'г', ekadashi: true },
+            { id: 27, name_ru: "Райта с огурцом", name_en: "Cucumber Raita", name_hi: "खीरे का रायता", translit: "Khīre kā Rāytā", category: "salad", time: 10, portion_size: 80, portion_unit: 'г', ekadashi: true },
+            { id: 29, name_ru: "Чапати", name_en: "Chapati", name_hi: "चपाती", translit: "Chapātī", category: "garnish", time: 45, portion_size: 3, portion_unit: 'шт', ekadashi: false },
+            { id: 32, name_ru: "Нимбу пани", name_en: "Nimbu Pani", name_hi: "नींबू पानी", translit: "Nīmbū Pānī", category: "drink", time: 10, portion_size: 250, portion_unit: 'мл', ekadashi: true },
+            { id: 33, name_ru: "Ласси сладкий", name_en: "Sweet Lassi", name_hi: "मीठी लस्सी", translit: "Mīṭhī Lassī", category: "drink", time: 10, portion_size: 250, portion_unit: 'мл', ekadashi: true },
+            { id: 38, name_ru: "Кхир рисовый", name_en: "Rice Kheer", name_hi: "चावल की खीर", translit: "Chāval kī Khīr", category: "sweet", time: 45, portion_size: 100, portion_unit: 'г', ekadashi: false },
+            { id: 40, name_ru: "Халва из манки", name_en: "Suji Halwa", name_hi: "सूजी हलवा", translit: "Sūjī Halvā", category: "sweet", time: 25, portion_size: 80, portion_unit: 'г', ekadashi: false },
+            { id: 41, name_ru: "Сабджи из картофеля", name_en: "Aloo Sabji", name_hi: "आलू सब्जी", translit: "Ālū Sabjī", category: "main", time: 30, portion_size: 150, portion_unit: 'г', ekadashi: true },
+            { id: 42, name_ru: "Саго кхичди", name_en: "Sabudana Khichdi", name_hi: "साबूदाना खिचड़ी", translit: "Sābūdānā Khicṛī", category: "main", time: 25, portion_size: 180, portion_unit: 'г', ekadashi: true },
+            { id: 43, name_ru: "Фруктовый салат", name_en: "Fruit Salad", name_hi: "फल सलाद", translit: "Phal Salād", category: "salad", time: 15, portion_size: 150, portion_unit: 'г', ekadashi: true },
+        ];
+
+        const mealTypes = [
+            { key: 'breakfast', name_ru: 'Завтрак', name_en: 'Breakfast', name_hi: 'नाश्ता' },
+            { key: 'lunch', name_ru: 'Обед', name_en: 'Lunch', name_hi: 'दोपहर का भोजन' },
+            { key: 'dinner', name_ru: 'Ужин', name_en: 'Dinner', name_hi: 'रात का खाना' },
+        ];
+
+        const dayNames = {
+            ru: ['Воскресенье', 'Понедельник', 'Вторник', 'Среда', 'Четверг', 'Пятница', 'Суббота'],
+            en: ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'],
+            hi: ['रविवार', 'सोमवार', 'मंगलवार', 'बुधवार', 'गुरुवार', 'शुक्रवार', 'शनिवार'],
+        };
+
+        const monthNames = {
+            ru: ['января', 'февраля', 'марта', 'апреля', 'мая', 'июня', 'июля', 'августа', 'сентября', 'октября', 'ноября', 'декабря'],
+            en: ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'],
+        };
+
+        const monthNamesNom = {
+            ru: ['Январь', 'Февраль', 'Март', 'Апрель', 'Май', 'Июнь', 'Июль', 'Август', 'Сентябрь', 'Октябрь', 'Ноябрь', 'Декабрь'],
+            en: ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'],
+        };
+
+        // Sample menu data - portions are per meal, not per dish
+        // cook_id - id повара для каждого приёма пищи
+        const menuData = {
+            '2025-01-13': {
+                breakfast: { portions: 50, cook_id: 1, dishes: [{ recipe_id: 2, portion_size: 200, portion_unit: 'г' }] },
+                lunch: { portions: 50, cook_id: 2, dishes: [{ recipe_id: 9, portion_size: 150, portion_unit: 'г' }, { recipe_id: 10, portion_size: 150, portion_unit: 'г' }, { recipe_id: 25, portion_size: 80, portion_unit: 'г' }] },
+                dinner: { portions: 50, cook_id: 1, dishes: [{ recipe_id: 29, portion_size: 3, portion_unit: 'шт' }, { recipe_id: 17, portion_size: 150, portion_unit: 'г' }, { recipe_id: 27, portion_size: 80, portion_unit: 'г' }] },
+            },
+            '2025-01-14': {
+                breakfast: { portions: 50, cook_id: 3, dishes: [{ recipe_id: 1, portion_size: 200, portion_unit: 'г' }] },
+                lunch: { portions: 50, cook_id: 4, dishes: [{ recipe_id: 9, portion_size: 150, portion_unit: 'г' }, { recipe_id: 16, portion_size: 150, portion_unit: 'г' }, { recipe_id: 25, portion_size: 80, portion_unit: 'г' }] },
+                dinner: { portions: 50, cook_id: 2, dishes: [{ recipe_id: 29, portion_size: 3, portion_unit: 'шт' }, { recipe_id: 23, portion_size: 150, portion_unit: 'г' }, { recipe_id: 27, portion_size: 80, portion_unit: 'г' }] },
+            },
+            '2025-01-15': {
+                breakfast: { portions: 50, cook_id: 1, dishes: [{ recipe_id: 3, portion_size: 180, portion_unit: 'г' }] },
+                lunch: { portions: 50, cook_id: 2, dishes: [{ recipe_id: 9, portion_size: 150, portion_unit: 'г' }, { recipe_id: 11, portion_size: 150, portion_unit: 'г' }, { recipe_id: 25, portion_size: 80, portion_unit: 'г' }] },
+                dinner: { portions: 50, cook_id: 5, dishes: [{ recipe_id: 29, portion_size: 3, portion_unit: 'шт' }, { recipe_id: 17, portion_size: 150, portion_unit: 'г' }] },
+            },
+            '2025-01-16': {
+                breakfast: { portions: 45, cook_id: 4, dishes: [{ recipe_id: 4, portion_size: 180, portion_unit: 'г' }] },
+                lunch: { portions: 45, cook_id: 1, dishes: [{ recipe_id: 9, portion_size: 150, portion_unit: 'г' }, { recipe_id: 10, portion_size: 150, portion_unit: 'г' }] },
+                dinner: { portions: 45, cook_id: 3, dishes: [{ recipe_id: 29, portion_size: 3, portion_unit: 'шт' }, { recipe_id: 16, portion_size: 150, portion_unit: 'г' }] },
+            },
+            '2025-01-17': {
+                breakfast: { portions: 55, cook_id: 2, dishes: [{ recipe_id: 5, portion_size: 200, portion_unit: 'г' }] },
+                lunch: { portions: 55, cook_id: 1, dishes: [{ recipe_id: 9, portion_size: 150, portion_unit: 'г' }, { recipe_id: 23, portion_size: 150, portion_unit: 'г' }, { recipe_id: 27, portion_size: 80, portion_unit: 'г' }] },
+                dinner: { portions: 55, cook_id: 4, dishes: [{ recipe_id: 29, portion_size: 3, portion_unit: 'шт' }, { recipe_id: 17, portion_size: 150, portion_unit: 'г' }, { recipe_id: 38, portion_size: 100, portion_unit: 'г' }] },
+            },
+            '2025-01-18': {
+                breakfast: { portions: 60, cook_id: 1, dishes: [{ recipe_id: 6, portion_size: 3, portion_unit: 'шт' }, { recipe_id: 12, portion_size: 180, portion_unit: 'г' }] },
+                lunch: { portions: 60, cook_id: 5, dishes: [{ recipe_id: 9, portion_size: 150, portion_unit: 'г' }, { recipe_id: 17, portion_size: 150, portion_unit: 'г' }, { recipe_id: 25, portion_size: 80, portion_unit: 'г' }] },
+                dinner: { portions: 60, cook_id: 2, dishes: [{ recipe_id: 29, portion_size: 3, portion_unit: 'шт' }, { recipe_id: 23, portion_size: 150, portion_unit: 'г' }, { recipe_id: 40, portion_size: 80, portion_unit: 'г' }] },
+            },
+            '2025-01-19': {
+                breakfast: { portions: 60, cook_id: 3, dishes: [{ recipe_id: 2, portion_size: 200, portion_unit: 'г' }] },
+                lunch: { portions: 60, cook_id: 1, dishes: [{ recipe_id: 9, portion_size: 150, portion_unit: 'г' }, { recipe_id: 16, portion_size: 150, portion_unit: 'г' }, { recipe_id: 27, portion_size: 80, portion_unit: 'г' }] },
+                dinner: { portions: 60, cook_id: 2, dishes: [{ recipe_id: 29, portion_size: 3, portion_unit: 'шт' }, { recipe_id: 11, portion_size: 150, portion_unit: 'г' }] },
+            },
+            '2025-01-20': {
+                breakfast: { portions: 50, cook_id: 1, dishes: [{ recipe_id: 1, portion_size: 200, portion_unit: 'г' }] },
+                lunch: { portions: 50, cook_id: 4, dishes: [{ recipe_id: 9, portion_size: 150, portion_unit: 'г' }, { recipe_id: 17, portion_size: 150, portion_unit: 'г' }] },
+                dinner: { portions: 50, cook_id: 5, dishes: [{ recipe_id: 29, portion_size: 3, portion_unit: 'шт' }, { recipe_id: 10, portion_size: 150, portion_unit: 'г' }] },
+            },
+            '2025-01-21': {
+                breakfast: { portions: 50, cook_id: 2, dishes: [{ recipe_id: 3, portion_size: 180, portion_unit: 'г' }] },
+                lunch: { portions: 50, cook_id: 1, dishes: [{ recipe_id: 9, portion_size: 150, portion_unit: 'г' }, { recipe_id: 23, portion_size: 150, portion_unit: 'г' }] },
+            },
+            '2025-01-25': {
+                breakfast: { portions: 55, cook_id: 1, dishes: [{ recipe_id: 4, portion_size: 180, portion_unit: 'г' }] },
+                lunch: { portions: 55, cook_id: 3, dishes: [{ recipe_id: 9, portion_size: 150, portion_unit: 'г' }, { recipe_id: 11, portion_size: 150, portion_unit: 'г' }, { recipe_id: 25, portion_size: 80, portion_unit: 'г' }] },
+                dinner: { portions: 55, cook_id: 1, dishes: [{ recipe_id: 29, portion_size: 3, portion_unit: 'шт' }, { recipe_id: 16, portion_size: 150, portion_unit: 'г' }, { recipe_id: 38, portion_size: 100, portion_unit: 'г' }] },
+            },
+        };
+
+        // Список поваров
+        const cooks = [
+            { id: 1, name: 'Кришна дас' },
+            { id: 2, name: 'Рама Рагхава дас' },
+            { id: 3, name: 'Гопал дас' },
+            { id: 4, name: 'Радха деви даси' },
+            { id: 5, name: 'Лакшми деви даси' },
+        ];
+
+        function getCook(id) {
+            return cooks.find(c => c.id === id);
+        }
+
+        // Данные о ретритах — загружены из retreats.html (внешняя страница управления ретритами)
+        const retreats = [
+            { id: 1, name: 'АБХИДЕЯ-РЕТРИТ', color: '#E8F5E9', borderColor: '#4CAF50' },
+            { id: 2, name: 'НАМА-РЕТРИТ', color: '#E3F2FD', borderColor: '#2196F3' },
+            { id: 3, name: 'ЭКАДАШИ-РЕТРИТ', color: '#FFF3E0', borderColor: '#FF9800' },
+            { id: 4, name: 'БХАКТИ-САНГАМА', color: '#F3E5F5', borderColor: '#9C27B0' },
+            { id: 5, name: 'САДХУ-САНГА', color: '#FFEBEE', borderColor: '#F44336' },
+        ];
+
+        // Привязка ретритов к датам — также из retreats.html
+        const retreatSchedule = {
+            '2025-01-13': 1, // АБХИДЕЯ-РЕТРИТ
+            '2025-01-14': 1,
+            '2025-01-15': 1,
+            '2025-01-17': 2, // НАМА-РЕТРИТ
+            '2025-01-18': 2,
+            '2025-01-19': 2,
+            '2025-01-25': 3, // ЭКАДАШИ-РЕТРИТ
+            '2025-01-26': 3,
+        };
+
+        function getRetreat(dateStr) {
+            const retreatId = retreatSchedule[dateStr];
+            if (!retreatId) return null;
+            return retreats.find(r => r.id === retreatId);
+        }
+
+        // Ekadashi dates for 2025 (11th day of lunar fortnight)
+        const ekadashiDates = [
+            '2025-01-10', '2025-01-25',
+            '2025-02-08', '2025-02-23',
+            '2025-03-10', '2025-03-25',
+            '2025-04-08', '2025-04-23',
+            '2025-05-08', '2025-05-22',
+            '2025-06-06', '2025-06-21',
+            '2025-07-06', '2025-07-20',
+            '2025-08-04', '2025-08-19',
+            '2025-09-03', '2025-09-17',
+            '2025-10-02', '2025-10-17',
+            '2025-11-01', '2025-11-15', '2025-11-30',
+            '2025-12-15', '2025-12-30',
+        ];
+
+        function isEkadashi(dateStr) {
+            return ekadashiDates.includes(dateStr);
+        }
+
+        // ==================== STATE ====================
+        let currentLang = 'ru';
+        let currentView = 'day'; // 'day', 'week' or 'month'
+        let currentDate = new Date(2025, 0, 13); // Current selected day
+        let currentWeekStart = getWeekStart(new Date(2025, 0, 13)); // Starting Jan 13, 2025
+        let currentMonth = new Date(2025, 0, 1); // January 2025
+        let selectedDate = null;
+        let selectedMealType = null;
+        let selectedRecipeId = null;
+
+        const categoryNames = {
+            main: { ru: 'основное', en: 'main', hi: 'मुख्य' },
+            garnish: { ru: 'гарнир', en: 'garnish', hi: 'साइड डिश' },
+            soup: { ru: 'суп', en: 'soup', hi: 'सूप' },
+            salad: { ru: 'салат', en: 'salad', hi: 'सलाद' },
+            drink: { ru: 'напиток', en: 'drink', hi: 'पेय' },
+            bread: { ru: 'хлеб', en: 'bread', hi: 'रोटी' },
+            chutney: { ru: 'чатни', en: 'chutney', hi: 'चटनी' },
+            sweet: { ru: 'сладкое', en: 'sweet', hi: 'मिठाई' },
+            breakfast: { ru: 'завтрак', en: 'breakfast', hi: 'नाश्ता' },
+        };
+
+        // ==================== FUNCTIONS ====================
+        function getWeekStart(date) {
+            const d = new Date(date);
+            const day = d.getDay();
+            const diff = d.getDate() - day + (day === 0 ? -6 : 1); // Monday as first day
+            return new Date(d.setDate(diff));
+        }
+
+        function formatDate(date) {
+            return date.toISOString().split('T')[0];
+        }
+
+        function getRecipe(id) {
+            return recipes.find(r => r.id === id);
+        }
+
+        function getRecipeName(recipe) {
+            return currentLang === 'ru' ? recipe.name_ru : currentLang === 'en' ? recipe.name_en : recipe.name_hi;
+        }
+
+        function getCategoryName(category) {
+            const cat = categoryNames[category];
+            if (!cat) return category;
+            return currentLang === 'ru' ? cat.ru : currentLang === 'en' ? cat.en : cat.hi;
+        }
+
+        function getMealTypeName(mealType) {
+            const mt = mealTypes.find(m => m.key === mealType);
+            return currentLang === 'ru' ? mt.name_ru : currentLang === 'en' ? mt.name_en : mt.name_hi;
+        }
+
+        function updatePeriodRange() {
+            if (currentView === 'week') {
+                const start = currentWeekStart;
+                const end = new Date(start);
+                end.setDate(end.getDate() + 6);
+                
+                const startDay = start.getDate();
+                const endDay = end.getDate();
+                const month = monthNames[currentLang][start.getMonth()];
+                const year = start.getFullYear();
+                
+                document.getElementById('periodRange').textContent = `${startDay} – ${endDay} ${month} ${year}`;
+            } else {
+                const month = monthNamesNom[currentLang][currentMonth.getMonth()];
+                const year = currentMonth.getFullYear();
+                document.getElementById('periodRange').textContent = `${month} ${year}`;
+            }
+        }
+
+        function renderWeek() {
+            const grid = document.getElementById('weekGrid');
+            const days = [];
+            
+            for (let i = 0; i < 7; i++) {
+                const date = new Date(currentWeekStart);
+                date.setDate(date.getDate() + i);
+                days.push(date);
+            }
+            
+            const today = formatDate(new Date());
+            
+            grid.innerHTML = days.map(date => {
+                const dateStr = formatDate(date);
+                const dayName = dayNames[currentLang][date.getDay()];
+                const dayNum = date.getDate();
+                const isToday = dateStr === today;
+                const dayMenu = menuData[dateStr] || {};
+                const isEkadashiDay = isEkadashi(dateStr);
+                const retreat = getRetreat(dateStr);
+                
+                const todayClass = isToday ? 'ring-2 ring-primary ring-offset-2' : '';
+                
+                // Цвет фона: ретрит > экадаши > обычный
+                let bgStyle = '';
+                let headerBgStyle = '';
+                let borderStyle = '';
+                if (retreat) {
+                    bgStyle = `background-color: ${retreat.color};`;
+                    headerBgStyle = `background-color: ${retreat.color}; border-left: 4px solid ${retreat.borderColor};`;
+                    borderStyle = `border-color: ${retreat.borderColor};`;
+                } else if (isEkadashiDay) {
+                    bgStyle = 'background-color: #FFFBEB;';
+                    headerBgStyle = 'background-color: #FEF3C7;';
+                }
+                
+                return `
+                    <div class="rounded-xl shadow-sm overflow-hidden ${todayClass}" style="${bgStyle}">
+                        <!-- Day Header -->
+                        <div class="p-3 border-b border-base-200" style="${headerBgStyle}">
+                            <div class="flex justify-between items-start">
+                                <div>
+                                    <div class="font-semibold">${dayNum} ${monthNames[currentLang][date.getMonth()]}${isEkadashiDay ? ' <span class="text-amber-600 font-normal">· экадаши</span>' : ''}</div>
+                                    <div class="text-sm opacity-60">${dayName}</div>
+                                </div>
+                                <button class="btn btn-ghost btn-sm btn-square opacity-50 hover:opacity-100" onclick="openDayDetail('${dateStr}')" title="Редактировать">
+                                    <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                                    </svg>
+                                </button>
+                            </div>
+                            ${retreat ? `<div class="mt-1 text-xs font-bold uppercase tracking-wide" style="color: ${retreat.borderColor};">${retreat.name}</div>` : ''}
+                        </div>
+                        
+                        <!-- Meals as compact list -->
+                        <div class="p-3 space-y-1">
+                            ${mealTypes.map((mt, index) => {
+                                const mealData = dayMenu[mt.key];
+                                const dishes = mealData?.dishes || [];
+                                const portions = mealData?.portions || 0;
+                                const cookId = mealData?.cook_id;
+                                const cook = cookId ? getCook(cookId) : null;
+                                
+                                if (dishes.length === 0) {
+                                    return `
+                                        <div class="flex items-center text-sm opacity-30 py-1">
+                                            <span class="w-4 text-center">${index + 1}.</span>
+                                            <span class="ml-1">${getMealTypeName(mt.key)}</span>
+                                        </div>
+                                    `;
+                                }
+                                
+                                return `
+                                    <div class="flex items-center text-sm py-1">
+                                        <span class="w-4 text-center font-medium">${index + 1}.</span>
+                                        <span class="ml-1 flex-1 truncate">${cook ? cook.name : '—'}</span>
+                                        <span class="text-xs opacity-60 ml-2">${portions}</span>
+                                    </div>
+                                `;
+                            }).join('')}
+                        </div>
+                    </div>
+                `;
+            }).join('');
+            
+            updatePeriodRange();
+        }
+
+        function renderMonth() {
+            const grid = document.getElementById('monthGrid');
+            const year = currentMonth.getFullYear();
+            const month = currentMonth.getMonth();
+            
+            // First day of month
+            const firstDay = new Date(year, month, 1);
+            // Last day of month
+            const lastDay = new Date(year, month + 1, 0);
+            
+            // Day of week for first day (0 = Sunday, convert to Monday start)
+            let startDayOfWeek = firstDay.getDay();
+            startDayOfWeek = startDayOfWeek === 0 ? 6 : startDayOfWeek - 1;
+            
+            const today = formatDate(new Date());
+            const days = [];
+            
+            // Add empty cells for days before month starts
+            for (let i = 0; i < startDayOfWeek; i++) {
+                days.push(null);
+            }
+            
+            // Add all days of month
+            for (let d = 1; d <= lastDay.getDate(); d++) {
+                days.push(new Date(year, month, d));
+            }
+            
+            grid.innerHTML = days.map(date => {
+                if (!date) {
+                    return '<div class="min-h-20 bg-base-200/20 rounded"></div>';
+                }
+                
+                const dateStr = formatDate(date);
+                const dayNum = date.getDate();
+                const isToday = dateStr === today;
+                const isEkadashiDay = isEkadashi(dateStr);
+                const dayMenu = menuData[dateStr] || {};
+                const retreat = getRetreat(dateStr);
+                
+                const todayClass = isToday ? 'ring-2 ring-primary' : '';
+                
+                // Цвет фона: ретрит > экадаши > обычный
+                let bgStyle = 'background-color: white;';
+                let borderStyle = '';
+                if (retreat) {
+                    bgStyle = `background-color: ${retreat.color};`;
+                    borderStyle = `border-left: 3px solid ${retreat.borderColor};`;
+                } else if (isEkadashiDay) {
+                    bgStyle = 'background-color: #FFFBEB;';
+                }
+                
+                // Get cook names and portions for each meal
+                const mealLines = mealTypes.map((mt, index) => {
+                    const mealData = dayMenu[mt.key];
+                    if (!mealData?.dishes?.length) return null;
+                    const cook = mealData.cook_id ? getCook(mealData.cook_id) : null;
+                    const cookName = cook ? cook.name.split(' ')[0] : '—'; // Только имя
+                    return `<div class="text-xs truncate"><span class="opacity-50">${index + 1}.</span> ${cookName} – ${mealData.portions}</div>`;
+                }).filter(Boolean).join('');
+                
+                return `
+                    <div class="min-h-20 rounded shadow-sm p-1.5 ${todayClass} cursor-pointer hover:opacity-80 flex flex-col" style="${bgStyle} ${borderStyle}" onclick="openDayDetail('${dateStr}')">
+                        <div class="flex justify-between items-start mb-1">
+                            <span class="font-bold text-sm ${isToday ? 'text-primary' : ''}">${dayNum}</span>
+                            ${isEkadashiDay ? '<span class="text-xs font-medium text-amber-600">э</span>' : ''}
+                        </div>
+                        ${retreat ? `<div class="text-xs font-bold truncate leading-tight mb-1" style="color: ${retreat.borderColor};">${retreat.name}</div>` : ''}
+                        <div class="flex-1 space-y-0.5">
+                            ${mealLines}
+                        </div>
+                    </div>
+                `;
+            }).join('');
+            
+            updatePeriodRange();
+        }
+
+        function setView(view) {
+            currentView = view;
+            
+            // Hide today nav, show button
+            document.getElementById('todayNav').classList.add('hidden');
+            document.getElementById('todayBtn').classList.remove('hidden');
+            
+            // Show/hide nav groups and buttons
+            document.getElementById('todayNav').classList.toggle('hidden', view !== 'day');
+            document.getElementById('todayBtn').classList.toggle('hidden', view === 'day');
+            document.getElementById('weekNav').classList.toggle('hidden', view !== 'week');
+            document.getElementById('weekBtn').classList.toggle('hidden', view === 'week');
+            document.getElementById('monthNav').classList.toggle('hidden', view !== 'month');
+            document.getElementById('monthBtn').classList.toggle('hidden', view === 'month');
+            
+            // Show/hide views
+            document.getElementById('dayView').classList.toggle('hidden', view !== 'day');
+            document.getElementById('weekView').classList.toggle('hidden', view !== 'week');
+            document.getElementById('monthView').classList.toggle('hidden', view !== 'month');
+            
+            if (view === 'day') {
+                renderDay();
+            } else if (view === 'week') {
+                renderWeek();
+            } else {
+                renderMonth();
+            }
+        }
+
+        function prevDay() {
+            currentDate.setDate(currentDate.getDate() - 1);
+            renderDay();
+        }
+
+        function nextDay() {
+            currentDate.setDate(currentDate.getDate() + 1);
+            renderDay();
+        }
+
+        function prevPeriod() {
+            if (currentView === 'day') {
+                currentDate.setDate(currentDate.getDate() - 1);
+                renderDay();
+            } else if (currentView === 'week') {
+                currentWeekStart.setDate(currentWeekStart.getDate() - 7);
+                renderWeek();
+            } else {
+                currentMonth.setMonth(currentMonth.getMonth() - 1);
+                renderMonth();
+            }
+        }
+
+        function nextPeriod() {
+            if (currentView === 'day') {
+                currentDate.setDate(currentDate.getDate() + 1);
+                renderDay();
+            } else if (currentView === 'week') {
+                currentWeekStart.setDate(currentWeekStart.getDate() + 7);
+                renderWeek();
+            } else {
+                currentMonth.setMonth(currentMonth.getMonth() + 1);
+                renderMonth();
+            }
+        }
+
+        function goToToday() {
+            const today = new Date();
+            currentDate = new Date(today);
+            currentWeekStart = getWeekStart(today);
+            currentMonth = new Date(today.getFullYear(), today.getMonth(), 1);
+            
+            currentView = 'day';
+            
+            // Show today nav, hide button
+            document.getElementById('todayNav').classList.remove('hidden');
+            document.getElementById('todayBtn').classList.add('hidden');
+            
+            // Hide all other navs, show their buttons
+            document.getElementById('weekNav').classList.add('hidden');
+            document.getElementById('weekBtn').classList.remove('hidden');
+            document.getElementById('monthNav').classList.add('hidden');
+            document.getElementById('monthBtn').classList.remove('hidden');
+            
+            // Show day view
+            document.getElementById('dayView').classList.remove('hidden');
+            document.getElementById('weekView').classList.add('hidden');
+            document.getElementById('monthView').classList.add('hidden');
+            
+            renderDay();
+        }
+
+        function openDayDetail(dateStr) {
+            currentDate = new Date(dateStr);
+            setView('day');
+        }
+
+        function renderDay() {
+            const container = document.getElementById('dayContent');
+            const dateStr = formatDate(currentDate);
+            const dayName = dayNames[currentLang][currentDate.getDay()];
+            const dayNum = currentDate.getDate();
+            const month = monthNames[currentLang][currentDate.getMonth()];
+            const year = currentDate.getFullYear();
+            const dayMenu = menuData[dateStr] || {};
+            const retreat = getRetreat(dateStr);
+            
+            const today = formatDate(new Date());
+            const isToday = dateStr === today;
+            const isEkadashiDay = isEkadashi(dateStr);
+            const todayClass = isToday ? 'ring-2 ring-primary ring-offset-2' : '';
+            
+            // Цвет фона: ретрит > экадаши > обычный
+            let bgStyle = 'background-color: white;';
+            let headerStyle = '';
+            if (retreat) {
+                bgStyle = `background-color: ${retreat.color};`;
+                headerStyle = `border-left: 4px solid ${retreat.borderColor};`;
+            } else if (isEkadashiDay) {
+                bgStyle = 'background-color: #FFFBEB;';
+            }
+            
+            container.innerHTML = `
+                <div class="rounded-xl shadow-sm overflow-hidden ${todayClass}" style="${bgStyle}">
+                    ${isEkadashiDay ? '<div class="bg-amber-100 text-amber-700 text-center py-2 font-medium">Экадаши</div>' : ''}
+                    
+                    <!-- Day Header -->
+                    <div class="p-4 border-b border-base-200/50" style="${headerStyle}">
+                        <div class="flex justify-between items-center">
+                            <div>
+                                <div class="text-lg font-semibold">${dayNum} ${month} ${year}</div>
+                                <div class="text-sm opacity-60">${dayName}</div>
+                            </div>
+                            ${retreat ? `<div class="text-sm font-bold uppercase tracking-wide" style="color: ${retreat.borderColor};">${retreat.name}</div>` : '<div class="text-sm opacity-40">Нет ретрита</div>'}
+                        </div>
+                    </div>
+                    
+                    <!-- Meals -->
+                    <div class="p-4 space-y-4">
+                        ${mealTypes.map((mt, index) => {
+                            const mealData = dayMenu[mt.key];
+                            const dishes = mealData?.dishes || [];
+                            const portions = mealData?.portions || 50;
+                            const cookId = mealData?.cook_id || '';
+                            const cook = cookId ? getCook(cookId) : null;
+                            
+                            // Calculate totals for this meal (per person)
+                            let mealG = 0, mealMl = 0, mealPcs = 0;
+                            dishes.forEach(dish => {
+                                if (dish.portion_unit === 'г') mealG += dish.portion_size;
+                                else if (dish.portion_unit === 'мл') mealMl += dish.portion_size;
+                                else if (dish.portion_unit === 'шт') mealPcs += dish.portion_size;
+                            });
+                            const mealTotals = [
+                                mealG > 0 ? `${mealG} г` : '',
+                                mealMl > 0 ? `${mealMl} мл` : '',
+                                mealPcs > 0 ? `${mealPcs} шт` : ''
+                            ].filter(Boolean).join(' · ');
+                            
+                            return `
+                                <div class="p-4 rounded-lg ${dishes.length > 0 ? 'bg-white/70' : 'bg-white/40'} ${dishes.length === 0 ? 'cursor-pointer hover:bg-white/60 transition-colors' : ''}" ${dishes.length === 0 ? `onclick="openMealModal('${dateStr}', '${mt.key}')"` : ''}>
+                                    ${dishes.length > 0 ? `
+                                        <div class="flex justify-between items-center mb-3 pb-2 border-b border-base-300/50">
+                                            <div class="flex items-center gap-3">
+                                                <span class="font-bold text-xl">${index + 1}. ${getMealTypeName(mt.key)}</span>
+                                                ${mealTotals ? `<span class="text-base opacity-60">${mealTotals}</span>` : ''}
+                                            </div>
+                                            <div class="flex items-center gap-2">
+                                                <button class="btn btn-ghost btn-md btn-square opacity-50 hover:opacity-100" onclick="openMealModal('${dateStr}', '${mt.key}')">
+                                                    <svg xmlns="http://www.w3.org/2000/svg" class="h-7 w-7" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" />
+                                                    </svg>
+                                                </button>
+                                            </div>
+                                        </div>
+                                        
+                                        <!-- Cook and Portions Row -->
+                                        <div class="flex items-center gap-4 mb-3 p-2 bg-base-100 rounded-lg">
+                                            <div class="flex items-center gap-2 flex-1">
+                                                <span class="text-sm opacity-60">Повар:</span>
+                                                <select class="select select-sm select-bordered flex-1" onchange="updateMealCook('${dateStr}', '${mt.key}', this.value)">
+                                                    <option value="">— выбрать —</option>
+                                                    ${cooks.map(c => `<option value="${c.id}" ${cookId === c.id ? 'selected' : ''}>${c.name}</option>`).join('')}
+                                                </select>
+                                            </div>
+                                            <div class="flex items-center gap-1">
+                                                <input type="number" 
+                                                       class="input input-sm input-bordered w-20 text-center" 
+                                                       value="${portions}" 
+                                                       min="1"
+                                                       onchange="updateMealPortions('${dateStr}', '${mt.key}', this.value)"
+                                                />
+                                                <span class="text-sm opacity-60">чел.</span>
+                                            </div>
+                                        </div>
+                                        
+                                        <div class="space-y-2">
+                                            ${dishes.map(dish => {
+                                                const recipe = getRecipe(dish.recipe_id);
+                                                if (!recipe) return '';
+                                                const portionInfo = dish.portion_size ? `${dish.portion_size} ${dish.portion_unit}` : '';
+                                                const notEkadashiWarning = isEkadashiDay && !recipe.ekadashi;
+                                                return `
+                                                    <div class="flex justify-between items-center py-2 border-b border-base-300 last:border-0 ${notEkadashiWarning ? 'bg-error/10 -mx-2 px-2 rounded' : ''}">
+                                                        <div>
+                                                            <span class="cursor-pointer hover:text-primary font-medium text-base" onclick="window.location.href='kitchen-recipe-detail.html?id=${recipe.id}'">${getRecipeName(recipe)}</span>
+                                                            <span class="text-xs opacity-40 ml-2">${getCategoryName(recipe.category)}</span>
+                                                            ${notEkadashiWarning ? '<span class="text-xs text-error ml-2">⚠ не для экадаши</span>' : ''}
+                                                        </div>
+                                                        <div class="flex items-center gap-2">
+                                                            <span class="badge badge-lg">${portionInfo}</span>
+                                                            <button class="btn btn-ghost btn-sm btn-square text-error/60 hover:text-error hover:bg-error/10" onclick="removeDish('${dateStr}', '${mt.key}', ${dish.recipe_id})">
+                                                                <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+                                                                </svg>
+                                                            </button>
+                                                        </div>
+                                                    </div>
+                                                `;
+                                            }).join('')}
+                                        </div>
+                                    ` : `
+                                        <div class="flex items-center justify-center py-8">
+                                            <div class="flex items-center gap-3 opacity-40">
+                                                <svg xmlns="http://www.w3.org/2000/svg" class="h-10 w-10" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" />
+                                                </svg>
+                                                <span class="text-xl font-medium">${index + 1}. ${getMealTypeName(mt.key)}</span>
+                                            </div>
+                                        </div>
+                                    `}
+                                </div>
+                            `;
+                        }).join('')}
+                    </div>
+                </div>
+            `;
+            
+            // Update period range
+            document.getElementById('periodRange').textContent = `${dayNum} ${month} ${year}, ${dayName}`;
+        }
+
+        function openMealModal(date, mealType) {
+            selectedDate = date;
+            selectedMealType = mealType;
+            selectedRecipeId = null;
+            
+            const modal = document.getElementById('mealModal');
+            const title = document.getElementById('mealModalTitle');
+            
+            const d = new Date(date);
+            const dayName = dayNames[currentLang][d.getDay()];
+            const dayNum = d.getDate();
+            const month = monthNames[currentLang][d.getMonth()];
+            
+            title.textContent = `${getMealTypeName(mealType)} · ${dayName}, ${dayNum} ${month}`;
+            
+            // Reset form
+            document.getElementById('recipeSearch').value = '';
+            document.getElementById('recipeDropdown').classList.add('hidden');
+            document.getElementById('selectedRecipeDisplay').classList.add('hidden');
+            document.getElementById('portionSize').value = 200;
+            document.getElementById('portionUnit').textContent = 'г';
+            document.getElementById('saveMealBtn').disabled = true;
+            document.getElementById('totalCalculation').textContent = '—';
+            
+            // Reset tabs to search
+            document.getElementById('tabSearch').classList.add('tab-active');
+            document.getElementById('tabBrowse').classList.remove('tab-active');
+            document.getElementById('searchTab').classList.remove('hidden');
+            document.getElementById('browseTab').classList.add('hidden');
+            currentCategory = 'all';
+            
+            // Reset category buttons
+            ['all', 'main', 'garnish', 'soup', 'salad', 'drink', 'sweet'].forEach(cat => {
+                const btn = document.getElementById('catBtn_' + cat);
+                if (btn) {
+                    btn.classList.toggle('active', cat === 'all');
+                }
+            });
+            
+            modal.showModal();
+        }
+
+        function closeMealModal() {
+            document.getElementById('mealModal').close();
+        }
+
+        function updateTotalCalculation() {
+            const size = parseInt(document.getElementById('portionSize').value) || 0;
+            const unit = document.getElementById('portionUnit').textContent;
+            
+            document.getElementById('totalCalculation').textContent = `${size} ${unit} на человека`;
+        }
+
+        // Add event listeners for calculation
+        document.getElementById('portionSize').addEventListener('input', updateTotalCalculation);
+
+        function filterRecipes(query) {
+            const dropdown = document.getElementById('recipeDropdown');
+            
+            if (query.length < 1) {
+                dropdown.classList.add('hidden');
+                return;
+            }
+            
+            const q = query.toLowerCase();
+            const filtered = recipes.filter(r => 
+                r.name_ru.toLowerCase().includes(q) ||
+                r.name_en.toLowerCase().includes(q) ||
+                r.name_hi.includes(query) ||
+                r.translit.toLowerCase().includes(q)
+            ).slice(0, 8);
+            
+            if (filtered.length === 0) {
+                dropdown.innerHTML = '<div class="p-3 text-sm opacity-50">Ничего не найдено</div>';
+            } else {
+                const isEkadashiDay = isEkadashi(selectedDate);
+                dropdown.innerHTML = filtered.map(r => `
+                    <div class="p-3 hover:bg-base-200 cursor-pointer border-b border-base-200 last:border-0 ${isEkadashiDay && !r.ekadashi ? 'opacity-50' : ''}" onclick="selectRecipe(${r.id})">
+                        <div class="font-medium flex items-center gap-2">
+                            ${getRecipeName(r)}
+                            ${r.ekadashi ? '<span class="text-xs text-amber-600">э</span>' : ''}
+                            ${isEkadashiDay && !r.ekadashi ? '<span class="text-xs text-error">⚠</span>' : ''}
+                        </div>
+                        <div class="text-xs opacity-50">${r.name_en}</div>
+                    </div>
+                `).join('');
+            }
+            
+            dropdown.classList.remove('hidden');
+        }
+
+        function showRecipeDropdown() {
+            const input = document.getElementById('recipeSearch');
+            if (input.value.length >= 1) {
+                filterRecipes(input.value);
+            }
+        }
+
+        let currentCategory = 'all';
+
+        function switchRecipeTab(tab) {
+            const searchTab = document.getElementById('searchTab');
+            const browseTab = document.getElementById('browseTab');
+            const tabSearch = document.getElementById('tabSearch');
+            const tabBrowse = document.getElementById('tabBrowse');
+            
+            if (tab === 'search') {
+                searchTab.classList.remove('hidden');
+                browseTab.classList.add('hidden');
+                tabSearch.classList.add('tab-active');
+                tabBrowse.classList.remove('tab-active');
+            } else {
+                searchTab.classList.add('hidden');
+                browseTab.classList.remove('hidden');
+                tabSearch.classList.remove('tab-active');
+                tabBrowse.classList.add('tab-active');
+                filterByCategory(currentCategory);
+            }
+        }
+
+        function filterByCategory(category) {
+            currentCategory = category;
+            const list = document.getElementById('categoryRecipeList');
+            const isEkadashiDay = isEkadashi(selectedDate);
+            
+            // Update category buttons
+            ['all', 'main', 'garnish', 'soup', 'salad', 'drink', 'sweet'].forEach(cat => {
+                const btn = document.getElementById('catBtn_' + cat);
+                if (btn) {
+                    btn.classList.toggle('active', cat === category);
+                }
+            });
+            
+            // Filter recipes
+            let filtered = recipes;
+            if (category !== 'all') {
+                filtered = recipes.filter(r => r.category === category);
+            }
+            
+            // Sort: ekadashi-friendly first on ekadashi days
+            if (isEkadashiDay) {
+                filtered = [...filtered].sort((a, b) => (b.ekadashi ? 1 : 0) - (a.ekadashi ? 1 : 0));
+            }
+            
+            if (filtered.length === 0) {
+                list.innerHTML = '<div class="p-3 text-sm opacity-50 text-center">Нет рецептов</div>';
+            } else {
+                list.innerHTML = filtered.map(r => `
+                    <div class="p-3 hover:bg-base-200 cursor-pointer border-b border-base-200 last:border-0 ${isEkadashiDay && !r.ekadashi ? 'opacity-50' : ''}" onclick="selectRecipe(${r.id})">
+                        <div class="font-medium flex items-center gap-2">
+                            ${getRecipeName(r)}
+                            ${r.ekadashi ? '<span class="text-xs text-amber-600">э</span>' : ''}
+                            ${isEkadashiDay && !r.ekadashi ? '<span class="text-xs text-error">⚠</span>' : ''}
+                        </div>
+                        <div class="text-xs opacity-50">${r.name_en} · ${getCategoryName(r.category)}</div>
+                    </div>
+                `).join('');
+            }
+        }
+
+        function selectRecipe(recipeId) {
+            const recipe = getRecipe(recipeId);
+            if (!recipe) return;
+            
+            selectedRecipeId = recipeId;
+            
+            // Hide search, show selected
+            document.getElementById('searchTab').classList.add('hidden');
+            document.getElementById('browseTab').classList.add('hidden');
+            document.getElementById('recipeDropdown').classList.add('hidden');
+            document.getElementById('selectedRecipeDisplay').classList.remove('hidden');
+            document.getElementById('selectedRecipeName').textContent = getRecipeName(recipe);
+            document.getElementById('selectedRecipeNameEn').textContent = recipe.name_en;
+            
+            // Set portion size from recipe
+            document.getElementById('portionSize').value = recipe.portion_size;
+            document.getElementById('portionUnit').textContent = recipe.portion_unit;
+            
+            // Enable save button
+            document.getElementById('saveMealBtn').disabled = false;
+            
+            updateTotalCalculation();
+        }
+
+        function clearSelectedRecipe() {
+            selectedRecipeId = null;
+            
+            // Show tabs based on which was active
+            const tabSearch = document.getElementById('tabSearch');
+            if (tabSearch.classList.contains('tab-active')) {
+                document.getElementById('searchTab').classList.remove('hidden');
+                document.getElementById('recipeSearch').value = '';
+            } else {
+                document.getElementById('browseTab').classList.remove('hidden');
+            }
+            document.getElementById('selectedRecipeDisplay').classList.add('hidden');
+            
+            // Disable save button
+            document.getElementById('saveMealBtn').disabled = true;
+        }
+
+        function saveMeal() {
+            if (!selectedRecipeId) return;
+            
+            const recipe = getRecipe(selectedRecipeId);
+            const portionSize = parseInt(document.getElementById('portionSize').value) || 200;
+            const portionUnit = document.getElementById('portionUnit').textContent;
+            
+            // Check if adding non-ekadashi recipe on ekadashi day
+            if (isEkadashi(selectedDate) && !recipe.ekadashi) {
+                if (!confirm(`⚠️ ${selectedDate} — день Экадаши!\n\nБлюдо "${getRecipeName(recipe)}" содержит зерновые или бобовые.\n\nВсё равно добавить?`)) {
+                    return;
+                }
+            }
+            
+            if (!menuData[selectedDate]) {
+                menuData[selectedDate] = {};
+            }
+            if (!menuData[selectedDate][selectedMealType]) {
+                menuData[selectedDate][selectedMealType] = { portions: 50, dishes: [] };
+            }
+            
+            // Check if already added
+            if (menuData[selectedDate][selectedMealType].dishes.some(d => d.recipe_id === selectedRecipeId)) {
+                alert('Это блюдо уже добавлено');
+                return;
+            }
+            
+            menuData[selectedDate][selectedMealType].dishes.push({ 
+                recipe_id: selectedRecipeId, 
+                portion_size: portionSize,
+                portion_unit: portionUnit
+            });
+            
+            document.getElementById('mealModal').close();
+            
+            // Re-render current view
+            if (currentView === 'day') {
+                renderDay();
+            } else if (currentView === 'week') {
+                renderWeek();
+            } else {
+                renderMonth();
+            }
+        }
+
+        function removeDish(date, mealType, recipeId) {
+            if (menuData[date] && menuData[date][mealType]) {
+                menuData[date][mealType].dishes = menuData[date][mealType].dishes.filter(d => d.recipe_id !== recipeId);
+                
+                // If no dishes left, remove the meal
+                if (menuData[date][mealType].dishes.length === 0) {
+                    delete menuData[date][mealType];
+                }
+            }
+            
+            // Re-render current view
+            if (currentView === 'day') {
+                renderDay();
+            } else if (currentView === 'week') {
+                renderWeek();
+            } else {
+                renderMonth();
+            }
+        }
+
+        function updateMealPortions(date, mealType, value) {
+            const portions = parseInt(value);
+            if (portions > 0 && menuData[date]?.[mealType]) {
+                menuData[date][mealType].portions = portions;
+            }
+        }
+
+        function updateMealCook(date, mealType, cookId) {
+            if (menuData[date]?.[mealType]) {
+                menuData[date][mealType].cook_id = cookId ? parseInt(cookId) : null;
+            }
+            // Re-render current view
+            if (currentView === 'day') {
+                renderDay();
+            } else if (currentView === 'week') {
+                renderWeek();
+            } else {
+                renderMonth();
+            }
+        }
+
+        function generateShoppingList() {
+            alert('Генерация списка закупок на неделю...\n\n(В реальном приложении будет расчёт всех ингредиентов)');
+        }
+
+        function printMenu() {
+            window.print();
+        }
+
+        // Close dropdown on outside click
+        document.addEventListener('click', (e) => {
+            const dropdown = document.getElementById('recipeDropdown');
+            const input = document.getElementById('recipeSearch');
+            if (dropdown && input && !dropdown.contains(e.target) && e.target !== input) {
+                dropdown.classList.add('hidden');
+            }
+        });
+
+        function setLanguage(lang) {
+            currentLang = lang;
+            
+            document.querySelectorAll('.lang-btn').forEach(btn => {
+                btn.classList.remove('btn-primary', 'active');
+                if (btn.dataset.lang === lang) {
+                    btn.classList.add('btn-primary', 'active');
+                }
+            });
+
+            renderWeek();
+        }
+
+        document.querySelectorAll('.lang-btn').forEach(btn => {
+            btn.addEventListener('click', () => setLanguage(btn.dataset.lang));
+        });
+
+        document.querySelectorAll('.kitchen-option').forEach(option => {
+            option.addEventListener('click', (e) => {
+                e.preventDefault();
+                document.querySelectorAll('.kitchen-option').forEach(o => o.classList.remove('active'));
+                option.classList.add('active');
+                document.getElementById('currentKitchen').textContent = option.textContent;
+                document.activeElement.blur();
+            });
+        });
+
+        // ==================== INIT ====================
+        // Начинаем с вида "Сегодня" (день)
+        currentView = 'day';
+        renderDay();
+    </script>
+
+    <script>
+        const DESKTOP_BP = 1200;
+        
+        // Config
+        const locations = {
+            main:  { name: 'Основная кухня', color: 'var(--color-main)' },
+            cafe:  { name: 'Кухня кафе',     color: 'var(--color-cafe)' },
+            guest: { name: 'Гостевая кухня', color: 'var(--color-guest)' }
+        };
+        
+        const menuConfig = [
+            { id: 'kitchen',  label: 'Кухня',     items: [
+                { name: 'Меню', href: 'kitchen-menu.html' },
+                { name: 'Рецепты', href: 'kitchen-recipes.html' },
+                { name: 'Продукты', href: 'kitchen-products.html' }
+            ]},
+            { id: 'stock',    label: 'Склад',     items: [
+                { name: 'Остатки', href: 'kitchen-stock.html#stock' },
+                { name: 'Заявки', href: 'kitchen-stock.html#requests' },
+                { name: 'Получить', href: 'kitchen-stock.html#receipts' },
+                { name: 'Выдать', href: 'kitchen-stock.html#issues' },
+                { name: 'Настройки', href: 'kitchen-stock.html#settings' }
+            ]},
+            { id: null,       label: 'Ретриты',   href: 'kitchen-retreats.html', items: null },
+            { id: 'team',     label: 'Команда',   items: [
+                { name: 'Вайшнавы', href: 'kitchen-team.html' },
+                { name: 'Проживание', href: 'kitchen-team.html#housing' }
+            ]},
+            { id: 'settings', label: 'Настройки', items: [
+                { name: 'Общие', href: '#' },
+                { name: 'Пользователи', href: '#' },
+                { name: 'Праздники', href: '#' }
+            ]}
+        ];
+        
+        let currentLocation = 'main';
+        
+        // Utils
+        const $ = (sel, ctx = document) => ctx.querySelector(sel);
+        const $$ = (sel, ctx = document) => ctx.querySelectorAll(sel);
+        const setColor = color => document.documentElement.style.setProperty('--current-color', color);
+        
+        // Build location dropdown options
+        function buildLocationOptions() {
+            const html = Object.entries(locations).map(([key, loc]) => 
+                `<button class="w-full text-left px-4 py-2 hover:bg-base-200 text-base-content ${key === currentLocation ? 'font-medium' : ''}" data-loc="${key}">${loc.name}</button>`
+            ).join('');
+            $$('.location-dropdown').forEach(el => el.innerHTML = html);
+        }
+        
+        // Build mobile menu
+        function buildMobileMenu() {
+            const nav = $('#mobileNav');
+            nav.innerHTML = menuConfig.map(({ id, label, href, items }) => {
+                if (!items) return `<a href="${href || '#'}" class="block px-4 py-3 text-base font-semibold uppercase tracking-wide hover:bg-base-200 rounded-lg">${label}</a>`;
+                return `
+                    <div class="mobile-nav-item" data-has-submenu>
+                        <button class="w-full flex items-center px-4 py-3 text-base font-semibold uppercase tracking-wide hover:bg-base-200 rounded-lg">
+                            ${label}
+                            <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 ml-2 transition-transform arrow-icon" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                                <path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7" />
+                            </svg>
+                        </button>
+                        <div class="submenu pl-4">
+                            ${items.map(item => `<a href="${item.href}" class="block px-4 py-3 text-base font-medium rounded-lg hover:bg-base-200">${item.name}</a>`).join('')}
+                        </div>
+                    </div>`;
+            }).join('');
+            
+            // Bind accordion
+            $$('.mobile-nav-item[data-has-submenu] button', nav).forEach(btn => {
+                btn.addEventListener('click', () => {
+                    const item = btn.closest('.mobile-nav-item');
+                    const wasOpen = item.classList.contains('open');
+                    $$('.mobile-nav-item.open', nav).forEach(i => i.classList.remove('open'));
+                    if (!wasOpen) item.classList.add('open');
+                });
+            });
+        }
+        
+        // Build desktop submenu bar
+        function buildSubmenuBar() {
+            const bar = $('#submenuBar');
+            bar.innerHTML = menuConfig.filter(m => m.items).map(({ id, items }) => `
+                <nav class="flex items-center submenu-group ${id !== 'kitchen' ? 'hidden' : ''}" data-group="${id}">
+                    ${items.map(item => `<a href="${item.href}" class="submenu-link px-5 py-2 text-base font-semibold tracking-wide uppercase text-white/70 hover:text-white">${item.name}</a>`).join('')}
+                </nav>
+            `).join('');
+            
+            // Bind submenu clicks
+            $$('.submenu-link', bar).forEach(link => {
+                link.addEventListener('click', () => {
+                    const group = link.closest('.submenu-group');
+                    $$('.submenu-link', group).forEach(l => l.classList.remove('active'));
+                    link.classList.add('active');
+                    // Allow navigation - don't prevent default
+                });
+            });
+        }
+        
+        // Align submenu under КУХНЯ
+        function alignSubmenu() {
+            const kitchenNav = $('.nav-link[data-submenu="kitchen"]');
+            const activeGroup = $('.submenu-group:not(.hidden)');
+            const firstLink = activeGroup?.querySelector('.submenu-link');
+            if (!kitchenNav || !firstLink) return;
+            
+            $$('.submenu-link', activeGroup).forEach(l => l.style.marginLeft = '0');
+            const navCenter = kitchenNav.getBoundingClientRect().left + kitchenNav.offsetWidth / 2;
+            firstLink.style.marginLeft = (navCenter - firstLink.offsetWidth / 2) + 'px';
+        }
+        
+        // Location selector
+        function toggleLocation(selector) {
+            const dropdown = $('.location-dropdown', selector);
+            const arrow = $('.location-arrow', selector);
+            dropdown.classList.toggle('hidden');
+            arrow.classList.toggle('rotate-180');
+        }
+        
+        function selectLocation(key) {
+            currentLocation = key;
+            const loc = locations[key];
+            
+            $$('.location-name').forEach(el => el.textContent = loc.name);
+            $$('.location-dropdown').forEach(d => d.classList.add('hidden'));
+            $$('.location-arrow').forEach(a => a.classList.remove('rotate-180'));
+            $$('.location-dropdown button').forEach(btn => {
+                btn.classList.toggle('font-medium', btn.dataset.loc === key);
+            });
+            
+            setColor(loc.color);
+        }
+        
+        // Init
+        buildLocationOptions();
+        buildMobileMenu();
+        buildSubmenuBar();
+        
+        // Mobile menu toggle
+        $('#mobileMenuBtn').addEventListener('click', () => {
+            $('#mobileMenu').classList.toggle('open');
+            $('.menu-icon').classList.toggle('hidden');
+            $('.close-icon').classList.toggle('hidden');
+        });
+        
+        // Location selector clicks
+        $$('[data-toggle="location"]').forEach(btn => {
+            btn.addEventListener('click', () => toggleLocation(btn.closest('.location-selector')));
+        });
+        
+        // Global click handler
+        document.addEventListener('click', e => {
+            if (e.target.dataset.loc) {
+                selectLocation(e.target.dataset.loc);
+            } else if (!e.target.closest('.location-selector')) {
+                $$('.location-dropdown').forEach(d => d.classList.add('hidden'));
+                $$('.location-arrow').forEach(a => a.classList.remove('rotate-180'));
+            }
+        });
+        
+        // Desktop nav clicks
+        $$('.nav-link').forEach(link => {
+            link.addEventListener('click', e => {
+                e.preventDefault();
+                $$('.nav-link').forEach(l => l.classList.remove('active'));
+                link.classList.add('active');
+                
+                const submenuId = link.dataset.submenu;
+                
+                $$('.submenu-group').forEach(g => g.classList.add('hidden'));
+                
+                if (submenuId && innerWidth >= DESKTOP_BP) {
+                    $('#submenuBar').classList.remove('hidden');
+                    const group = $(`.submenu-group[data-group="${submenuId}"]`);
+                    if (group) {
+                        group.classList.remove('hidden');
+                        $$('.submenu-link', group).forEach(l => l.classList.remove('active'));
+                        $('.submenu-link', group)?.classList.add('active');
+                    }
+                    requestAnimationFrame(alignSubmenu);
+                } else {
+                    $('#submenuBar').classList.add('hidden');
+                }
+            });
+        });
+        
+        // Language switcher
+        $$('.lang-btn').forEach(btn => {
+            btn.addEventListener('click', () => {
+                const lang = btn.dataset.lang;
+                $$('.lang-btn').forEach(b => b.classList.remove('active'));
+                $$(`.lang-btn[data-lang="${lang}"]`).forEach(b => b.classList.add('active'));
+            });
+        });
+        
+        addEventListener('resize', alignSubmenu);
+    </script>
+</body>
+</html>

@@ -1,0 +1,986 @@
+<!DOCTYPE html>
+<html lang="ru" data-theme="light">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Ретриты — Кухня Ашрама</title>
+    <link href="https://cdn.jsdelivr.net/npm/daisyui@4.12.14/dist/full.min.css" rel="stylesheet" type="text/css" />
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = { theme: { extend: { screens: { 'desktop': '1200px' } } },
+            daisyui: {
+                themes: ["light"],
+            },
+        }
+    </script>
+    <style>
+:root {
+            --color-main: #f49800;
+            --color-cafe: #10b981;
+            --color-guest: #3b82f6;
+            --current-color: #f49800;
+        }
+        * { font-family: 'Noto Sans', 'Noto Sans Devanagari', sans-serif; }
+        .nav-link { transition: all 0.15s ease; }
+        .nav-link:hover { opacity: 1; }
+        .nav-link.active { opacity: 1; color: var(--current-color); }
+        .lang-btn.active { background-color: var(--color-main) !important; color: white !important; border-color: var(--color-main) !important; }
+        .submenu-link { transition: all 0.15s ease; }
+        .submenu-link.active { background-color: white; color: var(--current-color) !important; }
+        #submenuBar { background-color: var(--current-color); }
+        .logo-svg path { transition: fill 0.3s ease; }
+        @media (max-width: 1199px) { #submenuBar { display: none !important; } }
+        .mobile-menu { max-height: 0; overflow: hidden; transition: max-height 0.3s ease; }
+        .mobile-menu.open { max-height: 500px; }
+        .mobile-nav-item.open > button { color: var(--current-color); }
+        .mobile-nav-item.open .arrow-icon { transform: rotate(180deg); }
+        .mobile-nav-item .submenu { display: none; }
+        .mobile-nav-item.open .submenu { display: block; }
+
+        
+
+        [data-theme="light"] {
+            --p: 65% 0.12 45;
+            --pf: 55% 0.12 45;
+            --pc: 100% 0 0;
+        }
+        
+        
+        .nav-link.active {
+            color: #CC7C5E;
+            opacity: 1;
+            border-bottom-color: #CC7C5E;
+        }
+        
+        .kitchen-option.active {
+            background-color: rgba(204, 124, 94, 0.1);
+            color: #CC7C5E;
+        }
+        
+        .calendar-day {
+            min-height: 100px;
+            transition: all 0.15s ease;
+        }
+        
+        .calendar-day:hover {
+            background-color: rgba(204, 124, 94, 0.05);
+        }
+        
+        .calendar-day.has-retreat {
+            background-color: rgba(204, 124, 94, 0.1);
+        }
+        
+        .calendar-day.today {
+            ring: 2px;
+            ring-color: #CC7C5E;
+        }
+        
+        .retreat-bar {
+            background: linear-gradient(90deg, #CC7C5E, #E08A4A);
+            color: white;
+            font-size: 0.75rem;
+            padding: 2px 8px;
+            border-radius: 4px;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+        
+        .retreat-bar.start {
+            border-radius: 4px 0 0 4px;
+            margin-right: -1px;
+        }
+        
+        .retreat-bar.middle {
+            border-radius: 0;
+            margin-left: -1px;
+            margin-right: -1px;
+        }
+        
+        .retreat-bar.end {
+            border-radius: 0 4px 4px 0;
+            margin-left: -1px;
+        }
+        
+        .retreat-bar.single {
+            border-radius: 4px;
+        }
+        
+        /* Print Styles */
+        @media print {
+            body {
+                background: white !important;
+            }
+            header, footer, .no-print {
+                display: none !important;
+            }
+            main {
+                padding: 0 !important;
+            }
+            .shadow-sm, .shadow-md {
+                box-shadow: none !important;
+            }
+            .bg-base-100, .bg-base-200, .bg-base-200\/30, .bg-base-200\/50 {
+                background: white !important;
+            }
+            .tabs {
+                display: none !important;
+            }
+            #tabContentList, #tabContentCalendar {
+                display: block !important;
+            }
+            #tabContentList.hidden, #tabContentCalendar.hidden {
+                display: none !important;
+            }
+            .calendar-day {
+                min-height: 80px !important;
+                border: 1px solid #ddd !important;
+            }
+            @page {
+                margin: 1cm;
+            }
+        }
+    </style>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans:wght@400;500;600;700&family=Noto+Sans+Devanagari:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        * {
+            font-family: 'Noto Sans', 'Noto Sans Devanagari', sans-serif;
+        }
+    </style>
+</head>
+<body class="bg-base-200 min-h-screen">
+    
+    <header class="bg-base-100 shadow-sm sticky top-0 z-50">
+        <div class="container mx-auto px-4">
+            <div class="flex items-center justify-between h-20">
+                
+                <!-- Logo + Location Selector -->
+                <div class="flex items-center gap-3 flex-shrink-0">
+                    <a href="kitchen-menu.html" class="hover:opacity-80 transition-opacity">
+                        <svg class="h-14 w-auto logo-svg" viewBox="0 0 122.03 312.54" xmlns="http://www.w3.org/2000/svg">
+                            <path fill="var(--current-color)" d="M102,15.99h-15.18v81.89c0,6.21.12,11.58-.88,15.98-1.01,4.45-2.6,7.98-4.77,10.58-2.02,2.81-4.85,4.83-8.51,6.05-2.38,1-5.08,1.62-8.1,1.83-1.01.21-2.02.32-3.02.32h-.64c-3.81-.21-7.23-.83-10.25-1.83-3.81-1.22-7.02-3.13-9.62-5.73-2.65-2.81-4.56-6.44-5.73-10.89-1.22-4.4-1.83-9.83-1.83-16.3V15.99h-15.1v89.12c0,13.68,3.81,23.94,11.45,30.77,3.81,3.44,8.56,5.96,14.23,7.55,1.17.42,2.57.74,4.21.96-13.89,5.03-23.35,11.87-28.38,20.51-7.05,10.65-7.26,24.14-.64,40.46l41.34,100.45,39.91-100.45c6.41-16.32,6.2-29.82-.64-40.46-4.82-8.48-13.97-15.21-27.43-20.2,1.59-.43,3.18-.85,4.77-1.27,5.25-1.59,9.67-4.19,13.27-7.79,3.82-3.66,6.65-8.18,8.51-13.59,2.02-5.62,3.02-12.27,3.02-19.95V15.99M87.45,172.46c4.03,7.26,3.84,16.4-.56,27.43l-26.31,68.13-27.75-68.13c-4.61-11.03-4.8-20.17-.55-27.43,4.61-7.47,13.76-13.01,27.43-16.62,13.67,3.61,22.93,9.15,27.75,16.62"/>
+                        </svg>
+                    </a>
+                    
+                    <!-- Desktop: full name + selector -->
+                    <div class="hidden md:flex flex-col">
+                        <a href="kitchen-menu.html" class="text-xl font-semibold whitespace-nowrap hover:opacity-80 transition-opacity">Шри Рупа Сева Кунджа</a>
+                        <div class="relative location-selector" id="locationDesktop">
+                            <button class="flex items-center justify-between gap-2 w-full text-xl opacity-70 hover:opacity-100 transition-opacity" data-toggle="location">
+                                <span class="location-name">Основная кухня</span>
+                                <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 transition-transform location-arrow" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                                    <path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7" />
+                                </svg>
+                            </button>
+                            <div class="absolute top-full left-0 mt-1 bg-white rounded-lg shadow-lg py-1 w-full hidden z-50 location-dropdown"></div>
+                        </div>
+                    </div>
+                    
+                    <!-- Mobile: ШРСК + selector -->
+                    <div class="flex items-center gap-2 md:hidden">
+                        <span class="text-xl font-semibold whitespace-nowrap">ШРСК</span>
+                        <span class="text-xl opacity-50">·</span>
+                        <div class="relative location-selector" id="locationMobile">
+                            <button class="flex items-center gap-1 text-xl opacity-70" data-toggle="location">
+                                <span class="location-name">Основная кухня</span>
+                                <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 transition-transform location-arrow" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                                    <path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7" />
+                                </svg>
+                            </button>
+                            <div class="absolute top-full left-0 mt-1 bg-white rounded-lg shadow-lg py-1 min-w-44 hidden z-50 location-dropdown"></div>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Desktop Navigation -->
+                <nav class="hidden desktop:flex items-center gap-2" id="mainNav">
+                    <a href="#" class="nav-link px-5 py-6 text-base font-semibold tracking-wide uppercase opacity-60" data-submenu="kitchen">Кухня</a>
+                    <a href="#" class="nav-link px-5 py-6 text-base font-semibold tracking-wide uppercase opacity-60" data-submenu="stock">Склад</a>
+                    <a href="#" class="nav-link px-5 py-6 text-base font-semibold tracking-wide uppercase opacity-60">Ретриты</a>
+                    <a href="#" class="nav-link px-5 py-6 text-base font-semibold tracking-wide uppercase opacity-60" data-submenu="team">Команда</a>
+                    <a href="#" class="nav-link px-5 py-6 text-base font-semibold tracking-wide uppercase opacity-60" data-submenu="settings">Настройки</a>
+                </nav>
+                
+                <!-- Right: Language, User, Mobile Menu Button -->
+                <div class="flex items-center gap-3 sm:gap-5">
+                    <div class="hidden md:flex join">
+                        <button class="join-item btn btn-sm lang-btn active" data-lang="ru">RU</button>
+                        <button class="join-item btn btn-sm lang-btn" data-lang="en">EN</button>
+                        <button class="join-item btn btn-sm lang-btn" data-lang="hi">HI</button>
+                    </div>
+                    <div class="hidden desktop:block">
+                        <div class="w-10 h-10 rounded-full overflow-hidden ring-2 ring-base-200">
+                            <img src="https://i.pravatar.cc/150?img=5" alt="User" class="w-full h-full object-cover" />
+                        </div>
+                    </div>
+                    <button class="btn btn-ghost btn-md btn-square desktop:hidden" id="mobileMenuBtn">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-7 w-7 menu-icon" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M4 6h16M4 12h16M4 18h16" />
+                        </svg>
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-7 w-7 close-icon hidden" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
+                        </svg>
+                    </button>
+                </div>
+            </div>
+            
+            <!-- Mobile Menu -->
+            <div class="mobile-menu desktop:hidden border-t border-base-200" id="mobileMenu">
+                <nav class="py-3 space-y-0" id="mobileNav"></nav>
+                <div class="border-t border-base-200 py-4 px-4">
+                    <div class="flex items-center justify-between">
+                        <div class="flex items-center gap-3">
+                            <div class="w-10 h-10 rounded-full overflow-hidden ring-2 ring-base-200">
+                                <img src="https://i.pravatar.cc/150?img=5" alt="User" class="w-full h-full object-cover" />
+                            </div>
+                            <span class="font-medium">Ганга деви даси</span>
+                        </div>
+                        <div class="md:hidden join">
+                            <button class="join-item btn btn-sm lang-btn active" data-lang="ru">RU</button>
+                            <button class="join-item btn btn-sm lang-btn" data-lang="en">EN</button>
+                            <button class="join-item btn btn-sm lang-btn" data-lang="hi">HI</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Submenu Bar (Desktop) -->
+        <div class="hidden -mt-1" id="submenuBar"></div>
+    </header>
+
+    <!-- Main Content -->
+    <main class="container mx-auto px-4 py-6">
+        
+        <!-- Page Header -->
+        <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6">
+            <div>
+                <h1 class="text-2xl font-bold">Ретриты</h1>
+                <p class="text-sm opacity-60">Планирование ретритов и количество участников</p>
+            </div>
+            <button class="btn btn-primary gap-2" onclick="openRetreatModal()">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" />
+                </svg>
+                Добавить ретрит
+            </button>
+        </div>
+        
+        <!-- Tabs -->
+        <div class="flex justify-between items-center mb-6">
+            <div class="tabs tabs-boxed bg-base-100 p-1">
+                <a class="tab tab-lg tab-active" id="tabList" onclick="switchTab('list')">Список</a>
+                <a class="tab tab-lg" id="tabCalendar" onclick="switchTab('calendar')">Календарь</a>
+            </div>
+            <button class="btn btn-ghost btn-sm gap-2 no-print" onclick="window.print()">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" />
+                </svg>
+                Печать
+            </button>
+        </div>
+        
+        <!-- ==================== TAB: LIST ==================== -->
+        <div id="tabContentList">
+            
+            <!-- Retreats List -->
+            <div class="space-y-3" id="retreatsList">
+                <!-- Will be generated by JS -->
+            </div>
+            
+        </div><!-- END TAB: LIST -->
+        
+        <!-- ==================== TAB: CALENDAR ==================== -->
+        <div id="tabContentCalendar" class="hidden">
+            
+            <!-- Month Navigation -->
+            <div class="flex items-center justify-between mb-4">
+                <button class="btn btn-ghost btn-sm gap-1" onclick="prevMonth()">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7" />
+                    </svg>
+                    Пред. месяц
+                </button>
+                <h2 class="text-xl font-bold" id="currentMonthTitle">Январь 2025</h2>
+                <button class="btn btn-ghost btn-sm gap-1" onclick="nextMonth()">
+                    След. месяц
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" />
+                    </svg>
+                </button>
+            </div>
+            
+            <!-- Calendar -->
+            <div class="bg-base-100 rounded-xl shadow-sm overflow-hidden">
+                <!-- Weekday Headers -->
+                <div class="grid grid-cols-7 bg-base-200/50">
+                    <div class="py-3 text-center text-sm font-semibold">Пн</div>
+                    <div class="py-3 text-center text-sm font-semibold">Вт</div>
+                    <div class="py-3 text-center text-sm font-semibold">Ср</div>
+                    <div class="py-3 text-center text-sm font-semibold">Чт</div>
+                    <div class="py-3 text-center text-sm font-semibold">Пт</div>
+                    <div class="py-3 text-center text-sm font-semibold text-error">Сб</div>
+                    <div class="py-3 text-center text-sm font-semibold text-error">Вс</div>
+                </div>
+                
+                <!-- Calendar Grid -->
+                <div class="grid grid-cols-7 border-t border-base-200" id="calendarGrid">
+                    <!-- Will be generated by JS -->
+                </div>
+            </div>
+            
+            <!-- Legend -->
+            <div class="mt-4 flex items-center gap-4 text-sm opacity-60">
+                <div class="flex items-center gap-2">
+                    <div class="w-4 h-4 rounded" style="background: linear-gradient(90deg, #CC7C5E, #E08A4A);"></div>
+                    <span>Ретрит</span>
+                </div>
+                <div class="flex items-center gap-2">
+                    <span>👥</span>
+                    <span>Количество участников</span>
+                </div>
+            </div>
+            
+        </div><!-- END TAB: CALENDAR -->
+        
+    </main>
+
+    <!-- Footer -->
+    <footer class="bg-base-100 border-t border-base-200 mt-12">
+        <div class="container mx-auto px-4 py-6">
+            <div class="flex flex-col sm:flex-row justify-between items-center gap-4">
+                <nav class="flex gap-6">
+                    <a href="kitchen-menu.html" class="text-sm font-medium uppercase tracking-wide opacity-60 hover:opacity-100">Меню</a>
+                    <a href="kitchen-recipes.html" class="text-sm font-medium uppercase tracking-wide opacity-60 hover:opacity-100">Рецепты</a>
+                    <a href="kitchen-products.html" class="text-sm font-medium uppercase tracking-wide opacity-60 hover:opacity-100">Продукты</a>
+                    <a href="kitchen-stock.html" class="text-sm font-medium uppercase tracking-wide opacity-60 hover:opacity-100">Склад</a>
+                    <a href="kitchen-retreats.html" class="text-sm font-medium uppercase tracking-wide text-primary">Ретриты</a>
+                    <a href="kitchen-team.html" class="text-sm font-medium uppercase tracking-wide opacity-60 hover:opacity-100">Команда</a>
+                </nav>
+                
+                <button onclick="window.scrollTo({top: 0, behavior: 'smooth'})" class="btn btn-ghost btn-sm gap-1 opacity-60 hover:opacity-100">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 15l7-7 7 7" />
+                    </svg>
+                    Наверх
+                </button>
+            </div>
+            
+            <div class="text-center mt-4 text-xs opacity-40">
+                ШРСК · Шри Рупа Сева Кунджа
+            </div>
+        </div>
+    </footer>
+
+    <!-- Add/Edit Retreat Modal -->
+    <dialog id="retreatModal" class="modal">
+        <div class="modal-box max-w-lg">
+            <h3 class="font-bold text-lg mb-4" id="retreatModalTitle">Добавить ретрит</h3>
+            
+            <form id="retreatForm" class="space-y-4">
+                <input type="hidden" id="retreatId" value="">
+                
+                <div class="form-control">
+                    <label class="label">
+                        <span class="label-text font-medium">Название ретрита</span>
+                    </label>
+                    <input type="text" id="retreatName" class="input input-bordered" placeholder="Например: Картика-врата" required>
+                </div>
+                
+                <div class="grid grid-cols-2 gap-4">
+                    <div class="form-control">
+                        <label class="label">
+                            <span class="label-text font-medium">Дата начала</span>
+                        </label>
+                        <input type="date" id="retreatStart" class="input input-bordered" required>
+                    </div>
+                    <div class="form-control">
+                        <label class="label">
+                            <span class="label-text font-medium">Дата окончания</span>
+                        </label>
+                        <input type="date" id="retreatEnd" class="input input-bordered" required>
+                    </div>
+                </div>
+                
+                <div class="form-control">
+                    <label class="label">
+                        <span class="label-text font-medium">Ожидаемое количество участников</span>
+                    </label>
+                    <input type="number" id="retreatParticipants" class="input input-bordered" placeholder="50" min="1" required>
+                </div>
+                
+                <div class="form-control">
+                    <label class="label">
+                        <span class="label-text font-medium">Описание (необязательно)</span>
+                    </label>
+                    <textarea id="retreatDescription" class="textarea textarea-bordered" rows="2" placeholder="Дополнительная информация..."></textarea>
+                </div>
+                
+                <div class="modal-action">
+                    <button type="button" class="btn btn-ghost" onclick="closeRetreatModal()">Отмена</button>
+                    <button type="submit" class="btn btn-primary">Сохранить</button>
+                </div>
+            </form>
+        </div>
+        <form method="dialog" class="modal-backdrop">
+            <button>close</button>
+        </form>
+    </dialog>
+
+    <script>
+        // ==================== DATA ====================
+        let retreats = [
+            {
+                id: 1,
+                name: "Новогодний ретрит",
+                start: "2025-01-01",
+                end: "2025-01-05",
+                participants: 45,
+                description: "Встреча Нового года в ашраме"
+            },
+            {
+                id: 2,
+                name: "Нитьянанда Трайодаши",
+                start: "2025-02-12",
+                end: "2025-02-14",
+                participants: 80,
+                description: "Явление Господа Нитьянанды"
+            },
+            {
+                id: 3,
+                name: "Гаура-пурнима",
+                start: "2025-03-13",
+                end: "2025-03-16",
+                participants: 120,
+                description: "Явление Шри Чайтаньи Махапрабху"
+            },
+            {
+                id: 4,
+                name: "Весенний ретрит",
+                start: "2025-01-20",
+                end: "2025-01-26",
+                participants: 35,
+                description: "Углублённое изучение Бхагаватам"
+            }
+        ];
+        
+        let currentMonth = new Date(2025, 0, 1); // January 2025
+        let editingRetreatId = null;
+        
+        const monthNames = [
+            "Январь", "Февраль", "Март", "Апрель", "Май", "Июнь",
+            "Июль", "Август", "Сентябрь", "Октябрь", "Ноябрь", "Декабрь"
+        ];
+        
+        // ==================== CALENDAR ====================
+        function renderCalendar() {
+            const grid = document.getElementById('calendarGrid');
+            const year = currentMonth.getFullYear();
+            const month = currentMonth.getMonth();
+            
+            // Update title
+            document.getElementById('currentMonthTitle').textContent = `${monthNames[month]} ${year}`;
+            
+            // First day of month and total days
+            const firstDay = new Date(year, month, 1);
+            const lastDay = new Date(year, month + 1, 0);
+            const totalDays = lastDay.getDate();
+            
+            // Day of week for first day (0 = Sunday, we need Monday = 0)
+            let startDayOfWeek = firstDay.getDay() - 1;
+            if (startDayOfWeek < 0) startDayOfWeek = 6;
+            
+            // Today
+            const today = new Date();
+            const todayStr = formatDate(today);
+            
+            let html = '';
+            
+            // Empty cells before first day
+            for (let i = 0; i < startDayOfWeek; i++) {
+                html += '<div class="calendar-day border-b border-r border-base-200 p-2 opacity-30"></div>';
+            }
+            
+            // Days of month
+            for (let day = 1; day <= totalDays; day++) {
+                const dateStr = `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+                const dayOfWeek = (startDayOfWeek + day - 1) % 7;
+                const isWeekend = dayOfWeek >= 5;
+                const isToday = dateStr === todayStr;
+                
+                // Find retreats for this day
+                const dayRetreats = getRetreatsForDate(dateStr);
+                const hasRetreat = dayRetreats.length > 0;
+                
+                let classes = 'calendar-day border-b border-r border-base-200 p-2 cursor-pointer';
+                if (hasRetreat) classes += ' has-retreat';
+                if (isToday) classes += ' ring-2 ring-primary';
+                
+                html += `<div class="${classes}" onclick="openRetreatModalForDate('${dateStr}')">`;
+                html += `<div class="font-semibold ${isWeekend ? 'text-error' : ''} ${isToday ? 'text-primary' : ''}">${day}</div>`;
+                
+                // Show retreat bars
+                dayRetreats.forEach(retreat => {
+                    const position = getRetreatPosition(retreat, dateStr);
+                    html += `<div class="retreat-bar ${position} mt-1 cursor-pointer" onclick="event.stopPropagation(); editRetreat(${retreat.id})" title="${retreat.name}: ${retreat.participants} чел.">`;
+                    if (position === 'start' || position === 'single') {
+                        html += `${retreat.name}`;
+                    }
+                    html += `</div>`;
+                });
+                
+                // Show total participants for the day
+                if (hasRetreat) {
+                    const totalParticipants = dayRetreats.reduce((sum, r) => sum + r.participants, 0);
+                    html += `<div class="text-xs text-primary font-medium mt-1">👥 ${totalParticipants}</div>`;
+                }
+                
+                html += '</div>';
+            }
+            
+            // Empty cells after last day
+            const endDayOfWeek = (startDayOfWeek + totalDays - 1) % 7;
+            for (let i = endDayOfWeek + 1; i < 7; i++) {
+                html += '<div class="calendar-day border-b border-r border-base-200 p-2 opacity-30"></div>';
+            }
+            
+            grid.innerHTML = html;
+        }
+        
+        function getRetreatsForDate(dateStr) {
+            return retreats.filter(r => dateStr >= r.start && dateStr <= r.end);
+        }
+        
+        function getRetreatPosition(retreat, dateStr) {
+            if (retreat.start === retreat.end) return 'single';
+            if (dateStr === retreat.start) return 'start';
+            if (dateStr === retreat.end) return 'end';
+            return 'middle';
+        }
+        
+        function formatDate(date) {
+            return date.toISOString().split('T')[0];
+        }
+        
+        function prevMonth() {
+            currentMonth.setMonth(currentMonth.getMonth() - 1);
+            renderCalendar();
+        }
+        
+        function nextMonth() {
+            currentMonth.setMonth(currentMonth.getMonth() + 1);
+            renderCalendar();
+        }
+        
+        // ==================== TABS ====================
+        let currentTab = 'list';
+        
+        function switchTab(tab) {
+            currentTab = tab;
+            
+            // Update tab buttons
+            document.querySelectorAll('.tabs .tab').forEach(t => t.classList.remove('tab-active'));
+            document.getElementById('tabList').classList.toggle('tab-active', tab === 'list');
+            document.getElementById('tabCalendar').classList.toggle('tab-active', tab === 'calendar');
+            
+            // Show/hide content
+            document.getElementById('tabContentList').classList.toggle('hidden', tab !== 'list');
+            document.getElementById('tabContentCalendar').classList.toggle('hidden', tab !== 'calendar');
+            
+            // Render calendar when switching to it
+            if (tab === 'calendar') {
+                renderCalendar();
+            }
+        }
+        
+        // ==================== RETREATS LIST ====================
+        function renderRetreatsList() {
+            const list = document.getElementById('retreatsList');
+            
+            // Sort by start date
+            const sorted = [...retreats].sort((a, b) => a.start.localeCompare(b.start));
+            
+            if (sorted.length === 0) {
+                list.innerHTML = `
+                    <div class="text-center py-12 opacity-60">
+                        <div class="text-4xl mb-2">📅</div>
+                        <div>Нет запланированных ретритов</div>
+                        <button class="btn btn-primary btn-sm mt-4" onclick="openRetreatModal()">Добавить первый ретрит</button>
+                    </div>
+                `;
+                return;
+            }
+            
+            list.innerHTML = sorted.map(retreat => {
+                const startDate = new Date(retreat.start);
+                const endDate = new Date(retreat.end);
+                const days = Math.ceil((endDate - startDate) / (1000 * 60 * 60 * 24)) + 1;
+                const isPast = retreat.end < formatDate(new Date());
+                
+                return `
+                    <div class="bg-base-100 rounded-lg p-4 shadow-sm border-l-4 ${isPast ? 'border-base-300 opacity-60' : 'border-primary'}">
+                        <div class="flex flex-col md:flex-row md:items-center justify-between gap-4">
+                            <div class="flex-1">
+                                <div class="font-semibold text-lg flex items-center gap-2">
+                                    ${retreat.name}
+                                    ${isPast ? '<span class="badge badge-ghost badge-sm">Прошёл</span>' : ''}
+                                </div>
+                                <div class="text-sm opacity-60 mt-1">
+                                    <span class="inline-flex items-center gap-1">
+                                        <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                                        </svg>
+                                        ${formatDisplayDate(retreat.start)} — ${formatDisplayDate(retreat.end)}
+                                    </span>
+                                    <span class="ml-3">(${days} ${getDaysWord(days)})</span>
+                                </div>
+                                ${retreat.description ? `<div class="text-sm mt-2 opacity-80">${retreat.description}</div>` : ''}
+                            </div>
+                            <div class="flex items-center gap-4">
+                                <div class="text-center px-4">
+                                    <div class="font-bold text-2xl text-primary">${retreat.participants}</div>
+                                    <div class="text-xs opacity-60">участников</div>
+                                </div>
+                                <div class="flex items-center gap-2">
+                                    <button class="btn btn-ghost btn-sm btn-square" title="Редактировать" onclick="editRetreat(${retreat.id})">
+                                        <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
+                                            <path stroke-linecap="round" stroke-linejoin="round" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                                        </svg>
+                                    </button>
+                                    <span class="text-base-300">|</span>
+                                    <a href="#" class="link link-hover text-sm opacity-60 text-error" onclick="deleteRetreat(${retreat.id}); return false;">Удалить</a>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                `;
+            }).join('');
+        }
+        
+        function formatDisplayDate(dateStr) {
+            const date = new Date(dateStr);
+            const day = date.getDate();
+            const month = monthNames[date.getMonth()].toLowerCase().slice(0, 3);
+            return `${day} ${month}`;
+        }
+        
+        function getDaysWord(n) {
+            if (n % 10 === 1 && n % 100 !== 11) return 'день';
+            if (n % 10 >= 2 && n % 10 <= 4 && (n % 100 < 10 || n % 100 >= 20)) return 'дня';
+            return 'дней';
+        }
+        
+        // ==================== MODAL ====================
+        function openRetreatModal() {
+            editingRetreatId = null;
+            document.getElementById('retreatModalTitle').textContent = 'Добавить ретрит';
+            document.getElementById('retreatForm').reset();
+            document.getElementById('retreatId').value = '';
+            document.getElementById('retreatModal').showModal();
+        }
+        
+        function openRetreatModalForDate(dateStr) {
+            openRetreatModal();
+            document.getElementById('retreatStart').value = dateStr;
+            document.getElementById('retreatEnd').value = dateStr;
+        }
+        
+        function editRetreat(id) {
+            const retreat = retreats.find(r => r.id === id);
+            if (!retreat) return;
+            
+            editingRetreatId = id;
+            document.getElementById('retreatModalTitle').textContent = 'Редактировать ретрит';
+            document.getElementById('retreatId').value = id;
+            document.getElementById('retreatName').value = retreat.name;
+            document.getElementById('retreatStart').value = retreat.start;
+            document.getElementById('retreatEnd').value = retreat.end;
+            document.getElementById('retreatParticipants').value = retreat.participants;
+            document.getElementById('retreatDescription').value = retreat.description || '';
+            
+            document.getElementById('retreatModal').showModal();
+        }
+        
+        function closeRetreatModal() {
+            document.getElementById('retreatModal').close();
+        }
+        
+        function deleteRetreat(id) {
+            const retreat = retreats.find(r => r.id === id);
+            if (!retreat) return;
+            
+            if (confirm(`Удалить ретрит "${retreat.name}"?`)) {
+                retreats = retreats.filter(r => r.id !== id);
+                renderCalendar();
+                renderRetreatsList();
+            }
+        }
+        
+        // ==================== FORM ====================
+        document.getElementById('retreatForm').addEventListener('submit', (e) => {
+            e.preventDefault();
+            
+            const name = document.getElementById('retreatName').value.trim();
+            const start = document.getElementById('retreatStart').value;
+            const end = document.getElementById('retreatEnd').value;
+            const participants = parseInt(document.getElementById('retreatParticipants').value);
+            const description = document.getElementById('retreatDescription').value.trim();
+            
+            if (end < start) {
+                alert('Дата окончания не может быть раньше даты начала');
+                return;
+            }
+            
+            if (editingRetreatId) {
+                // Update existing
+                const retreat = retreats.find(r => r.id === editingRetreatId);
+                if (retreat) {
+                    retreat.name = name;
+                    retreat.start = start;
+                    retreat.end = end;
+                    retreat.participants = participants;
+                    retreat.description = description;
+                }
+            } else {
+                // Add new
+                const newId = Math.max(0, ...retreats.map(r => r.id)) + 1;
+                retreats.push({
+                    id: newId,
+                    name,
+                    start,
+                    end,
+                    participants,
+                    description
+                });
+            }
+            
+            closeRetreatModal();
+            renderCalendar();
+            renderRetreatsList();
+        });
+        
+        // ==================== KITCHEN SELECTOR ====================
+        document.querySelectorAll('.kitchen-option').forEach(option => {
+            option.addEventListener('click', (e) => {
+                e.preventDefault();
+                document.querySelectorAll('.kitchen-option').forEach(o => o.classList.remove('active'));
+                option.classList.add('active');
+                document.getElementById('currentKitchen').textContent = option.textContent;
+                document.activeElement.blur();
+            });
+        });
+        
+        // ==================== LANGUAGE ====================
+        document.querySelectorAll('.lang-btn').forEach(btn => {
+            btn.addEventListener('click', () => {
+                document.querySelectorAll('.lang-btn').forEach(b => b.classList.remove('active'));
+                btn.classList.add('active');
+            });
+        });
+        
+        // ==================== INIT ====================
+        renderRetreatsList();
+    </script>
+
+    <script>
+        const DESKTOP_BP = 1200;
+        
+        // Config
+        const locations = {
+            main:  { name: 'Основная кухня', color: 'var(--color-main)' },
+            cafe:  { name: 'Кухня кафе',     color: 'var(--color-cafe)' },
+            guest: { name: 'Гостевая кухня', color: 'var(--color-guest)' }
+        };
+        
+        const menuConfig = [
+            { id: 'kitchen',  label: 'Кухня',     items: [
+                { name: 'Меню', href: 'kitchen-menu.html' },
+                { name: 'Рецепты', href: 'kitchen-recipes.html' },
+                { name: 'Продукты', href: 'kitchen-products.html' }
+            ]},
+            { id: 'stock',    label: 'Склад',     items: [
+                { name: 'Остатки', href: 'kitchen-stock.html#stock' },
+                { name: 'Заявки', href: 'kitchen-stock.html#requests' },
+                { name: 'Получить', href: 'kitchen-stock.html#receipts' },
+                { name: 'Выдать', href: 'kitchen-stock.html#issues' },
+                { name: 'Настройки', href: 'kitchen-stock.html#settings' }
+            ]},
+            { id: null,       label: 'Ретриты',   href: 'kitchen-retreats.html', items: null },
+            { id: 'team',     label: 'Команда',   items: [
+                { name: 'Вайшнавы', href: 'kitchen-team.html' },
+                { name: 'Проживание', href: 'kitchen-team.html#housing' }
+            ]},
+            { id: 'settings', label: 'Настройки', items: [
+                { name: 'Общие', href: '#' },
+                { name: 'Пользователи', href: '#' },
+                { name: 'Праздники', href: '#' }
+            ]}
+        ];
+        
+        let currentLocation = 'main';
+        
+        // Utils
+        const $ = (sel, ctx = document) => ctx.querySelector(sel);
+        const $$ = (sel, ctx = document) => ctx.querySelectorAll(sel);
+        const setColor = color => document.documentElement.style.setProperty('--current-color', color);
+        
+        // Build location dropdown options
+        function buildLocationOptions() {
+            const html = Object.entries(locations).map(([key, loc]) => 
+                `<button class="w-full text-left px-4 py-2 hover:bg-base-200 text-base-content ${key === currentLocation ? 'font-medium' : ''}" data-loc="${key}">${loc.name}</button>`
+            ).join('');
+            $$('.location-dropdown').forEach(el => el.innerHTML = html);
+        }
+        
+        // Build mobile menu
+        function buildMobileMenu() {
+            const nav = $('#mobileNav');
+            nav.innerHTML = menuConfig.map(({ id, label, href, items }) => {
+                if (!items) return `<a href="${href || '#'}" class="block px-4 py-3 text-base font-semibold uppercase tracking-wide hover:bg-base-200 rounded-lg">${label}</a>`;
+                return `
+                    <div class="mobile-nav-item" data-has-submenu>
+                        <button class="w-full flex items-center px-4 py-3 text-base font-semibold uppercase tracking-wide hover:bg-base-200 rounded-lg">
+                            ${label}
+                            <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 ml-2 transition-transform arrow-icon" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                                <path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7" />
+                            </svg>
+                        </button>
+                        <div class="submenu pl-4">
+                            ${items.map(item => `<a href="${item.href}" class="block px-4 py-3 text-base font-medium rounded-lg hover:bg-base-200">${item.name}</a>`).join('')}
+                        </div>
+                    </div>`;
+            }).join('');
+            
+            // Bind accordion
+            $$('.mobile-nav-item[data-has-submenu] button', nav).forEach(btn => {
+                btn.addEventListener('click', () => {
+                    const item = btn.closest('.mobile-nav-item');
+                    const wasOpen = item.classList.contains('open');
+                    $$('.mobile-nav-item.open', nav).forEach(i => i.classList.remove('open'));
+                    if (!wasOpen) item.classList.add('open');
+                });
+            });
+        }
+        
+        // Build desktop submenu bar
+        function buildSubmenuBar() {
+            const bar = $('#submenuBar');
+            bar.innerHTML = menuConfig.filter(m => m.items).map(({ id, items }) => `
+                <nav class="flex items-center submenu-group ${id !== 'kitchen' ? 'hidden' : ''}" data-group="${id}">
+                    ${items.map(item => `<a href="${item.href}" class="submenu-link px-5 py-2 text-base font-semibold tracking-wide uppercase text-white/70 hover:text-white">${item.name}</a>`).join('')}
+                </nav>
+            `).join('');
+            
+            // Bind submenu clicks
+            $$('.submenu-link', bar).forEach(link => {
+                link.addEventListener('click', () => {
+                    const group = link.closest('.submenu-group');
+                    $$('.submenu-link', group).forEach(l => l.classList.remove('active'));
+                    link.classList.add('active');
+                    // Allow navigation - don't prevent default
+                });
+            });
+        }
+        
+        // Align submenu under КУХНЯ
+        function alignSubmenu() {
+            const kitchenNav = $('.nav-link[data-submenu="kitchen"]');
+            const activeGroup = $('.submenu-group:not(.hidden)');
+            const firstLink = activeGroup?.querySelector('.submenu-link');
+            if (!kitchenNav || !firstLink) return;
+            
+            $$('.submenu-link', activeGroup).forEach(l => l.style.marginLeft = '0');
+            const navCenter = kitchenNav.getBoundingClientRect().left + kitchenNav.offsetWidth / 2;
+            firstLink.style.marginLeft = (navCenter - firstLink.offsetWidth / 2) + 'px';
+        }
+        
+        // Location selector
+        function toggleLocation(selector) {
+            const dropdown = $('.location-dropdown', selector);
+            const arrow = $('.location-arrow', selector);
+            dropdown.classList.toggle('hidden');
+            arrow.classList.toggle('rotate-180');
+        }
+        
+        function selectLocation(key) {
+            currentLocation = key;
+            const loc = locations[key];
+            
+            $$('.location-name').forEach(el => el.textContent = loc.name);
+            $$('.location-dropdown').forEach(d => d.classList.add('hidden'));
+            $$('.location-arrow').forEach(a => a.classList.remove('rotate-180'));
+            $$('.location-dropdown button').forEach(btn => {
+                btn.classList.toggle('font-medium', btn.dataset.loc === key);
+            });
+            
+            setColor(loc.color);
+        }
+        
+        // Init
+        buildLocationOptions();
+        buildMobileMenu();
+        buildSubmenuBar();
+        
+        // Mobile menu toggle
+        $('#mobileMenuBtn').addEventListener('click', () => {
+            $('#mobileMenu').classList.toggle('open');
+            $('.menu-icon').classList.toggle('hidden');
+            $('.close-icon').classList.toggle('hidden');
+        });
+        
+        // Location selector clicks
+        $$('[data-toggle="location"]').forEach(btn => {
+            btn.addEventListener('click', () => toggleLocation(btn.closest('.location-selector')));
+        });
+        
+        // Global click handler
+        document.addEventListener('click', e => {
+            if (e.target.dataset.loc) {
+                selectLocation(e.target.dataset.loc);
+            } else if (!e.target.closest('.location-selector')) {
+                $$('.location-dropdown').forEach(d => d.classList.add('hidden'));
+                $$('.location-arrow').forEach(a => a.classList.remove('rotate-180'));
+            }
+        });
+        
+        // Desktop nav clicks
+        $$('.nav-link').forEach(link => {
+            link.addEventListener('click', e => {
+                e.preventDefault();
+                $$('.nav-link').forEach(l => l.classList.remove('active'));
+                link.classList.add('active');
+                
+                const submenuId = link.dataset.submenu;
+                
+                $$('.submenu-group').forEach(g => g.classList.add('hidden'));
+                
+                if (submenuId && innerWidth >= DESKTOP_BP) {
+                    $('#submenuBar').classList.remove('hidden');
+                    const group = $(`.submenu-group[data-group="${submenuId}"]`);
+                    if (group) {
+                        group.classList.remove('hidden');
+                        $$('.submenu-link', group).forEach(l => l.classList.remove('active'));
+                        $('.submenu-link', group)?.classList.add('active');
+                    }
+                    requestAnimationFrame(alignSubmenu);
+                } else {
+                    $('#submenuBar').classList.add('hidden');
+                }
+            });
+        });
+        
+        // Language switcher
+        $$('.lang-btn').forEach(btn => {
+            btn.addEventListener('click', () => {
+                const lang = btn.dataset.lang;
+                $$('.lang-btn').forEach(b => b.classList.remove('active'));
+                $$(`.lang-btn[data-lang="${lang}"]`).forEach(b => b.classList.add('active'));
+            });
+        });
+        
+        addEventListener('resize', alignSubmenu);
+    </script>
+</body>
+</html>

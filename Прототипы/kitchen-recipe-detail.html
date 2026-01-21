@@ -1,0 +1,905 @@
+<!DOCTYPE html>
+<html lang="ru" data-theme="light">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Палак Панир — Кухня Ашрама</title>
+    <link href="https://cdn.jsdelivr.net/npm/daisyui@4.12.14/dist/full.min.css" rel="stylesheet" type="text/css" />
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = { theme: { extend: { screens: { 'desktop': '1200px' } } },
+            daisyui: {
+                themes: ["light"],
+            },
+        }
+    </script>
+    <style>
+:root {
+            --color-main: #f49800;
+            --color-cafe: #10b981;
+            --color-guest: #3b82f6;
+            --current-color: #f49800;
+        }
+        * { font-family: 'Noto Sans', 'Noto Sans Devanagari', sans-serif; }
+        .nav-link { transition: all 0.15s ease; }
+        .nav-link:hover { opacity: 1; }
+        .nav-link.active { opacity: 1; color: var(--current-color); }
+        .lang-btn.active { background-color: var(--color-main) !important; color: white !important; border-color: var(--color-main) !important; }
+        .submenu-link { transition: all 0.15s ease; }
+        .submenu-link.active { background-color: white; color: var(--current-color) !important; }
+        #submenuBar { background-color: var(--current-color); }
+        .logo-svg path { transition: fill 0.3s ease; }
+        @media (max-width: 1199px) { #submenuBar { display: none !important; } }
+        .mobile-menu { max-height: 0; overflow: hidden; transition: max-height 0.3s ease; }
+        .mobile-menu.open { max-height: 500px; }
+        .mobile-nav-item.open > button { color: var(--current-color); }
+        .mobile-nav-item.open .arrow-icon { transform: rotate(180deg); }
+        .mobile-nav-item .submenu { display: none; }
+        .mobile-nav-item.open .submenu { display: block; }
+
+        
+
+        [data-theme="light"] {
+            --p: 65% 0.12 45; /* #CC7C5E в oklch */
+            --pf: 55% 0.12 45; /* darker for focus */
+            --pc: 100% 0 0; /* white text on primary */
+        }
+        
+        /* Active language button */
+        
+        /* Active nav link */
+        .nav-link.active {
+            color: #CC7C5E;
+            opacity: 1;
+            border-bottom-color: #CC7C5E;
+        }
+        
+        /* Kitchen dropdown active */
+        .kitchen-option.active {
+            background-color: rgba(204, 124, 94, 0.1);
+            color: #CC7C5E;
+        }
+        
+        /* Category colors */
+        .cat-all { --cat-color: #CC7C5E; }
+        .cat-main { --cat-color: #A67B5B; }
+        .cat-garnish { --cat-color: #D4A84B; }
+        .cat-soup { --cat-color: #E08A4A; }
+        .cat-salad { --cat-color: #6B9E5A; }
+        .cat-drink { --cat-color: #4A9E9A; }
+        .cat-sweet { --cat-color: #C75D7E; }
+        .cat-snack { --cat-color: #8B6B9E; }
+        
+        .filter-btn.active {
+            background-color: var(--cat-color) !important;
+            color: white !important;
+            border-color: var(--cat-color) !important;
+        }
+        
+        .badge-main { background-color: #A67B5B; color: white; border: none; }
+        .badge-garnish { background-color: #D4A84B; color: white; border: none; }
+        .badge-soup { background-color: #E08A4A; color: white; border: none; }
+        .badge-salad { background-color: #6B9E5A; color: white; border: none; }
+        .badge-drink { background-color: #4A9E9A; color: white; border: none; }
+        .badge-sweet { background-color: #C75D7E; color: white; border: none; }
+        .badge-snack { background-color: #8B6B9E; color: white; border: none; }
+    </style>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans:wght@400;500;600;700&family=Noto+Sans+Devanagari:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        * {
+            font-family: 'Noto Sans', 'Noto Sans Devanagari', sans-serif;
+        }
+        .recipe-card:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 25px -5px rgba(0,0,0,0.1);
+        }
+        .recipe-card {
+            transition: all 0.2s ease;
+        }
+        .category-badge {
+            font-size: 0.7rem;
+            padding: 0.2rem 0.5rem;
+        }
+        .sub-text {
+            font-size: 0.7rem;
+            opacity: 0.5;
+        }
+        .filter-btn.active {
+            background: oklch(var(--p));
+            color: oklch(var(--pc));
+        }
+    </style>
+</head>
+<body class="bg-base-200 min-h-screen">
+    
+    <header class="bg-base-100 shadow-sm sticky top-0 z-50">
+        <div class="container mx-auto px-4">
+            <div class="flex items-center justify-between h-20">
+                
+                <!-- Logo + Location Selector -->
+                <div class="flex items-center gap-3 flex-shrink-0">
+                    <a href="kitchen-menu.html" class="hover:opacity-80 transition-opacity">
+                        <svg class="h-14 w-auto logo-svg" viewBox="0 0 122.03 312.54" xmlns="http://www.w3.org/2000/svg">
+                            <path fill="var(--current-color)" d="M102,15.99h-15.18v81.89c0,6.21.12,11.58-.88,15.98-1.01,4.45-2.6,7.98-4.77,10.58-2.02,2.81-4.85,4.83-8.51,6.05-2.38,1-5.08,1.62-8.1,1.83-1.01.21-2.02.32-3.02.32h-.64c-3.81-.21-7.23-.83-10.25-1.83-3.81-1.22-7.02-3.13-9.62-5.73-2.65-2.81-4.56-6.44-5.73-10.89-1.22-4.4-1.83-9.83-1.83-16.3V15.99h-15.1v89.12c0,13.68,3.81,23.94,11.45,30.77,3.81,3.44,8.56,5.96,14.23,7.55,1.17.42,2.57.74,4.21.96-13.89,5.03-23.35,11.87-28.38,20.51-7.05,10.65-7.26,24.14-.64,40.46l41.34,100.45,39.91-100.45c6.41-16.32,6.2-29.82-.64-40.46-4.82-8.48-13.97-15.21-27.43-20.2,1.59-.43,3.18-.85,4.77-1.27,5.25-1.59,9.67-4.19,13.27-7.79,3.82-3.66,6.65-8.18,8.51-13.59,2.02-5.62,3.02-12.27,3.02-19.95V15.99M87.45,172.46c4.03,7.26,3.84,16.4-.56,27.43l-26.31,68.13-27.75-68.13c-4.61-11.03-4.8-20.17-.55-27.43,4.61-7.47,13.76-13.01,27.43-16.62,13.67,3.61,22.93,9.15,27.75,16.62"/>
+                        </svg>
+                    </a>
+                    
+                    <!-- Desktop: full name + selector -->
+                    <div class="hidden md:flex flex-col">
+                        <a href="kitchen-menu.html" class="text-xl font-semibold whitespace-nowrap hover:opacity-80 transition-opacity">Шри Рупа Сева Кунджа</a>
+                        <div class="relative location-selector" id="locationDesktop">
+                            <button class="flex items-center justify-between gap-2 w-full text-xl opacity-70 hover:opacity-100 transition-opacity" data-toggle="location">
+                                <span class="location-name">Основная кухня</span>
+                                <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 transition-transform location-arrow" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                                    <path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7" />
+                                </svg>
+                            </button>
+                            <div class="absolute top-full left-0 mt-1 bg-white rounded-lg shadow-lg py-1 w-full hidden z-50 location-dropdown"></div>
+                        </div>
+                    </div>
+                    
+                    <!-- Mobile: ШРСК + selector -->
+                    <div class="flex items-center gap-2 md:hidden">
+                        <span class="text-xl font-semibold whitespace-nowrap">ШРСК</span>
+                        <span class="text-xl opacity-50">·</span>
+                        <div class="relative location-selector" id="locationMobile">
+                            <button class="flex items-center gap-1 text-xl opacity-70" data-toggle="location">
+                                <span class="location-name">Основная кухня</span>
+                                <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 transition-transform location-arrow" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                                    <path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7" />
+                                </svg>
+                            </button>
+                            <div class="absolute top-full left-0 mt-1 bg-white rounded-lg shadow-lg py-1 min-w-44 hidden z-50 location-dropdown"></div>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Desktop Navigation -->
+                <nav class="hidden desktop:flex items-center gap-2" id="mainNav">
+                    <a href="#" class="nav-link px-5 py-6 text-base font-semibold tracking-wide uppercase opacity-60" data-submenu="kitchen">Кухня</a>
+                    <a href="#" class="nav-link px-5 py-6 text-base font-semibold tracking-wide uppercase opacity-60" data-submenu="stock">Склад</a>
+                    <a href="#" class="nav-link px-5 py-6 text-base font-semibold tracking-wide uppercase opacity-60">Ретриты</a>
+                    <a href="#" class="nav-link px-5 py-6 text-base font-semibold tracking-wide uppercase opacity-60" data-submenu="team">Команда</a>
+                    <a href="#" class="nav-link px-5 py-6 text-base font-semibold tracking-wide uppercase opacity-60" data-submenu="settings">Настройки</a>
+                </nav>
+                
+                <!-- Right: Language, User, Mobile Menu Button -->
+                <div class="flex items-center gap-3 sm:gap-5">
+                    <div class="hidden md:flex join">
+                        <button class="join-item btn btn-sm lang-btn active" data-lang="ru">RU</button>
+                        <button class="join-item btn btn-sm lang-btn" data-lang="en">EN</button>
+                        <button class="join-item btn btn-sm lang-btn" data-lang="hi">HI</button>
+                    </div>
+                    <div class="hidden desktop:block">
+                        <div class="w-10 h-10 rounded-full overflow-hidden ring-2 ring-base-200">
+                            <img src="https://i.pravatar.cc/150?img=5" alt="User" class="w-full h-full object-cover" />
+                        </div>
+                    </div>
+                    <button class="btn btn-ghost btn-md btn-square desktop:hidden" id="mobileMenuBtn">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-7 w-7 menu-icon" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M4 6h16M4 12h16M4 18h16" />
+                        </svg>
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-7 w-7 close-icon hidden" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
+                        </svg>
+                    </button>
+                </div>
+            </div>
+            
+            <!-- Mobile Menu -->
+            <div class="mobile-menu desktop:hidden border-t border-base-200" id="mobileMenu">
+                <nav class="py-3 space-y-0" id="mobileNav"></nav>
+                <div class="border-t border-base-200 py-4 px-4">
+                    <div class="flex items-center justify-between">
+                        <div class="flex items-center gap-3">
+                            <div class="w-10 h-10 rounded-full overflow-hidden ring-2 ring-base-200">
+                                <img src="https://i.pravatar.cc/150?img=5" alt="User" class="w-full h-full object-cover" />
+                            </div>
+                            <span class="font-medium">Ганга деви даси</span>
+                        </div>
+                        <div class="md:hidden join">
+                            <button class="join-item btn btn-sm lang-btn active" data-lang="ru">RU</button>
+                            <button class="join-item btn btn-sm lang-btn" data-lang="en">EN</button>
+                            <button class="join-item btn btn-sm lang-btn" data-lang="hi">HI</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Submenu Bar (Desktop) -->
+        <div class="hidden -mt-1" id="submenuBar"></div>
+    </header>
+
+    <!-- Main Content -->
+    <main class="container mx-auto px-4 py-6">
+        
+        <!-- Back link + Actions -->
+        <div class="flex justify-between items-center mb-4">
+            <a href="kitchen-recipes.html" class="inline-flex items-center gap-1 text-sm opacity-60 hover:opacity-100">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7" />
+                </svg>
+                <span data-i18n="back_to_recipes">Назад к рецептам</span>
+            </a>
+            <div class="flex gap-2">
+                <button class="btn btn-primary btn-sm gap-1" onclick="window.print()">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" />
+                    </svg>
+                    <span data-i18n="print_recipe">Печать</span>
+                </button>
+                <button class="btn btn-ghost btn-sm gap-1" onclick="window.location.href='kitchen-recipe-edit.html'">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                    </svg>
+                    <span data-i18n="edit_recipe">Редактировать</span>
+                </button>
+            </div>
+        </div>
+
+        <!-- Recipe Header -->
+        <div class="flex flex-col lg:flex-row gap-6 mb-8">
+            <!-- Photo -->
+            <div class="lg:w-1/3">
+                <div class="aspect-[4/3] rounded-xl overflow-hidden bg-base-200">
+                    <img src="https://images.unsplash.com/photo-1601050690597-df0568f70950?w=600&h=450&fit=crop" 
+                         alt="Палак Панир" 
+                         class="w-full h-full object-cover" />
+                </div>
+            </div>
+            
+            <!-- Info -->
+            <div class="lg:w-2/3">
+                <!-- Category -->
+                <span class="badge badge-main category-badge mb-2">Основное</span>
+                
+                <!-- Title -->
+                <h1 class="text-3xl font-bold mb-1" id="recipeName">Палак Панир</h1>
+                <p class="text-base opacity-50 mb-4" id="recipeNameSub">Palak Paneer / Pālak Panīr</p>
+                
+                <!-- Description -->
+                <p class="text-base mb-4 leading-relaxed" id="recipeDescription">
+                    Классическое североиндийское блюдо из шпината и домашнего сыра панир. 
+                    Нежный сливочный вкус со специями. Подаётся с рисом или чапати.
+                </p>
+                
+                <!-- Meta -->
+                <div class="flex flex-wrap gap-4 text-sm">
+                    <div class="flex items-center gap-2">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 opacity-40" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                        </svg>
+                        <span><strong>40</strong> <span data-i18n="minutes">мин</span></span>
+                    </div>
+                    <div class="flex items-center gap-2">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 opacity-40" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 6l3 1m0 0l-3 9a5.002 5.002 0 006.001 0M6 7l3 9M6 7l6-2m6 2l3-1m-3 1l-3 9a5.002 5.002 0 006.001 0M18 7l3 9m-3-9l-6-2m0-2v2m0 16V5m0 16H9m3 0h3" />
+                        </svg>
+                        <span><span data-i18n="output">Выход</span>: <strong>5 кг</strong></span>
+                    </div>
+                    <div class="flex items-center gap-2">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 opacity-40" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
+                        </svg>
+                        <span><span data-i18n="portion">Порция</span>: <strong>150 г</strong></span>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Ingredients + Instructions Grid -->
+        <div class="flex flex-col lg:flex-row gap-8">
+            
+            <!-- Left Column: Ingredients -->
+            <section class="lg:w-1/2">
+                <div class="flex items-center justify-between gap-4 mb-4 h-10">
+                    <h2 class="text-xl font-bold" data-i18n="ingredients_title">Ингредиенты</h2>
+                    
+                    <!-- Calculator -->
+                    <div class="flex items-center gap-2 bg-base-200 rounded-lg px-3 py-2 text-sm">
+                        <span data-i18n="calc_for">на</span>
+                        <input type="number" 
+                               id="portionsInput" 
+                               value="30" 
+                               min="1" 
+                               class="input input-bordered input-sm w-14 text-center font-bold" />
+                        <span data-i18n="calc_persons">чел.</span>
+                        <span class="opacity-40">×</span>
+                        <input type="number" 
+                               id="portionSizeInput" 
+                               value="150" 
+                               min="1" 
+                               class="input input-bordered input-sm w-14 text-center font-bold" />
+                        <span data-i18n="calc_unit">г</span>
+                    </div>
+                </div>
+                
+                <!-- Ingredients Table -->
+                <div>
+                    <table class="table w-full">
+                        <thead>
+                            <tr class="border-b border-base-200">
+                                <th class="bg-transparent" data-i18n="ingredient">Продукт</th>
+                                <th class="bg-transparent text-right" data-i18n="calculated_amount">Количество</th>
+                            </tr>
+                        </thead>
+                        <tbody id="ingredientsTable">
+                            <!-- Will be generated by JS -->
+                        </tbody>
+                    </table>
+                </div>
+            </section>
+
+            <!-- Right Column: Instructions -->
+            <section class="lg:w-1/2">
+                <div class="h-10 flex items-center mb-4">
+                    <h2 class="text-xl font-bold" data-i18n="instructions_title">Приготовление</h2>
+                </div>
+                
+                <div class="space-y-4" id="instructionsList">
+                    <!-- Will be generated by JS -->
+                </div>
+            </section>
+            
+        </div>
+
+    </main>
+
+    <!-- Footer -->
+    <footer class="bg-base-100 border-t border-base-200 mt-12">
+        <div class="container mx-auto px-4 py-6">
+            <div class="flex flex-col sm:flex-row justify-between items-center gap-4">
+                <!-- Footer Navigation -->
+                <nav class="flex gap-6">
+                    <a href="kitchen-menu.html" class="text-sm font-medium uppercase tracking-wide opacity-60 hover:opacity-100" data-i18n="nav_menu">Меню</a>
+                    <a href="kitchen-recipes.html" class="text-sm font-medium uppercase tracking-wide text-primary" data-i18n="nav_recipes">Рецепты</a>
+                    <a href="kitchen-products.html" class="text-sm font-medium uppercase tracking-wide opacity-60 hover:opacity-100" data-i18n="nav_products">Продукты</a>
+                    <a href="kitchen-stock.html" class="text-sm font-medium uppercase tracking-wide opacity-60 hover:opacity-100" data-i18n="nav_stock">Склад</a>
+                    <a href="kitchen-retreats.html" class="text-sm font-medium uppercase tracking-wide opacity-60 hover:opacity-100">Ретриты</a>
+                    <a href="kitchen-team.html" class="text-sm font-medium uppercase tracking-wide opacity-60 hover:opacity-100">Команда</a>
+                </nav>
+                
+                <!-- Back to top -->
+                <button onclick="window.scrollTo({top: 0, behavior: 'smooth'})" class="btn btn-ghost btn-sm gap-1 opacity-60 hover:opacity-100">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 15l7-7 7 7" />
+                    </svg>
+                    <span data-i18n="back_to_top">Наверх</span>
+                </button>
+            </div>
+            
+            <div class="text-center mt-4 text-xs opacity-40">
+                ШРСК · Шри Рупа Сева Кунджа
+            </div>
+        </div>
+    </footer>
+
+    <script>
+        // ==================== DATA ====================
+        const recipe = {
+            id: 17,
+            name_ru: "Палак Панир",
+            name_en: "Palak Paneer",
+            name_hi: "पालक पनीर",
+            translit: "Pālak Panīr",
+            category: "main",
+            time: 40,
+            output: 5,
+            output_unit: "кг",
+            portion: 150,
+            portion_unit: "г",
+            description_ru: "Классическое североиндийское блюдо из шпината и домашнего сыра панир. Нежный сливочный вкус со специями. Подаётся с рисом или чапати.",
+            description_en: "Classic North Indian dish made with spinach and homemade paneer cheese. Delicate creamy taste with spices. Served with rice or chapati.",
+            description_hi: "पालक और घर के बने पनीर से बना उत्तर भारतीय व्यंजन। मसालों के साथ नरम मलाईदार स्वाद। चावल या चपाती के साथ परोसें।",
+            ingredients: [
+                { id: 11, name_ru: "Шпинат", name_en: "Spinach", name_hi: "पालक", translit: "Pālak", amount: 2, unit: "кг", unit_en: "kg", waste: 30 },
+                { id: 57, name_ru: "Панир", name_en: "Paneer", name_hi: "पनीर", translit: "Panīr", amount: 1, unit: "кг", unit_en: "kg", waste: 0 },
+                { id: 5, name_ru: "Помидоры", name_en: "Tomatoes", name_hi: "टमाटर", translit: "Ṭamāṭar", amount: 0.3, unit: "кг", unit_en: "kg", waste: 5 },
+                { id: 20, name_ru: "Имбирь", name_en: "Ginger", name_hi: "अदरक", translit: "Adrak", amount: 0.03, unit: "кг", unit_en: "kg", waste: 15 },
+                { id: 21, name_ru: "Перец чили зелёный", name_en: "Green Chili", name_hi: "हरी मिर्च", translit: "Harī Mirch", amount: 0.03, unit: "кг", unit_en: "kg", waste: 5 },
+                { id: 60, name_ru: "Сливки", name_en: "Cream", name_hi: "क्रीम", translit: "Krīm", amount: 0.2, unit: "л", unit_en: "L", waste: 0 },
+                { id: 58, name_ru: "Гхи", name_en: "Ghee", name_hi: "घी", translit: "Ghī", amount: 0.1, unit: "кг", unit_en: "kg", waste: 0 },
+                { id: 80, name_ru: "Кумин (зира)", name_en: "Cumin", name_hi: "जीरा", translit: "Jīrā", amount: 15, unit: "г", unit_en: "g", waste: 0 },
+                { id: 83, name_ru: "Гарам масала", name_en: "Garam Masala", name_hi: "गरम मसाला", translit: "Garam Masālā", amount: 10, unit: "г", unit_en: "g", waste: 0 },
+                { id: 77, name_ru: "Соль", name_en: "Salt", name_hi: "नमक", translit: "Namak", amount: 30, unit: "г", unit_en: "g", waste: 0 },
+                { id: 107, name_ru: "Кешью", name_en: "Cashews", name_hi: "काजू", translit: "Kājū", amount: 0.05, unit: "кг", unit_en: "kg", waste: 0 },
+            ],
+            instructions_ru: [
+                "Шпинат тщательно промыть, бланшировать в кипящей воде 2-3 минуты. Откинуть на дуршлаг и сразу опустить в холодную воду.",
+                "Измельчить шпинат в блендере до однородной пасты. Отложить.",
+                "Панир нарезать кубиками 2x2 см. Слегка обжарить в гхи до золотистой корочки. Отложить.",
+                "В той же сковороде добавить ещё гхи, обжарить кумин до потрескивания.",
+                "Добавить мелко нарезанные помидоры, имбирь и чили. Тушить 5 минут до мягкости.",
+                "Добавить шпинатное пюре, гарам масалу и соль. Тушить 10 минут на среднем огне.",
+                "Добавить сливки и кешью, перемешать. Готовить ещё 3 минуты.",
+                "Аккуратно добавить обжаренный панир, перемешать. Прогреть 2 минуты.",
+                "Подавать горячим с рисом басмати или свежими чапати."
+            ],
+            instructions_en: [
+                "Wash spinach thoroughly, blanch in boiling water for 2-3 minutes. Drain and immediately plunge into cold water.",
+                "Blend spinach into a smooth paste. Set aside.",
+                "Cut paneer into 2x2 cm cubes. Lightly fry in ghee until golden. Set aside.",
+                "In the same pan, add more ghee, fry cumin until it crackles.",
+                "Add finely chopped tomatoes, ginger and chili. Sauté for 5 minutes until soft.",
+                "Add spinach puree, garam masala and salt. Cook for 10 minutes on medium heat.",
+                "Add cream and cashews, stir. Cook for another 3 minutes.",
+                "Gently add fried paneer, mix. Heat for 2 minutes.",
+                "Serve hot with basmati rice or fresh chapati."
+            ],
+            instructions_hi: [
+                "पालक को अच्छी तरह धोएं, उबलते पानी में 2-3 मिनट के लिए ब्लांच करें। छान लें और तुरंत ठंडे पानी में डालें।",
+                "पालक को ब्लेंडर में पीसकर पेस्ट बना लें। अलग रख दें।",
+                "पनीर को 2x2 सेमी के टुकड़ों में काटें। घी में हल्का सुनहरा होने तक भूनें। अलग रख दें।",
+                "उसी पैन में और घी डालें, जीरा चटकने तक भूनें।",
+                "बारीक कटे टमाटर, अदरक और मिर्च डालें। 5 मिनट तक नरम होने तक पकाएं।",
+                "पालक प्यूरी, गरम मसाला और नमक डालें। मध्यम आंच पर 10 मिनट पकाएं।",
+                "क्रीम और काजू डालें, मिलाएं। 3 मिनट और पकाएं।",
+                "धीरे से तला हुआ पनीर डालें, मिलाएं। 2 मिनट गरम करें।",
+                "बासमती चावल या ताज़ी चपाती के साथ गरमागरम परोसें।"
+            ]
+        };
+
+        // ==================== TRANSLATIONS ====================
+        const translations = {
+            ru: {
+                back_to_recipes: "Назад к рецептам",
+                minutes: "мин",
+                output: "Выход",
+                portion: "Порция",
+                ingredients_title: "Ингредиенты",
+                ingredient: "Продукт",
+                calculated_amount: "Количество",
+                instructions_title: "Приготовление",
+                print_recipe: "Печать",
+                edit_recipe: "Редактировать",
+                step: "Шаг",
+                calc_for: "на",
+                calc_persons: "чел.",
+                calc_unit: "г",
+                nav_menu: "Меню",
+                nav_recipes: "Рецепты",
+                nav_products: "Продукты",
+                nav_stock: "Склад",
+                kitchen_main: "Основная кухня",
+                kitchen_cafe: "Кухня кафе",
+                kitchen_guest: "Гостевая кухня",
+                back_to_top: "Наверх",
+                category_main: "Основное",
+            },
+            en: {
+                back_to_recipes: "Back to recipes",
+                minutes: "min",
+                output: "Output",
+                portion: "Portion",
+                ingredients_title: "Ingredients",
+                ingredient: "Ingredient",
+                calculated_amount: "Amount",
+                instructions_title: "Instructions",
+                print_recipe: "Print",
+                edit_recipe: "Edit",
+                step: "Step",
+                calc_for: "for",
+                calc_persons: "ppl",
+                calc_unit: "g",
+                nav_menu: "Menu",
+                nav_recipes: "Recipes",
+                nav_products: "Products",
+                nav_stock: "Stock",
+                kitchen_main: "Main Kitchen",
+                kitchen_cafe: "Café Kitchen",
+                kitchen_guest: "Guest Kitchen",
+                back_to_top: "Back to top",
+                category_main: "Main",
+            },
+            hi: {
+                back_to_recipes: "व्यंजनों पर वापस",
+                minutes: "मिनट",
+                output: "उत्पादन",
+                portion: "भाग",
+                ingredients_title: "सामग्री",
+                ingredient: "सामग्री",
+                calculated_amount: "मात्रा",
+                instructions_title: "विधि",
+                print_recipe: "प्रिंट",
+                edit_recipe: "संपादित करें",
+                step: "चरण",
+                calc_for: "",
+                calc_persons: "लोग",
+                calc_unit: "ग्राम",
+                nav_menu: "मेन्यू",
+                nav_recipes: "व्यंजन",
+                nav_products: "सामग्री",
+                nav_stock: "भंडार",
+                kitchen_main: "मुख्य रसोई",
+                kitchen_cafe: "कैफे रसोई",
+                kitchen_guest: "अतिथि रसोई",
+                back_to_top: "ऊपर जाएं",
+                category_main: "मुख्य",
+            }
+        };
+
+        // ==================== STATE ====================
+        let currentLang = 'ru';
+        let portions = 30;
+        let portionSize = 150;
+
+        // ==================== FUNCTIONS ====================
+        function getSecondaryLangs(lang) {
+            if (lang === 'ru') return ['en', 'hi'];
+            if (lang === 'en') return ['ru', 'hi'];
+            if (lang === 'hi') return ['en', 'ru'];
+            return ['en', 'hi'];
+        }
+
+        function formatAmount(amount) {
+            if (amount >= 1) {
+                return Math.round(amount * 10) / 10;
+            } else {
+                return Math.round(amount * 100) / 100;
+            }
+        }
+
+        function calculateAmount(baseAmount, unit) {
+            // Base recipe makes 5kg (5000g)
+            // For N persons with X grams each: baseAmount * (N * X / 5000)
+            const multiplier = (portions * portionSize) / (recipe.output * 1000);
+            return formatAmount(baseAmount * multiplier);
+        }
+
+        function renderIngredients() {
+            const table = document.getElementById('ingredientsTable');
+            const t = translations[currentLang];
+            
+            table.innerHTML = recipe.ingredients.map((ing, index) => {
+                const name = currentLang === 'ru' ? ing.name_ru : 
+                             currentLang === 'en' ? ing.name_en : ing.name_hi;
+                
+                // Secondary line: English / Hindi translit (or Russian / Hindi translit for EN view)
+                let subName;
+                if (currentLang === 'ru') {
+                    subName = `${ing.name_en} / ${ing.translit}`;
+                } else if (currentLang === 'en') {
+                    subName = `${ing.name_ru} / ${ing.translit}`;
+                } else {
+                    subName = `${ing.name_en} / ${ing.name_ru}`;
+                }
+                
+                const unit = currentLang === 'en' ? ing.unit_en : ing.unit;
+                const calculatedAmount = calculateAmount(ing.amount, ing.unit);
+                const zebraClass = index % 2 === 0 ? 'bg-base-100' : 'bg-base-200/50';
+                
+                return `
+                    <tr class="${zebraClass}">
+                        <td class="py-3">
+                            <div class="font-medium">${name}</div>
+                            <div class="text-xs opacity-50">${subName}</div>
+                        </td>
+                        <td class="text-right py-3">
+                            <span class="font-bold text-lg">${calculatedAmount}</span>
+                            <span class="text-sm opacity-60 ml-1">${unit}</span>
+                        </td>
+                    </tr>
+                `;
+            }).join('');
+        }
+
+        function renderInstructions() {
+            const list = document.getElementById('instructionsList');
+            const t = translations[currentLang];
+            const instructions = currentLang === 'ru' ? recipe.instructions_ru :
+                                 currentLang === 'en' ? recipe.instructions_en :
+                                 recipe.instructions_hi;
+            
+            list.innerHTML = instructions.map((step, index) => `
+                <div class="flex gap-4">
+                    <div class="flex-shrink-0 w-6 text-lg font-bold opacity-60">
+                        ${index + 1}.
+                    </div>
+                    <div class="flex-1">
+                        <p class="leading-relaxed">${step}</p>
+                    </div>
+                </div>
+            `).join('');
+        }
+
+        function renderRecipeHeader() {
+            // Main name based on current language
+            const mainName = currentLang === 'ru' ? recipe.name_ru :
+                             currentLang === 'en' ? recipe.name_en : recipe.name_hi;
+            document.getElementById('recipeName').textContent = mainName;
+            
+            // Secondary line format:
+            // RU view: "Palak Paneer / Pālak Panīr" (English / Hindi translit)
+            // EN view: "Палак Панир / Pālak Panīr" (Russian / Hindi translit)  
+            // HI view: "Palak Paneer / Палак Панир" (English / Russian)
+            let subName;
+            if (currentLang === 'ru') {
+                subName = `${recipe.name_en} / ${recipe.translit}`;
+            } else if (currentLang === 'en') {
+                subName = `${recipe.name_ru} / ${recipe.translit}`;
+            } else {
+                subName = `${recipe.name_en} / ${recipe.name_ru}`;
+            }
+            document.getElementById('recipeNameSub').textContent = subName;
+            
+            // Description
+            const description = currentLang === 'ru' ? recipe.description_ru :
+                                currentLang === 'en' ? recipe.description_en : recipe.description_hi;
+            document.getElementById('recipeDescription').textContent = description;
+        }
+
+        function updateUILanguage() {
+            const t = translations[currentLang];
+            
+            document.querySelectorAll('[data-i18n]').forEach(el => {
+                const key = el.getAttribute('data-i18n');
+                if (t[key]) el.textContent = t[key];
+            });
+            
+            // Update kitchen dropdown
+            const activeKitchen = document.querySelector('.kitchen-option.active');
+            if (activeKitchen) {
+                const kitchen = activeKitchen.dataset.kitchen;
+                const kitchenNames = { main: t.kitchen_main, cafe: t.kitchen_cafe, guest: t.kitchen_guest };
+                document.getElementById('currentKitchen').textContent = kitchenNames[kitchen];
+                document.querySelectorAll('.kitchen-option').forEach(option => {
+                    option.textContent = kitchenNames[option.dataset.kitchen];
+                });
+            }
+        }
+
+        function setLanguage(lang) {
+            currentLang = lang;
+            
+            document.querySelectorAll('.lang-btn').forEach(btn => {
+                btn.classList.remove('btn-primary', 'active');
+                if (btn.dataset.lang === lang) {
+                    btn.classList.add('btn-primary', 'active');
+                }
+            });
+
+            updateUILanguage();
+            renderRecipeHeader();
+            renderIngredients();
+            renderInstructions();
+        }
+
+        // ==================== EVENT LISTENERS ====================
+        document.querySelectorAll('.lang-btn').forEach(btn => {
+            btn.addEventListener('click', () => setLanguage(btn.dataset.lang));
+        });
+
+        document.getElementById('portionsInput').addEventListener('input', (e) => {
+            portions = parseInt(e.target.value) || 1;
+            renderIngredients();
+        });
+
+        document.getElementById('portionSizeInput').addEventListener('input', (e) => {
+            portionSize = parseInt(e.target.value) || 1;
+            renderIngredients();
+        });
+
+        document.querySelectorAll('.kitchen-option').forEach(option => {
+            option.addEventListener('click', (e) => {
+                e.preventDefault();
+                const kitchen = option.dataset.kitchen;
+                const t = translations[currentLang];
+                
+                document.querySelectorAll('.kitchen-option').forEach(o => o.classList.remove('active'));
+                option.classList.add('active');
+                
+                const kitchenNames = { main: t.kitchen_main, cafe: t.kitchen_cafe, guest: t.kitchen_guest };
+                document.getElementById('currentKitchen').textContent = kitchenNames[kitchen];
+                document.activeElement.blur();
+            });
+        });
+
+        // ==================== INIT ====================
+        renderRecipeHeader();
+        renderIngredients();
+        renderInstructions();
+    </script>
+
+    <script>
+        const DESKTOP_BP = 1200;
+        
+        // Config
+        const locations = {
+            main:  { name: 'Основная кухня', color: 'var(--color-main)' },
+            cafe:  { name: 'Кухня кафе',     color: 'var(--color-cafe)' },
+            guest: { name: 'Гостевая кухня', color: 'var(--color-guest)' }
+        };
+        
+        const menuConfig = [
+            { id: 'kitchen',  label: 'Кухня',     items: [
+                { name: 'Меню', href: 'kitchen-menu.html' },
+                { name: 'Рецепты', href: 'kitchen-recipes.html' },
+                { name: 'Продукты', href: 'kitchen-products.html' }
+            ]},
+            { id: 'stock',    label: 'Склад',     items: [
+                { name: 'Остатки', href: 'kitchen-stock.html#stock' },
+                { name: 'Заявки', href: 'kitchen-stock.html#requests' },
+                { name: 'Получить', href: 'kitchen-stock.html#receipts' },
+                { name: 'Выдать', href: 'kitchen-stock.html#issues' },
+                { name: 'Настройки', href: 'kitchen-stock.html#settings' }
+            ]},
+            { id: null,       label: 'Ретриты',   href: 'kitchen-retreats.html', items: null },
+            { id: 'team',     label: 'Команда',   items: [
+                { name: 'Вайшнавы', href: 'kitchen-team.html' },
+                { name: 'Проживание', href: 'kitchen-team.html#housing' }
+            ]},
+            { id: 'settings', label: 'Настройки', items: [
+                { name: 'Общие', href: '#' },
+                { name: 'Пользователи', href: '#' },
+                { name: 'Праздники', href: '#' }
+            ]}
+        ];
+        
+        let currentLocation = 'main';
+        
+        // Utils
+        const $ = (sel, ctx = document) => ctx.querySelector(sel);
+        const $$ = (sel, ctx = document) => ctx.querySelectorAll(sel);
+        const setColor = color => document.documentElement.style.setProperty('--current-color', color);
+        
+        // Build location dropdown options
+        function buildLocationOptions() {
+            const html = Object.entries(locations).map(([key, loc]) => 
+                `<button class="w-full text-left px-4 py-2 hover:bg-base-200 text-base-content ${key === currentLocation ? 'font-medium' : ''}" data-loc="${key}">${loc.name}</button>`
+            ).join('');
+            $$('.location-dropdown').forEach(el => el.innerHTML = html);
+        }
+        
+        // Build mobile menu
+        function buildMobileMenu() {
+            const nav = $('#mobileNav');
+            nav.innerHTML = menuConfig.map(({ id, label, href, items }) => {
+                if (!items) return `<a href="${href || '#'}" class="block px-4 py-3 text-base font-semibold uppercase tracking-wide hover:bg-base-200 rounded-lg">${label}</a>`;
+                return `
+                    <div class="mobile-nav-item" data-has-submenu>
+                        <button class="w-full flex items-center px-4 py-3 text-base font-semibold uppercase tracking-wide hover:bg-base-200 rounded-lg">
+                            ${label}
+                            <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 ml-2 transition-transform arrow-icon" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                                <path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7" />
+                            </svg>
+                        </button>
+                        <div class="submenu pl-4">
+                            ${items.map(item => `<a href="${item.href}" class="block px-4 py-3 text-base font-medium rounded-lg hover:bg-base-200">${item.name}</a>`).join('')}
+                        </div>
+                    </div>`;
+            }).join('');
+            
+            // Bind accordion
+            $$('.mobile-nav-item[data-has-submenu] button', nav).forEach(btn => {
+                btn.addEventListener('click', () => {
+                    const item = btn.closest('.mobile-nav-item');
+                    const wasOpen = item.classList.contains('open');
+                    $$('.mobile-nav-item.open', nav).forEach(i => i.classList.remove('open'));
+                    if (!wasOpen) item.classList.add('open');
+                });
+            });
+        }
+        
+        // Build desktop submenu bar
+        function buildSubmenuBar() {
+            const bar = $('#submenuBar');
+            bar.innerHTML = menuConfig.filter(m => m.items).map(({ id, items }) => `
+                <nav class="flex items-center submenu-group ${id !== 'kitchen' ? 'hidden' : ''}" data-group="${id}">
+                    ${items.map(item => `<a href="${item.href}" class="submenu-link px-5 py-2 text-base font-semibold tracking-wide uppercase text-white/70 hover:text-white">${item.name}</a>`).join('')}
+                </nav>
+            `).join('');
+            
+            // Bind submenu clicks
+            $$('.submenu-link', bar).forEach(link => {
+                link.addEventListener('click', () => {
+                    const group = link.closest('.submenu-group');
+                    $$('.submenu-link', group).forEach(l => l.classList.remove('active'));
+                    link.classList.add('active');
+                    // Allow navigation - don't prevent default
+                });
+            });
+        }
+        
+        // Align submenu under КУХНЯ
+        function alignSubmenu() {
+            const kitchenNav = $('.nav-link[data-submenu="kitchen"]');
+            const activeGroup = $('.submenu-group:not(.hidden)');
+            const firstLink = activeGroup?.querySelector('.submenu-link');
+            if (!kitchenNav || !firstLink) return;
+            
+            $$('.submenu-link', activeGroup).forEach(l => l.style.marginLeft = '0');
+            const navCenter = kitchenNav.getBoundingClientRect().left + kitchenNav.offsetWidth / 2;
+            firstLink.style.marginLeft = (navCenter - firstLink.offsetWidth / 2) + 'px';
+        }
+        
+        // Location selector
+        function toggleLocation(selector) {
+            const dropdown = $('.location-dropdown', selector);
+            const arrow = $('.location-arrow', selector);
+            dropdown.classList.toggle('hidden');
+            arrow.classList.toggle('rotate-180');
+        }
+        
+        function selectLocation(key) {
+            currentLocation = key;
+            const loc = locations[key];
+            
+            $$('.location-name').forEach(el => el.textContent = loc.name);
+            $$('.location-dropdown').forEach(d => d.classList.add('hidden'));
+            $$('.location-arrow').forEach(a => a.classList.remove('rotate-180'));
+            $$('.location-dropdown button').forEach(btn => {
+                btn.classList.toggle('font-medium', btn.dataset.loc === key);
+            });
+            
+            setColor(loc.color);
+        }
+        
+        // Init
+        buildLocationOptions();
+        buildMobileMenu();
+        buildSubmenuBar();
+        
+        // Mobile menu toggle
+        $('#mobileMenuBtn').addEventListener('click', () => {
+            $('#mobileMenu').classList.toggle('open');
+            $('.menu-icon').classList.toggle('hidden');
+            $('.close-icon').classList.toggle('hidden');
+        });
+        
+        // Location selector clicks
+        $$('[data-toggle="location"]').forEach(btn => {
+            btn.addEventListener('click', () => toggleLocation(btn.closest('.location-selector')));
+        });
+        
+        // Global click handler
+        document.addEventListener('click', e => {
+            if (e.target.dataset.loc) {
+                selectLocation(e.target.dataset.loc);
+            } else if (!e.target.closest('.location-selector')) {
+                $$('.location-dropdown').forEach(d => d.classList.add('hidden'));
+                $$('.location-arrow').forEach(a => a.classList.remove('rotate-180'));
+            }
+        });
+        
+        // Desktop nav clicks
+        $$('.nav-link').forEach(link => {
+            link.addEventListener('click', e => {
+                e.preventDefault();
+                $$('.nav-link').forEach(l => l.classList.remove('active'));
+                link.classList.add('active');
+                
+                const submenuId = link.dataset.submenu;
+                
+                $$('.submenu-group').forEach(g => g.classList.add('hidden'));
+                
+                if (submenuId && innerWidth >= DESKTOP_BP) {
+                    $('#submenuBar').classList.remove('hidden');
+                    const group = $(`.submenu-group[data-group="${submenuId}"]`);
+                    if (group) {
+                        group.classList.remove('hidden');
+                        $$('.submenu-link', group).forEach(l => l.classList.remove('active'));
+                        $('.submenu-link', group)?.classList.add('active');
+                    }
+                    requestAnimationFrame(alignSubmenu);
+                } else {
+                    $('#submenuBar').classList.add('hidden');
+                }
+            });
+        });
+        
+        // Language switcher
+        $$('.lang-btn').forEach(btn => {
+            btn.addEventListener('click', () => {
+                const lang = btn.dataset.lang;
+                $$('.lang-btn').forEach(b => b.classList.remove('active'));
+                $$(`.lang-btn[data-lang="${lang}"]`).forEach(b => b.classList.add('active'));
+            });
+        });
+        
+        addEventListener('resize', alignSubmenu);
+    </script>
+</body>
+</html>

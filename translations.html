@@ -1,0 +1,465 @@
+<!DOCTYPE html>
+<html lang="ru" data-theme="light">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Переводы — ШРСК</title>
+    <link href="https://cdn.jsdelivr.net/npm/daisyui@4.12.14/dist/full.min.css" rel="stylesheet" />
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script>tailwind.config = { theme: { extend: { screens: { 'desktop': '1200px' } } } }</script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans:wght@400;500;600;700&family=Noto+Sans+Devanagari:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="css/common.css">
+    <style>
+        /* Стили специфичные для страницы переводов */
+        .edit-cell {
+            transition: all 0.15s ease;
+        }
+        .edit-cell:hover {
+            background-color: rgba(0,0,0,0.03);
+        }
+        .edit-input {
+            background: transparent;
+            border: none;
+            width: 100%;
+            padding: 0.5rem;
+            outline: none;
+        }
+        .edit-input:focus {
+            background: white;
+            box-shadow: 0 0 0 2px var(--current-color);
+            border-radius: 4px;
+        }
+        .saving {
+            opacity: 0.5;
+            pointer-events: none;
+        }
+        .saved {
+            animation: flash-green 0.5s ease;
+        }
+        @keyframes flash-green {
+            0%, 100% { background-color: transparent; }
+            50% { background-color: rgba(34, 197, 94, 0.2); }
+        }
+        .context-text {
+            font-size: 0.75rem;
+            color: #999;
+        }
+        .translate-btn {
+            padding: 2px 8px;
+            font-size: 11px;
+            border-radius: 4px;
+            background: #e5e7eb;
+            color: #6b7280;
+            cursor: pointer;
+            transition: all 0.15s;
+        }
+        .translate-btn:hover {
+            background: var(--current-color);
+            color: white;
+        }
+        .translate-btn.loading {
+            opacity: 0.5;
+            pointer-events: none;
+        }
+    </style>
+</head>
+<body class="bg-base-200 min-h-screen flex flex-col">
+
+    <!-- Хедер (вставляется из layout.js) -->
+    <div id="header-placeholder"></div>
+
+    <!-- ==================== MAIN CONTENT ==================== -->
+    <main class="container mx-auto px-4 py-6 flex-1">
+
+        <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6">
+            <div>
+                <h1 class="text-2xl font-bold" data-i18n="translations_title">Переводы интерфейса</h1>
+                <p class="text-sm opacity-60" id="translationsCount">Загрузка...</p>
+            </div>
+            <button class="btn btn-primary gap-2" onclick="openAddModal()">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" />
+                </svg>
+                <span data-i18n="add_translation">Добавить перевод</span>
+            </button>
+        </div>
+
+        <!-- Search & Filter -->
+        <div class="flex flex-col sm:flex-row gap-4 mb-6">
+            <div class="flex-1 max-w-md relative">
+                <input type="text" id="searchInput" data-i18n-placeholder="search_by_key" placeholder="Поиск по ключу или тексту..." class="input input-bordered w-full pr-10" />
+                <button type="button" id="clearSearch" class="absolute right-3 top-1/2 -translate-y-1/2 text-base-content/40 hover:text-base-content hidden">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+                    </svg>
+                </button>
+            </div>
+            <select class="select select-bordered" id="pageFilter">
+                <option value="">Все страницы</option>
+            </select>
+        </div>
+
+        <!-- Info -->
+        <div class="alert bg-base-300 mb-6">
+            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" class="stroke-current shrink-0 w-6 h-6"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+            <span data-i18n="translations_info">Изменения сохраняются автоматически при потере фокуса поля. Нажмите Tab или кликните вне поля.</span>
+        </div>
+
+        <!-- Translations Table -->
+        <div class="bg-base-100 rounded-xl shadow-sm overflow-hidden">
+            <div class="overflow-x-auto">
+                <table class="table w-full">
+                    <thead>
+                        <tr class="border-b border-base-200">
+                            <th class="bg-base-100 w-48" data-i18n="col_key">Ключ</th>
+                            <th class="bg-base-100" data-i18n="col_russian">Русский</th>
+                            <th class="bg-base-100" data-i18n="col_english">English</th>
+                            <th class="bg-base-100" data-i18n="col_hindi">हिन्दी</th>
+                            <th class="bg-base-100 w-20"></th>
+                        </tr>
+                    </thead>
+                    <tbody id="translationsTable">
+                        <tr><td colspan="5" class="text-center py-8 opacity-50">Загрузка...</td></tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+    </main>
+
+    <!-- Футер (вставляется из layout.js) -->
+    <div id="footer-placeholder"></div>
+
+    <!-- Add Modal -->
+    <dialog id="addModal" class="modal">
+        <div class="modal-box relative">
+            <button type="button" class="btn btn-sm btn-circle btn-ghost absolute right-2 top-2" onclick="addModal.close()">✕</button>
+            <h3 class="font-bold text-lg mb-4" data-i18n="add_translation">Добавить перевод</h3>
+            <form id="addForm" class="space-y-4">
+                <div>
+                    <label class="label"><span class="label-text font-medium" data-i18n="col_key">Ключ</span></label>
+                    <input type="text" name="key" class="input input-bordered w-full" placeholder="например: btn_submit" required />
+                    <p class="text-xs opacity-50 mt-1" data-i18n="key_hint">Уникальный идентификатор, латиница и подчёркивания</p>
+                </div>
+                <div>
+                    <label class="label"><span class="label-text font-medium" data-i18n="col_russian">Русский</span></label>
+                    <input type="text" name="ru" class="input input-bordered w-full" required />
+                </div>
+                <div>
+                    <label class="label">
+                        <span class="label-text font-medium" data-i18n="col_english">English</span>
+                        <button type="button" class="translate-btn" onclick="autoTranslate('ru', 'en', 'ru', 'en', this)">🌐 Auto</button>
+                    </label>
+                    <input type="text" name="en" class="input input-bordered w-full" required />
+                </div>
+                <div>
+                    <label class="label">
+                        <span class="label-text font-medium" data-i18n="col_hindi">हिन्दी</span>
+                        <button type="button" class="translate-btn" onclick="autoTranslate('ru', 'hi', 'ru', 'hi', this)">🌐 Auto</button>
+                    </label>
+                    <input type="text" name="hi" class="input input-bordered w-full" required />
+                </div>
+                <div>
+                    <label class="label"><span class="label-text font-medium" data-i18n="col_page">Страница</span></label>
+                    <select name="page" id="modalPageSelect" class="select select-bordered w-full" required></select>
+                </div>
+                <div>
+                    <label class="label"><span class="label-text font-medium" data-i18n="context">Контекст</span> <span class="text-xs opacity-50">(необязательно)</span></label>
+                    <input type="text" name="context" class="input input-bordered w-full" placeholder="Уточнение где используется" />
+                </div>
+                <div class="modal-action">
+                    <button type="button" class="btn btn-ghost" onclick="addModal.close()" data-i18n="cancel">Отмена</button>
+                    <button type="submit" class="btn btn-primary" data-i18n="save">Сохранить</button>
+                </div>
+            </form>
+        </div>
+        <form method="dialog" class="modal-backdrop"><button>close</button></form>
+    </dialog>
+
+    <script src="js/layout.js"></script>
+    <script>
+        // ==================== STATE ====================
+        let translations = [];
+        let searchQuery = '';
+        let pageFilter = '';
+
+        // Алиасы для удобства
+        const t = key => Layout.t(key);
+        const addForm = () => document.getElementById('addForm');
+
+        // ==================== AUTO-TRANSLATE ====================
+        async function autoTranslate(fromField, toField, fromLang, toLang, btn) {
+            const fromEl = addForm()[fromField];
+            const toEl = addForm()[toField];
+            if (!fromEl || !toEl) return;
+
+            const text = fromEl.value.trim();
+            if (!text) {
+                toEl.focus();
+                return;
+            }
+
+            btn.classList.add('loading');
+            btn.textContent = '...';
+
+            try {
+                const translated = await Layout.translate(text, fromLang, toLang);
+                toEl.value = translated;
+            } catch (e) {
+                console.error('Translation error:', e);
+            }
+
+            btn.classList.remove('loading');
+            btn.textContent = '🌐 Auto';
+        }
+
+        // Название страницы из переводов (page_common, page_navigation, etc.)
+        function getPageName(slug) {
+            const key = 'page_' + slug;
+            const translated = t(key);
+            return translated !== key ? translated : slug;
+        }
+
+        // Формы склонения для счётчика переводов
+        const TRANSLATION_FORMS = {
+            ru: ['перевод', 'перевода', 'переводов'],
+            en: ['translation', 'translations'],
+            hi: 'अनुवाद'
+        };
+
+        // ==================== DATA ====================
+        async function loadTranslations() {
+            const { data, error } = await Layout.db
+                .from('translations')
+                .select('*')
+                .order('page')
+                .order('key');
+
+            if (error) {
+                console.error('Error:', error);
+                return;
+            }
+
+            translations = data;
+            buildPageFilter();
+            renderTable();
+        }
+
+        function buildPageFilter() {
+            const pages = [...new Set(translations.map(t => t.page).filter(Boolean))];
+            const select = Layout.$('#pageFilter');
+            select.innerHTML = `<option value="">${t('all_pages')}</option>` +
+                pages.map(p => `<option value="${p}">${getPageName(p)}</option>`).join('');
+        }
+
+        function renderTable() {
+            const table = Layout.$('#translationsTable');
+            const countEl = Layout.$('#translationsCount');
+
+            const filtered = translations.filter(row => {
+                const matchesSearch = searchQuery === '' ||
+                    row.key.toLowerCase().includes(searchQuery.toLowerCase()) ||
+                    row.ru.toLowerCase().includes(searchQuery.toLowerCase()) ||
+                    row.en.toLowerCase().includes(searchQuery.toLowerCase()) ||
+                    row.hi.includes(searchQuery);
+                const matchesPage = pageFilter === '' || row.page === pageFilter;
+                return matchesSearch && matchesPage;
+            });
+
+            countEl.textContent = Layout.pluralize(filtered.length, TRANSLATION_FORMS);
+
+            if (filtered.length === 0) {
+                table.innerHTML = `<tr><td colspan="5" class="text-center py-8 opacity-50">${t('no_translations')}</td></tr>`;
+                return;
+            }
+
+            table.innerHTML = filtered.map(row => `
+                <tr class="border-b border-base-200" data-id="${row.id}">
+                    <td class="align-top">
+                        <code class="text-sm bg-base-200 px-2 py-1 rounded">${row.key}</code>
+                        ${row.page ? `<div class="context-text mt-1">${getPageName(row.page)}</div>` : ''}
+                    </td>
+                    <td class="edit-cell p-0">
+                        <input type="text" class="edit-input" value="${escapeHtml(row.ru)}" data-field="ru" data-id="${row.id}" />
+                    </td>
+                    <td class="edit-cell p-0">
+                        <input type="text" class="edit-input" value="${escapeHtml(row.en)}" data-field="en" data-id="${row.id}" />
+                    </td>
+                    <td class="edit-cell p-0">
+                        <input type="text" class="edit-input" value="${escapeHtml(row.hi)}" data-field="hi" data-id="${row.id}" />
+                    </td>
+                    <td>
+                        <button class="btn btn-ghost btn-sm btn-square text-error" onclick="deleteTranslation('${row.id}')">
+                            <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                            </svg>
+                        </button>
+                    </td>
+                </tr>
+            `).join('');
+
+            // Bind blur handlers for auto-save
+            Layout.$$('.edit-input', table).forEach(input => {
+                input.addEventListener('blur', () => saveField(input));
+                input.addEventListener('keydown', e => {
+                    if (e.key === 'Enter') {
+                        e.preventDefault();
+                        input.blur();
+                    }
+                });
+            });
+        }
+
+        function escapeHtml(text) {
+            return text.replace(/"/g, '&quot;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+        }
+
+        async function saveField(input) {
+            const id = input.dataset.id;
+            const field = input.dataset.field;
+            const value = input.value;
+            const row = input.closest('tr');
+
+            // Find original value
+            const original = translations.find(t => t.id === id);
+            if (original && original[field] === value) return; // No change
+
+            row.classList.add('saving');
+
+            const { error } = await Layout.db
+                .from('translations')
+                .update({ [field]: value })
+                .eq('id', id);
+
+            row.classList.remove('saving');
+
+            if (error) {
+                alert(t('error') + ': ' + error.message);
+                input.value = original[field];
+            } else {
+                const item = translations.find(tr => tr.id === id);
+                if (item) item[field] = value;
+                row.classList.add('saved');
+                setTimeout(() => row.classList.remove('saved'), 500);
+            }
+        }
+
+        async function deleteTranslation(id) {
+            if (!confirm(t('confirm_delete'))) return;
+
+            const { error } = await Layout.db
+                .from('translations')
+                .delete()
+                .eq('id', id);
+
+            if (error) {
+                alert(t('error') + ': ' + error.message);
+            } else {
+                translations = translations.filter(tr => tr.id !== id);
+                renderTable();
+            }
+        }
+
+        function openAddModal() {
+            Layout.$('#addForm').reset();
+            addModal.showModal();
+        }
+
+        // ==================== EVENT LISTENERS ====================
+        document.addEventListener('DOMContentLoaded', () => {
+            const searchInput = Layout.$('#searchInput');
+            const clearBtn = Layout.$('#clearSearch');
+            const debouncedSearch = Layout.debounce(() => renderTable(), 200);
+
+            searchInput?.addEventListener('input', e => {
+                searchQuery = e.target.value;
+                clearBtn?.classList.toggle('hidden', !e.target.value);
+                debouncedSearch();
+            });
+
+            clearBtn?.addEventListener('click', () => {
+                searchInput.value = '';
+                searchQuery = '';
+                clearBtn.classList.add('hidden');
+                renderTable();
+                searchInput.focus();
+            });
+
+            Layout.$('#pageFilter')?.addEventListener('change', e => {
+                pageFilter = e.target.value;
+                renderTable();
+            });
+
+            Layout.$('#addForm')?.addEventListener('submit', async e => {
+                e.preventDefault();
+                const form = e.target;
+                const data = {
+                    key: form.key.value.trim(),
+                    ru: form.ru.value.trim(),
+                    en: form.en.value.trim(),
+                    hi: form.hi.value.trim(),
+                    page: form.page.value,
+                    context: form.context.value.trim() || null
+                };
+
+                const { data: inserted, error } = await Layout.db
+                    .from('translations')
+                    .insert(data)
+                    .select()
+                    .single();
+
+                if (error) {
+                    alert(t('error') + ': ' + error.message);
+                } else {
+                    translations.push(inserted);
+                    buildPageFilter();
+                    renderTable();
+                    addModal.close();
+                }
+            });
+        });
+
+        // ==================== UI UPDATE ====================
+        function updatePageUI() {
+            Layout.updateAllTranslations();
+            buildPageFilter();
+            buildModalPageSelect();
+            renderTable();
+        }
+
+        // Список страниц для селекта в модалке
+        const pageKeys = ['common', 'navigation', 'recipes', 'products', 'menu', 'team', 'retreats', 'filters', 'stock', 'settings', 'translations'];
+
+        function buildModalPageSelect() {
+            const select = Layout.$('#modalPageSelect');
+            if (!select) return;
+
+            select.innerHTML = pageKeys.map(key =>
+                `<option value="${key}">${getPageName(key)}</option>`
+            ).join('');
+        }
+
+        // Callback при смене языка (вызывается из layout.js)
+        window.onLanguageChange = function(lang) {
+            updatePageUI();
+        };
+
+        // ==================== INIT ====================
+        async function init() {
+            // Инициализируем layout (хедер, футер, локации)
+            await Layout.init({ menuId: 'settings', itemId: 'translations' });
+
+            // Загружаем данные страницы
+            await loadTranslations();
+
+            // Инициализируем селект в модалке
+            buildModalPageSelect();
+        }
+
+        init();
+    </script>
+</body>
+</html>

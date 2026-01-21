@@ -1,0 +1,147 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Тест подключения к Supabase</title>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            max-width: 800px;
+            margin: 40px auto;
+            padding: 20px;
+            background: #f5f5f5;
+        }
+        h1 { color: #333; }
+        .status {
+            padding: 15px;
+            border-radius: 8px;
+            margin: 10px 0;
+        }
+        .success { background: #d4edda; color: #155724; }
+        .error { background: #f8d7da; color: #721c24; }
+        .info { background: #e7f3ff; color: #004085; }
+        .recipe-card {
+            background: white;
+            padding: 15px;
+            border-radius: 8px;
+            margin: 10px 0;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            display: flex;
+            gap: 15px;
+            align-items: center;
+        }
+        .recipe-card img {
+            width: 80px;
+            height: 60px;
+            object-fit: cover;
+            border-radius: 4px;
+        }
+        .recipe-info h3 { margin: 0 0 5px 0; }
+        .recipe-info p { margin: 0; color: #666; font-size: 14px; }
+        .badge {
+            display: inline-block;
+            padding: 2px 8px;
+            border-radius: 4px;
+            font-size: 12px;
+            color: white;
+            background: #CC7C5E;
+        }
+    </style>
+</head>
+<body>
+    <h1>🔌 Тест подключения к Supabase</h1>
+
+    <div id="connection-status" class="status info">Подключаемся...</div>
+
+    <h2>📍 Локации</h2>
+    <div id="locations"></div>
+
+    <h2>🍽️ Категории рецептов</h2>
+    <div id="categories"></div>
+
+    <h2>📖 Рецепты (первые 10)</h2>
+    <div id="recipes"></div>
+
+    <script>
+        const SUPABASE_URL = 'https://llttmftapmwebidgevmg.supabase.co';
+        const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImxsdHRtZnRhcG13ZWJpZGdldm1nIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Njg4NzQ3MTksImV4cCI6MjA4NDQ1MDcxOX0.V0J4_5AFDxHH6GsD-eh4N7fTBMjexSxAkVp2LSfgHh0';
+
+        const db = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+        async function testConnection() {
+            const statusEl = document.getElementById('connection-status');
+            const locationsEl = document.getElementById('locations');
+            const categoriesEl = document.getElementById('categories');
+            const recipesEl = document.getElementById('recipes');
+
+            try {
+                // Тест 1: Локации
+                const { data: locations, error: locError } = await db
+                    .from('locations')
+                    .select('*');
+
+                if (locError) throw locError;
+
+                locationsEl.innerHTML = locations.map(loc =>
+                    `<div class="status success">
+                        <strong>${loc.name_ru}</strong> (${loc.slug})
+                        <span style="color: ${loc.color}">●</span>
+                    </div>`
+                ).join('');
+
+                // Тест 2: Категории
+                const { data: categories, error: catError } = await db
+                    .from('recipe_categories')
+                    .select('*')
+                    .order('sort_order');
+
+                if (catError) throw catError;
+
+                categoriesEl.innerHTML = categories.map(cat =>
+                    `<span class="badge" style="background: ${cat.color}; margin: 3px;">
+                        ${cat.emoji} ${cat.name_ru}
+                    </span>`
+                ).join('');
+
+                // Тест 3: Рецепты
+                const { data: recipes, error: recError } = await db
+                    .from('recipes')
+                    .select('*, recipe_categories(name_ru, color, emoji)')
+                    .limit(10);
+
+                if (recError) throw recError;
+
+                recipesEl.innerHTML = recipes.map(recipe =>
+                    `<div class="recipe-card">
+                        <img src="${recipe.photo_url}" alt="${recipe.name_ru}"
+                             onerror="this.src='https://via.placeholder.com/80x60?text=🍽️'">
+                        <div class="recipe-info">
+                            <h3>${recipe.name_ru}</h3>
+                            <p>${recipe.name_en} · ${recipe.name_hi}</p>
+                            <span class="badge" style="background: ${recipe.recipe_categories?.color || '#999'}">
+                                ${recipe.recipe_categories?.emoji || ''} ${recipe.recipe_categories?.name_ru || 'Без категории'}
+                            </span>
+                            <span style="color: #999; font-size: 12px; margin-left: 10px;">
+                                ⏱ ${recipe.cooking_time} мин · ${recipe.output_amount} ${recipe.output_unit}
+                            </span>
+                        </div>
+                    </div>`
+                ).join('');
+
+                // Успех!
+                statusEl.className = 'status success';
+                statusEl.innerHTML = `✅ Подключение успешно! Найдено: ${locations.length} локаций, ${categories.length} категорий, ${recipes.length}+ рецептов`;
+
+            } catch (error) {
+                statusEl.className = 'status error';
+                statusEl.innerHTML = `❌ Ошибка: ${error.message}`;
+                console.error('Error:', error);
+            }
+        }
+
+        testConnection();
+    </script>
+</body>
+</html>

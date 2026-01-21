@@ -1,0 +1,1289 @@
+<!DOCTYPE html>
+<html lang="ru" data-theme="light">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Заявка на закупку — ШРСК</title>
+    <link href="https://cdn.jsdelivr.net/npm/daisyui@4.12.14/dist/full.min.css" rel="stylesheet" />
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script>tailwind.config = { theme: { extend: { screens: { 'desktop': '1200px' } } } }</script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans:wght@400;500;600;700&family=Noto+Sans+Devanagari:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="css/common.css">
+</head>
+<body class="bg-base-200 min-h-screen flex flex-col">
+
+    <div id="header-placeholder"></div>
+
+    <main class="container mx-auto px-4 py-6 flex-1">
+
+        <div class="flex justify-between items-start mb-6">
+            <div>
+                <h1 class="text-2xl font-bold" data-i18n="purchase_request_title">Заявка на закупку</h1>
+                <p class="text-sm opacity-60" data-i18n="purchase_request_subtitle">Формирование списка продуктов для закупки</p>
+            </div>
+            <a href="stock.html" class="link link-hover text-sm opacity-60 flex items-center gap-1">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18" />
+                </svg>
+                <span data-i18n="back_to_stock">На склад</span>
+            </a>
+        </div>
+
+        <!-- Tabs -->
+        <div class="tabs tabs-boxed bg-base-100 p-1 mb-6 inline-flex">
+            <button class="tab tab-active" data-tab="new" onclick="switchTab('new')">Новая заявка</button>
+            <button class="tab" data-tab="saved" onclick="switchTab('saved')">Сохранённые</button>
+            <button class="tab" data-tab="archive" onclick="switchTab('archive')">Архивные</button>
+        </div>
+
+        <!-- Tab: New Request -->
+        <div id="tabContentNew">
+
+        <!-- Period Selection -->
+        <div class="bg-base-100 rounded-lg p-6 shadow-sm mb-6">
+            <div class="text-sm font-medium mb-3 opacity-70" data-i18n="menu_period">Период меню</div>
+
+            <div class="flex flex-wrap items-center gap-3 mb-4">
+                <button class="btn btn-sm period-btn" data-period="today" onclick="selectPeriod('today')" data-i18n="period_today">Сегодня</button>
+                <button class="btn btn-sm btn-ghost period-btn" data-period="3days" onclick="selectPeriod('3days')" data-i18n="period_3days">3 дня</button>
+                <button class="btn btn-sm btn-ghost period-btn" data-period="week" onclick="selectPeriod('week')" data-i18n="period_week">Неделя</button>
+                <button class="btn btn-sm btn-ghost period-btn" data-period="2weeks" onclick="selectPeriod('2weeks')" data-i18n="period_2weeks">2 недели</button>
+            </div>
+
+            <div class="flex flex-wrap items-center gap-3">
+                <span class="text-sm opacity-60" data-i18n="from">с</span>
+                <input type="date" id="periodFrom" class="input input-bordered input-sm w-40" />
+                <span class="text-sm opacity-60" data-i18n="to">по</span>
+                <input type="date" id="periodTo" class="input input-bordered input-sm w-40" />
+
+                <div class="flex-1"></div>
+
+                <button class="btn btn-current-color" onclick="generateRequest()" data-i18n="generate">
+                    Сформировать
+                </button>
+            </div>
+        </div>
+
+        <!-- Results -->
+        <div id="resultsSection" class="hidden">
+            <div class="flex justify-between items-center mb-4">
+                <h2 class="text-lg font-semibold" data-i18n="purchase_list">Список продуктов для закупки</h2>
+                <button id="saveBtn" class="btn btn-primary btn-sm gap-1" onclick="saveRequest()">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-3m-1 4l-3 3m0 0l-3-3m3 3V4" />
+                    </svg>
+                    <span data-i18n="save_request">Сохранить</span>
+                </button>
+            </div>
+
+            <div class="bg-base-100 rounded-lg shadow-sm overflow-hidden">
+                <table class="table">
+                    <thead class="bg-base-200">
+                        <tr>
+                            <th data-i18n="product">Продукт</th>
+                            <th data-i18n="category">Категория</th>
+                            <th class="text-right" data-i18n="needed">Нужно</th>
+                            <th class="text-right" data-i18n="in_stock">На складе</th>
+                            <th class="text-right w-32" data-i18n="to_purchase">Закупить</th>
+                            <th class="text-right" data-i18n="est_price">≈ Сумма</th>
+                            <th class="w-10"></th>
+                        </tr>
+                    </thead>
+                    <tbody id="requestItemsTable"></tbody>
+                </table>
+            </div>
+
+            <div class="mt-4 flex flex-wrap justify-between items-center gap-4">
+                <button class="btn btn-ghost btn-sm gap-1" onclick="openProductModal()">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" />
+                    </svg>
+                    <span data-i18n="add_product">Добавить продукт</span>
+                </button>
+                <div class="flex items-center gap-6">
+                    <div>
+                        <span class="text-sm opacity-60" data-i18n="total_items">Всего позиций: </span>
+                        <span class="font-bold" id="totalItems">0</span>
+                    </div>
+                    <div>
+                        <span class="text-sm opacity-60" data-i18n="est_total">Примерная сумма: </span>
+                        <span class="font-bold text-lg" id="totalSum">—</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Empty State -->
+        <div id="emptyState" class="text-center py-16 opacity-50">
+            <div class="text-5xl mb-4">📋</div>
+            <div data-i18n="select_period_hint">Выберите период и нажмите "Сформировать"</div>
+        </div>
+
+        </div><!-- /tabContentNew -->
+
+        <!-- Tab: Saved Requests -->
+        <div id="tabContentSaved" class="hidden">
+            <div class="space-y-3" id="savedRequestsList">
+                <div class="text-center py-12 opacity-50">
+                    <div class="text-4xl mb-2">📋</div>
+                    <div>Нет сохранённых заявок</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Tab: Archived Requests -->
+        <div id="tabContentArchive" class="hidden">
+            <div class="space-y-3" id="archivedRequestsList">
+                <div class="text-center py-12 opacity-50">
+                    <div class="text-4xl mb-2">📦</div>
+                    <div>Нет заявок в архиве</div>
+                </div>
+            </div>
+        </div>
+
+    </main>
+
+    <div id="footer-placeholder"></div>
+
+    <!-- Add Product Modal -->
+    <dialog id="productModal" class="modal">
+        <div class="modal-box max-w-lg relative">
+            <button type="button" class="btn btn-sm btn-circle btn-ghost absolute right-2 top-2" onclick="productModal.close()">✕</button>
+            <h3 class="font-bold text-lg mb-4" data-i18n="add_product">Добавить продукт</h3>
+
+            <div class="space-y-4">
+                <!-- Tabs -->
+                <div class="tabs tabs-boxed">
+                    <a class="tab tab-active" id="tabProductSearch" onclick="switchProductTab('search')" data-i18n="search">Поиск</a>
+                    <a class="tab" id="tabProductBrowse" onclick="switchProductTab('browse')" data-i18n="by_category">По категории</a>
+                </div>
+
+                <!-- Search Tab -->
+                <div id="productSearchTab">
+                    <div class="relative">
+                        <input type="text"
+                               id="productSearch"
+                               class="input input-bordered w-full"
+                               placeholder="Начните вводить название..."
+                               autocomplete="off"
+                               oninput="filterProducts(this.value)"
+                               onfocus="showProductDropdown()"
+                        />
+                        <div id="productDropdown" class="absolute z-50 w-full bg-base-100 border border-base-300 rounded-lg shadow-lg mt-1 max-h-64 overflow-y-auto hidden">
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Browse Tab -->
+                <div id="productBrowseTab" class="hidden">
+                    <div class="flex flex-wrap gap-2 mb-3" id="productCategoryButtons">
+                        <!-- Generated by JS -->
+                    </div>
+                    <div id="productCategoryList" class="max-h-64 overflow-y-auto border border-base-300 rounded-lg">
+                    </div>
+                </div>
+
+                <!-- Selected Product -->
+                <div id="selectedProductDisplay" class="hidden">
+                    <div class="flex items-center justify-between p-3 bg-base-200 rounded-lg border-2" style="border-color: var(--current-color);">
+                        <div>
+                            <div class="font-medium" id="selectedProductName"></div>
+                            <div class="text-sm opacity-50" id="selectedProductNameEn"></div>
+                        </div>
+                        <button type="button" class="btn btn-ghost btn-sm btn-square" onclick="clearSelectedProduct()">
+                            <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+                            </svg>
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Quantity -->
+                <div id="productQuantitySection" class="hidden">
+                    <label class="label"><span class="label-text font-medium" data-i18n="quantity">Количество</span></label>
+                    <div class="join w-full">
+                        <input type="number" id="productQuantity" class="input input-bordered join-item w-full" value="1" min="0.1" step="0.1" />
+                        <span id="productUnit" class="btn join-item no-animation pointer-events-none bg-base-200">кг</span>
+                    </div>
+                </div>
+            </div>
+
+            <div class="modal-action">
+                <button type="button" class="btn btn-ghost" onclick="productModal.close()" data-i18n="cancel">Отмена</button>
+                <button type="button" class="btn btn-primary" id="saveProductBtn" onclick="addProductToRequest()" disabled data-i18n="add">Добавить</button>
+            </div>
+        </div>
+        <form method="dialog" class="modal-backdrop"><button>close</button></form>
+    </dialog>
+
+    <!-- View/Edit Request Modal -->
+    <dialog id="viewRequestModal" class="modal">
+        <div class="modal-box max-w-4xl relative">
+            <button type="button" class="btn btn-sm btn-circle btn-ghost absolute right-2 top-2 no-print" onclick="viewRequestModal.close()">✕</button>
+
+            <div class="flex justify-between items-start mb-4 no-print">
+                <div>
+                    <h3 class="font-bold text-lg" id="viewRequestTitle">Заявка #1</h3>
+                    <p class="text-sm opacity-60" id="viewRequestPeriod">Период: ...</p>
+                </div>
+                <div class="flex gap-2">
+                    <button class="btn btn-ghost btn-sm gap-1" onclick="printViewedRequest()">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" />
+                        </svg>
+                        Печать
+                    </button>
+                </div>
+            </div>
+
+            <!-- Print Header -->
+            <div class="hidden print:block mb-4 pb-4 border-b-2 border-black">
+                <div class="flex justify-between items-center">
+                    <div>
+                        <div class="text-lg font-bold">Шри Рупа Сева Кунджа</div>
+                        <div class="text-sm opacity-70" id="printLocation">Основная кухня</div>
+                    </div>
+                    <div class="text-right">
+                        <div class="text-xl font-bold" id="printRequestTitle">Заявка #1</div>
+                        <div class="text-sm" id="printRequestPeriod">Период: ...</div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="overflow-x-auto">
+                <table class="table table-sm">
+                    <thead class="bg-base-200">
+                        <tr>
+                            <th>Продукт</th>
+                            <th>Категория</th>
+                            <th class="text-right w-32">Закупить</th>
+                            <th class="text-right">≈ Сумма</th>
+                            <th class="w-10 no-print"></th>
+                        </tr>
+                    </thead>
+                    <tbody id="viewRequestItems"></tbody>
+                </table>
+            </div>
+
+            <div class="mt-4 flex justify-between items-center border-t pt-4">
+                <div class="text-sm opacity-60">
+                    Позиций: <span class="font-bold" id="viewRequestCount">0</span>
+                </div>
+                <div>
+                    Итого: <span class="font-bold text-lg" id="viewRequestTotal">—</span>
+                </div>
+            </div>
+
+            <div class="modal-action no-print">
+                <button type="button" class="btn btn-ghost" onclick="viewRequestModal.close()">Закрыть</button>
+                <button type="button" class="btn btn-primary" id="saveViewedRequestBtn" onclick="saveViewedRequest()">Сохранить изменения</button>
+            </div>
+        </div>
+        <form method="dialog" class="modal-backdrop"><button>close</button></form>
+    </dialog>
+
+    <script src="js/layout.js"></script>
+    <script>
+        // ==================== STATE ====================
+        let recipes = [];
+        let products = [];
+        let productCategories = [];
+        let stockItems = [];
+        let requestItems = [];
+        let locationId = null;
+        let savedRequestId = null;
+        let savedRequests = [];
+        let selectedProduct = null;
+        let viewingRequest = null; // Currently viewed request in modal
+        let viewingItems = []; // Editable items for the viewed request
+        let currentProductCategory = 'all';
+
+        const t = key => Layout.t(key);
+
+        // ==================== HELPERS ====================
+        const UNITS = {
+            kg: { ru: 'кг', en: 'kg', hi: 'किग्रा', toGrams: 1000 },
+            g: { ru: 'г', en: 'g', hi: 'ग्रा', toGrams: 1 },
+            l: { ru: 'л', en: 'l', hi: 'ली', toGrams: 1000 },
+            ml: { ru: 'мл', en: 'ml', hi: 'मिली', toGrams: 1 },
+            pcs: { ru: 'шт', en: 'pcs', hi: 'पीस', toGrams: 1 }
+        };
+
+        function formatQty(num) {
+            if (num === Math.floor(num)) return num.toString();
+            // Показываем до 1 знака после запятой, убираем лишний 0
+            return num.toFixed(1).replace(/\.0$/, '');
+        }
+
+        function localizeUnit(unit) {
+            const u = (unit || '').toLowerCase();
+            return UNITS[u]?.[Layout.currentLang] || unit;
+        }
+
+        function toGrams(amount, unit) {
+            const u = (unit || 'g').toLowerCase();
+            return (amount || 0) * (UNITS[u]?.toGrams || 1);
+        }
+
+        function fromGrams(grams, preferKg = true) {
+            if (preferKg && grams >= 1000) {
+                return { value: grams / 1000, unit: 'kg' };
+            }
+            return { value: grams, unit: 'g' };
+        }
+
+        // Округление для закупки: кг до 1, г до 50
+        function roundForPurchase(value, unit) {
+            if (unit === 'kg') {
+                return Math.ceil(value);
+            }
+            return Math.ceil(value / 50) * 50;
+        }
+
+        // ==================== DATA LOADING ====================
+        async function loadLocationId() {
+            const { data } = await Layout.db
+                .from('locations')
+                .select('id')
+                .eq('slug', Layout.currentLocation)
+                .single();
+            locationId = data?.id;
+        }
+
+        async function loadProducts() {
+            const { data } = await Layout.db
+                .from('products')
+                .select('*, product_categories(*)');
+            products = data || [];
+        }
+
+        async function loadProductCategories() {
+            const { data } = await Layout.db
+                .from('product_categories')
+                .select('*')
+                .order('sort_order');
+            productCategories = data || [];
+        }
+
+        async function loadStock() {
+            const { data } = await Layout.db
+                .from('stock')
+                .select('*')
+                .eq('location_id', locationId);
+            stockItems = data || [];
+        }
+
+        async function loadRecipes() {
+            const { data } = await Layout.db
+                .from('recipes')
+                .select('*, recipe_ingredients(*)');
+            recipes = data || [];
+        }
+
+        async function loadMenuForPeriod(fromDate, toDate) {
+            const { data } = await Layout.db
+                .from('menu_meals')
+                .select('*, dishes:menu_dishes(*, recipe:recipes(*))')
+                .eq('location_id', locationId)
+                .gte('date', fromDate)
+                .lte('date', toDate);
+            return data || [];
+        }
+
+        // ==================== PERIOD SELECTION ====================
+        function selectPeriod(period) {
+            // Update button styles
+            document.querySelectorAll('.period-btn').forEach(btn => {
+                const isActive = btn.dataset.period === period;
+                btn.classList.toggle('btn-ghost', !isActive);
+                btn.classList.toggle('btn-current-color', isActive);
+            });
+
+            // Calculate dates
+            const today = new Date();
+            const fromDate = new Date(today);
+            const toDate = new Date(today);
+
+            const daysToAdd = { today: 0, '3days': 2, week: 6, '2weeks': 13 };
+            toDate.setDate(toDate.getDate() + (daysToAdd[period] || 0));
+
+            Layout.$('#periodFrom').value = fromDate.toISOString().split('T')[0];
+            Layout.$('#periodTo').value = toDate.toISOString().split('T')[0];
+        }
+
+        function clearPeriodButtons() {
+            document.querySelectorAll('.period-btn').forEach(btn => {
+                btn.classList.add('btn-ghost');
+                btn.classList.remove('btn-current-color');
+            });
+        }
+
+        // ==================== GENERATE REQUEST ====================
+        async function generateRequest() {
+            const fromDate = Layout.$('#periodFrom').value;
+            const toDate = Layout.$('#periodTo').value;
+
+            if (!fromDate || !toDate) {
+                alert(t('select_period') || 'Выберите период');
+                return;
+            }
+
+            const menuData = await loadMenuForPeriod(fromDate, toDate);
+
+            if (menuData.length === 0) {
+                alert(t('menu_not_found') || 'Меню на выбранный период не найдено');
+                return;
+            }
+
+            // Calculate required ingredients
+            const ingredientTotals = {};
+
+            menuData.forEach(meal => {
+                const mealPortions = meal.portions || 1;
+
+                (meal.dishes || []).forEach(dish => {
+                    const recipe = recipes.find(r => r.id === dish.recipe_id);
+                    if (!recipe?.recipe_ingredients) return;
+
+                    // Calculate multiplier: (portions × portion size) / recipe output
+                    const baseOutputGrams = toGrams(recipe.output_amount || 1, recipe.output_unit || 'kg');
+                    const targetGrams = mealPortions * (recipe.portion_amount || 150);
+                    const multiplier = targetGrams / baseOutputGrams;
+
+                    recipe.recipe_ingredients.forEach(ing => {
+                        if (!ing.product_id) return;
+
+                        const qtyGrams = toGrams(ing.amount, ing.unit) * multiplier;
+
+                        if (ingredientTotals[ing.product_id]) {
+                            ingredientTotals[ing.product_id] += qtyGrams;
+                        } else {
+                            ingredientTotals[ing.product_id] = qtyGrams;
+                        }
+                    });
+                });
+            });
+
+            // Calculate what needs to be purchased
+            requestItems = [];
+
+            Object.entries(ingredientTotals).forEach(([productId, neededGrams]) => {
+                const product = products.find(p => p.id === productId);
+                const stock = stockItems.find(s => s.product_id === productId);
+                const stockGrams = toGrams(stock?.current_quantity, product?.unit);
+                const toPurchaseGrams = Math.max(0, neededGrams - stockGrams);
+
+                if (toPurchaseGrams > 0) {
+                    const display = fromGrams(neededGrams);
+                    const stockDisplay = fromGrams(stockGrams, display.unit === 'kg');
+                    const purchaseDisplay = fromGrams(toPurchaseGrams, display.unit === 'kg');
+
+                    // Округляем количество для закупки
+                    const roundedPurchase = roundForPurchase(purchaseDisplay.value, purchaseDisplay.unit);
+
+                    // Get last price from stock (price per kg)
+                    const lastPrice = stock?.last_price || null;
+
+                    // Сумма считается по округлённому количеству
+                    const purchaseGramsRounded = purchaseDisplay.unit === 'kg' ? roundedPurchase * 1000 : roundedPurchase;
+
+                    requestItems.push({
+                        product_id: productId,
+                        product,
+                        needed: display.value,
+                        in_stock: stockDisplay.value,
+                        to_purchase: roundedPurchase,
+                        unit: display.unit,
+                        last_price: lastPrice,
+                        // Calculate estimated sum (price is per kg, use rounded qty)
+                        est_sum: lastPrice ? (purchaseGramsRounded / 1000) * lastPrice : null
+                    });
+                }
+            });
+
+            // Sort by category
+            requestItems.sort((a, b) => {
+                const catA = a.product?.product_categories?.name_ru || '';
+                const catB = b.product?.product_categories?.name_ru || '';
+                return catA.localeCompare(catB);
+            });
+
+            // Reset saved state for new generated request
+            savedRequestId = null;
+
+            renderResults();
+        }
+
+        // ==================== RENDERING ====================
+        function renderResults() {
+            const tbody = Layout.$('#requestItemsTable');
+
+            if (requestItems.length === 0) {
+                Layout.$('#resultsSection').classList.add('hidden');
+                Layout.$('#emptyState').classList.remove('hidden');
+                Layout.$('#emptyState').innerHTML = `<div class="text-5xl mb-4">✅</div><div>${t('all_in_stock') || 'Все продукты есть на складе!'}</div>`;
+                return;
+            }
+
+            Layout.$('#resultsSection').classList.remove('hidden');
+            Layout.$('#emptyState').classList.add('hidden');
+            Layout.$('#totalItems').textContent = requestItems.length;
+
+            // Calculate total sum
+            let totalSum = 0;
+            let hasAllPrices = true;
+
+            requestItems.forEach(item => {
+                if (item.est_sum !== null) {
+                    totalSum += item.est_sum;
+                } else {
+                    hasAllPrices = false;
+                }
+            });
+
+            // Display total (with ~ if some prices are missing)
+            const totalEl = Layout.$('#totalSum');
+            if (totalSum > 0) {
+                totalEl.textContent = (hasAllPrices ? '' : '≈ ') + '₹' + Math.round(totalSum).toLocaleString();
+            } else {
+                totalEl.textContent = '—';
+            }
+
+            tbody.innerHTML = requestItems.map((item, index) => {
+                const product = item.product;
+                const cat = product?.product_categories;
+                const unit = localizeUnit(item.unit);
+                const estSum = item.est_sum !== null ? '₹' + Math.round(item.est_sum).toLocaleString() : '—';
+
+                return `
+                    <tr>
+                        <td>
+                            <div class="font-medium">${Layout.getName(product)}</div>
+                            <div class="text-xs opacity-50">${product?.name_en || ''}</div>
+                        </td>
+                        <td>
+                            <span class="badge badge-sm" style="background-color: ${cat?.color || '#999'}20; color: ${cat?.color || '#999'}">
+                                ${Layout.getName(cat) || '—'}
+                            </span>
+                        </td>
+                        <td class="text-right">${formatQty(item.needed)} ${unit}</td>
+                        <td class="text-right opacity-60">${formatQty(item.in_stock)} ${unit}</td>
+                        <td class="text-right">
+                            <div class="join">
+                                <input type="number"
+                                    class="input input-bordered input-sm join-item w-20 text-right font-bold"
+                                    style="color: var(--current-color)"
+                                    value="${formatQty(item.to_purchase)}"
+                                    min="0"
+                                    step="1"
+                                    onchange="updateItemQuantity(${index}, this.value)"
+                                />
+                                <span class="btn btn-sm join-item no-animation pointer-events-none bg-base-200">${unit}</span>
+                            </div>
+                        </td>
+                        <td class="text-right opacity-70">${estSum}</td>
+                        <td>
+                            <button class="btn btn-ghost btn-sm btn-square text-error/60 hover:text-error hover:bg-error/10" onclick="removeItem(${index})" title="${t('remove') || 'Удалить'}">
+                                <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+                                </svg>
+                            </button>
+                        </td>
+                    </tr>
+                `;
+            }).join('');
+        }
+
+        // ==================== ACTIONS ====================
+        async function saveRequest() {
+            if (requestItems.length === 0) {
+                alert('Нет продуктов для сохранения');
+                return;
+            }
+
+            const requestData = {
+                location_id: locationId,
+                period_from: Layout.$('#periodFrom').value,
+                period_to: Layout.$('#periodTo').value,
+                status: 'pending'
+            };
+
+            const { data: request, error } = await Layout.db
+                .from('purchase_requests')
+                .insert(requestData)
+                .select()
+                .single();
+
+            if (error) {
+                alert('Ошибка сохранения');
+                return;
+            }
+
+            // Save quantities in grams for consistency, and price per kg
+            const items = requestItems.map(i => ({
+                request_id: request.id,
+                product_id: i.product_id,
+                quantity: toGrams(i.to_purchase, i.unit),
+                price: i.last_price  // price per kg at time of request
+            }));
+
+            await Layout.db.from('purchase_request_items').insert(items);
+
+            // Clear the form and switch to saved tab
+            requestItems = [];
+            Layout.$('#resultsSection').classList.add('hidden');
+            Layout.$('#emptyState').classList.remove('hidden');
+            Layout.$('#emptyState').innerHTML = `<div class="text-5xl mb-4">📋</div><div>Выберите период и нажмите "Сформировать"</div>`;
+
+            switchTab('saved');
+        }
+
+        function printRequest() {
+            window.print();
+        }
+
+        // ==================== TABS ====================
+        function switchTab(tab) {
+            // Update tab buttons
+            Layout.$$('.tab[data-tab]').forEach(btn => {
+                btn.classList.toggle('tab-active', btn.dataset.tab === tab);
+            });
+
+            // Show/hide content
+            Layout.$('#tabContentNew').classList.toggle('hidden', tab !== 'new');
+            Layout.$('#tabContentSaved').classList.toggle('hidden', tab !== 'saved');
+            Layout.$('#tabContentArchive').classList.toggle('hidden', tab !== 'archive');
+
+            if (tab === 'saved' || tab === 'archive') {
+                loadSavedRequests();
+            }
+        }
+
+        // ==================== SAVED REQUESTS ====================
+        async function loadSavedRequests() {
+            const { data, error } = await Layout.db
+                .from('purchase_requests')
+                .select('*, items:purchase_request_items(*, products(*, product_categories(*)))')
+                .eq('location_id', locationId)
+                .order('created_at', { ascending: false });
+
+            if (error) {
+                console.error('Error loading saved requests:', error);
+                return;
+            }
+
+            savedRequests = data || [];
+            renderSavedRequests();
+            renderArchivedRequests();
+        }
+
+        function renderRequestCard(req, isArchived = false) {
+            const itemsCount = req.items?.length || 0;
+            const periodFrom = new Date(req.period_from).toLocaleDateString(Layout.currentLang === 'ru' ? 'ru-RU' : 'en-US');
+            const periodTo = new Date(req.period_to).toLocaleDateString(Layout.currentLang === 'ru' ? 'ru-RU' : 'en-US');
+            const createdAt = new Date(req.created_at).toLocaleDateString(Layout.currentLang === 'ru' ? 'ru-RU' : 'en-US');
+
+            // Calculate total sum
+            let totalSum = 0;
+            let hasAllPrices = true;
+            (req.items || []).forEach(item => {
+                if (item.price && item.quantity) {
+                    totalSum += (item.quantity / 1000) * item.price;
+                } else {
+                    hasAllPrices = false;
+                }
+            });
+            const sumDisplay = totalSum > 0 ? (hasAllPrices ? '' : '≈ ') + '₹' + Math.round(totalSum).toLocaleString() : '';
+
+            return `
+                <div class="bg-base-100 rounded-lg p-4 shadow-sm">
+                    <div class="flex flex-col md:flex-row md:items-center gap-4">
+                        <div class="flex-1 min-w-0">
+                            <div class="flex items-center gap-2 flex-wrap">
+                                <span class="font-semibold">Заявка #${req.number}</span>
+                                <span class="badge badge-sm badge-ghost">${itemsCount} поз.</span>
+                                ${sumDisplay ? `<span class="badge badge-sm" style="background-color: var(--current-color); color: white;">${sumDisplay}</span>` : ''}
+                            </div>
+                            <div class="text-sm opacity-60 mt-1">
+                                Период: ${periodFrom} — ${periodTo}
+                            </div>
+                            <div class="text-xs opacity-40 mt-1">
+                                Создано: ${createdAt}
+                            </div>
+                        </div>
+
+                        <div class="flex items-center gap-2">
+                            <button class="btn btn-ghost btn-sm" onclick="viewSavedRequest('${req.id}')" title="Просмотр">
+                                <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                                </svg>
+                            </button>
+                            <button class="btn btn-ghost btn-sm" onclick="printSavedRequest('${req.id}')" title="Печать">
+                                <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" />
+                                </svg>
+                            </button>
+                            ${!isArchived ? `
+                                <button class="btn btn-ghost btn-sm text-warning" onclick="archiveRequest('${req.id}')" title="В архив">
+                                    <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 8h14M5 8a2 2 0 110-4h14a2 2 0 110 4M5 8v10a2 2 0 002 2h10a2 2 0 002-2V8m-9 4h4" />
+                                    </svg>
+                                </button>
+                            ` : `
+                                <button class="btn btn-ghost btn-sm text-success" onclick="restoreRequest('${req.id}')" title="Восстановить">
+                                    <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 10h10a8 8 0 018 8v2M3 10l6 6m-6-6l6-6" />
+                                    </svg>
+                                </button>
+                            `}
+                        </div>
+                    </div>
+                </div>
+            `;
+        }
+
+        function renderSavedRequests() {
+            const container = Layout.$('#savedRequestsList');
+            const filtered = savedRequests.filter(r => r.status !== 'archived');
+
+            if (filtered.length === 0) {
+                container.innerHTML = `
+                    <div class="text-center py-12 opacity-50">
+                        <div class="text-4xl mb-2">📋</div>
+                        <div>Нет сохранённых заявок</div>
+                    </div>
+                `;
+                return;
+            }
+
+            container.innerHTML = filtered.map(req => renderRequestCard(req, false)).join('');
+        }
+
+        function renderArchivedRequests() {
+            const container = Layout.$('#archivedRequestsList');
+            const filtered = savedRequests.filter(r => r.status === 'archived');
+
+            if (filtered.length === 0) {
+                container.innerHTML = `
+                    <div class="text-center py-12 opacity-50">
+                        <div class="text-4xl mb-2">📦</div>
+                        <div>Нет заявок в архиве</div>
+                    </div>
+                `;
+                return;
+            }
+
+            container.innerHTML = filtered.map(req => renderRequestCard(req, true)).join('');
+        }
+
+        async function archiveRequest(id) {
+            if (!confirm('Отправить заявку в архив?')) return;
+
+            const { error } = await Layout.db
+                .from('purchase_requests')
+                .update({ status: 'archived' })
+                .eq('id', id);
+
+            if (error) {
+                console.error('Error archiving request:', error);
+                alert('Ошибка');
+                return;
+            }
+
+            await loadSavedRequests();
+        }
+
+        async function restoreRequest(id) {
+            const { error } = await Layout.db
+                .from('purchase_requests')
+                .update({ status: 'pending' })
+                .eq('id', id);
+
+            if (error) {
+                console.error('Error restoring request:', error);
+                alert('Ошибка');
+                return;
+            }
+
+            await loadSavedRequests();
+        }
+
+        function viewSavedRequest(id) {
+            const req = savedRequests.find(r => r.id === id);
+            if (!req) return;
+
+            viewingRequest = req;
+
+            // Convert items from grams to display format
+            viewingItems = (req.items || []).map(item => {
+                const product = item.products;
+                const grams = item.quantity || 0;
+                const display = fromGrams(grams);
+                const lastPrice = item.price || null;
+
+                return {
+                    id: item.id,
+                    product_id: item.product_id,
+                    product,
+                    quantity: display.value,
+                    unit: display.unit,
+                    last_price: lastPrice,
+                    est_sum: lastPrice ? (grams / 1000) * lastPrice : null
+                };
+            });
+
+            // Update modal header
+            const periodFrom = new Date(req.period_from).toLocaleDateString('ru-RU');
+            const periodTo = new Date(req.period_to).toLocaleDateString('ru-RU');
+
+            Layout.$('#viewRequestTitle').textContent = `Заявка #${req.number}`;
+            Layout.$('#viewRequestPeriod').textContent = `Период: ${periodFrom} — ${periodTo}`;
+            Layout.$('#printRequestTitle').textContent = `Заявка #${req.number}`;
+            Layout.$('#printRequestPeriod').textContent = `Период: ${periodFrom} — ${periodTo}`;
+
+            // Get location name
+            const loc = Layout.locations?.find(l => l.slug === Layout.currentLocation);
+            if (loc) {
+                Layout.$('#printLocation').textContent = Layout.getName(loc);
+            }
+
+            renderViewedRequest();
+            viewRequestModal.showModal();
+        }
+
+        function renderViewedRequest() {
+            const tbody = Layout.$('#viewRequestItems');
+
+            let totalSum = 0;
+            let hasAllPrices = true;
+
+            tbody.innerHTML = viewingItems.map((item, index) => {
+                const product = item.product;
+                const cat = product?.product_categories;
+                const unit = localizeUnit(item.unit);
+                const estSum = item.est_sum !== null ? '₹' + Math.round(item.est_sum).toLocaleString() : '—';
+
+                if (item.est_sum !== null) {
+                    totalSum += item.est_sum;
+                } else {
+                    hasAllPrices = false;
+                }
+
+                return `
+                    <tr>
+                        <td>
+                            <div class="font-medium">${Layout.getName(product)}</div>
+                            <div class="text-xs opacity-50">${product?.name_en || ''}</div>
+                        </td>
+                        <td>
+                            <span class="badge badge-sm" style="background-color: ${cat?.color || '#999'}20; color: ${cat?.color || '#999'}">
+                                ${Layout.getName(cat) || '—'}
+                            </span>
+                        </td>
+                        <td class="text-right">
+                            <div class="join no-print">
+                                <input type="number"
+                                    class="input input-bordered input-sm join-item w-20 text-right font-bold"
+                                    style="color: var(--current-color)"
+                                    value="${formatQty(item.quantity)}"
+                                    min="0"
+                                    step="1"
+                                    onchange="updateViewedItemQty(${index}, this.value)"
+                                />
+                                <span class="btn btn-sm join-item no-animation pointer-events-none bg-base-200">${unit}</span>
+                            </div>
+                            <span class="hidden print:inline font-bold" style="color: var(--current-color)">${formatQty(item.quantity)} ${unit}</span>
+                        </td>
+                        <td class="text-right opacity-70">${estSum}</td>
+                        <td class="no-print">
+                            <button class="btn btn-ghost btn-sm btn-square text-error/60 hover:text-error hover:bg-error/10" onclick="removeViewedItem(${index})">
+                                <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+                                </svg>
+                            </button>
+                        </td>
+                    </tr>
+                `;
+            }).join('');
+
+            Layout.$('#viewRequestCount').textContent = viewingItems.length;
+            Layout.$('#viewRequestTotal').textContent = totalSum > 0
+                ? (hasAllPrices ? '' : '≈ ') + '₹' + Math.round(totalSum).toLocaleString()
+                : '—';
+        }
+
+        function updateViewedItemQty(index, value) {
+            const qty = parseFloat(value) || 0;
+            viewingItems[index].quantity = qty;
+
+            // Recalculate sum
+            const item = viewingItems[index];
+            if (item.last_price) {
+                const grams = item.unit === 'kg' ? qty * 1000 : qty;
+                item.est_sum = (grams / 1000) * item.last_price;
+            }
+
+            renderViewedRequest();
+        }
+
+        function removeViewedItem(index) {
+            viewingItems.splice(index, 1);
+            renderViewedRequest();
+        }
+
+        async function saveViewedRequest() {
+            if (!viewingRequest) return;
+
+            // Delete old items and insert new ones
+            await Layout.db.from('purchase_request_items').delete().eq('request_id', viewingRequest.id);
+
+            const items = viewingItems.map(i => ({
+                request_id: viewingRequest.id,
+                product_id: i.product_id,
+                quantity: toGrams(i.quantity, i.unit),
+                price: i.last_price
+            }));
+
+            if (items.length > 0) {
+                await Layout.db.from('purchase_request_items').insert(items);
+            }
+
+            viewRequestModal.close();
+            await loadSavedRequests();
+        }
+
+        function printViewedRequest() {
+            window.print();
+        }
+
+        function printSavedRequest(id) {
+            viewSavedRequest(id);
+            setTimeout(() => window.print(), 300);
+        }
+
+        // ==================== EVENT LISTENERS ====================
+        Layout.$('#periodFrom')?.addEventListener('change', clearPeriodButtons);
+        Layout.$('#periodTo')?.addEventListener('change', clearPeriodButtons);
+
+        window.onLanguageChange = function() {
+            Layout.updateAllTranslations();
+            if (requestItems.length > 0) renderResults();
+        };
+
+        // ==================== PRODUCT MODAL ====================
+        function openProductModal() {
+            selectedProduct = null;
+            currentProductCategory = 'all';
+
+            // Reset modal
+            Layout.$('#productSearch').value = '';
+            Layout.$('#productDropdown').classList.add('hidden');
+            Layout.$('#selectedProductDisplay').classList.add('hidden');
+            Layout.$('#productQuantitySection').classList.add('hidden');
+            Layout.$('#saveProductBtn').disabled = true;
+
+            // Reset tabs
+            Layout.$('#tabProductSearch').classList.add('tab-active');
+            Layout.$('#tabProductBrowse').classList.remove('tab-active');
+            Layout.$('#productSearchTab').classList.remove('hidden');
+            Layout.$('#productBrowseTab').classList.add('hidden');
+
+            // Build category buttons
+            buildProductCategoryButtons();
+
+            productModal.showModal();
+        }
+
+        function buildProductCategoryButtons() {
+            const container = Layout.$('#productCategoryButtons');
+            container.innerHTML = `
+                <button type="button" class="btn btn-sm filter-btn ${currentProductCategory === 'all' ? 'active' : ''}" data-cat="all" onclick="filterProductsByCategory('all')">${t('all') || 'Все'}</button>
+                ${productCategories.map(cat => `
+                    <button type="button" class="btn btn-sm filter-btn ${currentProductCategory === cat.slug ? 'active' : ''}" data-cat="${cat.slug}" onclick="filterProductsByCategory('${cat.slug}')">${cat.emoji || ''} ${Layout.getName(cat)}</button>
+                `).join('')}
+            `;
+        }
+
+        function switchProductTab(tab) {
+            if (tab === 'search') {
+                Layout.$('#productSearchTab').classList.remove('hidden');
+                Layout.$('#productBrowseTab').classList.add('hidden');
+                Layout.$('#tabProductSearch').classList.add('tab-active');
+                Layout.$('#tabProductBrowse').classList.remove('tab-active');
+            } else {
+                Layout.$('#productSearchTab').classList.add('hidden');
+                Layout.$('#productBrowseTab').classList.remove('hidden');
+                Layout.$('#tabProductSearch').classList.remove('tab-active');
+                Layout.$('#tabProductBrowse').classList.add('tab-active');
+                filterProductsByCategory(currentProductCategory);
+            }
+        }
+
+        function filterProducts(query) {
+            const dropdown = Layout.$('#productDropdown');
+
+            if (query.length < 1) {
+                dropdown.classList.add('hidden');
+                return;
+            }
+
+            const q = query.toLowerCase();
+            const filtered = products.filter(p =>
+                p.name_ru?.toLowerCase().includes(q) ||
+                p.name_en?.toLowerCase().includes(q) ||
+                p.name_hi?.includes(query)
+            ).slice(0, 10);
+
+            if (filtered.length === 0) {
+                dropdown.innerHTML = `<div class="p-3 text-sm opacity-50">${t('nothing_found') || 'Ничего не найдено'}</div>`;
+            } else {
+                dropdown.innerHTML = filtered.map(p => {
+                    const cat = p.product_categories;
+                    return `
+                        <div class="p-3 hover:bg-base-200 cursor-pointer border-b border-base-200 last:border-0" onclick="selectProduct('${p.id}')">
+                            <div class="font-medium">${Layout.getName(p)}</div>
+                            <div class="text-xs opacity-50">${p.name_en || ''} · ${Layout.getName(cat) || ''}</div>
+                        </div>
+                    `;
+                }).join('');
+            }
+
+            dropdown.classList.remove('hidden');
+        }
+
+        function showProductDropdown() {
+            const input = Layout.$('#productSearch');
+            if (input.value.length >= 1) {
+                filterProducts(input.value);
+            }
+        }
+
+        function filterProductsByCategory(category) {
+            currentProductCategory = category;
+            const list = Layout.$('#productCategoryList');
+
+            // Update buttons
+            Layout.$$('#productCategoryButtons .filter-btn').forEach(btn => {
+                btn.classList.toggle('active', btn.dataset.cat === category);
+            });
+
+            let filtered = products;
+            if (category !== 'all') {
+                filtered = products.filter(p => p.product_categories?.slug === category);
+            }
+
+            if (filtered.length === 0) {
+                list.innerHTML = `<div class="p-3 text-sm opacity-50 text-center">${t('nothing_found') || 'Ничего не найдено'}</div>`;
+            } else {
+                list.innerHTML = filtered.map(p => {
+                    const cat = p.product_categories;
+                    return `
+                        <div class="p-3 hover:bg-base-200 cursor-pointer border-b border-base-200 last:border-0" onclick="selectProduct('${p.id}')">
+                            <div class="font-medium">${Layout.getName(p)}</div>
+                            <div class="text-xs opacity-50">${p.name_en || ''} · ${Layout.getName(cat) || ''}</div>
+                        </div>
+                    `;
+                }).join('');
+            }
+        }
+
+        function selectProduct(productId) {
+            const product = products.find(p => p.id === productId);
+            if (!product) return;
+
+            // Check if already in request
+            if (requestItems.some(i => i.product_id === productId)) {
+                alert(t('product_already_added') || 'Этот продукт уже добавлен в заявку');
+                return;
+            }
+
+            selectedProduct = product;
+
+            Layout.$('#productSearchTab').classList.add('hidden');
+            Layout.$('#productBrowseTab').classList.add('hidden');
+            Layout.$('#productDropdown').classList.add('hidden');
+            Layout.$('#selectedProductDisplay').classList.remove('hidden');
+            Layout.$('#productQuantitySection').classList.remove('hidden');
+            Layout.$('#selectedProductName').textContent = Layout.getName(product);
+            Layout.$('#selectedProductNameEn').textContent = product.name_en || '';
+
+            // Set default quantity and unit
+            Layout.$('#productQuantity').value = 1;
+            Layout.$('#productUnit').textContent = localizeUnit(product.unit || 'kg');
+
+            Layout.$('#saveProductBtn').disabled = false;
+        }
+
+        function clearSelectedProduct() {
+            selectedProduct = null;
+
+            if (Layout.$('#tabProductSearch').classList.contains('tab-active')) {
+                Layout.$('#productSearchTab').classList.remove('hidden');
+                Layout.$('#productSearch').value = '';
+            } else {
+                Layout.$('#productBrowseTab').classList.remove('hidden');
+            }
+            Layout.$('#selectedProductDisplay').classList.add('hidden');
+            Layout.$('#productQuantitySection').classList.add('hidden');
+            Layout.$('#saveProductBtn').disabled = true;
+        }
+
+        function addProductToRequest() {
+            if (!selectedProduct) return;
+
+            const quantity = parseFloat(Layout.$('#productQuantity').value) || 1;
+            const unit = selectedProduct.unit || 'kg';
+            const stock = stockItems.find(s => s.product_id === selectedProduct.id);
+            const lastPrice = stock?.last_price || null;
+            const quantityGrams = toGrams(quantity, unit);
+
+            requestItems.push({
+                product_id: selectedProduct.id,
+                product: selectedProduct,
+                needed: quantity,
+                in_stock: 0,
+                to_purchase: quantity,
+                unit: unit,
+                last_price: lastPrice,
+                est_sum: lastPrice ? (quantityGrams / 1000) * lastPrice : null
+            });
+
+            // Mark as unsaved
+            if (savedRequestId) {
+                savedRequestId = null;
+                Layout.$('#savedBadge').classList.add('hidden');
+                Layout.$('#saveBtn').disabled = false;
+                Layout.$('#saveBtn').classList.remove('btn-disabled');
+            }
+
+            productModal.close();
+            renderResults();
+        }
+
+        // Close dropdown on outside click
+        document.addEventListener('click', (e) => {
+            const dropdown = Layout.$('#productDropdown');
+            const input = Layout.$('#productSearch');
+            if (dropdown && input && !dropdown.contains(e.target) && e.target !== input) {
+                dropdown.classList.add('hidden');
+            }
+        });
+
+        // ==================== ITEM EDITING ====================
+        function updateItemQuantity(index, value) {
+            const newQty = parseFloat(value) || 0;
+            if (newQty <= 0) {
+                removeItem(index);
+                return;
+            }
+
+            const item = requestItems[index];
+            item.to_purchase = newQty;
+
+            // Recalculate estimated sum
+            const quantityGrams = toGrams(newQty, item.unit);
+            item.est_sum = item.last_price ? (quantityGrams / 1000) * item.last_price : null;
+
+            // Mark as unsaved
+            if (savedRequestId) {
+                savedRequestId = null;
+                Layout.$('#savedBadge').classList.add('hidden');
+                Layout.$('#saveBtn').disabled = false;
+                Layout.$('#saveBtn').classList.remove('btn-disabled');
+            }
+
+            renderResults();
+        }
+
+        function removeItem(index) {
+            requestItems.splice(index, 1);
+
+            // Mark as unsaved
+            if (savedRequestId) {
+                savedRequestId = null;
+                Layout.$('#savedBadge').classList.add('hidden');
+                Layout.$('#saveBtn').disabled = false;
+                Layout.$('#saveBtn').classList.remove('btn-disabled');
+            }
+
+            renderResults();
+        }
+
+        // ==================== INIT ====================
+        async function init() {
+            await Layout.init({ menuId: 'stock', itemId: 'requests' });
+            await loadLocationId();
+            await Promise.all([loadProducts(), loadProductCategories(), loadStock(), loadRecipes()]);
+            selectPeriod('today');
+        }
+
+        init();
+    </script>
+
+    <style>
+        /* Убираем стрелки у числовых полей */
+        input[type="number"]::-webkit-outer-spin-button,
+        input[type="number"]::-webkit-inner-spin-button {
+            -webkit-appearance: none;
+            margin: 0;
+        }
+        input[type="number"] {
+            -moz-appearance: textfield;
+        }
+
+        /* Активный таб использует цвет локации */
+        .tab.tab-active {
+            background-color: var(--current-color) !important;
+            color: white !important;
+        }
+
+        /* Печать модалки */
+        @media print {
+            body * {
+                visibility: hidden;
+            }
+            #viewRequestModal, #viewRequestModal * {
+                visibility: visible;
+            }
+            #viewRequestModal {
+                position: absolute;
+                left: 0;
+                top: 0;
+                width: 100%;
+            }
+            #viewRequestModal .modal-box {
+                max-width: 100%;
+                max-height: none;
+                box-shadow: none;
+            }
+            .no-print {
+                display: none !important;
+            }
+        }
+
+        .btn-current-color {
+            background-color: var(--current-color);
+            border-color: var(--current-color);
+            color: white;
+        }
+        .btn-current-color:hover {
+            background-color: var(--current-color);
+            border-color: var(--current-color);
+            opacity: 0.9;
+        }
+        .filter-btn.active {
+            background-color: var(--current-color) !important;
+            color: white !important;
+            border-color: var(--current-color) !important;
+        }
+        .tabs-boxed .tab.tab-active {
+            background-color: var(--current-color) !important;
+            color: white !important;
+        }
+    </style>
+</body>
+</html>

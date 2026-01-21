@@ -1,0 +1,251 @@
+<!DOCTYPE html>
+<html lang="ru" data-theme="light">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Рецепты — ШРСК</title>
+    <link href="https://cdn.jsdelivr.net/npm/daisyui@4.12.14/dist/full.min.css" rel="stylesheet" />
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script>tailwind.config = { theme: { extend: { screens: { 'desktop': '1200px' } } } }</script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans:wght@400;500;600;700&family=Noto+Sans+Devanagari:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="css/common.css">
+    <style>
+        /* Стили специфичные для страницы рецептов */
+        .recipe-card { transition: all 0.2s ease; }
+        .recipe-card:hover { transform: translateY(-2px); box-shadow: 0 8px 25px -5px rgba(0,0,0,0.1); }
+    </style>
+</head>
+<body class="bg-base-200 min-h-screen flex flex-col">
+
+    <!-- Хедер (вставляется из layout.js) -->
+    <div id="header-placeholder"></div>
+
+    <!-- ==================== MAIN CONTENT ==================== -->
+    <main class="container mx-auto px-4 py-6 flex-1">
+
+        <!-- Page Title -->
+        <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6">
+            <div>
+                <h1 class="text-2xl font-bold" data-i18n="recipes_title">Рецепты</h1>
+                <p class="text-sm opacity-60" id="recipesCount">Загрузка...</p>
+            </div>
+            <button class="btn btn-primary gap-2" onclick="window.location.href='recipe-edit.html'">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" />
+                </svg>
+                <span data-i18n="add_recipe">Добавить рецепт</span>
+            </button>
+        </div>
+
+        <!-- Search + Toggle -->
+        <div class="flex flex-col sm:flex-row gap-4 mb-4">
+            <div class="flex-1 max-w-md relative">
+                <input type="text" id="searchInput" placeholder="Поиск по названию..." class="input input-bordered w-full pr-10" data-i18n-placeholder="search_placeholder" />
+                <button type="button" id="clearSearch" class="absolute right-3 top-1/2 -translate-y-1/2 text-base-content/40 hover:text-base-content hidden">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+                    </svg>
+                </button>
+            </div>
+            <label class="flex items-center gap-2 cursor-pointer">
+                <input type="checkbox" id="showPhotosToggle" class="toggle toggle-primary toggle-sm" checked />
+                <span class="text-sm" data-i18n="show_photos">Показывать фото</span>
+            </label>
+        </div>
+
+        <!-- Category Filters -->
+        <div class="flex flex-wrap gap-2 mb-6" id="categoryFilters">
+            <div class="skeleton h-8 w-20"></div>
+            <div class="skeleton h-8 w-24"></div>
+            <div class="skeleton h-8 w-20"></div>
+            <div class="skeleton h-8 w-24"></div>
+        </div>
+
+        <!-- Recipes Grid -->
+        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4" id="recipesGrid">
+            <!-- Skeleton cards -->
+            <div class="card bg-base-100 shadow-md skeleton-card"><div class="skeleton h-32 w-full"></div><div class="card-body p-4"><div class="skeleton h-4 w-16 mb-2"></div><div class="skeleton h-6 w-full mb-1"></div><div class="skeleton h-3 w-3/4"></div></div></div>
+            <div class="card bg-base-100 shadow-md skeleton-card"><div class="skeleton h-32 w-full"></div><div class="card-body p-4"><div class="skeleton h-4 w-16 mb-2"></div><div class="skeleton h-6 w-full mb-1"></div><div class="skeleton h-3 w-3/4"></div></div></div>
+            <div class="card bg-base-100 shadow-md skeleton-card"><div class="skeleton h-32 w-full"></div><div class="card-body p-4"><div class="skeleton h-4 w-16 mb-2"></div><div class="skeleton h-6 w-full mb-1"></div><div class="skeleton h-3 w-3/4"></div></div></div>
+            <div class="card bg-base-100 shadow-md skeleton-card"><div class="skeleton h-32 w-full"></div><div class="card-body p-4"><div class="skeleton h-4 w-16 mb-2"></div><div class="skeleton h-6 w-full mb-1"></div><div class="skeleton h-3 w-3/4"></div></div></div>
+        </div>
+
+    </main>
+
+    <!-- Футер (вставляется из layout.js) -->
+    <div id="footer-placeholder"></div>
+
+    <script src="js/layout.js"></script>
+    <script>
+        // ==================== STATE ====================
+        let currentCategory = 'all';
+        let searchQuery = '';
+        let showPhotos = true;
+        let recipes = [];
+        let categories = [];
+
+        // Алиасы для удобства
+        const t = key => Layout.t(key);
+
+        // Формы склонения для счётчиков
+        const RECIPE_FORMS = {
+            ru: ['рецепт', 'рецепта', 'рецептов'],
+            en: ['recipe', 'recipes'],
+            hi: 'व्यंजन'
+        };
+
+        // ==================== DATA LOADING ====================
+        async function loadCategories() {
+            const { data, error } = await Layout.db.from('recipe_categories').select('*').order('sort_order');
+            if (error) { console.error('Error loading categories:', error); return; }
+            categories = data;
+            renderCategoryFilters();
+        }
+
+        async function loadRecipes() {
+            const { data, error } = await Layout.db.from('recipes').select('*, recipe_categories(slug, name_ru, name_en, name_hi, color, emoji)').order('name_ru');
+            if (error) { console.error('Error loading recipes:', error); return; }
+            recipes = data;
+            renderRecipes();
+        }
+
+        // ==================== RENDERING ====================
+        function renderCategoryFilters() {
+            const container = Layout.$('#categoryFilters');
+            const counts = { all: recipes.length };
+            recipes.forEach(r => {
+                const slug = r.recipe_categories?.slug;
+                if (slug) counts[slug] = (counts[slug] || 0) + 1;
+            });
+
+            let html = `<button class="btn btn-sm filter-btn ${currentCategory === 'all' ? 'active btn-neutral' : 'btn-ghost'}" data-category="all">${t('all')}<sup class="ml-1 opacity-60">${counts.all}</sup></button>`;
+
+            categories.forEach(cat => {
+                const isActive = currentCategory === cat.slug;
+                html += `<button class="btn btn-sm filter-btn ${isActive ? 'active' : 'btn-ghost'}" data-category="${cat.slug}" style="${isActive ? `background-color: ${cat.color}; border-color: ${cat.color};` : ''}">${cat.emoji} ${Layout.getName(cat)}<sup class="ml-1 opacity-60">${counts[cat.slug] || 0}</sup></button>`;
+            });
+
+            container.innerHTML = html;
+            container.querySelectorAll('.filter-btn').forEach(btn => {
+                btn.addEventListener('click', () => {
+                    currentCategory = btn.dataset.category;
+                    renderCategoryFilters();
+                    renderRecipes();
+                });
+            });
+        }
+
+        function renderRecipes() {
+            const grid = Layout.$('#recipesGrid');
+            const countEl = Layout.$('#recipesCount');
+            const lang = Layout.currentLang;
+
+            const filtered = recipes.filter(recipe => {
+                const matchesCategory = currentCategory === 'all' || recipe.recipe_categories?.slug === currentCategory;
+                const matchesSearch = searchQuery === '' ||
+                    recipe.name_ru.toLowerCase().includes(searchQuery.toLowerCase()) ||
+                    recipe.name_en.toLowerCase().includes(searchQuery.toLowerCase()) ||
+                    recipe.name_hi.includes(searchQuery);
+                return matchesCategory && matchesSearch;
+            });
+
+            countEl.textContent = Layout.pluralize(filtered.length, RECIPE_FORMS);
+
+            if (filtered.length === 0) {
+                grid.innerHTML = `<div class="col-span-full text-center py-12 opacity-50"><div class="text-4xl mb-2">🍽️</div><div>${t('no_recipes')}</div></div>`;
+                return;
+            }
+
+            grid.innerHTML = filtered.map(recipe => {
+                const cat = recipe.recipe_categories;
+                const secondaryLang = lang === 'ru' ? 'en' : 'ru';
+                const unitOutput = recipe.output_unit === 'pcs' ? t('unit_pcs') : recipe.output_unit;
+                const unitPortion = recipe.portion_unit === 'pcs' ? t('unit_pcs') : recipe.portion_unit;
+
+                const photoHtml = showPhotos ? `
+                    <figure class="h-32 bg-base-200 overflow-hidden">
+                        <img src="${recipe.photo_url}" alt="${Layout.getName(recipe)}" class="w-full h-full object-cover" onerror="this.style.display='none'; this.parentElement.innerHTML='<div class=\\'h-full w-full flex items-center justify-center text-4xl\\'>${cat?.emoji || '🍽️'}</div>'" />
+                    </figure>
+                ` : '';
+
+                return `
+                    <div class="card bg-base-100 shadow-md recipe-card cursor-pointer hover:shadow-lg" onclick="openRecipe('${recipe.id}')">
+                        ${photoHtml}
+                        <div class="card-body p-4">
+                            <div class="flex justify-between items-start mb-1">
+                                <span class="category-badge badge text-white" style="background-color: ${cat?.color || '#999'}">${Layout.getName(cat) || '—'}</span>
+                                <span class="text-xs opacity-50">${recipe.cooking_time} ${t('minutes')}</span>
+                            </div>
+                            <h3 class="card-title text-base leading-tight mb-0">${Layout.getName(recipe)}</h3>
+                            <p class="sub-text">${recipe[`name_${secondaryLang}`] || ''}</p>
+                            ${lang !== 'hi' ? `<p class="sub-text">${recipe.name_hi} · ${recipe.translit || ''}</p>` : ''}
+                            <div class="flex gap-4 mt-2 text-sm">
+                                <div><span class="opacity-50">${t('output')}:</span> <span class="font-medium">${recipe.output_amount} ${unitOutput}</span></div>
+                                <div><span class="opacity-50">${t('portion')}:</span> <span class="font-medium">${recipe.portion_amount} ${unitPortion}</span></div>
+                            </div>
+                        </div>
+                    </div>
+                `;
+            }).join('');
+        }
+
+        function updatePageLanguage() {
+            Layout.updateAllTranslations();
+            renderCategoryFilters();
+            renderRecipes();
+        }
+
+        function openRecipe(id) {
+            window.location.href = `recipe.html?id=${id}`;
+        }
+
+        // ==================== EVENT LISTENERS ====================
+        document.addEventListener('DOMContentLoaded', () => {
+            const searchInput = Layout.$('#searchInput');
+            const clearBtn = Layout.$('#clearSearch');
+            const debouncedSearch = Layout.debounce(() => renderRecipes(), 200);
+
+            searchInput?.addEventListener('input', e => {
+                searchQuery = e.target.value;
+                clearBtn?.classList.toggle('hidden', !e.target.value);
+                debouncedSearch();
+            });
+
+            clearBtn?.addEventListener('click', () => {
+                searchInput.value = '';
+                searchQuery = '';
+                clearBtn.classList.add('hidden');
+                renderRecipes();
+                searchInput.focus();
+            });
+
+            // Переключатель фото
+            Layout.$('#showPhotosToggle')?.addEventListener('change', e => {
+                showPhotos = e.target.checked;
+                renderRecipes();
+            });
+        });
+
+        // Колбэк при смене языка
+        window.onLanguageChange = function(lang) {
+            updatePageLanguage();
+        };
+
+        // ==================== INIT ====================
+        async function init() {
+            // Инициализируем layout (хедер, футер, локации)
+            await Layout.init({ menuId: 'kitchen', itemId: 'recipes' });
+
+            // Загружаем данные страницы
+            await loadCategories();
+            await loadRecipes();
+            updatePageLanguage();
+        }
+
+        init();
+    </script>
+</body>
+</html>

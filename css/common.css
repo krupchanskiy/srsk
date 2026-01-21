@@ -1,0 +1,185 @@
+/* ==================== COMMON.CSS ==================== */
+/* Общие стили для всех страниц ШРСК */
+
+:root {
+    --color-main: #f49800;
+    --color-cafe: #10b981;
+    --color-guest: #3b82f6;
+    --current-color: #f49800;
+}
+
+* {
+    font-family: 'Noto Sans', 'Noto Sans Devanagari', sans-serif;
+}
+
+/* Увеличенный шрифт для всего контента под хедером */
+main {
+    font-size: 18px !important;
+}
+
+main .table { font-size: 18px !important; }
+main .table td, main .table th { font-size: 18px !important; }
+main .card { font-size: 18px !important; }
+
+main h1 { font-size: 1.75rem !important; }
+main h2 { font-size: 1.5rem !important; }
+main h3 { font-size: 1.25rem !important; }
+
+main .text-xs { font-size: 0.9rem !important; }
+main .text-sm { font-size: 1rem !important; }
+main .text-base { font-size: 1.1rem !important; }
+main .badge {
+    font-size: 0.9rem !important;
+    padding: 0.75rem 1rem !important;
+}
+main .btn { font-size: 1rem !important; }
+main input, main select, main textarea { font-size: 1rem !important; }
+
+main p, main span, main div { font-size: inherit; }
+
+/* ==================== HEADER ==================== */
+.nav-link {
+    transition: all 0.15s ease;
+}
+.nav-link:hover {
+    opacity: 1;
+}
+.nav-link.active {
+    opacity: 1;
+    color: var(--current-color);
+}
+
+.lang-btn.active {
+    background-color: var(--current-color) !important;
+    color: white !important;
+    border-color: var(--current-color) !important;
+}
+
+.submenu-link {
+    transition: all 0.15s ease;
+}
+.submenu-link.active {
+    background-color: white;
+    color: var(--current-color) !important;
+}
+
+#submenuBar {
+    background-color: var(--current-color);
+}
+
+.logo-svg path {
+    transition: fill 0.3s ease;
+}
+
+/* ==================== MOBILE MENU ==================== */
+@media (max-width: 1199px) {
+    #submenuBar {
+        display: none !important;
+    }
+}
+
+.mobile-menu {
+    max-height: 0;
+    overflow: hidden;
+    transition: max-height 0.3s ease;
+}
+.mobile-menu.open {
+    max-height: 600px;
+}
+
+.mobile-nav-item.open > button {
+    color: var(--current-color);
+}
+.mobile-nav-item.open .arrow-icon {
+    transform: rotate(180deg);
+}
+.mobile-nav-item .submenu {
+    display: none;
+}
+.mobile-nav-item.open .submenu {
+    display: block;
+}
+
+/* ==================== DYNAMIC COLORS ==================== */
+.btn-primary {
+    background-color: var(--current-color) !important;
+    border-color: var(--current-color) !important;
+    color: white !important;
+}
+.btn-primary:hover {
+    background-color: var(--current-color) !important;
+    border-color: var(--current-color) !important;
+    filter: brightness(0.9);
+}
+
+.toggle-primary:checked {
+    background-color: var(--current-color) !important;
+    border-color: var(--current-color) !important;
+}
+
+.text-primary {
+    color: var(--current-color) !important;
+}
+
+.btn-neutral.active {
+    background-color: var(--current-color) !important;
+    border-color: var(--current-color) !important;
+}
+
+/* ==================== COMMON UI ==================== */
+.filter-btn.active {
+    color: white !important;
+}
+
+.skeleton-card {
+    animation: pulse 1.5s infinite;
+}
+
+@keyframes pulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.5; }
+}
+
+/* ==================== CARDS ==================== */
+.card-hover {
+    transition: all 0.2s ease;
+}
+.card-hover:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 8px 25px -5px rgba(0,0,0,0.1);
+}
+
+/* ==================== SPACING ==================== */
+/* Увеличенные отступы внутри контейнеров с рамками */
+main .bg-base-100.rounded-xl,
+main .bg-base-100.rounded-lg {
+    padding: 1.5rem !important;
+}
+
+main .card-body {
+    padding: 1.25rem !important;
+}
+
+main .stats .stat {
+    padding: 1.25rem 1.5rem !important;
+}
+
+main .modal-box {
+    padding: 1.75rem !important;
+}
+
+main .table td,
+main .table th {
+    padding: 0.875rem 1rem !important;
+}
+
+/* ==================== UTILITY ==================== */
+.sub-text {
+    font-size: 0.7rem;
+    opacity: 0.5;
+}
+
+.category-badge {
+    font-size: 0.7rem;
+    padding: 0.2rem 0.5rem;
+}

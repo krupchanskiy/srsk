@@ -1,0 +1,911 @@
+<!DOCTYPE html>
+<html lang="ru" data-theme="light">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Продукты — Кухня Ашрама</title>
+    <link href="https://cdn.jsdelivr.net/npm/daisyui@4.12.14/dist/full.min.css" rel="stylesheet" type="text/css" />
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = { theme: { extend: { screens: { 'desktop': '1200px' } } },
+            daisyui: {
+                themes: ["light"],
+            },
+        }
+    </script>
+    <style>
+:root {
+            --color-main: #f49800;
+            --color-cafe: #10b981;
+            --color-guest: #3b82f6;
+            --current-color: #f49800;
+        }
+        * { font-family: 'Noto Sans', 'Noto Sans Devanagari', sans-serif; }
+        .nav-link { transition: all 0.15s ease; }
+        .nav-link:hover { opacity: 1; }
+        .nav-link.active { opacity: 1; color: var(--current-color); }
+        .lang-btn.active { background-color: var(--color-main) !important; color: white !important; border-color: var(--color-main) !important; }
+        .submenu-link { transition: all 0.15s ease; }
+        .submenu-link.active { background-color: white; color: var(--current-color) !important; }
+        #submenuBar { background-color: var(--current-color); }
+        .logo-svg path { transition: fill 0.3s ease; }
+        @media (max-width: 1199px) { #submenuBar { display: none !important; } }
+        .mobile-menu { max-height: 0; overflow: hidden; transition: max-height 0.3s ease; }
+        .mobile-menu.open { max-height: 500px; }
+        .mobile-nav-item.open > button { color: var(--current-color); }
+        .mobile-nav-item.open .arrow-icon { transform: rotate(180deg); }
+        .mobile-nav-item .submenu { display: none; }
+        .mobile-nav-item.open .submenu { display: block; }
+
+        
+
+        [data-theme="light"] {
+            --p: 65% 0.12 45; /* #CC7C5E в oklch */
+            --pf: 55% 0.12 45; /* darker for focus */
+            --pc: 100% 0 0; /* white text on primary */
+        }
+        
+        /* Active language button */
+        
+        /* Active nav link */
+        .nav-link.active {
+            color: #CC7C5E;
+            opacity: 1;
+            border-bottom-color: #CC7C5E;
+        }
+        
+        /* Kitchen dropdown active */
+        .kitchen-option.active {
+            background-color: rgba(204, 124, 94, 0.1);
+            color: #CC7C5E;
+        }
+        
+        /* Category colors */
+        .cat-all { --cat-color: #CC7C5E; }
+        .cat-main { --cat-color: #A67B5B; }
+        .cat-garnish { --cat-color: #D4A84B; }
+        .cat-soup { --cat-color: #E08A4A; }
+        .cat-salad { --cat-color: #6B9E5A; }
+        .cat-drink { --cat-color: #4A9E9A; }
+        .cat-sweet { --cat-color: #C75D7E; }
+        .cat-snack { --cat-color: #8B6B9E; }
+        
+        .filter-btn.active {
+            background-color: var(--cat-color) !important;
+            color: white !important;
+            border-color: var(--cat-color) !important;
+        }
+        
+        .badge-main { background-color: #A67B5B; color: white; border: none; }
+        .badge-garnish { background-color: #D4A84B; color: white; border: none; }
+        .badge-soup { background-color: #E08A4A; color: white; border: none; }
+        .badge-salad { background-color: #6B9E5A; color: white; border: none; }
+        .badge-drink { background-color: #4A9E9A; color: white; border: none; }
+        .badge-sweet { background-color: #C75D7E; color: white; border: none; }
+        .badge-snack { background-color: #8B6B9E; color: white; border: none; }
+    </style>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans:wght@400;500;600;700&family=Noto+Sans+Devanagari:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        * {
+            font-family: 'Noto Sans', 'Noto Sans Devanagari', sans-serif;
+        }
+        .recipe-card:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 25px -5px rgba(0,0,0,0.1);
+        }
+        .recipe-card {
+            transition: all 0.2s ease;
+        }
+        .category-badge {
+            font-size: 0.7rem;
+            padding: 0.2rem 0.5rem;
+        }
+        .sub-text {
+            font-size: 0.7rem;
+            opacity: 0.5;
+        }
+        .filter-btn.active {
+            background: oklch(var(--p));
+            color: oklch(var(--pc));
+        }
+    </style>
+</head>
+<body class="bg-base-200 min-h-screen">
+    
+    <header class="bg-base-100 shadow-sm sticky top-0 z-50">
+        <div class="container mx-auto px-4">
+            <div class="flex items-center justify-between h-20">
+                
+                <!-- Logo + Location Selector -->
+                <div class="flex items-center gap-3 flex-shrink-0">
+                    <a href="kitchen-menu.html" class="hover:opacity-80 transition-opacity">
+                        <svg class="h-14 w-auto logo-svg" viewBox="0 0 122.03 312.54" xmlns="http://www.w3.org/2000/svg">
+                            <path fill="var(--current-color)" d="M102,15.99h-15.18v81.89c0,6.21.12,11.58-.88,15.98-1.01,4.45-2.6,7.98-4.77,10.58-2.02,2.81-4.85,4.83-8.51,6.05-2.38,1-5.08,1.62-8.1,1.83-1.01.21-2.02.32-3.02.32h-.64c-3.81-.21-7.23-.83-10.25-1.83-3.81-1.22-7.02-3.13-9.62-5.73-2.65-2.81-4.56-6.44-5.73-10.89-1.22-4.4-1.83-9.83-1.83-16.3V15.99h-15.1v89.12c0,13.68,3.81,23.94,11.45,30.77,3.81,3.44,8.56,5.96,14.23,7.55,1.17.42,2.57.74,4.21.96-13.89,5.03-23.35,11.87-28.38,20.51-7.05,10.65-7.26,24.14-.64,40.46l41.34,100.45,39.91-100.45c6.41-16.32,6.2-29.82-.64-40.46-4.82-8.48-13.97-15.21-27.43-20.2,1.59-.43,3.18-.85,4.77-1.27,5.25-1.59,9.67-4.19,13.27-7.79,3.82-3.66,6.65-8.18,8.51-13.59,2.02-5.62,3.02-12.27,3.02-19.95V15.99M87.45,172.46c4.03,7.26,3.84,16.4-.56,27.43l-26.31,68.13-27.75-68.13c-4.61-11.03-4.8-20.17-.55-27.43,4.61-7.47,13.76-13.01,27.43-16.62,13.67,3.61,22.93,9.15,27.75,16.62"/>
+                        </svg>
+                    </a>
+                    
+                    <!-- Desktop: full name + selector -->
+                    <div class="hidden md:flex flex-col">
+                        <a href="kitchen-menu.html" class="text-xl font-semibold whitespace-nowrap hover:opacity-80 transition-opacity">Шри Рупа Сева Кунджа</a>
+                        <div class="relative location-selector" id="locationDesktop">
+                            <button class="flex items-center justify-between gap-2 w-full text-xl opacity-70 hover:opacity-100 transition-opacity" data-toggle="location">
+                                <span class="location-name">Основная кухня</span>
+                                <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 transition-transform location-arrow" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                                    <path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7" />
+                                </svg>
+                            </button>
+                            <div class="absolute top-full left-0 mt-1 bg-white rounded-lg shadow-lg py-1 w-full hidden z-50 location-dropdown"></div>
+                        </div>
+                    </div>
+                    
+                    <!-- Mobile: ШРСК + selector -->
+                    <div class="flex items-center gap-2 md:hidden">
+                        <span class="text-xl font-semibold whitespace-nowrap">ШРСК</span>
+                        <span class="text-xl opacity-50">·</span>
+                        <div class="relative location-selector" id="locationMobile">
+                            <button class="flex items-center gap-1 text-xl opacity-70" data-toggle="location">
+                                <span class="location-name">Основная кухня</span>
+                                <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 transition-transform location-arrow" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                                    <path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7" />
+                                </svg>
+                            </button>
+                            <div class="absolute top-full left-0 mt-1 bg-white rounded-lg shadow-lg py-1 min-w-44 hidden z-50 location-dropdown"></div>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Desktop Navigation -->
+                <nav class="hidden desktop:flex items-center gap-2" id="mainNav">
+                    <a href="#" class="nav-link px-5 py-6 text-base font-semibold tracking-wide uppercase opacity-60" data-submenu="kitchen">Кухня</a>
+                    <a href="#" class="nav-link px-5 py-6 text-base font-semibold tracking-wide uppercase opacity-60" data-submenu="stock">Склад</a>
+                    <a href="#" class="nav-link px-5 py-6 text-base font-semibold tracking-wide uppercase opacity-60">Ретриты</a>
+                    <a href="#" class="nav-link px-5 py-6 text-base font-semibold tracking-wide uppercase opacity-60" data-submenu="team">Команда</a>
+                    <a href="#" class="nav-link px-5 py-6 text-base font-semibold tracking-wide uppercase opacity-60" data-submenu="settings">Настройки</a>
+                </nav>
+                
+                <!-- Right: Language, User, Mobile Menu Button -->
+                <div class="flex items-center gap-3 sm:gap-5">
+                    <div class="hidden md:flex join">
+                        <button class="join-item btn btn-sm lang-btn active" data-lang="ru">RU</button>
+                        <button class="join-item btn btn-sm lang-btn" data-lang="en">EN</button>
+                        <button class="join-item btn btn-sm lang-btn" data-lang="hi">HI</button>
+                    </div>
+                    <div class="hidden desktop:block">
+                        <div class="w-10 h-10 rounded-full overflow-hidden ring-2 ring-base-200">
+                            <img src="https://i.pravatar.cc/150?img=5" alt="User" class="w-full h-full object-cover" />
+                        </div>
+                    </div>
+                    <button class="btn btn-ghost btn-md btn-square desktop:hidden" id="mobileMenuBtn">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-7 w-7 menu-icon" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M4 6h16M4 12h16M4 18h16" />
+                        </svg>
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-7 w-7 close-icon hidden" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
+                        </svg>
+                    </button>
+                </div>
+            </div>
+            
+            <!-- Mobile Menu -->
+            <div class="mobile-menu desktop:hidden border-t border-base-200" id="mobileMenu">
+                <nav class="py-3 space-y-0" id="mobileNav"></nav>
+                <div class="border-t border-base-200 py-4 px-4">
+                    <div class="flex items-center justify-between">
+                        <div class="flex items-center gap-3">
+                            <div class="w-10 h-10 rounded-full overflow-hidden ring-2 ring-base-200">
+                                <img src="https://i.pravatar.cc/150?img=5" alt="User" class="w-full h-full object-cover" />
+                            </div>
+                            <span class="font-medium">Ганга деви даси</span>
+                        </div>
+                        <div class="md:hidden join">
+                            <button class="join-item btn btn-sm lang-btn active" data-lang="ru">RU</button>
+                            <button class="join-item btn btn-sm lang-btn" data-lang="en">EN</button>
+                            <button class="join-item btn btn-sm lang-btn" data-lang="hi">HI</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Submenu Bar (Desktop) -->
+        <div class="hidden -mt-1" id="submenuBar"></div>
+    </header>
+
+    <!-- Main Content -->
+    <main class="container mx-auto px-4 py-6">
+        
+        <!-- Page Title -->
+        <div class="flex justify-between items-center mb-6">
+            <div>
+                <h1 class="text-2xl font-bold" data-i18n="page_title">Продукты</h1>
+                <p class="text-sm opacity-60" id="productsCount">87 продуктов</p>
+            </div>
+            <button class="btn btn-primary gap-2" onclick="openProductModal()">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" />
+                </svg>
+                <span data-i18n="add_product">Добавить продукт</span>
+            </button>
+        </div>
+
+        <!-- Search + Filters -->
+        <div class="flex flex-col gap-4 mb-6">
+            <!-- Search -->
+            <div class="w-full sm:max-w-sm">
+                <input type="text" id="searchInput" placeholder="Поиск по названию..." class="input input-bordered w-full" data-i18n-placeholder="search_placeholder" />
+            </div>
+            
+            <!-- Category Filter -->
+            <div class="flex flex-wrap gap-2" id="categoryFilters">
+                <!-- Will be generated by JS -->
+            </div>
+        </div>
+
+        <!-- Products Table -->
+        <div class="bg-base-100 rounded-xl shadow-sm overflow-hidden max-w-4xl">
+            <div class="overflow-x-auto">
+                <table class="table w-full">
+                    <thead>
+                        <tr class="border-b border-base-200">
+                            <th class="bg-base-100" data-i18n="col_name">Название</th>
+                            <th class="bg-base-100 w-32" data-i18n="col_category">Категория</th>
+                            <th class="bg-base-100 w-24 text-center" data-i18n="col_unit">Ед. изм.</th>
+                            <th class="bg-base-100" data-i18n="col_price_range">Диапазон цен</th>
+                            <th class="bg-base-100 w-20"></th>
+                        </tr>
+                    </thead>
+                    <tbody id="productsTable">
+                        <!-- Will be generated by JS -->
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+    </main>
+
+    <!-- Product Modal -->
+    <dialog id="productModal" class="modal">
+        <div class="modal-box max-w-2xl">
+            <form method="dialog">
+                <button class="btn btn-sm btn-circle btn-ghost absolute right-2 top-2">✕</button>
+            </form>
+            <h3 class="font-bold text-lg mb-4" id="modalTitle" data-i18n="modal_add_title">Добавить продукт</h3>
+            
+            <form id="productForm" class="space-y-4">
+                <!-- Names -->
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    <div>
+                        <label class="label"><span class="label-text font-medium">Название (RU)</span></label>
+                        <input type="text" name="name_ru" class="input input-bordered w-full" required />
+                    </div>
+                    <div>
+                        <label class="label"><span class="label-text font-medium">Name (EN)</span></label>
+                        <input type="text" name="name_en" class="input input-bordered w-full" required />
+                    </div>
+                    <div>
+                        <label class="label"><span class="label-text font-medium">नाम (HI)</span></label>
+                        <input type="text" name="name_hi" class="input input-bordered w-full" required />
+                    </div>
+                </div>
+                
+                <!-- Transliteration -->
+                <div>
+                    <label class="label"><span class="label-text font-medium" data-i18n="field_translit">Транслитерация (IAST)</span></label>
+                    <input type="text" name="translit" class="input input-bordered w-full" placeholder="Ṭamāṭar" />
+                </div>
+                
+                <!-- Category + Unit -->
+                <div class="grid grid-cols-2 gap-4">
+                    <div>
+                        <label class="label"><span class="label-text font-medium" data-i18n="field_category">Категория</span></label>
+                        <select name="category" class="select select-bordered w-full" required onchange="toggleWasteField(this.value)">
+                            <option value="vegetables">Овощи</option>
+                            <option value="fruits">Фрукты</option>
+                            <option value="grains">Крупы и зерно</option>
+                            <option value="legumes">Бобовые</option>
+                            <option value="dairy">Молочные</option>
+                            <option value="spices">Специи</option>
+                            <option value="oils">Масла</option>
+                            <option value="nuts">Орехи и семена</option>
+                            <option value="sweeteners">Подсластители</option>
+                            <option value="other">Прочее</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="label"><span class="label-text font-medium" data-i18n="field_unit">Единица измерения</span></label>
+                        <select name="unit" class="select select-bordered w-full" required>
+                            <option value="кг">кг</option>
+                            <option value="г">г</option>
+                            <option value="л">л</option>
+                            <option value="мл">мл</option>
+                            <option value="шт">шт</option>
+                            <option value="пучок">пучок</option>
+                        </select>
+                    </div>
+                </div>
+                
+                <!-- Waste percentage (for vegetables/fruits) -->
+                <div id="wasteField" class="hidden">
+                    <label class="label"><span class="label-text font-medium">Процент на очистку</span></label>
+                    <div class="flex items-center gap-2">
+                        <input type="number" name="waste" class="input input-bordered w-24" min="0" max="100" value="0" />
+                        <span class="opacity-60">%</span>
+                        <span class="text-xs opacity-40 ml-2">Учитывается при расчёте закупок</span>
+                    </div>
+                </div>
+                
+                <!-- Notes -->
+                <div>
+                    <label class="label"><span class="label-text font-medium">Примечания</span></label>
+                    <textarea name="notes" class="textarea textarea-bordered w-full" rows="2" placeholder="Особенности хранения, поставщики, альтернативы..."></textarea>
+                </div>
+                
+                <!-- Price info (read-only from stock) -->
+                <div class="bg-base-200 rounded-lg p-4">
+                    <label class="label"><span class="label-text font-medium opacity-60" data-i18n="field_price_info">Информация о ценах (из склада)</span></label>
+                    <p class="text-sm" id="priceInfo">Данные о ценах берутся из складских записей</p>
+                </div>
+                
+                <!-- Actions -->
+                <div class="flex justify-end gap-2 pt-4">
+                    <button type="button" class="btn btn-ghost" onclick="closeProductModal()">
+                        <span data-i18n="cancel">Отмена</span>
+                    </button>
+                    <button type="submit" class="btn btn-primary">
+                        <span data-i18n="save">Сохранить</span>
+                    </button>
+                </div>
+            </form>
+        </div>
+        <form method="dialog" class="modal-backdrop">
+            <button>close</button>
+        </form>
+    </dialog>
+
+    <!-- Footer -->
+    <footer class="bg-base-100 border-t border-base-200 mt-12">
+        <div class="container mx-auto px-4 py-6">
+            <div class="flex flex-col sm:flex-row justify-between items-center gap-4">
+                <!-- Footer Navigation -->
+                <nav class="flex gap-6">
+                    <a href="kitchen-menu.html" class="text-sm font-medium uppercase tracking-wide opacity-60 hover:opacity-100" data-i18n="nav_menu">Меню</a>
+                    <a href="kitchen-recipes.html" class="text-sm font-medium uppercase tracking-wide opacity-60 hover:opacity-100" data-i18n="nav_recipes">Рецепты</a>
+                    <a href="kitchen-products.html" class="text-sm font-medium uppercase tracking-wide text-primary" data-i18n="nav_products">Продукты</a>
+                    <a href="kitchen-stock.html" class="text-sm font-medium uppercase tracking-wide opacity-60 hover:opacity-100" data-i18n="nav_stock">Склад</a>
+                    <a href="kitchen-retreats.html" class="text-sm font-medium uppercase tracking-wide opacity-60 hover:opacity-100">Ретриты</a>
+                    <a href="kitchen-team.html" class="text-sm font-medium uppercase tracking-wide opacity-60 hover:opacity-100">Команда</a>
+                </nav>
+                
+                <!-- Back to top -->
+                <button onclick="window.scrollTo({top: 0, behavior: 'smooth'})" class="btn btn-ghost btn-sm gap-1 opacity-60 hover:opacity-100">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 15l7-7 7 7" />
+                    </svg>
+                    <span data-i18n="back_to_top">Наверх</span>
+                </button>
+            </div>
+            
+            <div class="text-center mt-4 text-xs opacity-40">
+                ШРСК · Шри Рупа Сева Кунджа
+            </div>
+        </div>
+    </footer>
+
+    <script>
+        // ==================== DATA ====================
+        const products = [
+            // Овощи
+            { id: 1, name_ru: "Картофель", name_en: "Potato", name_hi: "आलू", translit: "Ālū", category: "vegetables", unit: "кг", price_min: 25, price_min_date: "янв 2025", price_max: 45, price_max_date: "июн 2024" },
+            { id: 2, name_ru: "Лук репчатый", name_en: "Onion", name_hi: "प्याज", translit: "Pyāz", category: "vegetables", unit: "кг", price_min: 20, price_min_date: "дек 2024", price_max: 80, price_max_date: "авг 2024" },
+            { id: 3, name_ru: "Морковь", name_en: "Carrot", name_hi: "गाजर", translit: "Gājar", category: "vegetables", unit: "кг", price_min: 30, price_min_date: "янв 2025", price_max: 60, price_max_date: "май 2024" },
+            { id: 4, name_ru: "Томаты", name_en: "Tomatoes", name_hi: "टमाटर", translit: "Ṭamāṭar", category: "vegetables", unit: "кг", price_min: 25, price_min_date: "дек 2024", price_max: 120, price_max_date: "июл 2024" },
+            { id: 5, name_ru: "Огурцы", name_en: "Cucumber", name_hi: "खीरा", translit: "Khīrā", category: "vegetables", unit: "кг", price_min: 20, price_min_date: "сен 2024", price_max: 50, price_max_date: "май 2024" },
+            { id: 6, name_ru: "Капуста белокочанная", name_en: "Cabbage", name_hi: "पत्ता गोभी", translit: "Pattā Gobhī", category: "vegetables", unit: "кг", price_min: 15, price_min_date: "янв 2025", price_max: 40, price_max_date: "июн 2024" },
+            { id: 7, name_ru: "Цветная капуста", name_en: "Cauliflower", name_hi: "फूल गोभी", translit: "Phūl Gobhī", category: "vegetables", unit: "кг", price_min: 30, price_min_date: "дек 2024", price_max: 80, price_max_date: "авг 2024" },
+            { id: 8, name_ru: "Шпинат", name_en: "Spinach", name_hi: "पालक", translit: "Pālak", category: "vegetables", unit: "кг", price_min: 20, price_min_date: "янв 2025", price_max: 60, price_max_date: "май 2024" },
+            { id: 9, name_ru: "Баклажан", name_en: "Eggplant", name_hi: "बैंगन", translit: "Baiṅgan", category: "vegetables", unit: "кг", price_min: 30, price_min_date: "окт 2024", price_max: 70, price_max_date: "апр 2024" },
+            { id: 10, name_ru: "Бхинди (окра)", name_en: "Okra", name_hi: "भिंडी", translit: "Bhiṇḍī", category: "vegetables", unit: "кг", price_min: 40, price_min_date: "авг 2024", price_max: 100, price_max_date: "янв 2025" },
+            { id: 11, name_ru: "Перец болгарский", name_en: "Bell Pepper", name_hi: "शिमला मिर्च", translit: "Śimlā Mirch", category: "vegetables", unit: "кг", price_min: 60, price_min_date: "ноя 2024", price_max: 150, price_max_date: "июн 2024" },
+            { id: 12, name_ru: "Зелёный горошек", name_en: "Green Peas", name_hi: "मटर", translit: "Maṭar", category: "vegetables", unit: "кг", price_min: 60, price_min_date: "дек 2024", price_max: 120, price_max_date: "июл 2024" },
+            { id: 13, name_ru: "Имбирь", name_en: "Ginger", name_hi: "अदरक", translit: "Adrak", category: "vegetables", unit: "кг", price_min: 80, price_min_date: "янв 2025", price_max: 200, price_max_date: "май 2024" },
+            { id: 14, name_ru: "Чеснок", name_en: "Garlic", name_hi: "लहसुन", translit: "Lahsun", category: "vegetables", unit: "кг", price_min: 100, price_min_date: "дек 2024", price_max: 250, price_max_date: "июн 2024" },
+            { id: 15, name_ru: "Перец чили зелёный", name_en: "Green Chili", name_hi: "हरी मिर्च", translit: "Harī Mirch", category: "vegetables", unit: "кг", price_min: 40, price_min_date: "сен 2024", price_max: 150, price_max_date: "июл 2024" },
+            
+            // Фрукты
+            { id: 20, name_ru: "Бананы", name_en: "Banana", name_hi: "केला", translit: "Kelā", category: "fruits", unit: "кг", price_min: 40, price_min_date: "янв 2025", price_max: 60, price_max_date: "май 2024" },
+            { id: 21, name_ru: "Манго", name_en: "Mango", name_hi: "आम", translit: "Ām", category: "fruits", unit: "кг", price_min: 80, price_min_date: "июн 2024", price_max: 200, price_max_date: "янв 2025" },
+            { id: 22, name_ru: "Папайя", name_en: "Papaya", name_hi: "पपीता", translit: "Papītā", category: "fruits", unit: "кг", price_min: 30, price_min_date: "окт 2024", price_max: 60, price_max_date: "апр 2024" },
+            { id: 23, name_ru: "Лимон", name_en: "Lemon", name_hi: "नींबू", translit: "Nīmbū", category: "fruits", unit: "кг", price_min: 60, price_min_date: "янв 2025", price_max: 200, price_max_date: "июл 2024" },
+            { id: 24, name_ru: "Кокос", name_en: "Coconut", name_hi: "नारियल", translit: "Nāriyal", category: "fruits", unit: "шт", price_min: 25, price_min_date: "ноя 2024", price_max: 45, price_max_date: "июн 2024" },
+            
+            // Крупы и зерно
+            { id: 30, name_ru: "Рис басмати", name_en: "Basmati Rice", name_hi: "बासमती चावल", translit: "Bāsmatī Chāval", category: "grains", unit: "кг", price_min: 90, price_min_date: "сен 2024", price_max: 120, price_max_date: "янв 2025" },
+            { id: 31, name_ru: "Пшеничная мука (атта)", name_en: "Wheat Flour", name_hi: "आटा", translit: "Āṭā", category: "grains", unit: "кг", price_min: 35, price_min_date: "окт 2024", price_max: 45, price_max_date: "апр 2024" },
+            { id: 32, name_ru: "Манка (суджи/рава)", name_en: "Semolina", name_hi: "सूजी", translit: "Sūjī", category: "grains", unit: "кг", price_min: 40, price_min_date: "ноя 2024", price_max: 55, price_max_date: "май 2024" },
+            { id: 33, name_ru: "Поха (рисовые хлопья)", name_en: "Flattened Rice", name_hi: "पोहा", translit: "Pohā", category: "grains", unit: "кг", price_min: 45, price_min_date: "дек 2024", price_max: 60, price_max_date: "июн 2024" },
+            { id: 34, name_ru: "Овсяные хлопья", name_en: "Oats", name_hi: "ओट्स", translit: "Oṭs", category: "grains", unit: "кг", price_min: 100, price_min_date: "окт 2024", price_max: 140, price_max_date: "янв 2025" },
+            { id: 35, name_ru: "Далия (дроблёная пшеница)", name_en: "Broken Wheat", name_hi: "दलिया", translit: "Daliyā", category: "grains", unit: "кг", price_min: 40, price_min_date: "ноя 2024", price_max: 55, price_max_date: "май 2024" },
+            
+            // Бобовые
+            { id: 40, name_ru: "Мунг дал", name_en: "Moong Dal", name_hi: "मूंग दाल", translit: "Mūṅg Dāl", category: "legumes", unit: "кг", price_min: 110, price_min_date: "сен 2024", price_max: 140, price_max_date: "янв 2025" },
+            { id: 41, name_ru: "Тур/Архар дал", name_en: "Toor Dal", name_hi: "तूर दाल", translit: "Tūr Dāl", category: "legumes", unit: "кг", price_min: 130, price_min_date: "окт 2024", price_max: 160, price_max_date: "июн 2024" },
+            { id: 42, name_ru: "Чана дал", name_en: "Chana Dal", name_hi: "चना दाल", translit: "Chanā Dāl", category: "legumes", unit: "кг", price_min: 80, price_min_date: "ноя 2024", price_max: 100, price_max_date: "апр 2024" },
+            { id: 43, name_ru: "Урад дал", name_en: "Urad Dal", name_hi: "उड़द दाल", translit: "Uṛad Dāl", category: "legumes", unit: "кг", price_min: 120, price_min_date: "дек 2024", price_max: 150, price_max_date: "июл 2024" },
+            { id: 44, name_ru: "Нут (кабули чана)", name_en: "Chickpeas", name_hi: "छोले", translit: "Chhole", category: "legumes", unit: "кг", price_min: 90, price_min_date: "окт 2024", price_max: 120, price_max_date: "май 2024" },
+            { id: 45, name_ru: "Красная фасоль (раджма)", name_en: "Kidney Beans", name_hi: "राजमा", translit: "Rājmā", category: "legumes", unit: "кг", price_min: 140, price_min_date: "сен 2024", price_max: 180, price_max_date: "янв 2025" },
+            
+            // Молочные
+            { id: 50, name_ru: "Молоко", name_en: "Milk", name_hi: "दूध", translit: "Dūdh", category: "dairy", unit: "л", price_min: 54, price_min_date: "янв 2024", price_max: 60, price_max_date: "янв 2025" },
+            { id: 51, name_ru: "Йогурт (дахи)", name_en: "Yogurt", name_hi: "दही", translit: "Dahī", category: "dairy", unit: "кг", price_min: 60, price_min_date: "окт 2024", price_max: 80, price_max_date: "апр 2024" },
+            { id: 52, name_ru: "Панир", name_en: "Paneer", name_hi: "पनीर", translit: "Panīr", category: "dairy", unit: "кг", price_min: 320, price_min_date: "сен 2024", price_max: 400, price_max_date: "янв 2025" },
+            { id: 53, name_ru: "Гхи (топлёное масло)", name_en: "Ghee", name_hi: "घी", translit: "Ghī", category: "dairy", unit: "кг", price_min: 500, price_min_date: "ноя 2024", price_max: 600, price_max_date: "июн 2024" },
+            { id: 54, name_ru: "Сливки", name_en: "Cream", name_hi: "क्रीम", translit: "Krīm", category: "dairy", unit: "л", price_min: 200, price_min_date: "окт 2024", price_max: 280, price_max_date: "май 2024" },
+            { id: 55, name_ru: "Сливочное масло", name_en: "Butter", name_hi: "मक्खन", translit: "Makkhan", category: "dairy", unit: "кг", price_min: 450, price_min_date: "дек 2024", price_max: 550, price_max_date: "июл 2024" },
+            
+            // Специи
+            { id: 60, name_ru: "Куркума", name_en: "Turmeric", name_hi: "हल्दी", translit: "Haldī", category: "spices", unit: "кг", price_min: 150, price_min_date: "окт 2024", price_max: 200, price_max_date: "апр 2024" },
+            { id: 61, name_ru: "Кумин (зира)", name_en: "Cumin", name_hi: "जीरा", translit: "Jīrā", category: "spices", unit: "кг", price_min: 350, price_min_date: "ноя 2024", price_max: 450, price_max_date: "июн 2024" },
+            { id: 62, name_ru: "Кориандр молотый", name_en: "Coriander Powder", name_hi: "धनिया पाउडर", translit: "Dhaniyā Pāuḍar", category: "spices", unit: "кг", price_min: 200, price_min_date: "сен 2024", price_max: 280, price_max_date: "янв 2025" },
+            { id: 63, name_ru: "Гарам масала", name_en: "Garam Masala", name_hi: "गरम मसाला", translit: "Garam Masālā", category: "spices", unit: "кг", price_min: 400, price_min_date: "окт 2024", price_max: 500, price_max_date: "май 2024" },
+            { id: 64, name_ru: "Красный перец чили", name_en: "Red Chili Powder", name_hi: "लाल मिर्च", translit: "Lāl Mirch", category: "spices", unit: "кг", price_min: 250, price_min_date: "ноя 2024", price_max: 350, price_max_date: "июл 2024" },
+            { id: 65, name_ru: "Горчичные семена", name_en: "Mustard Seeds", name_hi: "राई", translit: "Rāī", category: "spices", unit: "кг", price_min: 120, price_min_date: "дек 2024", price_max: 160, price_max_date: "июн 2024" },
+            { id: 66, name_ru: "Асафетида (хинг)", name_en: "Asafoetida", name_hi: "हींग", translit: "Hīṅg", category: "spices", unit: "кг", price_min: 1500, price_min_date: "сен 2024", price_max: 2000, price_max_date: "янв 2025" },
+            { id: 67, name_ru: "Карри листья", name_en: "Curry Leaves", name_hi: "करी पत्ता", translit: "Karī Pattā", category: "spices", unit: "г", price_min: 2, price_min_date: "окт 2024", price_max: 5, price_max_date: "апр 2024" },
+            { id: 68, name_ru: "Соль", name_en: "Salt", name_hi: "नमक", translit: "Namak", category: "spices", unit: "кг", price_min: 20, price_min_date: "янв 2024", price_max: 25, price_max_date: "янв 2025" },
+            
+            // Масла
+            { id: 70, name_ru: "Подсолнечное масло", name_en: "Sunflower Oil", name_hi: "सूरजमुखी तेल", translit: "Sūrajmukhī Tel", category: "oils", unit: "л", price_min: 130, price_min_date: "ноя 2024", price_max: 160, price_max_date: "июн 2024" },
+            { id: 71, name_ru: "Горчичное масло", name_en: "Mustard Oil", name_hi: "सरसों का तेल", translit: "Sarsõ kā Tel", category: "oils", unit: "л", price_min: 150, price_min_date: "окт 2024", price_max: 180, price_max_date: "май 2024" },
+            { id: 72, name_ru: "Кокосовое масло", name_en: "Coconut Oil", name_hi: "नारियल तेल", translit: "Nāriyal Tel", category: "oils", unit: "л", price_min: 180, price_min_date: "сен 2024", price_max: 250, price_max_date: "янв 2025" },
+            { id: 73, name_ru: "Кунжутное масло", name_en: "Sesame Oil", name_hi: "तिल का तेल", translit: "Til kā Tel", category: "oils", unit: "л", price_min: 280, price_min_date: "ноя 2024", price_max: 350, price_max_date: "июл 2024" },
+            
+            // Орехи и семена
+            { id: 80, name_ru: "Кешью", name_en: "Cashews", name_hi: "काजू", translit: "Kājū", category: "nuts", unit: "кг", price_min: 800, price_min_date: "окт 2024", price_max: 1000, price_max_date: "апр 2024" },
+            { id: 81, name_ru: "Миндаль", name_en: "Almonds", name_hi: "बादाम", translit: "Bādām", category: "nuts", unit: "кг", price_min: 700, price_min_date: "ноя 2024", price_max: 900, price_max_date: "июн 2024" },
+            { id: 82, name_ru: "Арахис", name_en: "Peanuts", name_hi: "मूंगफली", translit: "Mūṅgphalī", category: "nuts", unit: "кг", price_min: 120, price_min_date: "сен 2024", price_max: 160, price_max_date: "янв 2025" },
+            { id: 83, name_ru: "Кунжут", name_en: "Sesame Seeds", name_hi: "तिल", translit: "Til", category: "nuts", unit: "кг", price_min: 180, price_min_date: "окт 2024", price_max: 250, price_max_date: "май 2024" },
+            { id: 84, name_ru: "Кокосовая стружка", name_en: "Desiccated Coconut", name_hi: "नारियल बूरा", translit: "Nāriyal Būrā", category: "nuts", unit: "кг", price_min: 200, price_min_date: "ноя 2024", price_max: 280, price_max_date: "июл 2024" },
+            
+            // Подсластители
+            { id: 90, name_ru: "Сахар", name_en: "Sugar", name_hi: "चीनी", translit: "Chīnī", category: "sweeteners", unit: "кг", price_min: 40, price_min_date: "сен 2024", price_max: 50, price_max_date: "янв 2025" },
+            { id: 91, name_ru: "Джаггери (гур)", name_en: "Jaggery", name_hi: "गुड़", translit: "Guṛ", category: "sweeteners", unit: "кг", price_min: 50, price_min_date: "окт 2024", price_max: 70, price_max_date: "апр 2024" },
+            { id: 92, name_ru: "Мёд", name_en: "Honey", name_hi: "शहद", translit: "Śahad", category: "sweeteners", unit: "кг", price_min: 300, price_min_date: "ноя 2024", price_max: 450, price_max_date: "июн 2024" },
+        ];
+
+        const categories = [
+            { key: 'all', name_ru: 'Все', name_en: 'All', name_hi: 'सभी' },
+            { key: 'vegetables', name_ru: 'Овощи', name_en: 'Vegetables', name_hi: 'सब्जियाँ' },
+            { key: 'fruits', name_ru: 'Фрукты', name_en: 'Fruits', name_hi: 'फल' },
+            { key: 'grains', name_ru: 'Крупы', name_en: 'Grains', name_hi: 'अनाज' },
+            { key: 'legumes', name_ru: 'Бобовые', name_en: 'Legumes', name_hi: 'दाल' },
+            { key: 'dairy', name_ru: 'Молочные', name_en: 'Dairy', name_hi: 'डेयरी' },
+            { key: 'spices', name_ru: 'Специи', name_en: 'Spices', name_hi: 'मसाले' },
+            { key: 'oils', name_ru: 'Масла', name_en: 'Oils', name_hi: 'तेल' },
+            { key: 'nuts', name_ru: 'Орехи', name_en: 'Nuts', name_hi: 'मेवे' },
+            { key: 'sweeteners', name_ru: 'Сладости', name_en: 'Sweeteners', name_hi: 'मिठास' },
+        ];
+
+        // ==================== STATE ====================
+        let currentLang = 'ru';
+        let currentCategory = 'all';
+        let searchQuery = '';
+        let editingProductId = null;
+
+        // ==================== FUNCTIONS ====================
+        function getCategoryName(key) {
+            const cat = categories.find(c => c.key === key);
+            if (!cat) return key;
+            return currentLang === 'ru' ? cat.name_ru : currentLang === 'en' ? cat.name_en : cat.name_hi;
+        }
+
+        function getProductName(product) {
+            return currentLang === 'ru' ? product.name_ru : currentLang === 'en' ? product.name_en : product.name_hi;
+        }
+
+        function getCategoryCounts() {
+            const counts = { all: products.length };
+            products.forEach(p => {
+                counts[p.category] = (counts[p.category] || 0) + 1;
+            });
+            return counts;
+        }
+
+        function renderCategoryFilters() {
+            const counts = getCategoryCounts();
+            const container = document.getElementById('categoryFilters');
+            
+            container.innerHTML = categories.map(cat => {
+                const isActive = currentCategory === cat.key;
+                const activeClass = isActive ? 'btn-primary' : 'btn-ghost';
+                const count = counts[cat.key] || 0;
+                
+                return `<button class="btn btn-sm ${activeClass}" data-category="${cat.key}">${getCategoryName(cat.key)}<sup class="opacity-60 text-xs" style="margin-left:-4px">${count}</sup></button>`;
+            }).join('');
+            
+            container.querySelectorAll('button').forEach(btn => {
+                btn.addEventListener('click', () => {
+                    currentCategory = btn.dataset.category;
+                    renderCategoryFilters();
+                    renderProducts();
+                });
+            });
+        }
+
+        function renderProducts() {
+            const table = document.getElementById('productsTable');
+            
+            const filtered = products.filter(p => {
+                const matchesCategory = currentCategory === 'all' || p.category === currentCategory;
+                const matchesSearch = searchQuery === '' || 
+                    p.name_ru.toLowerCase().includes(searchQuery.toLowerCase()) ||
+                    p.name_en.toLowerCase().includes(searchQuery.toLowerCase()) ||
+                    p.name_hi.includes(searchQuery);
+                return matchesCategory && matchesSearch;
+            });
+
+            document.getElementById('productsCount').textContent = `${filtered.length} продуктов`;
+
+            table.innerHTML = filtered.map((p, index) => {
+                const name = getProductName(p);
+                let subName;
+                if (currentLang === 'ru') {
+                    subName = `${p.name_en} / ${p.translit}`;
+                } else if (currentLang === 'en') {
+                    subName = `${p.name_ru} / ${p.translit}`;
+                } else {
+                    subName = `${p.name_en} / ${p.name_ru}`;
+                }
+                const zebraClass = index % 2 === 0 ? '' : 'bg-base-200/30';
+                
+                // Price range with rupee symbol (without dates in table)
+                const priceRange = p.price_min && p.price_max ? 
+                    `<span class="text-success">₹${p.price_min}</span> — <span class="text-error">₹${p.price_max}</span><span class="opacity-40">/${p.unit}</span>` : 
+                    '—';
+                
+                return `
+                    <tr class="${zebraClass} hover:bg-base-200/50 cursor-pointer" onclick="openProductModal(${p.id})">
+                        <td class="py-3">
+                            <div class="font-medium">${name}</div>
+                            <div class="text-xs opacity-50">${subName}</div>
+                        </td>
+                        <td class="py-3">
+                            <span class="badge badge-sm badge-ghost">${getCategoryName(p.category)}</span>
+                        </td>
+                        <td class="py-3 text-center opacity-60">${p.unit}</td>
+                        <td class="py-3 text-sm">${priceRange}</td>
+                        <td class="py-3">
+                            <button class="btn btn-ghost btn-sm btn-square opacity-40 hover:opacity-100" onclick="event.stopPropagation(); openProductModal(${p.id})">
+                                <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                                </svg>
+                            </button>
+                        </td>
+                    </tr>
+                `;
+            }).join('');
+        }
+
+        function toggleWasteField(category) {
+            const wasteField = document.getElementById('wasteField');
+            if (category === 'vegetables' || category === 'fruits') {
+                wasteField.classList.remove('hidden');
+            } else {
+                wasteField.classList.add('hidden');
+            }
+        }
+
+        function openProductModal(productId = null) {
+            editingProductId = productId;
+            const modal = document.getElementById('productModal');
+            const form = document.getElementById('productForm');
+            const title = document.getElementById('modalTitle');
+            const priceInfo = document.getElementById('priceInfo');
+            
+            if (productId) {
+                const product = products.find(p => p.id === productId);
+                title.textContent = 'Редактировать продукт';
+                form.name_ru.value = product.name_ru;
+                form.name_en.value = product.name_en;
+                form.name_hi.value = product.name_hi;
+                form.translit.value = product.translit;
+                form.category.value = product.category;
+                form.unit.value = product.unit;
+                form.waste.value = product.waste || 0;
+                form.notes.value = product.notes || '';
+                
+                // Show/hide waste field based on category
+                toggleWasteField(product.category);
+                
+                // Show price info
+                if (product.price_min && product.price_max) {
+                    priceInfo.innerHTML = `Мин: <strong class="text-success">₹${product.price_min}/${product.unit}</strong> (${product.price_min_date}) · Макс: <strong class="text-error">₹${product.price_max}/${product.unit}</strong> (${product.price_max_date})`;
+                } else {
+                    priceInfo.textContent = 'Нет данных о ценах';
+                }
+            } else {
+                title.textContent = 'Добавить продукт';
+                form.reset();
+                toggleWasteField('vegetables'); // Default category
+                priceInfo.textContent = 'Данные о ценах появятся после добавления складских записей';
+            }
+            
+            modal.showModal();
+        }
+
+        function closeProductModal() {
+            document.getElementById('productModal').close();
+        }
+
+        function saveProduct(e) {
+            e.preventDefault();
+            const form = e.target;
+            
+            const data = {
+                name_ru: form.name_ru.value,
+                name_en: form.name_en.value,
+                name_hi: form.name_hi.value,
+                translit: form.translit.value,
+                category: form.category.value,
+                unit: form.unit.value,
+                waste: parseInt(form.waste.value) || 0,
+                notes: form.notes.value,
+            };
+            
+            if (editingProductId) {
+                // Update existing (preserve price data)
+                const index = products.findIndex(p => p.id === editingProductId);
+                products[index] = { ...products[index], ...data };
+            } else {
+                // Add new
+                data.id = Math.max(...products.map(p => p.id)) + 1;
+                products.push(data);
+            }
+            
+            closeProductModal();
+            renderProducts();
+            renderCategoryFilters();
+        }
+
+        function setLanguage(lang) {
+            currentLang = lang;
+            
+            document.querySelectorAll('.lang-btn').forEach(btn => {
+                btn.classList.remove('btn-primary', 'active');
+                if (btn.dataset.lang === lang) {
+                    btn.classList.add('btn-primary', 'active');
+                }
+            });
+
+            renderCategoryFilters();
+            renderProducts();
+        }
+
+        // ==================== EVENT LISTENERS ====================
+        document.querySelectorAll('.lang-btn').forEach(btn => {
+            btn.addEventListener('click', () => setLanguage(btn.dataset.lang));
+        });
+
+        document.getElementById('searchInput').addEventListener('input', (e) => {
+            searchQuery = e.target.value;
+            renderProducts();
+        });
+
+        document.getElementById('productForm').addEventListener('submit', saveProduct);
+
+        document.querySelectorAll('.kitchen-option').forEach(option => {
+            option.addEventListener('click', (e) => {
+                e.preventDefault();
+                document.querySelectorAll('.kitchen-option').forEach(o => o.classList.remove('active'));
+                option.classList.add('active');
+                document.getElementById('currentKitchen').textContent = option.textContent;
+                document.activeElement.blur();
+            });
+        });
+
+        // ==================== INIT ====================
+        renderCategoryFilters();
+        renderProducts();
+    </script>
+
+    <script>
+        const DESKTOP_BP = 1200;
+        
+        // Config
+        const locations = {
+            main:  { name: 'Основная кухня', color: 'var(--color-main)' },
+            cafe:  { name: 'Кухня кафе',     color: 'var(--color-cafe)' },
+            guest: { name: 'Гостевая кухня', color: 'var(--color-guest)' }
+        };
+        
+        const menuConfig = [
+            { id: 'kitchen',  label: 'Кухня',     items: [
+                { name: 'Меню', href: 'kitchen-menu.html' },
+                { name: 'Рецепты', href: 'kitchen-recipes.html' },
+                { name: 'Продукты', href: 'kitchen-products.html' }
+            ]},
+            { id: 'stock',    label: 'Склад',     items: [
+                { name: 'Остатки', href: 'kitchen-stock.html#stock' },
+                { name: 'Заявки', href: 'kitchen-stock.html#requests' },
+                { name: 'Получить', href: 'kitchen-stock.html#receipts' },
+                { name: 'Выдать', href: 'kitchen-stock.html#issues' },
+                { name: 'Настройки', href: 'kitchen-stock.html#settings' }
+            ]},
+            { id: null,       label: 'Ретриты',   href: 'kitchen-retreats.html', items: null },
+            { id: 'team',     label: 'Команда',   items: [
+                { name: 'Вайшнавы', href: 'kitchen-team.html' },
+                { name: 'Проживание', href: 'kitchen-team.html#housing' }
+            ]},
+            { id: 'settings', label: 'Настройки', items: [
+                { name: 'Общие', href: '#' },
+                { name: 'Пользователи', href: '#' },
+                { name: 'Праздники', href: '#' }
+            ]}
+        ];
+        
+        let currentLocation = 'main';
+        
+        // Utils
+        const $ = (sel, ctx = document) => ctx.querySelector(sel);
+        const $$ = (sel, ctx = document) => ctx.querySelectorAll(sel);
+        const setColor = color => document.documentElement.style.setProperty('--current-color', color);
+        
+        // Build location dropdown options
+        function buildLocationOptions() {
+            const html = Object.entries(locations).map(([key, loc]) => 
+                `<button class="w-full text-left px-4 py-2 hover:bg-base-200 text-base-content ${key === currentLocation ? 'font-medium' : ''}" data-loc="${key}">${loc.name}</button>`
+            ).join('');
+            $$('.location-dropdown').forEach(el => el.innerHTML = html);
+        }
+        
+        // Build mobile menu
+        function buildMobileMenu() {
+            const nav = $('#mobileNav');
+            nav.innerHTML = menuConfig.map(({ id, label, href, items }) => {
+                if (!items) return `<a href="${href || '#'}" class="block px-4 py-3 text-base font-semibold uppercase tracking-wide hover:bg-base-200 rounded-lg">${label}</a>`;
+                return `
+                    <div class="mobile-nav-item" data-has-submenu>
+                        <button class="w-full flex items-center px-4 py-3 text-base font-semibold uppercase tracking-wide hover:bg-base-200 rounded-lg">
+                            ${label}
+                            <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 ml-2 transition-transform arrow-icon" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                                <path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7" />
+                            </svg>
+                        </button>
+                        <div class="submenu pl-4">
+                            ${items.map(item => `<a href="${item.href}" class="block px-4 py-3 text-base font-medium rounded-lg hover:bg-base-200">${item.name}</a>`).join('')}
+                        </div>
+                    </div>`;
+            }).join('');
+            
+            // Bind accordion
+            $$('.mobile-nav-item[data-has-submenu] button', nav).forEach(btn => {
+                btn.addEventListener('click', () => {
+                    const item = btn.closest('.mobile-nav-item');
+                    const wasOpen = item.classList.contains('open');
+                    $$('.mobile-nav-item.open', nav).forEach(i => i.classList.remove('open'));
+                    if (!wasOpen) item.classList.add('open');
+                });
+            });
+        }
+        
+        // Build desktop submenu bar
+        function buildSubmenuBar() {
+            const bar = $('#submenuBar');
+            bar.innerHTML = menuConfig.filter(m => m.items).map(({ id, items }) => `
+                <nav class="flex items-center submenu-group ${id !== 'kitchen' ? 'hidden' : ''}" data-group="${id}">
+                    ${items.map(item => `<a href="${item.href}" class="submenu-link px-5 py-2 text-base font-semibold tracking-wide uppercase text-white/70 hover:text-white">${item.name}</a>`).join('')}
+                </nav>
+            `).join('');
+            
+            // Bind submenu clicks
+            $$('.submenu-link', bar).forEach(link => {
+                link.addEventListener('click', () => {
+                    const group = link.closest('.submenu-group');
+                    $$('.submenu-link', group).forEach(l => l.classList.remove('active'));
+                    link.classList.add('active');
+                    // Allow navigation - don't prevent default
+                });
+            });
+        }
+        
+        // Align submenu under КУХНЯ
+        function alignSubmenu() {
+            const kitchenNav = $('.nav-link[data-submenu="kitchen"]');
+            const activeGroup = $('.submenu-group:not(.hidden)');
+            const firstLink = activeGroup?.querySelector('.submenu-link');
+            if (!kitchenNav || !firstLink) return;
+            
+            $$('.submenu-link', activeGroup).forEach(l => l.style.marginLeft = '0');
+            const navCenter = kitchenNav.getBoundingClientRect().left + kitchenNav.offsetWidth / 2;
+            firstLink.style.marginLeft = (navCenter - firstLink.offsetWidth / 2) + 'px';
+        }
+        
+        // Location selector
+        function toggleLocation(selector) {
+            const dropdown = $('.location-dropdown', selector);
+            const arrow = $('.location-arrow', selector);
+            dropdown.classList.toggle('hidden');
+            arrow.classList.toggle('rotate-180');
+        }
+        
+        function selectLocation(key) {
+            currentLocation = key;
+            const loc = locations[key];
+            
+            $$('.location-name').forEach(el => el.textContent = loc.name);
+            $$('.location-dropdown').forEach(d => d.classList.add('hidden'));
+            $$('.location-arrow').forEach(a => a.classList.remove('rotate-180'));
+            $$('.location-dropdown button').forEach(btn => {
+                btn.classList.toggle('font-medium', btn.dataset.loc === key);
+            });
+            
+            setColor(loc.color);
+        }
+        
+        // Init
+        buildLocationOptions();
+        buildMobileMenu();
+        buildSubmenuBar();
+        
+        // Mobile menu toggle
+        $('#mobileMenuBtn').addEventListener('click', () => {
+            $('#mobileMenu').classList.toggle('open');
+            $('.menu-icon').classList.toggle('hidden');
+            $('.close-icon').classList.toggle('hidden');
+        });
+        
+        // Location selector clicks
+        $$('[data-toggle="location"]').forEach(btn => {
+            btn.addEventListener('click', () => toggleLocation(btn.closest('.location-selector')));
+        });
+        
+        // Global click handler
+        document.addEventListener('click', e => {
+            if (e.target.dataset.loc) {
+                selectLocation(e.target.dataset.loc);
+            } else if (!e.target.closest('.location-selector')) {
+                $$('.location-dropdown').forEach(d => d.classList.add('hidden'));
+                $$('.location-arrow').forEach(a => a.classList.remove('rotate-180'));
+            }
+        });
+        
+        // Desktop nav clicks
+        $$('.nav-link').forEach(link => {
+            link.addEventListener('click', e => {
+                e.preventDefault();
+                $$('.nav-link').forEach(l => l.classList.remove('active'));
+                link.classList.add('active');
+                
+                const submenuId = link.dataset.submenu;
+                
+                $$('.submenu-group').forEach(g => g.classList.add('hidden'));
+                
+                if (submenuId && innerWidth >= DESKTOP_BP) {
+                    $('#submenuBar').classList.remove('hidden');
+                    const group = $(`.submenu-group[data-group="${submenuId}"]`);
+                    if (group) {
+                        group.classList.remove('hidden');
+                        $$('.submenu-link', group).forEach(l => l.classList.remove('active'));
+                        $('.submenu-link', group)?.classList.add('active');
+                    }
+                    requestAnimationFrame(alignSubmenu);
+                } else {
+                    $('#submenuBar').classList.add('hidden');
+                }
+            });
+        });
+        
+        // Language switcher
+        $$('.lang-btn').forEach(btn => {
+            btn.addEventListener('click', () => {
+                const lang = btn.dataset.lang;
+                $$('.lang-btn').forEach(b => b.classList.remove('active'));
+                $$(`.lang-btn[data-lang="${lang}"]`).forEach(b => b.classList.add('active'));
+            });
+        });
+        
+        addEventListener('resize', alignSubmenu);
+    </script>
+</body>
+</html>

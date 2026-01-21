@@ -1,0 +1,600 @@
+<!DOCTYPE html>
+<html lang="ru" data-theme="light">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Выдать — ШРСК</title>
+    <link href="https://cdn.jsdelivr.net/npm/daisyui@4.12.14/dist/full.min.css" rel="stylesheet" />
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script>tailwind.config = { theme: { extend: { screens: { 'desktop': '1200px' } } } }</script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans:wght@400;500;600;700&family=Noto+Sans+Devanagari:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="css/common.css">
+</head>
+<body class="bg-base-200 min-h-screen flex flex-col">
+
+    <div id="header-placeholder"></div>
+
+    <main class="container mx-auto px-4 py-6 flex-1">
+
+        <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6">
+            <div>
+                <h1 class="text-2xl font-bold" data-i18n="issue_title">Выдача продуктов</h1>
+                <p class="text-sm opacity-60" id="issuesCount">Загрузка...</p>
+            </div>
+            <button class="btn btn-primary gap-2" onclick="openIssueModal()">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" />
+                </svg>
+                <span data-i18n="new_issue">Оформить выдачу</span>
+            </button>
+        </div>
+
+        <div class="flex justify-between items-center mb-4">
+            <div class="join">
+                <button class="btn btn-sm join-item btn-active" id="activeBtn" onclick="showActive()">Активные</button>
+                <button class="btn btn-sm join-item" id="archiveBtn" onclick="showArchive()">Архив</button>
+            </div>
+        </div>
+
+        <div class="space-y-3" id="issuesList">
+            <div class="bg-base-100 rounded-lg p-4 shadow-sm skeleton h-24"></div>
+            <div class="bg-base-100 rounded-lg p-4 shadow-sm skeleton h-24"></div>
+        </div>
+
+    </main>
+
+    <div id="footer-placeholder"></div>
+
+    <!-- Issue Modal -->
+    <dialog id="issueModal" class="modal">
+        <div class="modal-box max-w-2xl">
+            <form method="dialog">
+                <button class="btn btn-sm btn-circle btn-ghost absolute right-2 top-2">✕</button>
+            </form>
+            <h3 class="font-bold text-lg mb-4" id="issueModalTitle">Оформить выдачу</h3>
+
+            <div class="space-y-4">
+                <div class="grid grid-cols-2 gap-4">
+                    <div>
+                        <label class="label"><span class="label-text font-medium">Дата и время</span></label>
+                        <input type="datetime-local" id="issueDate" class="input input-bordered w-full" />
+                    </div>
+                    <div>
+                        <label class="label"><span class="label-text font-medium">Кому выдано</span></label>
+                        <select id="issueRecipient" class="select select-bordered w-full">
+                            <option value="">Выберите повара</option>
+                        </select>
+                    </div>
+                </div>
+
+                <div>
+                    <div class="flex justify-between items-center">
+                        <label class="label"><span class="label-text font-medium">Продукты</span></label>
+                        <button type="button" class="btn btn-ghost btn-sm gap-1" onclick="showLoadFromMenuModal()">
+                            <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" />
+                            </svg>
+                            Из меню
+                        </button>
+                    </div>
+                    <div class="border border-base-300 rounded-lg overflow-hidden">
+                        <table class="table table-sm">
+                            <thead class="bg-base-200">
+                                <tr>
+                                    <th>Продукт</th>
+                                    <th class="w-24">На складе</th>
+                                    <th class="w-24">Выдать</th>
+                                    <th class="w-10"></th>
+                                </tr>
+                            </thead>
+                            <tbody id="issueItems"></tbody>
+                        </table>
+                    </div>
+
+                    <div class="flex gap-2 mt-2">
+                        <div class="flex-1 relative">
+                            <input type="text" id="issueProductSearch" class="input input-bordered input-sm w-full" placeholder="Добавить продукт..." />
+                            <div id="issueProductDropdown" class="absolute z-50 w-full bg-base-100 border border-base-300 rounded-lg shadow-lg mt-1 max-h-48 overflow-y-auto hidden"></div>
+                        </div>
+                    </div>
+                </div>
+
+                <div>
+                    <label class="label"><span class="label-text font-medium">Примечания</span></label>
+                    <textarea id="issueNotes" class="textarea textarea-bordered w-full" rows="2" placeholder="Для какого приёма пищи, особые указания..."></textarea>
+                </div>
+            </div>
+
+            <div class="modal-action">
+                <button type="button" class="btn btn-ghost" onclick="closeIssueModal()">Отмена</button>
+                <button type="button" class="btn btn-primary" onclick="saveIssue()">Сохранить</button>
+            </div>
+        </div>
+        <form method="dialog" class="modal-backdrop"><button>close</button></form>
+    </dialog>
+
+    <!-- Load from Menu Modal -->
+    <dialog id="loadFromMenuModal" class="modal">
+        <div class="modal-box max-w-md">
+            <form method="dialog">
+                <button class="btn btn-sm btn-circle btn-ghost absolute right-2 top-2">✕</button>
+            </form>
+            <h3 class="font-bold text-lg mb-4">Загрузить из меню</h3>
+
+            <div class="space-y-4">
+                <div>
+                    <label class="label"><span class="label-text font-medium">Дата</span></label>
+                    <input type="date" id="menuLoadDate" class="input input-bordered w-full" />
+                </div>
+
+                <div>
+                    <label class="label"><span class="label-text font-medium">Приём пищи</span></label>
+                    <div class="flex gap-4">
+                        <label class="label cursor-pointer gap-2">
+                            <input type="checkbox" id="menuLoadBreakfast" class="checkbox checkbox-sm" checked />
+                            <span class="label-text">Завтрак</span>
+                        </label>
+                        <label class="label cursor-pointer gap-2">
+                            <input type="checkbox" id="menuLoadLunch" class="checkbox checkbox-sm" checked />
+                            <span class="label-text">Обед</span>
+                        </label>
+                        <label class="label cursor-pointer gap-2">
+                            <input type="checkbox" id="menuLoadDinner" class="checkbox checkbox-sm" checked />
+                            <span class="label-text">Ужин</span>
+                        </label>
+                    </div>
+                </div>
+            </div>
+
+            <div class="modal-action">
+                <button type="button" class="btn btn-ghost" onclick="closeLoadFromMenuModal()">Отмена</button>
+                <button type="button" class="btn btn-primary" onclick="loadFromMenu()">Загрузить</button>
+            </div>
+        </div>
+        <form method="dialog" class="modal-backdrop"><button>close</button></form>
+    </dialog>
+
+    <script src="js/layout.js"></script>
+    <script>
+        // ==================== STATE ====================
+        let issues = [];
+        let products = [];
+        let stockItems = [];
+        let cooks = [];
+        let showArchived = false;
+        let issueItemsList = [];
+        let editingIssueId = null;
+
+        const t = key => Layout.t(key);
+
+        const ISSUE_FORMS = {
+            ru: ['выдача', 'выдачи', 'выдач'],
+            en: ['issue', 'issues'],
+            hi: 'जारी'
+        };
+
+        // ==================== DATA LOADING ====================
+        async function loadProducts() {
+            const { data, error } = await Layout.db.from('products').select('*, product_categories(slug, name_ru, name_en, name_hi)');
+            if (error) { console.error('Error loading products:', error); return; }
+            products = data;
+        }
+
+        async function loadStock() {
+            const { data, error } = await Layout.db.from('stock').select('*, products(*)');
+            if (error) { console.error('Error loading stock:', error); return; }
+            stockItems = data || [];
+        }
+
+        async function loadCooks() {
+            const { data, error } = await Layout.db.from('team_members').select('*').order('spiritual_name');
+            if (error) { console.error('Error loading cooks:', error); return; }
+            cooks = data || [];
+            renderCookSelect();
+        }
+
+        async function loadIssues() {
+            const { data, error } = await Layout.db
+                .from('stock_issues')
+                .select('*, stock_issue_items(*, products(*)), team_members(spiritual_name, first_name)')
+                .order('created_at', { ascending: false });
+
+            if (error) { console.error('Error loading issues:', error); return; }
+            issues = data || [];
+            renderIssues();
+        }
+
+        function renderCookSelect() {
+            const select = Layout.$('#issueRecipient');
+            select.innerHTML = '<option value="">Выберите повара</option>' +
+                cooks.map(c => `<option value="${c.id}">${Layout.getPersonName(c)}</option>`).join('');
+        }
+
+        // ==================== RENDERING ====================
+        function renderIssues() {
+            const container = Layout.$('#issuesList');
+            const filtered = issues.filter(i => showArchived ? i.archived : !i.archived);
+
+            Layout.$('#issuesCount').textContent = Layout.pluralize(filtered.length, ISSUE_FORMS);
+
+            if (filtered.length === 0) {
+                container.innerHTML = `<div class="text-center py-12 opacity-50"><div class="text-4xl mb-2">📤</div><div>${showArchived ? 'Архив пуст' : 'Нет выдач'}</div></div>`;
+                return;
+            }
+
+            container.innerHTML = filtered.map(issue => {
+                const items = issue.stock_issue_items || [];
+                const date = new Date(issue.issue_date || issue.created_at);
+                const dateStr = date.toLocaleDateString('ru-RU');
+                const timeStr = date.toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' });
+                const recipientName = issue.team_members?.spiritual_name || issue.team_members?.first_name || 'Не указан';
+
+                return `
+                    <div class="bg-base-100 rounded-lg p-4 shadow-sm">
+                        <div class="flex flex-col md:flex-row md:items-center justify-between gap-4">
+                            <div>
+                                <div class="font-semibold text-lg">Выдача №${issue.number || issue.id?.slice(0,4)}</div>
+                                <div class="text-sm opacity-60">${dateStr}, ${timeStr} · Получатель: ${recipientName}</div>
+                            </div>
+                            <div class="flex items-center gap-4">
+                                <div class="text-center">
+                                    <div class="font-bold">${items.length}</div>
+                                    <div class="text-xs opacity-60">позиций</div>
+                                </div>
+                                <div class="flex items-center gap-2">
+                                    <button class="btn btn-ghost btn-sm btn-square" title="Просмотр" onclick="viewIssue('${issue.id}')">
+                                        <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
+                                            <path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                                            <path stroke-linecap="round" stroke-linejoin="round" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                                        </svg>
+                                    </button>
+                                    <button class="btn btn-ghost btn-sm btn-square" title="Печать">
+                                        <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
+                                            <path stroke-linecap="round" stroke-linejoin="round" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" />
+                                        </svg>
+                                    </button>
+                                    ${!issue.archived ? `
+                                    <span class="text-base-300">|</span>
+                                    <a href="#" class="link link-hover text-sm opacity-60" onclick="archiveIssue('${issue.id}'); return false;">В архив</a>
+                                    ` : ''}
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                `;
+            }).join('');
+        }
+
+        function showActive() {
+            showArchived = false;
+            Layout.$('#activeBtn').classList.add('btn-active');
+            Layout.$('#archiveBtn').classList.remove('btn-active');
+            renderIssues();
+        }
+
+        function showArchive() {
+            showArchived = true;
+            Layout.$('#archiveBtn').classList.add('btn-active');
+            Layout.$('#activeBtn').classList.remove('btn-active');
+            renderIssues();
+        }
+
+        // ==================== MODALS ====================
+        function openIssueModal() {
+            editingIssueId = null;
+            issueItemsList = [];
+
+            const now = new Date();
+            now.setMinutes(now.getMinutes() - now.getTimezoneOffset());
+
+            Layout.$('#issueModalTitle').textContent = 'Оформить выдачу';
+            Layout.$('#issueDate').value = now.toISOString().slice(0, 16);
+            Layout.$('#issueRecipient').value = '';
+            Layout.$('#issueNotes').value = '';
+            renderIssueItems();
+
+            Layout.$('#issueModal').showModal();
+        }
+
+        function closeIssueModal() {
+            Layout.$('#issueModal').close();
+        }
+
+        function renderIssueItems() {
+            const tbody = Layout.$('#issueItems');
+
+            if (issueItemsList.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="4" class="text-center opacity-50 py-4">Добавьте продукты</td></tr>';
+                return;
+            }
+
+            tbody.innerHTML = issueItemsList.map((item, idx) => {
+                const product = products.find(p => p.id === item.product_id);
+                const stockItem = stockItems.find(s => s.product_id === item.product_id);
+                const inStock = stockItem?.current_quantity || 0;
+                const isOverStock = item.quantity > inStock;
+
+                return `
+                    <tr>
+                        <td>
+                            <div class="font-medium">${Layout.getName(product)}</div>
+                            <div class="text-xs opacity-50">${product?.unit || ''}</div>
+                        </td>
+                        <td class="${inStock < item.quantity ? 'text-error' : ''}">${inStock} ${product?.unit || ''}</td>
+                        <td>
+                            <input type="number" class="input input-bordered input-sm w-20 ${isOverStock ? 'input-error' : ''}" value="${item.quantity}" min="0" step="0.1" onchange="updateIssueItem(${idx}, this.value)" />
+                        </td>
+                        <td>
+                            <button class="btn btn-ghost btn-sm btn-square text-error" onclick="removeIssueItem(${idx})">
+                                <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+                                </svg>
+                            </button>
+                        </td>
+                    </tr>
+                `;
+            }).join('');
+        }
+
+        function updateIssueItem(idx, value) {
+            issueItemsList[idx].quantity = parseFloat(value) || 0;
+            renderIssueItems();
+        }
+
+        function removeIssueItem(idx) {
+            issueItemsList.splice(idx, 1);
+            renderIssueItems();
+        }
+
+        function addIssueItem(productId) {
+            const product = products.find(p => p.id === productId);
+            if (!product) return;
+
+            if (issueItemsList.some(i => i.product_id === productId)) {
+                alert('Продукт уже добавлен');
+                return;
+            }
+
+            issueItemsList.push({
+                product_id: productId,
+                quantity: 1
+            });
+
+            Layout.$('#issueProductSearch').value = '';
+            Layout.$('#issueProductDropdown').classList.add('hidden');
+            renderIssueItems();
+        }
+
+        // Load from menu
+        function showLoadFromMenuModal() {
+            Layout.$('#menuLoadDate').value = new Date().toISOString().split('T')[0];
+            Layout.$('#loadFromMenuModal').showModal();
+        }
+
+        function closeLoadFromMenuModal() {
+            Layout.$('#loadFromMenuModal').close();
+        }
+
+        async function loadFromMenu() {
+            const date = Layout.$('#menuLoadDate').value;
+            const includeBreakfast = Layout.$('#menuLoadBreakfast').checked;
+            const includeLunch = Layout.$('#menuLoadLunch').checked;
+            const includeDinner = Layout.$('#menuLoadDinner').checked;
+
+            if (!date) {
+                alert('Выберите дату');
+                return;
+            }
+
+            // Load menu items for the date
+            const mealTypes = [];
+            if (includeBreakfast) mealTypes.push('breakfast');
+            if (includeLunch) mealTypes.push('lunch');
+            if (includeDinner) mealTypes.push('dinner');
+
+            const { data: menuItems, error } = await Layout.db
+                .from('daily_menu')
+                .select('*, recipes(*, recipe_ingredients(*, products(*)))')
+                .eq('menu_date', date)
+                .in('meal_type', mealTypes);
+
+            if (error) {
+                console.error('Error loading menu:', error);
+                alert('Ошибка загрузки меню');
+                return;
+            }
+
+            // Aggregate ingredients
+            const ingredientMap = {};
+            (menuItems || []).forEach(mi => {
+                const recipe = mi.recipes;
+                if (!recipe?.recipe_ingredients) return;
+
+                const portionMultiplier = (mi.servings || 50) / (recipe.servings || 50);
+
+                recipe.recipe_ingredients.forEach(ri => {
+                    const productId = ri.product_id;
+                    const amount = (ri.amount || 0) * portionMultiplier;
+
+                    if (ingredientMap[productId]) {
+                        ingredientMap[productId] += amount;
+                    } else {
+                        ingredientMap[productId] = amount;
+                    }
+                });
+            });
+
+            // Add to issue items
+            Object.entries(ingredientMap).forEach(([productId, amount]) => {
+                if (!issueItemsList.some(i => i.product_id === productId)) {
+                    issueItemsList.push({
+                        product_id: productId,
+                        quantity: Math.round(amount * 10) / 10
+                    });
+                }
+            });
+
+            closeLoadFromMenuModal();
+            renderIssueItems();
+        }
+
+        async function saveIssue() {
+            if (issueItemsList.length === 0) {
+                alert('Добавьте хотя бы один продукт');
+                return;
+            }
+
+            const locationId = (await Layout.db.from('locations').select('id').eq('slug', Layout.currentLocation).single()).data?.id;
+            const recipientId = Layout.$('#issueRecipient').value || null;
+
+            const issueData = {
+                location_id: locationId,
+                recipient_id: recipientId,
+                issue_date: Layout.$('#issueDate').value,
+                notes: Layout.$('#issueNotes').value.trim()
+            };
+
+            const { data: issue, error } = await Layout.db
+                .from('stock_issues')
+                .insert(issueData)
+                .select()
+                .single();
+
+            if (error) {
+                console.error('Error saving issue:', error);
+                alert('Ошибка сохранения');
+                return;
+            }
+
+            const items = issueItemsList.map(i => ({
+                issue_id: issue.id,
+                product_id: i.product_id,
+                quantity: i.quantity
+            }));
+
+            const { error: itemsError } = await Layout.db.from('stock_issue_items').insert(items);
+
+            if (itemsError) {
+                console.error('Error saving items:', itemsError);
+            }
+
+            // Update stock quantities (decrease)
+            for (const item of issueItemsList) {
+                const { data: stockItem } = await Layout.db
+                    .from('stock')
+                    .select('id, current_quantity')
+                    .eq('product_id', item.product_id)
+                    .eq('location_id', locationId)
+                    .single();
+
+                if (stockItem) {
+                    const newQty = Math.max(0, stockItem.current_quantity - item.quantity);
+                    await Layout.db.from('stock').update({
+                        current_quantity: newQty
+                    }).eq('id', stockItem.id);
+                }
+            }
+
+            closeIssueModal();
+            await loadStock();
+            await loadIssues();
+        }
+
+        async function archiveIssue(id) {
+            if (!confirm('Переместить в архив?')) return;
+
+            const { error } = await Layout.db.from('stock_issues').update({ archived: true }).eq('id', id);
+            if (error) {
+                console.error('Error archiving:', error);
+                return;
+            }
+            await loadIssues();
+        }
+
+        function viewIssue(id) {
+            const issue = issues.find(i => i.id === id);
+            if (!issue) return;
+
+            editingIssueId = id;
+            issueItemsList = (issue.stock_issue_items || []).map(i => ({
+                product_id: i.product_id,
+                quantity: i.quantity
+            }));
+
+            const date = new Date(issue.issue_date || issue.created_at);
+            date.setMinutes(date.getMinutes() - date.getTimezoneOffset());
+
+            Layout.$('#issueModalTitle').textContent = `Выдача №${issue.number || id.slice(0,4)}`;
+            Layout.$('#issueDate').value = date.toISOString().slice(0, 16);
+            Layout.$('#issueRecipient').value = issue.recipient_id || '';
+            Layout.$('#issueNotes').value = issue.notes || '';
+            renderIssueItems();
+
+            Layout.$('#issueModal').showModal();
+        }
+
+        // Product search
+        Layout.$('#issueProductSearch')?.addEventListener('input', (e) => {
+            const query = e.target.value.toLowerCase();
+            const dropdown = Layout.$('#issueProductDropdown');
+
+            if (query.length < 1) {
+                dropdown.classList.add('hidden');
+                return;
+            }
+
+            // Only show products that are in stock
+            const inStockProductIds = stockItems.map(s => s.product_id);
+            const filtered = products.filter(p =>
+                inStockProductIds.includes(p.id) && (
+                    p.name_ru?.toLowerCase().includes(query) ||
+                    p.name_en?.toLowerCase().includes(query)
+                )
+            ).slice(0, 8);
+
+            if (filtered.length === 0) {
+                dropdown.innerHTML = '<div class="p-3 text-sm opacity-50">Ничего не найдено</div>';
+            } else {
+                dropdown.innerHTML = filtered.map(p => {
+                    const stockItem = stockItems.find(s => s.product_id === p.id);
+                    return `
+                        <div class="p-3 hover:bg-base-200 cursor-pointer border-b border-base-200 last:border-0" onclick="addIssueItem('${p.id}')">
+                            <div class="font-medium">${Layout.getName(p)}</div>
+                            <div class="text-xs opacity-50">На складе: ${stockItem?.current_quantity || 0} ${p.unit || ''}</div>
+                        </div>
+                    `;
+                }).join('');
+            }
+
+            dropdown.classList.remove('hidden');
+        });
+
+        // ==================== EVENT LISTENERS ====================
+        document.addEventListener('click', e => {
+            if (!e.target.closest('#issueProductSearch') && !e.target.closest('#issueProductDropdown')) {
+                Layout.$('#issueProductDropdown')?.classList.add('hidden');
+            }
+        });
+
+        window.onLanguageChange = function(lang) {
+            Layout.updateAllTranslations();
+            renderCookSelect();
+            renderIssues();
+        };
+
+        // ==================== INIT ====================
+        async function init() {
+            await Layout.init({ menuId: 'stock', itemId: 'issue' });
+            await loadProducts();
+            await loadStock();
+            await loadCooks();
+            await loadIssues();
+        }
+
+        init();
+    </script>
+</body>
+</html>
