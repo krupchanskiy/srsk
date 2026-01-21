@@ -63,6 +63,11 @@
                     </svg>
                 </button>
             </div>
+            <select id="sortSelect" class="select select-bordered w-full sm:w-auto">
+                <option value="name_asc" data-i18n="sort_name_asc">А → Я</option>
+                <option value="name_desc" data-i18n="sort_name_desc">Я → А</option>
+                <option value="category" data-i18n="sort_category">По категории</option>
+            </select>
         </div>
 
         <!-- Category Filters -->
@@ -149,6 +154,16 @@
                     <select name="unit" class="select select-bordered w-full" required id="unitSelect"></select>
                 </div>
 
+                <!-- % на очистку (только для овощей и фруктов) -->
+                <div id="wastePercentField" class="hidden">
+                    <label class="label"><span class="label-text font-medium" data-i18n="waste_percent">% на очистку</span></label>
+                    <div class="join w-full">
+                        <input type="number" name="waste_percent" class="input input-bordered join-item w-full" min="0" max="99" step="1" placeholder="20" />
+                        <span class="btn btn-disabled join-item">%</span>
+                    </div>
+                    <label class="label"><span class="label-text-alt opacity-60" data-i18n="waste_percent_hint">Процент отходов при чистке</span></label>
+                </div>
+
                 <div class="modal-action">
                     <button type="button" class="btn btn-ghost" onclick="editModal.close()" data-i18n="cancel">Отмена</button>
                     <button type="submit" class="btn btn-primary" data-i18n="save">Сохранить</button>
@@ -158,17 +173,78 @@
         <form method="dialog" class="modal-backdrop"><button>close</button></form>
     </dialog>
 
+    <!-- Confirm Modal -->
+    <dialog id="confirmModal" class="modal">
+        <div class="modal-box max-w-sm">
+            <p id="confirmMessage" class="py-4 text-center text-lg"></p>
+            <div class="modal-action justify-center gap-2">
+                <button type="button" class="btn btn-ghost" onclick="confirmNo()" data-i18n="cancel">Отмена</button>
+                <button type="button" class="btn btn-error" onclick="confirmYes()" data-i18n="delete">Удалить</button>
+            </div>
+        </div>
+        <form method="dialog" class="modal-backdrop"><button>close</button></form>
+    </dialog>
+
     <script src="js/layout.js"></script>
     <script>
         // ==================== STATE ====================
         let currentCategory = 'all';
         let searchQuery = '';
+        let currentSort = 'name_asc';
         let products = [];
         let categories = [];
         let units = [];
 
         const t = key => Layout.t(key);
         const editForm = () => document.getElementById('editForm');
+
+        // Категории, для которых показываем поле "% на очистку"
+        const WASTE_CATEGORIES = ['vegetables', 'fruits'];
+
+        // ==================== CONFIRM MODAL ====================
+        let confirmResolve = null;
+
+        function showConfirm(message, itemName = '') {
+            return new Promise(resolve => {
+                confirmResolve = resolve;
+                const msgEl = Layout.$('#confirmMessage');
+                if (itemName) {
+                    msgEl.innerHTML = message + '<br><strong class="text-error">' + itemName + '</strong>';
+                } else {
+                    msgEl.textContent = message;
+                }
+                confirmModal.showModal();
+            });
+        }
+
+        function confirmYes() {
+            confirmModal.close();
+            if (confirmResolve) confirmResolve(true);
+            confirmResolve = null;
+        }
+
+        function confirmNo() {
+            confirmModal.close();
+            if (confirmResolve) confirmResolve(false);
+            confirmResolve = null;
+        }
+
+        // Показать/скрыть поле waste_percent в зависимости от категории
+        function toggleWastePercentField(categoryId) {
+            const field = Layout.$('#wastePercentField');
+            if (!field) return;
+
+            const category = categories.find(c => c.id === categoryId);
+            const shouldShow = category && WASTE_CATEGORIES.includes(category.slug);
+
+            field.classList.toggle('hidden', !shouldShow);
+
+            // Если скрываем, очищаем значение
+            if (!shouldShow) {
+                const input = Layout.$('input[name="waste_percent"]');
+                if (input) input.value = '';
+            }
+        }
 
         // ==================== AUTO-TRANSLATE ====================
         async function autoTranslate(fromField, toField, fromLang, toLang, btn) {
@@ -362,6 +438,30 @@
             renderProducts();
         }
 
+        // ==================== SORTING ====================
+        function sortProducts(items) {
+            const lang = Layout.currentLang;
+            const nameKey = `name_${lang}`;
+
+            return [...items].sort((a, b) => {
+                switch (currentSort) {
+                    case 'name_asc':
+                        return (a[nameKey] || a.name_ru || '').localeCompare(b[nameKey] || b.name_ru || '', lang);
+                    case 'name_desc':
+                        return (b[nameKey] || b.name_ru || '').localeCompare(a[nameKey] || a.name_ru || '', lang);
+                    case 'category':
+                        const catA = a.product_categories ? Layout.getName(a.product_categories) : '';
+                        const catB = b.product_categories ? Layout.getName(b.product_categories) : '';
+                        const catCompare = catA.localeCompare(catB, lang);
+                        if (catCompare !== 0) return catCompare;
+                        // Within same category, sort by name
+                        return (a[nameKey] || a.name_ru || '').localeCompare(b[nameKey] || b.name_ru || '', lang);
+                    default:
+                        return 0;
+                }
+            });
+        }
+
         // ==================== RENDERING ====================
         function renderCategoryFilters() {
             const container = Layout.$('#categoryFilters');
@@ -407,14 +507,17 @@
             const countEl = Layout.$('#productsCount');
             const lang = Layout.currentLang;
 
-            const filtered = products.filter(product => {
+            let filtered = products.filter(product => {
                 const matchesCategory = currentCategory === 'all' || product.product_categories?.slug === currentCategory;
                 const matchesSearch = searchQuery === '' ||
-                    product.name_ru.toLowerCase().includes(searchQuery.toLowerCase()) ||
-                    product.name_en.toLowerCase().includes(searchQuery.toLowerCase()) ||
-                    product.name_hi.includes(searchQuery);
+                    product.name_ru?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+                    product.name_en?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+                    product.name_hi?.includes(searchQuery);
                 return matchesCategory && matchesSearch;
             });
+
+            // Apply sorting
+            filtered = sortProducts(filtered);
 
             countEl.textContent = Layout.pluralize(filtered.length, PRODUCT_FORMS);
 
@@ -450,16 +553,21 @@
                         <td class="hidden sm:table-cell">
                             <span class="badge badge-ghost">${Layout.getName(cat) || '—'}</span>
                         </td>
-                        <td>${unitShort}</td>
+                        <td>
+                            <div class="flex items-center gap-2">
+                                <span>${unitShort}</span>
+                                ${product.waste_percent ? `<span class="badge badge-ghost badge-sm" title="${t('waste_percent')}">${product.waste_percent}%</span>` : ''}
+                            </div>
+                        </td>
                         <td>
                             <div class="flex gap-1">
                                 <button class="btn btn-ghost btn-sm btn-square" onclick="openEditModal('${product.id}')">
-                                    <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
                                     </svg>
                                 </button>
                                 <button class="btn btn-ghost btn-sm btn-square text-error" onclick="deleteProduct('${product.id}')">
-                                    <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
                                     </svg>
                                 </button>
@@ -475,6 +583,13 @@
             Layout.$('#modalTitle').textContent = t('add_product');
             Layout.$('#editForm').reset();
             Layout.$('input[name="id"]').value = '';
+            // Проверяем первую категорию по умолчанию
+            const categorySelect = Layout.$('#categorySelect');
+            if (categorySelect && categorySelect.value) {
+                toggleWastePercentField(categorySelect.value);
+            } else {
+                Layout.$('#wastePercentField')?.classList.add('hidden');
+            }
             editModal.showModal();
         }
 
@@ -491,6 +606,10 @@
             Layout.$('input[name="translit"]').value = product.translit || '';
             Layout.$('select[name="unit"]').value = product.unit || '';
 
+            // Показываем/скрываем и заполняем поле waste_percent
+            toggleWastePercentField(product.category_id);
+            Layout.$('input[name="waste_percent"]').value = product.waste_percent || '';
+
             editModal.showModal();
         }
 
@@ -499,13 +618,20 @@
             const id = formData.get('id');
             const isNew = !id;
 
+            // Определяем, нужно ли сохранять waste_percent
+            const categoryId = formData.get('category_id');
+            const category = categories.find(c => c.id === categoryId);
+            const wastePercentValue = formData.get('waste_percent');
+            const shouldSaveWaste = category && WASTE_CATEGORIES.includes(category.slug);
+
             const productData = {
-                category_id: formData.get('category_id'),
+                category_id: categoryId,
                 name_ru: formData.get('name_ru'),
                 name_en: formData.get('name_en'),
                 name_hi: formData.get('name_hi'),
                 translit: formData.get('translit') || null,
-                unit: formData.get('unit')
+                unit: formData.get('unit'),
+                waste_percent: shouldSaveWaste && wastePercentValue ? parseFloat(wastePercentValue) : null
             };
 
             let error;
@@ -526,6 +652,7 @@
                         products[idx] = {
                             ...products[idx],
                             ...productData,
+                            waste_percent: productData.waste_percent,
                             product_categories: cat ? { slug: cat.slug, name_ru: cat.name_ru, name_en: cat.name_en, name_hi: cat.name_hi } : null
                         };
                     }
@@ -543,7 +670,11 @@
         }
 
         async function deleteProduct(id) {
-            if (!confirm(t('confirm_delete'))) return;
+            const product = products.find(p => p.id === id);
+            if (!product) return;
+
+            const confirmed = await showConfirm(t('confirm_delete'), Layout.getName(product));
+            if (!confirmed) return;
 
             const { error } = await Layout.db.from('products').delete().eq('id', id);
             if (error) {
@@ -576,6 +707,12 @@
                 searchInput.focus();
             });
 
+            // Sort select
+            Layout.$('#sortSelect')?.addEventListener('change', e => {
+                currentSort = e.target.value;
+                renderProducts();
+            });
+
             Layout.$('#editForm')?.addEventListener('submit', async e => {
                 e.preventDefault();
                 const formData = new FormData(e.target);
@@ -590,14 +727,34 @@
                     translitInput.value = transliterate(e.target.value);
                 }
             });
+
+            // Показ/скрытие поля waste_percent при смене категории
+            Layout.$('#categorySelect')?.addEventListener('change', e => {
+                toggleWastePercentField(e.target.value);
+            });
         });
 
         // ==================== LANGUAGE UPDATE ====================
+        function renderSortSelect() {
+            const select = Layout.$('#sortSelect');
+            const options = [
+                { value: 'name_asc', key: 'sort_name_asc', fallback: 'А → Я' },
+                { value: 'name_desc', key: 'sort_name_desc', fallback: 'Я → А' },
+                { value: 'category', key: 'sort_category', fallback: 'По категории' }
+            ];
+            select.innerHTML = options.map(opt => {
+                const translated = t(opt.key);
+                const label = translated !== opt.key ? translated : opt.fallback;
+                return `<option value="${opt.value}" ${currentSort === opt.value ? 'selected' : ''}>${label}</option>`;
+            }).join('');
+        }
+
         function updatePageUI() {
             Layout.updateAllTranslations();
             renderCategoryFilters();
             renderCategorySelect();
             renderUnitSelect();
+            renderSortSelect();
             renderProducts();
         }
 

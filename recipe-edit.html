@@ -346,6 +346,32 @@
             btn.textContent = '🌐 Auto';
         }
 
+        async function autoTranslateStep(index, toLang, btn) {
+            const fromEl = document.getElementById(`step_ru_${index}`);
+            const toEl = document.getElementById(`step_${toLang}_${index}`);
+            if (!fromEl || !toEl) return;
+
+            const text = fromEl.value.trim();
+            if (!text) {
+                toEl.focus();
+                return;
+            }
+
+            btn.classList.add('loading');
+            btn.textContent = '...';
+
+            try {
+                const translated = await Layout.translate(text, 'ru', toLang);
+                toEl.value = translated;
+                instructions[index][toLang] = translated;
+            } catch (e) {
+                console.error('Translation error:', e);
+            }
+
+            btn.classList.remove('loading');
+            btn.textContent = '🌐 Auto';
+        }
+
         // ==================== TRANSLITERATION ====================
         const VOWELS = {
             'अ': 'a', 'आ': 'ā', 'इ': 'i', 'ई': 'ī', 'उ': 'u', 'ऊ': 'ū',
@@ -632,18 +658,24 @@
                     <div class="flex-1 space-y-2">
                         <div>
                             <label class="text-xs opacity-50">RU</label>
-                            <textarea rows="2" class="textarea textarea-bordered w-full textarea-sm"
+                            <textarea rows="2" class="textarea textarea-bordered w-full textarea-sm" id="step_ru_${index}"
                                       onchange="updateInstruction(${index}, 'ru', this.value)">${step.ru || ''}</textarea>
                         </div>
                         <div class="grid grid-cols-2 gap-2">
                             <div>
-                                <label class="text-xs opacity-50">EN</label>
-                                <textarea rows="2" class="textarea textarea-bordered w-full textarea-sm"
+                                <div class="flex justify-between items-center">
+                                    <label class="text-xs opacity-50">EN</label>
+                                    <button type="button" class="translate-btn" onclick="autoTranslateStep(${index}, 'en', this)">🌐 Auto</button>
+                                </div>
+                                <textarea rows="2" class="textarea textarea-bordered w-full textarea-sm" id="step_en_${index}"
                                           onchange="updateInstruction(${index}, 'en', this.value)">${step.en || ''}</textarea>
                             </div>
                             <div>
-                                <label class="text-xs opacity-50">HI</label>
-                                <textarea rows="2" class="textarea textarea-bordered w-full textarea-sm"
+                                <div class="flex justify-between items-center">
+                                    <label class="text-xs opacity-50">HI</label>
+                                    <button type="button" class="translate-btn" onclick="autoTranslateStep(${index}, 'hi', this)">🌐 Auto</button>
+                                </div>
+                                <textarea rows="2" class="textarea textarea-bordered w-full textarea-sm" id="step_hi_${index}"
                                           onchange="updateInstruction(${index}, 'hi', this.value)">${step.hi || ''}</textarea>
                             </div>
                         </div>

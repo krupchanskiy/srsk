@@ -12,6 +12,17 @@
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Noto+Sans:wght@400;500;600;700&family=Noto+Sans+Devanagari:wght@400;500;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="css/common.css">
+    <style>
+        /* Убираем стрелки у числовых полей */
+        input[type="number"]::-webkit-outer-spin-button,
+        input[type="number"]::-webkit-inner-spin-button {
+            -webkit-appearance: none;
+            margin: 0;
+        }
+        input[type="number"] {
+            -moz-appearance: textfield;
+        }
+    </style>
 </head>
 <body class="bg-base-200 min-h-screen flex flex-col">
 
@@ -24,30 +35,33 @@
         </div>
 
         <!-- Tabs -->
-        <div class="tabs tabs-bordered mb-6">
-            <a class="tab tab-active" id="tabBuyers" onclick="switchTab('buyers')">Закупщики</a>
-            <a class="tab" id="tabMinStock" onclick="switchTab('minStock')">Несгораемый остаток</a>
+        <div class="tabs tabs-boxed bg-base-100 p-1 mb-6 inline-flex" id="mainTabs">
+            <button class="tab tab-active" data-tab="buyers" onclick="switchTab('buyers')" data-i18n="buyers_tab">Закупщики</button>
+            <button class="tab" data-tab="minStock" onclick="switchTab('minStock')" data-i18n="min_stock_tab">Несгораемый остаток</button>
         </div>
 
         <!-- Tab: Buyers -->
         <div id="tabContentBuyers">
-            <div class="flex justify-between items-center mb-4">
-                <h3 class="font-semibold">Список закупщиков</h3>
-                <button class="btn btn-primary btn-sm gap-1" onclick="openBuyerModal()">
-                    <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" />
-                    </svg>
-                    Добавить
-                </button>
-            </div>
-            <div class="bg-base-100 rounded-lg shadow-sm overflow-hidden">
-                <div class="overflow-x-auto">
+            <div class="bg-base-100 rounded-lg p-6 shadow-sm">
+                <div class="flex justify-between items-center mb-4">
+                    <div>
+                        <h3 class="text-lg font-semibold" data-i18n="buyers_list">Список закупщиков</h3>
+                        <p class="text-sm opacity-60" data-i18n="buyers_desc">Люди, которые могут закупать продукты</p>
+                    </div>
+                    <button class="btn btn-sm gap-1" style="background-color: var(--current-color); border-color: var(--current-color); color: white;" onclick="openBuyerModal()">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" />
+                        </svg>
+                        <span data-i18n="add">Добавить</span>
+                    </button>
+                </div>
+                <div class="border border-base-300 rounded-lg overflow-hidden">
                     <table class="table">
-                        <thead>
-                            <tr class="bg-base-200">
-                                <th>Имя</th>
-                                <th>Телефон</th>
-                                <th>Примечания</th>
+                        <thead class="bg-base-200">
+                            <tr>
+                                <th data-i18n="name">Имя</th>
+                                <th data-i18n="phone">Телефон</th>
+                                <th data-i18n="notes">Примечания</th>
                                 <th class="w-20"></th>
                             </tr>
                         </thead>
@@ -61,27 +75,31 @@
 
         <!-- Tab: Min Stock -->
         <div id="tabContentMinStock" class="hidden">
-            <div class="mb-4">
-                <h3 class="font-semibold mb-2">Несгораемый остаток по продуктам</h3>
-                <p class="text-sm opacity-60 mb-4">Минимальное количество, ниже которого остаток считается критичным</p>
-                <input type="text" id="minStockSearch" class="input input-bordered w-full max-w-md" placeholder="Поиск по названию..." />
-            </div>
-            <div class="bg-base-100 rounded-lg shadow-sm overflow-hidden">
-                <div class="overflow-x-auto">
-                    <table class="table">
-                        <thead>
-                            <tr class="bg-base-200">
-                                <th data-i18n="product">Продукт</th>
-                                <th data-i18n="category">Категория</th>
-                                <th class="w-32" data-i18n="stock_current">Текущий остаток</th>
-                                <th class="w-40" data-i18n="stock_min">Несгораемый остаток</th>
-                                <th class="w-48" data-i18n="placement">Размещение</th>
-                            </tr>
-                        </thead>
-                        <tbody id="minStockTableBody">
-                            <tr><td colspan="5" class="text-center py-8 opacity-50">Загрузка...</td></tr>
-                        </tbody>
-                    </table>
+            <div class="bg-base-100 rounded-lg p-6 shadow-sm">
+                <div class="flex flex-col md:flex-row md:justify-between md:items-center gap-4 mb-4">
+                    <div>
+                        <h3 class="text-lg font-semibold" data-i18n="min_stock_title">Несгораемый остаток</h3>
+                        <p class="text-sm opacity-60" data-i18n="min_stock_desc">Минимальное количество, ниже которого остаток считается критичным</p>
+                    </div>
+                    <input type="text" id="minStockSearch" class="input input-bordered input-sm w-full md:w-64" placeholder="Поиск по названию..." data-i18n-placeholder="search_placeholder" />
+                </div>
+                <div class="border border-base-300 rounded-lg overflow-hidden">
+                    <div class="overflow-x-auto">
+                        <table class="table">
+                            <thead class="bg-base-200">
+                                <tr>
+                                    <th data-i18n="product">Продукт</th>
+                                    <th data-i18n="category">Категория</th>
+                                    <th class="w-32" data-i18n="stock_current">Текущий остаток</th>
+                                    <th class="w-40" data-i18n="stock_min">Несгораемый остаток</th>
+                                    <th class="w-48" data-i18n="placement">Размещение</th>
+                                </tr>
+                            </thead>
+                            <tbody id="minStockTableBody">
+                                <tr><td colspan="5" class="text-center py-8 opacity-50">Загрузка...</td></tr>
+                            </tbody>
+                        </table>
+                    </div>
                 </div>
             </div>
         </div>
@@ -121,6 +139,29 @@
         <form method="dialog" class="modal-backdrop"><button>close</button></form>
     </dialog>
 
+    <!-- Alert Modal -->
+    <dialog id="alertModal" class="modal">
+        <div class="modal-box max-w-sm">
+            <p id="alertMessage" class="py-4 text-center"></p>
+            <div class="modal-action justify-center">
+                <button type="button" class="btn btn-primary" onclick="closeAlert()">OK</button>
+            </div>
+        </div>
+        <form method="dialog" class="modal-backdrop"><button>close</button></form>
+    </dialog>
+
+    <!-- Confirm Modal -->
+    <dialog id="confirmModal" class="modal">
+        <div class="modal-box max-w-sm">
+            <p id="confirmMessage" class="py-4 text-center"></p>
+            <div class="modal-action justify-center gap-2">
+                <button type="button" class="btn btn-ghost" onclick="confirmNo()" data-i18n="no">Нет</button>
+                <button type="button" class="btn btn-primary" onclick="confirmYes()" data-i18n="yes">Да</button>
+            </div>
+        </div>
+        <form method="dialog" class="modal-backdrop"><button>close</button></form>
+    </dialog>
+
     <script src="js/layout.js"></script>
     <script>
         // ==================== STATE ====================
@@ -134,6 +175,61 @@
 
         const t = key => Layout.t(key);
 
+        // ==================== HELPER FUNCTIONS ====================
+        function tr(key, fallback) {
+            const val = Layout.t(key);
+            return val !== key ? val : fallback;
+        }
+
+        const UNITS = {
+            kg: { ru: 'кг', en: 'kg', hi: 'किलो' },
+            g: { ru: 'г', en: 'g', hi: 'ग्राम' },
+            l: { ru: 'л', en: 'l', hi: 'लीटर' },
+            ml: { ru: 'мл', en: 'ml', hi: 'मिली' },
+            pcs: { ru: 'шт', en: 'pcs', hi: 'टुकड़ा' },
+            pack: { ru: 'уп', en: 'pack', hi: 'पैकेट' }
+        };
+
+        function localizeUnit(unit) {
+            if (!unit) return '';
+            const lang = Layout.currentLang;
+            return UNITS[unit]?.[lang] || unit;
+        }
+
+        // ==================== MODAL DIALOGS ====================
+        function showAlert(message) {
+            const modal = Layout.$('#alertModal');
+            Layout.$('#alertMessage').textContent = message;
+            modal.showModal();
+        }
+
+        function closeAlert() {
+            Layout.$('#alertModal').close();
+        }
+
+        let confirmResolve = null;
+
+        function showConfirm(message) {
+            return new Promise(resolve => {
+                confirmResolve = resolve;
+                const modal = Layout.$('#confirmModal');
+                Layout.$('#confirmMessage').textContent = message;
+                modal.showModal();
+            });
+        }
+
+        function confirmYes() {
+            Layout.$('#confirmModal').close();
+            if (confirmResolve) confirmResolve(true);
+            confirmResolve = null;
+        }
+
+        function confirmNo() {
+            Layout.$('#confirmModal').close();
+            if (confirmResolve) confirmResolve(false);
+            confirmResolve = null;
+        }
+
         // ==================== DATA LOADING ====================
         async function loadBuyers() {
             const { data, error } = await Layout.db.from('buyers').select('*').order('name');
@@ -143,10 +239,13 @@
         }
 
         async function loadStock() {
+            const locationId = (await Layout.db.from('locations').select('id').eq('slug', Layout.currentLocation).single()).data?.id;
+            if (!locationId) { console.error('Location not found'); return; }
+
             const { data, error } = await Layout.db
                 .from('stock')
-                .select('*, products(*, product_categories(slug, name_ru, name_en, name_hi, color))')
-                .order('created_at');
+                .select('*, products(*, product_categories(*))')
+                .eq('location_id', locationId);
 
             if (error) { console.error('Error loading stock:', error); return; }
             stockItems = data || [];
@@ -155,11 +254,12 @@
         async function loadProducts() {
             const { data, error } = await Layout.db
                 .from('products')
-                .select('*, product_categories(slug, name_ru, name_en, name_hi, color)')
-                .order('name_ru');
+                .select('*, product_categories(*)');
 
             if (error) { console.error('Error loading products:', error); return; }
             products = data || [];
+            // Sort by name locally
+            products.sort((a, b) => (a.name_ru || '').localeCompare(b.name_ru || '', 'ru'));
             renderMinStock();
         }
 
@@ -167,9 +267,19 @@
         function switchTab(tab) {
             currentTab = tab;
 
-            Layout.$('#tabBuyers').classList.toggle('tab-active', tab === 'buyers');
-            Layout.$('#tabMinStock').classList.toggle('tab-active', tab === 'minStock');
+            // Update tab buttons
+            document.querySelectorAll('#mainTabs .tab').forEach(btn => {
+                btn.classList.remove('tab-active');
+                btn.style.backgroundColor = '';
+                btn.style.color = '';
+            });
 
+            const activeBtn = document.querySelector(`#mainTabs .tab[data-tab="${tab}"]`);
+            activeBtn.classList.add('tab-active');
+            activeBtn.style.backgroundColor = 'var(--current-color)';
+            activeBtn.style.color = 'white';
+
+            // Show/hide content
             Layout.$('#tabContentBuyers').classList.toggle('hidden', tab !== 'buyers');
             Layout.$('#tabContentMinStock').classList.toggle('hidden', tab !== 'minStock');
         }
@@ -234,7 +344,7 @@
         async function saveBuyer() {
             const name = Layout.$('#buyerName').value.trim();
             if (!name) {
-                alert('Введите имя закупщика');
+                showAlert(tr('enter_buyer_name', 'Введите имя закупщика'));
                 return;
             }
 
@@ -253,7 +363,7 @@
 
             if (error) {
                 console.error('Error saving buyer:', error);
-                alert('Ошибка сохранения');
+                showAlert(tr('save_error', 'Ошибка сохранения'));
                 return;
             }
 
@@ -262,12 +372,12 @@
         }
 
         async function deleteBuyer(id) {
-            if (!confirm('Удалить закупщика?')) return;
+            if (!await showConfirm(tr('delete_buyer_confirm', 'Удалить закупщика?'))) return;
 
             const { error } = await Layout.db.from('buyers').delete().eq('id', id);
             if (error) {
                 console.error('Error deleting buyer:', error);
-                alert('Ошибка удаления');
+                showAlert(tr('delete_error', 'Ошибка удаления'));
                 return;
             }
 
@@ -320,11 +430,11 @@
                                 ${Layout.getName(cat) || '—'}
                             </span>
                         </td>
-                        <td class="${status}">${item.currentQty} ${product.unit || ''}</td>
+                        <td class="${status}">${item.currentQty} ${localizeUnit(product.unit)}</td>
                         <td>
                             <div class="join">
                                 <input type="number"
-                                    class="input input-bordered input-sm join-item w-16"
+                                    class="input input-bordered input-sm join-item w-16 no-spinners"
                                     value="${item.minQty}"
                                     min="0"
                                     step="0.1"
@@ -332,7 +442,7 @@
                                     data-stock-id="${item.stockId || ''}"
                                     onchange="updateMinStock(this)"
                                 />
-                                <span class="btn btn-sm join-item no-animation pointer-events-none bg-base-200">${product.unit || 'кг'}</span>
+                                <span class="btn btn-sm join-item no-animation pointer-events-none bg-base-200">${localizeUnit(product.unit) || 'кг'}</span>
                             </div>
                         </td>
                         <td>
@@ -379,7 +489,7 @@
 
             if (error) {
                 console.error('Error updating min stock:', error);
-                alert('Ошибка сохранения');
+                showAlert(tr('save_error', 'Ошибка сохранения'));
             }
         }
 
@@ -413,16 +523,11 @@
 
             if (error) {
                 console.error('Error updating placement:', error);
-                alert('Ошибка сохранения');
+                showAlert(tr('save_error', 'Ошибка сохранения'));
             }
         }
 
         // ==================== EVENT LISTENERS ====================
-        Layout.$('#minStockSearch')?.addEventListener('input', (e) => {
-            minStockSearch = e.target.value;
-            renderMinStock();
-        });
-
         window.onLanguageChange = function(lang) {
             Layout.updateAllTranslations();
             renderBuyers();
@@ -432,9 +537,22 @@
         // ==================== INIT ====================
         async function init() {
             await Layout.init({ menuId: 'stock', itemId: 'stock_settings' });
+
+            // Style initial active tab
+            const activeBtn = document.querySelector('#mainTabs .tab[data-tab="buyers"]');
+            activeBtn.style.backgroundColor = 'var(--current-color)';
+            activeBtn.style.color = 'white';
+
+            // Setup search listener after Layout is ready
+            Layout.$('#minStockSearch')?.addEventListener('input', (e) => {
+                minStockSearch = e.target.value;
+                renderMinStock();
+            });
+
             await loadBuyers();
             await loadStock();
             await loadProducts();
+            Layout.updateAllTranslations();
         }
 
         init();

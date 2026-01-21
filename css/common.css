@@ -8,6 +8,15 @@
     --current-color: #f49800;
 }
 
+/* Override DaisyUI primary color with current location color */
+[data-theme],
+[data-theme="light"],
+:root {
+    --p: var(--current-color);
+    --pc: 255 255 255;
+    --pf: var(--current-color);
+}
+
 * {
     font-family: 'Noto Sans', 'Noto Sans Devanagari', sans-serif;
 }
@@ -128,6 +137,65 @@ main p, main span, main div { font-size: inherit; }
 
 /* ==================== COMMON UI ==================== */
 .filter-btn.active {
+    background-color: var(--current-color) !important;
+    border-color: var(--current-color) !important;
+    color: white !important;
+}
+
+/* Tabs - override DaisyUI defaults */
+.tab-active,
+.tabs .tab-active,
+.tabs-boxed .tab-active,
+.tabs-boxed .tab.tab-active,
+.tabs-boxed > .tab-active,
+.tabs-boxed > input:checked + .tab,
+[role="tablist"] .tab-active,
+.tab[aria-selected="true"] {
+    --tab-bg: var(--current-color) !important;
+    --tab-border-color: var(--current-color) !important;
+    background-color: var(--current-color) !important;
+    border-color: var(--current-color) !important;
+    color: white !important;
+}
+
+.tabs-boxed .tab-active:not(.tab-disabled):not([disabled]),
+.tabs-boxed .tab-active:hover {
+    background-color: var(--current-color) !important;
+    border-color: var(--current-color) !important;
+    color: white !important;
+}
+
+/* Checkboxes */
+.checkbox:checked,
+.checkbox-primary:checked {
+    background-color: var(--current-color) !important;
+    border-color: var(--current-color) !important;
+}
+
+/* Radio */
+.radio:checked,
+.radio-primary:checked {
+    background-color: var(--current-color) !important;
+    border-color: var(--current-color) !important;
+}
+
+/* Input focus */
+.input:focus,
+.select:focus,
+.textarea:focus {
+    border-color: var(--current-color) !important;
+    outline-color: var(--current-color) !important;
+}
+
+/* Outline buttons */
+.btn-outline.btn-primary {
+    color: var(--current-color) !important;
+    border-color: var(--current-color) !important;
+    background-color: transparent !important;
+}
+.btn-outline.btn-primary:hover {
+    background-color: var(--current-color) !important;
+    border-color: var(--current-color) !important;
     color: white !important;
 }
 
@@ -171,6 +239,19 @@ main .modal-box {
 main .table td,
 main .table th {
     padding: 0.875rem 1rem !important;
+}
+
+/* ==================== NUMBER INPUTS ==================== */
+/* Убираем стрелки (spinners) у числовых полей */
+input[type="number"]::-webkit-outer-spin-button,
+input[type="number"]::-webkit-inner-spin-button {
+    -webkit-appearance: none;
+    margin: 0;
+}
+
+input[type="number"] {
+    -moz-appearance: textfield; /* Firefox */
+    appearance: textfield;
 }
 
 /* ==================== UTILITY ==================== */

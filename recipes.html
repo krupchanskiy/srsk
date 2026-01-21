@@ -86,9 +86,17 @@
         let showPhotos = true;
         let recipes = [];
         let categories = [];
+        let units = [];
 
         // Алиасы для удобства
         const t = key => Layout.t(key);
+
+        // Получить локализованное короткое название единицы
+        function getUnitShort(code) {
+            const unit = units.find(u => u.code === code);
+            if (!unit) return code || '';
+            return unit[`short_${Layout.currentLang}`] || unit.short_ru || code;
+        }
 
         // Формы склонения для счётчиков
         const RECIPE_FORMS = {
@@ -110,6 +118,12 @@
             if (error) { console.error('Error loading recipes:', error); return; }
             recipes = data;
             renderRecipes();
+        }
+
+        async function loadUnits() {
+            const { data, error } = await Layout.db.from('units').select('*').order('sort_order');
+            if (error) { console.error('Error loading units:', error); return; }
+            units = data || [];
         }
 
         // ==================== RENDERING ====================
@@ -162,8 +176,8 @@
             grid.innerHTML = filtered.map(recipe => {
                 const cat = recipe.recipe_categories;
                 const secondaryLang = lang === 'ru' ? 'en' : 'ru';
-                const unitOutput = recipe.output_unit === 'pcs' ? t('unit_pcs') : recipe.output_unit;
-                const unitPortion = recipe.portion_unit === 'pcs' ? t('unit_pcs') : recipe.portion_unit;
+                const unitOutput = getUnitShort(recipe.output_unit);
+                const unitPortion = getUnitShort(recipe.portion_unit);
 
                 const photoHtml = showPhotos ? `
                     <figure class="h-32 bg-base-200 overflow-hidden">
@@ -240,6 +254,7 @@
             await Layout.init({ menuId: 'kitchen', itemId: 'recipes' });
 
             // Загружаем данные страницы
+            await loadUnits();
             await loadCategories();
             await loadRecipes();
             updatePageLanguage();

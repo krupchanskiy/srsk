@@ -51,11 +51,12 @@
         </div>
 
         <!-- Tabs -->
-        <div class="tabs tabs-boxed bg-base-100 p-1 mb-6 inline-flex">
+        <div class="tabs tabs-boxed bg-base-100 p-1 mb-6 inline-flex flex-wrap">
             <button class="tab tab-active" data-tab="recipe_categories" data-i18n="dict_recipe_categories">Категории блюд</button>
             <button class="tab" data-tab="product_categories" data-i18n="dict_product_categories">Категории продуктов</button>
             <button class="tab" data-tab="units" data-i18n="dict_units">Единицы измерения</button>
             <button class="tab" data-tab="departments" data-i18n="dict_departments">Департаменты</button>
+            <button class="tab" data-tab="buyers" data-i18n="dict_buyers">Закупщики</button>
         </div>
 
         <!-- Tab Content -->
@@ -94,7 +95,8 @@
             recipe_categories: [],
             product_categories: [],
             units: [],
-            departments: []
+            departments: [],
+            buyers: []
         };
 
         const t = key => Layout.t(key);
@@ -182,6 +184,19 @@
                     { name: 'color', label: 'color', type: 'color', defaultValue: '#6366f1' }
                 ],
                 orderBy: 'sort_order'
+            },
+            buyers: {
+                table: 'buyers',
+                titleKey: 'dict_buyers',
+                columns: [
+                    { key: 'name', label: 'col_name', editable: true },
+                    { key: 'phone', label: 'col_phone', editable: true }
+                ],
+                fields: [
+                    { name: 'name', label: 'col_name', type: 'text', required: true, placeholder: 'Имя закупщика' },
+                    { name: 'phone', label: 'col_phone', type: 'text', required: false, placeholder: '+91 98765 43210' }
+                ],
+                orderBy: 'name'
             }
         };
 

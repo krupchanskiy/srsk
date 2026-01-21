@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Получить — ШРСК</title>
+    <title>Принять — ШРСК</title>
     <link href="https://cdn.jsdelivr.net/npm/daisyui@4.12.14/dist/full.min.css" rel="stylesheet" />
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
@@ -12,6 +12,35 @@
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Noto+Sans:wght@400;500;600;700&family=Noto+Sans+Devanagari:wght@400;500;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="css/common.css">
+    <style>
+        input[type="number"]::-webkit-outer-spin-button,
+        input[type="number"]::-webkit-inner-spin-button {
+            -webkit-appearance: none;
+            margin: 0;
+        }
+        input[type="number"] {
+            -moz-appearance: textfield;
+        }
+
+        @media print {
+            body * { visibility: hidden; }
+            #viewReceiptModal, #viewReceiptModal * { visibility: visible; }
+            #viewReceiptModal {
+                position: absolute;
+                left: 0;
+                top: 0;
+                width: 100%;
+                padding: 20px;
+            }
+            #viewReceiptModal .modal-box {
+                max-width: 100%;
+                box-shadow: none;
+            }
+            #viewReceiptModal .modal-action,
+            #viewReceiptModal .btn-ghost,
+            #viewReceiptModal form[method="dialog"] { display: none !important; }
+        }
+    </style>
 </head>
 <body class="bg-base-200 min-h-screen flex flex-col">
 
@@ -19,123 +48,295 @@
 
     <main class="container mx-auto px-4 py-6 flex-1">
 
-        <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6">
-            <div>
-                <h1 class="text-2xl font-bold" data-i18n="receive_title">Получение товаров</h1>
-                <p class="text-sm opacity-60" id="receiptsCount">Загрузка...</p>
-            </div>
-            <button class="btn btn-primary gap-2" onclick="openReceiptModal()">
-                <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" />
-                </svg>
-                <span data-i18n="new_receipt">Оформить получение</span>
-            </button>
+        <div class="mb-6">
+            <h1 class="text-2xl font-bold" data-i18n="receive_title">Приёмка товаров</h1>
+            <p class="text-sm opacity-60" id="receiptsCount">Загрузка...</p>
         </div>
 
-        <div class="flex justify-between items-center mb-4">
-            <div class="join">
-                <button class="btn btn-sm join-item btn-active" id="activeBtn" onclick="showActive()">Активные</button>
-                <button class="btn btn-sm join-item" id="archiveBtn" onclick="showArchive()">Архив</button>
-            </div>
+        <!-- Tabs -->
+        <div class="tabs tabs-boxed bg-base-100 p-1 mb-6 inline-flex" id="mainTabs">
+            <button class="tab tab-active" data-tab="new" onclick="switchTab('new')" data-i18n="new_receipt_tab">Новая приёмка</button>
+            <button class="tab" data-tab="saved" onclick="switchTab('saved')" data-i18n="saved_receipts_tab">Сохранённые</button>
+            <button class="tab" data-tab="archive" onclick="switchTab('archive')" data-i18n="archived_receipts_tab">Архивные</button>
+            <button class="tab" data-tab="deleted" onclick="switchTab('deleted')" data-i18n="deleted_receipts_tab">Удалённые</button>
         </div>
 
-        <div class="space-y-3" id="receiptsList">
-            <div class="bg-base-100 rounded-lg p-4 shadow-sm skeleton h-24"></div>
-            <div class="bg-base-100 rounded-lg p-4 shadow-sm skeleton h-24"></div>
+        <!-- New Receipt Tab -->
+        <div id="tabNew" class="tab-pane">
+
+            <!-- Choice: From Request or Manual -->
+            <div id="receiveChoiceSection" class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
+                <!-- Option 1: From Request -->
+                <div class="bg-base-100 rounded-lg p-6 shadow-sm">
+                    <div class="text-lg font-semibold mb-2" data-i18n="receive_from_request_title">Принять из заявки</div>
+                    <p class="text-sm opacity-60 mb-4" data-i18n="receive_from_request_desc">Загрузить продукты из сохранённой заявки</p>
+
+                    <div class="space-y-2 max-h-64 overflow-y-auto" id="requestsListForLoad"></div>
+                </div>
+
+                <!-- Option 2: Manual -->
+                <div class="bg-base-100 rounded-lg p-6 shadow-sm flex flex-col">
+                    <div class="text-lg font-semibold mb-2" data-i18n="receive_manual_title">Принять вручную</div>
+                    <p class="text-sm opacity-60 mb-4" data-i18n="receive_manual_desc">Ввести продукты для приёмки вручную</p>
+
+                    <div class="flex-1"></div>
+
+                    <button class="btn btn-outline btn-primary w-full" onclick="createManualReceipt()" data-i18n="create_receipt">
+                        Создать приёмку
+                    </button>
+                </div>
+            </div>
+
+            <!-- Receipt Form (hidden initially) -->
+            <div id="receiveFormSection" class="hidden">
+                <div class="flex justify-between items-center mb-4">
+                    <h2 id="receiptTitle" class="text-lg font-semibold" data-i18n="new_receipt">Новая приёмка</h2>
+                    <button class="btn btn-ghost btn-sm" onclick="backToChoice()">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18" />
+                        </svg>
+                        <span data-i18n="back">Назад</span>
+                    </button>
+                </div>
+
+                <div class="bg-base-100 rounded-lg p-6 shadow-sm">
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
+                        <div>
+                            <label class="label"><span class="label-text font-medium" data-i18n="receipt_date">Дата</span></label>
+                            <input type="date" id="receiptDate" class="input input-bordered w-full" />
+                        </div>
+                        <div>
+                            <label class="label"><span class="label-text font-medium" data-i18n="receipt_buyer">Кто закупал</span></label>
+                            <select id="receiptBuyer" class="select select-bordered w-full">
+                                <option value="" data-i18n="select_buyer">Выберите закупщика</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <div class="mb-6">
+                        <label class="label"><span class="label-text font-medium" data-i18n="products">Продукты</span></label>
+                        <div class="border border-base-300 rounded-lg overflow-hidden">
+                            <table class="table table-sm">
+                                <thead class="bg-base-200">
+                                    <tr>
+                                        <th data-i18n="product">Продукт</th>
+                                        <th class="w-24" data-i18n="quantity">Кол-во</th>
+                                        <th class="w-24" data-i18n="price">Цена</th>
+                                        <th class="w-24" data-i18n="sum">Сумма</th>
+                                        <th class="w-10"></th>
+                                    </tr>
+                                </thead>
+                                <tbody id="receiptItems"></tbody>
+                            </table>
+                        </div>
+
+                        <button type="button" class="btn btn-sm gap-1 mt-2" style="background-color: var(--current-color); border-color: var(--current-color); color: white;" onclick="openProductModal()">
+                            <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" />
+                            </svg>
+                            <span data-i18n="add_product">Добавить продукт</span>
+                        </button>
+                    </div>
+
+                    <div class="mb-6">
+                        <label class="label"><span class="label-text font-medium" data-i18n="notes">Примечания</span></label>
+                        <textarea id="receiptNotes" class="textarea textarea-bordered w-full" rows="2" placeholder="Примечания по поставщикам, качеству..." data-i18n-placeholder="receipt_notes_placeholder"></textarea>
+                    </div>
+
+                    <div class="flex justify-between items-center">
+                        <div class="text-right">
+                            <div class="text-sm opacity-60" data-i18n="total">Итого</div>
+                            <div class="text-2xl font-bold" id="receiptTotal">₹0</div>
+                        </div>
+                        <button type="button" class="btn btn-primary" id="saveReceiptBtn" onclick="saveReceipt()">
+                            <span class="loading loading-spinner loading-sm hidden" id="saveSpinner"></span>
+                            <span id="saveText" data-i18n="save_receipt">Сохранить приёмку</span>
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+        </div>
+
+        <!-- Saved Receipts Tab -->
+        <div id="tabSaved" class="tab-pane hidden">
+            <div class="alert alert-success mb-4 py-2">
+                <span class="text-sm" data-i18n="receipt_completed_info">Приёмка проведена, склад обновлён</span>
+            </div>
+            <div class="space-y-3" id="savedReceiptsList"></div>
+        </div>
+
+        <!-- Archived Receipts Tab -->
+        <div id="tabArchive" class="tab-pane hidden">
+            <div class="alert alert-info mb-4 py-2">
+                <span class="text-sm" data-i18n="receipt_completed_info">Приёмка проведена, склад обновлён</span>
+            </div>
+            <div class="space-y-3" id="archivedReceiptsList"></div>
+        </div>
+
+        <!-- Deleted Receipts Tab -->
+        <div id="tabDeleted" class="tab-pane hidden">
+            <div class="alert alert-warning mb-4 py-2">
+                <span class="text-sm" data-i18n="receipt_cancelled_info">Приёмка отменена, склад не пополнялся</span>
+            </div>
+            <div class="space-y-3" id="deletedReceiptsList"></div>
         </div>
 
     </main>
 
     <div id="footer-placeholder"></div>
 
-    <!-- Receipt Modal -->
-    <dialog id="receiptModal" class="modal">
-        <div class="modal-box max-w-2xl">
-            <form method="dialog">
-                <button class="btn btn-sm btn-circle btn-ghost absolute right-2 top-2">✕</button>
-            </form>
-            <h3 class="font-bold text-lg mb-4" id="receiptModalTitle">Оформить получение</h3>
+    <!-- Add Product Modal -->
+    <dialog id="productModal" class="modal">
+        <div class="modal-box max-w-lg relative">
+            <button type="button" class="btn btn-sm btn-circle btn-ghost absolute right-2 top-2" onclick="productModal.close()">✕</button>
+            <h3 class="font-bold text-lg mb-4" data-i18n="add_product">Добавить продукт</h3>
 
             <div class="space-y-4">
-                <div class="grid grid-cols-2 gap-4">
-                    <div>
-                        <label class="label"><span class="label-text font-medium">Дата</span></label>
-                        <input type="date" id="receiptDate" class="input input-bordered w-full" />
-                    </div>
-                    <div>
-                        <label class="label"><span class="label-text font-medium">Кто закупал</span></label>
-                        <select id="receiptBuyer" class="select select-bordered w-full">
-                            <option value="">Выберите закупщика</option>
-                        </select>
-                    </div>
+                <!-- Tabs -->
+                <div class="tabs tabs-boxed bg-base-200">
+                    <a class="tab" id="tabProductSearch" onclick="switchProductTab('search')" data-i18n="search" style="background-color: var(--current-color); color: white;">Поиск</a>
+                    <a class="tab" id="tabProductBrowse" onclick="switchProductTab('browse')" data-i18n="by_category">По категории</a>
                 </div>
 
-                <div>
-                    <div class="flex justify-between items-center">
-                        <label class="label"><span class="label-text font-medium">Продукты</span></label>
-                        <button type="button" class="btn btn-ghost btn-sm gap-1" onclick="showLoadFromRequestModal()">
-                            <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" />
-                            </svg>
-                            Из заявки
-                        </button>
-                    </div>
-                    <div class="border border-base-300 rounded-lg overflow-hidden">
-                        <table class="table table-sm">
-                            <thead class="bg-base-200">
-                                <tr>
-                                    <th>Продукт</th>
-                                    <th class="w-24">Кол-во</th>
-                                    <th class="w-24">Цена</th>
-                                    <th class="w-24">Сумма</th>
-                                    <th class="w-10"></th>
-                                </tr>
-                            </thead>
-                            <tbody id="receiptItems"></tbody>
-                        </table>
-                    </div>
-
-                    <div class="flex gap-2 mt-2">
-                        <div class="flex-1 relative">
-                            <input type="text" id="receiptProductSearch" class="input input-bordered input-sm w-full" placeholder="Добавить продукт..." />
-                            <div id="receiptProductDropdown" class="absolute z-50 w-full bg-base-100 border border-base-300 rounded-lg shadow-lg mt-1 max-h-48 overflow-y-auto hidden"></div>
+                <!-- Search Tab -->
+                <div id="productSearchTab">
+                    <div class="relative">
+                        <input type="text"
+                               id="productSearch"
+                               class="input input-bordered w-full"
+                               placeholder="Начните вводить название..." data-i18n-placeholder="search_placeholder"
+                               autocomplete="off"
+                               oninput="filterProducts(this.value)"
+                               onfocus="showProductDropdown()"
+                        />
+                        <div id="productDropdown" class="absolute z-50 w-full bg-base-100 border border-base-300 rounded-lg shadow-lg mt-1 max-h-64 overflow-y-auto hidden">
                         </div>
                     </div>
                 </div>
 
-                <div>
-                    <label class="label"><span class="label-text font-medium">Примечания</span></label>
-                    <textarea id="receiptNotes" class="textarea textarea-bordered w-full" rows="2" placeholder="Примечания по поставщикам, качеству..."></textarea>
+                <!-- Browse Tab -->
+                <div id="productBrowseTab" class="hidden">
+                    <div class="flex flex-wrap gap-2 mb-3" id="productCategoryButtons">
+                    </div>
+                    <div id="productCategoryList" class="max-h-64 overflow-y-auto border border-base-300 rounded-lg">
+                    </div>
                 </div>
 
-                <div class="flex justify-end">
-                    <div class="text-right">
-                        <div class="text-sm opacity-60">Итого</div>
-                        <div class="text-2xl font-bold" id="receiptTotal">₹0</div>
+                <!-- Selected Product -->
+                <div id="selectedProductDisplay" class="hidden">
+                    <div class="flex items-center justify-between p-3 bg-base-200 rounded-lg border-2" style="border-color: var(--current-color);">
+                        <div>
+                            <div class="font-medium" id="selectedProductName"></div>
+                            <div class="text-sm opacity-50" id="selectedProductNameEn"></div>
+                        </div>
+                        <button type="button" class="btn btn-ghost btn-sm btn-square" onclick="clearSelectedProduct()">
+                            <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+                            </svg>
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Quantity and Price -->
+                <div id="productQuantitySection" class="hidden">
+                    <div class="grid grid-cols-2 gap-4">
+                        <div>
+                            <label class="label"><span class="label-text font-medium" data-i18n="quantity">Количество</span></label>
+                            <div class="join w-full">
+                                <input type="number" id="productQuantity" class="input input-bordered join-item w-full" value="1" min="0.1" step="0.1" />
+                                <span id="productUnit" class="btn join-item no-animation pointer-events-none bg-base-200">кг</span>
+                            </div>
+                        </div>
+                        <div>
+                            <label class="label"><span class="label-text font-medium" data-i18n="price">Цена</span></label>
+                            <div class="join w-full">
+                                <span class="btn join-item no-animation pointer-events-none bg-base-200">₹</span>
+                                <input type="number" id="productPrice" class="input input-bordered join-item w-full" value="" min="0" step="0.5" placeholder="0" />
+                            </div>
+                        </div>
                     </div>
                 </div>
             </div>
 
             <div class="modal-action">
-                <button type="button" class="btn btn-ghost" onclick="closeReceiptModal()">Отмена</button>
-                <button type="button" class="btn btn-primary" onclick="saveReceipt()">Сохранить</button>
+                <button type="button" class="btn btn-ghost" onclick="productModal.close()" data-i18n="cancel">Отмена</button>
+                <button type="button" class="btn btn-primary" id="saveProductBtn" onclick="addProductFromModal()" disabled data-i18n="add">Добавить</button>
             </div>
         </div>
         <form method="dialog" class="modal-backdrop"><button>close</button></form>
     </dialog>
 
-    <!-- Load from Request Modal -->
-    <dialog id="loadFromRequestModal" class="modal">
-        <div class="modal-box max-w-md">
+    <!-- View/Edit Receipt Modal -->
+    <dialog id="viewReceiptModal" class="modal">
+        <div class="modal-box max-w-2xl">
             <form method="dialog">
                 <button class="btn btn-sm btn-circle btn-ghost absolute right-2 top-2">✕</button>
             </form>
-            <h3 class="font-bold text-lg mb-4">Загрузить из заявки</h3>
+            <h3 class="font-bold text-lg mb-4" id="viewReceiptTitle">Приёмка</h3>
 
-            <div class="space-y-2" id="requestsListForLoad"></div>
+            <div class="mb-4">
+                <div class="flex gap-4 text-sm opacity-60 mb-2">
+                    <span id="viewReceiptDate"></span>
+                    <span id="viewReceiptBuyer"></span>
+                </div>
+            </div>
+
+            <div class="border border-base-300 rounded-lg overflow-hidden mb-4">
+                <table class="table table-sm">
+                    <thead class="bg-base-200">
+                        <tr>
+                            <th data-i18n="product">Продукт</th>
+                            <th class="w-24" data-i18n="quantity">Кол-во</th>
+                            <th class="w-24" data-i18n="price">Цена</th>
+                            <th class="w-24" data-i18n="sum">Сумма</th>
+                            <th class="w-10"></th>
+                        </tr>
+                    </thead>
+                    <tbody id="viewReceiptItems"></tbody>
+                </table>
+            </div>
+
+            <div class="flex justify-between items-center mb-4">
+                <div id="viewReceiptNotes" class="text-sm opacity-60 italic"></div>
+                <div class="text-right">
+                    <div class="text-sm opacity-60" data-i18n="total">Итого</div>
+                    <div class="text-2xl font-bold" id="viewReceiptTotal">₹0</div>
+                </div>
+            </div>
 
             <div class="modal-action">
-                <button type="button" class="btn btn-ghost" onclick="closeLoadFromRequestModal()">Отмена</button>
+                <button type="button" class="btn btn-ghost gap-2" onclick="printViewedReceipt()">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" />
+                    </svg>
+                    <span data-i18n="print">Печать</span>
+                </button>
+                <button type="button" class="btn btn-ghost" onclick="closeViewReceiptModal()" data-i18n="close">Закрыть</button>
+                <button type="button" class="btn btn-primary" onclick="saveViewedReceipt()" data-i18n="save_changes">Сохранить изменения</button>
+            </div>
+        </div>
+        <form method="dialog" class="modal-backdrop"><button>close</button></form>
+    </dialog>
+
+    <!-- Alert Modal -->
+    <dialog id="alertModal" class="modal">
+        <div class="modal-box max-w-sm">
+            <p id="alertMessage" class="py-4 text-center"></p>
+            <div class="modal-action justify-center">
+                <button type="button" class="btn btn-primary" onclick="closeAlert()">OK</button>
+            </div>
+        </div>
+        <form method="dialog" class="modal-backdrop"><button>close</button></form>
+    </dialog>
+
+    <!-- Confirm Modal -->
+    <dialog id="confirmModal" class="modal">
+        <div class="modal-box max-w-sm">
+            <p id="confirmMessage" class="py-4 text-center"></p>
+            <div class="modal-action justify-center gap-2">
+                <button type="button" class="btn btn-ghost" onclick="confirmNo()" data-i18n="no">Нет</button>
+                <button type="button" class="btn btn-primary" onclick="confirmYes()" data-i18n="yes">Да</button>
             </div>
         </div>
         <form method="dialog" class="modal-backdrop"><button>close</button></form>
@@ -146,25 +347,275 @@
         // ==================== STATE ====================
         let receipts = [];
         let products = [];
+        let productCategories = [];
         let requests = [];
         let buyers = [];
-        let showArchived = false;
         let receiptItemsList = [];
-        let editingReceiptId = null;
+        let currentTab = 'new';
+        let viewingReceipt = null;
+        let viewingItems = [];
+        let initialized = false;
+        let selectedProduct = null;
+        let currentProductCategory = 'all';
 
         const t = key => Layout.t(key);
 
+        // ==================== HELPER FUNCTIONS ====================
+        function tr(key, fallback) {
+            const val = Layout.t(key);
+            return val !== key ? val : fallback;
+        }
+
+        function formatNumberWithYear(num) {
+            if (!num) return '';
+            const str = String(num);
+            if (str.includes('/')) return str;
+            const currentYear = new Date().getFullYear();
+            return `${str}/${currentYear}`;
+        }
+
+        const UNITS = {
+            kg: { ru: 'кг', en: 'kg', hi: 'किलो' },
+            g: { ru: 'г', en: 'g', hi: 'ग्राम' },
+            l: { ru: 'л', en: 'l', hi: 'लीटर' },
+            ml: { ru: 'мл', en: 'ml', hi: 'मिली' },
+            pcs: { ru: 'шт', en: 'pcs', hi: 'टुकड़ा' },
+            pack: { ru: 'уп', en: 'pack', hi: 'पैकेट' }
+        };
+
+        function localizeUnit(unit) {
+            if (!unit) return '';
+            const lang = Layout.currentLang;
+            return UNITS[unit]?.[lang] || unit;
+        }
+
+        // ==================== MODAL DIALOGS ====================
+        function showAlert(message) {
+            const modal = Layout.$('#alertModal');
+            Layout.$('#alertMessage').textContent = message;
+            modal.showModal();
+        }
+
+        function closeAlert() {
+            Layout.$('#alertModal').close();
+        }
+
+        let confirmResolve = null;
+
+        function showConfirm(message) {
+            return new Promise(resolve => {
+                confirmResolve = resolve;
+                const modal = Layout.$('#confirmModal');
+                Layout.$('#confirmMessage').textContent = message;
+                modal.showModal();
+            });
+        }
+
+        function confirmYes() {
+            Layout.$('#confirmModal').close();
+            if (confirmResolve) confirmResolve(true);
+            confirmResolve = null;
+        }
+
+        function confirmNo() {
+            Layout.$('#confirmModal').close();
+            if (confirmResolve) confirmResolve(false);
+            confirmResolve = null;
+        }
+
+        // ==================== PRODUCT MODAL ====================
+        function openProductModal() {
+            selectedProduct = null;
+            currentProductCategory = 'all';
+            Layout.$('#productSearch').value = '';
+            Layout.$('#productDropdown').classList.add('hidden');
+            Layout.$('#selectedProductDisplay').classList.add('hidden');
+            Layout.$('#productQuantitySection').classList.add('hidden');
+            Layout.$('#saveProductBtn').disabled = true;
+            Layout.$('#productQuantity').value = 1;
+            Layout.$('#productPrice').value = '';
+            switchProductTab('search');
+            buildProductCategoryButtons();
+            Layout.$('#productModal').showModal();
+        }
+
+        function buildProductCategoryButtons() {
+            const container = Layout.$('#productCategoryButtons');
+            let html = `<button class="btn btn-sm ${currentProductCategory === 'all' ? '' : 'btn-ghost'}" data-cat="all" style="${currentProductCategory === 'all' ? 'background-color: var(--current-color); border-color: var(--current-color); color: white;' : ''}">${tr('all', 'Все')}</button>`;
+            productCategories.forEach(cat => {
+                const isActive = currentProductCategory === cat.slug;
+                html += `<button class="btn btn-sm ${isActive ? '' : 'btn-ghost'}" data-cat="${cat.slug}" style="${isActive ? 'background-color: var(--current-color); border-color: var(--current-color); color: white;' : ''}">${cat.emoji || ''} ${Layout.getName(cat)}</button>`;
+            });
+            container.innerHTML = html;
+            container.querySelectorAll('button').forEach(btn => {
+                btn.addEventListener('click', () => {
+                    currentProductCategory = btn.dataset.cat;
+                    buildProductCategoryButtons();
+                    filterProductsByCategory();
+                });
+            });
+        }
+
+        function switchProductTab(tab) {
+            const searchTab = Layout.$('#tabProductSearch');
+            const browseTab = Layout.$('#tabProductBrowse');
+            const searchContent = Layout.$('#productSearchTab');
+            const browseContent = Layout.$('#productBrowseTab');
+
+            if (tab === 'search') {
+                searchTab.style.backgroundColor = 'var(--current-color)';
+                searchTab.style.color = 'white';
+                browseTab.style.backgroundColor = '';
+                browseTab.style.color = '';
+                searchContent.classList.remove('hidden');
+                browseContent.classList.add('hidden');
+            } else {
+                browseTab.style.backgroundColor = 'var(--current-color)';
+                browseTab.style.color = 'white';
+                searchTab.style.backgroundColor = '';
+                searchTab.style.color = '';
+                browseContent.classList.remove('hidden');
+                searchContent.classList.add('hidden');
+                filterProductsByCategory();
+            }
+        }
+
+        function filterProducts(query) {
+            const dropdown = Layout.$('#productDropdown');
+            if (!query || query.length < 1) {
+                dropdown.classList.add('hidden');
+                return;
+            }
+            const q = query.toLowerCase();
+            const filtered = products.filter(p =>
+                p.name_ru?.toLowerCase().includes(q) ||
+                p.name_en?.toLowerCase().includes(q) ||
+                p.name_hi?.includes(q)
+            ).slice(0, 10);
+
+            if (filtered.length === 0) {
+                dropdown.innerHTML = `<div class="p-3 text-center opacity-50">${tr('not_found', 'Не найдено')}</div>`;
+            } else {
+                dropdown.innerHTML = filtered.map(p => `
+                    <div class="p-2 hover:bg-base-200 cursor-pointer" onclick="selectProduct('${p.id}')">
+                        <div class="font-medium">${Layout.getName(p)}</div>
+                        <div class="text-xs opacity-50">${p.product_categories?.emoji || ''} ${Layout.getName(p.product_categories)}</div>
+                    </div>
+                `).join('');
+            }
+            dropdown.classList.remove('hidden');
+        }
+
+        function showProductDropdown() {
+            const query = Layout.$('#productSearch').value;
+            if (query && query.length >= 1) {
+                filterProducts(query);
+            }
+        }
+
+        function filterProductsByCategory() {
+            const container = Layout.$('#productCategoryList');
+            let filtered = products;
+            if (currentProductCategory !== 'all') {
+                filtered = products.filter(p => p.product_categories?.slug === currentProductCategory);
+            }
+
+            if (filtered.length === 0) {
+                container.innerHTML = `<div class="p-4 text-center opacity-50">${tr('no_products_in_category', 'В этой категории нет продуктов')}</div>`;
+            } else {
+                container.innerHTML = filtered.map(p => `
+                    <div class="p-2 hover:bg-base-200 cursor-pointer border-b border-base-200 last:border-b-0" onclick="selectProduct('${p.id}')">
+                        <div class="font-medium">${Layout.getName(p)}</div>
+                        <div class="text-xs opacity-50">${p.product_categories?.emoji || ''} ${Layout.getName(p.product_categories)}</div>
+                    </div>
+                `).join('');
+            }
+        }
+
+        function selectProduct(productId) {
+            selectedProduct = products.find(p => p.id === productId);
+            if (!selectedProduct) return;
+
+            Layout.$('#productDropdown').classList.add('hidden');
+            Layout.$('#selectedProductDisplay').classList.remove('hidden');
+            Layout.$('#productQuantitySection').classList.remove('hidden');
+            Layout.$('#selectedProductName').textContent = Layout.getName(selectedProduct);
+            const secondaryLang = Layout.currentLang === 'ru' ? 'en' : 'ru';
+            Layout.$('#selectedProductNameEn').textContent = selectedProduct[`name_${secondaryLang}`] || '';
+            Layout.$('#productUnit').textContent = localizeUnit(selectedProduct.unit);
+            Layout.$('#saveProductBtn').disabled = false;
+        }
+
+        function clearSelectedProduct() {
+            selectedProduct = null;
+            Layout.$('#selectedProductDisplay').classList.add('hidden');
+            Layout.$('#productQuantitySection').classList.add('hidden');
+            Layout.$('#saveProductBtn').disabled = true;
+            Layout.$('#productSearch').value = '';
+        }
+
+        function addProductFromModal() {
+            if (!selectedProduct) return;
+
+            const quantity = parseFloat(Layout.$('#productQuantity').value) || 1;
+            const price = parseFloat(Layout.$('#productPrice').value) || 0;
+
+            if (receiptItemsList.some(i => i.product_id === selectedProduct.id)) {
+                showAlert(tr('product_already_added', 'Продукт уже добавлен'));
+                return;
+            }
+
+            addReceiptItem(selectedProduct.id, quantity, price);
+            Layout.$('#productModal').close();
+        }
+
         const RECEIPT_FORMS = {
-            ru: ['получение', 'получения', 'получений'],
+            ru: ['приёмка', 'приёмки', 'приёмок'],
             en: ['receipt', 'receipts'],
             hi: 'रसीद'
         };
 
+        // ==================== TABS ====================
+        function switchTab(tab) {
+            if (!initialized) return;
+            currentTab = tab;
+            document.querySelectorAll('.tab-pane').forEach(el => el.classList.add('hidden'));
+            document.querySelectorAll('#mainTabs .tab').forEach(btn => {
+                btn.classList.remove('tab-active');
+                btn.style.backgroundColor = '';
+                btn.style.color = '';
+            });
+
+            const activeBtn = document.querySelector(`#mainTabs .tab[data-tab="${tab}"]`);
+            activeBtn.classList.add('tab-active');
+            activeBtn.style.backgroundColor = 'var(--current-color)';
+            activeBtn.style.color = 'white';
+
+            if (tab === 'new') {
+                Layout.$('#tabNew').classList.remove('hidden');
+            } else if (tab === 'saved') {
+                Layout.$('#tabSaved').classList.remove('hidden');
+                renderSavedReceipts();
+            } else if (tab === 'archive') {
+                Layout.$('#tabArchive').classList.remove('hidden');
+                renderArchivedReceipts();
+            } else if (tab === 'deleted') {
+                Layout.$('#tabDeleted').classList.remove('hidden');
+                renderDeletedReceipts();
+            }
+        }
+
         // ==================== DATA LOADING ====================
         async function loadProducts() {
-            const { data, error } = await Layout.db.from('products').select('*, product_categories(slug, name_ru, name_en, name_hi)');
+            const { data, error } = await Layout.db.from('products').select('*, product_categories(slug, name_ru, name_en, name_hi, emoji)');
             if (error) { console.error('Error loading products:', error); return; }
             products = data;
+        }
+
+        async function loadProductCategories() {
+            const { data, error } = await Layout.db.from('product_categories').select('*').order('sort_order');
+            if (error) { console.error('Error loading categories:', error); return; }
+            productCategories = data || [];
         }
 
         async function loadBuyers() {
@@ -193,112 +644,28 @@
 
             if (error) { console.error('Error loading receipts:', error); return; }
             receipts = data || [];
-            renderReceipts();
+            updateReceiptsCount();
+        }
+
+        function updateReceiptsCount() {
+            const saved = receipts.filter(r => !r.archived && !r.deleted).length;
+            Layout.$('#receiptsCount').textContent = Layout.pluralize(saved, RECEIPT_FORMS);
         }
 
         function renderBuyerSelect() {
             const select = Layout.$('#receiptBuyer');
-            select.innerHTML = '<option value="">Выберите закупщика</option>' +
+            select.innerHTML = `<option value="">${tr('select_buyer', 'Выберите закупщика')}</option>` +
                 buyers.map(b => `<option value="${b.id}">${b.name}</option>`).join('');
         }
 
-        // ==================== RENDERING ====================
-        function renderReceipts() {
-            const container = Layout.$('#receiptsList');
-            const filtered = receipts.filter(r => showArchived ? r.archived : !r.archived);
-
-            Layout.$('#receiptsCount').textContent = Layout.pluralize(filtered.length, RECEIPT_FORMS);
-
-            if (filtered.length === 0) {
-                container.innerHTML = `<div class="text-center py-12 opacity-50"><div class="text-4xl mb-2">📥</div><div>${showArchived ? 'Архив пуст' : 'Нет получений'}</div></div>`;
-                return;
-            }
-
-            container.innerHTML = filtered.map(rec => {
-                const items = rec.stock_receipt_items || [];
-                const total = items.reduce((sum, i) => sum + (i.quantity * (i.price || 0)), 0);
-                const date = new Date(rec.receipt_date || rec.created_at).toLocaleDateString('ru-RU');
-                const buyerName = rec.buyers?.name || 'Не указан';
-
-                return `
-                    <div class="bg-base-100 rounded-lg p-4 shadow-sm border-l-4 border-green-500">
-                        <div class="flex flex-col md:flex-row md:items-center justify-between gap-4">
-                            <div>
-                                <div class="font-semibold text-lg">Получение №${rec.number || rec.id?.slice(0,4)}</div>
-                                <div class="text-sm opacity-60">${date} · Закупщик: ${buyerName}</div>
-                            </div>
-                            <div class="flex items-center gap-4">
-                                <div class="text-center">
-                                    <div class="font-bold">${items.length}</div>
-                                    <div class="text-xs opacity-60">позиций</div>
-                                </div>
-                                <div class="text-center">
-                                    <div class="font-bold">₹${total.toLocaleString()}</div>
-                                    <div class="text-xs opacity-60">сумма</div>
-                                </div>
-                                <div class="flex items-center gap-2">
-                                    <button class="btn btn-ghost btn-sm btn-square" title="Просмотр" onclick="viewReceipt('${rec.id}')">
-                                        <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
-                                            <path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-                                            <path stroke-linecap="round" stroke-linejoin="round" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
-                                        </svg>
-                                    </button>
-                                    <button class="btn btn-ghost btn-sm btn-square" title="Печать">
-                                        <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
-                                            <path stroke-linecap="round" stroke-linejoin="round" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" />
-                                        </svg>
-                                    </button>
-                                    ${!rec.archived ? `
-                                    <span class="text-base-300">|</span>
-                                    <a href="#" class="link link-hover text-sm opacity-60" onclick="archiveReceipt('${rec.id}'); return false;">В архив</a>
-                                    ` : ''}
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                `;
-            }).join('');
-        }
-
-        function showActive() {
-            showArchived = false;
-            Layout.$('#activeBtn').classList.add('btn-active');
-            Layout.$('#archiveBtn').classList.remove('btn-active');
-            renderReceipts();
-        }
-
-        function showArchive() {
-            showArchived = true;
-            Layout.$('#archiveBtn').classList.add('btn-active');
-            Layout.$('#activeBtn').classList.remove('btn-active');
-            renderReceipts();
-        }
-
-        // ==================== MODALS ====================
-        function openReceiptModal() {
-            editingReceiptId = null;
-            receiptItemsList = [];
-
-            Layout.$('#receiptModalTitle').textContent = 'Оформить получение';
-            Layout.$('#receiptDate').value = new Date().toISOString().split('T')[0];
-            Layout.$('#receiptBuyer').value = '';
-            Layout.$('#receiptNotes').value = '';
-            renderReceiptItems();
-
-            Layout.$('#receiptModal').showModal();
-        }
-
-        function closeReceiptModal() {
-            Layout.$('#receiptModal').close();
-        }
-
+        // ==================== NEW RECEIPT ====================
         function renderReceiptItems() {
             const tbody = Layout.$('#receiptItems');
             const total = receiptItemsList.reduce((sum, i) => sum + (i.quantity * (i.price || 0)), 0);
             Layout.$('#receiptTotal').textContent = `₹${total.toLocaleString()}`;
 
             if (receiptItemsList.length === 0) {
-                tbody.innerHTML = '<tr><td colspan="5" class="text-center opacity-50 py-4">Добавьте продукты</td></tr>';
+                tbody.innerHTML = `<tr><td colspan="5" class="text-center opacity-50 py-4">${tr('add_products', 'Добавьте продукты')}</td></tr>`;
                 return;
             }
 
@@ -309,10 +676,13 @@
                     <tr>
                         <td>
                             <div class="font-medium">${Layout.getName(product)}</div>
-                            <div class="text-xs opacity-50">${product?.unit || ''}</div>
+                            ${product?.translit || product?.name_hi ? `<div class="text-xs opacity-50 italic">${product?.translit || Layout.transliterateHindi(product?.name_hi)}</div>` : ''}
                         </td>
                         <td>
-                            <input type="number" class="input input-bordered input-sm w-20" value="${item.quantity}" min="0" step="0.1" onchange="updateReceiptItem(${idx}, 'quantity', this.value)" />
+                            <div class="flex items-center gap-1">
+                                <input type="number" class="input input-bordered input-sm w-20" value="${item.quantity}" min="0" step="0.1" onchange="updateReceiptItem(${idx}, 'quantity', this.value)" />
+                                <span class="text-xs opacity-50">${product?.unit || ''}</span>
+                            </div>
                         </td>
                         <td>
                             <input type="number" class="input input-bordered input-sm w-20" value="${item.price || ''}" min="0" step="0.5" placeholder="₹" onchange="updateReceiptItem(${idx}, 'price', this.value)" />
@@ -340,113 +710,456 @@
             renderReceiptItems();
         }
 
-        function addReceiptItem(productId) {
+        function addReceiptItem(productId, quantity = 1, price = 0) {
             const product = products.find(p => p.id === productId);
             if (!product) return;
 
             if (receiptItemsList.some(i => i.product_id === productId)) {
-                alert('Продукт уже добавлен');
+                showAlert(tr('product_already_added', 'Продукт уже добавлен'));
                 return;
             }
 
             receiptItemsList.push({
                 product_id: productId,
-                quantity: 1,
-                price: 0
+                quantity: quantity,
+                price: price
             });
 
-            Layout.$('#receiptProductSearch').value = '';
-            Layout.$('#receiptProductDropdown').classList.add('hidden');
             renderReceiptItems();
         }
 
-        // Load from request
-        function showLoadFromRequestModal() {
+        // Callback for product modal
+        function onProductAdded(product, quantity, price) {
+            addReceiptItem(product.id, quantity, price);
+        }
+
+        // ==================== CHOICE SECTION ====================
+        function showChoiceSection() {
+            Layout.$('#receiveChoiceSection').classList.remove('hidden');
+            Layout.$('#receiveFormSection').classList.add('hidden');
+        }
+
+        function showFormSection() {
+            Layout.$('#receiveChoiceSection').classList.add('hidden');
+            Layout.$('#receiveFormSection').classList.remove('hidden');
+        }
+
+        function backToChoice() {
+            receiptItemsList = [];
+            renderReceiptItems();
+            showChoiceSection();
+        }
+
+        function createManualReceipt() {
+            receiptItemsList = [];
+            Layout.$('#receiptDate').value = new Date().toISOString().split('T')[0];
+            Layout.$('#receiptBuyer').value = '';
+            Layout.$('#receiptNotes').value = '';
+            renderReceiptItems();
+            showFormSection();
+        }
+
+        // ==================== LOAD FROM REQUEST ====================
+        function renderRequestsList() {
             const container = Layout.$('#requestsListForLoad');
 
             if (requests.length === 0) {
-                container.innerHTML = '<div class="text-center py-4 opacity-50">Нет активных заявок</div>';
+                container.innerHTML = `<div class="text-center py-4 opacity-50">${tr('no_active_requests', 'Нет сохранённых заявок')}</div>`;
             } else {
                 container.innerHTML = requests.map(req => {
                     const items = req.purchase_request_items || [];
                     const total = items.reduce((sum, i) => sum + (i.quantity * (i.price || 0)), 0);
+                    const date = new Date(req.created_at).toLocaleDateString('ru-RU');
                     return `
                         <div class="p-3 border border-base-300 rounded-lg hover:bg-base-200 cursor-pointer" onclick="loadFromRequest('${req.id}')">
-                            <div class="font-medium">Заявка №${req.number || req.id?.slice(0,4)}</div>
-                            <div class="text-sm opacity-60">${items.length} позиций · ₹${total.toLocaleString()}</div>
+                            <div class="font-medium">${tr('request', 'Заявка')} №${req.number || req.id?.slice(0,4)}</div>
+                            <div class="text-sm opacity-60">${date} · ${items.length} ${tr('items', 'позиций')} · ₹${total.toLocaleString()}</div>
                         </div>
                     `;
                 }).join('');
             }
-
-            Layout.$('#loadFromRequestModal').showModal();
-        }
-
-        function closeLoadFromRequestModal() {
-            Layout.$('#loadFromRequestModal').close();
         }
 
         function loadFromRequest(requestId) {
             const req = requests.find(r => r.id === requestId);
             if (!req) return;
 
+            receiptItemsList = [];
             (req.purchase_request_items || []).forEach(item => {
-                if (!receiptItemsList.some(i => i.product_id === item.product_id)) {
-                    receiptItemsList.push({
-                        product_id: item.product_id,
-                        quantity: item.quantity,
-                        price: item.price || 0
-                    });
-                }
+                receiptItemsList.push({
+                    product_id: item.product_id,
+                    quantity: item.quantity,
+                    price: item.price || 0
+                });
             });
 
-            closeLoadFromRequestModal();
+            Layout.$('#receiptDate').value = new Date().toISOString().split('T')[0];
+            Layout.$('#receiptBuyer').value = '';
+            Layout.$('#receiptNotes').value = '';
             renderReceiptItems();
+            showFormSection();
+        }
+
+        // ==================== SAVE RECEIPT ====================
+        let saving = false;
+
+        function setSaving(isSaving) {
+            saving = isSaving;
+            const btn = Layout.$('#saveReceiptBtn');
+            const spinner = Layout.$('#saveSpinner');
+            const text = Layout.$('#saveText');
+
+            btn.disabled = isSaving;
+            spinner.classList.toggle('hidden', !isSaving);
+            text.textContent = isSaving ? tr('saving', 'Сохранение...') : tr('save_receipt', 'Сохранить приёмку');
         }
 
         async function saveReceipt() {
+            // Блокируем сразу синхронно
+            if (saving) return;
+            saving = true;
+            Layout.$('#saveReceiptBtn').disabled = true;
+
+            if (!Layout.$('#receiptBuyer').value) {
+                showAlert(tr('select_buyer_required', 'Выберите закупщика'));
+                saving = false;
+                Layout.$('#saveReceiptBtn').disabled = false;
+                return;
+            }
+
             if (receiptItemsList.length === 0) {
-                alert('Добавьте хотя бы один продукт');
+                showAlert(tr('add_at_least_one', 'Добавьте хотя бы один продукт'));
+                saving = false;
+                Layout.$('#saveReceiptBtn').disabled = false;
                 return;
             }
 
-            const locationId = (await Layout.db.from('locations').select('id').eq('slug', Layout.currentLocation).single()).data?.id;
-            const buyerId = Layout.$('#receiptBuyer').value || null;
+            setSaving(true);
 
-            const receiptData = {
-                location_id: locationId,
-                buyer_id: buyerId,
-                receipt_date: Layout.$('#receiptDate').value,
-                notes: Layout.$('#receiptNotes').value.trim()
-            };
+            try {
+                const locationId = (await Layout.db.from('locations').select('id').eq('slug', Layout.currentLocation).single()).data?.id;
+                const buyerId = Layout.$('#receiptBuyer').value || null;
 
-            const { data: receipt, error } = await Layout.db
-                .from('stock_receipts')
-                .insert(receiptData)
-                .select()
-                .single();
+                const receiptData = {
+                    location_id: locationId,
+                    buyer_id: buyerId,
+                    receipt_date: Layout.$('#receiptDate').value,
+                    notes: Layout.$('#receiptNotes').value.trim()
+                };
 
-            if (error) {
-                console.error('Error saving receipt:', error);
-                alert('Ошибка сохранения');
+                const { data: receipt, error } = await Layout.db
+                    .from('stock_receipts')
+                    .insert(receiptData)
+                    .select()
+                    .single();
+
+                if (error) {
+                    console.error('Error saving receipt:', error);
+                    showAlert(tr('save_error', 'Ошибка сохранения'));
+                    setSaving(false);
+                    return;
+                }
+
+                const items = receiptItemsList.map(i => ({
+                    receipt_id: receipt.id,
+                    product_id: i.product_id,
+                    quantity: i.quantity,
+                    price: i.price || null
+                }));
+
+                const { error: itemsError } = await Layout.db.from('stock_receipt_items').insert(items);
+
+                if (itemsError) {
+                    console.error('Error saving items:', itemsError);
+                }
+
+                // Update stock quantities
+                for (const item of receiptItemsList) {
+                    const { data: stockItem } = await Layout.db
+                        .from('stock')
+                        .select('id, current_quantity')
+                        .eq('product_id', item.product_id)
+                        .eq('location_id', locationId)
+                        .single();
+
+                    if (stockItem) {
+                        await Layout.db.from('stock').update({
+                            current_quantity: stockItem.current_quantity + item.quantity,
+                            last_price: item.price || undefined
+                        }).eq('id', stockItem.id);
+                    } else {
+                        await Layout.db.from('stock').insert({
+                            location_id: locationId,
+                            product_id: item.product_id,
+                            current_quantity: item.quantity,
+                            min_quantity: 0,
+                            last_price: item.price || null
+                        });
+                    }
+                }
+
+                // Clear form and switch to saved tab
+                receiptItemsList = [];
+                Layout.$('#receiptDate').value = new Date().toISOString().split('T')[0];
+                Layout.$('#receiptBuyer').value = '';
+                Layout.$('#receiptNotes').value = '';
+                renderReceiptItems();
+
+                await loadReceipts();
+                switchTab('saved');
+            } finally {
+                setSaving(false);
+            }
+        }
+
+        // ==================== SAVED RECEIPTS ====================
+        function renderSavedReceipts() {
+            const container = document.getElementById('savedReceiptsList');
+            if (!container) return;
+
+            const saved = receipts.filter(r => !r.archived && !r.deleted);
+
+            if (saved.length === 0) {
+                container.innerHTML = `<div class="text-center py-12 opacity-50"><div class="text-4xl mb-2">📥</div><div>${tr('no_receipts', 'Нет сохранённых приёмок')}</div></div>`;
                 return;
             }
 
-            const items = receiptItemsList.map(i => ({
-                receipt_id: receipt.id,
+            container.innerHTML = saved.map(rec => renderReceiptCard(rec, 'saved')).join('');
+        }
+
+        function renderArchivedReceipts() {
+            const container = document.getElementById('archivedReceiptsList');
+            if (!container) return;
+
+            const archived = receipts.filter(r => r.archived && !r.deleted);
+
+            if (archived.length === 0) {
+                container.innerHTML = `<div class="text-center py-12 opacity-50"><div class="text-4xl mb-2">📦</div><div>${tr('archive_empty', 'Архив пуст')}</div></div>`;
+                return;
+            }
+
+            container.innerHTML = archived.map(rec => renderReceiptCard(rec, 'archived')).join('');
+        }
+
+        function renderDeletedReceipts() {
+            const container = document.getElementById('deletedReceiptsList');
+            if (!container) return;
+
+            const deleted = receipts.filter(r => r.deleted);
+
+            if (deleted.length === 0) {
+                container.innerHTML = `<div class="text-center py-12 opacity-50"><div class="text-4xl mb-2">🗑️</div><div>${tr('deleted_empty', 'Нет удалённых приёмок')}</div></div>`;
+                return;
+            }
+
+            container.innerHTML = deleted.map(rec => renderReceiptCard(rec, 'deleted')).join('');
+        }
+
+        function renderReceiptCard(rec, status) {
+            // status: 'saved', 'archived', 'deleted'
+            const items = rec.stock_receipt_items || [];
+            const total = items.reduce((sum, i) => sum + (i.quantity * (i.price || 0)), 0);
+            const date = new Date(rec.receipt_date || rec.created_at).toLocaleDateString('ru-RU');
+            const buyerName = rec.buyers?.name || tr('not_specified', 'Не указан');
+
+            const borderColor = status === 'deleted' ? 'border-red-300' : (status === 'archived' ? 'border-gray-300' : 'border-green-500');
+
+            let actions = '';
+            if (status === 'saved') {
+                actions = `
+                    <button class="btn btn-ghost btn-sm text-sm opacity-60 normal-case font-normal" onclick="archiveReceipt('${rec.id}')">${tr('to_archive', 'В архив')}</button>
+                    <span class="text-base-300">|</span>
+                    <button class="btn btn-ghost btn-sm text-sm text-error opacity-60 normal-case font-normal" onclick="deleteReceipt('${rec.id}')">${tr('delete', 'Удалить')}</button>
+                `;
+            } else if (status === 'archived') {
+                actions = `
+                    <button class="btn btn-ghost btn-sm text-sm text-error opacity-60 normal-case font-normal" onclick="deleteReceipt('${rec.id}')">${tr('delete', 'Удалить')}</button>
+                `;
+            } else if (status === 'deleted') {
+                actions = `
+                    <button class="btn btn-ghost btn-sm text-sm text-success opacity-60 normal-case font-normal" onclick="restoreReceipt('${rec.id}')">${tr('restore', 'Восстановить')}</button>
+                    <span class="text-base-300">|</span>
+                    <button class="btn btn-ghost btn-sm text-sm text-error opacity-60 normal-case font-normal" onclick="permanentDeleteReceipt('${rec.id}')">${tr('delete_permanently', 'Удалить навсегда')}</button>
+                `;
+            }
+
+            return `
+                <div class="bg-base-100 rounded-lg p-4 shadow-sm border-l-4 ${borderColor}">
+                    <div class="flex flex-col md:flex-row md:items-center justify-between gap-4">
+                        <div>
+                            <div class="font-semibold text-lg">${tr('receipt', 'Приёмка')} #${formatNumberWithYear(rec.number || rec.id?.slice(0,4))}</div>
+                            <div class="text-sm opacity-60">${date} · ${tr('buyer', 'Закупщик')}: ${buyerName}</div>
+                        </div>
+                        <div class="flex items-center gap-4">
+                            <div class="text-center">
+                                <div class="font-bold">${items.length}</div>
+                                <div class="text-xs opacity-60">${tr('items', 'позиций')}</div>
+                            </div>
+                            <div class="text-center">
+                                <div class="font-bold">₹${total.toLocaleString()}</div>
+                                <div class="text-xs opacity-60">${tr('sum', 'сумма')}</div>
+                            </div>
+                            <div class="flex items-center gap-2">
+                                <button class="btn btn-ghost btn-md" title="${tr('view', 'Просмотр')}" onclick="viewReceipt('${rec.id}')">
+                                    <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
+                                        <path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                                        <path stroke-linecap="round" stroke-linejoin="round" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                                    </svg>
+                                </button>
+                                <span class="text-base-300">|</span>
+                                ${actions}
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            `;
+        }
+
+        // ==================== VIEW/EDIT RECEIPT ====================
+        function viewReceipt(id) {
+            const rec = receipts.find(r => r.id === id);
+            if (!rec) return;
+
+            viewingReceipt = rec;
+            viewingItems = (rec.stock_receipt_items || []).map(i => ({
+                product_id: i.product_id,
+                quantity: i.quantity,
+                price: i.price
+            }));
+
+            Layout.$('#viewReceiptTitle').textContent = `${tr('receipt', 'Приёмка')} #${formatNumberWithYear(rec.number || id.slice(0,4))}`;
+            Layout.$('#viewReceiptDate').textContent = new Date(rec.receipt_date || rec.created_at).toLocaleDateString('ru-RU');
+            Layout.$('#viewReceiptBuyer').textContent = `${tr('buyer', 'Закупщик')}: ${rec.buyers?.name || tr('not_specified', 'Не указан')}`;
+            Layout.$('#viewReceiptNotes').textContent = rec.notes || '';
+
+            renderViewedReceipt();
+            Layout.$('#viewReceiptModal').showModal();
+        }
+
+        function renderViewedReceipt() {
+            const tbody = Layout.$('#viewReceiptItems');
+            const total = viewingItems.reduce((sum, i) => sum + (i.quantity * (i.price || 0)), 0);
+            Layout.$('#viewReceiptTotal').textContent = `₹${total.toLocaleString()}`;
+
+            tbody.innerHTML = viewingItems.map((item, idx) => {
+                const product = products.find(p => p.id === item.product_id);
+                const sum = item.quantity * (item.price || 0);
+                return `
+                    <tr>
+                        <td>
+                            <div class="font-medium">${Layout.getName(product)}</div>
+                            ${product?.translit || product?.name_hi ? `<div class="text-xs opacity-50 italic">${product?.translit || Layout.transliterateHindi(product?.name_hi)}</div>` : ''}
+                        </td>
+                        <td>
+                            <div class="flex items-center gap-1">
+                                <input type="number" class="input input-bordered input-sm w-20" value="${item.quantity}" min="0" step="0.1" onchange="updateViewedItem(${idx}, 'quantity', this.value)" />
+                                <span class="text-xs opacity-50">${product?.unit || ''}</span>
+                            </div>
+                        </td>
+                        <td>
+                            <input type="number" class="input input-bordered input-sm w-20" value="${item.price || ''}" min="0" step="0.5" placeholder="₹" onchange="updateViewedItem(${idx}, 'price', this.value)" />
+                        </td>
+                        <td class="font-medium">₹${sum.toLocaleString()}</td>
+                        <td>
+                            <button class="btn btn-ghost btn-sm btn-square text-error" onclick="removeViewedItem(${idx})">
+                                <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+                                </svg>
+                            </button>
+                        </td>
+                    </tr>
+                `;
+            }).join('');
+        }
+
+        function updateViewedItem(idx, field, value) {
+            viewingItems[idx][field] = parseFloat(value) || 0;
+            renderViewedReceipt();
+        }
+
+        function removeViewedItem(idx) {
+            viewingItems.splice(idx, 1);
+            renderViewedReceipt();
+        }
+
+        async function saveViewedReceipt() {
+            if (!viewingReceipt) return;
+
+            // Delete old items
+            await Layout.db.from('stock_receipt_items').delete().eq('receipt_id', viewingReceipt.id);
+
+            // Insert new items
+            const items = viewingItems.map(i => ({
+                receipt_id: viewingReceipt.id,
                 product_id: i.product_id,
                 quantity: i.quantity,
                 price: i.price || null
             }));
 
-            const { error: itemsError } = await Layout.db.from('stock_receipt_items').insert(items);
+            await Layout.db.from('stock_receipt_items').insert(items);
 
-            if (itemsError) {
-                console.error('Error saving items:', itemsError);
+            closeViewReceiptModal();
+            await loadReceipts();
+            if (currentTab === 'saved') renderSavedReceipts();
+            if (currentTab === 'archive') renderArchivedReceipts();
+        }
+
+        function closeViewReceiptModal() {
+            Layout.$('#viewReceiptModal').close();
+            viewingReceipt = null;
+            viewingItems = [];
+        }
+
+        function printViewedReceipt() {
+            window.print();
+        }
+
+        // ==================== ARCHIVE & DELETE ====================
+        async function archiveReceipt(id) {
+            if (!await showConfirm(tr('archive_confirm', 'Переместить в архив?'))) return;
+
+            const { error } = await Layout.db.from('stock_receipts').update({ archived: true }).eq('id', id);
+            if (error) {
+                console.error('Error archiving:', error);
+                return;
             }
+            await loadReceipts();
+            renderSavedReceipts();
+        }
 
-            // Update stock quantities
-            for (const item of receiptItemsList) {
+        async function deleteReceipt(id) {
+            if (!await showConfirm(tr('delete_confirm', 'Переместить в удалённые?'))) return;
+
+            const { error } = await Layout.db.from('stock_receipts').update({ deleted: true }).eq('id', id);
+            if (error) {
+                console.error('Error deleting:', error);
+                return;
+            }
+            await loadReceipts();
+            if (currentTab === 'saved') renderSavedReceipts();
+            if (currentTab === 'archive') renderArchivedReceipts();
+        }
+
+        async function restoreReceipt(id) {
+            const { error } = await Layout.db.from('stock_receipts').update({ deleted: false }).eq('id', id);
+            if (error) {
+                console.error('Error restoring:', error);
+                return;
+            }
+            await loadReceipts();
+            renderDeletedReceipts();
+        }
+
+        async function permanentDeleteReceipt(id) {
+            if (!await showConfirm(tr('permanent_delete_confirm', 'Удалить навсегда? Количества на складе будут откачены. Это действие нельзя отменить!'))) return;
+
+            const rec = receipts.find(r => r.id === id);
+            if (!rec) return;
+
+            const locationId = (await Layout.db.from('locations').select('id').eq('slug', Layout.currentLocation).single()).data?.id;
+
+            // Откатываем количества на складе
+            for (const item of (rec.stock_receipt_items || [])) {
                 const { data: stockItem } = await Layout.db
                     .from('stock')
                     .select('id, current_quantity')
@@ -455,104 +1168,61 @@
                     .single();
 
                 if (stockItem) {
-                    await Layout.db.from('stock').update({
-                        current_quantity: stockItem.current_quantity + item.quantity,
-                        last_price: item.price || undefined
-                    }).eq('id', stockItem.id);
-                } else {
-                    await Layout.db.from('stock').insert({
-                        location_id: locationId,
-                        product_id: item.product_id,
-                        current_quantity: item.quantity,
-                        min_quantity: 0,
-                        last_price: item.price || null
-                    });
+                    const newQty = Math.max(0, stockItem.current_quantity - item.quantity);
+                    await Layout.db.from('stock').update({ current_quantity: newQty }).eq('id', stockItem.id);
                 }
             }
 
-            closeReceiptModal();
-            await loadReceipts();
-        }
+            // Удаляем items
+            await Layout.db.from('stock_receipt_items').delete().eq('receipt_id', id);
 
-        async function archiveReceipt(id) {
-            if (!confirm('Переместить в архив?')) return;
-
-            const { error } = await Layout.db.from('stock_receipts').update({ archived: true }).eq('id', id);
+            // Удаляем приёмку
+            const { error } = await Layout.db.from('stock_receipts').delete().eq('id', id);
             if (error) {
-                console.error('Error archiving:', error);
+                console.error('Error deleting receipt:', error);
                 return;
             }
+
             await loadReceipts();
+            renderDeletedReceipts();
         }
-
-        function viewReceipt(id) {
-            const rec = receipts.find(r => r.id === id);
-            if (!rec) return;
-
-            editingReceiptId = id;
-            receiptItemsList = (rec.stock_receipt_items || []).map(i => ({
-                product_id: i.product_id,
-                quantity: i.quantity,
-                price: i.price
-            }));
-
-            Layout.$('#receiptModalTitle').textContent = `Получение №${rec.number || id.slice(0,4)}`;
-            Layout.$('#receiptDate').value = rec.receipt_date || '';
-            Layout.$('#receiptBuyer').value = rec.buyer_id || '';
-            Layout.$('#receiptNotes').value = rec.notes || '';
-            renderReceiptItems();
-
-            Layout.$('#receiptModal').showModal();
-        }
-
-        // Product search
-        Layout.$('#receiptProductSearch')?.addEventListener('input', (e) => {
-            const query = e.target.value.toLowerCase();
-            const dropdown = Layout.$('#receiptProductDropdown');
-
-            if (query.length < 1) {
-                dropdown.classList.add('hidden');
-                return;
-            }
-
-            const filtered = products.filter(p =>
-                p.name_ru?.toLowerCase().includes(query) ||
-                p.name_en?.toLowerCase().includes(query)
-            ).slice(0, 8);
-
-            if (filtered.length === 0) {
-                dropdown.innerHTML = '<div class="p-3 text-sm opacity-50">Ничего не найдено</div>';
-            } else {
-                dropdown.innerHTML = filtered.map(p => `
-                    <div class="p-3 hover:bg-base-200 cursor-pointer border-b border-base-200 last:border-0" onclick="addReceiptItem('${p.id}')">
-                        <div class="font-medium">${Layout.getName(p)}</div>
-                        <div class="text-xs opacity-50">${p.name_en || ''}</div>
-                    </div>
-                `).join('');
-            }
-
-            dropdown.classList.remove('hidden');
-        });
 
         // ==================== EVENT LISTENERS ====================
-        document.addEventListener('click', e => {
-            if (!e.target.closest('#receiptProductSearch') && !e.target.closest('#receiptProductDropdown')) {
-                Layout.$('#receiptProductDropdown')?.classList.add('hidden');
-            }
-        });
-
         window.onLanguageChange = function(lang) {
             Layout.updateAllTranslations();
-            renderReceipts();
+            renderBuyerSelect();
+            renderReceiptItems();
+            renderRequestsList();
+            if (currentTab === 'saved') renderSavedReceipts();
+            if (currentTab === 'archive') renderArchivedReceipts();
+            if (currentTab === 'deleted') renderDeletedReceipts();
         };
 
         // ==================== INIT ====================
         async function init() {
             await Layout.init({ menuId: 'stock', itemId: 'receive' });
+
+            // Set initial date
+            Layout.$('#receiptDate').value = new Date().toISOString().split('T')[0];
+
+            // Style initial active tab
+            const activeBtn = document.querySelector('#mainTabs .tab[data-tab="new"]');
+            activeBtn.style.backgroundColor = 'var(--current-color)';
+            activeBtn.style.color = 'white';
+
             await loadProducts();
+            await loadProductCategories();
             await loadBuyers();
             await loadRequests();
             await loadReceipts();
+
+            renderReceiptItems();
+            renderRequestsList();
+            renderSavedReceipts();
+            renderArchivedReceipts();
+            renderDeletedReceipts();
+            initialized = true;
+            Layout.updateAllTranslations();
         }
 
         init();

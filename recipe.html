@@ -258,10 +258,18 @@
         // ==================== STATE ====================
         let recipe = null;
         let ingredients = [];
+        let units = [];
         let portions = 30;
         let portionSize = 150;
 
         const t = key => Layout.t(key);
+
+        // Получить локализованное короткое название единицы
+        function getUnitShort(code) {
+            const unit = units.find(u => u.code === code);
+            if (!unit) return code || '';
+            return unit[`short_${Layout.currentLang}`] || unit.short_ru || code;
+        }
 
         // ==================== DATA LOADING ====================
         async function loadRecipe(id) {
@@ -294,6 +302,12 @@
             }
 
             return data || [];
+        }
+
+        async function loadUnits() {
+            const { data, error } = await Layout.db.from('units').select('*').order('sort_order');
+            if (error) { console.error('Error loading units:', error); return; }
+            units = data || [];
         }
 
         // ==================== LOGO ====================
@@ -362,8 +376,8 @@
 
             // Meta
             Layout.$('#cookingTime').textContent = recipe.cooking_time || '—';
-            Layout.$('#outputAmount').textContent = `${recipe.output_amount || '—'} ${recipe.output_unit || ''}`;
-            Layout.$('#portionAmount').textContent = `${recipe.portion_amount || '—'} ${recipe.portion_unit || ''}`;
+            Layout.$('#outputAmount').textContent = `${recipe.output_amount || '—'} ${getUnitShort(recipe.output_unit)}`;
+            Layout.$('#portionAmount').textContent = `${recipe.portion_amount || '—'} ${getUnitShort(recipe.portion_unit)}`;
 
             // Set default calculator values from recipe
             if (recipe.portion_amount) {
@@ -425,7 +439,7 @@
                         </td>
                         <td class="text-right py-3 whitespace-nowrap">
                             <span class="font-bold text-lg">${calculated}</span>
-                            <span class="text-sm opacity-60 ml-1">${ing.unit}</span>
+                            <span class="text-sm opacity-60 ml-1">${getUnitShort(ing.unit)}</span>
                         </td>
                     </tr>
                 `;
@@ -502,6 +516,7 @@
             }
 
             // Load data
+            await loadUnits();
             recipe = await loadRecipe(id);
             if (!recipe) return;
 

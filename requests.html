@@ -33,36 +33,52 @@
         </div>
 
         <!-- Tabs -->
-        <div class="tabs tabs-boxed bg-base-100 p-1 mb-6 inline-flex">
-            <button class="tab tab-active" data-tab="new" onclick="switchTab('new')">Новая заявка</button>
-            <button class="tab" data-tab="saved" onclick="switchTab('saved')">Сохранённые</button>
-            <button class="tab" data-tab="archive" onclick="switchTab('archive')">Архивные</button>
+        <div class="tabs tabs-boxed bg-base-100 p-1 mb-6 inline-flex" id="mainTabs">
+            <button class="tab tab-active" data-tab="new" onclick="switchTab('new')" data-i18n="new_request_tab">Новая заявка</button>
+            <button class="tab" data-tab="saved" onclick="switchTab('saved')" data-i18n="saved_requests_tab">Сохранённые</button>
+            <button class="tab" data-tab="archive" onclick="switchTab('archive')" data-i18n="archived_requests_tab">Архивные</button>
         </div>
 
         <!-- Tab: New Request -->
         <div id="tabContentNew">
 
-        <!-- Period Selection -->
-        <div class="bg-base-100 rounded-lg p-6 shadow-sm mb-6">
-            <div class="text-sm font-medium mb-3 opacity-70" data-i18n="menu_period">Период меню</div>
+        <!-- Choice: From Menu or Manual -->
+        <div id="requestChoiceSection" class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
+            <!-- Option 1: From Menu -->
+            <div class="bg-base-100 rounded-lg p-6 shadow-sm">
+                <div class="text-lg font-semibold mb-2" data-i18n="request_from_menu_title">Сформировать заявку из меню</div>
+                <p class="text-sm opacity-60 mb-4" data-i18n="request_from_menu_desc">Автоматически рассчитать нужные продукты на основе меню</p>
 
-            <div class="flex flex-wrap items-center gap-3 mb-4">
-                <button class="btn btn-sm period-btn" data-period="today" onclick="selectPeriod('today')" data-i18n="period_today">Сегодня</button>
-                <button class="btn btn-sm btn-ghost period-btn" data-period="3days" onclick="selectPeriod('3days')" data-i18n="period_3days">3 дня</button>
-                <button class="btn btn-sm btn-ghost period-btn" data-period="week" onclick="selectPeriod('week')" data-i18n="period_week">Неделя</button>
-                <button class="btn btn-sm btn-ghost period-btn" data-period="2weeks" onclick="selectPeriod('2weeks')" data-i18n="period_2weeks">2 недели</button>
+                <div class="text-sm font-medium mb-3 opacity-70" data-i18n="menu_period">Период меню</div>
+
+                <div class="flex flex-wrap items-center gap-2 mb-4">
+                    <button class="btn btn-sm period-btn" data-period="today" onclick="selectPeriod('today')" data-i18n="period_today">Сегодня</button>
+                    <button class="btn btn-sm btn-ghost period-btn" data-period="3days" onclick="selectPeriod('3days')" data-i18n="period_3days">3 дня</button>
+                    <button class="btn btn-sm btn-ghost period-btn" data-period="week" onclick="selectPeriod('week')" data-i18n="period_week">Неделя</button>
+                    <button class="btn btn-sm btn-ghost period-btn" data-period="2weeks" onclick="selectPeriod('2weeks')" data-i18n="period_2weeks">2 недели</button>
+                </div>
+
+                <div class="flex flex-wrap items-center gap-2 mb-4">
+                    <span class="text-sm opacity-60" data-i18n="from">с</span>
+                    <input type="date" id="periodFrom" class="input input-bordered input-sm w-36" />
+                    <span class="text-sm opacity-60" data-i18n="to">по</span>
+                    <input type="date" id="periodTo" class="input input-bordered input-sm w-36" />
+                </div>
+
+                <button class="btn btn-primary w-full" onclick="generateRequest()" data-i18n="generate">
+                    Сформировать
+                </button>
             </div>
 
-            <div class="flex flex-wrap items-center gap-3">
-                <span class="text-sm opacity-60" data-i18n="from">с</span>
-                <input type="date" id="periodFrom" class="input input-bordered input-sm w-40" />
-                <span class="text-sm opacity-60" data-i18n="to">по</span>
-                <input type="date" id="periodTo" class="input input-bordered input-sm w-40" />
+            <!-- Option 2: Manual -->
+            <div class="bg-base-100 rounded-lg p-6 shadow-sm flex flex-col">
+                <div class="text-lg font-semibold mb-2" data-i18n="request_manual_title">Создать заявку вручную</div>
+                <p class="text-sm opacity-60 mb-4" data-i18n="request_manual_desc">Ввести продукты для заявки вручную</p>
 
                 <div class="flex-1"></div>
 
-                <button class="btn btn-current-color" onclick="generateRequest()" data-i18n="generate">
-                    Сформировать
+                <button class="btn btn-outline btn-primary w-full" onclick="createManualRequest()" data-i18n="create_request">
+                    Создать заявку
                 </button>
             </div>
         </div>
@@ -70,7 +86,7 @@
         <!-- Results -->
         <div id="resultsSection" class="hidden">
             <div class="flex justify-between items-center mb-4">
-                <h2 class="text-lg font-semibold" data-i18n="purchase_list">Список продуктов для закупки</h2>
+                <h2 id="requestTitle" class="text-lg font-semibold">Новая заявка</h2>
                 <button id="saveBtn" class="btn btn-primary btn-sm gap-1" onclick="saveRequest()">
                     <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-3m-1 4l-3 3m0 0l-3-3m3 3V4" />
@@ -126,22 +142,12 @@
 
         <!-- Tab: Saved Requests -->
         <div id="tabContentSaved" class="hidden">
-            <div class="space-y-3" id="savedRequestsList">
-                <div class="text-center py-12 opacity-50">
-                    <div class="text-4xl mb-2">📋</div>
-                    <div>Нет сохранённых заявок</div>
-                </div>
-            </div>
+            <div class="space-y-3" id="savedRequestsList"></div>
         </div>
 
         <!-- Tab: Archived Requests -->
         <div id="tabContentArchive" class="hidden">
-            <div class="space-y-3" id="archivedRequestsList">
-                <div class="text-center py-12 opacity-50">
-                    <div class="text-4xl mb-2">📦</div>
-                    <div>Нет заявок в архиве</div>
-                </div>
-            </div>
+            <div class="space-y-3" id="archivedRequestsList"></div>
         </div>
 
     </main>
@@ -167,7 +173,7 @@
                         <input type="text"
                                id="productSearch"
                                class="input input-bordered w-full"
-                               placeholder="Начните вводить название..."
+                               placeholder="Начните вводить название..." data-i18n-placeholder="search_placeholder"
                                autocomplete="off"
                                oninput="filterProducts(this.value)"
                                onfocus="showProductDropdown()"
@@ -234,7 +240,7 @@
                         <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" />
                         </svg>
-                        Печать
+                        <span data-i18n="print">Печать</span>
                     </button>
                 </div>
             </div>
@@ -243,12 +249,12 @@
             <div class="hidden print:block mb-4 pb-4 border-b-2 border-black">
                 <div class="flex justify-between items-center">
                     <div>
-                        <div class="text-lg font-bold">Шри Рупа Сева Кунджа</div>
-                        <div class="text-sm opacity-70" id="printLocation">Основная кухня</div>
+                        <div class="text-lg font-bold" data-i18n="org_name">Шри Рупа Сева Кунджа</div>
+                        <div class="text-sm opacity-70" id="printLocation"></div>
                     </div>
                     <div class="text-right">
-                        <div class="text-xl font-bold" id="printRequestTitle">Заявка #1</div>
-                        <div class="text-sm" id="printRequestPeriod">Период: ...</div>
+                        <div class="text-xl font-bold" id="printRequestTitle"></div>
+                        <div class="text-sm" id="printRequestPeriod"></div>
                     </div>
                 </div>
             </div>
@@ -257,10 +263,10 @@
                 <table class="table table-sm">
                     <thead class="bg-base-200">
                         <tr>
-                            <th>Продукт</th>
-                            <th>Категория</th>
-                            <th class="text-right w-32">Закупить</th>
-                            <th class="text-right">≈ Сумма</th>
+                            <th data-i18n="product">Продукт</th>
+                            <th data-i18n="category">Категория</th>
+                            <th class="text-right w-32" data-i18n="to_purchase">Закупить</th>
+                            <th class="text-right" data-i18n="est_price">≈ Сумма</th>
                             <th class="w-10 no-print"></th>
                         </tr>
                     </thead>
@@ -270,16 +276,39 @@
 
             <div class="mt-4 flex justify-between items-center border-t pt-4">
                 <div class="text-sm opacity-60">
-                    Позиций: <span class="font-bold" id="viewRequestCount">0</span>
+                    <span data-i18n="total_items_short">Позиций</span>: <span class="font-bold" id="viewRequestCount">0</span>
                 </div>
                 <div>
-                    Итого: <span class="font-bold text-lg" id="viewRequestTotal">—</span>
+                    <span data-i18n="total">Итого</span>: <span class="font-bold text-lg" id="viewRequestTotal">—</span>
                 </div>
             </div>
 
             <div class="modal-action no-print">
-                <button type="button" class="btn btn-ghost" onclick="viewRequestModal.close()">Закрыть</button>
-                <button type="button" class="btn btn-primary" id="saveViewedRequestBtn" onclick="saveViewedRequest()">Сохранить изменения</button>
+                <button type="button" class="btn btn-ghost" onclick="viewRequestModal.close()" data-i18n="close">Закрыть</button>
+                <button type="button" class="btn btn-primary" id="saveViewedRequestBtn" onclick="saveViewedRequest()" data-i18n="save_changes">Сохранить изменения</button>
+            </div>
+        </div>
+        <form method="dialog" class="modal-backdrop"><button>close</button></form>
+    </dialog>
+
+    <!-- Alert Modal -->
+    <dialog id="alertModal" class="modal">
+        <div class="modal-box max-w-sm">
+            <p id="alertMessage" class="py-4 text-center"></p>
+            <div class="modal-action justify-center">
+                <button type="button" class="btn btn-primary" onclick="closeAlert()">OK</button>
+            </div>
+        </div>
+        <form method="dialog" class="modal-backdrop"><button>close</button></form>
+    </dialog>
+
+    <!-- Confirm Modal -->
+    <dialog id="confirmModal" class="modal">
+        <div class="modal-box max-w-sm">
+            <p id="confirmMessage" class="py-4 text-center"></p>
+            <div class="modal-action justify-center gap-2">
+                <button type="button" class="btn btn-ghost" onclick="confirmNo()" data-i18n="no">Нет</button>
+                <button type="button" class="btn btn-primary" onclick="confirmYes()" data-i18n="yes">Да</button>
             </div>
         </div>
         <form method="dialog" class="modal-backdrop"><button>close</button></form>
@@ -295,13 +324,52 @@
         let requestItems = [];
         let locationId = null;
         let savedRequestId = null;
+        let savedRequestNumber = null;
+        let nextRequestNumber = null;
         let savedRequests = [];
-        let selectedProduct = null;
         let viewingRequest = null; // Currently viewed request in modal
         let viewingItems = []; // Editable items for the viewed request
+        let selectedProduct = null;
         let currentProductCategory = 'all';
+        let highlightRequestId = null; // ID заявки для подсветки после сохранения
 
         const t = key => Layout.t(key);
+
+        // Хелпер для переводов с fallback
+        function tr(key, fallback) {
+            const val = t(key);
+            return (val && val !== key) ? val : fallback;
+        }
+
+        // ==================== MODAL DIALOGS ====================
+        let confirmResolve = null;
+
+        function showAlert(message) {
+            Layout.$('#alertMessage').textContent = message;
+            Layout.$('#alertModal').showModal();
+        }
+
+        function closeAlert() {
+            Layout.$('#alertModal').close();
+        }
+
+        function showConfirm(message) {
+            return new Promise(resolve => {
+                confirmResolve = resolve;
+                Layout.$('#confirmMessage').textContent = message;
+                Layout.$('#confirmModal').showModal();
+            });
+        }
+
+        function confirmYes() {
+            Layout.$('#confirmModal').close();
+            if (confirmResolve) confirmResolve(true);
+        }
+
+        function confirmNo() {
+            Layout.$('#confirmModal').close();
+            if (confirmResolve) confirmResolve(false);
+        }
 
         // ==================== HELPERS ====================
         const UNITS = {
@@ -314,7 +382,6 @@
 
         function formatQty(num) {
             if (num === Math.floor(num)) return num.toString();
-            // Показываем до 1 знака после запятой, убираем лишний 0
             return num.toFixed(1).replace(/\.0$/, '');
         }
 
@@ -322,6 +389,7 @@
             const u = (unit || '').toLowerCase();
             return UNITS[u]?.[Layout.currentLang] || unit;
         }
+
 
         function toGrams(amount, unit) {
             const u = (unit || 'g').toLowerCase();
@@ -336,11 +404,26 @@
         }
 
         // Округление для закупки: кг до 1, г до 50
-        function roundForPurchase(value, unit) {
+        // Для овощей - всегда до 1 кг
+        function roundForPurchase(value, unit, category = null) {
+            const isVegetable = category === 'vegetables';
+
+            if (isVegetable) {
+                // Овощи округляем до 1 кг
+                const valueKg = unit === 'kg' ? value : value / 1000;
+                return Math.ceil(valueKg);
+            }
+
             if (unit === 'kg') {
                 return Math.ceil(value);
             }
             return Math.ceil(value / 50) * 50;
+        }
+
+        // Format number with year suffix (e.g. 4-26 for request #4 in 2026)
+        function formatNumberWithYear(num) {
+            const year = new Date().getFullYear().toString().slice(-2);
+            return `${num}-${year}`;
         }
 
         // ==================== DATA LOADING ====================
@@ -427,14 +510,14 @@
             const toDate = Layout.$('#periodTo').value;
 
             if (!fromDate || !toDate) {
-                alert(t('select_period') || 'Выберите период');
+                showAlert(tr('select_period', 'Выберите период'));
                 return;
             }
 
             const menuData = await loadMenuForPeriod(fromDate, toDate);
 
             if (menuData.length === 0) {
-                alert(t('menu_not_found') || 'Меню на выбранный период не найдено');
+                showAlert(tr('menu_not_found', 'Меню на выбранный период не найдено'));
                 return;
             }
 
@@ -477,29 +560,36 @@
                 const toPurchaseGrams = Math.max(0, neededGrams - stockGrams);
 
                 if (toPurchaseGrams > 0) {
-                    const display = fromGrams(neededGrams);
-                    const stockDisplay = fromGrams(stockGrams, display.unit === 'kg');
-                    const purchaseDisplay = fromGrams(toPurchaseGrams, display.unit === 'kg');
+                    const categorySlug = product?.product_categories?.slug;
+                    const isVegetable = categorySlug === 'vegetables';
+
+                    // Определяем единицу - если закупить >= 1 кг или овощи, используем кг, иначе граммы
+                    const useKg = toPurchaseGrams >= 1000 || isVegetable;
+                    const unit = useKg ? 'kg' : 'g';
+
+                    // Конвертируем всё в выбранную единицу
+                    const needed = useKg ? neededGrams / 1000 : neededGrams;
+                    const inStock = useKg ? stockGrams / 1000 : stockGrams;
+                    const toPurchase = useKg ? toPurchaseGrams / 1000 : toPurchaseGrams;
 
                     // Округляем количество для закупки
-                    const roundedPurchase = roundForPurchase(purchaseDisplay.value, purchaseDisplay.unit);
+                    const roundedPurchase = roundForPurchase(toPurchase, unit, categorySlug);
 
                     // Get last price from stock (price per kg)
                     const lastPrice = stock?.last_price || null;
 
-                    // Сумма считается по округлённому количеству
-                    const purchaseGramsRounded = purchaseDisplay.unit === 'kg' ? roundedPurchase * 1000 : roundedPurchase;
+                    // Сумма считается по округлённому количеству (конвертируем в кг для расчёта)
+                    const purchaseKg = useKg ? roundedPurchase : roundedPurchase / 1000;
 
                     requestItems.push({
                         product_id: productId,
                         product,
-                        needed: display.value,
-                        in_stock: stockDisplay.value,
+                        needed: needed,
+                        in_stock: inStock,
                         to_purchase: roundedPurchase,
-                        unit: display.unit,
+                        unit: unit,
                         last_price: lastPrice,
-                        // Calculate estimated sum (price is per kg, use rounded qty)
-                        est_sum: lastPrice ? (purchaseGramsRounded / 1000) * lastPrice : null
+                        est_sum: lastPrice ? purchaseKg * lastPrice : null
                     });
                 }
             });
@@ -513,21 +603,59 @@
 
             // Reset saved state for new generated request
             savedRequestId = null;
+            savedRequestNumber = null;
+            nextRequestNumber = await getNextRequestNumber();
 
             renderResults();
+        }
+
+        // ==================== CREATE MANUAL REQUEST ====================
+        async function createManualRequest() {
+            // Start with empty items
+            requestItems = [];
+            savedRequestId = null;
+            savedRequestNumber = null;
+            nextRequestNumber = await getNextRequestNumber();
+
+            // Clear period fields for manual requests
+            Layout.$('#periodFrom').value = '';
+            Layout.$('#periodTo').value = '';
+
+            // Show results section
+            Layout.$('#requestChoiceSection')?.classList.add('hidden');
+            Layout.$('#resultsSection').classList.remove('hidden');
+            Layout.$('#emptyState').classList.add('hidden');
+
+            renderResults();
+        }
+
+        // Get next request number from database
+        async function getNextRequestNumber() {
+            const { data } = await Layout.db
+                .from('purchase_requests')
+                .select('number')
+                .eq('location_id', locationId)
+                .order('number', { ascending: false })
+                .limit(1);
+            return (data?.[0]?.number || 0) + 1;
         }
 
         // ==================== RENDERING ====================
         function renderResults() {
             const tbody = Layout.$('#requestItemsTable');
 
-            if (requestItems.length === 0) {
-                Layout.$('#resultsSection').classList.add('hidden');
-                Layout.$('#emptyState').classList.remove('hidden');
-                Layout.$('#emptyState').innerHTML = `<div class="text-5xl mb-4">✅</div><div>${t('all_in_stock') || 'Все продукты есть на складе!'}</div>`;
-                return;
+            // Update title
+            const titleEl = Layout.$('#requestTitle');
+            if (savedRequestNumber) {
+                titleEl.textContent = `${tr('request', 'Заявка')} #${formatNumberWithYear(savedRequestNumber)}`;
+            } else if (nextRequestNumber) {
+                titleEl.textContent = `${tr('new_request_tab', 'Новая заявка')} #${formatNumberWithYear(nextRequestNumber)}`;
+            } else {
+                titleEl.textContent = tr('new_request_tab', 'Новая заявка');
             }
 
+            // Always show results section (hide choice section)
+            Layout.$('#requestChoiceSection')?.classList.add('hidden');
             Layout.$('#resultsSection').classList.remove('hidden');
             Layout.$('#emptyState').classList.add('hidden');
             Layout.$('#totalItems').textContent = requestItems.length;
@@ -550,6 +678,14 @@
                 totalEl.textContent = (hasAllPrices ? '' : '≈ ') + '₹' + Math.round(totalSum).toLocaleString();
             } else {
                 totalEl.textContent = '—';
+            }
+
+            if (requestItems.length === 0) {
+                tbody.innerHTML = `<tr><td colspan="7" class="text-center py-8 opacity-50">
+                    <div class="text-2xl mb-2">📋</div>
+                    <div>${tr('add_products_hint', 'Добавьте продукты с помощью кнопки ниже')}</div>
+                </td></tr>`;
+                return;
             }
 
             tbody.innerHTML = requestItems.map((item, index) => {
@@ -600,14 +736,17 @@
         // ==================== ACTIONS ====================
         async function saveRequest() {
             if (requestItems.length === 0) {
-                alert('Нет продуктов для сохранения');
+                showAlert(tr('add_at_least_one', 'Нет продуктов для сохранения'));
                 return;
             }
 
+            const periodFrom = Layout.$('#periodFrom').value || null;
+            const periodTo = Layout.$('#periodTo').value || null;
+
             const requestData = {
                 location_id: locationId,
-                period_from: Layout.$('#periodFrom').value,
-                period_to: Layout.$('#periodTo').value,
+                period_from: periodFrom,
+                period_to: periodTo,
                 status: 'pending'
             };
 
@@ -618,7 +757,7 @@
                 .single();
 
             if (error) {
-                alert('Ошибка сохранения');
+                showAlert(tr('save_error', 'Ошибка сохранения'));
                 return;
             }
 
@@ -632,12 +771,25 @@
 
             await Layout.db.from('purchase_request_items').insert(items);
 
-            // Clear the form and switch to saved tab
-            requestItems = [];
-            Layout.$('#resultsSection').classList.add('hidden');
-            Layout.$('#emptyState').classList.remove('hidden');
-            Layout.$('#emptyState').innerHTML = `<div class="text-5xl mb-4">📋</div><div>Выберите период и нажмите "Сформировать"</div>`;
+            // Fetch the saved request to get the generated number
+            const { data: savedReq } = await Layout.db
+                .from('purchase_requests')
+                .select('id, number')
+                .eq('id', request.id)
+                .single();
 
+            // Update state with saved request info
+            savedRequestId = savedReq?.id || request.id;
+            savedRequestNumber = savedReq?.number || request.number;
+            nextRequestNumber = null;
+
+            // Сохраняем ID для подсветки
+            highlightRequestId = savedRequestId;
+
+            // Очищаем форму
+            requestItems = [];
+
+            // Переходим на вкладку сохранённых заявок
             switchTab('saved');
         }
 
@@ -656,6 +808,13 @@
             Layout.$('#tabContentNew').classList.toggle('hidden', tab !== 'new');
             Layout.$('#tabContentSaved').classList.toggle('hidden', tab !== 'saved');
             Layout.$('#tabContentArchive').classList.toggle('hidden', tab !== 'archive');
+
+            // When switching to "new" tab, show choice section
+            if (tab === 'new') {
+                Layout.$('#requestChoiceSection')?.classList.remove('hidden');
+                Layout.$('#resultsSection')?.classList.add('hidden');
+                Layout.$('#emptyState')?.classList.add('hidden');
+            }
 
             if (tab === 'saved' || tab === 'archive') {
                 loadSavedRequests();
@@ -682,9 +841,16 @@
 
         function renderRequestCard(req, isArchived = false) {
             const itemsCount = req.items?.length || 0;
-            const periodFrom = new Date(req.period_from).toLocaleDateString(Layout.currentLang === 'ru' ? 'ru-RU' : 'en-US');
-            const periodTo = new Date(req.period_to).toLocaleDateString(Layout.currentLang === 'ru' ? 'ru-RU' : 'en-US');
-            const createdAt = new Date(req.created_at).toLocaleDateString(Layout.currentLang === 'ru' ? 'ru-RU' : 'en-US');
+            const locale = Layout.currentLang === 'ru' ? 'ru-RU' : 'en-US';
+
+            // Period (only for requests generated from menu)
+            const hasPeriod = req.period_from && req.period_to;
+            const periodFrom = hasPeriod ? new Date(req.period_from).toLocaleDateString(locale) : '';
+            const periodTo = hasPeriod ? new Date(req.period_to).toLocaleDateString(locale) : '';
+
+            // Created at with time
+            const createdDate = new Date(req.created_at);
+            const createdAtStr = createdDate.toLocaleDateString(locale) + ' ' + createdDate.toLocaleTimeString(locale, { hour: '2-digit', minute: '2-digit' });
 
             // Calculate total sum
             let totalSum = 0;
@@ -698,48 +864,55 @@
             });
             const sumDisplay = totalSum > 0 ? (hasAllPrices ? '' : '≈ ') + '₹' + Math.round(totalSum).toLocaleString() : '';
 
+            // Подсветка новой заявки
+            const isHighlighted = req.id === highlightRequestId;
+            const highlightStyle = isHighlighted ? 'background-color: rgba(var(--current-color-rgb, 234, 179, 8), 0.15); border: 2px solid var(--current-color);' : '';
+
             return `
-                <div class="bg-base-100 rounded-lg p-4 shadow-sm">
+                <div class="bg-base-100 rounded-lg p-4 shadow-sm" style="${highlightStyle}" ${isHighlighted ? 'id="highlightedRequest"' : ''}>
                     <div class="flex flex-col md:flex-row md:items-center gap-4">
                         <div class="flex-1 min-w-0">
                             <div class="flex items-center gap-2 flex-wrap">
-                                <span class="font-semibold">Заявка #${req.number}</span>
-                                <span class="badge badge-sm badge-ghost">${itemsCount} поз.</span>
-                                ${sumDisplay ? `<span class="badge badge-sm" style="background-color: var(--current-color); color: white;">${sumDisplay}</span>` : ''}
+                                <span class="font-semibold">${tr('request', 'Заявка')} #${formatNumberWithYear(req.number)}</span>
+                                <span class="badge badge-sm" style="background-color: var(--current-color); color: white;">${itemsCount} ${tr('items_short', 'поз.')}</span>
+                                ${sumDisplay ? `<span class="badge badge-sm badge-ghost">${sumDisplay}</span>` : ''}
                             </div>
-                            <div class="text-sm opacity-60 mt-1">
-                                Период: ${periodFrom} — ${periodTo}
-                            </div>
+                            ${hasPeriod ? `<div class="text-sm opacity-60 mt-1">${tr('period', 'Период')}: ${periodFrom} — ${periodTo}</div>` : ''}
                             <div class="text-xs opacity-40 mt-1">
-                                Создано: ${createdAt}
+                                ${tr('created', 'Создано')}: ${createdAtStr}
                             </div>
                         </div>
 
                         <div class="flex items-center gap-2">
-                            <button class="btn btn-ghost btn-sm" onclick="viewSavedRequest('${req.id}')" title="Просмотр">
-                                <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <button class="btn btn-ghost btn-md" onclick="viewSavedRequest('${req.id}')" title="${tr('view', 'Просмотр')}">
+                                <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
                                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
                                 </svg>
                             </button>
-                            <button class="btn btn-ghost btn-sm" onclick="printSavedRequest('${req.id}')" title="Печать">
-                                <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <button class="btn btn-ghost btn-md" onclick="printSavedRequest('${req.id}')" title="${tr('print', 'Печать')}">
+                                <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" />
                                 </svg>
                             </button>
                             ${!isArchived ? `
-                                <button class="btn btn-ghost btn-sm text-warning" onclick="archiveRequest('${req.id}')" title="В архив">
-                                    <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <button class="btn btn-ghost btn-md text-warning" onclick="archiveRequest('${req.id}')" title="${tr('to_archive', 'В архив')}">
+                                    <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 8h14M5 8a2 2 0 110-4h14a2 2 0 110 4M5 8v10a2 2 0 002 2h10a2 2 0 002-2V8m-9 4h4" />
                                     </svg>
                                 </button>
                             ` : `
-                                <button class="btn btn-ghost btn-sm text-success" onclick="restoreRequest('${req.id}')" title="Восстановить">
-                                    <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <button class="btn btn-ghost btn-md text-success" onclick="restoreRequest('${req.id}')" title="${tr('restore', 'Восстановить')}">
+                                    <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 10h10a8 8 0 018 8v2M3 10l6 6m-6-6l6-6" />
                                     </svg>
                                 </button>
                             `}
+                            <button class="btn btn-ghost btn-md text-error" onclick="deleteRequest('${req.id}')" title="${tr('delete', 'Удалить')}">
+                                <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                                </svg>
+                            </button>
                         </div>
                     </div>
                 </div>
@@ -754,13 +927,26 @@
                 container.innerHTML = `
                     <div class="text-center py-12 opacity-50">
                         <div class="text-4xl mb-2">📋</div>
-                        <div>Нет сохранённых заявок</div>
+                        <div>${tr('no_active_requests', 'Нет сохранённых заявок')}</div>
                     </div>
                 `;
                 return;
             }
 
             container.innerHTML = filtered.map(req => renderRequestCard(req, false)).join('');
+
+            // Скролл к подсвеченной заявке и снятие подсветки через 3 секунды
+            if (highlightRequestId) {
+                const highlighted = Layout.$('#highlightedRequest');
+                if (highlighted) {
+                    highlighted.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                    setTimeout(() => {
+                        highlighted.style.backgroundColor = '';
+                        highlighted.style.border = '';
+                        highlightRequestId = null;
+                    }, 3000);
+                }
+            }
         }
 
         function renderArchivedRequests() {
@@ -771,7 +957,7 @@
                 container.innerHTML = `
                     <div class="text-center py-12 opacity-50">
                         <div class="text-4xl mb-2">📦</div>
-                        <div>Нет заявок в архиве</div>
+                        <div>${tr('archive_empty', 'Нет заявок в архиве')}</div>
                     </div>
                 `;
                 return;
@@ -781,7 +967,7 @@
         }
 
         async function archiveRequest(id) {
-            if (!confirm('Отправить заявку в архив?')) return;
+            if (!await showConfirm(tr('archive_confirm', 'Переместить в архив?'))) return;
 
             const { error } = await Layout.db
                 .from('purchase_requests')
@@ -790,7 +976,7 @@
 
             if (error) {
                 console.error('Error archiving request:', error);
-                alert('Ошибка');
+                showAlert(tr('save_error', 'Ошибка'));
                 return;
             }
 
@@ -805,7 +991,28 @@
 
             if (error) {
                 console.error('Error restoring request:', error);
-                alert('Ошибка');
+                showAlert(tr('save_error', 'Ошибка'));
+                return;
+            }
+
+            await loadSavedRequests();
+        }
+
+        async function deleteRequest(id) {
+            if (!await showConfirm(tr('permanent_delete_confirm', 'Удалить заявку навсегда? Это действие нельзя отменить!'))) return;
+
+            // Удаляем items
+            await Layout.db.from('purchase_request_items').delete().eq('request_id', id);
+
+            // Удаляем заявку
+            const { error } = await Layout.db
+                .from('purchase_requests')
+                .delete()
+                .eq('id', id);
+
+            if (error) {
+                console.error('Error deleting request:', error);
+                showAlert(tr('save_error', 'Ошибка'));
                 return;
             }
 
@@ -840,10 +1047,10 @@
             const periodFrom = new Date(req.period_from).toLocaleDateString('ru-RU');
             const periodTo = new Date(req.period_to).toLocaleDateString('ru-RU');
 
-            Layout.$('#viewRequestTitle').textContent = `Заявка #${req.number}`;
-            Layout.$('#viewRequestPeriod').textContent = `Период: ${periodFrom} — ${periodTo}`;
-            Layout.$('#printRequestTitle').textContent = `Заявка #${req.number}`;
-            Layout.$('#printRequestPeriod').textContent = `Период: ${periodFrom} — ${periodTo}`;
+            Layout.$('#viewRequestTitle').textContent = `${tr('request', 'Заявка')} #${formatNumberWithYear(req.number)}`;
+            Layout.$('#viewRequestPeriod').textContent = `${tr('period', 'Период')}: ${periodFrom} — ${periodTo}`;
+            Layout.$('#printRequestTitle').textContent = `${tr('request', 'Заявка')} #${formatNumberWithYear(req.number)}`;
+            Layout.$('#printRequestPeriod').textContent = `${tr('period', 'Период')}: ${periodFrom} — ${periodTo}`;
 
             // Get location name
             const loc = Layout.locations?.find(l => l.slug === Layout.currentLocation);
@@ -873,11 +1080,13 @@
                     hasAllPrices = false;
                 }
 
+                const translit = product?.translit || Layout.transliterateHindi(product?.name_hi);
+
                 return `
                     <tr>
                         <td>
                             <div class="font-medium">${Layout.getName(product)}</div>
-                            <div class="text-xs opacity-50">${product?.name_en || ''}</div>
+                            ${translit ? `<div class="text-xs opacity-50 italic">${translit}</div>` : ''}
                         </td>
                         <td>
                             <span class="badge badge-sm" style="background-color: ${cat?.color || '#999'}20; color: ${cat?.color || '#999'}">
@@ -1097,7 +1306,7 @@
 
             // Check if already in request
             if (requestItems.some(i => i.product_id === productId)) {
-                alert(t('product_already_added') || 'Этот продукт уже добавлен в заявку');
+                showAlert(tr('product_already_added', 'Этот продукт уже добавлен в заявку'));
                 return;
             }
 
@@ -1219,6 +1428,7 @@
             await loadLocationId();
             await Promise.all([loadProducts(), loadProductCategories(), loadStock(), loadRecipes()]);
             selectPeriod('today');
+            Layout.updateAllTranslations();
         }
 
         init();

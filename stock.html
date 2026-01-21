@@ -19,6 +19,15 @@
         .trend-up { color: #DC2626; }
         .trend-down { color: #6B9E5A; }
         .trend-stable { color: #6B7280; }
+        /* Убираем стрелки у числовых полей */
+        input[type="number"]::-webkit-outer-spin-button,
+        input[type="number"]::-webkit-inner-spin-button {
+            -webkit-appearance: none;
+            margin: 0;
+        }
+        input[type="number"] {
+            -moz-appearance: textfield;
+        }
     </style>
 </head>
 <body class="bg-base-200 min-h-screen flex flex-col">
@@ -67,8 +76,51 @@
         let stockItems = [];
         let products = [];
         let categories = [];
+        let locationId = null;
 
         const t = key => Layout.t(key);
+
+        function tr(key, fallback) {
+            const val = t(key);
+            return (val && val !== key) ? val : fallback;
+        }
+
+        // ==================== HELPER FUNCTIONS ====================
+        const UNITS = {
+            kg: { ru: 'кг', en: 'kg', hi: 'किलो' },
+            g: { ru: 'г', en: 'g', hi: 'ग्राम' },
+            l: { ru: 'л', en: 'l', hi: 'लीटर' },
+            ml: { ru: 'мл', en: 'ml', hi: 'मिली' },
+            pcs: { ru: 'шт', en: 'pcs', hi: 'टुकड़ा' },
+            pack: { ru: 'уп', en: 'pack', hi: 'पैकेट' }
+        };
+
+        function localizeUnit(unit) {
+            if (!unit) return '';
+            const lang = Layout.currentLang;
+            return UNITS[unit]?.[lang] || unit;
+        }
+
+        // ==================== UPDATE STOCK ====================
+        async function updateStockQuantity(stockId, newQuantity) {
+            const { error } = await Layout.db
+                .from('stock')
+                .update({ current_quantity: newQuantity })
+                .eq('id', stockId);
+
+            if (error) {
+                console.error('Error updating stock:', error);
+                return;
+            }
+
+            // Update local data and re-render
+            const item = stockItems.find(s => s.id === stockId);
+            if (item) {
+                item.current_quantity = newQuantity;
+                renderCategoryFilters();
+                renderStock();
+            }
+        }
 
         const ITEM_FORMS = {
             ru: ['позиция', 'позиции', 'позиций'],
@@ -77,6 +129,15 @@
         };
 
         // ==================== DATA LOADING ====================
+        async function loadLocationId() {
+            const { data } = await Layout.db
+                .from('locations')
+                .select('id')
+                .eq('slug', Layout.currentLocation)
+                .single();
+            locationId = data?.id;
+        }
+
         async function loadCategories() {
             const { data, error } = await Layout.db.from('product_categories').select('*').order('sort_order');
             if (error) { console.error('Error loading categories:', error); return; }
@@ -85,36 +146,22 @@
         }
 
         async function loadProducts() {
-            const { data, error } = await Layout.db.from('products').select('*, product_categories(slug, name_ru, name_en, name_hi)');
+            const { data, error } = await Layout.db.from('products').select('*, product_categories(*)');
             if (error) { console.error('Error loading products:', error); return; }
             products = data;
         }
 
         async function loadStock() {
+            if (!locationId) return;
+
             const { data, error } = await Layout.db
                 .from('stock')
-                .select('*, products(*, product_categories(slug, name_ru, name_en, name_hi))')
-                .order('created_at', { ascending: false });
+                .select('*, products(*, product_categories(*))')
+                .eq('location_id', locationId);
 
             if (error) { console.error('Error loading stock:', error); return; }
-            stockItems = data;
+            stockItems = data || [];
             renderStock();
-        }
-
-        // ==================== HELPERS ====================
-        const UNITS = {
-            kg: { ru: 'кг', en: 'kg', hi: 'किग्रा' },
-            g: { ru: 'г', en: 'g', hi: 'ग्रा' },
-            l: { ru: 'л', en: 'l', hi: 'ली' },
-            ml: { ru: 'мл', en: 'ml', hi: 'मिली' },
-            pcs: { ru: 'шт', en: 'pcs', hi: 'पीस' }
-        };
-
-        function localizeUnit(unit) {
-            const u = (unit || '').toLowerCase();
-            // Не показывать единицы времени
-            if (['мин', 'min', 'мин.', 'минут'].includes(u)) return '';
-            return UNITS[u]?.[Layout.currentLang] || unit;
         }
 
         // ==================== RENDERING ====================
@@ -206,8 +253,17 @@
 
                             <div class="flex items-center gap-6">
                                 <div class="text-center">
-                                    <div class="text-2xl font-bold ${status === 'critical' ? 'text-red-600' : status === 'low' ? 'text-yellow-600' : ''}">${item.current_quantity} ${localizeUnit(product?.unit)}</div>
-                                    <div class="text-xs opacity-50">${t('stock_should_be')} ≥ ${item.min_quantity} ${localizeUnit(product?.unit)}</div>
+                                    <div class="join">
+                                        <input type="number"
+                                            class="input input-bordered join-item w-20 text-xl font-bold text-center ${status === 'critical' ? 'text-red-600' : status === 'low' ? 'text-yellow-600' : ''}"
+                                            value="${item.current_quantity}"
+                                            min="0"
+                                            step="0.1"
+                                            onchange="updateStockQuantity('${item.id}', parseFloat(this.value) || 0)"
+                                        />
+                                        <span class="btn join-item no-animation pointer-events-none bg-base-200 text-lg">${localizeUnit(product?.unit)}</span>
+                                    </div>
+                                    <div class="text-xs opacity-50 mt-1">${tr('stock_should_be', 'мин.')} ≥ ${item.min_quantity} ${localizeUnit(product?.unit)}</div>
                                 </div>
 
                                 ${item.last_price ? `
@@ -256,6 +312,7 @@
         // ==================== INIT ====================
         async function init() {
             await Layout.init({ menuId: 'stock', itemId: 'inventory' });
+            await loadLocationId();
             await loadCategories();
             await loadProducts();
             await loadStock();

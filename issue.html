@@ -12,6 +12,35 @@
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Noto+Sans:wght@400;500;600;700&family=Noto+Sans+Devanagari:wght@400;500;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="css/common.css">
+    <style>
+        input[type="number"]::-webkit-outer-spin-button,
+        input[type="number"]::-webkit-inner-spin-button {
+            -webkit-appearance: none;
+            margin: 0;
+        }
+        input[type="number"] {
+            -moz-appearance: textfield;
+        }
+
+        @media print {
+            body * { visibility: hidden; }
+            #viewIssuanceModal, #viewIssuanceModal * { visibility: visible; }
+            #viewIssuanceModal {
+                position: absolute;
+                left: 0;
+                top: 0;
+                width: 100%;
+                padding: 20px;
+            }
+            #viewIssuanceModal .modal-box {
+                max-width: 100%;
+                box-shadow: none;
+            }
+            #viewIssuanceModal .modal-action,
+            #viewIssuanceModal .btn-ghost,
+            #viewIssuanceModal form[method="dialog"] { display: none !important; }
+        }
+    </style>
 </head>
 <body class="bg-base-200 min-h-screen flex flex-col">
 
@@ -19,139 +48,311 @@
 
     <main class="container mx-auto px-4 py-6 flex-1">
 
-        <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6">
-            <div>
-                <h1 class="text-2xl font-bold" data-i18n="issue_title">Выдача продуктов</h1>
-                <p class="text-sm opacity-60" id="issuesCount">Загрузка...</p>
-            </div>
-            <button class="btn btn-primary gap-2" onclick="openIssueModal()">
-                <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" />
-                </svg>
-                <span data-i18n="new_issue">Оформить выдачу</span>
-            </button>
+        <div class="mb-6">
+            <h1 class="text-2xl font-bold" data-i18n="issuance_title">Выдать продукты</h1>
+            <p class="text-sm opacity-60" id="issuancesCount">Загрузка...</p>
         </div>
 
-        <div class="flex justify-between items-center mb-4">
-            <div class="join">
-                <button class="btn btn-sm join-item btn-active" id="activeBtn" onclick="showActive()">Активные</button>
-                <button class="btn btn-sm join-item" id="archiveBtn" onclick="showArchive()">Архив</button>
-            </div>
+        <!-- Tabs -->
+        <div class="tabs tabs-boxed bg-base-100 p-1 mb-6 inline-flex" id="mainTabs">
+            <button class="tab tab-active" data-tab="new" onclick="switchTab('new')" data-i18n="new_issuance_tab">Новая выдача</button>
+            <button class="tab" data-tab="saved" onclick="switchTab('saved')" data-i18n="saved_issuances_tab">Сохранённые</button>
+            <button class="tab" data-tab="archive" onclick="switchTab('archive')" data-i18n="archived_issuances_tab">Архивные</button>
+            <button class="tab" data-tab="deleted" onclick="switchTab('deleted')" data-i18n="deleted_issuances_tab">Удалённые</button>
         </div>
 
-        <div class="space-y-3" id="issuesList">
-            <div class="bg-base-100 rounded-lg p-4 shadow-sm skeleton h-24"></div>
-            <div class="bg-base-100 rounded-lg p-4 shadow-sm skeleton h-24"></div>
+        <!-- New Issuance Tab -->
+        <div id="tabNew" class="tab-pane">
+
+            <!-- Choice: From Menu or Manual -->
+            <div id="issueChoiceSection" class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
+                <!-- Option 1: From Menu -->
+                <div class="bg-base-100 rounded-lg p-6 shadow-sm">
+                    <div class="text-lg font-semibold mb-2" data-i18n="issue_from_menu_title">Выдать из меню</div>
+                    <p class="text-sm opacity-60 mb-4" data-i18n="issue_from_menu_desc">Рассчитать продукты на основе меню на день</p>
+
+                    <div class="space-y-4">
+                        <div>
+                            <label class="label"><span class="label-text font-medium" data-i18n="date">Дата</span></label>
+                            <input type="date" id="menuLoadDate" class="input input-bordered w-full" />
+                        </div>
+
+                        <div>
+                            <label class="label"><span class="label-text font-medium" data-i18n="meal_type">Приём пищи</span></label>
+                            <div class="flex gap-4">
+                                <label class="label cursor-pointer gap-2">
+                                    <input type="checkbox" id="menuLoadBreakfast" class="checkbox checkbox-sm" checked />
+                                    <span class="label-text" data-i18n="breakfast">Завтрак</span>
+                                </label>
+                                <label class="label cursor-pointer gap-2">
+                                    <input type="checkbox" id="menuLoadLunch" class="checkbox checkbox-sm" checked />
+                                    <span class="label-text" data-i18n="lunch">Обед</span>
+                                </label>
+                                <label class="label cursor-pointer gap-2">
+                                    <input type="checkbox" id="menuLoadDinner" class="checkbox checkbox-sm" checked />
+                                    <span class="label-text" data-i18n="dinner">Ужин</span>
+                                </label>
+                            </div>
+                        </div>
+                    </div>
+
+                    <button class="btn btn-primary w-full mt-4" onclick="generateFromMenu()" data-i18n="generate">
+                        Сформировать
+                    </button>
+                </div>
+
+                <!-- Option 2: Manual -->
+                <div class="bg-base-100 rounded-lg p-6 shadow-sm flex flex-col">
+                    <div class="text-lg font-semibold mb-2" data-i18n="issue_manual_title">Выдать вручную</div>
+                    <p class="text-sm opacity-60 mb-4" data-i18n="issue_manual_desc">Ввести продукты для выдачи вручную</p>
+
+                    <div class="flex-1"></div>
+
+                    <button class="btn btn-outline btn-primary w-full" onclick="createManualIssue()" data-i18n="create_issue">
+                        Создать выдачу
+                    </button>
+                </div>
+            </div>
+
+            <!-- Issue Form (hidden initially) -->
+            <div id="issueFormSection" class="hidden">
+                <div class="flex justify-between items-center mb-4">
+                    <h2 id="issueTitle" class="text-lg font-semibold" data-i18n="new_issue">Новая выдача</h2>
+                    <button class="btn btn-ghost btn-sm" onclick="backToChoice()">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18" />
+                        </svg>
+                        <span data-i18n="back">Назад</span>
+                    </button>
+                </div>
+
+                <div class="bg-base-100 rounded-lg p-6 shadow-sm">
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
+                        <div>
+                            <label class="label"><span class="label-text font-medium" data-i18n="issuance_date">Дата выдачи</span></label>
+                            <input type="date" id="issuanceDate" class="input input-bordered w-full" />
+                        </div>
+                        <div>
+                            <label class="label"><span class="label-text font-medium" data-i18n="issuance_purpose">Цель выдачи</span></label>
+                            <select id="issuancePurpose" class="select select-bordered w-full">
+                                <option value="cooking" data-i18n="purpose_cooking">Приготовление</option>
+                                <option value="event" data-i18n="purpose_event">Мероприятие</option>
+                                <option value="other" data-i18n="purpose_other">Другое</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <div class="mb-6">
+                        <label class="label"><span class="label-text font-medium" data-i18n="products">Продукты</span></label>
+                        <div class="border border-base-300 rounded-lg overflow-hidden">
+                            <table class="table table-sm">
+                                <thead class="bg-base-200">
+                                    <tr>
+                                        <th data-i18n="product">Продукт</th>
+                                        <th class="w-24" data-i18n="in_stock">На складе</th>
+                                        <th class="w-24" data-i18n="quantity">Кол-во</th>
+                                        <th class="w-10"></th>
+                                    </tr>
+                                </thead>
+                                <tbody id="issuanceItems"></tbody>
+                            </table>
+                        </div>
+
+                        <button type="button" class="btn btn-sm gap-1 mt-2" style="background-color: var(--current-color); border-color: var(--current-color); color: white;" onclick="openProductModal()">
+                            <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" />
+                            </svg>
+                            <span data-i18n="add_product">Добавить продукт</span>
+                        </button>
+                    </div>
+
+                    <div class="mb-6">
+                        <label class="label"><span class="label-text font-medium" data-i18n="notes">Примечания</span></label>
+                        <textarea id="issuanceNotes" class="textarea textarea-bordered w-full" rows="2" placeholder="Примечания..." data-i18n-placeholder="notes"></textarea>
+                    </div>
+
+                    <div class="flex justify-between items-center">
+                        <div class="text-right">
+                            <div class="text-sm opacity-60" data-i18n="total_items_short">Позиций</div>
+                            <div class="text-2xl font-bold" id="issuanceTotal">0</div>
+                        </div>
+                        <button type="button" class="btn btn-primary" id="saveIssuanceBtn" onclick="saveIssuance()">
+                            <span class="loading loading-spinner loading-sm hidden" id="saveSpinner"></span>
+                            <span id="saveText" data-i18n="save_issuance">Сохранить выдачу</span>
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+        </div>
+
+        <!-- Saved Issuances Tab -->
+        <div id="tabSaved" class="tab-pane hidden">
+            <div class="alert alert-success mb-4 py-2">
+                <span class="text-sm" data-i18n="issuance_completed_info">Выдача проведена, склад обновлён</span>
+            </div>
+            <div class="space-y-3" id="savedIssuancesList"></div>
+        </div>
+
+        <!-- Archived Issuances Tab -->
+        <div id="tabArchive" class="tab-pane hidden">
+            <div class="alert alert-info mb-4 py-2">
+                <span class="text-sm" data-i18n="issuance_completed_info">Выдача проведена, склад обновлён</span>
+            </div>
+            <div class="space-y-3" id="archivedIssuancesList"></div>
+        </div>
+
+        <!-- Deleted Issuances Tab -->
+        <div id="tabDeleted" class="tab-pane hidden">
+            <div class="alert alert-warning mb-4 py-2">
+                <span class="text-sm" data-i18n="issuance_cancelled_info">Выдача отменена, склад не изменялся</span>
+            </div>
+            <div class="space-y-3" id="deletedIssuancesList"></div>
         </div>
 
     </main>
 
     <div id="footer-placeholder"></div>
 
-    <!-- Issue Modal -->
-    <dialog id="issueModal" class="modal">
+    <!-- View/Edit Issuance Modal -->
+    <dialog id="viewIssuanceModal" class="modal">
         <div class="modal-box max-w-2xl">
             <form method="dialog">
                 <button class="btn btn-sm btn-circle btn-ghost absolute right-2 top-2">✕</button>
             </form>
-            <h3 class="font-bold text-lg mb-4" id="issueModalTitle">Оформить выдачу</h3>
+            <h3 class="font-bold text-lg mb-4" id="viewIssuanceTitle">Выдача</h3>
 
-            <div class="space-y-4">
-                <div class="grid grid-cols-2 gap-4">
-                    <div>
-                        <label class="label"><span class="label-text font-medium">Дата и время</span></label>
-                        <input type="datetime-local" id="issueDate" class="input input-bordered w-full" />
-                    </div>
-                    <div>
-                        <label class="label"><span class="label-text font-medium">Кому выдано</span></label>
-                        <select id="issueRecipient" class="select select-bordered w-full">
-                            <option value="">Выберите повара</option>
-                        </select>
-                    </div>
+            <div class="mb-4">
+                <div class="flex gap-4 text-sm opacity-60 mb-2">
+                    <span id="viewIssuanceDate"></span>
+                    <span id="viewIssuancePurpose"></span>
                 </div>
+            </div>
 
-                <div>
-                    <div class="flex justify-between items-center">
-                        <label class="label"><span class="label-text font-medium">Продукты</span></label>
-                        <button type="button" class="btn btn-ghost btn-sm gap-1" onclick="showLoadFromMenuModal()">
-                            <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" />
-                            </svg>
-                            Из меню
-                        </button>
-                    </div>
-                    <div class="border border-base-300 rounded-lg overflow-hidden">
-                        <table class="table table-sm">
-                            <thead class="bg-base-200">
-                                <tr>
-                                    <th>Продукт</th>
-                                    <th class="w-24">На складе</th>
-                                    <th class="w-24">Выдать</th>
-                                    <th class="w-10"></th>
-                                </tr>
-                            </thead>
-                            <tbody id="issueItems"></tbody>
-                        </table>
-                    </div>
+            <div class="border border-base-300 rounded-lg overflow-hidden mb-4">
+                <table class="table table-sm">
+                    <thead class="bg-base-200">
+                        <tr>
+                            <th data-i18n="product">Продукт</th>
+                            <th class="w-24" data-i18n="quantity">Кол-во</th>
+                            <th class="w-10"></th>
+                        </tr>
+                    </thead>
+                    <tbody id="viewIssuanceItems"></tbody>
+                </table>
+            </div>
 
-                    <div class="flex gap-2 mt-2">
-                        <div class="flex-1 relative">
-                            <input type="text" id="issueProductSearch" class="input input-bordered input-sm w-full" placeholder="Добавить продукт..." />
-                            <div id="issueProductDropdown" class="absolute z-50 w-full bg-base-100 border border-base-300 rounded-lg shadow-lg mt-1 max-h-48 overflow-y-auto hidden"></div>
-                        </div>
-                    </div>
-                </div>
-
-                <div>
-                    <label class="label"><span class="label-text font-medium">Примечания</span></label>
-                    <textarea id="issueNotes" class="textarea textarea-bordered w-full" rows="2" placeholder="Для какого приёма пищи, особые указания..."></textarea>
+            <div class="flex justify-between items-center mb-4">
+                <div id="viewIssuanceNotes" class="text-sm opacity-60 italic"></div>
+                <div class="text-right">
+                    <div class="text-sm opacity-60" data-i18n="total_items_short">Позиций</div>
+                    <div class="text-2xl font-bold" id="viewIssuanceTotal">0</div>
                 </div>
             </div>
 
             <div class="modal-action">
-                <button type="button" class="btn btn-ghost" onclick="closeIssueModal()">Отмена</button>
-                <button type="button" class="btn btn-primary" onclick="saveIssue()">Сохранить</button>
+                <button type="button" class="btn btn-ghost gap-2" onclick="printViewedIssuance()">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" />
+                    </svg>
+                    <span data-i18n="print">Печать</span>
+                </button>
+                <button type="button" class="btn btn-ghost" onclick="closeViewIssuanceModal()" data-i18n="close">Закрыть</button>
+                <button type="button" class="btn btn-primary" onclick="saveViewedIssuance()" data-i18n="save_changes">Сохранить изменения</button>
             </div>
         </div>
         <form method="dialog" class="modal-backdrop"><button>close</button></form>
     </dialog>
 
-    <!-- Load from Menu Modal -->
-    <dialog id="loadFromMenuModal" class="modal">
-        <div class="modal-box max-w-md">
-            <form method="dialog">
-                <button class="btn btn-sm btn-circle btn-ghost absolute right-2 top-2">✕</button>
-            </form>
-            <h3 class="font-bold text-lg mb-4">Загрузить из меню</h3>
+    <!-- Add Product Modal -->
+    <dialog id="productModal" class="modal">
+        <div class="modal-box max-w-lg relative">
+            <button type="button" class="btn btn-sm btn-circle btn-ghost absolute right-2 top-2" onclick="productModal.close()">✕</button>
+            <h3 class="font-bold text-lg mb-4" data-i18n="add_product">Добавить продукт</h3>
 
             <div class="space-y-4">
-                <div>
-                    <label class="label"><span class="label-text font-medium">Дата</span></label>
-                    <input type="date" id="menuLoadDate" class="input input-bordered w-full" />
+                <!-- Tabs -->
+                <div class="tabs tabs-boxed bg-base-200">
+                    <a class="tab" id="tabProductSearch" onclick="switchProductTab('search')" data-i18n="search" style="background-color: var(--current-color); color: white;">Поиск</a>
+                    <a class="tab" id="tabProductBrowse" onclick="switchProductTab('browse')" data-i18n="by_category">По категории</a>
                 </div>
 
-                <div>
-                    <label class="label"><span class="label-text font-medium">Приём пищи</span></label>
-                    <div class="flex gap-4">
-                        <label class="label cursor-pointer gap-2">
-                            <input type="checkbox" id="menuLoadBreakfast" class="checkbox checkbox-sm" checked />
-                            <span class="label-text">Завтрак</span>
-                        </label>
-                        <label class="label cursor-pointer gap-2">
-                            <input type="checkbox" id="menuLoadLunch" class="checkbox checkbox-sm" checked />
-                            <span class="label-text">Обед</span>
-                        </label>
-                        <label class="label cursor-pointer gap-2">
-                            <input type="checkbox" id="menuLoadDinner" class="checkbox checkbox-sm" checked />
-                            <span class="label-text">Ужин</span>
-                        </label>
+                <!-- Search Tab -->
+                <div id="productSearchTab">
+                    <div class="relative">
+                        <input type="text"
+                               id="productSearch"
+                               class="input input-bordered w-full"
+                               placeholder="Начните вводить название..." data-i18n-placeholder="search_placeholder"
+                               autocomplete="off"
+                               oninput="filterProducts(this.value)"
+                               onfocus="showProductDropdown()"
+                        />
+                        <div id="productDropdown" class="absolute z-50 w-full bg-base-100 border border-base-300 rounded-lg shadow-lg mt-1 max-h-64 overflow-y-auto hidden">
+                        </div>
                     </div>
+                </div>
+
+                <!-- Browse Tab -->
+                <div id="productBrowseTab" class="hidden">
+                    <div class="flex flex-wrap gap-2 mb-3" id="productCategoryButtons">
+                    </div>
+                    <div id="productCategoryList" class="max-h-64 overflow-y-auto border border-base-300 rounded-lg">
+                    </div>
+                </div>
+
+                <!-- Selected Product -->
+                <div id="selectedProductDisplay" class="hidden">
+                    <div class="flex items-center justify-between p-3 bg-base-200 rounded-lg border-2" style="border-color: var(--current-color);">
+                        <div>
+                            <div class="font-medium" id="selectedProductName"></div>
+                            <div class="text-sm opacity-50" id="selectedProductNameEn"></div>
+                        </div>
+                        <button type="button" class="btn btn-ghost btn-sm btn-square" onclick="clearSelectedProduct()">
+                            <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+                            </svg>
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Quantity -->
+                <div id="productQuantitySection" class="hidden">
+                    <label class="label"><span class="label-text font-medium" data-i18n="quantity">Количество</span></label>
+                    <div class="join w-full">
+                        <input type="number" id="productQuantity" class="input input-bordered join-item w-full" value="1" min="0.1" step="0.1" />
+                        <span id="productUnit" class="btn join-item no-animation pointer-events-none bg-base-200">кг</span>
+                    </div>
+                    <div class="text-sm opacity-60 mt-1" id="productStockInfo"></div>
                 </div>
             </div>
 
             <div class="modal-action">
-                <button type="button" class="btn btn-ghost" onclick="closeLoadFromMenuModal()">Отмена</button>
-                <button type="button" class="btn btn-primary" onclick="loadFromMenu()">Загрузить</button>
+                <button type="button" class="btn btn-ghost" onclick="productModal.close()" data-i18n="cancel">Отмена</button>
+                <button type="button" class="btn btn-primary" id="saveProductBtn" onclick="addProductFromModal()" disabled data-i18n="add">Добавить</button>
+            </div>
+        </div>
+        <form method="dialog" class="modal-backdrop"><button>close</button></form>
+    </dialog>
+
+    <!-- Alert Modal -->
+    <dialog id="alertModal" class="modal">
+        <div class="modal-box max-w-sm">
+            <p id="alertMessage" class="py-4 text-center"></p>
+            <div class="modal-action justify-center">
+                <button type="button" class="btn btn-primary" onclick="closeAlert()">OK</button>
+            </div>
+        </div>
+        <form method="dialog" class="modal-backdrop"><button>close</button></form>
+    </dialog>
+
+    <!-- Confirm Modal -->
+    <dialog id="confirmModal" class="modal">
+        <div class="modal-box max-w-sm">
+            <p id="confirmMessage" class="py-4 text-center"></p>
+            <div class="modal-action justify-center gap-2">
+                <button type="button" class="btn btn-ghost" onclick="confirmNo()" data-i18n="no">Нет</button>
+                <button type="button" class="btn btn-primary" onclick="confirmYes()" data-i18n="yes">Да</button>
             </div>
         </div>
         <form method="dialog" class="modal-backdrop"><button>close</button></form>
@@ -160,175 +361,404 @@
     <script src="js/layout.js"></script>
     <script>
         // ==================== STATE ====================
-        let issues = [];
+        let issuances = [];
         let products = [];
-        let stockItems = [];
-        let cooks = [];
-        let showArchived = false;
-        let issueItemsList = [];
-        let editingIssueId = null;
+        let productCategories = [];
+        let stock = [];
+        let issuanceItemsList = [];
+        let currentTab = 'new';
+        let viewingIssuance = null;
+        let viewingItems = [];
+        let initialized = false;
+        let selectedProduct = null;
+        let currentProductCategory = 'all';
 
         const t = key => Layout.t(key);
 
-        const ISSUE_FORMS = {
+        // ==================== HELPER FUNCTIONS ====================
+        function tr(key, fallback) {
+            const val = Layout.t(key);
+            return val !== key ? val : fallback;
+        }
+
+        function formatNumberWithYear(num) {
+            if (!num) return '';
+            const str = String(num);
+            if (str.includes('/')) return str;
+            const currentYear = new Date().getFullYear();
+            return `${str}/${currentYear}`;
+        }
+
+        const UNITS = {
+            kg: { ru: 'кг', en: 'kg', hi: 'किलो' },
+            g: { ru: 'г', en: 'g', hi: 'ग्राम' },
+            l: { ru: 'л', en: 'l', hi: 'लीटर' },
+            ml: { ru: 'мл', en: 'ml', hi: 'मिली' },
+            pcs: { ru: 'шт', en: 'pcs', hi: 'टुकड़ा' },
+            pack: { ru: 'уп', en: 'pack', hi: 'पैकेट' }
+        };
+
+        function localizeUnit(unit) {
+            if (!unit) return '';
+            const lang = Layout.currentLang;
+            return UNITS[unit]?.[lang] || unit;
+        }
+
+        // Unit conversion functions
+        function toGrams(amount, unit) {
+            if (unit === 'kg') return amount * 1000;
+            if (unit === 'g') return amount;
+            return amount;
+        }
+
+        function fromGrams(grams, targetUnit) {
+            if (targetUnit === 'kg') return grams / 1000;
+            if (targetUnit === 'g') return grams;
+            return grams;
+        }
+
+        function toBaseUnit(amount, unit) {
+            if (unit === 'kg') return amount * 1000;
+            if (unit === 'g') return amount;
+            if (unit === 'l') return amount * 1000;
+            if (unit === 'ml') return amount;
+            return amount;
+        }
+
+        function toSmartDisplay(amountInBaseUnit, stockUnit) {
+            if (stockUnit === 'kg' || stockUnit === 'g') {
+                if (amountInBaseUnit >= 1000) {
+                    return { amount: amountInBaseUnit / 1000, unit: 'kg' };
+                } else {
+                    return { amount: amountInBaseUnit, unit: 'g' };
+                }
+            }
+            if (stockUnit === 'l' || stockUnit === 'ml') {
+                if (amountInBaseUnit >= 1000) {
+                    return { amount: amountInBaseUnit / 1000, unit: 'l' };
+                } else {
+                    return { amount: amountInBaseUnit, unit: 'ml' };
+                }
+            }
+            return { amount: amountInBaseUnit, unit: stockUnit || 'pcs' };
+        }
+
+        function toStockUnit(amount, displayUnit, stockUnit) {
+            if (!stockUnit || !displayUnit) return amount;
+            const base = toBaseUnit(amount, displayUnit);
+            if (stockUnit === 'kg') return base / 1000;
+            if (stockUnit === 'g') return base;
+            if (stockUnit === 'l') return base / 1000;
+            if (stockUnit === 'ml') return base;
+            return amount;
+        }
+
+        // ==================== MODAL DIALOGS ====================
+        function showAlert(message) {
+            const modal = Layout.$('#alertModal');
+            Layout.$('#alertMessage').textContent = message;
+            modal.showModal();
+        }
+
+        function closeAlert() {
+            Layout.$('#alertModal').close();
+        }
+
+        let confirmResolve = null;
+
+        function showConfirm(message) {
+            return new Promise(resolve => {
+                confirmResolve = resolve;
+                const modal = Layout.$('#confirmModal');
+                Layout.$('#confirmMessage').textContent = message;
+                modal.showModal();
+            });
+        }
+
+        function confirmYes() {
+            Layout.$('#confirmModal').close();
+            if (confirmResolve) confirmResolve(true);
+            confirmResolve = null;
+        }
+
+        function confirmNo() {
+            Layout.$('#confirmModal').close();
+            if (confirmResolve) confirmResolve(false);
+            confirmResolve = null;
+        }
+
+        // ==================== PRODUCT MODAL ====================
+        function openProductModal() {
+            selectedProduct = null;
+            currentProductCategory = 'all';
+            Layout.$('#productSearch').value = '';
+            Layout.$('#productDropdown').classList.add('hidden');
+            Layout.$('#selectedProductDisplay').classList.add('hidden');
+            Layout.$('#productQuantitySection').classList.add('hidden');
+            Layout.$('#saveProductBtn').disabled = true;
+            Layout.$('#productQuantity').value = 1;
+            Layout.$('#productStockInfo').textContent = '';
+            switchProductTab('search');
+            buildProductCategoryButtons();
+            Layout.$('#productModal').showModal();
+        }
+
+        function buildProductCategoryButtons() {
+            const container = Layout.$('#productCategoryButtons');
+            let html = `<button class="btn btn-sm ${currentProductCategory === 'all' ? '' : 'btn-ghost'}" data-cat="all" style="${currentProductCategory === 'all' ? 'background-color: var(--current-color); border-color: var(--current-color); color: white;' : ''}">${tr('all', 'Все')}</button>`;
+            productCategories.forEach(cat => {
+                const isActive = currentProductCategory === cat.slug;
+                html += `<button class="btn btn-sm ${isActive ? '' : 'btn-ghost'}" data-cat="${cat.slug}" style="${isActive ? 'background-color: var(--current-color); border-color: var(--current-color); color: white;' : ''}">${cat.emoji || ''} ${Layout.getName(cat)}</button>`;
+            });
+            container.innerHTML = html;
+            container.querySelectorAll('button').forEach(btn => {
+                btn.addEventListener('click', () => {
+                    currentProductCategory = btn.dataset.cat;
+                    buildProductCategoryButtons();
+                    filterProductsByCategory();
+                });
+            });
+        }
+
+        function switchProductTab(tab) {
+            const searchTab = Layout.$('#tabProductSearch');
+            const browseTab = Layout.$('#tabProductBrowse');
+            const searchContent = Layout.$('#productSearchTab');
+            const browseContent = Layout.$('#productBrowseTab');
+
+            if (tab === 'search') {
+                searchTab.style.backgroundColor = 'var(--current-color)';
+                searchTab.style.color = 'white';
+                browseTab.style.backgroundColor = '';
+                browseTab.style.color = '';
+                searchContent.classList.remove('hidden');
+                browseContent.classList.add('hidden');
+            } else {
+                browseTab.style.backgroundColor = 'var(--current-color)';
+                browseTab.style.color = 'white';
+                searchTab.style.backgroundColor = '';
+                searchTab.style.color = '';
+                browseContent.classList.remove('hidden');
+                searchContent.classList.add('hidden');
+                filterProductsByCategory();
+            }
+        }
+
+        function filterProducts(query) {
+            const dropdown = Layout.$('#productDropdown');
+            if (!query || query.length < 1) {
+                dropdown.classList.add('hidden');
+                return;
+            }
+            const q = query.toLowerCase();
+            const filtered = products.filter(p =>
+                p.name_ru?.toLowerCase().includes(q) ||
+                p.name_en?.toLowerCase().includes(q) ||
+                p.name_hi?.includes(q)
+            ).slice(0, 10);
+
+            if (filtered.length === 0) {
+                dropdown.innerHTML = `<div class="p-3 text-center opacity-50">${tr('not_found', 'Не найдено')}</div>`;
+            } else {
+                dropdown.innerHTML = filtered.map(p => `
+                    <div class="p-2 hover:bg-base-200 cursor-pointer" onclick="selectProduct('${p.id}')">
+                        <div class="font-medium">${Layout.getName(p)}</div>
+                        <div class="text-xs opacity-50">${p.product_categories?.emoji || ''} ${Layout.getName(p.product_categories)}</div>
+                    </div>
+                `).join('');
+            }
+            dropdown.classList.remove('hidden');
+        }
+
+        function showProductDropdown() {
+            const query = Layout.$('#productSearch').value;
+            if (query && query.length >= 1) {
+                filterProducts(query);
+            }
+        }
+
+        function filterProductsByCategory() {
+            const container = Layout.$('#productCategoryList');
+            let filtered = products;
+            if (currentProductCategory !== 'all') {
+                filtered = products.filter(p => p.product_categories?.slug === currentProductCategory);
+            }
+
+            if (filtered.length === 0) {
+                container.innerHTML = `<div class="p-4 text-center opacity-50">${tr('no_products_in_category', 'В этой категории нет продуктов')}</div>`;
+            } else {
+                container.innerHTML = filtered.map(p => `
+                    <div class="p-2 hover:bg-base-200 cursor-pointer border-b border-base-200 last:border-b-0" onclick="selectProduct('${p.id}')">
+                        <div class="font-medium">${Layout.getName(p)}</div>
+                        <div class="text-xs opacity-50">${p.product_categories?.emoji || ''} ${Layout.getName(p.product_categories)}</div>
+                    </div>
+                `).join('');
+            }
+        }
+
+        function selectProduct(productId) {
+            selectedProduct = products.find(p => p.id === productId);
+            if (!selectedProduct) return;
+
+            Layout.$('#productDropdown').classList.add('hidden');
+            Layout.$('#selectedProductDisplay').classList.remove('hidden');
+            Layout.$('#productQuantitySection').classList.remove('hidden');
+            Layout.$('#selectedProductName').textContent = Layout.getName(selectedProduct);
+            const secondaryLang = Layout.currentLang === 'ru' ? 'en' : 'ru';
+            Layout.$('#selectedProductNameEn').textContent = selectedProduct[`name_${secondaryLang}`] || '';
+            Layout.$('#productUnit').textContent = localizeUnit(selectedProduct.unit);
+            Layout.$('#saveProductBtn').disabled = false;
+
+            // Show stock info
+            const stockQty = getStockQuantity(productId);
+            Layout.$('#productStockInfo').textContent = `${tr('in_stock', 'На складе')}: ${stockQty} ${selectedProduct.unit || ''}`;
+        }
+
+        function clearSelectedProduct() {
+            selectedProduct = null;
+            Layout.$('#selectedProductDisplay').classList.add('hidden');
+            Layout.$('#productQuantitySection').classList.add('hidden');
+            Layout.$('#saveProductBtn').disabled = true;
+            Layout.$('#productSearch').value = '';
+            Layout.$('#productStockInfo').textContent = '';
+        }
+
+        function addProductFromModal() {
+            if (!selectedProduct) return;
+
+            const quantity = parseFloat(Layout.$('#productQuantity').value) || 1;
+
+            if (issuanceItemsList.some(i => i.product_id === selectedProduct.id)) {
+                showAlert(tr('product_already_added', 'Продукт уже добавлен'));
+                return;
+            }
+
+            addIssuanceItem(selectedProduct.id, quantity, selectedProduct.unit);
+            Layout.$('#productModal').close();
+        }
+
+        // Get purpose translation
+        function getPurposeText(purpose) {
+            const purposes = {
+                'cooking': tr('purpose_cooking', 'Приготовление'),
+                'event': tr('purpose_event', 'Мероприятие'),
+                'other': tr('purpose_other', 'Другое')
+            };
+            return purposes[purpose] || purpose;
+        }
+
+        const ISSUANCE_FORMS = {
             ru: ['выдача', 'выдачи', 'выдач'],
-            en: ['issue', 'issues'],
+            en: ['issuance', 'issuances'],
             hi: 'जारी'
         };
 
+        // ==================== TABS ====================
+        function switchTab(tab) {
+            if (!initialized) return;
+            currentTab = tab;
+            document.querySelectorAll('.tab-pane').forEach(el => el.classList.add('hidden'));
+            document.querySelectorAll('#mainTabs .tab').forEach(btn => {
+                btn.classList.remove('tab-active');
+                btn.style.backgroundColor = '';
+                btn.style.color = '';
+            });
+
+            const activeBtn = document.querySelector(`#mainTabs .tab[data-tab="${tab}"]`);
+            activeBtn.classList.add('tab-active');
+            activeBtn.style.backgroundColor = 'var(--current-color)';
+            activeBtn.style.color = 'white';
+
+            if (tab === 'new') {
+                Layout.$('#tabNew').classList.remove('hidden');
+            } else if (tab === 'saved') {
+                Layout.$('#tabSaved').classList.remove('hidden');
+                renderSavedIssuances();
+            } else if (tab === 'archive') {
+                Layout.$('#tabArchive').classList.remove('hidden');
+                renderArchivedIssuances();
+            } else if (tab === 'deleted') {
+                Layout.$('#tabDeleted').classList.remove('hidden');
+                renderDeletedIssuances();
+            }
+        }
+
         // ==================== DATA LOADING ====================
         async function loadProducts() {
-            const { data, error } = await Layout.db.from('products').select('*, product_categories(slug, name_ru, name_en, name_hi)');
+            const { data, error } = await Layout.db.from('products').select('*, product_categories(slug, name_ru, name_en, name_hi, emoji)');
             if (error) { console.error('Error loading products:', error); return; }
             products = data;
         }
 
+        async function loadProductCategories() {
+            const { data, error } = await Layout.db.from('product_categories').select('*').order('sort_order');
+            if (error) { console.error('Error loading categories:', error); return; }
+            productCategories = data || [];
+        }
+
         async function loadStock() {
-            const { data, error } = await Layout.db.from('stock').select('*, products(*)');
+            const locationId = (await Layout.db.from('locations').select('id').eq('slug', Layout.currentLocation).single()).data?.id;
+            const { data, error } = await Layout.db.from('stock').select('*').eq('location_id', locationId);
             if (error) { console.error('Error loading stock:', error); return; }
-            stockItems = data || [];
+            stock = data || [];
         }
 
-        async function loadCooks() {
-            const { data, error } = await Layout.db.from('team_members').select('*').order('spiritual_name');
-            if (error) { console.error('Error loading cooks:', error); return; }
-            cooks = data || [];
-            renderCookSelect();
-        }
-
-        async function loadIssues() {
+        async function loadIssuances() {
+            const locationId = (await Layout.db.from('locations').select('id').eq('slug', Layout.currentLocation).single()).data?.id;
             const { data, error } = await Layout.db
-                .from('stock_issues')
-                .select('*, stock_issue_items(*, products(*)), team_members(spiritual_name, first_name)')
+                .from('stock_issuances')
+                .select('*, stock_issuance_items(*, products(*))')
+                .eq('location_id', locationId)
                 .order('created_at', { ascending: false });
 
-            if (error) { console.error('Error loading issues:', error); return; }
-            issues = data || [];
-            renderIssues();
+            if (error) { console.error('Error loading issuances:', error); return; }
+            issuances = data || [];
+            updateIssuancesCount();
         }
 
-        function renderCookSelect() {
-            const select = Layout.$('#issueRecipient');
-            select.innerHTML = '<option value="">Выберите повара</option>' +
-                cooks.map(c => `<option value="${c.id}">${Layout.getPersonName(c)}</option>`).join('');
+        function updateIssuancesCount() {
+            const saved = issuances.filter(r => !r.archived && !r.deleted).length;
+            Layout.$('#issuancesCount').textContent = Layout.pluralize(saved, ISSUANCE_FORMS);
         }
 
-        // ==================== RENDERING ====================
-        function renderIssues() {
-            const container = Layout.$('#issuesList');
-            const filtered = issues.filter(i => showArchived ? i.archived : !i.archived);
+        function getStockQuantity(productId) {
+            const s = stock.find(s => s.product_id === productId);
+            return s ? s.current_quantity : 0;
+        }
 
-            Layout.$('#issuesCount').textContent = Layout.pluralize(filtered.length, ISSUE_FORMS);
+        // ==================== NEW ISSUANCE ====================
+        function renderIssuanceItems() {
+            const tbody = Layout.$('#issuanceItems');
+            const total = issuanceItemsList.length;
+            Layout.$('#issuanceTotal').textContent = total;
 
-            if (filtered.length === 0) {
-                container.innerHTML = `<div class="text-center py-12 opacity-50"><div class="text-4xl mb-2">📤</div><div>${showArchived ? 'Архив пуст' : 'Нет выдач'}</div></div>`;
+            if (issuanceItemsList.length === 0) {
+                tbody.innerHTML = `<tr><td colspan="4" class="text-center opacity-50 py-4">${tr('add_products', 'Добавьте продукты')}</td></tr>`;
                 return;
             }
 
-            container.innerHTML = filtered.map(issue => {
-                const items = issue.stock_issue_items || [];
-                const date = new Date(issue.issue_date || issue.created_at);
-                const dateStr = date.toLocaleDateString('ru-RU');
-                const timeStr = date.toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' });
-                const recipientName = issue.team_members?.spiritual_name || issue.team_members?.first_name || 'Не указан';
-
-                return `
-                    <div class="bg-base-100 rounded-lg p-4 shadow-sm">
-                        <div class="flex flex-col md:flex-row md:items-center justify-between gap-4">
-                            <div>
-                                <div class="font-semibold text-lg">Выдача №${issue.number || issue.id?.slice(0,4)}</div>
-                                <div class="text-sm opacity-60">${dateStr}, ${timeStr} · Получатель: ${recipientName}</div>
-                            </div>
-                            <div class="flex items-center gap-4">
-                                <div class="text-center">
-                                    <div class="font-bold">${items.length}</div>
-                                    <div class="text-xs opacity-60">позиций</div>
-                                </div>
-                                <div class="flex items-center gap-2">
-                                    <button class="btn btn-ghost btn-sm btn-square" title="Просмотр" onclick="viewIssue('${issue.id}')">
-                                        <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
-                                            <path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-                                            <path stroke-linecap="round" stroke-linejoin="round" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
-                                        </svg>
-                                    </button>
-                                    <button class="btn btn-ghost btn-sm btn-square" title="Печать">
-                                        <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
-                                            <path stroke-linecap="round" stroke-linejoin="round" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" />
-                                        </svg>
-                                    </button>
-                                    ${!issue.archived ? `
-                                    <span class="text-base-300">|</span>
-                                    <a href="#" class="link link-hover text-sm opacity-60" onclick="archiveIssue('${issue.id}'); return false;">В архив</a>
-                                    ` : ''}
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                `;
-            }).join('');
-        }
-
-        function showActive() {
-            showArchived = false;
-            Layout.$('#activeBtn').classList.add('btn-active');
-            Layout.$('#archiveBtn').classList.remove('btn-active');
-            renderIssues();
-        }
-
-        function showArchive() {
-            showArchived = true;
-            Layout.$('#archiveBtn').classList.add('btn-active');
-            Layout.$('#activeBtn').classList.remove('btn-active');
-            renderIssues();
-        }
-
-        // ==================== MODALS ====================
-        function openIssueModal() {
-            editingIssueId = null;
-            issueItemsList = [];
-
-            const now = new Date();
-            now.setMinutes(now.getMinutes() - now.getTimezoneOffset());
-
-            Layout.$('#issueModalTitle').textContent = 'Оформить выдачу';
-            Layout.$('#issueDate').value = now.toISOString().slice(0, 16);
-            Layout.$('#issueRecipient').value = '';
-            Layout.$('#issueNotes').value = '';
-            renderIssueItems();
-
-            Layout.$('#issueModal').showModal();
-        }
-
-        function closeIssueModal() {
-            Layout.$('#issueModal').close();
-        }
-
-        function renderIssueItems() {
-            const tbody = Layout.$('#issueItems');
-
-            if (issueItemsList.length === 0) {
-                tbody.innerHTML = '<tr><td colspan="4" class="text-center opacity-50 py-4">Добавьте продукты</td></tr>';
-                return;
-            }
-
-            tbody.innerHTML = issueItemsList.map((item, idx) => {
+            tbody.innerHTML = issuanceItemsList.map((item, idx) => {
                 const product = products.find(p => p.id === item.product_id);
-                const stockItem = stockItems.find(s => s.product_id === item.product_id);
-                const inStock = stockItem?.current_quantity || 0;
-                const isOverStock = item.quantity > inStock;
-
+                const stockQty = getStockQuantity(item.product_id);
+                const displayUnit = item.display_unit || product?.unit || '';
+                // Compare in same units
+                const qtyInStockUnit = toStockUnit(item.quantity, displayUnit, product?.unit);
+                const isOverStock = qtyInStockUnit > stockQty;
                 return `
                     <tr>
                         <td>
                             <div class="font-medium">${Layout.getName(product)}</div>
-                            <div class="text-xs opacity-50">${product?.unit || ''}</div>
+                            ${product?.translit || product?.name_hi ? `<div class="text-xs opacity-50 italic">${product?.translit || Layout.transliterateHindi(product?.name_hi)}</div>` : ''}
                         </td>
-                        <td class="${inStock < item.quantity ? 'text-error' : ''}">${inStock} ${product?.unit || ''}</td>
+                        <td class="opacity-60">${stockQty} ${product?.unit || ''}</td>
                         <td>
-                            <input type="number" class="input input-bordered input-sm w-20 ${isOverStock ? 'input-error' : ''}" value="${item.quantity}" min="0" step="0.1" onchange="updateIssueItem(${idx}, this.value)" />
+                            <div class="flex items-center gap-1">
+                                <input type="number" class="input input-bordered input-sm w-20 ${isOverStock ? 'input-error' : ''}" value="${item.quantity}" min="0" step="0.1" onchange="updateIssuanceItem(${idx}, 'quantity', this.value)" />
+                                <span class="text-xs opacity-50">${displayUnit}</span>
+                            </div>
                         </td>
                         <td>
-                            <button class="btn btn-ghost btn-sm btn-square text-error" onclick="removeIssueItem(${idx})">
+                            <button class="btn btn-ghost btn-sm btn-square text-error" onclick="removeIssuanceItem(${idx})">
                                 <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
                                 </svg>
@@ -339,150 +769,390 @@
             }).join('');
         }
 
-        function updateIssueItem(idx, value) {
-            issueItemsList[idx].quantity = parseFloat(value) || 0;
-            renderIssueItems();
+        function updateIssuanceItem(idx, field, value) {
+            issuanceItemsList[idx][field] = parseFloat(value) || 0;
+            renderIssuanceItems();
         }
 
-        function removeIssueItem(idx) {
-            issueItemsList.splice(idx, 1);
-            renderIssueItems();
+        function removeIssuanceItem(idx) {
+            issuanceItemsList.splice(idx, 1);
+            renderIssuanceItems();
         }
 
-        function addIssueItem(productId) {
+        function addIssuanceItem(productId, quantity = 1, displayUnit = null) {
             const product = products.find(p => p.id === productId);
             if (!product) return;
 
-            if (issueItemsList.some(i => i.product_id === productId)) {
-                alert('Продукт уже добавлен');
+            if (issuanceItemsList.some(i => i.product_id === productId)) {
+                showAlert(tr('product_already_added', 'Продукт уже добавлен'));
                 return;
             }
 
-            issueItemsList.push({
+            issuanceItemsList.push({
                 product_id: productId,
-                quantity: 1
+                quantity: quantity,
+                display_unit: displayUnit || product.unit
             });
 
-            Layout.$('#issueProductSearch').value = '';
-            Layout.$('#issueProductDropdown').classList.add('hidden');
-            renderIssueItems();
+            renderIssuanceItems();
         }
 
-        // Load from menu
-        function showLoadFromMenuModal() {
-            Layout.$('#menuLoadDate').value = new Date().toISOString().split('T')[0];
-            Layout.$('#loadFromMenuModal').showModal();
+        // Callback for product modal
+        function onProductAdded(product, quantity) {
+            addIssuanceItem(product.id, quantity, product.unit);
         }
 
-        function closeLoadFromMenuModal() {
-            Layout.$('#loadFromMenuModal').close();
+        // ==================== SAVE ISSUANCE ====================
+        let saving = false;
+
+        function setSaving(isSaving) {
+            saving = isSaving;
+            const btn = Layout.$('#saveIssuanceBtn');
+            const spinner = Layout.$('#saveSpinner');
+            const text = Layout.$('#saveText');
+
+            btn.disabled = isSaving;
+            spinner.classList.toggle('hidden', !isSaving);
+            text.textContent = isSaving ? tr('saving', 'Сохранение...') : tr('save_issuance', 'Сохранить выдачу');
         }
 
-        async function loadFromMenu() {
-            const date = Layout.$('#menuLoadDate').value;
-            const includeBreakfast = Layout.$('#menuLoadBreakfast').checked;
-            const includeLunch = Layout.$('#menuLoadLunch').checked;
-            const includeDinner = Layout.$('#menuLoadDinner').checked;
+        async function saveIssuance() {
+            // Блокируем сразу синхронно
+            if (saving) return;
+            saving = true;
+            Layout.$('#saveIssuanceBtn').disabled = true;
 
-            if (!date) {
-                alert('Выберите дату');
+            if (issuanceItemsList.length === 0) {
+                showAlert(tr('add_at_least_one', 'Добавьте хотя бы один продукт'));
+                saving = false;
+                Layout.$('#saveIssuanceBtn').disabled = false;
                 return;
             }
 
-            // Load menu items for the date
-            const mealTypes = [];
-            if (includeBreakfast) mealTypes.push('breakfast');
-            if (includeLunch) mealTypes.push('lunch');
-            if (includeDinner) mealTypes.push('dinner');
+            // Check if any items exceed stock
+            const overStockItems = [];
+            for (const item of issuanceItemsList) {
+                const product = products.find(p => p.id === item.product_id);
+                const stockQty = getStockQuantity(item.product_id);
+                const qtyInStockUnit = toStockUnit(item.quantity, item.display_unit, product?.unit);
 
-            const { data: menuItems, error } = await Layout.db
-                .from('daily_menu')
-                .select('*, recipes(*, recipe_ingredients(*, products(*)))')
-                .eq('menu_date', date)
-                .in('meal_type', mealTypes);
-
-            if (error) {
-                console.error('Error loading menu:', error);
-                alert('Ошибка загрузки меню');
-                return;
-            }
-
-            // Aggregate ingredients
-            const ingredientMap = {};
-            (menuItems || []).forEach(mi => {
-                const recipe = mi.recipes;
-                if (!recipe?.recipe_ingredients) return;
-
-                const portionMultiplier = (mi.servings || 50) / (recipe.servings || 50);
-
-                recipe.recipe_ingredients.forEach(ri => {
-                    const productId = ri.product_id;
-                    const amount = (ri.amount || 0) * portionMultiplier;
-
-                    if (ingredientMap[productId]) {
-                        ingredientMap[productId] += amount;
-                    } else {
-                        ingredientMap[productId] = amount;
-                    }
-                });
-            });
-
-            // Add to issue items
-            Object.entries(ingredientMap).forEach(([productId, amount]) => {
-                if (!issueItemsList.some(i => i.product_id === productId)) {
-                    issueItemsList.push({
-                        product_id: productId,
-                        quantity: Math.round(amount * 10) / 10
-                    });
+                if (qtyInStockUnit > stockQty) {
+                    overStockItems.push(Layout.getName(product));
                 }
-            });
+            }
 
-            closeLoadFromMenuModal();
-            renderIssueItems();
+            if (overStockItems.length > 0) {
+                showAlert(tr('insufficient_stock', 'Недостаточно на складе') + ':\n' + overStockItems.join(', '));
+                saving = false;
+                Layout.$('#saveIssuanceBtn').disabled = false;
+                return;
+            }
+
+            setSaving(true);
+
+            try {
+                const locationId = (await Layout.db.from('locations').select('id').eq('slug', Layout.currentLocation).single()).data?.id;
+
+                const issuanceData = {
+                    location_id: locationId,
+                    issuance_date: Layout.$('#issuanceDate').value,
+                    purpose: Layout.$('#issuancePurpose').value,
+                    notes: Layout.$('#issuanceNotes').value.trim()
+                };
+
+                const { data: issuance, error } = await Layout.db
+                    .from('stock_issuances')
+                    .insert(issuanceData)
+                    .select()
+                    .single();
+
+                if (error) {
+                    console.error('Error saving issuance:', error);
+                    showAlert(tr('save_error', 'Ошибка сохранения'));
+                    setSaving(false);
+                    return;
+                }
+
+                const items = issuanceItemsList.map(i => ({
+                    issuance_id: issuance.id,
+                    product_id: i.product_id,
+                    quantity: i.quantity
+                }));
+
+                const { error: itemsError } = await Layout.db.from('stock_issuance_items').insert(items);
+
+                if (itemsError) {
+                    console.error('Error saving items:', itemsError);
+                }
+
+                // Update stock quantities (SUBTRACT)
+                for (const item of issuanceItemsList) {
+                    const { data: stockItem } = await Layout.db
+                        .from('stock')
+                        .select('id, current_quantity')
+                        .eq('product_id', item.product_id)
+                        .eq('location_id', locationId)
+                        .single();
+
+                    if (stockItem) {
+                        const newQty = Math.max(0, stockItem.current_quantity - item.quantity);
+                        await Layout.db.from('stock').update({
+                            current_quantity: newQty
+                        }).eq('id', stockItem.id);
+                    }
+                }
+
+                // Clear form and switch to saved tab
+                issuanceItemsList = [];
+                Layout.$('#issuanceDate').value = new Date().toISOString().split('T')[0];
+                Layout.$('#issuancePurpose').value = 'cooking';
+                Layout.$('#issuanceNotes').value = '';
+                renderIssuanceItems();
+
+                await loadStock();
+                await loadIssuances();
+                switchTab('saved');
+            } finally {
+                setSaving(false);
+            }
         }
 
-        async function saveIssue() {
-            if (issueItemsList.length === 0) {
-                alert('Добавьте хотя бы один продукт');
+        // ==================== SAVED ISSUANCES ====================
+        function renderSavedIssuances() {
+            const container = document.getElementById('savedIssuancesList');
+            if (!container) return;
+
+            const saved = issuances.filter(r => !r.archived && !r.deleted);
+
+            if (saved.length === 0) {
+                container.innerHTML = `<div class="text-center py-12 opacity-50"><div class="text-4xl mb-2">📤</div><div>${tr('no_issuances', 'Нет сохранённых выдач')}</div></div>`;
                 return;
             }
 
-            const locationId = (await Layout.db.from('locations').select('id').eq('slug', Layout.currentLocation).single()).data?.id;
-            const recipientId = Layout.$('#issueRecipient').value || null;
+            container.innerHTML = saved.map(rec => renderIssuanceCard(rec, 'saved')).join('');
+        }
 
-            const issueData = {
-                location_id: locationId,
-                recipient_id: recipientId,
-                issue_date: Layout.$('#issueDate').value,
-                notes: Layout.$('#issueNotes').value.trim()
-            };
+        function renderArchivedIssuances() {
+            const container = document.getElementById('archivedIssuancesList');
+            if (!container) return;
 
-            const { data: issue, error } = await Layout.db
-                .from('stock_issues')
-                .insert(issueData)
-                .select()
-                .single();
+            const archived = issuances.filter(r => r.archived && !r.deleted);
 
-            if (error) {
-                console.error('Error saving issue:', error);
-                alert('Ошибка сохранения');
+            if (archived.length === 0) {
+                container.innerHTML = `<div class="text-center py-12 opacity-50"><div class="text-4xl mb-2">📦</div><div>${tr('issuances_empty', 'Нет выдач в архиве')}</div></div>`;
                 return;
             }
 
-            const items = issueItemsList.map(i => ({
-                issue_id: issue.id,
+            container.innerHTML = archived.map(rec => renderIssuanceCard(rec, 'archived')).join('');
+        }
+
+        function renderDeletedIssuances() {
+            const container = document.getElementById('deletedIssuancesList');
+            if (!container) return;
+
+            const deleted = issuances.filter(r => r.deleted);
+
+            if (deleted.length === 0) {
+                container.innerHTML = `<div class="text-center py-12 opacity-50"><div class="text-4xl mb-2">🗑️</div><div>${tr('deleted_issuances_empty', 'Нет удалённых выдач')}</div></div>`;
+                return;
+            }
+
+            container.innerHTML = deleted.map(rec => renderIssuanceCard(rec, 'deleted')).join('');
+        }
+
+        function renderIssuanceCard(rec, status) {
+            // status: 'saved', 'archived', 'deleted'
+            const items = rec.stock_issuance_items || [];
+            const date = new Date(rec.issuance_date || rec.created_at).toLocaleDateString('ru-RU');
+            const purposeText = getPurposeText(rec.purpose);
+
+            const borderColor = status === 'deleted' ? 'border-red-300' : (status === 'archived' ? 'border-gray-300' : 'border-green-500');
+
+            let actions = '';
+            if (status === 'saved') {
+                actions = `
+                    <button class="btn btn-ghost btn-sm text-sm opacity-60 normal-case font-normal" onclick="archiveIssuance('${rec.id}')">${tr('to_archive', 'В архив')}</button>
+                    <span class="text-base-300">|</span>
+                    <button class="btn btn-ghost btn-sm text-sm text-error opacity-60 normal-case font-normal" onclick="deleteIssuance('${rec.id}')">${tr('delete', 'Удалить')}</button>
+                `;
+            } else if (status === 'archived') {
+                actions = `
+                    <button class="btn btn-ghost btn-sm text-sm text-error opacity-60 normal-case font-normal" onclick="deleteIssuance('${rec.id}')">${tr('delete', 'Удалить')}</button>
+                `;
+            } else if (status === 'deleted') {
+                actions = `
+                    <button class="btn btn-ghost btn-sm text-sm text-success opacity-60 normal-case font-normal" onclick="restoreIssuance('${rec.id}')">${tr('restore', 'Восстановить')}</button>
+                    <span class="text-base-300">|</span>
+                    <button class="btn btn-ghost btn-sm text-sm text-error opacity-60 normal-case font-normal" onclick="permanentDeleteIssuance('${rec.id}')">${tr('delete_permanently', 'Удалить навсегда')}</button>
+                `;
+            }
+
+            return `
+                <div class="bg-base-100 rounded-lg p-4 shadow-sm border-l-4 ${borderColor}">
+                    <div class="flex flex-col md:flex-row md:items-center justify-between gap-4">
+                        <div>
+                            <div class="font-semibold text-lg">${tr('issuance', 'Выдача')} #${formatNumberWithYear(rec.number || rec.id?.slice(0,4))}</div>
+                            <div class="text-sm opacity-60">${date} · ${purposeText}</div>
+                        </div>
+                        <div class="flex items-center gap-4">
+                            <div class="text-center">
+                                <div class="font-bold" style="color: var(--current-color)">${items.length}</div>
+                                <div class="text-xs opacity-60">${tr('items', 'позиций')}</div>
+                            </div>
+                            <div class="flex items-center gap-2">
+                                <button class="btn btn-ghost btn-md" title="${tr('view', 'Просмотр')}" onclick="viewIssuance('${rec.id}')">
+                                    <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
+                                        <path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                                        <path stroke-linecap="round" stroke-linejoin="round" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                                    </svg>
+                                </button>
+                                <span class="text-base-300">|</span>
+                                ${actions}
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            `;
+        }
+
+        // ==================== VIEW/EDIT ISSUANCE ====================
+        function viewIssuance(id) {
+            const rec = issuances.find(r => r.id === id);
+            if (!rec) return;
+
+            viewingIssuance = rec;
+            viewingItems = (rec.stock_issuance_items || []).map(i => ({
                 product_id: i.product_id,
                 quantity: i.quantity
             }));
 
-            const { error: itemsError } = await Layout.db.from('stock_issue_items').insert(items);
+            Layout.$('#viewIssuanceTitle').textContent = `${tr('issuance', 'Выдача')} #${formatNumberWithYear(rec.number || id.slice(0,4))}`;
+            Layout.$('#viewIssuanceDate').textContent = new Date(rec.issuance_date || rec.created_at).toLocaleDateString('ru-RU');
+            Layout.$('#viewIssuancePurpose').textContent = getPurposeText(rec.purpose);
+            Layout.$('#viewIssuanceNotes').textContent = rec.notes || '';
 
-            if (itemsError) {
-                console.error('Error saving items:', itemsError);
+            renderViewedIssuance();
+            Layout.$('#viewIssuanceModal').showModal();
+        }
+
+        function renderViewedIssuance() {
+            const tbody = Layout.$('#viewIssuanceItems');
+            const total = viewingItems.length;
+            Layout.$('#viewIssuanceTotal').textContent = total;
+
+            tbody.innerHTML = viewingItems.map((item, idx) => {
+                const product = products.find(p => p.id === item.product_id);
+                return `
+                    <tr>
+                        <td>
+                            <div class="font-medium">${Layout.getName(product)}</div>
+                            ${product?.translit || product?.name_hi ? `<div class="text-xs opacity-50 italic">${product?.translit || Layout.transliterateHindi(product?.name_hi)}</div>` : ''}
+                        </td>
+                        <td>
+                            <div class="flex items-center gap-1">
+                                <input type="number" class="input input-bordered input-sm w-20" value="${item.quantity}" min="0" step="0.1" onchange="updateViewedItem(${idx}, 'quantity', this.value)" />
+                                <span class="text-xs opacity-50">${product?.unit || ''}</span>
+                            </div>
+                        </td>
+                        <td>
+                            <button class="btn btn-ghost btn-sm btn-square text-error" onclick="removeViewedItem(${idx})">
+                                <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+                                </svg>
+                            </button>
+                        </td>
+                    </tr>
+                `;
+            }).join('');
+        }
+
+        function updateViewedItem(idx, field, value) {
+            viewingItems[idx][field] = parseFloat(value) || 0;
+            renderViewedIssuance();
+        }
+
+        function removeViewedItem(idx) {
+            viewingItems.splice(idx, 1);
+            renderViewedIssuance();
+        }
+
+        async function saveViewedIssuance() {
+            if (!viewingIssuance) return;
+
+            // Delete old items
+            await Layout.db.from('stock_issuance_items').delete().eq('issuance_id', viewingIssuance.id);
+
+            // Insert new items
+            const items = viewingItems.map(i => ({
+                issuance_id: viewingIssuance.id,
+                product_id: i.product_id,
+                quantity: i.quantity
+            }));
+
+            await Layout.db.from('stock_issuance_items').insert(items);
+
+            closeViewIssuanceModal();
+            await loadIssuances();
+            if (currentTab === 'saved') renderSavedIssuances();
+            if (currentTab === 'archive') renderArchivedIssuances();
+        }
+
+        function closeViewIssuanceModal() {
+            Layout.$('#viewIssuanceModal').close();
+            viewingIssuance = null;
+            viewingItems = [];
+        }
+
+        function printViewedIssuance() {
+            window.print();
+        }
+
+        // ==================== ARCHIVE & DELETE ====================
+        async function archiveIssuance(id) {
+            if (!await showConfirm(tr('archive_confirm', 'Переместить в архив?'))) return;
+
+            const { error } = await Layout.db.from('stock_issuances').update({ archived: true }).eq('id', id);
+            if (error) {
+                console.error('Error archiving:', error);
+                return;
             }
+            await loadIssuances();
+            renderSavedIssuances();
+        }
 
-            // Update stock quantities (decrease)
-            for (const item of issueItemsList) {
+        async function deleteIssuance(id) {
+            if (!await showConfirm(tr('delete_confirm', 'Переместить в удалённые?'))) return;
+
+            const { error } = await Layout.db.from('stock_issuances').update({ deleted: true }).eq('id', id);
+            if (error) {
+                console.error('Error deleting:', error);
+                return;
+            }
+            await loadIssuances();
+            if (currentTab === 'saved') renderSavedIssuances();
+            if (currentTab === 'archive') renderArchivedIssuances();
+        }
+
+        async function restoreIssuance(id) {
+            const { error } = await Layout.db.from('stock_issuances').update({ deleted: false }).eq('id', id);
+            if (error) {
+                console.error('Error restoring:', error);
+                return;
+            }
+            await loadIssuances();
+            renderDeletedIssuances();
+        }
+
+        async function permanentDeleteIssuance(id) {
+            if (!await showConfirm(tr('permanent_delete_confirm', 'Удалить навсегда? Количества на складе будут возвращены. Это действие нельзя отменить!'))) return;
+
+            const rec = issuances.find(r => r.id === id);
+            if (!rec) return;
+
+            const locationId = (await Layout.db.from('locations').select('id').eq('slug', Layout.currentLocation).single()).data?.id;
+
+            // Возвращаем количества на склад (ADD back)
+            for (const item of (rec.stock_issuance_items || [])) {
                 const { data: stockItem } = await Layout.db
                     .from('stock')
                     .select('id, current_quantity')
@@ -491,107 +1161,233 @@
                     .single();
 
                 if (stockItem) {
-                    const newQty = Math.max(0, stockItem.current_quantity - item.quantity);
-                    await Layout.db.from('stock').update({
-                        current_quantity: newQty
-                    }).eq('id', stockItem.id);
+                    const newQty = stockItem.current_quantity + item.quantity;
+                    await Layout.db.from('stock').update({ current_quantity: newQty }).eq('id', stockItem.id);
                 }
             }
 
-            closeIssueModal();
-            await loadStock();
-            await loadIssues();
-        }
+            // Удаляем items
+            await Layout.db.from('stock_issuance_items').delete().eq('issuance_id', id);
 
-        async function archiveIssue(id) {
-            if (!confirm('Переместить в архив?')) return;
-
-            const { error } = await Layout.db.from('stock_issues').update({ archived: true }).eq('id', id);
+            // Удаляем выдачу
+            const { error } = await Layout.db.from('stock_issuances').delete().eq('id', id);
             if (error) {
-                console.error('Error archiving:', error);
-                return;
-            }
-            await loadIssues();
-        }
-
-        function viewIssue(id) {
-            const issue = issues.find(i => i.id === id);
-            if (!issue) return;
-
-            editingIssueId = id;
-            issueItemsList = (issue.stock_issue_items || []).map(i => ({
-                product_id: i.product_id,
-                quantity: i.quantity
-            }));
-
-            const date = new Date(issue.issue_date || issue.created_at);
-            date.setMinutes(date.getMinutes() - date.getTimezoneOffset());
-
-            Layout.$('#issueModalTitle').textContent = `Выдача №${issue.number || id.slice(0,4)}`;
-            Layout.$('#issueDate').value = date.toISOString().slice(0, 16);
-            Layout.$('#issueRecipient').value = issue.recipient_id || '';
-            Layout.$('#issueNotes').value = issue.notes || '';
-            renderIssueItems();
-
-            Layout.$('#issueModal').showModal();
-        }
-
-        // Product search
-        Layout.$('#issueProductSearch')?.addEventListener('input', (e) => {
-            const query = e.target.value.toLowerCase();
-            const dropdown = Layout.$('#issueProductDropdown');
-
-            if (query.length < 1) {
-                dropdown.classList.add('hidden');
+                console.error('Error deleting issuance:', error);
                 return;
             }
 
-            // Only show products that are in stock
-            const inStockProductIds = stockItems.map(s => s.product_id);
-            const filtered = products.filter(p =>
-                inStockProductIds.includes(p.id) && (
-                    p.name_ru?.toLowerCase().includes(query) ||
-                    p.name_en?.toLowerCase().includes(query)
-                )
-            ).slice(0, 8);
-
-            if (filtered.length === 0) {
-                dropdown.innerHTML = '<div class="p-3 text-sm opacity-50">Ничего не найдено</div>';
-            } else {
-                dropdown.innerHTML = filtered.map(p => {
-                    const stockItem = stockItems.find(s => s.product_id === p.id);
-                    return `
-                        <div class="p-3 hover:bg-base-200 cursor-pointer border-b border-base-200 last:border-0" onclick="addIssueItem('${p.id}')">
-                            <div class="font-medium">${Layout.getName(p)}</div>
-                            <div class="text-xs opacity-50">На складе: ${stockItem?.current_quantity || 0} ${p.unit || ''}</div>
-                        </div>
-                    `;
-                }).join('');
-            }
-
-            dropdown.classList.remove('hidden');
-        });
+            await loadStock();
+            await loadIssuances();
+            renderDeletedIssuances();
+        }
 
         // ==================== EVENT LISTENERS ====================
-        document.addEventListener('click', e => {
-            if (!e.target.closest('#issueProductSearch') && !e.target.closest('#issueProductDropdown')) {
-                Layout.$('#issueProductDropdown')?.classList.add('hidden');
-            }
-        });
-
         window.onLanguageChange = function(lang) {
             Layout.updateAllTranslations();
-            renderCookSelect();
-            renderIssues();
+            renderIssuanceItems();
+            if (currentTab === 'saved') renderSavedIssuances();
+            if (currentTab === 'archive') renderArchivedIssuances();
+            if (currentTab === 'deleted') renderDeletedIssuances();
         };
+
+        // ==================== CHOICE SECTION ====================
+        function showChoiceSection() {
+            Layout.$('#issueChoiceSection').classList.remove('hidden');
+            Layout.$('#issueFormSection').classList.add('hidden');
+        }
+
+        function showFormSection() {
+            Layout.$('#issueChoiceSection').classList.add('hidden');
+            Layout.$('#issueFormSection').classList.remove('hidden');
+        }
+
+        function backToChoice() {
+            issuanceItemsList = [];
+            renderIssuanceItems();
+            showChoiceSection();
+        }
+
+        function createManualIssue() {
+            issuanceItemsList = [];
+            Layout.$('#issuanceDate').value = new Date().toISOString().split('T')[0];
+            Layout.$('#issuancePurpose').value = 'cooking';
+            Layout.$('#issuanceNotes').value = '';
+            renderIssuanceItems();
+            showFormSection();
+        }
+
+        async function generateFromMenu() {
+            const date = Layout.$('#menuLoadDate').value;
+            const includeBreakfast = Layout.$('#menuLoadBreakfast').checked;
+            const includeLunch = Layout.$('#menuLoadLunch').checked;
+            const includeDinner = Layout.$('#menuLoadDinner').checked;
+
+
+            if (!includeBreakfast && !includeLunch && !includeDinner) {
+                showAlert(tr('select_meal', 'Выберите хотя бы один приём пищи'));
+                return;
+            }
+
+            try {
+                // Get location ID
+                const locationId = (await Layout.db.from('locations').select('id').eq('slug', Layout.currentLocation).single()).data?.id;
+
+                // Build meal types filter
+                const mealTypes = [];
+                if (includeBreakfast) mealTypes.push('breakfast');
+                if (includeLunch) mealTypes.push('lunch');
+                if (includeDinner) mealTypes.push('dinner');
+
+                // Step 1: Get meals for the selected date
+                const { data: meals, error: mealsError } = await Layout.db
+                    .from('menu_meals')
+                    .select('id, meal_type, portions')
+                    .eq('location_id', locationId)
+                    .eq('date', date)
+                    .in('meal_type', mealTypes);
+
+                if (mealsError) throw mealsError;
+
+                if (!meals || meals.length === 0) {
+                    showAlert(tr('no_menu_for_date', 'На выбранную дату меню не найдено'));
+                    return;
+                }
+
+                // Step 2: Get dishes for these meals
+                const mealIds = meals.map(m => m.id);
+                const { data: dishes, error: dishesError } = await Layout.db
+                    .from('menu_dishes')
+                    .select('meal_id, recipe_id')
+                    .in('meal_id', mealIds);
+
+                if (dishesError) throw dishesError;
+
+                if (!dishes || dishes.length === 0) {
+                    showAlert(tr('no_ingredients', 'Для выбранных приёмов пищи нет блюд'));
+                    return;
+                }
+
+                // Step 3: Get recipes to know their output (for scaling)
+                const recipeIds = [...new Set(dishes.map(d => d.recipe_id))];
+                const { data: recipes, error: recipesError } = await Layout.db
+                    .from('recipes')
+                    .select('id, output_amount, output_unit, portion_amount, portion_unit')
+                    .in('id', recipeIds);
+
+                if (recipesError) throw recipesError;
+
+                // Step 4: Get ingredients for these recipes (with unit!)
+                const { data: ingredients, error: ingredientsError } = await Layout.db
+                    .from('recipe_ingredients')
+                    .select('recipe_id, product_id, amount, unit')
+                    .in('recipe_id', recipeIds);
+
+                if (ingredientsError) throw ingredientsError;
+
+                // Build lookup maps
+                const mealsMap = {};
+                meals.forEach(m => mealsMap[m.id] = m);
+
+                const recipesMap = {};
+                recipes.forEach(r => recipesMap[r.id] = r);
+
+                // Calculate how many portions a recipe makes
+                function getRecipePortions(recipe) {
+                    if (!recipe || !recipe.output_amount || !recipe.portion_amount) {
+                        return 1; // fallback
+                    }
+                    // Convert both to same base unit
+                    const output = toBaseUnit(recipe.output_amount, recipe.output_unit);
+                    const portion = toBaseUnit(recipe.portion_amount, recipe.portion_unit);
+                    if (portion <= 0) return 1;
+                    return output / portion;
+                }
+
+                // Collect all ingredients with proper scaling
+                const ingredientsMap = {};
+
+                dishes.forEach(dish => {
+                    const meal = mealsMap[dish.meal_id];
+                    const recipe = recipesMap[dish.recipe_id];
+                    if (!meal) return;
+
+                    const mealPortions = meal.portions || 1;
+                    const recipePortions = getRecipePortions(recipe);
+                    const scale = mealPortions / recipePortions;
+
+                    // Find ingredients for this recipe
+                    const recipeIngredients = ingredients.filter(i => i.recipe_id === dish.recipe_id);
+
+                    recipeIngredients.forEach(ing => {
+                        if (!ing.product_id) return;
+
+                        if (!ingredientsMap[ing.product_id]) {
+                            ingredientsMap[ing.product_id] = 0;
+                        }
+                        const baseAmount = toBaseUnit(ing.amount || 0, ing.unit);
+                        ingredientsMap[ing.product_id] += baseAmount * scale;
+                    });
+                });
+
+                if (Object.keys(ingredientsMap).length === 0) {
+                    showAlert(tr('no_ingredients', 'Для выбранных приёмов пищи нет блюд'));
+                    return;
+                }
+
+                // Clear existing items and add from menu
+                issuanceItemsList = [];
+
+                Object.entries(ingredientsMap).forEach(([productId, amountInBaseUnit]) => {
+                    const product = products.find(p => p.id === productId);
+                    if (product) {
+                        // Convert to smart display (kg/g, l/ml)
+                        const display = toSmartDisplay(amountInBaseUnit, product.unit);
+                        issuanceItemsList.push({
+                            product_id: productId,
+                            quantity: Math.round(display.amount * 10) / 10, // Round to 1 decimal
+                            display_unit: display.unit
+                        });
+                    }
+                });
+
+                renderIssuanceItems();
+
+                // Update the issuance date to match menu date
+                Layout.$('#issuanceDate').value = date;
+
+                showFormSection();
+
+            } catch (error) {
+                console.error('Error loading from menu:', error);
+                showAlert(tr('load_error', 'Ошибка загрузки'));
+            }
+        }
 
         // ==================== INIT ====================
         async function init() {
             await Layout.init({ menuId: 'stock', itemId: 'issue' });
+
+            // Set initial dates
+            const today = new Date().toISOString().split('T')[0];
+            Layout.$('#issuanceDate').value = today;
+            Layout.$('#menuLoadDate').value = today;
+
+            // Style initial active tab
+            const activeBtn = document.querySelector('#mainTabs .tab[data-tab="new"]');
+            activeBtn.style.backgroundColor = 'var(--current-color)';
+            activeBtn.style.color = 'white';
+
             await loadProducts();
+            await loadProductCategories();
             await loadStock();
-            await loadCooks();
-            await loadIssues();
+            await loadIssuances();
+
+            renderIssuanceItems();
+            renderSavedIssuances();
+            renderArchivedIssuances();
+            renderDeletedIssuances();
+            initialized = true;
+            Layout.updateAllTranslations();
         }
 
         init();
