@@ -669,9 +669,23 @@
                         ${dishes.map(dish => {
                             const recipe = dish.recipe;
                             if (!recipe) return '';
-                            const portionInfo = dish.portion_size ? `${dish.portion_size} ${getUnitShort(dish.portion_unit)}` : '';
                             const notEkadashiWarning = isEkadashiDay && !recipe.ekadashi;
                             const categoryName = recipe.category ? getName(recipe.category) : '';
+
+                            // Для кафе — редактируемое количество, для остальных — бейдж
+                            const quantityHtml = isCafe ? `
+                                <div class="join no-print">
+                                    <input type="number"
+                                           class="input input-sm input-bordered join-item w-16 text-center"
+                                           value="${dish.portion_size || ''}"
+                                           min="0"
+                                           step="0.5"
+                                           onchange="updateDishQuantity('${dish.id}', this.value)"
+                                    />
+                                    <span class="btn btn-sm join-item no-animation pointer-events-none bg-base-200">${getUnitShort(dish.portion_unit)}</span>
+                                </div>
+                                <span class="hidden print:inline badge badge-lg">${dish.portion_size || ''} ${getUnitShort(dish.portion_unit)}</span>
+                            ` : `<span class="badge badge-lg">${dish.portion_size ? `${dish.portion_size} ${getUnitShort(dish.portion_unit)}` : ''}</span>`;
 
                             return `
                                 <div class="flex justify-between items-center py-2 border-b border-base-300 last:border-0 ${notEkadashiWarning ? 'bg-error/10 -mx-2 px-2 rounded' : ''}">
@@ -681,7 +695,7 @@
                                         ${notEkadashiWarning ? `<span class="text-xs text-error ml-2">⚠ ${t('ekadashi_warning')}</span>` : ''}
                                     </div>
                                     <div class="flex items-center gap-2">
-                                        <span class="badge badge-lg">${portionInfo}</span>
+                                        ${quantityHtml}
                                         <button class="btn btn-ghost btn-sm btn-square text-error/60 hover:text-error hover:bg-error/10 no-print" onclick="removeDish('${dateStr}', '${mealType}', '${dish.id}')">
                                             <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
@@ -995,6 +1009,26 @@
             }
 
             render();
+        }
+
+        async function updateDishQuantity(dishId, value) {
+            const quantity = parseFloat(value) || 0;
+
+            await Layout.db
+                .from('menu_dishes')
+                .update({ portion_size: quantity })
+                .eq('id', dishId);
+
+            // Обновляем локальные данные
+            for (const dateStr in menuData) {
+                for (const mealType in menuData[dateStr]) {
+                    const dish = menuData[dateStr][mealType].dishes?.find(d => d.id === dishId);
+                    if (dish) {
+                        dish.portion_size = quantity;
+                        return;
+                    }
+                }
+            }
         }
 
         // ==================== DISH MODAL ====================
