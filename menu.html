@@ -590,8 +590,9 @@
             const dishes = mealData?.dishes || [];
             const portions = mealData?.portions || 50;
             const cook = mealData?.cook;
+            const isCafe = Layout.currentLocation === 'cafe';
 
-            // Calculate totals
+            // Calculate totals (для основной кухни - суммируем порции на человека)
             let totalG = 0, totalMl = 0, totalPcs = 0;
             dishes.forEach(d => {
                 const u = d.portion_unit?.toLowerCase();
@@ -599,11 +600,14 @@
                 else if (u === 'мл' || u === 'ml') totalMl += parseFloat(d.portion_size) || 0;
                 else if (u === 'шт' || u === 'pcs') totalPcs += parseFloat(d.portion_size) || 0;
             });
-            const totals = [
+            const totals = !isCafe ? [
                 totalG > 0 ? `${totalG} ${getUnitShort('g')}` : '',
                 totalMl > 0 ? `${totalMl} ${getUnitShort('ml')}` : '',
                 totalPcs > 0 ? `${totalPcs} ${getUnitShort('pcs')}` : ''
-            ].filter(Boolean).join(' · ');
+            ].filter(Boolean).join(' · ') : '';
+
+            // Для кафе показываем просто "Меню дня" без номера
+            const mealTitle = isCafe ? getMealTypeName(mealType) : `${index + 1}. ${getMealTypeName(mealType)}`;
 
             if (dishes.length === 0) {
                 return `
@@ -613,27 +617,15 @@
                                 <svg xmlns="http://www.w3.org/2000/svg" class="h-10 w-10" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" />
                                 </svg>
-                                <span class="text-xl font-medium">${index + 1}. ${getMealTypeName(mealType)}</span>
+                                <span class="text-xl font-medium">${mealTitle}</span>
                             </div>
                         </div>
                     </div>
                 `;
             }
 
-            return `
-                <div class="p-4 rounded-lg bg-white/70">
-                    <div class="flex justify-between items-center mb-3 pb-2 border-b border-base-300/50">
-                        <div class="flex items-center gap-3">
-                            <span class="font-bold text-xl">${index + 1}. ${getMealTypeName(mealType)}</span>
-                            ${totals ? `<span class="text-base opacity-60">${totals}</span>` : ''}
-                        </div>
-                        <button class="btn btn-ghost btn-md btn-square opacity-50 hover:opacity-100 no-print" onclick="openDishModal('${dateStr}', '${mealType}')">
-                            <svg xmlns="http://www.w3.org/2000/svg" class="h-7 w-7" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" />
-                            </svg>
-                        </button>
-                    </div>
-
+            // Блок повара и порций (для кафе - ничего не показываем)
+            const controlsHtml = isCafe ? `` : `
                     <div class="flex items-center gap-4 mb-3 p-2 bg-base-100 rounded-lg no-print">
                         <div class="flex items-center gap-2 flex-1">
                             <span class="text-sm opacity-60">${t('cook')}:</span>
@@ -655,6 +647,23 @@
                     <div class="print-only print-meal-info">
                         ${t('cook')}:&nbsp;<strong>${getPersonName(cook) || '—'}</strong> · ${t('portions')}:&nbsp;<strong>${portions}</strong>
                     </div>
+            `;
+
+            return `
+                <div class="p-4 rounded-lg bg-white/70">
+                    <div class="flex justify-between items-center mb-3 pb-2 border-b border-base-300/50">
+                        <div class="flex items-center gap-3">
+                            <span class="font-bold text-xl">${mealTitle}</span>
+                            ${totals ? `<span class="text-base opacity-60">${totals}</span>` : ''}
+                        </div>
+                        <button class="btn btn-ghost btn-md btn-square opacity-50 hover:opacity-100 no-print" onclick="openDishModal('${dateStr}', '${mealType}')">
+                            <svg xmlns="http://www.w3.org/2000/svg" class="h-7 w-7" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" />
+                            </svg>
+                        </button>
+                    </div>
+
+                    ${controlsHtml}
 
                     <div class="space-y-2">
                         ${dishes.map(dish => {
