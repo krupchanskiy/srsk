@@ -151,11 +151,14 @@
 
     <!-- Print-only container (outside modal) -->
     <div id="printContainer" class="hidden print:block">
+        <!-- Крупная плашка с названием кухни -->
+        <div id="printKitchenBanner" style="padding: 10px 16px; margin-bottom: 1rem; border-radius: 6px; text-align: center; -webkit-print-color-adjust: exact; print-color-adjust: exact;">
+            <div style="font-size: 18px; font-weight: bold; text-transform: uppercase; letter-spacing: 1px; color: white;" id="printKitchenName"></div>
+        </div>
         <div id="printHeader" style="margin-bottom: 1rem; padding-bottom: 0.5rem; border-bottom: 2px solid black;">
             <div style="display: flex; justify-content: space-between;">
                 <div>
                     <div style="font-size: 14px; font-weight: bold;" data-i18n="org_name">Шри Рупа Сева Кунджа</div>
-                    <div style="font-size: 12px; opacity: 0.7;" id="printContainerLocation"></div>
                 </div>
                 <div style="text-align: right;">
                     <div style="font-size: 16px; font-weight: bold;" id="printContainerTitle"></div>
@@ -1155,10 +1158,21 @@
             Layout.$('#printContainerTitle').textContent = `${tr('request', 'Заявка')} #${formatNumberWithYear(req.number)}`;
             Layout.$('#printContainerPeriod').textContent = `${tr('period', 'Период')}: ${periodFrom} — ${periodTo}`;
 
-            // Get location name
+            // Get location name and set kitchen banner
             const loc = Layout.locations?.find(l => l.slug === Layout.currentLocation);
             if (loc) {
-                Layout.$('#printContainerLocation').textContent = Layout.getName(loc);
+                const kitchenBanner = Layout.$('#printKitchenBanner');
+                const kitchenName = Layout.$('#printKitchenName');
+                kitchenName.textContent = Layout.getName(loc);
+
+                // Получаем цвет локации из CSS переменных
+                const colors = {
+                    main: '#f49800',  // оранжевый
+                    cafe: '#10b981',  // зелёный
+                    guest: '#3b82f6'  // синий
+                };
+                const color = colors[Layout.currentLocation] || '#f49800';
+                kitchenBanner.style.backgroundColor = color;
             }
 
             renderViewedRequest();

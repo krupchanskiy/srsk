@@ -87,6 +87,7 @@
         let recipes = [];
         let categories = [];
         let units = [];
+        let locationId = null;
 
         // Алиасы для удобства
         const t = key => Layout.t(key);
@@ -106,6 +107,15 @@
         };
 
         // ==================== DATA LOADING ====================
+        async function loadLocationId() {
+            const { data } = await Layout.db
+                .from('locations')
+                .select('id')
+                .eq('slug', Layout.currentLocation)
+                .single();
+            locationId = data?.id;
+        }
+
         async function loadCategories() {
             const { data, error } = await Layout.db.from('recipe_categories').select('*').order('sort_order');
             if (error) { console.error('Error loading categories:', error); return; }
@@ -114,7 +124,17 @@
         }
 
         async function loadRecipes() {
-            const { data, error } = await Layout.db.from('recipes').select('*, recipe_categories(slug, name_ru, name_en, name_hi, color, emoji)').order('name_ru');
+            let query = Layout.db
+                .from('recipes')
+                .select('*, recipe_categories(slug, name_ru, name_en, name_hi, color, emoji)')
+                .order('name_ru');
+
+            // Фильтруем по локации, если location_id установлен
+            if (locationId) {
+                query = query.eq('location_id', locationId);
+            }
+
+            const { data, error } = await query;
             if (error) { console.error('Error loading recipes:', error); return; }
             recipes = data;
             renderRecipes();
@@ -254,6 +274,7 @@
             await Layout.init({ menuId: 'kitchen', itemId: 'recipes' });
 
             // Загружаем данные страницы
+            await loadLocationId();
             await loadUnits();
             await loadCategories();
             await loadRecipes();

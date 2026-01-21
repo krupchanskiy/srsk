@@ -311,6 +311,7 @@
         let products = [];
         let ingredients = [];
         let instructions = [];
+        let locationId = null;
         let photoFile = null;
 
         const t = key => Layout.t(key);
@@ -445,6 +446,15 @@
         }
 
         // ==================== DATA LOADING ====================
+        async function loadLocationId() {
+            const { data } = await Layout.db
+                .from('locations')
+                .select('id')
+                .eq('slug', Layout.currentLocation)
+                .single();
+            locationId = data?.id;
+        }
+
         async function loadCategories() {
             const { data } = await Layout.db.from('recipe_categories').select('*').order('sort_order');
             return data || [];
@@ -761,7 +771,8 @@
                 description_hi: f.description_hi.value.trim() || null,
                 instructions_ru: instructionsRu || null,
                 instructions_en: instructionsEn || null,
-                instructions_hi: instructionsHi || null
+                instructions_hi: instructionsHi || null,
+                location_id: locationId
             };
 
             try {
@@ -877,7 +888,8 @@
             const params = new URLSearchParams(window.location.search);
             recipeId = params.get('id');
 
-            // Load reference data
+            // Load location and reference data
+            await loadLocationId();
             [categories, products] = await Promise.all([
                 loadCategories(),
                 loadProducts()

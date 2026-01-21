@@ -268,7 +268,17 @@
         let selectedRecipe = null;
         let currentCategory = 'all';
 
-        const mealTypes = ['breakfast', 'lunch', 'dinner'];
+        // Конфигурация типов приёмов пищи по локациям
+        const mealConfig = {
+            main: ['breakfast', 'lunch', 'dinner'],
+            cafe: ['menu'],  // Кафе: просто "Меню дня"
+            guest: ['breakfast', 'lunch', 'dinner']
+        };
+
+        // Получить типы приёмов пищи для текущей локации
+        function getMealTypes() {
+            return mealConfig[Layout.currentLocation] || ['breakfast', 'lunch', 'dinner'];
+        }
 
         // ==================== SHORTCUTS ====================
         const t = key => Layout.t(key);
@@ -388,10 +398,16 @@
         async function loadData() {
             const locationId = getCurrentLocation()?.id;
 
-            // Load recipes with categories
-            const { data: recipesData } = await Layout.db
+            // Load recipes with categories (filtered by location)
+            let recipesQuery = Layout.db
                 .from('recipes')
                 .select('*, category:recipe_categories(*)');
+
+            if (locationId) {
+                recipesQuery = recipesQuery.eq('location_id', locationId);
+            }
+
+            const { data: recipesData } = await recipesQuery;
             recipes = recipesData || [];
 
             // Load categories
@@ -564,7 +580,7 @@
                     </div>
 
                     <div class="p-4 space-y-4">
-                        ${mealTypes.map((mt, i) => renderMealSection(dateStr, mt, i, dayMenu[mt], isEkadashiDay)).join('')}
+                        ${getMealTypes().map((mt, i) => renderMealSection(dateStr, mt, i, dayMenu[mt], isEkadashiDay)).join('')}
                     </div>
                 </div>
             `;
@@ -734,7 +750,7 @@
                         </div>
 
                         <div class="p-3 space-y-2">
-                            ${mealTypes.map((mt, i) => {
+                            ${getMealTypes().map((mt, i) => {
                                 const meal = dayMenu[mt];
                                 if (!meal?.dishes?.length) {
                                     return '';
@@ -824,7 +840,7 @@
                     holidayIndicator = '<span class="text-xs font-medium text-amber-600">э</span>';
                 }
 
-                const mealLines = mealTypes.map((mt, i) => {
+                const mealLines = getMealTypes().map((mt, i) => {
                     const meal = dayMenu[mt];
                     if (!meal?.dishes?.length) return null;
                     const cookName = getPersonName(meal.cook).split(' ')[0];
