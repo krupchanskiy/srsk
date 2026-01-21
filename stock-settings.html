@@ -232,7 +232,7 @@
 
         // ==================== DATA LOADING ====================
         async function loadBuyers() {
-            const { data, error } = await Layout.db.from('buyers').select('*').order('name');
+            const { data, error } = await Layout.db.from('buyers').select('*').order('sort_order');
             if (error) { console.error('Error loading buyers:', error); return; }
             buyers = data || [];
             renderBuyers();
@@ -295,7 +295,7 @@
 
             tbody.innerHTML = buyers.map(buyer => `
                 <tr>
-                    <td class="font-medium">${buyer.name}</td>
+                    <td class="font-medium">${Layout.getName(buyer)}</td>
                     <td>${buyer.phone || '—'}</td>
                     <td class="text-sm opacity-60">${buyer.notes || '—'}</td>
                     <td>
@@ -331,7 +331,7 @@
 
             editingBuyerId = id;
             Layout.$('#buyerModalTitle').textContent = 'Редактировать закупщика';
-            Layout.$('#buyerName').value = buyer.name || '';
+            Layout.$('#buyerName').value = buyer.name_ru || '';
             Layout.$('#buyerPhone').value = buyer.phone || '';
             Layout.$('#buyerNotes').value = buyer.notes || '';
             Layout.$('#buyerModal').showModal();
@@ -349,7 +349,7 @@
             }
 
             const data = {
-                name,
+                name_ru: name,
                 phone: Layout.$('#buyerPhone').value.trim(),
                 notes: Layout.$('#buyerNotes').value.trim()
             };

@@ -619,7 +619,7 @@
         }
 
         async function loadBuyers() {
-            const { data, error } = await Layout.db.from('buyers').select('*').order('name');
+            const { data, error } = await Layout.db.from('buyers').select('*').order('sort_order');
             if (error) { console.error('Error loading buyers:', error); return; }
             buyers = data || [];
             renderBuyerSelect();
@@ -639,7 +639,7 @@
         async function loadReceipts() {
             const { data, error } = await Layout.db
                 .from('stock_receipts')
-                .select('*, stock_receipt_items(*, products(*)), buyers(name)')
+                .select('*, stock_receipt_items(*, products(*)), buyers(name_ru, name_en, name_hi)')
                 .order('created_at', { ascending: false });
 
             if (error) { console.error('Error loading receipts:', error); return; }
@@ -655,7 +655,7 @@
         function renderBuyerSelect() {
             const select = Layout.$('#receiptBuyer');
             select.innerHTML = `<option value="">${tr('select_buyer', 'Выберите закупщика')}</option>` +
-                buyers.map(b => `<option value="${b.id}">${b.name}</option>`).join('');
+                buyers.map(b => `<option value="${b.id}">${Layout.getName(b)}</option>`).join('');
         }
 
         // ==================== NEW RECEIPT ====================
@@ -960,7 +960,7 @@
             const items = rec.stock_receipt_items || [];
             const total = items.reduce((sum, i) => sum + (i.quantity * (i.price || 0)), 0);
             const date = new Date(rec.receipt_date || rec.created_at).toLocaleDateString('ru-RU');
-            const buyerName = rec.buyers?.name || tr('not_specified', 'Не указан');
+            const buyerName = Layout.getName(rec.buyers) || tr('not_specified', 'Не указан');
 
             const borderColor = status === 'deleted' ? 'border-red-300' : (status === 'archived' ? 'border-gray-300' : 'border-green-500');
 
@@ -1029,7 +1029,7 @@
 
             Layout.$('#viewReceiptTitle').textContent = `${tr('receipt', 'Приёмка')} #${formatNumberWithYear(rec.number || id.slice(0,4))}`;
             Layout.$('#viewReceiptDate').textContent = new Date(rec.receipt_date || rec.created_at).toLocaleDateString('ru-RU');
-            Layout.$('#viewReceiptBuyer').textContent = `${tr('buyer', 'Закупщик')}: ${rec.buyers?.name || tr('not_specified', 'Не указан')}`;
+            Layout.$('#viewReceiptBuyer').textContent = `${tr('buyer', 'Закупщик')}: ${Layout.getName(rec.buyers) || tr('not_specified', 'Не указан')}`;
             Layout.$('#viewReceiptNotes').textContent = rec.notes || '';
 
             renderViewedReceipt();
