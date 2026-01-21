@@ -733,13 +733,27 @@
                             ${acharyaLine}
                         </div>
 
-                        <div class="p-3 space-y-1 mt-auto">
+                        <div class="p-3 space-y-2 mt-auto">
                             ${mealTypes.map((mt, i) => {
                                 const meal = dayMenu[mt];
                                 if (!meal?.dishes?.length) {
                                     return `<div class="flex items-center text-sm opacity-30 py-1 no-print"><span class="w-4 text-center">${i + 1}.</span><span class="ml-1">${getMealTypeName(mt)}</span></div>`;
                                 }
-                                return `<div class="flex items-center text-sm py-1"><span class="w-4 text-center font-medium">${i + 1}.</span><span class="ml-1 flex-1 truncate">${getPersonName(meal.cook)}</span><span class="text-xs opacity-60 ml-2">${meal.portions}</span></div>`;
+                                const dishesText = meal.dishes.map(d => {
+                                    const name = getName(d.recipe);
+                                    const portion = d.portion_size ? `${d.portion_size}${getUnitShort(d.portion_unit)}` : '';
+                                    return portion ? `${name} (${portion})` : name;
+                                }).join(', ');
+                                return `
+                                    <div class="text-sm py-1">
+                                        <div class="flex items-center">
+                                            <span class="w-4 text-center font-medium">${i + 1}.</span>
+                                            <span class="ml-1 flex-1 truncate font-medium">${getPersonName(meal.cook) || '—'}</span>
+                                            <span class="text-xs opacity-60 ml-2">${meal.portions}</span>
+                                        </div>
+                                        <div class="text-xs opacity-60 ml-5 leading-tight">${dishesText}</div>
+                                    </div>
+                                `;
                             }).join('')}
                         </div>
                     </div>
