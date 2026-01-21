@@ -586,7 +586,8 @@ function alignSubmenu() {
 }
 
 // ==================== LOCATION ====================
-function selectLocation(slug) {
+function selectLocation(slug, isInitial = false) {
+    const changed = currentLocation !== slug;
     currentLocation = slug;
     localStorage.setItem('srsk_location', slug);
     const loc = locations.find(l => l.slug === slug);
@@ -597,6 +598,11 @@ function selectLocation(slug) {
     $$('.location-arrow').forEach(a => a.classList.remove('rotate-180'));
     buildLocationOptions();
     setColor(loc.color);
+
+    // Вызываем колбэк страницы при смене локации (но не при инициализации)
+    if (changed && !isInitial && typeof window.onLocationChange === 'function') {
+        window.onLocationChange(slug);
+    }
 }
 
 async function loadLocations() {
@@ -604,7 +610,7 @@ async function loadLocations() {
     if (error) { console.error('Error loading locations:', error); return; }
     locations = data;
     buildLocationOptions();
-    selectLocation(currentLocation);
+    selectLocation(currentLocation, true); // isInitial = true, чтобы не вызывать колбэк при загрузке
 }
 
 // ==================== EVENT HANDLERS ====================
