@@ -213,7 +213,7 @@
                             <span class="opacity-60" data-i18n="calc_persons">чел.</span>
                             <span class="opacity-40 mx-1">×</span>
                             <input type="number" id="portionSizeInput" value="150" min="1" class="input input-bordered w-20 px-2 text-center font-bold text-lg" />
-                            <span class="opacity-60" data-i18n="calc_grams">г</span>
+                            <span class="opacity-60" id="portionUnitLabel">г</span>
                         </div>
                     </div>
 
@@ -333,7 +333,8 @@
         function getPrintPortionsInfo() {
             const portionsVal = Layout.$('#portionsInput')?.value || portions;
             const portionSizeVal = Layout.$('#portionSizeInput')?.value || portionSize;
-            return `${t('calc_for')} ${portionsVal} ${t('calc_persons')} × ${portionSizeVal} ${t('calc_grams')}`;
+            const unitLabel = getUnitShort(recipe?.portion_unit) || 'г';
+            return `${t('calc_for')} ${portionsVal} ${t('calc_persons')} × ${portionSizeVal} ${unitLabel}`;
         }
 
         function renderRecipeHeader() {
@@ -384,6 +385,9 @@
                 portionSize = recipe.portion_amount;
                 Layout.$('#portionSizeInput').value = portionSize;
             }
+
+            // Устанавливаем единицу измерения порции
+            Layout.$('#portionUnitLabel').textContent = getUnitShort(recipe.portion_unit) || 'г';
 
             // Render print header and portions info
             renderPrintHeader();
