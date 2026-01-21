@@ -778,12 +778,21 @@
                                 if (!meal?.dishes?.length) {
                                     return '';
                                 }
+                                const isCafe = Layout.currentLocation === 'cafe';
                                 const dishesText = meal.dishes.map(d => {
                                     const name = getName(d.recipe);
                                     const portion = d.portion_size ? `${d.portion_size}${getUnitShort(d.portion_unit)}` : '';
                                     const link = d.recipe?.id ? `<a href="recipe.html?id=${d.recipe.id}" class="hover:text-primary hover:underline">${name}</a>` : name;
                                     return portion ? `${link} (${portion})` : link;
                                 }).join(', ');
+                                // Для кафе: без номера, повара и порций
+                                if (isCafe) {
+                                    return `
+                                        <div class="text-sm py-1">
+                                            <div class="text-xs opacity-60 leading-tight">${dishesText}</div>
+                                        </div>
+                                    `;
+                                }
                                 return `
                                     <div class="text-sm py-1">
                                         <div class="flex items-center">
@@ -863,9 +872,14 @@
                     holidayIndicator = '<span class="text-xs font-medium text-amber-600">э</span>';
                 }
 
+                const isCafe = Layout.currentLocation === 'cafe';
                 const mealLines = getMealTypes().map((mt, i) => {
                     const meal = dayMenu[mt];
                     if (!meal?.dishes?.length) return null;
+                    // Для кафе: просто количество блюд
+                    if (isCafe) {
+                        return `<div class="text-xs truncate">${meal.dishes.length} ${meal.dishes.length === 1 ? t('dish') || 'блюдо' : t('dishes') || 'блюд'}</div>`;
+                    }
                     const cookName = getPersonName(meal.cook).split(' ')[0];
                     return `<div class="text-xs truncate"><span class="opacity-50">${i + 1}.</span> <span class="no-print">${cookName} – </span>${meal.portions}</div>`;
                 }).filter(Boolean).join('');
