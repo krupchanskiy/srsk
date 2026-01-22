@@ -40,7 +40,7 @@
             </button>
         </div>
 
-        <!-- Search + Toggle -->
+        <!-- Search + Sort + Toggle -->
         <div class="flex flex-col sm:flex-row gap-4 mb-4">
             <div class="flex-1 max-w-md relative">
                 <input type="text" id="searchInput" placeholder="Поиск по названию..." class="input input-bordered w-full pr-10" data-i18n-placeholder="search_placeholder" />
@@ -48,6 +48,21 @@
                     <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
                     </svg>
+                </button>
+            </div>
+            <div class="flex items-center gap-1">
+                <span class="text-sm opacity-60 mr-1" data-i18n="sort_by">Сортировка:</span>
+                <button class="btn btn-sm btn-ghost sort-btn" data-sort="name" onclick="toggleSort('name')">
+                    <span data-i18n="col_name">Название</span>
+                    <span id="sort-icon-name" class="opacity-40">↕</span>
+                </button>
+                <button class="btn btn-sm btn-ghost sort-btn" data-sort="category" onclick="toggleSort('category')">
+                    <span data-i18n="col_category">Категория</span>
+                    <span id="sort-icon-category" class="opacity-40">↕</span>
+                </button>
+                <button class="btn btn-sm btn-ghost sort-btn" data-sort="time" onclick="toggleSort('time')">
+                    <span data-i18n="cooking_time">Время</span>
+                    <span id="sort-icon-time" class="opacity-40">↕</span>
                 </button>
             </div>
             <label class="flex items-center gap-2 cursor-pointer">
@@ -84,6 +99,8 @@
         let currentCategory = 'all';
         let searchQuery = '';
         let showPhotos = true;
+        let sortColumn = 'name';
+        let sortDirection = 'asc';
         let recipes = [];
         let categories = [];
         let units = [];
@@ -146,6 +163,59 @@
             units = data || [];
         }
 
+        // ==================== SORTING ====================
+        function toggleSort(column) {
+            if (sortColumn === column) {
+                sortDirection = sortDirection === 'asc' ? 'desc' : 'asc';
+            } else {
+                sortColumn = column;
+                sortDirection = 'asc';
+            }
+            updateSortIcons();
+            renderRecipes();
+        }
+
+        function updateSortIcons() {
+            const columns = ['name', 'category', 'time'];
+            columns.forEach(col => {
+                const icon = Layout.$(`#sort-icon-${col}`);
+                if (!icon) return;
+                if (sortColumn === col) {
+                    icon.textContent = sortDirection === 'asc' ? '↑' : '↓';
+                    icon.classList.remove('opacity-40');
+                    icon.classList.add('opacity-100');
+                } else {
+                    icon.textContent = '↕';
+                    icon.classList.remove('opacity-100');
+                    icon.classList.add('opacity-40');
+                }
+            });
+        }
+
+        function sortRecipes(items) {
+            const lang = Layout.currentLang;
+            const nameKey = `name_${lang}`;
+            const mult = sortDirection === 'asc' ? 1 : -1;
+
+            return [...items].sort((a, b) => {
+                let cmp = 0;
+                switch (sortColumn) {
+                    case 'name':
+                        cmp = (a[nameKey] || a.name_ru || '').localeCompare(b[nameKey] || b.name_ru || '', lang);
+                        break;
+                    case 'category':
+                        const catA = a.recipe_categories ? Layout.getName(a.recipe_categories) : '';
+                        const catB = b.recipe_categories ? Layout.getName(b.recipe_categories) : '';
+                        cmp = catA.localeCompare(catB, lang);
+                        break;
+                    case 'time':
+                        cmp = (a.cooking_time || 0) - (b.cooking_time || 0);
+                        break;
+                }
+                return cmp * mult;
+            });
+        }
+
         // ==================== RENDERING ====================
         function renderCategoryFilters() {
             const container = Layout.$('#categoryFilters');
@@ -177,7 +247,7 @@
             const countEl = Layout.$('#recipesCount');
             const lang = Layout.currentLang;
 
-            const filtered = recipes.filter(recipe => {
+            let filtered = recipes.filter(recipe => {
                 const matchesCategory = currentCategory === 'all' || recipe.recipe_categories?.slug === currentCategory;
                 const matchesSearch = searchQuery === '' ||
                     recipe.name_ru.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -185,6 +255,9 @@
                     recipe.name_hi.includes(searchQuery);
                 return matchesCategory && matchesSearch;
             });
+
+            // Применяем сортировку
+            filtered = sortRecipes(filtered);
 
             countEl.textContent = Layout.pluralize(filtered.length, RECIPE_FORMS);
 
@@ -229,6 +302,7 @@
         function updatePageLanguage() {
             Layout.updateAllTranslations();
             renderCategoryFilters();
+            updateSortIcons();
             renderRecipes();
         }
 

@@ -931,8 +931,8 @@
                         <div class="min-w-0 flex-shrink-0">
                             <div class="flex items-center gap-2 flex-wrap">
                                 <span class="font-semibold">${tr('request', 'Заявка')} #${formatNumberWithYear(req.number)}</span>
-                                <span class="badge badge-sm badge-ghost md:hidden">${itemsCount} ${tr('items_short', 'поз.')}</span>
-                                ${sumDisplay ? `<span class="badge badge-sm badge-ghost">${sumDisplay}</span>` : ''}
+                                <span class="badge badge-sm badge border-base-300 md:hidden">${itemsCount} ${tr('items_short', 'поз.')}</span>
+                                ${sumDisplay ? `<span class="badge badge-sm badge border-base-300">${sumDisplay}</span>` : ''}
                             </div>
                             ${hasPeriod ? `<div class="text-sm opacity-60 mt-1">${tr('period', 'Период')}: ${periodFrom} — ${periodTo}</div>` : ''}
                             <div class="text-xs opacity-40 mt-1">

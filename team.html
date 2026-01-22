@@ -79,11 +79,11 @@
                 <!-- Names -->
                 <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div>
-                        <label class="label"><span class="label-text font-medium" data-i18n="first_name">Имя</span> *</label>
-                        <input type="text" name="first_name" class="input input-bordered w-full" required />
+                        <label class="label"><span class="label-text font-medium" data-i18n="first_name">Имя</span><span class="text-error ml-1 name-required">*</span></label>
+                        <input type="text" name="first_name" class="input input-bordered w-full" />
                     </div>
                     <div>
-                        <label class="label"><span class="label-text font-medium" data-i18n="last_name">Фамилия</span></label>
+                        <label class="label"><span class="label-text font-medium" data-i18n="last_name">Фамилия</span><span class="text-error ml-1 name-required">*</span></label>
                         <input type="text" name="last_name" class="input input-bordered w-full" />
                     </div>
                 </div>
@@ -91,7 +91,7 @@
                 <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div>
                         <label class="label"><span class="label-text font-medium" data-i18n="spiritual_name">Духовное имя</span></label>
-                        <input type="text" name="spiritual_name" class="input input-bordered w-full" />
+                        <input type="text" name="spiritual_name" class="input input-bordered w-full" oninput="updateNameRequirements()" />
                     </div>
                     <div>
                         <label class="label"><span class="label-text font-medium" data-i18n="department">Департамент</span></label>
@@ -398,11 +398,11 @@
                                     <!-- Stays preview -->
                                     <div class="flex flex-wrap gap-2 mt-3">
                                         ${memberStays.slice(0, 3).map(s => `
-                                            <span class="badge badge-outline badge-sm">
+                                            <span class="badge badge border-base-300 badge-sm">
                                                 ${formatDate(s.start_date)} — ${formatDate(s.end_date)}
                                             </span>
                                         `).join('')}
-                                        ${memberStays.length > 3 ? `<span class="badge badge-ghost badge-sm">+${memberStays.length - 3}</span>` : ''}
+                                        ${memberStays.length > 3 ? `<span class="badge badge border-base-300 badge-sm">+${memberStays.length - 3}</span>` : ''}
                                     </div>
                                 </div>
 
@@ -528,6 +528,29 @@
                 departments.map(d => `<option value="${d.id}">${Layout.getName(d)}</option>`).join('');
         }
 
+        function updateNameRequirements() {
+            const form = document.getElementById('memberForm');
+            const spiritualName = form.spiritual_name.value.trim();
+            const indicators = document.querySelectorAll('.name-required');
+            indicators.forEach(el => {
+                el.style.display = spiritualName ? 'none' : 'inline';
+            });
+        }
+
+        function validateMemberForm() {
+            const form = document.getElementById('memberForm');
+            const spiritualName = form.spiritual_name.value.trim();
+            const firstName = form.first_name.value.trim();
+            const lastName = form.last_name.value.trim();
+
+            if (spiritualName) return true;
+            if (!firstName || !lastName) {
+                alert('Укажите духовное имя, либо имя и фамилию');
+                return false;
+            }
+            return true;
+        }
+
         function openMemberModal(memberId = null) {
             editingMemberId = memberId;
             const form = document.getElementById('memberForm');
@@ -560,6 +583,7 @@
                 deleteSection.classList.add('hidden');
             }
 
+            updateNameRequirements();
             document.getElementById('memberModal').showModal();
         }
 
@@ -570,10 +594,12 @@
 
         async function saveMember(e) {
             e.preventDefault();
+            if (!validateMemberForm()) return;
+
             const form = document.getElementById('memberForm');
 
             const data = {
-                first_name: form.first_name.value.trim(),
+                first_name: form.first_name.value.trim() || null,
                 last_name: form.last_name.value.trim() || null,
                 spiritual_name: form.spiritual_name.value.trim() || null,
                 department_id: form.department_id.value || null,
