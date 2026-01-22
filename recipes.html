@@ -180,15 +180,10 @@
             columns.forEach(col => {
                 const icon = Layout.$(`#sort-icon-${col}`);
                 if (!icon) return;
-                if (sortColumn === col) {
-                    icon.textContent = sortDirection === 'asc' ? '↑' : '↓';
-                    icon.classList.remove('opacity-40');
-                    icon.classList.add('opacity-100');
-                } else {
-                    icon.textContent = '↕';
-                    icon.classList.remove('opacity-100');
-                    icon.classList.add('opacity-40');
-                }
+                const isActive = sortColumn === col;
+                icon.textContent = isActive ? (sortDirection === 'asc' ? '↑' : '↓') : '↕';
+                icon.classList.toggle('opacity-40', !isActive);
+                icon.classList.toggle('opacity-100', isActive);
             });
         }
 

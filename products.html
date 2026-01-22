@@ -300,135 +300,8 @@
             hi: 'उत्पाद'
         };
 
-        // ==================== ТРАНСЛИТЕРАЦИЯ ====================
-        function transliterate(hindi) {
-            if (!hindi) return '';
-
-            const CONSONANTS = {
-                'क': 'k', 'ख': 'kh', 'ग': 'g', 'घ': 'gh', 'ङ': 'ṅ',
-                'च': 'c', 'छ': 'ch', 'ज': 'j', 'झ': 'jh', 'ञ': 'ñ',
-                'ट': 'ṭ', 'ठ': 'ṭh', 'ड': 'ḍ', 'ढ': 'ḍh', 'ण': 'ṇ',
-                'त': 't', 'थ': 'th', 'द': 'd', 'ध': 'dh', 'न': 'n',
-                'प': 'p', 'फ': 'ph', 'ब': 'b', 'भ': 'bh', 'म': 'm',
-                'य': 'y', 'र': 'r', 'ल': 'l', 'व': 'v',
-                'श': 'ś', 'ष': 'ṣ', 'स': 's', 'ह': 'h'
-            };
-            const VOWELS = { 'अ': 'a', 'आ': 'ā', 'इ': 'i', 'ई': 'ī', 'उ': 'u', 'ऊ': 'ū', 'ऋ': 'ṛ', 'ए': 'e', 'ऐ': 'ai', 'ओ': 'o', 'औ': 'au' };
-            const MATRAS = { 'ा': 'ā', 'ि': 'i', 'ी': 'ī', 'ु': 'u', 'ू': 'ū', 'ृ': 'ṛ', 'े': 'e', 'ै': 'ai', 'ो': 'o', 'ौ': 'au' };
-            const NUKTA_MAP = { 'क': 'q', 'ख': 'kh', 'ग': 'ġ', 'ज': 'z', 'फ': 'f', 'ड': 'ṛ', 'ढ': 'ṛh' };
-
-            // Анусвара зависит от следующей согласной
-            const ANUSVARA_MAP = {
-                'क': 'ṅ', 'ख': 'ṅ', 'ग': 'ṅ', 'घ': 'ṅ', 'ङ': 'ṅ',  // велярные
-                'च': 'ñ', 'छ': 'ñ', 'ज': 'ñ', 'झ': 'ñ', 'ञ': 'ñ',  // палатальные
-                'ट': 'ṇ', 'ठ': 'ṇ', 'ड': 'ṇ', 'ढ': 'ṇ', 'ण': 'ṇ',  // ретрофлексные
-                'त': 'n', 'थ': 'n', 'द': 'n', 'ध': 'n', 'न': 'n',  // дентальные
-                'प': 'm', 'फ': 'm', 'ब': 'm', 'भ': 'm', 'म': 'm'   // лабиальные
-            };
-
-            const text = hindi.normalize('NFC');
-            let result = '';
-            let i = 0;
-
-            while (i < text.length) {
-                const char = text[i];
-                const next = text[i + 1];
-
-                // Независимая гласная
-                if (VOWELS[char]) {
-                    result += VOWELS[char];
-                    i++;
-                    continue;
-                }
-
-                // Согласная
-                if (CONSONANTS[char]) {
-                    // Проверяем нукту
-                    if (next === '़') {
-                        result += NUKTA_MAP[char] || CONSONANTS[char];
-                        i += 2;
-                    } else {
-                        result += CONSONANTS[char];
-                        i++;
-                    }
-
-                    // Что после согласной?
-                    const after = text[i];
-                    if (after === '्') {
-                        // Вирама — без 'a'
-                        i++;
-                    } else if (MATRAS[after]) {
-                        // Матра
-                        result += MATRAS[after];
-                        i++;
-                    } else if (after === 'ं') {
-                        // Анусвара — добавляем 'a', потом обработаем анусвару
-                        result += 'a';
-                    } else if (after === 'ः') {
-                        result += 'aḥ';
-                        i++;
-                    } else if (after === 'ँ') {
-                        result += 'am̐';
-                        i++;
-                    } else if (!CONSONANTS[after] && !VOWELS[after] && after !== undefined) {
-                        // Следующий символ не деванагари — добавляем 'a'
-                        result += 'a';
-                    } else if (after === undefined) {
-                        // Конец слова — НЕ добавляем 'a' (schwa deletion в хинди)
-                    } else {
-                        // Перед следующей согласной/гласной — добавляем 'a'
-                        result += 'a';
-                    }
-                    continue;
-                }
-
-                // Анусвара
-                if (char === 'ं') {
-                    const nextCons = text[i + 1];
-                    result += ANUSVARA_MAP[nextCons] || 'ṃ';
-                    i++;
-                    continue;
-                }
-
-                // Висарга
-                if (char === 'ः') {
-                    result += 'ḥ';
-                    i++;
-                    continue;
-                }
-
-                // Чандрабинду
-                if (char === 'ँ') {
-                    result += 'm̐';
-                    i++;
-                    continue;
-                }
-
-                // Матра отдельно (редко)
-                if (MATRAS[char]) {
-                    result += MATRAS[char];
-                    i++;
-                    continue;
-                }
-
-                // Вирама отдельно
-                if (char === '्') {
-                    i++;
-                    continue;
-                }
-
-                // Нукта отдельно
-                if (char === '़') {
-                    i++;
-                    continue;
-                }
-
-                // Остальное (пробелы, цифры)
-                result += char;
-                i++;
-            }
-            return result;
-        }
+        // Используем транслитерацию из layout.js (удалено дублирование ~130 строк кода)
+        const transliterate = Layout.transliterateHindi;
 
         // ==================== DATA LOADING ====================
         async function loadCategories() {
@@ -473,15 +346,10 @@
             columns.forEach(col => {
                 const icon = Layout.$(`#sort-icon-${col}`);
                 if (!icon) return;
-                if (sortColumn === col) {
-                    icon.textContent = sortDirection === 'asc' ? '↑' : '↓';
-                    icon.classList.remove('opacity-40');
-                    icon.classList.add('opacity-100');
-                } else {
-                    icon.textContent = '↕';
-                    icon.classList.remove('opacity-100');
-                    icon.classList.add('opacity-40');
-                }
+                const isActive = sortColumn === col;
+                icon.textContent = isActive ? (sortDirection === 'asc' ? '↑' : '↓') : '↕';
+                icon.classList.toggle('opacity-40', !isActive);
+                icon.classList.toggle('opacity-100', isActive);
             });
         }
 

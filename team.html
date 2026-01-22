@@ -287,7 +287,7 @@
 
         // ==================== FILTERS ====================
         function renderFilters() {
-            const container = document.getElementById('filterButtons');
+            const container = Layout.$('#filterButtons');
             const counts = {
                 all: members.length,
                 present: members.filter(m => isPresent(m.id)).length,
@@ -316,8 +316,8 @@
 
         // ==================== RENDER ====================
         function renderMembers() {
-            const list = document.getElementById('membersList');
-            const noMembers = document.getElementById('noMembers');
+            const list = Layout.$('#membersList');
+            const noMembers = Layout.$('#noMembers');
             const lang = Layout.currentLang;
 
             let filtered = members.filter(m => {
@@ -441,7 +441,7 @@
             const dept = member.departments;
             const memberStays = stays[memberId] || [];
 
-            document.getElementById('detailsTitle').textContent = displayName;
+            Layout.$('#detailsTitle').textContent = displayName;
 
             let html = `
                 <div class="space-y-4">
@@ -517,35 +517,36 @@
                 </div>
             `;
 
-            document.getElementById('detailsContent').innerHTML = html;
-            document.getElementById('detailsModal').showModal();
+            Layout.$('#detailsContent').innerHTML = html;
+            Layout.$('#detailsModal').showModal();
         }
 
         // ==================== MEMBER MODAL ====================
         function populateDepartmentSelect() {
-            const select = document.getElementById('departmentSelect');
+            const select = Layout.$('#departmentSelect');
             select.innerHTML = `<option value="">— ${t('no_department')} —</option>` +
                 departments.map(d => `<option value="${d.id}">${Layout.getName(d)}</option>`).join('');
         }
 
         function updateNameRequirements() {
-            const form = document.getElementById('memberForm');
+            const form = Layout.$('#memberForm');
             const spiritualName = form.spiritual_name.value.trim();
             const indicators = document.querySelectorAll('.name-required');
+            const shouldHide = Boolean(spiritualName);
             indicators.forEach(el => {
-                el.style.display = spiritualName ? 'none' : 'inline';
+                el.style.display = shouldHide ? 'none' : 'inline';
             });
         }
 
         function validateMemberForm() {
-            const form = document.getElementById('memberForm');
+            const form = Layout.$('#memberForm');
             const spiritualName = form.spiritual_name.value.trim();
             const firstName = form.first_name.value.trim();
             const lastName = form.last_name.value.trim();
 
             if (spiritualName) return true;
             if (!firstName || !lastName) {
-                alert('Укажите духовное имя, либо имя и фамилию');
+                alert(t('name_required_error') || 'Укажите духовное имя, либо имя и фамилию');
                 return false;
             }
             return true;
@@ -553,9 +554,9 @@
 
         function openMemberModal(memberId = null) {
             editingMemberId = memberId;
-            const form = document.getElementById('memberForm');
-            const title = document.getElementById('memberModalTitle');
-            const deleteSection = document.getElementById('deleteMemberSection');
+            const form = Layout.$('#memberForm');
+            const title = Layout.$('#memberModalTitle');
+            const deleteSection = Layout.$('#deleteMemberSection');
 
             form.reset();
             populateDepartmentSelect();
@@ -584,11 +585,11 @@
             }
 
             updateNameRequirements();
-            document.getElementById('memberModal').showModal();
+            Layout.$('#memberModal').showModal();
         }
 
         function closeMemberModal() {
-            document.getElementById('memberModal').close();
+            Layout.$('#memberModal').close();
             editingMemberId = null;
         }
 
@@ -596,7 +597,7 @@
             e.preventDefault();
             if (!validateMemberForm()) return;
 
-            const form = document.getElementById('memberForm');
+            const form = Layout.$('#memberForm');
 
             const data = {
                 first_name: form.first_name.value.trim() || null,
@@ -650,20 +651,20 @@
 
         // ==================== STAY MODAL ====================
         function openStayModal(memberId) {
-            const form = document.getElementById('stayForm');
+            const form = Layout.$('#stayForm');
             form.reset();
             form.member_id.value = memberId;
             form.stay_id.value = '';
-            document.getElementById('stayModal').showModal();
+            Layout.$('#stayModal').showModal();
         }
 
         function closeStayModal() {
-            document.getElementById('stayModal').close();
+            Layout.$('#stayModal').close();
         }
 
         async function saveStay(e) {
             e.preventDefault();
-            const form = document.getElementById('stayForm');
+            const form = Layout.$('#stayForm');
 
             const data = {
                 member_id: form.member_id.value,
@@ -673,7 +674,7 @@
             };
 
             if (data.end_date < data.start_date) {
-                alert('Дата отъезда не может быть раньше даты приезда');
+                alert(t('date_order_error') || 'Дата отъезда не может быть раньше даты приезда');
                 return;
             }
 
@@ -731,13 +732,14 @@
             ]);
 
             // Search
-            const searchInput = document.getElementById('searchInput');
-            const clearBtn = document.getElementById('clearSearch');
+            const searchInput = Layout.$('#searchInput');
+            const clearBtn = Layout.$('#clearSearch');
+            const debouncedSearch = Layout.debounce(() => renderMembers(), 200);
 
             searchInput?.addEventListener('input', e => {
                 searchQuery = e.target.value;
                 clearBtn?.classList.toggle('hidden', !e.target.value);
-                renderMembers();
+                debouncedSearch();
             });
 
             clearBtn?.addEventListener('click', () => {
@@ -749,8 +751,8 @@
             });
 
             // Forms
-            document.getElementById('memberForm').addEventListener('submit', saveMember);
-            document.getElementById('stayForm').addEventListener('submit', saveStay);
+            Layout.$('#memberForm').addEventListener('submit', saveMember);
+            Layout.$('#stayForm').addEventListener('submit', saveStay);
 
             updateUI();
         }
