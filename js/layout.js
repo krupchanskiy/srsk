@@ -15,6 +15,7 @@ const DESKTOP_BP = 1200;
 const menuConfig = [
     { id: 'kitchen', items: [
         { id: 'menu', href: 'menu.html' },
+        { id: 'menu_templates', href: 'menu-templates.html' },
         { id: 'recipes', href: 'recipes.html' },
         { id: 'products', href: 'products.html' }
     ]},

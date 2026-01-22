@@ -136,12 +136,26 @@
                 </h1>
             </div>
 
-            <button class="btn btn-ghost btn-sm gap-2 no-print" onclick="window.print()">
-                <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" />
-                </svg>
-                <span data-i18n="print_menu">Распечатать</span>
-            </button>
+            <div class="flex items-center gap-2">
+                <button id="saveTemplateBtn" class="btn btn-ghost btn-sm gap-2 no-print hidden" onclick="openSaveTemplateModal()">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-3m-1 4l-3 3m0 0l-3-3m3 3V4" />
+                    </svg>
+                    <span data-i18n="save_as_template">Сохранить как шаблон</span>
+                </button>
+                <button id="applyTemplateBtn" class="btn btn-ghost btn-sm gap-2 no-print hidden" onclick="openApplyTemplateModal()">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01" />
+                    </svg>
+                    <span data-i18n="apply_template">Применить шаблон</span>
+                </button>
+                <button class="btn btn-ghost btn-sm gap-2 no-print" onclick="window.print()">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" />
+                    </svg>
+                    <span data-i18n="print_menu">Распечатать</span>
+                </button>
+            </div>
         </div>
 
         <!-- Day View -->
@@ -247,6 +261,80 @@
         <form method="dialog" class="modal-backdrop"><button>close</button></form>
     </dialog>
 
+    <!-- Save as Template Modal -->
+    <dialog id="saveTemplateModal" class="modal">
+        <div class="modal-box max-w-md relative">
+            <button type="button" class="btn btn-sm btn-circle btn-ghost absolute right-2 top-2" onclick="saveTemplateModal.close()">✕</button>
+            <h3 class="font-bold text-lg mb-4" data-i18n="save_as_template">Сохранить как шаблон</h3>
+
+            <div class="space-y-4">
+                <div>
+                    <label class="label"><span class="label-text font-medium" data-i18n="template_name">Название шаблона</span></label>
+                    <input type="text" id="newTemplateName" class="input input-bordered w-full" placeholder="Недельное меню" />
+                </div>
+
+                <div class="grid grid-cols-2 gap-4">
+                    <div>
+                        <label class="label"><span class="label-text font-medium" data-i18n="date_from">С даты</span></label>
+                        <input type="date" id="templateFromDate" class="input input-bordered w-full" onchange="updateTemplateDatePreview()" />
+                    </div>
+                    <div>
+                        <label class="label"><span class="label-text font-medium" data-i18n="date_to">По дату</span></label>
+                        <input type="date" id="templateToDate" class="input input-bordered w-full" onchange="updateTemplateDatePreview()" />
+                    </div>
+                </div>
+
+                <div id="templateDatePreview" class="p-4 bg-base-200 rounded-lg hidden">
+                    <div class="text-lg font-medium" id="templateDayCountText"></div>
+                </div>
+            </div>
+
+            <div class="modal-action">
+                <button type="button" class="btn btn-ghost" onclick="saveTemplateModal.close()" data-i18n="cancel">Отмена</button>
+                <button type="button" class="btn btn-primary" onclick="saveAsTemplate()" data-i18n="save">Сохранить</button>
+            </div>
+        </div>
+        <form method="dialog" class="modal-backdrop"><button>close</button></form>
+    </dialog>
+
+    <!-- Apply Template Modal -->
+    <dialog id="applyTemplateModal" class="modal">
+        <div class="modal-box max-w-md relative">
+            <button type="button" class="btn btn-sm btn-circle btn-ghost absolute right-2 top-2" onclick="applyTemplateModal.close()">✕</button>
+            <h3 class="font-bold text-lg mb-4" data-i18n="apply_template">Применить шаблон</h3>
+
+            <div class="space-y-4">
+                <div>
+                    <label class="label"><span class="label-text font-medium" data-i18n="select_template">Выберите шаблон</span></label>
+                    <select id="templateSelect" class="select select-bordered w-full" onchange="onTemplateSelected()">
+                        <option value="">—</option>
+                    </select>
+                </div>
+
+                <div>
+                    <label class="label"><span class="label-text font-medium" data-i18n="select_start_date">Выберите начальную дату</span></label>
+                    <input type="date" id="applyStartDate" class="input input-bordered w-full" onchange="updateApplyPreview()" />
+                </div>
+
+                <div id="applyPreview" class="p-4 bg-base-200 rounded-lg hidden">
+                    <div class="text-sm opacity-60 mb-1" data-i18n="will_apply_to">Будет применено к датам</div>
+                    <div class="font-medium" id="applyDateRange"></div>
+                </div>
+
+                <div id="overwriteWarning" class="alert alert-warning hidden">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="stroke-current shrink-0 h-6 w-6" fill="none" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" /></svg>
+                    <span data-i18n="overwrite_existing">Меню на эти даты уже существует. Перезаписать?</span>
+                </div>
+            </div>
+
+            <div class="modal-action">
+                <button type="button" class="btn btn-ghost" onclick="applyTemplateModal.close()" data-i18n="cancel">Отмена</button>
+                <button type="button" class="btn btn-primary" id="applyTemplateBtn2" onclick="applySelectedTemplate()" data-i18n="apply_template">Применить</button>
+            </div>
+        </div>
+        <form method="dialog" class="modal-backdrop"><button>close</button></form>
+    </dialog>
+
     <script src="js/layout.js"></script>
     <script>
         // ==================== STATE ====================
@@ -267,6 +355,10 @@
         let selectedMealType = null;
         let selectedRecipe = null;
         let currentCategory = 'all';
+
+        // Template state
+        let templates = [];
+        let selectedTemplateId = null;
 
         // Конфигурация типов приёмов пищи по локациям
         const mealConfig = {
@@ -922,6 +1014,11 @@
             Layout.$('#weekView').classList.toggle('hidden', view !== 'week');
             Layout.$('#monthView').classList.toggle('hidden', view !== 'month');
 
+            // Show/hide template buttons (only in week/month view)
+            const showTemplateButtons = view === 'week' || view === 'month';
+            Layout.$('#saveTemplateBtn')?.classList.toggle('hidden', !showTemplateButtons);
+            Layout.$('#applyTemplateBtn')?.classList.toggle('hidden', !showTemplateButtons);
+
             loadMenuData();
         }
 
@@ -1317,6 +1414,326 @@
                 dropdown.classList.add('hidden');
             }
         });
+
+        // ==================== TEMPLATES ====================
+        async function loadTemplates() {
+            const locationId = getCurrentLocation()?.id;
+            if (!locationId) return;
+
+            const { data } = await Layout.db
+                .from('menu_templates')
+                .select(`
+                    *,
+                    meals:menu_template_meals(
+                        *,
+                        dishes:menu_template_dishes(*, recipe:recipes(*))
+                    )
+                `)
+                .eq('location_id', locationId)
+                .order('created_at', { ascending: false });
+
+            templates = data || [];
+        }
+
+        function openSaveTemplateModal() {
+            // Set default dates based on current view
+            let fromDate, toDate;
+            if (currentView === 'week') {
+                fromDate = formatDate(currentWeekStart);
+                const weekEnd = new Date(currentWeekStart);
+                weekEnd.setDate(weekEnd.getDate() + 6);
+                toDate = formatDate(weekEnd);
+            } else {
+                fromDate = formatDate(new Date(currentMonth.getFullYear(), currentMonth.getMonth(), 1));
+                toDate = formatDate(new Date(currentMonth.getFullYear(), currentMonth.getMonth() + 1, 0));
+            }
+
+            Layout.$('#templateFromDate').value = fromDate;
+            Layout.$('#templateToDate').value = toDate;
+            Layout.$('#newTemplateName').value = '';
+            updateTemplateDatePreview();
+            saveTemplateModal.showModal();
+        }
+
+        function updateTemplateDatePreview() {
+            const fromDate = Layout.$('#templateFromDate').value;
+            const toDate = Layout.$('#templateToDate').value;
+
+            if (!fromDate || !toDate) {
+                Layout.$('#templateDatePreview').classList.add('hidden');
+                return;
+            }
+
+            const from = parseLocalDate(fromDate);
+            const to = parseLocalDate(toDate);
+            const dayCount = Math.ceil((to - from) / (1000 * 60 * 60 * 24)) + 1;
+
+            if (dayCount < 1) {
+                Layout.$('#templateDatePreview').classList.add('hidden');
+                return;
+            }
+
+            Layout.$('#templateDayCountText').textContent = `${dayCount} ${t('days')}`;
+            Layout.$('#templateDatePreview').classList.remove('hidden');
+        }
+
+        async function saveAsTemplate() {
+            const name = Layout.$('#newTemplateName').value.trim();
+            const fromDate = Layout.$('#templateFromDate').value;
+            const toDate = Layout.$('#templateToDate').value;
+
+            if (!name) {
+                alert('Введите название шаблона');
+                return;
+            }
+
+            if (!fromDate || !toDate) {
+                alert('Выберите даты');
+                return;
+            }
+
+            const from = parseLocalDate(fromDate);
+            const to = parseLocalDate(toDate);
+            const dayCount = Math.ceil((to - from) / (1000 * 60 * 60 * 24)) + 1;
+
+            if (dayCount < 1) {
+                alert('Некорректный диапазон дат');
+                return;
+            }
+
+            const locationId = getCurrentLocation()?.id;
+            if (!locationId) return;
+
+            try {
+                // Create template
+                const { data: template, error: templateError } = await Layout.db
+                    .from('menu_templates')
+                    .insert({
+                        location_id: locationId,
+                        name_ru: name,
+                        day_count: dayCount
+                    })
+                    .select()
+                    .single();
+
+                if (templateError) throw templateError;
+
+                // Copy meals from the date range
+                for (let dayOffset = 0; dayOffset < dayCount; dayOffset++) {
+                    const currentDate = new Date(from);
+                    currentDate.setDate(currentDate.getDate() + dayOffset);
+                    const dateStr = formatDate(currentDate);
+                    const dayNumber = dayOffset + 1;
+
+                    const dayMenu = menuData[dateStr];
+                    if (!dayMenu) continue;
+
+                    for (const mealType in dayMenu) {
+                        const mealData = dayMenu[mealType];
+                        if (!mealData?.dishes?.length) continue;
+
+                        // Create template meal (without cook_id)
+                        const { data: templateMeal, error: mealError } = await Layout.db
+                            .from('menu_template_meals')
+                            .insert({
+                                template_id: template.id,
+                                day_number: dayNumber,
+                                meal_type: mealType,
+                                portions: mealData.portions || 50
+                            })
+                            .select()
+                            .single();
+
+                        if (mealError) throw mealError;
+
+                        // Copy dishes
+                        if (mealData.dishes?.length > 0) {
+                            const dishesInsert = mealData.dishes.map((dish, index) => ({
+                                template_meal_id: templateMeal.id,
+                                recipe_id: dish.recipe_id,
+                                portion_size: dish.portion_size,
+                                portion_unit: dish.portion_unit,
+                                sort_order: index
+                            }));
+
+                            await Layout.db
+                                .from('menu_template_dishes')
+                                .insert(dishesInsert);
+                        }
+                    }
+                }
+
+                saveTemplateModal.close();
+                alert(t('template_saved') || 'Шаблон сохранён');
+                await loadTemplates();
+            } catch (error) {
+                console.error('Error saving template:', error);
+                alert('Ошибка сохранения шаблона');
+            }
+        }
+
+        async function openApplyTemplateModal() {
+            await loadTemplates();
+
+            // Populate template select
+            const select = Layout.$('#templateSelect');
+            select.innerHTML = '<option value="">—</option>' +
+                templates.map(t => `<option value="${t.id}">${getName(t)} (${t.day_count} ${Layout.t('days')})</option>`).join('');
+
+            // Set default start date
+            const today = new Date();
+            Layout.$('#applyStartDate').value = formatDate(today);
+
+            selectedTemplateId = null;
+            Layout.$('#applyPreview').classList.add('hidden');
+            Layout.$('#overwriteWarning').classList.add('hidden');
+            Layout.$('#applyTemplateBtn2').disabled = true;
+
+            applyTemplateModal.showModal();
+        }
+
+        function onTemplateSelected() {
+            selectedTemplateId = Layout.$('#templateSelect').value;
+            Layout.$('#applyTemplateBtn2').disabled = !selectedTemplateId;
+            updateApplyPreview();
+        }
+
+        async function updateApplyPreview() {
+            const startDateStr = Layout.$('#applyStartDate').value;
+            if (!startDateStr || !selectedTemplateId) {
+                Layout.$('#applyPreview').classList.add('hidden');
+                return;
+            }
+
+            const template = templates.find(t => t.id === selectedTemplateId);
+            if (!template) return;
+
+            const startDate = parseLocalDate(startDateStr);
+            const endDate = new Date(startDate);
+            endDate.setDate(endDate.getDate() + template.day_count - 1);
+
+            const formatDisplayDate = d => d.toLocaleDateString(Layout.currentLang === 'ru' ? 'ru-RU' : 'en-US', {
+                day: 'numeric',
+                month: 'long',
+                year: 'numeric'
+            });
+
+            Layout.$('#applyDateRange').textContent = `${formatDisplayDate(startDate)} — ${formatDisplayDate(endDate)}`;
+            Layout.$('#applyPreview').classList.remove('hidden');
+
+            // Check for existing menu
+            await checkExistingMenuForApply(startDateStr, template.day_count);
+        }
+
+        async function checkExistingMenuForApply(startDateStr, dayCount) {
+            const locationId = getCurrentLocation()?.id;
+            if (!locationId) return;
+
+            const startDate = new Date(startDateStr);
+            const endDate = new Date(startDate);
+            endDate.setDate(endDate.getDate() + dayCount - 1);
+
+            const { data: existingMeals } = await Layout.db
+                .from('menu_meals')
+                .select('id')
+                .eq('location_id', locationId)
+                .gte('date', startDateStr)
+                .lte('date', formatDate(endDate))
+                .limit(1);
+
+            Layout.$('#overwriteWarning').classList.toggle('hidden', !existingMeals?.length);
+        }
+
+        // Parse date string as local date (not UTC)
+        function parseLocalDate(dateStr) {
+            const [year, month, day] = dateStr.split('-').map(Number);
+            return new Date(year, month - 1, day);
+        }
+
+        async function applySelectedTemplate() {
+            if (!selectedTemplateId) return;
+
+            const startDateStr = Layout.$('#applyStartDate').value;
+            if (!startDateStr) return;
+
+            const template = templates.find(t => t.id === selectedTemplateId);
+            if (!template) return;
+
+            const locationId = getCurrentLocation()?.id;
+            if (!locationId) return;
+
+            const isCafe = Layout.currentLocation === 'cafe';
+
+            try {
+                const startDate = parseLocalDate(startDateStr);
+
+                for (let dayOffset = 0; dayOffset < template.day_count; dayOffset++) {
+                    const targetDate = new Date(startDate);
+                    targetDate.setDate(targetDate.getDate() + dayOffset);
+                    const targetDateStr = formatDate(targetDate);
+                    const dayNumber = dayOffset + 1;
+
+                    // Get meals for this day from template
+                    const dayMeals = (template.meals || []).filter(m => m.day_number === dayNumber);
+
+                    for (const templateMeal of dayMeals) {
+                        // Get retreat for this date (for portions)
+                        let portions = templateMeal.portions || 50;
+                        if (!isCafe) {
+                            const retreat = getRetreat(targetDateStr);
+                            if (retreat?.expected_participants) {
+                                portions = retreat.expected_participants;
+                            }
+                        }
+
+                        // Delete existing meal for this date/type
+                        await Layout.db
+                            .from('menu_meals')
+                            .delete()
+                            .eq('location_id', locationId)
+                            .eq('date', targetDateStr)
+                            .eq('meal_type', templateMeal.meal_type);
+
+                        // Create new meal (cook_id is null)
+                        const { data: newMeal, error: mealError } = await Layout.db
+                            .from('menu_meals')
+                            .insert({
+                                location_id: locationId,
+                                date: targetDateStr,
+                                meal_type: templateMeal.meal_type,
+                                portions: portions,
+                                cook_id: null
+                            })
+                            .select()
+                            .single();
+
+                        if (mealError) throw mealError;
+
+                        // Add dishes
+                        if (templateMeal.dishes?.length > 0) {
+                            const dishesInsert = templateMeal.dishes.map((dish, index) => ({
+                                meal_id: newMeal.id,
+                                recipe_id: dish.recipe_id,
+                                portion_size: dish.portion_size,
+                                portion_unit: dish.portion_unit,
+                                sort_order: index
+                            }));
+
+                            await Layout.db
+                                .from('menu_dishes')
+                                .insert(dishesInsert);
+                        }
+                    }
+                }
+
+                applyTemplateModal.close();
+                alert(t('template_applied') || 'Шаблон применён');
+                await loadMenuData();
+            } catch (error) {
+                console.error('Error applying template:', error);
+                alert('Ошибка применения шаблона');
+            }
+        }
 
         // ==================== INIT ====================
         async function init() {

@@ -1,0 +1,1185 @@
+<!DOCTYPE html>
+<html lang="ru" data-theme="light">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Шаблоны меню — ШРСК</title>
+    <link href="https://cdn.jsdelivr.net/npm/daisyui@4.12.14/dist/full.min.css" rel="stylesheet" />
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script>tailwind.config = { theme: { extend: { screens: { 'desktop': '1200px' } } } }</script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans:wght@400;500;600;700&family=Noto+Sans+Devanagari:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="css/common.css">
+    <style>
+        .day-tab.active { background-color: var(--current-color) !important; color: white !important; }
+        .filter-btn.active { background-color: var(--current-color) !important; color: white !important; border-color: var(--current-color) !important; }
+        .tabs-boxed .tab.tab-active { background-color: var(--current-color) !important; color: white !important; }
+    </style>
+</head>
+<body class="bg-base-200 min-h-screen flex flex-col">
+
+    <div id="header-placeholder"></div>
+
+    <main class="container mx-auto px-4 py-6 flex-1">
+
+        <!-- Page Title -->
+        <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6">
+            <div>
+                <h1 class="text-2xl font-bold" data-i18n="menu_templates_title">Шаблоны меню</h1>
+                <p class="text-sm opacity-60" id="templatesCount">Загрузка...</p>
+            </div>
+            <div class="flex gap-2">
+                <button class="btn btn-ghost gap-2" onclick="openImportModal()">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" />
+                    </svg>
+                    <span data-i18n="import_from_menu">Импортировать из меню</span>
+                </button>
+                <button class="btn btn-primary gap-2" onclick="openTemplateEditor()">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" />
+                    </svg>
+                    <span data-i18n="add_template">Создать шаблон</span>
+                </button>
+            </div>
+        </div>
+
+        <!-- Templates List -->
+        <div class="bg-base-100 rounded-xl shadow-sm overflow-hidden" id="templatesList">
+            <div class="p-4 text-center opacity-50">Загрузка...</div>
+        </div>
+
+    </main>
+
+    <div id="footer-placeholder"></div>
+
+    <!-- Template Editor Modal -->
+    <dialog id="templateEditorModal" class="modal">
+        <div class="modal-box max-w-4xl max-h-[90vh] relative">
+            <button type="button" class="btn btn-sm btn-circle btn-ghost absolute right-2 top-2" onclick="templateEditorModal.close()">✕</button>
+            <h3 class="font-bold text-lg mb-4" id="editorModalTitle" data-i18n="add_template">Создать шаблон</h3>
+
+            <div class="space-y-4">
+                <!-- Template Name -->
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    <div>
+                        <label class="label"><span class="label-text font-medium">Название (RU)</span></label>
+                        <input type="text" id="templateNameRu" class="input input-bordered w-full" placeholder="Недельное меню" />
+                    </div>
+                    <div>
+                        <label class="label">
+                            <span class="label-text font-medium">Name (EN)</span>
+                            <button type="button" class="text-xs opacity-60 hover:opacity-100" onclick="autoTranslate('templateNameRu', 'templateNameEn', 'ru', 'en', this)">🌐 Auto</button>
+                        </label>
+                        <input type="text" id="templateNameEn" class="input input-bordered w-full" placeholder="Weekly menu" />
+                    </div>
+                    <div>
+                        <label class="label">
+                            <span class="label-text font-medium">नाम (HI)</span>
+                            <button type="button" class="text-xs opacity-60 hover:opacity-100" onclick="autoTranslate('templateNameRu', 'templateNameHi', 'ru', 'hi', this)">🌐 Auto</button>
+                        </label>
+                        <input type="text" id="templateNameHi" class="input input-bordered w-full" />
+                    </div>
+                </div>
+
+                <!-- Description -->
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    <div>
+                        <label class="label"><span class="label-text font-medium">Описание (RU)</span></label>
+                        <textarea id="templateDescRu" class="textarea textarea-bordered w-full" rows="2" placeholder="Описание шаблона"></textarea>
+                    </div>
+                    <div>
+                        <label class="label">
+                            <span class="label-text font-medium">Description (EN)</span>
+                            <button type="button" class="text-xs opacity-60 hover:opacity-100" onclick="autoTranslate('templateDescRu', 'templateDescEn', 'ru', 'en', this)">🌐 Auto</button>
+                        </label>
+                        <textarea id="templateDescEn" class="textarea textarea-bordered w-full" rows="2"></textarea>
+                    </div>
+                    <div>
+                        <label class="label">
+                            <span class="label-text font-medium">विवरण (HI)</span>
+                            <button type="button" class="text-xs opacity-60 hover:opacity-100" onclick="autoTranslate('templateDescRu', 'templateDescHi', 'ru', 'hi', this)">🌐 Auto</button>
+                        </label>
+                        <textarea id="templateDescHi" class="textarea textarea-bordered w-full" rows="2"></textarea>
+                    </div>
+                </div>
+
+                <!-- Day Count -->
+                <div class="flex items-center gap-4">
+                    <label class="label"><span class="label-text font-medium" data-i18n="day_count">Количество дней</span></label>
+                    <input type="number" id="templateDayCount" class="input input-bordered w-24" value="7" min="1" max="31" onchange="updateDayTabs()" />
+                </div>
+
+                <!-- Day Tabs -->
+                <div class="tabs tabs-boxed flex-wrap" id="dayTabs">
+                    <!-- Generated by JS -->
+                </div>
+
+                <!-- Day Content -->
+                <div id="dayContent" class="border border-base-300 rounded-lg p-4 min-h-64">
+                    <!-- Generated by JS -->
+                </div>
+            </div>
+
+            <div class="modal-action">
+                <button type="button" class="btn btn-ghost" onclick="templateEditorModal.close()" data-i18n="cancel">Отмена</button>
+                <button type="button" class="btn btn-primary" onclick="saveTemplate()" data-i18n="save">Сохранить</button>
+            </div>
+        </div>
+        <form method="dialog" class="modal-backdrop"><button>close</button></form>
+    </dialog>
+
+    <!-- Apply Template Modal -->
+    <dialog id="applyTemplateModal" class="modal">
+        <div class="modal-box max-w-md relative">
+            <button type="button" class="btn btn-sm btn-circle btn-ghost absolute right-2 top-2" onclick="applyTemplateModal.close()">✕</button>
+            <h3 class="font-bold text-lg mb-4" data-i18n="apply_template">Применить шаблон</h3>
+
+            <div class="space-y-4">
+                <div>
+                    <label class="label"><span class="label-text font-medium" data-i18n="select_start_date">Выберите начальную дату</span></label>
+                    <input type="date" id="applyStartDate" class="input input-bordered w-full" onchange="updateApplyPreview()" />
+                </div>
+
+                <div id="applyPreview" class="p-4 bg-base-200 rounded-lg hidden">
+                    <div class="text-sm opacity-60 mb-1" data-i18n="will_apply_to">Будет применено к датам</div>
+                    <div class="font-medium" id="applyDateRange"></div>
+                </div>
+
+                <div id="overwriteWarning" class="alert alert-warning hidden">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="stroke-current shrink-0 h-6 w-6" fill="none" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" /></svg>
+                    <span data-i18n="overwrite_existing">Меню на эти даты уже существует. Перезаписать?</span>
+                </div>
+            </div>
+
+            <div class="modal-action">
+                <button type="button" class="btn btn-ghost" onclick="applyTemplateModal.close()" data-i18n="cancel">Отмена</button>
+                <button type="button" class="btn btn-primary" onclick="applyTemplate()" data-i18n="apply_template">Применить</button>
+            </div>
+        </div>
+        <form method="dialog" class="modal-backdrop"><button>close</button></form>
+    </dialog>
+
+    <!-- Import from Menu Modal -->
+    <dialog id="importModal" class="modal">
+        <div class="modal-box max-w-md relative">
+            <button type="button" class="btn btn-sm btn-circle btn-ghost absolute right-2 top-2" onclick="importModal.close()">✕</button>
+            <h3 class="font-bold text-lg mb-4" data-i18n="import_from_menu">Импортировать из меню</h3>
+
+            <div class="space-y-4">
+                <div>
+                    <label class="label"><span class="label-text font-medium" data-i18n="template_name">Название шаблона</span></label>
+                    <input type="text" id="importTemplateName" class="input input-bordered w-full" placeholder="Недельное меню" />
+                </div>
+
+                <div class="grid grid-cols-2 gap-4">
+                    <div>
+                        <label class="label"><span class="label-text font-medium" data-i18n="date_from">С даты</span></label>
+                        <input type="date" id="importFromDate" class="input input-bordered w-full" onchange="updateImportPreview()" />
+                    </div>
+                    <div>
+                        <label class="label"><span class="label-text font-medium" data-i18n="date_to">По дату</span></label>
+                        <input type="date" id="importToDate" class="input input-bordered w-full" onchange="updateImportPreview()" />
+                    </div>
+                </div>
+
+                <div id="importPreview" class="p-4 bg-base-200 rounded-lg hidden">
+                    <div class="text-lg font-medium" id="importDayCountText"></div>
+                    <div class="text-sm opacity-60 mt-1" id="importMealsCount"></div>
+                </div>
+            </div>
+
+            <div class="modal-action">
+                <button type="button" class="btn btn-ghost" onclick="importModal.close()" data-i18n="cancel">Отмена</button>
+                <button type="button" class="btn btn-primary" id="importBtn" onclick="importFromMenu()" disabled data-i18n="import">Импортировать</button>
+            </div>
+        </div>
+        <form method="dialog" class="modal-backdrop"><button>close</button></form>
+    </dialog>
+
+    <!-- Add Dish Modal -->
+    <dialog id="dishModal" class="modal">
+        <div class="modal-box max-w-lg relative">
+            <button type="button" class="btn btn-sm btn-circle btn-ghost absolute right-2 top-2" onclick="dishModal.close()">✕</button>
+            <h3 class="font-bold text-lg mb-4" data-i18n="add_dish">Добавить блюдо</h3>
+
+            <div class="space-y-4">
+                <!-- Tabs -->
+                <div class="tabs tabs-boxed">
+                    <a class="tab tab-active" id="tabSearch" onclick="switchRecipeTab('search')" data-i18n="search_recipe">Поиск</a>
+                    <a class="tab" id="tabBrowse" onclick="switchRecipeTab('browse')" data-i18n="by_category">По категории</a>
+                </div>
+
+                <!-- Search Tab -->
+                <div id="searchTab">
+                    <div class="relative">
+                        <input type="text"
+                               id="recipeSearch"
+                               class="input input-bordered w-full"
+                               placeholder="Начните вводить название..."
+                               autocomplete="off"
+                               oninput="filterRecipes(this.value)"
+                               onfocus="showRecipeDropdown()"
+                        />
+                        <div id="recipeDropdown" class="absolute z-50 w-full bg-base-100 border border-base-300 rounded-lg shadow-lg mt-1 max-h-64 overflow-y-auto hidden">
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Browse Tab -->
+                <div id="browseTab" class="hidden">
+                    <div class="flex flex-wrap gap-2 mb-3" id="categoryButtons">
+                    </div>
+                    <div id="categoryRecipeList" class="max-h-64 overflow-y-auto border border-base-300 rounded-lg">
+                    </div>
+                </div>
+
+                <!-- Selected Recipe -->
+                <div id="selectedRecipeDisplay" class="hidden">
+                    <div class="flex items-center justify-between p-3 bg-base-200 rounded-lg border-2" style="border-color: var(--current-color);">
+                        <div>
+                            <div class="font-medium" id="selectedRecipeName"></div>
+                            <div class="text-sm opacity-50" id="selectedRecipeNameEn"></div>
+                        </div>
+                        <button type="button" class="btn btn-ghost btn-sm btn-square" onclick="clearSelectedRecipe()">
+                            <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+                            </svg>
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Portion Size -->
+                <div>
+                    <label class="label"><span class="label-text font-medium" data-i18n="portion_size">Размер порции</span></label>
+                    <div class="join w-full">
+                        <input type="number" id="portionSize" class="input input-bordered join-item w-full" value="200" min="1" />
+                        <span id="portionUnit" class="btn join-item no-animation pointer-events-none bg-base-200">г</span>
+                    </div>
+                </div>
+            </div>
+
+            <div class="modal-action">
+                <button type="button" class="btn btn-ghost" onclick="dishModal.close()" data-i18n="cancel">Отмена</button>
+                <button type="button" class="btn btn-primary" id="saveDishBtn" onclick="saveDishToTemplate()" disabled data-i18n="save">Сохранить</button>
+            </div>
+        </div>
+        <form method="dialog" class="modal-backdrop"><button>close</button></form>
+    </dialog>
+
+    <script src="js/layout.js"></script>
+    <script>
+        // ==================== STATE ====================
+        let templates = [];
+        let recipes = [];
+        let categories = [];
+        let units = [];
+        let retreats = [];
+
+        // Editor state
+        let editingTemplateId = null;
+        let templateData = {}; // { dayNumber: { mealType: { portions, dishes: [...] } } }
+        let currentDay = 1;
+        let selectedMealType = null;
+
+        // Dish modal state
+        let selectedRecipe = null;
+        let currentCategory = 'all';
+
+        // Apply modal state
+        let applyingTemplateId = null;
+
+        // Meal types config
+        const mealConfig = {
+            main: ['breakfast', 'lunch', 'dinner'],
+            cafe: ['menu'],
+            guest: ['breakfast', 'lunch', 'dinner']
+        };
+
+        function getMealTypes() {
+            return mealConfig[Layout.currentLocation] || ['breakfast', 'lunch', 'dinner'];
+        }
+
+        // ==================== SHORTCUTS ====================
+        const t = key => Layout.t(key);
+        const getName = (item, lang) => Layout.getName(item, lang || Layout.currentLang);
+
+        function getUnitShort(unitCode) {
+            if (!unitCode) return '';
+            const unit = units.find(u => u.code === unitCode || u.short_ru === unitCode || u.short_en === unitCode);
+            return unit ? (unit[`short_${Layout.currentLang}`] || unit.short_ru || unitCode) : unitCode;
+        }
+
+        function getCurrentLocation() {
+            return Layout.locations?.find(l => l.slug === Layout.currentLocation);
+        }
+
+        // ==================== DATA LOADING ====================
+        async function loadData() {
+            const locationId = getCurrentLocation()?.id;
+
+            // Load templates
+            let templatesQuery = Layout.db
+                .from('menu_templates')
+                .select(`
+                    *,
+                    meals:menu_template_meals(
+                        *,
+                        dishes:menu_template_dishes(*, recipe:recipes(*))
+                    )
+                `)
+                .order('created_at', { ascending: false });
+
+            if (locationId) {
+                templatesQuery = templatesQuery.eq('location_id', locationId);
+            }
+
+            const { data: templatesData } = await templatesQuery;
+            templates = templatesData || [];
+
+            // Load recipes
+            let recipesQuery = Layout.db
+                .from('recipes')
+                .select('*, category:recipe_categories(*)');
+
+            if (locationId) {
+                recipesQuery = recipesQuery.eq('location_id', locationId);
+            }
+
+            const { data: recipesData } = await recipesQuery;
+            recipes = recipesData || [];
+
+            // Load categories
+            const { data: categoriesData } = await Layout.db
+                .from('recipe_categories')
+                .select('*')
+                .order('sort_order');
+            categories = categoriesData || [];
+
+            // Load units
+            const { data: unitsData } = await Layout.db
+                .from('units')
+                .select('*');
+            units = unitsData || [];
+
+            // Load retreats
+            const { data: retreatsData } = await Layout.db
+                .from('retreats')
+                .select('*');
+            retreats = retreatsData || [];
+
+            renderTemplates();
+        }
+
+        // ==================== AUTO-TRANSLATE ====================
+        async function autoTranslate(fromId, toId, fromLang, toLang, btn) {
+            const fromEl = document.getElementById(fromId);
+            const toEl = document.getElementById(toId);
+            if (!fromEl || !toEl) return;
+
+            const text = fromEl.value.trim();
+            if (!text) {
+                toEl.focus();
+                return;
+            }
+
+            const originalText = btn.textContent;
+            btn.textContent = '...';
+            btn.disabled = true;
+
+            try {
+                const translated = await Layout.translate(text, fromLang, toLang);
+                toEl.value = translated;
+            } catch (e) {
+                console.error('Translation error:', e);
+            } finally {
+                btn.textContent = originalText;
+                btn.disabled = false;
+            }
+        }
+
+        // ==================== IMPORT FROM MENU ====================
+        function openImportModal() {
+            // Set default dates to current week
+            const today = new Date();
+            const dayOfWeek = today.getDay();
+            const monday = new Date(today);
+            monday.setDate(today.getDate() - (dayOfWeek === 0 ? 6 : dayOfWeek - 1));
+            const sunday = new Date(monday);
+            sunday.setDate(monday.getDate() + 6);
+
+            Layout.$('#importFromDate').value = formatDate(monday);
+            Layout.$('#importToDate').value = formatDate(sunday);
+            Layout.$('#importTemplateName').value = '';
+            Layout.$('#importBtn').disabled = true;
+
+            updateImportPreview();
+            importModal.showModal();
+        }
+
+        function formatDate(date) {
+            return date.toISOString().split('T')[0];
+        }
+
+        // Parse date string as local date (not UTC)
+        function parseLocalDate(dateStr) {
+            const [year, month, day] = dateStr.split('-').map(Number);
+            return new Date(year, month - 1, day);
+        }
+
+        async function updateImportPreview() {
+            const fromDate = Layout.$('#importFromDate').value;
+            const toDate = Layout.$('#importToDate').value;
+
+            if (!fromDate || !toDate) {
+                Layout.$('#importPreview').classList.add('hidden');
+                Layout.$('#importBtn').disabled = true;
+                return;
+            }
+
+            const from = parseLocalDate(fromDate);
+            const to = parseLocalDate(toDate);
+            const dayCount = Math.ceil((to - from) / (1000 * 60 * 60 * 24)) + 1;
+
+            if (dayCount < 1) {
+                Layout.$('#importPreview').classList.add('hidden');
+                Layout.$('#importBtn').disabled = true;
+                return;
+            }
+
+            // Load menu data for the range
+            const locationId = getCurrentLocation()?.id;
+            if (!locationId) return;
+
+            const { data: mealsData } = await Layout.db
+                .from('menu_meals')
+                .select('id, date, meal_type, dishes:menu_dishes(id)')
+                .eq('location_id', locationId)
+                .gte('date', fromDate)
+                .lte('date', toDate);
+
+            const mealsCount = mealsData?.length || 0;
+            const dishesCount = mealsData?.reduce((sum, m) => sum + (m.dishes?.length || 0), 0) || 0;
+
+            Layout.$('#importDayCountText').textContent = `${dayCount} ${t('days')}`;
+            Layout.$('#importMealsCount').textContent = mealsCount > 0
+                ? `${mealsCount} ${t('portions').replace('порций', 'приёмов пищи')}, ${dishesCount} ${t('portions').replace('порций', 'блюд')}`
+                : t('no_templates').replace('шаблонов', 'данных меню');
+            Layout.$('#importPreview').classList.remove('hidden');
+            Layout.$('#importBtn').disabled = mealsCount === 0;
+        }
+
+        async function importFromMenu() {
+            const name = Layout.$('#importTemplateName').value.trim();
+            const fromDate = Layout.$('#importFromDate').value;
+            const toDate = Layout.$('#importToDate').value;
+
+            if (!name) {
+                alert('Введите название шаблона');
+                return;
+            }
+
+            const from = parseLocalDate(fromDate);
+            const to = parseLocalDate(toDate);
+            const dayCount = Math.ceil((to - from) / (1000 * 60 * 60 * 24)) + 1;
+
+            const locationId = getCurrentLocation()?.id;
+            if (!locationId) return;
+
+            // Load full menu data for the range
+            const { data: mealsData } = await Layout.db
+                .from('menu_meals')
+                .select(`
+                    *,
+                    dishes:menu_dishes(*, recipe:recipes(*))
+                `)
+                .eq('location_id', locationId)
+                .gte('date', fromDate)
+                .lte('date', toDate);
+
+            // Build template data structure
+            templateData = {};
+            (mealsData || []).forEach(meal => {
+                const mealDate = new Date(meal.date);
+                const dayNumber = Math.ceil((mealDate - from) / (1000 * 60 * 60 * 24)) + 1;
+
+                if (!templateData[dayNumber]) {
+                    templateData[dayNumber] = {};
+                }
+
+                templateData[dayNumber][meal.meal_type] = {
+                    portions: meal.portions || 50,
+                    dishes: (meal.dishes || []).map(d => ({
+                        recipe_id: d.recipe_id,
+                        recipe: d.recipe,
+                        portion_size: d.portion_size,
+                        portion_unit: d.portion_unit
+                    }))
+                };
+            });
+
+            // Close import modal and open editor with pre-filled data
+            importModal.close();
+
+            editingTemplateId = null;
+            currentDay = 1;
+
+            Layout.$('#templateNameRu').value = name;
+            Layout.$('#templateNameEn').value = '';
+            Layout.$('#templateNameHi').value = '';
+            Layout.$('#templateDescRu').value = '';
+            Layout.$('#templateDescEn').value = '';
+            Layout.$('#templateDescHi').value = '';
+            Layout.$('#templateDayCount').value = dayCount;
+            Layout.$('#editorModalTitle').textContent = t('add_template');
+
+            updateDayTabs();
+            templateEditorModal.showModal();
+        }
+
+        // ==================== TEMPLATES LIST ====================
+        function renderTemplates() {
+            const list = Layout.$('#templatesList');
+            const countEl = Layout.$('#templatesCount');
+
+            countEl.textContent = `${templates.length} ${templates.length === 1 ? 'шаблон' : (templates.length < 5 ? 'шаблона' : 'шаблонов')}`;
+
+            if (templates.length === 0) {
+                list.innerHTML = `
+                    <div class="text-center py-12 opacity-50">
+                        <div class="text-4xl mb-2">📋</div>
+                        <div data-i18n="no_templates">${t('no_templates')}</div>
+                    </div>
+                `;
+                return;
+            }
+
+            list.innerHTML = templates.map(template => {
+                const dishesCount = template.meals?.reduce((sum, m) => sum + (m.dishes?.length || 0), 0) || 0;
+                const description = template[`description_${Layout.currentLang}`] || template.description_ru || '';
+
+                return `
+                    <div class="flex items-center justify-between px-4 py-3 border-b border-base-200 last:border-0 hover:bg-base-50">
+                        <div class="flex-1 min-w-0">
+                            <div class="font-medium">${getName(template)}</div>
+                            <div class="text-sm opacity-60">${template.day_count} ${t('days')} · ${dishesCount} блюд${description ? ` · ${description}` : ''}</div>
+                        </div>
+                        <div class="flex items-center gap-2 ml-4">
+                            <button class="btn btn-sm btn-ghost" onclick="openTemplateEditor('${template.id}')">
+                                <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                                </svg>
+                                <span class="hidden sm:inline">${t('edit_template')}</span>
+                            </button>
+                            <button class="btn btn-sm btn-primary" onclick="openApplyModal('${template.id}')">
+                                ${t('apply_template')}
+                            </button>
+                            <button class="btn btn-sm btn-ghost btn-square text-error/60 hover:text-error hover:bg-error/10" onclick="deleteTemplate('${template.id}')">
+                                <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                                </svg>
+                            </button>
+                        </div>
+                    </div>
+                `;
+            }).join('');
+        }
+
+        async function deleteTemplate(id) {
+            if (!confirm(t('confirm_delete_template'))) return;
+
+            await Layout.db.from('menu_templates').delete().eq('id', id);
+            templates = templates.filter(t => t.id !== id);
+            renderTemplates();
+        }
+
+        // ==================== TEMPLATE EDITOR ====================
+        function openTemplateEditor(id = null) {
+            editingTemplateId = id;
+            currentDay = 1;
+            templateData = {};
+
+            if (id) {
+                const template = templates.find(t => t.id === id);
+                if (!template) return;
+
+                Layout.$('#templateNameRu').value = template.name_ru || '';
+                Layout.$('#templateNameEn').value = template.name_en || '';
+                Layout.$('#templateNameHi').value = template.name_hi || '';
+                Layout.$('#templateDescRu').value = template.description_ru || '';
+                Layout.$('#templateDescEn').value = template.description_en || '';
+                Layout.$('#templateDescHi').value = template.description_hi || '';
+                Layout.$('#templateDayCount').value = template.day_count || 7;
+                Layout.$('#editorModalTitle').textContent = t('edit_template');
+
+                // Load template data
+                (template.meals || []).forEach(meal => {
+                    if (!templateData[meal.day_number]) {
+                        templateData[meal.day_number] = {};
+                    }
+                    templateData[meal.day_number][meal.meal_type] = {
+                        portions: meal.portions || 50,
+                        dishes: (meal.dishes || []).map(d => ({
+                            recipe_id: d.recipe_id,
+                            recipe: d.recipe,
+                            portion_size: d.portion_size,
+                            portion_unit: d.portion_unit
+                        }))
+                    };
+                });
+            } else {
+                Layout.$('#templateNameRu').value = '';
+                Layout.$('#templateNameEn').value = '';
+                Layout.$('#templateNameHi').value = '';
+                Layout.$('#templateDescRu').value = '';
+                Layout.$('#templateDescEn').value = '';
+                Layout.$('#templateDescHi').value = '';
+                Layout.$('#templateDayCount').value = 7;
+                Layout.$('#editorModalTitle').textContent = t('add_template');
+            }
+
+            updateDayTabs();
+            templateEditorModal.showModal();
+        }
+
+        function updateDayTabs() {
+            const dayCount = parseInt(Layout.$('#templateDayCount').value) || 7;
+            const tabsContainer = Layout.$('#dayTabs');
+
+            tabsContainer.innerHTML = Array.from({ length: dayCount }, (_, i) => {
+                const day = i + 1;
+                return `<a class="tab day-tab ${day === currentDay ? 'active tab-active' : ''}" onclick="selectDay(${day})">${t('day_n')} ${day}</a>`;
+            }).join('');
+
+            if (currentDay > dayCount) {
+                currentDay = dayCount;
+            }
+
+            renderDayContent();
+        }
+
+        function selectDay(day) {
+            currentDay = day;
+            Layout.$$('.day-tab').forEach((tab, i) => {
+                tab.classList.toggle('active', i + 1 === day);
+                tab.classList.toggle('tab-active', i + 1 === day);
+            });
+            renderDayContent();
+        }
+
+        function renderDayContent() {
+            const container = Layout.$('#dayContent');
+            const mealTypes = getMealTypes();
+            const dayData = templateData[currentDay] || {};
+
+            container.innerHTML = mealTypes.map(mealType => {
+                const mealData = dayData[mealType] || { portions: 50, dishes: [] };
+                const dishes = mealData.dishes || [];
+                const isCafe = Layout.currentLocation === 'cafe';
+
+                return `
+                    <div class="mb-6 last:mb-0">
+                        <div class="flex justify-between items-center mb-3 pb-2 border-b border-base-300">
+                            <span class="font-bold text-lg">${t(mealType)}</span>
+                            <div class="flex items-center gap-4">
+                                ${!isCafe ? `
+                                    <div class="flex items-center gap-2">
+                                        <span class="text-sm opacity-60">${t('portions')}:</span>
+                                        <input type="number"
+                                               class="input input-sm input-bordered w-20 text-center"
+                                               value="${mealData.portions}"
+                                               min="1"
+                                               onchange="updateMealPortions(${currentDay}, '${mealType}', this.value)"
+                                        />
+                                    </div>
+                                ` : ''}
+                                <button class="btn btn-ghost btn-sm" onclick="openDishModal(${currentDay}, '${mealType}')">
+                                    <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" />
+                                    </svg>
+                                    ${t('add_dish')}
+                                </button>
+                            </div>
+                        </div>
+
+                        ${dishes.length === 0 ? `
+                            <div class="text-center py-6 opacity-40">
+                                <svg xmlns="http://www.w3.org/2000/svg" class="h-8 w-8 mx-auto mb-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" />
+                                </svg>
+                                ${t('add_dish')}
+                            </div>
+                        ` : `
+                            <div class="space-y-2">
+                                ${dishes.map((dish, index) => {
+                                    const recipe = dish.recipe;
+                                    if (!recipe) return '';
+                                    return `
+                                        <div class="flex justify-between items-center py-2 border-b border-base-200 last:border-0">
+                                            <div>
+                                                <span class="font-medium">${getName(recipe)}</span>
+                                                <span class="text-xs opacity-40 ml-2">${recipe.category ? getName(recipe.category) : ''}</span>
+                                            </div>
+                                            <div class="flex items-center gap-2">
+                                                <span class="badge badge-lg">${dish.portion_size || ''} ${getUnitShort(dish.portion_unit)}</span>
+                                                <button class="btn btn-ghost btn-sm btn-square text-error/60 hover:text-error" onclick="removeDishFromTemplate(${currentDay}, '${mealType}', ${index})">
+                                                    <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+                                                    </svg>
+                                                </button>
+                                            </div>
+                                        </div>
+                                    `;
+                                }).join('')}
+                            </div>
+                        `}
+                    </div>
+                `;
+            }).join('');
+        }
+
+        function updateMealPortions(day, mealType, value) {
+            if (!templateData[day]) templateData[day] = {};
+            if (!templateData[day][mealType]) templateData[day][mealType] = { portions: 50, dishes: [] };
+            templateData[day][mealType].portions = parseInt(value) || 50;
+        }
+
+        function removeDishFromTemplate(day, mealType, index) {
+            if (templateData[day]?.[mealType]?.dishes) {
+                templateData[day][mealType].dishes.splice(index, 1);
+                renderDayContent();
+            }
+        }
+
+        async function saveTemplate() {
+            const nameRu = Layout.$('#templateNameRu').value.trim();
+            if (!nameRu) {
+                alert('Введите название шаблона');
+                return;
+            }
+
+            const locationId = getCurrentLocation()?.id;
+            const dayCount = parseInt(Layout.$('#templateDayCount').value) || 7;
+
+            try {
+                let templateId = editingTemplateId;
+
+                if (templateId) {
+                    // Update existing template
+                    await Layout.db
+                        .from('menu_templates')
+                        .update({
+                            name_ru: nameRu,
+                            name_en: Layout.$('#templateNameEn').value.trim() || null,
+                            name_hi: Layout.$('#templateNameHi').value.trim() || null,
+                            description_ru: Layout.$('#templateDescRu').value.trim() || null,
+                            description_en: Layout.$('#templateDescEn').value.trim() || null,
+                            description_hi: Layout.$('#templateDescHi').value.trim() || null,
+                            day_count: dayCount
+                        })
+                        .eq('id', templateId);
+
+                    // Delete existing meals
+                    await Layout.db
+                        .from('menu_template_meals')
+                        .delete()
+                        .eq('template_id', templateId);
+                } else {
+                    // Create new template
+                    const { data: newTemplate, error } = await Layout.db
+                        .from('menu_templates')
+                        .insert({
+                            location_id: locationId,
+                            name_ru: nameRu,
+                            name_en: Layout.$('#templateNameEn').value.trim() || null,
+                            name_hi: Layout.$('#templateNameHi').value.trim() || null,
+                            description_ru: Layout.$('#templateDescRu').value.trim() || null,
+                            description_en: Layout.$('#templateDescEn').value.trim() || null,
+                            description_hi: Layout.$('#templateDescHi').value.trim() || null,
+                            day_count: dayCount
+                        })
+                        .select()
+                        .single();
+
+                    if (error) throw error;
+                    templateId = newTemplate.id;
+                }
+
+                // Insert meals and dishes
+                for (const dayNumber in templateData) {
+                    for (const mealType in templateData[dayNumber]) {
+                        const mealData = templateData[dayNumber][mealType];
+                        if (!mealData.dishes?.length && mealData.portions === 50) continue;
+
+                        const { data: newMeal, error: mealError } = await Layout.db
+                            .from('menu_template_meals')
+                            .insert({
+                                template_id: templateId,
+                                day_number: parseInt(dayNumber),
+                                meal_type: mealType,
+                                portions: mealData.portions || 50
+                            })
+                            .select()
+                            .single();
+
+                        if (mealError) throw mealError;
+
+                        if (mealData.dishes?.length > 0) {
+                            const dishesInsert = mealData.dishes.map((dish, index) => ({
+                                template_meal_id: newMeal.id,
+                                recipe_id: dish.recipe_id,
+                                portion_size: dish.portion_size,
+                                portion_unit: dish.portion_unit,
+                                sort_order: index
+                            }));
+
+                            await Layout.db
+                                .from('menu_template_dishes')
+                                .insert(dishesInsert);
+                        }
+                    }
+                }
+
+                templateEditorModal.close();
+                await loadData();
+            } catch (error) {
+                console.error('Error saving template:', error);
+                alert('Ошибка сохранения');
+            }
+        }
+
+        // ==================== DISH MODAL ====================
+        function openDishModal(day, mealType) {
+            currentDay = day;
+            selectedMealType = mealType;
+            selectedRecipe = null;
+
+            Layout.$('#recipeSearch').value = '';
+            Layout.$('#recipeDropdown').classList.add('hidden');
+            Layout.$('#selectedRecipeDisplay').classList.add('hidden');
+            Layout.$('#portionSize').value = 200;
+            Layout.$('#portionUnit').textContent = 'г';
+            Layout.$('#saveDishBtn').disabled = true;
+
+            Layout.$('#tabSearch').classList.add('tab-active');
+            Layout.$('#tabBrowse').classList.remove('tab-active');
+            Layout.$('#searchTab').classList.remove('hidden');
+            Layout.$('#browseTab').classList.add('hidden');
+            currentCategory = 'all';
+
+            buildCategoryButtons();
+            dishModal.showModal();
+        }
+
+        function buildCategoryButtons() {
+            const container = Layout.$('#categoryButtons');
+            container.innerHTML = `
+                <button type="button" class="btn btn-sm filter-btn ${currentCategory === 'all' ? 'active' : ''}" data-cat="all" onclick="filterByCategory('all')">${t('filter_all') || 'Все'}</button>
+                ${categories.map(cat => `
+                    <button type="button" class="btn btn-sm filter-btn ${currentCategory === cat.slug ? 'active' : ''}" data-cat="${cat.slug}" onclick="filterByCategory('${cat.slug}')">${getName(cat)}</button>
+                `).join('')}
+            `;
+        }
+
+        function switchRecipeTab(tab) {
+            if (tab === 'search') {
+                Layout.$('#searchTab').classList.remove('hidden');
+                Layout.$('#browseTab').classList.add('hidden');
+                Layout.$('#tabSearch').classList.add('tab-active');
+                Layout.$('#tabBrowse').classList.remove('tab-active');
+            } else {
+                Layout.$('#searchTab').classList.add('hidden');
+                Layout.$('#browseTab').classList.remove('hidden');
+                Layout.$('#tabSearch').classList.remove('tab-active');
+                Layout.$('#tabBrowse').classList.add('tab-active');
+                filterByCategory(currentCategory);
+            }
+        }
+
+        function filterRecipes(query) {
+            const dropdown = Layout.$('#recipeDropdown');
+
+            if (query.length < 1) {
+                dropdown.classList.add('hidden');
+                return;
+            }
+
+            const q = query.toLowerCase();
+            const filtered = recipes.filter(r =>
+                r.name_ru?.toLowerCase().includes(q) ||
+                r.name_en?.toLowerCase().includes(q) ||
+                r.name_hi?.includes(query)
+            ).slice(0, 8);
+
+            if (filtered.length === 0) {
+                dropdown.innerHTML = `<div class="p-3 text-sm opacity-50">${t('nothing_found')}</div>`;
+            } else {
+                dropdown.innerHTML = filtered.map(r => `
+                    <div class="p-3 hover:bg-base-200 cursor-pointer border-b border-base-200 last:border-0" onclick="selectRecipe('${r.id}')">
+                        <div class="font-medium">${getName(r)}</div>
+                        <div class="text-xs opacity-50">${r.name_en || ''}</div>
+                    </div>
+                `).join('');
+            }
+
+            dropdown.classList.remove('hidden');
+        }
+
+        function showRecipeDropdown() {
+            const input = Layout.$('#recipeSearch');
+            if (input.value.length >= 1) {
+                filterRecipes(input.value);
+            }
+        }
+
+        function filterByCategory(category) {
+            currentCategory = category;
+            const list = Layout.$('#categoryRecipeList');
+
+            Layout.$$('.filter-btn').forEach(btn => {
+                btn.classList.toggle('active', btn.dataset.cat === category);
+            });
+
+            let filtered = recipes;
+            if (category !== 'all') {
+                filtered = recipes.filter(r => r.category?.slug === category);
+            }
+
+            if (filtered.length === 0) {
+                list.innerHTML = `<div class="p-3 text-sm opacity-50 text-center">${t('nothing_found')}</div>`;
+            } else {
+                list.innerHTML = filtered.map(r => `
+                    <div class="p-3 hover:bg-base-200 cursor-pointer border-b border-base-200 last:border-0" onclick="selectRecipe('${r.id}')">
+                        <div class="font-medium">${getName(r)}</div>
+                        <div class="text-xs opacity-50">${r.name_en || ''} · ${r.category ? getName(r.category) : ''}</div>
+                    </div>
+                `).join('');
+            }
+        }
+
+        function selectRecipe(recipeId) {
+            const recipe = recipes.find(r => r.id === recipeId);
+            if (!recipe) return;
+
+            selectedRecipe = recipe;
+
+            Layout.$('#searchTab').classList.add('hidden');
+            Layout.$('#browseTab').classList.add('hidden');
+            Layout.$('#recipeDropdown').classList.add('hidden');
+            Layout.$('#selectedRecipeDisplay').classList.remove('hidden');
+            Layout.$('#selectedRecipeName').textContent = getName(recipe);
+            Layout.$('#selectedRecipeNameEn').textContent = recipe.name_en || '';
+
+            Layout.$('#portionSize').value = recipe.portion_amount || 200;
+            Layout.$('#portionUnit').textContent = getUnitShort(recipe.portion_unit || 'g');
+
+            Layout.$('#saveDishBtn').disabled = false;
+        }
+
+        function clearSelectedRecipe() {
+            selectedRecipe = null;
+
+            if (Layout.$('#tabSearch').classList.contains('tab-active')) {
+                Layout.$('#searchTab').classList.remove('hidden');
+                Layout.$('#recipeSearch').value = '';
+            } else {
+                Layout.$('#browseTab').classList.remove('hidden');
+            }
+            Layout.$('#selectedRecipeDisplay').classList.add('hidden');
+            Layout.$('#saveDishBtn').disabled = true;
+        }
+
+        function saveDishToTemplate() {
+            if (!selectedRecipe) return;
+
+            const portionSize = parseFloat(Layout.$('#portionSize').value) || 200;
+            const portionUnit = Layout.$('#portionUnit').textContent;
+
+            if (!templateData[currentDay]) templateData[currentDay] = {};
+            if (!templateData[currentDay][selectedMealType]) {
+                templateData[currentDay][selectedMealType] = { portions: 50, dishes: [] };
+            }
+
+            templateData[currentDay][selectedMealType].dishes.push({
+                recipe_id: selectedRecipe.id,
+                recipe: selectedRecipe,
+                portion_size: portionSize,
+                portion_unit: portionUnit
+            });
+
+            dishModal.close();
+            renderDayContent();
+        }
+
+        // Close dropdown on outside click
+        document.addEventListener('click', (e) => {
+            const dropdown = Layout.$('#recipeDropdown');
+            const input = Layout.$('#recipeSearch');
+            if (dropdown && input && !dropdown.contains(e.target) && e.target !== input) {
+                dropdown.classList.add('hidden');
+            }
+        });
+
+        // ==================== APPLY TEMPLATE ====================
+        function openApplyModal(templateId) {
+            applyingTemplateId = templateId;
+            const template = templates.find(t => t.id === templateId);
+            if (!template) return;
+
+            const today = new Date();
+            Layout.$('#applyStartDate').value = today.toISOString().split('T')[0];
+
+            updateApplyPreview();
+            applyTemplateModal.showModal();
+        }
+
+        function updateApplyPreview() {
+            const startDateStr = Layout.$('#applyStartDate').value;
+            if (!startDateStr) {
+                Layout.$('#applyPreview').classList.add('hidden');
+                return;
+            }
+
+            const template = templates.find(t => t.id === applyingTemplateId);
+            if (!template) return;
+
+            const startDate = parseLocalDate(startDateStr);
+            const endDate = new Date(startDate);
+            endDate.setDate(endDate.getDate() + template.day_count - 1);
+
+            const formatDisplayDate = d => d.toLocaleDateString(Layout.currentLang === 'ru' ? 'ru-RU' : 'en-US', {
+                day: 'numeric',
+                month: 'long',
+                year: 'numeric'
+            });
+
+            Layout.$('#applyDateRange').textContent = `${formatDisplayDate(startDate)} — ${formatDisplayDate(endDate)}`;
+            Layout.$('#applyPreview').classList.remove('hidden');
+
+            // Check for existing menu
+            checkExistingMenu(startDateStr, template.day_count);
+        }
+
+        async function checkExistingMenu(startDateStr, dayCount) {
+            const locationId = getCurrentLocation()?.id;
+            if (!locationId) return;
+
+            const startDate = new Date(startDateStr);
+            const endDate = new Date(startDate);
+            endDate.setDate(endDate.getDate() + dayCount - 1);
+
+            const { data: existingMeals } = await Layout.db
+                .from('menu_meals')
+                .select('id')
+                .eq('location_id', locationId)
+                .gte('date', startDateStr)
+                .lte('date', endDate.toISOString().split('T')[0])
+                .limit(1);
+
+            Layout.$('#overwriteWarning').classList.toggle('hidden', !existingMeals?.length);
+        }
+
+        async function applyTemplate() {
+            const startDateStr = Layout.$('#applyStartDate').value;
+            if (!startDateStr) return;
+
+            const template = templates.find(t => t.id === applyingTemplateId);
+            if (!template) return;
+
+            const locationId = getCurrentLocation()?.id;
+            if (!locationId) return;
+
+            const isCafe = Layout.currentLocation === 'cafe';
+
+            try {
+                // Calculate dates to apply
+                const startDate = parseLocalDate(startDateStr);
+
+                for (let dayOffset = 0; dayOffset < template.day_count; dayOffset++) {
+                    const targetDate = new Date(startDate);
+                    targetDate.setDate(targetDate.getDate() + dayOffset);
+                    const targetDateStr = targetDate.toISOString().split('T')[0];
+                    const dayNumber = dayOffset + 1;
+
+                    // Get meals for this day from template
+                    const dayMeals = (template.meals || []).filter(m => m.day_number === dayNumber);
+
+                    for (const templateMeal of dayMeals) {
+                        // Get retreat for this date (for portions)
+                        let portions = templateMeal.portions || 50;
+                        if (!isCafe) {
+                            const retreat = retreats.find(r =>
+                                targetDateStr >= r.start_date && targetDateStr <= r.end_date
+                            );
+                            if (retreat?.expected_participants) {
+                                portions = retreat.expected_participants;
+                            }
+                        }
+
+                        // Delete existing meal for this date/type
+                        await Layout.db
+                            .from('menu_meals')
+                            .delete()
+                            .eq('location_id', locationId)
+                            .eq('date', targetDateStr)
+                            .eq('meal_type', templateMeal.meal_type);
+
+                        // Create new meal (cook_id is null)
+                        const { data: newMeal, error: mealError } = await Layout.db
+                            .from('menu_meals')
+                            .insert({
+                                location_id: locationId,
+                                date: targetDateStr,
+                                meal_type: templateMeal.meal_type,
+                                portions: portions,
+                                cook_id: null
+                            })
+                            .select()
+                            .single();
+
+                        if (mealError) throw mealError;
+
+                        // Add dishes
+                        if (templateMeal.dishes?.length > 0) {
+                            const dishesInsert = templateMeal.dishes.map((dish, index) => ({
+                                meal_id: newMeal.id,
+                                recipe_id: dish.recipe_id,
+                                portion_size: dish.portion_size,
+                                portion_unit: dish.portion_unit,
+                                sort_order: index
+                            }));
+
+                            await Layout.db
+                                .from('menu_dishes')
+                                .insert(dishesInsert);
+                        }
+                    }
+                }
+
+                applyTemplateModal.close();
+                alert(t('template_applied'));
+            } catch (error) {
+                console.error('Error applying template:', error);
+                alert('Ошибка применения шаблона');
+            }
+        }
+
+        // ==================== INIT ====================
+        async function init() {
+            await Layout.init({ menuId: 'kitchen', itemId: 'menu_templates' });
+            await loadData();
+        }
+
+        window.onLanguageChange = () => {
+            Layout.updateAllTranslations();
+            renderTemplates();
+        };
+
+        window.onLocationChange = () => loadData();
+
+        init();
+    </script>
+</body>
+</html>
