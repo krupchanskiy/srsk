@@ -54,13 +54,21 @@
                     </button>
                 </div>
             </div>
-            <!-- Add cleaning button -->
-            <button class="btn btn-primary gap-2" onclick="openCleaningModal()">
-                <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" />
-                </svg>
-                <span data-i18n="add_cleaning">Уборка</span>
-            </button>
+            <!-- Add buttons -->
+            <div class="flex gap-2">
+                <button class="btn btn-primary gap-2" onclick="openCleaningModal('cleaning')">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" />
+                    </svg>
+                    <span data-i18n="add_cleaning">Уборка</span>
+                </button>
+                <button class="btn btn-secondary gap-2" onclick="openCleaningModal('linen')">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" />
+                    </svg>
+                    <span data-i18n="add_linen">Постельное</span>
+                </button>
+            </div>
         </div>
 
         <!-- Stats -->
@@ -187,9 +195,11 @@
     <dialog id="cleaningModal" class="modal">
         <div class="modal-box max-w-md relative">
             <button type="button" class="btn btn-sm btn-circle btn-ghost absolute right-2 top-2" onclick="closeCleaningModal()">✕</button>
-            <h3 class="font-bold text-lg mb-4" data-i18n="add_cleaning_title">Назначить уборку</h3>
+            <h3 class="font-bold text-lg mb-4" id="cleaningModalTitle">Назначить уборку</h3>
 
             <form id="cleaningForm" class="space-y-4">
+                <input type="hidden" name="type" id="cleaningTypeInput" value="cleaning" />
+
                 <!-- Building -->
                 <div>
                     <label class="label"><span class="label-text font-medium" data-i18n="room_building">Здание</span></label>
@@ -208,14 +218,14 @@
 
                 <!-- Date -->
                 <div>
-                    <label class="label"><span class="label-text font-medium" data-i18n="cleaning_date">Дата уборки</span></label>
+                    <label class="label"><span class="label-text font-medium" id="cleaningDateLabel">Дата</span></label>
                     <input type="date" name="cleaning_date" class="input input-bordered w-full" required />
                 </div>
 
                 <!-- Notes -->
                 <div>
                     <label class="label"><span class="label-text font-medium" data-i18n="notes">Примечание</span></label>
-                    <input type="text" name="notes" class="input input-bordered w-full" placeholder="Причина уборки..." />
+                    <input type="text" name="notes" class="input input-bordered w-full" />
                 </div>
 
                 <div class="modal-action">
@@ -297,7 +307,7 @@
             const { data, error } = await Layout.db
                 .from('cleaning_tasks')
                 .select(`
-                    id, cleaning_date, notes, status,
+                    id, cleaning_date, notes, status, type,
                     rooms(id, number, floor, buildings(id, name_ru, name_en))
                 `)
                 .eq('status', 'pending')
@@ -332,6 +342,7 @@
                     check_out: date,
                     rooms: task.rooms,
                     isManual: true,
+                    cleaningType: task.type || 'cleaning',
                     notes: task.notes,
                     cleaningTaskId: task.id
                 });
@@ -423,11 +434,19 @@
             const room = resident.rooms;
             const building = room?.buildings;
             const isManual = resident.isManual;
+            const cleaningType = resident.cleaningType || 'cleaning';
 
             // Badge for cleaning type
-            const badge = isManual
-                ? `<span class="badge badge-primary badge-sm">${t('cleaning_manual') || 'Назначена вручную'}</span>`
-                : `<span class="badge badge-warning badge-sm">${t('cleaning_after_checkout') || 'После выезда'}</span>`;
+            let badge;
+            if (isManual) {
+                if (cleaningType === 'linen') {
+                    badge = `<span class="badge badge-secondary badge-sm">${t('linen_change') || 'Смена белья'}</span>`;
+                } else {
+                    badge = `<span class="badge badge-primary badge-sm">${t('cleaning_manual') || 'Назначена вручную'}</span>`;
+                }
+            } else {
+                badge = `<span class="badge badge-warning badge-sm">${t('cleaning_after_checkout') || 'После выезда'}</span>`;
+            }
 
             return `
                 <div class="flex items-center justify-between p-3 bg-base-200/50 rounded-lg">
@@ -597,7 +616,7 @@
         }
 
         // ==================== CLEANING MODAL ====================
-        async function openCleaningModal() {
+        async function openCleaningModal(type = 'cleaning') {
             // Загружаем здания если ещё не загружены
             if (buildings.length === 0) {
                 buildings = await loadBuildings();
@@ -612,6 +631,18 @@
             const form = Layout.$('#cleaningForm');
             form.reset();
             form.cleaning_date.value = today;
+
+            // Set type
+            Layout.$('#cleaningTypeInput').value = type;
+
+            // Update modal title and labels based on type
+            if (type === 'linen') {
+                Layout.$('#cleaningModalTitle').textContent = t('add_linen_title') || 'Назначить смену белья';
+                Layout.$('#cleaningDateLabel').textContent = t('linen_date') || 'Дата смены белья';
+            } else {
+                Layout.$('#cleaningModalTitle').textContent = t('add_cleaning_title') || 'Назначить уборку';
+                Layout.$('#cleaningDateLabel').textContent = t('cleaning_date') || 'Дата уборки';
+            }
 
             Layout.$('#cleaningModal').showModal();
         }
@@ -641,6 +672,7 @@
             const roomId = form.room_id.value;
             const cleaningDate = form.cleaning_date.value;
             const notes = form.notes.value.trim();
+            const type = Layout.$('#cleaningTypeInput').value || 'cleaning';
 
             if (!roomId || !cleaningDate) return;
 
@@ -651,6 +683,7 @@
                         room_id: roomId,
                         cleaning_date: cleaningDate,
                         notes: notes || null,
+                        type: type,
                         status: 'pending'
                     });
 
