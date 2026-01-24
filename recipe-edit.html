@@ -354,6 +354,16 @@
                         </select>
                     </div>
                 </div>
+
+                <!-- Notes -->
+                <div id="productNotesSection" class="hidden">
+                    <label class="label">
+                        <span class="label-text font-medium" data-i18n="notes">Примечание</span>
+                        <span class="label-text-alt opacity-50">(опционально)</span>
+                    </label>
+                    <input type="text" id="productNotesInput" class="input input-bordered w-full"
+                           placeholder="для теста, для начинки..." data-i18n-placeholder="notes_placeholder" />
+                </div>
             </div>
 
             <div class="modal-action">
@@ -672,7 +682,7 @@
                 ).join('');
 
                 return `
-                    <div class="grid grid-cols-[1fr_auto_auto] gap-3 items-center ${zebraClass} rounded-lg p-3">
+                    <div class="grid grid-cols-[1fr_auto_auto_auto] gap-3 items-center ${zebraClass} rounded-lg p-3">
                         <div class="min-w-0">
                             <div class="font-medium truncate">${name}</div>
                             <div class="text-xs opacity-50 truncate">${subName}</div>
@@ -686,6 +696,9 @@
                                 ${unitOptions}
                             </select>
                         </div>
+                        <input type="text" value="${ing.notes || ''}" placeholder="${t('notes_short') || 'прим.'}"
+                               class="input input-bordered input-sm w-28"
+                               onchange="updateIngredient(${index}, 'notes', this.value.trim() || null)" />
                         <button type="button" class="btn btn-ghost btn-sm btn-square opacity-40 hover:opacity-100 hover:text-error" onclick="removeIngredient(${index})">
                             <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
@@ -704,8 +717,10 @@
             document.getElementById('productDropdownModal').classList.add('hidden');
             document.getElementById('selectedProductDisplay').classList.add('hidden');
             document.getElementById('productQuantitySection').classList.add('hidden');
+            document.getElementById('productNotesSection').classList.add('hidden');
             document.getElementById('addProductBtn').disabled = true;
             document.getElementById('productQuantityInput').value = 0.1;
+            document.getElementById('productNotesInput').value = '';
             switchProductTab('search');
             buildProductCategoryButtons();
             document.getElementById('productModal').showModal();
@@ -812,6 +827,7 @@
             document.getElementById('productDropdownModal').classList.add('hidden');
             document.getElementById('selectedProductDisplay').classList.remove('hidden');
             document.getElementById('productQuantitySection').classList.remove('hidden');
+            document.getElementById('productNotesSection').classList.remove('hidden');
             document.getElementById('selectedProductName').textContent = Layout.getName(selectedProduct);
 
             const lang = Layout.currentLang;
@@ -849,26 +865,25 @@
             selectedProduct = null;
             document.getElementById('selectedProductDisplay').classList.add('hidden');
             document.getElementById('productQuantitySection').classList.add('hidden');
+            document.getElementById('productNotesSection').classList.add('hidden');
             document.getElementById('addProductBtn').disabled = true;
             document.getElementById('productSearchInput').value = '';
+            document.getElementById('productNotesInput').value = '';
         }
 
         function addProductFromModal() {
             if (!selectedProduct) return;
 
-            if (ingredients.some(i => i.product_id === selectedProduct.id)) {
-                alert(t('product_already_added') || 'Этот продукт уже добавлен');
-                return;
-            }
-
             const quantity = parseFloat(document.getElementById('productQuantityInput').value) || 0.1;
             const selectedUnit = document.getElementById('productUnitSelect').value;
+            const notes = document.getElementById('productNotesInput').value.trim() || null;
 
             ingredients.push({
                 product_id: selectedProduct.id,
                 products: selectedProduct,
                 amount: quantity,
                 unit: selectedUnit,
+                notes: notes,
                 sort_order: ingredients.length + 1
             });
 
@@ -1047,6 +1062,7 @@
                         product_id: ing.product_id,
                         amount: ing.amount,
                         unit: ing.unit,
+                        notes: ing.notes || null,
                         sort_order: idx + 1
                     }));
                     console.log('Inserting ingredients:', ingData);

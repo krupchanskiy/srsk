@@ -502,9 +502,8 @@
                 return `
                     <tr class="${zebraClass}">
                         <td class="py-3">
-                            <div class="font-medium">${name}</div>
+                            <div class="font-medium">${name}${ing.notes ? ` <span class="font-normal opacity-60">(${ing.notes})</span>` : ''}</div>
                             <div class="text-xs opacity-50">${subName}</div>
-                            ${ing.notes ? `<div class="text-xs opacity-50 italic">${ing.notes}</div>` : ''}
                         </td>
                         <td class="text-right py-3 whitespace-nowrap">
                             <span class="font-bold text-lg">${displayAmount}</span>

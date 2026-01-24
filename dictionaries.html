@@ -55,6 +55,7 @@
             <button class="tab tab-active" data-tab="recipe_categories" data-i18n="dict_recipe_categories">Категории блюд</button>
             <button class="tab" data-tab="product_categories" data-i18n="dict_product_categories">Категории продуктов</button>
             <button class="tab" data-tab="units" data-i18n="dict_units">Единицы измерения</button>
+            <button class="tab" data-tab="product_densities" data-i18n="dict_product_densities">Плотности продуктов</button>
             <button class="tab" data-tab="departments" data-i18n="dict_departments">Департаменты</button>
         </div>
 
@@ -94,8 +95,11 @@
             recipe_categories: [],
             product_categories: [],
             units: [],
+            product_densities: [],
             departments: []
         };
+        let allProducts = []; // Для выбора продукта в плотностях
+        let densityFilter = ''; // Фильтр поиска для плотностей
 
         const t = key => Layout.t(key);
 
@@ -166,6 +170,26 @@
                 ],
                 orderBy: 'sort_order'
             },
+            product_densities: {
+                table: 'product_densities',
+                titleKey: 'dict_product_densities',
+                columns: [
+                    { key: 'product_name', label: 'product', computed: true },
+                    { key: 'tsp_grams', label: 'tsp_grams', width: 'w-20' },
+                    { key: 'tbsp_grams', label: 'tbsp_grams', width: 'w-20' },
+                    { key: 'cup_grams', label: 'cup_grams', width: 'w-20' },
+                    { key: 'liter_grams', label: 'liter_grams', width: 'w-20' }
+                ],
+                fields: [
+                    { name: 'product_id', label: 'product', type: 'product_select', required: true },
+                    { name: 'tsp_grams', label: 'tsp_grams', type: 'number', required: true, placeholder: '5', step: '0.1' },
+                    { name: 'tbsp_grams', label: 'tbsp_grams', type: 'number', required: true, placeholder: '15', step: '0.1' },
+                    { name: 'cup_grams', label: 'cup_grams', type: 'number', required: true, placeholder: '200', step: '1' },
+                    { name: 'liter_grams', label: 'liter_grams', type: 'number', required: false, placeholder: '1000', step: '1' }
+                ],
+                orderBy: 'product_id',
+                noSortOrder: true
+            },
             departments: {
                 table: 'departments',
                 titleKey: 'dict_departments',
@@ -186,8 +210,39 @@
         };
 
         // ==================== DATA LOADING ====================
+        async function loadProducts() {
+            if (allProducts.length > 0) return;
+            const { data: rows, error } = await Layout.db
+                .from('products')
+                .select('id, name_ru, name_en, name_hi')
+                .order('name_ru');
+            if (!error) allProducts = rows || [];
+        }
+
         async function loadData(tab) {
             const config = tableConfig[tab];
+
+            // Для плотностей загружаем с join на products
+            if (tab === 'product_densities') {
+                await loadProducts();
+                const { data: rows, error } = await Layout.db
+                    .from('product_densities')
+                    .select('*, products(id, name_ru, name_en, name_hi)')
+                    .order('products(name_ru)');
+
+                if (error) {
+                    console.error('Error loading densities:', error);
+                    return;
+                }
+                // Добавляем вычисляемое поле product_name
+                data[tab] = (rows || []).map(row => ({
+                    ...row,
+                    product_name: row.products ? Layout.getName(row.products) : '—'
+                }));
+                renderTable();
+                return;
+            }
+
             const { data: rows, error } = await Layout.db
                 .from(config.table)
                 .select('*')
@@ -204,16 +259,30 @@
         // ==================== RENDERING ====================
         function renderTable() {
             const config = tableConfig[currentTab];
-            const rows = data[currentTab];
+            let rows = data[currentTab];
             const container = Layout.$('#tabContent');
+
+            // Для плотностей применяем фильтр поиска
+            if (currentTab === 'product_densities' && densityFilter) {
+                const q = densityFilter.toLowerCase();
+                rows = rows.filter(row =>
+                    row.product_name?.toLowerCase().includes(q) ||
+                    row.products?.name_ru?.toLowerCase().includes(q) ||
+                    row.products?.name_en?.toLowerCase().includes(q)
+                );
+            }
 
             const headerCells = config.columns.map(col =>
                 `<th class="bg-base-100 ${col.width || ''}">${col.label ? t(col.label) : ''}</th>`
             ).join('') + '<th class="bg-base-100 w-24"></th>';
 
+            // Для product_densities используем product_id как идентификатор строки
+            const rowIdField = currentTab === 'product_densities' ? 'product_id' : 'id';
+
             const bodyRows = rows.length === 0
                 ? `<tr><td colspan="${config.columns.length + 1}" class="text-center py-8 opacity-50">${t('no_data')}</td></tr>`
                 : rows.map(row => {
+                    const rowId = row[rowIdField];
                     const cells = config.columns.map(col => {
                         if (col.type === 'color') {
                             return `<td><div class="color-preview" style="background-color: ${row[col.key] || '#ccc'}"></div></td>`;
@@ -222,15 +291,15 @@
                     }).join('');
 
                     return `
-                        <tr class="border-b border-base-200 hover:bg-base-50" data-id="${row.id}">
+                        <tr class="border-b border-base-200 hover:bg-base-50" data-id="${rowId}">
                             ${cells}
                             <td class="flex gap-1">
-                                <button class="btn btn-ghost btn-sm btn-square" onclick="openEditModal('${row.id}')">
+                                <button class="btn btn-ghost btn-sm btn-square" onclick="openEditModal('${rowId}')">
                                     <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
                                     </svg>
                                 </button>
-                                <button class="btn btn-ghost btn-sm btn-square text-error" onclick="deleteItem('${row.id}')">
+                                <button class="btn btn-ghost btn-sm btn-square text-error" onclick="deleteItem('${rowId}')">
                                     <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
                                     </svg>
@@ -240,9 +309,17 @@
                     `;
                 }).join('');
 
+            // Для плотностей показываем поиск, для остальных — количество
+            const leftPanel = currentTab === 'product_densities'
+                ? `<input type="text" id="densitySearchInput" class="input input-bordered input-sm w-64"
+                         placeholder="${t('search_product') || 'Поиск продукта...'}"
+                         value="${densityFilter}"
+                         oninput="filterDensities(this.value)" />`
+                : `<span class="text-sm opacity-60">${rows.length} ${t('items')}</span>`;
+
             container.innerHTML = `
                 <div class="flex justify-between items-center mb-4">
-                    <span class="text-sm opacity-60">${rows.length} ${t('items')}</span>
+                    ${leftPanel}
                     <button class="btn btn-primary btn-sm gap-2" onclick="openAddModal()">
                         <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" />
@@ -283,11 +360,43 @@
                     `;
                 }
 
+                if (field.type === 'product_select') {
+                    // Фильтруем продукты без плотности (для новых записей)
+                    const existingIds = new Set(data.product_densities.map(d => d.product_id));
+                    const availableProducts = item
+                        ? allProducts // при редактировании показываем все
+                        : allProducts.filter(p => !existingIds.has(p.id)); // при добавлении — только без плотности
+
+                    const options = availableProducts.map(p =>
+                        `<option value="${p.id}" ${value === p.id ? 'selected' : ''}>${Layout.getName(p)}</option>`
+                    ).join('');
+                    const disabled = item ? 'disabled' : ''; // При редактировании нельзя менять продукт
+                    return `
+                        <div>
+                            <label class="label"><span class="label-text font-medium">${label}</span></label>
+                            <select name="${field.name}" id="productSelect" class="select select-bordered w-full" ${required} ${disabled}>
+                                <option value="">${t('select_product') || 'Выберите продукт...'}</option>
+                                ${options}
+                            </select>
+                            ${item ? `<input type="hidden" name="${field.name}" value="${value}" />` : ''}
+                        </div>
+                    `;
+                }
+
                 if (field.type === 'color') {
                     return `
                         <div>
                             <label class="label"><span class="label-text font-medium">${label}</span></label>
                             <input type="color" name="${field.name}" class="w-full h-10 rounded cursor-pointer" value="${value}" />
+                        </div>
+                    `;
+                }
+
+                if (field.type === 'number') {
+                    return `
+                        <div>
+                            <label class="label"><span class="label-text font-medium">${label}</span></label>
+                            <input type="number" name="${field.name}" class="input input-bordered w-full" value="${value}" placeholder="${field.placeholder || ''}" step="${field.step || '1'}" min="0" ${required} />
                         </div>
                     `;
                 }
@@ -301,8 +410,12 @@
             }).join('');
         }
 
-        function openAddModal() {
+        async function openAddModal() {
             const config = tableConfig[currentTab];
+            // Для плотностей загружаем продукты
+            if (currentTab === 'product_densities') {
+                await loadProducts();
+            }
             Layout.$('#modalTitle').textContent = t('add') + ' — ' + t(config.titleKey);
             Layout.$('input[name="id"]').value = '';
             Layout.$('input[name="table"]').value = currentTab;
@@ -311,13 +424,22 @@
             editModal.showModal();
         }
 
-        function openEditModal(id) {
+        async function openEditModal(id) {
             const config = tableConfig[currentTab];
-            const item = data[currentTab].find(r => r.id === id);
+            // Для плотностей ищем по product_id
+            const item = currentTab === 'product_densities'
+                ? data[currentTab].find(r => r.product_id === id)
+                : data[currentTab].find(r => r.id === id);
             if (!item) return;
 
+            // Для плотностей загружаем продукты
+            if (currentTab === 'product_densities') {
+                await loadProducts();
+            }
+
             Layout.$('#modalTitle').textContent = t('edit') + ' — ' + t(config.titleKey);
-            Layout.$('input[name="id"]').value = id;
+            // Для плотностей id = product_id
+            Layout.$('input[name="id"]').value = currentTab === 'product_densities' ? item.product_id : id;
             Layout.$('input[name="table"]').value = currentTab;
             buildModalFields(item);
             Layout.setupAutoTranslate('#editForm', ['name']);
@@ -333,11 +455,17 @@
             // Собираем данные
             const itemData = {};
             config.fields.forEach(field => {
-                itemData[field.name] = formData.get(field.name);
+                const value = formData.get(field.name);
+                // Преобразуем числовые поля
+                if (field.type === 'number' && value) {
+                    itemData[field.name] = parseFloat(value);
+                } else {
+                    itemData[field.name] = value;
+                }
             });
 
-            // Для новых записей добавляем sort_order
-            if (isNew) {
+            // Для новых записей добавляем sort_order (если таблица использует его)
+            if (isNew && !config.noSortOrder) {
                 itemData.sort_order = data[currentTab].length + 1;
             }
 
@@ -345,18 +473,14 @@
             if (isNew) {
                 const result = await Layout.db.from(config.table).insert(itemData).select();
                 error = result.error;
-                if (!error && result.data?.[0]) {
-                    data[currentTab].push(result.data[0]);
-                }
             } else {
-                const result = await Layout.db.from(config.table).update(itemData).eq('id', id);
-                error = result.error;
-                if (!error) {
-                    // Обновляем локальные данные вручную
-                    const idx = data[currentTab].findIndex(r => r.id === id);
-                    if (idx !== -1) {
-                        data[currentTab][idx] = { ...data[currentTab][idx], ...itemData };
-                    }
+                // Для product_densities используем product_id как ключ
+                if (currentTab === 'product_densities') {
+                    const result = await Layout.db.from(config.table).update(itemData).eq('product_id', id);
+                    error = result.error;
+                } else {
+                    const result = await Layout.db.from(config.table).update(itemData).eq('id', id);
+                    error = result.error;
                 }
             }
 
@@ -365,7 +489,8 @@
                 return false;
             }
 
-            renderTable();
+            // Перезагружаем данные (особенно важно для product_densities с join)
+            await loadData(currentTab);
             return true;
         }
 
@@ -373,20 +498,37 @@
             if (!confirm(t('confirm_delete'))) return;
 
             const config = tableConfig[currentTab];
-            const { error } = await Layout.db.from(config.table).delete().eq('id', id);
+            // Для плотностей удаляем по product_id
+            const idField = currentTab === 'product_densities' ? 'product_id' : 'id';
+            const { error } = await Layout.db.from(config.table).delete().eq(idField, id);
 
             if (error) {
                 alert(t('error') + ': ' + error.message);
                 return;
             }
 
-            data[currentTab] = data[currentTab].filter(r => r.id !== id);
+            data[currentTab] = data[currentTab].filter(r => r[idField] !== id);
             renderTable();
+        }
+
+        // ==================== FILTER ====================
+        function filterDensities(query) {
+            densityFilter = query;
+            renderTable();
+            // Восстанавливаем фокус на поле ввода
+            setTimeout(() => {
+                const input = document.getElementById('densitySearchInput');
+                if (input) {
+                    input.focus();
+                    input.setSelectionRange(input.value.length, input.value.length);
+                }
+            }, 0);
         }
 
         // ==================== TABS ====================
         function switchTab(tab) {
             currentTab = tab;
+            densityFilter = ''; // Сбрасываем фильтр при смене таба
 
             // Обновляем активный таб
             Layout.$$('.tab').forEach(btn => {
