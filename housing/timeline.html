@@ -228,14 +228,17 @@
             background: #9ca3af;
             height: 24px;
             border-radius: 4px;
-            font-size: 10px;
-            padding: 0 4px;
-            white-space: nowrap;
+            padding: 0 6px;
             display: flex;
             align-items: center;
             justify-content: center;
             z-index: 4;
             color: white;
+        }
+
+        .cleaning-bar svg {
+            width: 16px;
+            height: 16px;
         }
 
         /* Сводная плашка в строке номера */
@@ -390,8 +393,8 @@
                         Забронировать
                     </button>
                     <button class="btn btn-warning" onclick="handleAction('cleaning')">
-                        <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19.428 15.428a2 2 0 00-1.022-.547l-2.387-.477a6 6 0 00-3.86.517l-.318.158a6 6 0 01-3.86.517L6.05 15.21a2 2 0 00-1.806.547M8 4h8l-1 1v5.172a2 2 0 00.586 1.414l5 5c1.26 1.26.367 3.414-1.415 3.414H4.828c-1.782 0-2.674-2.154-1.414-3.414l5-5A2 2 0 009 10.172V5L8 4z" />
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M5 3v4M3 5h4M6 17v4m-2-2h4m5-16l2.286 6.857L21 12l-5.714 2.143L13 21l-2.286-6.857L5 12l5.714-2.143L13 3z" />
                         </svg>
                         Уборка
                     </button>
@@ -677,7 +680,7 @@
             const endDateStr = endDate.toISOString().split('T')[0];
 
             // Загружаем параллельно
-            const [buildingsRes, roomsRes, residentsRes, retreatsRes] = await Promise.all([
+            const [buildingsRes, roomsRes, residentsRes, retreatsRes, cleaningsRes] = await Promise.all([
                 Layout.db.from('buildings')
                     .select('*, building_types(id, slug, color, name_ru, name_en, name_hi)')
                     .eq('is_active', true)
@@ -700,13 +703,18 @@
                     .select('*')
                     .lte('start_date', endDateStr)
                     .gte('end_date', startDateStr)
-                    .order('start_date')
+                    .order('start_date'),
+                Layout.db.from('room_cleanings')
+                    .select('*')
+                    .lte('start_date', endDateStr)
+                    .gte('end_date', startDateStr)
             ]);
 
             const buildings = buildingsRes.data || [];
             const rooms = roomsRes.data || [];
             const residents = residentsRes.data || [];
             const retreats = retreatsRes.data || [];
+            const cleanings = cleaningsRes.data || [];
 
             // Очищаем хранилище гостей
             guestsMap.clear();
@@ -750,6 +758,15 @@
                     residentsByRoom[res.room_id] = [];
                 }
                 residentsByRoom[res.room_id].push(res);
+            });
+
+            // Группируем ручные уборки по комнатам
+            const cleaningsByRoom = {};
+            cleanings.forEach(c => {
+                if (!cleaningsByRoom[c.room_id]) {
+                    cleaningsByRoom[c.room_id] = [];
+                }
+                cleaningsByRoom[c.room_id].push(c);
             });
 
             // Формируем структуру данных
@@ -859,7 +876,7 @@
                                 if (cleaningStartDay < DAYS_TO_SHOW) {
                                     cleaningEntry = {
                                         id: 'cleaning-' + res.id,
-                                        name: '🧹',
+                                        name: '<svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M5 3v4M3 5h4M6 17v4m-2-2h4m5-16l2.286 6.857L21 12l-5.714 2.143L13 21l-2.286-6.857L5 12l5.714-2.143L13 3z"/></svg>',
                                         startDay: cleaningStartDay,
                                         startHalf: cleaningStartHalf,
                                         endDay: Math.min(cleaningEndDay, DAYS_TO_SHOW - 1),
@@ -902,6 +919,29 @@
                             // Добавляем уборку на то же место
                             if (cleaningEntry && placedBed) {
                                 placedBed.guests.push(cleaningEntry);
+                            }
+                        });
+
+                        // Добавляем ручные уборки (на первое место)
+                        const roomCleanings = cleaningsByRoom[room.id] || [];
+                        roomCleanings.forEach(c => {
+                            const startDay = Math.max(0, dateToDayIndex(c.start_date));
+                            const endDay = Math.min(DAYS_TO_SHOW - 1, dateToDayIndex(c.end_date));
+
+                            if (startDay > DAYS_TO_SHOW - 1 || endDay < 0) return;
+
+                            const cleaningEntry = {
+                                id: 'manual-cleaning-' + c.id,
+                                name: '<svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M5 3v4M3 5h4M6 17v4m-2-2h4m5-16l2.286 6.857L21 12l-5.714 2.143L13 21l-2.286-6.857L5 12l5.714-2.143L13 3z"/></svg>',
+                                startDay,
+                                startHalf: 0,
+                                endDay,
+                                endHalf: 1,
+                                isCleaning: true
+                            };
+
+                            if (beds.length > 0) {
+                                beds[0].guests.push(cleaningEntry);
                             }
                         });
 
@@ -1221,19 +1261,35 @@
         }
 
         // Обработчик других действий
-        function handleAction(action) {
-            const checkIn = document.getElementById('modalCheckIn').value;
-            const checkOut = document.getElementById('modalCheckOut').value;
+        async function handleAction(action) {
+            const startDate = document.getElementById('modalCheckIn').value;
+            const endDate = document.getElementById('modalCheckOut').value;
 
-            console.log('Action:', action);
-            console.log('Context:', modalContext);
-            console.log('Check-in:', checkIn);
-            console.log('Check-out:', checkOut);
+            if (action === 'cleaning') {
+                // Сохраняем уборку
+                const { error } = await Layout.db.from('room_cleanings').insert({
+                    room_id: modalContext.roomId,
+                    start_date: startDate,
+                    end_date: endDate
+                });
 
-            // Закрываем модалку
+                if (error) {
+                    alert('Ошибка: ' + error.message);
+                    return;
+                }
+
+                document.getElementById('actionModal').close();
+                await loadTimelineData();
+                renderTable();
+                return;
+            }
+
+            if (action === 'repair') {
+                // TODO: Закрытие на ремонт
+                alert('Функция в разработке');
+            }
+
             document.getElementById('actionModal').close();
-
-            // TODO: Уборка и ремонт
         }
 
         // Текущий резидент для модалки
@@ -1781,13 +1837,12 @@
                                 const isPartial = segment.count < totalBeds;
 
                                 let label = '';
-                                if (isPartial) {
-                                    label = `<span class="fraction">${segment.count}/${totalBeds}</span>`;
-                                } else if (totalBeds === 1) {
+                                if (totalBeds === 1) {
+                                    // Одноместный номер — показываем имя
                                     label = firstGuest.name;
                                 } else {
-                                    const names = [...new Set(segment.guests.map(g => g.name))];
-                                    label = names.length <= 2 ? names.join(', ') : `${names.length} чел.`;
+                                    // Многоместный номер — всегда показываем дробь
+                                    label = `<span class="fraction">${segment.count}/${totalBeds}</span>`;
                                 }
 
                                 const bookingClass = isBooking ? 'booking' : '';
