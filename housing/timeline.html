@@ -1060,14 +1060,21 @@
 
                             if (startDay > DAYS_TO_SHOW - 1 || endDay < 0) return;
 
+                            // Определяем половины дня:
+                            // - Если start_date === end_date: обе половины одного дня (0-1)
+                            // - Если end_date = start_date + 1: вторая половина первого + первая второго (1-0)
+                            const sameDay = c.start_date === c.end_date;
+                            const startHalf = sameDay ? 0 : 1;
+                            const endHalf = sameDay ? 1 : 0;
+
                             const cleaningEntry = {
                                 id: 'manual-cleaning-' + c.id,
                                 cleaningId: c.id,
                                 name: '<svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M5 3v4M3 5h4M6 17v4m-2-2h4m5-16l2.286 6.857L21 12l-5.714 2.143L13 21l-2.286-6.857L5 12l5.714-2.143L13 3z"/></svg>',
                                 startDay,
-                                startHalf: 0,
+                                startHalf,
                                 endDay,
-                                endHalf: 1,
+                                endHalf,
                                 isCleaning: true,
                                 isManualCleaning: true,
                                 isCompleted: c.completed || false,
@@ -1149,12 +1156,12 @@
         }
 
         // Открыть модалку действий
-        function openActionModal(dayIndex, roomId, buildingName, roomName, bedName) {
+        function openActionModal(dayIndex, roomId, buildingName, roomName, bedName, halfIndex = 0) {
             const checkInDate = getDateForDay(dayIndex);
             const checkOutDate = getDateForDay(dayIndex + 1);
 
             // Сохраняем контекст (сбрасываем флаг конвертации)
-            modalContext = { dayIndex, roomId, buildingName, roomName, bedName, isConversion: false };
+            modalContext = { dayIndex, halfIndex, roomId, buildingName, roomName, bedName, isConversion: false };
 
             // Заполняем поля
             const location = bedName
@@ -1411,11 +1418,18 @@
             const endDate = document.getElementById('modalCheckOut').value;
 
             if (action === 'cleaning') {
-                // Сохраняем уборку
+                // Рассчитываем даты в зависимости от половины дня:
+                // - Клик по первой половине (halfIndex=0): обе половинки этого дня
+                // - Клик по второй половине (halfIndex=1): вторая половина этого + первая следующего
+                const cleaningStartDate = formatDateForInput(getDateForDay(modalContext.dayIndex));
+                const cleaningEndDate = modalContext.halfIndex === 0
+                    ? cleaningStartDate  // Тот же день
+                    : formatDateForInput(getDateForDay(modalContext.dayIndex + 1));  // Следующий день
+
                 const { error } = await Layout.db.from('room_cleanings').insert({
                     room_id: modalContext.roomId,
-                    start_date: startDate,
-                    end_date: endDate
+                    start_date: cleaningStartDate,
+                    end_date: cleaningEndDate
                 });
 
                 if (error) {
@@ -2154,7 +2168,7 @@
                             const rName = room.name.replace(/'/g, "\\'");
                             const bedName = bed.name.replace(/'/g, "\\'");
 
-                            html += `<td class="half-day clickable ${dayStart} ${weekend} ${today}" onclick="openActionModal(${dayIndex}, '${room.id}', '${bName}', '${rName}', '${bedName}')">`;
+                            html += `<td class="half-day clickable ${dayStart} ${weekend} ${today}" onclick="openActionModal(${dayIndex}, '${room.id}', '${bName}', '${rName}', '${bedName}', ${halfIndex})">`;
 
                             // Если здесь начинается гость — добавляем плашку
                             if (guest) {
