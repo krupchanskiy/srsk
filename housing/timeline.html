@@ -15,7 +15,8 @@
     <style>
         /* Основная таблица */
         .timeline-table {
-            border-collapse: collapse;
+            border-collapse: separate;
+            border-spacing: 0;
             table-layout: fixed;
         }
 
@@ -26,10 +27,12 @@
             vertical-align: middle;
         }
 
-        /* Границы: светлые внутри дня, тёмные между днями */
+        /* Границы: только правая и нижняя чтобы избежать двойных линий */
         .timeline-table th,
         .timeline-table td {
-            border: 1px solid #e5e7eb; /* светлая по умолчанию */
+            border: none;
+            border-right: 1px solid #e5e7eb;
+            border-bottom: 1px solid #e5e7eb;
         }
 
         /* Тёмная граница слева у первой половины дня (начало дня) */
@@ -55,7 +58,7 @@
             padding: 0 12px;
             text-align: left;
             white-space: nowrap;
-            border-right: 2px solid #9ca3af !important;
+            border-right: 2px solid #9ca3af;
         }
 
         /* Заголовок таблицы - закреплён сверху */
@@ -63,15 +66,26 @@
             position: sticky;
             top: 0;
             z-index: 15;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
         }
 
         .timeline-table thead th {
             background: #f3f4f6;
+            border-color: #d1d5db !important;
         }
 
         .timeline-table thead th.sticky-col {
             z-index: 20;
             background: #f3f4f6;
+        }
+
+        /* Выходные и сегодня в заголовке */
+        .timeline-table thead th.weekend {
+            background: #fef2f2;
+        }
+
+        .timeline-table thead th.today {
+            background: #dbeafe;
         }
 
         /* Строка с числами */
@@ -92,13 +106,23 @@
 
         /* Строка ретритов */
         .row-retreats th {
-            background: #f9fafb;
+            background: #f9fafb !important;
             height: 34px;
             padding: 3px !important;
         }
 
+        .row-retreats th.weekend {
+            background: #fef2f2 !important;
+        }
+
+        .row-retreats th.today {
+            background: #dbeafe !important;
+        }
+
         .retreat-bar {
-            display: block;
+            position: absolute;
+            top: 3px;
+            left: 2px;
             background: #10b981;
             color: white;
             font-size: 14px;
@@ -110,6 +134,11 @@
             text-overflow: ellipsis;
             height: 26px;
             line-height: 18px;
+            z-index: 5;
+        }
+
+        .row-retreats th {
+            position: relative;
         }
 
         /* Заголовок здания */
@@ -154,12 +183,14 @@
             color: #374151;
         }
 
-        /* Полоска гостя */
+        /* Полоска гостя — абсолютное позиционирование */
         .guest-bar {
+            position: absolute;
+            top: 3px;
+            left: 1px;
             background: #fef08a;
             border: 1px solid #facc15;
             height: 24px;
-            margin: 3px 2px;
             border-radius: 4px;
             font-size: 11px;
             padding: 0 6px;
@@ -168,6 +199,42 @@
             text-overflow: ellipsis;
             display: flex;
             align-items: center;
+            z-index: 5;
+            cursor: pointer;
+        }
+
+        /* Бронирование — штриховка */
+        .guest-bar.booking {
+            background: repeating-linear-gradient(
+                45deg,
+                var(--bar-color),
+                var(--bar-color) 4px,
+                rgba(255,255,255,0.5) 4px,
+                rgba(255,255,255,0.5) 8px
+            );
+            border-style: dashed;
+        }
+
+        /* Уборка */
+        .cleaning-bar {
+            position: absolute;
+            top: 3px;
+            left: 1px;
+            background: #9ca3af;
+            height: 24px;
+            border-radius: 4px;
+            font-size: 10px;
+            padding: 0 4px;
+            white-space: nowrap;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 4;
+            color: white;
+        }
+
+        .row-bed td {
+            position: relative;
         }
 
         /* Выходные дни */
@@ -224,10 +291,12 @@
         <!-- Заголовок страницы -->
         <div class="flex justify-between items-center mb-4">
             <h1 class="text-2xl font-bold">Шахматка</h1>
+            <!-- Легенда -->
+            <div class="flex items-center gap-4" id="legend"></div>
         </div>
 
         <!-- Контейнер таблицы -->
-        <div class="overflow-x-auto bg-white rounded-lg shadow">
+        <div class="overflow-auto bg-white rounded-lg shadow" style="max-height: calc(100vh - 180px);">
             <table class="timeline-table" id="timelineTable">
                 <!-- Генерируется через JS -->
             </table>
@@ -492,9 +561,13 @@
         let categories = [];
         let teamMembers = [];
 
-        // Базовая дата (сегодня)
+        // Базовая дата (сегодня минус 2 дня)
         const baseDate = new Date();
         baseDate.setHours(0, 0, 0, 0);
+        baseDate.setDate(baseDate.getDate() - 2);
+
+        // Индекс сегодняшнего дня относительно baseDate
+        const TODAY_INDEX = 2;
 
         // Преобразовать дату в dayIndex относительно baseDate
         function dateToDayIndex(dateStr) {
@@ -619,6 +692,10 @@
                                 guestName = res.bookings.name || res.bookings.contact_name || '';
                             }
 
+                            // Определяем, это бронирование или заселение
+                            // Бронирование = есть booking_id, но нет реального гостя (team_member или guest_name)
+                            const isBooking = res.booking_id && !res.team_member_id && !res.guest_name;
+
                             // Получаем цвет категории
                             const category = res.resident_categories;
                             const color = category?.color || '#fef08a';
@@ -646,13 +723,51 @@
                                 endDay,
                                 endHalf,
                                 color,
-                                border
+                                border,
+                                isBooking
                             };
+
+                            // Уборка после выезда
+                            // Обычный выезд (endHalf=0): уборка со второй половины дня выезда
+                            // Поздний выезд (endHalf=1): уборка с первой половины СЛЕДУЮЩЕГО дня
+                            let cleaningEntry = null;
+                            if (res.check_out) {
+                                let cleaningStartDay, cleaningStartHalf, cleaningEndDay, cleaningEndHalf;
+
+                                if (endHalf === 0) {
+                                    // Обычный выезд — уборка начинается во второй половине дня выезда
+                                    cleaningStartDay = endDay;
+                                    cleaningStartHalf = 1;
+                                    cleaningEndDay = endDay + 1;
+                                    cleaningEndHalf = 0;
+                                } else {
+                                    // Поздний выезд — уборка начинается на следующий день
+                                    cleaningStartDay = endDay + 1;
+                                    cleaningStartHalf = 0;
+                                    cleaningEndDay = endDay + 1;
+                                    cleaningEndHalf = 1;
+                                }
+
+                                // Если уборка попадает в диапазон отображения
+                                if (cleaningStartDay < DAYS_TO_SHOW) {
+                                    cleaningEntry = {
+                                        id: 'cleaning-' + res.id,
+                                        name: '🧹',
+                                        startDay: cleaningStartDay,
+                                        startHalf: cleaningStartHalf,
+                                        endDay: Math.min(cleaningEndDay, DAYS_TO_SHOW - 1),
+                                        endHalf: cleaningEndDay >= DAYS_TO_SHOW ? 1 : cleaningEndHalf,
+                                        isCleaning: true
+                                    };
+                                }
+                            }
 
                             // Ищем свободное место для этого периода
                             let placed = false;
+                            let placedBed = null;
                             for (const bed of beds) {
                                 const hasOverlap = bed.guests.some(g => {
+                                    if (g.isCleaning) return false; // Уборка не блокирует
                                     const gStart = g.startDay * 2 + g.startHalf;
                                     const gEnd = g.endDay * 2 + g.endHalf;
                                     const rStart = guest.startDay * 2 + guest.startHalf;
@@ -662,6 +777,7 @@
 
                                 if (!hasOverlap) {
                                     bed.guests.push(guest);
+                                    placedBed = bed;
                                     placed = true;
                                     break;
                                 }
@@ -670,6 +786,12 @@
                             // Если не нашли место, добавляем в первое (будет визуальное наложение)
                             if (!placed && beds.length > 0) {
                                 beds[0].guests.push(guest);
+                                placedBed = beds[0];
+                            }
+
+                            // Добавляем уборку на то же место
+                            if (cleaningEntry && placedBed) {
+                                placedBed.guests.push(cleaningEntry);
                             }
                         });
 
@@ -775,6 +897,37 @@
                     const name = t.spiritual_name || `${t.first_name} ${t.last_name}`.trim();
                     return `<option value="${t.id}">${name}</option>`;
                 }).join('');
+
+            // Рендерим легенду
+            renderLegend();
+        }
+
+        // Легенда цветов
+        function renderLegend() {
+            const legend = document.getElementById('legend');
+
+            // Категории заселений
+            const categoriesHtml = categories.map(c => {
+                const color = c.color || '#fef08a';
+                return `<div class="flex items-center gap-1.5">
+                    <span class="w-4 h-4 rounded" style="background: ${color}; border: 1px solid rgba(0,0,0,0.15);"></span>
+                    <span class="text-sm text-gray-600">${Layout.getName(c)}</span>
+                </div>`;
+            }).join('');
+
+            // Бронирования (штриховка)
+            const bookingHtml = `<div class="flex items-center gap-1.5">
+                <span class="w-4 h-4 rounded" style="background: repeating-linear-gradient(45deg, #fef08a, #fef08a 2px, rgba(255,255,255,0.5) 2px, rgba(255,255,255,0.5) 4px); border: 1px dashed rgba(0,0,0,0.3);"></span>
+                <span class="text-sm text-gray-600">Бронь</span>
+            </div>`;
+
+            // Уборка
+            const cleaningHtml = `<div class="flex items-center gap-1.5">
+                <span class="w-4 h-4 rounded" style="background: #9ca3af;"></span>
+                <span class="text-sm text-gray-600">Уборка</span>
+            </div>`;
+
+            legend.innerHTML = categoriesHtml + bookingHtml + cleaningHtml;
         }
 
         // Переключение экранов
@@ -963,36 +1116,25 @@
 
             let html = '<thead>';
 
-            // Строка ретритов
+            // Строка ретритов — та же структура что и строка дат (colspan=2 на день)
             html += '<tr class="row-retreats"><th class="sticky-col"></th>';
             const renderedRetreats = new Set();
-            let col = 0;
-            while (col < DAYS_TO_SHOW * 2) {
-                const dayIndex = Math.floor(col / 2);
-                const isFirstHalf = col % 2 === 0;
-                const dayStart = isFirstHalf ? 'day-start' : '';
+            for (let day = 0; day < DAYS_TO_SHOW; day++) {
+                const weekend = isWeekend(day) ? 'weekend' : '';
+                const today = day === TODAY_INDEX ? 'today' : '';
 
-                // Ищем ретрит, который начинается на этой колонке
+                // Ищем ретрит, который начинается в этот день
                 const retreat = timelineData.retreats.find(r =>
-                    !renderedRetreats.has(r.name) && r.startDay === dayIndex && isFirstHalf
+                    !renderedRetreats.has(r.name) && r.startDay === day
                 );
 
                 if (retreat) {
                     renderedRetreats.add(retreat.name);
-                    const span = (retreat.endDay - retreat.startDay + 1) * 2;
-                    html += `<th colspan="${span}" class="text-left ${dayStart}"><span class="retreat-bar">${retreat.name}</span></th>`;
-                    col += span;
+                    const spanDays = retreat.endDay - retreat.startDay + 1;
+                    const width = spanDays * CELL_WIDTH * 2 - 4; // 2 ячейки на день, минус отступы
+                    html += `<th colspan="2" class="day-start ${weekend} ${today}"><span class="retreat-bar" style="width: ${width}px;">${retreat.name}</span></th>`;
                 } else {
-                    // Проверяем, находимся ли внутри уже отрендеренного ретрита
-                    const insideRetreat = timelineData.retreats.some(r => {
-                        const startCol = r.startDay * 2;
-                        const endCol = (r.endDay + 1) * 2 - 1;
-                        return col > startCol && col <= endCol;
-                    });
-                    if (!insideRetreat) {
-                        html += `<th class="${dayStart}"></th>`;
-                    }
-                    col++;
+                    html += `<th colspan="2" class="day-start ${weekend} ${today}"></th>`;
                 }
             }
             html += '</tr>';
@@ -1002,7 +1144,7 @@
             for (let day = 0; day < DAYS_TO_SHOW; day++) {
                 const date = getDateForDay(day);
                 const weekend = isWeekend(day) ? 'weekend' : '';
-                const today = day === 0 ? 'today' : '';
+                const today = day === TODAY_INDEX ? 'today' : '';
                 html += `<th colspan="2" class="day-start ${weekend} ${today}">${date.getDate()}</th>`;
             }
             html += '</tr>';
@@ -1011,7 +1153,7 @@
             html += '<tr class="row-weekdays"><th class="sticky-col"></th>';
             for (let day = 0; day < DAYS_TO_SHOW; day++) {
                 const weekend = isWeekend(day) ? 'weekend' : '';
-                const today = day === 0 ? 'today' : '';
+                const today = day === TODAY_INDEX ? 'today' : '';
                 html += `<th colspan="2" class="day-start ${weekend} ${today}">${getWeekdayName(day)}</th>`;
             }
             html += '</tr>';
@@ -1067,49 +1209,50 @@
                         const bedLabel = bed.name ? `Место ${bed.name}` : '';
                         html += `<tr class="row-bed ${bedsHiddenClass}"><td class="sticky-col">${bedLabel}</td>`;
 
-                        // Ячейки для каждой половины дня
-                        let col = 0;
-                        while (col < DAYS_TO_SHOW * 2) {
+                        // Всегда рендерим все ячейки (DAYS_TO_SHOW * 2)
+                        for (let col = 0; col < DAYS_TO_SHOW * 2; col++) {
                             const dayIndex = Math.floor(col / 2);
                             const halfIndex = col % 2;
                             const isFirstHalf = halfIndex === 0;
                             const dayStart = isFirstHalf ? 'day-start' : '';
+                            const weekend = isWeekend(dayIndex) ? 'weekend' : '';
+                            const today = dayIndex === TODAY_INDEX ? 'today' : '';
 
                             // Проверяем есть ли гость начинающийся здесь
                             const guest = bed.guests.find(g =>
                                 g.startDay === dayIndex && g.startHalf === halfIndex
                             );
 
+                            // Экранируем кавычки в именах
+                            const bName = building.name.replace(/'/g, "\\'");
+                            const rName = room.name.replace(/'/g, "\\'");
+                            const bedName = bed.name.replace(/'/g, "\\'");
+
+                            html += `<td class="half-day clickable ${dayStart} ${weekend} ${today}" onclick="openActionModal(${dayIndex}, '${room.id}', '${bName}', '${rName}', '${bedName}')">`;
+
+                            // Если здесь начинается гость — добавляем плашку
                             if (guest) {
                                 const startCol = guest.startDay * 2 + guest.startHalf;
                                 const endCol = guest.endDay * 2 + guest.endHalf;
-                                const span = Math.max(1, endCol - startCol + 1); // минимум 1 ячейка
+                                const spanCells = Math.max(1, endCol - startCol + 1);
+                                const width = spanCells * CELL_WIDTH - 2; // минус отступы
 
-                                const bgColor = guest.color || '#fef08a';
-                                const borderColor = guest.border || '#facc15';
-
-                                html += `<td colspan="${span}" class="${dayStart}" style="padding: 0;">`;
-                                html += `<div class="guest-bar" style="background: ${bgColor}; border-color: ${borderColor};">${guest.name}</div>`;
-                                html += '</td>';
-                                col += span;
-                            } else {
-                                const insideGuest = bed.guests.some(g => {
-                                    const startCol = g.startDay * 2 + g.startHalf;
-                                    const endCol = g.endDay * 2 + g.endHalf;
-                                    return col > startCol && col <= endCol;
-                                });
-
-                                if (!insideGuest) {
-                                    const weekend = isWeekend(dayIndex) ? 'weekend' : '';
-                                    const today = dayIndex === 0 ? 'today' : '';
-                                    // Экранируем кавычки в именах
-                                    const bName = building.name.replace(/'/g, "\\'");
-                                    const rName = room.name.replace(/'/g, "\\'");
-                                    const bedName = bed.name.replace(/'/g, "\\'");
-                                    html += `<td class="half-day clickable ${dayStart} ${weekend} ${today}" onclick="openActionModal(${dayIndex}, '${room.id}', '${bName}', '${rName}', '${bedName}')"></td>`;
+                                if (guest.isCleaning) {
+                                    // Уборка
+                                    html += `<div class="cleaning-bar" style="width: ${width}px;">${guest.name}</div>`;
+                                } else if (guest.isBooking) {
+                                    // Бронирование — штриховка
+                                    const bgColor = guest.color || '#fef08a';
+                                    html += `<div class="guest-bar booking" style="width: ${width}px; --bar-color: ${bgColor}; border-color: ${bgColor};">${guest.name}</div>`;
+                                } else {
+                                    // Обычное заселение
+                                    const bgColor = guest.color || '#fef08a';
+                                    const borderColor = guest.border || '#facc15';
+                                    html += `<div class="guest-bar" style="width: ${width}px; background: ${bgColor}; border-color: ${borderColor};">${guest.name}</div>`;
                                 }
-                                col++;
                             }
+
+                            html += '</td>';
                         }
 
                         html += '</tr>';
