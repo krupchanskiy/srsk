@@ -259,6 +259,7 @@
         let recipe = null;
         let ingredients = [];
         let units = [];
+        let densities = {}; // product_id → { tsp_grams, tbsp_grams, cup_grams }
         let portions = 30;
         let portionSize = 150;
 
@@ -308,6 +309,42 @@
             const { data, error } = await Layout.db.from('units').select('*').order('sort_order');
             if (error) { console.error('Error loading units:', error); return; }
             units = data || [];
+        }
+
+        async function loadDensities() {
+            const { data, error } = await Layout.db.from('product_densities').select('*');
+            if (error) { console.error('Error loading densities:', error); return; }
+            densities = Object.fromEntries((data || []).map(d => [d.product_id, d]));
+        }
+
+        // Конвертировать из выбранной единицы в граммы
+        function toGrams(amount, unit, productId) {
+            const d = densities[productId];
+            if (!d) return null;
+
+            switch(unit) {
+                case 'tsp': return amount * parseFloat(d.tsp_grams);
+                case 'tbsp': return amount * parseFloat(d.tbsp_grams);
+                case 'cup': return amount * parseFloat(d.cup_grams);
+                default: return null;
+            }
+        }
+
+        // Умное приведение единиц: г↔кг, мл↔л
+        function formatSmart(amount, unit) {
+            if ((unit === 'g' || unit === 'kg') && amount >= 1000) {
+                return { amount: amount / 1000, unit: 'kg' };
+            }
+            if ((unit === 'ml' || unit === 'l') && amount >= 1000) {
+                return { amount: amount / 1000, unit: 'l' };
+            }
+            if (unit === 'kg' && amount < 1) {
+                return { amount: amount * 1000, unit: 'g' };
+            }
+            if (unit === 'l' && amount < 1) {
+                return { amount: amount * 1000, unit: 'ml' };
+            }
+            return { amount, unit };
         }
 
         // ==================== LOGO ====================
@@ -431,7 +468,35 @@
                     subName = `${product.name_en} · ${product.name_ru}`;
                 }
 
-                const calculated = formatAmount(calculateAmount(ing.amount));
+                const calculatedRaw = calculateAmount(ing.amount);
+                const unit = ing.unit;
+
+                // Умное приведение для базовых единиц (g, kg, ml, l)
+                let displayAmount, displayUnit;
+                if (['g', 'kg', 'ml', 'l'].includes(unit)) {
+                    // Приводим к базовой единице для умного форматирования
+                    let baseAmount = calculatedRaw;
+                    let baseUnit = unit;
+                    if (unit === 'kg') { baseAmount = calculatedRaw * 1000; baseUnit = 'g'; }
+                    if (unit === 'l') { baseAmount = calculatedRaw * 1000; baseUnit = 'ml'; }
+                    const smart = formatSmart(baseAmount, baseUnit);
+                    displayAmount = formatAmount(smart.amount);
+                    displayUnit = smart.unit;
+                } else {
+                    displayAmount = formatAmount(calculatedRaw);
+                    displayUnit = unit;
+                }
+
+                // Альтернатива в скобках (граммы для ложек/стаканов)
+                let altText = '';
+                if (['tsp', 'tbsp', 'cup'].includes(unit)) {
+                    const grams = toGrams(calculatedRaw, unit, product.id);
+                    if (grams !== null) {
+                        const smart = formatSmart(grams, 'g');
+                        altText = ` <span class="opacity-50">(${formatAmount(smart.amount)} ${getUnitShort(smart.unit)})</span>`;
+                    }
+                }
+
                 const zebraClass = idx % 2 === 0 ? '' : 'bg-base-200/30';
 
                 return `
@@ -442,8 +507,8 @@
                             ${ing.notes ? `<div class="text-xs opacity-50 italic">${ing.notes}</div>` : ''}
                         </td>
                         <td class="text-right py-3 whitespace-nowrap">
-                            <span class="font-bold text-lg">${calculated}</span>
-                            <span class="text-sm opacity-60 ml-1">${getUnitShort(ing.unit)}</span>
+                            <span class="font-bold text-lg">${displayAmount}</span>
+                            <span class="text-sm opacity-60 ml-1">${getUnitShort(displayUnit)}</span>${altText}
                         </td>
                     </tr>
                 `;
@@ -520,7 +585,7 @@
             }
 
             // Load data
-            await loadUnits();
+            await Promise.all([loadUnits(), loadDensities()]);
             recipe = await loadRecipe(id);
             if (!recipe) return;
 

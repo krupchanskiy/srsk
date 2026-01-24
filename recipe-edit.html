@@ -344,12 +344,14 @@
                     </div>
                 </div>
 
-                <!-- Quantity -->
+                <!-- Quantity + Unit -->
                 <div id="productQuantitySection" class="hidden">
                     <label class="label"><span class="label-text font-medium" data-i18n="quantity">Количество</span></label>
                     <div class="join w-full">
-                        <input type="number" id="productQuantityInput" class="input input-bordered join-item w-full" value="0.1" min="0.01" step="0.01" />
-                        <span id="productUnitLabel" class="btn join-item no-animation pointer-events-none bg-base-200">кг</span>
+                        <input type="number" id="productQuantityInput" class="input input-bordered join-item w-full" value="100" min="0.01" step="0.01" />
+                        <select id="productUnitSelect" class="select select-bordered join-item w-28">
+                            <!-- Will be populated dynamically -->
+                        </select>
                     </div>
                 </div>
             </div>
@@ -372,6 +374,8 @@
         let productCategories = [];
         let ingredients = [];
         let instructions = [];
+        let units = [];
+        let densities = {}; // product_id → { tsp_grams, tbsp_grams, cup_grams }
         let locationId = null;
         let photoFile = null;
         let selectedProduct = null;
@@ -533,6 +537,46 @@
             return data || [];
         }
 
+        async function loadUnits() {
+            const { data } = await Layout.db.from('units').select('*').order('sort_order');
+            return data || [];
+        }
+
+        async function loadDensities() {
+            const { data } = await Layout.db.from('product_densities').select('*');
+            densities = Object.fromEntries((data || []).map(d => [d.product_id, d]));
+        }
+
+        // Получить короткое название единицы
+        function getUnitShort(code) {
+            const unit = units.find(u => u.code === code);
+            if (!unit) return code || '';
+            return unit[`short_${Layout.currentLang}`] || unit.short_ru || code;
+        }
+
+        // Получить доступные единицы для продукта
+        function getAvailableUnits(productId, baseUnit) {
+            const baseUnits = ['g', 'kg', 'ml', 'l', 'pcs', 'pack'];
+            const volumeUnits = ['tsp', 'tbsp', 'cup'];
+
+            // Всегда доступны базовые единицы по типу
+            let available = [];
+            if (baseUnit === 'g' || baseUnit === 'kg') {
+                available = ['g', 'kg'];
+            } else if (baseUnit === 'ml' || baseUnit === 'l') {
+                available = ['ml', 'l'];
+            } else {
+                available = [baseUnit];
+            }
+
+            // Если есть плотность — добавляем объёмные единицы
+            if (densities[productId]) {
+                available = [...available, ...volumeUnits];
+            }
+
+            return available;
+        }
+
         async function loadRecipe(id) {
             const { data, error } = await Layout.db
                 .from('recipes')
@@ -619,6 +663,13 @@
                 }
 
                 const zebraClass = index % 2 === 0 ? 'bg-base-100' : 'bg-base-200/30';
+                const baseUnit = product.unit || 'g';
+                const availableUnits = getAvailableUnits(product.id, baseUnit);
+                const currentUnit = ing.unit || baseUnit;
+
+                const unitOptions = availableUnits.map(u =>
+                    `<option value="${u}" ${u === currentUnit ? 'selected' : ''}>${getUnitShort(u)}</option>`
+                ).join('');
 
                 return `
                     <div class="grid grid-cols-[1fr_auto_auto] gap-3 items-center ${zebraClass} rounded-lg p-3">
@@ -626,11 +677,14 @@
                             <div class="font-medium truncate">${name}</div>
                             <div class="text-xs opacity-50 truncate">${subName}</div>
                         </div>
-                        <div class="flex items-center gap-2 w-32">
+                        <div class="flex items-center gap-1">
                             <input type="number" value="${ing.amount}" step="0.01" min="0"
                                    class="input input-bordered input-sm w-20 text-center"
                                    onchange="updateIngredient(${index}, 'amount', parseFloat(this.value))" />
-                            <span class="text-sm opacity-60 w-10">${ing.unit || product.unit}</span>
+                            <select class="select select-bordered select-sm w-20"
+                                    onchange="updateIngredient(${index}, 'unit', this.value)">
+                                ${unitOptions}
+                            </select>
                         </div>
                         <button type="button" class="btn btn-ghost btn-sm btn-square opacity-40 hover:opacity-100 hover:text-error" onclick="removeIngredient(${index})">
                             <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -767,7 +821,27 @@
             else subName = `${selectedProduct.name_en} · ${selectedProduct.name_ru}`;
             document.getElementById('selectedProductNameSub').textContent = subName;
 
-            document.getElementById('productUnitLabel').textContent = selectedProduct.unit || 'кг';
+            // Заполняем select единицами
+            const baseUnit = selectedProduct.unit || 'g';
+            const availableUnits = getAvailableUnits(selectedProduct.id, baseUnit);
+            const unitSelect = document.getElementById('productUnitSelect');
+            unitSelect.innerHTML = availableUnits.map(u =>
+                `<option value="${u}" ${u === baseUnit ? 'selected' : ''}>${getUnitShort(u)}</option>`
+            ).join('');
+
+            // Устанавливаем значение по умолчанию в зависимости от единицы
+            const qtyInput = document.getElementById('productQuantityInput');
+            if (baseUnit === 'kg' || baseUnit === 'l') {
+                qtyInput.value = '0.1';
+                qtyInput.step = '0.01';
+            } else if (baseUnit === 'pcs' || baseUnit === 'pack') {
+                qtyInput.value = '1';
+                qtyInput.step = '1';
+            } else {
+                qtyInput.value = '100';
+                qtyInput.step = '1';
+            }
+
             document.getElementById('addProductBtn').disabled = false;
         }
 
@@ -788,12 +862,13 @@
             }
 
             const quantity = parseFloat(document.getElementById('productQuantityInput').value) || 0.1;
+            const selectedUnit = document.getElementById('productUnitSelect').value;
 
             ingredients.push({
                 product_id: selectedProduct.id,
                 products: selectedProduct,
                 amount: quantity,
-                unit: selectedProduct.unit || 'kg',
+                unit: selectedUnit,
                 sort_order: ingredients.length + 1
             });
 
@@ -1054,11 +1129,13 @@
 
             // Load location and reference data
             await loadLocationId();
-            [categories, products, productCategories] = await Promise.all([
+            [categories, products, productCategories, units] = await Promise.all([
                 loadCategories(),
                 loadProducts(),
-                loadProductCategories()
+                loadProductCategories(),
+                loadUnits()
             ]);
+            await loadDensities();
 
             populateCategories();
 
