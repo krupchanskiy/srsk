@@ -26,6 +26,48 @@
             font-size: 1.25rem;
             font-weight: 600;
         }
+        .cleaning-actions {
+            display: flex;
+            gap: 0.5rem;
+        }
+        .cleaning-action-btn {
+            width: 44px;
+            height: 44px;
+            border-radius: 12px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            transition: all 0.2s;
+            border: none;
+        }
+        .cleaning-action-btn:hover {
+            transform: scale(1.05);
+        }
+        .cleaning-action-btn:active {
+            transform: scale(0.95);
+        }
+        .cleaning-action-btn.complete {
+            background: oklch(var(--su) / 0.15);
+            color: oklch(var(--su));
+        }
+        .cleaning-action-btn.complete:hover {
+            background: oklch(var(--su) / 0.25);
+        }
+        .cleaning-action-btn.extend {
+            background: oklch(var(--in) / 0.15);
+            color: oklch(var(--in));
+        }
+        .cleaning-action-btn.extend:hover {
+            background: oklch(var(--in) / 0.25);
+        }
+        .cleaning-action-btn.delete {
+            background: oklch(var(--er) / 0.15);
+            color: oklch(var(--er));
+        }
+        .cleaning-action-btn.delete:hover {
+            background: oklch(var(--er) / 0.25);
+        }
     </style>
 </head>
 <body class="bg-base-200 min-h-screen flex flex-col">
@@ -72,17 +114,21 @@
         </div>
 
         <!-- Stats -->
-        <div class="grid grid-cols-2 sm:grid-cols-4 gap-4 mb-6">
+        <div class="grid grid-cols-2 sm:grid-cols-5 gap-4 mb-6">
             <div class="bg-error/10 border border-error/30 rounded-lg p-4">
-                <div class="text-3xl font-bold text-error" id="statToday">0</div>
-                <div class="text-sm opacity-60" data-i18n="cleaning_today">Сегодня</div>
+                <div class="text-3xl font-bold text-error" id="statOverdue">0</div>
+                <div class="text-sm opacity-60" data-i18n="cleaning_overdue">Просрочено</div>
             </div>
             <div class="bg-warning/10 border border-warning/30 rounded-lg p-4">
-                <div class="text-3xl font-bold text-warning" id="statTomorrow">0</div>
-                <div class="text-sm opacity-60" data-i18n="cleaning_tomorrow">Завтра</div>
+                <div class="text-3xl font-bold text-warning" id="statToday">0</div>
+                <div class="text-sm opacity-60" data-i18n="cleaning_today">Сегодня</div>
             </div>
             <div class="bg-info/10 border border-info/30 rounded-lg p-4">
-                <div class="text-3xl font-bold text-info" id="statWeek">0</div>
+                <div class="text-3xl font-bold text-info" id="statTomorrow">0</div>
+                <div class="text-sm opacity-60" data-i18n="cleaning_tomorrow">Завтра</div>
+            </div>
+            <div class="bg-base-200/50 rounded-lg p-4">
+                <div class="text-3xl font-bold" id="statWeek">0</div>
                 <div class="text-sm opacity-60" data-i18n="cleaning_week">На неделе</div>
             </div>
             <div class="bg-base-100 rounded-lg p-4">
@@ -93,28 +139,41 @@
 
         <!-- List View -->
         <div id="listView" class="space-y-6">
-            <!-- Today -->
-            <div class="bg-base-100 rounded-lg shadow-sm overflow-hidden" id="listToday">
+            <!-- Overdue -->
+            <div class="bg-base-100 rounded-lg shadow-sm overflow-hidden hidden" id="listOverdue">
                 <div class="p-4 border-b border-base-200 bg-error/10">
                     <h2 class="font-semibold text-lg flex items-center gap-2">
-                        <span class="text-error" data-i18n="cleaning_today">Сегодня</span>
-                        <span class="badge badge-error" id="countToday">0</span>
+                        <span class="text-error" data-i18n="cleaning_overdue">Просрочено</span>
+                        <span class="badge badge-error" id="countOverdue">0</span>
                     </h2>
                 </div>
-                <div class="p-4" id="roomsToday">
+                <div class="divide-y divide-base-200" id="roomsOverdue">
+                    <!-- Rooms will be rendered here -->
+                </div>
+            </div>
+
+            <!-- Today -->
+            <div class="bg-base-100 rounded-lg shadow-sm overflow-hidden" id="listToday">
+                <div class="p-4 border-b border-base-200 bg-warning/10">
+                    <h2 class="font-semibold text-lg flex items-center gap-2">
+                        <span class="text-warning" data-i18n="cleaning_today">Сегодня</span>
+                        <span class="badge badge-warning" id="countToday">0</span>
+                    </h2>
+                </div>
+                <div class="divide-y divide-base-200" id="roomsToday">
                     <!-- Rooms will be rendered here -->
                 </div>
             </div>
 
             <!-- Tomorrow -->
             <div class="bg-base-100 rounded-lg shadow-sm overflow-hidden" id="listTomorrow">
-                <div class="p-4 border-b border-base-200 bg-warning/10">
+                <div class="p-4 border-b border-base-200 bg-info/10">
                     <h2 class="font-semibold text-lg flex items-center gap-2">
-                        <span class="text-warning" data-i18n="cleaning_tomorrow">Завтра</span>
-                        <span class="badge badge-warning" id="countTomorrow">0</span>
+                        <span class="text-info" data-i18n="cleaning_tomorrow">Завтра</span>
+                        <span class="badge badge-info" id="countTomorrow">0</span>
                     </h2>
                 </div>
-                <div class="p-4" id="roomsTomorrow">
+                <div class="divide-y divide-base-200" id="roomsTomorrow">
                     <!-- Rooms will be rendered here -->
                 </div>
             </div>
@@ -127,7 +186,7 @@
                         <span class="badge" id="countUpcoming">0</span>
                     </h2>
                 </div>
-                <div class="p-4" id="roomsUpcoming">
+                <div class="divide-y divide-base-200" id="roomsUpcoming">
                     <!-- Rooms will be rendered here -->
                 </div>
             </div>
@@ -186,6 +245,29 @@
 
             <div class="modal-action">
                 <button type="button" class="btn btn-ghost" onclick="closeDayModal()" data-i18n="close">Закрыть</button>
+            </div>
+        </div>
+        <form method="dialog" class="modal-backdrop"><button>close</button></form>
+    </dialog>
+
+    <!-- Extend Cleaning Modal -->
+    <dialog id="extendModal" class="modal">
+        <div class="modal-box max-w-sm relative">
+            <button type="button" class="btn btn-sm btn-circle btn-ghost absolute right-2 top-2" onclick="closeExtendModal()">✕</button>
+            <h3 class="font-bold text-lg mb-4" data-i18n="extend_cleaning">Перенести уборку</h3>
+
+            <input type="hidden" id="extendTaskId" />
+
+            <div class="form-control mb-4">
+                <label class="label py-1">
+                    <span class="label-text font-medium" data-i18n="new_date">Новая дата</span>
+                </label>
+                <input type="date" id="extendDateInput" class="input input-bordered" />
+            </div>
+
+            <div class="modal-action">
+                <button type="button" class="btn btn-ghost" onclick="closeExtendModal()" data-i18n="cancel">Отмена</button>
+                <button type="button" class="btn btn-primary" onclick="saveExtendCleaning()" data-i18n="save">Сохранить</button>
             </div>
         </div>
         <form method="dialog" class="modal-backdrop"><button>close</button></form>
@@ -255,21 +337,23 @@
 
         // ==================== DATA ====================
         async function loadCleaningSchedule() {
-            // Загружаем выезды на ближайшие 60 дней
-            const startDate = today;
+            // Загружаем выезды: просроченные (30 дней назад) + будущие (60 дней вперёд)
+            const overdueStart = new Date(Date.now() - 30 * 86400000).toISOString().split('T')[0];
             const endDate = new Date(Date.now() + 60 * 86400000).toISOString().split('T')[0];
 
             const { data, error } = await Layout.db
                 .from('residents')
                 .select(`
-                    id, check_out, guest_name,
+                    id, check_out, guest_name, cleaning_done, cleaning_skipped,
                     rooms(id, number, floor, buildings(id, name_ru, name_en)),
                     team_members(id, first_name, spiritual_name),
                     bookings(id, name, contact_name)
                 `)
                 .eq('status', 'active')
-                .gte('check_out', startDate)
+                .gte('check_out', overdueStart)
                 .lte('check_out', endDate)
+                .neq('cleaning_done', true)
+                .neq('cleaning_skipped', true)
                 .order('check_out');
 
             if (error) {
@@ -302,7 +386,7 @@
         }
 
         async function loadManualCleanings() {
-            const startDate = today;
+            const overdueStart = new Date(Date.now() - 30 * 86400000).toISOString().split('T')[0];
             const endDate = new Date(Date.now() + 60 * 86400000).toISOString().split('T')[0];
 
             const { data, error } = await Layout.db
@@ -312,7 +396,7 @@
                     rooms(id, number, floor, buildings(id, name_ru, name_en))
                 `)
                 .eq('completed', false)
-                .gte('start_date', startDate)
+                .gte('start_date', overdueStart)
                 .lte('start_date', endDate)
                 .order('start_date');
 
@@ -348,8 +432,23 @@
                 });
             });
 
-            // Пересортируем
+            // Пересортируем по дате
             cleaningData.sort((a, b) => a.date.localeCompare(b.date));
+
+            // Сортируем комнаты внутри каждого дня по зданию и номеру
+            cleaningData.forEach(day => {
+                day.rooms.sort((a, b) => {
+                    const buildingA = a.rooms?.buildings?.name_ru || '';
+                    const buildingB = b.rooms?.buildings?.name_ru || '';
+                    if (buildingA !== buildingB) {
+                        return buildingA.localeCompare(buildingB, 'ru');
+                    }
+                    // Натуральная сортировка номеров (1, 2, 10, 11 вместо 1, 10, 11, 2)
+                    const numA = parseInt(a.rooms?.number) || 0;
+                    const numB = parseInt(b.rooms?.number) || 0;
+                    return numA - numB;
+                });
+            });
         }
 
         async function loadBuildings() {
@@ -374,6 +473,10 @@
 
         // ==================== STATS ====================
         function updateStats() {
+            // Overdue: before today
+            const overdueData = cleaningData.filter(d => d.date < today);
+            const overdueCount = overdueData.reduce((sum, d) => sum + d.rooms.length, 0);
+
             const todayData = cleaningData.find(d => d.date === today);
             const tomorrowData = cleaningData.find(d => d.date === tomorrow);
 
@@ -388,6 +491,7 @@
             const monthData = cleaningData.filter(d => d.date >= monthStart && d.date <= monthEnd);
             const monthCount = monthData.reduce((sum, d) => sum + d.rooms.length, 0);
 
+            Layout.$('#statOverdue').textContent = overdueCount;
             Layout.$('#statToday').textContent = todayData?.rooms.length || 0;
             Layout.$('#statTomorrow').textContent = tomorrowData?.rooms.length || 0;
             Layout.$('#statWeek').textContent = weekCount;
@@ -435,6 +539,7 @@
             const building = room?.buildings;
             const isManual = resident.isManual;
             const cleaningType = resident.cleaningType || 'cleaning';
+            const taskId = resident.cleaningTaskId;
 
             // Badge for cleaning type
             let badge;
@@ -448,9 +553,37 @@
                 badge = `<span class="badge badge-warning badge-sm">${t('cleaning_after_checkout') || 'После выезда'}</span>`;
             }
 
+            // Action buttons for all cleanings
+            // Для ручных уборок: taskId = cleaningTaskId
+            // Для авто (после выезда): residentId = resident.id
+            const itemId = isManual ? taskId : resident.id;
+            const itemType = isManual ? 'manual' : 'auto';
+            const roomId = room?.id || '';
+
+            const actionButtons = `
+                <div class="cleaning-actions">
+                    <button class="cleaning-action-btn complete" onclick="event.stopPropagation(); completeCleaning('${itemId}', '${itemType}')" title="${t('mark_done') || 'Выполнено'}">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7" />
+                        </svg>
+                    </button>
+                    <button class="cleaning-action-btn extend" onclick="event.stopPropagation(); openExtendModal('${itemId}', '${resident.check_out}', '${itemType}', '${roomId}')" title="${t('extend_cleaning') || 'Перенести'}">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M12 11v4l2 2" />
+                        </svg>
+                    </button>
+                    <button class="cleaning-action-btn delete" onclick="event.stopPropagation(); deleteCleaning('${itemId}', '${itemType}')" title="${t('delete') || 'Удалить'}">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                        </svg>
+                    </button>
+                </div>
+            `;
+
             return `
-                <div class="flex items-center justify-between p-3 bg-base-200/50 rounded-lg">
-                    <div>
+                <div class="flex items-center justify-between p-4 hover:bg-base-200/50 transition-colors">
+                    <div class="flex-1 min-w-0">
                         <div class="flex items-center gap-2 mb-1">
                             <span class="font-medium">${building ? Layout.getName(building) : ''} / ${room?.number || '—'}</span>
                             ${badge}
@@ -461,28 +594,38 @@
                                 : getResidentName(resident)
                             }
                         </div>
+                        ${showDate ? `<div class="text-xs opacity-50 mt-1">${formatDate(resident.check_out)}</div>` : ''}
                     </div>
-                    <div class="text-right flex items-center gap-2">
-                        <div>
-                            ${showDate ? `<div class="text-sm font-medium">${formatDate(resident.check_out)}</div>` : ''}
+                    <div class="flex items-center gap-3 ml-3">
+                        <div class="text-right">
                             <div class="text-xs opacity-60">${t('floor_plan_floor') || 'Этаж'} ${room?.floor || '—'}</div>
                         </div>
-                        ${isManual ? `
-                            <button class="btn btn-ghost btn-xs btn-circle" onclick="event.stopPropagation(); completeCleaning('${resident.cleaningTaskId}')" title="${t('mark_done') || 'Выполнено'}">
-                                <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 text-success" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
-                                </svg>
-                            </button>
-                        ` : ''}
+                        ${actionButtons}
                     </div>
                 </div>
             `;
         }
 
         function renderListView() {
+            const overdueData = cleaningData.filter(d => d.date < today);
             const todayData = cleaningData.find(d => d.date === today);
             const tomorrowData = cleaningData.find(d => d.date === tomorrow);
             const upcomingData = cleaningData.filter(d => d.date > tomorrow);
+
+            // Overdue
+            const overdueCount = overdueData.reduce((sum, d) => sum + d.rooms.length, 0);
+            Layout.$('#countOverdue').textContent = overdueCount;
+            Layout.$('#listOverdue').classList.toggle('hidden', overdueCount === 0);
+            if (overdueCount > 0) {
+                Layout.$('#roomsOverdue').innerHTML = overdueData.map(day => `
+                    <div class="border-b border-base-200 last:border-b-0">
+                        <div class="text-sm font-medium px-4 py-2 bg-error/5 text-error">${formatDate(day.date)}</div>
+                        <div class="divide-y divide-base-200">
+                            ${day.rooms.map(r => renderRoomCard(r, true)).join('')}
+                        </div>
+                    </div>
+                `).join('');
+            }
 
             // Today
             Layout.$('#countToday').textContent = todayData?.rooms.length || 0;
@@ -504,9 +647,9 @@
             Layout.$('#countUpcoming').textContent = upcomingCount;
             Layout.$('#roomsUpcoming').innerHTML = upcomingCount > 0
                 ? limitedUpcoming.map(day => `
-                    <div class="mb-4">
-                        <div class="text-sm font-medium mb-2 opacity-70">${formatDate(day.date)}</div>
-                        <div class="space-y-2">
+                    <div class="border-b border-base-200 last:border-b-0">
+                        <div class="text-sm font-medium px-4 py-2 bg-base-200/30">${formatDate(day.date)}</div>
+                        <div class="divide-y divide-base-200">
                             ${day.rooms.map(r => renderRoomCard(r)).join('')}
                         </div>
                     </div>
@@ -786,19 +929,128 @@
             }
         }
 
-        async function completeCleaning(taskId) {
+        async function completeCleaning(itemId, itemType) {
             try {
-                const { error } = await Layout.db
-                    .from('room_cleanings')
-                    .update({ completed: true, completed_at: new Date().toISOString() })
-                    .eq('id', taskId);
+                if (itemType === 'auto') {
+                    // Для авто-уборки — ставим флаг cleaning_done в residents
+                    const { error } = await Layout.db
+                        .from('residents')
+                        .update({ cleaning_done: true })
+                        .eq('id', itemId);
 
-                if (error) throw error;
+                    if (error) throw error;
+                } else {
+                    // Для ручной уборки — помечаем как выполненную
+                    const { error } = await Layout.db
+                        .from('room_cleanings')
+                        .update({ completed: true, completed_at: new Date().toISOString() })
+                        .eq('id', itemId);
+
+                    if (error) throw error;
+                }
 
                 await loadCleaningSchedule();
 
             } catch (err) {
                 console.error('Error completing cleaning:', err);
+                alert('Ошибка: ' + err.message);
+            }
+        }
+
+        // ==================== EXTEND MODAL ====================
+        function openExtendModal(itemId, currentDate, itemType, roomId) {
+            Layout.$('#extendTaskId').value = itemId;
+            Layout.$('#extendDateInput').value = currentDate;
+            Layout.$('#extendModal').dataset.itemType = itemType;
+            Layout.$('#extendModal').dataset.roomId = roomId;
+            Layout.$('#extendModal').showModal();
+        }
+
+        function closeExtendModal() {
+            Layout.$('#extendModal').close();
+        }
+
+        async function saveExtendCleaning() {
+            const itemId = Layout.$('#extendTaskId').value;
+            const newDate = Layout.$('#extendDateInput').value;
+            const itemType = Layout.$('#extendModal').dataset.itemType;
+            const roomId = Layout.$('#extendModal').dataset.roomId;
+
+            if (!newDate) {
+                alert(t('select_date') || 'Выберите дату');
+                return;
+            }
+
+            try {
+                if (itemType === 'auto') {
+                    // Для авто-уборки — создаём новую запись в room_cleanings
+                    const { error } = await Layout.db
+                        .from('room_cleanings')
+                        .insert({
+                            room_id: roomId,
+                            start_date: newDate,
+                            end_date: newDate,
+                            type: 'cleaning',
+                            completed: false
+                        });
+
+                    if (error) throw error;
+
+                    // Помечаем исходную авто-уборку как пропущенную
+                    const { error: skipError } = await Layout.db
+                        .from('residents')
+                        .update({ cleaning_skipped: true })
+                        .eq('id', itemId);
+
+                    if (skipError) throw skipError;
+                } else {
+                    // Для ручной уборки — обновляем существующую запись
+                    const { error } = await Layout.db
+                        .from('room_cleanings')
+                        .update({ start_date: newDate, end_date: newDate })
+                        .eq('id', itemId);
+
+                    if (error) throw error;
+                }
+
+                closeExtendModal();
+                await loadCleaningSchedule();
+
+            } catch (err) {
+                console.error('Error extending cleaning:', err);
+                alert('Ошибка: ' + err.message);
+            }
+        }
+
+        // ==================== DELETE CLEANING ====================
+        async function deleteCleaning(itemId, itemType) {
+            if (!confirm(t('confirm_delete') || 'Удалить эту уборку?')) {
+                return;
+            }
+
+            try {
+                if (itemType === 'auto') {
+                    // Для авто-уборки — помечаем как пропущенную (скрываем)
+                    const { error } = await Layout.db
+                        .from('residents')
+                        .update({ cleaning_skipped: true })
+                        .eq('id', itemId);
+
+                    if (error) throw error;
+                } else {
+                    // Для ручной уборки — удаляем из БД
+                    const { error } = await Layout.db
+                        .from('room_cleanings')
+                        .delete()
+                        .eq('id', itemId);
+
+                    if (error) throw error;
+                }
+
+                await loadCleaningSchedule();
+
+            } catch (err) {
+                console.error('Error deleting cleaning:', err);
                 alert('Ошибка: ' + err.message);
             }
         }
