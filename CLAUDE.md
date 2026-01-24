@@ -13,6 +13,28 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - **Fonts**: Noto Sans + Noto Sans Devanagari (для хинди)
 - **No build step** — HTML файлы открываются напрямую или через локальный сервер
 
+## Development
+
+Сборка не требуется. Для локальной разработки:
+```bash
+# Простой вариант — открыть HTML напрямую в браузере
+open index.html
+
+# Или локальный сервер (для корректной работы с Supabase)
+npx serve .
+```
+
+## Supabase MCP
+
+Настроен MCP-сервер для прямого доступа к БД. Project ID: `llttmftapmwebidgevmg`
+
+Доступные операции:
+- `mcp__supabase__execute_sql` — выполнение SQL-запросов
+- `mcp__supabase__apply_migration` — применение миграций
+- `mcp__supabase__list_tables` — просмотр схемы
+- `mcp__supabase__get_logs` — логи сервисов
+- `mcp__supabase__get_advisors` — проверка безопасности
+
 ## Architecture
 
 ### Core Files
@@ -58,11 +80,11 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 Основные:
 - `locations` — кухни (main, cafe, guest) с цветами
 - `recipes`, `recipe_categories`, `recipe_ingredients` — рецепты
-- `products`, `product_categories` — продукты
+- `products`, `product_categories`, `product_densities` — продукты и плотности для конвертации единиц
 - `units` — единицы измерения (справочник)
 - `translations` — переводы интерфейса
 - `menu_days`, `menu_items`, `menu_templates` — меню
-- `stock`, `stock_requests`, `inventory` — склад и инвентаризация
+- `stock`, `stock_requests`, `stock_inventories` — склад и инвентаризация
 - `team_members`, `retreats`, `holidays` — команда и события
 
 ### SQL Migrations
@@ -147,3 +169,7 @@ menuConfig = [
 - Стили: `css/common.css`
 - Скрипты: `js/layout.js`
 - Миграции: `supabase/*.sql`
+
+## Documentation
+
+- **PRODUCT.md** — обзор продукта, статус страниц, модели данных, роадмап
