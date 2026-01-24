@@ -991,8 +991,8 @@
                                     cleaningEndHalf = 1;
                                 }
 
-                                // Если уборка попадает в диапазон отображения — показываем (выполненные тоже)
-                                if (cleaningStartDay < DAYS_TO_SHOW) {
+                                // Если уборка попадает в диапазон отображения — показываем (выполненные тоже, но не удалённые)
+                                if (cleaningStartDay < DAYS_TO_SHOW && !res.cleaning_skipped) {
                                     const autoCleaningId = 'cleaning-' + res.id;
                                     cleaningEntry = {
                                         id: autoCleaningId,
@@ -1833,11 +1833,8 @@
 
             // Показываем/скрываем элементы в зависимости от статуса
             const isCompleted = cleaningData.isCompleted;
-            const isAuto = cleaningData.isAuto || cleaningData.isAutoCleaning;
             document.getElementById('cleaningCompletedStatus').classList.toggle('hidden', !isCompleted);
             document.getElementById('cleaningActions').classList.toggle('hidden', isCompleted);
-            // Кнопка удаления только для ручных уборок
-            document.getElementById('cleaningDeleteBtn').classList.toggle('hidden', isAuto);
 
             document.getElementById('cleaningModal').showModal();
         }
@@ -1924,14 +1921,25 @@
             renderTable();
         }
 
-        // Удалить уборку
+        // Удалить уборку (скрыть совсем, в отличие от "Выполнена" которая делает зелёной)
         async function deleteCleaning() {
             if (!currentCleaning) return;
 
-            // Для автоуборки — сбрасываем флаг cleaning_done
+            // Для автоуборки — помечаем как пропущенную (скрываем)
             if (currentCleaning.isAuto || currentCleaning.isAutoCleaning) {
-                // Автоуборка не может быть удалена, только выполнена
-                alert('Автоматическая уборка после выезда не может быть удалена');
+                const { error } = await Layout.db
+                    .from('residents')
+                    .update({ cleaning_skipped: true })
+                    .eq('id', currentCleaning.residentId);
+
+                if (error) {
+                    alert('Ошибка: ' + error.message);
+                    return;
+                }
+
+                document.getElementById('cleaningModal').close();
+                await loadTimelineData();
+                renderTable();
                 return;
             }
 
