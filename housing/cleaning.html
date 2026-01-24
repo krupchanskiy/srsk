@@ -691,9 +691,10 @@
 
                 let countColor = '';
                 if (roomCount > 0) {
-                    if (dateStr === today) countColor = 'text-error';
-                    else if (dateStr === tomorrow) countColor = 'text-warning';
-                    else countColor = 'text-info';
+                    if (dateStr < today) countColor = 'text-error';        // просрочено
+                    else if (dateStr === today) countColor = 'text-warning'; // сегодня
+                    else if (dateStr === tomorrow) countColor = 'text-info'; // завтра
+                    // остальные — без цвета
                 }
 
                 return `
