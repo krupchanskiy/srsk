@@ -533,7 +533,7 @@
         }
 
         async function loadCategories() {
-            const { data } = await Layout.db.from('recipe_categories').select('*').order('sort_order');
+            const { data } = await Layout.db.from('recipe_categories').select('*').order('name_ru');
             return data || [];
         }
 
@@ -543,7 +543,7 @@
         }
 
         async function loadProductCategories() {
-            const { data } = await Layout.db.from('product_categories').select('*').order('sort_order');
+            const { data } = await Layout.db.from('product_categories').select('*').order('name_ru');
             return data || [];
         }
 

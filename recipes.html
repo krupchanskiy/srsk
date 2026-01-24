@@ -134,7 +134,7 @@
         }
 
         async function loadCategories() {
-            const { data, error } = await Layout.db.from('recipe_categories').select('*').order('sort_order');
+            const { data, error } = await Layout.db.from('recipe_categories').select('*').order('name_ru');
             if (error) { console.error('Error loading categories:', error); return; }
             categories = data;
             renderCategoryFilters();
