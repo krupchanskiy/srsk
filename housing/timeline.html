@@ -17,7 +17,6 @@
         .timeline-table {
             border-collapse: separate;
             border-spacing: 0;
-            table-layout: fixed;
         }
 
         .timeline-table th,
@@ -49,8 +48,8 @@
 
         /* Левая колонка - закреплена */
         .sticky-col {
-            position: sticky;
-            left: 0;
+            position: sticky !important;
+            left: 0 !important;
             background: white;
             z-index: 10;
             width: 160px;
@@ -61,15 +60,10 @@
             border-right: 2px solid #9ca3af;
         }
 
-        /* Заголовок таблицы - закреплён сверху */
-        .timeline-table thead {
-            position: sticky;
-            top: 0;
-            z-index: 15;
-            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-        }
-
+        /* Заголовок таблицы - каждая ячейка sticky */
         .timeline-table thead th {
+            position: sticky;
+            z-index: 15;
             background: #f3f4f6;
             border-color: #d1d5db !important;
         }
@@ -77,6 +71,69 @@
         .timeline-table thead th.sticky-col {
             z-index: 20;
             background: #f3f4f6;
+        }
+
+        /* ===== ПОЛОСА РЕТРИТОВ (отдельный div) ===== */
+        .retreats-bar {
+            height: 34px;
+            background: #f3f4f6;
+            border-bottom: 1px solid #d1d5db;
+            display: flex;
+            flex-shrink: 0;
+        }
+
+        .retreats-label {
+            min-width: 160px;
+            width: 160px;
+            background: #f3f4f6;
+            flex-shrink: 0;
+        }
+
+        .retreats-content {
+            position: relative;
+            flex: 1;
+            overflow: hidden;
+        }
+
+        .retreats-scroll {
+            display: flex;
+            height: 100%;
+            position: relative;
+        }
+
+        /* Половина дня в полосе ретритов */
+        .retreat-half {
+            min-width: 24px;
+            width: 24px;
+            flex-shrink: 0;
+            background: #f3f4f6;
+            border: none !important;
+        }
+
+        .retreat-chip {
+            position: absolute;
+            top: 0;
+            height: 34px;
+            background: #10b981;
+            color: white;
+            font-size: 14px;
+            font-weight: 600;
+            padding: 0 10px;
+            border-radius: 0;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            line-height: 34px;
+        }
+
+        /* Строка с числами — top: 0 (ретриты теперь отдельно) */
+        .row-dates th {
+            top: 0;
+        }
+
+        /* Строка с днями недели — top: 32px */
+        .row-weekdays th {
+            top: 32px;
         }
 
         /* Выходные и сегодня в заголовке */
@@ -102,43 +159,6 @@
             color: #6b7280;
             text-transform: uppercase;
             text-align: center;
-        }
-
-        /* Строка ретритов */
-        .row-retreats th {
-            background: #f9fafb !important;
-            height: 34px;
-            padding: 3px !important;
-        }
-
-        .row-retreats th.weekend {
-            background: #fef2f2 !important;
-        }
-
-        .row-retreats th.today {
-            background: #dbeafe !important;
-        }
-
-        .retreat-bar {
-            position: absolute;
-            top: 3px;
-            left: 2px;
-            background: #10b981;
-            color: white;
-            font-size: 14px;
-            font-weight: 600;
-            padding: 4px 10px;
-            border-radius: 4px;
-            white-space: nowrap;
-            overflow: hidden;
-            text-overflow: ellipsis;
-            height: 26px;
-            line-height: 18px;
-            z-index: 5;
-        }
-
-        .row-retreats th {
-            position: relative;
         }
 
         /* Заголовок здания */
@@ -352,11 +372,21 @@
             <div class="flex items-center gap-4" id="legend"></div>
         </div>
 
-        <!-- Контейнер таблицы -->
-        <div class="overflow-auto bg-white rounded-lg shadow" style="max-height: calc(100vh - 180px);">
-            <table class="timeline-table" id="timelineTable">
-                <!-- Генерируется через JS -->
-            </table>
+        <!-- Контейнер шахматки -->
+        <div class="bg-white rounded-lg shadow flex flex-col" style="max-height: calc(100vh - 180px);">
+            <!-- Полоса ретритов -->
+            <div class="retreats-bar">
+                <div class="retreats-label"></div>
+                <div class="retreats-content">
+                    <div class="retreats-scroll" id="retreatsScroll"></div>
+                </div>
+            </div>
+            <!-- Таблица -->
+            <div class="overflow-auto flex-1" id="tableContainer">
+                <table class="timeline-table" id="timelineTable">
+                    <!-- Генерируется через JS -->
+                </table>
+            </div>
         </div>
     </main>
 
@@ -1890,33 +1920,47 @@
         }
 
         // Рендер таблицы
+        // Рендер полосы ретритов (отдельно от таблицы)
+        function renderRetreats() {
+            const container = document.getElementById('retreatsScroll');
+            if (!container) return;
+
+            let html = '';
+
+            // Половинки дней (как в таблице — 2 на день)
+            for (let day = 0; day < DAYS_TO_SHOW; day++) {
+                html += '<div class="retreat-half day-start"></div>';
+                html += '<div class="retreat-half"></div>';
+            }
+
+            // Плашки ретритов
+            timelineData.retreats.forEach(r => {
+                // Позиция: каждая половина = 24px + 1px border, первая половина ещё +2px border-left
+                // Упрощённо: startDay * (24+1+24+1) + 2 для border-left
+                const left = r.startDay * CELL_WIDTH * 2 + 2; // +2 для первой границы
+                const spanDays = r.endDay - r.startDay + 1;
+                const width = spanDays * CELL_WIDTH * 2 - 4;
+                html += `<div class="retreat-chip" style="left: ${left}px; width: ${width}px;">${r.name}</div>`;
+            });
+
+            container.innerHTML = html;
+        }
+
+        // Синхронизация скролла ретритов с таблицей
+        function syncScroll() {
+            const tableContainer = document.getElementById('tableContainer');
+            const retreatsScroll = document.getElementById('retreatsScroll');
+            if (!tableContainer || !retreatsScroll) return;
+
+            tableContainer.addEventListener('scroll', () => {
+                retreatsScroll.style.transform = `translateX(-${tableContainer.scrollLeft}px)`;
+            });
+        }
+
         function renderTable() {
             const table = document.getElementById('timelineTable');
 
             let html = '<thead>';
-
-            // Строка ретритов — та же структура что и строка дат (colspan=2 на день)
-            html += '<tr class="row-retreats"><th class="sticky-col"></th>';
-            const renderedRetreats = new Set();
-            for (let day = 0; day < DAYS_TO_SHOW; day++) {
-                const weekend = isWeekend(day) ? 'weekend' : '';
-                const today = day === TODAY_INDEX ? 'today' : '';
-
-                // Ищем ретрит, который начинается в этот день
-                const retreat = timelineData.retreats.find(r =>
-                    !renderedRetreats.has(r.name) && r.startDay === day
-                );
-
-                if (retreat) {
-                    renderedRetreats.add(retreat.name);
-                    const spanDays = retreat.endDay - retreat.startDay + 1;
-                    const width = spanDays * CELL_WIDTH * 2 - 4; // 2 ячейки на день, минус отступы
-                    html += `<th colspan="2" class="day-start ${weekend} ${today}"><span class="retreat-bar" style="width: ${width}px;">${retreat.name}</span></th>`;
-                } else {
-                    html += `<th colspan="2" class="day-start ${weekend} ${today}"></th>`;
-                }
-            }
-            html += '</tr>';
 
             // Строка с числами
             html += '<tr class="row-dates"><th class="sticky-col"></th>';
@@ -2130,7 +2174,9 @@
                 loadTimelineData(),
                 loadDictionaries()
             ]);
+            renderRetreats();
             renderTable();
+            syncScroll();
         }
 
         init();
