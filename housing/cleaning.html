@@ -14,17 +14,38 @@
     <link rel="stylesheet" href="../css/common.css">
     <style>
         .calendar-day {
-            min-height: 100px;
+            min-height: 44px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            border-radius: 6px;
+            transition: all 0.15s;
         }
         .calendar-day.other-month {
-            opacity: 0.4;
+            opacity: 0.3;
         }
         .calendar-day.today {
-            background: oklch(var(--p) / 0.1);
+            ring: 2px;
+            ring-offset: 1px;
+            box-shadow: 0 0 0 2px oklch(var(--p));
+        }
+        .calendar-day.level-1 {
+            background: oklch(var(--wa) / 0.7);
+            color: oklch(var(--wac));
+        }
+        .calendar-day.level-2 {
+            background: #fb923c;
+            color: white;
+        }
+        .calendar-day.level-3 {
+            background: oklch(var(--er) / 0.9);
+            color: oklch(var(--erc));
         }
         .cleaning-count {
-            font-size: 1.25rem;
+            font-size: 0.75rem;
             font-weight: 600;
+            line-height: 1;
         }
         .cleaning-actions {
             display: flex;
@@ -193,15 +214,22 @@
         </div>
 
         <!-- Calendar View -->
-        <div id="calendarView" class="hidden bg-base-100 rounded-lg shadow-sm overflow-hidden">
+        <div id="calendarView" class="hidden">
             <!-- Calendar navigation -->
-            <div class="p-4 border-b border-base-200 flex items-center justify-between">
+            <div class="bg-base-100 rounded-lg shadow-sm p-3 mb-4 flex items-center justify-between">
                 <button class="btn btn-ghost btn-sm" onclick="prevMonth()">
                     <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7" />
                     </svg>
                 </button>
-                <h2 class="font-semibold text-lg" id="calendarTitle">Январь 2025</h2>
+                <div class="flex items-center gap-4">
+                    <!-- Legend -->
+                    <div class="flex items-center gap-3 text-xs">
+                        <span class="flex items-center gap-1"><span class="w-3 h-3 rounded bg-warning"></span> 1-5</span>
+                        <span class="flex items-center gap-1"><span class="w-3 h-3 rounded bg-orange-400"></span> 6-10</span>
+                        <span class="flex items-center gap-1"><span class="w-3 h-3 rounded bg-error"></span> >10</span>
+                    </div>
+                </div>
                 <button class="btn btn-ghost btn-sm" onclick="nextMonth()">
                     <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" />
@@ -209,22 +237,44 @@
                 </button>
             </div>
 
-            <!-- Calendar grid -->
-            <div class="p-4">
-                <!-- Week days header -->
-                <div class="grid grid-cols-7 gap-1 mb-2">
-                    <div class="text-center text-sm font-medium opacity-60 py-2" data-i18n="weekday_mon">Пн</div>
-                    <div class="text-center text-sm font-medium opacity-60 py-2" data-i18n="weekday_tue">Вт</div>
-                    <div class="text-center text-sm font-medium opacity-60 py-2" data-i18n="weekday_wed">Ср</div>
-                    <div class="text-center text-sm font-medium opacity-60 py-2" data-i18n="weekday_thu">Чт</div>
-                    <div class="text-center text-sm font-medium opacity-60 py-2" data-i18n="weekday_fri">Пт</div>
-                    <div class="text-center text-sm font-medium opacity-60 py-2" data-i18n="weekday_sat">Сб</div>
-                    <div class="text-center text-sm font-medium opacity-60 py-2" data-i18n="weekday_sun">Вс</div>
+            <!-- Two calendars side by side -->
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <!-- First month -->
+                <div class="bg-base-100 rounded-lg shadow-sm overflow-hidden">
+                    <div class="p-3 border-b border-base-200 text-center">
+                        <h3 class="font-semibold" id="calendarTitle1">Январь 2025</h3>
+                    </div>
+                    <div class="p-3">
+                        <div class="grid grid-cols-7 gap-0.5 mb-1 text-xs">
+                            <div class="text-center opacity-60 py-1" data-i18n="weekday_mon">Пн</div>
+                            <div class="text-center opacity-60 py-1" data-i18n="weekday_tue">Вт</div>
+                            <div class="text-center opacity-60 py-1" data-i18n="weekday_wed">Ср</div>
+                            <div class="text-center opacity-60 py-1" data-i18n="weekday_thu">Чт</div>
+                            <div class="text-center opacity-60 py-1" data-i18n="weekday_fri">Пт</div>
+                            <div class="text-center opacity-60 py-1" data-i18n="weekday_sat">Сб</div>
+                            <div class="text-center opacity-60 py-1" data-i18n="weekday_sun">Вс</div>
+                        </div>
+                        <div class="grid grid-cols-7 gap-0.5" id="calendarGrid1"></div>
+                    </div>
                 </div>
 
-                <!-- Calendar days -->
-                <div class="grid grid-cols-7 gap-1" id="calendarGrid">
-                    <!-- Days will be rendered here -->
+                <!-- Second month -->
+                <div class="bg-base-100 rounded-lg shadow-sm overflow-hidden">
+                    <div class="p-3 border-b border-base-200 text-center">
+                        <h3 class="font-semibold" id="calendarTitle2">Февраль 2025</h3>
+                    </div>
+                    <div class="p-3">
+                        <div class="grid grid-cols-7 gap-0.5 mb-1 text-xs">
+                            <div class="text-center opacity-60 py-1" data-i18n="weekday_mon">Пн</div>
+                            <div class="text-center opacity-60 py-1" data-i18n="weekday_tue">Вт</div>
+                            <div class="text-center opacity-60 py-1" data-i18n="weekday_wed">Ср</div>
+                            <div class="text-center opacity-60 py-1" data-i18n="weekday_thu">Чт</div>
+                            <div class="text-center opacity-60 py-1" data-i18n="weekday_fri">Пт</div>
+                            <div class="text-center opacity-60 py-1" data-i18n="weekday_sat">Сб</div>
+                            <div class="text-center opacity-60 py-1" data-i18n="weekday_sun">Вс</div>
+                        </div>
+                        <div class="grid grid-cols-7 gap-0.5" id="calendarGrid2"></div>
+                    </div>
                 </div>
             </div>
         </div>
@@ -658,20 +708,35 @@
         }
 
         function renderCalendarView() {
-            const title = new Date(calendarYear, calendarMonth).toLocaleDateString(
+            // Render both months
+            renderMonthGrid(calendarYear, calendarMonth, '#calendarTitle1', '#calendarGrid1');
+
+            // Second month
+            let month2 = calendarMonth + 1;
+            let year2 = calendarYear;
+            if (month2 > 11) {
+                month2 = 0;
+                year2++;
+            }
+            renderMonthGrid(year2, month2, '#calendarTitle2', '#calendarGrid2');
+
+            updateStats();
+        }
+
+        function renderMonthGrid(year, month, titleSelector, gridSelector) {
+            const title = new Date(year, month).toLocaleDateString(
                 Layout.currentLang === 'en' ? 'en-US' : 'ru-RU',
                 { month: 'long', year: 'numeric' }
             );
-            Layout.$('#calendarTitle').textContent = title.charAt(0).toUpperCase() + title.slice(1);
+            Layout.$(titleSelector).textContent = title.charAt(0).toUpperCase() + title.slice(1);
 
-            const grid = Layout.$('#calendarGrid');
-            const firstDay = new Date(calendarYear, calendarMonth, 1);
-            const lastDay = new Date(calendarYear, calendarMonth + 1, 0);
+            const grid = Layout.$(gridSelector);
+            const firstDay = new Date(year, month, 1);
 
             // Get first Monday before or on firstDay
             let startDay = new Date(firstDay);
             const dayOfWeek = startDay.getDay();
-            const diff = dayOfWeek === 0 ? 6 : dayOfWeek - 1; // Monday = 0
+            const diff = dayOfWeek === 0 ? 6 : dayOfWeek - 1;
             startDay.setDate(startDay.getDate() - diff);
 
             // Generate 6 weeks of days
@@ -684,31 +749,27 @@
 
             grid.innerHTML = days.map(day => {
                 const dateStr = day.toISOString().split('T')[0];
-                const isOtherMonth = day.getMonth() !== calendarMonth;
+                const isOtherMonth = day.getMonth() !== month;
                 const isToday = dateStr === today;
                 const dayData = cleaningData.find(d => d.date === dateStr);
                 const roomCount = dayData?.rooms.length || 0;
 
-                let countColor = '';
+                // Level based on count: 1-5 yellow, 6-10 orange, >10 red
+                let levelClass = '';
                 if (roomCount > 0) {
-                    if (dateStr < today) countColor = 'text-error';        // просрочено
-                    else if (dateStr === today) countColor = 'text-warning'; // сегодня
-                    else if (dateStr === tomorrow) countColor = 'text-info'; // завтра
-                    // остальные — без цвета
+                    if (roomCount <= 5) levelClass = 'level-1';
+                    else if (roomCount <= 10) levelClass = 'level-2';
+                    else levelClass = 'level-3';
                 }
 
                 return `
-                    <div class="calendar-day border border-base-200 rounded p-2 ${isOtherMonth ? 'other-month' : ''} ${isToday ? 'today' : ''} ${roomCount > 0 ? 'cursor-pointer hover:bg-base-200' : ''}"
+                    <div class="calendar-day ${isOtherMonth ? 'other-month' : ''} ${isToday ? 'today' : ''} ${levelClass} ${roomCount > 0 ? 'cursor-pointer hover:opacity-80' : ''}"
                          ${roomCount > 0 ? `onclick="openDayModal('${dateStr}')"` : ''}>
-                        <div class="text-sm font-medium ${isToday ? 'text-primary' : ''}">${day.getDate()}</div>
-                        ${roomCount > 0 ? `
-                            <div class="cleaning-count ${countColor}">${roomCount}</div>
-                        ` : ''}
+                        <div class="text-xs font-medium">${day.getDate()}</div>
+                        ${roomCount > 0 ? `<div class="cleaning-count">${roomCount}</div>` : ''}
                     </div>
                 `;
             }).join('');
-
-            updateStats();
         }
 
         function formatDate(dateStr) {
