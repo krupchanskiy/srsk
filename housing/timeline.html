@@ -186,6 +186,7 @@
             font-weight: 500;
             font-size: 13px;
             border-bottom: 2px solid #d1d5db !important;
+            position: relative; /* для позиционирования cleaning-bar */
         }
 
         .row-room .sticky-col {
@@ -910,6 +911,9 @@
                             });
                         }
 
+                        // Массив уборок на уровне комнаты
+                        const roomCleaningsList = [];
+
                         // Распределяем резидентов по местам
                         // Сортируем по дате заселения
                         roomResidents.sort((a, b) => new Date(a.check_in) - new Date(b.check_in));
@@ -1045,9 +1049,8 @@
                                 placedBed = beds[0];
                             }
 
-                            // Добавляем уборку на то же место и в хранилище
-                            if (cleaningEntry && placedBed) {
-                                // Сохраняем в хранилище
+                            // Добавляем автоуборку в cleaningsMap (не в beds!)
+                            if (cleaningEntry) {
                                 cleaningsMap.set(cleaningEntry.id, {
                                     ...cleaningEntry,
                                     roomId: room.id,
@@ -1056,11 +1059,11 @@
                                     isAuto: true,
                                     residentId: res.id
                                 });
-                                placedBed.guests.push(cleaningEntry);
+                                roomCleaningsList.push(cleaningEntry);
                             }
                         });
 
-                        // Добавляем ручные уборки (на первое место)
+                        // Добавляем ручные уборки
                         const roomCleanings = cleaningsByRoom[room.id] || [];
                         roomCleanings.forEach(c => {
                             const startDay = Math.max(0, dateToDayIndex(c.start_date));
@@ -1092,19 +1095,19 @@
                             // Сохраняем в хранилище с контекстом
                             cleaningsMap.set(c.id, {
                                 ...cleaningEntry,
+                                roomId: room.id,
                                 buildingName: Layout.getName(building),
                                 roomName: room.number
                             });
 
-                            if (beds.length > 0) {
-                                beds[0].guests.push(cleaningEntry);
-                            }
+                            roomCleaningsList.push(cleaningEntry);
                         });
 
                         return {
                             id: room.id,
                             name: room.number,
-                            beds
+                            beds,
+                            cleanings: roomCleaningsList // Уборки на уровне комнаты
                         };
                     })
                 };
@@ -2146,10 +2149,11 @@
                         }
                     }
 
-                    // Рендерим ячейки
+                    // Рендерим ячейки строки номера
                     for (let col = 0; col < DAYS_TO_SHOW * 2; col++) {
                         const dayIndex = Math.floor(col / 2);
-                        const isFirstHalf = col % 2 === 0;
+                        const halfIndex = col % 2;
+                        const isFirstHalf = halfIndex === 0;
                         const dayStart = isFirstHalf ? 'day-start' : '';
 
                         html += `<td class="${dayStart}">`;
@@ -2182,6 +2186,19 @@
 
                                 html += `<div class="room-summary-bar ${bookingClass}" style="${style}">${label}</div>`;
                             }
+                        }
+
+                        // Рендерим уборки на строке номера (всегда, независимо от сворачивания)
+                        const cleaning = (room.cleanings || []).find(c =>
+                            c.startDay === dayIndex && c.startHalf === halfIndex
+                        );
+                        if (cleaning) {
+                            const startCol = cleaning.startDay * 2 + cleaning.startHalf;
+                            const endCol = cleaning.endDay * 2 + cleaning.endHalf;
+                            const spanCells = Math.max(1, endCol - startCol + 1);
+                            const width = spanCells * CELL_WIDTH - 2;
+                            const completedClass = cleaning.isCompleted ? ' completed' : '';
+                            html += `<div class="cleaning-bar clickable${completedClass}" style="width: ${width}px;" onclick="event.stopPropagation(); openCleaningModal('${cleaning.cleaningId}')">${cleaning.name}</div>`;
                         }
 
                         html += '</td>';
@@ -2217,17 +2234,14 @@
                             html += `<td class="half-day clickable ${dayStart} ${weekend} ${today}" onclick="openActionModal(${dayIndex}, '${room.id}', '${bName}', '${rName}', '${bedName}', ${halfIndex})">`;
 
                             // Если здесь начинается гость — добавляем плашку
-                            if (guest) {
+                            // (уборки теперь рендерятся на строке номера, не на строке места)
+                            if (guest && !guest.isCleaning) {
                                 const startCol = guest.startDay * 2 + guest.startHalf;
                                 const endCol = guest.endDay * 2 + guest.endHalf;
                                 const spanCells = Math.max(1, endCol - startCol + 1);
                                 const width = spanCells * CELL_WIDTH - 2; // минус отступы
 
-                                if (guest.isCleaning) {
-                                    // Все уборки кликабельные, выполненные — зелёные
-                                    const completedClass = guest.isCompleted ? ' completed' : '';
-                                    html += `<div class="cleaning-bar clickable${completedClass}" style="width: ${width}px;" onclick="event.stopPropagation(); openCleaningModal('${guest.cleaningId}')">${guest.name}</div>`;
-                                } else if (guest.isBooking) {
+                                if (guest.isBooking) {
                                     // Бронирование — штриховка
                                     const bgColor = guest.color || '#fef08a';
                                     html += `<div class="guest-bar booking" style="width: ${width}px; --bar-color: ${bgColor}; border-color: ${bgColor};" onclick="event.stopPropagation(); openResidentFromMap('${guest.id}')">${guest.name}</div>`;

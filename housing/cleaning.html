@@ -306,18 +306,17 @@
             const endDate = new Date(Date.now() + 60 * 86400000).toISOString().split('T')[0];
 
             const { data, error } = await Layout.db
-                .from('cleaning_tasks')
+                .from('room_cleanings')
                 .select(`
-                    id, cleaning_date, notes, status, type,
+                    id, start_date, end_date, notes, completed, type,
                     rooms(id, number, floor, buildings(id, name_ru, name_en))
                 `)
-                .eq('status', 'pending')
-                .gte('cleaning_date', startDate)
-                .lte('cleaning_date', endDate)
-                .order('cleaning_date');
+                .eq('completed', false)
+                .gte('start_date', startDate)
+                .lte('start_date', endDate)
+                .order('start_date');
 
             if (error) {
-                // Таблица может не существовать
                 console.log('Manual cleanings not available:', error.message);
                 manualCleanings = [];
                 return;
@@ -329,7 +328,7 @@
         function mergeCleaningData() {
             // Добавляем ручные уборки в cleaningData
             manualCleanings.forEach(task => {
-                const date = task.cleaning_date;
+                const date = task.start_date;
                 let dayData = cleaningData.find(d => d.date === date);
 
                 if (!dayData) {
@@ -762,17 +761,18 @@
             }
 
             try {
-                // Create records for each room
+                // Create records for each room (using room_cleanings table like timeline.html)
                 const records = Array.from(bulkSelectedRooms).map(roomId => ({
                     room_id: roomId,
-                    cleaning_date: cleaningDate,
+                    start_date: cleaningDate,
+                    end_date: cleaningDate,
                     type: type,
                     notes: notes || null,
-                    status: 'pending'
+                    completed: false
                 }));
 
                 const { error } = await Layout.db
-                    .from('cleaning_tasks')
+                    .from('room_cleanings')
                     .insert(records);
 
                 if (error) throw error;
@@ -789,8 +789,8 @@
         async function completeCleaning(taskId) {
             try {
                 const { error } = await Layout.db
-                    .from('cleaning_tasks')
-                    .update({ status: 'completed', completed_at: new Date().toISOString() })
+                    .from('room_cleanings')
+                    .update({ completed: true, completed_at: new Date().toISOString() })
                     .eq('id', taskId);
 
                 if (error) throw error;
