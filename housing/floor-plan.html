@@ -482,6 +482,21 @@
                         rect.setAttribute('stroke-width', '0.15');
                         g.appendChild(rect);
                     }
+                } else if (capacity === 3) {
+                    // Трёхместная - делим на 3 части (лево-центр-право)
+                    const thirdW = w / 3;
+                    for (let i = 0; i < 3; i++) {
+                        const rect = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
+                        rect.setAttribute('x', x + i * thirdW);
+                        rect.setAttribute('y', y);
+                        rect.setAttribute('width', thirdW);
+                        rect.setAttribute('height', h);
+                        const bedStatus = i < occupied ? 'occupied' : (i < occupied + booked ? 'booked' : 'available');
+                        rect.setAttribute('fill', statusColors[bedStatus]);
+                        rect.setAttribute('stroke', '#e5e7eb');
+                        rect.setAttribute('stroke-width', '0.15');
+                        g.appendChild(rect);
+                    }
                 } else if (capacity === 4) {
                     // Четырёхместная - делим на 4 четверти (2x2)
                     const halfW = w / 2;
@@ -504,7 +519,7 @@
                         g.appendChild(rect);
                     }
                 } else {
-                    // Остальные (1, 3, 5+ мест) - один цвет
+                    // Остальные (1, 5+ мест) - один цвет
                     const rect = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
                     rect.setAttribute('x', x);
                     rect.setAttribute('y', y);

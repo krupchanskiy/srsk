@@ -838,6 +838,40 @@
 
                         g.appendChild(rect);
                     }
+                } else if (capacity === 3) {
+                    const thirdW = w / 3;
+                    for (let i = 0; i < 3; i++) {
+                        const bedKey = `${room.id}_${i}`;
+                        const isOccupied = i < occupied;
+                        const isBooked = i >= occupied && i < occupied + booked;
+                        const isSelected = bookingSelectedBeds.has(bedKey);
+                        const isAvailable = !isOccupied && !isBooked;
+
+                        const rect = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
+                        rect.setAttribute('x', x + i * thirdW);
+                        rect.setAttribute('y', y);
+                        rect.setAttribute('width', thirdW);
+                        rect.setAttribute('height', h);
+
+                        if (isSelected) {
+                            rect.setAttribute('fill', statusColors.available);
+                            rect.setAttribute('stroke', '#6366f1');
+                            rect.setAttribute('stroke-width', '0.5');
+                        } else if (isOccupied) {
+                            rect.setAttribute('fill', statusColors.occupied);
+                        } else if (isBooked) {
+                            rect.setAttribute('fill', statusColors.booked);
+                        } else {
+                            rect.setAttribute('fill', statusColors.available);
+                        }
+
+                        if (isAvailable || isSelected) {
+                            rect.style.cursor = 'pointer';
+                            rect.onclick = () => toggleBookingBed(room.id, i, capacity);
+                        }
+
+                        g.appendChild(rect);
+                    }
                 } else if (capacity === 4) {
                     const halfW = w / 2;
                     const halfH = h / 2;
