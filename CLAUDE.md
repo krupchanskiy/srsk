@@ -87,14 +87,23 @@ npx serve .
 - `stock`, `stock_requests`, `stock_inventories` — склад и инвентаризация
 - `team_members`, `retreats`, `holidays` — команда и события
 
+Housing (модуль проживания):
+- `buildings`, `building_types` — здания
+- `rooms`, `room_types` — комнаты
+- `residents`, `resident_categories` — проживающие
+- `bookings` — бронирования
+- `room_cleanings`, `cleaning_tasks` — уборка
+- `floor_plans` — планы этажей (SVG)
+
 ### SQL Migrations
 
-Файлы в `supabase/` выполняются последовательно по номерам (001-045):
+Файлы в `supabase/` выполняются последовательно по номерам (001-067):
 - `001-010` — основная схема, seed-данные, рецепты
 - `011-030` — переводы, RLS-политики, склад, команда
-- `031-045` — инвентаризация, меню-шаблоны, справочники
+- `031-050` — инвентаризация, меню-шаблоны, справочники
+- `051-067` — модуль Housing (здания, комнаты, бронирования, уборка)
 
-Применять через Supabase SQL Editor последовательно.
+Применять через MCP `mcp__supabase__apply_migration` или Supabase SQL Editor.
 
 ## Key Patterns
 
@@ -164,12 +173,77 @@ menuConfig = [
 
 ## File Locations
 
-- Страницы: `*.html` в корне
-- Прототипы (старые): `Прототипы/`
-- Стили: `css/common.css`
-- Скрипты: `js/layout.js`
-- Миграции: `supabase/*.sql`
+```
+/                   # корень (index.html, login.html)
+├── kitchen/        # рецепты, меню, продукты
+├── stock/          # склад, заявки, инвентаризация
+├── ashram/         # команда, ретриты, праздники
+├── housing/        # проживание, бронирования, уборка
+├── settings/       # переводы, пользователи
+├── css/            # common.css
+├── js/             # layout.js
+├── supabase/       # SQL-миграции (001-067)
+└── docs/           # документация
+```
+
+## Словарь страниц
+
+Быстрый поиск: что где находится.
+
+### housing/ (Проживание)
+| Термин | Файл |
+|--------|------|
+| Шахматка / Таймлайн | `housing/timeline.html` |
+| Бронирования | `housing/bookings.html` |
+| Уборка | `housing/cleaning.html` |
+| Здания | `housing/buildings.html` |
+| Комнаты | `housing/rooms.html` |
+| Гости | `housing/guests.html` |
+| Заполненность | `housing/occupancy.html` |
+| Планы этажей | `housing/floor-plan.html` |
+| Справочники (housing) | `housing/dictionaries.html` |
+
+### kitchen/ (Кухня)
+| Термин | Файл |
+|--------|------|
+| Рецепты (список) | `kitchen/recipes.html` |
+| Рецепт (карточка) | `kitchen/recipe.html` |
+| Редактор рецепта | `kitchen/recipe-edit.html` |
+| Меню | `kitchen/menu.html` |
+| Шаблоны меню | `kitchen/menu-templates.html` |
+| Продукты | `kitchen/products.html` |
+| Справочники (кухня) | `kitchen/dictionaries.html` |
+
+### stock/ (Склад)
+| Термин | Файл |
+|--------|------|
+| Склад / Остатки | `stock/stock.html` |
+| Заявки | `stock/requests.html` |
+| Поступление | `stock/receive.html` |
+| Выдача / Отпуск | `stock/issue.html` |
+| Инвентаризация | `stock/inventory.html` |
+| Настройки склада | `stock/stock-settings.html` |
+
+### ashram/ (Ашрам)
+| Термин | Файл |
+|--------|------|
+| Команда | `ashram/team.html` |
+| Ретриты | `ashram/retreats.html` |
+| Праздники | `ashram/festivals.html` |
+
+### settings/ (Настройки)
+| Термин | Файл |
+|--------|------|
+| Переводы | `settings/translations.html` |
+| Пользователи | `settings/users.html` |
+
+### Корень
+| Термин | Файл |
+|--------|------|
+| Главная | `index.html` |
+| Логин | `login.html` |
 
 ## Documentation
 
-- **PRODUCT.md** — обзор продукта, статус страниц, модели данных, роадмап
+- **PRODUCT.md** — обзор продукта, статус страниц, роадмап
+- **docs/guests-plan.md** — план модуля гостей (импорт, структура БД)

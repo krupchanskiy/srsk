@@ -19,30 +19,30 @@ const modules = {
         icon: '🍳',
         hasLocations: true,
         defaultLocation: 'main',
-        defaultPage: 'menu.html',
+        defaultPage: 'kitchen/menu.html',
         menuConfig: [
             { id: 'kitchen', items: [
-                { id: 'menu', href: 'menu.html' },
-                { id: 'menu_templates', href: 'menu-templates.html' },
-                { id: 'recipes', href: 'recipes.html' },
-                { id: 'products', href: 'products.html' }
+                { id: 'menu', href: 'kitchen/menu.html' },
+                { id: 'menu_templates', href: 'kitchen/menu-templates.html' },
+                { id: 'recipes', href: 'kitchen/recipes.html' },
+                { id: 'products', href: 'kitchen/products.html' }
             ]},
             { id: 'stock', items: [
-                { id: 'stock_balance', href: 'stock.html' },
-                { id: 'requests', href: 'requests.html' },
-                { id: 'receive', href: 'receive.html' },
-                { id: 'issue', href: 'issue.html' },
-                { id: 'inventory', href: 'inventory.html' },
-                { id: 'stock_settings', href: 'stock-settings.html' }
+                { id: 'stock_balance', href: 'stock/stock.html' },
+                { id: 'requests', href: 'stock/requests.html' },
+                { id: 'receive', href: 'stock/receive.html' },
+                { id: 'issue', href: 'stock/issue.html' },
+                { id: 'inventory', href: 'stock/inventory.html' },
+                { id: 'stock_settings', href: 'stock/stock-settings.html' }
             ]},
             { id: 'ashram', items: [
-                { id: 'retreats', href: 'retreats.html' },
-                { id: 'team', href: 'team.html' }
+                { id: 'retreats', href: 'ashram/retreats.html' },
+                { id: 'team', href: 'ashram/team.html' }
             ]},
             { id: 'settings', items: [
-                { id: 'dictionaries', href: 'dictionaries.html' },
-                { id: 'translations', href: 'translations.html' },
-                { id: 'festivals', href: 'festivals.html' }
+                { id: 'dictionaries', href: 'kitchen/dictionaries.html' },
+                { id: 'translations', href: 'settings/translations.html' },
+                { id: 'festivals', href: 'ashram/festivals.html' }
             ]}
         ]
     },
@@ -60,8 +60,8 @@ const modules = {
                 { id: 'cleaning', href: 'housing/cleaning.html' }
             ]},
             { id: 'ashram', items: [
-                { id: 'retreats', href: 'retreats.html' },
-                { id: 'team', href: 'team.html' }
+                { id: 'retreats', href: 'ashram/retreats.html' },
+                { id: 'team', href: 'ashram/team.html' }
             ]},
             { id: 'settings', items: [
                 { id: 'buildings', href: 'housing/buildings.html' },
@@ -87,25 +87,43 @@ function getMenuConfig() {
     return modules[currentModule]?.menuConfig || modules.kitchen.menuConfig;
 }
 
+// Список всех подпапок модулей
+const MODULE_FOLDERS = ['kitchen', 'stock', 'ashram', 'housing', 'settings'];
+
+// Определить текущую подпапку (если есть)
+function getCurrentFolder() {
+    const path = window.location.pathname;
+    for (const folder of MODULE_FOLDERS) {
+        if (path.includes('/' + folder + '/')) return folder;
+    }
+    return null;
+}
+
 // Определить базовый путь (находимся ли в подпапке)
 function getBasePath() {
-    const path = window.location.pathname;
-    // Если находимся в подпапке (например, housing/)
-    if (path.includes('/housing/')) return '../';
-    return '';
+    return getCurrentFolder() ? '../' : '';
 }
 
 // Корректировать href с учётом текущего расположения
 function adjustHref(href) {
-    const basePath = getBasePath();
-    // Если мы в подпапке и href ведёт в ту же подпапку - убираем дублирование
-    if (basePath && href.startsWith('housing/')) {
-        return href.replace('housing/', '');
+    const currentFolder = getCurrentFolder();
+
+    // Если мы в корне - ничего не меняем
+    if (!currentFolder) return href;
+
+    // Определить папку назначения из href
+    const targetFolder = MODULE_FOLDERS.find(f => href.startsWith(f + '/'));
+
+    // Если href ведёт в ту же папку где мы - убираем префикс папки
+    if (targetFolder === currentFolder) {
+        return href.replace(targetFolder + '/', '');
     }
-    // Если мы в подпапке и href ведёт в корень - добавляем ../
-    if (basePath && !href.startsWith('housing/') && !href.startsWith('../') && !href.startsWith('http')) {
-        return basePath + href;
+
+    // Если href ведёт в другую папку или корень - добавляем ../
+    if (!href.startsWith('../') && !href.startsWith('http')) {
+        return '../' + href;
     }
+
     return href;
 }
 
