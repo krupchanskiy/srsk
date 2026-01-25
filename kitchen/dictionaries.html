@@ -439,9 +439,9 @@
             const itemData = {};
             config.fields.forEach(field => {
                 const value = formData.get(field.name);
-                // Преобразуем числовые поля
-                if (field.type === 'number' && value) {
-                    itemData[field.name] = parseFloat(value);
+                // Преобразуем числовые поля (пустые → null)
+                if (field.type === 'number') {
+                    itemData[field.name] = value ? parseFloat(value) : null;
                 } else {
                     itemData[field.name] = value;
                 }
@@ -459,6 +459,7 @@
             } else {
                 // Для product_densities используем product_id как ключ
                 if (currentTab === 'product_densities') {
+                    delete itemData.product_id; // Не обновляем первичный ключ
                     const result = await Layout.db.from(config.table).update(itemData).eq('product_id', id);
                     error = result.error;
                 } else {
