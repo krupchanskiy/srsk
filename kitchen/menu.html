@@ -104,12 +104,38 @@
                 overflow: visible !important;
                 max-height: none !important;
                 height: auto !important;
+                display: grid !important;
+                grid-template-columns: 1fr 1fr !important;
+                gap: 6pt !important;
             }
             body.printing-modal #mealDetailsContent .ingredient-card {
                 page-break-inside: avoid;
                 break-inside: avoid;
-                margin-bottom: 12pt !important;
+                margin-bottom: 0 !important;
                 border: 1px solid #ccc !important;
+                font-size: 9pt !important;
+            }
+            body.printing-modal #mealDetailsContent .ingredient-card .bg-base-200 {
+                padding: 4pt 6pt !important;
+            }
+            body.printing-modal #mealDetailsContent .ingredient-card .font-bold.text-lg {
+                font-size: 10pt !important;
+            }
+            body.printing-modal #mealDetailsContent .ingredient-card .badge {
+                font-size: 8pt !important;
+                padding: 2pt 4pt !important;
+                height: auto !important;
+                min-height: 0 !important;
+            }
+            body.printing-modal #mealDetailsContent .ingredient-card .p-4 {
+                padding: 4pt 6pt !important;
+            }
+            body.printing-modal #mealDetailsContent .ingredient-card table {
+                font-size: 8pt !important;
+            }
+            body.printing-modal #mealDetailsContent .ingredient-card th,
+            body.printing-modal #mealDetailsContent .ingredient-card td {
+                padding: 2pt 4pt !important;
             }
             body.printing-modal .no-print-title { display: none !important; }
         }
