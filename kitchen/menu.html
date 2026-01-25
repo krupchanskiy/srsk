@@ -71,6 +71,48 @@
             #weekView .rounded-xl, #monthView .rounded { border: 1px solid #ccc !important; }
         }
         .print-only { display: none; }
+
+        /* Печать модального окна с деталями приёма пищи */
+        @media print {
+            body.printing-modal {
+                overflow: visible !important;
+                height: auto !important;
+            }
+            body.printing-modal > *:not(.modal) {
+                display: none !important;
+            }
+            body.printing-modal .modal.print-modal-active {
+                display: block !important;
+                position: static !important;
+                overflow: visible !important;
+                height: auto !important;
+            }
+            body.printing-modal .modal.print-modal-active .modal-backdrop {
+                display: none !important;
+            }
+            body.printing-modal .modal.print-modal-active .modal-box {
+                width: 100% !important;
+                max-width: 100% !important;
+                max-height: none !important;
+                height: auto !important;
+                overflow: visible !important;
+                padding: 0 !important;
+                box-shadow: none !important;
+                border-radius: 0 !important;
+            }
+            body.printing-modal #mealDetailsContent {
+                overflow: visible !important;
+                max-height: none !important;
+                height: auto !important;
+            }
+            body.printing-modal #mealDetailsContent .ingredient-card {
+                page-break-inside: avoid;
+                break-inside: avoid;
+                margin-bottom: 12pt !important;
+                border: 1px solid #ccc !important;
+            }
+            body.printing-modal .no-print-title { display: none !important; }
+        }
     </style>
 </head>
 <body class="bg-base-200 min-h-screen flex flex-col">
@@ -350,6 +392,33 @@
         <form method="dialog" class="modal-backdrop"><button>close</button></form>
     </dialog>
 
+    <!-- Meal Details Modal -->
+    <dialog id="mealDetailsModal" class="modal">
+        <div class="modal-box max-w-2xl relative">
+            <button type="button" class="btn btn-sm btn-circle btn-ghost absolute right-2 top-2 no-print"
+                    onclick="mealDetailsModal.close()">✕</button>
+
+            <!-- Print Header -->
+            <div class="print-only print-header" id="mealDetailsPrintHeader"></div>
+
+            <h3 class="font-bold text-xl mb-1 no-print-title" id="mealDetailsTitle">—</h3>
+            <p class="text-sm opacity-60 mb-4" id="mealDetailsSubtitle">—</p>
+
+            <div id="mealDetailsContent" class="space-y-6"></div>
+
+            <div class="modal-action no-print">
+                <button type="button" class="btn btn-ghost" onclick="mealDetailsModal.close()" data-i18n="close">Закрыть</button>
+                <button type="button" class="btn btn-primary gap-2" onclick="printMealDetails()">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z"/>
+                    </svg>
+                    <span data-i18n="print_menu">Печать</span>
+                </button>
+            </div>
+        </div>
+        <form method="dialog" class="modal-backdrop"><button>close</button></form>
+    </dialog>
+
     <script src="../js/layout.js"></script>
     <script>
         // ==================== STATE ====================
@@ -374,6 +443,9 @@
         // Template state
         let templates = [];
         let selectedTemplateId = null;
+
+        // Ingredients cache for meal details
+        let ingredientsCache = {};
 
         // Склонение дней
         const DAY_FORMS = { ru: ['день', 'дня', 'дней'], en: ['day', 'days'], hi: 'दिन' };
@@ -547,10 +619,12 @@
                 .select('*');
             holidays = holidaysData || [];
 
-            // Load cooks (team members from Kitchen department only)
+            // Load cooks (vaishnavas from Kitchen department)
             const { data: cooksData } = await Layout.db
-                .from('team_members')
-                .select('*, department:departments!inner(*)');
+                .from('vaishnavas')
+                .select('*, department:departments!inner(*)')
+                .eq('is_team_member', true)
+                .eq('is_deleted', false);
             cooks = (cooksData || []).filter(m => m.department?.name_en === 'Kitchen');
 
             // Load units
@@ -590,7 +664,7 @@
                 .from('menu_meals')
                 .select(`
                     *,
-                    cook:team_members(*),
+                    cook:vaishnavas(*),
                     dishes:menu_dishes(*, recipe:recipes(*))
                 `)
                 .eq('location_id', locationId)
@@ -774,11 +848,23 @@
                             <span class="font-bold text-xl">${mealTitle}</span>
                             ${totals ? `<span class="text-base opacity-60">${totals}</span>` : ''}
                         </div>
-                        <button class="btn btn-ghost btn-md btn-square opacity-50 hover:opacity-100 no-print" onclick="openDishModal('${dateStr}', '${mealType}')">
-                            <svg xmlns="http://www.w3.org/2000/svg" class="h-7 w-7" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" />
-                            </svg>
-                        </button>
+                        <div class="flex items-center gap-1">
+                            ${dishes.length > 0 ? `
+                            <button class="btn btn-ghost btn-md btn-square opacity-50 hover:opacity-100 no-print"
+                                    onclick="openMealDetailsModal('${dateStr}', '${mealType}')"
+                                    title="${t('view_details') || 'Просмотреть детали'}">
+                                <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/>
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"/>
+                                </svg>
+                            </button>
+                            ` : ''}
+                            <button class="btn btn-ghost btn-md btn-square opacity-50 hover:opacity-100 no-print" onclick="openDishModal('${dateStr}', '${mealType}')">
+                                <svg xmlns="http://www.w3.org/2000/svg" class="h-7 w-7" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" />
+                                </svg>
+                            </button>
+                        </div>
                     </div>
 
                     ${controlsHtml}
@@ -1090,6 +1176,7 @@
                     .from('menu_meals')
                     .update({ portions })
                     .eq('id', mealData.id);
+                mealData.portions = portions;
             } else {
                 const { data } = await Layout.db
                     .from('menu_meals')
@@ -1784,6 +1871,139 @@
                 applyBtn.disabled = false;
                 applyBtn.textContent = t('apply_template');
             }
+        }
+
+        // ==================== MEAL DETAILS ====================
+        async function loadIngredientsForRecipes(recipeIds) {
+            const uncachedIds = recipeIds.filter(id => !ingredientsCache[id]);
+            if (uncachedIds.length === 0) return;
+
+            const { data } = await Layout.db
+                .from('recipe_ingredients')
+                .select('*, products(id, name_ru, name_en, name_hi, unit)')
+                .in('recipe_id', uncachedIds)
+                .order('sort_order');
+
+            (data || []).forEach(ing => {
+                if (!ingredientsCache[ing.recipe_id]) ingredientsCache[ing.recipe_id] = [];
+                ingredientsCache[ing.recipe_id].push(ing);
+            });
+        }
+
+        async function openMealDetailsModal(dateStr, mealType) {
+            const mealData = menuData[dateStr]?.[mealType];
+            if (!mealData?.dishes?.length) return;
+
+            const date = new Date(dateStr);
+            const m = getMonthNames();
+            const d = getDayNames();
+            const portions = mealData.portions || 50;
+            const cook = mealData.cook;
+
+            // Заголовки
+            Layout.$('#mealDetailsTitle').textContent =
+                `${getMealTypeName(mealType)} — ${date.getDate()} ${m[date.getMonth()]} ${date.getFullYear()}`;
+            Layout.$('#mealDetailsSubtitle').textContent =
+                `${d[date.getDay()]} · ${portions} ${t('persons')}${cook ? ` · ${getPersonName(cook)}` : ''}`;
+
+            // Print header
+            Layout.$('#mealDetailsPrintHeader').innerHTML = getPrintHeader(
+                `${date.getDate()} ${m[date.getMonth()]} ${date.getFullYear()}`,
+                `${getMealTypeName(mealType)} · ${portions} ${t('persons')}`
+            );
+
+            // Показываем загрузку
+            Layout.$('#mealDetailsContent').innerHTML =
+                '<div class="flex justify-center py-8"><span class="loading loading-spinner loading-lg"></span></div>';
+            mealDetailsModal.showModal();
+
+            // Загружаем ингредиенты и рендерим
+            await loadIngredientsForRecipes(mealData.dishes.map(d => d.recipe_id).filter(Boolean));
+            renderMealDetailsContent(mealData.dishes, portions);
+        }
+
+        function renderMealDetailsContent(dishes, portions) {
+            const container = Layout.$('#mealDetailsContent');
+
+            container.innerHTML = dishes.map(dish => {
+                const recipe = dish.recipe;
+                if (!recipe) return '';
+
+                const portionSize = dish.portion_size || recipe.portion_amount || 100;
+                const portionUnit = dish.portion_unit || 'g';
+                const ingredients = ingredientsCache[dish.recipe_id] || [];
+
+                // Пересчёт: базовый выход рецепта -> нужное количество
+                const recipeOutput = (recipe.output_amount || 1) * (recipe.output_unit === 'kg' ? 1000 : 1);
+                const targetAmount = portions * portionSize;
+                const multiplier = recipeOutput > 0 ? targetAmount / recipeOutput : 1;
+
+                return `
+                    <div class="border border-base-300 rounded-lg overflow-hidden ingredient-card">
+                        <div class="bg-base-200 px-4 py-3 flex justify-between items-center">
+                            <span class="font-bold text-lg">${getName(recipe)}</span>
+                            <span class="badge badge-lg">${portionSize} ${getUnitShort(portionUnit)} × ${portions}</span>
+                        </div>
+                        <div class="p-4">
+                            ${ingredients.length > 0 ? `
+                            <table class="table table-sm w-full">
+                                <thead>
+                                    <tr class="border-b border-base-200">
+                                        <th class="text-left">${t('ingredient') || 'Ингредиент'}</th>
+                                        <th class="text-right w-28">${t('quantity') || 'Количество'}</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    ${ingredients.map((ing, idx) => {
+                                        const product = ing.products;
+                                        const calcAmount = (ing.amount || 0) * multiplier;
+                                        const formatted = formatIngredientAmount(calcAmount, ing.unit);
+                                        return `
+                                            <tr class="${idx % 2 ? 'bg-base-200/30' : ''}">
+                                                <td>
+                                                    <span class="font-medium">${getName(product)}</span>
+                                                    ${ing.notes ? `<span class="opacity-50"> (${ing.notes})</span>` : ''}
+                                                </td>
+                                                <td class="text-right whitespace-nowrap">
+                                                    <span class="font-bold">${formatted.value}</span>
+                                                    <span class="text-sm opacity-60 ml-1">${getUnitShort(formatted.unit)}</span>
+                                                </td>
+                                            </tr>
+                                        `;
+                                    }).join('')}
+                                </tbody>
+                            </table>
+                            ` : `<p class="text-center opacity-50 py-4">${t('no_ingredients') || 'Ингредиенты не добавлены'}</p>`}
+                        </div>
+                    </div>
+                `;
+            }).join('');
+        }
+
+        function formatIngredientAmount(amount, unit) {
+            let val = amount, u = unit;
+            if ((u === 'g' || u === 'kg') && val >= 1000) { val /= 1000; u = 'kg'; }
+            if ((u === 'ml' || u === 'l') && val >= 1000) { val /= 1000; u = 'l'; }
+            if (u === 'kg' && val < 1) { val *= 1000; u = 'g'; }
+            if (u === 'l' && val < 1) { val *= 1000; u = 'ml'; }
+
+            // Округление
+            if (val >= 100) val = Math.round(val);
+            else if (val >= 10) val = Math.round(val * 10) / 10;
+            else if (val >= 1) val = Math.round(val * 100) / 100;
+            else val = Math.round(val * 1000) / 1000;
+
+            return { value: val, unit: u };
+        }
+
+        function printMealDetails() {
+            document.body.classList.add('printing-modal');
+            mealDetailsModal.classList.add('print-modal-active');
+            window.print();
+            setTimeout(() => {
+                document.body.classList.remove('printing-modal');
+                mealDetailsModal.classList.remove('print-modal-active');
+            }, 100);
         }
 
         // ==================== INIT ====================
