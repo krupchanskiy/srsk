@@ -369,7 +369,7 @@
                             <div class="view-only info-value" id="viewBirthDate">—</div>
                             <input type="date" id="editBirthDate" class="editable-input edit-only">
                         </div>
-                        <div>
+                        <div id="indiaExperienceField">
                             <div class="info-label" data-i18n="india_experience">Опыт поездок в Индию</div>
                             <div class="view-only info-value" id="viewIndiaExperience">—</div>
                             <input type="text" id="editIndiaExperience" class="editable-input edit-only">
@@ -814,6 +814,7 @@
             const isTeam = person?.is_team_member || document.getElementById('editIsTeamMember')?.checked;
             document.getElementById('staysSection').style.display = isTeam ? 'block' : 'none';
             document.getElementById('teamFields').style.display = isTeam ? 'block' : 'none';
+            document.getElementById('indiaExperienceField').style.display = isTeam ? 'none' : 'block';
         }
 
         function toggleTeamFields() {
