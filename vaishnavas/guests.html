@@ -1,0 +1,385 @@
+<!DOCTYPE html>
+<html lang="ru" data-theme="light">
+<head>
+    <meta charset="UTF-8">
+    <script>(function(){var c={kitchen:'#f49800',housing:'#8b5cf6'};var m=localStorage.getItem('srsk_module')||'kitchen';document.documentElement.style.setProperty('--current-color',c[m]||c.kitchen);})();</script>
+
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Гости — ШРСК</title>
+    <link href="https://cdn.jsdelivr.net/npm/daisyui@4.12.14/dist/full.min.css" rel="stylesheet" />
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script>tailwind.config = { theme: { extend: { screens: { 'desktop': '1200px' } } } }</script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans:wght@400;500;600;700&family=Noto+Sans+Devanagari:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="../css/common.css">
+    <style>
+        .person-avatar {
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            object-fit: cover;
+            background: var(--current-color);
+            color: white;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: 600;
+            font-size: 1rem;
+            flex-shrink: 0;
+        }
+        .sort-icon {
+            opacity: 0.3;
+            font-size: 0.75rem;
+            transition: opacity 0.2s;
+        }
+        .sort-icon.active {
+            opacity: 1;
+        }
+        th:hover .sort-icon {
+            opacity: 0.6;
+        }
+    </style>
+</head>
+<body class="bg-base-200 min-h-screen flex flex-col">
+
+    <div id="header-placeholder"></div>
+
+    <main class="container mx-auto px-4 py-6 flex-1">
+
+        <!-- Page Header -->
+        <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6">
+            <h1 class="text-2xl font-bold" data-i18n="nav_vaishnavas_guests">Гости</h1>
+            <button class="btn btn-primary gap-2" onclick="openAddModal()">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" />
+                </svg>
+                <span data-i18n="add">Добавить</span>
+            </button>
+        </div>
+
+        <!-- Filters -->
+        <div class="flex flex-col sm:flex-row gap-4 mb-6">
+            <div class="flex-1 max-w-md relative">
+                <input type="text" id="searchInput" class="input input-bordered w-full pr-10" data-i18n-placeholder="search" placeholder="Поиск...">
+                <button type="button" id="clearSearch" class="absolute right-3 top-1/2 -translate-y-1/2 text-base-content/40 hover:text-base-content hidden">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+                    </svg>
+                </button>
+            </div>
+            <div class="text-sm opacity-60 flex items-center">
+                Всего: <span class="font-semibold ml-1" id="countAll">0</span>
+            </div>
+        </div>
+
+        <!-- People Table -->
+        <div class="bg-base-100 rounded-xl shadow overflow-x-auto">
+            <table class="table table-zebra table-fixed w-full">
+                <thead>
+                    <tr>
+                        <th class="cursor-pointer hover:bg-base-200 select-none w-1/4" onclick="toggleSort('name')">
+                            <div class="flex items-center gap-1">
+                                <span data-i18n="name">Имя</span>
+                                <span class="sort-icon active" data-sort="name">↑</span>
+                            </div>
+                        </th>
+                        <th class="cursor-pointer hover:bg-base-200 select-none w-1/5" onclick="toggleSort('spiritual')">
+                            <div class="flex items-center gap-1">
+                                <span data-i18n="spiritual_name">Духовное имя</span>
+                                <span class="sort-icon" data-sort="spiritual">↕</span>
+                            </div>
+                        </th>
+                        <th class="cursor-pointer hover:bg-base-200 select-none w-1/6" onclick="toggleSort('country')">
+                            <div class="flex items-center gap-1">
+                                <span data-i18n="country">Страна</span>
+                                <span class="sort-icon" data-sort="country">↕</span>
+                            </div>
+                        </th>
+                        <th class="cursor-pointer hover:bg-base-200 select-none w-1/5" onclick="toggleSort('teacher')">
+                            <div class="flex items-center gap-1">
+                                <span data-i18n="spiritual_teacher">Дух. учитель</span>
+                                <span class="sort-icon" data-sort="teacher">↕</span>
+                            </div>
+                        </th>
+                        <th class="w-32" data-i18n="phone">Телефон</th>
+                        <th class="w-10"></th>
+                    </tr>
+                </thead>
+                <tbody id="peopleTable">
+                    <!-- Will be populated by JS -->
+                </tbody>
+            </table>
+            <div id="emptyState" class="hidden text-center py-12 opacity-50">
+                <div class="text-4xl mb-2">👥</div>
+                <p data-i18n="no_results">Никого не найдено</p>
+            </div>
+        </div>
+
+    </main>
+
+    <div id="footer-placeholder"></div>
+
+    <!-- Add Modal -->
+    <dialog id="addModal" class="modal">
+        <div class="modal-box">
+            <h3 class="font-bold text-lg mb-4" data-i18n="add_guest">Добавить гостя</h3>
+
+            <form id="addForm" onsubmit="saveNewPerson(event)">
+                <div class="grid grid-cols-2 gap-4 mb-4">
+                    <div class="form-control">
+                        <label class="label">
+                            <span class="label-text font-medium" data-i18n="first_name">Имя</span>
+                        </label>
+                        <input type="text" name="first_name" class="input input-bordered">
+                    </div>
+                    <div class="form-control">
+                        <label class="label">
+                            <span class="label-text font-medium" data-i18n="last_name">Фамилия</span>
+                        </label>
+                        <input type="text" name="last_name" class="input input-bordered">
+                    </div>
+                </div>
+
+                <div class="form-control mb-4">
+                    <label class="label">
+                        <span class="label-text font-medium" data-i18n="spiritual_name">Духовное имя</span>
+                    </label>
+                    <input type="text" name="spiritual_name" class="input input-bordered">
+                </div>
+
+                <div class="form-control mb-4">
+                    <label class="label">
+                        <span class="label-text font-medium" data-i18n="phone">Телефон</span>
+                    </label>
+                    <input type="tel" name="phone" class="input input-bordered">
+                </div>
+
+                <div class="modal-action">
+                    <button type="button" class="btn btn-ghost" onclick="closeAddModal()" data-i18n="cancel">Отмена</button>
+                    <button type="submit" class="btn btn-primary" data-i18n="add">Добавить</button>
+                </div>
+            </form>
+        </div>
+        <form method="dialog" class="modal-backdrop"><button>close</button></form>
+    </dialog>
+
+    <script src="../js/layout.js"></script>
+    <script>
+        const t = key => Layout.t(key);
+        const PAGE_FILTER = 'guests'; // Фильтр этой страницы
+
+        let people = [];
+        let searchQuery = '';
+        let sortField = 'name';
+        let sortDirection = 'asc';
+
+        async function init() {
+            await Layout.init({ module: 'housing', menuId: 'vaishnavas', itemId: 'vaishnavas_guests' });
+
+            Layout.showLoader();
+            await loadPeople();
+            Layout.hideLoader();
+
+            setupSearch();
+            updateSortIcons();
+        }
+
+        async function loadPeople() {
+            const { data, error } = await Layout.db
+                .from('vaishnavas')
+                .select('*')
+                .eq('is_deleted', false)
+                .or('is_team_member.is.null,is_team_member.eq.false')
+                .order('spiritual_name', { ascending: true, nullsFirst: false });
+
+            if (error) {
+                console.error('Error loading people:', error);
+                return;
+            }
+
+            people = data || [];
+            renderPeople();
+        }
+
+        function getDisplayName(person) {
+            return [person.first_name, person.last_name].filter(Boolean).join(' ') || t('no_name');
+        }
+
+        function setupSearch() {
+            const input = document.getElementById('searchInput');
+            const clearBtn = document.getElementById('clearSearch');
+
+            input.addEventListener('input', Layout.debounce(() => {
+                searchQuery = input.value.toLowerCase().trim();
+                clearBtn.classList.toggle('hidden', !searchQuery);
+                renderPeople();
+            }, 300));
+
+            clearBtn.addEventListener('click', () => {
+                input.value = '';
+                searchQuery = '';
+                clearBtn.classList.add('hidden');
+                renderPeople();
+            });
+        }
+
+        function toggleSort(field) {
+            if (sortField === field) {
+                sortDirection = sortDirection === 'asc' ? 'desc' : 'asc';
+            } else {
+                sortField = field;
+                sortDirection = 'asc';
+            }
+            updateSortIcons();
+            renderPeople();
+        }
+
+        function updateSortIcons() {
+            document.querySelectorAll('.sort-icon').forEach(icon => {
+                const field = icon.dataset.sort;
+                if (field === sortField) {
+                    icon.classList.add('active');
+                    icon.textContent = sortDirection === 'asc' ? '↑' : '↓';
+                } else {
+                    icon.classList.remove('active');
+                    icon.textContent = '↕';
+                }
+            });
+        }
+
+        function renderPeople() {
+            const tbody = document.getElementById('peopleTable');
+            const emptyState = document.getElementById('emptyState');
+
+            document.getElementById('countAll').textContent = people.length;
+
+            let filtered = people.filter(person => {
+                if (searchQuery) {
+                    const name = getDisplayName(person).toLowerCase();
+                    const spiritual = (person.spiritual_name || '').toLowerCase();
+                    const phone = (person.phone || '').toLowerCase();
+                    const email = (person.email || '').toLowerCase();
+                    const country = (person.country || '').toLowerCase();
+                    const teacher = (person.spiritual_teacher || '').toLowerCase();
+                    if (!name.includes(searchQuery) && !spiritual.includes(searchQuery) &&
+                        !phone.includes(searchQuery) && !email.includes(searchQuery) &&
+                        !country.includes(searchQuery) && !teacher.includes(searchQuery)) {
+                        return false;
+                    }
+                }
+                return true;
+            });
+
+            filtered.sort((a, b) => {
+                let aVal, bVal;
+                if (sortField === 'name') {
+                    aVal = getDisplayName(a).toLowerCase();
+                    bVal = getDisplayName(b).toLowerCase();
+                } else if (sortField === 'spiritual') {
+                    aVal = (a.spiritual_name || '').toLowerCase();
+                    bVal = (b.spiritual_name || '').toLowerCase();
+                } else if (sortField === 'country') {
+                    aVal = (a.country || '').toLowerCase();
+                    bVal = (b.country || '').toLowerCase();
+                } else if (sortField === 'teacher') {
+                    aVal = (a.spiritual_teacher || '').toLowerCase();
+                    bVal = (b.spiritual_teacher || '').toLowerCase();
+                }
+
+                if (aVal < bVal) return sortDirection === 'asc' ? -1 : 1;
+                if (aVal > bVal) return sortDirection === 'asc' ? 1 : -1;
+                return 0;
+            });
+
+            if (filtered.length === 0) {
+                tbody.innerHTML = '';
+                emptyState.classList.remove('hidden');
+                return;
+            }
+
+            emptyState.classList.add('hidden');
+
+            const avatarPlaceholder = `<svg class="w-5 h-5 opacity-30" viewBox="0 0 122 313" xmlns="http://www.w3.org/2000/svg"><path fill="currentColor" d="M102,16h-15v82c0,6,.1,12-.9,16-1,4.5-2.6,8-4.8,10.6-2,2.8-4.8,4.8-8.5,6-2.4,1-5.1,1.6-8.1,1.8-1,.2-2,.3-3,.3h-.6c-3.8-.2-7.2-.8-10.3-1.8-3.8-1.2-7-3.1-9.6-5.7-2.7-2.8-4.6-6.4-5.7-10.9-1.2-4.4-1.8-9.8-1.8-16.3V16H18.6v89c0,13.7,3.8,24,11.5,30.8,3.8,3.4,8.6,6,14.2,7.5,1.2.4,2.6.7,4.2,1-13.9,5-23.4,11.9-28.4,20.5-7,10.7-7.3,24.1-.6,40.5l41.3,100.4,39.9-100.4c6.4-16.3,6.2-29.8-.6-40.5-4.8-8.5-14-15.2-27.4-20.2,1.6-.4,3.2-.9,4.8-1.3,5.3-1.6,9.7-4.2,13.3-7.8,3.8-3.7,6.6-8.2,8.5-13.6,2-5.6,3-12.3,3-20V16M87.5,172.5c4,7.3,3.8,16.4-.6,27.4l-26.3,68.1-27.8-68.1c-4.6-11-4.8-20.2-.6-27.4,4.6-7.5,13.8-13,27.4-16.6,13.7,3.6,22.9,9.1,27.8,16.6"/></svg>`;
+
+            tbody.innerHTML = filtered.map(person => {
+                const displayName = getDisplayName(person);
+
+                return `
+                    <tr class="hover cursor-pointer" onclick="window.location.href='person.html?id=${person.id}'">
+                        <td>
+                            <div class="flex items-center gap-3">
+                                <div class="w-10 h-10 rounded-full bg-base-200 flex items-center justify-center shrink-0">
+                                    ${avatarPlaceholder}
+                                </div>
+                                <div class="min-w-0">
+                                    <div class="font-medium truncate">${displayName}</div>
+                                </div>
+                            </div>
+                        </td>
+                        <td class="truncate">${person.spiritual_name || ''}</td>
+                        <td class="truncate">${person.country || ''}</td>
+                        <td class="truncate">${person.spiritual_teacher || ''}</td>
+                        <td class="truncate text-sm opacity-60">${person.phone || ''}</td>
+                        <td>
+                            <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 opacity-30" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" />
+                            </svg>
+                        </td>
+                    </tr>
+                `;
+            }).join('');
+        }
+
+        function openAddModal() {
+            document.getElementById('addForm').reset();
+            document.getElementById('addModal').showModal();
+        }
+
+        function closeAddModal() {
+            document.getElementById('addModal').close();
+        }
+
+        async function saveNewPerson(event) {
+            event.preventDefault();
+            const form = event.target;
+
+            const data = {
+                first_name: form.first_name.value || null,
+                last_name: form.last_name.value || null,
+                spiritual_name: form.spiritual_name.value || null,
+                phone: form.phone.value || null,
+                is_team_member: false
+            };
+
+            if (!data.first_name && !data.spiritual_name) {
+                alert(t('name_or_spiritual_required') || 'Укажите имя или духовное имя');
+                return;
+            }
+
+            const { data: newPerson, error } = await Layout.db
+                .from('vaishnavas')
+                .insert(data)
+                .select()
+                .single();
+
+            if (error) {
+                console.error('Error adding person:', error);
+                alert(t('error_saving') || 'Ошибка сохранения');
+                return;
+            }
+
+            closeAddModal();
+            window.location.href = `person.html?id=${newPerson.id}`;
+        }
+
+        window.onLanguageChange = function(lang) {
+            renderPeople();
+            Layout.updateAllTranslations();
+        };
+
+        init();
+    </script>
+</body>
+</html>

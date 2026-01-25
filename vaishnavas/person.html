@@ -422,6 +422,40 @@
                             <div class="view-only info-value" id="viewPassport">—</div>
                             <input type="text" id="editPassport" class="editable-input edit-only">
                         </div>
+                        <div class="grid grid-cols-2 gap-3">
+                            <div>
+                                <div class="info-label" data-i18n="visa_type">Тип визы</div>
+                                <div class="view-only info-value" id="viewVisaType">—</div>
+                                <select id="editVisaType" class="editable-select w-full edit-only">
+                                    <option value="">—</option>
+                                    <option value="tourist">Туристическая</option>
+                                    <option value="business">Бизнес</option>
+                                    <option value="volunteer">Волонтёрская</option>
+                                    <option value="religious">Религиозная</option>
+                                    <option value="other">Другая</option>
+                                </select>
+                            </div>
+                            <div>
+                                <div class="info-label" data-i18n="visa_expiry">Виза до</div>
+                                <div class="view-only info-value" id="viewVisaExpiry">—</div>
+                                <input type="date" id="editVisaExpiry" class="editable-input edit-only">
+                            </div>
+                        </div>
+                        <div>
+                            <div class="info-label" data-i18n="indian_phone">Индийский телефон</div>
+                            <div class="view-only info-value">
+                                <span id="viewIndianPhone">—</span>
+                                <span id="viewIndianPhoneWhatsapp" class="badge badge-sm badge-success ml-2 hidden">WhatsApp</span>
+                            </div>
+                            <div class="flex items-center gap-2 edit-only">
+                                <span class="text-sm opacity-60">+91</span>
+                                <input type="tel" id="editIndianPhone" class="editable-input flex-1" placeholder="98765 43210">
+                                <label class="flex items-center gap-1 cursor-pointer whitespace-nowrap">
+                                    <input type="checkbox" id="editIndianPhoneWhatsapp" class="checkbox checkbox-xs checkbox-success">
+                                    <span class="text-xs">WhatsApp</span>
+                                </label>
+                            </div>
+                        </div>
                     </div>
                 </div>
 
@@ -752,6 +786,20 @@
             if (person.senior_id) document.getElementById('editSenior').value = person.senior_id;
             document.getElementById('viewPassport').textContent = person.passport || '—';
             document.getElementById('editPassport').value = person.passport || '';
+
+            // Виза
+            const visaTypes = { tourist: 'Туристическая', business: 'Бизнес', volunteer: 'Волонтёрская', religious: 'Религиозная', other: 'Другая' };
+            document.getElementById('viewVisaType').textContent = visaTypes[person.visa_type] || '—';
+            document.getElementById('editVisaType').value = person.visa_type || '';
+            document.getElementById('viewVisaExpiry').textContent = person.visa_expiry ? formatDate(person.visa_expiry) : '—';
+            document.getElementById('editVisaExpiry').value = person.visa_expiry || '';
+
+            // Индийский телефон
+            document.getElementById('viewIndianPhone').textContent = person.indian_phone ? '+91 ' + person.indian_phone : '—';
+            document.getElementById('editIndianPhone').value = person.indian_phone || '';
+            document.getElementById('editIndianPhoneWhatsapp').checked = person.indian_phone_whatsapp || false;
+            document.getElementById('viewIndianPhoneWhatsapp').classList.toggle('hidden', !person.indian_phone_whatsapp);
+
             document.getElementById('teamBadgeView').textContent = person.is_team_member ? (t('yes') || 'Да') : (t('no') || 'Нет');
 
             // Show/hide team-specific sections
@@ -953,6 +1001,10 @@
                 service: document.getElementById('editService').value || null,
                 senior_id: document.getElementById('editSenior').value || null,
                 passport: document.getElementById('editPassport').value || null,
+                visa_type: document.getElementById('editVisaType').value || null,
+                visa_expiry: document.getElementById('editVisaExpiry').value || null,
+                indian_phone: document.getElementById('editIndianPhone').value || null,
+                indian_phone_whatsapp: document.getElementById('editIndianPhoneWhatsapp').checked,
                 notes: document.getElementById('editNotes').value || null
             };
 
