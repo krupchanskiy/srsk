@@ -37,7 +37,7 @@ const modules = {
             ]},
             { id: 'ashram', items: [
                 { id: 'retreats', href: 'ashram/retreats.html' },
-                { id: 'team', href: 'ashram/team.html' }
+                { id: 'vaishnavas_team', href: 'vaishnavas/index.html?filter=team' }
             ]},
             { id: 'settings', items: [
                 { id: 'dictionaries', href: 'kitchen/dictionaries.html' },
@@ -59,9 +59,13 @@ const modules = {
                 { id: 'bookings', href: 'housing/bookings.html' },
                 { id: 'cleaning', href: 'housing/cleaning.html' }
             ]},
+            { id: 'vaishnavas', items: [
+                { id: 'vaishnavas_all', href: 'vaishnavas/index.html' },
+                { id: 'vaishnavas_guests', href: 'vaishnavas/index.html?filter=guests' },
+                { id: 'vaishnavas_team', href: 'vaishnavas/index.html?filter=team' }
+            ]},
             { id: 'ashram', items: [
-                { id: 'retreats', href: 'ashram/retreats.html' },
-                { id: 'team', href: 'ashram/team.html' }
+                { id: 'retreats', href: 'ashram/retreats.html' }
             ]},
             { id: 'settings', items: [
                 { id: 'buildings', href: 'housing/buildings.html' },
@@ -88,7 +92,7 @@ function getMenuConfig() {
 }
 
 // Список всех подпапок модулей
-const MODULE_FOLDERS = ['kitchen', 'stock', 'ashram', 'housing', 'settings'];
+const MODULE_FOLDERS = ['kitchen', 'stock', 'ashram', 'housing', 'vaishnavas', 'settings'];
 
 // Определить текущую подпапку (если есть)
 function getCurrentFolder() {
@@ -131,6 +135,28 @@ function adjustHref(href) {
 const $ = (sel, ctx = document) => ctx.querySelector(sel);
 const $$ = (sel, ctx = document) => ctx.querySelectorAll(sel);
 const setColor = color => document.documentElement.style.setProperty('--current-color', color);
+
+// ==================== LOADER ====================
+let loaderElement = null;
+
+function showLoader() {
+    if (loaderElement) return;
+
+    loaderElement = document.createElement('div');
+    loaderElement.id = 'page-loader';
+    loaderElement.innerHTML = `
+        <div class="fixed inset-0 bg-base-200/80 flex items-center justify-center z-40">
+            <span class="loading loading-spinner loading-lg" style="color: var(--current-color);"></span>
+        </div>
+    `;
+    document.body.appendChild(loaderElement);
+}
+
+function hideLoader() {
+    if (!loaderElement) return;
+    loaderElement.remove();
+    loaderElement = null;
+}
 
 /** Получить локализованное имя объекта (name_ru, name_en, name_hi) */
 function getName(item, lang = currentLang) {
@@ -1019,6 +1045,8 @@ window.Layout = {
     debounce,
     updateAllTranslations,
     switchModule,
+    showLoader,
+    hideLoader,
     get currentLang() { return currentLang; },
     get currentLocation() { return currentLocation; },
     get currentModule() { return currentModule; },

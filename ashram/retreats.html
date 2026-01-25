@@ -713,6 +713,7 @@
         // ==================== INIT ====================
         async function init() {
             await Layout.init({ menuId: 'ashram', itemId: 'retreats' });
+            Layout.showLoader();
 
             // Load retreats and holidays in parallel
             const [retreatsData, holidaysData] = await Promise.all([
@@ -730,6 +731,7 @@
             document.getElementById('retreatForm').addEventListener('submit', saveRetreat);
 
             updateUI();
+            Layout.hideLoader();
         }
 
         init();

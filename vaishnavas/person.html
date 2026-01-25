@@ -1,0 +1,1237 @@
+<!DOCTYPE html>
+<html lang="ru" data-theme="light">
+<head>
+    <meta charset="UTF-8">
+    <script>(function(){var c={kitchen:'#f49800',housing:'#8b5cf6'};var m=localStorage.getItem('srsk_module')||'kitchen';document.documentElement.style.setProperty('--current-color',c[m]||c.kitchen);})();</script>
+
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Вайшнав — ШРСК</title>
+    <link href="https://cdn.jsdelivr.net/npm/daisyui@4.12.14/dist/full.min.css" rel="stylesheet" />
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script>tailwind.config = { theme: { extend: { screens: { 'desktop': '1200px' } } } }</script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans:wght@400;500;600;700&family=Noto+Sans+Devanagari:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="../css/common.css">
+    <!-- Cropper.js для редактирования фото -->
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/cropperjs@1.6.1/dist/cropper.min.css">
+    <script src="https://cdn.jsdelivr.net/npm/cropperjs@1.6.1/dist/cropper.min.js"></script>
+    <style>
+        .person-avatar-lg {
+            width: 120px;
+            height: 120px;
+            border-radius: 50%;
+            object-fit: cover;
+            background: var(--current-color);
+            color: white;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: 600;
+            font-size: 3rem;
+            flex-shrink: 0;
+        }
+        .avatar-wrapper {
+            position: relative;
+            width: 120px;
+            height: 120px;
+            flex-shrink: 0;
+        }
+        .edit-mode .avatar-wrapper {
+            cursor: pointer;
+        }
+        .edit-mode .avatar-wrapper:hover .avatar-overlay {
+            opacity: 1;
+        }
+        .avatar-overlay {
+            position: absolute;
+            inset: 0;
+            border-radius: 50%;
+            background: rgba(0,0,0,0.5);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            opacity: 0;
+            transition: opacity 0.2s;
+        }
+        .avatar-overlay svg {
+            width: 32px;
+            height: 32px;
+            color: white;
+        }
+        .avatar-uploading .avatar-overlay {
+            opacity: 1;
+        }
+        .cropper-container {
+            max-height: 400px;
+        }
+        .crop-preview {
+            width: 120px;
+            height: 120px;
+            border-radius: 50%;
+            overflow: hidden;
+            border: 3px solid var(--current-color);
+        }
+        .info-label {
+            font-size: 0.75rem;
+            opacity: 0.6;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            margin-bottom: 0.25rem;
+        }
+        .info-value {
+            font-weight: 500;
+        }
+        /* Editable fields */
+        .editable-input {
+            background: transparent;
+            border: none;
+            border-bottom: 1px solid transparent;
+            padding: 0.25rem 0;
+            width: 100%;
+            font-weight: 500;
+            transition: border-color 0.2s;
+        }
+        .editable-input:hover {
+            border-bottom-color: var(--current-color);
+        }
+        .editable-input:focus {
+            outline: none;
+            border-bottom-color: var(--current-color);
+            background: rgba(139, 92, 246, 0.05);
+        }
+        .editable-input::placeholder {
+            color: #999;
+            font-weight: 400;
+        }
+        .editable-select {
+            background: transparent;
+            border: none;
+            border-bottom: 1px solid transparent;
+            padding: 0.25rem 0;
+            font-weight: 500;
+            cursor: pointer;
+            -webkit-appearance: none;
+            -moz-appearance: none;
+            appearance: none;
+        }
+        .editable-select:hover, .editable-select:focus {
+            border-bottom-color: var(--current-color);
+            outline: none;
+        }
+        .editable-textarea {
+            background: transparent;
+            border: 1px solid transparent;
+            border-radius: 0.375rem;
+            padding: 0.5rem;
+            width: 100%;
+            min-height: 80px;
+            resize: vertical;
+            font-size: 0.875rem;
+            transition: border-color 0.2s, background 0.2s;
+        }
+        .editable-textarea:hover {
+            border-color: #ddd;
+        }
+        .editable-textarea:focus {
+            outline: none;
+            border-color: var(--current-color);
+            background: rgba(139, 92, 246, 0.05);
+        }
+        .name-input {
+            font-size: 1.5rem;
+            font-weight: 700;
+        }
+        .spiritual-name-input {
+            font-size: 1.125rem;
+            opacity: 0.6;
+        }
+        /* View/Edit modes */
+        .view-mode .edit-only { display: none !important; }
+        .edit-mode .view-only { display: none !important; }
+        .edit-mode .editable-input,
+        .edit-mode .editable-select,
+        .edit-mode .editable-textarea {
+            background: rgba(139, 92, 246, 0.03);
+            border-bottom-color: #ddd;
+        }
+        .view-mode .editable-input,
+        .view-mode .editable-select {
+            pointer-events: none;
+        }
+        .view-mode .editable-textarea {
+            pointer-events: none;
+            resize: none;
+        }
+        /* Section cards */
+        .section-card {
+            background: white;
+            border-radius: 0.5rem;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+            padding: 1rem;
+        }
+        .stay-card {
+            border-left: 4px solid var(--current-color);
+        }
+        .stay-current {
+            border-left-color: #10b981;
+            background: rgba(16, 185, 129, 0.05);
+        }
+        .stay-future {
+            border-left-color: #6366f1;
+        }
+        .stay-past {
+            border-left-color: #d1d5db;
+            opacity: 0.7;
+        }
+        .retreat-card {
+            border-left: 4px solid var(--current-color);
+        }
+        .status-confirmed { color: #10b981; }
+        .status-pending { color: #f59e0b; }
+        .status-cancelled { color: #ef4444; }
+        .status-team { color: #8b5cf6; }
+    </style>
+</head>
+<body class="bg-base-200 min-h-screen flex flex-col">
+
+    <div id="header-placeholder"></div>
+
+    <main class="container mx-auto px-4 py-6 flex-1">
+
+        <!-- Breadcrumb -->
+        <div class="text-sm breadcrumbs mb-4">
+            <ul>
+                <li><a href="index.html" data-i18n="nav_vaishnavas">Вайшнавы</a></li>
+                <li id="breadcrumbName">—</li>
+            </ul>
+        </div>
+
+        <!-- Profile Container (view/edit mode) -->
+        <div id="profileContainer" class="view-mode">
+
+        <!-- Person Header -->
+        <div id="personCard" class="bg-base-100 rounded-lg shadow-sm p-6 mb-6">
+            <div class="flex flex-col md:flex-row gap-6">
+                <!-- Avatar -->
+                <div class="flex justify-center md:justify-start items-start gap-2">
+                    <div class="avatar-wrapper" id="avatarWrapper" onclick="onAvatarClick()">
+                        <div id="personAvatar" class="person-avatar-lg">?</div>
+                        <div class="avatar-overlay edit-only" id="avatarOverlay">
+                            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z" />
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 13a3 3 0 11-6 0 3 3 0 016 0z" />
+                            </svg>
+                        </div>
+                    </div>
+                    <!-- Кнопка удаления фото -->
+                    <button type="button" id="deletePhotoBtn" class="btn btn-ghost btn-sm btn-circle edit-only hidden" onclick="deletePhoto()" title="Удалить фото">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 text-error" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                        </svg>
+                    </button>
+                    <input type="file" id="photoInput" accept="image/*" class="hidden" onchange="uploadPhoto(this)">
+                </div>
+
+                <!-- Info -->
+                <div class="flex-1">
+                    <div class="flex flex-col md:flex-row md:items-start md:justify-between gap-4">
+                        <div class="flex-1">
+                            <!-- View mode -->
+                            <div class="view-only">
+                                <h1 class="text-2xl font-bold" id="viewName">—</h1>
+                                <p class="text-lg opacity-60" id="viewSecondaryName"></p>
+                            </div>
+                            <!-- Edit mode -->
+                            <div class="edit-only">
+                                <div class="flex gap-2 items-baseline">
+                                    <input type="text" id="editFirstName" class="editable-input name-input" data-i18n-placeholder="first_name" placeholder="Имя">
+                                    <input type="text" id="editLastName" class="editable-input name-input" data-i18n-placeholder="last_name" placeholder="Фамилия">
+                                </div>
+                                <input type="text" id="editSpiritualName" class="editable-input spiritual-name-input mt-1" data-i18n-placeholder="spiritual_name" placeholder="Духовное имя">
+                            </div>
+                            <!-- Badges -->
+                            <div class="flex flex-wrap gap-2 mt-2" id="personBadges"></div>
+                        </div>
+                        <div class="flex gap-2">
+                            <!-- View mode buttons -->
+                            <button class="btn btn-outline btn-sm gap-2 view-only" onclick="enterEditMode()">
+                                <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                                </svg>
+                                <span data-i18n="edit">Редактировать</span>
+                            </button>
+                            <!-- Edit mode buttons -->
+                            <button class="btn btn-ghost btn-sm edit-only" onclick="cancelEdit()" data-i18n="cancel">Отмена</button>
+                            <button class="btn btn-primary btn-sm edit-only gap-2" onclick="savePerson()">
+                                <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
+                                </svg>
+                                <span data-i18n="save">Сохранить</span>
+                            </button>
+                            <button class="btn btn-error btn-outline btn-sm gap-2 view-only" onclick="deletePerson()">
+                                <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                                </svg>
+                                <span data-i18n="delete">Удалить</span>
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- Contact info -->
+                    <div class="grid grid-cols-2 md:grid-cols-4 gap-4 mt-6">
+                        <div>
+                            <div class="info-label" data-i18n="phone">Телефон</div>
+                            <div class="view-only info-value" id="viewPhone">—</div>
+                            <div class="edit-only flex items-center gap-2">
+                                <input type="tel" id="editPhone" class="editable-input flex-1" placeholder="+7...">
+                                <label class="flex items-center gap-1 cursor-pointer">
+                                    <input type="checkbox" id="editHasWhatsapp" class="checkbox checkbox-xs checkbox-success">
+                                    <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 text-green-500" viewBox="0 0 24 24" fill="currentColor"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z"/></svg>
+                                </label>
+                            </div>
+                        </div>
+                        <div>
+                            <div class="info-label" data-i18n="email">Email</div>
+                            <div class="view-only info-value" id="viewEmail">—</div>
+                            <input type="email" id="editEmail" class="editable-input edit-only" placeholder="email@example.com">
+                        </div>
+                        <div>
+                            <div class="info-label" data-i18n="telegram">Telegram</div>
+                            <div class="view-only info-value" id="viewTelegram">—</div>
+                            <input type="text" id="editTelegram" class="editable-input edit-only" placeholder="@username">
+                        </div>
+                        <div>
+                            <div class="info-label" data-i18n="country">Страна</div>
+                            <div class="view-only info-value" id="viewCountry">—</div>
+                            <input type="text" id="editCountry" class="editable-input edit-only" list="countriesList">
+                            <datalist id="countriesList"></datalist>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Two columns layout -->
+        <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+
+            <!-- Left column: Details -->
+            <div class="lg:col-span-1 space-y-6">
+                <!-- Personal Info -->
+                <div class="section-card">
+                    <h3 class="font-semibold mb-4" data-i18n="personal_info">Личная информация</h3>
+                    <div class="space-y-3">
+                        <div>
+                            <div class="info-label" data-i18n="gender">Пол</div>
+                            <div class="view-only info-value" id="viewGender">—</div>
+                            <select id="editGender" class="editable-select w-full edit-only">
+                                <option value="" data-i18n="not_specified">Не указан</option>
+                                <option value="male" data-i18n="male">Мужской</option>
+                                <option value="female" data-i18n="female">Женский</option>
+                            </select>
+                        </div>
+                        <div>
+                            <div class="info-label" data-i18n="birth_date">Дата рождения</div>
+                            <div class="view-only info-value" id="viewBirthDate">—</div>
+                            <input type="date" id="editBirthDate" class="editable-input edit-only">
+                        </div>
+                        <div>
+                            <div class="info-label" data-i18n="india_experience">Опыт поездок в Индию</div>
+                            <div class="view-only info-value" id="viewIndiaExperience">—</div>
+                            <input type="text" id="editIndiaExperience" class="editable-input edit-only">
+                        </div>
+                        <div>
+                            <div class="info-label" data-i18n="spiritual_teacher">Духовный учитель</div>
+                            <div class="view-only info-value" id="viewSpiritualTeacher">—</div>
+                            <div class="relative edit-only">
+                                <input type="text" id="editSpiritualTeacher" class="editable-input w-full"
+                                       autocomplete="off"
+                                       oninput="searchSpiritualTeachers(this.value)"
+                                       onfocus="showSpiritualTeacherSuggestions()">
+                                <div id="spiritualTeacherSuggestions" class="hidden absolute z-50 w-full bg-base-100 shadow-lg rounded-lg mt-1 max-h-32 overflow-y-auto border text-sm"></div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Team Section (only for team members) -->
+                <div class="section-card" id="teamSection">
+                    <div class="flex items-center justify-between mb-4">
+                        <h3 class="font-semibold" data-i18n="team_info">Член команды</h3>
+                        <label class="flex items-center gap-2 cursor-pointer edit-only">
+                            <input type="checkbox" id="editIsTeamMember" class="checkbox checkbox-sm checkbox-primary" onchange="toggleTeamFields()">
+                        </label>
+                        <span class="badge badge-primary view-only" id="teamBadgeView"></span>
+                    </div>
+                    <div id="teamFields" class="space-y-3">
+                        <div>
+                            <div class="info-label" data-i18n="department">Департамент</div>
+                            <div class="view-only info-value" id="viewDepartment">—</div>
+                            <select id="editDepartment" class="editable-select w-full edit-only">
+                                <option value="">—</option>
+                            </select>
+                        </div>
+                        <div>
+                            <div class="info-label" data-i18n="service">Служение</div>
+                            <div class="view-only info-value" id="viewService">—</div>
+                            <input type="text" id="editService" class="editable-input edit-only">
+                        </div>
+                        <div>
+                            <div class="info-label" data-i18n="senior">Старший</div>
+                            <div class="view-only info-value" id="viewSenior">—</div>
+                            <select id="editSenior" class="editable-select w-full edit-only">
+                                <option value="">—</option>
+                            </select>
+                        </div>
+                        <div>
+                            <div class="info-label" data-i18n="passport">Паспорт</div>
+                            <div class="view-only info-value" id="viewPassport">—</div>
+                            <input type="text" id="editPassport" class="editable-input edit-only">
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Notes -->
+                <div class="section-card">
+                    <h3 class="font-semibold mb-4" data-i18n="notes">Заметки</h3>
+                    <div class="view-only text-sm opacity-70" id="viewNotes">—</div>
+                    <textarea id="editNotes" class="editable-textarea edit-only" data-i18n-placeholder="notes_placeholder" placeholder="Заметки..."></textarea>
+                </div>
+            </div>
+
+            <!-- Right column: History -->
+            <div class="lg:col-span-2 space-y-6">
+                <!-- Team Stays (only for team members) -->
+                <div class="section-card" id="staysSection">
+                    <div class="flex items-center justify-between mb-4">
+                        <h3 class="font-semibold" data-i18n="stays_history">Периоды пребывания</h3>
+                        <button class="btn btn-sm btn-outline gap-1" onclick="openStayModal()">
+                            <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" />
+                            </svg>
+                            <span data-i18n="add">Добавить</span>
+                        </button>
+                    </div>
+                    <div id="staysList" class="space-y-3"></div>
+                    <div id="emptyStays" class="hidden text-center py-6 opacity-60">
+                        <p data-i18n="no_stays">Нет запланированных периодов</p>
+                    </div>
+                </div>
+
+                <!-- Retreat Registrations -->
+                <div class="section-card" id="retreatsSection">
+                    <div class="flex items-center justify-between mb-4">
+                        <h3 class="font-semibold" data-i18n="retreat_history">История ретритов</h3>
+                        <span class="badge badge-lg" id="retreatsCount">0</span>
+                    </div>
+                    <div id="registrationsList" class="space-y-3"></div>
+                    <div id="emptyRegistrations" class="hidden text-center py-6 opacity-60">
+                        <p data-i18n="no_retreat_registrations">Нет регистраций на ретриты</p>
+                    </div>
+                </div>
+            </div>
+
+        </div>
+
+        </div><!-- /profileContainer -->
+
+    </main>
+
+    <!-- Photo Crop Modal -->
+    <dialog id="cropModal" class="modal">
+        <div class="modal-box max-w-2xl">
+            <h3 class="font-bold text-lg mb-4" data-i18n="edit_photo">Редактирование фото</h3>
+            <div class="flex flex-col md:flex-row gap-6">
+                <div class="flex-1">
+                    <div class="bg-base-200 rounded-lg overflow-hidden" style="height: 300px;">
+                        <img id="cropImage" src="" alt="" style="max-width: 100%; display: block;">
+                    </div>
+                    <div class="flex items-center justify-center gap-4 mt-4">
+                        <button type="button" class="btn btn-sm btn-circle" onclick="cropper?.zoom(-0.1)">
+                            <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 12H4" /></svg>
+                        </button>
+                        <input type="range" id="zoomRange" min="0.1" max="3" step="0.1" value="1" class="range range-sm range-primary w-32" oninput="handleZoomRange(this.value)">
+                        <button type="button" class="btn btn-sm btn-circle" onclick="cropper?.zoom(0.1)">
+                            <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" /></svg>
+                        </button>
+                        <button type="button" class="btn btn-sm btn-circle" onclick="cropper?.rotate(-90)">
+                            <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" /></svg>
+                        </button>
+                    </div>
+                </div>
+                <div class="flex flex-col items-center gap-2">
+                    <div class="text-sm opacity-60" data-i18n="preview">Предпросмотр</div>
+                    <div class="crop-preview" id="cropPreview"></div>
+                </div>
+            </div>
+            <div class="modal-action">
+                <button type="button" class="btn" onclick="closeCropModal()" data-i18n="cancel">Отмена</button>
+                <button type="button" class="btn btn-primary" onclick="saveCroppedPhoto()" data-i18n="save">Сохранить</button>
+            </div>
+        </div>
+        <form method="dialog" class="modal-backdrop"><button>close</button></form>
+    </dialog>
+
+    <!-- Stay Modal -->
+    <dialog id="stayModal" class="modal">
+        <div class="modal-box">
+            <h3 class="font-bold text-lg mb-4" id="stayModalTitle" data-i18n="add_stay">Добавить период</h3>
+            <form id="stayForm" onsubmit="saveStay(event)">
+                <input type="hidden" name="stay_id" value="">
+                <div class="grid grid-cols-2 gap-4 mb-4">
+                    <div class="form-control">
+                        <label class="label"><span class="label-text font-medium" data-i18n="arrival">Приезд</span></label>
+                        <input type="date" name="start_date" class="input input-bordered" required>
+                    </div>
+                    <div class="form-control">
+                        <label class="label"><span class="label-text font-medium" data-i18n="departure">Отъезд</span></label>
+                        <input type="date" name="end_date" class="input input-bordered" required>
+                    </div>
+                </div>
+                <div class="form-control mb-4">
+                    <label class="label"><span class="label-text" data-i18n="comment">Комментарий</span></label>
+                    <input type="text" name="comment" class="input input-bordered" placeholder="Например: Картика">
+                </div>
+                <div class="modal-action">
+                    <button type="button" class="btn btn-ghost" onclick="closeStayModal()" data-i18n="cancel">Отмена</button>
+                    <button type="button" class="btn btn-error btn-outline edit-stay-only hidden" onclick="deleteStay()" data-i18n="delete">Удалить</button>
+                    <button type="submit" class="btn btn-primary" data-i18n="save">Сохранить</button>
+                </div>
+            </form>
+        </div>
+        <form method="dialog" class="modal-backdrop"><button>close</button></form>
+    </dialog>
+
+    <div id="footer-placeholder"></div>
+
+    <script src="../js/layout.js"></script>
+    <script>
+        const t = key => Layout.t(key);
+        let person = null;
+        let stays = [];
+        let registrations = [];
+        let departments = [];
+        let teamMembers = [];
+        let spiritualTeachers = [];
+        let isEditMode = false;
+
+        const today = new Date().toISOString().split('T')[0];
+
+        // Страны
+        const COUNTRIES = [
+            { code: 'RU', ru: 'Россия', en: 'Russia', hi: 'रूस' },
+            { code: 'IN', ru: 'Индия', en: 'India', hi: 'भारत' },
+            { code: 'UA', ru: 'Украина', en: 'Ukraine', hi: 'यूक्रेन' },
+            { code: 'BY', ru: 'Беларусь', en: 'Belarus', hi: 'बेलारूस' },
+            { code: 'KZ', ru: 'Казахстан', en: 'Kazakhstan', hi: 'कजाखस्तान' },
+            { code: 'UZ', ru: 'Узбекистан', en: 'Uzbekistan', hi: 'उज़्बेकिस्तान' },
+            { code: 'DE', ru: 'Германия', en: 'Germany', hi: 'जर्मनी' },
+            { code: 'US', ru: 'США', en: 'USA', hi: 'अमेरिका' },
+            { code: 'IL', ru: 'Израиль', en: 'Israel', hi: 'इज़राइल' },
+            { code: 'GB', ru: 'Великобритания', en: 'United Kingdom', hi: 'यूनाइटेड किंगडम' }
+        ];
+
+        async function init() {
+            await Layout.init({ module: 'housing', menuId: 'vaishnavas', itemId: 'guests' });
+
+            const params = new URLSearchParams(window.location.search);
+            const personId = params.get('id');
+
+            if (!personId) {
+                window.location.href = 'index.html';
+                return;
+            }
+
+            Layout.showLoader();
+            await Promise.all([
+                loadPerson(personId),
+                loadDepartments()
+            ]);
+            await Promise.all([
+                loadStays(personId),
+                loadRegistrations(personId)
+            ]);
+            populateCountriesList();
+            Layout.hideLoader();
+        }
+
+        async function loadPerson(personId) {
+            const { data, error } = await Layout.db
+                .from('vaishnavas')
+                .select('*, departments(id, name_ru, name_en, name_hi, color), senior:vaishnavas!senior_id(id, spiritual_name, first_name, last_name)')
+                .eq('id', personId)
+                .single();
+
+            if (error || !data) {
+                console.error('Error loading person:', error);
+                window.location.href = 'index.html';
+                return;
+            }
+
+            person = data;
+            renderPerson();
+        }
+
+        async function loadDepartments() {
+            const [deptRes, teamRes, teachersRes] = await Promise.all([
+                Layout.db.from('departments').select('*').order('sort_order'),
+                Layout.db.from('vaishnavas').select('id, spiritual_name, first_name, last_name')
+                    .eq('is_team_member', true).eq('is_deleted', false).order('spiritual_name'),
+                Layout.db.from('vaishnavas').select('spiritual_teacher')
+                    .not('spiritual_teacher', 'is', null).eq('is_deleted', false)
+            ]);
+            departments = deptRes.data || [];
+            teamMembers = teamRes.data || [];
+            // Уникальные духовные учителя
+            spiritualTeachers = [...new Set((teachersRes.data || []).map(v => v.spiritual_teacher).filter(Boolean))].sort();
+            populateDepartmentsSelect();
+            populateSeniorsSelect();
+        }
+
+        async function loadStays(personId) {
+            const { data } = await Layout.db
+                .from('vaishnava_stays')
+                .select('*')
+                .eq('vaishnava_id', personId)
+                .order('start_date', { ascending: false });
+            stays = data || [];
+            renderStays();
+        }
+
+        async function loadRegistrations(personId) {
+            const { data } = await Layout.db
+                .from('retreat_registrations')
+                .select('*, retreats(id, name_ru, name_en, name_hi, start_date, end_date)')
+                .eq('vaishnava_id', personId)
+                .order('created_at', { ascending: false });
+            registrations = data || [];
+            renderRegistrations();
+        }
+
+        function renderPerson() {
+            if (!person) return;
+
+            const fullName = [person.first_name, person.last_name].filter(Boolean).join(' ') || t('no_name');
+            const initials = (person.first_name?.[0] || '') + (person.last_name?.[0] || '');
+
+            // Breadcrumb
+            document.getElementById('breadcrumbName').textContent = person.spiritual_name || fullName;
+
+            // View mode - Name
+            if (person.spiritual_name) {
+                document.getElementById('viewName').textContent = person.spiritual_name;
+                document.getElementById('viewSecondaryName').textContent = fullName !== t('no_name') ? fullName : '';
+            } else {
+                document.getElementById('viewName').textContent = fullName;
+                document.getElementById('viewSecondaryName').textContent = '';
+            }
+
+            // Edit mode - Name
+            document.getElementById('editFirstName').value = person.first_name || '';
+            document.getElementById('editLastName').value = person.last_name || '';
+            document.getElementById('editSpiritualName').value = person.spiritual_name || '';
+
+            // Avatar
+            const avatarEl = document.getElementById('personAvatar');
+            const deletePhotoBtn = document.getElementById('deletePhotoBtn');
+            if (person.photo_url) {
+                if (avatarEl && avatarEl.tagName !== 'IMG') {
+                    const img = document.createElement('img');
+                    img.src = person.photo_url;
+                    img.alt = '';
+                    img.className = 'person-avatar-lg object-cover';
+                    img.id = 'personAvatar';
+                    avatarEl.replaceWith(img);
+                } else if (avatarEl.tagName === 'IMG') {
+                    avatarEl.src = person.photo_url;
+                }
+                deletePhotoBtn.classList.remove('hidden');
+            } else {
+                if (avatarEl && avatarEl.tagName === 'IMG') {
+                    const div = document.createElement('div');
+                    div.className = 'person-avatar-lg';
+                    div.id = 'personAvatar';
+                    div.textContent = initials.toUpperCase() || '?';
+                    avatarEl.replaceWith(div);
+                } else if (avatarEl) {
+                    avatarEl.textContent = initials.toUpperCase() || '?';
+                }
+                deletePhotoBtn.classList.add('hidden');
+            }
+
+            // Badges
+            const badgesEl = document.getElementById('personBadges');
+            let badges = [];
+            if (person.is_team_member) {
+                const dept = person.departments;
+                if (dept) {
+                    badges.push(`<span class="badge" style="background-color: ${dept.color}20; color: ${dept.color}; border-color: ${dept.color}">${Layout.getName(dept)}</span>`);
+                } else {
+                    badges.push(`<span class="badge badge-primary">${t('team_member') || 'Команда'}</span>`);
+                }
+            }
+            badgesEl.innerHTML = badges.join('');
+
+            // Contact info - view
+            renderViewPhone();
+            renderViewEmail();
+            renderViewTelegram();
+            document.getElementById('viewCountry').textContent = getCountryName(person.country) || person.country || '—';
+
+            // Contact info - edit
+            document.getElementById('editPhone').value = person.phone || '';
+            document.getElementById('editHasWhatsapp').checked = person.has_whatsapp || false;
+            document.getElementById('editEmail').value = person.email || '';
+            document.getElementById('editTelegram').value = person.telegram || '';
+            document.getElementById('editCountry').value = getCountryName(person.country) || '';
+
+            // Personal info - view
+            document.getElementById('viewGender').textContent = person.gender ? t(person.gender) : '—';
+            document.getElementById('viewBirthDate').textContent = person.birth_date ? formatDate(person.birth_date) : '—';
+            document.getElementById('viewIndiaExperience').textContent = person.india_experience || '—';
+            document.getElementById('viewSpiritualTeacher').textContent = person.spiritual_teacher || '—';
+
+            // Personal info - edit
+            document.getElementById('editGender').value = person.gender || '';
+            document.getElementById('editBirthDate').value = person.birth_date || '';
+            document.getElementById('editIndiaExperience').value = person.india_experience || '';
+            document.getElementById('editSpiritualTeacher').value = person.spiritual_teacher || '';
+
+            // Team section
+            document.getElementById('editIsTeamMember').checked = person.is_team_member;
+            document.getElementById('viewDepartment').textContent = person.departments ? Layout.getName(person.departments) : '—';
+            document.getElementById('editDepartment').value = person.department_id || '';
+            document.getElementById('viewService').textContent = person.service || '—';
+            document.getElementById('editService').value = person.service || '';
+            const seniorName = person.senior ? getVaishnavName(person.senior) : '—';
+            document.getElementById('viewSenior').textContent = seniorName;
+            document.getElementById('editSenior').value = person.senior_id || '';
+            populateSeniorsSelect(); // Обновляем список старших
+            if (person.senior_id) document.getElementById('editSenior').value = person.senior_id;
+            document.getElementById('viewPassport').textContent = person.passport || '—';
+            document.getElementById('editPassport').value = person.passport || '';
+            document.getElementById('teamBadgeView').textContent = person.is_team_member ? (t('yes') || 'Да') : (t('no') || 'Нет');
+
+            // Show/hide team-specific sections
+            toggleTeamSections();
+
+            // Notes
+            document.getElementById('viewNotes').textContent = person.notes || '—';
+            document.getElementById('editNotes').value = person.notes || '';
+        }
+
+        function toggleTeamSections() {
+            const isTeam = person?.is_team_member || document.getElementById('editIsTeamMember')?.checked;
+            document.getElementById('staysSection').style.display = isTeam ? 'block' : 'none';
+            document.getElementById('teamFields').style.display = isTeam ? 'block' : 'none';
+        }
+
+        function toggleTeamFields() {
+            toggleTeamSections();
+        }
+
+        function renderViewPhone() {
+            const el = document.getElementById('viewPhone');
+            if (person.phone) {
+                const waNumber = person.phone.replace(/[^\d+]/g, '').replace(/^\+/, '');
+                const waLink = person.has_whatsapp
+                    ? ` <a href="https://wa.me/${waNumber}" target="_blank" class="text-green-500" title="WhatsApp"><svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 inline" viewBox="0 0 24 24" fill="currentColor"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z"/></svg></a>`
+                    : '';
+                el.innerHTML = `${person.phone}${waLink}`;
+            } else {
+                el.textContent = '—';
+            }
+        }
+
+        function renderViewEmail() {
+            const el = document.getElementById('viewEmail');
+            if (person.email) {
+                el.innerHTML = `<a href="mailto:${person.email}" class="link link-primary">${person.email}</a>`;
+            } else {
+                el.textContent = '—';
+            }
+        }
+
+        function renderViewTelegram() {
+            const el = document.getElementById('viewTelegram');
+            if (person.telegram) {
+                const tgUsername = person.telegram.replace(/^@/, '');
+                el.innerHTML = `<a href="https://t.me/${tgUsername}" target="_blank" class="link link-primary">${person.telegram}</a>`;
+            } else {
+                el.textContent = '—';
+            }
+        }
+
+        function getCountryName(code) {
+            if (!code) return null;
+            const country = COUNTRIES.find(c => c.code === code || c.ru === code || c.en === code);
+            if (country) {
+                return country[Layout.currentLang] || country.ru;
+            }
+            return code;
+        }
+
+        function normalizeCountry(input) {
+            if (!input) return null;
+            const inputLower = input.toLowerCase().trim();
+            for (const country of COUNTRIES) {
+                if (country.ru.toLowerCase() === inputLower ||
+                    country.en.toLowerCase() === inputLower ||
+                    country.code.toLowerCase() === inputLower) {
+                    return country.code;
+                }
+            }
+            return input;
+        }
+
+        function populateCountriesList() {
+            const datalist = document.getElementById('countriesList');
+            const lang = Layout.currentLang;
+            datalist.innerHTML = COUNTRIES.map(c => `<option value="${c[lang] || c.ru}">`).join('');
+        }
+
+        function populateDepartmentsSelect() {
+            const select = document.getElementById('editDepartment');
+            select.innerHTML = '<option value="">—</option>' +
+                departments.map(d => `<option value="${d.id}">${Layout.getName(d)}</option>`).join('');
+        }
+
+        function populateSeniorsSelect() {
+            const select = document.getElementById('editSenior');
+            // Исключаем текущего человека из списка
+            const currentId = person?.id;
+            const filtered = teamMembers.filter(m => m.id !== currentId);
+            select.innerHTML = '<option value="">—</option>' +
+                filtered.map(m => {
+                    const name = m.spiritual_name || `${m.first_name || ''} ${m.last_name || ''}`.trim() || '—';
+                    return `<option value="${m.id}">${name}</option>`;
+                }).join('');
+        }
+
+        function getVaishnavName(v) {
+            return v.spiritual_name || `${v.first_name || ''} ${v.last_name || ''}`.trim() || '—';
+        }
+
+        // ===== Автокомплит духовного учителя =====
+        function searchSpiritualTeachers(query) {
+            const suggestionsEl = document.getElementById('spiritualTeacherSuggestions');
+            if (!query || query.length < 2) {
+                suggestionsEl.classList.add('hidden');
+                return;
+            }
+            const q = query.toLowerCase();
+            const matches = spiritualTeachers.filter(t => t.toLowerCase().includes(q)).slice(0, 8);
+            if (matches.length === 0) {
+                suggestionsEl.classList.add('hidden');
+                return;
+            }
+            suggestionsEl.innerHTML = matches.map(t =>
+                `<div class="px-3 py-2 hover:bg-base-200 cursor-pointer" onclick="selectSpiritualTeacher('${t.replace(/'/g, "\\'")}')">${t}</div>`
+            ).join('');
+            suggestionsEl.classList.remove('hidden');
+        }
+
+        function showSpiritualTeacherSuggestions() {
+            const query = document.getElementById('editSpiritualTeacher').value;
+            if (query.length >= 2) {
+                searchSpiritualTeachers(query);
+            }
+        }
+
+        function selectSpiritualTeacher(name) {
+            document.getElementById('editSpiritualTeacher').value = name;
+            document.getElementById('spiritualTeacherSuggestions').classList.add('hidden');
+        }
+
+        // Закрытие подсказок при клике вне
+        document.addEventListener('click', (e) => {
+            const suggestions = document.getElementById('spiritualTeacherSuggestions');
+            const input = document.getElementById('editSpiritualTeacher');
+            if (suggestions && !suggestions.contains(e.target) && e.target !== input) {
+                suggestions.classList.add('hidden');
+            }
+        });
+
+        function formatDate(dateStr) {
+            if (!dateStr) return '—';
+            const date = new Date(dateStr);
+            return date.toLocaleDateString(Layout.currentLang === 'hi' ? 'hi-IN' : Layout.currentLang === 'en' ? 'en-US' : 'ru-RU', {
+                day: 'numeric', month: 'short', year: 'numeric'
+            });
+        }
+
+        // ==================== EDIT MODE ====================
+
+        function enterEditMode() {
+            isEditMode = true;
+            document.getElementById('profileContainer').classList.remove('view-mode');
+            document.getElementById('profileContainer').classList.add('edit-mode');
+            document.getElementById('editFirstName').focus();
+        }
+
+        function cancelEdit() {
+            isEditMode = false;
+            document.getElementById('profileContainer').classList.remove('edit-mode');
+            document.getElementById('profileContainer').classList.add('view-mode');
+            renderPerson();
+        }
+
+        async function savePerson() {
+            if (!person) return;
+
+            const saveBtn = document.querySelector('.edit-only.btn-primary');
+            if (saveBtn) saveBtn.classList.add('loading');
+
+            const updateData = {
+                first_name: document.getElementById('editFirstName').value || null,
+                last_name: document.getElementById('editLastName').value || null,
+                spiritual_name: document.getElementById('editSpiritualName').value || null,
+                phone: document.getElementById('editPhone').value || null,
+                has_whatsapp: document.getElementById('editHasWhatsapp').checked,
+                email: document.getElementById('editEmail').value || null,
+                telegram: document.getElementById('editTelegram').value || null,
+                country: normalizeCountry(document.getElementById('editCountry').value),
+                gender: document.getElementById('editGender').value || null,
+                birth_date: document.getElementById('editBirthDate').value || null,
+                india_experience: document.getElementById('editIndiaExperience').value || null,
+                spiritual_teacher: document.getElementById('editSpiritualTeacher').value || null,
+                is_team_member: document.getElementById('editIsTeamMember').checked,
+                department_id: document.getElementById('editDepartment').value || null,
+                service: document.getElementById('editService').value || null,
+                senior_id: document.getElementById('editSenior').value || null,
+                passport: document.getElementById('editPassport').value || null,
+                notes: document.getElementById('editNotes').value || null
+            };
+
+            if (!updateData.first_name && !updateData.spiritual_name) {
+                alert(t('name_or_spiritual_required') || 'Укажите имя или духовное имя');
+                if (saveBtn) saveBtn.classList.remove('loading');
+                return;
+            }
+
+            const { data, error } = await Layout.db
+                .from('vaishnavas')
+                .update(updateData)
+                .eq('id', person.id)
+                .select('*, departments(id, name_ru, name_en, name_hi, color), senior:vaishnavas!senior_id(id, spiritual_name, first_name, last_name)')
+                .single();
+
+            if (saveBtn) saveBtn.classList.remove('loading');
+
+            if (error) {
+                console.error('Error saving:', error);
+                alert(t('error_saving') || 'Ошибка сохранения');
+                return;
+            }
+
+            person = data;
+            isEditMode = false;
+            document.getElementById('profileContainer').classList.remove('edit-mode');
+            document.getElementById('profileContainer').classList.add('view-mode');
+            renderPerson();
+        }
+
+        async function deletePerson() {
+            if (!confirm(t('confirm_delete') || 'Удалить?')) return;
+
+            const { error } = await Layout.db
+                .from('vaishnavas')
+                .update({ is_deleted: true })
+                .eq('id', person.id);
+
+            if (error) {
+                console.error('Error deleting:', error);
+                alert(t('error_deleting'));
+                return;
+            }
+
+            window.location.href = 'index.html';
+        }
+
+        // ==================== STAYS ====================
+
+        function renderStays() {
+            const container = document.getElementById('staysList');
+            const emptyState = document.getElementById('emptyStays');
+
+            if (stays.length === 0) {
+                container.innerHTML = '';
+                emptyState.classList.remove('hidden');
+                return;
+            }
+
+            emptyState.classList.add('hidden');
+            container.innerHTML = stays.map(stay => {
+                const isCurrent = stay.start_date <= today && stay.end_date >= today;
+                const isFuture = stay.start_date > today;
+                let stayClass = 'stay-card';
+                if (isCurrent) stayClass += ' stay-current';
+                else if (isFuture) stayClass += ' stay-future';
+                else stayClass += ' stay-past';
+
+                return `
+                    <div class="${stayClass} border rounded-lg p-3 cursor-pointer hover:shadow-md transition-shadow" onclick="openStayModal('${stay.id}')">
+                        <div class="flex items-center justify-between">
+                            <div>
+                                <div class="font-medium">${formatDate(stay.start_date)} — ${formatDate(stay.end_date)}</div>
+                                ${stay.comment ? `<div class="text-sm opacity-60 mt-1">${stay.comment}</div>` : ''}
+                            </div>
+                            ${isCurrent ? `<span class="badge badge-success badge-sm">${t('here_now') || 'Здесь'}</span>` : ''}
+                            ${isFuture ? `<span class="badge badge-info badge-sm">${t('planned') || 'План'}</span>` : ''}
+                        </div>
+                    </div>
+                `;
+            }).join('');
+        }
+
+        let editingStayId = null;
+
+        function openStayModal(stayId = null) {
+            const form = document.getElementById('stayForm');
+            form.reset();
+            editingStayId = stayId;
+
+            if (stayId) {
+                const stay = stays.find(s => s.id === stayId);
+                if (stay) {
+                    form.querySelector('[name="stay_id"]').value = stay.id;
+                    form.querySelector('[name="start_date"]').value = stay.start_date;
+                    form.querySelector('[name="end_date"]').value = stay.end_date;
+                    form.querySelector('[name="comment"]').value = stay.comment || '';
+                }
+                document.getElementById('stayModalTitle').textContent = t('edit_stay') || 'Редактировать';
+                document.querySelectorAll('.edit-stay-only').forEach(el => el.classList.remove('hidden'));
+            } else {
+                document.getElementById('stayModalTitle').textContent = t('add_stay') || 'Добавить';
+                document.querySelectorAll('.edit-stay-only').forEach(el => el.classList.add('hidden'));
+            }
+
+            document.getElementById('stayModal').showModal();
+        }
+
+        function closeStayModal() {
+            document.getElementById('stayModal').close();
+            editingStayId = null;
+        }
+
+        async function saveStay(event) {
+            event.preventDefault();
+            const form = event.target;
+
+            const stayData = {
+                vaishnava_id: person.id,
+                start_date: form.start_date.value,
+                end_date: form.end_date.value,
+                comment: form.comment.value || null
+            };
+
+            let result;
+            if (editingStayId) {
+                result = await Layout.db.from('vaishnava_stays').update(stayData).eq('id', editingStayId);
+            } else {
+                result = await Layout.db.from('vaishnava_stays').insert(stayData);
+            }
+
+            if (result.error) {
+                console.error('Error saving stay:', result.error);
+                alert(t('error_saving'));
+                return;
+            }
+
+            closeStayModal();
+            await loadStays(person.id);
+        }
+
+        async function deleteStay() {
+            if (!editingStayId) return;
+            if (!confirm(t('confirm_delete') || 'Удалить?')) return;
+
+            const { error } = await Layout.db.from('vaishnava_stays').delete().eq('id', editingStayId);
+            if (error) {
+                console.error('Error deleting stay:', error);
+                alert(t('error_deleting'));
+                return;
+            }
+
+            closeStayModal();
+            await loadStays(person.id);
+        }
+
+        // ==================== REGISTRATIONS ====================
+
+        function renderRegistrations() {
+            const container = document.getElementById('registrationsList');
+            const emptyState = document.getElementById('emptyRegistrations');
+            const countBadge = document.getElementById('retreatsCount');
+
+            countBadge.textContent = registrations.length;
+
+            if (registrations.length === 0) {
+                container.innerHTML = '';
+                emptyState.classList.remove('hidden');
+                return;
+            }
+
+            emptyState.classList.add('hidden');
+            container.innerHTML = registrations.map(reg => {
+                const retreat = reg.retreats;
+                const statusClass = `status-${reg.status}`;
+                const statusLabel = t(`status_${reg.status}`) || reg.status;
+
+                return `
+                    <div class="retreat-card border rounded-lg p-3">
+                        <div class="flex items-center justify-between">
+                            <div>
+                                <div class="font-medium">${retreat ? Layout.getName(retreat) : '—'}</div>
+                                ${retreat ? `<div class="text-sm opacity-60">${formatDate(retreat.start_date)} — ${formatDate(retreat.end_date)}</div>` : ''}
+                            </div>
+                            <span class="badge ${statusClass}">${statusLabel}</span>
+                        </div>
+                    </div>
+                `;
+            }).join('');
+        }
+
+        // ==================== PHOTO ====================
+
+        function onAvatarClick() {
+            if (!isEditMode) return;
+            document.getElementById('photoInput').click();
+        }
+
+        async function deletePhoto() {
+            if (!person || !person.photo_url) return;
+            if (!confirm(t('confirm_delete_photo') || 'Удалить фото?')) return;
+
+            try {
+                if (person.photo_url.includes('vaishnava-photos')) {
+                    const oldPath = person.photo_url.split('/vaishnava-photos/')[1];
+                    if (oldPath) {
+                        await Layout.db.storage.from('vaishnava-photos').remove([oldPath]);
+                    }
+                }
+
+                await Layout.db.from('vaishnavas').update({ photo_url: null }).eq('id', person.id);
+                person.photo_url = null;
+                renderPerson();
+            } catch (err) {
+                console.error('Delete photo error:', err);
+                alert(t('error_deleting'));
+            }
+        }
+
+        let cropper = null;
+
+        function uploadPhoto(input) {
+            const file = input.files?.[0];
+            if (!file || !person) return;
+
+            if (file.size > 10 * 1024 * 1024) {
+                alert(t('file_too_large') || 'Файл слишком большой');
+                input.value = '';
+                return;
+            }
+
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                const cropImage = document.getElementById('cropImage');
+                cropImage.src = e.target.result;
+
+                if (cropper) { cropper.destroy(); cropper = null; }
+
+                document.getElementById('cropModal').showModal();
+
+                cropImage.onload = function() {
+                    cropper = new Cropper(cropImage, {
+                        aspectRatio: 1,
+                        viewMode: 2,
+                        dragMode: 'move',
+                        autoCropArea: 0.9,
+                        restore: false,
+                        guides: true,
+                        center: true,
+                        highlight: false,
+                        cropBoxMovable: false,
+                        cropBoxResizable: false,
+                        toggleDragModeOnDblclick: false,
+                        preview: '#cropPreview',
+                        ready: () => document.getElementById('zoomRange').value = 1,
+                        zoom: (e) => {
+                            if (e.detail.ratio > 3) { e.preventDefault(); cropper.zoomTo(3); }
+                            if (e.detail.ratio < 0.1) { e.preventDefault(); cropper.zoomTo(0.1); }
+                            document.getElementById('zoomRange').value = e.detail.ratio;
+                        }
+                    });
+                };
+            };
+            reader.readAsDataURL(file);
+            input.value = '';
+        }
+
+        function handleZoomRange(value) {
+            if (cropper) cropper.zoomTo(parseFloat(value));
+        }
+
+        function closeCropModal() {
+            document.getElementById('cropModal').close();
+            if (cropper) { cropper.destroy(); cropper = null; }
+        }
+
+        async function saveCroppedPhoto() {
+            if (!cropper || !person) return;
+
+            const wrapper = document.querySelector('.avatar-wrapper');
+            const overlay = document.getElementById('avatarOverlay');
+
+            const canvas = cropper.getCroppedCanvas({ width: 300, height: 300, imageSmoothingEnabled: true, imageSmoothingQuality: 'high' });
+
+            closeCropModal();
+
+            wrapper.classList.add('avatar-uploading');
+            overlay.innerHTML = '<span class="loading loading-spinner loading-md text-white"></span>';
+
+            try {
+                const blob = await new Promise(resolve => canvas.toBlob(resolve, 'image/jpeg', 0.9));
+                const fileName = `${person.id}_${Date.now()}.jpg`;
+
+                if (person.photo_url && person.photo_url.includes('vaishnava-photos')) {
+                    const oldPath = person.photo_url.split('/vaishnava-photos/')[1];
+                    if (oldPath) await Layout.db.storage.from('vaishnava-photos').remove([oldPath]);
+                }
+
+                const { error: uploadError } = await Layout.db.storage
+                    .from('vaishnava-photos')
+                    .upload(fileName, blob, { contentType: 'image/jpeg', cacheControl: '3600', upsert: true });
+
+                if (uploadError) throw uploadError;
+
+                const { data: { publicUrl } } = Layout.db.storage.from('vaishnava-photos').getPublicUrl(fileName);
+
+                await Layout.db.from('vaishnavas').update({ photo_url: publicUrl }).eq('id', person.id);
+
+                person.photo_url = publicUrl;
+                renderPerson();
+
+            } catch (err) {
+                console.error('Upload error:', err);
+                alert(t('upload_error') || 'Ошибка загрузки');
+            } finally {
+                wrapper.classList.remove('avatar-uploading');
+                overlay.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z" /><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 13a3 3 0 11-6 0 3 3 0 016 0z" /></svg>`;
+            }
+        }
+
+        window.onLanguageChange = function(lang) {
+            populateCountriesList();
+            populateDepartmentsSelect();
+            renderPerson();
+            renderStays();
+            renderRegistrations();
+            Layout.updateAllTranslations();
+        };
+
+        init();
+    </script>
+</body>
+</html>

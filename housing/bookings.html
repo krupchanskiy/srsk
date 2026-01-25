@@ -406,18 +406,32 @@
 
             bookings = data || [];
 
-            // Load progress for each booking
-            for (const booking of bookings) {
-                const { data: stats } = await Layout.db
+            // Load all residents for these bookings in ONE query (instead of N+1)
+            if (bookings.length > 0) {
+                const bookingIds = bookings.map(b => b.id);
+                const { data: allResidents } = await Layout.db
                     .from('residents')
-                    .select('id, team_member_id, guest_name')
-                    .eq('booking_id', booking.id)
+                    .select('id, booking_id, team_member_id, guest_name')
+                    .in('booking_id', bookingIds)
                     .eq('status', 'active');
 
-                const filled = (stats || []).filter(r => r.team_member_id || r.guest_name).length;
-                const pending = (stats || []).length - filled;
-                booking.beds_filled = filled;
-                booking.beds_pending = pending;
+                // Group residents by booking_id
+                const residentsByBooking = {};
+                (allResidents || []).forEach(r => {
+                    if (!residentsByBooking[r.booking_id]) {
+                        residentsByBooking[r.booking_id] = [];
+                    }
+                    residentsByBooking[r.booking_id].push(r);
+                });
+
+                // Calculate stats for each booking
+                for (const booking of bookings) {
+                    const stats = residentsByBooking[booking.id] || [];
+                    const filled = stats.filter(r => r.team_member_id || r.guest_name).length;
+                    const pending = stats.length - filled;
+                    booking.beds_filled = filled;
+                    booking.beds_pending = pending;
+                }
             }
 
             // For "not_checked_in" filter, only show bookings with unfilled beds
@@ -1141,10 +1155,12 @@
 
         async function init() {
             await Layout.init({ module: 'housing', menuId: 'housing', itemId: 'bookings' });
+            Layout.showLoader();
             updateUI();
             await loadInitialData();
             await loadBookings();
             await loadAllBookings();
+            Layout.hideLoader();
         }
 
         init();

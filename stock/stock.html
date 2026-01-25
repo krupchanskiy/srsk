@@ -362,11 +362,13 @@
         // ==================== INIT ====================
         async function init() {
             await Layout.init({ menuId: 'stock', itemId: 'stock_balance' });
+            Layout.showLoader();
             await loadLocationId();
             await loadCategories();
             await loadProducts();
             await loadStock();
             updatePageLanguage();
+            Layout.hideLoader();
         }
 
         init();

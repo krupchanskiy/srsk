@@ -480,19 +480,29 @@
                         </select>
                     </div>
 
-                    <!-- Выбор из команды -->
+                    <!-- Выбор вайшнава -->
                     <div class="form-control mb-3">
                         <label class="label">
-                            <span class="label-text font-medium">Член команды</span>
+                            <span class="label-text font-medium">Вайшнав</span>
                         </label>
-                        <select name="team_member_id" id="checkinTeamMember" class="select select-bordered w-full" onchange="toggleGuestFields()">
-                            <option value="">— Гость (ввести имя ниже) —</option>
-                        </select>
+                        <div class="relative">
+                            <input type="hidden" name="vaishnava_id" id="checkinVaishnavId" />
+                            <input type="text" id="checkinVaishnavSearch" class="input input-bordered w-full pr-16"
+                                   placeholder="Поиск по имени..."
+                                   autocomplete="off"
+                                   oninput="searchVaishnavas(this.value)"
+                                   onfocus="showVaishnavaSuggestions()" />
+                            <div class="absolute right-2 top-1/2 -translate-y-1/2 flex gap-1">
+                                <button type="button" class="btn btn-ghost btn-xs hidden" id="clearVaishnava" onclick="clearVaishnavSelection()">✕</button>
+                                <a href="../vaishnavas/person.html" target="_blank" class="btn btn-ghost btn-xs" title="Добавить нового">+</a>
+                            </div>
+                            <div id="vaishnavaSuggestions" class="hidden absolute z-50 w-full bg-base-100 shadow-lg rounded-lg mt-1 max-h-48 overflow-y-auto border"></div>
+                        </div>
                     </div>
 
-                    <!-- Данные гостя -->
+                    <!-- Данные нового гостя (если не выбран существующий) -->
                     <div id="guestFields">
-                        <div class="divider text-sm opacity-60">Или данные гостя</div>
+                        <div class="divider text-sm opacity-60">Или новый гость</div>
                         <div class="grid grid-cols-2 gap-3">
                             <div class="form-control">
                                 <label class="label py-1">
@@ -769,7 +779,7 @@
 
         // Справочники для форм
         let categories = [];
-        let teamMembers = [];
+        let vaishnavas = [];
 
         // Хранилище гостей для кликов
         let guestsMap = new Map();
@@ -815,7 +825,7 @@
                 Layout.db.from('residents')
                     .select(`*,
                         resident_categories(id, name_ru, name_en, name_hi, color),
-                        team_members(id, first_name, last_name, spiritual_name),
+                        vaishnavas(id, first_name, last_name, spiritual_name),
                         bookings(id, name, contact_name)`)
                     .eq('status', 'active')
                     .lte('check_in', endDateStr)
@@ -930,9 +940,9 @@
 
                             // Получаем имя резидента
                             let guestName = res.guest_name || '';
-                            if (res.team_members) {
-                                const tm = res.team_members;
-                                guestName = tm.spiritual_name || `${tm.first_name} ${tm.last_name}`.trim();
+                            if (res.vaishnavas) {
+                                const v = res.vaishnavas;
+                                guestName = v.spiritual_name || `${v.first_name} ${v.last_name}`.trim();
                             }
                             // Если это бронирование - показываем название брони или имя контакта
                             if (!guestName && res.bookings) {
@@ -940,8 +950,8 @@
                             }
 
                             // Определяем, это бронирование или заселение
-                            // Бронирование = есть booking_id, но нет реального гостя (team_member или guest_name)
-                            const isBooking = res.booking_id && !res.team_member_id && !res.guest_name;
+                            // Бронирование = есть booking_id, но нет реального гостя (vaishnava или guest_name)
+                            const isBooking = res.booking_id && !res.vaishnava_id && !res.guest_name;
 
                             // Получаем цвет категории
                             const category = res.resident_categories;
@@ -1193,24 +1203,17 @@
 
         // Загрузка справочников
         async function loadDictionaries() {
-            const [catRes, teamRes] = await Promise.all([
+            const [catRes, vaishnavasRes] = await Promise.all([
                 Layout.db.from('resident_categories').select('*').order('sort_order'),
-                Layout.db.from('team_members').select('*').order('spiritual_name')
+                Layout.db.from('vaishnavas').select('*').eq('is_deleted', false).order('spiritual_name')
             ]);
             categories = catRes.data || [];
-            teamMembers = teamRes.data || [];
+            vaishnavas = vaishnavasRes.data || [];
 
-            // Заполняем селекты
+            // Заполняем категории
             const catSelect = document.getElementById('checkinCategory');
             catSelect.innerHTML = '<option value="">—</option>' +
                 categories.map(c => `<option value="${c.id}">${Layout.getName(c)}</option>`).join('');
-
-            const teamSelect = document.getElementById('checkinTeamMember');
-            teamSelect.innerHTML = '<option value="">— Гость (ввести имя ниже) —</option>' +
-                teamMembers.map(t => {
-                    const name = t.spiritual_name || `${t.first_name} ${t.last_name}`.trim();
-                    return `<option value="${t.id}">${name}</option>`;
-                }).join('');
 
             // Рендерим легенду
             renderLegend();
@@ -1274,7 +1277,9 @@
                 document.getElementById('modalCheckIn').value;
             document.getElementById('checkinDateOut').value =
                 document.getElementById('modalCheckOut').value;
-            toggleGuestFields();
+
+            // Сбрасываем выбор вайшнава
+            clearVaishnavSelection();
         }
 
         function showBookingForm() {
@@ -1298,17 +1303,72 @@
                 document.getElementById('modalCheckOut').value;
         }
 
-        // Переключение полей гостя
-        function toggleGuestFields() {
-            const teamMemberId = document.getElementById('checkinTeamMember').value;
-            const guestFields = document.getElementById('guestFields');
-            if (teamMemberId) {
-                guestFields.classList.add('hidden');
-                document.getElementById('checkinGuestName').value = '';
+        // ===== Поиск вайшнавов =====
+        function getVaishnavName(v) {
+            return v.spiritual_name || `${v.first_name || ''} ${v.last_name || ''}`.trim() || 'Без имени';
+        }
+
+        function searchVaishnavas(query) {
+            const suggestionsEl = document.getElementById('vaishnavaSuggestions');
+            if (!query || query.length < 2) {
+                suggestionsEl.classList.add('hidden');
+                return;
+            }
+
+            const q = query.toLowerCase();
+            const matches = vaishnavas.filter(v => {
+                const name = getVaishnavName(v).toLowerCase();
+                const phone = (v.phone || '').toLowerCase();
+                return name.includes(q) || phone.includes(q);
+            }).slice(0, 10);
+
+            if (matches.length === 0) {
+                suggestionsEl.innerHTML = '<div class="p-3 text-gray-500 text-sm">Не найдено</div>';
             } else {
-                guestFields.classList.remove('hidden');
+                suggestionsEl.innerHTML = matches.map(v => {
+                    const name = getVaishnavName(v);
+                    const badge = v.is_team_member ? '<span class="badge badge-sm badge-primary ml-2">Команда</span>' : '';
+                    return `<div class="p-2 hover:bg-base-200 cursor-pointer flex items-center" onclick="selectVaishnava('${v.id}', '${name.replace(/'/g, "\\'")}')">
+                        <span>${name}</span>${badge}
+                    </div>`;
+                }).join('');
+            }
+            suggestionsEl.classList.remove('hidden');
+        }
+
+        function showVaishnavaSuggestions() {
+            const query = document.getElementById('checkinVaishnavSearch').value;
+            if (query.length >= 2) {
+                searchVaishnavas(query);
             }
         }
+
+        function selectVaishnava(id, name) {
+            document.getElementById('checkinVaishnavId').value = id;
+            document.getElementById('checkinVaishnavSearch').value = name;
+            document.getElementById('vaishnavaSuggestions').classList.add('hidden');
+            document.getElementById('clearVaishnava').classList.remove('hidden');
+            // Скрываем поля нового гостя
+            document.getElementById('guestFields').classList.add('hidden');
+            document.getElementById('checkinGuestName').value = '';
+        }
+
+        function clearVaishnavSelection() {
+            document.getElementById('checkinVaishnavId').value = '';
+            document.getElementById('checkinVaishnavSearch').value = '';
+            document.getElementById('clearVaishnava').classList.add('hidden');
+            // Показываем поля нового гостя
+            document.getElementById('guestFields').classList.remove('hidden');
+        }
+
+        // Закрытие подсказок при клике вне
+        document.addEventListener('click', (e) => {
+            const suggestions = document.getElementById('vaishnavaSuggestions');
+            const searchInput = document.getElementById('checkinVaishnavSearch');
+            if (suggestions && !suggestions.contains(e.target) && e.target !== searchInput) {
+                suggestions.classList.add('hidden');
+            }
+        });
 
         // Сохранение заселения
         async function saveCheckin(e) {
@@ -1318,7 +1378,7 @@
             const data = {
                 room_id: modalContext.roomId,
                 category_id: form.category_id.value || null,
-                team_member_id: form.team_member_id.value || null,
+                vaishnava_id: form.vaishnava_id.value || null,
                 guest_name: form.guest_name.value || null,
                 guest_phone: form.guest_phone?.value || null,
                 check_in: form.check_in.value,
@@ -1329,9 +1389,9 @@
                 status: 'active'
             };
 
-            // Проверка: должен быть либо член команды, либо имя гостя
-            if (!data.team_member_id && !data.guest_name) {
-                alert('Укажите члена команды или введите имя гостя');
+            // Проверка: должен быть либо вайшнав из БД, либо имя нового гостя
+            if (!data.vaishnava_id && !data.guest_name) {
+                alert('Выберите вайшнава или введите имя нового гостя');
                 return;
             }
 
@@ -1494,10 +1554,13 @@
             // Информация
             let infoHtml = '';
 
-            // Имя
+            // Имя (с ссылкой на профиль, если есть vaishnava_id)
+            const nameLink = res.vaishnava_id
+                ? `<a href="../vaishnavas/person.html?id=${res.vaishnava_id}" class="link link-primary">${guestData.name}</a>`
+                : guestData.name;
             infoHtml += `<div class="flex justify-between py-1 border-b">
                 <span class="text-gray-500">Гость:</span>
-                <span class="font-medium">${guestData.name}</span>
+                <span class="font-medium">${nameLink}</span>
             </div>`;
 
             // Категория
@@ -2002,7 +2065,7 @@
                 document.querySelector('#checkinForm [name="late_checkout"]').checked = true;
             }
 
-            toggleGuestFields();
+            clearVaishnavSelection();
 
             document.getElementById('actionModal').showModal();
         }
@@ -2270,6 +2333,7 @@
         // Инициализация
         async function init() {
             await Layout.init({ module: 'housing', menuId: 'housing', itemId: 'timeline' });
+            Layout.showLoader();
             await Promise.all([
                 loadTimelineData(),
                 loadDictionaries()
@@ -2277,6 +2341,7 @@
             renderRetreats();
             renderTable();
             syncScroll();
+            Layout.hideLoader();
         }
 
         init();

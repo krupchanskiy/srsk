@@ -417,6 +417,7 @@
         // ==================== INIT ====================
         async function init() {
             await Layout.init({ module: 'housing', menuId: 'settings', itemId: 'buildings' });
+            Layout.showLoader();
 
             // Сначала загружаем базовые данные
             [buildingTypes, buildings, roomCounts] = await Promise.all([
@@ -436,6 +437,7 @@
             Layout.$('#buildingForm').addEventListener('submit', saveBuilding);
 
             updateUI();
+            Layout.hideLoader();
         }
 
         init();

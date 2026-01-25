@@ -400,6 +400,7 @@
         // ==================== INIT ====================
         async function init() {
             await Layout.init({ module: 'housing', menuId: 'settings', itemId: 'rooms' });
+            Layout.showLoader();
 
             // Get building filter from URL
             const urlParams = new URLSearchParams(window.location.search);
@@ -426,6 +427,7 @@
             Layout.$('#roomForm').addEventListener('submit', saveRoom);
 
             updateUI();
+            Layout.hideLoader();
         }
 
         init();

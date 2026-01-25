@@ -1,0 +1,471 @@
+<!DOCTYPE html>
+<html lang="ru" data-theme="light">
+<head>
+    <meta charset="UTF-8">
+    <script>(function(){var c={kitchen:'#f49800',housing:'#8b5cf6'};var m=localStorage.getItem('srsk_module')||'kitchen';document.documentElement.style.setProperty('--current-color',c[m]||c.kitchen);})();</script>
+
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Вайшнавы — ШРСК</title>
+    <link href="https://cdn.jsdelivr.net/npm/daisyui@4.12.14/dist/full.min.css" rel="stylesheet" />
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script>tailwind.config = { theme: { extend: { screens: { 'desktop': '1200px' } } } }</script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans:wght@400;500;600;700&family=Noto+Sans+Devanagari:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="../css/common.css">
+    <style>
+        .person-avatar {
+            width: 48px;
+            height: 48px;
+            border-radius: 50%;
+            object-fit: cover;
+            background: var(--current-color);
+            color: white;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: 600;
+            font-size: 1.25rem;
+            flex-shrink: 0;
+        }
+        .person-card {
+            transition: box-shadow 0.2s;
+        }
+        .person-card:hover {
+            box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+        }
+        .status-present {
+            border-left: 4px solid #10b981;
+        }
+        .status-absent {
+            border-left: 4px solid #d1d5db;
+        }
+    </style>
+</head>
+<body class="bg-base-200 min-h-screen flex flex-col">
+
+    <div id="header-placeholder"></div>
+
+    <main class="container mx-auto px-4 py-6 flex-1">
+
+        <!-- Page Header -->
+        <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6">
+            <h1 class="text-2xl font-bold" data-i18n="nav_vaishnavas">Вайшнавы</h1>
+            <button class="btn btn-primary gap-2" onclick="openAddModal()">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" />
+                </svg>
+                <span data-i18n="add">Добавить</span>
+            </button>
+        </div>
+
+        <!-- Filters -->
+        <div class="flex flex-col sm:flex-row gap-4 mb-6">
+            <div class="flex flex-wrap gap-2" id="filterButtons">
+                <button class="btn btn-sm filter-btn active btn-neutral" data-filter="all">
+                    <span data-i18n="filter_all">Все</span>
+                    <sup class="ml-1 opacity-60" id="countAll">0</sup>
+                </button>
+                <button class="btn btn-sm filter-btn btn-ghost" data-filter="team">
+                    <span data-i18n="filter_team">Команда</span>
+                    <sup class="ml-1 opacity-60" id="countTeam">0</sup>
+                </button>
+                <button class="btn btn-sm filter-btn btn-ghost" data-filter="guests">
+                    <span data-i18n="filter_guests">Гости</span>
+                    <sup class="ml-1 opacity-60" id="countGuests">0</sup>
+                </button>
+                <button class="btn btn-sm filter-btn btn-ghost" data-filter="present">
+                    <span data-i18n="filter_present">Здесь</span>
+                    <sup class="ml-1 opacity-60" id="countPresent">0</sup>
+                </button>
+            </div>
+            <div class="flex-1 max-w-md relative">
+                <input type="text" id="searchInput" class="input input-bordered w-full pr-10" data-i18n-placeholder="search" placeholder="Поиск...">
+                <button type="button" id="clearSearch" class="absolute right-3 top-1/2 -translate-y-1/2 text-base-content/40 hover:text-base-content hidden">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+                    </svg>
+                </button>
+            </div>
+        </div>
+
+        <!-- People List -->
+        <div class="space-y-3" id="peopleList">
+            <!-- Skeleton -->
+            <div class="skeleton-item animate-pulse bg-base-100 rounded-lg p-4">
+                <div class="flex items-center gap-4">
+                    <div class="w-12 h-12 bg-base-300 rounded-full"></div>
+                    <div class="flex-1">
+                        <div class="h-5 w-48 bg-base-300 rounded mb-2"></div>
+                        <div class="h-4 w-32 bg-base-300 rounded"></div>
+                    </div>
+                </div>
+            </div>
+            <div class="skeleton-item animate-pulse bg-base-100 rounded-lg p-4">
+                <div class="flex items-center gap-4">
+                    <div class="w-12 h-12 bg-base-300 rounded-full"></div>
+                    <div class="flex-1">
+                        <div class="h-5 w-40 bg-base-300 rounded mb-2"></div>
+                        <div class="h-4 w-28 bg-base-300 rounded"></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div id="emptyState" class="hidden text-center py-12 opacity-50">
+            <div class="text-4xl mb-2">👥</div>
+            <p data-i18n="no_results">Никого не найдено</p>
+        </div>
+
+    </main>
+
+    <div id="footer-placeholder"></div>
+
+    <!-- Add Modal -->
+    <dialog id="addModal" class="modal">
+        <div class="modal-box">
+            <h3 class="font-bold text-lg mb-4" data-i18n="add_vaishnava">Добавить вайшнава</h3>
+
+            <form id="addForm" onsubmit="saveNewPerson(event)">
+                <div class="grid grid-cols-2 gap-4 mb-4">
+                    <div class="form-control">
+                        <label class="label">
+                            <span class="label-text font-medium" data-i18n="first_name">Имя</span>
+                        </label>
+                        <input type="text" name="first_name" class="input input-bordered">
+                    </div>
+                    <div class="form-control">
+                        <label class="label">
+                            <span class="label-text font-medium" data-i18n="last_name">Фамилия</span>
+                        </label>
+                        <input type="text" name="last_name" class="input input-bordered">
+                    </div>
+                </div>
+
+                <div class="form-control mb-4">
+                    <label class="label">
+                        <span class="label-text font-medium" data-i18n="spiritual_name">Духовное имя</span>
+                    </label>
+                    <input type="text" name="spiritual_name" class="input input-bordered">
+                </div>
+
+                <div class="form-control mb-4">
+                    <label class="label">
+                        <span class="label-text font-medium" data-i18n="phone">Телефон</span>
+                    </label>
+                    <input type="tel" name="phone" class="input input-bordered">
+                </div>
+
+                <div class="form-control mb-4">
+                    <label class="label cursor-pointer justify-start gap-3">
+                        <input type="checkbox" name="is_team_member" class="checkbox checkbox-primary">
+                        <span class="label-text" data-i18n="is_team_member">Член команды</span>
+                    </label>
+                </div>
+
+                <div class="modal-action">
+                    <button type="button" class="btn btn-ghost" onclick="closeAddModal()" data-i18n="cancel">Отмена</button>
+                    <button type="submit" class="btn btn-primary" data-i18n="add">Добавить</button>
+                </div>
+            </form>
+        </div>
+        <form method="dialog" class="modal-backdrop"><button>close</button></form>
+    </dialog>
+
+    <script src="../js/layout.js"></script>
+    <script>
+        const t = key => Layout.t(key);
+        let people = [];
+        let stays = {};
+        let currentFilter = 'all';
+        let searchQuery = '';
+
+        const today = new Date().toISOString().split('T')[0];
+
+        async function init() {
+            // Читаем фильтр из URL
+            const params = new URLSearchParams(window.location.search);
+            const urlFilter = params.get('filter');
+            if (urlFilter === 'team' || urlFilter === 'guests') {
+                currentFilter = urlFilter;
+            }
+
+            // Определяем itemId для меню
+            const itemId = currentFilter === 'team' ? 'vaishnavas_team'
+                         : currentFilter === 'guests' ? 'vaishnavas_guests'
+                         : 'vaishnavas_all';
+
+            await Layout.init({ module: 'housing', menuId: 'vaishnavas', itemId });
+
+            Layout.showLoader();
+            await Promise.all([
+                loadPeople(),
+                loadStays()
+            ]);
+            Layout.hideLoader();
+
+            setupSearch();
+            setupFilters();
+
+            // Активируем нужную кнопку фильтра
+            document.querySelectorAll('.filter-btn').forEach(btn => {
+                btn.classList.remove('active', 'btn-neutral');
+                btn.classList.add('btn-ghost');
+                if (btn.dataset.filter === currentFilter) {
+                    btn.classList.add('active', 'btn-neutral');
+                    btn.classList.remove('btn-ghost');
+                }
+            });
+        }
+
+        async function loadPeople() {
+            const { data, error } = await Layout.db
+                .from('vaishnavas')
+                .select('*, departments(id, name_ru, name_en, name_hi, color)')
+                .eq('is_deleted', false)
+                .order('spiritual_name', { ascending: true, nullsFirst: false });
+
+            if (error) {
+                console.error('Error loading people:', error);
+                return;
+            }
+
+            people = data || [];
+            renderPeople();
+        }
+
+        async function loadStays() {
+            const { data } = await Layout.db
+                .from('vaishnava_stays')
+                .select('*')
+                .order('start_date');
+
+            stays = {};
+            (data || []).forEach(s => {
+                if (!stays[s.vaishnava_id]) stays[s.vaishnava_id] = [];
+                stays[s.vaishnava_id].push(s);
+            });
+        }
+
+        function isPresent(personId) {
+            const personStays = stays[personId] || [];
+            return personStays.some(s => s.start_date <= today && s.end_date >= today);
+        }
+
+        function getCurrentStay(personId) {
+            const personStays = stays[personId] || [];
+            return personStays.find(s => s.start_date <= today && s.end_date >= today);
+        }
+
+        function getDisplayName(person) {
+            if (person.spiritual_name) return person.spiritual_name;
+            return [person.first_name, person.last_name].filter(Boolean).join(' ') || t('no_name');
+        }
+
+        function getSecondaryName(person) {
+            if (person.spiritual_name) {
+                const fullName = [person.first_name, person.last_name].filter(Boolean).join(' ');
+                return fullName || '';
+            }
+            return '';
+        }
+
+        function formatDate(dateStr) {
+            if (!dateStr) return '';
+            const date = new Date(dateStr);
+            return date.toLocaleDateString(Layout.currentLang === 'hi' ? 'hi-IN' : Layout.currentLang === 'en' ? 'en-US' : 'ru-RU', {
+                day: 'numeric', month: 'short'
+            });
+        }
+
+        function setupSearch() {
+            const input = document.getElementById('searchInput');
+            const clearBtn = document.getElementById('clearSearch');
+
+            input.addEventListener('input', Layout.debounce(() => {
+                searchQuery = input.value.toLowerCase().trim();
+                clearBtn.classList.toggle('hidden', !searchQuery);
+                renderPeople();
+            }, 300));
+
+            clearBtn.addEventListener('click', () => {
+                input.value = '';
+                searchQuery = '';
+                clearBtn.classList.add('hidden');
+                renderPeople();
+            });
+        }
+
+        function setupFilters() {
+            document.querySelectorAll('.filter-btn').forEach(btn => {
+                btn.addEventListener('click', () => {
+                    currentFilter = btn.dataset.filter;
+                    document.querySelectorAll('.filter-btn').forEach(b => {
+                        b.classList.toggle('active', b === btn);
+                        b.classList.toggle('btn-neutral', b === btn);
+                        b.classList.toggle('btn-ghost', b !== btn);
+                    });
+                    // Обновляем URL без перезагрузки
+                    const url = new URL(window.location);
+                    if (currentFilter === 'all') {
+                        url.searchParams.delete('filter');
+                    } else {
+                        url.searchParams.set('filter', currentFilter);
+                    }
+                    history.replaceState(null, '', url);
+                    renderPeople();
+                });
+            });
+        }
+
+        function updateCounts() {
+            const countAll = people.length;
+            const countTeam = people.filter(p => p.is_team_member).length;
+            const countGuests = people.filter(p => !p.is_team_member).length;
+            const countPresent = people.filter(p => p.is_team_member && isPresent(p.id)).length;
+
+            document.getElementById('countAll').textContent = countAll;
+            document.getElementById('countTeam').textContent = countTeam;
+            document.getElementById('countGuests').textContent = countGuests;
+            document.getElementById('countPresent').textContent = countPresent;
+        }
+
+        function renderPeople() {
+            const container = document.getElementById('peopleList');
+            const emptyState = document.getElementById('emptyState');
+
+            // Remove skeletons
+            container.querySelectorAll('.skeleton-item').forEach(el => el.remove());
+
+            // Update counts
+            updateCounts();
+
+            // Filter
+            let filtered = people.filter(person => {
+                // Search
+                if (searchQuery) {
+                    const name = getDisplayName(person).toLowerCase();
+                    const secondary = getSecondaryName(person).toLowerCase();
+                    const phone = (person.phone || '').toLowerCase();
+                    const email = (person.email || '').toLowerCase();
+                    if (!name.includes(searchQuery) && !secondary.includes(searchQuery) &&
+                        !phone.includes(searchQuery) && !email.includes(searchQuery)) {
+                        return false;
+                    }
+                }
+
+                // Filter
+                if (currentFilter === 'team') return person.is_team_member;
+                if (currentFilter === 'guests') return !person.is_team_member;
+                if (currentFilter === 'present') return person.is_team_member && isPresent(person.id);
+                return true;
+            });
+
+            // Sort: team present first, then by name
+            filtered.sort((a, b) => {
+                const aPresent = a.is_team_member && isPresent(a.id);
+                const bPresent = b.is_team_member && isPresent(b.id);
+                if (aPresent && !bPresent) return -1;
+                if (!aPresent && bPresent) return 1;
+                return getDisplayName(a).localeCompare(getDisplayName(b));
+            });
+
+            if (filtered.length === 0) {
+                container.innerHTML = '';
+                emptyState.classList.remove('hidden');
+                return;
+            }
+
+            emptyState.classList.add('hidden');
+
+            container.innerHTML = filtered.map(person => {
+                const displayName = getDisplayName(person);
+                const secondaryName = getSecondaryName(person);
+                const initials = (person.first_name?.[0] || '') + (person.last_name?.[0] || displayName[0] || '');
+                const present = person.is_team_member && isPresent(person.id);
+                const currentStay = getCurrentStay(person.id);
+                const dept = person.departments;
+
+                const avatarHtml = person.photo_url
+                    ? `<img src="${person.photo_url}" class="person-avatar" alt="">`
+                    : `<div class="person-avatar">${initials.toUpperCase()}</div>`;
+
+                return `
+                    <div class="person-card bg-base-100 rounded-lg shadow-sm p-4 cursor-pointer ${present ? 'status-present' : ''}"
+                         onclick="window.location.href='person.html?id=${person.id}'">
+                        <div class="flex items-center gap-4">
+                            ${avatarHtml}
+                            <div class="flex-1 min-w-0">
+                                <div class="flex items-center gap-2 flex-wrap">
+                                    <span class="font-semibold truncate">${displayName}</span>
+                                    ${person.is_team_member ? `
+                                        ${dept ? `<span class="badge badge-sm" style="background-color: ${dept.color}20; color: ${dept.color}; border-color: ${dept.color}">${Layout.getName(dept)}</span>` : '<span class="badge badge-primary badge-sm">Команда</span>'}
+                                    ` : ''}
+                                    ${present ? `<span class="badge badge-success badge-sm">${t('here_now') || 'Здесь'}</span>` : ''}
+                                </div>
+                                ${secondaryName ? `<div class="text-sm opacity-60 truncate">${secondaryName}</div>` : ''}
+                                ${present && currentStay ? `<div class="text-xs text-success mt-1">${t('until') || 'до'} ${formatDate(currentStay.end_date)}</div>` : ''}
+                            </div>
+                            <div class="flex items-center gap-2 text-sm opacity-60">
+                                ${person.phone ? `<span class="hidden sm:inline">${person.phone}</span>` : ''}
+                            </div>
+                        </div>
+                    </div>
+                `;
+            }).join('');
+        }
+
+        // ==================== ADD MODAL ====================
+
+        function openAddModal() {
+            document.getElementById('addForm').reset();
+            document.getElementById('addModal').showModal();
+        }
+
+        function closeAddModal() {
+            document.getElementById('addModal').close();
+        }
+
+        async function saveNewPerson(event) {
+            event.preventDefault();
+            const form = event.target;
+
+            const data = {
+                first_name: form.first_name.value || null,
+                last_name: form.last_name.value || null,
+                spiritual_name: form.spiritual_name.value || null,
+                phone: form.phone.value || null,
+                is_team_member: form.is_team_member.checked
+            };
+
+            if (!data.first_name && !data.spiritual_name) {
+                alert(t('name_or_spiritual_required') || 'Укажите имя или духовное имя');
+                return;
+            }
+
+            const { data: newPerson, error } = await Layout.db
+                .from('vaishnavas')
+                .insert(data)
+                .select()
+                .single();
+
+            if (error) {
+                console.error('Error adding person:', error);
+                alert(t('error_saving') || 'Ошибка сохранения');
+                return;
+            }
+
+            closeAddModal();
+            window.location.href = `person.html?id=${newPerson.id}`;
+        }
+
+        window.onLanguageChange = function(lang) {
+            renderPeople();
+            Layout.updateAllTranslations();
+        };
+
+        init();
+    </script>
+</body>
+</html>
