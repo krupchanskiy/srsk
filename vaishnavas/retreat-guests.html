@@ -1,0 +1,1325 @@
+<!DOCTYPE html>
+<html lang="ru" data-theme="light">
+<head>
+    <meta charset="UTF-8">
+    <script>(function(){var c={kitchen:'#f49800',housing:'#8b5cf6'};var m=localStorage.getItem('srsk_module')||'kitchen';document.documentElement.style.setProperty('--current-color',c[m]||c.kitchen);})();</script>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Гости ретрита — ШРСК</title>
+    <link href="https://cdn.jsdelivr.net/npm/daisyui@4.12.14/dist/full.min.css" rel="stylesheet" />
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script>tailwind.config = { theme: { extend: { screens: { 'desktop': '1200px' } } } }</script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans:wght@400;500;600;700&family=Noto+Sans+Devanagari:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="../css/common.css">
+    <style>
+        .status-pending { background: #fef3c7; color: #92400e; }
+        .status-confirmed { background: #d1fae5; color: #065f46; }
+        .status-team { background: #dbeafe; color: #1e40af; }
+        .status-cancelled { background: #fee2e2; color: #991b1b; }
+        .status-no_response { background: #f3f4f6; color: #6b7280; }
+
+        .import-log {
+            max-height: 300px;
+            overflow-y: auto;
+            font-family: monospace;
+            font-size: 12px;
+        }
+        .log-success { color: #059669; }
+        .log-error { color: #dc2626; }
+        .log-warning { color: #d97706; }
+        .log-info { color: #6b7280; }
+
+        .conflict-card {
+            border-left: 4px solid #f59e0b;
+        }
+        .match-same { color: #059669; }
+        .match-diff { color: #dc2626; font-weight: 500; }
+
+        .sort-icon {
+            opacity: 0.3;
+            font-size: 0.75rem;
+            transition: opacity 0.2s;
+        }
+        .sort-icon.active {
+            opacity: 1;
+        }
+        th:hover .sort-icon {
+            opacity: 0.6;
+        }
+    </style>
+</head>
+<body class="bg-base-200 min-h-screen flex flex-col">
+
+    <div id="header-placeholder"></div>
+
+    <main class="container mx-auto px-4 py-6 flex-1">
+
+        <!-- Title + Retreat Selector -->
+        <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6">
+            <div>
+                <h1 class="text-2xl font-bold mb-2" data-i18n="retreat_guests_title">Гости ретрита</h1>
+                <div class="flex items-center gap-2">
+                    <select id="retreatSelect" class="select select-bordered select-sm" onchange="onRetreatChange(this.value)">
+                        <option value="" data-i18n="select_retreat">Выберите ретрит...</option>
+                    </select>
+                    <span id="retreatDates" class="text-sm opacity-60"></span>
+                </div>
+            </div>
+            <div class="flex gap-2">
+                <button class="btn btn-outline gap-2" onclick="openImportModal()">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" />
+                    </svg>
+                    <span data-i18n="import_csv">Импорт CSV</span>
+                </button>
+                <button class="btn btn-primary gap-2" onclick="openGuestModal()">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" />
+                    </svg>
+                    <span data-i18n="add_guest">Добавить гостя</span>
+                </button>
+            </div>
+        </div>
+
+        <!-- Stats -->
+        <div class="stats shadow mb-6 w-full">
+            <div class="stat">
+                <div class="stat-title" data-i18n="total">Всего</div>
+                <div class="stat-value text-2xl" id="statTotal">0</div>
+            </div>
+            <div class="stat">
+                <div class="stat-title" data-i18n="status_confirmed">Подтверждено</div>
+                <div class="stat-value text-2xl text-success" id="statConfirmed">0</div>
+            </div>
+            <div class="stat">
+                <div class="stat-title" data-i18n="status_pending">Планирует</div>
+                <div class="stat-value text-2xl text-warning" id="statPending">0</div>
+            </div>
+            <div class="stat">
+                <div class="stat-title" data-i18n="status_cancelled">Отказ</div>
+                <div class="stat-value text-2xl text-error" id="statCancelled">0</div>
+            </div>
+        </div>
+
+        <!-- Filter Tabs -->
+        <div class="flex flex-wrap gap-2 mb-4">
+            <button class="btn btn-sm filter-btn active" data-filter="all" data-i18n="all">Все</button>
+            <button class="btn btn-sm btn-ghost filter-btn" data-filter="confirmed" data-i18n="status_confirmed">Подтверждено</button>
+            <button class="btn btn-sm btn-ghost filter-btn" data-filter="pending" data-i18n="status_pending">Планирует</button>
+            <button class="btn btn-sm btn-ghost filter-btn" data-filter="team" data-i18n="status_team">Команда</button>
+            <button class="btn btn-sm btn-ghost filter-btn" data-filter="cancelled" data-i18n="status_cancelled">Отказ</button>
+        </div>
+
+        <!-- Guests Table -->
+        <div class="bg-base-100 rounded-xl shadow overflow-x-auto">
+            <table class="table table-zebra table-fixed w-full">
+                <thead>
+                    <tr>
+                        <th class="cursor-pointer hover:bg-base-200 select-none" onclick="toggleSort('name')">
+                            <div class="flex items-center gap-1">
+                                <span data-i18n="name">Имя</span>
+                                <span class="sort-icon" data-sort="name">↕</span>
+                            </div>
+                        </th>
+                        <th class="cursor-pointer hover:bg-base-200 select-none w-28" onclick="toggleSort('status')">
+                            <div class="flex items-center gap-1">
+                                <span data-i18n="status">Статус</span>
+                                <span class="sort-icon" data-sort="status">↕</span>
+                            </div>
+                        </th>
+                        <th class="w-32 text-center">Заезд</th>
+                        <th class="w-32 text-center">Выезд</th>
+                        <th data-i18n="accommodation">Проживание</th>
+                        <th class="w-10"></th>
+                    </tr>
+                </thead>
+                <tbody id="guestsTable">
+                    <!-- Will be populated by JS -->
+                </tbody>
+            </table>
+            <div id="noGuests" class="hidden text-center py-12 opacity-50">
+                <div class="text-4xl mb-2">👥</div>
+                <p data-i18n="no_guests">Нет гостей</p>
+            </div>
+        </div>
+
+    </main>
+
+    <div id="footer-placeholder"></div>
+
+    <!-- Import Modal -->
+    <dialog id="importModal" class="modal">
+        <div class="modal-box max-w-2xl">
+            <button type="button" class="btn btn-sm btn-circle btn-ghost absolute right-2 top-2" onclick="importModal.close()">✕</button>
+            <h3 class="font-bold text-lg mb-4" data-i18n="import_from_csv">Импорт из CSV</h3>
+
+            <!-- Step 1: File Selection -->
+            <div id="importStep1">
+                <div class="form-control mb-4">
+                    <label class="label">
+                        <span class="label-text font-medium" data-i18n="select_csv_file">Выберите CSV файл</span>
+                    </label>
+                    <input type="file" id="csvFileInput" accept=".csv" class="file-input file-input-bordered w-full" onchange="previewCSV(this)" />
+                </div>
+                <p class="text-sm opacity-60 mb-4" data-i18n="import_hint">Файл должен быть в формате CSV с колонками: name, name2, phone, email, birth, country...</p>
+
+                <div id="csvPreview" class="hidden">
+                    <div class="divider"></div>
+                    <h4 class="font-medium mb-2" data-i18n="preview">Превью</h4>
+                    <p class="text-sm mb-2"><span data-i18n="rows_found">Найдено строк:</span> <strong id="rowCount">0</strong></p>
+                    <div class="overflow-x-auto max-h-48 border rounded-lg">
+                        <table class="table table-xs" id="previewTable"></table>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Step 2: Import Progress -->
+            <div id="importStep2" class="hidden">
+                <div class="mb-4">
+                    <div class="flex justify-between mb-1">
+                        <span data-i18n="importing">Импорт...</span>
+                        <span id="importProgress">0%</span>
+                    </div>
+                    <progress id="importProgressBar" class="progress progress-primary w-full" value="0" max="100"></progress>
+                </div>
+                <div class="import-log bg-base-200 rounded-lg p-3" id="importLog"></div>
+            </div>
+
+            <!-- Step 3: Conflicts -->
+            <div id="importStep3" class="hidden">
+                <div class="alert alert-warning mb-4">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="stroke-current shrink-0 h-6 w-6" fill="none" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" /></svg>
+                    <span data-i18n="conflicts_found">Найдены возможные дубликаты. Проверьте каждый случай.</span>
+                </div>
+                <div id="conflictsList" class="space-y-4"></div>
+            </div>
+
+            <!-- Step 4: Done -->
+            <div id="importStep4" class="hidden text-center py-6">
+                <div class="text-5xl mb-4">✅</div>
+                <h4 class="font-bold text-lg mb-2" data-i18n="import_complete">Импорт завершён</h4>
+                <p class="opacity-60" id="importSummary"></p>
+            </div>
+
+            <div class="modal-action">
+                <button type="button" class="btn btn-ghost" onclick="importModal.close()" data-i18n="close">Закрыть</button>
+                <button type="button" class="btn btn-primary" id="importStartBtn" onclick="startImport()" data-i18n="start_import">Начать импорт</button>
+                <button type="button" class="btn btn-primary hidden" id="importResolveBtn" onclick="resolveConflicts()" data-i18n="apply">Применить</button>
+            </div>
+        </div>
+        <form method="dialog" class="modal-backdrop"><button>close</button></form>
+    </dialog>
+
+    <!-- Guest Modal (Add/Edit) -->
+    <dialog id="guestModal" class="modal">
+        <div class="modal-box max-w-lg">
+            <button type="button" class="btn btn-sm btn-circle btn-ghost absolute right-2 top-2" onclick="guestModal.close()">✕</button>
+            <h3 class="font-bold text-lg mb-4" id="guestModalTitle" data-i18n="add_guest">Добавить гостя</h3>
+
+            <form id="guestForm" class="space-y-4">
+                <input type="hidden" name="registration_id" />
+                <input type="hidden" name="vaishnava_id" />
+
+                <!-- Status -->
+                <div>
+                    <label class="label"><span class="label-text font-medium" data-i18n="status">Статус</span></label>
+                    <select name="status" class="select select-bordered w-full">
+                        <option value="pending">Планирует</option>
+                        <option value="confirmed">Подтверждено</option>
+                        <option value="team">Команда</option>
+                        <option value="cancelled">Отказ</option>
+                        <option value="no_response">Не отвечает</option>
+                    </select>
+                </div>
+
+                <!-- Vaishnava Search -->
+                <div>
+                    <label class="label"><span class="label-text font-medium" data-i18n="vaishnava">Вайшнав</span></label>
+                    <div class="relative">
+                        <input type="text" id="vaishnavSearch" class="input input-bordered w-full" placeholder="Поиск по имени..." autocomplete="off" oninput="searchVaishnavas(this.value)" />
+                        <div id="vaishnavSuggestions" class="hidden absolute z-50 w-full bg-base-100 border border-base-300 rounded-lg mt-1 shadow-lg max-h-48 overflow-y-auto"></div>
+                    </div>
+                    <p id="selectedVaishnav" class="text-sm mt-1 text-primary hidden"></p>
+                </div>
+
+                <!-- Org Notes -->
+                <div>
+                    <label class="label"><span class="label-text font-medium" data-i18n="org_notes">Заметки организаторов</span></label>
+                    <textarea name="org_notes" rows="2" class="textarea textarea-bordered w-full"></textarea>
+                </div>
+
+                <div class="modal-action">
+                    <button type="button" class="btn btn-ghost" onclick="guestModal.close()" data-i18n="cancel">Отмена</button>
+                    <button type="submit" class="btn btn-primary" data-i18n="save">Сохранить</button>
+                </div>
+            </form>
+        </div>
+        <form method="dialog" class="modal-backdrop"><button>close</button></form>
+    </dialog>
+
+    <script src="../js/layout.js"></script>
+    <script>
+        // ==================== STATE ====================
+        let retreatId = null;
+        let retreat = null;
+        let registrations = [];
+        let vaishnavas = [];
+        let currentFilter = 'all';
+        let sortField = 'name';
+        let sortDirection = 'asc';
+
+        // Import state
+        let csvData = [];
+        let conflicts = [];
+        let importStats = { created: 0, updated: 0, skipped: 0 };
+
+        const t = key => Layout.t(key);
+
+        // ==================== DATA LOADING ====================
+        let allRetreats = [];
+
+        async function loadAllRetreats() {
+            const { data, error } = await Layout.db
+                .from('retreats')
+                .select('*')
+                .order('start_date', { ascending: false });
+
+            if (error) {
+                console.error('Error loading retreats:', error);
+                return;
+            }
+
+            allRetreats = data || [];
+
+            // Populate select
+            const select = document.getElementById('retreatSelect');
+            select.innerHTML = '<option value="">Выберите ретрит...</option>' +
+                allRetreats.map(r => `<option value="${r.id}">${Layout.getName(r)}</option>`).join('');
+
+            // Check URL for retreat id
+            const params = new URLSearchParams(window.location.search);
+            const urlId = params.get('id');
+
+            if (urlId && allRetreats.find(r => r.id === urlId)) {
+                select.value = urlId;
+                await selectRetreat(urlId);
+            } else if (allRetreats.length > 0) {
+                // Auto-select nearest retreat
+                const today = new Date().toISOString().split('T')[0];
+
+                // Find future or current retreats (end_date >= today)
+                const futureRetreats = allRetreats
+                    .filter(r => r.end_date >= today)
+                    .sort((a, b) => a.start_date.localeCompare(b.start_date));
+
+                // Select nearest future, or most recent past
+                const nearest = futureRetreats[0] || allRetreats[0];
+                select.value = nearest.id;
+                await selectRetreat(nearest.id);
+            }
+        }
+
+        async function selectRetreat(id) {
+            retreatId = id;
+            retreat = allRetreats.find(r => r.id === id);
+
+            if (!retreat) return;
+
+            document.getElementById('retreatDates').textContent = formatDateRange(retreat.start_date, retreat.end_date);
+            document.title = `${Layout.getName(retreat)} — ШРСК`;
+
+            // Update URL
+            const url = new URL(window.location);
+            url.searchParams.set('id', id);
+            history.replaceState(null, '', url);
+
+            // Load data
+            await loadRegistrations();
+        }
+
+        function onRetreatChange(id) {
+            if (!id) {
+                retreatId = null;
+                retreat = null;
+                registrations = [];
+                document.getElementById('retreatDates').textContent = '';
+                updateStats();
+                renderTable();
+                return;
+            }
+            selectRetreat(id);
+        }
+
+
+        async function loadRegistrations() {
+            if (!retreatId) {
+                registrations = [];
+                updateStats();
+                renderTable();
+                return;
+            }
+
+            const { data, error } = await Layout.db
+                .from('retreat_registrations')
+                .select(`
+                    *,
+                    vaishnavas (id, first_name, last_name, spiritual_name, phone, email, photo_url),
+                    guest_transfers (*)
+                `)
+                .eq('retreat_id', retreatId)
+                .eq('is_deleted', false)
+                .order('created_at', { ascending: false });
+
+            if (error) {
+                console.error('Error loading registrations:', error);
+                return;
+            }
+
+            registrations = data || [];
+            updateStats();
+            renderTable();
+        }
+
+        async function loadVaishnavas() {
+            const { data, error } = await Layout.db
+                .from('vaishnavas')
+                .select('id, first_name, last_name, spiritual_name, phone, email, telegram, birth_date, is_team_member')
+                .eq('is_deleted', false)
+                .order('first_name');
+
+            if (error) {
+                console.error('Error loading vaishnavas:', error);
+                return;
+            }
+
+            vaishnavas = data || [];
+        }
+
+        // ==================== RENDERING ====================
+        function formatDateRange(start, end) {
+            const lang = Layout.currentLang;
+            const opts = { day: 'numeric', month: 'short', year: 'numeric' };
+            const locale = lang === 'hi' ? 'hi-IN' : lang === 'en' ? 'en-US' : 'ru-RU';
+            const s = new Date(start).toLocaleDateString(locale, opts);
+            const e = new Date(end).toLocaleDateString(locale, opts);
+            return `${s} — ${e}`;
+        }
+
+        function updateStats() {
+            const counts = {
+                total: registrations.length,
+                confirmed: registrations.filter(r => r.status === 'confirmed').length,
+                pending: registrations.filter(r => r.status === 'pending').length,
+                cancelled: registrations.filter(r => r.status === 'cancelled').length
+            };
+
+            document.getElementById('statTotal').textContent = counts.total;
+            document.getElementById('statConfirmed').textContent = counts.confirmed;
+            document.getElementById('statPending').textContent = counts.pending;
+            document.getElementById('statCancelled').textContent = counts.cancelled;
+        }
+
+        function filterRegistrations() {
+            let filtered = currentFilter === 'all'
+                ? [...registrations]
+                : registrations.filter(r => r.status === currentFilter);
+
+            // Sort
+            filtered.sort((a, b) => {
+                let aVal, bVal;
+
+                if (sortField === 'name') {
+                    // Sort by spiritual name if exists, otherwise by regular name
+                    aVal = (a.vaishnavas?.spiritual_name || `${a.vaishnavas?.first_name || ''} ${a.vaishnavas?.last_name || ''}`.trim()).toLowerCase();
+                    bVal = (b.vaishnavas?.spiritual_name || `${b.vaishnavas?.first_name || ''} ${b.vaishnavas?.last_name || ''}`.trim()).toLowerCase();
+                } else if (sortField === 'status') {
+                    const statusOrder = { confirmed: 1, pending: 2, team: 3, no_response: 4, cancelled: 5 };
+                    aVal = statusOrder[a.status] || 99;
+                    bVal = statusOrder[b.status] || 99;
+                } else {
+                    aVal = a[sortField] || '';
+                    bVal = b[sortField] || '';
+                }
+
+                if (aVal < bVal) return sortDirection === 'asc' ? -1 : 1;
+                if (aVal > bVal) return sortDirection === 'asc' ? 1 : -1;
+                return 0;
+            });
+
+            return filtered;
+        }
+
+        function toggleSort(field) {
+            if (sortField === field) {
+                sortDirection = sortDirection === 'asc' ? 'desc' : 'asc';
+            } else {
+                sortField = field;
+                sortDirection = 'asc';
+            }
+            updateSortIcons();
+            renderTable();
+        }
+
+        function updateSortIcons() {
+            document.querySelectorAll('.sort-icon').forEach(icon => {
+                const field = icon.dataset.sort;
+                if (field === sortField) {
+                    icon.classList.add('active');
+                    icon.textContent = sortDirection === 'asc' ? '↑' : '↓';
+                } else {
+                    icon.classList.remove('active');
+                    icon.textContent = '↕';
+                }
+            });
+        }
+
+        function renderTable() {
+            const filtered = filterRegistrations();
+            const tbody = document.getElementById('guestsTable');
+            const noGuests = document.getElementById('noGuests');
+
+            if (filtered.length === 0) {
+                tbody.innerHTML = '';
+                noGuests.classList.remove('hidden');
+                return;
+            }
+
+            noGuests.classList.add('hidden');
+
+            tbody.innerHTML = filtered.map(reg => {
+                const v = reg.vaishnavas;
+                const name = v ? `${v.first_name || ''} ${v.last_name || ''}`.trim() : '—';
+                const spiritualName = v?.spiritual_name || '';
+                const transfers = reg.guest_transfers || [];
+                const arrival = transfers.find(t => t.direction === 'arrival');
+                const departure = transfers.find(t => t.direction === 'departure');
+
+                const statusLabels = {
+                    pending: 'Планирует',
+                    confirmed: 'Подтверждено',
+                    team: 'Команда',
+                    cancelled: 'Отказ',
+                    no_response: 'Не отвечает'
+                };
+
+                const avatarPlaceholder = `<svg class="w-5 h-5 opacity-30" viewBox="0 0 122 313" xmlns="http://www.w3.org/2000/svg"><path fill="currentColor" d="M102,16h-15v82c0,6,.1,12-.9,16-1,4.5-2.6,8-4.8,10.6-2,2.8-4.8,4.8-8.5,6-2.4,1-5.1,1.6-8.1,1.8-1,.2-2,.3-3,.3h-.6c-3.8-.2-7.2-.8-10.3-1.8-3.8-1.2-7-3.1-9.6-5.7-2.7-2.8-4.6-6.4-5.7-10.9-1.2-4.4-1.8-9.8-1.8-16.3V16H18.6v89c0,13.7,3.8,24,11.5,30.8,3.8,3.4,8.6,6,14.2,7.5,1.2.4,2.6.7,4.2,1-13.9,5-23.4,11.9-28.4,20.5-7,10.7-7.3,24.1-.6,40.5l41.3,100.4,39.9-100.4c6.4-16.3,6.2-29.8-.6-40.5-4.8-8.5-14-15.2-27.4-20.2,1.6-.4,3.2-.9,4.8-1.3,5.3-1.6,9.7-4.2,13.3-7.8,3.8-3.7,6.6-8.2,8.5-13.6,2-5.6,3-12.3,3-20V16M87.5,172.5c4,7.3,3.8,16.4-.6,27.4l-26.3,68.1-27.8-68.1c-4.6-11-4.8-20.2-.6-27.4,4.6-7.5,13.8-13,27.4-16.6,13.7,3.6,22.9,9.1,27.8,16.6"/></svg>`;
+
+                // Format arrival/departure info
+                const arrivalDate = arrival?.notes || '';
+                const arrivalTransfer = arrival?.needs_transfer === 'yes' ? '🚐' : '';
+                const departureDate = departure?.notes || '';
+                const departureTransfer = departure?.needs_transfer === 'yes' ? '🚐' : '';
+
+                return `
+                    <tr class="hover cursor-pointer" onclick="openGuestModal('${reg.id}')">
+                        <td>
+                            <div class="flex items-center gap-3">
+                                <div class="w-10 h-10 rounded-full bg-base-200 flex items-center justify-center shrink-0">
+                                    ${avatarPlaceholder}
+                                </div>
+                                <div class="min-w-0">
+                                    ${spiritualName ? `<div class="font-semibold truncate">${spiritualName}</div>` : ''}
+                                    <div class="${spiritualName ? 'text-sm opacity-60' : 'font-medium'} truncate">${name}</div>
+                                </div>
+                            </div>
+                        </td>
+                        <td><span class="badge badge-sm status-${reg.status}">${statusLabels[reg.status] || reg.status}</span></td>
+                        <td class="text-center text-sm">
+                            <div>${arrivalDate}</div>
+                            ${arrivalTransfer ? `<span title="Нужен трансфер">${arrivalTransfer}</span>` : ''}
+                        </td>
+                        <td class="text-center text-sm">
+                            <div>${departureDate}</div>
+                            ${departureTransfer ? `<span title="Нужен трансфер">${departureTransfer}</span>` : ''}
+                        </td>
+                        <td class="text-sm opacity-60 truncate">${reg.accommodation_wishes || ''}</td>
+                        <td>
+                            <a href="person.html?id=${v?.id}" class="btn btn-ghost btn-xs" onclick="event.stopPropagation()">
+                                <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
+                                </svg>
+                            </a>
+                        </td>
+                    </tr>
+                `;
+            }).join('');
+        }
+
+        // ==================== FILTERS ====================
+        function setupFilters() {
+            document.querySelectorAll('.filter-btn').forEach(btn => {
+                btn.addEventListener('click', () => {
+                    document.querySelectorAll('.filter-btn').forEach(b => {
+                        b.classList.remove('active', 'btn-neutral');
+                        b.classList.add('btn-ghost');
+                    });
+                    btn.classList.add('active', 'btn-neutral');
+                    btn.classList.remove('btn-ghost');
+                    currentFilter = btn.dataset.filter;
+                    renderTable();
+                });
+            });
+        }
+
+        // ==================== GUEST MODAL ====================
+        let selectedVaishnavId = null;
+
+        function openGuestModal(registrationId = null) {
+            if (!retreatId) {
+                alert('Сначала выберите ретрит');
+                return;
+            }
+
+            const modal = document.getElementById('guestModal');
+            const form = document.getElementById('guestForm');
+            const title = document.getElementById('guestModalTitle');
+
+            form.reset();
+            selectedVaishnavId = null;
+            document.getElementById('selectedVaishnav').classList.add('hidden');
+            document.getElementById('vaishnavSearch').value = '';
+
+            if (registrationId) {
+                const reg = registrations.find(r => r.id === registrationId);
+                if (reg) {
+                    title.textContent = t('edit_guest');
+                    form.registration_id.value = reg.id;
+                    form.status.value = reg.status;
+                    form.org_notes.value = reg.org_notes || '';
+
+                    if (reg.vaishnavas) {
+                        selectedVaishnavId = reg.vaishnavas.id;
+                        const name = `${reg.vaishnavas.first_name || ''} ${reg.vaishnavas.last_name || ''}`.trim();
+                        const spiritual = reg.vaishnavas.spiritual_name ? ` (${reg.vaishnavas.spiritual_name})` : '';
+                        document.getElementById('selectedVaishnav').textContent = name + spiritual;
+                        document.getElementById('selectedVaishnav').classList.remove('hidden');
+                        document.getElementById('vaishnavSearch').value = name;
+                    }
+                }
+            } else {
+                title.textContent = t('add_guest');
+            }
+
+            modal.showModal();
+        }
+
+        function searchVaishnavas(query) {
+            const container = document.getElementById('vaishnavSuggestions');
+            if (!query || query.length < 2) {
+                container.classList.add('hidden');
+                return;
+            }
+
+            const q = query.toLowerCase();
+            const matches = vaishnavas.filter(v => {
+                const fullName = `${v.first_name || ''} ${v.last_name || ''}`.toLowerCase();
+                const spiritual = (v.spiritual_name || '').toLowerCase();
+                return fullName.includes(q) || spiritual.includes(q);
+            }).slice(0, 10);
+
+            if (matches.length === 0) {
+                container.classList.add('hidden');
+                return;
+            }
+
+            container.innerHTML = matches.map(v => {
+                const name = `${v.first_name || ''} ${v.last_name || ''}`.trim();
+                const spiritual = v.spiritual_name ? ` (${v.spiritual_name})` : '';
+                const badge = v.is_team_member ? '<span class="badge badge-xs badge-primary ml-2">Команда</span>' : '';
+                return `
+                    <div class="px-3 py-2 hover:bg-base-200 cursor-pointer flex items-center" onclick="selectVaishnav('${v.id}', '${name}', '${v.spiritual_name || ''}')">
+                        <span>${name}${spiritual}</span>${badge}
+                    </div>
+                `;
+            }).join('');
+
+            container.classList.remove('hidden');
+        }
+
+        function selectVaishnav(id, name, spiritual) {
+            selectedVaishnavId = id;
+            document.getElementById('vaishnavSearch').value = name;
+            document.getElementById('vaishnavSuggestions').classList.add('hidden');
+            const label = spiritual ? `${name} (${spiritual})` : name;
+            document.getElementById('selectedVaishnav').textContent = label;
+            document.getElementById('selectedVaishnav').classList.remove('hidden');
+        }
+
+        document.getElementById('guestForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const form = e.target;
+
+            if (!selectedVaishnavId) {
+                alert('Выберите вайшнава');
+                return;
+            }
+
+            const data = {
+                retreat_id: retreatId,
+                vaishnava_id: selectedVaishnavId,
+                status: form.status.value,
+                org_notes: form.org_notes.value.trim() || null
+            };
+
+            try {
+                if (form.registration_id.value) {
+                    // Update
+                    const { error } = await Layout.db
+                        .from('retreat_registrations')
+                        .update(data)
+                        .eq('id', form.registration_id.value);
+                    if (error) throw error;
+                } else {
+                    // Insert
+                    const { error } = await Layout.db
+                        .from('retreat_registrations')
+                        .insert(data);
+                    if (error) throw error;
+                }
+
+                guestModal.close();
+                await loadRegistrations();
+            } catch (err) {
+                console.error('Error saving registration:', err);
+                alert('Ошибка сохранения: ' + err.message);
+            }
+        });
+
+        // Hide suggestions when clicking outside
+        document.addEventListener('click', (e) => {
+            if (!e.target.closest('#vaishnavSearch') && !e.target.closest('#vaishnavSuggestions')) {
+                document.getElementById('vaishnavSuggestions').classList.add('hidden');
+            }
+        });
+
+        // ==================== CSV IMPORT ====================
+        function openImportModal() {
+            if (!retreatId) {
+                alert('Сначала выберите ретрит');
+                return;
+            }
+
+            const modal = document.getElementById('importModal');
+            resetImportState();
+            modal.showModal();
+        }
+
+        function resetImportState() {
+            csvData = [];
+            conflicts = [];
+            importStats = { created: 0, updated: 0, skipped: 0 };
+
+            document.getElementById('importStep1').classList.remove('hidden');
+            document.getElementById('importStep2').classList.add('hidden');
+            document.getElementById('importStep3').classList.add('hidden');
+            document.getElementById('importStep4').classList.add('hidden');
+            document.getElementById('csvPreview').classList.add('hidden');
+            document.getElementById('importStartBtn').classList.remove('hidden');
+            document.getElementById('importResolveBtn').classList.add('hidden');
+            document.getElementById('csvFileInput').value = '';
+            document.getElementById('importLog').innerHTML = '';
+        }
+
+        function previewCSV(input) {
+            const file = input.files[0];
+            if (!file) return;
+
+            const reader = new FileReader();
+            reader.onload = (e) => {
+                const text = e.target.result;
+                csvData = parseCSV(text);
+
+                if (csvData.length === 0) {
+                    alert('Файл пустой или неверный формат');
+                    return;
+                }
+
+                document.getElementById('rowCount').textContent = csvData.length;
+
+                // Show preview (first 5 rows)
+                const headers = Object.keys(csvData[0]);
+                const previewRows = csvData.slice(0, 5);
+
+                let tableHTML = `<thead><tr>${headers.slice(0, 6).map(h => `<th class="whitespace-nowrap">${h}</th>`).join('')}</tr></thead>`;
+                tableHTML += '<tbody>';
+                previewRows.forEach(row => {
+                    tableHTML += '<tr>';
+                    headers.slice(0, 6).forEach(h => {
+                        const val = (row[h] || '').substring(0, 30);
+                        tableHTML += `<td class="whitespace-nowrap">${val}</td>`;
+                    });
+                    tableHTML += '</tr>';
+                });
+                tableHTML += '</tbody>';
+
+                document.getElementById('previewTable').innerHTML = tableHTML;
+                document.getElementById('csvPreview').classList.remove('hidden');
+            };
+            reader.readAsText(file);
+        }
+
+        function parseCSV(text) {
+            const lines = text.split('\n');
+            if (lines.length < 2) return [];
+
+            // Parse header
+            const headers = parseCSVLine(lines[0]);
+
+            // Parse rows
+            const rows = [];
+            for (let i = 1; i < lines.length; i++) {
+                const line = lines[i].trim();
+                if (!line) continue;
+
+                const values = parseCSVLine(line);
+                const row = {};
+                headers.forEach((h, idx) => {
+                    row[h.trim()] = values[idx] || '';
+                });
+
+                // Skip if no name
+                if (!row.name && !row.name2) continue;
+
+                rows.push(row);
+            }
+
+            return rows;
+        }
+
+        function parseCSVLine(line) {
+            const result = [];
+            let current = '';
+            let inQuotes = false;
+
+            for (let i = 0; i < line.length; i++) {
+                const char = line[i];
+
+                if (char === '"') {
+                    inQuotes = !inQuotes;
+                } else if (char === ',' && !inQuotes) {
+                    result.push(current.trim());
+                    current = '';
+                } else {
+                    current += char;
+                }
+            }
+            result.push(current.trim());
+
+            return result;
+        }
+
+        // ==================== IMPORT LOGIC ====================
+        async function startImport() {
+            if (!retreatId) {
+                alert('Сначала выберите ретрит');
+                return;
+            }
+
+            if (csvData.length === 0) {
+                alert('Сначала загрузите CSV файл');
+                return;
+            }
+
+            // Switch to step 2
+            document.getElementById('importStep1').classList.add('hidden');
+            document.getElementById('importStep2').classList.remove('hidden');
+            document.getElementById('importStartBtn').classList.add('hidden');
+
+            const log = document.getElementById('importLog');
+            const progressBar = document.getElementById('importProgressBar');
+            const progressText = document.getElementById('importProgress');
+
+            conflicts = [];
+            importStats = { created: 0, updated: 0, skipped: 0 };
+
+            for (let i = 0; i < csvData.length; i++) {
+                const row = csvData[i];
+                const progress = Math.round((i + 1) / csvData.length * 100);
+                progressBar.value = progress;
+                progressText.textContent = `${progress}%`;
+
+                try {
+                    const result = await processRow(row, i + 1);
+
+                    if (result.status === 'created') {
+                        importStats.created++;
+                        logMessage(log, `✓ Создан: ${result.name}`, 'success');
+                    } else if (result.status === 'updated') {
+                        importStats.updated++;
+                        logMessage(log, `↻ Обновлён: ${result.name}`, 'info');
+                    } else if (result.status === 'conflict') {
+                        conflicts.push(result);
+                        logMessage(log, `⚠ Конфликт: ${result.name}`, 'warning');
+                    } else if (result.status === 'skipped') {
+                        importStats.skipped++;
+                        logMessage(log, `— Пропущен: ${row.name || row.name2}`, 'info');
+                    }
+                } catch (err) {
+                    logMessage(log, `✗ Ошибка строка ${i + 1}: ${err.message}`, 'error');
+                    importStats.skipped++;
+                }
+            }
+
+            // Show conflicts or done
+            if (conflicts.length > 0) {
+                showConflicts();
+            } else {
+                showImportDone();
+            }
+        }
+
+        function logMessage(container, message, type) {
+            const div = document.createElement('div');
+            div.className = `log-${type}`;
+            div.textContent = message;
+            container.appendChild(div);
+            container.scrollTop = container.scrollHeight;
+        }
+
+        async function processRow(row, rowNum) {
+            // Parse CSV fields
+            const parsed = parseRowData(row);
+
+            // Find matching vaishnava
+            const match = findMatchingVaishnava(parsed);
+
+            if (match.score >= 5) {
+                // High confidence match - update
+                await updateVaishnava(match.vaishnava.id, parsed);
+                await createOrUpdateRegistration(match.vaishnava.id, parsed);
+                return { status: 'updated', name: parsed.displayName, vaishnavId: match.vaishnava.id };
+            } else if (match.score >= 3) {
+                // Medium confidence - conflict
+                return {
+                    status: 'conflict',
+                    name: parsed.displayName,
+                    parsed,
+                    candidates: match.candidates,
+                    rowNum
+                };
+            } else {
+                // No match - create new
+                const vaishnavId = await createVaishnava(parsed);
+                await createOrUpdateRegistration(vaishnavId, parsed);
+                return { status: 'created', name: parsed.displayName, vaishnavId };
+            }
+        }
+
+        function parseRowData(row) {
+            // Split name
+            const nameParts = (row.name || '').trim().split(/\s+/);
+            const firstName = nameParts[0] || '';
+            const lastName = nameParts.slice(1).join(' ') || '';
+
+            // Parse date (DD-MM-YYYY or DD.MM.YYYY)
+            let birthDate = null;
+            if (row.birth) {
+                const match = row.birth.match(/(\d{1,2})[-.](\d{1,2})[-.](\d{4})/);
+                if (match) {
+                    birthDate = `${match[3]}-${match[2].padStart(2, '0')}-${match[1].padStart(2, '0')}`;
+                }
+            }
+
+            // Normalize phone
+            const phone = normalizePhone(row.phone);
+
+            // Normalize email
+            const email = (row.email || '').toLowerCase().trim() || null;
+
+            // Gender
+            let gender = null;
+            if (row['Ваш_пол']) {
+                gender = row['Ваш_пол'].toLowerCase().includes('муж') ? 'male' : 'female';
+            }
+
+            // Telegram
+            let telegram = row.telegram_id || '';
+            if (telegram.startsWith('@')) telegram = telegram.substring(1);
+            telegram = telegram.trim() || null;
+
+            // Parse registration date
+            let registrationDate = null;
+            if (row.sent) {
+                const match = row.sent.match(/(\d{4})-(\d{2})-(\d{2})/);
+                if (match) registrationDate = `${match[1]}-${match[2]}-${match[3]}`;
+            }
+
+            // Photo URL
+            const photoUrl = row['Прикрепите_к_анкете_ваше_фото_можно_просто_селфи'] || null;
+
+            return {
+                firstName,
+                lastName,
+                spiritualName: (row.name2 || '').trim() || null,
+                phone,
+                email,
+                birthDate,
+                gender,
+                country: (row.country || '').trim() || null,
+                indiaExperience: (row.travel_experience || '').trim() || null,
+                telegram,
+                photoUrl,
+                displayName: `${firstName} ${lastName}`.trim() || row.name2 || 'Без имени',
+
+                // Registration fields
+                registrationDate,
+                companions: (row.famili || '').trim() || null,
+                accommodationWishes: (row.hotel || '').trim() || null,
+                paymentNotes: (row.pay_date || '').trim() || null,
+                orgNotes: combineNotes(row['Комментарии ОП'], row.Questions),
+
+                // Transfers
+                arrivalNeeds: row.transfer_up_2 === 'Да' ? 'yes' : 'no',
+                arrivalTime: row.arrival_time || null,
+                arrivalFlight: row.arrival_number || null,
+                departureNeeds: row.transfer_back === 'Да' ? 'yes' : 'no',
+                departureTime: row.departure_time || null,
+                departureFlight: row.departure_number || null
+            };
+        }
+
+        function normalizePhone(phone) {
+            if (!phone) return null;
+            let clean = phone.replace(/[^\d+]/g, '');
+            if (clean.match(/^8\d{10}$/)) {
+                clean = '+7' + clean.slice(1);
+            }
+            if (!clean.startsWith('+') && clean.length >= 10) {
+                clean = '+' + clean;
+            }
+            return clean || null;
+        }
+
+        function combineNotes(...notes) {
+            return notes.filter(n => n && n.trim()).join('\n\n').trim() || null;
+        }
+
+        function findMatchingVaishnava(parsed) {
+            let bestMatch = { score: 0, vaishnava: null, candidates: [] };
+
+            for (const v of vaishnavas) {
+                let score = 0;
+
+                // Email match (+5)
+                if (parsed.email && v.email && parsed.email.toLowerCase() === v.email.toLowerCase()) {
+                    score += 5;
+                }
+
+                // Phone match (+4)
+                if (parsed.phone && v.phone) {
+                    const p1 = parsed.phone.replace(/\D/g, '');
+                    const p2 = v.phone.replace(/\D/g, '');
+                    if (p1.length >= 10 && p2.length >= 10 && p1.slice(-10) === p2.slice(-10)) {
+                        score += 4;
+                    }
+                }
+
+                // Spiritual name match (+3)
+                if (parsed.spiritualName && v.spiritual_name) {
+                    const s1 = parsed.spiritualName.toLowerCase().replace(/\s+/g, '');
+                    const s2 = v.spiritual_name.toLowerCase().replace(/\s+/g, '');
+                    if (s1 === s2 || s1.includes(s2) || s2.includes(s1)) {
+                        score += 3;
+                    }
+                }
+
+                // Telegram match (+3)
+                if (parsed.telegram && v.telegram) {
+                    const t1 = parsed.telegram.toLowerCase().replace('@', '');
+                    const t2 = v.telegram.toLowerCase().replace('@', '');
+                    if (t1 === t2) {
+                        score += 3;
+                    }
+                }
+
+                // Name match (+2)
+                if (parsed.firstName && v.first_name) {
+                    const f1 = parsed.firstName.toLowerCase();
+                    const f2 = v.first_name.toLowerCase();
+                    const l1 = (parsed.lastName || '').toLowerCase();
+                    const l2 = (v.last_name || '').toLowerCase();
+                    if (f1 === f2 && l1 === l2) {
+                        score += 2;
+                    }
+                }
+
+                // Birth date match (+2)
+                if (parsed.birthDate && v.birth_date && parsed.birthDate === v.birth_date) {
+                    score += 2;
+                }
+
+                if (score > 0) {
+                    bestMatch.candidates.push({ vaishnava: v, score });
+                }
+
+                if (score > bestMatch.score) {
+                    bestMatch.score = score;
+                    bestMatch.vaishnava = v;
+                }
+            }
+
+            // Sort candidates by score
+            bestMatch.candidates.sort((a, b) => b.score - a.score);
+
+            return bestMatch;
+        }
+
+        async function createVaishnava(parsed) {
+            const { data, error } = await Layout.db
+                .from('vaishnavas')
+                .insert({
+                    first_name: parsed.firstName || null,
+                    last_name: parsed.lastName || null,
+                    spiritual_name: parsed.spiritualName,
+                    phone: parsed.phone,
+                    email: parsed.email,
+                    birth_date: parsed.birthDate,
+                    gender: parsed.gender,
+                    country: parsed.country,
+                    india_experience: parsed.indiaExperience,
+                    telegram: parsed.telegram,
+                    photo_url: parsed.photoUrl,
+                    is_team_member: false
+                })
+                .select('id')
+                .single();
+
+            if (error) throw error;
+
+            // Add to local cache
+            vaishnavas.push({ id: data.id, ...parsed });
+
+            return data.id;
+        }
+
+        async function updateVaishnava(id, parsed) {
+            const updates = {};
+
+            // Only update if value exists in CSV
+            if (parsed.phone) updates.phone = parsed.phone;
+            if (parsed.email) updates.email = parsed.email;
+            if (parsed.birthDate) updates.birth_date = parsed.birthDate;
+            if (parsed.gender) updates.gender = parsed.gender;
+            if (parsed.country) updates.country = parsed.country;
+            if (parsed.indiaExperience) updates.india_experience = parsed.indiaExperience;
+            if (parsed.telegram) updates.telegram = parsed.telegram;
+            if (parsed.photoUrl) updates.photo_url = parsed.photoUrl;
+
+            if (Object.keys(updates).length > 0) {
+                const { error } = await Layout.db
+                    .from('vaishnavas')
+                    .update(updates)
+                    .eq('id', id);
+
+                if (error) throw error;
+            }
+        }
+
+        async function createOrUpdateRegistration(vaishnavId, parsed) {
+            // Check if registration already exists
+            const { data: existing } = await Layout.db
+                .from('retreat_registrations')
+                .select('id')
+                .eq('retreat_id', retreatId)
+                .eq('vaishnava_id', vaishnavId)
+                .maybeSingle();
+
+            const regData = {
+                retreat_id: retreatId,
+                vaishnava_id: vaishnavId,
+                registration_date: parsed.registrationDate,
+                status: 'pending',
+                companions: parsed.companions,
+                accommodation_wishes: parsed.accommodationWishes,
+                payment_notes: parsed.paymentNotes,
+                org_notes: parsed.orgNotes
+            };
+
+            let registrationId;
+
+            if (existing) {
+                // Update
+                const { error } = await Layout.db
+                    .from('retreat_registrations')
+                    .update(regData)
+                    .eq('id', existing.id);
+                if (error) throw error;
+                registrationId = existing.id;
+            } else {
+                // Insert
+                const { data, error } = await Layout.db
+                    .from('retreat_registrations')
+                    .insert(regData)
+                    .select('id')
+                    .single();
+                if (error) throw error;
+                registrationId = data.id;
+            }
+
+            // Create transfers
+            await createTransfers(registrationId, parsed);
+        }
+
+        async function createTransfers(registrationId, parsed) {
+            // Delete existing transfers for this registration
+            await Layout.db
+                .from('guest_transfers')
+                .delete()
+                .eq('registration_id', registrationId);
+
+            const transfers = [];
+
+            // Arrival
+            if (parsed.arrivalTime || parsed.arrivalFlight) {
+                transfers.push({
+                    registration_id: registrationId,
+                    direction: 'arrival',
+                    needs_transfer: parsed.arrivalNeeds,
+                    flight_number: parsed.arrivalFlight,
+                    notes: parsed.arrivalTime
+                });
+            }
+
+            // Departure
+            if (parsed.departureTime || parsed.departureFlight) {
+                transfers.push({
+                    registration_id: registrationId,
+                    direction: 'departure',
+                    needs_transfer: parsed.departureNeeds,
+                    flight_number: parsed.departureFlight,
+                    notes: parsed.departureTime
+                });
+            }
+
+            if (transfers.length > 0) {
+                const { error } = await Layout.db
+                    .from('guest_transfers')
+                    .insert(transfers);
+                if (error) console.error('Error creating transfers:', error);
+            }
+        }
+
+        // ==================== CONFLICTS UI ====================
+        function showConflicts() {
+            document.getElementById('importStep2').classList.add('hidden');
+            document.getElementById('importStep3').classList.remove('hidden');
+            document.getElementById('importResolveBtn').classList.remove('hidden');
+
+            const container = document.getElementById('conflictsList');
+            container.innerHTML = conflicts.map((c, idx) => {
+                const parsed = c.parsed;
+                const candidate = c.candidates[0]?.vaishnava;
+
+                return `
+                    <div class="conflict-card bg-base-100 rounded-lg p-4">
+                        <div class="flex justify-between items-start mb-3">
+                            <div>
+                                <strong>Строка ${c.rowNum}:</strong> ${c.name}
+                                <span class="badge badge-sm ml-2">${c.candidates[0]?.score || 0} баллов</span>
+                            </div>
+                        </div>
+
+                        <div class="grid grid-cols-2 gap-4 text-sm mb-3">
+                            <div>
+                                <div class="font-medium mb-1">В CSV:</div>
+                                <div>${parsed.firstName} ${parsed.lastName}</div>
+                                <div>${parsed.spiritualName || '—'}</div>
+                                <div>${parsed.email || '—'}</div>
+                                <div>${parsed.phone || '—'}</div>
+                            </div>
+                            <div>
+                                <div class="font-medium mb-1">В базе:</div>
+                                ${candidate ? `
+                                    <div class="${parsed.firstName === candidate.first_name ? 'match-same' : 'match-diff'}">${candidate.first_name} ${candidate.last_name || ''}</div>
+                                    <div class="${parsed.spiritualName === candidate.spiritual_name ? 'match-same' : 'match-diff'}">${candidate.spiritual_name || '—'}</div>
+                                    <div class="${parsed.email === candidate.email ? 'match-same' : 'match-diff'}">${candidate.email || '—'}</div>
+                                    <div class="${normalizePhone(parsed.phone) === normalizePhone(candidate.phone) ? 'match-same' : 'match-diff'}">${candidate.phone || '—'}</div>
+                                ` : '<div class="opacity-50">Нет совпадений</div>'}
+                            </div>
+                        </div>
+
+                        <div class="flex gap-4">
+                            <label class="flex items-center gap-2 cursor-pointer">
+                                <input type="radio" name="conflict_${idx}" value="update" class="radio radio-sm" ${candidate ? 'checked' : ''} />
+                                <span>Это тот же человек — обновить</span>
+                            </label>
+                            <label class="flex items-center gap-2 cursor-pointer">
+                                <input type="radio" name="conflict_${idx}" value="create" class="radio radio-sm" ${!candidate ? 'checked' : ''} />
+                                <span>Создать нового</span>
+                            </label>
+                            <label class="flex items-center gap-2 cursor-pointer">
+                                <input type="radio" name="conflict_${idx}" value="skip" class="radio radio-sm" />
+                                <span>Пропустить</span>
+                            </label>
+                        </div>
+                    </div>
+                `;
+            }).join('');
+        }
+
+        async function resolveConflicts() {
+            document.getElementById('importResolveBtn').disabled = true;
+
+            for (let i = 0; i < conflicts.length; i++) {
+                const c = conflicts[i];
+                const decision = document.querySelector(`input[name="conflict_${i}"]:checked`)?.value;
+
+                try {
+                    if (decision === 'update' && c.candidates[0]) {
+                        await updateVaishnava(c.candidates[0].vaishnava.id, c.parsed);
+                        await createOrUpdateRegistration(c.candidates[0].vaishnava.id, c.parsed);
+                        importStats.updated++;
+                    } else if (decision === 'create') {
+                        const vaishnavId = await createVaishnava(c.parsed);
+                        await createOrUpdateRegistration(vaishnavId, c.parsed);
+                        importStats.created++;
+                    } else {
+                        importStats.skipped++;
+                    }
+                } catch (err) {
+                    console.error('Error resolving conflict:', err);
+                    importStats.skipped++;
+                }
+            }
+
+            showImportDone();
+        }
+
+        function showImportDone() {
+            document.getElementById('importStep2').classList.add('hidden');
+            document.getElementById('importStep3').classList.add('hidden');
+            document.getElementById('importStep4').classList.remove('hidden');
+            document.getElementById('importResolveBtn').classList.add('hidden');
+
+            document.getElementById('importSummary').textContent =
+                `Создано: ${importStats.created}, Обновлено: ${importStats.updated}, Пропущено: ${importStats.skipped}`;
+
+            // Reload data
+            loadRegistrations();
+            loadVaishnavas();
+        }
+
+        // ==================== INIT ====================
+        async function init() {
+            await Layout.init({ module: 'housing', menuId: 'vaishnavas', itemId: 'retreat_guests' });
+            Layout.showLoader();
+
+            await Promise.all([loadAllRetreats(), loadVaishnavas()]);
+
+            setupFilters();
+            updateSortIcons();
+
+            Layout.hideLoader();
+        }
+
+        window.onLanguageChange = () => {
+            Layout.updateAllTranslations();
+            renderTable();
+        };
+
+        init();
+    </script>
+</body>
+</html>

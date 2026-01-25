@@ -62,7 +62,8 @@ const modules = {
             { id: 'vaishnavas', items: [
                 { id: 'vaishnavas_all', href: 'vaishnavas/index.html' },
                 { id: 'vaishnavas_guests', href: 'vaishnavas/index.html?filter=guests' },
-                { id: 'vaishnavas_team', href: 'vaishnavas/index.html?filter=team' }
+                { id: 'vaishnavas_team', href: 'vaishnavas/index.html?filter=team' },
+                { id: 'retreat_guests', href: 'vaishnavas/retreat-guests.html' }
             ]},
             { id: 'ashram', items: [
                 { id: 'retreats', href: 'ashram/retreats.html' }

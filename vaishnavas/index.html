@@ -16,8 +16,8 @@
     <link rel="stylesheet" href="../css/common.css">
     <style>
         .person-avatar {
-            width: 48px;
-            height: 48px;
+            width: 40px;
+            height: 40px;
             border-radius: 50%;
             object-fit: cover;
             background: var(--current-color);
@@ -26,20 +26,19 @@
             align-items: center;
             justify-content: center;
             font-weight: 600;
-            font-size: 1.25rem;
+            font-size: 1rem;
             flex-shrink: 0;
         }
-        .person-card {
-            transition: box-shadow 0.2s;
+        .sort-icon {
+            opacity: 0.3;
+            font-size: 0.75rem;
+            transition: opacity 0.2s;
         }
-        .person-card:hover {
-            box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+        .sort-icon.active {
+            opacity: 1;
         }
-        .status-present {
-            border-left: 4px solid #10b981;
-        }
-        .status-absent {
-            border-left: 4px solid #d1d5db;
+        th:hover .sort-icon {
+            opacity: 0.6;
         }
     </style>
 </head>
@@ -90,32 +89,47 @@
             </div>
         </div>
 
-        <!-- People List -->
-        <div class="space-y-3" id="peopleList">
-            <!-- Skeleton -->
-            <div class="skeleton-item animate-pulse bg-base-100 rounded-lg p-4">
-                <div class="flex items-center gap-4">
-                    <div class="w-12 h-12 bg-base-300 rounded-full"></div>
-                    <div class="flex-1">
-                        <div class="h-5 w-48 bg-base-300 rounded mb-2"></div>
-                        <div class="h-4 w-32 bg-base-300 rounded"></div>
-                    </div>
-                </div>
+        <!-- People Table -->
+        <div class="bg-base-100 rounded-xl shadow overflow-x-auto">
+            <table class="table table-zebra table-fixed w-full">
+                <thead>
+                    <tr>
+                        <th class="cursor-pointer hover:bg-base-200 select-none w-1/4" onclick="toggleSort('name')">
+                            <div class="flex items-center gap-1">
+                                <span data-i18n="name">Имя</span>
+                                <span class="sort-icon active" data-sort="name">↑</span>
+                            </div>
+                        </th>
+                        <th class="cursor-pointer hover:bg-base-200 select-none w-1/5" onclick="toggleSort('spiritual')">
+                            <div class="flex items-center gap-1">
+                                <span data-i18n="spiritual_name">Духовное имя</span>
+                                <span class="sort-icon" data-sort="spiritual">↕</span>
+                            </div>
+                        </th>
+                        <th class="cursor-pointer hover:bg-base-200 select-none w-1/6" onclick="toggleSort('country')">
+                            <div class="flex items-center gap-1">
+                                <span data-i18n="country">Страна</span>
+                                <span class="sort-icon" data-sort="country">↕</span>
+                            </div>
+                        </th>
+                        <th class="cursor-pointer hover:bg-base-200 select-none w-1/5" onclick="toggleSort('teacher')">
+                            <div class="flex items-center gap-1">
+                                <span data-i18n="spiritual_teacher">Дух. учитель</span>
+                                <span class="sort-icon" data-sort="teacher">↕</span>
+                            </div>
+                        </th>
+                        <th class="w-32" data-i18n="phone">Телефон</th>
+                        <th class="w-10"></th>
+                    </tr>
+                </thead>
+                <tbody id="peopleTable">
+                    <!-- Will be populated by JS -->
+                </tbody>
+            </table>
+            <div id="emptyState" class="hidden text-center py-12 opacity-50">
+                <div class="text-4xl mb-2">👥</div>
+                <p data-i18n="no_results">Никого не найдено</p>
             </div>
-            <div class="skeleton-item animate-pulse bg-base-100 rounded-lg p-4">
-                <div class="flex items-center gap-4">
-                    <div class="w-12 h-12 bg-base-300 rounded-full"></div>
-                    <div class="flex-1">
-                        <div class="h-5 w-40 bg-base-300 rounded mb-2"></div>
-                        <div class="h-4 w-28 bg-base-300 rounded"></div>
-                    </div>
-                </div>
-            </div>
-        </div>
-
-        <div id="emptyState" class="hidden text-center py-12 opacity-50">
-            <div class="text-4xl mb-2">👥</div>
-            <p data-i18n="no_results">Никого не найдено</p>
         </div>
 
     </main>
@@ -180,6 +194,8 @@
         let stays = {};
         let currentFilter = 'all';
         let searchQuery = '';
+        let sortField = 'name';
+        let sortDirection = 'asc';
 
         const today = new Date().toISOString().split('T')[0];
 
@@ -207,6 +223,7 @@
 
             setupSearch();
             setupFilters();
+            updateSortIcons();
 
             // Активируем нужную кнопку фильтра
             document.querySelectorAll('.filter-btn').forEach(btn => {
@@ -253,30 +270,8 @@
             return personStays.some(s => s.start_date <= today && s.end_date >= today);
         }
 
-        function getCurrentStay(personId) {
-            const personStays = stays[personId] || [];
-            return personStays.find(s => s.start_date <= today && s.end_date >= today);
-        }
-
         function getDisplayName(person) {
-            if (person.spiritual_name) return person.spiritual_name;
             return [person.first_name, person.last_name].filter(Boolean).join(' ') || t('no_name');
-        }
-
-        function getSecondaryName(person) {
-            if (person.spiritual_name) {
-                const fullName = [person.first_name, person.last_name].filter(Boolean).join(' ');
-                return fullName || '';
-            }
-            return '';
-        }
-
-        function formatDate(dateStr) {
-            if (!dateStr) return '';
-            const date = new Date(dateStr);
-            return date.toLocaleDateString(Layout.currentLang === 'hi' ? 'hi-IN' : Layout.currentLang === 'en' ? 'en-US' : 'ru-RU', {
-                day: 'numeric', month: 'short'
-            });
         }
 
         function setupSearch() {
@@ -319,6 +314,30 @@
             });
         }
 
+        function toggleSort(field) {
+            if (sortField === field) {
+                sortDirection = sortDirection === 'asc' ? 'desc' : 'asc';
+            } else {
+                sortField = field;
+                sortDirection = 'asc';
+            }
+            updateSortIcons();
+            renderPeople();
+        }
+
+        function updateSortIcons() {
+            document.querySelectorAll('.sort-icon').forEach(icon => {
+                const field = icon.dataset.sort;
+                if (field === sortField) {
+                    icon.classList.add('active');
+                    icon.textContent = sortDirection === 'asc' ? '↑' : '↓';
+                } else {
+                    icon.classList.remove('active');
+                    icon.textContent = '↕';
+                }
+            });
+        }
+
         function updateCounts() {
             const countAll = people.length;
             const countTeam = people.filter(p => p.is_team_member).length;
@@ -332,11 +351,8 @@
         }
 
         function renderPeople() {
-            const container = document.getElementById('peopleList');
+            const tbody = document.getElementById('peopleTable');
             const emptyState = document.getElementById('emptyState');
-
-            // Remove skeletons
-            container.querySelectorAll('.skeleton-item').forEach(el => el.remove());
 
             // Update counts
             updateCounts();
@@ -346,11 +362,14 @@
                 // Search
                 if (searchQuery) {
                     const name = getDisplayName(person).toLowerCase();
-                    const secondary = getSecondaryName(person).toLowerCase();
+                    const spiritual = (person.spiritual_name || '').toLowerCase();
                     const phone = (person.phone || '').toLowerCase();
                     const email = (person.email || '').toLowerCase();
-                    if (!name.includes(searchQuery) && !secondary.includes(searchQuery) &&
-                        !phone.includes(searchQuery) && !email.includes(searchQuery)) {
+                    const country = (person.country || '').toLowerCase();
+                    const teacher = (person.spiritual_teacher || '').toLowerCase();
+                    if (!name.includes(searchQuery) && !spiritual.includes(searchQuery) &&
+                        !phone.includes(searchQuery) && !email.includes(searchQuery) &&
+                        !country.includes(searchQuery) && !teacher.includes(searchQuery)) {
                         return false;
                     }
                 }
@@ -362,56 +381,69 @@
                 return true;
             });
 
-            // Sort: team present first, then by name
+            // Sort
             filtered.sort((a, b) => {
-                const aPresent = a.is_team_member && isPresent(a.id);
-                const bPresent = b.is_team_member && isPresent(b.id);
-                if (aPresent && !bPresent) return -1;
-                if (!aPresent && bPresent) return 1;
-                return getDisplayName(a).localeCompare(getDisplayName(b));
+                let aVal, bVal;
+                if (sortField === 'name') {
+                    aVal = getDisplayName(a).toLowerCase();
+                    bVal = getDisplayName(b).toLowerCase();
+                } else if (sortField === 'spiritual') {
+                    aVal = (a.spiritual_name || '').toLowerCase();
+                    bVal = (b.spiritual_name || '').toLowerCase();
+                } else if (sortField === 'country') {
+                    aVal = (a.country || '').toLowerCase();
+                    bVal = (b.country || '').toLowerCase();
+                } else if (sortField === 'teacher') {
+                    aVal = (a.spiritual_teacher || '').toLowerCase();
+                    bVal = (b.spiritual_teacher || '').toLowerCase();
+                }
+
+                if (aVal < bVal) return sortDirection === 'asc' ? -1 : 1;
+                if (aVal > bVal) return sortDirection === 'asc' ? 1 : -1;
+                return 0;
             });
 
             if (filtered.length === 0) {
-                container.innerHTML = '';
+                tbody.innerHTML = '';
                 emptyState.classList.remove('hidden');
                 return;
             }
 
             emptyState.classList.add('hidden');
 
-            container.innerHTML = filtered.map(person => {
-                const displayName = getDisplayName(person);
-                const secondaryName = getSecondaryName(person);
-                const initials = (person.first_name?.[0] || '') + (person.last_name?.[0] || displayName[0] || '');
-                const present = person.is_team_member && isPresent(person.id);
-                const currentStay = getCurrentStay(person.id);
-                const dept = person.departments;
+            const avatarPlaceholder = `<svg class="w-5 h-5 opacity-30" viewBox="0 0 122 313" xmlns="http://www.w3.org/2000/svg"><path fill="currentColor" d="M102,16h-15v82c0,6,.1,12-.9,16-1,4.5-2.6,8-4.8,10.6-2,2.8-4.8,4.8-8.5,6-2.4,1-5.1,1.6-8.1,1.8-1,.2-2,.3-3,.3h-.6c-3.8-.2-7.2-.8-10.3-1.8-3.8-1.2-7-3.1-9.6-5.7-2.7-2.8-4.6-6.4-5.7-10.9-1.2-4.4-1.8-9.8-1.8-16.3V16H18.6v89c0,13.7,3.8,24,11.5,30.8,3.8,3.4,8.6,6,14.2,7.5,1.2.4,2.6.7,4.2,1-13.9,5-23.4,11.9-28.4,20.5-7,10.7-7.3,24.1-.6,40.5l41.3,100.4,39.9-100.4c6.4-16.3,6.2-29.8-.6-40.5-4.8-8.5-14-15.2-27.4-20.2,1.6-.4,3.2-.9,4.8-1.3,5.3-1.6,9.7-4.2,13.3-7.8,3.8-3.7,6.6-8.2,8.5-13.6,2-5.6,3-12.3,3-20V16M87.5,172.5c4,7.3,3.8,16.4-.6,27.4l-26.3,68.1-27.8-68.1c-4.6-11-4.8-20.2-.6-27.4,4.6-7.5,13.8-13,27.4-16.6,13.7,3.6,22.9,9.1,27.8,16.6"/></svg>`;
 
-                const avatarHtml = person.photo_url
-                    ? `<img src="${person.photo_url}" class="person-avatar" alt="">`
-                    : `<div class="person-avatar">${initials.toUpperCase()}</div>`;
+            tbody.innerHTML = filtered.map(person => {
+                const displayName = getDisplayName(person);
+                const dept = person.departments;
+                const present = person.is_team_member && isPresent(person.id);
 
                 return `
-                    <div class="person-card bg-base-100 rounded-lg shadow-sm p-4 cursor-pointer ${present ? 'status-present' : ''}"
-                         onclick="window.location.href='person.html?id=${person.id}'">
-                        <div class="flex items-center gap-4">
-                            ${avatarHtml}
-                            <div class="flex-1 min-w-0">
-                                <div class="flex items-center gap-2 flex-wrap">
-                                    <span class="font-semibold truncate">${displayName}</span>
-                                    ${person.is_team_member ? `
-                                        ${dept ? `<span class="badge badge-sm" style="background-color: ${dept.color}20; color: ${dept.color}; border-color: ${dept.color}">${Layout.getName(dept)}</span>` : '<span class="badge badge-primary badge-sm">Команда</span>'}
-                                    ` : ''}
-                                    ${present ? `<span class="badge badge-success badge-sm">${t('here_now') || 'Здесь'}</span>` : ''}
+                    <tr class="hover cursor-pointer" onclick="window.location.href='person.html?id=${person.id}'">
+                        <td>
+                            <div class="flex items-center gap-3">
+                                <div class="w-10 h-10 rounded-full bg-base-200 flex items-center justify-center shrink-0">
+                                    ${avatarPlaceholder}
                                 </div>
-                                ${secondaryName ? `<div class="text-sm opacity-60 truncate">${secondaryName}</div>` : ''}
-                                ${present && currentStay ? `<div class="text-xs text-success mt-1">${t('until') || 'до'} ${formatDate(currentStay.end_date)}</div>` : ''}
+                                <div class="min-w-0">
+                                    <div class="font-medium truncate">${displayName}</div>
+                                    ${person.is_team_member ? `
+                                        ${dept ? `<span class="badge badge-xs" style="background-color: ${dept.color}20; color: ${dept.color}; border-color: ${dept.color}">${Layout.getName(dept)}</span>` : '<span class="badge badge-primary badge-xs">Команда</span>'}
+                                    ` : ''}
+                                    ${present ? '<span class="badge badge-success badge-xs ml-1">Здесь</span>' : ''}
+                                </div>
                             </div>
-                            <div class="flex items-center gap-2 text-sm opacity-60">
-                                ${person.phone ? `<span class="hidden sm:inline">${person.phone}</span>` : ''}
-                            </div>
-                        </div>
-                    </div>
+                        </td>
+                        <td class="truncate">${person.spiritual_name || ''}</td>
+                        <td class="truncate">${person.country || ''}</td>
+                        <td class="truncate">${person.spiritual_teacher || ''}</td>
+                        <td class="truncate text-sm opacity-60">${person.phone || ''}</td>
+                        <td>
+                            <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 opacity-30" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" />
+                            </svg>
+                        </td>
+                    </tr>
                 `;
             }).join('');
         }
