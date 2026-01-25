@@ -156,7 +156,7 @@
         </div>
 
         <!-- Stats -->
-        <div id="statsSection" class="grid grid-cols-2 sm:grid-cols-5 gap-4 mb-6">
+        <div id="statsSection" class="grid grid-cols-2 sm:grid-cols-4 gap-4 mb-6">
             <div class="bg-error/10 border border-error/30 rounded-lg p-4">
                 <div class="text-3xl font-bold text-error" id="statOverdue">0</div>
                 <div class="text-sm opacity-60" data-i18n="cleaning_overdue">Просрочено</div>
@@ -169,13 +169,9 @@
                 <div class="text-3xl font-bold text-info" id="statTomorrow">0</div>
                 <div class="text-sm opacity-60" data-i18n="cleaning_tomorrow">Завтра</div>
             </div>
-            <div class="bg-base-200/50 rounded-lg p-4">
+            <div class="bg-base-100 rounded-lg p-4">
                 <div class="text-3xl font-bold" id="statWeek">0</div>
                 <div class="text-sm opacity-60" data-i18n="cleaning_week">На неделе</div>
-            </div>
-            <div class="bg-base-100 rounded-lg p-4">
-                <div class="text-3xl font-bold" id="statMonth">0</div>
-                <div class="text-sm opacity-60" data-i18n="cleaning_month">В месяце</div>
             </div>
         </div>
 
@@ -716,17 +712,10 @@
             const weekData = cleaningData.filter(d => d.date >= today && d.date < weekEnd);
             const weekCount = weekData.reduce((sum, d) => sum + d.rooms.length, 0);
 
-            // Month: current calendar month
-            const monthStart = `${calendarYear}-${String(calendarMonth + 1).padStart(2, '0')}-01`;
-            const monthEnd = new Date(calendarYear, calendarMonth + 1, 0).toISOString().split('T')[0];
-            const monthData = cleaningData.filter(d => d.date >= monthStart && d.date <= monthEnd);
-            const monthCount = monthData.reduce((sum, d) => sum + d.rooms.length, 0);
-
             Layout.$('#statOverdue').textContent = overdueCount;
             Layout.$('#statToday').textContent = todayData?.rooms.length || 0;
             Layout.$('#statTomorrow').textContent = tomorrowData?.rooms.length || 0;
             Layout.$('#statWeek').textContent = weekCount;
-            Layout.$('#statMonth').textContent = monthCount;
         }
 
         // ==================== RENDER ====================
@@ -1475,9 +1464,10 @@
 
         async function init() {
             await Layout.init({ module: 'housing', menuId: 'housing', itemId: 'cleaning' });
-
+            Layout.showLoader();
             updateUI();
             await loadCleaningSchedule();
+            Layout.hideLoader();
         }
 
         init();
