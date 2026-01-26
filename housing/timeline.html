@@ -827,7 +827,7 @@
                         resident_categories(id, name_ru, name_en, name_hi, color),
                         vaishnavas(id, first_name, last_name, spiritual_name),
                         bookings(id, name, contact_name)`)
-                    .eq('status', 'active')
+                    .in('status', ['active', 'confirmed'])
                     .lte('check_in', endDateStr)
                     .or(`check_out.is.null,check_out.gte.${startDateStr}`),
                 Layout.db.from('retreats')
@@ -1800,7 +1800,7 @@
                 Layout.db
                     .from('residents')
                     .select('room_id, check_in, check_out')
-                    .eq('status', 'active')
+                    .in('status', ['active', 'confirmed'])
                     .neq('id', currentResident.id) // исключаем текущего резидента
                     .lte('check_in', checkOut)
                     .or(`check_out.is.null,check_out.gte.${checkIn}`)
