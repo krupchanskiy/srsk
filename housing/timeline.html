@@ -1167,6 +1167,25 @@
             renderTable();
         }
 
+        // Свернуть все номера (здания остаются развёрнутыми)
+        function collapseAllRooms() {
+            collapsedBuildings.clear();
+            collapsedRooms.clear();
+            timelineData.buildings.forEach(building => {
+                building.rooms.forEach(room => {
+                    collapsedRooms.add(room.id);
+                });
+            });
+            renderTable();
+        }
+
+        // Развернуть всё
+        function expandAll() {
+            collapsedBuildings.clear();
+            collapsedRooms.clear();
+            renderTable();
+        }
+
         // Текущий контекст модалки
         let modalContext = null;
 
@@ -2114,7 +2133,16 @@
             let html = '<thead>';
 
             // Строка с числами
-            html += '<tr class="row-dates"><th class="sticky-col"></th>';
+            html += `<tr class="row-dates"><th class="sticky-col">
+                <div class="flex gap-1">
+                    <button class="btn btn-xs btn-ghost opacity-60 hover:opacity-100" onclick="event.stopPropagation(); collapseAllRooms()" title="${t('collapse_all') || 'Свернуть'}">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 12H4" /></svg>
+                    </button>
+                    <button class="btn btn-xs btn-ghost opacity-60 hover:opacity-100" onclick="event.stopPropagation(); expandAll()" title="${t('expand_all') || 'Развернуть'}">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" /></svg>
+                    </button>
+                </div>
+            </th>`;
             for (let day = 0; day < DAYS_TO_SHOW; day++) {
                 const date = getDateForDay(day);
                 const weekend = isWeekend(day) ? 'weekend' : '';
