@@ -194,6 +194,18 @@
             return `${hours}:${minutes}`;
         }
 
+        function getCheckoutTime(flightDatetime) {
+            // Выезд = время вылета минус 7 часов
+            const flight = new Date(flightDatetime);
+            const checkout = new Date(flight.getTime() - 7 * 60 * 60 * 1000);
+            return checkout;
+        }
+
+        function formatCheckoutTime(flightDatetime) {
+            const checkout = getCheckoutTime(flightDatetime);
+            return formatTime(checkout);
+        }
+
         function formatDateHeader(dateStr) {
             const date = new Date(dateStr);
             const today = new Date();
@@ -271,6 +283,10 @@
                     const directionIcon = t.direction === 'arrival' ? '✈️ →' : '← ✈️';
                     const directionLabel = t.direction === 'arrival' ? 'Заезд' : 'Выезд';
 
+                    // Для выездов показываем время выезда (вылет - 7 часов)
+                    const isDeparture = t.direction === 'departure';
+                    const checkoutTime = isDeparture ? formatCheckoutTime(t.flight_datetime) : null;
+
                     html += `
                         <div class="transfer-card ${urgencyClass} px-4 py-3 flex items-center gap-4 border-b last:border-b-0 cursor-pointer hover:bg-base-200/50"
                              onclick="window.location.href='../vaishnavas/person.html?id=${v?.id}'">
@@ -282,9 +298,15 @@
                                     ${retreatName ? `<span>${retreatName}</span>` : ''}
                                 </div>
                             </div>
+                            ${isDeparture ? `
+                            <div class="text-right">
+                                <div class="text-lg font-mono font-semibold text-error">${checkoutTime}</div>
+                                <div class="text-xs opacity-60">Выезд</div>
+                            </div>
+                            ` : ''}
                             <div class="text-right">
                                 <div class="text-lg font-mono font-semibold">${formatTime(t.flight_datetime)}</div>
-                                <div class="text-sm opacity-60">${flightNumber || directionLabel}</div>
+                                <div class="text-xs opacity-60">${flightNumber || (isDeparture ? 'Вылет' : 'Прилёт')}</div>
                             </div>
                             ${needsTransfer ? '<div class="badge badge-primary">🚐</div>' : ''}
                         </div>
