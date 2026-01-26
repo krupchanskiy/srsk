@@ -1556,53 +1556,81 @@
         }
 
         function parseCSV(text) {
-            const lines = text.split('\n');
-            if (lines.length < 2) return [];
-
-            // Parse header
-            const headers = parseCSVLine(lines[0]);
-
-            // Parse rows
+            // Полноценный парсер CSV с поддержкой многострочных значений в кавычках
             const rows = [];
-            for (let i = 1; i < lines.length; i++) {
-                const line = lines[i].trim();
-                if (!line) continue;
+            let headers = [];
+            let currentRow = [];
+            let currentField = '';
+            let inQuotes = false;
+            let isFirstRow = true;
 
-                const values = parseCSVLine(line);
-                const row = {};
-                headers.forEach((h, idx) => {
-                    row[h.trim()] = values[idx] || '';
-                });
+            for (let i = 0; i < text.length; i++) {
+                const char = text[i];
+                const nextChar = text[i + 1];
 
-                // Skip if no name
-                if (!row.name && !row.name2) continue;
+                if (inQuotes) {
+                    if (char === '"' && nextChar === '"') {
+                        // Escaped quote
+                        currentField += '"';
+                        i++;
+                    } else if (char === '"') {
+                        // End of quoted field
+                        inQuotes = false;
+                    } else {
+                        currentField += char;
+                    }
+                } else {
+                    if (char === '"') {
+                        // Start of quoted field
+                        inQuotes = true;
+                    } else if (char === ',') {
+                        // Field separator
+                        currentRow.push(currentField.trim());
+                        currentField = '';
+                    } else if (char === '\n' || (char === '\r' && nextChar === '\n')) {
+                        // Row separator
+                        if (char === '\r') i++; // Skip \n after \r
 
-                rows.push(row);
+                        currentRow.push(currentField.trim());
+                        currentField = '';
+
+                        if (isFirstRow) {
+                            headers = currentRow;
+                            isFirstRow = false;
+                        } else if (currentRow.some(v => v)) {
+                            // Build row object
+                            const rowObj = {};
+                            headers.forEach((h, idx) => {
+                                rowObj[h.trim()] = currentRow[idx] || '';
+                            });
+
+                            // Skip if no name
+                            if (rowObj.name || rowObj.name2) {
+                                rows.push(rowObj);
+                            }
+                        }
+                        currentRow = [];
+                    } else if (char !== '\r') {
+                        currentField += char;
+                    }
+                }
+            }
+
+            // Handle last row if no trailing newline
+            if (currentField || currentRow.length > 0) {
+                currentRow.push(currentField.trim());
+                if (!isFirstRow && currentRow.some(v => v)) {
+                    const rowObj = {};
+                    headers.forEach((h, idx) => {
+                        rowObj[h.trim()] = currentRow[idx] || '';
+                    });
+                    if (rowObj.name || rowObj.name2) {
+                        rows.push(rowObj);
+                    }
+                }
             }
 
             return rows;
-        }
-
-        function parseCSVLine(line) {
-            const result = [];
-            let current = '';
-            let inQuotes = false;
-
-            for (let i = 0; i < line.length; i++) {
-                const char = line[i];
-
-                if (char === '"') {
-                    inQuotes = !inQuotes;
-                } else if (char === ',' && !inQuotes) {
-                    result.push(current.trim());
-                    current = '';
-                } else {
-                    current += char;
-                }
-            }
-            result.push(current.trim());
-
-            return result;
         }
 
         // ==================== IMPORT LOGIC ====================
