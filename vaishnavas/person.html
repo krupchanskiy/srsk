@@ -1337,8 +1337,8 @@
                 // Заселённые гости (residents)
                 Layout.db.from('residents')
                     .select('room_id')
-                    .lte('check_in_date', checkOut)
-                    .gte('check_out_date', checkIn),
+                    .lte('check_in', checkOut)
+                    .gte('check_out', checkIn),
                 // Бронирования гостей ретритов (guest_accommodations)
                 Layout.db.from('guest_accommodations')
                     .select('room_id')
