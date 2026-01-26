@@ -902,23 +902,35 @@
 
             roomsList.innerHTML = '<div class="text-center py-4"><span class="loading loading-spinner"></span></div>';
 
-            // Load occupancy for the date range
-            const { data: residents, error } = await Layout.db
-                .from('residents')
-                .select('room_id')
-                .lte('check_in_date', checkOut)
-                .gte('check_out_date', checkIn);
+            // Load occupancy for the date range from multiple sources
+            const [residentsRes, accommodationsRes] = await Promise.all([
+                // Заселённые гости (residents)
+                Layout.db.from('residents')
+                    .select('room_id')
+                    .lte('check_in_date', checkOut)
+                    .gte('check_out_date', checkIn),
+                // Бронирования гостей ретритов (guest_accommodations)
+                Layout.db.from('guest_accommodations')
+                    .select('room_id')
+                    .not('room_id', 'is', null)
+                    .lte('check_in_date', checkOut)
+                    .gte('check_out_date', checkIn)
+            ]);
 
-            if (error) {
-                console.error('Error loading occupancy:', error);
-                roomsList.innerHTML = '<div class="text-center py-4 text-error">Ошибка загрузки</div>';
-                return;
+            if (residentsRes.error) {
+                console.error('Error loading residents:', residentsRes.error);
+            }
+            if (accommodationsRes.error) {
+                console.error('Error loading accommodations:', accommodationsRes.error);
             }
 
-            // Count occupancy per room
+            // Count occupancy per room from all sources
             const roomOccupancy = {};
-            (residents || []).forEach(r => {
-                roomOccupancy[r.room_id] = (roomOccupancy[r.room_id] || 0) + 1;
+            (residentsRes.data || []).forEach(r => {
+                if (r.room_id) roomOccupancy[r.room_id] = (roomOccupancy[r.room_id] || 0) + 1;
+            });
+            (accommodationsRes.data || []).forEach(r => {
+                if (r.room_id) roomOccupancy[r.room_id] = (roomOccupancy[r.room_id] || 0) + 1;
             });
 
             if (buildings.length === 0) {
