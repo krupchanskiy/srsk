@@ -19,90 +19,127 @@
 
     <div id="header-placeholder"></div>
 
-    <main class="container mx-auto px-4 py-12 flex-1">
-        <div class="max-w-3xl mx-auto text-center">
+    <main class="container mx-auto px-4 py-8 flex-1">
+        <div class="max-w-5xl mx-auto">
 
-            <div class="mb-8">
-                <svg class="h-24 w-auto mx-auto mb-6 logo-svg" viewBox="0 0 122.03 312.54" xmlns="http://www.w3.org/2000/svg">
+            <!-- Header -->
+            <div class="text-center mb-10">
+                <svg class="h-20 w-auto mx-auto mb-4 logo-svg" viewBox="0 0 122.03 312.54" xmlns="http://www.w3.org/2000/svg">
                     <path fill="var(--current-color)" d="M102,15.99h-15.18v81.89c0,6.21.12,11.58-.88,15.98-1.01,4.45-2.6,7.98-4.77,10.58-2.02,2.81-4.85,4.83-8.51,6.05-2.38,1-5.08,1.62-8.1,1.83-1.01.21-2.02.32-3.02.32h-.64c-3.81-.21-7.23-.83-10.25-1.83-3.81-1.22-7.02-3.13-9.62-5.73-2.65-2.81-4.56-6.44-5.73-10.89-1.22-4.4-1.83-9.83-1.83-16.3V15.99h-15.1v89.12c0,13.68,3.81,23.94,11.45,30.77,3.81,3.44,8.56,5.96,14.23,7.55,1.17.42,2.57.74,4.21.96-13.89,5.03-23.35,11.87-28.38,20.51-7.05,10.65-7.26,24.14-.64,40.46l41.34,100.45,39.91-100.45c6.41-16.32,6.2-29.82-.64-40.46-4.82-8.48-13.97-15.21-27.43-20.2,1.59-.43,3.18-.85,4.77-1.27,5.25-1.59,9.67-4.19,13.27-7.79,3.82-3.66,6.65-8.18,8.51-13.59,2.02-5.62,3.02-12.27,3.02-19.95V15.99M87.45,172.46c4.03,7.26,3.84,16.4-.56,27.43l-26.31,68.13-27.75-68.13c-4.61-11.03-4.8-20.17-.55-27.43,4.61-7.47,13.76-13.01,27.43-16.62,13.67,3.61,22.93,9.15,27.75,16.62"/>
                 </svg>
-                <h1 class="text-3xl font-bold mb-2" data-i18n="welcome_title">Добро пожаловать!</h1>
-                <p class="opacity-60" data-i18n="welcome_subtitle">Выберите модуль для работы</p>
+                <h1 class="text-2xl font-bold mb-1" data-i18n="welcome_title">Добро пожаловать!</h1>
+                <p class="opacity-60 text-sm" data-i18n="welcome_subtitle">Выберите модуль для работы</p>
             </div>
 
-            <!-- Module Cards -->
-            <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
+            <!-- Modules Grid -->
+            <div class="grid grid-cols-1 lg:grid-cols-2 gap-8">
+
                 <!-- Kitchen Module -->
-                <a href="kitchen/menu.html" onclick="selectModule('kitchen')" class="block bg-base-100 rounded-xl p-6 shadow-sm hover:shadow-lg transition-all border-2 border-transparent hover:border-orange-400 text-left">
-                    <div class="flex items-center gap-4 mb-4">
-                        <div class="text-5xl">🥗</div>
+                <div class="bg-base-100 rounded-2xl shadow-sm overflow-hidden border-t-4 border-orange-400">
+                    <a href="kitchen/menu.html" onclick="selectModule('kitchen')"
+                       class="block px-6 py-5 bg-gradient-to-r from-orange-50 to-transparent hover:from-orange-100 transition-colors">
+                        <div class="flex items-center gap-4">
+                            <div class="text-4xl">🍳</div>
+                            <div>
+                                <h2 class="text-2xl font-bold" data-i18n="module_kitchen">Кухня</h2>
+                                <p class="text-sm opacity-60" data-i18n="module_kitchen_subtitle">Меню, рецепты, склад</p>
+                            </div>
+                        </div>
+                    </a>
+                    <div class="px-6 py-4 grid grid-cols-2 gap-x-6 gap-y-4">
+                        <!-- Кухня -->
                         <div>
-                            <h2 class="text-2xl font-bold" data-i18n="module_kitchen">Кухня</h2>
-                            <p class="text-sm opacity-60" data-i18n="module_kitchen_subtitle">Меню, рецепты, склад</p>
+                            <h3 class="text-xs font-semibold uppercase tracking-wider text-orange-600 mb-2" data-i18n="nav_kitchen">Кухня</h3>
+                            <ul class="space-y-1 text-sm">
+                                <li><a href="kitchen/menu.html" onclick="selectModule('kitchen')" class="hover:text-orange-600 transition-colors" data-i18n="nav_menu">Меню</a></li>
+                                <li><a href="kitchen/menu-templates.html" onclick="selectModule('kitchen')" class="hover:text-orange-600 transition-colors" data-i18n="nav_menu_templates">Шаблоны меню</a></li>
+                                <li><a href="kitchen/recipes.html" onclick="selectModule('kitchen')" class="hover:text-orange-600 transition-colors" data-i18n="nav_recipes">Рецепты</a></li>
+                                <li><a href="kitchen/products.html" onclick="selectModule('kitchen')" class="hover:text-orange-600 transition-colors" data-i18n="nav_products">Продукты</a></li>
+                            </ul>
+                        </div>
+                        <!-- Склад -->
+                        <div>
+                            <h3 class="text-xs font-semibold uppercase tracking-wider text-orange-600 mb-2" data-i18n="nav_stock">Склад</h3>
+                            <ul class="space-y-1 text-sm">
+                                <li><a href="stock/stock.html" onclick="selectModule('kitchen')" class="hover:text-orange-600 transition-colors" data-i18n="nav_stock_balance">Остатки</a></li>
+                                <li><a href="stock/requests.html" onclick="selectModule('kitchen')" class="hover:text-orange-600 transition-colors" data-i18n="nav_requests">Заявки</a></li>
+                                <li><a href="stock/receive.html" onclick="selectModule('kitchen')" class="hover:text-orange-600 transition-colors" data-i18n="nav_receive">Приёмка</a></li>
+                                <li><a href="stock/issue.html" onclick="selectModule('kitchen')" class="hover:text-orange-600 transition-colors" data-i18n="nav_issue">Выдача</a></li>
+                            </ul>
+                        </div>
+                        <!-- Ашрам -->
+                        <div>
+                            <h3 class="text-xs font-semibold uppercase tracking-wider text-orange-600 mb-2" data-i18n="nav_ashram">Ашрам</h3>
+                            <ul class="space-y-1 text-sm">
+                                <li><a href="ashram/retreats.html" onclick="selectModule('kitchen')" class="hover:text-orange-600 transition-colors" data-i18n="nav_retreats">Ретриты</a></li>
+                                <li><a href="vaishnavas/team.html" onclick="selectModule('kitchen')" class="hover:text-orange-600 transition-colors" data-i18n="nav_vaishnavas_team">Команда</a></li>
+                            </ul>
+                        </div>
+                        <!-- Настройки -->
+                        <div>
+                            <h3 class="text-xs font-semibold uppercase tracking-wider text-orange-600 mb-2" data-i18n="nav_settings">Настройки</h3>
+                            <ul class="space-y-1 text-sm">
+                                <li><a href="kitchen/dictionaries.html" onclick="selectModule('kitchen')" class="hover:text-orange-600 transition-colors" data-i18n="nav_dictionaries">Справочники</a></li>
+                                <li><a href="settings/translations.html" onclick="selectModule('kitchen')" class="hover:text-orange-600 transition-colors" data-i18n="nav_translations">Переводы</a></li>
+                                <li><a href="ashram/festivals.html" onclick="selectModule('kitchen')" class="hover:text-orange-600 transition-colors" data-i18n="nav_festivals">Фестивали</a></li>
+                            </ul>
                         </div>
                     </div>
-                    <ul class="space-y-2 text-sm opacity-70">
-                        <li class="flex items-center gap-2">
-                            <span class="text-orange-500">●</span>
-                            <span data-i18n="welcome_kitchen_menu">Планирование меню на неделю</span>
-                        </li>
-                        <li class="flex items-center gap-2">
-                            <span class="text-orange-500">●</span>
-                            <span data-i18n="welcome_kitchen_recipes">База рецептов с ингредиентами</span>
-                        </li>
-                        <li class="flex items-center gap-2">
-                            <span class="text-orange-500">●</span>
-                            <span data-i18n="welcome_kitchen_stock">Учёт остатков и заявки</span>
-                        </li>
-                    </ul>
-                </a>
+                </div>
 
                 <!-- Housing Module -->
-                <a href="housing/timeline.html" onclick="selectModule('housing')" class="block bg-base-100 rounded-xl p-6 shadow-sm hover:shadow-lg transition-all border-2 border-transparent hover:border-purple-400 text-left">
-                    <div class="flex items-center gap-4 mb-4">
-                        <div class="text-5xl">🏠</div>
+                <div class="bg-base-100 rounded-2xl shadow-sm overflow-hidden border-t-4 border-purple-400">
+                    <a href="placement/timeline.html" onclick="selectModule('housing')"
+                       class="block px-6 py-5 bg-gradient-to-r from-purple-50 to-transparent hover:from-purple-100 transition-colors">
+                        <div class="flex items-center gap-4">
+                            <div class="text-4xl">🏠</div>
+                            <div>
+                                <h2 class="text-2xl font-bold" data-i18n="module_housing">Проживание</h2>
+                                <p class="text-sm opacity-60" data-i18n="module_housing_subtitle">Здания, комнаты, гости</p>
+                            </div>
+                        </div>
+                    </a>
+                    <div class="px-6 py-4 grid grid-cols-2 gap-x-6 gap-y-4">
+                        <!-- Вайшнавы -->
                         <div>
-                            <h2 class="text-2xl font-bold" data-i18n="module_housing">Проживание</h2>
-                            <p class="text-sm opacity-60" data-i18n="module_housing_subtitle">Здания, комнаты, гости</p>
+                            <h3 class="text-xs font-semibold uppercase tracking-wider text-purple-600 mb-2" data-i18n="nav_vaishnavas">Вайшнавы</h3>
+                            <ul class="space-y-1 text-sm">
+                                <li><a href="vaishnavas/index.html" onclick="selectModule('housing')" class="hover:text-purple-600 transition-colors" data-i18n="nav_vaishnavas_all">Все</a></li>
+                                <li><a href="vaishnavas/guests.html" onclick="selectModule('housing')" class="hover:text-purple-600 transition-colors" data-i18n="nav_vaishnavas_guests">Гости</a></li>
+                                <li><a href="vaishnavas/team.html" onclick="selectModule('housing')" class="hover:text-purple-600 transition-colors" data-i18n="nav_vaishnavas_team">Команда</a></li>
+                            </ul>
+                        </div>
+                        <!-- Размещение -->
+                        <div>
+                            <h3 class="text-xs font-semibold uppercase tracking-wider text-purple-600 mb-2" data-i18n="nav_placement">Размещение</h3>
+                            <ul class="space-y-1 text-sm">
+                                <li><a href="vaishnavas/retreat-guests.html" onclick="selectModule('housing')" class="hover:text-purple-600 transition-colors" data-i18n="nav_retreat_guests">Распределение</a></li>
+                                <li><a href="placement/bookings.html" onclick="selectModule('housing')" class="hover:text-purple-600 transition-colors" data-i18n="nav_bookings">Бронирования</a></li>
+                                <li><a href="placement/transfers.html" onclick="selectModule('housing')" class="hover:text-purple-600 transition-colors" data-i18n="nav_transfers">Трансферы</a></li>
+                            </ul>
+                        </div>
+                        <!-- Ресепшен -->
+                        <div>
+                            <h3 class="text-xs font-semibold uppercase tracking-wider text-purple-600 mb-2" data-i18n="nav_reception">Ресепшен</h3>
+                            <ul class="space-y-1 text-sm">
+                                <li><a href="placement/timeline.html" onclick="selectModule('housing')" class="hover:text-purple-600 transition-colors" data-i18n="nav_timeline">Шахматка</a></li>
+                                <li><a href="reception/floor-plan.html" onclick="selectModule('housing')" class="hover:text-purple-600 transition-colors" data-i18n="nav_temp_floor_plan">TEMP</a></li>
+                                <li><a href="reception/cleaning.html" onclick="selectModule('housing')" class="hover:text-purple-600 transition-colors" data-i18n="nav_cleaning">Уборка</a></li>
+                            </ul>
+                        </div>
+                        <!-- Настройки -->
+                        <div>
+                            <h3 class="text-xs font-semibold uppercase tracking-wider text-purple-600 mb-2" data-i18n="nav_settings">Настройки</h3>
+                            <ul class="space-y-1 text-sm">
+                                <li><a href="reception/buildings.html" onclick="selectModule('housing')" class="hover:text-purple-600 transition-colors" data-i18n="nav_buildings">Здания</a></li>
+                                <li><a href="reception/rooms.html" onclick="selectModule('housing')" class="hover:text-purple-600 transition-colors" data-i18n="nav_rooms">Комнаты</a></li>
+                                <li><a href="reception/dictionaries.html" onclick="selectModule('housing')" class="hover:text-purple-600 transition-colors" data-i18n="nav_housing_dictionaries">Справочники</a></li>
+                            </ul>
                         </div>
                     </div>
-                    <ul class="space-y-2 text-sm opacity-70">
-                        <li class="flex items-center gap-2">
-                            <span class="text-purple-500">●</span>
-                            <span data-i18n="welcome_housing_occupancy">Шахматка заселения</span>
-                        </li>
-                        <li class="flex items-center gap-2">
-                            <span class="text-purple-500">●</span>
-                            <span data-i18n="welcome_housing_buildings">Управление зданиями и комнатами</span>
-                        </li>
-                        <li class="flex items-center gap-2">
-                            <span class="text-purple-500">●</span>
-                            <span data-i18n="welcome_housing_guests">Учёт проживающих</span>
-                        </li>
-                    </ul>
-                </a>
-            </div>
+                </div>
 
-            <!-- Common Links -->
-            <div class="grid grid-cols-2 gap-4 max-w-md mx-auto">
-                <a href="ashram/retreats.html" class="block bg-base-100 rounded-lg p-4 shadow-sm hover:shadow-md transition-shadow border-l-4" style="border-color: var(--current-color);">
-                    <div class="flex items-center gap-3">
-                        <div class="text-2xl">📅</div>
-                        <div class="text-left">
-                            <h3 class="font-semibold" data-i18n="nav_retreats">Ретриты</h3>
-                        </div>
-                    </div>
-                </a>
-                <a href="ashram/team.html" class="block bg-base-100 rounded-lg p-4 shadow-sm hover:shadow-md transition-shadow border-l-4" style="border-color: var(--current-color);">
-                    <div class="flex items-center gap-3">
-                        <div class="text-2xl">👥</div>
-                        <div class="text-left">
-                            <h3 class="font-semibold" data-i18n="nav_team">Команда</h3>
-                        </div>
-                    </div>
-                </a>
             </div>
-
         </div>
     </main>
 

@@ -797,7 +797,7 @@
         window.onLanguageChange = () => updateUI();
 
         async function init() {
-            await Layout.init({ module: 'housing', menuId: 'reception', itemId: 'floor_plan' });
+            await Layout.init({ module: 'housing', menuId: 'reception', itemId: 'temp_floor_plan' });
 
             [buildings, occupancy, occupancyWithBookings, departures] = await Promise.all([
                 loadBuildings(),

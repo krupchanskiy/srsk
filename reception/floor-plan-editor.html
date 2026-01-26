@@ -643,7 +643,7 @@
         window.onLanguageChange = () => updateUI();
 
         async function init() {
-            await Layout.init({ module: 'housing', menuId: 'reception', itemId: 'floor_plan' });
+            await Layout.init({ module: 'housing', menuId: 'reception', itemId: 'temp_floor_plan' });
 
             // Get building ID from URL
             const params = new URLSearchParams(window.location.search);

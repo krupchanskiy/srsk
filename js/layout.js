@@ -64,7 +64,8 @@ const modules = {
                 { id: 'transfers', href: 'placement/transfers.html' }
             ]},
             { id: 'reception', items: [
-                { id: 'floor_plan', href: 'reception/floor-plan.html' },
+                { id: 'timeline', href: 'placement/timeline.html' },
+                { id: 'temp_floor_plan', href: 'reception/floor-plan.html' },
                 { id: 'cleaning', href: 'reception/cleaning.html' }
             ]},
             { id: 'settings', items: [
