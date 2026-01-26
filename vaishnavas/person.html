@@ -225,6 +225,22 @@
         .status-pending { color: #f59e0b; }
         .status-cancelled { color: #ef4444; }
         .status-team { color: #8b5cf6; }
+
+        /* Status dropdown styles */
+        select.status-pending { background: #fef3c7; color: #92400e; border-color: #fcd34d; }
+        select.status-confirmed { background: #d1fae5; color: #065f46; border-color: #6ee7b7; }
+        select.status-team { background: #dbeafe; color: #1e40af; border-color: #93c5fd; }
+        select.status-cancelled { background: #fee2e2; color: #991b1b; border-color: #fca5a5; }
+        select.status-no_response { background: #f3f4f6; color: #6b7280; border-color: #d1d5db; }
+        select.status-pending, select.status-confirmed, select.status-team, select.status-cancelled, select.status-no_response {
+            font-weight: 500;
+            font-size: 0.75rem;
+            height: 1.75rem;
+            min-height: 1.75rem;
+            padding-top: 0;
+            padding-bottom: 0;
+            padding-left: 0.5rem;
+        }
     </style>
 </head>
 <body class="bg-base-200 min-h-screen flex flex-col">
@@ -577,6 +593,62 @@
         <form method="dialog" class="modal-backdrop"><button>close</button></form>
     </dialog>
 
+    <!-- Placement Modal -->
+    <dialog id="placementModal" class="modal">
+        <div class="modal-box max-w-lg">
+            <button type="button" class="btn btn-sm btn-circle btn-ghost absolute right-2 top-2" onclick="placementModal.close()">✕</button>
+            <h3 class="font-bold text-lg mb-4">Размещение гостя</h3>
+
+            <div id="placementRetreatInfo" class="mb-4 p-3 bg-base-200 rounded-lg">
+                <!-- Retreat info will be inserted here -->
+            </div>
+
+            <form id="placementForm" onsubmit="savePlacement(event)">
+                <input type="hidden" name="registration_id" />
+
+                <!-- Building Select -->
+                <div class="form-control mb-4">
+                    <label class="label"><span class="label-text font-medium">Здание</span></label>
+                    <select name="building_id" class="select select-bordered w-full" onchange="onBuildingChange(this.value)">
+                        <option value="">Выберите здание...</option>
+                    </select>
+                </div>
+
+                <!-- Room Select -->
+                <div class="form-control mb-4">
+                    <label class="label"><span class="label-text font-medium">Комната</span></label>
+                    <select name="room_id" class="select select-bordered w-full" disabled>
+                        <option value="">Сначала выберите здание...</option>
+                    </select>
+                </div>
+
+                <!-- Dates -->
+                <div class="grid grid-cols-2 gap-4 mb-4">
+                    <div class="form-control">
+                        <label class="label"><span class="label-text font-medium">Заезд</span></label>
+                        <input type="date" name="check_in_date" class="input input-bordered" />
+                    </div>
+                    <div class="form-control">
+                        <label class="label"><span class="label-text font-medium">Выезд</span></label>
+                        <input type="date" name="check_out_date" class="input input-bordered" />
+                    </div>
+                </div>
+
+                <!-- Notes -->
+                <div class="form-control mb-4">
+                    <label class="label"><span class="label-text font-medium">Примечания</span></label>
+                    <textarea name="notes" rows="2" class="textarea textarea-bordered"></textarea>
+                </div>
+
+                <div class="modal-action">
+                    <button type="button" class="btn btn-ghost" onclick="placementModal.close()">Отмена</button>
+                    <button type="submit" class="btn btn-primary">Разместить</button>
+                </div>
+            </form>
+        </div>
+        <form method="dialog" class="modal-backdrop"><button>close</button></form>
+    </dialog>
+
     <div id="footer-placeholder"></div>
 
     <script src="../js/layout.js"></script>
@@ -588,6 +660,8 @@
         let departments = [];
         let teamMembers = [];
         let spiritualTeachers = [];
+        let buildings = [];
+        let rooms = [];
         let isEditMode = false;
 
         const today = new Date().toISOString().split('T')[0];
@@ -619,7 +693,10 @@
 
             Layout.showLoader();
             // Сначала загружаем справочники, чтобы select'ы были заполнены
-            await loadDepartments();
+            await Promise.all([
+                loadDepartments(),
+                loadBuildingsAndRooms()
+            ]);
             populateCountriesList();
             // Потом загружаем человека (renderPerson установит значения в select'ы)
             await loadPerson(personId);
@@ -1174,6 +1251,160 @@
             await loadStays(person.id);
         }
 
+        // ==================== BUILDINGS & ROOMS ====================
+
+        async function loadBuildingsAndRooms() {
+            const [buildingsRes, roomsRes] = await Promise.all([
+                Layout.db.from('buildings').select('*').eq('is_active', true).order('sort_order'),
+                Layout.db.from('rooms').select('*, buildings(name_ru)').eq('is_active', true).order('number')
+            ]);
+
+            buildings = buildingsRes.data || [];
+            rooms = roomsRes.data || [];
+
+            // Populate building select
+            const buildingSelect = document.querySelector('#placementForm select[name="building_id"]');
+            if (buildingSelect) {
+                buildingSelect.innerHTML = '<option value="">Выберите здание...</option>' +
+                    buildings.map(b => `<option value="${b.id}">${Layout.getName(b)}</option>`).join('');
+            }
+        }
+
+        function onBuildingChange(buildingId) {
+            const roomSelect = document.querySelector('#placementForm select[name="room_id"]');
+
+            if (!buildingId) {
+                roomSelect.innerHTML = '<option value="">Сначала выберите здание...</option>';
+                roomSelect.disabled = true;
+                return;
+            }
+
+            const buildingRooms = rooms.filter(r => r.building_id === buildingId);
+            roomSelect.innerHTML = '<option value="">Выберите комнату...</option>' +
+                buildingRooms.map(r => `<option value="${r.id}">${r.number} (${r.capacity} мест)</option>`).join('');
+            roomSelect.disabled = false;
+        }
+
+        // ==================== REGISTRATION STATUS ====================
+
+        async function updateRegistrationStatus(registrationId, newStatus, selectElement) {
+            const reg = registrations.find(r => r.id === registrationId);
+            const oldStatus = reg?.status;
+
+            try {
+                const { error } = await Layout.db
+                    .from('retreat_registrations')
+                    .update({ status: newStatus })
+                    .eq('id', registrationId);
+
+                if (error) throw error;
+
+                // Update local data
+                if (reg) reg.status = newStatus;
+
+                // Update select element class
+                if (selectElement) {
+                    selectElement.className = selectElement.className.replace(/status-\w+/, `status-${newStatus}`);
+                }
+
+                // Update badge
+                renderRegistrations();
+            } catch (err) {
+                console.error('Error updating status:', err);
+                alert('Ошибка обновления статуса: ' + err.message);
+                if (selectElement && oldStatus) {
+                    selectElement.value = oldStatus;
+                }
+            }
+        }
+
+        // ==================== PLACEMENT ====================
+
+        function openPlacementModal(registrationId) {
+            const reg = registrations.find(r => r.id === registrationId);
+            if (!reg) return;
+
+            const modal = document.getElementById('placementModal');
+            const form = document.getElementById('placementForm');
+            const retreatInfo = document.getElementById('placementRetreatInfo');
+
+            form.reset();
+            form.registration_id.value = registrationId;
+
+            // Show retreat info
+            const retreat = reg.retreats;
+            retreatInfo.innerHTML = `
+                <div class="font-medium">${retreat ? Layout.getName(retreat) : '—'}</div>
+                ${reg.accommodation_wishes ? `<div class="text-sm opacity-60 mt-1">${reg.accommodation_wishes}</div>` : ''}
+            `;
+
+            // Set default dates from retreat
+            if (retreat) {
+                form.check_in_date.value = retreat.start_date;
+                form.check_out_date.value = retreat.end_date;
+            }
+
+            // Reset room select
+            const roomSelect = form.querySelector('select[name="room_id"]');
+            roomSelect.innerHTML = '<option value="">Сначала выберите здание...</option>';
+            roomSelect.disabled = true;
+
+            modal.showModal();
+        }
+
+        async function savePlacement(event) {
+            event.preventDefault();
+            const form = event.target;
+
+            const roomId = form.room_id.value;
+            if (!roomId) {
+                alert('Выберите комнату');
+                return;
+            }
+
+            const room = rooms.find(r => r.id === roomId);
+            const building = buildings.find(b => b.id === form.building_id.value);
+
+            const data = {
+                registration_id: form.registration_id.value,
+                room_id: roomId,
+                building_name: Layout.getName(building),
+                room_number: room?.number,
+                room_type: room?.capacity ? `${room.capacity}-местная` : null,
+                check_in_date: form.check_in_date.value || null,
+                check_out_date: form.check_out_date.value || null,
+                notes: form.notes.value.trim() || null
+            };
+
+            try {
+                // Check if accommodation already exists
+                const { data: existing } = await Layout.db
+                    .from('guest_accommodations')
+                    .select('id')
+                    .eq('registration_id', data.registration_id)
+                    .maybeSingle();
+
+                if (existing) {
+                    const { error } = await Layout.db
+                        .from('guest_accommodations')
+                        .update(data)
+                        .eq('id', existing.id);
+                    if (error) throw error;
+                } else {
+                    const { error } = await Layout.db
+                        .from('guest_accommodations')
+                        .insert(data);
+                    if (error) throw error;
+                }
+
+                document.getElementById('placementModal').close();
+                alert('Гость размещён!');
+            } catch (err) {
+                console.error('Error saving placement:', err);
+                alert('Ошибка размещения: ' + err.message);
+            }
+        }
+
         // ==================== REGISTRATIONS ====================
 
         function renderRegistrations() {
@@ -1199,7 +1430,7 @@
                 const departure = transfers.find(t => t.direction === 'departure');
 
                 // Check if there's any detail to show
-                const hasDetails = arrival || departure || reg.accommodation_wishes || reg.companions || reg.payment_notes || reg.org_notes;
+                const hasDetails = arrival || departure || reg.accommodation_wishes || reg.companions || reg.payment_notes || reg.org_notes || reg.extended_stay || reg.guest_questions;
 
                 // Build details HTML
                 let detailsHtml = '';
@@ -1232,43 +1463,94 @@
                     `;
                 }
 
-                if (reg.accommodation_wishes || reg.companions) {
+                if (reg.companions) {
                     detailsHtml += `
                         <div class="detail-section">
-                            <div class="detail-label">🏨 Проживание</div>
-                            <div class="text-sm space-y-1">
-                                ${reg.accommodation_wishes ? `<div><span class="opacity-60">Пожелания:</span> ${reg.accommodation_wishes}</div>` : ''}
-                                ${reg.companions ? `<div><span class="opacity-60">Спутники:</span> ${reg.companions}</div>` : ''}
-                            </div>
+                            <div class="detail-label">👨‍👩‍👧 Семья / Спутники</div>
+                            <div class="text-sm">${reg.companions}</div>
                         </div>
                     `;
                 }
 
-                if (reg.payment_notes || reg.org_notes) {
+                if (reg.accommodation_wishes) {
                     detailsHtml += `
                         <div class="detail-section">
-                            <div class="detail-label">📝 Заметки</div>
-                            <div class="text-sm space-y-1">
-                                ${reg.payment_notes ? `<div><span class="opacity-60">Оплата:</span> ${reg.payment_notes}</div>` : ''}
-                                ${reg.org_notes ? `<div class="whitespace-pre-line">${reg.org_notes}</div>` : ''}
-                            </div>
+                            <div class="detail-label">🏨 Пожелания по проживанию</div>
+                            <div class="text-sm">${reg.accommodation_wishes}</div>
                         </div>
                     `;
                 }
+
+                if (reg.extended_stay) {
+                    detailsHtml += `
+                        <div class="detail-section">
+                            <div class="detail-label">📅 После ретрита</div>
+                            <div class="text-sm whitespace-pre-line">${reg.extended_stay}</div>
+                        </div>
+                    `;
+                }
+
+                if (reg.payment_notes) {
+                    detailsHtml += `
+                        <div class="detail-section">
+                            <div class="detail-label">💳 Оплата</div>
+                            <div class="text-sm">${reg.payment_notes}</div>
+                        </div>
+                    `;
+                }
+
+                if (reg.org_notes) {
+                    detailsHtml += `
+                        <div class="detail-section">
+                            <div class="detail-label">📋 Комментарий ОП</div>
+                            <div class="text-sm whitespace-pre-line">${reg.org_notes}</div>
+                        </div>
+                    `;
+                }
+
+                if (reg.guest_questions) {
+                    detailsHtml += `
+                        <div class="detail-section">
+                            <div class="detail-label">❓ Вопросы</div>
+                            <div class="text-sm whitespace-pre-line">${reg.guest_questions}</div>
+                        </div>
+                    `;
+                }
+
+                const regDateStr = reg.registration_date ? `<span class="text-xs opacity-40 ml-2">зарег. ${formatDate(reg.registration_date)}</span>` : '';
+
+                // Actions section
+                const actionsHtml = `
+                    <div class="detail-section border-t pt-3 mt-3 flex items-center gap-3">
+                        <select class="select select-xs status-${reg.status}" style="min-width: 0; padding-right: 1.5rem;" onchange="updateRegistrationStatus('${reg.id}', this.value, this)" onclick="event.stopPropagation()">
+                            <option value="pending" ${reg.status === 'pending' ? 'selected' : ''}>Планирует</option>
+                            <option value="confirmed" ${reg.status === 'confirmed' ? 'selected' : ''}>Подтверждён</option>
+                            <option value="team" ${reg.status === 'team' ? 'selected' : ''}>Команда</option>
+                            <option value="cancelled" ${reg.status === 'cancelled' ? 'selected' : ''}>Отказ</option>
+                            <option value="no_response" ${reg.status === 'no_response' ? 'selected' : ''}>Нет ответа</option>
+                        </select>
+                        <button class="btn btn-xs btn-outline gap-1" onclick="event.stopPropagation(); openPlacementModal('${reg.id}')">
+                            <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6" />
+                            </svg>
+                            Заселить
+                        </button>
+                    </div>
+                `;
 
                 return `
-                    <div class="retreat-card border rounded-lg p-3 ${hasDetails ? 'expanded' : ''}" onclick="this.classList.toggle('expanded')">
+                    <div class="retreat-card border rounded-lg p-3 expanded" onclick="this.classList.toggle('expanded')">
                         <div class="flex items-center justify-between">
                             <div class="flex-1 min-w-0">
-                                <div class="font-medium">${retreat ? Layout.getName(retreat) : '—'}</div>
+                                <div class="font-medium">${retreat ? Layout.getName(retreat) : '—'}${regDateStr}</div>
                                 ${retreat ? `<div class="text-sm opacity-60">${formatDate(retreat.start_date)} — ${formatDate(retreat.end_date)}</div>` : ''}
                             </div>
                             <div class="flex items-center gap-2">
                                 <span class="badge ${statusClass}">${statusLabel}</span>
-                                ${hasDetails ? `<svg class="chevron w-4 h-4 opacity-40" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>` : ''}
+                                <svg class="chevron w-4 h-4 opacity-40" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
                             </div>
                         </div>
-                        ${hasDetails ? `<div class="details">${detailsHtml}</div>` : ''}
+                        <div class="details">${detailsHtml}${actionsHtml}</div>
                     </div>
                 `;
             }).join('');

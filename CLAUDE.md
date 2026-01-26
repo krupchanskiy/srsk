@@ -193,6 +193,28 @@ const { data, error } = await Layout.db
 
 3. **Трёхязычность** — все тексты должны иметь переводы (ru, en, hi).
 
+4. **Поле поиска с крестиком** — все поля поиска должны иметь кнопку очистки (крестик), которая появляется при вводе текста и очищает поле по клику:
+```html
+<div class="relative w-full sm:w-64">
+    <input type="text" id="searchInput" class="input input-bordered w-full pl-10 pr-8" placeholder="Поиск..." oninput="onSearchInput(this.value)" />
+    <svg class="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 opacity-40"><!-- search icon --></svg>
+    <button type="button" id="searchClear" class="absolute right-2 top-1/2 -translate-y-1/2 w-5 h-5 opacity-40 hover:opacity-70 hidden" onclick="clearSearch()">
+        <svg><!-- X icon --></svg>
+    </button>
+</div>
+```
+```javascript
+function onSearchInput(query) {
+    document.getElementById('searchClear').classList.toggle('hidden', !query);
+    // ... filter logic
+}
+function clearSearch() {
+    document.getElementById('searchInput').value = '';
+    document.getElementById('searchClear').classList.add('hidden');
+    // ... reset filter
+}
+```
+
 ## Storage Buckets
 
 Supabase Storage buckets с публичным доступом:
