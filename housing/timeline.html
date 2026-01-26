@@ -771,10 +771,18 @@
                     <div class="form-control">
                         <label class="label"><span class="label-text">Заезд</span></label>
                         <input type="date" id="editCheckIn" class="input input-bordered">
+                        <label class="label cursor-pointer justify-start gap-2 mt-1">
+                            <input type="checkbox" id="editEarlyCheckin" class="checkbox checkbox-sm">
+                            <span class="label-text">Ранний заезд</span>
+                        </label>
                     </div>
                     <div class="form-control">
                         <label class="label"><span class="label-text">Выезд</span></label>
                         <input type="date" id="editCheckOut" class="input input-bordered">
+                        <label class="label cursor-pointer justify-start gap-2 mt-1">
+                            <input type="checkbox" id="editLateCheckout" class="checkbox checkbox-sm">
+                            <span class="label-text">Поздний выезд</span>
+                        </label>
                     </div>
                 </div>
 
@@ -1824,6 +1832,8 @@
             const res = currentResident.rawData;
             document.getElementById('editCheckIn').value = res.check_in || '';
             document.getElementById('editCheckOut').value = res.check_out || '';
+            document.getElementById('editEarlyCheckin').checked = res.early_checkin || false;
+            document.getElementById('editLateCheckout').checked = res.late_checkout || false;
         }
 
         // Сохранить изменённые даты
@@ -1832,6 +1842,8 @@
 
             const checkIn = document.getElementById('editCheckIn').value;
             const checkOut = document.getElementById('editCheckOut').value;
+            const earlyCheckin = document.getElementById('editEarlyCheckin').checked;
+            const lateCheckout = document.getElementById('editLateCheckout').checked;
 
             if (!checkIn) {
                 alert('Укажите дату заезда');
@@ -1842,7 +1854,9 @@
                 .from('residents')
                 .update({
                     check_in: checkIn,
-                    check_out: checkOut || null
+                    check_out: checkOut || null,
+                    early_checkin: earlyCheckin,
+                    late_checkout: lateCheckout
                 })
                 .eq('id', currentResident.id);
 
