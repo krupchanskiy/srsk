@@ -34,6 +34,14 @@
         <!-- Stats -->
         <div class="stats shadow mb-6 w-full" id="statsBlock" style="display: none;">
             <div class="stat">
+                <div class="stat-title">Сегодня</div>
+                <div class="stat-value text-accent" id="statToday">0</div>
+            </div>
+            <div class="stat">
+                <div class="stat-title">Завтра</div>
+                <div class="stat-value text-info" id="statTomorrow">0</div>
+            </div>
+            <div class="stat">
                 <div class="stat-title">Всего гостей</div>
                 <div class="stat-value text-primary" id="statTotal">0</div>
             </div>
@@ -189,16 +197,33 @@
             const total = registrations.length;
             let withTime = 0;
             let noTime = 0;
+            let today = 0;
+            let tomorrow = 0;
+
+            const now = new Date();
+            const todayStr = now.toISOString().split('T')[0];
+            const tomorrowDate = new Date(now);
+            tomorrowDate.setDate(tomorrowDate.getDate() + 1);
+            const tomorrowStr = tomorrowDate.toISOString().split('T')[0];
 
             registrations.forEach(reg => {
                 const arrival = (reg.guest_transfers || []).find(t => t.direction === 'arrival');
                 if (arrival?.flight_datetime) {
                     withTime++;
+                    // Estimated arrival = flight_datetime + 4 hours
+                    const estimatedDate = new Date(arrival.flight_datetime);
+                    estimatedDate.setHours(estimatedDate.getHours() + 4);
+                    const estimatedStr = estimatedDate.toISOString().split('T')[0];
+
+                    if (estimatedStr === todayStr) today++;
+                    if (estimatedStr === tomorrowStr) tomorrow++;
                 } else {
                     noTime++;
                 }
             });
 
+            document.getElementById('statToday').textContent = today;
+            document.getElementById('statTomorrow').textContent = tomorrow;
             document.getElementById('statTotal').textContent = total;
             document.getElementById('statWithTime').textContent = withTime;
             document.getElementById('statNoTime').textContent = noTime;
