@@ -67,7 +67,6 @@ const modules = {
             { id: 'reception', items: [
                 { id: 'timeline', href: 'placement/timeline.html' },
                 { id: 'bookings', href: 'placement/bookings.html' },
-                { id: 'temp_floor_plan', href: 'reception/floor-plan.html' },
                 { id: 'cleaning', href: 'reception/cleaning.html' }
             ]},
             { id: 'settings', items: [
