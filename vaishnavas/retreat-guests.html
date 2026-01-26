@@ -2062,8 +2062,18 @@
 
             if (error) throw error;
 
-            // Add to local cache
-            vaishnavas.push({ id: data.id, ...parsed });
+            // Add to local cache (snake_case для совместимости с findMatchingVaishnava)
+            vaishnavas.push({
+                id: data.id,
+                first_name: parsed.firstName,
+                last_name: parsed.lastName,
+                spiritual_name: parsed.spiritualName,
+                phone: parsed.phone,
+                email: parsed.email,
+                birth_date: parsed.birthDate,
+                gender: parsed.gender,
+                telegram: parsed.telegram
+            });
 
             return data.id;
         }
