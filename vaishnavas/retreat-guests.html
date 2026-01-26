@@ -1958,18 +1958,34 @@
 
             for (const v of vaishnavas) {
                 let score = 0;
+                let birthDateConflict = false;
 
-                // Email match (+5)
-                if (parsed.email && v.email && parsed.email.toLowerCase() === v.email.toLowerCase()) {
-                    score += 5;
+                // Проверяем конфликт дат рождения (разные люди в одной семье с общим email/телефоном)
+                if (parsed.birthDate && v.birth_date && parsed.birthDate !== v.birth_date) {
+                    const d1 = new Date(parsed.birthDate);
+                    const d2 = new Date(v.birth_date);
+                    const yearsDiff = Math.abs(d1.getFullYear() - d2.getFullYear());
+                    // Если разница более 3 лет — это разные люди
+                    if (yearsDiff > 3) {
+                        birthDateConflict = true;
+                    }
                 }
 
-                // Phone match (+4)
+                // Email match (+5) — но не если конфликт дат рождения
+                if (parsed.email && v.email && parsed.email.toLowerCase() === v.email.toLowerCase()) {
+                    if (!birthDateConflict) {
+                        score += 5;
+                    }
+                }
+
+                // Phone match (+4) — но не если конфликт дат рождения
                 if (parsed.phone && v.phone) {
                     const p1 = parsed.phone.replace(/\D/g, '');
                     const p2 = v.phone.replace(/\D/g, '');
                     if (p1.length >= 10 && p2.length >= 10 && p1.slice(-10) === p2.slice(-10)) {
-                        score += 4;
+                        if (!birthDateConflict) {
+                            score += 4;
+                        }
                     }
                 }
 
@@ -2348,8 +2364,18 @@
             document.getElementById('importStep4').classList.remove('hidden');
             document.getElementById('importResolveBtn').classList.add('hidden');
 
-            document.getElementById('importSummary').textContent =
-                `Создано: ${importStats.created}, Обновлено: ${importStats.updated}, Пропущено: ${importStats.skipped}`;
+            const totalProcessed = importStats.created + importStats.updated + importStats.skipped + conflicts.length;
+            const csvCount = csvData.length;
+
+            let summary = `Создано: ${importStats.created}, Обновлено: ${importStats.updated}, Пропущено: ${importStats.skipped}`;
+
+            // Проверка количества: входные строки должны совпадать с обработанными
+            if (totalProcessed !== csvCount) {
+                summary += `\n⚠️ ВНИМАНИЕ: В CSV было ${csvCount} строк, обработано ${totalProcessed}!`;
+                console.error(`Несовпадение количества! CSV: ${csvCount}, обработано: ${totalProcessed}`);
+            }
+
+            document.getElementById('importSummary').innerHTML = summary.replace('\n', '<br>');
 
             // Reload data
             loadRegistrations();
