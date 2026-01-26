@@ -46,33 +46,53 @@ const modules = {
             ]}
         ]
     },
-    housing: {
-        id: 'housing',
-        nameKey: 'module_housing',
-        icon: '🏠',
+    vaishnavas: {
+        id: 'vaishnavas',
+        nameKey: 'module_vaishnavas',
+        icon: '🙏',
         hasLocations: false,
-        defaultPage: 'housing/timeline.html',
+        defaultPage: 'vaishnavas/index.html',
         menuConfig: [
-            { id: 'housing', items: [
-                { id: 'timeline', href: 'housing/timeline.html' },
-                // { id: 'occupancy', href: 'housing/occupancy.html' }, // временно скрыто
-                { id: 'bookings', href: 'housing/bookings.html' },
-                { id: 'transfers', href: 'housing/transfers.html' },
-                { id: 'cleaning', href: 'housing/cleaning.html' }
-            ]},
             { id: 'vaishnavas', items: [
                 { id: 'vaishnavas_all', href: 'vaishnavas/index.html' },
                 { id: 'vaishnavas_guests', href: 'vaishnavas/guests.html' },
                 { id: 'vaishnavas_team', href: 'vaishnavas/team.html' },
                 { id: 'retreat_guests', href: 'vaishnavas/retreat-guests.html' }
+            ]}
+        ]
+    },
+    placement: {
+        id: 'placement',
+        nameKey: 'module_placement',
+        icon: '🛏️',
+        hasLocations: false,
+        defaultPage: 'placement/timeline.html',
+        menuConfig: [
+            { id: 'placement', items: [
+                { id: 'timeline', href: 'placement/timeline.html' },
+                { id: 'bookings', href: 'placement/bookings.html' },
+                { id: 'transfers', href: 'placement/transfers.html' }
             ]},
             { id: 'ashram', items: [
                 { id: 'retreats', href: 'ashram/retreats.html' }
+            ]}
+        ]
+    },
+    reception: {
+        id: 'reception',
+        nameKey: 'module_reception',
+        icon: '🧹',
+        hasLocations: false,
+        defaultPage: 'reception/floor-plan.html',
+        menuConfig: [
+            { id: 'reception', items: [
+                { id: 'floor_plan', href: 'reception/floor-plan.html' },
+                { id: 'cleaning', href: 'reception/cleaning.html' }
             ]},
             { id: 'settings', items: [
-                { id: 'buildings', href: 'housing/buildings.html' },
-                { id: 'rooms', href: 'housing/rooms.html' },
-                { id: 'housing_dictionaries', href: 'housing/dictionaries.html' }
+                { id: 'buildings', href: 'reception/buildings.html' },
+                { id: 'rooms', href: 'reception/rooms.html' },
+                { id: 'reception_dictionaries', href: 'reception/dictionaries.html' }
             ]}
         ]
     }
@@ -94,7 +114,7 @@ function getMenuConfig() {
 }
 
 // Список всех подпапок модулей
-const MODULE_FOLDERS = ['kitchen', 'stock', 'ashram', 'housing', 'vaishnavas', 'settings'];
+const MODULE_FOLDERS = ['kitchen', 'stock', 'ashram', 'vaishnavas', 'placement', 'reception', 'settings'];
 
 // Определить текущую подпапку (если есть)
 function getCurrentFolder() {
@@ -1006,11 +1026,15 @@ async function initLayout(page = { module: null, menuId: 'kitchen', itemId: null
     // Загружаем локации всегда (для выпадающего списка)
     await loadLocations();
 
-    // Для модуля housing устанавливаем фиолетовый цвет
-    if (currentModule === 'housing') {
-        setColor('#8b5cf6');
-        // Обновляем название в селекторе
-        $$('.location-name').forEach(el => el.textContent = t('module_housing'));
+    // Устанавливаем цвет для модулей без локаций
+    const moduleColors = {
+        vaishnavas: '#10b981',
+        placement: '#8b5cf6',
+        reception: '#06b6d4'
+    };
+    if (moduleColors[currentModule]) {
+        setColor(moduleColors[currentModule]);
+        $$('.location-name').forEach(el => el.textContent = t(modules[currentModule].nameKey));
     }
 
     buildMobileMenu();

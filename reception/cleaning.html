@@ -2,7 +2,7 @@
 <html lang="ru" data-theme="light">
 <head>
     <meta charset="UTF-8">
-    <script>(function(){var c={kitchen:'#f49800',housing:'#8b5cf6'};var m=localStorage.getItem('srsk_module')||'kitchen';document.documentElement.style.setProperty('--current-color',c[m]||c.kitchen);})();</script>
+    <script>(function(){var c={kitchen:'#f49800',vaishnavas:'#10b981',placement:'#8b5cf6',reception:'#06b6d4'};var m=localStorage.getItem('srsk_module')||'kitchen';document.documentElement.style.setProperty('--current-color',c[m]||c.kitchen);})();</script>
 
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Уборка — ШРСК</title>
@@ -495,7 +495,7 @@
                 .select(`
                     id, check_out, guest_name, cleaning_done, cleaning_skipped,
                     rooms(id, number, floor, buildings(id, name_ru, name_en)),
-                    team_members(id, first_name, spiritual_name),
+                    vaishnavas(id, first_name, spiritual_name),
                     bookings(id, name, contact_name)
                 `)
                 .eq('status', 'active')
@@ -610,7 +610,7 @@
                 .select(`
                     id, check_out, guest_name, cleaning_done,
                     rooms(id, number, floor, buildings(id, name_ru, name_en)),
-                    team_members(id, first_name, spiritual_name),
+                    vaishnavas(id, first_name, spiritual_name),
                     bookings(id, name, contact_name)
                 `)
                 .eq('cleaning_done', true)
@@ -771,8 +771,8 @@
         }
 
         function getResidentName(resident) {
-            if (resident.team_members) {
-                const tm = resident.team_members;
+            if (resident.vaishnavas) {
+                const tm = resident.vaishnavas;
                 const name = tm.spiritual_name || tm.first_name || '';
                 return Layout.currentLang === 'ru' ? name : Layout.transliterate(name);
             }
@@ -795,8 +795,8 @@
             // Badge for cleaning type
             let badge;
             if (isManual) {
-                if (cleaningType === 'linen') {
-                    badge = `<span class="badge badge-secondary badge-sm">${t('linen_change') || 'Смена белья'}</span>`;
+                if (cleaningType === 'bedding') {
+                    badge = `<span class="badge badge-sm" style="background: #06b6d4; color: white;">${t('bedding') || 'Бельё'}</span>`;
                 } else {
                     badge = `<span class="badge badge-primary badge-sm">${t('cleaning_manual') || 'Назначена вручную'}</span>`;
                 }
@@ -1004,8 +1004,8 @@
 
             let badge;
             if (isManual) {
-                if (cleaningType === 'linen') {
-                    badge = `<span class="badge badge-secondary badge-sm">${t('linen_change') || 'Смена белья'}</span>`;
+                if (cleaningType === 'bedding') {
+                    badge = `<span class="badge badge-sm" style="background: #06b6d4; color: white;">${t('bedding') || 'Бельё'}</span>`;
                 } else {
                     badge = `<span class="badge badge-primary badge-sm">${t('cleaning_manual') || 'Вручную'}</span>`;
                 }
@@ -1463,7 +1463,7 @@
         };
 
         async function init() {
-            await Layout.init({ module: 'housing', menuId: 'housing', itemId: 'cleaning' });
+            await Layout.init({ module: 'reception', menuId: 'reception', itemId: 'cleaning' });
             Layout.showLoader();
             updateUI();
             await loadCleaningSchedule();
