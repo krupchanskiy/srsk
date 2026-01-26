@@ -47,6 +47,16 @@
             </div>
         </div>
 
+        <!-- Search -->
+        <div class="mb-4">
+            <div class="relative max-w-sm">
+                <input type="text" id="searchInput" placeholder="Поиск по имени..."
+                       class="input input-bordered w-full pr-10"
+                       oninput="onSearchInput(this.value)">
+                <button id="searchClear" class="absolute right-3 top-1/2 -translate-y-1/2 opacity-50 hover:opacity-100 hidden" onclick="clearSearch()">✕</button>
+            </div>
+        </div>
+
         <!-- Table -->
         <div class="overflow-x-auto bg-base-100 rounded-lg shadow">
             <table class="table table-zebra">
@@ -97,6 +107,7 @@
         let registrations = [];
         let sortField = 'arrival';
         let sortDirection = 'asc';
+        let searchQuery = '';
 
         // ==================== DATA LOADING ====================
         async function loadRetreats() {
@@ -235,6 +246,19 @@
             renderTable();
         }
 
+        function onSearchInput(query) {
+            searchQuery = query.toLowerCase().trim();
+            document.getElementById('searchClear').classList.toggle('hidden', !query);
+            renderTable();
+        }
+
+        function clearSearch() {
+            document.getElementById('searchInput').value = '';
+            searchQuery = '';
+            document.getElementById('searchClear').classList.add('hidden');
+            renderTable();
+        }
+
         function updateSortIcons() {
             document.querySelectorAll('.sort-icon').forEach(icon => {
                 const field = icon.dataset.sort;
@@ -249,7 +273,18 @@
         }
 
         function getSortedRegistrations() {
-            return [...registrations].sort((a, b) => {
+            let filtered = [...registrations];
+
+            // Фильтрация по поиску
+            if (searchQuery) {
+                filtered = filtered.filter(reg => {
+                    const v = reg.vaishnavas;
+                    const name = `${v?.spiritual_name || ''} ${v?.first_name || ''} ${v?.last_name || ''}`.toLowerCase();
+                    return name.includes(searchQuery);
+                });
+            }
+
+            return filtered.sort((a, b) => {
                 let aVal, bVal;
 
                 if (sortField === 'name') {
