@@ -116,8 +116,9 @@ Housing (модуль проживания):
 
 Регистрации на ретриты:
 - `retreat_registrations` — регистрации (связь через `vaishnava_id`)
-- `guest_visas`, `guest_payments`, `guest_accommodations`, `guest_transfers` — детали регистрации
+- `guest_visas`, `guest_payments`, `guest_transfers` — детали регистрации
 - `guest_notes` — заметки о гостях
+- Размещение гостей хранится в `residents` (единая таблица с шахматкой)
 
 ### SQL Migrations
 
@@ -258,7 +259,7 @@ const grouped = allResidents.reduce((acc, r) => { (acc[r.booking_id] ||= []).pus
 ├── settings/       # переводы, пользователи
 ├── css/            # common.css
 ├── js/             # layout.js
-├── supabase/       # SQL-миграции (001-075)
+├── supabase/       # SQL-миграции (001-066+)
 └── docs/           # документация
 ```
 
