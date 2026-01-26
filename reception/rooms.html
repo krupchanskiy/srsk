@@ -2,7 +2,7 @@
 <html lang="ru" data-theme="light">
 <head>
     <meta charset="UTF-8">
-    <script>(function(){var c={kitchen:'#f49800',vaishnavas:'#10b981',placement:'#8b5cf6',reception:'#06b6d4'};var m=localStorage.getItem('srsk_module')||'kitchen';document.documentElement.style.setProperty('--current-color',c[m]||c.kitchen);})();</script>
+    <script>(function(){var c={kitchen:'#f49800',housing:'#8b5cf6'};var m=localStorage.getItem('srsk_module')||'kitchen';document.documentElement.style.setProperty('--current-color',c[m]||c.kitchen);})();</script>
 
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Комнаты — ШРСК</title>
@@ -413,7 +413,7 @@
 
         // ==================== INIT ====================
         async function init() {
-            await Layout.init({ module: 'reception', menuId: 'settings', itemId: 'rooms' });
+            await Layout.init({ module: 'housing', menuId: 'settings', itemId: 'rooms' });
             Layout.showLoader();
 
             // Get building filter from URL

@@ -46,45 +46,24 @@ const modules = {
             ]}
         ]
     },
-    vaishnavas: {
-        id: 'vaishnavas',
-        nameKey: 'module_vaishnavas',
-        icon: '🙏',
+    housing: {
+        id: 'housing',
+        nameKey: 'module_housing',
+        icon: '🏠',
         hasLocations: false,
-        defaultPage: 'vaishnavas/index.html',
+        defaultPage: 'placement/timeline.html',
         menuConfig: [
             { id: 'vaishnavas', items: [
                 { id: 'vaishnavas_all', href: 'vaishnavas/index.html' },
                 { id: 'vaishnavas_guests', href: 'vaishnavas/guests.html' },
                 { id: 'vaishnavas_team', href: 'vaishnavas/team.html' },
                 { id: 'retreat_guests', href: 'vaishnavas/retreat-guests.html' }
-            ]}
-        ]
-    },
-    placement: {
-        id: 'placement',
-        nameKey: 'module_placement',
-        icon: '🛏️',
-        hasLocations: false,
-        defaultPage: 'placement/timeline.html',
-        menuConfig: [
+            ]},
             { id: 'placement', items: [
                 { id: 'timeline', href: 'placement/timeline.html' },
                 { id: 'bookings', href: 'placement/bookings.html' },
                 { id: 'transfers', href: 'placement/transfers.html' }
             ]},
-            { id: 'ashram', items: [
-                { id: 'retreats', href: 'ashram/retreats.html' }
-            ]}
-        ]
-    },
-    reception: {
-        id: 'reception',
-        nameKey: 'module_reception',
-        icon: '🧹',
-        hasLocations: false,
-        defaultPage: 'reception/floor-plan.html',
-        menuConfig: [
             { id: 'reception', items: [
                 { id: 'floor_plan', href: 'reception/floor-plan.html' },
                 { id: 'cleaning', href: 'reception/cleaning.html' }
@@ -92,7 +71,7 @@ const modules = {
             { id: 'settings', items: [
                 { id: 'buildings', href: 'reception/buildings.html' },
                 { id: 'rooms', href: 'reception/rooms.html' },
-                { id: 'reception_dictionaries', href: 'reception/dictionaries.html' }
+                { id: 'housing_dictionaries', href: 'reception/dictionaries.html' }
             ]}
         ]
     }
@@ -1026,15 +1005,10 @@ async function initLayout(page = { module: null, menuId: 'kitchen', itemId: null
     // Загружаем локации всегда (для выпадающего списка)
     await loadLocations();
 
-    // Устанавливаем цвет для модулей без локаций
-    const moduleColors = {
-        vaishnavas: '#10b981',
-        placement: '#8b5cf6',
-        reception: '#06b6d4'
-    };
-    if (moduleColors[currentModule]) {
-        setColor(moduleColors[currentModule]);
-        $$('.location-name').forEach(el => el.textContent = t(modules[currentModule].nameKey));
+    // Устанавливаем цвет для модуля housing
+    if (currentModule === 'housing') {
+        setColor('#8b5cf6');
+        $$('.location-name').forEach(el => el.textContent = t('module_housing'));
     }
 
     buildMobileMenu();
