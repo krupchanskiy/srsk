@@ -212,15 +212,22 @@
 
                     <div class="grid grid-cols-2 gap-4">
                         <div>
+                            <label class="label"><span class="label-text font-medium" data-i18n="booking_buildings">Где размещаем</span><span class="text-error ml-1">*</span></label>
+                            <select name="building_scope" id="newBookingBuildingScope" class="select select-bordered w-full" required>
+                                <!-- Заполняется динамически -->
+                            </select>
+                        </div>
+                        <div>
                             <label class="label"><span class="label-text font-medium" data-i18n="booking_retreat">Ретрит</span></label>
                             <select name="retreat_id" id="newBookingRetreatSelect" class="select select-bordered w-full">
                                 <option value="">—</option>
                             </select>
                         </div>
-                        <div>
-                            <label class="label"><span class="label-text font-medium" data-i18n="booking_notes">Примечания</span></label>
-                            <input type="text" name="notes" class="input input-bordered w-full" />
-                        </div>
+                    </div>
+
+                    <div>
+                        <label class="label"><span class="label-text font-medium" data-i18n="booking_notes">Примечания</span></label>
+                        <input type="text" name="notes" class="input input-bordered w-full" />
                     </div>
                 </form>
 
@@ -675,12 +682,22 @@
             retreatSelect.innerHTML = `<option value="">—</option>` +
                 retreats.map(r => `<option value="${r.id}">${Layout.getName(r)}</option>`).join('');
 
-            // Populate building select
+            // Populate building select for step 2
             const buildingSelect = Layout.$('#newBookingBuildingSelect');
             buildingSelect.innerHTML = buildings.map(b =>
                 `<option value="${b.id}">${Layout.getName(b)}</option>`
             ).join('');
             bookingBuildingId = buildings[0]?.id;
+
+            // Populate building scope select for step 1
+            const guesthouse = buildings.find(b => b.name_ru === 'Гостевой дом' || b.name_en === 'Guest House');
+            const buildingScopeSelect = Layout.$('#newBookingBuildingScope');
+            buildingScopeSelect.innerHTML =
+                (guesthouse ? `<option value="${guesthouse.id}">${Layout.getName(guesthouse)}</option>` : '') +
+                `<option value="all">${t('booking_all_buildings') || 'Все здания'}</option>` +
+                buildings.filter(b => b.id !== guesthouse?.id).map(b =>
+                    `<option value="${b.id}">${Layout.getName(b)}</option>`
+                ).join('');
 
             updateBookingStepIndicators();
             Layout.$('#bookingStep1').classList.remove('hidden');
@@ -725,12 +742,17 @@
             const bedsCount = parseInt(form.beds_count.value) || 1;
             const checkIn = form.check_in.value;
             const checkOut = form.check_out.value;
+            const buildingScope = form.building_scope.value;
+
+            // Определяем building_ids для проверки
+            const buildingIds = buildingScope === 'all' ? null : [buildingScope];
 
             // Проверяем доступность на весь период
             const { data: problemDates, error } = await Layout.db.rpc('check_booking_availability', {
                 p_check_in: checkIn,
                 p_check_out: checkOut,
-                p_beds_needed: bedsCount
+                p_beds_needed: bedsCount,
+                p_building_ids: buildingIds
             });
 
             if (error) {
@@ -743,7 +765,11 @@
                     return `${dateFormatter.format(date)} (свободно ${d.available_beds} из ${d.total_capacity})`;
                 }).join('\n');
 
-                alert(`Бронирование невозможно!\n\nНа следующие даты недостаточно свободных мест:\n${problemDatesStr}\n\nТребуется: ${bedsCount} мест`);
+                const buildingName = buildingScope === 'all'
+                    ? (t('booking_all_buildings') || 'Все здания')
+                    : buildings.find(b => b.id === buildingScope)?.name_ru || '';
+
+                alert(`Бронирование невозможно!\n\n${buildingName}: на следующие даты недостаточно свободных мест:\n${problemDatesStr}\n\nТребуется: ${bedsCount} мест`);
                 return;
             }
 
@@ -751,6 +777,13 @@
             updateBookingStepIndicators();
             Layout.$('#bookingStep1').classList.add('hidden');
             Layout.$('#bookingStep2').classList.remove('hidden');
+
+            // Устанавливаем выбранное здание для отображения плана (или первое, если "все")
+            const buildingSelect = Layout.$('#newBookingBuildingSelect');
+            if (buildingScope !== 'all') {
+                buildingSelect.value = buildingScope;
+                bookingBuildingId = buildingScope;
+            }
 
             Layout.$('#bookingTotalCount').textContent = bedsCount;
             Layout.$('#bookingSelectedCount').textContent = bookingSelectedBeds.size;
