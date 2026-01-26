@@ -56,7 +56,7 @@ npx serve .
 ```html
 <head>
     <!-- Предзагрузка цвета модуля (предотвращает мигание) -->
-    <script>(function(){var c={kitchen:'#f49800',housing:'#8b5cf6'};var m=localStorage.getItem('srsk_module')||'kitchen';document.documentElement.style.setProperty('--current-color',c[m]||c.kitchen);})();</script>
+    <script>(function(){var c={kitchen:'#f49800',vaishnavas:'#10b981',placement:'#8b5cf6',reception:'#06b6d4'};var m=localStorage.getItem('srsk_module')||'kitchen';document.documentElement.style.setProperty('--current-color',c[m]||c.kitchen);})();</script>
 </head>
 <body>
     <div id="header-placeholder"></div>
@@ -150,7 +150,9 @@ Layout.pluralize(5, FORMS)  // "5 рецептов"
 ### Цвет модуля
 CSS-переменная `--current-color` определяет акцентный цвет:
 - **Kitchen**: `#f49800` (оранжевый)
-- **Housing**: `#8b5cf6` (фиолетовый)
+- **Vaishnavas**: `#10b981` (зелёный)
+- **Placement**: `#8b5cf6` (фиолетовый)
+- **Reception**: `#06b6d4` (бирюзовый)
 
 Использовать для кнопок, активных табов, подменю. Цвет устанавливается в `<head>` inline-скриптом для предотвращения мигания при загрузке.
 
@@ -164,7 +166,7 @@ const { data, error } = await Layout.db
 
 ## Menu Structure
 
-Два модуля с разными меню (см. `js/layout.js`):
+Четыре модуля с разными меню (см. `js/layout.js`):
 
 **Kitchen** (кухня):
 - kitchen: menu, menu_templates, recipes, products
@@ -172,11 +174,16 @@ const { data, error } = await Layout.db
 - ashram: retreats, vaishnavas_team
 - settings: dictionaries, translations, festivals
 
-**Housing** (проживание):
-- housing: timeline, bookings, transfers, cleaning
-- vaishnavas: vaishnavas_all, vaishnavas_guests, vaishnavas_team
+**Vaishnavas** (вайшнавы — база людей):
+- vaishnavas: vaishnavas_all, vaishnavas_guests, vaishnavas_team, retreat_guests
+
+**Placement** (размещение — бронирования, заезды, трансферы):
+- placement: timeline, bookings, transfers
 - ashram: retreats
-- settings: buildings, rooms, housing_dictionaries
+
+**Reception** (ресепшен — шахматка, уборка):
+- reception: floor_plan, cleaning
+- settings: buildings, rooms, reception_dictionaries
 
 Ключи переводов: `nav_kitchen`, `nav_vaishnavas_team`, etc.
 
@@ -254,8 +261,9 @@ const grouped = allResidents.reduce((acc, r) => { (acc[r.booking_id] ||= []).pus
 ├── kitchen/        # рецепты, меню, продукты
 ├── stock/          # склад, заявки, инвентаризация
 ├── ashram/         # ретриты, праздники
-├── housing/        # проживание, бронирования, уборка
-├── vaishnavas/     # люди (команда + гости)
+├── vaishnavas/     # база людей (все, гости, команда)
+├── placement/      # размещение (бронирования, таймлайн, трансферы)
+├── reception/      # ресепшен (шахматка, уборка, комнаты, здания)
 ├── settings/       # переводы, пользователи
 ├── css/            # common.css
 ├── js/             # layout.js
@@ -276,18 +284,22 @@ const grouped = allResidents.reduce((acc, r) => { (acc[r.booking_id] ||= []).pus
 | Профиль вайшнава | `vaishnavas/person.html` |
 | Распределение (импорт CSV) | `vaishnavas/retreat-guests.html` |
 
-### housing/ (Проживание)
+### placement/ (Размещение)
 | Термин | Файл |
 |--------|------|
-| Шахматка / Таймлайн | `housing/timeline.html` |
-| Бронирования | `housing/bookings.html` |
-| Трансферы | `housing/transfers.html` |
-| Уборка | `housing/cleaning.html` |
-| Здания | `housing/buildings.html` |
-| Комнаты | `housing/rooms.html` |
-| Планы этажей | `housing/floor-plan.html` |
-| Редактор планов | `housing/floor-plan-editor.html` |
-| Справочники (housing) | `housing/dictionaries.html` |
+| Таймлайн | `placement/timeline.html` |
+| Бронирования | `placement/bookings.html` |
+| Трансферы | `placement/transfers.html` |
+
+### reception/ (Ресепшен)
+| Термин | Файл |
+|--------|------|
+| Шахматка / Планы этажей | `reception/floor-plan.html` |
+| Редактор планов | `reception/floor-plan-editor.html` |
+| Уборка | `reception/cleaning.html` |
+| Комнаты | `reception/rooms.html` |
+| Здания | `reception/buildings.html` |
+| Справочники (ресепшен) | `reception/dictionaries.html` |
 
 ### kitchen/ (Кухня)
 | Термин | Файл |
