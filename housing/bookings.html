@@ -723,13 +723,22 @@
             bookingBuildingId = buildings[0]?.id;
 
             // Populate building scope select for step 1
+            // Считаем ёмкость каждого здания
+            const buildingCapacity = {};
+            let totalCapacity = 0;
+            rooms.forEach(r => {
+                if (!buildingCapacity[r.building_id]) buildingCapacity[r.building_id] = 0;
+                buildingCapacity[r.building_id] += r.capacity || 0;
+                totalCapacity += r.capacity || 0;
+            });
+
             const guesthouse = buildings.find(b => b.name_ru === 'Гостевой дом' || b.name_en === 'Guest House');
             const buildingScopeSelect = Layout.$('#newBookingBuildingScope');
             buildingScopeSelect.innerHTML =
-                (guesthouse ? `<option value="${guesthouse.id}">${Layout.getName(guesthouse)}</option>` : '') +
-                `<option value="all">${t('booking_all_buildings') || 'Все здания'}</option>` +
+                (guesthouse ? `<option value="${guesthouse.id}">${Layout.getName(guesthouse)} (${buildingCapacity[guesthouse.id] || 0})</option>` : '') +
+                `<option value="all">${t('booking_all_buildings') || 'Все здания'} (${totalCapacity})</option>` +
                 buildings.filter(b => b.id !== guesthouse?.id).map(b =>
-                    `<option value="${b.id}">${Layout.getName(b)}</option>`
+                    `<option value="${b.id}">${Layout.getName(b)} (${buildingCapacity[b.id] || 0})</option>`
                 ).join('');
 
             updateBookingStepIndicators();
