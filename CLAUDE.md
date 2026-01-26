@@ -273,7 +273,7 @@ const grouped = allResidents.reduce((acc, r) => { (acc[r.booking_id] ||= []).pus
 | Команда | `vaishnavas/team.html` |
 | Гости | `vaishnavas/guests.html` |
 | Профиль вайшнава | `vaishnavas/person.html` |
-| Гости ретрита (импорт CSV) | `vaishnavas/retreat-guests.html` |
+| Распределение (импорт CSV) | `vaishnavas/retreat-guests.html` |
 
 ### housing/ (Проживание)
 | Термин | Файл |
