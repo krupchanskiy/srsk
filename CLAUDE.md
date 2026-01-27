@@ -24,6 +24,10 @@ open index.html
 npx serve .
 ```
 
+## Testing
+
+Не запускать тесты самостоятельно. При больших изменениях — предложить запустить. Перед запуском спросить: все тесты или конкретные.
+
 ## Supabase MCP
 
 Настроен MCP-сервер для прямого доступа к БД. Project ID: `llttmftapmwebidgevmg`
@@ -44,9 +48,19 @@ npx serve .
   - Переключение языков и локаций
   - Supabase клиент (`Layout.db`)
   - Функция перевода `Layout.t(key)`
-  - Утилиты: `Layout.getName()`, `Layout.pluralize()`, `Layout.debounce()`
+  - Утилиты: `Layout.getName()`, `Layout.pluralize()`, `Layout.debounce()`, `Layout.escapeHtml()`
   - Прелоадер: `Layout.showLoader()`, `Layout.hideLoader()`
+  - Обработка ошибок: `Layout.handleError(error, context)` — toast-уведомление + console.error
   - Обёрнут в IIFE для изоляции переменных
+
+- **js/vaishnavas-utils.js** — Общие функции для vaishnavas/index.html, team.html, guests.html:
+  - Поиск, сортировка, фильтрация списков людей
+  - Рендер строк таблицы (`VaishnavasUtils.renderPersonRow()`)
+  - Модальные окна добавления (`VaishnavasUtils.openAddModal()`, `saveNewPerson()`)
+  - Загрузка и проверка присутствия (`loadStays()`, `isPresent()`)
+  - Экспортируется как `window.VaishnavasUtils`
+
+- **js/color-init.js** — Инициализация цвета модуля до рендера (предотвращает FOUC). Подключается в `<head>` каждого HTML файла.
 
 - **css/common.css** — Общие стили, CSS-переменная `--current-color` для динамического цвета локации
 
@@ -55,14 +69,14 @@ npx serve .
 Каждая страница:
 ```html
 <head>
-    <!-- Предзагрузка цвета модуля (предотвращает мигание) -->
-    <script>(function(){var c={kitchen:'#f49800',housing:'#8b5cf6'};var m=localStorage.getItem('srsk_module')||'kitchen';document.documentElement.style.setProperty('--current-color',c[m]||c.kitchen);})();</script>
+    <script src="../js/color-init.js"></script> <!-- или js/color-init.js для корневых -->
 </head>
 <body>
     <div id="header-placeholder"></div>
     <main>...</main>
     <div id="footer-placeholder"></div>
-    <script src="js/layout.js"></script>
+    <script src="../js/layout.js"></script>
+    <script src="../js/vaishnavas-utils.js"></script> <!-- только для vaishnavas/ -->
     <script>
         const t = key => Layout.t(key);
         async function init() {
@@ -152,14 +166,24 @@ CSS-переменная `--current-color` определяет акцентны
 - **Kitchen**: `#f49800` (оранжевый)
 - **Housing**: `#8b5cf6` (фиолетовый)
 
-Использовать для кнопок, активных табов, подменю. Цвет устанавливается в `<head>` inline-скриптом для предотвращения мигания при загрузке.
+Использовать для кнопок, активных табов, подменю. Цвет устанавливается через `js/color-init.js` в `<head>` для предотвращения мигания при загрузке.
 
 ### Supabase запросы
 ```javascript
+// Указывать конкретные поля вместо select('*')
 const { data, error } = await Layout.db
     .from('recipes')
-    .select('*, recipe_categories(*)')
+    .select('id, name_ru, name_en, name_hi, recipe_categories(id, name_ru, name_en, name_hi)')
     .order('name_ru');
+```
+
+### Обработка ошибок
+```javascript
+// Унифицированная обработка — toast + console.error
+if (error) {
+    Layout.handleError(error, 'Загрузка рецептов');
+    return;
+}
 ```
 
 ## Menu Structure
@@ -176,7 +200,10 @@ const { data, error } = await Layout.db
 - vaishnavas: vaishnavas_all, vaishnavas_guests, vaishnavas_team, retreat_guests
 - placement: timeline, bookings, transfers
 - reception: floor_plan, cleaning
+- ashram: retreats, festivals
 - settings: buildings, rooms, housing_dictionaries
+
+**Общее:** раздел «Ашрам» (retreats, festivals) присутствует в обоих модулях.
 
 Ключи переводов: `nav_kitchen`, `nav_vaishnavas_team`, etc.
 
@@ -259,7 +286,7 @@ const grouped = allResidents.reduce((acc, r) => { (acc[r.booking_id] ||= []).pus
 ├── reception/      # модуль Housing: ресепшен (шахматка, уборка, комнаты, здания)
 ├── settings/       # переводы, пользователи
 ├── css/            # common.css
-├── js/             # layout.js
+├── js/             # layout.js, vaishnavas-utils.js, color-init.js
 ├── supabase/       # SQL-миграции (001-066+)
 └── docs/           # документация
 ```

@@ -69,6 +69,10 @@ const modules = {
                 { id: 'bookings', href: 'placement/bookings.html' },
                 { id: 'cleaning', href: 'reception/cleaning.html' }
             ]},
+            { id: 'ashram', items: [
+                { id: 'retreats', href: 'ashram/retreats.html' },
+                { id: 'festivals', href: 'ashram/festivals.html' }
+            ]},
             { id: 'settings', items: [
                 { id: 'buildings', href: 'reception/buildings.html' },
                 { id: 'rooms', href: 'reception/rooms.html' },
