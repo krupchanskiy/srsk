@@ -484,6 +484,11 @@ function buildSubmenuBar() {
     }).join('');
 
     initSubmenuMargins();
+
+    // Пересчитать после загрузки шрифтов (кэш может вернуть данные до загрузки шрифтов)
+    if (document.fonts && document.fonts.ready) {
+        document.fonts.ready.then(() => initSubmenuMargins());
+    }
 }
 
 // ==================== LANGUAGE UPDATE ====================
