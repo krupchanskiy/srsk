@@ -1039,6 +1039,19 @@ async function initLayout(page = { module: null, menuId: 'kitchen', itemId: null
     return { db, currentLang, currentLocation, currentModule, locations };
 }
 
+/** Унифицированная обработка ошибок */
+function handleError(error, context = '') {
+    const message = error?.message || String(error);
+    console.error(`[${context}]`, error);
+
+    // Toast-уведомление пользователю
+    const toast = document.createElement('div');
+    toast.className = 'toast toast-top toast-end z-[100]';
+    toast.innerHTML = `<div class="alert alert-error shadow-lg"><span>${escapeHtml(context ? context + ': ' + message : message)}</span></div>`;
+    document.body.appendChild(toast);
+    setTimeout(() => toast.remove(), 5000);
+}
+
 // Экспортируем в глобальную область
 window.Layout = {
     init: initLayout,
@@ -1060,6 +1073,7 @@ window.Layout = {
     switchModule,
     showLoader,
     hideLoader,
+    handleError,
     get currentLang() { return currentLang; },
     get currentLocation() { return currentLocation; },
     get currentModule() { return currentModule; },

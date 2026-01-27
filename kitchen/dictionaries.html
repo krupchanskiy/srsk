@@ -2,7 +2,7 @@
 <html lang="ru" data-theme="light">
 <head>
     <meta charset="UTF-8">
-    <script>(function(){var c={kitchen:'#f49800',housing:'#8b5cf6'};var m=localStorage.getItem('srsk_module')||'kitchen';document.documentElement.style.setProperty('--current-color',c[m]||c.kitchen);})();</script>
+    <script src="../js/color-init.js"></script>
 
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Справочники — ШРСК</title>
@@ -496,7 +496,7 @@
         }
 
         // ==================== FILTER ====================
-        function filterDensities(query) {
+        const _debouncedFilterDensities = Layout.debounce((query) => {
             densityFilter = query;
             renderTable();
             // Восстанавливаем фокус на поле ввода
@@ -507,6 +507,10 @@
                     input.setSelectionRange(input.value.length, input.value.length);
                 }
             }, 0);
+        }, 300);
+
+        function filterDensities(query) {
+            _debouncedFilterDensities(query);
         }
 
         // ==================== TABS ====================

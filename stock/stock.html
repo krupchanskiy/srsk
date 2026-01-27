@@ -2,7 +2,7 @@
 <html lang="ru" data-theme="light">
 <head>
     <meta charset="UTF-8">
-    <script>(function(){var c={kitchen:'#f49800',housing:'#8b5cf6'};var m=localStorage.getItem('srsk_module')||'kitchen';document.documentElement.style.setProperty('--current-color',c[m]||c.kitchen);})();</script>
+    <script src="../js/color-init.js"></script>
 
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Остатки — ШРСК</title>
@@ -147,14 +147,14 @@
         }
 
         async function loadCategories() {
-            const { data, error } = await Layout.db.from('product_categories').select('*').order('name_ru');
+            const { data, error } = await Layout.db.from('product_categories').select('id, slug, name_ru, name_en, name_hi, emoji').order('name_ru');
             if (error) { console.error('Error loading categories:', error); return; }
             categories = data;
             renderCategoryFilters();
         }
 
         async function loadProducts() {
-            const { data, error } = await Layout.db.from('products').select('*, product_categories(*)');
+            const { data, error } = await Layout.db.from('products').select('id, name_ru, name_en, name_hi, unit, product_categories(id, slug, name_ru, name_en, name_hi)');
             if (error) { console.error('Error loading products:', error); return; }
             products = data;
         }
@@ -164,7 +164,7 @@
 
             const { data, error } = await Layout.db
                 .from('stock')
-                .select('*, products(*, product_categories(*))')
+                .select('id, current_quantity, min_quantity, placement, supplier, location_id, products(id, name_ru, name_en, name_hi, unit, product_categories(id, slug, name_ru, name_en, name_hi))')
                 .eq('location_id', locationId);
 
             if (error) { console.error('Error loading stock:', error); return; }
