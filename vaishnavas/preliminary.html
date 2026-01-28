@@ -249,14 +249,23 @@
                                 <span class="sort-icon" data-sort="org_notes">↕</span>
                             </div>
                         </th>
-                        <th>
-                            <span data-i18n="preliminary_notes">Заметки</span>
+                        <th class="cursor-pointer hover:bg-base-200 select-none" onclick="toggleSort('notes')">
+                            <div class="flex items-center gap-1">
+                                <span data-i18n="preliminary_notes">Заметки</span>
+                                <span class="sort-icon" data-sort="notes">↕</span>
+                            </div>
                         </th>
-                        <th>
-                            <span data-i18n="preliminary_building">Гостиница</span>
+                        <th class="cursor-pointer hover:bg-base-200 select-none" onclick="toggleSort('building')">
+                            <div class="flex items-center gap-1">
+                                <span data-i18n="preliminary_building">Гостиница</span>
+                                <span class="sort-icon" data-sort="building">↕</span>
+                            </div>
                         </th>
-                        <th>
-                            <span data-i18n="preliminary_room">Номер</span>
+                        <th class="cursor-pointer hover:bg-base-200 select-none" onclick="toggleSort('room')">
+                            <div class="flex items-center gap-1">
+                                <span data-i18n="preliminary_room">Номер</span>
+                                <span class="sort-icon" data-sort="room">↕</span>
+                            </div>
                         </th>
                     </tr>
                 </thead>
@@ -770,6 +779,20 @@
                     const bTransfer = (b.guest_transfers || []).find(t => t.direction === 'departure');
                     aVal = aTransfer?.flight_datetime || '9999';
                     bVal = bTransfer?.flight_datetime || '9999';
+                } else if (sortField === 'notes') {
+                    // Сортировка по локальным заметкам
+                    aVal = (getLocalNotes(a.id) || '').toLowerCase();
+                    bVal = (getLocalNotes(b.id) || '').toLowerCase();
+                } else if (sortField === 'building') {
+                    // Сортировка по названию здания
+                    const aBuilding = buildings.find(bldg => bldg.id === a.resident?.rooms?.building_id);
+                    const bBuilding = buildings.find(bldg => bldg.id === b.resident?.rooms?.building_id);
+                    aVal = aBuilding ? Layout.getName(aBuilding).toLowerCase() : 'zzz';
+                    bVal = bBuilding ? Layout.getName(bBuilding).toLowerCase() : 'zzz';
+                } else if (sortField === 'room') {
+                    // Сортировка по номеру комнаты
+                    aVal = (a.resident?.rooms?.number || 'zzz').toLowerCase();
+                    bVal = (b.resident?.rooms?.number || 'zzz').toLowerCase();
                 } else {
                     // companions, accommodation_wishes, extended_stay, guest_questions, org_notes
                     aVal = (a[sortField] || '').toLowerCase();
