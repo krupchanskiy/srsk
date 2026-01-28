@@ -2113,7 +2113,7 @@
                 retreat_id: retreatId,
                 vaishnava_id: vaishnavId,
                 registration_date: parsed.registrationDate,
-                status: 'guest',
+                status: 'guest', // VERSION 2.0 - UPDATED STATUS
                 companions: parsed.companions,
                 accommodation_wishes: parsed.accommodationWishes,
                 payment_notes: parsed.paymentNotes,
@@ -2121,6 +2121,8 @@
                 extended_stay: parsed.extendedStay,
                 guest_questions: parsed.guestQuestions
             };
+
+            console.log('💾 Saving registration with status:', regData.status, 'Full data:', regData);
 
             let registrationId;
 
@@ -2417,6 +2419,7 @@
             renderTable();
         };
 
+        console.log('🚀 retreat-guests.html VERSION 2.0 - Status fixed to GUEST');
         init();
     </script>
 </body>
