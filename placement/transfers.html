@@ -110,6 +110,50 @@
 
     </main>
 
+    <!-- Модалка заказа такси -->
+    <dialog id="taxiModal" class="modal">
+        <div class="modal-box max-w-sm">
+            <h3 class="font-bold text-lg mb-4">Заказ такси</h3>
+            <input type="hidden" id="taxiTransferId">
+            <div class="form-control mb-3">
+                <label class="label"><span class="label-text">Информация о водителе</span></label>
+                <textarea id="taxiDriverInfo" class="textarea textarea-bordered" rows="3" placeholder="Имя, телефон, марка авто..."></textarea>
+            </div>
+            <div class="form-control mb-4">
+                <label class="label"><span class="label-text">Ваше имя</span></label>
+                <input type="text" id="taxiOrderedBy" class="input input-bordered" placeholder="Кто заказывает">
+            </div>
+            <div class="modal-action">
+                <button class="btn btn-ghost" onclick="closeTaxiModal()">Отмена</button>
+                <button class="btn btn-primary" onclick="saveTaxiOrder()">Сохранить</button>
+            </div>
+        </div>
+        <form method="dialog" class="modal-backdrop"><button>close</button></form>
+    </dialog>
+
+    <!-- Модалка просмотра информации о такси -->
+    <dialog id="taxiDetailsModal" class="modal">
+        <div class="modal-box max-w-sm">
+            <h3 class="font-bold text-lg mb-4">🚕 Такси заказано</h3>
+            <input type="hidden" id="taxiDetailsTransferId">
+            <div class="space-y-3">
+                <div>
+                    <div class="text-xs opacity-50 mb-1">Информация о водителе</div>
+                    <div id="taxiDetailsDriver" class="whitespace-pre-wrap">—</div>
+                </div>
+                <div>
+                    <div class="text-xs opacity-50 mb-1">Заказал</div>
+                    <div id="taxiDetailsOrderedBy">—</div>
+                </div>
+            </div>
+            <div class="modal-action">
+                <button class="btn btn-ghost" onclick="document.getElementById('taxiDetailsModal').close()">Закрыть</button>
+                <button class="btn btn-error btn-outline" onclick="cancelTaxiFromDetails()">Отменить такси</button>
+            </div>
+        </div>
+        <form method="dialog" class="modal-backdrop"><button>close</button></form>
+    </dialog>
+
     <div id="footer-placeholder"></div>
 
     <script src="../js/cache.js"></script>
@@ -119,6 +163,7 @@
     <script src="../js/layout.js"></script>
     <script>
         let transfers = [];
+        let residentsMap = new Map();
         let currentFilter = 'all';
         const t = key => Layout.t(key);
         const e = str => Layout.escapeHtml(str);
@@ -145,6 +190,32 @@
             }
 
             transfers = data || [];
+
+            // Загружаем размещения по vaishnava_id
+            const vaishnavaIds = transfers
+                .map(t => t.retreat_registrations?.vaishnavas?.id)
+                .filter(Boolean);
+
+            residentsMap = new Map();
+            if (vaishnavaIds.length > 0) {
+                const { data: resData } = await Layout.db
+                    .from('residents')
+                    .select('vaishnava_id, rooms(number, buildings(name_ru, name_en, name_hi))')
+                    .in('vaishnava_id', vaishnavaIds)
+                    .in('status', ['active', 'confirmed']);
+
+                if (resData) {
+                    resData.forEach(r => {
+                        if (r.vaishnava_id && r.rooms) {
+                            residentsMap.set(r.vaishnava_id, {
+                                roomNumber: r.rooms.number,
+                                buildingName: Layout.getName(r.rooms.buildings)
+                            });
+                        }
+                    });
+                }
+            }
+
             updateStats();
             renderTransfers();
         }
@@ -287,6 +358,8 @@
                     const urgencyClass = getUrgencyClass(t.flight_datetime);
                     const directionIcon = t.direction === 'arrival' ? '✈️ →' : '← ✈️';
                     const directionLabel = t.direction === 'arrival' ? 'Заезд' : 'Выезд';
+                    const accommodation = v ? residentsMap.get(v.id) : null;
+                    const accommodationStr = accommodation ? `${accommodation.buildingName}, ${accommodation.roomNumber}` : '';
 
                     // Для выездов показываем время выезда (вылет - 7 часов)
                     const isDeparture = t.direction === 'departure';
@@ -301,6 +374,7 @@
                                 <div class="text-sm opacity-60 flex flex-wrap gap-x-3">
                                     ${phone ? `<span>📞 ${phone}</span>` : ''}
                                     ${retreatName ? `<span>${retreatName}</span>` : ''}
+                                    ${accommodationStr ? `<span>🏠 ${accommodationStr}</span>` : ''}
                                 </div>
                             </div>
                             ${isDeparture ? `
@@ -314,12 +388,111 @@
                                 <div class="text-xs opacity-60">${flightNumber || (isDeparture ? 'Вылет' : 'Прилёт')}</div>
                             </div>
                             ${needsTransfer ? '<div class="badge badge-primary">🚐</div>' : ''}
+                            ${renderTaxiBadge(t)}
                         </div>
                     `;
                 });
             });
 
             container.innerHTML = html;
+        }
+
+        // ==================== ТАКСИ ====================
+        function renderTaxiBadge(transfer) {
+            if (transfer.taxi_status === 'ordered') {
+                return `<div class="badge badge-success gap-1 cursor-pointer" onclick="event.stopPropagation(); showTaxiDetails('${transfer.id}')">🚕 Такси заказано</div>`;
+            }
+            return `<button class="btn btn-xs btn-outline gap-1" onclick="event.stopPropagation(); openTaxiModal('${transfer.id}')">🚕 Такси</button>`;
+        }
+
+        function openTaxiModal(transferId) {
+            document.getElementById('taxiTransferId').value = transferId;
+            document.getElementById('taxiDriverInfo').value = '';
+            document.getElementById('taxiOrderedBy').value = localStorage.getItem('srsk_taxi_name') || '';
+            document.getElementById('taxiModal').showModal();
+        }
+
+        function closeTaxiModal() {
+            document.getElementById('taxiModal').close();
+        }
+
+        async function saveTaxiOrder() {
+            const transferId = document.getElementById('taxiTransferId').value;
+            const driverInfo = document.getElementById('taxiDriverInfo').value.trim();
+            const orderedBy = document.getElementById('taxiOrderedBy').value.trim();
+
+            if (!orderedBy) {
+                alert('Укажите ваше имя');
+                return;
+            }
+
+            localStorage.setItem('srsk_taxi_name', orderedBy);
+
+            const { error } = await Layout.db
+                .from('guest_transfers')
+                .update({
+                    taxi_status: 'ordered',
+                    taxi_driver_info: driverInfo || null,
+                    taxi_ordered_by: orderedBy
+                })
+                .eq('id', transferId);
+
+            if (error) {
+                console.error('Error saving taxi order:', error);
+                alert('Ошибка сохранения');
+                return;
+            }
+
+            closeTaxiModal();
+
+            // Обновляем локальные данные
+            const t = transfers.find(t => t.id == transferId);
+            if (t) {
+                t.taxi_status = 'ordered';
+                t.taxi_driver_info = driverInfo || null;
+                t.taxi_ordered_by = orderedBy;
+            }
+            renderTransfers();
+        }
+
+        function showTaxiDetails(transferId) {
+            const transfer = transfers.find(t => t.id == transferId);
+            if (!transfer) return;
+            document.getElementById('taxiDetailsTransferId').value = transferId;
+            document.getElementById('taxiDetailsDriver').textContent = transfer.taxi_driver_info || '—';
+            document.getElementById('taxiDetailsOrderedBy').textContent = transfer.taxi_ordered_by || '—';
+            document.getElementById('taxiDetailsModal').showModal();
+        }
+
+        async function cancelTaxiFromDetails() {
+            const transferId = document.getElementById('taxiDetailsTransferId').value;
+            document.getElementById('taxiDetailsModal').close();
+            await cancelTaxi(transferId);
+        }
+
+        async function cancelTaxi(transferId) {
+            const { error } = await Layout.db
+                .from('guest_transfers')
+                .update({
+                    taxi_status: null,
+                    taxi_driver_info: null,
+                    taxi_ordered_by: null
+                })
+                .eq('id', transferId);
+
+            if (error) {
+                console.error('Error cancelling taxi:', error);
+                alert('Ошибка отмены');
+                return;
+            }
+
+            const t = transfers.find(t => t.id == transferId);
+            if (t) {
+                t.taxi_status = null;
+                t.taxi_driver_info = null;
+                t.taxi_ordered_by = null;
+            }
+            renderTransfers();
         }
 
         async function init() {

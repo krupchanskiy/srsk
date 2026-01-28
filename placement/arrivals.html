@@ -96,47 +96,35 @@
             </div>
         </div>
 
-        <!-- Table -->
-        <div class="overflow-x-auto bg-base-100 rounded-lg shadow">
-            <table class="table table-zebra">
-                <thead>
-                    <tr>
-                        <th class="cursor-pointer hover:bg-base-200 select-none" onclick="toggleSort('name')">
-                            <div class="flex items-center gap-1">
-                                <span>Имя</span>
-                                <span class="sort-icon" data-sort="name">↕</span>
-                            </div>
-                        </th>
-                        <th class="cursor-pointer hover:bg-base-200 select-none whitespace-nowrap" onclick="toggleSort('gender_age')">
-                            <div class="flex items-center gap-1">
-                                <span>Пол / Возраст</span>
-                                <span class="sort-icon" data-sort="gender_age">↕</span>
-                            </div>
-                        </th>
-                        <th class="cursor-pointer hover:bg-base-200 select-none whitespace-nowrap" onclick="toggleSort('arrival')">
-                            <div class="flex items-center gap-1">
-                                <span>Время прилёта</span>
-                                <span class="sort-icon" data-sort="arrival">↕</span>
-                            </div>
-                        </th>
-                        <th class="cursor-pointer hover:bg-base-200 select-none whitespace-nowrap" onclick="toggleSort('estimated')">
-                            <div class="flex items-center gap-1">
-                                <span>Приедет</span>
-                                <span class="sort-icon" data-sort="estimated">↕</span>
-                            </div>
-                        </th>
-                    </tr>
-                </thead>
-                <tbody id="arrivalsTable">
-                </tbody>
-            </table>
-            <div id="noData" class="hidden text-center py-12 opacity-50">
-                <div class="text-4xl mb-2">✈️</div>
-                <p>Выберите ретрит для просмотра заездов</p>
-            </div>
+        <!-- Cards -->
+        <div id="cardsContainer"></div>
+        <div id="noData" class="hidden text-center py-12 opacity-50">
+            <div class="text-4xl mb-2">✈️</div>
+            <p>Выберите ретрит для просмотра заездов</p>
         </div>
 
     </main>
+
+    <!-- Модалка информации о такси -->
+    <dialog id="taxiInfoModal" class="modal">
+        <div class="modal-box max-w-sm">
+            <h3 class="font-bold text-lg mb-4">🚕 Такси заказано</h3>
+            <div class="space-y-3">
+                <div>
+                    <div class="text-xs opacity-50 mb-1">Информация о водителе</div>
+                    <div id="taxiInfoDriver" class="whitespace-pre-wrap">—</div>
+                </div>
+                <div>
+                    <div class="text-xs opacity-50 mb-1">Заказал</div>
+                    <div id="taxiInfoOrderedBy">—</div>
+                </div>
+            </div>
+            <div class="modal-action">
+                <form method="dialog"><button class="btn btn-ghost">Закрыть</button></form>
+            </div>
+        </div>
+        <form method="dialog" class="modal-backdrop"><button>close</button></form>
+    </dialog>
 
     <div id="footer-placeholder"></div>
 
@@ -148,8 +136,7 @@
     <script>
         let retreatId = null;
         let registrations = [];
-        let sortField = 'arrival';
-        let sortDirection = 'asc';
+        let residentsMap = new Map(); // vaishnava_id → { roomNumber, buildingName }
         let searchQuery = '';
 
         // ==================== DATA LOADING ====================
@@ -174,6 +161,13 @@
             if (urlRetreatId) {
                 select.value = urlRetreatId;
                 onRetreatChange(urlRetreatId);
+            } else if (data && data.length > 0) {
+                // Автовыбор ближайшего ретрита
+                const today = toLocalDateStr(new Date());
+                const active = data.filter(r => r.end_date >= today);
+                const nearest = active.length > 0 ? active[active.length - 1] : data[0];
+                select.value = nearest.id;
+                onRetreatChange(nearest.id);
             }
         }
 
@@ -191,7 +185,8 @@
 
             if (!id) {
                 registrations = [];
-                renderTable();
+                residentsMap = new Map();
+                renderCards();
                 document.getElementById('statsWrapper').style.display = 'none';
                 return;
             }
@@ -202,29 +197,54 @@
         async function loadRegistrations() {
             Layout.showLoader();
 
-            const { data, error } = await Layout.db
+            const regResult = await Layout.db
                 .from('retreat_registrations')
                 .select(`
                     id,
                     vaishnava_id,
                     status,
-                    vaishnavas (id, first_name, last_name, spiritual_name, gender, birth_date),
+                    vaishnavas (id, first_name, last_name, spiritual_name, gender, birth_date, phone, telegram, has_whatsapp),
                     guest_transfers (*)
                 `)
                 .eq('retreat_id', retreatId)
                 .eq('is_deleted', false)
                 .in('status', ['pending', 'confirmed', 'team']);
 
-            Layout.hideLoader();
-
-            if (error) {
-                console.error('Error loading registrations:', error);
+            if (regResult.error) {
+                Layout.hideLoader();
+                console.error('Error loading registrations:', regResult.error);
                 return;
             }
 
-            registrations = data || [];
+            registrations = regResult.data || [];
+
+            // Собираем vaishnava_id для загрузки размещений
+            const vaishnavaIds = registrations.map(r => r.vaishnava_id).filter(Boolean);
+
+            residentsMap = new Map();
+            if (vaishnavaIds.length > 0) {
+                const resResult = await Layout.db
+                    .from('residents')
+                    .select('vaishnava_id, rooms(number, buildings(name_ru, name_en, name_hi))')
+                    .in('vaishnava_id', vaishnavaIds)
+                    .in('status', ['active', 'confirmed']);
+
+                if (resResult.data) {
+                    resResult.data.forEach(r => {
+                        if (r.vaishnava_id && r.rooms) {
+                            residentsMap.set(r.vaishnava_id, {
+                                roomNumber: r.rooms.number,
+                                buildingName: Layout.getName(r.rooms.buildings)
+                            });
+                        }
+                    });
+                }
+            }
+
+            Layout.hideLoader();
+
             updateStats();
-            renderTable();
+            renderCards();
             document.getElementById('statsWrapper').style.display = '';
         }
 
@@ -253,7 +273,6 @@
                 const arrival = (reg.guest_transfers || []).find(t => t.direction === 'arrival');
                 if (arrival?.flight_datetime) {
                     withTime++;
-                    // Estimated arrival = flight_datetime + 4 hours
                     const estimatedDate = new Date(arrival.flight_datetime);
                     estimatedDate.setHours(estimatedDate.getHours() + 4);
                     const estimatedStr = toLocalDateStr(estimatedDate);
@@ -270,7 +289,6 @@
             document.getElementById('statWithTime').textContent = withTime;
             document.getElementById('statNoTime').textContent = noTime;
 
-            // Initialize chart date to today
             const chartDateInput = document.getElementById('chartDate');
             if (!chartDateInput.value) {
                 chartDateInput.value = todayStr;
@@ -287,12 +305,10 @@
             const isCollapsed = statsBlock.style.display === 'none';
 
             if (isCollapsed) {
-                // Expand
                 statsBlock.style.display = '';
                 icon.textContent = '▼';
                 localStorage.removeItem(STATS_COLLAPSED_KEY);
             } else {
-                // Collapse
                 statsBlock.style.display = 'none';
                 icon.textContent = '▶';
                 localStorage.setItem(STATS_COLLAPSED_KEY, '1');
@@ -312,7 +328,6 @@
             const selectedDate = document.getElementById('chartDate').value;
             if (!selectedDate) return;
 
-            // Count arrivals by hour (6:00 - 23:00, then 0:00 - 5:00)
             const hourCounts = {};
             for (let h = 0; h < 24; h++) {
                 hourCounts[h] = 0;
@@ -332,18 +347,16 @@
                 }
             });
 
-            // Find max for scaling
             const maxCount = Math.max(...Object.values(hourCounts), 1);
 
-            // Render bars (0:00 to 23:00)
             const hoursOrder = [0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23];
             const chartBars = document.getElementById('chartBars');
 
-            const maxBarHeight = 120; // px
+            const maxBarHeight = 120;
             chartBars.innerHTML = hoursOrder.map(h => {
                 const count = hourCounts[h];
                 const heightPx = count > 0 ? Math.max(Math.round((count / maxCount) * maxBarHeight), 10) : 5;
-                const barBg = count > 0 ? '#570df8' : '#e5e7eb'; // primary / gray
+                const barBg = count > 0 ? '#570df8' : '#e5e7eb';
                 const title = `${h.toString().padStart(2, '0')}:00 — ${count} чел.`;
 
                 return `<div style="flex: 1; display: flex; flex-direction: column; justify-content: flex-end; align-items: center; min-width: 8px;" title="${title}">
@@ -355,7 +368,7 @@
 
         function changeChartDate(delta) {
             const input = document.getElementById('chartDate');
-            const date = new Date(input.value + 'T12:00:00'); // Добавляем время чтобы избежать проблем с UTC
+            const date = new Date(input.value + 'T12:00:00');
             date.setDate(date.getDate() + delta);
             input.value = toLocalDateStr(date);
             updateChart();
@@ -384,6 +397,14 @@
             return `${day}.${month} ${hours}:${minutes}`;
         }
 
+        function formatTime(datetime) {
+            if (!datetime) return '';
+            const date = new Date(datetime);
+            const hours = date.getHours().toString().padStart(2, '0');
+            const minutes = date.getMinutes().toString().padStart(2, '0');
+            return `${hours}:${minutes}`;
+        }
+
         function addHours(datetime, hours) {
             if (!datetime) return null;
             const date = new Date(datetime);
@@ -391,48 +412,36 @@
             return date.toISOString();
         }
 
-        // ==================== SORTING ====================
-        function toggleSort(field) {
-            if (sortField === field) {
-                sortDirection = sortDirection === 'asc' ? 'desc' : 'asc';
-            } else {
-                sortField = field;
-                sortDirection = 'asc';
-            }
-            updateSortIcons();
-            renderTable();
+        function formatDateLabel(dateStr) {
+            const date = new Date(dateStr + 'T12:00:00');
+            const day = date.getDate().toString().padStart(2, '0');
+            const month = (date.getMonth() + 1).toString().padStart(2, '0');
+            const weekDays = ['Вс', 'Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб'];
+            return `${day}.${month}, ${weekDays[date.getDay()]}`;
         }
 
+        function formatPhone(phone) {
+            if (!phone) return '';
+            return phone.replace(/[^\d+]/g, '');
+        }
+
+        // ==================== SEARCH ====================
         function onSearchInput(query) {
             searchQuery = query.toLowerCase().trim();
             document.getElementById('searchClear').classList.toggle('hidden', !query);
-            renderTable();
+            renderCards();
         }
 
         function clearSearch() {
             document.getElementById('searchInput').value = '';
             searchQuery = '';
             document.getElementById('searchClear').classList.add('hidden');
-            renderTable();
+            renderCards();
         }
 
-        function updateSortIcons() {
-            document.querySelectorAll('.sort-icon').forEach(icon => {
-                const field = icon.dataset.sort;
-                if (field === sortField) {
-                    icon.classList.add('active');
-                    icon.textContent = sortDirection === 'asc' ? '↑' : '↓';
-                } else {
-                    icon.classList.remove('active');
-                    icon.textContent = '↕';
-                }
-            });
-        }
-
-        function getSortedRegistrations() {
+        function getFilteredRegistrations() {
             let filtered = [...registrations];
 
-            // Фильтрация по поиску
             if (searchQuery) {
                 filtered = filtered.filter(reg => {
                     const v = reg.vaishnavas;
@@ -441,87 +450,193 @@
                 });
             }
 
-            return filtered.sort((a, b) => {
-                let aVal, bVal;
-
-                if (sortField === 'name') {
-                    aVal = (a.vaishnavas?.spiritual_name || `${a.vaishnavas?.first_name || ''} ${a.vaishnavas?.last_name || ''}`.trim()).toLowerCase();
-                    bVal = (b.vaishnavas?.spiritual_name || `${b.vaishnavas?.first_name || ''} ${b.vaishnavas?.last_name || ''}`.trim()).toLowerCase();
-                } else if (sortField === 'gender_age') {
-                    const genderOrder = { male: 1, female: 2 };
-                    const aGender = genderOrder[a.vaishnavas?.gender] || 3;
-                    const bGender = genderOrder[b.vaishnavas?.gender] || 3;
-                    if (aGender !== bGender) {
-                        aVal = aGender;
-                        bVal = bGender;
-                    } else {
-                        aVal = a.vaishnavas?.birth_date || '9999';
-                        bVal = b.vaishnavas?.birth_date || '9999';
-                    }
-                } else if (sortField === 'arrival' || sortField === 'estimated') {
-                    const aTransfer = (a.guest_transfers || []).find(t => t.direction === 'arrival');
-                    const bTransfer = (b.guest_transfers || []).find(t => t.direction === 'arrival');
-                    aVal = aTransfer?.flight_datetime || '9999';
-                    bVal = bTransfer?.flight_datetime || '9999';
-                } else {
-                    aVal = '';
-                    bVal = '';
-                }
-
-                if (aVal < bVal) return sortDirection === 'asc' ? -1 : 1;
-                if (aVal > bVal) return sortDirection === 'asc' ? 1 : -1;
-                return 0;
-            });
+            return filtered;
         }
 
         // ==================== RENDER ====================
-        function renderTable() {
-            const tbody = document.getElementById('arrivalsTable');
+        function getGroupLabel(dateStr) {
+            const now = new Date();
+            const todayStr = toLocalDateStr(now);
+            const tomorrowDate = new Date(now);
+            tomorrowDate.setDate(tomorrowDate.getDate() + 1);
+            const tomorrowStr = toLocalDateStr(tomorrowDate);
+            const dayAfterDate = new Date(now);
+            dayAfterDate.setDate(dayAfterDate.getDate() + 2);
+            const dayAfterStr = toLocalDateStr(dayAfterDate);
+
+            if (dateStr === todayStr) return `Сегодня, ${formatDateLabel(dateStr)}`;
+            if (dateStr === tomorrowStr) return `Завтра, ${formatDateLabel(dateStr)}`;
+            return formatDateLabel(dateStr);
+        }
+
+        function renderCard(reg) {
+            const v = reg.vaishnavas;
+            const name = v ? `${v.first_name || ''} ${v.last_name || ''}`.trim() : '—';
+            const spiritualName = v?.spiritual_name || '';
+
+            const genderLabel = v?.gender === 'male' ? 'М' : v?.gender === 'female' ? 'Ж' : '';
+            const age = v?.birth_date ? calculateAge(v.birth_date) : '';
+            const genderAge = [genderLabel, age].filter(Boolean).join(', ');
+
+            const arrival = (reg.guest_transfers || []).find(t => t.direction === 'arrival');
+            const arrivalTime = arrival?.flight_datetime;
+            const estimatedArrival = arrivalTime ? addHours(arrivalTime, 4) : null;
+
+            const accommodation = v ? residentsMap.get(v.id) : null;
+
+            const phone = v?.phone ? formatPhone(v.phone) : '';
+            const hasWhatsapp = v?.has_whatsapp && phone;
+            const telegram = v?.telegram;
+
+            // Строим карточку
+            let html = `<div class="bg-base-100 rounded-lg shadow p-3 flex flex-col gap-1.5">`;
+
+            // Имя (клик → person.html)
+            html += `<a href="../vaishnavas/person.html?id=${v?.id}" class="hover:underline">`;
+            if (spiritualName) {
+                html += `<span class="font-semibold">${spiritualName}</span>`;
+                html += `<span class="text-xs opacity-60 ml-1.5">${name}</span>`;
+            } else {
+                html += `<span class="font-semibold">${name}</span>`;
+            }
+            html += `</a>`;
+
+            // Информация в строку
+            const infoParts = [];
+            if (genderAge) infoParts.push(genderAge);
+            if (arrivalTime) {
+                infoParts.push(`<span title="Время прилёта">✈ ${formatDateTime(arrivalTime)}</span>`);
+                infoParts.push(`<span class="font-semibold text-base-content" title="Приедет в ШРСК">→ ${formatTime(estimatedArrival)}</span>`);
+            }
+            if (arrival?.taxi_status === 'ordered') {
+                const driverInfo = arrival.taxi_driver_info ? arrival.taxi_driver_info.replace(/'/g, '&#39;').replace(/"/g, '&quot;') : '';
+                const orderedBy = arrival.taxi_ordered_by ? arrival.taxi_ordered_by.replace(/'/g, '&#39;').replace(/"/g, '&quot;') : '';
+                infoParts.push(`<span class="badge badge-success badge-sm gap-1 cursor-pointer" onclick="event.preventDefault(); showTaxiInfo('${driverInfo}', '${orderedBy}')">🚕 Такси заказано</span>`);
+            }
+            if (accommodation) {
+                infoParts.push(`<span class="font-semibold text-base-content" title="Размещение">🏠 ${accommodation.buildingName}, ${accommodation.roomNumber}</span>`);
+            }
+
+            if (infoParts.length) {
+                html += `<div class="flex flex-wrap items-center gap-x-3 gap-y-0.5 text-sm opacity-70">${infoParts.join('')}</div>`;
+            }
+
+            // Контакты
+            const contactParts = [];
+            if (hasWhatsapp) {
+                contactParts.push(`<a href="https://wa.me/${phone.replace('+', '')}" target="_blank" class="btn btn-xs btn-ghost gap-1 text-green-600" title="WhatsApp">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347z"/><path d="M12 0C5.373 0 0 5.373 0 12c0 2.126.554 4.12 1.522 5.856L.057 23.988l6.272-1.418A11.935 11.935 0 0012 24c6.627 0 12-5.373 12-12S18.627 0 12 0zm0 21.75c-1.875 0-3.66-.507-5.228-1.467l-.375-.222-3.89.88.918-3.792-.244-.388A9.698 9.698 0 012.25 12 9.75 9.75 0 0112 2.25 9.75 9.75 0 0121.75 12 9.75 9.75 0 0112 21.75z"/></svg>
+                    WA</a>`);
+            } else if (phone) {
+                contactParts.push(`<a href="tel:${phone}" class="btn btn-xs btn-ghost gap-1" title="Позвонить">📞 ${v.phone}</a>`);
+            }
+            if (telegram) {
+                const tgUsername = telegram.replace(/^@/, '');
+                contactParts.push(`<a href="https://t.me/${tgUsername}" target="_blank" class="btn btn-xs btn-ghost gap-1 text-blue-500" title="Telegram">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M11.944 0A12 12 0 000 12a12 12 0 0012 12 12 12 0 0012-12A12 12 0 0012 0a12 12 0 00-.056 0zm4.962 7.224c.1-.002.321.023.465.14a.506.506 0 01.171.325c.016.093.036.306.02.472-.18 1.898-.962 6.502-1.36 8.627-.168.9-.499 1.201-.82 1.23-.696.065-1.225-.46-1.9-.902-1.056-.693-1.653-1.124-2.678-1.8-1.185-.78-.417-1.21.258-1.91.177-.184 3.247-2.977 3.307-3.23.007-.032.014-.15-.056-.212s-.174-.041-.249-.024c-.106.024-1.793 1.14-5.061 3.345-.479.33-.913.49-1.302.48-.428-.008-1.252-.241-1.865-.44-.752-.245-1.349-.374-1.297-.789.027-.216.325-.437.893-.663 3.498-1.524 5.83-2.529 6.998-3.014 3.332-1.386 4.025-1.627 4.476-1.635z"/></svg>
+                    TG</a>`);
+            }
+
+            if (contactParts.length) {
+                html += `<div class="flex items-center gap-1 -ml-1">${contactParts.join('')}</div>`;
+            }
+
+            html += `</div>`;
+            return html;
+        }
+
+        function renderCards() {
+            const container = document.getElementById('cardsContainer');
             const noData = document.getElementById('noData');
 
             if (!retreatId || registrations.length === 0) {
-                tbody.innerHTML = '';
+                container.innerHTML = '';
                 noData.classList.remove('hidden');
                 return;
             }
 
             noData.classList.add('hidden');
-            const sorted = getSortedRegistrations();
+            const filtered = getFilteredRegistrations();
 
-            tbody.innerHTML = sorted.map(reg => {
-                const v = reg.vaishnavas;
-                const name = v ? `${v.first_name || ''} ${v.last_name || ''}`.trim() : '—';
-                const spiritualName = v?.spiritual_name || '';
+            if (filtered.length === 0) {
+                container.innerHTML = '<div class="text-center py-8 opacity-50">Ничего не найдено</div>';
+                return;
+            }
 
-                const genderLabel = v?.gender === 'male' ? 'М' : v?.gender === 'female' ? 'Ж' : '';
-                const age = v?.birth_date ? calculateAge(v.birth_date) : '';
-                const genderAge = [genderLabel, age].filter(Boolean).join(', ') || '—';
+            // Группируем по дате estimated arrival
+            const groups = new Map(); // dateStr → [regs]
+            const noTimeGroup = [];
 
+            filtered.forEach(reg => {
                 const arrival = (reg.guest_transfers || []).find(t => t.direction === 'arrival');
-                const arrivalTime = arrival?.flight_datetime;
-                const arrivalFormatted = formatDateTime(arrivalTime);
-                const estimatedArrival = arrivalTime ? formatDateTime(addHours(arrivalTime, 4)) : '';
+                if (arrival?.flight_datetime) {
+                    const estimatedDate = new Date(arrival.flight_datetime);
+                    estimatedDate.setHours(estimatedDate.getHours() + 4);
+                    const dateStr = toLocalDateStr(estimatedDate);
 
-                const noArrivalTime = !arrivalTime;
+                    if (!groups.has(dateStr)) groups.set(dateStr, []);
+                    groups.get(dateStr).push(reg);
+                } else {
+                    noTimeGroup.push(reg);
+                }
+            });
 
-                return `
-                    <tr class="hover align-top">
-                        <td class="cursor-pointer" onclick="window.location.href='../vaishnavas/person.html?id=${v?.id}'">
-                            <div>
-                                ${spiritualName ? `<div class="font-medium">${spiritualName}</div>` : ''}
-                                <div class="${spiritualName ? 'text-xs opacity-60' : 'font-medium'}">${name}</div>
-                            </div>
-                        </td>
-                        <td class="text-sm whitespace-nowrap">${genderAge}</td>
-                        <td class="text-sm whitespace-nowrap ${noArrivalTime ? 'bg-warning/30' : ''}">
-                            ${arrivalFormatted || '<span class="opacity-30">—</span>'}
-                        </td>
-                        <td class="text-sm whitespace-nowrap ${noArrivalTime ? 'bg-warning/30' : ''}">
-                            ${estimatedArrival || '<span class="opacity-30">—</span>'}
-                        </td>
-                    </tr>
-                `;
-            }).join('');
+            // Сортируем группы по дате
+            const sortedDates = [...groups.keys()].sort();
+
+            // Внутри каждой группы сортируем по estimated arrival
+            for (const [dateStr, regs] of groups) {
+                regs.sort((a, b) => {
+                    const aTransfer = (a.guest_transfers || []).find(t => t.direction === 'arrival');
+                    const bTransfer = (b.guest_transfers || []).find(t => t.direction === 'arrival');
+                    return (aTransfer?.flight_datetime || '').localeCompare(bTransfer?.flight_datetime || '');
+                });
+            }
+
+            // Рендерим
+            let html = '';
+
+            for (const dateStr of sortedDates) {
+                const regs = groups.get(dateStr);
+                const label = getGroupLabel(dateStr);
+                html += `<div class="mb-6">
+                    <h3 class="font-semibold text-sm mb-2 flex items-center gap-2">
+                        ${label}
+                        <span class="badge badge-sm badge-ghost">${regs.length}</span>
+                    </h3>
+                    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
+                        ${regs.map(r => renderCard(r)).join('')}
+                    </div>
+                </div>`;
+            }
+
+            if (noTimeGroup.length > 0) {
+                // Сортируем по имени
+                noTimeGroup.sort((a, b) => {
+                    const aName = (a.vaishnavas?.spiritual_name || `${a.vaishnavas?.first_name || ''} ${a.vaishnavas?.last_name || ''}`.trim()).toLowerCase();
+                    const bName = (b.vaishnavas?.spiritual_name || `${b.vaishnavas?.first_name || ''} ${b.vaishnavas?.last_name || ''}`.trim()).toLowerCase();
+                    return aName.localeCompare(bName);
+                });
+
+                html += `<div class="mb-6">
+                    <h3 class="font-semibold text-sm mb-2 flex items-center gap-2 text-warning">
+                        Без времени прилёта
+                        <span class="badge badge-sm badge-warning">${noTimeGroup.length}</span>
+                    </h3>
+                    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
+                        ${noTimeGroup.map(r => renderCard(r)).join('')}
+                    </div>
+                </div>`;
+            }
+
+            container.innerHTML = html;
+        }
+
+        // ==================== ТАКСИ ====================
+        function showTaxiInfo(driverInfo, orderedBy) {
+            document.getElementById('taxiInfoDriver').textContent = driverInfo || '—';
+            document.getElementById('taxiInfoOrderedBy').textContent = orderedBy || '—';
+            document.getElementById('taxiInfoModal').showModal();
         }
 
         // ==================== INIT ====================
@@ -531,7 +646,6 @@
             Layout.showLoader();
             await loadRetreats();
             Layout.hideLoader();
-            updateSortIcons();
         }
 
         init();
