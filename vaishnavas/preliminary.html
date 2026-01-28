@@ -119,6 +119,14 @@
             background: var(--current-color) !important;
             color: white !important;
         }
+
+        /* Стили для новых колонок */
+        .table td:nth-last-child(3),
+        .table td:nth-last-child(2),
+        .table td:nth-last-child(1) {
+            min-width: 150px;
+            vertical-align: middle;
+        }
     </style>
 </head>
 <body class="bg-base-200 min-h-screen flex flex-col">
@@ -240,6 +248,15 @@
                                 <span>Заметки ОП</span>
                                 <span class="sort-icon" data-sort="org_notes">↕</span>
                             </div>
+                        </th>
+                        <th>
+                            <span data-i18n="preliminary_notes">Заметки</span>
+                        </th>
+                        <th>
+                            <span data-i18n="preliminary_building">Гостиница</span>
+                        </th>
+                        <th>
+                            <span data-i18n="preliminary_room">Номер</span>
                         </th>
                     </tr>
                 </thead>
@@ -610,7 +627,39 @@
                 });
             }
 
+            // Загрузить занятость комнат для корректного отображения
+            await loadRoomOccupancy();
+
             renderTable();
+        }
+
+        async function loadRoomOccupancy() {
+            if (!retreat?.start_date || !retreat?.end_date) {
+                placementState.occupancy = {};
+                return;
+            }
+
+            const { data: residentsData, error } = await Layout.db
+                .from('residents')
+                .select('id, room_id')
+                .not('room_id', 'is', null)
+                .in('status', ['active', 'confirmed'])
+                .lte('check_in', retreat.end_date)
+                .gte('check_out', retreat.start_date);
+
+            if (error) {
+                console.error('Error loading room occupancy:', error);
+                placementState.occupancy = {};
+                return;
+            }
+
+            // Подсчёт занятости по комнатам
+            placementState.occupancy = {};
+            (residentsData || []).forEach(r => {
+                if (r.room_id) {
+                    placementState.occupancy[r.room_id] = (placementState.occupancy[r.room_id] || 0) + 1;
+                }
+            });
         }
 
         async function loadVaishnavas() {
@@ -795,6 +844,14 @@
                 const arrivalProblem = !arrival || (arrival?.notes && !arrival?.flight_datetime);
                 const departureProblem = !departure || (departure?.notes && !departure?.flight_datetime);
 
+                // Получить локальные заметки
+                const localNotes = getLocalNotes(reg.id);
+
+                // Получить размещение
+                const resident = reg.resident;
+                const buildingId = resident?.rooms?.building_id || null;
+                const roomId = resident?.room_id || null;
+
                 return `
                     <tr class="hover align-top">
                         <td class="cursor-pointer" onclick="window.location.href='person.html?id=${v?.id}'">
@@ -816,9 +873,166 @@
                         <td class="text-sm">${e(reg.extended_stay || '—')}</td>
                         <td class="text-sm">${e(reg.guest_questions || '—')}</td>
                         <td class="text-sm">${e(reg.org_notes || '—')}</td>
+                        <td class="text-sm">
+                            <textarea
+                                class="textarea textarea-xs textarea-bordered w-full"
+                                rows="2"
+                                placeholder="${t('preliminary_notes_placeholder')}"
+                                onchange="saveLocalNotes('${reg.id}', this.value)"
+                                onclick="event.stopPropagation()">${e(localNotes || '')}</textarea>
+                        </td>
+                        <td class="text-sm">
+                            <select class="select select-xs select-bordered w-full"
+                                onchange="onBuildingChange('${reg.id}', this.value)"
+                                onclick="event.stopPropagation()">
+                                <option value="">—</option>
+                                ${buildings.map(b => `<option value="${b.id}" ${buildingId === b.id ? 'selected' : ''}>${Layout.getName(b)}</option>`).join('')}
+                            </select>
+                        </td>
+                        <td class="text-sm">
+                            <select class="select select-xs select-bordered w-full"
+                                id="room_select_${reg.id}"
+                                onchange="onRoomChange('${reg.id}', this.value)"
+                                onclick="event.stopPropagation()">
+                                ${buildingId ? renderRoomOptions(buildingId, roomId, reg.id) : '<option value="">—</option>'}
+                            </select>
+                        </td>
                     </tr>
                 `;
             }).join('');
+        }
+
+        // ==================== NOTES (LOCAL STORAGE) ====================
+        function getLocalNotes(registrationId) {
+            const key = `preliminary_notes_${registrationId}`;
+            return localStorage.getItem(key);
+        }
+
+        function saveLocalNotes(registrationId, value) {
+            const key = `preliminary_notes_${registrationId}`;
+            if (value && value.trim()) {
+                localStorage.setItem(key, value.trim());
+            } else {
+                localStorage.removeItem(key);
+            }
+        }
+
+        // ==================== BUILDING & ROOM SELECTION ====================
+        function renderRoomOptions(buildingId, selectedRoomId, registrationId) {
+            const building = buildings.find(b => b.id === buildingId);
+            if (!building || !building.rooms) return '<option value="">—</option>';
+
+            const reg = registrations.find(r => r.id === registrationId);
+            const existingResidentId = reg?.resident?.id || null;
+            const currentRoomId = reg?.resident?.room_id || null;
+
+            // Фильтруем и сортируем комнаты
+            const rooms = building.rooms
+                .filter(r => r.is_active)
+                .sort((a, b) => {
+                    if (a.floor !== b.floor) return (a.floor || 0) - (b.floor || 0);
+                    return a.number.localeCompare(b.number, undefined, { numeric: true });
+                });
+
+            let html = '<option value="">—</option>';
+            rooms.forEach(room => {
+                // Проверяем занятость (исключая текущую комнату при переселении)
+                let occupied = placementState.occupancy[room.id] || 0;
+
+                // Если это текущая комната резидента, уменьшаем занятость на 1
+                if (currentRoomId === room.id && existingResidentId) {
+                    occupied = Math.max(0, occupied - 1);
+                }
+
+                const capacity = room.capacity || 1;
+                const isFull = occupied >= capacity;
+
+                const label = isFull ? `${room.number} (занято)` : room.number;
+                const disabled = isFull ? 'disabled' : '';
+                const selected = selectedRoomId === room.id ? 'selected' : '';
+
+                html += `<option value="${room.id}" ${disabled} ${selected}>${label}</option>`;
+            });
+
+            return html;
+        }
+
+        async function onBuildingChange(registrationId, buildingId) {
+            const roomSelect = document.getElementById(`room_select_${registrationId}`);
+            if (!roomSelect) return;
+
+            const reg = registrations.find(r => r.id === registrationId);
+
+            if (!buildingId) {
+                roomSelect.innerHTML = '<option value="">—</option>';
+                // Удалить размещение, если было
+                if (reg?.resident?.id) {
+                    await deleteResident(reg.resident.id);
+                }
+                return;
+            }
+
+            // Обновить список комнат
+            roomSelect.innerHTML = renderRoomOptions(buildingId, null, registrationId);
+        }
+
+        async function onRoomChange(registrationId, roomId) {
+            if (!roomId) return;
+
+            const reg = registrations.find(r => r.id === registrationId);
+            if (!reg || !reg.vaishnava_id) {
+                alert('Ошибка: не найдена регистрация или вайшнав');
+                return;
+            }
+
+            const data = {
+                room_id: roomId,
+                vaishnava_id: reg.vaishnava_id,
+                retreat_id: retreatId,
+                check_in: retreat?.start_date || null,
+                check_out: retreat?.end_date || null,
+                status: 'confirmed'
+            };
+
+            try {
+                if (reg.resident?.id) {
+                    // Обновить существующее размещение
+                    const { error } = await Layout.db
+                        .from('residents')
+                        .update(data)
+                        .eq('id', reg.resident.id);
+                    if (error) throw error;
+                } else {
+                    // Создать новое размещение
+                    const { error } = await Layout.db
+                        .from('residents')
+                        .insert(data);
+                    if (error) throw error;
+                }
+
+                // Перезагрузить данные для синхронизации
+                await loadRegistrations();
+            } catch (err) {
+                console.error('Error saving room placement:', err);
+                alert('Ошибка сохранения размещения: ' + err.message);
+                // Перезагрузить данные для отката изменений в UI
+                await loadRegistrations();
+            }
+        }
+
+        async function deleteResident(residentId) {
+            try {
+                const { error } = await Layout.db
+                    .from('residents')
+                    .delete()
+                    .eq('id', residentId);
+                if (error) throw error;
+
+                await loadRegistrations();
+            } catch (err) {
+                console.error('Error deleting resident:', err);
+                alert('Ошибка удаления размещения: ' + err.message);
+            }
         }
 
         // ==================== FILTERS ====================
