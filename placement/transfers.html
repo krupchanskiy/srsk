@@ -104,7 +104,9 @@
         </div>
 
         <div id="noTransfers" class="hidden text-center py-12 opacity-50">
-            <div class="text-4xl mb-2">🚐</div>
+            <svg xmlns="http://www.w3.org/2000/svg" class="w-16 h-16 mx-auto mb-2 opacity-30" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16V6a1 1 0 00-1-1H4a1 1 0 00-1 1v10a1 1 0 001 1h1m8-1a1 1 0 01-1 1H9m4-1V8a1 1 0 011-1h2.586a1 1 0 01.707.293l3.414 3.414a1 1 0 01.293.707V16a1 1 0 01-1 1h-1m-6-1a1 1 0 001 1h1M5 17a2 2 0 104 0m-4 0a2 2 0 114 0m6 0a2 2 0 104 0m-4 0a2 2 0 114 0" />
+            </svg>
             <p>Нет трансферов</p>
         </div>
 
@@ -134,7 +136,12 @@
     <!-- Модалка просмотра информации о такси -->
     <dialog id="taxiDetailsModal" class="modal">
         <div class="modal-box max-w-sm">
-            <h3 class="font-bold text-lg mb-4">🚕 Такси заказано</h3>
+            <h3 class="font-bold text-lg mb-4 flex items-center gap-2">
+                <svg xmlns="http://www.w3.org/2000/svg" class="w-5 h-5 text-success" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4" />
+                </svg>
+                <span>Такси заказано</span>
+            </h3>
             <input type="hidden" id="taxiDetailsTransferId">
             <div class="space-y-3">
                 <div>
@@ -368,13 +375,20 @@
                     html += `
                         <div class="transfer-card ${urgencyClass} px-4 py-3 flex items-center gap-4 border-b last:border-b-0 cursor-pointer hover:bg-base-200/50"
                              onclick="window.location.href='../vaishnavas/person.html?id=${v?.id}'">
-                            <div class="text-2xl w-12 text-center opacity-60">${directionIcon}</div>
+                            <div class="w-10 flex justify-center">
+                                <svg xmlns="http://www.w3.org/2000/svg" class="w-6 h-6 ${t.direction === 'arrival' ? 'text-success' : 'text-error'}" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    ${t.direction === 'arrival'
+                                        ? '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 10h10a8 8 0 018 8v2M3 10l6 6m-6-6l6-6" />'
+                                        : '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 8l4 4m0 0l-4 4m4-4H3" />'
+                                    }
+                                </svg>
+                            </div>
                             <div class="flex-1 min-w-0">
                                 <div class="font-semibold truncate">${name}</div>
                                 <div class="text-sm opacity-60 flex flex-wrap gap-x-3">
-                                    ${phone ? `<span>📞 ${phone}</span>` : ''}
+                                    ${phone ? `<span>${phone}</span>` : ''}
                                     ${retreatName ? `<span>${retreatName}</span>` : ''}
-                                    ${accommodationStr ? `<span>🏠 ${accommodationStr}</span>` : ''}
+                                    ${accommodationStr ? `<span>${accommodationStr}</span>` : ''}
                                 </div>
                             </div>
                             ${isDeparture ? `
@@ -387,7 +401,7 @@
                                 <div class="text-lg font-mono font-semibold">${formatTime(t.flight_datetime)}</div>
                                 <div class="text-xs opacity-60">${flightNumber || (isDeparture ? 'Вылет' : 'Прилёт')}</div>
                             </div>
-                            ${needsTransfer ? '<div class="badge badge-primary">🚐</div>' : ''}
+                            ${needsTransfer ? '<div class="badge badge-primary gap-1"><svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16V6a1 1 0 00-1-1H4a1 1 0 00-1 1v10a1 1 0 001 1h1m8-1a1 1 0 01-1 1H9m4-1V8a1 1 0 011-1h2.586a1 1 0 01.707.293l3.414 3.414a1 1 0 01.293.707V16a1 1 0 01-1 1h-1m-6-1a1 1 0 001 1h1M5 17a2 2 0 104 0m-4 0a2 2 0 114 0m6 0a2 2 0 104 0m-4 0a2 2 0 114 0" /></svg>Трансфер</div>' : ''}
                             ${renderTaxiBadge(t)}
                         </div>
                     `;
@@ -399,10 +413,11 @@
 
         // ==================== ТАКСИ ====================
         function renderTaxiBadge(transfer) {
+            const taxiIcon = '<svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4" /></svg>';
             if (transfer.taxi_status === 'ordered') {
-                return `<div class="badge badge-success gap-1 cursor-pointer" onclick="event.stopPropagation(); showTaxiDetails('${transfer.id}')">🚕 Такси заказано</div>`;
+                return `<div class="badge badge-success gap-1 cursor-pointer" onclick="event.stopPropagation(); showTaxiDetails('${transfer.id}')">${taxiIcon}Такси заказано</div>`;
             }
-            return `<button class="btn btn-xs btn-outline gap-1" onclick="event.stopPropagation(); openTaxiModal('${transfer.id}')">🚕 Такси</button>`;
+            return `<button class="btn btn-xs btn-outline gap-1" onclick="event.stopPropagation(); openTaxiModal('${transfer.id}')">${taxiIcon}Такси</button>`;
         }
 
         function openTaxiModal(transferId) {
