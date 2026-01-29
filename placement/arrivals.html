@@ -97,8 +97,8 @@
             </div>
         </div>
 
-        <!-- Cards -->
-        <div id="cardsContainer"></div>
+        <!-- Table -->
+        <div id="tableContainer"></div>
         <div id="noData" class="hidden text-center py-12 opacity-50">
             <div class="text-4xl mb-2">✈️</div>
             <p>Выберите ретрит для просмотра заездов</p>
@@ -139,6 +139,15 @@
         let registrations = [];
         let residentsMap = new Map(); // vaishnava_id → { roomNumber, buildingName }
         let searchQuery = '';
+
+        // Заменить битое изображение на заглушку с инициалами
+        window.replacePhotoWithPlaceholder = function(img) {
+            const initials = img.dataset.initials || '?';
+            const placeholder = document.createElement('div');
+            placeholder.className = 'w-10 h-10 rounded-full bg-gradient-to-br from-purple-500 to-pink-500 flex items-center justify-center text-white font-semibold';
+            placeholder.textContent = initials;
+            img.replaceWith(placeholder);
+        };
 
         // ==================== DATA LOADING ====================
         async function loadRetreats() {
@@ -187,7 +196,7 @@
             if (!id) {
                 registrations = [];
                 residentsMap = new Map();
-                renderCards();
+                renderTable();
                 document.getElementById('statsWrapper').style.display = 'none';
                 return;
             }
@@ -204,7 +213,7 @@
                     id,
                     vaishnava_id,
                     status,
-                    vaishnavas (id, first_name, last_name, spiritual_name, gender, birth_date, phone, telegram, has_whatsapp),
+                    vaishnavas (id, first_name, last_name, spiritual_name, gender, birth_date, phone, telegram, has_whatsapp, photo_url),
                     guest_transfers (*)
                 `)
                 .eq('retreat_id', retreatId)
@@ -245,7 +254,7 @@
             Layout.hideLoader();
 
             updateStats();
-            renderCards();
+            renderTable();
             document.getElementById('statsWrapper').style.display = '';
         }
 
@@ -430,14 +439,14 @@
         function onSearchInput(query) {
             searchQuery = query.toLowerCase().trim();
             document.getElementById('searchClear').classList.toggle('hidden', !query);
-            renderCards();
+            renderTable();
         }
 
         function clearSearch() {
             document.getElementById('searchInput').value = '';
             searchQuery = '';
             document.getElementById('searchClear').classList.add('hidden');
-            renderCards();
+            renderTable();
         }
 
         function getFilteredRegistrations() {
@@ -468,6 +477,75 @@
             if (dateStr === todayStr) return `Сегодня, ${formatDateLabel(dateStr)}`;
             if (dateStr === tomorrowStr) return `Завтра, ${formatDateLabel(dateStr)}`;
             return formatDateLabel(dateStr);
+        }
+
+        function renderRow(reg) {
+            const e = Layout.escapeHtml;
+            const v = reg.vaishnavas;
+            const name = v ? `${v.first_name || ''} ${v.last_name || ''}`.trim() : '—';
+            const spiritualName = v?.spiritual_name || '';
+
+            const mainName = spiritualName || name;
+            const subName = spiritualName ? name : '';
+
+            const genderLabel = v?.gender === 'male' ? 'М' : v?.gender === 'female' ? 'Ж' : '';
+            const age = v?.birth_date ? calculateAge(v.birth_date) : '';
+            const genderAge = [genderLabel, age].filter(Boolean).join(', ');
+
+            const arrival = (reg.guest_transfers || []).find(t => t.direction === 'arrival');
+            const arrivalTime = arrival?.flight_datetime;
+            const estimatedArrival = arrivalTime ? addHours(arrivalTime, 4) : null;
+
+            const accommodation = v ? residentsMap.get(v.id) : null;
+
+            const phone = v?.phone ? formatPhone(v.phone) : '';
+            const hasWhatsapp = v?.has_whatsapp && phone;
+            const telegram = v?.telegram;
+
+            // Аватар: фото или инициалы
+            const photoUrl = v?.photo_url;
+            const initials = e((spiritualName || name)
+                .split(' ')
+                .map(w => w[0])
+                .join('')
+                .substring(0, 2)
+                .toUpperCase());
+
+            const avatarHtml = photoUrl
+                ? `<img src="${e(photoUrl)}" class="w-10 h-10 rounded-full object-cover" alt="" data-initials="${initials}" onerror="replacePhotoWithPlaceholder(this)">`
+                : `<div class="w-10 h-10 rounded-full bg-gradient-to-br from-purple-500 to-pink-500 flex items-center justify-center text-white font-semibold">${initials}</div>`;
+
+            // Контакты
+            let contactsHtml = '';
+            if (hasWhatsapp) {
+                contactsHtml += `<a href="https://wa.me/${phone.replace('+', '')}" target="_blank" class="text-green-600 hover:underline text-xs" title="WhatsApp">WA</a>`;
+            } else if (phone) {
+                contactsHtml += `<a href="tel:${phone}" class="hover:underline text-xs">${e(v.phone)}</a>`;
+            }
+            if (telegram) {
+                const tgUsername = telegram.replace(/^@/, '');
+                if (contactsHtml) contactsHtml += ' · ';
+                contactsHtml += `<a href="https://t.me/${tgUsername}" target="_blank" class="text-blue-500 hover:underline text-xs" title="Telegram">TG</a>`;
+            }
+
+            return `
+                <tr class="hover cursor-pointer" onclick="window.location.href='../vaishnavas/person.html?id=${v?.id}'">
+                    <td>
+                        <div class="flex items-center gap-3">
+                            ${avatarHtml}
+                            <div class="min-w-0">
+                                <div class="font-medium">${e(mainName)}</div>
+                                ${subName ? `<div class="text-xs opacity-60">${e(subName)}</div>` : ''}
+                            </div>
+                        </div>
+                    </td>
+                    <td class="text-sm">${genderAge || '—'}</td>
+                    <td class="text-sm text-center">${arrivalTime ? formatDateTime(arrivalTime) : '—'}</td>
+                    <td class="text-sm text-center font-semibold">${estimatedArrival ? formatTime(estimatedArrival) : '—'}</td>
+                    <td class="text-sm">${accommodation ? `${accommodation.buildingName}, ${accommodation.roomNumber}` : '—'}</td>
+                    <td class="text-sm">${contactsHtml || '—'}</td>
+                </tr>
+            `;
         }
 
         function renderCard(reg) {
@@ -546,8 +624,8 @@
             return html;
         }
 
-        function renderCards() {
-            const container = document.getElementById('cardsContainer');
+        function renderTable() {
+            const container = document.getElementById('tableContainer');
             const noData = document.getElementById('noData');
 
             if (!retreatId || registrations.length === 0) {
@@ -600,15 +678,31 @@
             for (const dateStr of sortedDates) {
                 const regs = groups.get(dateStr);
                 const label = getGroupLabel(dateStr);
-                html += `<div class="mb-6">
-                    <h3 class="font-semibold text-sm mb-2 flex items-center gap-2">
-                        ${label}
-                        <span class="badge badge-sm badge-ghost">${regs.length}</span>
-                    </h3>
-                    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
-                        ${regs.map(r => renderCard(r)).join('')}
+                html += `
+                    <div class="mb-6">
+                        <h3 class="font-semibold text-sm mb-2 flex items-center gap-2">
+                            ${label}
+                            <span class="badge badge-sm badge-ghost">${regs.length}</span>
+                        </h3>
+                        <div class="bg-base-100 rounded-xl shadow overflow-x-auto">
+                            <table class="table table-zebra">
+                                <thead>
+                                    <tr>
+                                        <th>Имя</th>
+                                        <th>Пол / Возраст</th>
+                                        <th class="text-center">Прилёт</th>
+                                        <th class="text-center">Приедет в ШРСК</th>
+                                        <th>Размещение</th>
+                                        <th>Контакты</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    ${regs.map(r => renderRow(r)).join('')}
+                                </tbody>
+                            </table>
+                        </div>
                     </div>
-                </div>`;
+                `;
             }
 
             if (noTimeGroup.length > 0) {
@@ -619,15 +713,31 @@
                     return aName.localeCompare(bName);
                 });
 
-                html += `<div class="mb-6">
-                    <h3 class="font-semibold text-sm mb-2 flex items-center gap-2 text-warning">
-                        Без времени прилёта
-                        <span class="badge badge-sm badge-warning">${noTimeGroup.length}</span>
-                    </h3>
-                    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
-                        ${noTimeGroup.map(r => renderCard(r)).join('')}
+                html += `
+                    <div class="mb-6">
+                        <h3 class="font-semibold text-sm mb-2 flex items-center gap-2 text-warning">
+                            Без времени прилёта
+                            <span class="badge badge-sm badge-warning">${noTimeGroup.length}</span>
+                        </h3>
+                        <div class="bg-base-100 rounded-xl shadow overflow-x-auto">
+                            <table class="table table-zebra">
+                                <thead>
+                                    <tr>
+                                        <th>Имя</th>
+                                        <th>Пол / Возраст</th>
+                                        <th class="text-center">Прилёт</th>
+                                        <th class="text-center">Приедет в ШРСК</th>
+                                        <th>Размещение</th>
+                                        <th>Контакты</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    ${noTimeGroup.map(r => renderRow(r)).join('')}
+                                </tbody>
+                            </table>
+                        </div>
                     </div>
-                </div>`;
+                `;
             }
 
             container.innerHTML = html;
