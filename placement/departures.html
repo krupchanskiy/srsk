@@ -381,18 +381,26 @@
             if (isCollapsed) {
                 statsBlock.style.display = '';
                 icon.textContent = '▼';
-                localStorage.removeItem(STATS_COLLAPSED_KEY);
+                localStorage.setItem(STATS_COLLAPSED_KEY, '0'); // 0 = развернут
             } else {
                 statsBlock.style.display = 'none';
                 icon.textContent = '▶';
-                localStorage.setItem(STATS_COLLAPSED_KEY, '1');
+                localStorage.setItem(STATS_COLLAPSED_KEY, '1'); // 1 = свернут
             }
         }
 
         function initStatsState() {
-            if (localStorage.getItem(STATS_COLLAPSED_KEY)) {
-                const statsBlock = document.getElementById('statsBlock');
-                const icon = document.getElementById('statsToggleIcon');
+            const statsBlock = document.getElementById('statsBlock');
+            const icon = document.getElementById('statsToggleIcon');
+            const savedState = localStorage.getItem(STATS_COLLAPSED_KEY);
+
+            // По умолчанию свернут (если нет сохраненного состояния или сохранено '1')
+            const isExpanded = savedState === '0';
+
+            if (isExpanded) {
+                statsBlock.style.display = '';
+                icon.textContent = '▼';
+            } else {
                 statsBlock.style.display = 'none';
                 icon.textContent = '▶';
             }
