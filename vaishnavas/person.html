@@ -662,6 +662,17 @@
                     </select>
                 </div>
 
+                <!-- Питание -->
+                <div class="form-control">
+                    <label class="label"><span class="label-text font-medium" data-i18n="meal_type">Питание</span></label>
+                    <select id="editMealType" class="select select-bordered">
+                        <option value="">Не указано</option>
+                        <option value="prasad" data-i18n="meal_type_prasad">С нами</option>
+                        <option value="self" data-i18n="meal_type_self">Самостоятельно</option>
+                        <option value="child" data-i18n="meal_type_child">Детское</option>
+                    </select>
+                </div>
+
                 <!-- Прилёт -->
                 <div class="border rounded-lg p-3">
                     <div class="font-medium mb-2">✈️ Прилёт</div>
@@ -1429,6 +1440,9 @@
             // Статус
             document.getElementById('editRegStatus').value = reg.status || 'guest';
 
+            // Питание
+            document.getElementById('editMealType').value = reg.meal_type || '';
+
             // Трансферы
             const transfers = reg.guest_transfers || [];
             const arrival = transfers.find(t => t.direction === 'arrival');
@@ -1468,6 +1482,7 @@
                 // Обновляем регистрацию
                 const regData = {
                     status: document.getElementById('editRegStatus').value,
+                    meal_type: document.getElementById('editMealType').value || null,
                     accommodation_wishes: document.getElementById('editAccommodationWishes').value || null,
                     companions: document.getElementById('editCompanions').value || null,
                     extended_stay: document.getElementById('editExtendedStay').value || null,

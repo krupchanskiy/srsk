@@ -246,6 +246,12 @@
                                 <span class="sort-icon" data-sort="org_notes">↕</span>
                             </div>
                         </th>
+                        <th class="cursor-pointer hover:bg-base-200 select-none" onclick="toggleSort('meal_type')">
+                            <div class="flex items-center gap-1">
+                                <span data-i18n="meal_type">Питание</span>
+                                <span class="sort-icon" data-sort="meal_type">↕</span>
+                            </div>
+                        </th>
                         <th class="cursor-pointer hover:bg-base-200 select-none" onclick="toggleSort('notes')">
                             <div class="flex items-center gap-1">
                                 <span data-i18n="preliminary_notes">Заметки</span>
@@ -790,6 +796,11 @@
                     // Сортировка по номеру комнаты
                     aVal = (a.resident?.rooms?.number || 'zzz').toLowerCase();
                     bVal = (b.resident?.rooms?.number || 'zzz').toLowerCase();
+                } else if (sortField === 'meal_type') {
+                    // Сортировка по типу питания
+                    const mealOrder = { prasad: 1, self: 2, child: 3 };
+                    aVal = a.meal_type ? mealOrder[a.meal_type] || 99 : 99;
+                    bVal = b.meal_type ? mealOrder[b.meal_type] || 99 : 99;
                 } else {
                     // companions, accommodation_wishes, extended_stay, guest_questions, org_notes
                     aVal = (a[sortField] || '').toLowerCase();
@@ -894,6 +905,16 @@
                         <td class="text-sm">${e(reg.guest_questions || '—')}</td>
                         <td class="text-sm">${e(reg.org_notes || '—')}</td>
                         <td class="text-sm">
+                            <select class="select select-xs select-bordered w-full"
+                                onchange="onMealTypeChange('${reg.id}', this.value)"
+                                onclick="event.stopPropagation()">
+                                <option value="" ${!reg.meal_type ? 'selected' : ''}>—</option>
+                                <option value="prasad" ${reg.meal_type === 'prasad' ? 'selected' : ''}>${t('meal_type_prasad')}</option>
+                                <option value="self" ${reg.meal_type === 'self' ? 'selected' : ''}>${t('meal_type_self')}</option>
+                                <option value="child" ${reg.meal_type === 'child' ? 'selected' : ''}>${t('meal_type_child')}</option>
+                            </select>
+                        </td>
+                        <td class="text-sm">
                             <textarea
                                 class="textarea textarea-xs textarea-bordered w-full"
                                 rows="2"
@@ -975,6 +996,24 @@
             });
 
             return html;
+        }
+
+        async function onMealTypeChange(registrationId, mealType) {
+            try {
+                const { error } = await Layout.db
+                    .from('retreat_registrations')
+                    .update({ meal_type: mealType || null })
+                    .eq('id', registrationId);
+
+                if (error) throw error;
+
+                // Обновить локальные данные
+                const reg = registrations.find(r => r.id === registrationId);
+                if (reg) reg.meal_type = mealType || null;
+            } catch (err) {
+                console.error('Error updating meal type:', err);
+                alert('Ошибка сохранения типа питания: ' + err.message);
+            }
         }
 
         async function onBuildingChange(registrationId, buildingId) {
