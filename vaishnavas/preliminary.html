@@ -200,6 +200,9 @@
                     <button class="btn btn-xs btn-ghost filter-btn" data-filter="guest" data-i18n="status_guest">Гость</button>
                     <button class="btn btn-xs btn-ghost filter-btn" data-filter="team" data-i18n="status_team">Команда</button>
                     <button class="btn btn-xs btn-ghost filter-btn" data-filter="cancelled" data-i18n="status_cancelled">Отказ</button>
+                    <div class="border-l border-base-300 h-6 mx-1"></div>
+                    <button class="btn btn-xs btn-ghost filter-btn" data-filter="accommodated" data-i18n="accommodated">Заселены</button>
+                    <button class="btn btn-xs btn-ghost filter-btn" data-filter="not_accommodated" data-i18n="not_accommodated">Не заселены</button>
                 </div>
         </div>
 
@@ -758,9 +761,20 @@
         }
 
         function filterRegistrations() {
-            let filtered = currentFilter === 'all'
-                ? [...registrations]
-                : registrations.filter(r => r.status === currentFilter);
+            let filtered;
+
+            if (currentFilter === 'all') {
+                filtered = [...registrations];
+            } else if (currentFilter === 'accommodated') {
+                // Показать только заселённых (есть размещение с гостиницей и комнатой)
+                filtered = registrations.filter(r => r.resident && r.resident.room_id);
+            } else if (currentFilter === 'not_accommodated') {
+                // Показать только не заселённых (нет размещения или нет комнаты)
+                filtered = registrations.filter(r => !r.resident || !r.resident.room_id);
+            } else {
+                // Фильтр по статусу (guest, team, cancelled)
+                filtered = registrations.filter(r => r.status === currentFilter);
+            }
 
             // Apply search filter
             if (searchQuery) {
