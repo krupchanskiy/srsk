@@ -899,6 +899,30 @@
                 .eq('is_deleted', false)
                 .order('created_at', { ascending: false });
             registrations = data || [];
+
+            // Load residents (actual accommodation) for each registration
+            if (registrations.length > 0) {
+                const retreatIds = registrations.map(r => r.retreat_id).filter(Boolean);
+                if (retreatIds.length > 0) {
+                    const { data: residentsData } = await Layout.db
+                        .from('residents')
+                        .select('retreat_id, room_id, rooms(number, buildings(name_ru, name_en, name_hi))')
+                        .eq('vaishnava_id', personId)
+                        .in('retreat_id', retreatIds)
+                        .in('status', ['active', 'confirmed']);
+
+                    // Map residents to registrations
+                    if (residentsData) {
+                        residentsData.forEach(res => {
+                            const reg = registrations.find(r => r.retreat_id === res.retreat_id);
+                            if (reg) {
+                                reg.resident = res;
+                            }
+                        });
+                    }
+                }
+            }
+
             renderRegistrations();
         }
 
@@ -1757,7 +1781,7 @@
                 const departure = transfers.find(t => t.direction === 'departure');
 
                 // Check if there's any detail to show
-                const hasDetails = arrival || departure || reg.guest_accommodations?.[0] || reg.accommodation_wishes || reg.companions || reg.payment_notes || reg.org_notes || reg.extended_stay || reg.guest_questions;
+                const hasDetails = arrival || departure || reg.resident || reg.guest_accommodations?.[0] || reg.accommodation_wishes || reg.companions || reg.payment_notes || reg.org_notes || reg.extended_stay || reg.guest_questions;
 
                 // Build details HTML
                 let detailsHtml = '';
@@ -1790,9 +1814,32 @@
                     `;
                 }
 
-                // Размещение
+                // Размещение (из residents или из guest_accommodations для старых данных)
+                const resident = reg.resident;
                 const accommodation = reg.guest_accommodations?.[0];
-                if (accommodation?.room_number) {
+
+                if (resident) {
+                    // Self-accommodation (NULL room_id)
+                    if (!resident.room_id) {
+                        detailsHtml += `
+                            <div class="detail-section">
+                                <div class="detail-label">🏠 Размещение</div>
+                                <div class="text-sm font-medium text-error bg-error/20 px-2 py-1 rounded inline-block">${t('self_accommodation')}</div>
+                            </div>
+                        `;
+                    } else if (resident.rooms) {
+                        // Regular accommodation
+                        const buildingName = resident.rooms.buildings ? Layout.getName(resident.rooms.buildings) : '';
+                        const roomNumber = resident.rooms.number || '';
+                        detailsHtml += `
+                            <div class="detail-section">
+                                <div class="detail-label">🏠 Размещение</div>
+                                <div class="text-sm font-medium text-success">${buildingName ? buildingName + ', ' : ''}${roomNumber}</div>
+                            </div>
+                        `;
+                    }
+                } else if (accommodation?.room_number) {
+                    // Legacy accommodation data
                     detailsHtml += `
                         <div class="detail-section">
                             <div class="detail-label">🏠 Размещение</div>
