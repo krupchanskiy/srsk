@@ -209,17 +209,27 @@
             if (vaishnavaIds.length > 0) {
                 const { data: resData } = await Layout.db
                     .from('residents')
-                    .select('vaishnava_id, rooms(number, buildings(name_ru, name_en, name_hi))')
+                    .select('vaishnava_id, room_id, rooms(number, buildings(name_ru, name_en, name_hi))')
                     .in('vaishnava_id', vaishnavaIds)
                     .in('status', ['active', 'confirmed']);
 
                 if (resData) {
                     resData.forEach(r => {
-                        if (r.vaishnava_id && r.rooms) {
-                            residentsMap.set(r.vaishnava_id, {
-                                roomNumber: r.rooms.number,
-                                buildingName: Layout.getName(r.rooms.buildings)
-                            });
+                        if (r.vaishnava_id) {
+                            if (!r.room_id) {
+                                // Self-accommodation (NULL room_id)
+                                residentsMap.set(r.vaishnava_id, {
+                                    roomNumber: null,
+                                    buildingName: null,
+                                    isSelfAccommodation: true
+                                });
+                            } else if (r.rooms) {
+                                residentsMap.set(r.vaishnava_id, {
+                                    roomNumber: r.rooms.number,
+                                    buildingName: Layout.getName(r.rooms.buildings),
+                                    isSelfAccommodation: false
+                                });
+                            }
                         }
                     });
                 }
@@ -370,7 +380,7 @@
                     const directionIcon = t.direction === 'arrival' ? '✈️ →' : '← ✈️';
                     const directionLabel = t.direction === 'arrival' ? 'Заезд' : 'Выезд';
                     const accommodation = v ? residentsMap.get(v.id) : null;
-                    const accommodationStr = accommodation ? `${accommodation.buildingName}, ${accommodation.roomNumber}` : '';
+                    const accommodationStr = accommodation?.isSelfAccommodation ? `<span class="text-error bg-error/20 px-2 py-1 rounded font-medium">${t('self_accommodation')}</span>` : (accommodation ? `${accommodation.buildingName}, ${accommodation.roomNumber}` : '');
 
                     // Для выездов показываем время выезда (вылет - 7 часов)
                     const isDeparture = t.direction === 'departure';

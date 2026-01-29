@@ -946,7 +946,8 @@
 
                 // Получить размещение
                 const resident = reg.resident;
-                const buildingId = resident?.rooms?.building_id || null;
+                // If resident exists but room_id is NULL, it's self-accommodation
+                const buildingId = resident && !resident.room_id ? 'self' : (resident?.rooms?.building_id || null);
                 const roomId = resident?.room_id || null;
 
                 // Фото и инициалы
@@ -1001,21 +1002,23 @@
                                 onchange="saveLocalNotes('${reg.id}', this.value)"
                                 onclick="event.stopPropagation()">${e(localNotes || '')}</textarea>
                         </td>
-                        <td class="text-sm">
+                        <td class="text-sm ${buildingId === 'self' ? 'bg-error/20' : ''}">
                             <select class="select select-xs select-bordered w-full"
                                 onchange="onBuildingChange('${reg.id}', this.value)"
                                 onclick="event.stopPropagation()">
                                 <option value="">—</option>
                                 ${buildings.map(b => `<option value="${b.id}" ${buildingId === b.id ? 'selected' : ''}>${Layout.getName(b)}</option>`).join('')}
+                                <option value="self" ${buildingId === 'self' ? 'selected' : ''}>${t('self_accommodation')}</option>
                             </select>
                         </td>
-                        <td class="text-sm">
-                            <select class="select select-xs select-bordered w-full"
+                        <td class="text-sm ${buildingId === 'self' ? 'bg-error/20' : ''}">
+                            <select class="select select-xs select-bordered w-full ${buildingId === 'self' ? 'hidden' : ''}"
                                 id="room_select_${reg.id}"
                                 onchange="onRoomChange('${reg.id}', this.value)"
                                 onclick="event.stopPropagation()">
-                                ${buildingId ? renderRoomOptions(buildingId, roomId, reg.id) : '<option value="">—</option>'}
+                                ${buildingId && buildingId !== 'self' ? renderRoomOptions(buildingId, roomId, reg.id) : '<option value="">—</option>'}
                             </select>
+                            ${buildingId === 'self' ? `<span class="text-sm opacity-50">${t('self_accommodation')}</span>` : ''}
                         </td>
                     </tr>
                 `;
@@ -1117,6 +1120,12 @@
                 return;
             }
 
+            // Если выбрано "Самостоятельно"
+            if (buildingId === 'self') {
+                await saveSelfAccommodation(registrationId);
+                return;
+            }
+
             // Обновить список комнат
             roomSelect.innerHTML = renderRoomOptions(buildingId, null, registrationId);
         }
@@ -1177,6 +1186,48 @@
             } catch (err) {
                 console.error('Error deleting resident:', err);
                 alert('Ошибка удаления размещения: ' + err.message);
+            }
+        }
+
+        async function saveSelfAccommodation(registrationId) {
+            const reg = registrations.find(r => r.id === registrationId);
+            if (!reg || !reg.vaishnava_id) {
+                Layout.showNotification('Ошибка: не найдена регистрация или вайшнав', 'error');
+                return;
+            }
+
+            const data = {
+                room_id: null, // NULL indicates self-accommodation
+                vaishnava_id: reg.vaishnava_id,
+                retreat_id: retreatId,
+                check_in: retreat?.start_date || null,
+                check_out: retreat?.end_date || null,
+                status: 'confirmed'
+            };
+
+            try {
+                if (reg.resident?.id) {
+                    // Обновить существующее размещение
+                    const { error } = await Layout.db
+                        .from('residents')
+                        .update(data)
+                        .eq('id', reg.resident.id);
+                    if (error) throw error;
+                } else {
+                    // Создать новое размещение
+                    const { error } = await Layout.db
+                        .from('residents')
+                        .insert(data);
+                    if (error) throw error;
+                }
+
+                // Перезагрузить данные для синхронизации
+                await loadRegistrations();
+                Layout.showNotification(t('self_accommodation') + ' ' + t('saved'), 'success');
+            } catch (err) {
+                Layout.handleError(err, 'Сохранение размещения');
+                // Перезагрузить данные для отката изменений в UI
+                await loadRegistrations();
             }
         }
 

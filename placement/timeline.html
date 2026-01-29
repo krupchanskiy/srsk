@@ -977,9 +977,12 @@
                 });
             });
 
-            // Группируем резидентов по комнатам
+            // Группируем резидентов по комнатам (исключаем самостоятельное размещение)
             const residentsByRoom = {};
             residents.forEach(res => {
+                // Skip self-accommodation (NULL room_id)
+                if (!res.room_id) return;
+
                 if (!residentsByRoom[res.room_id]) {
                     residentsByRoom[res.room_id] = [];
                 }
