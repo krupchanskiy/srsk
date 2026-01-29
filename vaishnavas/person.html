@@ -573,16 +573,28 @@
             <h3 class="font-bold text-lg mb-4" id="stayModalTitle" data-i18n="add_stay">Добавить период</h3>
             <form id="stayForm" onsubmit="saveStay(event)">
                 <input type="hidden" name="stay_id" value="">
-                <div class="grid grid-cols-2 gap-4 mb-4">
-                    <div class="form-control">
-                        <label class="label"><span class="label-text font-medium" data-i18n="arrival">Приезд</span></label>
-                        <input type="date" name="start_date" class="input input-bordered" required>
-                    </div>
-                    <div class="form-control">
-                        <label class="label"><span class="label-text font-medium" data-i18n="departure">Отъезд</span></label>
-                        <input type="date" name="end_date" class="input input-bordered" required>
+
+                <!-- Постоянное пребывание -->
+                <div class="form-control mb-4">
+                    <label class="label cursor-pointer justify-start gap-3">
+                        <input type="checkbox" id="isPermanentStay" class="checkbox checkbox-success" onchange="togglePermanentStay(this.checked)">
+                        <span class="label-text font-medium">Находится в ШРСК постоянно</span>
+                    </label>
+                </div>
+
+                <div id="datesContainer">
+                    <div class="grid grid-cols-2 gap-4 mb-4">
+                        <div class="form-control">
+                            <label class="label"><span class="label-text font-medium" data-i18n="arrival">Приезд</span></label>
+                            <input type="date" name="start_date" id="stayStartDate" class="input input-bordered" required>
+                        </div>
+                        <div class="form-control">
+                            <label class="label"><span class="label-text font-medium" data-i18n="departure">Отъезд</span></label>
+                            <input type="date" name="end_date" id="stayEndDate" class="input input-bordered" required>
+                        </div>
                     </div>
                 </div>
+
                 <div class="form-control mb-4">
                     <label class="label"><span class="label-text" data-i18n="comment">Комментарий</span></label>
                     <input type="text" name="comment" class="input input-bordered" placeholder="Например: Картика">
@@ -1315,16 +1327,22 @@
             container.innerHTML = stays.map(stay => {
                 const isCurrent = stay.start_date <= today && stay.end_date >= today;
                 const isFuture = stay.start_date > today;
+                const isPermanent = stay.end_date >= '2099-01-01';
+
                 let stayClass = 'stay-card';
                 if (isCurrent) stayClass += ' stay-current';
                 else if (isFuture) stayClass += ' stay-future';
                 else stayClass += ' stay-past';
 
+                const dateDisplay = isPermanent
+                    ? 'Находится в ШРСК'
+                    : `${formatDate(stay.start_date)} — ${formatDate(stay.end_date)}`;
+
                 return `
                     <div class="${stayClass} border rounded-lg p-3 cursor-pointer hover:shadow-md transition-shadow" onclick="openStayModal('${stay.id}')">
                         <div class="flex items-center justify-between">
                             <div>
-                                <div class="font-medium">${formatDate(stay.start_date)} — ${formatDate(stay.end_date)}</div>
+                                <div class="font-medium">${dateDisplay}</div>
                                 ${stay.comment ? `<div class="text-sm opacity-60 mt-1">${stay.comment}</div>` : ''}
                             </div>
                             ${isCurrent ? `<span class="badge badge-success badge-sm">${t('here_now') || 'Здесь'}</span>` : ''}
@@ -1337,17 +1355,45 @@
 
         let editingStayId = null;
 
+        function togglePermanentStay(isPermanent) {
+            const datesContainer = document.getElementById('datesContainer');
+            const startDateInput = document.getElementById('stayStartDate');
+            const endDateInput = document.getElementById('stayEndDate');
+
+            if (isPermanent) {
+                datesContainer.classList.add('hidden');
+                startDateInput.removeAttribute('required');
+                endDateInput.removeAttribute('required');
+            } else {
+                datesContainer.classList.remove('hidden');
+                startDateInput.setAttribute('required', 'required');
+                endDateInput.setAttribute('required', 'required');
+            }
+        }
+
         function openStayModal(stayId = null) {
             const form = document.getElementById('stayForm');
             form.reset();
             editingStayId = stayId;
 
+            const isPermanentCheckbox = document.getElementById('isPermanentStay');
+            isPermanentCheckbox.checked = false;
+            togglePermanentStay(false);
+
             if (stayId) {
                 const stay = stays.find(s => s.id === stayId);
                 if (stay) {
                     form.querySelector('[name="stay_id"]').value = stay.id;
-                    form.querySelector('[name="start_date"]').value = stay.start_date;
-                    form.querySelector('[name="end_date"]').value = stay.end_date;
+
+                    // Проверяем, является ли период "постоянным" (end_date >= 2099-01-01)
+                    const isPermanent = stay.end_date >= '2099-01-01';
+                    isPermanentCheckbox.checked = isPermanent;
+                    togglePermanentStay(isPermanent);
+
+                    if (!isPermanent) {
+                        form.querySelector('[name="start_date"]').value = stay.start_date;
+                        form.querySelector('[name="end_date"]').value = stay.end_date;
+                    }
                     form.querySelector('[name="comment"]').value = stay.comment || '';
                 }
                 document.getElementById('stayModalTitle').textContent = t('edit_stay') || 'Редактировать';
@@ -1369,10 +1415,12 @@
             event.preventDefault();
             const form = event.target;
 
+            const isPermanent = document.getElementById('isPermanentStay').checked;
+
             const stayData = {
                 vaishnava_id: person.id,
-                start_date: form.start_date.value,
-                end_date: form.end_date.value,
+                start_date: isPermanent ? '2020-01-01' : form.start_date.value,
+                end_date: isPermanent ? '2099-12-31' : form.end_date.value,
                 comment: form.comment.value || null
             };
 
