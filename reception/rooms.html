@@ -512,7 +512,7 @@
             const row = document.createElement('tr');
             row.innerHTML = `
                 <td><input type="number" class="input input-xs input-bordered w-full" name="floor_${rowIndex}" min="1" value="1" /></td>
-                <td><input type="text" class="input input-xs input-bordered w-full" name="number_${rowIndex}" placeholder="Номер комнаты" /></td>
+                <td><input type="text" class="input input-xs input-bordered w-full" name="number_${rowIndex}" placeholder="${t('room_number_placeholder')}" /></td>
                 <td><input type="number" class="input input-xs input-bordered w-full" name="capacity_${rowIndex}" min="1" value="1" /></td>
                 <td>
                     <button type="button" class="btn btn-ghost btn-xs btn-circle" onclick="removeBulkRoomRow(this)">
