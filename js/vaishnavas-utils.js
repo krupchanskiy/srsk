@@ -173,6 +173,13 @@ async function loadStays() {
             .order('arrival_date')
     ]);
 
+    if (teamStaysRes.error) {
+        console.error('Ошибка загрузки vaishnava_stays:', teamStaysRes.error);
+    }
+    if (guestRegsRes.error) {
+        console.error('Ошибка загрузки retreat_registrations:', guestRegsRes.error);
+    }
+
     const stays = {};
 
     // Добавляем периоды команды
@@ -192,6 +199,10 @@ async function loadStays() {
             });
         }
     });
+
+    console.log('Загружено периодов команды:', teamStaysRes.data?.length || 0);
+    console.log('Загружено регистраций гостей:', guestRegsRes.data?.length || 0);
+    console.log('Всего уникальных людей:', Object.keys(stays).length);
 
     return stays;
 }
