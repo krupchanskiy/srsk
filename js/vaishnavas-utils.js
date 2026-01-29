@@ -168,7 +168,7 @@ async function loadStays() {
             .order('start_date'),
         Layout.db
             .from('retreat_registrations')
-            .select('vaishnava_id, retreats(name_ru, name_en, name_hi, start_date, end_date)')
+            .select('id, vaishnava_id, retreats(name_ru, name_en, name_hi)')
             .eq('is_deleted', false)
     ]);
 
@@ -187,17 +187,40 @@ async function loadStays() {
         stays[s.vaishnava_id].push({ start_date: s.start_date, end_date: s.end_date });
     });
 
-    // Добавляем регистрации гостей (используем даты ретрита)
-    (guestRegsRes.data || []).forEach(r => {
-        if (!stays[r.vaishnava_id]) stays[r.vaishnava_id] = [];
-        if (r.retreats && r.retreats.start_date) {
-            stays[r.vaishnava_id].push({
-                start_date: r.retreats.start_date,
-                end_date: r.retreats.end_date || r.retreats.start_date,
-                retreat: r.retreats // информация о ретрите
-            });
-        }
-    });
+    // Загружаем трансферы для всех регистраций
+    const registrationIds = (guestRegsRes.data || []).map(r => r.id);
+    if (registrationIds.length > 0) {
+        const { data: transfers } = await Layout.db
+            .from('guest_transfers')
+            .select('registration_id, direction, flight_datetime')
+            .in('registration_id', registrationIds);
+
+        // Группируем трансферы по registration_id
+        const transfersByReg = {};
+        (transfers || []).forEach(t => {
+            if (!transfersByReg[t.registration_id]) {
+                transfersByReg[t.registration_id] = { arrival: null, departure: null };
+            }
+            if (t.direction === 'arrival' && t.flight_datetime) {
+                transfersByReg[t.registration_id].arrival = t.flight_datetime.split('T')[0];
+            } else if (t.direction === 'departure' && t.flight_datetime) {
+                transfersByReg[t.registration_id].departure = t.flight_datetime.split('T')[0];
+            }
+        });
+
+        // Добавляем периоды гостей (используем личные даты прилета/вылета)
+        (guestRegsRes.data || []).forEach(r => {
+            const regTransfers = transfersByReg[r.id];
+            if (regTransfers && (regTransfers.arrival || regTransfers.departure)) {
+                if (!stays[r.vaishnava_id]) stays[r.vaishnava_id] = [];
+                stays[r.vaishnava_id].push({
+                    start_date: regTransfers.arrival || regTransfers.departure,
+                    end_date: regTransfers.departure || regTransfers.arrival,
+                    retreat: r.retreats // информация о ретрите
+                });
+            }
+        });
+    }
 
     console.log('Загружено периодов команды:', teamStaysRes.data?.length || 0);
     console.log('Загружено регистраций гостей:', guestRegsRes.data?.length || 0);
