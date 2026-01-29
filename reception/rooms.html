@@ -24,12 +24,20 @@
         <!-- Page Header -->
         <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6">
             <h1 class="text-2xl font-bold" data-i18n="rooms_title">Комнаты</h1>
-            <button class="btn btn-primary gap-2" onclick="openRoomModal()">
-                <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" />
-                </svg>
-                <span data-i18n="add_room">Добавить комнату</span>
-            </button>
+            <div class="flex gap-2">
+                <button class="btn btn-outline gap-2" onclick="openBulkRoomModal()">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 13h6m-3-3v6m5 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                    </svg>
+                    <span data-i18n="add_multiple_rooms">Добавить несколько комнат</span>
+                </button>
+                <button class="btn btn-primary gap-2" onclick="openRoomModal()">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" />
+                    </svg>
+                    <span data-i18n="add_room">Добавить комнату</span>
+                </button>
+            </div>
         </div>
 
         <!-- Filters -->
@@ -152,6 +160,56 @@
                     <span data-i18n="delete_room">Удалить комнату</span>
                 </button>
             </div>
+        </div>
+        <form method="dialog" class="modal-backdrop"><button>close</button></form>
+    </dialog>
+
+    <!-- Bulk Add Rooms Modal -->
+    <dialog id="bulkRoomModal" class="modal">
+        <div class="modal-box max-w-4xl relative">
+            <button type="button" class="btn btn-sm btn-circle btn-ghost absolute right-2 top-2" onclick="closeBulkRoomModal()">✕</button>
+            <h3 class="font-bold text-lg mb-4" data-i18n="add_multiple_rooms">Добавить несколько комнат</h3>
+
+            <form id="bulkRoomForm" class="space-y-4">
+                <!-- Здание выбирается один раз для всех комнат -->
+                <div>
+                    <label class="label"><span class="label-text font-medium" data-i18n="room_building">Здание</span><span class="text-error ml-1">*</span></label>
+                    <select id="bulkBuildingSelect" class="select select-bordered w-full max-w-xs" required>
+                        <option value="">—</option>
+                    </select>
+                </div>
+
+                <div class="divider"></div>
+
+                <!-- Таблица с комнатами -->
+                <div class="overflow-x-auto">
+                    <table class="table table-sm">
+                        <thead>
+                            <tr>
+                                <th class="w-20" data-i18n="room_floor">Этаж</th>
+                                <th data-i18n="room_number">Номер (название)</th>
+                                <th class="w-24" data-i18n="room_capacity">Мест</th>
+                                <th class="w-10"></th>
+                            </tr>
+                        </thead>
+                        <tbody id="bulkRoomsTable">
+                            <!-- Строки будут добавлены через JS -->
+                        </tbody>
+                    </table>
+                </div>
+
+                <button type="button" class="btn btn-ghost btn-sm gap-2" onclick="addBulkRoomRow()">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" />
+                    </svg>
+                    <span data-i18n="add_row">Добавить строку</span>
+                </button>
+
+                <div class="modal-action">
+                    <button type="button" class="btn btn-ghost" onclick="closeBulkRoomModal()" data-i18n="cancel">Отмена</button>
+                    <button type="submit" class="btn btn-primary" data-i18n="save_all">Сохранить все</button>
+                </div>
+            </form>
         </div>
         <form method="dialog" class="modal-backdrop"><button>close</button></form>
     </dialog>
@@ -423,6 +481,111 @@
 
         window.onLanguageChange = () => updateUI();
 
+        // ==================== BULK ADD ROOMS ====================
+        function openBulkRoomModal() {
+            // Заполнить выпадающий список зданий
+            const buildingSelect = Layout.$('#bulkBuildingSelect');
+            buildingSelect.innerHTML = '<option value="">—</option>';
+            buildings.forEach(b => {
+                buildingSelect.innerHTML += `<option value="${b.id}">${Layout.getName(b)}</option>`;
+            });
+
+            // Очистить таблицу и добавить 10 пустых строк
+            const tbody = Layout.$('#bulkRoomsTable');
+            tbody.innerHTML = '';
+            for (let i = 0; i < 10; i++) {
+                addBulkRoomRow();
+            }
+
+            Layout.$('#bulkRoomModal').showModal();
+        }
+
+        function closeBulkRoomModal() {
+            Layout.$('#bulkRoomModal').close();
+            Layout.$('#bulkRoomForm').reset();
+        }
+
+        function addBulkRoomRow() {
+            const tbody = Layout.$('#bulkRoomsTable');
+            const rowIndex = tbody.children.length;
+
+            const row = document.createElement('tr');
+            row.innerHTML = `
+                <td><input type="number" class="input input-xs input-bordered w-full" name="floor_${rowIndex}" min="1" value="1" /></td>
+                <td><input type="text" class="input input-xs input-bordered w-full" name="number_${rowIndex}" placeholder="Номер комнаты" /></td>
+                <td><input type="number" class="input input-xs input-bordered w-full" name="capacity_${rowIndex}" min="1" value="1" /></td>
+                <td>
+                    <button type="button" class="btn btn-ghost btn-xs btn-circle" onclick="removeBulkRoomRow(this)">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+                        </svg>
+                    </button>
+                </td>
+            `;
+            tbody.appendChild(row);
+        }
+
+        function removeBulkRoomRow(btn) {
+            const row = btn.closest('tr');
+            row.remove();
+        }
+
+        async function saveBulkRooms(e) {
+            e.preventDefault();
+
+            const buildingId = Layout.$('#bulkBuildingSelect').value;
+            if (!buildingId) {
+                Layout.showNotification(t('select_building_required') || 'Выберите здание', 'warning');
+                return;
+            }
+
+            // Собрать данные из всех строк
+            const tbody = Layout.$('#bulkRoomsTable');
+            const rows = Array.from(tbody.querySelectorAll('tr'));
+            const roomsToAdd = [];
+
+            rows.forEach((row, index) => {
+                const floorInput = row.querySelector(`input[name="floor_${index}"]`);
+                const numberInput = row.querySelector(`input[name="number_${index}"]`);
+                const capacityInput = row.querySelector(`input[name="capacity_${index}"]`);
+
+                const number = numberInput?.value.trim();
+                if (!number) return; // Пропускаем пустые строки
+
+                roomsToAdd.push({
+                    building_id: buildingId,
+                    number: number,
+                    floor: parseInt(floorInput?.value) || 1,
+                    capacity: parseInt(capacityInput?.value) || 1,
+                    status: 'active',
+                    is_active: true,
+                    has_wifi: true // По умолчанию
+                });
+            });
+
+            if (roomsToAdd.length === 0) {
+                Layout.showNotification(t('no_rooms_to_add') || 'Нет комнат для добавления', 'warning');
+                return;
+            }
+
+            try {
+                Layout.showLoader();
+                const { error } = await Layout.db.from('rooms').insert(roomsToAdd);
+                if (error) throw error;
+
+                Layout.showNotification(`${t('added') || 'Добавлено'}: ${roomsToAdd.length} ${Layout.pluralize(roomsToAdd.length, {ru: ['комната', 'комнаты', 'комнат'], en: ['room', 'rooms'], hi: 'कमरे'})}`, 'success');
+
+                closeBulkRoomModal();
+                rooms = await loadRooms();
+                populateFilters();
+                renderRooms();
+            } catch (err) {
+                Layout.handleError(err, 'Массовое добавление комнат');
+            } finally {
+                Layout.hideLoader();
+            }
+        }
+
         // ==================== INIT ====================
         async function init() {
             await Layout.init({ module: 'housing', menuId: 'settings', itemId: 'rooms' });
@@ -451,6 +614,7 @@
 
             // Forms
             Layout.$('#roomForm').addEventListener('submit', saveRoom);
+            Layout.$('#bulkRoomForm').addEventListener('submit', saveBulkRooms);
 
             updateUI();
             Layout.hideLoader();
