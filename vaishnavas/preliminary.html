@@ -852,6 +852,12 @@
 
             noGuests.classList.add('hidden');
 
+            // Переводы для типов питания
+            const mealTypeNotSpecified = t('not_specified');
+            const mealTypePrasad = t('meal_type_prasad');
+            const mealTypeSelf = t('meal_type_self');
+            const mealTypeChild = t('meal_type_child');
+
             tbody.innerHTML = filtered.map(reg => {
                 const v = reg.vaishnavas;
                 const name = v ? `${v.first_name || ''} ${v.last_name || ''}`.trim() : '—';
@@ -908,10 +914,10 @@
                             <select class="select select-xs select-bordered w-full"
                                 onchange="onMealTypeChange('${reg.id}', this.value)"
                                 onclick="event.stopPropagation()">
-                                <option value="" ${!reg.meal_type ? 'selected' : ''}>—</option>
-                                <option value="prasad" ${reg.meal_type === 'prasad' ? 'selected' : ''}>${t('meal_type_prasad')}</option>
-                                <option value="self" ${reg.meal_type === 'self' ? 'selected' : ''}>${t('meal_type_self')}</option>
-                                <option value="child" ${reg.meal_type === 'child' ? 'selected' : ''}>${t('meal_type_child')}</option>
+                                <option value="" ${!reg.meal_type ? 'selected' : ''}>${mealTypeNotSpecified}</option>
+                                <option value="prasad" ${reg.meal_type === 'prasad' ? 'selected' : ''}>${mealTypePrasad}</option>
+                                <option value="self" ${reg.meal_type === 'self' ? 'selected' : ''}>${mealTypeSelf}</option>
+                                <option value="child" ${reg.meal_type === 'child' ? 'selected' : ''}>${mealTypeChild}</option>
                             </select>
                         </td>
                         <td class="text-sm">

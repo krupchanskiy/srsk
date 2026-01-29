@@ -666,7 +666,7 @@
                 <div class="form-control">
                     <label class="label"><span class="label-text font-medium" data-i18n="meal_type">Питание</span></label>
                     <select id="editMealType" class="select select-bordered">
-                        <option value="">Не указано</option>
+                        <option value="" data-i18n="not_specified">Не указано</option>
                         <option value="prasad" data-i18n="meal_type_prasad">С нами</option>
                         <option value="self" data-i18n="meal_type_self">Самостоятельно</option>
                         <option value="child" data-i18n="meal_type_child">Детское</option>
@@ -1820,6 +1820,20 @@
                         <div class="detail-section">
                             <div class="detail-label">📅 После ретрита</div>
                             <div class="text-sm whitespace-pre-line">${reg.extended_stay}</div>
+                        </div>
+                    `;
+                }
+
+                if (reg.meal_type) {
+                    const mealTypeLabels = {
+                        'prasad': t('meal_type_prasad'),
+                        'self': t('meal_type_self'),
+                        'child': t('meal_type_child')
+                    };
+                    detailsHtml += `
+                        <div class="detail-section">
+                            <div class="detail-label">🍽️ ${t('meal_type')}</div>
+                            <div class="text-sm">${mealTypeLabels[reg.meal_type] || reg.meal_type}</div>
                         </div>
                     `;
                 }
