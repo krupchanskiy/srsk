@@ -101,6 +101,22 @@
             <!-- Filter by category -->
             <div class="flex flex-wrap gap-2 mb-4" id="filterCategoryButtons"></div>
 
+            <!-- Stats -->
+            <div class="grid grid-cols-3 gap-4 mb-4">
+                <div class="bg-base-100 rounded-lg p-4 text-center">
+                    <div class="text-2xl font-bold" id="statTotal">0</div>
+                    <div class="text-xs opacity-60" data-i18n="products">Продуктов</div>
+                </div>
+                <div class="bg-base-100 rounded-lg p-4 text-center">
+                    <div class="text-2xl font-bold text-success" id="statCounted">0</div>
+                    <div class="text-xs opacity-60" data-i18n="items_counted">Подсчитано</div>
+                </div>
+                <div class="bg-base-100 rounded-lg p-4 text-center">
+                    <div class="text-2xl font-bold text-error" id="statDiscrepancies">0</div>
+                    <div class="text-xs opacity-60" data-i18n="discrepancies_found">Расхождений</div>
+                </div>
+            </div>
+
             <!-- Search and non-zero filter -->
             <div class="flex flex-wrap items-center gap-4 mb-4">
                 <div class="relative w-full sm:w-64">
@@ -118,22 +134,6 @@
                     <input type="checkbox" class="checkbox checkbox-sm" id="nonZeroFilter" onchange="toggleNonZeroFilter(this.checked)" />
                     <span class="label-text" data-i18n="only_non_zero">Только не нулевые</span>
                 </label>
-            </div>
-
-            <!-- Stats -->
-            <div class="grid grid-cols-3 gap-4 mb-4">
-                <div class="bg-base-100 rounded-lg p-4 text-center">
-                    <div class="text-2xl font-bold" id="statTotal">0</div>
-                    <div class="text-xs opacity-60" data-i18n="products">Продуктов</div>
-                </div>
-                <div class="bg-base-100 rounded-lg p-4 text-center">
-                    <div class="text-2xl font-bold text-success" id="statCounted">0</div>
-                    <div class="text-xs opacity-60" data-i18n="items_counted">Подсчитано</div>
-                </div>
-                <div class="bg-base-100 rounded-lg p-4 text-center">
-                    <div class="text-2xl font-bold text-error" id="statDiscrepancies">0</div>
-                    <div class="text-xs opacity-60" data-i18n="discrepancies_found">Расхождений</div>
-                </div>
             </div>
 
             <!-- Items table -->
