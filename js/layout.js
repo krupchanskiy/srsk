@@ -411,7 +411,16 @@ function getFooterHTML() {
 
             <div class="text-center mt-4 text-xs opacity-40" id="footerMotto">${currentLang === 'ru' ? 'ниджа-никат̣а-нива̄сам̇ дехи говардхана твам' : 'nija-nikaṭa-nivāsaṁ dehi govardhana tvam'}</div>
         </div>
-    </footer>`;
+    </footer>
+
+    <!-- Photo Modal -->
+    <dialog id="photoModal" class="modal">
+        <div class="modal-box max-w-3xl p-0">
+            <button class="btn btn-sm btn-circle btn-ghost absolute right-2 top-2 z-10 bg-base-100/80" onclick="document.getElementById('photoModal').close()">✕</button>
+            <img id="photoModalImage" src="" alt="" class="w-full h-auto rounded-lg">
+        </div>
+        <form method="dialog" class="modal-backdrop"><button>close</button></form>
+    </dialog>`;
 }
 
 // ==================== HEADER FUNCTIONS ====================
@@ -843,6 +852,17 @@ function formatQuantity(amount, unit) {
     return Math.ceil(amount * 100) / 100;
 }
 
+// Открыть модальное окно с фотографией
+function openPhotoModal(photoUrl) {
+    if (!photoUrl) return;
+    const modal = document.getElementById('photoModal');
+    const img = document.getElementById('photoModalImage');
+    if (modal && img) {
+        img.src = photoUrl;
+        modal.showModal();
+    }
+}
+
 // Экспортируем в глобальную область
 window.Layout = {
     init: initLayout,
@@ -866,6 +886,7 @@ window.Layout = {
     hideLoader,
     handleError,
     formatQuantity,
+    openPhotoModal,
     get currentLang() { return currentLang; },
     get currentLocation() { return currentLocation; },
     get currentModule() { return currentModule; },

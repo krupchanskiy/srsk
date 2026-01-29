@@ -38,6 +38,9 @@
             height: 120px;
             flex-shrink: 0;
         }
+        .avatar-wrapper img {
+            cursor: pointer;
+        }
         .edit-mode .avatar-wrapper {
             cursor: pointer;
         }
@@ -1911,8 +1914,11 @@
         // ==================== PHOTO ====================
 
         function onAvatarClick() {
-            if (!isEditMode) return;
-            document.getElementById('photoInput').click();
+            if (isEditMode) {
+                document.getElementById('photoInput').click();
+            } else if (person?.photo_url) {
+                Layout.openPhotoModal(person.photo_url);
+            }
         }
 
         async function deletePhoto() {

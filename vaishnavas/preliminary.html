@@ -105,6 +105,7 @@
             object-fit: cover;
             border-radius: 0.25rem;
             flex-shrink: 0;
+            cursor: pointer;
         }
         .guest-photo-placeholder {
             width: 50px;
@@ -930,7 +931,7 @@
                         <td class="cursor-pointer" onclick="window.location.href='person.html?id=${v?.id}'">
                             <div class="flex gap-3 items-center">
                                 ${photoUrl
-                                    ? `<img src="${e(photoUrl)}" class="guest-photo" alt="" data-initials="${initialsUpper}" onerror="replaceWithPlaceholder(this)">`
+                                    ? `<img src="${e(photoUrl)}" class="guest-photo" alt="" data-initials="${initialsUpper}" onerror="replaceWithPlaceholder(this)" onclick="event.stopPropagation(); Layout.openPhotoModal('${e(photoUrl)}')">`
                                     : `<div class="guest-photo-placeholder">${initialsUpper}</div>`
                                 }
                                 <div>

@@ -206,7 +206,7 @@ function renderPersonRow(person, opts = {}) {
         .toUpperCase());
 
     const avatarHtml = photoUrl
-        ? `<img src="${e(photoUrl)}" class="w-10 h-10 rounded-full object-cover" alt="" data-initials="${initials}" onerror="replacePhotoWithPlaceholder(this)">`
+        ? `<img src="${e(photoUrl)}" class="w-10 h-10 rounded-full object-cover cursor-pointer" alt="" data-initials="${initials}" onerror="replacePhotoWithPlaceholder(this)" onclick="event.stopPropagation(); Layout.openPhotoModal('${e(photoUrl)}')">`
         : `<div class="w-10 h-10 rounded-full bg-gradient-to-br from-purple-500 to-pink-500 flex items-center justify-center text-white font-semibold">${initials}</div>`;
 
     return `
