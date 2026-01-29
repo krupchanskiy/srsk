@@ -985,7 +985,7 @@
                         <td class="text-sm">${e(reg.org_notes || '—')}</td>
                         <td class="text-sm">
                             <select class="select select-xs select-bordered w-full ${reg.meal_type === 'prasad' ? 'meal-prasad' : reg.meal_type === 'self' ? 'meal-self' : reg.meal_type === 'child' ? 'meal-child' : ''}"
-                                onchange="onMealTypeChange('${reg.id}', this.value)"
+                                onchange="onMealTypeChange('${reg.id}', this.value, this)"
                                 onclick="event.stopPropagation()">
                                 <option value="" ${!reg.meal_type ? 'selected' : ''}>${mealTypeNotSpecified}</option>
                                 <option value="prasad" ${reg.meal_type === 'prasad' ? 'selected' : ''}>${mealTypePrasad}</option>
@@ -1077,7 +1077,7 @@
             return html;
         }
 
-        async function onMealTypeChange(registrationId, mealType) {
+        async function onMealTypeChange(registrationId, mealType, selectElement) {
             try {
                 const { error } = await Layout.db
                     .from('retreat_registrations')
@@ -1091,14 +1091,14 @@
                 if (reg) reg.meal_type = mealType || null;
 
                 // Обновить классы select элемента для цветовой индикации
-                const selectElement = event.target;
-                selectElement.classList.remove('meal-prasad', 'meal-self', 'meal-child');
-                if (mealType === 'prasad') selectElement.classList.add('meal-prasad');
-                else if (mealType === 'self') selectElement.classList.add('meal-self');
-                else if (mealType === 'child') selectElement.classList.add('meal-child');
+                if (selectElement) {
+                    selectElement.classList.remove('meal-prasad', 'meal-self', 'meal-child');
+                    if (mealType === 'prasad') selectElement.classList.add('meal-prasad');
+                    else if (mealType === 'self') selectElement.classList.add('meal-self');
+                    else if (mealType === 'child') selectElement.classList.add('meal-child');
+                }
             } catch (err) {
-                console.error('Error updating meal type:', err);
-                alert('Ошибка сохранения типа питания: ' + err.message);
+                Layout.handleError(err, 'Сохранение типа питания');
             }
         }
 
