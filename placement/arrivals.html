@@ -87,14 +87,17 @@
             </div>
         </div>
 
-        <!-- Search -->
-        <div class="mb-4">
-            <div class="relative max-w-sm">
+        <!-- Search and Filters -->
+        <div class="mb-4 flex gap-4">
+            <div class="relative flex-1 max-w-sm">
                 <input type="text" id="searchInput" placeholder="Поиск по имени..."
                        class="input input-bordered w-full pr-10"
                        oninput="onSearchInput(this.value)">
                 <button id="searchClear" class="absolute right-3 top-1/2 -translate-y-1/2 opacity-50 hover:opacity-100 hidden" onclick="clearSearch()">✕</button>
             </div>
+            <select id="buildingFilter" class="select select-bordered w-64" onchange="onBuildingChange(this.value)">
+                <option value="all">Все гостиницы</option>
+            </select>
         </div>
 
         <!-- Table -->
@@ -137,7 +140,9 @@
     <script>
         let retreatId = null;
         let registrations = [];
-        let residentsMap = new Map(); // vaishnava_id → { roomNumber, buildingName }
+        let residentsMap = new Map(); // vaishnava_id → { roomNumber, buildingName, buildingId }
+        let buildings = [];
+        let selectedBuildingId = 'all';
         let searchQuery = '';
 
         // Заменить битое изображение на заглушку с инициалами
@@ -196,9 +201,17 @@
             if (!id) {
                 registrations = [];
                 residentsMap = new Map();
+                buildings = [];
+                selectedBuildingId = 'all';
                 renderTable();
                 document.getElementById('statsWrapper').style.display = 'none';
                 return;
+            }
+
+            // Сброс фильтра при смене ретрита
+            selectedBuildingId = 'all';
+            if (document.getElementById('buildingFilter')) {
+                document.getElementById('buildingFilter').value = 'all';
             }
 
             await loadRegistrations();
@@ -235,7 +248,7 @@
             if (vaishnavaIds.length > 0) {
                 const resResult = await Layout.db
                     .from('residents')
-                    .select('vaishnava_id, rooms(number, buildings(name_ru, name_en, name_hi))')
+                    .select('vaishnava_id, rooms(number, buildings(id, name_ru, name_en, name_hi))')
                     .in('vaishnava_id', vaishnavaIds)
                     .in('status', ['active', 'confirmed']);
 
@@ -244,18 +257,55 @@
                         if (r.vaishnava_id && r.rooms) {
                             residentsMap.set(r.vaishnava_id, {
                                 roomNumber: r.rooms.number,
-                                buildingName: Layout.getName(r.rooms.buildings)
+                                buildingName: Layout.getName(r.rooms.buildings),
+                                buildingId: r.rooms.buildings.id
                             });
                         }
                     });
                 }
             }
 
+            // Загружаем список зданий для фильтра
+            await loadBuildings();
+
             Layout.hideLoader();
 
             updateStats();
             renderTable();
             document.getElementById('statsWrapper').style.display = '';
+        }
+
+        async function loadBuildings() {
+            const { data, error } = await Layout.db
+                .from('buildings')
+                .select('id, name_ru, name_en, name_hi')
+                .eq('is_active', true)
+                .order('sort_order');
+
+            if (error) {
+                console.error('Error loading buildings:', error);
+                return;
+            }
+
+            buildings = data || [];
+            renderBuildingFilter();
+        }
+
+        function renderBuildingFilter() {
+            const select = document.getElementById('buildingFilter');
+            if (!select) return;
+
+            const e = Layout.escapeHtml;
+            let html = '<option value="all">Все гостиницы</option>';
+            buildings.forEach(b => {
+                html += `<option value="${e(b.id)}">${e(Layout.getName(b))}</option>`;
+            });
+            select.innerHTML = html;
+        }
+
+        function onBuildingChange(buildingId) {
+            selectedBuildingId = buildingId;
+            renderTable();
         }
 
         // Helper to format date as YYYY-MM-DD in local timezone
@@ -452,6 +502,15 @@
         function getFilteredRegistrations() {
             let filtered = [...registrations];
 
+            // Фильтр по гостинице
+            if (selectedBuildingId !== 'all') {
+                filtered = filtered.filter(reg => {
+                    const accommodation = reg.vaishnava_id ? residentsMap.get(reg.vaishnava_id) : null;
+                    return accommodation && accommodation.buildingId === selectedBuildingId;
+                });
+            }
+
+            // Фильтр по поиску
             if (searchQuery) {
                 filtered = filtered.filter(reg => {
                     const v = reg.vaishnavas;
