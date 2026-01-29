@@ -86,18 +86,13 @@
             <table class="table table-zebra table-fixed w-full">
                 <thead>
                     <tr>
-                        <th class="cursor-pointer hover:bg-base-200 select-none w-1/4" onclick="toggleSort('name')">
+                        <th class="cursor-pointer hover:bg-base-200 select-none w-1/3" onclick="toggleSort('spiritual')">
                             <div class="flex items-center gap-1">
                                 <span data-i18n="name">Имя</span>
-                                <span class="sort-icon active" data-sort="name">↑</span>
+                                <span class="sort-icon active" data-sort="spiritual">↑</span>
                             </div>
                         </th>
-                        <th class="cursor-pointer hover:bg-base-200 select-none w-1/5" onclick="toggleSort('spiritual')">
-                            <div class="flex items-center gap-1">
-                                <span data-i18n="spiritual_name">Духовное имя</span>
-                                <span class="sort-icon" data-sort="spiritual">↕</span>
-                            </div>
-                        </th>
+                        <th class="w-1/5" data-i18n="department">Департамент</th>
                         <th class="cursor-pointer hover:bg-base-200 select-none w-1/6" onclick="toggleSort('country')">
                             <div class="flex items-center gap-1">
                                 <span data-i18n="country">Страна</span>
@@ -206,7 +201,7 @@
         async function loadPeople() {
             let query = Layout.db
                 .from('vaishnavas')
-                .select('id, first_name, last_name, spiritual_name, phone, email, country, spiritual_teacher, is_team_member, departments(id, name_ru, name_en, name_hi, color)', { count: 'exact' })
+                .select('id, first_name, last_name, spiritual_name, phone, email, country, spiritual_teacher, is_team_member, photo_url, service, departments(id, name_ru, name_en, name_hi, color)', { count: 'exact' })
                 .eq('is_deleted', false)
                 .eq('is_team_member', true);
 
@@ -237,6 +232,70 @@
             document.getElementById('countPresent').textContent = people.filter(p => V.isPresent(p.id, stays, today)).length;
         }
 
+        function renderTeamRow(person, opts = {}) {
+            const e = Layout.escapeHtml;
+            const displayName = [person.first_name, person.last_name].filter(Boolean).join(' ') || Layout.t('no_name');
+            const spiritualName = person.spiritual_name || '';
+            const dept = person.departments;
+            const present = opts.isPresent || false;
+
+            // Основное имя для отображения
+            const mainName = spiritualName || displayName;
+            const subName = spiritualName ? displayName : '';
+
+            // Бейдж присутствия
+            let badgeHtml = '';
+            if (present) {
+                badgeHtml = '<span class="badge badge-success badge-xs ml-2">Здесь</span>';
+            }
+
+            // Аватар: фото или инициалы
+            const photoUrl = person.photo_url;
+            const initials = e((spiritualName || displayName)
+                .split(' ')
+                .map(w => w[0])
+                .join('')
+                .substring(0, 2)
+                .toUpperCase());
+
+            const avatarHtml = photoUrl
+                ? `<img src="${e(photoUrl)}" class="w-10 h-10 rounded-full object-cover" alt="" data-initials="${initials}" onerror="replacePhotoWithPlaceholder(this)">`
+                : `<div class="w-10 h-10 rounded-full bg-gradient-to-br from-purple-500 to-pink-500 flex items-center justify-center text-white font-semibold">${initials}</div>`;
+
+            // Департамент и служение
+            let deptHtml = '—';
+            if (dept) {
+                const deptName = Layout.getName(dept);
+                const service = person.service ? `<div class="text-xs opacity-60">${e(person.service)}</div>` : '';
+                deptHtml = `<div><span class="badge badge-xs" style="background-color: ${e(dept.color)}20; color: ${e(dept.color)}; border-color: ${e(dept.color)}">${e(deptName)}</span>${service}</div>`;
+            } else if (person.service) {
+                deptHtml = `<div class="text-sm opacity-60">${e(person.service)}</div>`;
+            }
+
+            return `
+                <tr class="hover cursor-pointer" onclick="window.location.href='person.html?id=${e(person.id)}'">
+                    <td>
+                        <div class="flex items-center gap-3">
+                            ${avatarHtml}
+                            <div class="min-w-0">
+                                <div class="font-medium text-base">${e(mainName)}${badgeHtml}</div>
+                                ${subName ? `<div class="text-xs opacity-60">${e(subName)}</div>` : ''}
+                            </div>
+                        </div>
+                    </td>
+                    <td>${deptHtml}</td>
+                    <td class="truncate">${e(person.country || '')}</td>
+                    <td class="truncate">${e(person.spiritual_teacher || '')}</td>
+                    <td class="truncate text-sm opacity-60">${e(person.phone || '')}</td>
+                    <td>
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 opacity-30" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" />
+                        </svg>
+                    </td>
+                </tr>
+            `;
+        }
+
         function renderPeople() {
             const tbody = document.getElementById('peopleTable');
             const emptyState = document.getElementById('emptyState');
@@ -257,8 +316,7 @@
             emptyState.classList.add('hidden');
 
             tbody.innerHTML = filtered.map(person =>
-                V.renderPersonRow(person, {
-                    showTeamBadge: true,
+                renderTeamRow(person, {
                     isPresent: V.isPresent(person.id, stays, today)
                 })
             ).join('');
