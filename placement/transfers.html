@@ -15,10 +15,7 @@
     <link rel="stylesheet" href="../css/common.css">
     <style>
         .transfer-card {
-            transition: all 0.2s;
-        }
-        .transfer-card:hover {
-            transform: translateX(4px);
+            transition: background 0.2s;
         }
         .urgency-critical {
             background: #fee2e2;
@@ -189,7 +186,7 @@
                         id,
                         retreat_id,
                         retreats (id, name_ru, name_en, name_hi),
-                        vaishnavas (id, first_name, last_name, spiritual_name, phone)
+                        vaishnavas (id, first_name, last_name, spiritual_name, phone, telegram)
                     )
                 `)
                 .not('flight_datetime', 'is', null)
@@ -363,6 +360,8 @@
 
                     const name = e(v?.spiritual_name || `${v?.first_name || ''} ${v?.last_name || ''}`.trim() || '—');
                     const phone = e(v?.phone || '');
+                    const telegram = v?.telegram ? e(v.telegram.replace('@', '')) : '';
+                    const telegramLink = telegram ? `<a href="https://t.me/${telegram}" class="link link-primary" target="_blank" onclick="event.stopPropagation()">@${telegram}</a>` : '';
                     const retreatName = Layout.getName(retreat) || '';
                     const flightNumber = t.flight_number || '';
                     const needsTransfer = t.needs_transfer === 'yes';
@@ -389,9 +388,10 @@
                             </div>
                             <div class="flex-1 min-w-0">
                                 <div class="font-semibold truncate">${name}</div>
-                                <div class="text-sm opacity-60 flex flex-wrap gap-x-3">
-                                    ${phone ? `<span>${phone}</span>` : ''}
-                                    ${retreatName ? `<span>${retreatName}</span>` : ''}
+                                <div class="text-sm flex flex-wrap gap-x-3">
+                                    ${phone ? `<span class="opacity-60">${phone}</span>` : ''}
+                                    ${telegramLink ? `<span>${telegramLink}</span>` : ''}
+                                    ${retreatName ? `<span class="opacity-60">${retreatName}</span>` : ''}
                                     ${accommodationStr ? `<span>${accommodationStr}</span>` : ''}
                                 </div>
                             </div>
