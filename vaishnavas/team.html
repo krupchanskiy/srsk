@@ -98,8 +98,11 @@
                                 <span class="sort-icon" data-sort="department">↕</span>
                             </div>
                         </th>
-                        <th class="w-1/5">
-                            <span>В ШРСК</span>
+                        <th class="cursor-pointer hover:bg-base-200 select-none w-1/5" onclick="toggleSort('stay_status')">
+                            <div class="flex items-center gap-1">
+                                <span>В ШРСК</span>
+                                <span class="sort-icon" data-sort="stay_status">↕</span>
+                            </div>
                         </th>
                         <th class="cursor-pointer hover:bg-base-200 select-none w-1/5" onclick="toggleSort('teacher')">
                             <div class="flex items-center gap-1">
@@ -212,8 +215,8 @@
 
             query = V.applyServerSearch(query, state.searchQuery);
 
-            // Сортировка по департаментам делается на клиенте, остальное - на сервере
-            if (state.sortField !== 'department') {
+            // Сортировка по департаментам и статусу пребывания делается на клиенте, остальное - на сервере
+            if (state.sortField !== 'department' && state.sortField !== 'stay_status') {
                 query = V.applyServerSort(query, state);
             }
 
@@ -341,6 +344,41 @@
 
                     if (deptA < deptB) return state.sortDirection === 'asc' ? -1 : 1;
                     if (deptA > deptB) return state.sortDirection === 'asc' ? 1 : -1;
+                    return 0;
+                });
+            }
+
+            // Клиентская сортировка по статусу пребывания
+            if (state.sortField === 'stay_status') {
+                filtered = [...filtered].sort((a, b) => {
+                    const getStayPriority = (personId) => {
+                        const personStays = stays[personId] || [];
+                        const currentStay = personStays.find(s => s.start_date <= today && s.end_date >= today);
+                        if (currentStay) return { priority: 1, date: '' };
+
+                        const futureStays = personStays.filter(s => s.start_date > today).sort((x, y) => x.start_date.localeCompare(y.start_date));
+                        if (futureStays.length > 0) return { priority: 2, date: futureStays[0].start_date };
+
+                        return { priority: 3, date: '' };
+                    };
+
+                    const statusA = getStayPriority(a.id);
+                    const statusB = getStayPriority(b.id);
+
+                    // Сначала сравниваем по приоритету
+                    if (statusA.priority !== statusB.priority) {
+                        return state.sortDirection === 'asc'
+                            ? statusA.priority - statusB.priority
+                            : statusB.priority - statusA.priority;
+                    }
+
+                    // Для одинакового приоритета 2 (планирующие) - сортируем по дате
+                    if (statusA.priority === 2) {
+                        return state.sortDirection === 'asc'
+                            ? statusA.date.localeCompare(statusB.date)
+                            : statusB.date.localeCompare(statusA.date);
+                    }
+
                     return 0;
                 });
             }
