@@ -51,6 +51,9 @@ npx serve .
   - Утилиты: `Layout.getName()`, `Layout.pluralize()`, `Layout.debounce()`, `Layout.escapeHtml()`
   - Прелоадер: `Layout.showLoader()`, `Layout.hideLoader()`
   - Обработка ошибок: `Layout.handleError(error, context)` — toast-уведомление + console.error
+  - Форматирование количеств: `Layout.formatQuantity(amount, unit)` — округление вверх
+    - g, ml, tsp, tbsp → до 1 знака после запятой
+    - kg, l, pcs, cup → до 2 знаков после запятой
   - Обёрнут в IIFE для изоляции переменных
 
 - **js/vaishnavas-utils.js** — Общие функции для vaishnavas/index.html, team.html, guests.html:
@@ -108,6 +111,7 @@ npx serve .
 - `translations` — переводы интерфейса
 - `menu_days`, `menu_items`, `menu_templates` — меню
 - `stock`, `stock_requests`, `stock_inventories` — склад и инвентаризация
+- `stock_issuances` — выдачи со склада (`receiver_id` → vaishnavas)
 - `retreats`, `holidays` — ретриты и праздники
 
 Вайшнавы (люди):
@@ -160,6 +164,9 @@ const FORMS = {
 };
 Layout.pluralize(5, FORMS)  // "5 рецептов"
 ```
+
+### Хранение количеств
+Все количества в БД хранятся в единицах продукта (kg, g, l, ml, pcs), **без конвертации в базовые единицы**. Если продукт имеет `unit='kg'`, то `quantity=0.5` означает 0.5 кг.
 
 ### Цвет модуля
 CSS-переменная `--current-color` определяет акцентный цвет:
