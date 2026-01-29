@@ -335,20 +335,18 @@
             const mainName = spiritualName || displayName;
             const subName = spiritualName ? displayName : '';
 
-            // Бейдж для членов команды
-            const teamBadge = person.is_team_member
-                ? '<span class="badge badge-success badge-xs ml-2">Команда</span>'
-                : '';
+            // Зеленая рамка для членов команды
+            const avatarBorderClass = person.is_team_member ? 'ring-2 ring-success' : '';
 
             // Аватар: фото или инициалы
             const AVATAR_PLACEHOLDER = `<svg class="w-5 h-5 opacity-30" viewBox="0 0 122 313" xmlns="http://www.w3.org/2000/svg"><path fill="currentColor" d="M102,16h-15v82c0,6,.1,12-.9,16-1,4.5-2.6,8-4.8,10.6-2,2.8-4.8,4.8-8.5,6-2.4,1-5.1,1.6-8.1,1.8-1,.2-2,.3-3,.3h-.6c-3.8-.2-7.2-.8-10.3-1.8-3.8-1.2-7-3.1-9.6-5.7-2.7-2.8-4.6-6.4-5.7-10.9-1.2-4.4-1.8-9.8-1.8-16.3V16H18.6v89c0,13.7,3.8,24,11.5,30.8,3.8,3.4,8.6,6,14.2,7.5,1.2.4,2.6.7,4.2,1-13.9,5-23.4,11.9-28.4,20.5-7,10.7-7.3,24.1-.6,40.5l41.3,100.4,39.9-100.4c6.4-16.3,6.2-29.8-.6-40.5-4.8-8.5-14-15.2-27.4-20.2,1.6-.4,3.2-.9,4.8-1.3,5.3-1.6,9.7-4.2,13.3-7.8,3.8-3.7,6.6-8.2,8.5-13.6,2-5.6,3-12.3,3-20V16M87.5,172.5c4,7.3,3.8,16.4-.6,27.4l-26.3,68.1-27.8-68.1c-4.6-11-4.8-20.2-.6-27.4,4.6-7.5,13.8-13,27.4-16.6,13.7,3.6,22.9,9.1,27.8,16.6"/></svg>`;
             let avatarHtml = '';
             if (person.photo_url) {
                 const initials = (spiritualName || displayName).split(' ').map(w => w[0]).join('').slice(0,2).toUpperCase();
-                avatarHtml = `<img src="${e(person.photo_url)}" alt="${e(mainName)}" class="person-avatar" data-initials="${e(initials)}" onerror="window.replacePhotoWithPlaceholder(this)">`;
+                avatarHtml = `<img src="${e(person.photo_url)}" alt="${e(mainName)}" class="person-avatar ${avatarBorderClass}" data-initials="${e(initials)}" onerror="window.replacePhotoWithPlaceholder(this)">`;
             } else {
                 const initials = (spiritualName || displayName).split(' ').map(w => w[0]).join('').slice(0,2).toUpperCase();
-                avatarHtml = `<div class="person-avatar">${e(initials)}</div>`;
+                avatarHtml = `<div class="person-avatar ${avatarBorderClass}">${e(initials)}</div>`;
             }
 
             return `
@@ -357,7 +355,7 @@
                         <div class="flex items-center gap-3">
                             ${avatarHtml}
                             <div class="min-w-0">
-                                <div class="font-medium text-base">${e(mainName)}${teamBadge}</div>
+                                <div class="font-medium text-base">${e(mainName)}</div>
                                 ${subName ? `<div class="text-xs opacity-60">${e(subName)}</div>` : ''}
                             </div>
                         </div>
