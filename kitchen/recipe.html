@@ -453,10 +453,8 @@
         }
 
         function formatAmount(amount) {
-            if (amount >= 100) return Math.round(amount);
-            if (amount >= 10) return Math.round(amount * 10) / 10;
-            if (amount >= 1) return Math.round(amount * 100) / 100;
-            return Math.round(amount * 1000) / 1000;
+            // Округление в большую сторону до 2 знаков после запятой
+            return Math.ceil(amount * 100) / 100;
         }
 
         function renderIngredients() {
@@ -480,21 +478,9 @@
                 const calculatedRaw = calculateAmount(ing.amount);
                 const unit = ing.unit;
 
-                // Умное приведение для базовых единиц (g, kg, ml, l)
-                let displayAmount, displayUnit;
-                if (['g', 'kg', 'ml', 'l'].includes(unit)) {
-                    // Приводим к базовой единице для умного форматирования
-                    let baseAmount = calculatedRaw;
-                    let baseUnit = unit;
-                    if (unit === 'kg') { baseAmount = calculatedRaw * 1000; baseUnit = 'g'; }
-                    if (unit === 'l') { baseAmount = calculatedRaw * 1000; baseUnit = 'ml'; }
-                    const smart = formatSmart(baseAmount, baseUnit);
-                    displayAmount = formatAmount(smart.amount);
-                    displayUnit = smart.unit;
-                } else {
-                    displayAmount = formatAmount(calculatedRaw);
-                    displayUnit = unit;
-                }
+                // Выводим в той единице, которая указана в рецепте
+                const displayAmount = formatAmount(calculatedRaw);
+                const displayUnit = unit;
 
                 // Альтернатива в скобках (граммы для ложек/стаканов/литров)
                 let altText = '';
