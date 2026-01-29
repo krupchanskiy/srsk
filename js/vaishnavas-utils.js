@@ -168,9 +168,8 @@ async function loadStays() {
             .order('start_date'),
         Layout.db
             .from('retreat_registrations')
-            .select('vaishnava_id, arrival_date, departure_date, retreats(name_ru, name_en, name_hi)')
-            .not('arrival_date', 'is', null)
-            .order('arrival_date')
+            .select('vaishnava_id, retreats(name_ru, name_en, name_hi, start_date, end_date)')
+            .eq('is_deleted', false)
     ]);
 
     if (teamStaysRes.error) {
@@ -188,13 +187,13 @@ async function loadStays() {
         stays[s.vaishnava_id].push({ start_date: s.start_date, end_date: s.end_date });
     });
 
-    // Добавляем регистрации гостей (arrival_date → start_date, departure_date → end_date)
+    // Добавляем регистрации гостей (используем даты ретрита)
     (guestRegsRes.data || []).forEach(r => {
         if (!stays[r.vaishnava_id]) stays[r.vaishnava_id] = [];
-        if (r.arrival_date) {
+        if (r.retreats && r.retreats.start_date) {
             stays[r.vaishnava_id].push({
-                start_date: r.arrival_date,
-                end_date: r.departure_date || r.arrival_date,
+                start_date: r.retreats.start_date,
+                end_date: r.retreats.end_date || r.retreats.start_date,
                 retreat: r.retreats // информация о ретрите
             });
         }
