@@ -55,8 +55,13 @@
             <button class="tab" data-view="taxi" onclick="setView('taxi')">Такси <span id="taxiCountBadge" class="badge badge-warning badge-sm ml-1 hidden">0</span></button>
         </div>
 
-        <!-- Legend, Search and Direction Filter -->
+        <!-- Search, Legend and Direction Filter -->
         <div class="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-4 mb-4">
+            <!-- Search -->
+            <div class="w-full lg:w-auto lg:flex-1 max-w-md">
+                <input type="text" id="searchInput" class="input input-bordered w-full" placeholder="Поиск по имени, телефону, рейсу..." oninput="handleSearch()">
+            </div>
+
             <!-- Legend -->
             <div class="flex gap-4 text-sm flex-shrink-0">
                 <div class="flex items-center gap-2">
@@ -73,19 +78,12 @@
                 </div>
             </div>
 
-            <div class="flex flex-1 gap-4 items-center w-full lg:w-auto">
-                <!-- Search -->
-                <div class="flex-1 max-w-md">
-                    <input type="text" id="searchInput" class="input input-bordered w-full" placeholder="Поиск по имени, телефону, рейсу..." oninput="handleSearch()">
-                </div>
-
-                <!-- Direction filter -->
-                <div id="directionFilter" class="flex-shrink-0">
-                    <div class="tabs tabs-boxed bg-base-100">
-                        <button class="tab tab-active" data-filter="all" onclick="setFilter('all')">Все</button>
-                        <button class="tab" data-filter="arrival" onclick="setFilter('arrival')">Заезды</button>
-                        <button class="tab" data-filter="departure" onclick="setFilter('departure')">Выезды</button>
-                    </div>
+            <!-- Direction filter -->
+            <div id="directionFilter" class="flex-shrink-0">
+                <div class="tabs tabs-boxed bg-base-100">
+                    <button class="tab tab-active" data-filter="all" onclick="setFilter('all')">Все</button>
+                    <button class="tab" data-filter="arrival" onclick="setFilter('arrival')">Заезды</button>
+                    <button class="tab" data-filter="departure" onclick="setFilter('departure')">Выезды</button>
                 </div>
             </div>
         </div>
