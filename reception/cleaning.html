@@ -702,9 +702,19 @@
                 .select('*')
                 .eq('building_id', buildingId)
                 .eq('is_active', true)
-                .order('floor')
-                .order('number');
-            return data || [];
+                .order('floor');
+
+            const rooms = data || [];
+
+            // Числовая сортировка по номеру комнаты
+            rooms.sort((a, b) => {
+                if (a.floor !== b.floor) return a.floor - b.floor;
+                const numA = parseInt(a.number) || 0;
+                const numB = parseInt(b.number) || 0;
+                return numA - numB;
+            });
+
+            return rooms;
         }
 
         // ==================== STATS ====================
@@ -1176,10 +1186,17 @@
                 .from('rooms')
                 .select('*, buildings(id, name_ru, name_en)')
                 .eq('is_active', true)
-                .order('floor')
-                .order('number');
+                .order('floor');
 
             allRoomsData = data || [];
+
+            // Числовая сортировка по номеру комнаты
+            allRoomsData.sort((a, b) => {
+                if (a.floor !== b.floor) return a.floor - b.floor;
+                const numA = parseInt(a.number) || 0;
+                const numB = parseInt(b.number) || 0;
+                return numA - numB;
+            });
         }
 
         async function openCleaningModal(type = 'cleaning') {
