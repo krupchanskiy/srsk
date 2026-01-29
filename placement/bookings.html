@@ -267,7 +267,7 @@
                         <span data-i18n="floor_plan_booked">Забронировано</span>
                     </div>
                     <div class="flex items-center gap-1">
-                        <span class="w-3 h-3 rounded ring-2 ring-primary" style="background-color: #10b981"></span>
+                        <span class="w-3 h-3 rounded" style="background-color: #6366f1"></span>
                         <span>Выбрано для брони</span>
                     </div>
                 </div>
@@ -389,7 +389,8 @@
             occupied: '#8b5cf6',
             booked: '#eab308',
             cleaning: '#ef4444',
-            maintenance: '#6b7280'
+            maintenance: '#6b7280',
+            selected: '#6366f1'
         };
 
         const t = key => Layout.t(key);
@@ -958,9 +959,7 @@
                         rect.setAttribute('height', h);
 
                         if (isSelected) {
-                            rect.setAttribute('fill', statusColors.available);
-                            rect.setAttribute('stroke', '#6366f1');
-                            rect.setAttribute('stroke-width', '0.5');
+                            rect.setAttribute('fill', statusColors.selected);
                         } else if (isOccupied) {
                             rect.setAttribute('fill', statusColors.occupied);
                         } else if (isBooked) {
@@ -992,9 +991,7 @@
                         rect.setAttribute('height', h);
 
                         if (isSelected) {
-                            rect.setAttribute('fill', statusColors.available);
-                            rect.setAttribute('stroke', '#6366f1');
-                            rect.setAttribute('stroke-width', '0.5');
+                            rect.setAttribute('fill', statusColors.selected);
                         } else if (isOccupied) {
                             rect.setAttribute('fill', statusColors.occupied);
                         } else if (isBooked) {
@@ -1029,9 +1026,7 @@
                         rect.setAttribute('height', halfH);
 
                         if (isSelected) {
-                            rect.setAttribute('fill', statusColors.available);
-                            rect.setAttribute('stroke', '#6366f1');
-                            rect.setAttribute('stroke-width', '0.5');
+                            rect.setAttribute('fill', statusColors.selected);
                         } else if (isOccupied) {
                             rect.setAttribute('fill', statusColors.occupied);
                         } else if (isBooked) {
@@ -1061,9 +1056,7 @@
                     rect.setAttribute('height', h);
 
                     if (isSelected) {
-                        rect.setAttribute('fill', statusColors.available);
-                        rect.setAttribute('stroke', '#6366f1');
-                        rect.setAttribute('stroke-width', '0.5');
+                        rect.setAttribute('fill', statusColors.selected);
                     } else if (isOccupied) {
                         rect.setAttribute('fill', statusColors.occupied);
                     } else if (isBooked) {
@@ -1128,29 +1121,13 @@
                     // Одноместная комната - обновляем единственный прямоугольник
                     const rect = rects[0];
                     if (rect) {
-                        if (isSelected) {
-                            rect.setAttribute('fill', statusColors.available);
-                            rect.setAttribute('stroke', '#6366f1');
-                            rect.setAttribute('stroke-width', '0.5');
-                        } else {
-                            rect.setAttribute('fill', statusColors.available);
-                            rect.removeAttribute('stroke');
-                            rect.removeAttribute('stroke-width');
-                        }
+                        rect.setAttribute('fill', isSelected ? statusColors.selected : statusColors.available);
                     }
                 } else {
                     // Многоместная - обновляем конкретное место
                     const rect = rects[bedIndex];
                     if (rect) {
-                        if (isSelected) {
-                            rect.setAttribute('fill', statusColors.available);
-                            rect.setAttribute('stroke', '#6366f1');
-                            rect.setAttribute('stroke-width', '0.5');
-                        } else {
-                            rect.setAttribute('fill', statusColors.available);
-                            rect.removeAttribute('stroke');
-                            rect.removeAttribute('stroke-width');
-                        }
+                        rect.setAttribute('fill', isSelected ? statusColors.selected : statusColors.available);
                     }
                 }
             });
