@@ -123,8 +123,7 @@
                                     <tr>
                                         <th data-i18n="product">Продукт</th>
                                         <th class="w-24" data-i18n="quantity">Кол-во</th>
-                                        <th class="w-24" data-i18n="price">Цена</th>
-                                        <th class="w-24" data-i18n="sum">Сумма</th>
+                                        <th class="w-32" data-i18n="spent">Потрачено</th>
                                         <th class="w-10"></th>
                                     </tr>
                                 </thead>
@@ -251,10 +250,10 @@
                             </div>
                         </div>
                         <div>
-                            <label class="label"><span class="label-text font-medium" data-i18n="price">Цена</span></label>
+                            <label class="label"><span class="label-text font-medium" data-i18n="spent">Потрачено</span></label>
                             <div class="join w-full">
                                 <span class="btn join-item no-animation pointer-events-none bg-base-200">₹</span>
-                                <input type="number" id="productPrice" class="input input-bordered join-item w-full" value="" min="0" step="0.5" placeholder="0" />
+                                <input type="number" id="productSpent" class="input input-bordered join-item w-full" value="" min="0" step="1" placeholder="0" />
                             </div>
                         </div>
                     </div>
@@ -290,8 +289,7 @@
                         <tr>
                             <th data-i18n="product">Продукт</th>
                             <th class="w-24" data-i18n="quantity">Кол-во</th>
-                            <th class="w-24" data-i18n="price">Цена</th>
-                            <th class="w-24" data-i18n="sum">Сумма</th>
+                            <th class="w-32" data-i18n="spent">Потрачено</th>
                             <th class="w-10"></th>
                         </tr>
                     </thead>
@@ -439,7 +437,7 @@
             Layout.$('#productQuantitySection').classList.add('hidden');
             Layout.$('#saveProductBtn').disabled = true;
             Layout.$('#productQuantity').value = 1;
-            Layout.$('#productPrice').value = '';
+            Layout.$('#productSpent').value = '';
             switchProductTab('search');
             buildProductCategoryButtons();
             Layout.$('#productModal').showModal();
@@ -564,14 +562,14 @@
             if (!selectedProduct) return;
 
             const quantity = parseFloat(Layout.$('#productQuantity').value) || 1;
-            const price = parseFloat(Layout.$('#productPrice').value) || 0;
+            const spent = parseFloat(Layout.$('#productSpent').value) || 0;
 
             if (receiptItemsList.some(i => i.product_id === selectedProduct.id)) {
                 showAlert(tr('product_already_added', 'Продукт уже добавлен'));
                 return;
             }
 
-            addReceiptItem(selectedProduct.id, quantity, price);
+            addReceiptItem(selectedProduct.id, quantity, spent);
             Layout.$('#productModal').close();
         }
 
@@ -681,17 +679,19 @@
         // ==================== NEW RECEIPT ====================
         function renderReceiptItems() {
             const tbody = Layout.$('#receiptItems');
-            const total = receiptItemsList.reduce((sum, i) => sum + (i.quantity * (i.price || 0)), 0);
+            const total = receiptItemsList.reduce((sum, i) => sum + (i.spent || 0), 0);
             Layout.$('#receiptTotal').textContent = `₹${total.toLocaleString()}`;
 
             if (receiptItemsList.length === 0) {
-                tbody.innerHTML = `<tr><td colspan="5" class="text-center opacity-50 py-4">${tr('add_products', 'Добавьте продукты')}</td></tr>`;
+                tbody.innerHTML = `<tr><td colspan="4" class="text-center opacity-50 py-4">${tr('add_products', 'Добавьте продукты')}</td></tr>`;
                 return;
             }
 
             tbody.innerHTML = receiptItemsList.map((item, idx) => {
                 const product = products.find(p => p.id === item.product_id);
-                const sum = item.quantity * (item.price || 0);
+                const pricePerUnit = item.quantity > 0 ? (item.spent || 0) / item.quantity : 0;
+                const priceFormatted = Math.ceil(pricePerUnit * 100) / 100;
+                const unitLabel = localizeUnit(product?.unit) || '';
                 return `
                     <tr>
                         <td>
@@ -701,13 +701,15 @@
                         <td>
                             <div class="flex items-center gap-1">
                                 <input type="number" class="input input-bordered input-sm w-20" value="${item.quantity}" min="0" step="0.1" onchange="updateReceiptItem(${idx}, 'quantity', this.value)" />
-                                <span class="text-xs opacity-50">${product?.unit || ''}</span>
+                                <span class="text-xs opacity-50">${unitLabel}</span>
                             </div>
                         </td>
                         <td>
-                            <input type="number" class="input input-bordered input-sm w-20" value="${item.price || ''}" min="0" step="0.5" placeholder="₹" onchange="updateReceiptItem(${idx}, 'price', this.value)" />
+                            <div class="flex items-center gap-2">
+                                <input type="number" class="input input-bordered input-sm w-24" value="${item.spent || ''}" min="0" step="1" placeholder="₹" onchange="updateReceiptItem(${idx}, 'spent', this.value)" />
+                                ${pricePerUnit > 0 ? `<span class="text-xs opacity-50 whitespace-nowrap">(₹${priceFormatted}/${unitLabel})</span>` : ''}
+                            </div>
                         </td>
-                        <td class="font-medium">₹${sum.toLocaleString()}</td>
                         <td>
                             <button class="btn btn-ghost btn-sm btn-square text-error" onclick="removeReceiptItem(${idx})">
                                 <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -721,7 +723,9 @@
         }
 
         function updateReceiptItem(idx, field, value) {
-            receiptItemsList[idx][field] = parseFloat(value) || 0;
+            if (field === 'spent' || field === 'quantity') {
+                receiptItemsList[idx][field] = parseFloat(value) || 0;
+            }
             renderReceiptItems();
         }
 
@@ -730,7 +734,7 @@
             renderReceiptItems();
         }
 
-        function addReceiptItem(productId, quantity = 1, price = 0) {
+        function addReceiptItem(productId, quantity = 1, spent = 0) {
             const product = products.find(p => p.id === productId);
             if (!product) return;
 
@@ -742,7 +746,7 @@
             receiptItemsList.push({
                 product_id: productId,
                 quantity: quantity,
-                price: price
+                spent: spent
             });
 
             renderReceiptItems();
@@ -826,10 +830,12 @@
             (req.purchase_request_items || []).forEach(item => {
                 const product = products.find(p => p.id === item.product_id);
                 const displayQty = convertFromBase(item.quantity, product?.unit);
+                // spent = quantity × price (price хранится за единицу)
+                const spent = displayQty * (item.price || 0);
                 receiptItemsList.push({
                     product_id: item.product_id,
                     quantity: displayQty,
-                    price: item.price || 0
+                    spent: spent
                 });
             });
 
@@ -901,14 +907,16 @@
                 }
 
                 // Конвертируем количества в базовые единицы для сохранения
+                // price = spent / quantity (цена за единицу в единицах продукта)
                 const items = receiptItemsList.map(i => {
                     const product = products.find(p => p.id === i.product_id);
                     const baseQty = convertToBase(i.quantity, product?.unit);
+                    const pricePerUnit = i.quantity > 0 ? (i.spent || 0) / i.quantity : 0;
                     return {
                         receipt_id: receipt.id,
                         product_id: i.product_id,
                         quantity: baseQty,
-                        price: i.price || null
+                        price: pricePerUnit || null
                     };
                 });
 
@@ -922,6 +930,7 @@
                 for (const item of receiptItemsList) {
                     const product = products.find(p => p.id === item.product_id);
                     const baseQty = convertToBase(item.quantity, product?.unit);
+                    const pricePerUnit = item.quantity > 0 ? (item.spent || 0) / item.quantity : 0;
 
                     const { data: stockItem } = await Layout.db
                         .from('stock')
@@ -933,7 +942,7 @@
                     if (stockItem) {
                         await Layout.db.from('stock').update({
                             current_quantity: stockItem.current_quantity + baseQty,
-                            last_price: item.price || undefined
+                            last_price: pricePerUnit || undefined
                         }).eq('id', stockItem.id);
                     } else {
                         await Layout.db.from('stock').insert({
@@ -941,7 +950,7 @@
                             product_id: item.product_id,
                             current_quantity: baseQty,
                             min_quantity: 0,
-                            last_price: item.price || null
+                            last_price: pricePerUnit || null
                         });
                     }
                 }
@@ -1069,11 +1078,17 @@
             if (!rec) return;
 
             viewingReceipt = rec;
-            viewingItems = (rec.stock_receipt_items || []).map(i => ({
-                product_id: i.product_id,
-                quantity: i.quantity,
-                price: i.price
-            }));
+            viewingItems = (rec.stock_receipt_items || []).map(i => {
+                const product = products.find(p => p.id === i.product_id);
+                const displayQty = convertFromBase(i.quantity, product?.unit);
+                // spent = quantity × price
+                const spent = displayQty * (i.price || 0);
+                return {
+                    product_id: i.product_id,
+                    quantity: displayQty,
+                    spent: spent
+                };
+            });
 
             Layout.$('#viewReceiptTitle').textContent = `${tr('receipt', 'Приёмка')} #${formatNumberWithYear(rec.number || id.slice(0,4))}`;
             Layout.$('#viewReceiptDate').textContent = new Date(rec.receipt_date || rec.created_at).toLocaleDateString('ru-RU');
@@ -1086,12 +1101,14 @@
 
         function renderViewedReceipt() {
             const tbody = Layout.$('#viewReceiptItems');
-            const total = viewingItems.reduce((sum, i) => sum + (i.quantity * (i.price || 0)), 0);
+            const total = viewingItems.reduce((sum, i) => sum + (i.spent || 0), 0);
             Layout.$('#viewReceiptTotal').textContent = `₹${total.toLocaleString()}`;
 
             tbody.innerHTML = viewingItems.map((item, idx) => {
                 const product = products.find(p => p.id === item.product_id);
-                const sum = item.quantity * (item.price || 0);
+                const pricePerUnit = item.quantity > 0 ? (item.spent || 0) / item.quantity : 0;
+                const priceFormatted = Math.ceil(pricePerUnit * 100) / 100;
+                const unitLabel = localizeUnit(product?.unit) || '';
                 return `
                     <tr>
                         <td>
@@ -1101,13 +1118,15 @@
                         <td>
                             <div class="flex items-center gap-1">
                                 <input type="number" class="input input-bordered input-sm w-20" value="${item.quantity}" min="0" step="0.1" onchange="updateViewedItem(${idx}, 'quantity', this.value)" />
-                                <span class="text-xs opacity-50">${product?.unit || ''}</span>
+                                <span class="text-xs opacity-50">${unitLabel}</span>
                             </div>
                         </td>
                         <td>
-                            <input type="number" class="input input-bordered input-sm w-20" value="${item.price || ''}" min="0" step="0.5" placeholder="₹" onchange="updateViewedItem(${idx}, 'price', this.value)" />
+                            <div class="flex items-center gap-2">
+                                <input type="number" class="input input-bordered input-sm w-24" value="${item.spent || ''}" min="0" step="1" placeholder="₹" onchange="updateViewedItem(${idx}, 'spent', this.value)" />
+                                ${pricePerUnit > 0 ? `<span class="text-xs opacity-50 whitespace-nowrap">(₹${priceFormatted}/${unitLabel})</span>` : ''}
+                            </div>
                         </td>
-                        <td class="font-medium">₹${sum.toLocaleString()}</td>
                         <td>
                             <button class="btn btn-ghost btn-sm btn-square text-error" onclick="removeViewedItem(${idx})">
                                 <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -1121,7 +1140,9 @@
         }
 
         function updateViewedItem(idx, field, value) {
-            viewingItems[idx][field] = parseFloat(value) || 0;
+            if (field === 'spent' || field === 'quantity') {
+                viewingItems[idx][field] = parseFloat(value) || 0;
+            }
             renderViewedReceipt();
         }
 
@@ -1136,13 +1157,18 @@
             // Delete old items
             await Layout.db.from('stock_receipt_items').delete().eq('receipt_id', viewingReceipt.id);
 
-            // Insert new items
-            const items = viewingItems.map(i => ({
-                receipt_id: viewingReceipt.id,
-                product_id: i.product_id,
-                quantity: i.quantity,
-                price: i.price || null
-            }));
+            // Insert new items (конвертируем spent обратно в price и quantity в базовые единицы)
+            const items = viewingItems.map(i => {
+                const product = products.find(p => p.id === i.product_id);
+                const baseQty = convertToBase(i.quantity, product?.unit);
+                const pricePerUnit = i.quantity > 0 ? (i.spent || 0) / i.quantity : 0;
+                return {
+                    receipt_id: viewingReceipt.id,
+                    product_id: i.product_id,
+                    quantity: baseQty,
+                    price: pricePerUnit || null
+                };
+            });
 
             await Layout.db.from('stock_receipt_items').insert(items);
 
