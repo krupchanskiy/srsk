@@ -86,13 +86,18 @@
             <table class="table table-zebra table-fixed w-full">
                 <thead>
                     <tr>
-                        <th class="cursor-pointer hover:bg-base-200 select-none w-1/3" onclick="toggleSort('spiritual')">
+                        <th class="cursor-pointer hover:bg-base-200 select-none w-1/3" onclick="toggleSort('name')">
                             <div class="flex items-center gap-1">
                                 <span data-i18n="name">Имя</span>
-                                <span class="sort-icon active" data-sort="spiritual">↑</span>
+                                <span class="sort-icon active" data-sort="name">↑</span>
                             </div>
                         </th>
-                        <th class="w-1/5" data-i18n="department">Департамент</th>
+                        <th class="cursor-pointer hover:bg-base-200 select-none w-1/5" onclick="toggleSort('department')">
+                            <div class="flex items-center gap-1">
+                                <span data-i18n="department">Департамент</span>
+                                <span class="sort-icon" data-sort="department">↕</span>
+                            </div>
+                        </th>
                         <th class="cursor-pointer hover:bg-base-200 select-none w-1/6" onclick="toggleSort('country')">
                             <div class="flex items-center gap-1">
                                 <span data-i18n="country">Страна</span>
@@ -206,7 +211,11 @@
                 .eq('is_team_member', true);
 
             query = V.applyServerSearch(query, state.searchQuery);
-            query = V.applyServerSort(query, state);
+
+            // Сортировка по департаментам делается на клиенте, остальное - на сервере
+            if (state.sortField !== 'department') {
+                query = V.applyServerSort(query, state);
+            }
 
             const from = (state.currentPage - 1) * V.PAGE_SIZE;
             const to = from + V.PAGE_SIZE - 1;
@@ -305,6 +314,18 @@
             let filtered = people;
             if (state.currentFilter === 'present') {
                 filtered = people.filter(p => V.isPresent(p.id, stays, today));
+            }
+
+            // Клиентская сортировка по департаментам
+            if (state.sortField === 'department') {
+                filtered = [...filtered].sort((a, b) => {
+                    const deptA = a.departments ? Layout.getName(a.departments).toLowerCase() : '';
+                    const deptB = b.departments ? Layout.getName(b.departments).toLowerCase() : '';
+
+                    if (deptA < deptB) return state.sortDirection === 'asc' ? -1 : 1;
+                    if (deptA > deptB) return state.sortDirection === 'asc' ? 1 : -1;
+                    return 0;
+                });
             }
 
             if (filtered.length === 0) {
