@@ -101,6 +101,25 @@
             <!-- Filter by category -->
             <div class="flex flex-wrap gap-2 mb-4" id="filterCategoryButtons"></div>
 
+            <!-- Search and non-zero filter -->
+            <div class="flex flex-wrap items-center gap-4 mb-4">
+                <div class="relative w-full sm:w-64">
+                    <input type="text" id="countingSearch" class="input input-bordered input-sm w-full pl-9 pr-8" placeholder="Поиск..." data-i18n-placeholder="search" oninput="onCountingSearch(this.value)" />
+                    <svg class="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 opacity-40" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                    </svg>
+                    <button type="button" id="countingSearchClear" class="absolute right-2 top-1/2 -translate-y-1/2 w-4 h-4 opacity-40 hover:opacity-70 hidden" onclick="clearCountingSearch()">
+                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+                        </svg>
+                    </button>
+                </div>
+                <label class="label cursor-pointer gap-2">
+                    <input type="checkbox" class="checkbox checkbox-sm" id="nonZeroFilter" onchange="toggleNonZeroFilter(this.checked)" />
+                    <span class="label-text" data-i18n="only_non_zero">Только не нулевые</span>
+                </label>
+            </div>
+
             <!-- Stats -->
             <div class="grid grid-cols-3 gap-4 mb-4">
                 <div class="bg-base-100 rounded-lg p-4 text-center">
@@ -174,6 +193,8 @@
         let currentInventory = null;
         let currentItems = [];
         let filterCategory = 'all';
+        let searchQuery = '';
+        let showOnlyNonZero = false;
         let initialized = false;
         let selectedCategories = new Set();
 
@@ -511,10 +532,17 @@
                 product: products.find(p => p.id === item.product_id)
             }));
             filterCategory = 'all';
+            searchQuery = '';
+            showOnlyNonZero = false;
 
             // Hide tabs content, show counting
             document.querySelectorAll('.tab-pane').forEach(el => el.classList.add('hidden'));
             Layout.$('#countingSection').classList.remove('hidden');
+
+            // Сброс UI фильтров
+            Layout.$('#countingSearch').value = '';
+            Layout.$('#countingSearchClear').classList.add('hidden');
+            Layout.$('#nonZeroFilter').checked = false;
 
             Layout.$('#countingTitle').textContent = `${tr('inventory_title', 'Инвентаризация')} #${formatNumberWithYear(inv.number)}`;
             Layout.$('#countingInfo').textContent = new Date(inv.inventory_date).toLocaleDateString('ru-RU');
@@ -564,12 +592,47 @@
             renderCountingItems();
         }
 
+        function onCountingSearch(query) {
+            searchQuery = query.toLowerCase().trim();
+            Layout.$('#countingSearchClear').classList.toggle('hidden', !query);
+            renderCountingItems();
+        }
+
+        function clearCountingSearch() {
+            Layout.$('#countingSearch').value = '';
+            searchQuery = '';
+            Layout.$('#countingSearchClear').classList.add('hidden');
+            renderCountingItems();
+        }
+
+        function toggleNonZeroFilter(checked) {
+            showOnlyNonZero = checked;
+            renderCountingItems();
+        }
+
         function renderCountingItems() {
             const tbody = Layout.$('#countingItems');
 
             let filtered = currentItems;
+
+            // Фильтр по категории
             if (filterCategory !== 'all') {
-                filtered = currentItems.filter(i => i.product?.product_categories?.id === filterCategory);
+                filtered = filtered.filter(i => i.product?.product_categories?.id === filterCategory);
+            }
+
+            // Фильтр "только не нулевые" — показываем продукты с expected_quantity > 0
+            if (showOnlyNonZero) {
+                filtered = filtered.filter(i => i.expected_quantity > 0);
+            }
+
+            // Поиск по названию продукта
+            if (searchQuery) {
+                filtered = filtered.filter(i => {
+                    const p = i.product;
+                    if (!p) return false;
+                    const name = (p.name_ru || '') + ' ' + (p.name_en || '') + ' ' + (p.name_hi || '');
+                    return name.toLowerCase().includes(searchQuery);
+                });
             }
 
             if (filtered.length === 0) {
