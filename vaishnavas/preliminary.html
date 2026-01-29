@@ -2841,6 +2841,14 @@
             renderTable();
         };
 
+        // Handle browser back/forward cache (bfcache)
+        window.addEventListener('pageshow', (event) => {
+            if (event.persisted) {
+                // Page was restored from bfcache, re-render to get fresh translations
+                renderTable();
+            }
+        });
+
         init();
     </script>
 </body>
