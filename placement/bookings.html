@@ -1112,7 +1112,48 @@
             const saveBtn = Layout.$('#bookingSaveBtn');
             saveBtn.disabled = bookingSelectedBeds.size !== maxBeds;
 
-            renderBookingPlan();
+            // Обновляем только визуальное состояние без полной перерисовки
+            updateBookingBedVisual(roomId, bedIndex, capacity);
+        }
+
+        function updateBookingBedVisual(roomId, bedIndex, capacity) {
+            const bedKey = `${roomId}_${bedIndex}`;
+            const isSelected = bookingSelectedBeds.has(bedKey);
+
+            // Находим все SVG элементы комнаты
+            document.querySelectorAll(`[data-room-id="${roomId}"]`).forEach(roomGroup => {
+                const rects = roomGroup.querySelectorAll('rect');
+
+                if (capacity === 1) {
+                    // Одноместная комната - обновляем единственный прямоугольник
+                    const rect = rects[0];
+                    if (rect) {
+                        if (isSelected) {
+                            rect.setAttribute('fill', statusColors.available);
+                            rect.setAttribute('stroke', '#6366f1');
+                            rect.setAttribute('stroke-width', '0.5');
+                        } else {
+                            rect.setAttribute('fill', statusColors.available);
+                            rect.removeAttribute('stroke');
+                            rect.removeAttribute('stroke-width');
+                        }
+                    }
+                } else {
+                    // Многоместная - обновляем конкретное место
+                    const rect = rects[bedIndex];
+                    if (rect) {
+                        if (isSelected) {
+                            rect.setAttribute('fill', statusColors.available);
+                            rect.setAttribute('stroke', '#6366f1');
+                            rect.setAttribute('stroke-width', '0.5');
+                        } else {
+                            rect.setAttribute('fill', statusColors.available);
+                            rect.removeAttribute('stroke');
+                            rect.removeAttribute('stroke-width');
+                        }
+                    }
+                }
+            });
         }
 
         async function saveNewBooking() {
