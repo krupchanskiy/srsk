@@ -404,8 +404,15 @@
 
         // Открыть модалку управления
         async function openManageModal(userId) {
-            currentUserId = userId;
             const user = allUsers.find(u => u.id === userId);
+
+            // Проверить что у пользователя есть user_id (привязан к auth.users)
+            if (!user.user_id) {
+                alert('У этого пользователя нет аккаунта в системе. Управление ролями и правами недоступно.');
+                return;
+            }
+
+            currentUserId = user.user_id; // Сохраняем auth.users.id, а не vaishnava.id
 
             document.getElementById('modalUserName').textContent = user.spiritual_name || user.first_name;
             document.getElementById('modalUserEmail').textContent = user.email;
