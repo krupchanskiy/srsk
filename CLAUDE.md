@@ -203,13 +203,49 @@ Housing (модуль проживания):
 
 ### SQL Migrations
 
-Файлы в `supabase/` выполняются последовательно по номерам (001-066):
+Файлы в `supabase/` выполняются последовательно по номерам (001-095+):
 - `001-010` — основная схема, seed-данные, рецепты
 - `011-030` — переводы, RLS-политики, склад, команда
 - `031-050` — инвентаризация, меню-шаблоны, справочники
 - `051-066` — модуль Housing (здания, комнаты, бронирования, уборка)
+- `073-095` — система управления пользователями, ролями и правами
 
 Применять через MCP `mcp__supabase__apply_migration` или Supabase SQL Editor.
+
+### User Management & RBAC System
+
+**Архитектура:**
+- `modules` — модули системы (kitchen, housing)
+- `permissions` — атомарные права (view_menu, edit_rooms и т.д.)
+- `roles` — роли внутри модуля с набором прав
+- `role_permissions` — связь ролей и прав
+- `user_roles` — назначенные роли пользователей
+- `user_permissions` — индивидуальные переопределения прав (is_granted: true/false)
+- `superusers` — таблица UUID суперпользователей (без RLS для проверки прав)
+
+**Типы пользователей:**
+- **Staff (команда)** — проходит одобрение администратора, получает роли
+- **Guest (гость)** — автоматическое одобрение, доступ только к своему профилю
+- **Superuser** — полный доступ ко всему, обходит все проверки
+
+**RLS политики:**
+- Все критические таблицы защищены RLS
+- Функция `user_is_in_superusers()` проверяет `auth.uid() IN (SELECT user_id FROM superusers)`
+- Таблица `superusers` имеет RLS disabled для избежания рекурсии
+- Политика на `vaishnavas` упрощена: `user_id = auth.uid() OR is_deleted = false`
+
+**Страницы:**
+- `staff-signup.html` — регистрация команды (approval_status = 'pending')
+- `guest-signup.html` — регистрация гостя (approval_status = 'approved')
+- `pending-approval.html` — ожидание одобрения
+- `settings/user-management.html` — управление пользователями, ролями и правами
+
+**js/auth-check.js:**
+- Проверяет сессию на всех страницах (кроме login/signup)
+- Загружает права пользователя в `window.currentUser.permissions`
+- Создает глобальную функцию `window.hasPermission(permCode)`
+- Ограничивает гостей только их профилем
+- Блокирует pending/rejected/blocked пользователей
 
 ## Key Patterns
 
@@ -395,6 +431,12 @@ const { data: allResidents } = await Layout.db.from('residents').select('*').in(
 const grouped = allResidents.reduce((acc, r) => { (acc[r.booking_id] ||= []).push(r); return acc; }, {});
 ```
 
+8. **RLS рекурсия** — при создании RLS политик избегать вызовов функций, которые читают ту же таблицу:
+   - ❌ ПЛОХО: политика на `user_permissions` вызывает функцию → функция читает `vaishnavas` → политика на `vaishnavas` вызывает функцию → рекурсия
+   - ✅ ХОРОШО: использовать отдельную таблицу без RLS (`superusers`) или inline SQL без функций
+   - Функции с `SECURITY DEFINER` обходят RLS, но могут вызывать проблемы в контексте политик
+   - Политика `FOR ALL` работает для INSERT/UPDATE/DELETE одновременно
+
 ## File Locations
 
 ```
@@ -474,7 +516,7 @@ const grouped = allResidents.reduce((acc, r) => { (acc[r.booking_id] ||= []).pus
 | Термин | Файл |
 |--------|------|
 | Переводы | `settings/translations.html` |
-| Пользователи | `settings/users.html` |
+| Управление пользователями | `settings/user-management.html` |
 
 ### Корень
 | Термин | Файл | Особенности |
