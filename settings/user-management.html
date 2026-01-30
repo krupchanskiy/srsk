@@ -544,12 +544,128 @@
             }
         }
 
-        function openAddPermissionModal() {
-            alert('Функция добавления индивидуальных прав будет реализована в следующей версии');
+        async function openAddPermissionModal() {
+            if (!currentUserId) return;
+
+            // Загрузить все права Housing
+            const { data: allPerms } = await db
+                .from('permissions')
+                .select('id, code, name_ru')
+                .eq('module_id', (await db.from('modules').select('id').eq('code', 'housing').single()).data.id)
+                .order('name_ru');
+
+            if (!allPerms || allPerms.length === 0) {
+                alert('Нет доступных прав');
+                return;
+            }
+
+            // Показать выбор права (можно улучшить UI позже)
+            const permCode = prompt('Введите код права которое хотите ДОБАВИТЬ:\n\n' +
+                allPerms.map(p => `${p.code} - ${p.name_ru}`).join('\n'));
+
+            if (!permCode) return;
+
+            const perm = allPerms.find(p => p.code === permCode.trim());
+            if (!perm) {
+                alert('Право не найдено');
+                return;
+            }
+
+            try {
+                // Проверить есть ли уже такое право
+                const { data: existing } = await db
+                    .from('user_permissions')
+                    .select('*')
+                    .eq('user_id', currentUserId)
+                    .eq('permission_id', perm.id)
+                    .maybeSingle();
+
+                if (existing) {
+                    // Обновить is_granted на true
+                    await db.from('user_permissions')
+                        .update({ is_granted: true })
+                        .eq('user_id', currentUserId)
+                        .eq('permission_id', perm.id);
+                } else {
+                    // Добавить новое право
+                    await db.from('user_permissions').insert({
+                        user_id: currentUserId,
+                        permission_id: perm.id,
+                        is_granted: true,
+                        granted_by: window.currentUser.id,
+                        granted_at: new Date().toISOString()
+                    });
+                }
+
+                alert(`Право "${perm.name_ru}" добавлено`);
+                // Перезагрузить модальное окно
+                const user = allUsers.find(u => u.user_id === currentUserId);
+                if (user) openManageModal(user);
+            } catch (err) {
+                alert('Ошибка: ' + err.message);
+            }
         }
 
-        function openRevokePermissionModal() {
-            alert('Функция удаления индивидуальных прав будет реализована в следующей версии');
+        async function openRevokePermissionModal() {
+            if (!currentUserId) return;
+
+            // Загрузить все права Housing
+            const { data: allPerms } = await db
+                .from('permissions')
+                .select('id, code, name_ru')
+                .eq('module_id', (await db.from('modules').select('id').eq('code', 'housing').single()).data.id)
+                .order('name_ru');
+
+            if (!allPerms || allPerms.length === 0) {
+                alert('Нет доступных прав');
+                return;
+            }
+
+            // Показать выбор права
+            const permCode = prompt('Введите код права которое хотите УБРАТЬ:\n\n' +
+                allPerms.map(p => `${p.code} - ${p.name_ru}`).join('\n'));
+
+            if (!permCode) return;
+
+            const perm = allPerms.find(p => p.code === permCode.trim());
+            if (!perm) {
+                alert('Право не найдено');
+                return;
+            }
+
+            try {
+                // Проверить есть ли уже такое право
+                const { data: existing } = await db
+                    .from('user_permissions')
+                    .select('*')
+                    .eq('user_id', currentUserId)
+                    .eq('permission_id', perm.id)
+                    .maybeSingle();
+
+                if (existing) {
+                    // Обновить is_granted на false
+                    await db.from('user_permissions')
+                        .update({ is_granted: false })
+                        .eq('user_id', currentUserId)
+                        .eq('permission_id', perm.id);
+                } else {
+                    // Добавить право с is_granted = false
+                    await db.from('user_permissions').insert({
+                        user_id: currentUserId,
+                        permission_id: perm.id,
+                        is_granted: false,
+                        granted_by: window.currentUser.id,
+                        granted_at: new Date().toISOString()
+                    });
+                }
+
+                alert(`Право "${perm.name_ru}" убрано`);
+                // Перезагрузить модальное окно
+                const user = allUsers.find(u => u.user_id === currentUserId);
+                if (user) openManageModal(user);
+            } catch (err) {
+                alert('Ошибка: ' + err.message);
+            }
         }
 
         // Инициализация
