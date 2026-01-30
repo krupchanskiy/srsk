@@ -1,0 +1,291 @@
+<!DOCTYPE html>
+<html lang="ru" data-theme="light">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Создание аккаунтов — ШРСК</title>
+    <link href="https://cdn.jsdelivr.net/npm/daisyui@4.12.14/dist/full.min.css" rel="stylesheet" />
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+</head>
+
+<body class="bg-base-200 min-h-screen flex items-center justify-center p-4">
+    <div class="card bg-base-100 shadow-xl max-w-2xl w-full">
+        <div class="card-body">
+            <h2 class="card-title">Создание аккаунтов для команды</h2>
+            <p class="text-sm opacity-60">Этот скрипт создаст аккаунты для всех членов команды с паролем: <code
+                    class="bg-base-200 px-2 py-1 rounded">rupaseva</code></p>
+
+            <div class="alert alert-error" id="serviceKeyAlert">
+                <svg xmlns="http://www.w3.org/2000/svg" class="stroke-current shrink-0 h-6 w-6" fill="none"
+                    viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                        d="M10 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2m7-2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+                <div>
+                    <p class="font-bold">Нужен Service Role Key!</p>
+                    <p class="text-sm">Откройте <code>admin-create-accounts.html</code> в редакторе и вставьте ключ в
+                        строку 37</p>
+                    <p class="text-sm mt-1">Получить ключ: Supabase Dashboard → Settings → API → service_role (secret)
+                    </p>
+                </div>
+            </div>
+
+            <div class="alert alert-warning">
+                <svg xmlns="http://www.w3.org/2000/svg" class="stroke-current shrink-0 h-6 w-6" fill="none"
+                    viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                        d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                </svg>
+                <span>Запускайте только один раз! Повторный запуск попытается создать дубли.</span>
+            </div>
+
+            <div id="status" class="mt-4"></div>
+
+            <div class="card-actions justify-end mt-4 gap-2">
+                <button class="btn btn-primary" id="createBtn" onclick="createAccounts()">
+                    Создать аккаунты
+                </button>
+                <button class="btn btn-secondary" id="resetBtn" onclick="resetPasswords()">
+                    Сбросить пароли
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <script src="js/config.js"></script>
+    <script>
+        // ВАЖНО: Для создания пользователей нужен Service Role Key!
+        // Получите его в Supabase Dashboard → Settings → API → service_role (secret)
+        // ВНИМАНИЕ: НЕ КОММИТЬТЕ Service Role Key в Git!
+        const SERVICE_ROLE_KEY = ''; // ← ВСТАВЬТЕ СЮДА Service Role Key
+
+        if (!SERVICE_ROLE_KEY) {
+            alert('❌ Нужно вставить Service Role Key в строку 37!\n\nПолучите ключ: Supabase Dashboard → Settings → API → service_role');
+        }
+
+        const db = window.supabase.createClient(CONFIG.SUPABASE_URL, SERVICE_ROLE_KEY);
+        const PASSWORD = 'rupaseva';
+
+        function log(message, type = 'info') {
+            const statusDiv = document.getElementById('status');
+            const alertClass = type === 'error' ? 'alert-error' : type === 'success' ? 'alert-success' : 'alert-info';
+            statusDiv.innerHTML += `<div class="alert ${alertClass} mb-2"><span>${message}</span></div>`;
+            statusDiv.scrollTop = statusDiv.scrollHeight;
+        }
+
+        // Проверка наличия Service Role Key при загрузке
+        window.addEventListener('DOMContentLoaded', () => {
+            const alertDiv = document.getElementById('serviceKeyAlert');
+            const btn = document.getElementById('createBtn');
+
+            if (!SERVICE_ROLE_KEY || SERVICE_ROLE_KEY.length < 50) {
+                alertDiv.classList.remove('hidden');
+                btn.disabled = true;
+                btn.textContent = 'Сначала добавьте Service Role Key';
+            } else {
+                alertDiv.classList.add('hidden');
+                btn.disabled = false;
+            }
+        });
+
+        async function createAccounts() {
+            if (!SERVICE_ROLE_KEY || SERVICE_ROLE_KEY.length < 50) {
+                alert('❌ Нужно вставить Service Role Key!\n\nОткройте файл в редакторе и вставьте ключ в строку 37.');
+                return;
+            }
+
+            const btn = document.getElementById('createBtn');
+            btn.disabled = true;
+            btn.innerHTML = '<span class="loading loading-spinner"></span> Создаю аккаунты...';
+
+            const statusDiv = document.getElementById('status');
+            statusDiv.innerHTML = '';
+
+            try {
+                log('Загружаю список команды...');
+
+                // Загружаем всех членов команды
+                const { data: team, error: teamError } = await db
+                    .from('vaishnavas')
+                    .select('id, first_name, last_name, spiritual_name, email, phone')
+                    .eq('is_deleted', false)
+                    .eq('is_team_member', true);
+
+                if (teamError) {
+                    log(`Ошибка загрузки команды: ${teamError.message}`, 'error');
+                    return;
+                }
+
+                log(`Найдено ${team.length} членов команды`);
+
+                let created = 0;
+                let errors = 0;
+                let skipped = 0;
+
+                for (const person of team) {
+                    const name = person.spiritual_name || `${person.first_name || ''} ${person.last_name || ''}`.trim();
+
+                    // Определяем email
+                    let email = person.email;
+                    if (!email) {
+                        // Генерируем email из имени
+                        const namePart = (person.spiritual_name || person.first_name || 'user')
+                            .toLowerCase()
+                            .replace(/[^a-z0-9]/g, '')
+                            .substring(0, 20);
+                        email = `${namePart}@rupaseva.com`;
+                    }
+
+                    log(`Создаю аккаунт для ${name} (${email})...`);
+
+                    try {
+                        // Пытаемся создать пользователя
+                        const { data, error } = await db.auth.admin.createUser({
+                            email: email,
+                            password: PASSWORD,
+                            email_confirm: true,
+                            user_metadata: {
+                                vaishnava_id: person.id,
+                                name: name
+                            }
+                        });
+
+                        if (error) {
+                            if (error.message.includes('already registered')) {
+                                log(`⚠️ ${name}: аккаунт уже существует`, 'warning');
+                                skipped++;
+                            } else {
+                                log(`❌ ${name}: ${error.message}`, 'error');
+                                errors++;
+                            }
+                        } else {
+                            log(`✅ ${name}: аккаунт создан (${email})`, 'success');
+                            created++;
+                        }
+                    } catch (err) {
+                        log(`❌ ${name}: ${err.message}`, 'error');
+                        errors++;
+                    }
+
+                    // Небольшая задержка между запросами
+                    await new Promise(resolve => setTimeout(resolve, 500));
+                }
+
+                log(`\n=== ИТОГО ===`, 'success');
+                log(`✅ Создано: ${created}`, 'success');
+                log(`⚠️ Пропущено (уже существуют): ${skipped}`, 'warning');
+                log(`❌ Ошибок: ${errors}`, 'error');
+
+            } catch (err) {
+                log(`Критическая ошибка: ${err.message}`, 'error');
+            } finally {
+                btn.disabled = false;
+                btn.textContent = 'Создать аккаунты';
+            }
+        }
+
+        async function resetPasswords() {
+            if (!SERVICE_ROLE_KEY || SERVICE_ROLE_KEY.length < 50) {
+                alert('❌ Нужно вставить Service Role Key!\n\nОткройте файл в редакторе и вставьте ключ в строку 50.');
+                return;
+            }
+
+            const btn = document.getElementById('resetBtn');
+            btn.disabled = true;
+            btn.innerHTML = '<span class="loading loading-spinner"></span> Сбрасываю пароли...';
+
+            const statusDiv = document.getElementById('status');
+            statusDiv.innerHTML = '';
+
+            try {
+                log('Загружаю список команды...');
+
+                // Загружаем всех членов команды
+                const { data: team, error: teamError } = await db
+                    .from('vaishnavas')
+                    .select('id, first_name, last_name, spiritual_name, email')
+                    .eq('is_deleted', false)
+                    .eq('is_team_member', true);
+
+                if (teamError) {
+                    log(`Ошибка загрузки команды: ${teamError.message}`, 'error');
+                    return;
+                }
+
+                log(`Найдено ${team.length} членов команды`);
+
+                // Получаем всех пользователей из Auth
+                const { data: { users }, error: usersError } = await db.auth.admin.listUsers();
+
+                if (usersError) {
+                    log(`Ошибка загрузки пользователей: ${usersError.message}`, 'error');
+                    return;
+                }
+
+                let reset = 0;
+                let notFound = 0;
+                let errors = 0;
+
+                for (const person of team) {
+                    const name = person.spiritual_name || `${person.first_name || ''} ${person.last_name || ''}`.trim();
+
+                    // Определяем email
+                    let email = person.email;
+                    if (!email) {
+                        const namePart = (person.spiritual_name || person.first_name || 'user')
+                            .toLowerCase()
+                            .replace(/[^a-z0-9]/g, '')
+                            .substring(0, 20);
+                        email = `${namePart}@rupaseva.com`;
+                    }
+
+                    // Ищем пользователя по email
+                    const user = users.find(u => u.email === email);
+
+                    if (!user) {
+                        log(`⚠️ ${name} (${email}): пользователь не найден`, 'warning');
+                        notFound++;
+                        continue;
+                    }
+
+                    log(`Сбрасываю пароль для ${name} (${email})...`);
+
+                    try {
+                        const { error } = await db.auth.admin.updateUserById(user.id, {
+                            password: PASSWORD
+                        });
+
+                        if (error) {
+                            log(`❌ ${name}: ${error.message}`, 'error');
+                            errors++;
+                        } else {
+                            log(`✅ ${name}: пароль сброшен`, 'success');
+                            reset++;
+                        }
+                    } catch (err) {
+                        log(`❌ ${name}: ${err.message}`, 'error');
+                        errors++;
+                    }
+
+                    // Небольшая задержка между запросами
+                    await new Promise(resolve => setTimeout(resolve, 500));
+                }
+
+                log(`\n=== ИТОГО ===`, 'success');
+                log(`✅ Пароли сброшены: ${reset}`, 'success');
+                log(`⚠️ Не найдено: ${notFound}`, 'warning');
+                log(`❌ Ошибок: ${errors}`, 'error');
+
+            } catch (err) {
+                log(`Критическая ошибка: ${err.message}`, 'error');
+            } finally {
+                btn.disabled = false;
+                btn.textContent = 'Сбросить пароли';
+            }
+        }
+    </script>
+</body>
+
+</html>

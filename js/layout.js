@@ -345,6 +345,11 @@ function getHeaderHTML() {
                             <img src="https://i.pravatar.cc/150?img=5" alt="User" class="w-full h-full object-cover" />
                         </div>
                     </div>
+                    <button class="btn btn-ghost btn-sm hidden desktop:flex" onclick="Layout.logout()" title="${t('logout')}">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
+                        </svg>
+                    </button>
                     <button class="btn btn-ghost btn-md btn-square desktop:hidden" id="mobileMenuBtn">
                         <svg xmlns="http://www.w3.org/2000/svg" class="h-7 w-7 menu-icon" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
                             <path stroke-linecap="round" stroke-linejoin="round" d="M4 6h16M4 12h16M4 18h16" />
@@ -360,7 +365,7 @@ function getHeaderHTML() {
             <div class="mobile-menu desktop:hidden border-t border-base-200" id="mobileMenu">
                 <nav class="py-3 space-y-0" id="mobileNav"></nav>
                 <div class="border-t border-base-200 py-4 px-4">
-                    <div class="flex items-center justify-between">
+                    <div class="flex items-center justify-between mb-3">
                         <div class="flex items-center gap-3">
                             <div class="w-10 h-10 rounded-full overflow-hidden ring-2 ring-base-200">
                                 <img src="https://i.pravatar.cc/150?img=5" alt="User" class="w-full h-full object-cover" />
@@ -368,11 +373,12 @@ function getHeaderHTML() {
                             <!-- TODO: заменить на данные из auth -->
                             <span class="font-medium" id="userName" data-i18n="user">Пользователь</span>
                         </div>
-                        <div class="md:hidden join">
-                            <button class="join-item btn btn-sm lang-btn ${currentLang === 'ru' ? 'active' : ''}" data-lang="ru">RU</button>
-                            <button class="join-item btn btn-sm lang-btn ${currentLang === 'en' ? 'active' : ''}" data-lang="en">EN</button>
-                            <button class="join-item btn btn-sm lang-btn ${currentLang === 'hi' ? 'active' : ''}" data-lang="hi">HI</button>
-                        </div>
+                        <button class="btn btn-ghost btn-sm" onclick="Layout.logout()" data-i18n="logout">Выход</button>
+                    </div>
+                    <div class="md:hidden join w-full">
+                        <button class="join-item btn btn-sm lang-btn flex-1 ${currentLang === 'ru' ? 'active' : ''}" data-lang="ru">RU</button>
+                        <button class="join-item btn btn-sm lang-btn flex-1 ${currentLang === 'en' ? 'active' : ''}" data-lang="en">EN</button>
+                        <button class="join-item btn btn-sm lang-btn flex-1 ${currentLang === 'hi' ? 'active' : ''}" data-lang="hi">HI</button>
                     </div>
                 </div>
             </div>
