@@ -519,8 +519,13 @@
         // Сохранить изменения пользователя
         async function saveUserChanges() {
             try {
+                console.log('saveUserChanges:', { currentUserId, allUsersCount: allUsers.length });
+                console.log('Sample user:', allUsers[0]);
+
                 const user = allUsers.find(u => u.user_id === currentUserId);
                 if (!user) {
+                    console.error('User not found. currentUserId:', currentUserId);
+                    console.error('allUsers user_ids:', allUsers.map(u => ({ id: u.id, user_id: u.user_id, name: u.spiritual_name || u.first_name })));
                     alert('Пользователь не найден');
                     return;
                 }
