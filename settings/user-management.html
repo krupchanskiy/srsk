@@ -1,0 +1,569 @@
+<!DOCTYPE html>
+<html lang="ru" data-theme="light">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Управление пользователями — ШРСК</title>
+    <link href="https://cdn.jsdelivr.net/npm/daisyui@4.12.14/dist/full.min.css" rel="stylesheet" />
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+</head>
+
+<body class="bg-base-200">
+    <div id="header"></div>
+
+    <div class="container mx-auto p-4">
+        <div class="flex justify-between items-center mb-6">
+            <h1 class="text-3xl font-bold">Управление пользователями</h1>
+        </div>
+
+        <!-- Табы -->
+        <div role="tablist" class="tabs tabs-boxed mb-6">
+            <a role="tab" class="tab tab-active" data-tab="all" onclick="switchTab('all')">
+                Все (<span id="countAll">0</span>)
+            </a>
+            <a role="tab" class="tab" data-tab="pending" onclick="switchTab('pending')">
+                Ожидают (<span id="countPending">0</span>)
+            </a>
+            <a role="tab" class="tab" data-tab="staff" onclick="switchTab('staff')">
+                Команда (<span id="countStaff">0</span>)
+            </a>
+            <a role="tab" class="tab" data-tab="guest" onclick="switchTab('guest')">
+                Гости (<span id="countGuest">0</span>)
+            </a>
+            <a role="tab" class="tab" data-tab="blocked" onclick="switchTab('blocked')">
+                Заблокированные (<span id="countBlocked">0</span>)
+            </a>
+        </div>
+
+        <!-- Поиск и фильтры -->
+        <div class="mb-4 flex gap-2">
+            <input type="text" id="searchInput" placeholder="Поиск по имени или email..."
+                   class="input input-bordered flex-1" onkeyup="filterUsers()">
+            <select id="moduleFilter" class="select select-bordered" onchange="filterUsers()">
+                <option value="">Все модули</option>
+                <option value="housing">Housing</option>
+                <option value="kitchen">Kitchen</option>
+            </select>
+        </div>
+
+        <!-- Таблица пользователей -->
+        <div class="overflow-x-auto bg-base-100 rounded-lg shadow">
+            <table class="table table-zebra">
+                <thead>
+                    <tr>
+                        <th>Фото</th>
+                        <th>Имя</th>
+                        <th>Email</th>
+                        <th>Тип</th>
+                        <th>Статус</th>
+                        <th>Роли</th>
+                        <th>Действия</th>
+                    </tr>
+                </thead>
+                <tbody id="usersTableBody">
+                    <tr>
+                        <td colspan="7" class="text-center py-8">
+                            <span class="loading loading-spinner loading-lg"></span>
+                            <p class="mt-2">Загрузка пользователей...</p>
+                        </td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <!-- Модалка управления пользователем -->
+    <dialog id="manageUserModal" class="modal">
+        <div class="modal-box max-w-2xl">
+            <h3 class="font-bold text-lg mb-4">Управление пользователем: <span id="modalUserName"></span></h3>
+
+            <div class="space-y-4">
+                <!-- Информация о пользователе -->
+                <div class="grid grid-cols-2 gap-2 text-sm">
+                    <div><strong>Email:</strong> <span id="modalUserEmail"></span></div>
+                    <div><strong>Тип:</strong> <span id="modalUserType"></span></div>
+                </div>
+
+                <!-- Статус -->
+                <div class="form-control">
+                    <label class="label cursor-pointer justify-start gap-2">
+                        <input type="checkbox" id="modalIsActive" class="checkbox checkbox-sm" disabled>
+                        <span class="label-text">Активен</span>
+                    </label>
+                    <label class="label cursor-pointer justify-start gap-2">
+                        <input type="checkbox" id="modalIsSuperuser" class="checkbox checkbox-sm">
+                        <span class="label-text">Суперпользователь</span>
+                    </label>
+                </div>
+
+                <div class="divider">Роли Housing</div>
+
+                <!-- Роли -->
+                <div id="rolesContainer" class="space-y-2 max-h-60 overflow-y-auto">
+                    <!-- Роли загружаются динамически -->
+                </div>
+
+                <div class="divider">Индивидуальные права</div>
+
+                <!-- Индивидуальные права -->
+                <div class="flex gap-2">
+                    <button class="btn btn-sm btn-outline" onclick="openAddPermissionModal()">
+                        + Добавить право
+                    </button>
+                    <button class="btn btn-sm btn-outline btn-error" onclick="openRevokePermissionModal()">
+                        − Убрать право
+                    </button>
+                </div>
+
+                <div id="customPermissionsContainer" class="text-sm">
+                    <!-- Индивидуальные права загружаются динамически -->
+                </div>
+            </div>
+
+            <div class="modal-action">
+                <button class="btn btn-error" onclick="blockUser()">Заблокировать</button>
+                <button class="btn" onclick="closeManageModal()">Отмена</button>
+                <button class="btn btn-primary" onclick="saveUserChanges()">Сохранить</button>
+            </div>
+        </div>
+        <form method="dialog" class="modal-backdrop">
+            <button>close</button>
+        </form>
+    </dialog>
+
+    <!-- Модалка одобрения/отклонения -->
+    <dialog id="approvalModal" class="modal">
+        <div class="modal-box">
+            <h3 class="font-bold text-lg mb-4" id="approvalTitle"></h3>
+            <p id="approvalText"></p>
+            <div class="modal-action">
+                <button class="btn" onclick="closeApprovalModal()">Отмена</button>
+                <button class="btn btn-primary" id="approvalConfirmBtn" onclick="confirmApproval()">Подтвердить</button>
+            </div>
+        </div>
+    </dialog>
+
+    <script src="../js/config.js"></script>
+    <script src="../js/auth-check.js?v=2"></script>
+    <script src="../js/layout.js"></script>
+    <script>
+        const db = window.supabase.createClient(CONFIG.SUPABASE_URL, CONFIG.SUPABASE_ANON_KEY);
+
+        let allUsers = [];
+        let currentTab = 'all';
+        let currentUserId = null;
+        let approvalAction = null;
+
+        // Загрузка пользователей
+        async function loadUsers() {
+            try {
+                const { data: users, error } = await db
+                    .from('vaishnavas')
+                    .select(`
+                        id,
+                        user_id,
+                        email,
+                        first_name,
+                        last_name,
+                        spiritual_name,
+                        photo_url,
+                        user_type,
+                        approval_status,
+                        is_superuser,
+                        is_active,
+                        is_deleted
+                    `)
+                    .eq('is_deleted', false)
+                    .order('created_at', { ascending: false });
+
+                if (error) throw error;
+
+                // Загрузить роли для каждого пользователя
+                for (let user of users) {
+                    if (user.user_id) {
+                        const { data: roles } = await db
+                            .from('user_roles')
+                            .select(`
+                                roles!inner (
+                                    name_ru,
+                                    code,
+                                    module_id
+                                )
+                            `)
+                            .eq('user_id', user.user_id)
+                            .eq('is_active', true);
+
+                        user.roles = roles || [];
+                    } else {
+                        user.roles = [];
+                    }
+                }
+
+                allUsers = users;
+                updateCounts();
+                renderUsers();
+            } catch (err) {
+                console.error('Load users error:', err);
+                alert('Ошибка загрузки пользователей: ' + err.message);
+            }
+        }
+
+        // Обновить счётчики
+        function updateCounts() {
+            document.getElementById('countAll').textContent = allUsers.length;
+            document.getElementById('countPending').textContent = allUsers.filter(u => u.approval_status === 'pending').length;
+            document.getElementById('countStaff').textContent = allUsers.filter(u => u.user_type === 'staff').length;
+            document.getElementById('countGuest').textContent = allUsers.filter(u => u.user_type === 'guest').length;
+            document.getElementById('countBlocked').textContent = allUsers.filter(u => u.approval_status === 'blocked' || !u.is_active).length;
+        }
+
+        // Переключение табов
+        function switchTab(tab) {
+            currentTab = tab;
+            document.querySelectorAll('.tab').forEach(t => t.classList.remove('tab-active'));
+            document.querySelector(`[data-tab="${tab}"]`).classList.add('tab-active');
+            renderUsers();
+        }
+
+        // Фильтрация пользователей
+        function filterUsers() {
+            renderUsers();
+        }
+
+        // Отрисовка таблицы
+        function renderUsers() {
+            const searchText = document.getElementById('searchInput').value.toLowerCase();
+            const moduleFilter = document.getElementById('moduleFilter').value;
+
+            let filtered = allUsers;
+
+            // Фильтр по табу
+            if (currentTab === 'pending') {
+                filtered = filtered.filter(u => u.approval_status === 'pending');
+            } else if (currentTab === 'staff') {
+                filtered = filtered.filter(u => u.user_type === 'staff');
+            } else if (currentTab === 'guest') {
+                filtered = filtered.filter(u => u.user_type === 'guest');
+            } else if (currentTab === 'blocked') {
+                filtered = filtered.filter(u => u.approval_status === 'blocked' || !u.is_active);
+            }
+
+            // Поиск
+            if (searchText) {
+                filtered = filtered.filter(u =>
+                    (u.spiritual_name?.toLowerCase().includes(searchText)) ||
+                    (u.first_name?.toLowerCase().includes(searchText)) ||
+                    (u.last_name?.toLowerCase().includes(searchText)) ||
+                    (u.email?.toLowerCase().includes(searchText))
+                );
+            }
+
+            // Фильтр по модулю
+            if (moduleFilter) {
+                filtered = filtered.filter(u =>
+                    u.roles.some(r => r.roles.module_id === moduleFilter)
+                );
+            }
+
+            const tbody = document.getElementById('usersTableBody');
+
+            if (filtered.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="7" class="text-center py-8">Пользователи не найдены</td></tr>';
+                return;
+            }
+
+            tbody.innerHTML = filtered.map(user => `
+                <tr>
+                    <td>
+                        <div class="avatar">
+                            <div class="w-10 h-10 rounded-full">
+                                ${user.photo_url
+                                    ? `<img src="${user.photo_url}" alt="${user.spiritual_name || user.first_name}">`
+                                    : `<div class="bg-primary text-primary-content w-full h-full flex items-center justify-center text-xl">${(user.spiritual_name || user.first_name || '?')[0]}</div>`
+                                }
+                            </div>
+                        </div>
+                    </td>
+                    <td>
+                        <div class="font-bold">${user.spiritual_name || user.first_name + ' ' + (user.last_name || '')}</div>
+                        ${user.is_superuser ? '<span class="badge badge-warning badge-sm">Superuser</span>' : ''}
+                    </td>
+                    <td>${user.email}</td>
+                    <td>
+                        <span class="badge ${user.user_type === 'staff' ? 'badge-primary' : 'badge-secondary'}">
+                            ${user.user_type === 'staff' ? 'Команда' : 'Гость'}
+                        </span>
+                    </td>
+                    <td>
+                        ${getStatusBadge(user)}
+                    </td>
+                    <td>
+                        ${user.roles.length > 0
+                            ? user.roles.map(r => `<span class="badge badge-sm badge-outline">${r.roles.name_ru}</span>`).join(' ')
+                            : '<span class="text-xs opacity-50">Нет ролей</span>'
+                        }
+                    </td>
+                    <td>
+                        <div class="flex gap-1">
+                            ${user.approval_status === 'pending'
+                                ? `
+                                    <button class="btn btn-xs btn-success" onclick="approveUser('${user.id}')">Одобрить</button>
+                                    <button class="btn btn-xs btn-error" onclick="rejectUser('${user.id}')">Отклонить</button>
+                                `
+                                : `<button class="btn btn-xs btn-primary" onclick="openManageModal('${user.id}')">Управление</button>`
+                            }
+                        </div>
+                    </td>
+                </tr>
+            `).join('');
+        }
+
+        // Получить badge статуса
+        function getStatusBadge(user) {
+            if (!user.is_active) return '<span class="badge badge-error">Неактивен</span>';
+            if (user.approval_status === 'pending') return '<span class="badge badge-warning">Ожидает</span>';
+            if (user.approval_status === 'approved') return '<span class="badge badge-success">Одобрен</span>';
+            if (user.approval_status === 'rejected') return '<span class="badge badge-error">Отклонён</span>';
+            if (user.approval_status === 'blocked') return '<span class="badge badge-error">Заблокирован</span>';
+            return '<span class="badge">Неизвестно</span>';
+        }
+
+        // Одобрить пользователя
+        function approveUser(userId) {
+            currentUserId = userId;
+            approvalAction = 'approve';
+            const user = allUsers.find(u => u.id === userId);
+            document.getElementById('approvalTitle').textContent = 'Одобрить заявку?';
+            document.getElementById('approvalText').textContent = `Вы уверены что хотите одобрить заявку пользователя ${user.spiritual_name || user.first_name}?`;
+            document.getElementById('approvalConfirmBtn').className = 'btn btn-success';
+            document.getElementById('approvalModal').showModal();
+        }
+
+        // Отклонить пользователя
+        function rejectUser(userId) {
+            currentUserId = userId;
+            approvalAction = 'reject';
+            const user = allUsers.find(u => u.id === userId);
+            document.getElementById('approvalTitle').textContent = 'Отклонить заявку?';
+            document.getElementById('approvalText').textContent = `Вы уверены что хотите отклонить заявку пользователя ${user.spiritual_name || user.first_name}?`;
+            document.getElementById('approvalConfirmBtn').className = 'btn btn-error';
+            document.getElementById('approvalModal').showModal();
+        }
+
+        // Подтвердить одобрение/отклонение
+        async function confirmApproval() {
+            try {
+                const newStatus = approvalAction === 'approve' ? 'approved' : 'rejected';
+
+                const { error } = await db
+                    .from('vaishnavas')
+                    .update({
+                        approval_status: newStatus,
+                        approved_by: window.currentUser.id,
+                        approved_at: new Date().toISOString()
+                    })
+                    .eq('id', currentUserId);
+
+                if (error) throw error;
+
+                // Если одобрили - назначить дефолтную роль Guest для гостей
+                if (approvalAction === 'approve') {
+                    const user = allUsers.find(u => u.id === currentUserId);
+                    if (user.user_type === 'guest' && user.user_id) {
+                        const { data: guestRole } = await db
+                            .from('roles')
+                            .select('id')
+                            .eq('code', 'guest')
+                            .single();
+
+                        if (guestRole) {
+                            await db.from('user_roles').insert({
+                                user_id: user.user_id,
+                                role_id: guestRole.id,
+                                is_active: true,
+                                assigned_by: window.currentUser.id
+                            });
+                        }
+                    }
+                }
+
+                closeApprovalModal();
+                loadUsers();
+                alert(approvalAction === 'approve' ? '✅ Заявка одобрена' : '❌ Заявка отклонена');
+            } catch (err) {
+                console.error('Approval error:', err);
+                alert('Ошибка: ' + err.message);
+            }
+        }
+
+        function closeApprovalModal() {
+            document.getElementById('approvalModal').close();
+        }
+
+        // Открыть модалку управления
+        async function openManageModal(userId) {
+            currentUserId = userId;
+            const user = allUsers.find(u => u.id === userId);
+
+            document.getElementById('modalUserName').textContent = user.spiritual_name || user.first_name;
+            document.getElementById('modalUserEmail').textContent = user.email;
+            document.getElementById('modalUserType').textContent = user.user_type === 'staff' ? 'Команда' : 'Гость';
+            document.getElementById('modalIsActive').checked = user.is_active;
+            document.getElementById('modalIsSuperuser').checked = user.is_superuser;
+
+            // Загрузить все роли Housing
+            const { data: allRoles } = await db
+                .from('roles')
+                .select('id, code, name_ru, description_ru')
+                .eq('module_id', (await db.from('modules').select('id').eq('code', 'housing').single()).data.id)
+                .order('name_ru');
+
+            // Загрузить роли пользователя
+            const { data: userRoles } = await db
+                .from('user_roles')
+                .select('role_id')
+                .eq('user_id', user.user_id)
+                .eq('is_active', true);
+
+            const userRoleIds = userRoles ? userRoles.map(r => r.role_id) : [];
+
+            // Отрисовать роли
+            const rolesContainer = document.getElementById('rolesContainer');
+            rolesContainer.innerHTML = allRoles.map(role => `
+                <label class="label cursor-pointer justify-start gap-2">
+                    <input type="checkbox" class="checkbox checkbox-sm"
+                           data-role-id="${role.id}"
+                           ${userRoleIds.includes(role.id) ? 'checked' : ''}>
+                    <div>
+                        <div class="font-medium">${role.name_ru}</div>
+                        <div class="text-xs opacity-60">${role.description_ru}</div>
+                    </div>
+                </label>
+            `).join('');
+
+            // Загрузить индивидуальные права
+            const { data: customPerms } = await db
+                .from('user_permissions')
+                .select(`
+                    is_granted,
+                    permissions!inner (
+                        code,
+                        name_ru
+                    )
+                `)
+                .eq('user_id', user.user_id);
+
+            const customPermsContainer = document.getElementById('customPermissionsContainer');
+            if (customPerms && customPerms.length > 0) {
+                customPermsContainer.innerHTML = '<div class="space-y-1">' + customPerms.map(p => `
+                    <div class="flex items-center gap-2">
+                        <span class="badge ${p.is_granted ? 'badge-success' : 'badge-error'} badge-sm">
+                            ${p.is_granted ? '+' : '−'}
+                        </span>
+                        <span class="text-sm">${p.permissions.name_ru}</span>
+                    </div>
+                `).join('') + '</div>';
+            } else {
+                customPermsContainer.innerHTML = '<p class="text-sm opacity-50">Нет индивидуальных прав</p>';
+            }
+
+            document.getElementById('manageUserModal').showModal();
+        }
+
+        function closeManageModal() {
+            document.getElementById('manageUserModal').close();
+        }
+
+        // Сохранить изменения пользователя
+        async function saveUserChanges() {
+            try {
+                const user = allUsers.find(u => u.id === currentUserId);
+                const isSuperuser = document.getElementById('modalIsSuperuser').checked;
+
+                // Обновить статус суперпользователя
+                await db
+                    .from('vaishnavas')
+                    .update({ is_superuser: isSuperuser })
+                    .eq('id', currentUserId);
+
+                // Обновить роли
+                const checkedRoles = Array.from(document.querySelectorAll('#rolesContainer input:checked'))
+                    .map(cb => cb.dataset.roleId);
+
+                // Деактивировать все роли
+                await db
+                    .from('user_roles')
+                    .update({ is_active: false })
+                    .eq('user_id', user.user_id);
+
+                // Добавить выбранные роли
+                for (let roleId of checkedRoles) {
+                    await db
+                        .from('user_roles')
+                        .upsert({
+                            user_id: user.user_id,
+                            role_id: roleId,
+                            is_active: true,
+                            assigned_by: window.currentUser.id,
+                            assigned_at: new Date().toISOString()
+                        }, {
+                            onConflict: 'user_id,role_id'
+                        });
+                }
+
+                closeManageModal();
+                loadUsers();
+                alert('✅ Изменения сохранены');
+            } catch (err) {
+                console.error('Save error:', err);
+                alert('Ошибка сохранения: ' + err.message);
+            }
+        }
+
+        // Заблокировать пользователя
+        async function blockUser() {
+            if (!confirm('Вы уверены что хотите заблокировать этого пользователя?')) return;
+
+            try {
+                await db
+                    .from('vaishnavas')
+                    .update({
+                        approval_status: 'blocked',
+                        is_active: false
+                    })
+                    .eq('id', currentUserId);
+
+                closeManageModal();
+                loadUsers();
+                alert('🚫 Пользователь заблокирован');
+            } catch (err) {
+                console.error('Block error:', err);
+                alert('Ошибка: ' + err.message);
+            }
+        }
+
+        function openAddPermissionModal() {
+            alert('Функция добавления индивидуальных прав будет реализована в следующей версии');
+        }
+
+        function openRevokePermissionModal() {
+            alert('Функция удаления индивидуальных прав будет реализована в следующей версии');
+        }
+
+        // Инициализация
+        window.addEventListener('DOMContentLoaded', () => {
+            // Проверка прав доступа
+            if (!window.hasPermission('manage_users') && !window.currentUser?.is_superuser) {
+                alert('У вас нет прав для доступа к этой странице');
+                window.location.href = '/';
+                return;
+            }
+
+            loadUsers();
+        });
+    </script>
+</body>
+
+</html>

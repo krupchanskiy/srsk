@@ -76,10 +76,44 @@ const modules = {
             { id: 'settings', items: [
                 { id: 'buildings', href: 'reception/buildings.html' },
                 { id: 'rooms', href: 'reception/rooms.html' },
-                { id: 'housing_dictionaries', href: 'reception/dictionaries.html' }
+                { id: 'housing_dictionaries', href: 'reception/dictionaries.html' },
+                { id: 'user_management', href: 'settings/user-management.html' },
+                { id: 'translations', href: 'settings/translations.html' }
             ]}
         ]
     }
+};
+
+// ==================== PAGE PERMISSIONS MAP ====================
+// Карта прав для доступа к страницам
+const pagePermissions = {
+    // Housing - Vaishnavas
+    'vaishnavas/index.html': 'view_vaishnavas',
+    'vaishnavas/guests.html': 'view_guests',
+    'vaishnavas/team.html': 'view_team',
+
+    // Housing - Placement
+    'placement/bookings.html': 'view_bookings',
+    'placement/timeline.html': 'view_timeline',
+    'placement/arrivals.html': 'manage_arrivals',
+    'placement/departures.html': 'manage_departures',
+    'placement/transfers.html': 'manage_transfers',
+    'vaishnavas/preliminary.html': 'view_preliminary',
+    'vaishnavas/retreat-guests.html': 'view_retreat_guests',
+
+    // Housing - Reception
+    'reception/cleaning.html': 'view_cleaning',
+    'reception/rooms.html': 'view_rooms',
+    'reception/buildings.html': 'view_buildings',
+
+    // Housing - Ashram
+    'ashram/retreats.html': 'view_retreats',
+    'ashram/festivals.html': 'view_festivals',
+
+    // Housing - Settings
+    'reception/dictionaries.html': 'view_dictionaries',
+    'settings/user-management.html': 'manage_users',
+    'settings/translations.html': 'view_translations'
 };
 
 // ==================== STATE ====================
@@ -92,9 +126,36 @@ let translations = {}; // { key: { ru: '...', en: '...', hi: '...' } }
 // Текущая страница (задаётся при инициализации)
 let currentPage = { menuId: 'kitchen', itemId: null };
 
-// Получить текущий menuConfig
+// Фильтровать меню по правам пользователя
+function filterMenuByPermissions(menuConfig) {
+    // Если пользователь не загружен или суперпользователь - показать всё
+    if (!window.currentUser || window.currentUser.is_superuser) {
+        return menuConfig;
+    }
+
+    // Фильтровать каждую секцию меню
+    return menuConfig.map(section => {
+        const filteredItems = section.items.filter(item => {
+            const requiredPerm = pagePermissions[item.href];
+
+            // Если права не указаны - показывать страницу всем
+            if (!requiredPerm) return true;
+
+            // Проверить наличие права через hasPermission()
+            return window.hasPermission && window.hasPermission(requiredPerm);
+        });
+
+        return {
+            ...section,
+            items: filteredItems
+        };
+    }).filter(section => section.items.length > 0); // Убрать пустые секции
+}
+
+// Получить текущий menuConfig (с фильтрацией по правам)
 function getMenuConfig() {
-    return modules[currentModule]?.menuConfig || modules.kitchen.menuConfig;
+    const baseConfig = modules[currentModule]?.menuConfig || modules.kitchen.menuConfig;
+    return filterMenuByPermissions(baseConfig);
 }
 
 // Список всех подпапок модулей

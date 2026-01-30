@@ -24,7 +24,7 @@
         <!-- Page Header -->
         <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6">
             <h1 class="text-2xl font-bold" data-i18n="buildings_title">Здания</h1>
-            <button class="btn btn-primary gap-2" onclick="openBuildingModal()">
+            <button class="btn btn-primary gap-2" onclick="openBuildingModal()" data-permission="edit_buildings">
                 <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" />
                 </svg>
@@ -151,7 +151,8 @@
     </dialog>
 
     <script src="../js/config.js"></script>
-    <script src="../js/auth-check.js"></script>
+    <script src="../js/auth-check.js?v=2"></script>
+    <script src="../js/permissions-ui.js"></script>
     <script src="../js/cache.js"></script>
     <script src="../js/utils.js"></script>
     <script src="../js/translit.js"></script>

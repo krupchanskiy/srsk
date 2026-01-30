@@ -1,0 +1,161 @@
+<!DOCTYPE html>
+<html lang="ru" data-theme="light">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Регистрация члена команды — ШРСК</title>
+    <link href="https://cdn.jsdelivr.net/npm/daisyui@4.12.14/dist/full.min.css" rel="stylesheet" />
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+</head>
+
+<body class="bg-base-200 min-h-screen flex items-center justify-center p-4">
+    <div class="card bg-base-100 shadow-xl max-w-md w-full">
+        <div class="card-body">
+            <h2 class="card-title text-2xl mb-2">Регистрация члена команды</h2>
+            <p class="text-sm opacity-60 mb-4">После регистрации ваша заявка будет отправлена на одобрение администратору</p>
+
+            <form id="teamSignupForm" class="space-y-4">
+                <div class="form-control">
+                    <label class="label">
+                        <span class="label-text">Email *</span>
+                    </label>
+                    <input type="email" name="email" class="input input-bordered" required>
+                </div>
+
+                <div class="form-control">
+                    <label class="label">
+                        <span class="label-text">Пароль *</span>
+                    </label>
+                    <input type="password" name="password" class="input input-bordered" required minlength="6">
+                    <label class="label">
+                        <span class="label-text-alt">Минимум 6 символов</span>
+                    </label>
+                </div>
+
+                <div class="form-control">
+                    <label class="label">
+                        <span class="label-text">Имя *</span>
+                    </label>
+                    <input type="text" name="first_name" class="input input-bordered" required>
+                </div>
+
+                <div class="form-control">
+                    <label class="label">
+                        <span class="label-text">Фамилия *</span>
+                    </label>
+                    <input type="text" name="last_name" class="input input-bordered" required>
+                </div>
+
+                <div class="form-control">
+                    <label class="label">
+                        <span class="label-text">Духовное имя</span>
+                    </label>
+                    <input type="text" name="spiritual_name" class="input input-bordered">
+                </div>
+
+                <div class="form-control">
+                    <label class="label">
+                        <span class="label-text">Telegram (никнейм без @)</span>
+                    </label>
+                    <input type="text" name="telegram" class="input input-bordered" placeholder="username">
+                </div>
+
+                <div id="errorAlert" class="alert alert-error hidden">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="stroke-current shrink-0 h-6 w-6" fill="none" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2m7-2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                    </svg>
+                    <span id="errorText"></span>
+                </div>
+
+                <div class="form-control mt-6">
+                    <button type="submit" class="btn btn-primary">
+                        Зарегистрироваться
+                    </button>
+                </div>
+            </form>
+
+            <div class="divider"></div>
+
+            <p class="text-sm text-center">
+                Уже есть аккаунт?
+                <a href="/login.html" class="link link-primary">Войти</a>
+            </p>
+        </div>
+    </div>
+
+    <script src="js/config.js"></script>
+    <script>
+        const db = window.supabase.createClient(CONFIG.SUPABASE_URL, CONFIG.SUPABASE_ANON_KEY);
+
+        document.getElementById('teamSignupForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+
+            const btn = e.target.querySelector('button[type="submit"]');
+            const btnText = btn.textContent;
+            btn.disabled = true;
+            btn.innerHTML = '<span class="loading loading-spinner loading-sm"></span> Регистрация...';
+
+            const formData = new FormData(e.target);
+            const email = formData.get('email');
+            const password = formData.get('password');
+            const firstName = formData.get('first_name');
+            const lastName = formData.get('last_name');
+            const spiritualName = formData.get('spiritual_name');
+            const telegram = formData.get('telegram');
+
+            try {
+                // 1. Создать Auth пользователя
+                const { data: authData, error: authError } = await db.auth.signUp({
+                    email,
+                    password,
+                    options: {
+                        data: {
+                            full_name: `${firstName} ${lastName}`,
+                            spiritual_name: spiritualName
+                        }
+                    }
+                });
+
+                if (authError) throw authError;
+
+                // 2. Создать запись в vaishnavas
+                const { error: vError } = await db.from('vaishnavas').insert({
+                    user_id: authData.user.id,
+                    email,
+                    first_name: firstName,
+                    last_name: lastName,
+                    spiritual_name: spiritualName || null,
+                    telegram_username: telegram || null,
+                    user_type: 'staff',
+                    approval_status: 'pending',
+                    is_team_member: true
+                });
+
+                if (vError) throw vError;
+
+                // 3. Показать сообщение об успехе и перенаправить
+                alert('✅ Заявка отправлена! Ожидайте одобрения администратора.\n\nВы получите уведомление на email когда ваша заявка будет одобрена.');
+                window.location.href = '/login.html';
+
+            } catch (err) {
+                console.error('Signup error:', err);
+                const errorAlert = document.getElementById('errorAlert');
+                const errorText = document.getElementById('errorText');
+                errorAlert.classList.remove('hidden');
+
+                if (err.message.includes('already registered')) {
+                    errorText.textContent = 'Этот email уже зарегистрирован. Попробуйте войти.';
+                } else {
+                    errorText.textContent = err.message || 'Произошла ошибка при регистрации';
+                }
+            } finally {
+                btn.disabled = false;
+                btn.textContent = btnText;
+            }
+        });
+    </script>
+</body>
+
+</html>

@@ -66,7 +66,7 @@
                     </button>
                 </div>
             </div>
-            <button class="btn btn-primary gap-2" onclick="openNewBookingModal()">
+            <button class="btn btn-primary gap-2" onclick="openNewBookingModal()" data-permission="create_booking">
                 <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" />
                 </svg>
@@ -96,7 +96,7 @@
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
                 </svg>
                 <p class="text-lg opacity-60" data-i18n="bookings_empty">Нет бронирований</p>
-                <button class="btn btn-primary mt-4" onclick="openNewBookingModal()" data-i18n="add_booking">Забронировать</button>
+                <button class="btn btn-primary mt-4" onclick="openNewBookingModal()" data-permission="create_booking" data-i18n="add_booking">Забронировать</button>
             </div>
         </div>
 
@@ -297,7 +297,7 @@
             </div>
 
             <div class="modal-action">
-                <button type="button" class="btn btn-ghost btn-error gap-1" onclick="cancelBooking()">
+                <button type="button" class="btn btn-ghost btn-error gap-1" onclick="cancelBooking()" data-permission="delete_booking">
                     <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
                     </svg>
@@ -361,7 +361,8 @@
     </dialog>
 
     <script src="../js/config.js"></script>
-    <script src="../js/auth-check.js"></script>
+    <script src="../js/auth-check.js?v=2"></script>
+    <script src="../js/permissions-ui.js"></script>
     <script src="../js/cache.js"></script>
     <script src="../js/utils.js"></script>
     <script src="../js/translit.js"></script>
