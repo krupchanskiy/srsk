@@ -6,6 +6,10 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 **ШРСК** (Sri Rupa Seva Kunja) — веб-приложение для управления ашрамом: кухня, проживание и другие сервисы. Мультиязычный интерфейс (русский, английский, хинди) с динамической сменой локаций.
 
+**Production URL:** https://in.rupaseva.com
+**Repository:** https://github.com/krupchanskiy/srsk
+**Deployment:** GitHub Pages (автоматический деплой из main ветки)
+
 ## ⚠️ КРИТИЧЕСКИ ВАЖНО: Правило подтверждения реализации
 
 **ПЕРЕД НАЧАЛОМ ЛЮБОЙ БОЛЬШОЙ/СЛОЖНОЙ РЕАЛИЗАЦИИ — ВСЕГДА СПРАШИВАТЬ ПОДТВЕРЖДЕНИЕ У ПОЛЬЗОВАТЕЛЯ!**
