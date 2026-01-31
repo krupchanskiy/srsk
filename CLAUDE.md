@@ -166,6 +166,9 @@ npx serve .
 - `locations` — кухни (main, cafe, guest) с цветами
 - `recipes`, `recipe_categories`, `recipe_ingredients` — рецепты
 - `products`, `product_categories`, `product_densities` — продукты и плотности для конвертации единиц
+  - `waste_percent` — процент отходов при очистке (овощи/фрукты). Учитывается автоматически при создании заявок и выдаче
+  - **Формула:** `количество_для_закупки = нужно × (1 + waste_percent / 100)`
+  - **Пример:** нужно 10 кг картофеля (waste_percent=20) → закупать 10 × 1.2 = 12 кг
 - `units` — единицы измерения (справочник)
 - `translations` — переводы интерфейса
 - `menu_days`, `menu_items`, `menu_templates` — меню
@@ -267,6 +270,24 @@ Layout.pluralize(5, FORMS)  // "5 рецептов"
 
 ### Хранение количеств
 Все количества в БД хранятся в единицах продукта (kg, g, l, ml, pcs), **без конвертации в базовые единицы**. Если продукт имеет `unit='kg'`, то `quantity=0.5` означает 0.5 кг.
+
+### Учет процента на очистку (waste_percent)
+При создании заявок (`stock/requests.html`) и выдаче со склада (`stock/issue.html`) автоматически учитывается процент отходов при очистке овощей/фруктов.
+
+**Формула:**
+```javascript
+const wastePercent = product.waste_percent || 0;
+const quantityToPurchase = neededQuantity * (1 + wastePercent / 100);
+```
+
+**Пример:**
+- Рецепту нужно 10 кг очищенного картофеля
+- У картофеля `waste_percent = 20`
+- Система автоматически рассчитает для закупки: 10 × 1.2 = **12 кг**
+
+**Реализовано (2026-01-31):**
+- `requests.html:addProductToRequest()` — при добавлении продукта в заявку
+- `issue.html:addIssuanceItem()` — при добавлении продукта в выдачу
 
 ### Цвет модуля
 CSS-переменная `--current-color` определяет акцентный цвет:
