@@ -534,7 +534,7 @@
         </div>
 
         <!-- Ближайшие ретриты -->
-        <div class="card mb-4" style="background: #E8E0F0;">
+        <div id="upcoming-retreats-section" class="card mb-4" style="background: #E8E0F0;">
             <div class="flex items-center justify-between mb-4">
                 <div class="card-label mb-0" style="color: #6B5B95;">Ближайшие ретриты</div>
                 <a href="retreats.html" class="text-sm font-medium hover:underline flex items-center gap-1" style="color: #E8900C;">
@@ -1456,10 +1456,23 @@
                 retreatSkeleton.classList.add('hidden');
 
                 if (!data.activeRetreat) {
-                    // Нет активного ретрита
+                    // Нет активного ретрита — перемещаем "Ближайшие ретриты" в правую колонку
                     retreatBlock.classList.add('hidden');
-                    noRetreatBlock.classList.remove('hidden');
                     transferBlock.classList.add('hidden');
+
+                    // Перемещаем блок ближайших ретритов вместо no-retreat-block
+                    const upcomingSection = document.getElementById('upcoming-retreats-section');
+                    if (upcomingSection && noRetreatBlock) {
+                        noRetreatBlock.replaceWith(upcomingSection);
+                        upcomingSection.classList.add('flex-1');
+                        upcomingSection.classList.remove('mb-4');
+                        // Меняем grid на 1 колонку в правой части
+                        const upcomingGrid = document.getElementById('upcoming-retreats');
+                        if (upcomingGrid) {
+                            upcomingGrid.classList.remove('sm:grid-cols-3');
+                            upcomingGrid.classList.add('grid-cols-1');
+                        }
+                    }
                     return;
                 }
 
