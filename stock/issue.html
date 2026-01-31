@@ -648,7 +648,8 @@
         function getReceiverName(receiverId) {
             if (!receiverId) return tr('not_specified', 'Не указан');
             const cook = cooks.find(c => c.id === receiverId);
-            return cook ? (cook.spiritual_name || cook.first_name || 'Без имени') : tr('not_specified', 'Не указан');
+            if (!cook) return tr('not_specified', 'Не указан');
+            return cook.spiritual_name || `${cook.first_name || ''} ${cook.last_name || ''}`.trim() || 'Без имени';
         }
 
         const ISSUANCE_FORMS = {
@@ -753,7 +754,7 @@
             if (!select) return;
             select.innerHTML = `<option value="">${tr('select_receiver', '— Выберите —')}</option>` +
                 cooks.map(c => {
-                    const name = c.spiritual_name || c.first_name || 'Без имени';
+                    const name = c.spiritual_name || `${c.first_name || ''} ${c.last_name || ''}`.trim() || 'Без имени';
                     return `<option value="${c.id}">${name}</option>`;
                 }).join('');
         }
