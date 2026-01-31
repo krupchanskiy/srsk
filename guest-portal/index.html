@@ -1025,8 +1025,8 @@
             if (!cropper) return;
 
             const canvas = cropper.getCroppedCanvas({
-                width: 300,
-                height: 300,
+                width: 1000,
+                height: 1000,
                 imageSmoothingEnabled: true,
                 imageSmoothingQuality: 'high'
             });
@@ -1037,12 +1037,12 @@
                 // Показываем превью
                 const preview = document.getElementById('edit-photo-preview');
                 const placeholder = document.getElementById('edit-photo-placeholder');
-                preview.src = canvas.toDataURL('image/jpeg');
+                preview.src = canvas.toDataURL('image/jpeg', 0.95);
                 preview.classList.remove('hidden');
                 placeholder.classList.add('hidden');
 
                 closeCropModal();
-            }, 'image/jpeg', 0.9);
+            }, 'image/jpeg', 0.95);
         }
 
         // Сохранение профиля
