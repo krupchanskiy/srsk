@@ -286,8 +286,10 @@ const quantityToPurchase = neededQuantity * (1 + wastePercent / 100);
 - Система автоматически рассчитает для закупки: 10 × 1.2 = **12 кг**
 
 **Реализовано (2026-01-31):**
-- `requests.html:addProductToRequest()` — при добавлении продукта в заявку
+- `requests.html:addProductToRequest()` — при ручном добавлении продукта
+- `requests.html:generateRequest()` — при автоматическом создании заявки из меню
 - `issue.html:addIssuanceItem()` — при добавлении продукта в выдачу
+- **UI пояснение:** под количеством показывается текст `(+50% на очистку)` для наглядности
 
 ### Цвет модуля
 CSS-переменная `--current-color` определяет акцентный цвет:
