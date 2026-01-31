@@ -389,6 +389,7 @@ async function updateProfile(guestId, profileData) {
                 spiritual_teacher: profileData.spiritualTeacher,
                 birth_date: profileData.birthDate,
                 photo_url: profileData.photoUrl,
+                is_profile_public: profileData.isProfilePublic,
                 updated_at: new Date().toISOString()
             })
             .eq('id', guestId);

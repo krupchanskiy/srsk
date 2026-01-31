@@ -46,7 +46,8 @@ async function checkGuestAuth() {
                 user_type,
                 spiritual_teacher,
                 birth_date,
-                is_active
+                is_active,
+                is_profile_public
             `)
             .eq('user_id', session.user.id)
             .maybeSingle();
@@ -91,7 +92,8 @@ async function checkGuestAuth() {
             spiritualTeacher: vaishnava.spiritual_teacher,
             birthDate: vaishnava.birth_date,
             userType: vaishnava.user_type,
-            isStaff: vaishnava.user_type === 'staff'
+            isStaff: vaishnava.user_type === 'staff',
+            isProfilePublic: vaishnava.is_profile_public !== false // default true
         };
 
         return window.currentGuest;

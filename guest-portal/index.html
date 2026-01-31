@@ -157,7 +157,7 @@
                 <!-- === РЕЖИМ ПРОСМОТРА === -->
                 <div id="profile-view" class="flex flex-col items-center text-center">
                     <!-- Круглое фото -->
-                    <div id="profile-photo" class="w-24 h-24 bg-white/20 rounded-full flex items-center justify-center mb-4 overflow-hidden ring-[5px] ring-srsk-orange">
+                    <div id="profile-photo" onclick="openPhotoModal()" class="w-24 h-24 bg-white/20 rounded-full flex items-center justify-center mb-4 overflow-hidden ring-[5px] ring-srsk-orange cursor-pointer hover:ring-white transition-all">
                         <svg class="w-12 h-12 text-white/60" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24">
                             <path stroke-linecap="round" stroke-linejoin="round" d="M15.75 6a3.75 3.75 0 11-7.5 0 3.75 3.75 0 017.5 0zM4.501 20.118a7.5 7.5 0 0114.998 0A17.933 17.933 0 0112 21.75c-2.676 0-5.216-.584-7.499-1.632z" />
                         </svg>
@@ -307,6 +307,14 @@
                         <div>
                             <label class="text-xs text-white/60 uppercase tracking-wide">Telegram</label>
                             <input type="text" id="edit-telegram" class="w-full bg-white/10 border border-white/20 rounded-lg px-3 py-2 text-white placeholder-white/40 focus:outline-none focus:border-white/40" placeholder="@username">
+                        </div>
+
+                        <!-- Публичность профиля -->
+                        <div class="pt-2">
+                            <label class="flex items-center gap-3 cursor-pointer">
+                                <input type="checkbox" id="edit-is-public" checked class="w-5 h-5 rounded border-white/30 bg-white/10 text-srsk-orange focus:ring-srsk-orange focus:ring-offset-0 cursor-pointer">
+                                <span class="text-sm text-white/80">Сделать профиль доступным другим вайшнавам ШРСК</span>
+                            </label>
                         </div>
 
                         <!-- Кнопки -->
@@ -730,6 +738,19 @@
         </div>
     </div>
 
+    <!-- Photo View Modal -->
+    <div id="photoViewModal" class="fixed inset-0 bg-black/80 z-50 hidden flex items-center justify-center p-4" onclick="closePhotoModal()">
+        <div class="relative max-w-lg w-full" onclick="event.stopPropagation()">
+            <button type="button" onclick="closePhotoModal()" class="absolute -top-12 right-0 text-white/70 hover:text-white transition-colors">
+                <svg class="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+                </svg>
+            </button>
+            <img id="photoViewImage" src="" alt="" class="w-full rounded-2xl shadow-2xl">
+            <div id="photoViewName" class="text-center text-white text-lg font-medium mt-4"></div>
+        </div>
+    </div>
+
     <!-- Scripts -->
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <script src="js/portal-config.js"></script>
@@ -738,6 +759,30 @@
     <script>
         let photoFile = null;
         let cropper = null;
+
+        // Photo View Modal
+        function openPhotoModal() {
+            const guest = window.currentGuest;
+            if (!guest?.photoUrl) return;
+
+            document.getElementById('photoViewImage').src = guest.photoUrl;
+            document.getElementById('photoViewName').textContent = getDisplayName(guest);
+            document.getElementById('photoViewModal').classList.remove('hidden');
+            document.body.style.overflow = 'hidden';
+        }
+
+        function closePhotoModal() {
+            document.getElementById('photoViewModal').classList.add('hidden');
+            document.body.style.overflow = '';
+        }
+
+        // Закрытие по Escape
+        document.addEventListener('keydown', (e) => {
+            if (e.key === 'Escape') {
+                closePhotoModal();
+            }
+        });
+
         // Форматирование даты рождения
         function formatBirthDate(dateStr) {
             if (!dateStr) return '';
@@ -872,6 +917,7 @@
             document.getElementById('edit-spiritualTeacher').value = guest.spiritualTeacher || '';
             document.getElementById('edit-phone').value = guest.phone || '';
             document.getElementById('edit-telegram').value = guest.telegram || '';
+            document.getElementById('edit-is-public').checked = guest.isProfilePublic !== false;
 
             // Фото
             const preview = document.getElementById('edit-photo-preview');
@@ -1034,7 +1080,8 @@
                     country: document.getElementById('edit-country').value.trim(),
                     city: document.getElementById('edit-city').value.trim(),
                     birthDate: document.getElementById('edit-birthDate').value || null,
-                    photoUrl: photoUrl
+                    photoUrl: photoUrl,
+                    isProfilePublic: document.getElementById('edit-is-public').checked
                 };
 
                 // Сохраняем
