@@ -402,35 +402,91 @@
                     <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
                         <!-- Прилёт -->
                         <div id="arrival-block" class="hidden p-4 bg-white/60 rounded-xl border-2 border-transparent">
-                            <div class="flex items-center gap-2 text-sm font-medium text-gray-700 mb-3">
-                                <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24">
-                                    <path stroke-linecap="round" stroke-linejoin="round" d="M6 12L3.269 3.126A59.768 59.768 0 0121.485 12 59.77 59.77 0 013.27 20.876L5.999 12zm0 0h7.5" />
-                                </svg>
-                                Прилёт
+                            <div class="flex items-center justify-between mb-3">
+                                <div class="flex items-center gap-2 text-sm font-medium text-gray-700">
+                                    <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" d="M6 12L3.269 3.126A59.768 59.768 0 0121.485 12 59.77 59.77 0 013.27 20.876L5.999 12zm0 0h7.5" />
+                                    </svg>
+                                    Прилёт
+                                </div>
+                                <button id="arrival-edit-btn" onclick="toggleTransferEdit('arrival')" class="text-srsk-green hover:text-srsk-green/80 p-1" title="Редактировать">
+                                    <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" d="m16.862 4.487 1.687-1.688a1.875 1.875 0 1 1 2.652 2.652L6.832 19.82a4.5 4.5 0 0 1-1.897 1.13l-2.685.8.8-2.685a4.5 4.5 0 0 1 1.13-1.897L16.863 4.487Zm0 0L19.5 7.125" />
+                                    </svg>
+                                </button>
                             </div>
 
-                            <div id="arrival-datetime" class="text-xl font-medium text-gray-800"></div>
-                            <div id="arrival-flight" class="text-sm text-gray-500"></div>
+                            <!-- View Mode -->
+                            <div id="arrival-view" class="transfer-view">
+                                <div id="arrival-datetime" class="text-xl font-medium text-gray-800"></div>
+                                <div id="arrival-flight" class="text-sm text-gray-500"></div>
+                                <div id="arrival-taxi" class="mt-3"></div>
+                            </div>
 
-                            <div id="arrival-taxi" class="mt-3">
-                                <!-- Заполняется динамически -->
+                            <!-- Edit Mode -->
+                            <div id="arrival-edit" class="transfer-edit hidden space-y-3">
+                                <input type="hidden" id="arrival-edit-id">
+                                <div>
+                                    <label class="block text-xs text-gray-500 mb-1">Дата и время</label>
+                                    <input type="datetime-local" id="arrival-edit-datetime" class="w-full text-sm border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-srsk-green/50 focus:border-srsk-green">
+                                </div>
+                                <div>
+                                    <label class="block text-xs text-gray-500 mb-1">Номер рейса</label>
+                                    <input type="text" id="arrival-edit-flight" placeholder="SU 232" class="w-full text-sm border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-srsk-green/50 focus:border-srsk-green">
+                                </div>
+                                <label class="flex items-center gap-2 cursor-pointer">
+                                    <input type="checkbox" id="arrival-edit-needs" class="w-4 h-4 rounded border-gray-300 text-srsk-green focus:ring-srsk-green">
+                                    <span class="text-sm text-gray-700">Нужен трансфер</span>
+                                </label>
+                                <div class="flex gap-2 pt-2">
+                                    <button type="button" onclick="cancelTransferEdit('arrival')" class="flex-1 text-sm bg-gray-100 text-gray-700 py-2 px-3 rounded-lg hover:bg-gray-200">Отмена</button>
+                                    <button type="button" onclick="saveTransferEdit('arrival')" class="flex-1 text-sm bg-srsk-green text-white py-2 px-3 rounded-lg hover:bg-srsk-green/90">Сохранить</button>
+                                </div>
                             </div>
                         </div>
 
                         <!-- Вылет -->
                         <div id="departure-block" class="hidden p-4 bg-white/60 rounded-xl border-2 border-transparent">
-                            <div class="flex items-center gap-2 text-sm font-medium text-gray-700 mb-3">
-                                <svg class="w-4 h-4 rotate-180" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24">
-                                    <path stroke-linecap="round" stroke-linejoin="round" d="M6 12L3.269 3.126A59.768 59.768 0 0121.485 12 59.77 59.77 0 013.27 20.876L5.999 12zm0 0h7.5" />
-                                </svg>
-                                Вылет
+                            <div class="flex items-center justify-between mb-3">
+                                <div class="flex items-center gap-2 text-sm font-medium text-gray-700">
+                                    <svg class="w-4 h-4 rotate-180" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" d="M6 12L3.269 3.126A59.768 59.768 0 0121.485 12 59.77 59.77 0 013.27 20.876L5.999 12zm0 0h7.5" />
+                                    </svg>
+                                    Вылет
+                                </div>
+                                <button id="departure-edit-btn" onclick="toggleTransferEdit('departure')" class="text-srsk-green hover:text-srsk-green/80 p-1" title="Редактировать">
+                                    <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" d="m16.862 4.487 1.687-1.688a1.875 1.875 0 1 1 2.652 2.652L6.832 19.82a4.5 4.5 0 0 1-1.897 1.13l-2.685.8.8-2.685a4.5 4.5 0 0 1 1.13-1.897L16.863 4.487Zm0 0L19.5 7.125" />
+                                    </svg>
+                                </button>
                             </div>
 
-                            <div id="departure-datetime" class="text-xl font-medium text-gray-800"></div>
-                            <div id="departure-flight" class="text-sm text-gray-500"></div>
+                            <!-- View Mode -->
+                            <div id="departure-view" class="transfer-view">
+                                <div id="departure-datetime" class="text-xl font-medium text-gray-800"></div>
+                                <div id="departure-flight" class="text-sm text-gray-500"></div>
+                                <div id="departure-taxi" class="mt-3"></div>
+                            </div>
 
-                            <div id="departure-taxi" class="mt-3">
-                                <!-- Заполняется динамически -->
+                            <!-- Edit Mode -->
+                            <div id="departure-edit" class="transfer-edit hidden space-y-3">
+                                <input type="hidden" id="departure-edit-id">
+                                <div>
+                                    <label class="block text-xs text-gray-500 mb-1">Дата и время</label>
+                                    <input type="datetime-local" id="departure-edit-datetime" class="w-full text-sm border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-srsk-green/50 focus:border-srsk-green">
+                                </div>
+                                <div>
+                                    <label class="block text-xs text-gray-500 mb-1">Номер рейса</label>
+                                    <input type="text" id="departure-edit-flight" placeholder="SU 233" class="w-full text-sm border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-srsk-green/50 focus:border-srsk-green">
+                                </div>
+                                <label class="flex items-center gap-2 cursor-pointer">
+                                    <input type="checkbox" id="departure-edit-needs" class="w-4 h-4 rounded border-gray-300 text-srsk-green focus:ring-srsk-green">
+                                    <span class="text-sm text-gray-700">Нужен трансфер</span>
+                                </label>
+                                <div class="flex gap-2 pt-2">
+                                    <button type="button" onclick="cancelTransferEdit('departure')" class="flex-1 text-sm bg-gray-100 text-gray-700 py-2 px-3 rounded-lg hover:bg-gray-200">Отмена</button>
+                                    <button type="button" onclick="saveTransferEdit('departure')" class="flex-1 text-sm bg-srsk-green text-white py-2 px-3 rounded-lg hover:bg-srsk-green/90">Сохранить</button>
+                                </div>
                             </div>
                         </div>
                     </div>
@@ -775,6 +831,7 @@
     <script>
         let photoFile = null;
         let cropper = null;
+        let currentTransfers = { arrival: null, departure: null };
 
         // Photo View Modal
         function openPhotoModal() {
@@ -803,11 +860,86 @@
             document.body.style.overflow = '';
         }
 
+        // Transfer Inline Edit
+        function toggleTransferEdit(direction) {
+            const transfer = currentTransfers[direction];
+            if (!transfer) return;
+
+            const viewEl = document.getElementById(`${direction}-view`);
+            const editEl = document.getElementById(`${direction}-edit`);
+            const editBtn = document.getElementById(`${direction}-edit-btn`);
+
+            // Заполняем поля редактирования
+            document.getElementById(`${direction}-edit-id`).value = transfer.id;
+
+            if (transfer.flight_datetime) {
+                const dt = new Date(transfer.flight_datetime);
+                const localDt = new Date(dt.getTime() - dt.getTimezoneOffset() * 60000);
+                document.getElementById(`${direction}-edit-datetime`).value = localDt.toISOString().slice(0, 16);
+            } else {
+                document.getElementById(`${direction}-edit-datetime`).value = '';
+            }
+
+            document.getElementById(`${direction}-edit-flight`).value = transfer.flight_number || '';
+            document.getElementById(`${direction}-edit-needs`).checked = transfer.needs_transfer === 'yes';
+
+            // Переключаем режим
+            viewEl.classList.add('hidden');
+            editEl.classList.remove('hidden');
+            editBtn.classList.add('hidden');
+        }
+
+        function cancelTransferEdit(direction) {
+            document.getElementById(`${direction}-view`).classList.remove('hidden');
+            document.getElementById(`${direction}-edit`).classList.add('hidden');
+            document.getElementById(`${direction}-edit-btn`).classList.remove('hidden');
+        }
+
+        async function saveTransferEdit(direction) {
+            const transferId = document.getElementById(`${direction}-edit-id`).value;
+            const datetime = document.getElementById(`${direction}-edit-datetime`).value;
+            const flightNumber = document.getElementById(`${direction}-edit-flight`).value.trim();
+            const needsTransfer = document.getElementById(`${direction}-edit-needs`).checked;
+
+            try {
+                const { error } = await window.portalSupabase
+                    .from('guest_transfers')
+                    .update({
+                        flight_datetime: datetime ? new Date(datetime).toISOString() : null,
+                        flight_number: flightNumber || null,
+                        needs_transfer: needsTransfer ? 'yes' : 'no'
+                    })
+                    .eq('id', transferId);
+
+                if (error) throw error;
+
+                // Обновляем локальные данные
+                currentTransfers[direction] = {
+                    ...currentTransfers[direction],
+                    flight_datetime: datetime ? new Date(datetime).toISOString() : null,
+                    flight_number: flightNumber || null,
+                    needs_transfer: needsTransfer ? 'yes' : 'no'
+                };
+
+                // Обновляем отображение
+                document.getElementById(`${direction}-datetime`).textContent = datetime ? formatTransferDateTime(new Date(datetime).toISOString()) : '—';
+                document.getElementById(`${direction}-flight`).textContent = flightNumber ? `Рейс ${flightNumber}` : '—';
+                document.getElementById(`${direction}-taxi`).innerHTML = renderTaxiStatus(currentTransfers[direction]);
+
+                cancelTransferEdit(direction);
+            } catch (err) {
+                console.error('Ошибка сохранения трансфера:', err);
+                alert('Ошибка сохранения');
+            }
+        }
+
         // Закрытие по Escape
         document.addEventListener('keydown', (e) => {
             if (e.key === 'Escape') {
                 closePhotoModal();
                 closeComingSoon();
+                cancelTransferEdit('arrival');
+                cancelTransferEdit('departure');
             }
         });
 
@@ -1176,7 +1308,7 @@
             return `
                 <div class="flex items-center gap-2">
                     <span class="w-2 h-2 bg-srsk-orange rounded-full"></span>
-                    <span class="text-sm text-yellow-700 font-medium">Такси ожидается</span>
+                    <span class="text-sm text-yellow-700 font-medium">Такси требуется</span>
                 </div>
             `;
         }
@@ -1239,6 +1371,8 @@
                 }
 
                 // Трансферы
+                currentTransfers = data.transfers; // Сохраняем для редактирования
+
                 if (data.transfers.arrival || data.transfers.departure) {
                     transferBlock.classList.remove('hidden');
 
