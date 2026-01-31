@@ -45,6 +45,7 @@ async function checkGuestAuth() {
                 photo_url,
                 user_type,
                 spiritual_teacher,
+                no_spiritual_teacher,
                 birth_date,
                 is_active,
                 is_profile_public
@@ -90,6 +91,7 @@ async function checkGuestAuth() {
             city: vaishnava.city,
             photoUrl: vaishnava.photo_url,
             spiritualTeacher: vaishnava.spiritual_teacher,
+            noSpiritualTeacher: vaishnava.no_spiritual_teacher || false,
             birthDate: vaishnava.birth_date,
             userType: vaishnava.user_type,
             isStaff: vaishnava.user_type === 'staff',

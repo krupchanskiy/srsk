@@ -455,6 +455,7 @@ async function updateProfile(guestId, profileData) {
                 country: profileData.country,
                 city: profileData.city,
                 spiritual_teacher: profileData.spiritualTeacher,
+                no_spiritual_teacher: profileData.noSpiritualTeacher || false,
                 birth_date: profileData.birthDate,
                 photo_url: profileData.photoUrl,
                 is_profile_public: profileData.isProfilePublic,

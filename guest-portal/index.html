@@ -305,8 +305,12 @@
                         <!-- Духовный учитель -->
                         <div>
                             <label class="text-xs text-white/60 uppercase tracking-wide">Духовный учитель</label>
-                            <input type="text" id="edit-spiritualTeacher" list="teachers-list" class="w-full bg-white/10 border border-white/20 rounded-lg px-3 py-2 text-white placeholder-white/40 focus:outline-none focus:border-white/40" autocomplete="off">
+                            <input type="text" id="edit-spiritualTeacher" list="teachers-list" class="w-full bg-white/10 border border-white/20 rounded-lg px-3 py-2 text-white placeholder-white/40 focus:outline-none focus:border-white/40 disabled:opacity-50 disabled:cursor-not-allowed" autocomplete="off">
                             <datalist id="teachers-list"></datalist>
+                            <label class="flex items-center gap-2 mt-2 cursor-pointer">
+                                <input type="checkbox" id="edit-noSpiritualTeacher" class="w-4 h-4 rounded border-white/30 bg-white/10 text-srsk-orange focus:ring-srsk-orange" onchange="toggleSpiritualTeacherField()">
+                                <span class="text-sm text-white/70">Пока нет</span>
+                            </label>
                         </div>
 
                         <!-- Телефон -->
@@ -1035,7 +1039,6 @@
                 'country',
                 'city',
                 'photoUrl',
-                'spiritualTeacher',
                 'birthDate'
             ];
 
@@ -1044,7 +1047,13 @@
                 if (guest[field]) filled++;
             }
 
-            return Math.round((filled / fields.length) * 100);
+            // Духовный учитель: заполнено если есть значение ИЛИ отмечено "Пока нет"
+            if (guest.spiritualTeacher || guest.noSpiritualTeacher) {
+                filled++;
+            }
+
+            const totalFields = fields.length + 1; // +1 за духовного учителя
+            return Math.round((filled / totalFields) * 100);
         }
 
         // Получить статус пользователя
@@ -1155,6 +1164,18 @@
             }
         }
 
+        // Переключение поля духовного учителя
+        function toggleSpiritualTeacherField() {
+            const checkbox = document.getElementById('edit-noSpiritualTeacher');
+            const input = document.getElementById('edit-spiritualTeacher');
+            if (checkbox.checked) {
+                input.disabled = true;
+                input.value = '';
+            } else {
+                input.disabled = false;
+            }
+        }
+
         // Переключение режима редактирования
         function toggleProfileEdit(editMode) {
             const viewEl = document.getElementById('profile-view');
@@ -1180,6 +1201,8 @@
             document.getElementById('edit-city').value = guest.city || '';
             document.getElementById('edit-birthDate').value = guest.birthDate || '';
             document.getElementById('edit-spiritualTeacher').value = guest.spiritualTeacher || '';
+            document.getElementById('edit-noSpiritualTeacher').checked = guest.noSpiritualTeacher || false;
+            toggleSpiritualTeacherField();
             document.getElementById('edit-phone').value = guest.phone || '';
             document.getElementById('edit-telegram').value = guest.telegram || '';
             document.getElementById('edit-is-public').checked = guest.isProfilePublic !== false;
@@ -1340,6 +1363,7 @@
                     lastName: document.getElementById('edit-lastName').value.trim(),
                     spiritualName: document.getElementById('edit-spiritualName').value.trim(),
                     spiritualTeacher: document.getElementById('edit-spiritualTeacher').value.trim(),
+                    noSpiritualTeacher: document.getElementById('edit-noSpiritualTeacher').checked,
                     phone: document.getElementById('edit-phone').value.trim(),
                     telegram: document.getElementById('edit-telegram').value.trim(),
                     country: document.getElementById('edit-country').value.trim(),
@@ -1647,6 +1671,7 @@
                         city,
                         photo_url,
                         spiritual_teacher,
+                        no_spiritual_teacher,
                         birth_date,
                         is_profile_public
                     `)
@@ -1682,6 +1707,7 @@
                     city: vaishnava.city,
                     photoUrl: vaishnava.photo_url,
                     spiritualTeacher: vaishnava.spiritual_teacher,
+                    noSpiritualTeacher: vaishnava.no_spiritual_teacher || false,
                     birthDate: vaishnava.birth_date
                 };
 
