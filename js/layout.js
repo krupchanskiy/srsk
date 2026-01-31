@@ -402,8 +402,8 @@ function getHeaderHTML() {
                         <button class="join-item btn btn-sm lang-btn ${currentLang === 'hi' ? 'active' : ''}" data-lang="hi">HI</button>
                     </div>
                     <div class="hidden desktop:block">
-                        <div class="w-10 h-10 rounded-full overflow-hidden ring-2 ring-base-200">
-                            <img src="https://i.pravatar.cc/150?img=5" alt="User" class="w-full h-full object-cover" />
+                        <div class="w-10 h-10 rounded-full overflow-hidden ring-2 ring-base-200 bg-base-300">
+                            <img src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ccircle cx='50' cy='50' r='50' fill='%23d1d5db'/%3E%3C/svg%3E" alt="User" class="w-full h-full object-cover" />
                         </div>
                     </div>
                     <button class="btn btn-ghost btn-sm hidden desktop:flex" onclick="Layout.logout()" title="${t('logout')}">
@@ -428,8 +428,8 @@ function getHeaderHTML() {
                 <div class="border-t border-base-200 py-4 px-4">
                     <div class="flex items-center justify-between mb-3">
                         <div class="flex items-center gap-3">
-                            <div class="w-10 h-10 rounded-full overflow-hidden ring-2 ring-base-200">
-                                <img src="https://i.pravatar.cc/150?img=5" alt="User" class="w-full h-full object-cover" />
+                            <div class="w-10 h-10 rounded-full overflow-hidden ring-2 ring-base-200 bg-base-300">
+                                <img src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ccircle cx='50' cy='50' r='50' fill='%23d1d5db'/%3E%3C/svg%3E" alt="User" class="w-full h-full object-cover" />
                             </div>
                             <!-- TODO: заменить на данные из auth -->
                             <span class="font-medium" id="userName" data-i18n="user">Пользователь</span>
@@ -765,7 +765,7 @@ function updateUserInfo() {
     // Обновляем аватар и имя пользователя в header
     if (!window.currentUser) return;
 
-    const photoUrl = window.currentUser.photo_url || 'https://i.pravatar.cc/150?img=5';
+    const photoUrl = window.currentUser.photo_url || "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ccircle cx='50' cy='50' r='50' fill='%23d1d5db'/%3E%3C/svg%3E";
     const userName = window.currentUser.name || window.currentUser.email;
     const vaishnavaId = window.currentUser.vaishnava_id;
 
