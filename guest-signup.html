@@ -106,7 +106,18 @@
             const telegram = formData.get('telegram');
 
             try {
-                // 1. Создать Auth пользователя
+                // 1. Проверить, не зарегистрирован ли уже этот email
+                const { data: existingVaishnava } = await db
+                    .from('vaishnavas')
+                    .select('id, email, spiritual_name, first_name, last_name')
+                    .ilike('email', email)
+                    .single();
+
+                if (existingVaishnava) {
+                    throw new Error('Вы уже зарегистрированы в системе. Используйте функцию восстановления пароля на странице входа.');
+                }
+
+                // 2. Создать Auth пользователя
                 const { data: authData, error: authError } = await db.auth.signUp({
                     email,
                     password,
@@ -120,7 +131,7 @@
 
                 if (authError) throw authError;
 
-                // 2. Создать запись в vaishnavas
+                // 3. Создать запись в vaishnavas
                 const { data: vData, error: vError } = await db.from('vaishnavas').insert({
                     user_id: authData.user.id,
                     email,
@@ -135,7 +146,7 @@
 
                 if (vError) throw vError;
 
-                // 3. Назначить роль Guest
+                // 4. Назначить роль Guest
                 const { data: guestRole } = await db
                     .from('roles')
                     .select('id')
@@ -150,7 +161,7 @@
                     });
                 }
 
-                // 4. Залогинить и перенаправить на профиль
+                // 5. Залогинить и перенаправить на профиль
                 const { error: signInError } = await db.auth.signInWithPassword({
                     email,
                     password
