@@ -158,11 +158,13 @@ async function getAccommodation(guestId, retreatId) {
             return null;
         }
 
-        // Если есть комната, загружаем соседа
-        if (data?.room?.id) {
+        // Если есть комната, загружаем соседей (по пересекающимся датам)
+        if (data?.room?.id && data.check_in && data.check_out) {
             const { data: roommates, error: roommatesError } = await db
                 .from('residents')
                 .select(`
+                    check_in,
+                    check_out,
                     vaishnava:vaishnavas (
                         id,
                         first_name,
@@ -172,12 +174,12 @@ async function getAccommodation(guestId, retreatId) {
                     )
                 `)
                 .eq('room_id', data.room.id)
-                .eq('retreat_id', retreatId)
-                .eq('is_deleted', false)
-                .neq('vaishnava_id', guestId);
+                .neq('vaishnava_id', guestId)
+                .lte('check_in', data.check_out)
+                .gte('check_out', data.check_in);
 
             if (!roommatesError && roommates?.length > 0) {
-                data.roommates = roommates.map(r => r.vaishnava);
+                data.roommates = roommates.map(r => r.vaishnava).filter(v => v);
             }
         }
 
