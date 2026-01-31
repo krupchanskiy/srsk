@@ -45,6 +45,7 @@ async function checkGuestAuth() {
                 photo_url,
                 user_type,
                 spiritual_teacher,
+                birth_date,
                 is_active
             `)
             .eq('user_id', session.user.id)
@@ -88,6 +89,7 @@ async function checkGuestAuth() {
             city: vaishnava.city,
             photoUrl: vaishnava.photo_url,
             spiritualTeacher: vaishnava.spiritual_teacher,
+            birthDate: vaishnava.birth_date,
             userType: vaishnava.user_type,
             isStaff: vaishnava.user_type === 'staff'
         };
@@ -199,7 +201,8 @@ function getProfileCompleteness() {
         'country',
         'city',
         'photoUrl',
-        'spiritualTeacher'
+        'spiritualTeacher',
+        'birthDate'
     ];
 
     let filled = 0;
