@@ -648,7 +648,7 @@
         function getReceiverName(receiverId) {
             if (!receiverId) return tr('not_specified', 'Не указан');
             const cook = cooks.find(c => c.id === receiverId);
-            return cook ? (cook.spiritual_name || cook.name) : tr('not_specified', 'Не указан');
+            return cook ? (cook.spiritual_name || cook.first_name || cook.name || 'Без имени') : tr('not_specified', 'Не указан');
         }
 
         const ISSUANCE_FORMS = {
@@ -712,14 +712,30 @@
         }
 
         async function loadCooks() {
-            // Загружаем членов команды из departmentов Кухня и Кафе
-            const kitchenDepts = ['36547c0b-7e4c-4bf8-a76c-cf907513f163', 'b84c4e1c-0611-4290-b3e0-ee8dbc08c8e1'];
+            // Загружаем ID департаментов "Кухня" и "Кафе"
+            const { data: depts } = await Layout.db
+                .from('departments')
+                .select('id')
+                .in('name_ru', ['Кухня', 'Кафе']);
+
+            const kitchenDeptIds = depts?.map(d => d.id) || [];
+
+            if (kitchenDeptIds.length === 0) {
+                console.warn('Kitchen/Cafe departments not found');
+                cooks = [];
+                renderCooksSelect();
+                return;
+            }
+
+            // Загружаем членов команды из этих департаментов
             const { data, error } = await Layout.db
                 .from('vaishnavas')
-                .select('id, name, spiritual_name')
+                .select('id, name, spiritual_name, first_name, last_name')
                 .eq('is_team_member', true)
-                .in('department_id', kitchenDepts)
+                .eq('is_deleted', false)
+                .in('department_id', kitchenDeptIds)
                 .order('spiritual_name');
+
             if (error) { console.error('Error loading cooks:', error); return; }
             cooks = data || [];
             renderCooksSelect();
@@ -729,7 +745,10 @@
             const select = Layout.$('#issuanceReceiver');
             if (!select) return;
             select.innerHTML = `<option value="">${tr('select_receiver', '— Выберите —')}</option>` +
-                cooks.map(c => `<option value="${c.id}">${c.spiritual_name || c.name}</option>`).join('');
+                cooks.map(c => {
+                    const name = c.spiritual_name || c.first_name || c.name || 'Без имени';
+                    return `<option value="${c.id}">${name}</option>`;
+                }).join('');
         }
 
         async function loadIssuances() {
