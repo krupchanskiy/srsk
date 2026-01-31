@@ -1428,9 +1428,14 @@
                     if (product) {
                         // Convert to smart display (kg/g, l/ml)
                         const display = toSmartDisplay(amountInBaseUnit, product.unit);
+
+                        // Учитываем процент на очистку (овощи/фрукты)
+                        const wastePercent = product?.waste_percent || 0;
+                        const quantityWithWaste = display.amount * (1 + wastePercent / 100);
+
                         issuanceItemsList.push({
                             product_id: productId,
-                            quantity: Layout.formatQuantity(display.amount, display.unit),
+                            quantity: Layout.formatQuantity(quantityWithWaste, display.unit),
                             display_unit: display.unit
                         });
                     }
