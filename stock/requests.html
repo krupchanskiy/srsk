@@ -1574,11 +1574,16 @@
                 renderViewedRequest();
             } else {
                 // Добавляем в новую заявку
+                // Загружаем реальный остаток со склада
+                const stock = stockItems.find(s => s.product_id === selectedProduct.id);
+                const stockGrams = toGrams(stock?.current_quantity, selectedProduct.unit);
+                const inStock = unit === 'kg' ? stockGrams / 1000 : stockGrams;
+
                 requestItems.push({
                     product_id: selectedProduct.id,
                     product: selectedProduct,
                     needed: quantity,
-                    in_stock: 0,
+                    in_stock: inStock,
                     to_purchase: quantityToPurchase,
                     unit: unit,
                     last_price: lastPrice,
