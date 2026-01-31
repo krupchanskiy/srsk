@@ -383,12 +383,11 @@ async function updateProfile(guestId, profileData) {
                 last_name: profileData.lastName,
                 spiritual_name: profileData.spiritualName,
                 phone: profileData.phone,
-                whatsapp: profileData.whatsapp,
                 telegram: profileData.telegram,
                 country: profileData.country,
                 city: profileData.city,
-                spiritual_master: profileData.spiritualMaster,
-                diksha_guru: profileData.dikshaGuru,
+                spiritual_teacher: profileData.spiritualTeacher,
+                birth_date: profileData.birthDate,
                 photo_url: profileData.photoUrl,
                 updated_at: new Date().toISOString()
             })
