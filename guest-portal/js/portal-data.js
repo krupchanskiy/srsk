@@ -451,6 +451,7 @@ async function updateProfile(guestId, profileData) {
                 last_name: profileData.lastName,
                 spiritual_name: profileData.spiritualName,
                 phone: profileData.phone,
+                has_whatsapp: profileData.hasWhatsapp || false,
                 telegram: profileData.telegram,
                 country: profileData.country,
                 city: profileData.city,
