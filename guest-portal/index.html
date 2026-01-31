@@ -396,9 +396,9 @@
                             <p id="retreat-description" class="text-sm text-gray-600 mt-2 line-clamp-2"></p>
 
                             <div id="retreat-accommodation" class="mt-auto pt-4 grid grid-cols-2 gap-4 hidden">
-                                <!-- Комната -->
+                                <!-- Размещение -->
                                 <div>
-                                    <div class="text-xs text-gray-400 uppercase tracking-wide">Комната</div>
+                                    <div class="text-xs text-gray-400 uppercase tracking-wide">Размещение</div>
                                     <div id="retreat-room" class="font-medium text-gray-800 mt-1"></div>
                                 </div>
 
@@ -1495,25 +1495,32 @@
                 }
 
                 // Размещение
-                if (data.accommodation?.room) {
+                if (data.accommodation) {
                     document.getElementById('retreat-accommodation').classList.remove('hidden');
-                    document.getElementById('retreat-room').textContent =
-                        `${data.accommodation.room.building?.name_ru || ''}, №${data.accommodation.room.number}`;
 
-                    // Сосед
-                    if (data.accommodation.roommates?.length > 0) {
-                        const roommate = data.accommodation.roommates[0];
-                        const roommateName = roommate.spiritual_name ||
-                            `${roommate.first_name || ''} ${roommate.last_name || ''}`.trim();
+                    if (data.accommodation.room) {
+                        // Размещение в ашраме
+                        document.getElementById('retreat-room').textContent =
+                            `${data.accommodation.room.building?.name_ru || ''}, №${data.accommodation.room.number}`;
 
-                        document.getElementById('retreat-roommate-block').classList.remove('hidden');
-                        document.getElementById('retreat-roommate-name').textContent = roommateName;
-                        document.getElementById('retreat-roommate').href = `index.html?view=${roommate.id}`;
+                        // Сосед
+                        if (data.accommodation.roommates?.length > 0) {
+                            const roommate = data.accommodation.roommates[0];
+                            const roommateName = roommate.spiritual_name ||
+                                `${roommate.first_name || ''} ${roommate.last_name || ''}`.trim();
 
-                        if (roommate.photo_url) {
-                            document.getElementById('retreat-roommate-photo').innerHTML =
-                                `<img src="${roommate.photo_url}" alt="" class="w-full h-full object-cover">`;
+                            document.getElementById('retreat-roommate-block').classList.remove('hidden');
+                            document.getElementById('retreat-roommate-name').textContent = roommateName;
+                            document.getElementById('retreat-roommate').href = `index.html?view=${roommate.id}`;
+
+                            if (roommate.photo_url) {
+                                document.getElementById('retreat-roommate-photo').innerHTML =
+                                    `<img src="${roommate.photo_url}" alt="" class="w-full h-full object-cover">`;
+                            }
                         }
+                    } else {
+                        // Самостоятельное проживание (room_id = NULL)
+                        document.getElementById('retreat-room').textContent = 'Самостоятельное';
                     }
                 }
 
