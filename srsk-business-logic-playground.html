@@ -1,0 +1,1403 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ШРСК — Бизнес-логика системы</title>
+    <style>
+        :root {
+            --bg: #0f0f0f;
+            --surface: #1a1a1a;
+            --surface-hover: #252525;
+            --border: #333;
+            --text: #e0e0e0;
+            --text-muted: #888;
+            --kitchen: #f49800;
+            --housing: #8b5cf6;
+            --common: #10b981;
+            --problem: #ef4444;
+            --opportunity: #3b82f6;
+            --tech: #06b6d4;
+            --ai: #a855f7;
+        }
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body {
+            font-family: system-ui, -apple-system, sans-serif;
+            background: var(--bg);
+            color: var(--text);
+            min-height: 100vh;
+        }
+        .container {
+            display: grid;
+            grid-template-columns: 280px 1fr;
+            min-height: 100vh;
+        }
+        .sidebar {
+            background: var(--surface);
+            border-right: 1px solid var(--border);
+            padding: 20px;
+            overflow-y: auto;
+            max-height: 100vh;
+            position: sticky;
+            top: 0;
+        }
+        .sidebar h1 {
+            font-size: 18px;
+            margin-bottom: 4px;
+        }
+        .sidebar .subtitle {
+            font-size: 12px;
+            color: var(--text-muted);
+            margin-bottom: 20px;
+        }
+        .view-tabs {
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+            margin-bottom: 20px;
+        }
+        .view-tab {
+            background: transparent;
+            border: 1px solid var(--border);
+            border-radius: 6px;
+            padding: 10px 12px;
+            color: var(--text);
+            cursor: pointer;
+            text-align: left;
+            font-size: 13px;
+            transition: all 0.2s;
+        }
+        .view-tab:hover { background: var(--surface-hover); }
+        .view-tab.active {
+            background: var(--kitchen);
+            border-color: var(--kitchen);
+            color: #000;
+            font-weight: 600;
+        }
+        .view-tab[data-color="housing"].active { background: var(--housing); border-color: var(--housing); color: #fff; }
+        .view-tab[data-color="common"].active { background: var(--common); border-color: var(--common); color: #fff; }
+        .view-tab[data-color="problem"].active { background: var(--problem); border-color: var(--problem); color: #fff; }
+        .view-tab[data-color="tech"].active { background: var(--tech); border-color: var(--tech); color: #000; }
+        .view-tab[data-color="ai"].active { background: var(--ai); border-color: var(--ai); color: #fff; }
+        .filter-section { margin-bottom: 20px; }
+        .filter-section h3 {
+            font-size: 11px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            color: var(--text-muted);
+            margin-bottom: 8px;
+        }
+        .filter-item {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding: 6px 0;
+            cursor: pointer;
+        }
+        .filter-item input { accent-color: var(--kitchen); }
+        .filter-item label { font-size: 13px; cursor: pointer; }
+        .color-dot {
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+            flex-shrink: 0;
+            display: inline-block;
+        }
+        .stats {
+            background: var(--surface-hover);
+            border-radius: 8px;
+            padding: 12px;
+            margin-bottom: 20px;
+        }
+        .stat-row {
+            display: flex;
+            justify-content: space-between;
+            font-size: 12px;
+            padding: 4px 0;
+        }
+        .stat-row .value { color: var(--kitchen); font-weight: 600; }
+        .main {
+            padding: 24px;
+            overflow-y: auto;
+        }
+        .main h2 { font-size: 24px; margin-bottom: 8px; }
+        .main .description { color: var(--text-muted); margin-bottom: 24px; font-size: 14px; }
+        .sitemap {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 20px;
+        }
+        .module-card {
+            background: var(--surface);
+            border-radius: 12px;
+            overflow: hidden;
+            border: 1px solid var(--border);
+        }
+        .module-header {
+            padding: 16px;
+            font-weight: 600;
+            font-size: 16px;
+        }
+        .module-header.kitchen { background: var(--kitchen); color: #000; }
+        .module-header.housing { background: var(--housing); color: #fff; }
+        .module-header.common { background: var(--common); color: #fff; }
+        .module-body { padding: 16px; }
+        .section-title {
+            font-size: 11px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            color: var(--text-muted);
+            margin-bottom: 8px;
+            margin-top: 12px;
+        }
+        .section-title:first-child { margin-top: 0; }
+        .page-list { list-style: none; }
+        .page-item {
+            padding: 8px 12px;
+            margin: 4px 0;
+            background: var(--surface-hover);
+            border-radius: 6px;
+            font-size: 13px;
+            display: flex;
+            justify-content: space-between;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        .page-item:hover { transform: translateX(4px); }
+        .page-path { font-size: 11px; color: var(--text-muted); font-family: monospace; }
+        .process-container { display: flex; flex-direction: column; gap: 32px; }
+        .process-card {
+            background: var(--surface);
+            border-radius: 12px;
+            padding: 24px;
+            border: 1px solid var(--border);
+        }
+        .process-title {
+            font-size: 18px;
+            font-weight: 600;
+            margin-bottom: 4px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        .process-subtitle { color: var(--text-muted); font-size: 13px; margin-bottom: 20px; }
+        .process-steps { display: flex; flex-wrap: wrap; gap: 12px; }
+        .process-step {
+            background: var(--surface-hover);
+            border-radius: 8px;
+            padding: 16px;
+            flex: 1;
+            min-width: 160px;
+            position: relative;
+        }
+        .step-number {
+            position: absolute;
+            top: -8px;
+            left: -8px;
+            width: 24px;
+            height: 24px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 12px;
+            font-weight: 600;
+        }
+        .step-number.kitchen { background: var(--kitchen); color: #000; }
+        .step-number.housing { background: var(--housing); color: #fff; }
+        .step-number.common { background: var(--common); color: #fff; }
+        .step-title { font-weight: 600; font-size: 14px; margin-bottom: 6px; }
+        .step-page { font-size: 11px; color: var(--text-muted); font-family: monospace; margin-bottom: 6px; }
+        .step-details { font-size: 12px; color: var(--text-muted); }
+        .roles-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 20px; }
+        .role-card {
+            background: var(--surface);
+            border-radius: 12px;
+            padding: 20px;
+            border: 1px solid var(--border);
+        }
+        .role-icon {
+            width: 48px;
+            height: 48px;
+            border-radius: 12px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 24px;
+            margin-bottom: 12px;
+        }
+        .role-name { font-size: 16px; font-weight: 600; margin-bottom: 8px; }
+        .role-tasks { list-style: none; }
+        .role-tasks li { padding: 4px 0; font-size: 13px; color: var(--text-muted); }
+        .role-tasks li::before { content: "→ "; color: var(--kitchen); }
+        .entities-container { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 20px; }
+        .entity-group {
+            background: var(--surface);
+            border-radius: 12px;
+            padding: 20px;
+            border: 1px solid var(--border);
+        }
+        .entity-group-title { font-size: 14px; font-weight: 600; margin-bottom: 16px; }
+        .entity-card {
+            background: var(--surface-hover);
+            border-radius: 8px;
+            padding: 12px;
+            margin-bottom: 8px;
+        }
+        .entity-name { font-family: monospace; font-size: 13px; font-weight: 600; margin-bottom: 6px; color: var(--kitchen); }
+        .entity-fields { font-size: 11px; color: var(--text-muted); line-height: 1.5; }
+        .problems-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(350px, 1fr)); gap: 20px; }
+        .problem-card {
+            background: var(--surface);
+            border-radius: 12px;
+            padding: 20px;
+            border-left: 4px solid var(--problem);
+        }
+        .problem-card.opportunity { border-left-color: var(--opportunity); }
+        .problem-card.notpriority { border-left-color: var(--text-muted); opacity: 0.7; }
+        .problem-header { display: flex; justify-content: space-between; margin-bottom: 12px; }
+        .problem-title { font-size: 15px; font-weight: 600; }
+        .problem-priority {
+            font-size: 11px;
+            padding: 4px 8px;
+            border-radius: 4px;
+            background: var(--problem);
+            color: #fff;
+        }
+        .problem-priority.critical { background: #dc2626; animation: pulse 2s infinite; }
+        .problem-priority.medium { background: #f59e0b; }
+        .problem-priority.low { background: var(--text-muted); }
+        @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.7; } }
+        .problem-card.critical { border-left-color: #dc2626; border-left-width: 6px; }
+        .problem-description { font-size: 13px; color: var(--text-muted); margin-bottom: 12px; }
+        .problem-solution { font-size: 12px; padding: 10px; background: var(--surface-hover); border-radius: 6px; }
+        .problem-solution strong { color: var(--common); }
+        .tech-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 20px; }
+        .tech-card {
+            background: var(--surface);
+            border-radius: 12px;
+            padding: 20px;
+            border: 1px solid var(--border);
+        }
+        .tech-card-header {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            margin-bottom: 16px;
+        }
+        .tech-icon {
+            width: 40px;
+            height: 40px;
+            border-radius: 10px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 20px;
+        }
+        .tech-icon.backend { background: var(--tech); color: #000; }
+        .tech-icon.frontend { background: var(--housing); color: #fff; }
+        .tech-icon.ai { background: var(--ai); color: #fff; }
+        .tech-icon.infra { background: var(--common); color: #fff; }
+        .tech-card-title { font-size: 16px; font-weight: 600; }
+        .tech-list { list-style: none; }
+        .tech-list li {
+            display: flex;
+            justify-content: space-between;
+            padding: 6px 0;
+            font-size: 13px;
+            border-bottom: 1px solid var(--border);
+        }
+        .tech-list li:last-child { border-bottom: none; }
+        .tech-list .tech-name { font-weight: 500; }
+        .tech-list .tech-reason { color: var(--text-muted); font-size: 11px; }
+        .releases-container { display: flex; flex-direction: column; gap: 12px; }
+        .release-card {
+            background: var(--surface);
+            border-radius: 12px;
+            padding: 16px 20px;
+            border: 1px solid var(--border);
+            display: flex;
+            align-items: center;
+            gap: 16px;
+        }
+        .release-version {
+            font-family: monospace;
+            font-size: 14px;
+            font-weight: 700;
+            color: var(--tech);
+            min-width: 40px;
+        }
+        .release-name { font-weight: 600; font-size: 14px; min-width: 180px; }
+        .release-tasks { flex: 1; font-size: 12px; color: var(--text-muted); }
+        .release-time {
+            font-size: 12px;
+            padding: 4px 10px;
+            border-radius: 4px;
+            background: var(--surface-hover);
+            white-space: nowrap;
+        }
+        .ai-features { display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 20px; }
+        .ai-feature-card {
+            background: var(--surface);
+            border-radius: 12px;
+            padding: 20px;
+            border-left: 4px solid var(--ai);
+        }
+        .ai-feature-header { margin-bottom: 12px; }
+        .ai-feature-title { font-size: 16px; font-weight: 600; margin-bottom: 4px; }
+        .ai-feature-pattern { font-size: 11px; color: var(--ai); text-transform: uppercase; letter-spacing: 0.5px; }
+        .ai-feature-desc { font-size: 13px; color: var(--text-muted); margin-bottom: 12px; }
+        .ai-feature-details {
+            background: var(--surface-hover);
+            border-radius: 8px;
+            padding: 12px;
+            font-size: 12px;
+        }
+        .ai-feature-details strong { color: var(--common); }
+        .timeline-total {
+            background: var(--tech);
+            color: #000;
+            border-radius: 12px;
+            padding: 20px;
+            text-align: center;
+            margin-top: 20px;
+        }
+        .timeline-total .big { font-size: 32px; font-weight: 700; }
+        .timeline-total .label { font-size: 14px; opacity: 0.8; }
+        .arch-diagram {
+            background: var(--surface);
+            border-radius: 12px;
+            padding: 24px;
+            border: 1px solid var(--border);
+            margin-bottom: 32px;
+            overflow-x: auto;
+        }
+        .arch-diagram svg {
+            display: block;
+            margin: 0 auto;
+            max-width: 100%;
+            height: auto;
+        }
+        .arch-layer {
+            fill: var(--surface-hover);
+            stroke: var(--border);
+            stroke-width: 1;
+            rx: 8;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        .arch-layer:hover { fill: var(--border); }
+        .arch-box {
+            fill: var(--surface);
+            stroke: var(--border);
+            stroke-width: 1;
+            rx: 6;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+        .arch-box:hover { stroke-width: 2; }
+        .arch-box.client { stroke: var(--housing); }
+        .arch-box.client:hover { fill: rgba(139, 92, 246, 0.2); }
+        .arch-box.nginx { stroke: var(--common); }
+        .arch-box.nginx:hover { fill: rgba(16, 185, 129, 0.2); }
+        .arch-box.rails { stroke: var(--problem); }
+        .arch-box.rails:hover { fill: rgba(239, 68, 68, 0.2); }
+        .arch-box.controller { stroke: var(--kitchen); }
+        .arch-box.controller:hover { fill: rgba(244, 152, 0, 0.2); }
+        .arch-box.model { stroke: var(--housing); }
+        .arch-box.model:hover { fill: rgba(139, 92, 246, 0.2); }
+        .arch-box.ai { stroke: var(--ai); }
+        .arch-box.ai:hover { fill: rgba(168, 85, 247, 0.2); }
+        .arch-box.job { stroke: var(--opportunity); }
+        .arch-box.job:hover { fill: rgba(59, 130, 246, 0.2); }
+        .arch-box.db { stroke: var(--tech); }
+        .arch-box.db:hover { fill: rgba(6, 182, 212, 0.2); }
+        .arch-box.external { stroke: var(--common); }
+        .arch-box.external:hover { fill: rgba(16, 185, 129, 0.2); }
+        .arch-text { fill: var(--text); font-size: 11px; font-family: system-ui; pointer-events: none; }
+        .arch-text.title { font-size: 13px; font-weight: 600; }
+        .arch-text.small { font-size: 9px; fill: var(--text-muted); }
+        .arch-arrow { stroke: var(--text-muted); stroke-width: 1.5; fill: none; marker-end: url(#arrowhead); }
+        .arch-arrow.data { stroke: var(--tech); stroke-dasharray: 4 2; }
+        .arch-arrow.ai { stroke: var(--ai); }
+        .arch-tooltip {
+            position: fixed;
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            padding: 12px 16px;
+            font-size: 12px;
+            max-width: 280px;
+            pointer-events: none;
+            opacity: 0;
+            transition: opacity 0.2s;
+            z-index: 1000;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+        }
+        .arch-tooltip.visible { opacity: 1; }
+        .arch-tooltip-title { font-weight: 600; margin-bottom: 4px; color: var(--tech); }
+        .arch-tooltip-desc { color: var(--text-muted); line-height: 1.4; }
+        .prompt-section {
+            background: var(--surface);
+            border-radius: 12px;
+            padding: 20px;
+            margin-top: 24px;
+            border: 1px solid var(--border);
+        }
+        .prompt-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; }
+        .prompt-header h3 { font-size: 14px; color: var(--text-muted); }
+        .copy-btn {
+            background: var(--kitchen);
+            border: none;
+            border-radius: 6px;
+            padding: 8px 16px;
+            color: #000;
+            font-weight: 600;
+            font-size: 13px;
+            cursor: pointer;
+        }
+        .copy-btn.copied { background: var(--common); color: #fff; }
+        .prompt-output {
+            background: var(--bg);
+            border-radius: 8px;
+            padding: 16px;
+            font-size: 13px;
+            line-height: 1.6;
+            white-space: pre-wrap;
+            max-height: 300px;
+            overflow-y: auto;
+        }
+        .legend { display: flex; gap: 16px; margin-bottom: 20px; flex-wrap: wrap; }
+        .legend-item { display: flex; align-items: center; gap: 6px; font-size: 12px; color: var(--text-muted); }
+        .view { display: none; }
+        .view.active { display: block; }
+        @media (max-width: 768px) {
+            .container { grid-template-columns: 1fr; }
+            .sidebar { position: static; max-height: none; }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <aside class="sidebar">
+            <h1>ШРСК</h1>
+            <div class="subtitle">Sri Rupa Seva Kunja • Система управления ашрамом</div>
+            <div class="view-tabs" id="viewTabs">
+                <button class="view-tab active" data-view="sitemap" data-color="kitchen">Карта сайта</button>
+                <button class="view-tab" data-view="processes" data-color="housing">Бизнес-процессы</button>
+                <button class="view-tab" data-view="roles" data-color="common">Роли пользователей</button>
+                <button class="view-tab" data-view="entities" data-color="kitchen">Модель данных</button>
+                <button class="view-tab" data-view="problems" data-color="problem">Проблемы и развитие</button>
+                <button class="view-tab" data-view="architecture" data-color="tech">Техническая архитектура</button>
+            </div>
+            <div class="filter-section" id="sitemapFilters">
+                <h3>Фильтры модулей</h3>
+                <div class="filter-item">
+                    <input type="checkbox" id="filterKitchen" checked>
+                    <span class="color-dot" style="background: var(--kitchen)"></span>
+                    <label for="filterKitchen">Kitchen (Кухня)</label>
+                </div>
+                <div class="filter-item">
+                    <input type="checkbox" id="filterHousing" checked>
+                    <span class="color-dot" style="background: var(--housing)"></span>
+                    <label for="filterHousing">Housing (Проживание)</label>
+                </div>
+                <div class="filter-item">
+                    <input type="checkbox" id="filterCommon" checked>
+                    <span class="color-dot" style="background: var(--common)"></span>
+                    <label for="filterCommon">Общее (Ашрам)</label>
+                </div>
+            </div>
+            <div class="stats">
+                <div class="stat-row"><span>HTML страниц</span><span class="value">45</span></div>
+                <div class="stat-row"><span>Таблиц БД</span><span class="value">34</span></div>
+                <div class="stat-row"><span>SQL миграций</span><span class="value">97+</span></div>
+                <div class="stat-row"><span>RLS политик</span><span class="value">163</span></div>
+                <div class="stat-row"><span>Рецептов</span><span class="value">129</span></div>
+                <div class="stat-row"><span>Языков</span><span class="value">3 (RU/EN/HI)</span></div>
+            </div>
+            <div style="font-size: 11px; color: var(--text-muted);">
+                <strong>Production:</strong><br>
+                <a href="https://in.rupaseva.com" target="_blank" style="color: var(--kitchen)">in.rupaseva.com</a>
+            </div>
+        </aside>
+        <main class="main">
+            <div id="sitemapView" class="view active">
+                <h2>Карта сайта</h2>
+                <p class="description">Все страницы системы, сгруппированные по модулям.</p>
+                <div class="legend">
+                    <div class="legend-item"><span class="color-dot" style="background: var(--kitchen)"></span>Kitchen — кухня и склад</div>
+                    <div class="legend-item"><span class="color-dot" style="background: var(--housing)"></span>Housing — проживание</div>
+                    <div class="legend-item"><span class="color-dot" style="background: var(--common)"></span>Общее — ретриты</div>
+                </div>
+                <div class="sitemap" id="sitemapGrid"></div>
+            </div>
+            <div id="processesView" class="view">
+                <h2>Бизнес-процессы</h2>
+                <p class="description">Ключевые циклы работы ашрама.</p>
+                <div class="process-container" id="processesContainer"></div>
+            </div>
+            <div id="rolesView" class="view">
+                <h2>Роли пользователей</h2>
+                <p class="description">Кто работает в системе и какие задачи выполняет.</p>
+                <div class="roles-grid" id="rolesGrid"></div>
+            </div>
+            <div id="entitiesView" class="view">
+                <h2>Модель данных</h2>
+                <p class="description">Ключевые таблицы базы данных.</p>
+                <div class="entities-container" id="entitiesContainer"></div>
+            </div>
+            <div id="problemsView" class="view">
+                <h2>Проблемы и развитие</h2>
+                <p class="description">Текущие ограничения и возможности для улучшения.</p>
+                <div class="problems-grid" id="problemsGrid"></div>
+            </div>
+            <div id="architectureView" class="view">
+                <h2>Техническая архитектура</h2>
+                <p class="description">Эволюционное развитие на текущем стеке (Vanilla JS + Supabase). Rails — только если понадобится.</p>
+
+                <div class="arch-diagram" id="archDiagram">
+                    <svg viewBox="0 0 720 380" id="archSvg">
+                        <defs>
+                            <marker id="arrowhead" markerWidth="6" markerHeight="5" refX="6" refY="2.5" orient="auto">
+                                <polygon points="0 0, 6 2.5, 0 5" fill="#888"/>
+                            </marker>
+                        </defs>
+
+                        <!-- ==================== LEFT SIDE: СЕЙЧАС ==================== -->
+
+                        <!-- Title: СЕЙЧАС -->
+                        <rect x="10" y="8" width="330" height="24" fill="rgba(239,68,68,0.15)" stroke="#ef4444" stroke-width="1" rx="4"/>
+                        <text class="arch-text" x="175" y="24" text-anchor="middle" style="font-size:12px;font-weight:700;fill:#ef4444">📍 СЕЙЧАС</text>
+
+                        <!-- Clients row -->
+                        <rect x="50" y="42" width="60" height="22" fill="rgba(139,92,246,0.15)" stroke="#8b5cf6" stroke-width="1" rx="4" data-box="now-client"/>
+                        <text class="arch-text" x="80" y="56" text-anchor="middle" style="font-size:8px">Ресепшен</text>
+                        <rect x="115" y="42" width="50" height="22" fill="rgba(244,152,0,0.15)" stroke="#f49800" stroke-width="1" rx="4"/>
+                        <text class="arch-text" x="140" y="56" text-anchor="middle" style="font-size:8px">Повар</text>
+                        <rect x="170" y="42" width="60" height="22" fill="rgba(244,152,0,0.15)" stroke="#f49800" stroke-width="1" rx="4"/>
+                        <text class="arch-text" x="200" y="56" text-anchor="middle" style="font-size:8px">Кладовщик</text>
+                        <rect x="235" y="42" width="65" height="22" fill="rgba(16,185,129,0.15)" stroke="#10b981" stroke-width="1" rx="4"/>
+                        <text class="arch-text" x="267" y="56" text-anchor="middle" style="font-size:8px">Организатор</text>
+
+                        <!-- Arrow to GitHub Pages -->
+                        <path class="arch-arrow" d="M 175 64 L 175 76"/>
+
+                        <!-- GitHub Pages -->
+                        <rect x="10" y="76" width="330" height="100" fill="var(--surface-hover)" stroke="var(--border)" stroke-width="1" rx="6" data-box="now-github"/>
+                        <text class="arch-text small" x="16" y="90" style="font-size:9px;fill:var(--text-muted)">GITHUB PAGES (static)</text>
+
+                        <!-- HTML + JS -->
+                        <rect x="20" y="98" width="150" height="32" fill="rgba(244,152,0,0.1)" stroke="#f49800" stroke-width="1" rx="4" data-box="now-html"/>
+                        <text class="arch-text" x="95" y="112" text-anchor="middle" style="font-size:9px;font-weight:600">45 HTML страниц</text>
+                        <text class="arch-text small" x="95" y="124" text-anchor="middle" style="font-size:7px;fill:var(--text-muted)">Vanilla JS + DaisyUI</text>
+
+                        <!-- CDN dependencies -->
+                        <rect x="180" y="98" width="150" height="32" fill="rgba(239,68,68,0.1)" stroke="#ef4444" stroke-width="1" rx="4" data-box="now-cdn"/>
+                        <text class="arch-text" x="255" y="112" text-anchor="middle" style="font-size:9px;font-weight:600;fill:#ef4444">⚠️ CDN зависимости</text>
+                        <text class="arch-text small" x="255" y="124" text-anchor="middle" style="font-size:7px;fill:var(--text-muted)">Tailwind, Supabase, DaisyUI</text>
+
+                        <!-- JS files -->
+                        <rect x="20" y="138" width="70" height="28" fill="var(--surface)" stroke="var(--border)" stroke-width="1" rx="4"/>
+                        <text class="arch-text" x="55" y="156" text-anchor="middle" style="font-size:7px">Layout.js</text>
+                        <rect x="95" y="138" width="60" height="28" fill="var(--surface)" stroke="var(--border)" stroke-width="1" rx="4"/>
+                        <text class="arch-text" x="125" y="156" text-anchor="middle" style="font-size:7px">Cache.js</text>
+                        <rect x="160" y="138" width="60" height="28" fill="var(--surface)" stroke="var(--border)" stroke-width="1" rx="4"/>
+                        <text class="arch-text" x="190" y="156" text-anchor="middle" style="font-size:7px">Utils.js</text>
+                        <rect x="225" y="138" width="105" height="28" fill="rgba(239,68,68,0.1)" stroke="#ef4444" stroke-width="1" rx="4" data-box="now-onclick"/>
+                        <text class="arch-text" x="277" y="152" text-anchor="middle" style="font-size:7px;fill:#ef4444">756 onclick</text>
+                        <text class="arch-text small" x="277" y="162" text-anchor="middle" style="font-size:6px;fill:var(--text-muted)">⚠️ тех.долг</text>
+
+                        <!-- Arrow to Supabase -->
+                        <path class="arch-arrow" d="M 175 176 L 175 188"/>
+
+                        <!-- Supabase -->
+                        <rect x="10" y="188" width="330" height="90" fill="var(--surface-hover)" stroke="var(--border)" stroke-width="1" rx="6" data-box="now-supabase"/>
+                        <text class="arch-text small" x="16" y="202" style="font-size:9px;fill:var(--tech)">SUPABASE</text>
+
+                        <rect x="20" y="210" width="95" height="28" fill="rgba(6,182,212,0.15)" stroke="#06b6d4" stroke-width="1" rx="4" data-box="now-postgres"/>
+                        <text class="arch-text" x="67" y="222" text-anchor="middle" style="font-size:8px">PostgreSQL</text>
+                        <text class="arch-text small" x="67" y="232" text-anchor="middle" style="font-size:6px;fill:var(--text-muted)">34 таблицы</text>
+
+                        <rect x="120" y="210" width="95" height="28" fill="rgba(239,68,68,0.1)" stroke="#ef4444" stroke-width="1" rx="4" data-box="now-rls"/>
+                        <text class="arch-text" x="167" y="222" text-anchor="middle" style="font-size:8px;fill:#ef4444">163 RLS</text>
+                        <text class="arch-text small" x="167" y="232" text-anchor="middle" style="font-size:6px;fill:var(--text-muted)">⚠️ хаос</text>
+
+                        <rect x="220" y="210" width="55" height="28" fill="rgba(6,182,212,0.15)" stroke="#06b6d4" stroke-width="1" rx="4"/>
+                        <text class="arch-text" x="247" y="228" text-anchor="middle" style="font-size:7px">Auth</text>
+
+                        <rect x="280" y="210" width="55" height="28" fill="rgba(6,182,212,0.15)" stroke="#06b6d4" stroke-width="1" rx="4"/>
+                        <text class="arch-text" x="307" y="228" text-anchor="middle" style="font-size:7px">Storage</text>
+
+                        <!-- Unused features -->
+                        <rect x="20" y="244" width="150" height="26" fill="rgba(136,136,136,0.1)" stroke="#666" stroke-width="1" stroke-dasharray="4 2" rx="4" data-box="now-unused"/>
+                        <text class="arch-text" x="95" y="260" text-anchor="middle" style="font-size:8px;fill:#666">Realtime ❌ Edge Functions ❌</text>
+
+                        <rect x="180" y="244" width="150" height="26" fill="rgba(136,136,136,0.1)" stroke="#666" stroke-width="1" stroke-dasharray="4 2" rx="4"/>
+                        <text class="arch-text" x="255" y="260" text-anchor="middle" style="font-size:8px;fill:#666">Telegram ❌ AI ❌</text>
+
+                        <!-- Bottom label -->
+                        <text class="arch-text" x="175" y="295" text-anchor="middle" style="font-size:9px;fill:var(--text-muted)">Работает, но есть техдолг</text>
+
+                        <!-- ==================== ARROW BETWEEN ==================== -->
+                        <path d="M 355 170 L 375 170" stroke="var(--common)" stroke-width="3" fill="none" marker-end="url(#arrowhead)"/>
+                        <text class="arch-text" x="365" y="160" text-anchor="middle" style="font-size:10px;fill:var(--common)">→</text>
+                        <text class="arch-text small" x="365" y="190" text-anchor="middle" style="font-size:7px;fill:var(--text-muted)">~1 нед</text>
+
+                        <!-- ==================== RIGHT SIDE: ПОСЛЕ ==================== -->
+
+                        <!-- Title: ПОСЛЕ -->
+                        <rect x="380" y="8" width="330" height="24" fill="rgba(16,185,129,0.15)" stroke="#10b981" stroke-width="1" rx="4"/>
+                        <text class="arch-text" x="545" y="24" text-anchor="middle" style="font-size:12px;font-weight:700;fill:#10b981">✅ ПОСЛЕ УЛУЧШЕНИЙ</text>
+
+                        <!-- Clients row -->
+                        <rect x="420" y="42" width="60" height="22" fill="rgba(139,92,246,0.15)" stroke="#8b5cf6" stroke-width="1" rx="4" data-box="after-client"/>
+                        <text class="arch-text" x="450" y="56" text-anchor="middle" style="font-size:8px">Ресепшен</text>
+                        <rect x="485" y="42" width="50" height="22" fill="rgba(244,152,0,0.15)" stroke="#f49800" stroke-width="1" rx="4"/>
+                        <text class="arch-text" x="510" y="56" text-anchor="middle" style="font-size:8px">Повар</text>
+                        <rect x="540" y="42" width="60" height="22" fill="rgba(244,152,0,0.15)" stroke="#f49800" stroke-width="1" rx="4"/>
+                        <text class="arch-text" x="570" y="56" text-anchor="middle" style="font-size:8px">Кладовщик</text>
+                        <rect x="605" y="42" width="65" height="22" fill="rgba(16,185,129,0.15)" stroke="#10b981" stroke-width="1" rx="4"/>
+                        <text class="arch-text" x="637" y="56" text-anchor="middle" style="font-size:8px">Организатор</text>
+
+                        <!-- Arrow to GitHub Pages -->
+                        <path class="arch-arrow" d="M 545 64 L 545 76"/>
+
+                        <!-- GitHub Pages with Vite -->
+                        <rect x="380" y="76" width="330" height="100" fill="var(--surface-hover)" stroke="var(--common)" stroke-width="2" rx="6" data-box="after-github"/>
+                        <text class="arch-text small" x="386" y="90" style="font-size:9px;fill:var(--common)">GITHUB PAGES + Vite (опц.)</text>
+
+                        <!-- HTML + TS -->
+                        <rect x="390" y="98" width="150" height="32" fill="rgba(16,185,129,0.15)" stroke="#10b981" stroke-width="1" rx="4" data-box="after-vite"/>
+                        <text class="arch-text" x="465" y="112" text-anchor="middle" style="font-size:9px;font-weight:600;fill:#10b981">45 страниц</text>
+                        <text class="arch-text small" x="465" y="124" text-anchor="middle" style="font-size:7px;fill:var(--text-muted)">TypeScript + компоненты</text>
+
+                        <!-- No CDN -->
+                        <rect x="550" y="98" width="150" height="32" fill="rgba(16,185,129,0.15)" stroke="#10b981" stroke-width="1" rx="4" data-box="after-bundle"/>
+                        <text class="arch-text" x="625" y="112" text-anchor="middle" style="font-size:9px;font-weight:600;fill:#10b981">✅ Локальный bundle</text>
+                        <text class="arch-text small" x="625" y="124" text-anchor="middle" style="font-size:7px;fill:var(--text-muted)">npm install, no CDN</text>
+
+                        <!-- JS files refactored -->
+                        <rect x="390" y="138" width="70" height="28" fill="rgba(16,185,129,0.15)" stroke="#10b981" stroke-width="1" rx="4"/>
+                        <text class="arch-text" x="425" y="156" text-anchor="middle" style="font-size:7px">Layout.ts</text>
+                        <rect x="465" y="138" width="60" height="28" fill="rgba(16,185,129,0.15)" stroke="#10b981" stroke-width="1" rx="4"/>
+                        <text class="arch-text" x="495" y="156" text-anchor="middle" style="font-size:7px">Cache.ts</text>
+                        <rect x="530" y="138" width="60" height="28" fill="rgba(16,185,129,0.15)" stroke="#10b981" stroke-width="1" rx="4"/>
+                        <text class="arch-text" x="560" y="156" text-anchor="middle" style="font-size:7px">Utils.ts</text>
+                        <rect x="595" y="138" width="105" height="28" fill="rgba(16,185,129,0.15)" stroke="#10b981" stroke-width="1" rx="4" data-box="after-events"/>
+                        <text class="arch-text" x="647" y="152" text-anchor="middle" style="font-size:7px;fill:#10b981">data-action</text>
+                        <text class="arch-text small" x="647" y="162" text-anchor="middle" style="font-size:6px;fill:var(--text-muted)">✅ event delegation</text>
+
+                        <!-- Arrow to Supabase -->
+                        <path class="arch-arrow" d="M 545 176 L 545 188"/>
+
+                        <!-- Supabase improved -->
+                        <rect x="380" y="188" width="330" height="90" fill="var(--surface-hover)" stroke="var(--common)" stroke-width="2" rx="6" data-box="after-supabase"/>
+                        <text class="arch-text small" x="386" y="202" style="font-size:9px;fill:var(--tech)">SUPABASE</text>
+
+                        <rect x="390" y="210" width="95" height="28" fill="rgba(6,182,212,0.15)" stroke="#06b6d4" stroke-width="1" rx="4"/>
+                        <text class="arch-text" x="437" y="222" text-anchor="middle" style="font-size:8px">PostgreSQL</text>
+                        <text class="arch-text small" x="437" y="232" text-anchor="middle" style="font-size:6px;fill:var(--text-muted)">34 таблицы</text>
+
+                        <rect x="490" y="210" width="95" height="28" fill="rgba(16,185,129,0.15)" stroke="#10b981" stroke-width="1" rx="4" data-box="after-rls"/>
+                        <text class="arch-text" x="537" y="222" text-anchor="middle" style="font-size:8px;fill:#10b981">✅ RLS</text>
+                        <text class="arch-text small" x="537" y="232" text-anchor="middle" style="font-size:6px;fill:var(--text-muted)">консолидировано</text>
+
+                        <rect x="590" y="210" width="55" height="28" fill="rgba(6,182,212,0.15)" stroke="#06b6d4" stroke-width="1" rx="4"/>
+                        <text class="arch-text" x="617" y="228" text-anchor="middle" style="font-size:7px">Auth</text>
+
+                        <rect x="650" y="210" width="55" height="28" fill="rgba(6,182,212,0.15)" stroke="#06b6d4" stroke-width="1" rx="4"/>
+                        <text class="arch-text" x="677" y="228" text-anchor="middle" style="font-size:7px">Storage</text>
+
+                        <!-- Used features -->
+                        <rect x="390" y="244" width="90" height="26" fill="rgba(16,185,129,0.15)" stroke="#10b981" stroke-width="1" rx="4" data-box="after-realtime"/>
+                        <text class="arch-text" x="435" y="260" text-anchor="middle" style="font-size:8px;fill:#10b981">✅ Realtime</text>
+
+                        <rect x="485" y="244" width="100" height="26" fill="rgba(16,185,129,0.15)" stroke="#10b981" stroke-width="1" rx="4" data-box="after-edge"/>
+                        <text class="arch-text" x="535" y="260" text-anchor="middle" style="font-size:8px;fill:#10b981">✅ Edge Func</text>
+
+                        <rect x="590" y="244" width="55" height="26" fill="rgba(16,185,129,0.15)" stroke="#10b981" stroke-width="1" rx="4" data-box="after-telegram"/>
+                        <text class="arch-text" x="617" y="260" text-anchor="middle" style="font-size:8px;fill:#10b981">✅ TG</text>
+
+                        <rect x="650" y="244" width="55" height="26" fill="rgba(168,85,247,0.15)" stroke="#a855f7" stroke-width="1" stroke-dasharray="4 2" rx="4" data-box="after-ai"/>
+                        <text class="arch-text" x="677" y="260" text-anchor="middle" style="font-size:8px;fill:#a855f7">AI?</text>
+
+                        <!-- Bottom label -->
+                        <text class="arch-text" x="545" y="295" text-anchor="middle" style="font-size:9px;fill:var(--common)">Чистая архитектура + новые фичи</text>
+
+                        <!-- ==================== LEGEND ==================== -->
+                        <rect x="10" y="310" width="700" height="60" fill="var(--surface)" stroke="var(--border)" stroke-width="1" rx="6"/>
+                        <text class="arch-text" x="20" y="328" style="font-size:9px;font-weight:600">Легенда изменений:</text>
+
+                        <rect x="20" y="338" width="12" height="12" fill="rgba(239,68,68,0.3)" stroke="#ef4444" stroke-width="1" rx="2"/>
+                        <text class="arch-text small" x="36" y="348" style="font-size:8px">Проблема / техдолг</text>
+
+                        <rect x="140" y="338" width="12" height="12" fill="rgba(16,185,129,0.3)" stroke="#10b981" stroke-width="1" rx="2"/>
+                        <text class="arch-text small" x="156" y="348" style="font-size:8px">Исправлено / добавлено</text>
+
+                        <rect x="290" y="338" width="12" height="12" fill="rgba(136,136,136,0.2)" stroke="#666" stroke-width="1" stroke-dasharray="3 2" rx="2"/>
+                        <text class="arch-text small" x="306" y="348" style="font-size:8px">Не используется</text>
+
+                        <rect x="420" y="338" width="12" height="12" fill="rgba(168,85,247,0.3)" stroke="#a855f7" stroke-width="1" stroke-dasharray="3 2" rx="2"/>
+                        <text class="arch-text small" x="436" y="348" style="font-size:8px">Опционально / будущее</text>
+
+                        <text class="arch-text small" x="560" y="348" style="font-size:8px;fill:var(--text-muted)">Срок: Фаза 1+2 ~2 дня, Фаза 3 ~2-3 дня (опц.)</text>
+                    </svg>
+                </div>
+                <div class="arch-tooltip" id="archTooltip">
+                    <div class="arch-tooltip-title" id="tooltipTitle"></div>
+                    <div class="arch-tooltip-desc" id="tooltipDesc"></div>
+                </div>
+
+                <h3 style="font-size: 16px; margin: 24px 0 16px;">Стек технологий</h3>
+                <div class="tech-grid" id="techGrid"></div>
+                <h3 style="font-size: 16px; margin: 32px 0 16px;">AI-фичи</h3>
+                <div class="ai-features" id="aiFeatures"></div>
+                <h3 style="font-size: 16px; margin: 32px 0 16px;">План релизов</h3>
+                <div class="releases-container" id="releasesContainer"></div>
+                <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 16px; margin-top: 20px;">
+                    <div class="timeline-total" style="background: var(--problem);">
+                        <div class="big">~1 день</div>
+                        <div class="label">Фаза 1: Стабилизация</div>
+                    </div>
+                    <div class="timeline-total" style="background: var(--common);">
+                        <div class="big">~1 день</div>
+                        <div class="label">Фаза 2: Quick Wins</div>
+                    </div>
+                    <div class="timeline-total" style="background: var(--ai);">
+                        <div class="big">~2-3 дня</div>
+                        <div class="label">Фаза 3: Vite+TS (опц.)</div>
+                    </div>
+                </div>
+            </div>
+            <div class="prompt-section">
+                <div class="prompt-header">
+                    <h3>Сгенерированный промпт</h3>
+                    <button class="copy-btn" id="copyBtn">Скопировать</button>
+                </div>
+                <div class="prompt-output" id="promptOutput"></div>
+            </div>
+        </main>
+    </div>
+    <script>
+        const DATA = {
+            sitemap: {
+                kitchen: {
+                    name: 'Kitchen (Кухня)', color: 'kitchen', icon: '🍳',
+                    sections: [
+                        { title: 'Меню и рецепты', pages: [
+                            { name: 'Меню', path: 'kitchen/menu.html', desc: 'Планирование блюд' },
+                            { name: 'Шаблоны меню', path: 'kitchen/menu-templates.html', desc: 'Недельные меню' },
+                            { name: 'Рецепты', path: 'kitchen/recipes.html', desc: '129 рецептов' },
+                            { name: 'Продукты', path: 'kitchen/products.html', desc: 'Справочник' }
+                        ]},
+                        { title: 'Склад', pages: [
+                            { name: 'Остатки', path: 'stock/stock.html', desc: 'Текущие остатки' },
+                            { name: 'Заявки', path: 'stock/requests.html', desc: 'Заявки от кухни' },
+                            { name: 'Приёмка', path: 'stock/receive.html', desc: 'Оприходование' },
+                            { name: 'Выдача', path: 'stock/issue.html', desc: 'Выдача на кухню' },
+                            { name: 'Инвентаризация', path: 'stock/inventory.html', desc: 'Ревизия' }
+                        ]}
+                    ]
+                },
+                housing: {
+                    name: 'Housing (Проживание)', color: 'housing', icon: '🏠',
+                    sections: [
+                        { title: 'Вайшнавы', pages: [
+                            { name: 'Все', path: 'vaishnavas/index.html', desc: 'База людей' },
+                            { name: 'Гости', path: 'vaishnavas/guests.html', desc: 'Гости ретритов' },
+                            { name: 'Команда', path: 'vaishnavas/team.html', desc: 'Сотрудники' }
+                        ]},
+                        { title: 'Размещение', pages: [
+                            { name: 'Проживание', path: 'vaishnavas/retreat-guests.html', desc: 'Импорт CSV' },
+                            { name: 'Распределение', path: 'vaishnavas/preliminary.html', desc: 'Назначение комнат' },
+                            { name: 'Заезды', path: 'placement/arrivals.html', desc: 'Прибытия' },
+                            { name: 'Выезды', path: 'placement/departures.html', desc: 'Отъезды' }
+                        ]},
+                        { title: 'Ресепшен', pages: [
+                            { name: 'Шахматка', path: 'placement/timeline.html', desc: 'Timeline комнат' },
+                            { name: 'Уборка', path: 'reception/cleaning.html', desc: 'График уборки' },
+                            { name: 'Здания', path: 'reception/buildings.html', desc: 'Настройка зданий' },
+                            { name: 'Комнаты', path: 'reception/rooms.html', desc: 'Настройка комнат' }
+                        ]}
+                    ]
+                },
+                common: {
+                    name: 'Общее', color: 'common', icon: '🕉️',
+                    sections: [
+                        { title: 'Ашрам', pages: [
+                            { name: 'Ретриты', path: 'ashram/retreats.html', desc: 'Мероприятия' },
+                            { name: 'Праздники', path: 'ashram/festivals.html', desc: 'Календарь' }
+                        ]},
+                        { title: 'Настройки', pages: [
+                            { name: 'Переводы', path: 'settings/translations.html', desc: 'i18n' },
+                            { name: 'Пользователи', path: 'settings/users.html', desc: 'Аккаунты' }
+                        ]}
+                    ]
+                }
+            },
+            processes: [
+                { id: 'retreat', title: 'Цикл ретрита', subtitle: 'От создания до выезда гостей', color: 'housing',
+                    steps: [
+                        { num: 1, title: 'Создание ретрита', page: 'ashram/retreats.html', details: 'Даты, название, цвет' },
+                        { num: 2, title: 'Регистрация', page: 'vaishnavas/retreat-guests.html', details: 'Импорт из Google Forms' },
+                        { num: 3, title: 'Распределение', page: 'vaishnavas/preliminary.html', details: 'Назначение комнат' },
+                        { num: 4, title: 'Трансферы', page: 'placement/arrivals.html', details: 'Заказ такси' },
+                        { num: 5, title: 'Заселение', page: 'placement/timeline.html', details: 'Check-in' },
+                        { num: 6, title: 'Проживание', page: 'reception/cleaning.html', details: 'Уборка, переселение' },
+                        { num: 7, title: 'Выезд', page: 'placement/departures.html', details: 'Check-out' }
+                    ]
+                },
+                { id: 'kitchen', title: 'Цикл кухни', subtitle: 'От меню до готовки', color: 'kitchen',
+                    steps: [
+                        { num: 1, title: 'Планирование меню', page: 'kitchen/menu.html', details: 'Выбор блюд' },
+                        { num: 2, title: 'Расчёт продуктов', page: '—', details: 'Автоматически' },
+                        { num: 3, title: 'Заявка', page: 'stock/requests.html', details: 'Список закупок' },
+                        { num: 4, title: 'Закупка', page: '—', details: 'Поездка на рынок' },
+                        { num: 5, title: 'Приёмка', page: 'stock/receive.html', details: 'Оприходование' },
+                        { num: 6, title: 'Выдача', page: 'stock/issue.html', details: 'На кухню' },
+                        { num: 7, title: 'Готовка', page: 'kitchen/recipe.html', details: 'По рецепту' }
+                    ]
+                }
+            ],
+            roles: [
+                { name: 'Ресепшен', icon: '🛎️', color: 'var(--housing)', tasks: ['Заселение/выезды', 'Шахматка', 'Бронирования', 'Уборка'] },
+                { name: 'Повар', icon: '👨‍🍳', color: 'var(--kitchen)', tasks: ['Планирование меню', 'Работа с рецептами', 'Заявки на продукты'] },
+                { name: 'Кладовщик', icon: '📦', color: 'var(--kitchen)', tasks: ['Контроль остатков', 'Приёмка/выдача', 'Инвентаризация'] },
+                { name: 'Организатор', icon: '📋', color: 'var(--common)', tasks: ['Создание ретритов', 'Импорт гостей', 'Трансферы'] },
+                { name: 'Администратор', icon: '⚙️', color: 'var(--text-muted)', tasks: ['Переводы', 'Пользователи', 'Справочники'] }
+            ],
+            entities: [
+                { group: 'Люди', color: 'var(--housing)', entities: [
+                    { name: 'vaishnavas', fields: 'id, name, surname, spiritual_name, email, phone, is_team_member' },
+                    { name: 'departments', fields: 'id, name_ru, name_en, name_hi' }
+                ]},
+                { group: 'Проживание', color: 'var(--housing)', entities: [
+                    { name: 'buildings', fields: 'id, name_*, is_temporary, sort_order' },
+                    { name: 'rooms', fields: 'id, number, building_id, capacity' },
+                    { name: 'bookings', fields: 'id, room_id, check_in, check_out, status' },
+                    { name: 'residents', fields: 'id, booking_id, vaishnava_id, room_id' }
+                ]},
+                { group: 'Ретриты', color: 'var(--common)', entities: [
+                    { name: 'retreats', fields: 'id, name_*, start_date, end_date, color' },
+                    { name: 'retreat_registrations', fields: 'retreat_id, vaishnava_id, status' },
+                    { name: 'guest_transfers', fields: 'vaishnava_id, direction, flight_datetime, taxi_status' }
+                ]},
+                { group: 'Кухня', color: 'var(--kitchen)', entities: [
+                    { name: 'recipes', fields: 'id, name_*, category_id, cooking_time' },
+                    { name: 'products', fields: 'id, name_*, unit, min_stock' },
+                    { name: 'menu_items', fields: 'menu_day_id, recipe_id, meal_type, portions' },
+                    { name: 'stock', fields: 'product_id, location_id, quantity' }
+                ]}
+            ],
+            problems: [
+                { type: 'problem', priority: 'critical', title: 'RLS хаос', desc: '163 политики, 50 миграций итераций над авторизацией', solution: 'Ревизия и консолидация (~3-4 часа)' },
+                { type: 'problem', priority: 'high', title: '756 inline onclick', desc: 'Нарушение event delegation паттерна', solution: 'Рефакторинг на data-action (~1 день)' },
+                { type: 'problem', priority: 'high', title: 'Нет уведомлений', desc: 'Ресепшен не знает о заездах, кухня — о заявках', solution: 'Supabase Edge Functions + Telegram (~3-4 часа)' },
+                { type: 'problem', priority: 'medium', title: 'Монолитные HTML', desc: 'timeline.html (2672 строки), menu.html (2072)', solution: 'Разбить на компоненты (~4-6 часов)' },
+                { type: 'problem', priority: 'medium', title: 'Ручной расчёт порций', desc: 'Повар каждый день считает вручную', solution: 'Связь меню с bookings (~1-2 часа)' },
+                { type: 'opportunity', priority: 'high', title: 'Quick Wins', desc: 'Telegram + авторасчёт + Realtime за 1 день', solution: 'Supabase Edge Functions' },
+                { type: 'opportunity', priority: 'medium', title: 'Vite + TypeScript', desc: 'Уход от CDN, нормальная сборка', solution: 'Опционально (~2-3 дня)' },
+                { type: 'notpriority', priority: 'low', title: 'Миграция на Rails', desc: 'Ни один критерий не выполнен', solution: 'Не нужно — текущий стек справляется' },
+                { type: 'notpriority', priority: 'low', title: 'Мобильное приложение', desc: 'Веб адаптивный, DaisyUI responsive', solution: 'Не нужно' },
+                { type: 'notpriority', priority: 'low', title: 'Модуль финансов', desc: 'Огромный объём работы', solution: 'Используйте 1С/Excel' }
+            ],
+            architecture: {
+                stack: [
+                    { name: 'Backend (Supabase)', icon: 'backend', emoji: '⚙️', items: [
+                        { name: 'PostgreSQL', reason: '34 таблицы, 163 RLS' },
+                        { name: 'Supabase Auth', reason: 'Работает' },
+                        { name: 'Supabase Storage', reason: 'Фото, файлы' },
+                        { name: 'RLS', reason: '⚠️ Требует ревизии' },
+                        { name: 'Realtime', reason: 'Не используется (planned)' }
+                    ]},
+                    { name: 'Frontend', icon: 'frontend', emoji: '🎨', items: [
+                        { name: 'Vanilla JS', reason: '11 файлов, ~2141 строк' },
+                        { name: 'DaisyUI 4.x', reason: 'Компоненты' },
+                        { name: 'Tailwind CSS (CDN)', reason: 'Стили' },
+                        { name: 'Lucide Icons', reason: 'strokeWidth: 1.25' }
+                    ]},
+                    { name: 'Улучшения (план)', icon: 'ai', emoji: '📈', items: [
+                        { name: 'Telegram Bot', reason: 'Уведомления (~3-4ч)' },
+                        { name: 'Supabase Realtime', reason: 'Синхронизация (~2-3ч)' },
+                        { name: 'Vite + TypeScript', reason: 'Опционально (~2-3д)' },
+                        { name: 'Event delegation', reason: 'Рефакторинг (~1д)' }
+                    ]},
+                    { name: 'Infrastructure', icon: 'infra', emoji: '🚀', items: [
+                        { name: 'GitHub Pages', reason: 'Бесплатно' },
+                        { name: 'Auto-deploy', reason: 'CI/CD из main' },
+                        { name: 'in.rupaseva.com', reason: 'Production' },
+                        { name: 'Supabase Free', reason: 'До 500MB БД' }
+                    ]}
+                ],
+                aiFeatures: [
+                    { title: 'Telegram-уведомления', pattern: 'Supabase Edge Functions', desc: 'Уведомления ресепшену о заездах, кухне о заявках', protectedZone: 'Quick win — реализуется за 3-4 часа' },
+                    { title: 'Авторасчёт порций', pattern: 'Menu + Bookings', desc: 'Количество порций = количество заселённых гостей', protectedZone: 'Данные уже есть — реализуется за 1-2 часа' },
+                    { title: 'Supabase Realtime', pattern: 'WebSocket sync', desc: 'Синхронизация данных между вкладками без перезагрузки', protectedZone: 'Включить в Supabase — реализуется за 2-3 часа' }
+                ],
+                releases: [
+                    { version: '—', name: '🔧 ФАЗА 1: Стабилизация', tasks: '', time: '', phase: 'header' },
+                    { version: '1.1', name: 'Ревизия RLS', tasks: 'Консолидация 163 политик, удаление дублей', time: '3-4 часа', phase: 'mvp' },
+                    { version: '1.2', name: 'Очистка конфигов', tasks: 'Удалить supabase-config.js (дубликат)', time: '10 мин', phase: 'mvp' },
+                    { version: '1.3', name: 'Документация', tasks: 'Архитектура прав, onboarding', time: '1-2 часа', phase: 'mvp' },
+                    { version: '—', name: '⚡ ФАЗА 2: Quick Wins', tasks: '', time: '', phase: 'header' },
+                    { version: '2.1', name: 'Telegram', tasks: 'Уведомления о заездах и заявках', time: '3-4 часа', phase: 'ai' },
+                    { version: '2.2', name: 'Авторасчёт', tasks: 'Порции = заселённые гости', time: '1-2 часа', phase: 'ai' },
+                    { version: '2.3', name: 'Realtime', tasks: 'Синхронизация вкладок', time: '2-3 часа', phase: 'ai' },
+                    { version: '🚀', name: 'PRODUCTION READY', tasks: 'Все quick wins реализованы', time: '~1-2 дня', phase: 'milestone' },
+                    { version: '—', name: '📦 ФАЗА 3: Vite + TS (опционально)', tasks: '', time: '', phase: 'header' },
+                    { version: '3.1', name: 'Vite setup', tasks: 'Инициализация, npm install', time: '1-2 часа', phase: 'future' },
+                    { version: '3.2', name: 'TypeScript', tasks: 'Перенос JS → TS', time: '3-4 часа', phase: 'future' },
+                    { version: '3.3', name: 'Миграция', tasks: 'HTML страницы → компоненты', time: '1 день', phase: 'future' },
+                    { version: '—', name: '🛤️ Rails (если понадобится)', tasks: '', time: '', phase: 'header' },
+                    { version: '—', name: 'Критерии:', tasks: 'Оплата, >3 разработчиков, >100K юзеров', time: '~11 дней', phase: 'future' }
+                ]
+            }
+        };
+
+        const state = { view: 'sitemap', filters: { kitchen: true, housing: true, common: true }, comments: [] };
+
+        function render() {
+            // Sitemap
+            const grid = document.getElementById('sitemapGrid');
+            grid.textContent = '';
+            Object.entries(DATA.sitemap).forEach(([key, mod]) => {
+                if (!state.filters[key]) return;
+                const card = document.createElement('div');
+                card.className = 'module-card';
+                const header = document.createElement('div');
+                header.className = 'module-header ' + mod.color;
+                header.textContent = mod.icon + ' ' + mod.name;
+                card.appendChild(header);
+                const body = document.createElement('div');
+                body.className = 'module-body';
+                mod.sections.forEach(sec => {
+                    const title = document.createElement('div');
+                    title.className = 'section-title';
+                    title.textContent = sec.title;
+                    body.appendChild(title);
+                    const list = document.createElement('ul');
+                    list.className = 'page-list';
+                    sec.pages.forEach(p => {
+                        const li = document.createElement('li');
+                        li.className = 'page-item';
+                        const span1 = document.createElement('span');
+                        span1.textContent = p.name;
+                        const span2 = document.createElement('span');
+                        span2.className = 'page-path';
+                        span2.textContent = p.path;
+                        li.appendChild(span1);
+                        li.appendChild(span2);
+                        list.appendChild(li);
+                    });
+                    body.appendChild(list);
+                });
+                card.appendChild(body);
+                grid.appendChild(card);
+            });
+
+            // Processes
+            const procContainer = document.getElementById('processesContainer');
+            procContainer.textContent = '';
+            DATA.processes.forEach(proc => {
+                const card = document.createElement('div');
+                card.className = 'process-card';
+                const title = document.createElement('div');
+                title.className = 'process-title';
+                const dot = document.createElement('span');
+                dot.className = 'color-dot';
+                dot.style.background = 'var(--' + proc.color + ')';
+                title.appendChild(dot);
+                title.appendChild(document.createTextNode(proc.title));
+                card.appendChild(title);
+                const sub = document.createElement('div');
+                sub.className = 'process-subtitle';
+                sub.textContent = proc.subtitle;
+                card.appendChild(sub);
+                const steps = document.createElement('div');
+                steps.className = 'process-steps';
+                proc.steps.forEach(s => {
+                    const step = document.createElement('div');
+                    step.className = 'process-step';
+                    const num = document.createElement('div');
+                    num.className = 'step-number ' + proc.color;
+                    num.textContent = s.num;
+                    step.appendChild(num);
+                    const t = document.createElement('div');
+                    t.className = 'step-title';
+                    t.textContent = s.title;
+                    step.appendChild(t);
+                    const pg = document.createElement('div');
+                    pg.className = 'step-page';
+                    pg.textContent = s.page;
+                    step.appendChild(pg);
+                    const det = document.createElement('div');
+                    det.className = 'step-details';
+                    det.textContent = s.details;
+                    step.appendChild(det);
+                    steps.appendChild(step);
+                });
+                card.appendChild(steps);
+                procContainer.appendChild(card);
+            });
+
+            // Roles
+            const rolesGrid = document.getElementById('rolesGrid');
+            rolesGrid.textContent = '';
+            DATA.roles.forEach(r => {
+                const card = document.createElement('div');
+                card.className = 'role-card';
+                const icon = document.createElement('div');
+                icon.className = 'role-icon';
+                icon.style.background = r.color + '20';
+                icon.style.color = r.color;
+                icon.textContent = r.icon;
+                card.appendChild(icon);
+                const name = document.createElement('div');
+                name.className = 'role-name';
+                name.textContent = r.name;
+                card.appendChild(name);
+                const tasks = document.createElement('ul');
+                tasks.className = 'role-tasks';
+                r.tasks.forEach(t => {
+                    const li = document.createElement('li');
+                    li.textContent = t;
+                    tasks.appendChild(li);
+                });
+                card.appendChild(tasks);
+                rolesGrid.appendChild(card);
+            });
+
+            // Entities
+            const entContainer = document.getElementById('entitiesContainer');
+            entContainer.textContent = '';
+            DATA.entities.forEach(g => {
+                const group = document.createElement('div');
+                group.className = 'entity-group';
+                const title = document.createElement('div');
+                title.className = 'entity-group-title';
+                title.textContent = g.group;
+                group.appendChild(title);
+                g.entities.forEach(e => {
+                    const card = document.createElement('div');
+                    card.className = 'entity-card';
+                    const name = document.createElement('div');
+                    name.className = 'entity-name';
+                    name.textContent = e.name;
+                    card.appendChild(name);
+                    const fields = document.createElement('div');
+                    fields.className = 'entity-fields';
+                    fields.textContent = e.fields;
+                    card.appendChild(fields);
+                    group.appendChild(card);
+                });
+                entContainer.appendChild(group);
+            });
+
+            // Problems
+            const probGrid = document.getElementById('problemsGrid');
+            probGrid.textContent = '';
+            DATA.problems.forEach(p => {
+                const card = document.createElement('div');
+                let cardClass = 'problem-card';
+                if (p.priority === 'critical') cardClass += ' critical';
+                else if (p.type === 'opportunity') cardClass += ' opportunity';
+                else if (p.type === 'notpriority') cardClass += ' notpriority';
+                card.className = cardClass;
+                const header = document.createElement('div');
+                header.className = 'problem-header';
+                const title = document.createElement('div');
+                title.className = 'problem-title';
+                title.textContent = p.title;
+                header.appendChild(title);
+                const priority = document.createElement('span');
+                const prioClass = p.priority === 'critical' ? ' critical' : p.priority === 'medium' ? ' medium' : p.priority === 'low' ? ' low' : '';
+                priority.className = 'problem-priority' + prioClass;
+                const prioText = { critical: 'Критический', high: 'Высокий', medium: 'Средний', low: 'Низкий' };
+                priority.textContent = prioText[p.priority] || p.priority;
+                header.appendChild(priority);
+                card.appendChild(header);
+                const desc = document.createElement('div');
+                desc.className = 'problem-description';
+                desc.textContent = p.desc;
+                card.appendChild(desc);
+                const sol = document.createElement('div');
+                sol.className = 'problem-solution';
+                const strong = document.createElement('strong');
+                strong.textContent = 'Решение: ';
+                sol.appendChild(strong);
+                sol.appendChild(document.createTextNode(p.solution));
+                card.appendChild(sol);
+                probGrid.appendChild(card);
+            });
+
+            // Architecture - Tech Stack
+            const techGrid = document.getElementById('techGrid');
+            if (techGrid) {
+                techGrid.textContent = '';
+                DATA.architecture.stack.forEach(cat => {
+                    const card = document.createElement('div');
+                    card.className = 'tech-card';
+                    const header = document.createElement('div');
+                    header.className = 'tech-card-header';
+                    const icon = document.createElement('div');
+                    icon.className = 'tech-icon ' + cat.icon;
+                    icon.textContent = cat.emoji;
+                    header.appendChild(icon);
+                    const title = document.createElement('div');
+                    title.className = 'tech-card-title';
+                    title.textContent = cat.name;
+                    header.appendChild(title);
+                    card.appendChild(header);
+                    const list = document.createElement('ul');
+                    list.className = 'tech-list';
+                    cat.items.forEach(item => {
+                        const li = document.createElement('li');
+                        const name = document.createElement('span');
+                        name.className = 'tech-name';
+                        name.textContent = item.name;
+                        li.appendChild(name);
+                        const reason = document.createElement('span');
+                        reason.className = 'tech-reason';
+                        reason.textContent = item.reason;
+                        li.appendChild(reason);
+                        list.appendChild(li);
+                    });
+                    card.appendChild(list);
+                    techGrid.appendChild(card);
+                });
+            }
+
+            // Architecture - AI Features
+            const aiFeatures = document.getElementById('aiFeatures');
+            if (aiFeatures) {
+                aiFeatures.textContent = '';
+                DATA.architecture.aiFeatures.forEach(f => {
+                    const card = document.createElement('div');
+                    card.className = 'ai-feature-card';
+                    const header = document.createElement('div');
+                    header.className = 'ai-feature-header';
+                    const title = document.createElement('div');
+                    title.className = 'ai-feature-title';
+                    title.textContent = f.title;
+                    header.appendChild(title);
+                    const pattern = document.createElement('div');
+                    pattern.className = 'ai-feature-pattern';
+                    pattern.textContent = f.pattern;
+                    header.appendChild(pattern);
+                    card.appendChild(header);
+                    const desc = document.createElement('div');
+                    desc.className = 'ai-feature-desc';
+                    desc.textContent = f.desc;
+                    card.appendChild(desc);
+                    const details = document.createElement('div');
+                    details.className = 'ai-feature-details';
+                    const strong = document.createElement('strong');
+                    strong.textContent = 'Protected Zone: ';
+                    details.appendChild(strong);
+                    details.appendChild(document.createTextNode(f.protectedZone));
+                    card.appendChild(details);
+                    aiFeatures.appendChild(card);
+                });
+            }
+
+            // Architecture - Releases
+            const releasesContainer = document.getElementById('releasesContainer');
+            if (releasesContainer) {
+                releasesContainer.textContent = '';
+                DATA.architecture.releases.forEach(r => {
+                    if (r.phase === 'header') {
+                        const header = document.createElement('div');
+                        header.style.cssText = 'font-size: 14px; font-weight: 600; margin-top: 20px; margin-bottom: 8px; color: var(--text-muted);';
+                        header.textContent = r.name;
+                        releasesContainer.appendChild(header);
+                        return;
+                    }
+                    const card = document.createElement('div');
+                    card.className = 'release-card';
+                    if (r.phase === 'milestone') card.style.cssText = 'background: var(--tech); border-color: var(--tech);';
+                    if (r.phase === 'ai') card.style.borderLeftColor = 'var(--ai)';
+                    if (r.phase === 'future') card.style.opacity = '0.6';
+                    const version = document.createElement('div');
+                    version.className = 'release-version';
+                    if (r.phase === 'milestone') version.style.color = '#000';
+                    version.textContent = r.version;
+                    card.appendChild(version);
+                    const name = document.createElement('div');
+                    name.className = 'release-name';
+                    if (r.phase === 'milestone') name.style.color = '#000';
+                    name.textContent = r.name;
+                    card.appendChild(name);
+                    const tasks = document.createElement('div');
+                    tasks.className = 'release-tasks';
+                    if (r.phase === 'milestone') tasks.style.color = 'rgba(0,0,0,0.7)';
+                    tasks.textContent = r.tasks;
+                    card.appendChild(tasks);
+                    if (r.time) {
+                        const time = document.createElement('div');
+                        time.className = 'release-time';
+                        if (r.phase === 'milestone') time.style.cssText = 'background: rgba(0,0,0,0.2); color: #000;';
+                        time.textContent = r.time;
+                        card.appendChild(time);
+                    }
+                    releasesContainer.appendChild(card);
+                });
+            }
+
+            updatePrompt();
+        }
+
+        function updatePrompt() {
+            const output = document.getElementById('promptOutput');
+            let text = 'Система ШРСК (Sri Rupa Seva Kunja) — веб-приложение для управления ашрамом.\n\n';
+            text += 'Текущий раздел: ' + { sitemap: 'Карта сайта', processes: 'Бизнес-процессы', roles: 'Роли', entities: 'Модель данных', problems: 'Проблемы', architecture: 'Техническая архитектура' }[state.view] + '\n\n';
+            
+            if (state.view === 'sitemap') {
+                Object.entries(DATA.sitemap).forEach(([k, m]) => {
+                    if (!state.filters[k]) return;
+                    text += '## ' + m.name + '\n';
+                    m.sections.forEach(s => {
+                        text += '**' + s.title + ':**\n';
+                        s.pages.forEach(p => text += '- ' + p.name + ' (' + p.path + ')\n');
+                    });
+                    text += '\n';
+                });
+            } else if (state.view === 'processes') {
+                DATA.processes.forEach(p => {
+                    text += '## ' + p.title + '\n';
+                    p.steps.forEach(s => text += s.num + '. ' + s.title + ' → ' + s.page + '\n');
+                    text += '\n';
+                });
+            } else if (state.view === 'roles') {
+                DATA.roles.forEach(r => {
+                    text += '## ' + r.name + '\n';
+                    r.tasks.forEach(t => text += '- ' + t + '\n');
+                    text += '\n';
+                });
+            } else if (state.view === 'entities') {
+                DATA.entities.forEach(g => {
+                    text += '## ' + g.group + '\n';
+                    g.entities.forEach(e => text += '- **' + e.name + '**: ' + e.fields + '\n');
+                    text += '\n';
+                });
+            } else if (state.view === 'problems') {
+                text += '## Критические проблемы\n';
+                DATA.problems.filter(p => p.priority === 'critical').forEach(p => text += '- **' + p.title + '**: ' + p.solution + '\n');
+                text += '\n## Реальные проблемы\n';
+                DATA.problems.filter(p => p.type === 'problem' && p.priority !== 'critical').forEach(p => text += '- ' + p.title + ' [' + p.priority + ']: ' + p.solution + '\n');
+                text += '\n## Quick wins\n';
+                DATA.problems.filter(p => p.type === 'opportunity').forEach(p => text += '- ' + p.title + ': ' + p.solution + '\n');
+                text += '\n## Не приоритет (для стартапа)\n';
+                DATA.problems.filter(p => p.type === 'notpriority').forEach(p => text += '- ' + p.title + ' — ' + p.solution + '\n');
+            } else if (state.view === 'architecture') {
+                text += '## Стек технологий\n';
+                DATA.architecture.stack.forEach(cat => {
+                    text += '**' + cat.name + ':**\n';
+                    cat.items.forEach(item => text += '- ' + item.name + ' — ' + item.reason + '\n');
+                    text += '\n';
+                });
+                text += '## AI-фичи\n';
+                DATA.architecture.aiFeatures.forEach(f => {
+                    text += '**' + f.title + '** (' + f.pattern + ')\n';
+                    text += f.desc + '\n';
+                    text += 'Protected Zone: ' + f.protectedZone + '\n\n';
+                });
+                text += '## План релизов\n\n';
+                text += '### ЭТАП 1: MVP без AI (~8.5 дней)\n';
+                DATA.architecture.releases.filter(r => r.phase === 'mvp').forEach(r => {
+                    text += r.version + ' ' + r.name + ' [' + r.time + '] — ' + r.tasks + '\n';
+                });
+                text += '→ 1.0 РЕЛИЗ MVP\n\n';
+                text += '### ЭТАП 2: AI Layer (~3 дня)\n';
+                DATA.architecture.releases.filter(r => r.phase === 'ai').forEach(r => {
+                    text += r.version + ' ' + r.name + ' [' + r.time + '] — ' + r.tasks + '\n';
+                });
+                text += '→ 2.0 РЕЛИЗ AI\n\n';
+                text += '### ЭТАП 3: Развитие\n';
+                text += 'Улучшения по обратной связи от пользователей\n';
+            }
+            output.textContent = text;
+        }
+
+        function switchView(view) {
+            state.view = view;
+            localStorage.setItem('srsk-playground-view', view);
+            document.querySelectorAll('.view-tab').forEach(t => t.classList.toggle('active', t.dataset.view === view));
+            document.querySelectorAll('.view').forEach(v => v.classList.toggle('active', v.id === view + 'View'));
+            document.getElementById('sitemapFilters').style.display = view === 'sitemap' ? 'block' : 'none';
+            updatePrompt();
+        }
+
+        // Restore saved view on load
+        const savedView = localStorage.getItem('srsk-playground-view');
+        if (savedView && document.getElementById(savedView + 'View')) {
+            switchView(savedView);
+        }
+
+        document.querySelectorAll('.view-tab').forEach(t => t.addEventListener('click', () => switchView(t.dataset.view)));
+        document.getElementById('filterKitchen').addEventListener('change', e => { state.filters.kitchen = e.target.checked; render(); });
+        document.getElementById('filterHousing').addEventListener('change', e => { state.filters.housing = e.target.checked; render(); });
+        document.getElementById('filterCommon').addEventListener('change', e => { state.filters.common = e.target.checked; render(); });
+        document.getElementById('copyBtn').addEventListener('click', () => {
+            navigator.clipboard.writeText(document.getElementById('promptOutput').textContent).then(() => {
+                const btn = document.getElementById('copyBtn');
+                btn.textContent = 'Скопировано!';
+                btn.classList.add('copied');
+                setTimeout(() => { btn.textContent = 'Скопировать'; btn.classList.remove('copied'); }, 2000);
+            });
+        });
+
+        render();
+
+        // Architecture Diagram Tooltips
+        const tooltipData = {
+            // СЕЙЧАС (левая сторона)
+            'now-client': { title: 'Клиенты (СЕЙЧАС)', desc: '5 ролей: ресепшен, повар, кладовщик, организатор, админ. Браузер + Vanilla JS' },
+            'now-github': { title: 'GitHub Pages', desc: 'Статический хостинг. Auto-deploy из main ветки. Бесплатно.' },
+            'now-html': { title: '45 HTML страниц', desc: 'Vanilla JS + DaisyUI + Tailwind. Работает, но монолитные файлы (timeline 2672 строки)' },
+            'now-cdn': { title: '⚠️ CDN зависимости', desc: 'Tailwind, DaisyUI, Supabase грузятся из интернета. Если CDN упадёт — сайт сломается.' },
+            'now-onclick': { title: '⚠️ 756 inline onclick', desc: 'Технический долг. Нарушение event delegation паттерна. Рефакторинг ~1 день.' },
+            'now-supabase': { title: 'Supabase (СЕЙЧАС)', desc: 'Backend as a Service. PostgreSQL + Auth + Storage. Realtime и Edge Functions НЕ используются.' },
+            'now-postgres': { title: 'PostgreSQL', desc: '34 таблицы, 68 индексов. Нормальная структура данных.' },
+            'now-rls': { title: '⚠️ 163 RLS политик', desc: 'ХАОС. Последние 50 миграций (072-097) — итерации над авторизацией. Нужна ревизия ~3-4 часа.' },
+            'now-unused': { title: 'Не используется', desc: 'Supabase Realtime и Edge Functions доступны, но не подключены. Quick wins!' },
+
+            // ПОСЛЕ (правая сторона)
+            'after-client': { title: 'Клиенты (ПОСЛЕ)', desc: 'Те же 5 ролей + push-уведомления в Telegram. Realtime синхронизация.' },
+            'after-github': { title: 'GitHub Pages + Vite', desc: 'Опционально: сборка через Vite. Локальный bundle, TypeScript, tree-shaking.' },
+            'after-vite': { title: 'TypeScript + компоненты', desc: 'Типизация, разбитые монолиты, переиспользуемые компоненты. Опционально ~2-3 дня.' },
+            'after-bundle': { title: '✅ Локальный bundle', desc: 'npm install всех зависимостей. Работает даже если CDN упал. Единая версия библиотек.' },
+            'after-events': { title: '✅ Event delegation', desc: 'data-action вместо onclick. Чистый код, проще отладка, безопаснее.' },
+            'after-supabase': { title: 'Supabase (ПОСЛЕ)', desc: 'Полное использование возможностей: Realtime, Edge Functions, консолидированный RLS.' },
+            'after-rls': { title: '✅ RLS консолидирован', desc: 'Единая архитектура прав. Удалены дубликаты. Документировано. ~3-4 часа работы.' },
+            'after-realtime': { title: '✅ Supabase Realtime', desc: 'Синхронизация между вкладками без перезагрузки. ~2-3 часа подключить.' },
+            'after-edge': { title: '✅ Edge Functions', desc: 'Серверная логика на Deno. Telegram-уведомления, авторасчёт порций.' },
+            'after-telegram': { title: '✅ Telegram Bot', desc: 'Уведомления: заезды → ресепшен, заявки → кухня/склад. ~3-4 часа.' },
+            'after-ai': { title: 'AI (опционально)', desc: 'Умное распределение комнат, автоменю. Через OpenRouter/OpenAI. Будущее.' }
+        };
+
+        const tooltip = document.getElementById('archTooltip');
+        const tooltipTitle = document.getElementById('tooltipTitle');
+        const tooltipDesc = document.getElementById('tooltipDesc');
+
+        document.querySelectorAll('[data-box], [data-layer]').forEach(el => {
+            el.addEventListener('mouseenter', (e) => {
+                const key = el.dataset.box || el.dataset.layer;
+                const data = tooltipData[key];
+                if (data) {
+                    tooltipTitle.textContent = data.title;
+                    tooltipDesc.textContent = data.desc;
+                    tooltip.classList.add('visible');
+                }
+            });
+            el.addEventListener('mousemove', (e) => {
+                tooltip.style.left = (e.clientX + 15) + 'px';
+                tooltip.style.top = (e.clientY + 15) + 'px';
+            });
+            el.addEventListener('mouseleave', () => {
+                tooltip.classList.remove('visible');
+            });
+        });
+    </script>
+</body>
+</html>
