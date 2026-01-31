@@ -914,14 +914,14 @@
             const [buildingsData, roomsRes, residentsRes, retreatsRes, cleaningsRes] = await Promise.all([
                 Cache.getOrLoad('buildings', async () => {
                     const { data, error } = await Layout.db.from('buildings')
-                        .selecLayout.t('*, building_types(id, slug, color, name_ru, name_en, name_hi)')
+                        .select('*, building_types(id, slug, color, name_ru, name_en, name_hi)')
                         .eq('is_active', true)
                         .order('sort_order');
                     if (error) { console.error('Error loading buildings:', error); return null; }
                     return data;
                 }),
                 Layout.db.from('rooms')
-                    .selecLayout.t('*')
+                    .select('*')
                     .eq('is_active', true)
                     .order('building_id')
                     .order('floor')
@@ -935,12 +935,12 @@
                     .lte('check_in', endDateStr)
                     .or(`check_out.is.null,check_out.gte.${startDateStr}`),
                 Layout.db.from('retreats')
-                    .selecLayout.t('*')
+                    .select('*')
                     .lte('start_date', endDateStr)
                     .gte('end_date', startDateStr)
                     .order('start_date'),
                 Layout.db.from('room_cleanings')
-                    .selecLayout.t('*')
+                    .select('*')
                     .lte('start_date', endDateStr)
                     .gte('end_date', startDateStr)
             ]);
@@ -1372,11 +1372,11 @@
         async function loadDictionaries() {
             const [catData, vaishnavasRes] = await Promise.all([
                 Cache.getOrLoad('resident_categories', async () => {
-                    const { data, error } = await Layout.db.from('resident_categories').selecLayout.t('*').order('sort_order');
+                    const { data, error } = await Layout.db.from('resident_categories').select('*').order('sort_order');
                     if (error) { console.error('Error loading resident_categories:', error); return null; }
                     return data;
                 }),
-                Layout.db.from('vaishnavas').selecLayout.t('*').eq('is_deleted', false).order('spiritual_name')
+                Layout.db.from('vaishnavas').select('*').eq('is_deleted', false).order('spiritual_name')
             ]);
             categories = catData || [];
             vaishnavas = vaishnavasRes.data || [];
@@ -2007,12 +2007,12 @@
             const [buildingsRes, residentsRes] = await Promise.all([
                 Layout.db
                     .from('buildings')
-                    .selecLayout.t('*, rooms(*)')
+                    .select('*, rooms(*)')
                     .eq('is_active', true)
                     .order('sort_order'),
                 Layout.db
                     .from('residents')
-                    .selecLayout.t('room_id, check_in, check_out')
+                    .select('room_id, check_in, check_out')
                     .in('status', ['active', 'confirmed'])
                     .neq('id', currentResident.id) // исключаем текущего резидента
                     .lte('check_in', checkOut)
