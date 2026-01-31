@@ -37,15 +37,14 @@ async function checkGuestAuth() {
                 spiritual_name,
                 email,
                 phone,
-                whatsapp,
+                has_whatsapp,
                 telegram,
+                telegram_username,
                 country,
                 city,
                 photo_url,
                 user_type,
-                spiritual_master,
-                status,
-                diksha_guru,
+                spiritual_teacher,
                 is_active
             `)
             .eq('user_id', session.user.id)
@@ -54,16 +53,14 @@ async function checkGuestAuth() {
         console.log('[Portal Auth] Vaishnava query result:', { vaishnava, userError });
 
         if (userError) {
-            const errMsg = `[Portal Auth] Query error: ${JSON.stringify(userError)}`;
-            console.error(errMsg);
-            alert(errMsg);
+            console.error('[Portal Auth] Query error:', userError);
+            redirectToLogin('error');
             return null;
         }
 
         if (!vaishnava) {
-            const errMsg = `[Portal Auth] User not found for auth.uid: ${session.user.id}`;
-            console.error(errMsg);
-            alert(errMsg);
+            console.error('[Portal Auth] User not found for auth.uid:', session.user.id);
+            redirectToLogin('user_not_found');
             return null;
         }
 
@@ -84,14 +81,13 @@ async function checkGuestAuth() {
             lastName: vaishnava.last_name,
             spiritualName: vaishnava.spiritual_name,
             phone: vaishnava.phone,
-            whatsapp: vaishnava.whatsapp,
+            hasWhatsapp: vaishnava.has_whatsapp,
             telegram: vaishnava.telegram,
+            telegramUsername: vaishnava.telegram_username,
             country: vaishnava.country,
             city: vaishnava.city,
             photoUrl: vaishnava.photo_url,
-            spiritualMaster: vaishnava.spiritual_master,
-            dikshaGuru: vaishnava.diksha_guru,
-            status: vaishnava.status,
+            spiritualTeacher: vaishnava.spiritual_teacher,
             userType: vaishnava.user_type,
             isStaff: vaishnava.user_type === 'staff'
         };
@@ -200,11 +196,10 @@ function getProfileCompleteness() {
         'spiritualName',
         'email',
         'phone',
-        'whatsapp',
         'country',
         'city',
         'photoUrl',
-        'spiritualMaster'
+        'spiritualTeacher'
     ];
 
     let filled = 0;

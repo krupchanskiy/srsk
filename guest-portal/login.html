@@ -232,14 +232,14 @@
                 console.log('[Login] Vaishnava result:', { vaishnava, userError });
 
                 if (userError) {
-                    alert('[Login] Query error: ' + JSON.stringify(userError));
+                    console.error('[Login] Query error:', userError);
                     await db.auth.signOut();
                     showError('error_user_not_found');
                     return;
                 }
 
                 if (!vaishnava) {
-                    alert('[Login] User not found for auth.uid: ' + data.user.id);
+                    console.error('[Login] User not found for auth.uid:', data.user.id);
                     await db.auth.signOut();
                     showError('error_user_not_found');
                     return;
