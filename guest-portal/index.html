@@ -1129,7 +1129,18 @@
             // Заполненность профиля (вычисляем для конкретного guest)
             const completeness = calculateCompleteness(guest);
             document.getElementById('profile-completeness-value').textContent = `${completeness}%`;
-            document.getElementById('profile-completeness-bar').style.width = `${completeness}%`;
+            const bar = document.getElementById('profile-completeness-bar');
+            bar.style.width = `${completeness}%`;
+
+            // Цвет полоски: <50% красный, 50-99% жёлтый, 100% зелёный
+            bar.classList.remove('bg-srsk-orange', 'bg-red-400', 'bg-yellow-400', 'bg-green-400');
+            if (completeness < 50) {
+                bar.classList.add('bg-red-400');
+            } else if (completeness < 100) {
+                bar.classList.add('bg-yellow-400');
+            } else {
+                bar.classList.add('bg-green-400');
+            }
 
             // Имя и фото в шапке — только если это свой профиль (не публичный просмотр)
             if (!isPublicView) {
