@@ -1137,9 +1137,18 @@
             if (!roomSelect) return;
 
             const reg = registrations.find(r => r.id === registrationId);
+            const roomCell = roomSelect.closest('td');
+            const buildingCell = roomCell?.previousElementSibling;
 
             if (!buildingId) {
                 roomSelect.innerHTML = '<option value="">—</option>';
+                roomSelect.classList.remove('hidden');
+                // Удалить span "Самостоятельное" если есть
+                const selfSpan = roomCell?.querySelector('span');
+                if (selfSpan) selfSpan.remove();
+                // Сбросить CSS классы ячеек
+                roomCell?.classList.remove('bg-error/20', 'bg-success/20');
+                buildingCell?.classList.remove('bg-error/20', 'bg-success/20');
                 // Удалить размещение, если было
                 if (reg?.resident?.id) {
                     await deleteResident(reg.resident.id);
@@ -1152,6 +1161,16 @@
                 await saveSelfAccommodation(registrationId);
                 return;
             }
+
+            // Показать select комнат и удалить span "Самостоятельное"
+            roomSelect.classList.remove('hidden');
+            const selfSpan = roomCell?.querySelector('span');
+            if (selfSpan) selfSpan.remove();
+
+            // Обновить CSS классы ячеек (здание выбрано, но комната ещё нет)
+            buildingCell?.classList.remove('bg-error/20');
+            buildingCell?.classList.add('bg-success/20');
+            roomCell?.classList.remove('bg-error/20', 'bg-success/20');
 
             // Обновить список комнат
             roomSelect.innerHTML = renderRoomOptions(buildingId, null, registrationId);
