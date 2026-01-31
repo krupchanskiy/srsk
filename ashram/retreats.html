@@ -225,6 +225,31 @@
                     <input type="hidden" name="color" value="#6366f1" />
                 </div>
 
+                <!-- Image -->
+                <div>
+                    <label class="label"><span class="label-text font-medium">Изображение</span></label>
+                    <div class="flex items-start gap-4">
+                        <!-- Preview -->
+                        <div id="imagePreview" class="w-32 h-20 rounded-lg bg-base-200 flex items-center justify-center overflow-hidden border border-base-300">
+                            <svg xmlns="http://www.w3.org/2000/svg" class="h-8 w-8 opacity-30" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                            </svg>
+                        </div>
+                        <!-- Upload controls -->
+                        <div class="flex-1">
+                            <input type="file" name="image_file" id="imageInput" accept="image/*" class="file-input file-input-bordered file-input-sm w-full" />
+                            <p class="text-xs opacity-50 mt-1">Рекомендуемый размер: 800x400 px</p>
+                            <button type="button" id="removeImageBtn" class="btn btn-ghost btn-xs text-error mt-1 hidden" onclick="removeImage()">
+                                <svg xmlns="http://www.w3.org/2000/svg" class="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+                                </svg>
+                                Удалить
+                            </button>
+                        </div>
+                    </div>
+                    <input type="hidden" name="image_url" />
+                </div>
+
                 <!-- Actions -->
                 <div class="modal-action">
                     <button type="button" class="btn btn-ghost" onclick="closeModal()" data-i18n="cancel">Отмена</button>
@@ -392,10 +417,17 @@
                 const isActive = r.start_date <= today && r.end_date >= today;
                 const isPast = r.end_date < today;
 
+                // Image or color bar
+                const imageBlock = r.image_url
+                    ? `<div class="w-24 h-16 rounded-lg overflow-hidden flex-shrink-0">
+                           <img src="${r.image_url}" class="w-full h-full object-cover" alt="${name}" />
+                       </div>`
+                    : `<div class="w-1 self-stretch rounded-full" style="background-color: ${r.color}"></div>`;
+
                 return `
                     <div class="bg-base-100 rounded-xl p-4 shadow-sm flex gap-4 items-start cursor-pointer hover:shadow-md transition-shadow ${isPast ? 'opacity-60' : ''}"
                          onclick="openModal('${r.id}')">
-                        <div class="w-1 self-stretch rounded-full" style="background-color: ${r.color}"></div>
+                        ${imageBlock}
                         <div class="flex-1 min-w-0">
                             <div class="flex items-center gap-2 mb-1">
                                 <h3 class="font-bold text-lg">${name}</h3>
@@ -577,6 +609,7 @@
             const deleteSection = document.getElementById('deleteSection');
 
             form.reset();
+            resetImagePreview();
 
             if (id) {
                 const retreat = retreats.find(r => r.id === id);
@@ -591,6 +624,12 @@
                     form.expected_participants.value = retreat.expected_participants || 0;
                     renderColorPicker(retreat.color || COLORS[0]);
                     deleteSection.classList.remove('hidden');
+
+                    // Show existing image
+                    if (retreat.image_url) {
+                        showImagePreview(retreat.image_url);
+                        form.image_url.value = retreat.image_url;
+                    }
                 }
             } else {
                 title.textContent = t('add_retreat');
@@ -603,6 +642,74 @@
             modal.showModal();
         }
 
+        // ==================== IMAGE HANDLING ====================
+        function resetImagePreview() {
+            const preview = document.getElementById('imagePreview');
+            const removeBtn = document.getElementById('removeImageBtn');
+            const input = document.getElementById('imageInput');
+
+            preview.innerHTML = `
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-8 w-8 opacity-30" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                </svg>
+            `;
+            removeBtn.classList.add('hidden');
+            input.value = '';
+            document.querySelector('input[name="image_url"]').value = '';
+        }
+
+        function showImagePreview(url) {
+            const preview = document.getElementById('imagePreview');
+            const removeBtn = document.getElementById('removeImageBtn');
+
+            preview.innerHTML = `<img src="${url}" class="w-full h-full object-cover" alt="Preview" />`;
+            removeBtn.classList.remove('hidden');
+        }
+
+        function removeImage() {
+            resetImagePreview();
+        }
+
+        // Handle file selection
+        document.addEventListener('DOMContentLoaded', () => {
+            document.getElementById('imageInput').addEventListener('change', function(e) {
+                const file = e.target.files[0];
+                if (file) {
+                    const reader = new FileReader();
+                    reader.onload = function(e) {
+                        showImagePreview(e.target.result);
+                    };
+                    reader.readAsDataURL(file);
+                }
+            });
+        });
+
+        async function uploadRetreatImage(file, retreatId) {
+            const ext = file.name.split('.').pop().toLowerCase();
+            const fileName = `${retreatId}.${ext}`;
+            const filePath = `retreats/${fileName}`;
+
+            // Upload to Supabase Storage
+            const { error: uploadError } = await Layout.db.storage
+                .from('retreat-images')
+                .upload(filePath, file, {
+                    cacheControl: '3600',
+                    upsert: true
+                });
+
+            if (uploadError) {
+                console.error('Upload error:', uploadError);
+                throw uploadError;
+            }
+
+            // Get public URL
+            const { data: { publicUrl } } = Layout.db.storage
+                .from('retreat-images')
+                .getPublicUrl(filePath);
+
+            return publicUrl;
+        }
+
         function closeModal() {
             document.getElementById('retreatModal').close();
             editingId = null;
@@ -611,6 +718,11 @@
         async function saveRetreat(e) {
             e.preventDefault();
             const form = document.getElementById('retreatForm');
+            const submitBtn = form.querySelector('button[type="submit"]');
+            const imageInput = document.getElementById('imageInput');
+
+            submitBtn.disabled = true;
+            submitBtn.innerHTML = '<span class="loading loading-spinner loading-sm"></span>';
 
             const data = {
                 name_ru: form.name_ru.value.trim(),
@@ -620,15 +732,36 @@
                 start_date: form.start_date.value,
                 end_date: form.end_date.value,
                 expected_participants: parseInt(form.expected_participants.value) || 0,
-                color: form.color.value
+                color: form.color.value,
+                image_url: form.image_url.value || null
             };
 
             try {
-                if (editingId) {
-                    const { error } = await Layout.db.from('retreats').update(data).eq('id', editingId);
+                let retreatId = editingId;
+
+                // If new retreat, create first to get ID
+                if (!editingId) {
+                    const { data: newRetreat, error } = await Layout.db
+                        .from('retreats')
+                        .insert(data)
+                        .select('id')
+                        .single();
                     if (error) throw error;
-                } else {
-                    const { error } = await Layout.db.from('retreats').insert(data);
+                    retreatId = newRetreat.id;
+                }
+
+                // Upload new image if selected
+                if (imageInput.files.length > 0) {
+                    const imageUrl = await uploadRetreatImage(imageInput.files[0], retreatId);
+                    data.image_url = imageUrl;
+                }
+
+                // Update retreat with image URL (if new image or editing)
+                if (editingId || imageInput.files.length > 0) {
+                    const { error } = await Layout.db
+                        .from('retreats')
+                        .update(data)
+                        .eq('id', retreatId);
                     if (error) throw error;
                 }
 
@@ -638,6 +771,9 @@
             } catch (err) {
                 console.error('Error saving retreat:', err);
                 alert(t('error_saving') + ': ' + err.message);
+            } finally {
+                submitBtn.disabled = false;
+                submitBtn.innerHTML = t('save');
             }
         }
 
