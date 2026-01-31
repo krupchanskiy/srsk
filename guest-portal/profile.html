@@ -42,18 +42,8 @@
         <div class="max-w-2xl mx-auto">
             <!-- Заголовок -->
             <div class="mb-6">
-                <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-                    <div>
-                        <h1 class="text-2xl font-bold text-gray-800" data-i18n="portal_my_profile">Мой профиль</h1>
-                        <p class="text-gray-500" data-i18n="portal_profile_subtitle">Управляйте своими данными</p>
-                    </div>
-                    <button id="public-profile-btn" onclick="openPublicProfile()" class="inline-flex items-center gap-2 px-4 py-2 bg-srsk-green rounded-xl hover:bg-srsk-green/90 transition-colors">
-                        <span class="text-srsk-orange font-medium">Общедоступный профиль</span>
-                        <svg class="w-4 h-4 text-srsk-orange" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" d="M13.5 6H5.25A2.25 2.25 0 003 8.25v10.5A2.25 2.25 0 005.25 21h10.5A2.25 2.25 0 0018 18.75V10.5m-10.5 6L21 3m0 0h-5.25M21 3v5.25"/>
-                        </svg>
-                    </button>
-                </div>
+                <h1 class="text-2xl font-bold text-gray-800" data-i18n="portal_my_profile">Мой профиль</h1>
+                <p class="text-gray-500" data-i18n="portal_profile_subtitle">Управляйте своими данными</p>
             </div>
 
             <!-- Форма профиля -->
@@ -186,13 +176,6 @@
     <script>
         const t = key => PortalLayout.t(key);
         let photoFile = null;
-
-        function openPublicProfile() {
-            const guest = window.currentGuest;
-            if (guest?.id) {
-                window.open(`index.html?view=${guest.id}`, '_blank');
-            }
-        }
 
         async function init() {
             PortalLayout.showLoader();
