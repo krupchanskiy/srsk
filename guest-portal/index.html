@@ -1563,21 +1563,21 @@
             console.log('[Portal] URL:', window.location.href);
             console.log('[Portal] viewId:', viewId);
 
+            // Всегда проверяем авторизацию — для отображения в хедере
+            const loggedInUser = await PortalAuth.checkGuestAuth();
+
             if (viewId) {
                 // Режим просмотра чужого профиля
                 isPublicView = true;
                 await loadPublicProfile(viewId);
-            } else {
+            } else if (loggedInUser) {
                 // Обычный режим — свой профиль
-                const guest = await PortalAuth.checkGuestAuth();
-                if (guest) {
-                    populateProfile(guest);
-                    initPhotoUpload();
-                    loadTeachersList();
-                    loadUpcomingRetreats();
-                    loadActiveRetreat(guest.id);
-                    document.getElementById('profile-form').addEventListener('submit', handleProfileSave);
-                }
+                populateProfile(loggedInUser);
+                initPhotoUpload();
+                loadTeachersList();
+                loadUpcomingRetreats();
+                loadActiveRetreat(loggedInUser.id);
+                document.getElementById('profile-form').addEventListener('submit', handleProfileSave);
             }
         }
 
