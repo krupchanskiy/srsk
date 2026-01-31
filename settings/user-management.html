@@ -183,7 +183,7 @@
     <script src="../js/auto-translate.js"></script>
     <script src="../js/layout.js"></script>
     <script>
-        const db = window.supabase.createClient(CONFIG.SUPABASE_URL, CONFIG.SUPABASE_ANON_KEY);
+        const db = window.supabaseClient;
 
         let allUsers = [];
         let currentTab = 'all';

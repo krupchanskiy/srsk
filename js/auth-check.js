@@ -14,8 +14,8 @@
     }
 
     try {
-        // Создаем Supabase клиент
-        const db = window.supabase.createClient(CONFIG.SUPABASE_URL, CONFIG.SUPABASE_ANON_KEY);
+        // Используем централизованный Supabase клиент из config.js
+        const db = window.supabaseClient;
 
         // Проверяем текущую сессию
         const { data: { session }, error } = await db.auth.getSession();

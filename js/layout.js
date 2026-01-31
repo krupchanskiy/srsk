@@ -5,8 +5,8 @@
 'use strict';
 
 // ==================== CONFIG ====================
-// Используем централизованный CONFIG из config.js
-const db = window.supabase.createClient(CONFIG.SUPABASE_URL, CONFIG.SUPABASE_ANON_KEY);
+// Используем централизованный Supabase клиент из config.js
+const db = window.supabaseClient;
 
 const DESKTOP_BP = 1200;
 

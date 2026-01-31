@@ -49,7 +49,7 @@
 
     <script src="js/config.js"></script>
     <script>
-        const db = window.supabase.createClient(CONFIG.SUPABASE_URL, CONFIG.SUPABASE_ANON_KEY);
+        const db = window.supabaseClient;
 
         async function logout() {
             await db.auth.signOut();

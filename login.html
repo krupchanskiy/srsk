@@ -158,7 +158,7 @@
     <script src="js/layout.js"></script>
     <script>
         // Используем CONFIG из config.js
-        const db = window.supabase.createClient(CONFIG.SUPABASE_URL, CONFIG.SUPABASE_ANON_KEY);
+        const db = window.supabaseClient;
 
         // State
         let currentLang = localStorage.getItem('srsk_lang') || 'ru';

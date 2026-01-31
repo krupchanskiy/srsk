@@ -12,4 +12,13 @@ window.CONFIG = {
     SUPABASE_SERVICE_ROLE_KEY: null // TODO: Вставить service role key если нужен
 };
 
+// Создаём ЕДИНСТВЕННЫЙ экземпляр Supabase клиента
+// Все модули должны использовать window.supabaseClient вместо создания нового
+if (typeof window.supabase !== 'undefined') {
+    window.supabaseClient = window.supabase.createClient(
+        window.CONFIG.SUPABASE_URL,
+        window.CONFIG.SUPABASE_ANON_KEY
+    );
+}
+
 })();
