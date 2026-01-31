@@ -702,12 +702,12 @@
                 throw uploadError;
             }
 
-            // Get public URL
+            // Get public URL with cache buster
             const { data: { publicUrl } } = Layout.db.storage
                 .from('retreat-images')
                 .getPublicUrl(filePath);
 
-            return publicUrl;
+            return `${publicUrl}?t=${Date.now()}`;
         }
 
         function closeModal() {
