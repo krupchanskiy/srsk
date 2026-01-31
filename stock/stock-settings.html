@@ -152,8 +152,16 @@
 
             <div class="space-y-4">
                 <div>
-                    <label class="label"><span class="label-text font-medium">Имя</span></label>
-                    <input type="text" id="buyerName" class="input input-bordered w-full" placeholder="Имя закупщика" />
+                    <label class="label"><span class="label-text font-medium">Имя (русский)</span></label>
+                    <input type="text" id="buyerNameRu" class="input input-bordered w-full" placeholder="Имя закупщика" data-auto-translate="name" />
+                </div>
+                <div>
+                    <label class="label"><span class="label-text font-medium">Имя (English)</span></label>
+                    <input type="text" id="buyerNameEn" class="input input-bordered w-full" placeholder="Buyer name" data-auto-translate-target="name" data-auto-translate-lang="en" />
+                </div>
+                <div>
+                    <label class="label"><span class="label-text font-medium">Имя (हिंदी)</span></label>
+                    <input type="text" id="buyerNameHi" class="input input-bordered w-full" placeholder="क्रेता का नाम" data-auto-translate-target="name" data-auto-translate-lang="hi" />
                 </div>
                 <div>
                     <label class="label"><span class="label-text font-medium">Телефон</span></label>
@@ -373,7 +381,9 @@
         function openBuyerModal() {
             editingBuyerId = null;
             Layout.$('#buyerModalTitle').textContent = 'Добавить закупщика';
-            Layout.$('#buyerName').value = '';
+            Layout.$('#buyerNameRu').value = '';
+            Layout.$('#buyerNameEn').value = '';
+            Layout.$('#buyerNameHi').value = '';
             Layout.$('#buyerPhone').value = '';
             Layout.$('#buyerWhatsapp').value = '';
             Layout.$('#buyerNotes').value = '';
@@ -386,7 +396,9 @@
 
             editingBuyerId = id;
             Layout.$('#buyerModalTitle').textContent = 'Редактировать закупщика';
-            Layout.$('#buyerName').value = buyer.name_ru || '';
+            Layout.$('#buyerNameRu').value = buyer.name_ru || '';
+            Layout.$('#buyerNameEn').value = buyer.name_en || '';
+            Layout.$('#buyerNameHi').value = buyer.name_hi || '';
             Layout.$('#buyerPhone').value = buyer.phone || '';
             Layout.$('#buyerWhatsapp').value = buyer.whatsapp || '';
             Layout.$('#buyerNotes').value = buyer.notes || '';
@@ -398,14 +410,16 @@
         }
 
         async function saveBuyer() {
-            const name = Layout.$('#buyerName').value.trim();
-            if (!name) {
+            const nameRu = Layout.$('#buyerNameRu').value.trim();
+            if (!nameRu) {
                 showAlert(tr('enter_buyer_name', 'Введите имя закупщика'));
                 return;
             }
 
             const data = {
-                name_ru: name,
+                name_ru: nameRu,
+                name_en: Layout.$('#buyerNameEn').value.trim(),
+                name_hi: Layout.$('#buyerNameHi').value.trim(),
                 phone: Layout.$('#buyerPhone').value.trim(),
                 whatsapp: Layout.$('#buyerWhatsapp').value.trim(),
                 notes: Layout.$('#buyerNotes').value.trim()
