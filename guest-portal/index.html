@@ -469,7 +469,7 @@
         </div>
 
         <!-- Путеводитель -->
-        <div class="card mb-4" style="background: #FFF3CD;">
+        <div class="card mb-4 cursor-pointer" style="background: #FFF3CD;" onclick="showComingSoon()">
             <div class="flex items-center justify-between mb-4">
                 <div class="card-label mb-0" style="color: #997A00;">Материалы</div>
                 <a href="#" class="text-sm font-medium hover:underline flex items-center gap-1" style="color: #E8900C;">
@@ -539,7 +539,7 @@
         </div>
 
         <!-- Галерея (большой блок) -->
-        <div class="card mb-4 border-2 border-transparent hover:border-blue-300 transition-all" style="background: #F0F7FF;">
+        <div class="card mb-4 border-2 border-transparent hover:border-blue-300 transition-all cursor-pointer" style="background: #F0F7FF;" onclick="showComingSoon()">
             <div class="flex items-center justify-between mb-4">
                 <div>
                     <div class="card-label mb-1" style="color: #4A90D9;">Галерея</div>
@@ -757,6 +757,22 @@
         </div>
     </div>
 
+    <!-- Coming Soon Modal -->
+    <div id="comingSoonModal" class="fixed inset-0 bg-black/50 z-50 hidden flex items-center justify-center p-4" onclick="closeComingSoon()">
+        <div class="bg-white rounded-2xl p-6 max-w-sm w-full text-center shadow-xl" onclick="event.stopPropagation()">
+            <div class="w-16 h-16 bg-srsk-orange/10 rounded-full flex items-center justify-center mx-auto mb-4">
+                <svg class="w-8 h-8 text-srsk-orange" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M11.42 15.17L17.25 21A2.652 2.652 0 0021 17.25l-5.877-5.877M11.42 15.17l2.496-3.03c.317-.384.74-.626 1.208-.766M11.42 15.17l-4.655 5.653a2.548 2.548 0 11-3.586-3.586l6.837-5.63m5.108-.233c.55-.164 1.163-.188 1.743-.14a4.5 4.5 0 004.486-6.336l-3.276 3.277a3.004 3.004 0 01-2.25-2.25l3.276-3.276a4.5 4.5 0 00-6.336 4.486c.091 1.076-.071 2.264-.904 2.95l-.102.085m-1.745 1.437L5.909 7.5H4.5L2.25 3.75l1.5-1.5L7.5 4.5v1.409l4.26 4.26m-1.745 1.437l1.745-1.437m6.615 8.206L15.75 15.75M4.867 19.125h.008v.008h-.008v-.008z" />
+                </svg>
+            </div>
+            <h3 class="text-xl font-semibold text-gray-800 mb-2">Раздел в разработке</h3>
+            <p class="text-gray-500 mb-6">Скоро появится</p>
+            <button onclick="closeComingSoon()" class="w-full bg-srsk-green text-white font-medium py-2.5 px-4 rounded-xl hover:bg-srsk-green/90 transition-colors">
+                Ок
+            </button>
+        </div>
+    </div>
+
     <!-- Scripts -->
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <script src="js/portal-config.js"></script>
@@ -782,10 +798,22 @@
             document.body.style.overflow = '';
         }
 
+        // Coming Soon Modal
+        function showComingSoon() {
+            document.getElementById('comingSoonModal').classList.remove('hidden');
+            document.body.style.overflow = 'hidden';
+        }
+
+        function closeComingSoon() {
+            document.getElementById('comingSoonModal').classList.add('hidden');
+            document.body.style.overflow = '';
+        }
+
         // Закрытие по Escape
         document.addEventListener('keydown', (e) => {
             if (e.key === 'Escape') {
                 closePhotoModal();
+                closeComingSoon();
             }
         });
 
