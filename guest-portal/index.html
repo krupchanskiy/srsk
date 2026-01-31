@@ -151,8 +151,20 @@
         <!-- Верхняя часть: Профиль + (Ретрит + Трансфер) -->
         <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
 
+            <!-- Скелетон профиля -->
+            <div id="profile-skeleton" class="card md:col-span-1 animate-pulse" style="background: #147D30;">
+                <div class="flex flex-col items-center text-center">
+                    <div class="w-24 h-24 bg-white/20 rounded-full mb-4"></div>
+                    <div class="h-6 w-40 bg-white/20 rounded mb-2"></div>
+                    <div class="h-4 w-32 bg-white/20 rounded mb-4"></div>
+                    <div class="h-4 w-28 bg-white/20 rounded mb-2"></div>
+                    <div class="h-4 w-24 bg-white/20 rounded mb-2"></div>
+                    <div class="h-4 w-36 bg-white/20 rounded"></div>
+                </div>
+            </div>
+
             <!-- Профиль (зелёный) -->
-            <div class="card md:col-span-1 text-white" style="background: #147D30;">
+            <div id="profile-card" class="card md:col-span-1 text-white hidden" style="background: #147D30;">
 
                 <!-- === РЕЖИМ ПРОСМОТРА === -->
                 <div id="profile-view" class="flex flex-col items-center text-center">
@@ -336,6 +348,30 @@
 
             <!-- Правая колонка: Ретрит + Трансфер -->
             <div class="md:col-span-2 flex flex-col gap-4">
+
+                <!-- Скелетон загрузки ретрита -->
+                <div id="retreat-skeleton" class="card flex-1 p-0 overflow-hidden animate-pulse" style="background: #F5F5F5;">
+                    <div class="flex flex-col sm:flex-row h-full">
+                        <div class="w-full sm:w-56 h-48 sm:h-auto bg-gray-200 flex-shrink-0"></div>
+                        <div class="flex-1 p-5 flex flex-col">
+                            <div class="h-4 w-24 bg-gray-200 rounded mb-3"></div>
+                            <div class="h-7 w-48 bg-gray-200 rounded mb-2"></div>
+                            <div class="h-4 w-32 bg-gray-200 rounded mb-4"></div>
+                            <div class="h-4 w-full bg-gray-200 rounded mb-2"></div>
+                            <div class="h-4 w-3/4 bg-gray-200 rounded"></div>
+                            <div class="mt-auto pt-4 grid grid-cols-2 gap-4">
+                                <div>
+                                    <div class="h-3 w-16 bg-gray-200 rounded mb-2"></div>
+                                    <div class="h-5 w-32 bg-gray-200 rounded"></div>
+                                </div>
+                                <div>
+                                    <div class="h-3 w-16 bg-gray-200 rounded mb-2"></div>
+                                    <div class="h-5 w-28 bg-gray-200 rounded"></div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
 
                 <!-- Текущий/предстоящий ретрит -->
                 <div id="retreat-block" class="hidden card cursor-pointer transition-all flex-1 p-0 overflow-hidden border-2 border-transparent hover:border-srsk-green" style="background: #E8F5E9;">
@@ -969,6 +1005,10 @@
 
         // Заполнить профиль данными
         function populateProfile(guest) {
+            // Скрываем скелетон, показываем профиль
+            document.getElementById('profile-skeleton').classList.add('hidden');
+            document.getElementById('profile-card').classList.remove('hidden');
+
             // Фото
             const photoContainer = document.getElementById('profile-photo');
             if (guest.photoUrl) {
@@ -1316,9 +1356,13 @@
             try {
                 const data = await PortalData.loadDashboardData(guestId);
 
+                const retreatSkeleton = document.getElementById('retreat-skeleton');
                 const retreatBlock = document.getElementById('retreat-block');
                 const noRetreatBlock = document.getElementById('no-retreat-block');
                 const transferBlock = document.getElementById('transfer-block');
+
+                // Скрываем скелетон
+                retreatSkeleton.classList.add('hidden');
 
                 if (!data.activeRetreat) {
                     // Нет активного ретрита
@@ -1395,6 +1439,9 @@
 
             } catch (e) {
                 console.error('Ошибка загрузки ретрита:', e);
+                // Скрываем скелетон даже при ошибке
+                document.getElementById('retreat-skeleton').classList.add('hidden');
+                document.getElementById('no-retreat-block').classList.remove('hidden');
             }
         }
 
