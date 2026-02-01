@@ -83,11 +83,11 @@
 
                 <!-- Меню (десктоп) -->
                 <nav class="hidden md:flex items-center gap-6">
-                    <a href="#" class="text-white/90 hover:text-srsk-orange transition-colors text-base font-medium uppercase tracking-wide">Профиль</a>
-                    <a href="#" class="text-white/90 hover:text-srsk-orange transition-colors text-base font-medium uppercase tracking-wide">Ретриты</a>
-                    <a href="#" class="text-white/90 hover:text-srsk-orange transition-colors text-base font-medium uppercase tracking-wide">Материалы</a>
-                    <a href="#" class="text-white/90 hover:text-srsk-orange transition-colors text-base font-medium uppercase tracking-wide">Галерея</a>
-                    <a href="#" class="text-white/90 hover:text-srsk-orange transition-colors text-base font-medium uppercase tracking-wide">Контакты</a>
+                    <a href="#" class="text-white/90 hover:text-srsk-orange transition-colors text-base font-medium uppercase tracking-wide" data-i18n="nav_profile">Профиль</a>
+                    <a href="#" class="text-white/90 hover:text-srsk-orange transition-colors text-base font-medium uppercase tracking-wide" data-i18n="nav_retreats">Ретриты</a>
+                    <a href="#" class="text-white/90 hover:text-srsk-orange transition-colors text-base font-medium uppercase tracking-wide" data-i18n="nav_materials">Материалы</a>
+                    <a href="#" class="text-white/90 hover:text-srsk-orange transition-colors text-base font-medium uppercase tracking-wide" data-i18n="nav_gallery">Галерея</a>
+                    <a href="#" class="text-white/90 hover:text-srsk-orange transition-colors text-base font-medium uppercase tracking-wide" data-i18n="nav_contacts">Контакты</a>
 
                     <!-- Разделитель -->
                     <div class="w-px h-6 bg-white/20"></div>
@@ -103,7 +103,7 @@
                     </a>
 
                     <!-- Выход -->
-                    <button onclick="PortalAuth.logout()" class="text-white/60 hover:text-white transition-colors" title="Выйти">
+                    <button onclick="PortalAuth.logout()" class="text-white/60 hover:text-white transition-colors" data-i18n-title="logout" title="Выйти">
                         <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24">
                             <path stroke-linecap="round" stroke-linejoin="round" d="M15.75 9V5.25A2.25 2.25 0 0013.5 3h-6a2.25 2.25 0 00-2.25 2.25v13.5A2.25 2.25 0 007.5 21h6a2.25 2.25 0 002.25-2.25V15M12 9l-3 3m0 0l3 3m-3-3h12.75" />
                         </svg>
@@ -129,16 +129,16 @@
             <nav id="mobile-menu" class="hidden md:hidden pb-4">
                 <div class="flex flex-col gap-4">
                     <div id="mobile-name" class="text-white/90 text-sm font-medium py-2 border-b border-white/10 mb-1"></div>
-                    <a href="#" class="text-white/90 hover:text-srsk-orange transition-colors text-base font-medium py-2 uppercase tracking-wide">Профиль</a>
-                    <a href="#" class="text-white/90 hover:text-srsk-orange transition-colors text-base font-medium py-2 uppercase tracking-wide">Ретриты</a>
-                    <a href="#" class="text-white/90 hover:text-srsk-orange transition-colors text-base font-medium py-2 uppercase tracking-wide">Материалы</a>
-                    <a href="#" class="text-white/90 hover:text-srsk-orange transition-colors text-base font-medium py-2 uppercase tracking-wide">Галерея</a>
-                    <a href="#" class="text-white/90 hover:text-srsk-orange transition-colors text-base font-medium py-2 uppercase tracking-wide">Контакты</a>
+                    <a href="#" class="text-white/90 hover:text-srsk-orange transition-colors text-base font-medium py-2 uppercase tracking-wide" data-i18n="nav_profile">Профиль</a>
+                    <a href="#" class="text-white/90 hover:text-srsk-orange transition-colors text-base font-medium py-2 uppercase tracking-wide" data-i18n="nav_retreats">Ретриты</a>
+                    <a href="#" class="text-white/90 hover:text-srsk-orange transition-colors text-base font-medium py-2 uppercase tracking-wide" data-i18n="nav_materials">Материалы</a>
+                    <a href="#" class="text-white/90 hover:text-srsk-orange transition-colors text-base font-medium py-2 uppercase tracking-wide" data-i18n="nav_gallery">Галерея</a>
+                    <a href="#" class="text-white/90 hover:text-srsk-orange transition-colors text-base font-medium py-2 uppercase tracking-wide" data-i18n="nav_contacts">Контакты</a>
                     <button onclick="PortalAuth.logout()" class="text-white/60 hover:text-white transition-colors text-base font-medium py-2 mt-2 border-t border-white/10 pt-4 flex items-center gap-2 uppercase tracking-wide w-full">
                         <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24">
                             <path stroke-linecap="round" stroke-linejoin="round" d="M15.75 9V5.25A2.25 2.25 0 0013.5 3h-6a2.25 2.25 0 00-2.25 2.25v13.5A2.25 2.25 0 007.5 21h6a2.25 2.25 0 002.25-2.25V15M12 9l-3 3m0 0l3 3m-3-3h12.75" />
                         </svg>
-                        Выйти
+                        <span data-i18n="logout">Выйти</span>
                     </button>
                 </div>
             </nav>

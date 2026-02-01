@@ -194,6 +194,15 @@
             img.replaceWith(placeholder);
         };
 
+        // Глобальный обработчик клика по аватарам (event delegation для XSS-безопасности)
+        document.addEventListener('click', function(event) {
+            const avatarPhoto = event.target.closest('.avatar-photo');
+            if (avatarPhoto && avatarPhoto.dataset.photoUrl) {
+                event.stopPropagation();
+                Layout.openPhotoModal(avatarPhoto.dataset.photoUrl);
+            }
+        });
+
         // ==================== DATA LOADING ====================
         async function loadRetreats() {
             const { data, error } = await Layout.db
@@ -624,7 +633,7 @@
                 .toUpperCase());
 
             const avatarHtml = photoUrl
-                ? `<img src="${e(photoUrl)}" class="w-10 h-10 rounded-full object-cover cursor-pointer" alt="" data-initials="${initials}" onerror="replacePhotoWithPlaceholder(this)" onclick="event.stopPropagation(); Layout.openPhotoModal('${e(photoUrl)}')">`
+                ? `<img src="${e(photoUrl)}" class="w-10 h-10 rounded-full object-cover cursor-pointer avatar-photo" alt="" data-initials="${initials}" data-photo-url="${e(photoUrl)}" onerror="replacePhotoWithPlaceholder(this)">`
                 : `<div class="w-10 h-10 rounded-full bg-gradient-to-br from-purple-500 to-pink-500 flex items-center justify-center text-white font-semibold">${initials}</div>`;
 
             // Контакты

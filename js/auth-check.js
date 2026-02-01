@@ -60,7 +60,7 @@
             return;
         }
 
-        // Загрузить права пользователя
+        // Загрузить права пользователя одним запросом через SQL функцию
         let permissions = [];
 
         if (vaishnava.is_superuser) {
@@ -70,58 +70,14 @@
                 .select('code');
             permissions = allPerms ? allPerms.map(p => p.code) : [];
         } else {
-            // Загрузить права через роли
-            const { data: userRoles } = await db
-                .from('user_roles')
-                .select(`
-                    role_id,
-                    roles!inner (
-                        id,
-                        code
-                    )
-                `)
-                .eq('user_id', session.user.id)
-                .eq('is_active', true);
+            // Получить права через оптимизированную SQL функцию (1 запрос вместо 3)
+            const { data: userPerms, error: permsError } = await db
+                .rpc('get_user_permissions', { p_user_id: session.user.id });
 
-            if (userRoles && userRoles.length > 0) {
-                const roleIds = userRoles.map(r => r.role_id);
-                const { data: rolePerms } = await db
-                    .from('role_permissions')
-                    .select(`
-                        permission_id,
-                        permissions!inner (
-                            code
-                        )
-                    `)
-                    .in('role_id', roleIds);
-
-                permissions = rolePerms ? rolePerms.map(rp => rp.permissions.code) : [];
+            if (permsError) {
+                console.error('Failed to load permissions:', permsError);
             }
-
-            // Загрузить индивидуальные права (переопределения)
-            const { data: userPerms } = await db
-                .from('user_permissions')
-                .select(`
-                    is_granted,
-                    permissions!inner (
-                        code
-                    )
-                `)
-                .eq('user_id', session.user.id);
-
-            if (userPerms) {
-                userPerms.forEach(up => {
-                    if (up.is_granted) {
-                        // Добавить право
-                        if (!permissions.includes(up.permissions.code)) {
-                            permissions.push(up.permissions.code);
-                        }
-                    } else {
-                        // Убрать право
-                        permissions = permissions.filter(p => p !== up.permissions.code);
-                    }
-                });
-            }
+            permissions = userPerms ? userPerms.map(p => p.permission_code) : [];
         }
 
         // Сохранить в window.currentUser

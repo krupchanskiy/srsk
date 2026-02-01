@@ -116,7 +116,10 @@
                     </tr>
                 </thead>
                 <tbody id="peopleTable">
-                    <!-- Will be populated by JS -->
+                    <!-- Skeleton loader -->
+                    <tr class="skeleton-table-row"><td><div class="flex items-center gap-3"><div class="skeleton skeleton-avatar"></div><div class="flex-1"><div class="skeleton skeleton-text w-32 mb-1"></div><div class="skeleton skeleton-text-sm w-20"></div></div></div></td><td><div class="skeleton skeleton-text w-24"></div></td><td><div class="skeleton skeleton-text w-20"></div></td><td><div class="skeleton skeleton-text w-16"></div></td><td></td></tr>
+                    <tr class="skeleton-table-row"><td><div class="flex items-center gap-3"><div class="skeleton skeleton-avatar"></div><div class="flex-1"><div class="skeleton skeleton-text w-40 mb-1"></div><div class="skeleton skeleton-text-sm w-16"></div></div></div></td><td><div class="skeleton skeleton-text w-20"></div></td><td><div class="skeleton skeleton-text w-24"></div></td><td><div class="skeleton skeleton-text w-12"></div></td><td></td></tr>
+                    <tr class="skeleton-table-row"><td><div class="flex items-center gap-3"><div class="skeleton skeleton-avatar"></div><div class="flex-1"><div class="skeleton skeleton-text w-28 mb-1"></div><div class="skeleton skeleton-text-sm w-24"></div></div></div></td><td><div class="skeleton skeleton-text w-28"></div></td><td><div class="skeleton skeleton-text w-16"></div></td><td><div class="skeleton skeleton-text w-20"></div></td><td></td></tr>
                 </tbody>
             </table>
             <div id="emptyState" class="hidden text-center py-12 opacity-50">
@@ -299,7 +302,7 @@
                 .toUpperCase());
 
             const avatarHtml = photoUrl
-                ? `<img src="${e(photoUrl)}" class="w-10 h-10 rounded-full object-cover cursor-pointer" alt="" data-initials="${initials}" onerror="replacePhotoWithPlaceholder(this)" onclick="event.stopPropagation(); Layout.openPhotoModal('${e(photoUrl)}')">`
+                ? `<img src="${e(photoUrl)}" class="w-10 h-10 rounded-full object-cover cursor-pointer avatar-photo" alt="" data-initials="${initials}" data-photo-url="${e(photoUrl)}" onerror="replacePhotoWithPlaceholder(this)">`
                 : `<div class="w-10 h-10 rounded-full bg-gradient-to-br from-purple-500 to-pink-500 flex items-center justify-center text-white font-semibold">${initials}</div>`;
 
             // Департамент и служение
