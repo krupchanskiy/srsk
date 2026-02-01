@@ -61,7 +61,23 @@ npx serve .
 
 ## Testing
 
-Не запускать тесты самостоятельно. При больших изменениях — предложить запустить. Перед запуском спросить: все тесты или конкретные.
+Playwright E2E тесты в папке `tests/`. Не запускать автоматически — предложить при больших изменениях.
+
+```bash
+# Все тесты
+npx playwright test
+
+# Конкретный файл
+npx playwright test tests/housing.spec.js
+
+# С UI
+npx playwright test --ui
+
+# Один тест по имени
+npx playwright test -g "название теста"
+```
+
+Тесты автоматически запускают локальный сервер на порту 3000.
 
 ## Supabase MCP
 
@@ -445,27 +461,7 @@ Layout.showNotification('Проверьте заполнение полей', 'w
    <button onclick="openModal()">Открыть</button>
    ```
 
-6. **Поле поиска с крестиком** — все поля поиска должны иметь кнопку очистки (крестик), которая появляется при вводе текста и очищает поле по клику:
-```html
-<div class="relative w-full sm:w-64">
-    <input type="text" id="searchInput" class="input input-bordered w-full pl-10 pr-8" placeholder="Поиск..." oninput="onSearchInput(this.value)" />
-    <svg class="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 opacity-40"><!-- search icon --></svg>
-    <button type="button" id="searchClear" class="absolute right-2 top-1/2 -translate-y-1/2 w-5 h-5 opacity-40 hover:opacity-70 hidden" onclick="clearSearch()">
-        <svg><!-- X icon --></svg>
-    </button>
-</div>
-```
-```javascript
-function onSearchInput(query) {
-    document.getElementById('searchClear').classList.toggle('hidden', !query);
-    // ... filter logic
-}
-function clearSearch() {
-    document.getElementById('searchInput').value = '';
-    document.getElementById('searchClear').classList.add('hidden');
-    // ... reset filter
-}
-```
+6. **Поле поиска с крестиком** — все поля поиска должны иметь кнопку очистки (×), которая появляется при вводе и скрывается при очистке. Пример реализации см. в `vaishnavas/index.html`.
 
 ## Storage Buckets
 
