@@ -1122,8 +1122,13 @@
                             // Уборка после выезда (не для временных зданий)
                             // Обычный выезд (endHalf=0): уборка со второй половины дня выезда
                             // Поздний выезд (endHalf=1): уборка с первой половины СЛЕДУЮЩЕГО дня
+                            // ВАЖНО: уборка создаётся только если это последний выезжающий из комнаты
                             let cleaningEntry = null;
-                            if (res.check_out && !building.isTemporary) {
+                            const hasOthersStayingLonger = roomResidents.some(other =>
+                                other.id !== res.id &&
+                                (other.check_out === null || other.check_out > res.check_out)
+                            );
+                            if (res.check_out && !building.isTemporary && !hasOthersStayingLonger) {
                                 let cleaningStartDay, cleaningStartHalf, cleaningEndDay, cleaningEndHalf;
 
                                 if (endHalf === 0) {
