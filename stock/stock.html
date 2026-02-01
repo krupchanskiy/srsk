@@ -379,6 +379,33 @@
             await loadStock();
             updatePageLanguage();
             Layout.hideLoader();
+
+            // Realtime: автообновление при изменениях
+            subscribeToRealtime();
+        }
+
+        // Realtime подписка на изменения склада
+        function subscribeToRealtime() {
+            Layout.db.channel('stock-realtime')
+                .on('postgres_changes',
+                    { event: '*', schema: 'public', table: 'stock' },
+                    handleRealtimeChange
+                )
+                .subscribe((status) => {
+                    if (status === 'SUBSCRIBED') {
+                        console.log('Realtime: подключено к складу');
+                    }
+                });
+        }
+
+        let realtimeTimeout = null;
+        function handleRealtimeChange(payload) {
+            console.log('Realtime изменение:', payload.eventType);
+            if (realtimeTimeout) clearTimeout(realtimeTimeout);
+            realtimeTimeout = setTimeout(async () => {
+                await loadStock();
+                Layout.showNotification('Данные обновлены', 'info');
+            }, 500);
         }
 
         init();

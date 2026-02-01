@@ -1353,6 +1353,45 @@ async function init() {
     await Promise.all([loadProducts(), loadProductCategories(), loadStock(), loadRecipes(), loadBuyers()]);
     selectPeriod('today');
     Layout.updateAllTranslations();
+
+    // Realtime: автообновление при изменениях
+    subscribeToRealtime();
+}
+
+// Realtime подписка на изменения заявок
+function subscribeToRealtime() {
+    Layout.db.channel('requests-realtime')
+        .on('postgres_changes',
+            { event: '*', schema: 'public', table: 'purchase_requests' },
+            handleRealtimeChange
+        )
+        .on('postgres_changes',
+            { event: '*', schema: 'public', table: 'stock' },
+            handleStockChange
+        )
+        .subscribe((status) => {
+            if (status === 'SUBSCRIBED') {
+                console.log('Realtime: подключено к заявкам');
+            }
+        });
+}
+
+let realtimeTimeout = null;
+function handleRealtimeChange(payload) {
+    console.log('Realtime изменение заявок:', payload.eventType);
+    if (realtimeTimeout) clearTimeout(realtimeTimeout);
+    realtimeTimeout = setTimeout(async () => {
+        await loadSavedRequests();
+        Layout.showNotification('Заявки обновлены', 'info');
+    }, 500);
+}
+
+function handleStockChange(payload) {
+    console.log('Realtime изменение склада:', payload.eventType);
+    if (realtimeTimeout) clearTimeout(realtimeTimeout);
+    realtimeTimeout = setTimeout(async () => {
+        await loadStock();
+    }, 500);
 }
 
 init();
