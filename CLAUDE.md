@@ -82,6 +82,10 @@ Realtime включён для автоматического обновлени
 - `residents` — проживающие (шахматка)
 - `bookings` — бронирования (шахматка)
 - `room_cleanings` — уборки (шахматка)
+- `stock` — остатки на складе (stock.html, requests.html)
+- `purchase_requests` — заявки на закупку (requests.html)
+- `stock_receipts` — поступления
+- `stock_issuances` — выдачи
 
 **Реализация (placement/timeline.html):**
 ```javascript
