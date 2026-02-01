@@ -381,13 +381,13 @@ async function saveNewPerson(event, opts = {}) {
         first_name: form.first_name.value || null,
         last_name: form.last_name.value || null,
         spiritual_name: form.spiritual_name.value || null,
-        phone: form.phone.value || null
+        phone: form.phone.value || null,
+        email: form.email?.value || null,
+        telegram_username: form.telegram_username?.value || null
     };
 
-    // is_team_member определяется по-разному на каждой странице
-    if (opts.isTeamMember !== undefined) {
-        data.is_team_member = opts.isTeamMember;
-    } else if (form.is_team_member) {
+    // is_team_member определяется по галочке в форме
+    if (form.is_team_member) {
         data.is_team_member = form.is_team_member.type === 'checkbox'
             ? form.is_team_member.checked
             : form.is_team_member.value === 'true';

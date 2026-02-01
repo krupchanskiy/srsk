@@ -161,6 +161,14 @@
             <h3 class="font-bold text-lg mb-4" data-i18n="add_vaishnava">Добавить вайшнава</h3>
 
             <form id="addForm" onsubmit="saveNewPerson(event)">
+                <div class="form-control mb-4">
+                    <label class="label">
+                        <span class="label-text font-medium" data-i18n="spiritual_name">Духовное имя</span>
+                        <span class="label-text-alt opacity-50" data-i18n="optional">необязательно</span>
+                    </label>
+                    <input type="text" name="spiritual_name" class="input input-bordered">
+                </div>
+
                 <div class="grid grid-cols-2 gap-4 mb-4">
                     <div class="form-control">
                         <label class="label">
@@ -178,16 +186,26 @@
 
                 <div class="form-control mb-4">
                     <label class="label">
-                        <span class="label-text font-medium" data-i18n="spiritual_name">Духовное имя</span>
+                        <span class="label-text font-medium">Email *</span>
                     </label>
-                    <input type="text" name="spiritual_name" class="input input-bordered">
+                    <input type="email" name="email" class="input input-bordered" required>
                 </div>
 
-                <div class="form-control mb-4">
-                    <label class="label">
-                        <span class="label-text font-medium" data-i18n="phone">Телефон</span>
-                    </label>
-                    <input type="tel" name="phone" class="input input-bordered">
+                <div class="grid grid-cols-2 gap-4 mb-4">
+                    <div class="form-control">
+                        <label class="label">
+                            <span class="label-text font-medium" data-i18n="phone">Телефон</span>
+                            <span class="label-text-alt opacity-50" data-i18n="optional">необязательно</span>
+                        </label>
+                        <input type="tel" name="phone" class="input input-bordered">
+                    </div>
+                    <div class="form-control">
+                        <label class="label">
+                            <span class="label-text font-medium">Telegram</span>
+                            <span class="label-text-alt opacity-50" data-i18n="optional">необязательно</span>
+                        </label>
+                        <input type="text" name="telegram_username" class="input input-bordered" placeholder="username">
+                    </div>
                 </div>
 
                 <div class="form-control mb-4">
