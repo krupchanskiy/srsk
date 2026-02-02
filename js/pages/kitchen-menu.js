@@ -170,58 +170,51 @@ function getCook(id) {
 async function loadData() {
     const locationId = getCurrentLocation()?.id;
 
-    // Load recipes with categories (filtered by location)
+    // Запускаем все независимые запросы параллельно
     let recipesQuery = Layout.db
         .from('recipes')
         .select('*, category:recipe_categories(*)');
-
     if (locationId) {
         recipesQuery = recipesQuery.eq('location_id', locationId);
     }
 
-    const { data: recipesData } = await recipesQuery;
-    recipes = recipesData || [];
+    const [
+        recipesResult,
+        categoriesResult,
+        retreatsResult,
+        holidaysResult,
+        cooksResult,
+        unitsResult
+    ] = await Promise.all([
+        recipesQuery,
+        Cache.getOrLoad('recipe_categories', async () => {
+            const { data, error } = await Layout.db
+                .from('recipe_categories')
+                .select('*')
+                .order('sort_order');
+            if (error) { console.error('Error loading recipe_categories:', error); return null; }
+            return data;
+        }),
+        Layout.db.from('retreats').select('*'),
+        Layout.db.from('holidays').select('*'),
+        Layout.db
+            .from('vaishnavas')
+            .select('*, department:departments!inner(*)')
+            .eq('is_team_member', true)
+            .eq('is_deleted', false),
+        Cache.getOrLoad('units', async () => {
+            const { data, error } = await Layout.db.from('units').select('*');
+            if (error) { console.error('Error loading units:', error); return null; }
+            return data;
+        })
+    ]);
 
-    // Load categories
-    categories = await Cache.getOrLoad('recipe_categories', async () => {
-        const { data, error } = await Layout.db
-            .from('recipe_categories')
-            .select('*')
-            .order('sort_order');
-        if (error) { console.error('Error loading recipe_categories:', error); return null; }
-        return data;
-    });
-    categories = categories || [];
-
-    // Load retreats
-    const { data: retreatsData } = await Layout.db
-        .from('retreats')
-        .select('*');
-    retreats = retreatsData || [];
-
-    // Load holidays
-    const { data: holidaysData } = await Layout.db
-        .from('holidays')
-        .select('*');
-    holidays = holidaysData || [];
-
-    // Load cooks (vaishnavas from Kitchen department)
-    const { data: cooksData } = await Layout.db
-        .from('vaishnavas')
-        .select('*, department:departments!inner(*)')
-        .eq('is_team_member', true)
-        .eq('is_deleted', false);
-    cooks = (cooksData || []).filter(m => m.department?.name_en === 'Kitchen');
-
-    // Load units
-    units = await Cache.getOrLoad('units', async () => {
-        const { data, error } = await Layout.db
-            .from('units')
-            .select('*');
-        if (error) { console.error('Error loading units:', error); return null; }
-        return data;
-    });
-    units = units || [];
+    recipes = recipesResult.data || [];
+    categories = categoriesResult || [];
+    retreats = retreatsResult.data || [];
+    holidays = holidaysResult.data || [];
+    cooks = (cooksResult.data || []).filter(m => m.department?.name_en === 'Kitchen');
+    units = unitsResult || [];
 
     // Load menu for current period
     await loadMenuData();
@@ -301,45 +294,46 @@ async function loadEatingCounts() {
 
     eatingCounts = {};
 
-    // Загружаем все ретриты, которые пересекаются с месяцем
-    const { data: retreatsInMonth } = await Layout.db
-        .from('retreats')
-        .select('id, start_date, end_date')
-        .lte('start_date', endDate)
-        .gte('end_date', startDate);
-
-    // Загружаем регистрации на эти ретриты (гости, которые едят с нами)
-    const retreatIds = (retreatsInMonth || []).map(r => r.id);
-    let guestRegistrations = [];
-    if (retreatIds.length > 0) {
-        const { data } = await Layout.db
-            .from('retreat_registrations')
-            .select('retreat_id')
-            .in('retreat_id', retreatIds)
-            .eq('is_deleted', false)
-            .not('status', 'in', '("cancelled","rejected")')
-            .or('meal_type.eq.prasad,meal_type.is.null');
-        guestRegistrations = data || [];
-    }
-
-    // Сначала получаем список staff
-    const { data: staffList } = await Layout.db
-        .from('vaishnavas')
-        .select('id')
-        .eq('user_type', 'staff');
-    const staffIds = (staffList || []).map(s => s.id);
-
-    // Затем получаем их периоды пребывания
-    let teamStays = [];
-    if (staffIds.length > 0) {
-        const { data } = await Layout.db
-            .from('vaishnava_stays')
-            .select('vaishnava_id, start_date, end_date')
-            .in('vaishnava_id', staffIds)
+    // Волна 1: независимые запросы параллельно
+    const [retreatsResult, staffResult] = await Promise.all([
+        Layout.db
+            .from('retreats')
+            .select('id, start_date, end_date')
             .lte('start_date', endDate)
-            .gte('end_date', startDate);
-        teamStays = data || [];
-    }
+            .gte('end_date', startDate),
+        Layout.db
+            .from('vaishnavas')
+            .select('id')
+            .eq('user_type', 'staff')
+    ]);
+
+    const retreatsInMonth = retreatsResult.data || [];
+    const retreatIds = retreatsInMonth.map(r => r.id);
+    const staffIds = (staffResult.data || []).map(s => s.id);
+
+    // Волна 2: зависимые запросы параллельно
+    const [guestRegResult, teamStaysResult] = await Promise.all([
+        retreatIds.length > 0
+            ? Layout.db
+                .from('retreat_registrations')
+                .select('retreat_id')
+                .in('retreat_id', retreatIds)
+                .eq('is_deleted', false)
+                .not('status', 'in', '("cancelled","rejected")')
+                .or('meal_type.eq.prasad,meal_type.is.null')
+            : Promise.resolve({ data: [] }),
+        staffIds.length > 0
+            ? Layout.db
+                .from('vaishnava_stays')
+                .select('vaishnava_id, start_date, end_date')
+                .in('vaishnava_id', staffIds)
+                .lte('start_date', endDate)
+                .gte('end_date', startDate)
+            : Promise.resolve({ data: [] })
+    ]);
+
+    const guestRegistrations = guestRegResult.data || [];
+    const teamStays = teamStaysResult.data || [];
 
     // Подсчитываем для каждого дня
     for (let d = new Date(firstDay); d <= lastDay; d.setDate(d.getDate() + 1)) {
