@@ -275,22 +275,14 @@ async function loadMenuData() {
         };
     });
 
-    // Загружаем количество едоков для месячного вида
-    if (currentView === 'month') {
-        await loadEatingCounts();
-    }
+    // Загружаем количество едоков для текущего диапазона
+    await loadEatingCounts(startDate, endDate);
 
     render();
 }
 
-// Загрузка количества едоков на месяц
-async function loadEatingCounts() {
-    const year = currentMonth.getFullYear();
-    const month = currentMonth.getMonth();
-    const firstDay = new Date(year, month, 1);
-    const lastDay = new Date(year, month + 1, 0);
-    const startDate = formatDate(firstDay);
-    const endDate = formatDate(lastDay);
+// Загрузка количества едоков на период
+async function loadEatingCounts(startDate, endDate) {
 
     eatingCounts = {};
 
@@ -336,6 +328,8 @@ async function loadEatingCounts() {
     const teamStays = teamStaysResult.data || [];
 
     // Подсчитываем для каждого дня
+    const firstDay = new Date(startDate + 'T00:00:00');
+    const lastDay = new Date(endDate + 'T00:00:00');
     for (let d = new Date(firstDay); d <= lastDay; d.setDate(d.getDate() + 1)) {
         const dateStr = formatDate(d);
 
@@ -435,7 +429,17 @@ function renderDay() {
                         <div class="text-lg font-semibold">${currentDate.getDate()} ${m[currentDate.getMonth()]} ${currentDate.getFullYear()}</div>
                         <div class="text-sm opacity-60">${d[currentDate.getDay()]}</div>
                     </div>
-                    ${retreat ? `<div class="text-sm font-bold uppercase tracking-wide" style="color: ${retreat.color};">${getName(retreat)}</div>` : `<div class="text-sm opacity-40">${t('no_retreat')}</div>`}
+                    <div class="text-right">
+                        ${retreat ? `<div class="text-sm font-bold uppercase tracking-wide" style="color: ${retreat.color};">${getName(retreat)}</div>` : `<div class="text-sm opacity-40">${t('no_retreat')}</div>`}
+                        ${(() => {
+                            const counts = eatingCounts[dateStr];
+                            if (counts && (counts.guests > 0 || counts.team > 0)) {
+                                const total = counts.guests + counts.team;
+                                return `<div class="text-sm text-gray-500 font-medium mt-1" title="Гости + Команда = Итого">🍽 ${counts.guests}+${counts.team}=${total}</div>`;
+                            }
+                            return '';
+                        })()}
+                    </div>
                 </div>
             </div>
 
@@ -641,6 +645,14 @@ function renderWeek() {
                         </button>
                     </div>
                     ${retreat ? `<div class="mt-1 text-xs font-bold uppercase tracking-wide" style="color: ${retreat.color};">${getName(retreat)}</div>` : ''}
+                    ${(() => {
+                        const counts = eatingCounts[dateStr];
+                        if (counts && (counts.guests > 0 || counts.team > 0)) {
+                            const total = counts.guests + counts.team;
+                            return `<div class="text-xs text-gray-500 font-medium mt-1" title="Гости + Команда = Итого">🍽 ${counts.guests}+${counts.team}=${total}</div>`;
+                        }
+                        return '';
+                    })()}
                     ${acharyaLine}
                 </div>
 
