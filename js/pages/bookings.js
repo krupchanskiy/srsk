@@ -965,7 +965,6 @@ async function cancelBooking() {
 async function deleteBookingPermanently() {
     if (!selectedBookingId) return;
     if (!confirm('Удалить бронь навсегда? Это действие нельзя отменить.')) return;
-    if (!confirm('Вы уверены? Все данные брони будут удалены безвозвратно.')) return;
 
     try {
         // Сначала удаляем связанных резидентов
