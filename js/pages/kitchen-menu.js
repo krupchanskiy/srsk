@@ -322,14 +322,14 @@ async function loadEatingCounts() {
         guestRegistrations = data || [];
     }
 
-    // Загружаем резидентов-команду на этот период
-    const { data: teamResidents } = await Layout.db
-        .from('residents')
-        .select('check_in, check_out, vaishnava:vaishnavas!inner(user_type)')
-        .eq('status', 'active')
+    // Загружаем периоды пребывания команды (staff) в ШРСК
+    // Это включает и временных, и постоянных жителей (с end_date >= 2099)
+    const { data: teamStays } = await Layout.db
+        .from('vaishnava_stays')
+        .select('vaishnava_id, start_date, end_date, vaishnava:vaishnavas!inner(user_type)')
         .eq('vaishnava.user_type', 'staff')
-        .lte('check_in', endDate)
-        .or(`check_out.gte.${startDate},check_out.is.null`);
+        .lte('start_date', endDate)
+        .gte('end_date', startDate);
 
     // Подсчитываем для каждого дня
     for (let d = new Date(firstDay); d <= lastDay; d.setDate(d.getDate() + 1)) {
@@ -343,13 +343,15 @@ async function loadEatingCounts() {
             }
         }
 
-        // Команда: резиденты с user_type='staff', которые в этот день в ШРСК
-        let teamCount = 0;
-        for (const res of (teamResidents || [])) {
-            if (res.check_in <= dateStr && (res.check_out === null || res.check_out >= dateStr)) {
-                teamCount++;
+        // Команда: staff, которые в этот день в ШРСК (по vaishnava_stays)
+        // Используем Set чтобы не считать одного человека дважды (если несколько периодов)
+        const teamInDay = new Set();
+        for (const stay of (teamStays || [])) {
+            if (stay.start_date <= dateStr && stay.end_date >= dateStr) {
+                teamInDay.add(stay.vaishnava_id);
             }
         }
+        const teamCount = teamInDay.size;
 
         if (guestsCount > 0 || teamCount > 0) {
             eatingCounts[dateStr] = { guests: guestsCount, team: teamCount };
