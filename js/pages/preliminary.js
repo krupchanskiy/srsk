@@ -961,12 +961,18 @@ async function loadBuildingsAndRooms() {
         allBuildings = allBuildings.filter(b => {
             // Постоянные здания показываем всегда
             if (!b.is_temporary) return true;
+            // Временные без дат — доступны всегда
+            if (!b.available_from && !b.available_until) return true;
             // Временные — только если период аренды пересекается с ретритом
             return b.available_from <= retreat.end_date && b.available_until >= retreat.start_date;
         });
     } else {
-        // Без ретрита показываем только постоянные здания
-        allBuildings = allBuildings.filter(b => !b.is_temporary);
+        // Без ретрита показываем постоянные и временные без дат
+        allBuildings = allBuildings.filter(b => {
+            if (!b.is_temporary) return true;
+            // Временные без дат — доступны всегда
+            return !b.available_from && !b.available_until;
+        });
     }
 
     buildings = allBuildings;
