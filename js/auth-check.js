@@ -120,6 +120,11 @@
         console.log('📋 Permissions loaded:', permissions.length, 'permissions');
         console.log('👤 User type:', vaishnava.user_type, '| Superuser:', vaishnava.is_superuser);
 
+        // Обновить аватар в хедере (Layout мог загрузиться раньше, чем auth завершился)
+        if (typeof Layout !== 'undefined' && Layout.updateUserInfo) {
+            Layout.updateUserInfo();
+        }
+
     } catch (err) {
         console.error('Auth check exception:', err);
         window.location.href = '/login.html';
