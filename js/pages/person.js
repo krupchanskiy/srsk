@@ -1006,16 +1006,29 @@ async function updateRoomsList() {
     const availableBuildings = buildings.filter(b => {
         // Постоянные здания показываем всегда
         if (!b.is_temporary) return true;
-        // Временные — только если период аренды пересекается с датами заезда/выезда
+        // Временные без дат — доступны всегда
+        if (!b.available_from && !b.available_until) return true;
+        // Временные с датами — только если период аренды пересекается с датами заезда/выезда
         return b.available_from <= checkOut && b.available_until >= checkIn;
     });
 
+    // Опция "Самостоятельное размещение"
+    let html = `
+        <div class="mb-3">
+            <button type="button" class="btn btn-outline btn-error w-full gap-2" onclick="selectSelfAccommodation()">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6" />
+                </svg>
+                Самостоятельное размещение
+            </button>
+            <div class="text-xs opacity-50 text-center mt-1">Гость живёт вне ашрама</div>
+        </div>
+    `;
+
     if (availableBuildings.length === 0) {
-        roomsList.innerHTML = '<div class="text-center py-4 opacity-50">Нет доступных зданий</div>';
+        roomsList.innerHTML = html + '<div class="text-center py-4 opacity-50">Нет доступных зданий</div>';
         return;
     }
-
-    let html = '';
     availableBuildings.forEach(building => {
         const rooms = (building.rooms?.filter(r => r.is_active) || [])
             .sort((a, b) => {
@@ -1069,44 +1082,95 @@ async function selectRoom(roomId, buildingId) {
     const room = building?.rooms?.find(r => r.id === roomId);
     if (!room) return;
 
+    const reg = registrations.find(r => r.id === currentPlacementRegId);
+    if (!reg) return;
+
     const checkIn = document.getElementById('placementCheckIn').value;
     const checkOut = document.getElementById('placementCheckOut').value;
 
     const data = {
-        registration_id: currentPlacementRegId,
+        vaishnava_id: person.id,
+        retreat_id: reg.retreat_id,
         room_id: roomId,
-        building_name: Layout.getName(building),
-        room_number: room.number,
-        room_type: room.capacity ? `${room.capacity}-местная` : null,
-        check_in_date: checkIn || null,
-        check_out_date: checkOut || null
+        check_in: checkIn || null,
+        check_out: checkOut || null,
+        status: 'confirmed'
     };
 
     try {
-        // Check if accommodation already exists
+        // Check if resident already exists for this person and retreat
         const { data: existing } = await Layout.db
-            .from('guest_accommodations')
+            .from('residents')
             .select('id')
-            .eq('registration_id', data.registration_id)
+            .eq('vaishnava_id', person.id)
+            .eq('retreat_id', reg.retreat_id)
             .maybeSingle();
 
         if (existing) {
             const { error } = await Layout.db
-                .from('guest_accommodations')
+                .from('residents')
                 .update(data)
                 .eq('id', existing.id);
             if (error) throw error;
         } else {
             const { error } = await Layout.db
-                .from('guest_accommodations')
+                .from('residents')
                 .insert(data);
             if (error) throw error;
         }
 
         document.getElementById('placementModal').close();
         await loadRegistrations(person.id);
+        Layout.showNotification('Размещение сохранено', 'success');
     } catch (err) {
         console.error('Error saving placement:', err);
+        Layout.showNotification(t('placement_error') + ': ' + err.message, 'error');
+    }
+}
+
+async function selectSelfAccommodation() {
+    const reg = registrations.find(r => r.id === currentPlacementRegId);
+    if (!reg) return;
+
+    const checkIn = document.getElementById('placementCheckIn').value;
+    const checkOut = document.getElementById('placementCheckOut').value;
+
+    const data = {
+        vaishnava_id: person.id,
+        retreat_id: reg.retreat_id,
+        room_id: null, // NULL означает самостоятельное размещение
+        check_in: checkIn || null,
+        check_out: checkOut || null,
+        status: 'confirmed'
+    };
+
+    try {
+        // Check if resident already exists for this person and retreat
+        const { data: existing } = await Layout.db
+            .from('residents')
+            .select('id')
+            .eq('vaishnava_id', person.id)
+            .eq('retreat_id', reg.retreat_id)
+            .maybeSingle();
+
+        if (existing) {
+            const { error } = await Layout.db
+                .from('residents')
+                .update(data)
+                .eq('id', existing.id);
+            if (error) throw error;
+        } else {
+            const { error } = await Layout.db
+                .from('residents')
+                .insert(data);
+            if (error) throw error;
+        }
+
+        document.getElementById('placementModal').close();
+        await loadRegistrations(person.id);
+        Layout.showNotification('Самостоятельное размещение сохранено', 'success');
+    } catch (err) {
+        console.error('Error saving self accommodation:', err);
         Layout.showNotification(t('placement_error') + ': ' + err.message, 'error');
     }
 }
@@ -1179,7 +1243,7 @@ function renderRegistrations() {
                 detailsHtml += `
                     <div class="detail-section">
                         <div class="detail-label">🏠 Размещение</div>
-                        <div class="text-sm font-medium text-error bg-error/20 px-2 py-1 rounded inline-block">${t('self_accommodation')}</div>
+                        <div class="text-sm font-medium text-error bg-error/20 px-2 py-1 rounded inline-block">${t('self_accommodation') || 'Самостоятельно'}</div>
                     </div>
                 `;
             } else if (resident.rooms) {
