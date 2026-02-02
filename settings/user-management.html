@@ -194,11 +194,41 @@
         let currentTab = 'all';
         let currentUserId = null;
         let approvalAction = null;
+        let countsLoaded = false;
+        let isLoading = false;
 
-        // Загрузка пользователей
-        async function loadUsers() {
+        // Загрузка только счётчиков (быстро, без ролей)
+        async function loadCounts() {
             try {
                 const { data: users, error } = await db
+                    .from('vaishnavas')
+                    .select('id, user_id, email, user_type, approval_status, is_active')
+                    .eq('is_deleted', false);
+
+                if (error) throw error;
+
+                document.getElementById('countAll').textContent = users.length;
+                document.getElementById('countPending').textContent = users.filter(u => u.approval_status === 'pending').length;
+                document.getElementById('countStaff').textContent = users.filter(u => u.user_type === 'staff').length;
+                document.getElementById('countGuest').textContent = users.filter(u => u.user_type === 'guest').length;
+                document.getElementById('countBlocked').textContent = users.filter(u => u.approval_status === 'blocked' || !u.is_active).length;
+                document.getElementById('countNoAccount').textContent = users.filter(u => !u.user_id && u.email).length;
+                countsLoaded = true;
+            } catch (err) {
+                console.error('Load counts error:', err);
+            }
+        }
+
+        // Загрузка пользователей с фильтрацией (оптимизировано)
+        async function loadUsers(filter = {}) {
+            if (isLoading) return;
+            isLoading = true;
+
+            const tbody = document.getElementById('usersTableBody');
+            tbody.innerHTML = '<tr><td colspan="7" class="text-center py-8"><span class="loading loading-spinner loading-lg"></span></td></tr>';
+
+            try {
+                let query = db
                     .from('vaishnavas')
                     .select(`
                         id,
@@ -211,52 +241,70 @@
                         user_type,
                         approval_status,
                         is_superuser,
-                        is_active,
-                        is_deleted
+                        is_active
                     `)
                     .eq('is_deleted', false)
                     .order('created_at', { ascending: false });
 
+                // Применить фильтры на уровне БД
+                if (filter.tab === 'pending') {
+                    query = query.eq('approval_status', 'pending');
+                } else if (filter.tab === 'staff') {
+                    query = query.eq('user_type', 'staff');
+                } else if (filter.tab === 'guest') {
+                    query = query.eq('user_type', 'guest');
+                } else if (filter.tab === 'blocked') {
+                    query = query.or('approval_status.eq.blocked,is_active.eq.false');
+                }
+
+                // Поиск
+                if (filter.search && filter.search.length >= 2) {
+                    const s = filter.search.toLowerCase();
+                    query = query.or(`spiritual_name.ilike.%${s}%,first_name.ilike.%${s}%,last_name.ilike.%${s}%,email.ilike.%${s}%`);
+                }
+
+                // Лимит для производительности
+                query = query.limit(100);
+
+                const { data: users, error } = await query;
                 if (error) throw error;
 
-                // Загрузить роли для каждого пользователя
-                for (let user of users) {
-                    if (user.user_id) {
-                        const { data: roles } = await db
-                            .from('user_roles')
-                            .select(`
-                                roles!inner (
-                                    name_ru,
-                                    code,
-                                    module_id
-                                )
-                            `)
-                            .eq('user_id', user.user_id)
-                            .eq('is_active', true);
+                // Загрузить роли ОДНИМ запросом (вместо N+1)
+                const userIds = users.filter(u => u.user_id).map(u => u.user_id);
+                let rolesMap = {};
 
-                        user.roles = roles || [];
-                    } else {
-                        user.roles = [];
+                if (userIds.length > 0) {
+                    const { data: allRoles } = await db
+                        .from('user_roles')
+                        .select(`
+                            user_id,
+                            roles!inner (name_ru, code)
+                        `)
+                        .in('user_id', userIds)
+                        .eq('is_active', true);
+
+                    // Группировать по user_id
+                    if (allRoles) {
+                        allRoles.forEach(r => {
+                            if (!rolesMap[r.user_id]) rolesMap[r.user_id] = [];
+                            rolesMap[r.user_id].push(r);
+                        });
                     }
                 }
 
+                // Присвоить роли пользователям
+                users.forEach(u => {
+                    u.roles = rolesMap[u.user_id] || [];
+                });
+
                 allUsers = users;
-                updateCounts();
                 renderUsers();
             } catch (err) {
                 console.error('Load users error:', err);
-                alert('Ошибка загрузки пользователей: ' + err.message);
+                tbody.innerHTML = '<tr><td colspan="7" class="text-center py-8 text-error">Ошибка загрузки</td></tr>';
+            } finally {
+                isLoading = false;
             }
-        }
-
-        // Обновить счётчики
-        function updateCounts() {
-            document.getElementById('countAll').textContent = allUsers.length;
-            document.getElementById('countPending').textContent = allUsers.filter(u => u.approval_status === 'pending').length;
-            document.getElementById('countStaff').textContent = allUsers.filter(u => u.user_type === 'staff').length;
-            document.getElementById('countGuest').textContent = allUsers.filter(u => u.user_type === 'guest').length;
-            document.getElementById('countBlocked').textContent = allUsers.filter(u => u.approval_status === 'blocked' || !u.is_active).length;
-            document.getElementById('countNoAccount').textContent = allUsers.filter(u => !u.user_id && u.email).length;
         }
 
         // Переключение табов
@@ -264,49 +312,68 @@
             currentTab = tab;
             document.querySelectorAll('.tab').forEach(t => t.classList.remove('tab-active'));
             document.querySelector(`[data-tab="${tab}"]`).classList.add('tab-active');
-            renderUsers();
+            document.getElementById('searchInput').value = '';
+
+            if (tab === 'all') {
+                // Показать placeholder вместо загрузки всех
+                showPlaceholder();
+            } else {
+                loadUsers({ tab });
+            }
         }
 
-        // Фильтрация пользователей
+        // Показать placeholder
+        function showPlaceholder() {
+            allUsers = [];
+            const tbody = document.getElementById('usersTableBody');
+            tbody.innerHTML = `
+                <tr>
+                    <td colspan="7" class="text-center py-12">
+                        <div class="text-base-content/50">
+                            <svg xmlns="http://www.w3.org/2000/svg" class="h-12 w-12 mx-auto mb-3 opacity-30" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                            </svg>
+                            <p class="text-lg font-medium mb-1">Введите имя для поиска</p>
+                            <p class="text-sm">или выберите категорию выше</p>
+                        </div>
+                    </td>
+                </tr>
+            `;
+        }
+
+        // Фильтрация с debounce
+        let searchTimeout;
         function filterUsers() {
-            renderUsers();
+            clearTimeout(searchTimeout);
+            const searchText = document.getElementById('searchInput').value.trim();
+
+            if (searchText.length === 0) {
+                if (currentTab === 'all') {
+                    showPlaceholder();
+                } else {
+                    loadUsers({ tab: currentTab });
+                }
+                return;
+            }
+
+            if (searchText.length < 2) return;
+
+            searchTimeout = setTimeout(() => {
+                loadUsers({ search: searchText, tab: currentTab !== 'all' ? currentTab : null });
+            }, 300);
         }
 
         // Отрисовка таблицы
+        // Отрисовка таблицы (фильтрация уже на стороне БД)
         function renderUsers() {
-            const searchText = document.getElementById('searchInput').value.toLowerCase();
-
-            let filtered = allUsers;
-
-            // Фильтр по табу
-            if (currentTab === 'pending') {
-                filtered = filtered.filter(u => u.approval_status === 'pending');
-            } else if (currentTab === 'staff') {
-                filtered = filtered.filter(u => u.user_type === 'staff');
-            } else if (currentTab === 'guest') {
-                filtered = filtered.filter(u => u.user_type === 'guest');
-            } else if (currentTab === 'blocked') {
-                filtered = filtered.filter(u => u.approval_status === 'blocked' || !u.is_active);
-            }
-
-            // Поиск
-            if (searchText) {
-                filtered = filtered.filter(u =>
-                    (u.spiritual_name?.toLowerCase().includes(searchText)) ||
-                    (u.first_name?.toLowerCase().includes(searchText)) ||
-                    (u.last_name?.toLowerCase().includes(searchText)) ||
-                    (u.email?.toLowerCase().includes(searchText))
-                );
-            }
-
             const tbody = document.getElementById('usersTableBody');
 
-            if (filtered.length === 0) {
+            if (allUsers.length === 0) {
                 tbody.innerHTML = '<tr><td colspan="7" class="text-center py-8">Пользователи не найдены</td></tr>';
                 return;
             }
 
-            tbody.innerHTML = filtered.map(user => `
+            tbody.innerHTML = allUsers.map(user => `
                 <tr>
                     <td>
                         <div class="avatar">
@@ -893,7 +960,9 @@
                 return;
             }
 
-            loadUsers();
+            // Быстрая загрузка: только счётчики + placeholder
+            loadCounts();
+            showPlaceholder();
         });
     </script>
 </body>
