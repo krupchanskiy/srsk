@@ -351,10 +351,19 @@ async function loadEatingCounts(startDate, endDate) {
         }
         const teamCount = teamInDay.size;
 
-        if (guestsCount > 0 || teamCount > 0) {
-            eatingCounts[dateStr] = { guests: guestsCount, team: teamCount };
-        }
+        // Всегда создаём запись, даже если 0+0=0
+        eatingCounts[dateStr] = { guests: guestsCount, team: teamCount };
     }
+}
+
+// Получить количество питающихся на дату (для порций)
+function getEatingTotal(dateStr) {
+    const counts = eatingCounts[dateStr];
+    if (counts) {
+        const total = counts.guests + counts.team;
+        return total > 0 ? total : 50; // минимум 50 если никого
+    }
+    return 50; // по умолчанию
 }
 
 // ==================== RENDERING ====================
@@ -1159,6 +1168,7 @@ async function saveDish() {
 
     // Ensure meal exists
     let mealId = mealData?.id;
+    const defaultPortions = getEatingTotal(selectedDate);
     if (!mealId) {
         const { data: newMeal } = await Layout.db
             .from('menu_meals')
@@ -1166,7 +1176,7 @@ async function saveDish() {
                 location_id: locationId,
                 date: selectedDate,
                 meal_type: selectedMealType,
-                portions: 50
+                portions: defaultPortions
             }, { onConflict: 'location_id,date,meal_type' })
             .select()
             .single();
@@ -1199,7 +1209,7 @@ async function saveDish() {
     // Update local data
     if (!menuData[selectedDate]) menuData[selectedDate] = {};
     if (!menuData[selectedDate][selectedMealType]) {
-        menuData[selectedDate][selectedMealType] = { id: mealId, portions: 50, dishes: [] };
+        menuData[selectedDate][selectedMealType] = { id: mealId, portions: defaultPortions, dishes: [] };
     }
     menuData[selectedDate][selectedMealType].dishes.push({
         id: newDish.id,
@@ -1499,13 +1509,10 @@ async function applySelectedTemplate() {
             const dayMeals = (template.meals || []).filter(m => m.day_number === dayNumber);
 
             for (const templateMeal of dayMeals) {
-                // Get retreat for this date (for portions)
+                // Get portions from eating counts (guests + team)
                 let portions = templateMeal.portions || 50;
                 if (!isCafe) {
-                    const retreat = getRetreat(targetDateStr);
-                    if (retreat?.expected_participants) {
-                        portions = retreat.expected_participants;
-                    }
+                    portions = getEatingTotal(targetDateStr);
                 }
 
                 // Delete existing meal for this date/type
