@@ -281,8 +281,8 @@ function getPersonName(person, lang = currentLang) {
 
 // ==================== TRANSLATIONS ====================
 async function loadTranslations(retried = false) {
-    const data = await Cache.getOrLoad('translations_v2', async () => {
-        const { data, error } = await db.from('translations').select('key, ru, en, hi');
+    const data = await Cache.getOrLoad('translations_v3', async () => {
+        const { data, error } = await db.from('translations').select('key, ru, en, hi').limit(5000);
         if (error) {
             console.error('Error loading translations:', error);
             return null;
@@ -299,7 +299,7 @@ async function loadTranslations(retried = false) {
 
     if (!hasAllKeys && !retried) {
         // Кэш устарел, инвалидируем и перезагружаем (только 1 раз)
-        Cache.invalidate('translations_v2');
+        Cache.invalidate('translations_v3');
         return loadTranslations(true);
     }
 
