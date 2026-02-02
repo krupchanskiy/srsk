@@ -426,6 +426,13 @@ function renderDay() {
         acharyaBanner = `<div class="text-center py-1.5 text-sm opacity-70 border-b border-base-200/50 no-print">${acharyaNames}</div>`;
     }
 
+    // Количество питающихся
+    const counts = eatingCounts[dateStr];
+    console.log('renderDay dateStr:', dateStr, 'counts:', counts, 'eatingCounts keys:', Object.keys(eatingCounts));
+    const eatingLine = counts
+        ? `<div class="text-sm text-gray-500 font-medium mt-1" title="Гости + Команда = Итого">🍽 ${counts.guests}+${counts.team}=${counts.guests + counts.team}</div>`
+        : '';
+
     container.innerHTML = `
         <div class="print-only print-header">${getPrintHeader(dateText, extraInfo)}</div>
         <div class="rounded-xl shadow-sm overflow-hidden ${isToday ? 'ring-2 ring-offset-2' : ''}" style="${styles.bg}">
@@ -440,14 +447,7 @@ function renderDay() {
                     </div>
                     <div class="text-right">
                         ${retreat ? `<div class="text-sm font-bold uppercase tracking-wide" style="color: ${retreat.color};">${getName(retreat)}</div>` : `<div class="text-sm opacity-40">${t('no_retreat')}</div>`}
-                        ${(() => {
-                            const counts = eatingCounts[dateStr];
-                            if (counts) {
-                                const total = counts.guests + counts.team;
-                                return `<div class="text-sm text-gray-500 font-medium mt-1" title="Гости + Команда = Итого">🍽 ${counts.guests}+${counts.team}=${total}</div>`;
-                            }
-                            return `<div class="text-sm text-gray-400 mt-1">🍽 загрузка...</div>`;
-                        })()}
+                        ${eatingLine}
                     </div>
                 </div>
             </div>
