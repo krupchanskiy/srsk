@@ -1,0 +1,90 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Rupa Seva</title>
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg">
+
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        'srsk-green': '#147D30',
+                        'srsk-green-light': '#1a9e3d',
+                        'srsk-orange': '#FFBA47',
+                        'srsk-bg': '#F5F3EF'
+                    }
+                }
+            }
+        }
+    </script>
+
+    <!-- Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+
+    <style>
+        body {
+            font-family: 'Noto Sans', sans-serif;
+            background-color: #F5F3EF;
+        }
+    </style>
+
+    <script>
+        // Логика роутинга для GitHub Pages
+        (function() {
+            const path = window.location.pathname;
+
+            // Убираем начальный и конечный слеши
+            const cleanPath = path.replace(/^\/|\/$/g, '');
+
+            // Если путь похож на slug ретрита (буквы, цифры, дефисы)
+            // и это не известный путь (guest-portal, login, etc.)
+            const knownPaths = [
+                'guest-portal', 'login', 'auth-callback', 'reset-password',
+                'vaishnavas', 'ashram', 'housing', 'kitchen', 'retreats',
+                'admin-create-accounts.html', 'retreat.html', 'guest-signup.html'
+            ];
+
+            // Проверяем, не начинается ли путь с известного
+            const isKnownPath = knownPaths.some(kp =>
+                cleanPath === kp || cleanPath.startsWith(kp + '/')
+            );
+
+            // Если это slug ретрита — редиректим
+            if (cleanPath && !isKnownPath && /^[a-z0-9-]+$/i.test(cleanPath)) {
+                // Сохраняем оригинальный URL для красивого отображения
+                sessionStorage.setItem('retreat_slug', cleanPath);
+
+                // Загружаем retreat.html с параметром
+                window.location.replace('/retreat.html?slug=' + encodeURIComponent(cleanPath));
+                return;
+            }
+
+            // Иначе показываем 404
+        })();
+    </script>
+</head>
+<body class="min-h-screen flex items-center justify-center">
+    <div class="text-center px-4">
+        <div class="w-24 h-24 bg-gray-200 rounded-full flex items-center justify-center mx-auto mb-6">
+            <svg class="w-12 h-12 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.172 16.172a4 4 0 015.656 0M9 10h.01M15 10h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
+            </svg>
+        </div>
+        <h1 class="text-3xl font-bold text-gray-800 mb-2">404</h1>
+        <p class="text-gray-500 mb-6">Страница не найдена</p>
+        <a href="/guest-portal/" class="inline-flex items-center gap-2 bg-srsk-green text-white px-6 py-3 rounded-lg font-medium hover:bg-srsk-green-light transition-colors">
+            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6"/>
+            </svg>
+            На главную
+        </a>
+    </div>
+</body>
+</html>

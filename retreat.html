@@ -1,0 +1,1003 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Ретрит | Rupa Seva</title>
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg">
+
+    <!-- Open Graph для шаринга -->
+    <meta property="og:type" content="event">
+    <meta property="og:title" id="og-title" content="Ретрит | Rupa Seva">
+    <meta property="og:description" id="og-description" content="">
+    <meta property="og:image" id="og-image" content="">
+    <meta property="og:url" id="og-url" content="">
+
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        'srsk-green': '#147D30',
+                        'srsk-green-light': '#1a9e3d',
+                        'srsk-orange': '#FFBA47',
+                        'srsk-bg': '#F5F3EF'
+                    }
+                }
+            }
+        }
+    </script>
+
+    <!-- Supabase -->
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+
+    <!-- Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans:wght@400;500;600;700&family=Noto+Sans+Devanagari:wght@400;500;600;700&display=swap" rel="stylesheet">
+
+    <!-- Portal CSS -->
+    <link rel="stylesheet" href="guest-portal/css/portal.css">
+
+    <style>
+        /* Дополнительные стили для страницы ретрита */
+        .hero-image {
+            width: 100%;
+            height: 300px;
+            object-fit: cover;
+        }
+
+        @media (min-width: 768px) {
+            .hero-image {
+                height: 400px;
+            }
+        }
+
+        .step-indicator {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 0.5rem;
+            margin-bottom: 1.5rem;
+        }
+
+        .step-dot {
+            width: 0.5rem;
+            height: 0.5rem;
+            border-radius: 50%;
+            background-color: #d1d5db;
+            transition: all 0.3s;
+        }
+
+        .step-dot.active {
+            width: 1.5rem;
+            background-color: var(--srsk-green);
+        }
+
+        .step-dot.completed {
+            background-color: var(--srsk-green);
+        }
+
+        /* Скрыть шаги формы */
+        .form-step {
+            display: none;
+        }
+
+        .form-step.active {
+            display: block;
+        }
+
+        /* Анимация появления */
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        .form-step.active {
+            animation: fadeIn 0.3s ease-out;
+        }
+    </style>
+</head>
+<body class="bg-srsk-bg min-h-screen">
+
+    <!-- Loader -->
+    <div id="loader" class="fixed inset-0 bg-white flex items-center justify-center z-50">
+        <div class="flex flex-col items-center gap-3">
+            <div class="w-10 h-10 border-4 border-srsk-green border-t-transparent rounded-full animate-spin"></div>
+            <span class="text-gray-600" data-i18n="loading">Загрузка...</span>
+        </div>
+    </div>
+
+    <!-- 404 страница -->
+    <div id="not-found" class="hidden min-h-screen flex items-center justify-center">
+        <div class="text-center px-4">
+            <div class="w-24 h-24 bg-gray-200 rounded-full flex items-center justify-center mx-auto mb-6">
+                <svg class="w-12 h-12 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.172 16.172a4 4 0 015.656 0M9 10h.01M15 10h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
+                </svg>
+            </div>
+            <h1 class="text-2xl font-bold text-gray-800 mb-2" data-i18n="retreat_not_found">Ретрит не найден</h1>
+            <p class="text-gray-500 mb-6" data-i18n="retreat_not_found_hint">Проверьте ссылку или вернитесь на главную</p>
+            <a href="/guest-portal/" class="btn-primary">
+                <span data-i18n="retreat_go_home">На главную</span>
+            </a>
+        </div>
+    </div>
+
+    <!-- Основной контент -->
+    <div id="main-content" class="hidden">
+        <!-- Хедер -->
+        <header class="bg-white shadow-sm sticky top-0 z-40">
+            <div class="container mx-auto px-4 h-16 flex items-center justify-between">
+                <a href="/guest-portal/" class="flex items-center gap-3">
+                    <div class="w-10 h-10 bg-srsk-green rounded-full flex items-center justify-center">
+                        <svg class="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6"/>
+                        </svg>
+                    </div>
+                    <span class="text-xl font-semibold text-gray-800">Rupa Seva</span>
+                </a>
+
+                <!-- Переключатель языка -->
+                <div class="flex items-center gap-1 bg-gray-100 rounded-lg p-1">
+                    <button class="lang-btn px-2 py-1 text-sm rounded" data-lang="ru">RU</button>
+                    <button class="lang-btn px-2 py-1 text-sm rounded" data-lang="en">EN</button>
+                    <button class="lang-btn px-2 py-1 text-sm rounded" data-lang="hi">HI</button>
+                </div>
+            </div>
+        </header>
+
+        <!-- Герой-секция -->
+        <section id="hero-section" class="bg-white">
+            <img id="retreat-image" class="hero-image w-full" src="" alt="">
+            <div class="container mx-auto px-4 py-6">
+                <h1 id="retreat-name" class="text-2xl md:text-3xl font-bold text-gray-800 mb-2"></h1>
+                <p id="retreat-dates" class="text-lg text-srsk-green font-medium mb-4"></p>
+                <p id="retreat-description" class="text-gray-600 whitespace-pre-line"></p>
+            </div>
+        </section>
+
+        <!-- Кнопка регистрации -->
+        <section class="container mx-auto px-4 py-6">
+            <div id="registration-section">
+                <!-- Если регистрация открыта -->
+                <div id="registration-open" class="hidden">
+                    <button id="register-btn" onclick="openRegistrationModal()" class="btn-primary w-full md:w-auto text-lg py-3 px-8">
+                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/>
+                        </svg>
+                        <span data-i18n="retreat_register_btn">Подать заявку</span>
+                    </button>
+                </div>
+
+                <!-- Если регистрация закрыта -->
+                <div id="registration-closed" class="hidden">
+                    <div class="bg-gray-100 rounded-lg p-4 text-center">
+                        <p class="text-gray-500" data-i18n="retreat_registration_closed">Регистрация на этот ретрит закрыта</p>
+                    </div>
+                </div>
+
+                <!-- Если уже зарегистрирован -->
+                <div id="already-registered" class="hidden">
+                    <div class="bg-green-50 border border-green-200 rounded-lg p-4">
+                        <div class="flex items-center gap-3">
+                            <div class="w-10 h-10 bg-green-100 rounded-full flex items-center justify-center flex-shrink-0">
+                                <svg class="w-5 h-5 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/>
+                                </svg>
+                            </div>
+                            <div>
+                                <p class="font-medium text-green-800" data-i18n="retreat_already_registered">Вы уже зарегистрированы на этот ретрит</p>
+                                <a href="/guest-portal/retreats.html" class="text-sm text-green-600 hover:underline" data-i18n="retreat_view_my_retreats">Посмотреть мои ретриты</a>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+    </div>
+
+    <!-- Модалка регистрации -->
+    <div id="registration-modal" class="modal-backdrop hidden">
+        <div class="modal max-w-md">
+            <!-- Хедер модалки -->
+            <div class="modal-header">
+                <h2 class="modal-title" data-i18n="retreat_registration_title">Регистрация на ретрит</h2>
+                <button onclick="closeRegistrationModal()" class="text-gray-400 hover:text-gray-600">
+                    <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+                    </svg>
+                </button>
+            </div>
+
+            <div class="modal-body">
+                <!-- Индикатор шагов -->
+                <div class="step-indicator">
+                    <div class="step-dot active" data-step="1"></div>
+                    <div class="step-dot" data-step="2"></div>
+                    <div class="step-dot" data-step="3"></div>
+                </div>
+
+                <!-- Алерт ошибки -->
+                <div id="modal-error" class="alert alert-error hidden mb-4"></div>
+
+                <!-- Шаг 1: Email -->
+                <div id="step-email" class="form-step active">
+                    <div class="text-center mb-6">
+                        <h3 class="text-lg font-semibold text-gray-800" data-i18n="retreat_enter_email">Введите ваш email</h3>
+                        <p class="text-sm text-gray-500 mt-1" data-i18n="retreat_email_hint">Мы проверим, есть ли у вас аккаунт</p>
+                    </div>
+
+                    <form id="email-form" class="space-y-4">
+                        <div class="form-group">
+                            <input type="email" id="check-email" class="input text-center text-lg" required
+                                   placeholder="email@example.com" autocomplete="email">
+                        </div>
+                        <button type="submit" class="btn-primary w-full">
+                            <span data-i18n="continue">Продолжить</span>
+                            <svg id="email-spinner" class="w-5 h-5 animate-spin hidden" fill="none" viewBox="0 0 24 24">
+                                <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                                <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                            </svg>
+                        </button>
+                    </form>
+                </div>
+
+                <!-- Шаг 2а: Логин (для существующих) -->
+                <div id="step-login" class="form-step">
+                    <div class="text-center mb-6">
+                        <h3 class="text-lg font-semibold text-gray-800">
+                            <span data-i18n="retreat_welcome_back">Добро пожаловать обратно,</span>
+                            <span id="welcome-name" class="text-srsk-green"></span>!
+                        </h3>
+                        <p class="text-sm text-gray-500 mt-1" data-i18n="retreat_login_hint">Войдите, чтобы продолжить</p>
+                    </div>
+
+                    <form id="login-form" class="space-y-4">
+                        <div class="form-group">
+                            <label class="label" data-i18n="password">Пароль</label>
+                            <div class="relative">
+                                <input type="password" id="login-password" class="input pr-10" required autocomplete="current-password">
+                                <button type="button" onclick="toggleLoginPassword()" class="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600">
+                                    <svg class="w-5 h-5" id="login-eye-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/>
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"/>
+                                    </svg>
+                                </button>
+                            </div>
+                        </div>
+                        <button type="submit" class="btn-primary w-full">
+                            <span data-i18n="retreat_login_continue">Войти и продолжить</span>
+                            <svg id="login-spinner" class="w-5 h-5 animate-spin hidden" fill="none" viewBox="0 0 24 24">
+                                <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                                <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                            </svg>
+                        </button>
+                        <div class="text-center">
+                            <button type="button" onclick="forgotPassword()" class="text-sm text-gray-500 hover:text-srsk-green">
+                                <span data-i18n="forgot_password">Забыли пароль?</span>
+                            </button>
+                        </div>
+                    </form>
+                    <button type="button" onclick="goToStep('email')" class="w-full text-center text-sm text-gray-500 hover:text-gray-700 mt-4">
+                        <span data-i18n="use_different_email">Использовать другой email</span>
+                    </button>
+                </div>
+
+                <!-- Шаг 2б: Регистрация (для новых) -->
+                <div id="step-register" class="form-step">
+                    <div class="text-center mb-6">
+                        <h3 class="text-lg font-semibold text-gray-800" data-i18n="retreat_create_account">Создайте аккаунт</h3>
+                        <p class="text-sm text-gray-500 mt-1" id="register-email-display"></p>
+                    </div>
+
+                    <form id="register-form" class="space-y-4">
+                        <div class="grid grid-cols-2 gap-3">
+                            <div class="form-group">
+                                <label class="label">
+                                    <span data-i18n="first_name">Имя</span>
+                                    <span class="text-red-500">*</span>
+                                </label>
+                                <input type="text" id="reg-first-name" class="input" required>
+                            </div>
+                            <div class="form-group">
+                                <label class="label">
+                                    <span data-i18n="last_name">Фамилия</span>
+                                    <span class="text-red-500">*</span>
+                                </label>
+                                <input type="text" id="reg-last-name" class="input" required>
+                            </div>
+                        </div>
+
+                        <div class="form-group">
+                            <label class="label" data-i18n="spiritual_name">Духовное имя</label>
+                            <input type="text" id="reg-spiritual-name" class="input">
+                        </div>
+
+                        <div class="form-group">
+                            <label class="label">
+                                <span data-i18n="phone">Телефон</span>
+                                <span class="text-red-500">*</span>
+                            </label>
+                            <input type="tel" id="reg-phone" class="input" required placeholder="+7 999 123-45-67">
+                        </div>
+
+                        <div class="form-group">
+                            <label class="label" data-i18n="telegram">Telegram</label>
+                            <input type="text" id="reg-telegram" class="input" placeholder="@username">
+                        </div>
+
+                        <div class="grid grid-cols-2 gap-3">
+                            <div class="form-group">
+                                <label class="label">
+                                    <span data-i18n="country">Страна</span>
+                                    <span class="text-red-500">*</span>
+                                </label>
+                                <input type="text" id="reg-country" class="input" required>
+                            </div>
+                            <div class="form-group">
+                                <label class="label" data-i18n="city">Город</label>
+                                <input type="text" id="reg-city" class="input">
+                            </div>
+                        </div>
+
+                        <div class="form-group">
+                            <label class="label">
+                                <span data-i18n="password">Пароль</span>
+                                <span class="text-red-500">*</span>
+                            </label>
+                            <input type="password" id="reg-password" class="input" required minlength="6" autocomplete="new-password">
+                            <p class="text-xs text-gray-500 mt-1" data-i18n="password_hint">Минимум 6 символов</p>
+                        </div>
+
+                        <button type="submit" class="btn-primary w-full">
+                            <span data-i18n="continue">Продолжить</span>
+                            <svg id="register-spinner" class="w-5 h-5 animate-spin hidden" fill="none" viewBox="0 0 24 24">
+                                <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                                <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                            </svg>
+                        </button>
+                    </form>
+                    <button type="button" onclick="goToStep('email')" class="w-full text-center text-sm text-gray-500 hover:text-gray-700 mt-4">
+                        <span data-i18n="use_different_email">Использовать другой email</span>
+                    </button>
+                </div>
+
+                <!-- Шаг 3: Форма заявки -->
+                <div id="step-application" class="form-step">
+                    <div class="text-center mb-6">
+                        <h3 class="text-lg font-semibold text-gray-800" data-i18n="retreat_application_title">Заявка на ретрит</h3>
+                        <p class="text-sm text-srsk-green font-medium" id="application-retreat-name"></p>
+                    </div>
+
+                    <form id="application-form" class="space-y-4">
+                        <div class="form-group">
+                            <label class="label" data-i18n="retreat_companions">С кем едете</label>
+                            <textarea id="app-companions" class="input" rows="2" placeholder="Имена попутчиков, если едете не один"></textarea>
+                        </div>
+
+                        <div class="form-group">
+                            <label class="label" data-i18n="retreat_accommodation_wishes">Пожелания по размещению</label>
+                            <textarea id="app-accommodation" class="input" rows="3" placeholder="Соседи, этаж, особенности..."></textarea>
+                        </div>
+
+                        <div class="form-group">
+                            <label class="label" data-i18n="retreat_questions">Вопросы организаторам</label>
+                            <textarea id="app-questions" class="input" rows="3" placeholder="Ваши вопросы..."></textarea>
+                        </div>
+
+                        <button type="submit" class="btn-primary w-full">
+                            <span data-i18n="retreat_submit">Отправить заявку</span>
+                            <svg id="application-spinner" class="w-5 h-5 animate-spin hidden" fill="none" viewBox="0 0 24 24">
+                                <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                                <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                            </svg>
+                        </button>
+                    </form>
+                </div>
+
+                <!-- Успешная отправка -->
+                <div id="step-success" class="form-step">
+                    <div class="text-center py-6">
+                        <div class="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                            <svg class="w-8 h-8 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/>
+                            </svg>
+                        </div>
+                        <h3 class="text-xl font-semibold text-gray-800 mb-2" data-i18n="retreat_success">Заявка отправлена!</h3>
+                        <p class="text-gray-500 mb-6" data-i18n="retreat_success_hint">Мы свяжемся с вами для подтверждения</p>
+                        <a href="/guest-portal/retreats.html" class="btn-primary">
+                            <span data-i18n="retreat_view_my_retreats">Мои ретриты</span>
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Scripts -->
+    <script src="guest-portal/js/portal-config.js"></script>
+    <script>
+        const db = window.portalSupabase;
+        let currentLang = localStorage.getItem('srsk_lang') || 'ru';
+        let translations = {};
+        let currentRetreat = null;
+        let currentUser = null;
+        let checkEmail = '';
+
+        // Fallback переводы
+        const fallbackTranslations = {
+            loading: { ru: 'Загрузка...', en: 'Loading...', hi: 'लोड हो रहा है...' },
+            retreat_not_found: { ru: 'Ретрит не найден', en: 'Retreat not found', hi: 'रिट्रीट नहीं मिला' },
+            retreat_not_found_hint: { ru: 'Проверьте ссылку или вернитесь на главную', en: 'Check the link or go back home', hi: 'लिंक जांचें या होम पेज पर वापस जाएं' },
+            retreat_go_home: { ru: 'На главную', en: 'Go home', hi: 'होम पेज' },
+            retreat_register_btn: { ru: 'Подать заявку', en: 'Apply', hi: 'आवेदन करें' },
+            retreat_registration_closed: { ru: 'Регистрация на этот ретрит закрыта', en: 'Registration for this retreat is closed', hi: 'इस रिट्रीट के लिए पंजीकरण बंद है' },
+            retreat_already_registered: { ru: 'Вы уже зарегистрированы на этот ретрит', en: 'You are already registered for this retreat', hi: 'आप पहले से इस रिट्रीट के लिए पंजीकृत हैं' },
+            retreat_view_my_retreats: { ru: 'Мои ретриты', en: 'My retreats', hi: 'मेरे रिट्रीट' },
+            retreat_registration_title: { ru: 'Регистрация на ретрит', en: 'Retreat registration', hi: 'रिट्रीट पंजीकरण' },
+            retreat_enter_email: { ru: 'Введите ваш email', en: 'Enter your email', hi: 'अपना ईमेल दर्ज करें' },
+            retreat_email_hint: { ru: 'Мы проверим, есть ли у вас аккаунт', en: 'We will check if you have an account', hi: 'हम जांचेंगे कि आपका खाता है या नहीं' },
+            continue: { ru: 'Продолжить', en: 'Continue', hi: 'जारी रखें' },
+            retreat_welcome_back: { ru: 'Добро пожаловать обратно,', en: 'Welcome back,', hi: 'वापसी पर स्वागत है,' },
+            retreat_login_hint: { ru: 'Войдите, чтобы продолжить', en: 'Sign in to continue', hi: 'जारी रखने के लिए साइन इन करें' },
+            password: { ru: 'Пароль', en: 'Password', hi: 'पासवर्ड' },
+            retreat_login_continue: { ru: 'Войти и продолжить', en: 'Sign in and continue', hi: 'साइन इन करें और जारी रखें' },
+            forgot_password: { ru: 'Забыли пароль?', en: 'Forgot password?', hi: 'पासवर्ड भूल गए?' },
+            use_different_email: { ru: 'Использовать другой email', en: 'Use a different email', hi: 'अलग ईमेल का उपयोग करें' },
+            retreat_create_account: { ru: 'Создайте аккаунт', en: 'Create an account', hi: 'खाता बनाएं' },
+            first_name: { ru: 'Имя', en: 'First name', hi: 'नाम' },
+            last_name: { ru: 'Фамилия', en: 'Last name', hi: 'उपनाम' },
+            spiritual_name: { ru: 'Духовное имя', en: 'Spiritual name', hi: 'आध्यात्मिक नाम' },
+            phone: { ru: 'Телефон', en: 'Phone', hi: 'फोन' },
+            telegram: { ru: 'Telegram', en: 'Telegram', hi: 'टेलीग्राम' },
+            country: { ru: 'Страна', en: 'Country', hi: 'देश' },
+            city: { ru: 'Город', en: 'City', hi: 'शहर' },
+            password_hint: { ru: 'Минимум 6 символов', en: 'At least 6 characters', hi: 'कम से कम 6 अक्षर' },
+            retreat_application_title: { ru: 'Заявка на ретрит', en: 'Retreat application', hi: 'रिट्रीट आवेदन' },
+            retreat_companions: { ru: 'С кем едете', en: 'Traveling with', hi: 'किसके साथ यात्रा' },
+            retreat_accommodation_wishes: { ru: 'Пожелания по размещению', en: 'Accommodation preferences', hi: 'आवास प्राथमिकताएं' },
+            retreat_questions: { ru: 'Вопросы организаторам', en: 'Questions for organizers', hi: 'आयोजकों के लिए प्रश्न' },
+            retreat_submit: { ru: 'Отправить заявку', en: 'Submit application', hi: 'आवेदन जमा करें' },
+            retreat_success: { ru: 'Заявка отправлена!', en: 'Application submitted!', hi: 'आवेदन जमा हो गया!' },
+            retreat_success_hint: { ru: 'Мы свяжемся с вами для подтверждения', en: 'We will contact you for confirmation', hi: 'हम पुष्टि के लिए आपसे संपर्क करेंगे' },
+            error_invalid_credentials: { ru: 'Неверный пароль', en: 'Invalid password', hi: 'गलत पासवर्ड' },
+            error_email_taken: { ru: 'Этот email уже зарегистрирован', en: 'This email is already registered', hi: 'यह ईमेल पहले से पंजीकृत है' },
+            error_unknown: { ru: 'Произошла ошибка', en: 'An error occurred', hi: 'एक त्रुटि हुई' },
+            error_password_reset_sent: { ru: 'Ссылка для сброса пароля отправлена на вашу почту', en: 'Password reset link sent to your email', hi: 'पासवर्ड रीसेट लिंक आपके ईमेल पर भेजा गया' }
+        };
+
+        // Загрузка переводов
+        async function loadTranslations() {
+            try {
+                const { data } = await db
+                    .from('translations')
+                    .select('key, ru, en, hi');
+
+                if (data) {
+                    for (const row of data) {
+                        translations[row.key] = { ru: row.ru, en: row.en, hi: row.hi };
+                    }
+                }
+            } catch (e) {
+                console.warn('Не удалось загрузить переводы:', e);
+            }
+
+            // Добавляем fallback
+            for (const [key, value] of Object.entries(fallbackTranslations)) {
+                if (!translations[key]) {
+                    translations[key] = value;
+                }
+            }
+        }
+
+        // Получить перевод
+        function t(key) {
+            const trans = translations[key] || fallbackTranslations[key];
+            if (!trans) return key;
+            return trans[currentLang] || trans['en'] || trans['ru'] || key;
+        }
+
+        // Обновить все переводы
+        function updateTranslations() {
+            document.querySelectorAll('[data-i18n]').forEach(el => {
+                el.textContent = t(el.dataset.i18n);
+            });
+            document.querySelectorAll('.lang-btn').forEach(btn => {
+                btn.classList.toggle('active', btn.dataset.lang === currentLang);
+            });
+        }
+
+        // Получить название на текущем языке
+        function getName(item) {
+            const key = `name_${currentLang}`;
+            return item[key] || item.name_en || item.name_ru || '';
+        }
+
+        // Получить описание на текущем языке
+        function getDescription(item) {
+            const key = `description_${currentLang}`;
+            return item[key] || item.description_en || item.description_ru || '';
+        }
+
+        // Форматирование диапазона дат
+        function formatDateRange(startDate, endDate) {
+            const start = new Date(startDate);
+            const end = new Date(endDate);
+            const locale = currentLang === 'ru' ? 'ru-RU' : currentLang === 'hi' ? 'hi-IN' : 'en-US';
+
+            if (start.getMonth() === end.getMonth() && start.getFullYear() === end.getFullYear()) {
+                return `${start.getDate()}–${end.getDate()} ${start.toLocaleDateString(locale, { month: 'long', year: 'numeric' })}`;
+            }
+
+            return `${start.toLocaleDateString(locale, { day: 'numeric', month: 'short' })} – ${end.toLocaleDateString(locale, { day: 'numeric', month: 'short', year: 'numeric' })}`;
+        }
+
+        // Загрузка данных ретрита
+        async function loadRetreat() {
+            const params = new URLSearchParams(location.search);
+            const id = params.get('id');
+            const slug = params.get('slug');
+
+            if (!id && !slug) {
+                showNotFound();
+                return;
+            }
+
+            let query = db.from('retreats').select('*');
+            if (id) {
+                query = query.eq('id', id);
+            } else if (slug) {
+                query = query.eq('slug', slug);
+            }
+
+            const { data: retreat, error } = await query.single();
+
+            if (error || !retreat) {
+                showNotFound();
+                return;
+            }
+
+            currentRetreat = retreat;
+            renderRetreat(retreat);
+
+            // Проверяем авторизацию для "уже зарегистрирован"
+            await checkExistingRegistration();
+
+            // Показываем контент
+            document.getElementById('loader').classList.add('hidden');
+            document.getElementById('main-content').classList.remove('hidden');
+        }
+
+        // Показать 404
+        function showNotFound() {
+            document.getElementById('loader').classList.add('hidden');
+            document.getElementById('not-found').classList.remove('hidden');
+        }
+
+        // Рендер ретрита
+        function renderRetreat(retreat) {
+            // Картинка
+            const img = document.getElementById('retreat-image');
+            if (retreat.image_url) {
+                img.src = retreat.image_url;
+                img.alt = getName(retreat);
+            } else {
+                // Заглушка
+                img.src = 'data:image/svg+xml,' + encodeURIComponent(`
+                    <svg xmlns="http://www.w3.org/2000/svg" width="800" height="400" viewBox="0 0 800 400">
+                        <rect fill="#e5e7eb" width="800" height="400"/>
+                        <text fill="#9ca3af" font-family="sans-serif" font-size="48" x="50%" y="50%" text-anchor="middle" dy=".3em">🕉</text>
+                    </svg>
+                `);
+            }
+
+            // Название и даты
+            document.getElementById('retreat-name').textContent = getName(retreat);
+            document.getElementById('retreat-dates').textContent = formatDateRange(retreat.start_date, retreat.end_date);
+
+            // Описание
+            const description = getDescription(retreat);
+            document.getElementById('retreat-description').textContent = description;
+
+            // Open Graph
+            document.getElementById('og-title').content = getName(retreat);
+            document.getElementById('og-description').content = description?.substring(0, 200) || '';
+            if (retreat.image_url) {
+                document.getElementById('og-image').content = retreat.image_url;
+            }
+            document.getElementById('og-url').content = window.location.href;
+            document.title = getName(retreat) + ' | Rupa Seva';
+
+            // Кнопка регистрации
+            if (retreat.registration_open) {
+                document.getElementById('registration-open').classList.remove('hidden');
+            } else {
+                document.getElementById('registration-closed').classList.remove('hidden');
+            }
+        }
+
+        // Проверка существующей регистрации
+        async function checkExistingRegistration() {
+            const { data: { session } } = await db.auth.getSession();
+            if (!session) return;
+
+            // Получаем vaishnava_id
+            const { data: vaishnava } = await db
+                .from('vaishnavas')
+                .select('id, first_name, spiritual_name')
+                .eq('user_id', session.user.id)
+                .single();
+
+            if (!vaishnava) return;
+
+            currentUser = {
+                id: vaishnava.id,
+                email: session.user.email,
+                firstName: vaishnava.first_name,
+                spiritualName: vaishnava.spiritual_name
+            };
+
+            // Проверяем регистрацию
+            const { data: registration } = await db
+                .from('retreat_registrations')
+                .select('id')
+                .eq('vaishnava_id', vaishnava.id)
+                .eq('retreat_id', currentRetreat.id)
+                .eq('is_deleted', false)
+                .single();
+
+            if (registration) {
+                // Уже зарегистрирован
+                document.getElementById('registration-open').classList.add('hidden');
+                document.getElementById('already-registered').classList.remove('hidden');
+            }
+        }
+
+        // Открыть модалку регистрации
+        function openRegistrationModal() {
+            document.getElementById('registration-modal').classList.remove('hidden');
+            document.body.style.overflow = 'hidden';
+
+            // Если уже авторизован — сразу на форму заявки
+            if (currentUser) {
+                goToStep('application');
+            }
+        }
+
+        // Закрыть модалку
+        function closeRegistrationModal() {
+            document.getElementById('registration-modal').classList.add('hidden');
+            document.body.style.overflow = '';
+            resetForms();
+        }
+
+        // Сброс форм
+        function resetForms() {
+            document.getElementById('email-form').reset();
+            document.getElementById('login-form').reset();
+            document.getElementById('register-form').reset();
+            document.getElementById('application-form').reset();
+            hideError();
+            goToStep('email');
+        }
+
+        // Переход к шагу
+        function goToStep(step) {
+            // Скрываем все шаги
+            document.querySelectorAll('.form-step').forEach(s => s.classList.remove('active'));
+
+            // Показываем нужный
+            const stepEl = document.getElementById(`step-${step}`);
+            if (stepEl) {
+                stepEl.classList.add('active');
+            }
+
+            // Обновляем индикатор
+            const stepMap = { 'email': 1, 'login': 2, 'register': 2, 'application': 3, 'success': 3 };
+            const currentStep = stepMap[step] || 1;
+
+            document.querySelectorAll('.step-dot').forEach(dot => {
+                const dotStep = parseInt(dot.dataset.step);
+                dot.classList.remove('active', 'completed');
+                if (dotStep < currentStep) {
+                    dot.classList.add('completed');
+                } else if (dotStep === currentStep) {
+                    dot.classList.add('active');
+                }
+            });
+
+            // Название ретрита на форме заявки
+            if (step === 'application') {
+                document.getElementById('application-retreat-name').textContent = getName(currentRetreat);
+            }
+        }
+
+        // Показать ошибку
+        function showError(messageKey) {
+            const alert = document.getElementById('modal-error');
+            alert.textContent = t(messageKey);
+            alert.classList.remove('hidden');
+        }
+
+        // Скрыть ошибку
+        function hideError() {
+            document.getElementById('modal-error').classList.add('hidden');
+        }
+
+        // Toggle пароля в форме логина
+        function toggleLoginPassword() {
+            const input = document.getElementById('login-password');
+            const icon = document.getElementById('login-eye-icon');
+            if (input.type === 'password') {
+                input.type = 'text';
+                icon.innerHTML = `<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.88 9.88l-3.29-3.29m7.532 7.532l3.29 3.29M3 3l3.59 3.59m0 0A9.953 9.953 0 0112 5c4.478 0 8.268 2.943 9.543 7a10.025 10.025 0 01-4.132 5.411m0 0L21 21"/>`;
+            } else {
+                input.type = 'password';
+                icon.innerHTML = `<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"/>`;
+            }
+        }
+
+        // Забыли пароль
+        async function forgotPassword() {
+            if (!checkEmail) return;
+
+            try {
+                await db.auth.resetPasswordForEmail(checkEmail, {
+                    redirectTo: window.location.origin + '/reset-password/'
+                });
+                showError('error_password_reset_sent');
+            } catch (e) {
+                console.error('Forgot password error:', e);
+            }
+        }
+
+        // Шаг 1: Проверка email
+        async function handleEmailCheck(e) {
+            e.preventDefault();
+            hideError();
+
+            const email = document.getElementById('check-email').value.trim().toLowerCase();
+            const spinner = document.getElementById('email-spinner');
+            spinner.classList.remove('hidden');
+
+            checkEmail = email;
+
+            try {
+                // Проверяем есть ли пользователь
+                const { data: vaishnava } = await db
+                    .from('vaishnavas')
+                    .select('id, first_name, spiritual_name, user_id')
+                    .ilike('email', email)
+                    .maybeSingle();
+
+                if (vaishnava) {
+                    // Найден — показываем форму логина
+                    const displayName = vaishnava.spiritual_name || vaishnava.first_name;
+                    document.getElementById('welcome-name').textContent = displayName;
+                    goToStep('login');
+                } else {
+                    // Не найден — форма регистрации
+                    document.getElementById('register-email-display').textContent = email;
+                    goToStep('register');
+                }
+            } catch (error) {
+                console.error('Email check error:', error);
+                showError('error_unknown');
+            } finally {
+                spinner.classList.add('hidden');
+            }
+        }
+
+        // Шаг 2а: Логин
+        async function handleLogin(e) {
+            e.preventDefault();
+            hideError();
+
+            const password = document.getElementById('login-password').value;
+            const spinner = document.getElementById('login-spinner');
+            spinner.classList.remove('hidden');
+
+            try {
+                const { data, error } = await db.auth.signInWithPassword({
+                    email: checkEmail,
+                    password: password
+                });
+
+                if (error) {
+                    showError('error_invalid_credentials');
+                    return;
+                }
+
+                // Получаем данные пользователя
+                const { data: vaishnava } = await db
+                    .from('vaishnavas')
+                    .select('id, first_name, spiritual_name')
+                    .eq('user_id', data.user.id)
+                    .single();
+
+                if (vaishnava) {
+                    currentUser = {
+                        id: vaishnava.id,
+                        email: checkEmail,
+                        firstName: vaishnava.first_name,
+                        spiritualName: vaishnava.spiritual_name
+                    };
+                    goToStep('application');
+                }
+            } catch (error) {
+                console.error('Login error:', error);
+                showError('error_unknown');
+            } finally {
+                spinner.classList.add('hidden');
+            }
+        }
+
+        // Шаг 2б: Регистрация
+        async function handleRegister(e) {
+            e.preventDefault();
+            hideError();
+
+            const spinner = document.getElementById('register-spinner');
+            spinner.classList.remove('hidden');
+
+            const userData = {
+                email: checkEmail,
+                password: document.getElementById('reg-password').value,
+                firstName: document.getElementById('reg-first-name').value.trim(),
+                lastName: document.getElementById('reg-last-name').value.trim(),
+                spiritualName: document.getElementById('reg-spiritual-name').value.trim(),
+                phone: document.getElementById('reg-phone').value.trim(),
+                telegram: document.getElementById('reg-telegram').value.trim().replace('@', ''),
+                country: document.getElementById('reg-country').value.trim(),
+                city: document.getElementById('reg-city').value.trim()
+            };
+
+            try {
+                // Создаём auth user
+                const { data: authData, error: signUpError } = await db.auth.signUp({
+                    email: userData.email,
+                    password: userData.password
+                });
+
+                if (signUpError) {
+                    if (signUpError.message.includes('already registered')) {
+                        showError('error_email_taken');
+                    } else {
+                        showError('error_unknown');
+                    }
+                    return;
+                }
+
+                // Создаём vaishnava через RPC функцию (обходит RLS)
+                const { data: registerResult, error: rpcError } = await db.rpc('register_guest', {
+                    p_email: userData.email,
+                    p_first_name: userData.firstName,
+                    p_last_name: userData.lastName,
+                    p_spiritual_name: userData.spiritualName || null,
+                    p_phone: userData.phone || null,
+                    p_telegram_username: userData.telegram || null,
+                    p_country: userData.country || null,
+                    p_city: userData.city || null
+                });
+
+                if (rpcError) {
+                    console.error('Register guest RPC error:', rpcError);
+                    showError('error_unknown');
+                    return;
+                }
+
+                const result = registerResult?.[0];
+                if (!result || !result.success) {
+                    console.error('Register guest failed:', result?.error_code);
+                    showError('error_unknown');
+                    return;
+                }
+
+                const vaishnava = { id: result.vaishnava_id };
+
+                currentUser = {
+                    id: vaishnava.id,
+                    email: userData.email,
+                    firstName: userData.firstName,
+                    spiritualName: userData.spiritualName
+                };
+
+                goToStep('application');
+
+            } catch (error) {
+                console.error('Register error:', error);
+                showError('error_unknown');
+            } finally {
+                spinner.classList.add('hidden');
+            }
+        }
+
+        // Шаг 3: Отправка заявки
+        async function handleApplication(e) {
+            e.preventDefault();
+            hideError();
+
+            const spinner = document.getElementById('application-spinner');
+            spinner.classList.remove('hidden');
+
+            const applicationData = {
+                retreat_id: currentRetreat.id,
+                vaishnava_id: currentUser.id,
+                status: 'guest',
+                companions: document.getElementById('app-companions').value.trim() || null,
+                accommodation_wishes: document.getElementById('app-accommodation').value.trim() || null,
+                guest_questions: document.getElementById('app-questions').value.trim() || null,
+                registration_date: new Date().toISOString().split('T')[0]
+            };
+
+            try {
+                const { error } = await db
+                    .from('retreat_registrations')
+                    .insert(applicationData);
+
+                if (error) {
+                    console.error('Application error:', error);
+                    showError('error_unknown');
+                    return;
+                }
+
+                goToStep('success');
+
+            } catch (error) {
+                console.error('Application error:', error);
+                showError('error_unknown');
+            } finally {
+                spinner.classList.add('hidden');
+            }
+        }
+
+        // Инициализация
+        async function init() {
+            await loadTranslations();
+            updateTranslations();
+
+            // Обработчики форм
+            document.getElementById('email-form').addEventListener('submit', handleEmailCheck);
+            document.getElementById('login-form').addEventListener('submit', handleLogin);
+            document.getElementById('register-form').addEventListener('submit', handleRegister);
+            document.getElementById('application-form').addEventListener('submit', handleApplication);
+
+            // Переключатель языка
+            document.querySelectorAll('.lang-btn').forEach(btn => {
+                btn.addEventListener('click', () => {
+                    currentLang = btn.dataset.lang;
+                    localStorage.setItem('srsk_lang', currentLang);
+                    updateTranslations();
+
+                    // Перерендерим ретрит с новым языком
+                    if (currentRetreat) {
+                        renderRetreat(currentRetreat);
+                    }
+                });
+            });
+
+            // Закрытие модалки по клику на фон
+            document.getElementById('registration-modal').addEventListener('click', (e) => {
+                if (e.target.id === 'registration-modal') {
+                    closeRegistrationModal();
+                }
+            });
+
+            // Закрытие по Escape
+            document.addEventListener('keydown', (e) => {
+                if (e.key === 'Escape') {
+                    closeRegistrationModal();
+                }
+            });
+
+            // Загружаем ретрит
+            await loadRetreat();
+        }
+
+        init();
+    </script>
+</body>
+</html>
