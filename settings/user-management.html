@@ -332,10 +332,12 @@
                         ${getStatusBadge(user)}
                     </td>
                     <td>
+                        <div class="flex flex-wrap gap-1">
                         ${user.roles.length > 0
-                            ? user.roles.map(r => `<span class="badge badge-sm badge-outline">${r.roles.name_ru}</span>`).join(' ')
+                            ? user.roles.map(r => `<span class="badge badge-sm badge-outline">${r.roles.name_ru}</span>`).join('')
                             : '<span class="text-xs opacity-50">Нет ролей</span>'
                         }
+                        </div>
                     </td>
                     <td>
                         <div class="flex gap-1 flex-wrap">
@@ -480,13 +482,13 @@
             // Отрисовать роли
             const rolesContainer = document.getElementById('rolesContainer');
             rolesContainer.innerHTML = allRoles.map(role => `
-                <label class="label cursor-pointer justify-start gap-2">
-                    <input type="checkbox" class="checkbox checkbox-sm"
+                <label class="label cursor-pointer justify-start gap-3 py-2 px-3 rounded-lg hover:bg-base-200 transition-colors">
+                    <input type="checkbox" class="checkbox checkbox-sm checkbox-primary"
                            data-role-id="${role.id}"
                            ${userRoleIds.includes(role.id) ? 'checked' : ''}>
-                    <div>
+                    <div class="flex-1">
                         <div class="font-medium">${role.name_ru}</div>
-                        <div class="text-xs opacity-60">${role.description_ru}</div>
+                        <div class="text-xs opacity-60">${role.description_ru || ''}</div>
                     </div>
                 </label>
             `).join('');
