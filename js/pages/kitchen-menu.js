@@ -283,7 +283,7 @@ async function loadMenuData() {
 
 // Загрузка количества едоков на период
 async function loadEatingCounts(startDate, endDate) {
-
+    console.log('loadEatingCounts called with:', startDate, endDate);
     eatingCounts = {};
 
     // Волна 1: независимые запросы параллельно
@@ -353,7 +353,9 @@ async function loadEatingCounts(startDate, endDate) {
 
         // Всегда создаём запись, даже если 0+0=0
         eatingCounts[dateStr] = { guests: guestsCount, team: teamCount };
+        console.log('eatingCounts set for', dateStr, ':', guestsCount, '+', teamCount);
     }
+    console.log('loadEatingCounts finished, keys:', Object.keys(eatingCounts));
 }
 
 // Получить количество питающихся на дату (для порций)
