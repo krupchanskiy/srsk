@@ -293,7 +293,7 @@ async function loadTranslations() {
     if (!data) return;
 
     // Проверка на наличие новых переводов (для автоинвалидации устаревшего кэша)
-    const requiredKeys = ['self_accommodation', 'nav_user_management'];
+    const requiredKeys = ['self_accommodation'];
     const hasAllKeys = requiredKeys.every(key => data.some(row => row.key === key));
 
     if (!hasAllKeys) {
