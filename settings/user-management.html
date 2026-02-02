@@ -44,11 +44,6 @@
         <div class="mb-4 flex flex-wrap gap-2">
             <input type="text" id="searchInput" placeholder="Поиск по имени или email..."
                    class="input input-bordered flex-1 min-w-48" onkeyup="filterUsers()">
-            <select id="moduleFilter" class="select select-bordered" onchange="filterUsers()">
-                <option value="">Все модули</option>
-                <option value="housing">Housing</option>
-                <option value="kitchen">Kitchen</option>
-            </select>
             <button class="btn btn-outline btn-primary" onclick="sendBulkInvites()">
                 <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
@@ -109,7 +104,7 @@
                     </label>
                 </div>
 
-                <div class="divider">Роли Housing</div>
+                <div class="divider">Роли</div>
 
                 <!-- Роли -->
                 <div id="rolesContainer" class="space-y-2 max-h-60 overflow-y-auto">
@@ -280,7 +275,6 @@
         // Отрисовка таблицы
         function renderUsers() {
             const searchText = document.getElementById('searchInput').value.toLowerCase();
-            const moduleFilter = document.getElementById('moduleFilter').value;
 
             let filtered = allUsers;
 
@@ -302,13 +296,6 @@
                     (u.first_name?.toLowerCase().includes(searchText)) ||
                     (u.last_name?.toLowerCase().includes(searchText)) ||
                     (u.email?.toLowerCase().includes(searchText))
-                );
-            }
-
-            // Фильтр по модулю
-            if (moduleFilter) {
-                filtered = filtered.filter(u =>
-                    u.roles.some(r => r.roles.module_id === moduleFilter)
                 );
             }
 
@@ -474,12 +461,12 @@
             document.getElementById('modalIsActive').checked = user.is_active;
             document.getElementById('modalIsSuperuser').checked = user.is_superuser;
 
-            // Загрузить все роли Housing
+            // Загрузить все кросс-модульные роли
             const { data: allRoles } = await db
                 .from('roles')
                 .select('id, code, name_ru, description_ru')
-                .eq('module_id', (await db.from('modules').select('id').eq('code', 'housing').single()).data.id)
-                .order('name_ru');
+                .is('module_id', null)
+                .order('sort_order');
 
             // Загрузить роли пользователя
             const { data: userRoles } = await db
@@ -619,24 +606,11 @@
         async function openPermissionsModal() {
             if (!currentUserId) return;
 
-            // Загрузить модуль Housing
-            const { data: housingModule, error: moduleError } = await db
-                .from('modules')
-                .select('id')
-                .eq('code', 'housing')
-                .single();
-
-            if (moduleError || !housingModule) {
-                console.error('Module error:', moduleError);
-                alert('Ошибка загрузки модуля Housing');
-                return;
-            }
-
-            // Загрузить все права Housing
+            // Загрузить все глобальные права (кросс-модульные)
             const { data: allPerms, error: permsError } = await db
                 .from('permissions')
                 .select('id, code, name_ru, category')
-                .eq('module_id', housingModule.id)
+                .is('module_id', null)
                 .order('category, name_ru');
 
             if (permsError || !allPerms || allPerms.length === 0) {

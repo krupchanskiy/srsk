@@ -85,35 +85,51 @@ const modules = {
 };
 
 // ==================== PAGE PERMISSIONS MAP ====================
-// Карта прав для доступа к страницам
+// Карта прав для доступа к страницам (v5 - RBAC refactor)
 const pagePermissions = {
-    // Housing - Vaishnavas
+    // Kitchen
+    'kitchen/menu.html': 'view_menu',
+    'kitchen/menu-templates.html': 'view_menu_templates',
+    'kitchen/recipes.html': 'view_recipes',
+    'kitchen/products.html': 'view_products',
+    'kitchen/dictionaries.html': 'view_kitchen_dictionaries',
+
+    // Stock
+    'stock/stock.html': 'view_stock',
+    'stock/requests.html': 'view_requests',
+    'stock/receive.html': 'receive_stock',
+    'stock/issue.html': 'issue_stock',
+    'stock/inventory.html': 'conduct_inventory',
+    'stock/stock-settings.html': 'view_stock_settings',
+
+    // Vaishnavas
     'vaishnavas/index.html': 'view_vaishnavas',
     'vaishnavas/guests.html': 'view_guests',
     'vaishnavas/team.html': 'view_team',
 
-    // Housing - Placement
-    'placement/bookings.html': 'view_bookings',
+    // Placement
     'placement/timeline.html': 'view_timeline',
-    'placement/arrivals.html': 'manage_arrivals',
-    'placement/departures.html': 'manage_departures',
-    'placement/transfers.html': 'manage_transfers',
-    'vaishnavas/preliminary.html': 'view_preliminary',
+    'placement/bookings.html': 'view_bookings',
     'vaishnavas/retreat-guests.html': 'view_retreat_guests',
+    'vaishnavas/preliminary.html': 'view_preliminary',
+    'placement/arrivals.html': 'view_arrivals',
+    'placement/departures.html': 'view_departures',
+    'placement/transfers.html': 'view_transfers',
 
-    // Housing - Reception
+    // Reception
+    'reception/floor-plan.html': 'view_floor_plan',
     'reception/cleaning.html': 'view_cleaning',
     'reception/rooms.html': 'view_rooms',
     'reception/buildings.html': 'view_buildings',
+    'reception/dictionaries.html': 'view_housing_dictionaries',
 
-    // Housing - Ashram
+    // Ashram
     'ashram/retreats.html': 'view_retreats',
     'ashram/festivals.html': 'view_festivals',
 
-    // Housing - Settings
-    'reception/dictionaries.html': 'view_dictionaries',
-    'settings/user-management.html': 'manage_users',
-    'settings/translations.html': 'view_translations'
+    // Settings
+    'settings/translations.html': 'view_translations',
+    'settings/user-management.html': 'manage_users'
 };
 
 // ==================== STATE ====================
