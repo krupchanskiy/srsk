@@ -132,9 +132,19 @@
         <!-- Хедер -->
         <header class="bg-srsk-green">
             <div class="max-w-6xl mx-auto px-4 md:px-6 lg:px-8">
-                <div class="flex items-center justify-between h-16">
-                    <!-- Логотип -->
-                    <a href="/guest-portal/" class="flex items-center">
+                <div class="flex items-center justify-between h-16 relative">
+                    <!-- Назад в профиль (для залогиненных) -->
+                    <a id="back-to-profile" href="/guest-portal/" class="hidden items-center gap-1 text-white/80 hover:text-white text-sm">
+                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"/>
+                        </svg>
+                        <span data-i18n="back_to_profile">в профиль</span>
+                    </a>
+                    <!-- Пустой div для выравнивания когда не залогинен -->
+                    <div id="back-placeholder" class="w-20"></div>
+
+                    <!-- Логотип по центру -->
+                    <a href="/guest-portal/" class="flex items-center absolute left-1/2 -translate-x-1/2">
                         <svg class="h-10" viewBox="0 0 308.75 98.28">
                             <path fill="#FFBA47" d="M143.64,4.26h-4.62v24.95c0,1.89.04,3.53-.27,4.87-.31,1.36-.79,2.43-1.45,3.22-.61.86-1.48,1.47-2.59,1.84-.73.3-1.55.49-2.47.56-.31.06-.61.1-.92.1h-.19c-1.16-.06-2.2-.25-3.12-.56-1.16-.37-2.14-.95-2.93-1.75-.81-.86-1.39-1.96-1.74-3.32-.37-1.34-.56-3-.56-4.96V4.26h-4.6v27.15c0,4.17,1.16,7.29,3.49,9.37,1.16,1.05,2.61,1.82,4.33,2.3.36.13.78.23,1.28.29-4.23,1.53-7.11,3.62-8.65,6.25-2.15,3.24-2.21,7.35-.19,12.33l12.59,30.6,12.16-30.6c1.95-4.97,1.89-9.08-.19-12.33-1.47-2.58-4.25-4.63-8.36-6.15.49-.13.97-.26,1.45-.39,1.6-.48,2.95-1.28,4.04-2.37,1.16-1.11,2.03-2.49,2.59-4.14.61-1.71.92-3.74.92-6.08V4.26M139.21,51.92c1.23,2.21,1.17,5-.17,8.36l-8.02,20.76-8.45-20.76c-1.4-3.36-1.46-6.14-.17-8.36,1.41-2.28,4.19-3.96,8.36-5.06,4.17,1.1,6.98,2.79,8.45,5.06"/>
                             <path fill="#fff" d="M26.44,33.99c0-1.56-.46-2.83-1.39-3.81-.93-.98-2.09-1.86-3.48-2.62-1.39-.76-2.91-1.48-4.54-2.14-1.63-.67-3.15-1.48-4.54-2.42-1.39-.95-2.55-2.12-3.48-3.51-.93-1.39-1.39-3.17-1.39-5.32,0-3.05,1.06-5.46,3.18-7.24,2.12-1.78,5.12-2.67,9.02-2.67,2.26,0,4.33.17,6.18.5,1.86.34,3.3.76,4.35,1.28l-1.39,4.12c-.85-.42-2.11-.82-3.76-1.21-1.65-.38-3.52-.58-5.6-.58-2.45,0-4.29.55-5.52,1.64-1.22,1.1-1.84,2.39-1.84,3.87s.46,2.66,1.39,3.62c.93.96,2.09,1.83,3.48,2.59,1.39.76,2.91,1.51,4.54,2.26,1.63.74,3.15,1.61,4.54,2.59,1.39.98,2.55,2.16,3.48,3.54.93,1.38,1.39,3.08,1.39,5.12,0,1.67-.3,3.18-.89,4.51-.59,1.34-1.47,2.49-2.62,3.46-1.15.97-2.54,1.71-4.18,2.23-1.64.52-3.49.78-5.57.78-2.79,0-5.09-.21-6.91-.64-1.82-.43-3.23-.9-4.23-1.42l1.56-4.12c.85.47,2.12.93,3.79,1.38,1.67.45,3.55.68,5.63.68,1.23,0,2.38-.12,3.45-.36,1.08-.24,2.01-.63,2.79-1.17.78-.54,1.4-1.22,1.87-2.03.46-.82.7-1.78.7-2.9"/>
@@ -488,7 +498,8 @@
             error_invalid_credentials: { ru: 'Неверный пароль', en: 'Invalid password', hi: 'गलत पासवर्ड' },
             error_email_taken: { ru: 'Этот email уже зарегистрирован', en: 'This email is already registered', hi: 'यह ईमेल पहले से पंजीकृत है' },
             error_unknown: { ru: 'Произошла ошибка', en: 'An error occurred', hi: 'एक त्रुटि हुई' },
-            error_password_reset_sent: { ru: 'Ссылка для сброса пароля отправлена на вашу почту', en: 'Password reset link sent to your email', hi: 'पासवर्ड रीसेट लिंक आपके ईमेल पर भेजा गया' }
+            error_password_reset_sent: { ru: 'Ссылка для сброса пароля отправлена на вашу почту', en: 'Password reset link sent to your email', hi: 'पासवर्ड रीसेट लिंक आपके ईमेल पर भेजा गया' },
+            back_to_profile: { ru: 'в профиль', en: 'to profile', hi: 'प्रोफाइल' }
         };
 
         // Загрузка переводов
@@ -645,6 +656,11 @@
         async function checkExistingRegistration() {
             const { data: { session } } = await db.auth.getSession();
             if (!session) return;
+
+            // Показываем ссылку "в профиль" для залогиненных
+            document.getElementById('back-to-profile').classList.remove('hidden');
+            document.getElementById('back-to-profile').classList.add('flex');
+            document.getElementById('back-placeholder').classList.add('hidden');
 
             // Получаем vaishnava_id
             const { data: vaishnava } = await db
