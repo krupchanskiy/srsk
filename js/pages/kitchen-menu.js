@@ -133,7 +133,10 @@ function getWeekStart(date) {
 }
 
 function formatDate(date) {
-    return date.toISOString().split('T')[0];
+    const y = date.getFullYear();
+    const m = String(date.getMonth() + 1).padStart(2, '0');
+    const d = String(date.getDate()).padStart(2, '0');
+    return `${y}-${m}-${d}`;
 }
 
 function getMealTypeName(type) {
@@ -283,7 +286,6 @@ async function loadMenuData() {
 
 // Загрузка количества едоков на период
 async function loadEatingCounts(startDate, endDate) {
-    console.log('loadEatingCounts called with:', startDate, endDate);
     eatingCounts = {};
 
     // Волна 1: независимые запросы параллельно
@@ -353,9 +355,7 @@ async function loadEatingCounts(startDate, endDate) {
 
         // Всегда создаём запись, даже если 0+0=0
         eatingCounts[dateStr] = { guests: guestsCount, team: teamCount };
-        console.log('eatingCounts set for', dateStr, ':', guestsCount, '+', teamCount);
     }
-    console.log('loadEatingCounts finished, keys:', Object.keys(eatingCounts));
 }
 
 // Получить количество питающихся на дату (для порций)
@@ -430,7 +430,6 @@ function renderDay() {
 
     // Количество питающихся
     const counts = eatingCounts[dateStr];
-    console.log('renderDay dateStr:', dateStr, 'counts:', counts, 'eatingCounts keys:', Object.keys(eatingCounts));
     const eatingLine = counts
         ? `<div class="text-sm text-gray-500 font-medium mt-1" title="Гости + Команда = Итого">🍽 ${counts.guests}+${counts.team}=${counts.guests + counts.team}</div>`
         : '';
