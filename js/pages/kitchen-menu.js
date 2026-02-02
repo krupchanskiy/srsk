@@ -14,6 +14,8 @@ let menuData = {}; // { 'YYYY-MM-DD': { breakfast: {...}, lunch: {...}, dinner: 
 let retreats = [];
 let holidays = [];
 let cooks = [];
+let eatingCounts = {}; // { 'YYYY-MM-DD': { guests: N, team: N } }
+let teamCount = 0; // Количество команды (staff)
 
 let selectedDate = null;
 let selectedMealType = null;
@@ -280,7 +282,79 @@ async function loadMenuData() {
         };
     });
 
+    // Загружаем количество едоков для месячного вида
+    if (currentView === 'month') {
+        await loadEatingCounts();
+    }
+
     render();
+}
+
+// Загрузка количества едоков на месяц
+async function loadEatingCounts() {
+    const year = currentMonth.getFullYear();
+    const month = currentMonth.getMonth();
+    const firstDay = new Date(year, month, 1);
+    const lastDay = new Date(year, month + 1, 0);
+    const startDate = formatDate(firstDay);
+    const endDate = formatDate(lastDay);
+
+    eatingCounts = {};
+
+    // Загружаем все ретриты, которые пересекаются с месяцем
+    const { data: retreatsInMonth } = await Layout.db
+        .from('retreats')
+        .select('id, start_date, end_date')
+        .lte('start_date', endDate)
+        .gte('end_date', startDate);
+
+    // Загружаем регистрации на эти ретриты (гости, которые едят с нами)
+    const retreatIds = (retreatsInMonth || []).map(r => r.id);
+    let guestRegistrations = [];
+    if (retreatIds.length > 0) {
+        const { data } = await Layout.db
+            .from('retreat_registrations')
+            .select('retreat_id')
+            .in('retreat_id', retreatIds)
+            .eq('is_deleted', false)
+            .not('status', 'in', '("cancelled","rejected")')
+            .or('meal_type.eq.prasad,meal_type.is.null');
+        guestRegistrations = data || [];
+    }
+
+    // Загружаем резидентов-команду на этот период
+    const { data: teamResidents } = await Layout.db
+        .from('residents')
+        .select('check_in, check_out, vaishnava:vaishnavas!inner(user_type)')
+        .eq('status', 'active')
+        .eq('vaishnava.user_type', 'staff')
+        .lte('check_in', endDate)
+        .or(`check_out.gte.${startDate},check_out.is.null`);
+
+    // Подсчитываем для каждого дня
+    for (let d = new Date(firstDay); d <= lastDay; d.setDate(d.getDate() + 1)) {
+        const dateStr = formatDate(d);
+
+        // Гости: считаем регистрации на ретриты, которые включают этот день
+        let guestsCount = 0;
+        for (const retreat of (retreatsInMonth || [])) {
+            if (dateStr >= retreat.start_date && dateStr <= retreat.end_date) {
+                guestsCount += guestRegistrations.filter(r => r.retreat_id === retreat.id).length;
+            }
+        }
+
+        // Команда: резиденты с user_type='staff', которые в этот день в ШРСК
+        let teamCount = 0;
+        for (const res of (teamResidents || [])) {
+            if (res.check_in <= dateStr && (res.check_out === null || res.check_out >= dateStr)) {
+                teamCount++;
+            }
+        }
+
+        if (guestsCount > 0 || teamCount > 0) {
+            eatingCounts[dateStr] = { guests: guestsCount, team: teamCount };
+        }
+    }
 }
 
 // ==================== RENDERING ====================
@@ -682,12 +756,21 @@ function renderMonth() {
             acharyaName = `<div class="text-xs truncate leading-tight mb-0.5 opacity-60">${acharyaEvents.map(e => getName(e)).join(', ')}</div>`;
         }
 
+        // Количество едоков
+        const counts = eatingCounts[dateStr];
+        let eatingLine = '';
+        if (counts && (counts.guests > 0 || counts.team > 0)) {
+            const total = counts.guests + counts.team;
+            eatingLine = `<div class="text-xs text-gray-500 font-medium" title="Гости + Команда = Итого">🍽 ${counts.guests}+${counts.team}=${total}</div>`;
+        }
+
         return `
             <div class="min-h-20 rounded shadow-sm p-1.5 ${isToday ? 'ring-2' : ''} cursor-pointer hover:opacity-80 flex flex-col" style="${bgStyle} ${borderStyle}" onclick="openDayDetail('${dateStr}')">
                 <div class="flex justify-between items-start mb-1">
                     <span class="font-bold text-sm ${isToday ? 'text-primary' : ''}">${date.getDate()}</span>
                     ${holidayIndicator}
                 </div>
+                ${eatingLine}
                 ${retreat ? `<div class="text-xs font-bold truncate leading-tight mb-1" style="color: ${retreat.color};">${getName(retreat)}</div>` : ''}
                 ${holidayName}
                 ${acharyaName}
