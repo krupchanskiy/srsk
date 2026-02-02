@@ -79,7 +79,7 @@ async function loadTimelineData() {
             .gte('end_date', startDateStr)
             .order('start_date'),
         Layout.db.from('room_cleanings')
-            .select('id, room_id, start_date, end_date, status, type, completed, completed_at')
+            .select('id, room_id, start_date, end_date, type, completed, completed_at')
             .lte('start_date', endDateStr)
             .gte('end_date', startDateStr)
     ]);
