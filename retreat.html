@@ -833,6 +833,17 @@
 
         // Загрузка персональной информации гостя
         async function loadGuestInfo(vaishnavId, retreatId) {
+            // Сначала получаем registration_id
+            const { data: registration } = await db
+                .from('retreat_registrations')
+                .select('id')
+                .eq('vaishnava_id', vaishnavId)
+                .eq('retreat_id', retreatId)
+                .eq('is_deleted', false)
+                .maybeSingle();
+
+            if (!registration) return;
+
             // Загружаем параллельно: размещение и трансферы
             const [accommodationResult, transfersResult] = await Promise.all([
                 db.from('residents')
@@ -845,8 +856,7 @@
                     .maybeSingle(),
                 db.from('guest_transfers')
                     .select('*')
-                    .eq('vaishnava_id', vaishnavId)
-                    .eq('retreat_id', retreatId)
+                    .eq('registration_id', registration.id)
             ]);
 
             const accommodation = accommodationResult.data;
