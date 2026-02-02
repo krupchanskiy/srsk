@@ -252,12 +252,17 @@ async function loadTimelineData() {
                     // Уборка после выезда (не для временных зданий)
                     // Обычный выезд (endHalf=0): уборка со второй половины дня выезда
                     // Поздний выезд (endHalf=1): уборка с первой половины СЛЕДУЮЩЕГО дня
-                    // ВАЖНО: уборка создаётся только если это последний выезжающий из комнаты
+                    // ВАЖНО: уборка создаётся только если нет пересекающихся проживаний с более поздним выездом
                     let cleaningEntry = null;
-                    const hasOthersStayingLonger = roomResidents.some(other =>
-                        other.id !== res.id &&
-                        (other.check_out === null || other.check_out > res.check_out)
-                    );
+                    const hasOthersStayingLonger = roomResidents.some(other => {
+                        if (other.id === res.id) return false;
+                        // Проверяем пересечение периодов проживания
+                        const overlaps = other.check_in < res.check_out &&
+                                         (other.check_out === null || other.check_out > res.check_in);
+                        // И что другой выезжает позже
+                        const staysLonger = other.check_out === null || other.check_out > res.check_out;
+                        return overlaps && staysLonger;
+                    });
                     if (res.check_out && !building.isTemporary && !hasOthersStayingLonger) {
                         let cleaningStartDay, cleaningStartHalf, cleaningEndDay, cleaningEndHalf;
 
