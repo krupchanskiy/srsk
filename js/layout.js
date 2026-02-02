@@ -281,13 +281,30 @@ function getPersonName(person, lang = currentLang) {
 
 // ==================== TRANSLATIONS ====================
 async function loadTranslations(retried = false) {
-    const data = await Cache.getOrLoad('translations_v3', async () => {
-        const { data, error } = await db.from('translations').select('key, ru, en, hi').limit(5000);
-        if (error) {
-            console.error('Error loading translations:', error);
-            return null;
+    const data = await Cache.getOrLoad('translations_v4', async () => {
+        // Supabase ограничивает 1000 записей на запрос, используем пагинацию
+        const allData = [];
+        let from = 0;
+        const pageSize = 1000;
+
+        while (true) {
+            const { data, error } = await db.from('translations')
+                .select('key, ru, en, hi')
+                .range(from, from + pageSize - 1);
+
+            if (error) {
+                console.error('Error loading translations:', error);
+                return null;
+            }
+
+            if (!data || data.length === 0) break;
+            allData.push(...data);
+
+            if (data.length < pageSize) break; // Последняя страница
+            from += pageSize;
         }
-        return data;
+
+        return allData;
     });
 
     if (!data) return;
@@ -299,7 +316,7 @@ async function loadTranslations(retried = false) {
 
     if (!hasAllKeys && !retried) {
         // Кэш устарел, инвалидируем и перезагружаем (только 1 раз)
-        Cache.invalidate('translations_v3');
+        Cache.invalidate('translations_v4');
         return loadTranslations(true);
     }
 
