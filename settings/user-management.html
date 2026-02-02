@@ -501,7 +501,7 @@
                 }
 
                 closeApprovalModal();
-                loadUsers();
+                loadUsers({ tab: currentTab !== 'all' ? currentTab : null });
                 alert(approvalAction === 'approve' ? '✅ Заявка одобрена' : '❌ Заявка отклонена');
             } catch (err) {
                 console.error('Approval error:', err);
@@ -637,7 +637,7 @@
                 }
 
                 closeManageModal();
-                loadUsers();
+                loadUsers({ tab: currentTab !== 'all' ? currentTab : null });
                 alert('✅ Изменения сохранены');
             } catch (err) {
                 console.error('Save error:', err);
@@ -665,7 +665,7 @@
                     .eq('id', user.id);
 
                 closeManageModal();
-                loadUsers();
+                loadUsers({ tab: currentTab !== 'all' ? currentTab : null });
                 alert('🚫 Пользователь заблокирован');
             } catch (err) {
                 console.error('Block error:', err);
@@ -858,7 +858,7 @@
                 if (!response.ok) {
                     if (result.alreadyHasAccount) {
                         alert('У пользователя уже есть аккаунт');
-                        loadUsers(); // Перезагрузить список
+                        loadUsers({ tab: currentTab !== 'all' ? currentTab : null });
                     } else {
                         throw new Error(result.error || 'Ошибка отправки');
                     }
