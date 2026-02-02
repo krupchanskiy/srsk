@@ -272,12 +272,12 @@ Housing (модуль проживания):
 
 ### User Management & RBAC System
 
-**Архитектура:**
-- `modules` — модули системы (kitchen, housing)
-- `permissions` — атомарные права (view_menu, edit_rooms и т.д.)
-- `roles` — роли внутри модуля с набором прав
+**Архитектура (кросс-модульные роли, 2026-02):**
+- `modules` — модули системы (kitchen, housing) — используются только для категоризации
+- `permissions` — атомарные права по категориям (kitchen, stock, placement, reception, ashram, vaishnavas, settings, profile)
+- `roles` — **кросс-модульные роли** (`module_id = NULL`): team_member, cook, chef, warehouse_manager, receptionist, organizer, guest
 - `role_permissions` — связь ролей и прав
-- `user_roles` — назначенные роли пользователей
+- `user_roles` — назначенные роли пользователей (роли комбинируются: повар + организатор)
 - `user_permissions` — индивидуальные переопределения прав (is_granted: true/false)
 - `superusers` — таблица UUID суперпользователей (без RLS для проверки прав)
 
@@ -285,6 +285,11 @@ Housing (модуль проживания):
 - **Staff (команда)** — проходит одобрение администратора, получает роли
 - **Guest (гость)** — автоматическое одобрение, доступ только к своему профилю
 - **Superuser** — полный доступ ко всему, обходит все проверки
+
+**Фильтрация меню по правам (layout.js):**
+- `pagePermissions` — карта соответствия страниц и требуемых прав
+- Меню фильтруется автоматически в `filterMenuByPermissions()`
+- Суперпользователи и неавторизованные видят всё меню
 
 **RLS политики (82 политики на 64 таблицы):**
 - Большинство таблиц имеют одну политику `FOR ALL` с условием `true` (полный доступ для authenticated)
@@ -552,7 +557,14 @@ const grouped = allResidents.reduce((acc, r) => { (acc[r.booking_id] ||= []).pus
 
 9. **Деплой изменений** — после коммита в main ветку GitHub Pages автоматически деплоит за 1-2 минуты. Проверить статус: GitHub → Actions. После деплоя может потребоваться жёсткое обновление страницы (Cmd+Shift+R) или cache busting через `?v=N`.
 
-10. **Ленивая загрузка для больших списков** — на страницах с потенциально большим количеством данных (user-management, vaishnavas) использовать паттерн:
+10. **Tailwind desktop breakpoint** — для работы меню первого уровня в хедере каждая страница должна иметь конфиг tailwind:
+    ```html
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>tailwind.config = { theme: { extend: { screens: { 'desktop': '1200px' } } } }</script>
+    ```
+    Без этого класс `desktop:flex` не работает и меню скрывается.
+
+11. **Ленивая загрузка для больших списков** — на страницах с потенциально большим количеством данных (user-management, vaishnavas) использовать паттерн:
     - По умолчанию показывать placeholder "Введите имя для поиска или выберите категорию"
     - Загружать данные только при поиске (от 2 символов) или выборе фильтра/таба
     - Фильтрация на стороне БД (`.ilike()`, `.eq()`) вместо клиента
@@ -579,6 +591,30 @@ async function loadData(filter = {}) {
 // Инициализация: только счётчики + placeholder
 loadCounts();
 showPlaceholder();
+
+// После действий (сохранение, удаление) — сохранять текущий фильтр/таб
+async function saveItem() {
+    await db.from('table').update(...);
+    loadCounts();  // обновить счётчики
+    loadData({ tab: currentTab !== 'all' ? currentTab : null });  // сохранить таб
+}
+```
+
+12. **XSS защита пользовательских данных** — при рендере данных пользователя (имя, email) использовать escapeHtml:
+```javascript
+function escapeHtml(str) {
+    if (!str) return '';
+    return String(str)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#039;');
+}
+
+// Использование в шаблонах
+const displayName = escapeHtml(user.spiritual_name || user.first_name);
+tbody.innerHTML = users.map(u => `<td>${escapeHtml(u.email)}</td>`).join('');
 ```
 
 ## File Locations
