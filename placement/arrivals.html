@@ -102,7 +102,20 @@
         </div>
 
         <!-- Table -->
-        <div id="tableContainer"></div>
+        <div id="tableContainer">
+            <!-- Skeleton loader -->
+            <div id="tableSkeleton" class="bg-base-100 rounded-xl shadow overflow-hidden">
+                <table class="table">
+                    <thead><tr><th><div class="skeleton h-4 w-24"></div></th><th><div class="skeleton h-4 w-20"></div></th><th><div class="skeleton h-4 w-28"></div></th><th><div class="skeleton h-4 w-32"></div></th><th><div class="skeleton h-4 w-28"></div></th><th><div class="skeleton h-4 w-24"></div></th></tr></thead>
+                    <tbody>
+                        <tr><td><div class="flex items-center gap-3"><div class="skeleton w-10 h-10 rounded-full"></div><div class="skeleton h-4 w-28"></div></div></td><td><div class="skeleton h-4 w-16"></div></td><td><div class="skeleton h-4 w-24"></div></td><td><div class="skeleton h-4 w-20"></div></td><td><div class="skeleton h-4 w-32"></div></td><td><div class="skeleton h-4 w-24"></div></td></tr>
+                        <tr><td><div class="flex items-center gap-3"><div class="skeleton w-10 h-10 rounded-full"></div><div class="skeleton h-4 w-32"></div></div></td><td><div class="skeleton h-4 w-16"></div></td><td><div class="skeleton h-4 w-24"></div></td><td><div class="skeleton h-4 w-20"></div></td><td><div class="skeleton h-4 w-28"></div></td><td><div class="skeleton h-4 w-20"></div></td></tr>
+                        <tr><td><div class="flex items-center gap-3"><div class="skeleton w-10 h-10 rounded-full"></div><div class="skeleton h-4 w-24"></div></div></td><td><div class="skeleton h-4 w-16"></div></td><td><div class="skeleton h-4 w-24"></div></td><td><div class="skeleton h-4 w-20"></div></td><td><div class="skeleton h-4 w-36"></div></td><td><div class="skeleton h-4 w-28"></div></td></tr>
+                        <tr><td><div class="flex items-center gap-3"><div class="skeleton w-10 h-10 rounded-full"></div><div class="skeleton h-4 w-36"></div></div></td><td><div class="skeleton h-4 w-16"></div></td><td><div class="skeleton h-4 w-24"></div></td><td><div class="skeleton h-4 w-20"></div></td><td><div class="skeleton h-4 w-24"></div></td><td><div class="skeleton h-4 w-24"></div></td></tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
         <div id="noData" class="hidden text-center py-12 opacity-50">
             <div class="text-4xl mb-2">✈️</div>
             <p data-i18n="select_retreat_for_arrivals">Выберите ретрит для просмотра заездов</p>

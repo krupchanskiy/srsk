@@ -71,12 +71,12 @@
                     </tr>
                 </thead>
                 <tbody id="usersTableBody">
-                    <tr>
-                        <td colspan="7" class="text-center py-8">
-                            <span class="loading loading-spinner loading-lg"></span>
-                            <p class="mt-2">Загрузка пользователей...</p>
-                        </td>
-                    </tr>
+                    <!-- Skeleton loader -->
+                    <tr class="skeleton-row"><td><div class="skeleton w-10 h-10 rounded-full"></div></td><td><div class="skeleton h-4 w-32"></div></td><td><div class="skeleton h-4 w-40"></div></td><td><div class="skeleton h-4 w-16"></div></td><td><div class="skeleton h-4 w-20"></div></td><td><div class="skeleton h-4 w-24"></div></td><td><div class="skeleton h-8 w-24"></div></td></tr>
+                    <tr class="skeleton-row"><td><div class="skeleton w-10 h-10 rounded-full"></div></td><td><div class="skeleton h-4 w-28"></div></td><td><div class="skeleton h-4 w-36"></div></td><td><div class="skeleton h-4 w-16"></div></td><td><div class="skeleton h-4 w-20"></div></td><td><div class="skeleton h-4 w-20"></div></td><td><div class="skeleton h-8 w-24"></div></td></tr>
+                    <tr class="skeleton-row"><td><div class="skeleton w-10 h-10 rounded-full"></div></td><td><div class="skeleton h-4 w-36"></div></td><td><div class="skeleton h-4 w-44"></div></td><td><div class="skeleton h-4 w-16"></div></td><td><div class="skeleton h-4 w-20"></div></td><td><div class="skeleton h-4 w-28"></div></td><td><div class="skeleton h-8 w-24"></div></td></tr>
+                    <tr class="skeleton-row"><td><div class="skeleton w-10 h-10 rounded-full"></div></td><td><div class="skeleton h-4 w-24"></div></td><td><div class="skeleton h-4 w-32"></div></td><td><div class="skeleton h-4 w-16"></div></td><td><div class="skeleton h-4 w-20"></div></td><td><div class="skeleton h-4 w-16"></div></td><td><div class="skeleton h-8 w-24"></div></td></tr>
+                    <tr class="skeleton-row"><td><div class="skeleton w-10 h-10 rounded-full"></div></td><td><div class="skeleton h-4 w-30"></div></td><td><div class="skeleton h-4 w-38"></div></td><td><div class="skeleton h-4 w-16"></div></td><td><div class="skeleton h-4 w-20"></div></td><td><div class="skeleton h-4 w-24"></div></td><td><div class="skeleton h-8 w-24"></div></td></tr>
                 </tbody>
             </table>
         </div>
@@ -519,10 +519,10 @@
                 closeApprovalModal();
                 loadCounts(); // Обновить счётчики в табах
                 loadUsers({ tab: currentTab !== 'all' ? currentTab : null });
-                alert(approvalAction === 'approve' ? '✅ Заявка одобрена' : '❌ Заявка отклонена');
+                Layout.showNotification(approvalAction === 'approve' ? 'Заявка одобрена' : 'Заявка отклонена', 'success');
             } catch (err) {
                 console.error('Approval error:', err);
-                alert('Ошибка: ' + err.message);
+                Layout.showNotification('Ошибка: ' + err.message, 'error');
             }
         }
 
@@ -536,7 +536,7 @@
 
             // Проверить что у пользователя есть user_id (привязан к auth.users)
             if (!user.user_id) {
-                alert('У этого пользователя нет аккаунта в системе. Управление ролями и правами недоступно.');
+                Layout.showNotification('У этого пользователя нет аккаунта в системе. Управление ролями и правами недоступно.', 'warning');
                 return;
             }
 
@@ -616,7 +616,7 @@
             try {
                 const user = allUsers.find(u => u.user_id === currentUserId);
                 if (!user) {
-                    alert('Пользователь не найден');
+                    Layout.showNotification('Пользователь не найден', 'error');
                     return;
                 }
 
@@ -653,24 +653,28 @@
                 closeManageModal();
                 loadCounts(); // Обновить счётчики в табах
                 loadUsers({ tab: currentTab !== 'all' ? currentTab : null });
-                alert('✅ Изменения сохранены');
+                Layout.showNotification('Изменения сохранены', 'success');
             } catch (err) {
                 console.error('Save error:', err);
-                alert('Ошибка сохранения: ' + err.message);
+                Layout.showNotification('Ошибка сохранения: ' + err.message, 'error');
             }
         }
 
-        // Заблокировать пользователя
+        // Заблокировать пользователя (с optimistic update)
         async function blockUser() {
             if (!confirm('Вы уверены что хотите заблокировать этого пользователя?')) return;
 
-            try {
-                const user = allUsers.find(u => u.user_id === currentUserId);
-                if (!user) {
-                    alert('Пользователь не найден');
-                    return;
-                }
+            const user = allUsers.find(u => u.user_id === currentUserId);
+            if (!user) {
+                Layout.showNotification('Пользователь не найден', 'error');
+                return;
+            }
 
+            // Optimistic update: сразу закрываем модалку и показываем уведомление
+            closeManageModal();
+            Layout.showNotification('Пользователь заблокирован', 'success');
+
+            try {
                 await db
                     .from('vaishnavas')
                     .update({
@@ -679,13 +683,13 @@
                     })
                     .eq('id', user.id);
 
-                closeManageModal();
                 loadCounts(); // Обновить счётчики в табах
                 loadUsers({ tab: currentTab !== 'all' ? currentTab : null });
-                alert('🚫 Пользователь заблокирован');
             } catch (err) {
                 console.error('Block error:', err);
-                alert('Ошибка: ' + err.message);
+                Layout.showNotification('Ошибка блокировки: ' + err.message, 'error');
+                // Перезагружаем список чтобы откатить UI
+                loadUsers({ tab: currentTab !== 'all' ? currentTab : null });
             }
         }
 
@@ -701,7 +705,7 @@
 
             if (permsError || !allPerms || allPerms.length === 0) {
                 console.error('Permissions error:', permsError);
-                alert('Нет доступных прав');
+                Layout.showNotification('Нет доступных прав', 'warning');
                 return;
             }
 
@@ -824,7 +828,7 @@
             } catch (err) {
                 // Откатить чекбокс при ошибке
                 checkbox.checked = !isGranted;
-                alert('Ошибка: ' + err.message);
+                Layout.showNotification('Ошибка: ' + err.message, 'error');
             }
         }
 
@@ -840,7 +844,7 @@
             try {
                 const { data: { session } } = await db.auth.getSession();
                 if (!session) {
-                    alert('Сессия истекла. Перезагрузите страницу.');
+                    Layout.showNotification('Сессия истекла. Перезагрузите страницу.', 'error');
                     return;
                 }
 
@@ -860,7 +864,7 @@
 
                 if (!response.ok) {
                     if (result.alreadyHasAccount) {
-                        alert('У пользователя уже есть аккаунт');
+                        Layout.showNotification('У пользователя уже есть аккаунт', 'info');
                         loadUsers({ tab: currentTab !== 'all' ? currentTab : null });
                     } else {
                         throw new Error(result.error || 'Ошибка отправки');
@@ -872,7 +876,7 @@
 
             } catch (err) {
                 console.error('Send invite error:', err);
-                alert('Ошибка отправки приглашения: ' + err.message);
+                Layout.showNotification('Ошибка отправки приглашения: ' + err.message, 'error');
             }
         }
 
@@ -881,7 +885,7 @@
             const usersWithoutAccount = allUsers.filter(u => !u.user_id && u.email);
 
             if (usersWithoutAccount.length === 0) {
-                alert('Нет пользователей без аккаунта');
+                Layout.showNotification('Нет пользователей без аккаунта', 'info');
                 return;
             }
 
@@ -892,7 +896,7 @@
             try {
                 const { data: { session } } = await db.auth.getSession();
                 if (!session) {
-                    alert('Сессия истекла. Перезагрузите страницу.');
+                    Layout.showNotification('Сессия истекла. Перезагрузите страницу.', 'error');
                     return;
                 }
 
@@ -932,18 +936,16 @@
                     }
                 }
 
-                let message = `Отправлено: ${sent}`;
                 if (errors > 0) {
-                    message += `\nОшибок: ${errors}`;
                     console.error('Bulk invite errors:', errorList);
+                    Layout.showNotification(`Отправлено: ${sent}, ошибок: ${errors}`, 'warning');
+                } else {
+                    Layout.showNotification(`Приглашения отправлены: ${sent}`, 'success');
                 }
-
-                alert(message);
-                Layout.showNotification(`Приглашения отправлены: ${sent}`, sent > 0 ? 'success' : 'warning');
 
             } catch (err) {
                 console.error('Bulk invite error:', err);
-                alert('Ошибка массовой отправки: ' + err.message);
+                Layout.showNotification('Ошибка массовой отправки: ' + err.message, 'error');
             }
         }
 
@@ -959,7 +961,7 @@
 
             // Проверка прав доступа
             if (!window.hasPermission('manage_users') && !window.currentUser?.is_superuser) {
-                alert('У вас нет прав для доступа к этой странице');
+                Layout.showNotification('У вас нет прав для доступа к этой странице', 'error');
                 window.location.href = '/';
                 return;
             }

@@ -200,7 +200,9 @@
                     </h2>
                 </div>
                 <div class="divide-y divide-base-200" id="roomsToday">
-                    <!-- Rooms will be rendered here -->
+                    <!-- Skeleton loader -->
+                    <div class="p-4 flex items-center justify-between skeleton-row"><div class="flex items-center gap-4"><div class="skeleton w-12 h-12 rounded-lg"></div><div><div class="skeleton h-5 w-24 mb-1"></div><div class="skeleton h-3 w-16"></div></div></div><div class="skeleton h-10 w-24"></div></div>
+                    <div class="p-4 flex items-center justify-between skeleton-row"><div class="flex items-center gap-4"><div class="skeleton w-12 h-12 rounded-lg"></div><div><div class="skeleton h-5 w-20 mb-1"></div><div class="skeleton h-3 w-20"></div></div></div><div class="skeleton h-10 w-24"></div></div>
                 </div>
             </div>
 
@@ -1320,12 +1322,12 @@
             const notes = Layout.$('#cleaningNotesInput').value.trim();
 
             if (!cleaningDate) {
-                alert(t('select_date') || 'Выберите дату');
+                Layout.showNotification(t('select_date') || 'Выберите дату', 'warning');
                 return;
             }
 
             if (bulkSelectedRooms.size === 0) {
-                alert(t('select_at_least_one') || 'Выберите хотя бы один номер');
+                Layout.showNotification(t('select_at_least_one') || 'Выберите хотя бы один номер', 'warning');
                 return;
             }
 
@@ -1351,7 +1353,7 @@
 
             } catch (err) {
                 console.error('Error saving cleaning:', err);
-                alert((t('error_saving') || 'Ошибка сохранения') + ': ' + err.message);
+                Layout.showNotification((t('error_saving') || 'Ошибка сохранения') + ': ' + err.message, 'error');
             }
         }
 
@@ -1379,7 +1381,7 @@
 
             } catch (err) {
                 console.error('Error completing cleaning:', err);
-                alert(t('error') + ': ' + err.message);
+                Layout.showNotification(t('error') + ': ' + err.message, 'error');
             }
         }
 
@@ -1403,7 +1405,7 @@
             const roomId = Layout.$('#extendModal').dataset.roomId;
 
             if (!newDate) {
-                alert(t('select_date') || 'Выберите дату');
+                Layout.showNotification(t('select_date') || 'Выберите дату', 'warning');
                 return;
             }
 
@@ -1444,7 +1446,7 @@
 
             } catch (err) {
                 console.error('Error extending cleaning:', err);
-                alert(t('error') + ': ' + err.message);
+                Layout.showNotification(t('error') + ': ' + err.message, 'error');
             }
         }
 
@@ -1477,7 +1479,7 @@
 
             } catch (err) {
                 console.error('Error deleting cleaning:', err);
-                alert(t('error') + ': ' + err.message);
+                Layout.showNotification(t('error') + ': ' + err.message, 'error');
             }
         }
 
