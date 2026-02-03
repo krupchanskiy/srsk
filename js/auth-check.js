@@ -120,6 +120,12 @@
         console.log('📋 Permissions loaded:', permissions.length, 'permissions');
         console.log('👤 User type:', vaishnava.user_type, '| Superuser:', vaishnava.is_superuser);
 
+        // Добавить класс роли на body для CSS-контроля
+        document.body.classList.add(`user-type-${vaishnava.user_type}`);
+        if (vaishnava.is_superuser) {
+            document.body.classList.add('is-superuser');
+        }
+
         // Обновить аватар в хедере (Layout мог загрузиться раньше, чем auth завершился)
         if (typeof Layout !== 'undefined' && Layout.updateUserInfo) {
             Layout.updateUserInfo();

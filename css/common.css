@@ -360,3 +360,14 @@ input[type="number"] {
     font-size: 0.875rem;
     max-width: 300px;
 }
+
+/* ==================== ROLE-BASED VISIBILITY ==================== */
+/* Скрытие элементов для гостей (body.user-type-guest) */
+body.user-type-guest [data-hide-for-guests] {
+    display: none !important;
+}
+
+/* Скрытие элементов требующих редактирования для гостей */
+body.user-type-guest .edit-action {
+    display: none !important;
+}
