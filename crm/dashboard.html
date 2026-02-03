@@ -1,0 +1,943 @@
+<!DOCTYPE html>
+<html lang="ru" data-theme="light">
+<head>
+    <script src="../js/color-init.js"></script>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Дашборд — CRM — ШРСК</title>
+    <link href="https://cdn.jsdelivr.net/npm/daisyui@4.12.14/dist/full.min.css" rel="stylesheet" />
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script>tailwind.config = { theme: { extend: { screens: { 'desktop': '1200px' } } } }</script>
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="../css/common.css">
+    <style>
+        /* Bento карточки */
+        .bento-card {
+            border-radius: 20px;
+            padding: 1.5rem;
+            transition: all 0.3s ease;
+        }
+        .bento-card:hover {
+            transform: translateY(-2px);
+        }
+
+        .bento-label {
+            font-size: 11px;
+            text-transform: uppercase;
+            letter-spacing: 1.5px;
+            opacity: 0.7;
+            margin-bottom: 0.5rem;
+        }
+
+        .bento-value {
+            font-size: 1.75rem;
+            font-weight: 700;
+            font-variant-numeric: tabular-nums;
+            line-height: 1.1;
+        }
+
+        .metric-card-compact {
+            padding: 1rem 1.25rem;
+        }
+
+        .bento-subtitle {
+            font-size: 0.875rem;
+            opacity: 0.8;
+            margin-top: 0.25rem;
+        }
+
+        /* Секции */
+        .section-card {
+            background: white;
+            border-radius: 20px;
+            overflow: hidden;
+        }
+        .section-header {
+            padding: 1.25rem 1.5rem;
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+        }
+        .section-icon {
+            width: 40px;
+            height: 40px;
+            border-radius: 12px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        .section-title {
+            font-weight: 600;
+            font-size: 1rem;
+        }
+        .section-body {
+            padding: 0 1.5rem 1.5rem;
+        }
+
+        /* Воронка */
+        .funnel-row {
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+            padding: 0.375rem 0;
+        }
+        .funnel-label {
+            width: 90px;
+            font-size: 0.8rem;
+            text-align: right;
+            color: rgba(0,0,0,0.5);
+        }
+        .funnel-bar-container {
+            flex: 1;
+            height: 28px;
+            background: rgba(0,0,0,0.04);
+            border-radius: 8px;
+            overflow: hidden;
+        }
+        .funnel-bar {
+            height: 100%;
+            border-radius: 8px;
+            display: flex;
+            align-items: center;
+            justify-content: flex-end;
+            padding-right: 10px;
+            font-weight: 600;
+            font-size: 0.8rem;
+            color: white;
+            transition: width 0.6s cubic-bezier(0.4, 0, 0.2, 1);
+            min-width: 36px;
+        }
+
+        /* Attention items */
+        .attention-item {
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+            padding: 0.75rem 1rem;
+            background: rgba(239, 68, 68, 0.08);
+            border-radius: 12px;
+            border-left: 3px solid #ef4444;
+            transition: all 0.2s;
+        }
+        .attention-item:hover {
+            background: rgba(239, 68, 68, 0.12);
+            transform: translateX(4px);
+        }
+
+        /* Finance progress */
+        .finance-progress {
+            height: 10px;
+            background: rgba(255,255,255,0.3);
+            border-radius: 5px;
+            overflow: hidden;
+        }
+        .finance-progress-bar {
+            height: 100%;
+            background: white;
+            border-radius: 5px;
+            transition: width 0.6s ease;
+        }
+
+        /* Manager rows */
+        .manager-row {
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+            padding: 0.5rem 0;
+        }
+        .manager-avatar {
+            width: 36px;
+            height: 36px;
+            border-radius: 50%;
+            background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: 600;
+            color: white;
+            font-size: 0.8rem;
+        }
+        .manager-bar-container {
+            flex: 1;
+            height: 20px;
+            background: rgba(0,0,0,0.06);
+            border-radius: 6px;
+            overflow: hidden;
+        }
+        .manager-bar {
+            height: 100%;
+            background: #10b981;
+            border-radius: 6px;
+            transition: width 0.5s ease;
+        }
+
+        /* Source rows */
+        .source-row {
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+            padding: 0.5rem 0;
+        }
+        .source-icon {
+            width: 32px;
+            height: 32px;
+            border-radius: 8px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        /* Empty state */
+        .empty-state-inline {
+            text-align: center;
+            padding: 1.5rem 1rem;
+            opacity: 0.6;
+        }
+        .empty-state-inline svg {
+            width: 40px;
+            height: 40px;
+            margin: 0 auto 0.5rem;
+            opacity: 0.4;
+        }
+
+        /* Collapsible sections */
+        .collapsible-card {
+            border-radius: 20px;
+            overflow: hidden;
+            transition: all 0.3s ease;
+        }
+        .collapsible-header {
+            padding: 1.25rem 1.5rem;
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+            cursor: pointer;
+            user-select: none;
+        }
+        .collapsible-header:hover {
+            opacity: 0.85;
+        }
+        .collapsible-header .chevron {
+            transition: transform 0.3s ease;
+        }
+        .collapsible-header.collapsed .chevron {
+            transform: rotate(-90deg);
+        }
+        .collapsible-body {
+            padding: 0 1.5rem 1.5rem;
+            transition: all 0.3s ease;
+            overflow: hidden;
+        }
+        .collapsible-body.collapsed {
+            max-height: 0 !important;
+            padding-top: 0 !important;
+            padding-bottom: 0 !important;
+            opacity: 0;
+        }
+
+        /* Cancellation items */
+        .cancellation-item {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 0.625rem 0.875rem;
+            background: rgba(0,0,0,0.03);
+            border-radius: 10px;
+        }
+        .cancellation-bar {
+            width: 50px;
+            height: 5px;
+            background: rgba(0,0,0,0.1);
+            border-radius: 3px;
+            overflow: hidden;
+        }
+        .cancellation-bar-fill {
+            height: 100%;
+            background: #ef4444;
+            border-radius: 3px;
+        }
+    </style>
+</head>
+<body class="bg-base-200 min-h-screen flex flex-col">
+
+<div id="header-placeholder"></div>
+
+<main class="container mx-auto px-4 py-6 flex-1">
+    <!-- Заголовок -->
+    <div class="flex flex-wrap justify-between items-center gap-4 mb-6">
+        <div>
+            <h1 class="text-2xl font-bold" data-i18n="nav_crm_dashboard">Дашборд</h1>
+            <p class="text-base-content/50 text-sm mt-1">Обзор ключевых показателей</p>
+        </div>
+
+        <select id="filterRetreat" class="select select-bordered" onchange="loadDashboard()">
+            <option value="">Все ретриты</option>
+        </select>
+    </div>
+
+    <!-- Bento Grid - Компактные метрики -->
+    <div class="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-4">
+        <!-- Всего сделок - Белый -->
+        <div class="bento-card metric-card-compact" style="background: white;">
+            <div class="flex items-center justify-between">
+                <div>
+                    <div class="bento-label" style="color: #888;">Всего сделок</div>
+                    <div class="bento-value" style="color: #333;" id="metricTotal">—</div>
+                </div>
+                <svg class="w-6 h-6" style="color: #ccc;" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M20.25 14.15v4.25c0 1.094-.787 2.036-1.872 2.18-2.087.277-4.216.42-6.378.42s-4.291-.143-6.378-.42c-1.085-.144-1.872-1.086-1.872-2.18v-4.25m16.5 0a2.18 2.18 0 00.75-1.661V8.706c0-1.081-.768-2.015-1.837-2.175a48.114 48.114 0 00-3.413-.387m4.5 8.006c-.194.165-.42.295-.673.38A23.978 23.978 0 0112 15.75c-2.648 0-5.195-.429-7.577-1.22a2.016 2.016 0 01-.673-.38m0 0A2.18 2.18 0 013 12.489V8.706c0-1.081.768-2.015 1.837-2.175a48.111 48.111 0 013.413-.387m7.5 0V5.25A2.25 2.25 0 0013.5 3h-3a2.25 2.25 0 00-2.25 2.25v.894m7.5 0a48.667 48.667 0 00-7.5 0M12 12.75h.008v.008H12v-.008z" />
+                </svg>
+            </div>
+        </div>
+
+        <!-- Активных - Зелёный -->
+        <div class="bento-card metric-card-compact" style="background: #10b981;">
+            <div class="flex items-center justify-between">
+                <div>
+                    <div class="bento-label text-white/70">Активных</div>
+                    <div class="bento-value text-white" id="metricActive">—</div>
+                </div>
+                <svg class="w-6 h-6 text-white/50" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M3.75 13.5l10.5-11.25L12 10.5h8.25L9.75 21.75 12 13.5H3.75z" />
+                </svg>
+            </div>
+        </div>
+
+        <!-- Конверсия - Синий -->
+        <div class="bento-card metric-card-compact" style="background: #3b82f6;">
+            <div class="flex items-center justify-between">
+                <div>
+                    <div class="bento-label text-white/70">Конверсия</div>
+                    <div class="bento-value text-white" id="metricConversion">—</div>
+                </div>
+                <svg class="w-6 h-6 text-white/50" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M2.25 18L9 11.25l4.306 4.307a11.95 11.95 0 015.814-5.519l2.74-1.22m0 0l-5.94-2.28m5.94 2.28l-2.28 5.941" />
+                </svg>
+            </div>
+        </div>
+
+        <!-- Получено - Оранжевый -->
+        <div class="bento-card metric-card-compact" style="background: #f59e0b;">
+            <div class="flex items-center justify-between">
+                <div>
+                    <div class="bento-label text-white/70">Получено</div>
+                    <div class="bento-value text-white" id="metricRevenue">—</div>
+                </div>
+                <svg class="w-6 h-6 text-white/50" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M12 6v12m-3-2.818l.879.659c1.171.879 3.07.879 4.242 0 1.172-.879 1.172-2.303 0-3.182C13.536 12.219 12.768 12 12 12c-.725 0-1.45-.22-2.003-.659-1.106-.879-1.106-2.303 0-3.182s2.9-.879 4.006 0l.415.33M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+            </div>
+        </div>
+    </div>
+
+    <!-- Основной контент - две независимые колонки -->
+    <div class="flex flex-col lg:flex-row gap-4">
+        <!-- Левая колонка -->
+        <div class="flex-1 flex flex-col gap-4">
+            <!-- Требуют внимания - Розовый фон -->
+            <div class="collapsible-card" style="background: #FEE2E2;">
+                <div class="collapsible-header" data-section="attention" onclick="toggleSection('attention')">
+                    <div class="section-icon" style="background: #EF4444;">
+                        <svg class="w-5 h-5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126zM12 15.75h.007v.008H12v-.008z" />
+                        </svg>
+                    </div>
+                    <span class="section-title flex-1" style="color: #991B1B;">Требуют внимания</span>
+                    <svg class="w-5 h-5 chevron" style="color: #991B1B;" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M19.5 8.25l-7.5 7.5-7.5-7.5" />
+                    </svg>
+                </div>
+                <div id="attentionList" class="collapsible-body space-y-2" data-section="attention">
+                    <div class="text-center py-4"><span class="loading loading-spinner loading-md"></span></div>
+                </div>
+            </div>
+
+            <!-- Нагрузка менеджеров - Фиолетовый фон -->
+            <div class="collapsible-card" style="background: #EDE9FE;">
+                <div class="collapsible-header" data-section="managers" onclick="toggleSection('managers')">
+                    <div class="section-icon" style="background: #7C3AED;">
+                        <svg class="w-5 h-5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M15 19.128a9.38 9.38 0 002.625.372 9.337 9.337 0 004.121-.952 4.125 4.125 0 00-7.533-2.493M15 19.128v-.003c0-1.113-.285-2.16-.786-3.07M15 19.128v.106A12.318 12.318 0 018.624 21c-2.331 0-4.512-.645-6.374-1.766l-.001-.109a6.375 6.375 0 0111.964-3.07M12 6.375a3.375 3.375 0 11-6.75 0 3.375 3.375 0 016.75 0zm8.25 2.25a2.625 2.625 0 11-5.25 0 2.625 2.625 0 015.25 0z" />
+                        </svg>
+                    </div>
+                    <span class="section-title flex-1" style="color: #5B21B6;">Нагрузка менеджеров</span>
+                    <svg class="w-5 h-5 chevron" style="color: #5B21B6;" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M19.5 8.25l-7.5 7.5-7.5-7.5" />
+                    </svg>
+                </div>
+                <div id="managersLoad" class="collapsible-body space-y-2" data-section="managers">
+                    <div class="text-center py-4"><span class="loading loading-spinner loading-md"></span></div>
+                </div>
+            </div>
+
+            <!-- Причины отмен -->
+            <div class="collapsible-card" style="background: white;">
+                <div class="collapsible-header" data-section="cancellations" onclick="toggleSection('cancellations')">
+                    <div class="section-icon" style="background: #FEE2E2;">
+                        <svg class="w-5 h-5" style="color: #DC2626;" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
+                        </svg>
+                    </div>
+                    <span class="section-title flex-1">Причины отмен</span>
+                    <svg class="w-5 h-5 chevron text-base-content/50" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M19.5 8.25l-7.5 7.5-7.5-7.5" />
+                    </svg>
+                </div>
+                <div id="cancellationReasons" class="collapsible-body space-y-2" data-section="cancellations">
+                    <div class="text-center py-4"><span class="loading loading-spinner loading-md"></span></div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Правая колонка -->
+        <div class="flex-1 flex flex-col gap-4">
+            <!-- Воронка продаж -->
+            <div class="collapsible-card" style="background: white;">
+                <div class="collapsible-header" data-section="funnel" onclick="toggleSection('funnel')">
+                    <div class="section-icon" style="background: #DBEAFE;">
+                        <svg class="w-5 h-5" style="color: #2563EB;" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M12 3c2.755 0 5.455.232 8.083.678.533.09.917.556.917 1.096v1.044a2.25 2.25 0 01-.659 1.591l-5.432 5.432a2.25 2.25 0 00-.659 1.591v2.927a2.25 2.25 0 01-1.244 2.013L9.75 21v-6.568a2.25 2.25 0 00-.659-1.591L3.659 7.409A2.25 2.25 0 013 5.818V4.774c0-.54.384-1.006.917-1.096A48.32 48.32 0 0112 3z" />
+                        </svg>
+                    </div>
+                    <span class="section-title flex-1">Воронка продаж <span id="funnelTotal" class="text-base-content/50 font-normal"></span></span>
+                    <svg class="w-5 h-5 chevron text-base-content/50" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M19.5 8.25l-7.5 7.5-7.5-7.5" />
+                    </svg>
+                </div>
+                <div id="funnelChart" class="collapsible-body space-y-1" data-section="funnel">
+                    <div class="text-center py-4"><span class="loading loading-spinner loading-md"></span></div>
+                </div>
+            </div>
+
+            <!-- Источники заявок - Голубой фон -->
+            <div class="collapsible-card" style="background: #CFFAFE;">
+                <div class="collapsible-header" data-section="sources" onclick="toggleSection('sources')">
+                    <div class="section-icon" style="background: #0891B2;">
+                        <svg class="w-5 h-5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M7.5 14.25v2.25m3-4.5v4.5m3-6.75v6.75m3-9v9M6 20.25h12A2.25 2.25 0 0020.25 18V6A2.25 2.25 0 0018 3.75H6A2.25 2.25 0 003.75 6v12A2.25 2.25 0 006 20.25z" />
+                        </svg>
+                    </div>
+                    <span class="section-title flex-1" style="color: #0E7490;">Источники заявок</span>
+                    <svg class="w-5 h-5 chevron" style="color: #0E7490;" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M19.5 8.25l-7.5 7.5-7.5-7.5" />
+                    </svg>
+                </div>
+                <div id="sourcesChart" class="collapsible-body space-y-2" data-section="sources">
+                    <div class="text-center py-4"><span class="loading loading-spinner loading-md"></span></div>
+                </div>
+            </div>
+
+            <!-- Финансы - зелёная плашка -->
+            <div class="collapsible-card" style="background: linear-gradient(135deg, #059669 0%, #10b981 100%);">
+                <div class="collapsible-header" data-section="finance" onclick="toggleSection('finance')">
+                    <div class="section-icon" style="background: rgba(255,255,255,0.2);">
+                        <svg class="w-5 h-5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M2.25 18.75a60.07 60.07 0 0115.797 2.101c.727.198 1.453-.342 1.453-1.096V18.75M3.75 4.5v.75A.75.75 0 013 6h-.75m0 0v-.375c0-.621.504-1.125 1.125-1.125H20.25M2.25 6v9m18-10.5v.75c0 .414.336.75.75.75h.75m-1.5-1.5h.375c.621 0 1.125.504 1.125 1.125v9.75c0 .621-.504 1.125-1.125 1.125h-.375m1.5-1.5H21a.75.75 0 00-.75.75v.75m0 0H3.75m0 0h-.375a1.125 1.125 0 01-1.125-1.125V15m1.5 1.5v-.75A.75.75 0 003 15h-.75M15 10.5a3 3 0 11-6 0 3 3 0 016 0zm3 0h.008v.008H18V10.5zm-12 0h.008v.008H6V10.5z" />
+                        </svg>
+                    </div>
+                    <span class="section-title flex-1 text-white">Финансы</span>
+                    <svg class="w-5 h-5 chevron text-white/70" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M19.5 8.25l-7.5 7.5-7.5-7.5" />
+                    </svg>
+                </div>
+                <div class="collapsible-body" data-section="finance">
+                    <div class="space-y-4">
+                        <div class="flex justify-between items-end">
+                            <div class="text-white">
+                                <div class="bento-label text-white/70">Ожидается</div>
+                                <div class="text-2xl font-bold" id="financeExpected">—</div>
+                            </div>
+                            <div class="text-white text-right">
+                                <div class="bento-label text-white/70">Получено</div>
+                                <div class="text-2xl font-bold" id="financeReceived">—</div>
+                            </div>
+                        </div>
+                        <div class="text-white">
+                            <div class="flex justify-between text-sm mb-2">
+                                <span class="text-white/70">Прогресс сборов</span>
+                                <span class="font-bold" id="financePercent">0%</span>
+                            </div>
+                            <div class="finance-progress">
+                                <div class="finance-progress-bar" id="financeProgressBar" style="width: 0%"></div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</main>
+
+<div id="footer-placeholder"></div>
+
+<script src="../js/config.js"></script>
+<script src="../js/auth-check.js"></script>
+<script src="../js/cache.js"></script>
+<script src="../js/utils.js"></script>
+<script src="../js/layout.js"></script>
+<script src="../js/crm-utils.js"></script>
+
+<script>
+const t = key => Layout.t(key);
+const e = str => Layout.escapeHtml(str);
+
+// ==================== COLLAPSE ====================
+const COLLAPSED_KEY = 'crm_dashboard_collapsed';
+
+function getCollapsedSections() {
+    try {
+        return JSON.parse(localStorage.getItem(COLLAPSED_KEY)) || {};
+    } catch {
+        return {};
+    }
+}
+
+function saveCollapsedSections(collapsed) {
+    localStorage.setItem(COLLAPSED_KEY, JSON.stringify(collapsed));
+}
+
+function toggleSection(sectionId) {
+    const collapsed = getCollapsedSections();
+    collapsed[sectionId] = !collapsed[sectionId];
+    saveCollapsedSections(collapsed);
+    applyCollapsedState(sectionId, collapsed[sectionId]);
+}
+
+function applyCollapsedState(sectionId, isCollapsed) {
+    const header = document.querySelector(`.collapsible-header[data-section="${sectionId}"]`);
+    const body = document.querySelector(`.collapsible-body[data-section="${sectionId}"]`);
+
+    if (header && body) {
+        if (isCollapsed) {
+            header.classList.add('collapsed');
+            body.classList.add('collapsed');
+        } else {
+            header.classList.remove('collapsed');
+            body.classList.remove('collapsed');
+        }
+    }
+}
+
+function restoreCollapsedStates() {
+    const collapsed = getCollapsedSections();
+    Object.entries(collapsed).forEach(([sectionId, isCollapsed]) => {
+        if (isCollapsed) applyCollapsedState(sectionId, true);
+    });
+}
+
+// ==================== STATE ====================
+let retreats = [];
+let deals = [];
+let tasks = [];
+let payments = [];
+let cancellationReasons = [];
+
+// ==================== DATA ====================
+async function loadRetreats() {
+    const { data } = await Layout.db
+        .from('retreats')
+        .select('id, name_ru, name_en, color, start_date')
+        .order('start_date', { ascending: false });
+
+    retreats = data || [];
+
+    const select = document.getElementById('filterRetreat');
+    retreats.forEach(r => {
+        select.insertAdjacentHTML('beforeend',
+            `<option value="${r.id}">${e(Layout.getName(r))}</option>`
+        );
+    });
+}
+
+async function loadDashboard() {
+    const retreatId = document.getElementById('filterRetreat').value;
+
+    const queries = [
+        loadDeals(retreatId),
+        loadTasks(retreatId),
+        loadPayments(retreatId),
+        loadCancellationReasons()
+    ];
+
+    await Promise.all(queries);
+
+    renderMetrics();
+    renderAttention();
+    renderFunnel();
+    renderFinances();
+    renderManagersLoad();
+    renderCancellations();
+    renderSources();
+}
+
+async function loadDeals(retreatId) {
+    let query = Layout.db
+        .from('crm_deals')
+        .select(`
+            *,
+            vaishnavas:vaishnava_id(spiritual_name, first_name, last_name, phone),
+            manager:manager_id(id, spiritual_name, first_name, last_name),
+            cancellation_reason:cancellation_reason_id(code, name_ru, name_en)
+        `);
+
+    if (retreatId) query = query.eq('retreat_id', retreatId);
+
+    const { data } = await query;
+    deals = data || [];
+}
+
+async function loadTasks(retreatId) {
+    let query = Layout.db
+        .from('crm_tasks')
+        .select('*, deal:deal_id(retreat_id, vaishnavas:vaishnava_id(spiritual_name, first_name))')
+        .is('completed_at', null);
+
+    const { data } = await query;
+
+    tasks = (data || []).filter(task => {
+        if (!retreatId) return true;
+        return task.deal?.retreat_id === retreatId;
+    });
+}
+
+async function loadPayments(retreatId) {
+    let query = Layout.db
+        .from('crm_payments')
+        .select('amount_inr, deal:deal_id(retreat_id)');
+
+    const { data } = await query;
+
+    payments = (data || []).filter(p => {
+        if (!retreatId) return true;
+        return p.deal?.retreat_id === retreatId;
+    });
+}
+
+async function loadCancellationReasons() {
+    const { data } = await Layout.db
+        .from('crm_cancellation_reasons')
+        .select('*')
+        .order('sort_order');
+    cancellationReasons = data || [];
+}
+
+// ==================== RENDER ====================
+function renderMetrics() {
+    const total = deals.length;
+    const active = deals.filter(d => CrmUtils.isActive(d)).length;
+    const completed = deals.filter(d => d.status === 'completed').length;
+    const conversion = total > 0 ? Math.round(completed / total * 100) : 0;
+    // Используем total_paid из сделок для консистентности с блоком "Финансы"
+    const revenue = deals.reduce((sum, d) => sum + Number(d.total_paid || 0), 0);
+
+    document.getElementById('metricTotal').textContent = total;
+    document.getElementById('metricActive').textContent = active;
+    document.getElementById('metricConversion').textContent = conversion + '%';
+    document.getElementById('metricRevenue').textContent = CrmUtils.formatMoney(revenue);
+}
+
+function renderAttention() {
+    const container = document.getElementById('attentionList');
+
+    const overdueLeads = deals.filter(d => CrmUtils.isOverdue(d));
+    const overdueTasks = tasks.filter(t => CrmUtils.isTaskOverdue(t));
+
+    const items = [];
+
+    overdueLeads.forEach(deal => {
+        const guest = deal.vaishnavas;
+        items.push({
+            type: 'lead',
+            text: `Заявка без контакта: ${CrmUtils.getGuestShortName(guest)}`,
+            link: `deal.html?id=${deal.id}`,
+            priority: 1
+        });
+    });
+
+    overdueTasks.forEach(task => {
+        items.push({
+            type: 'task',
+            text: `Просрочена: ${task.title}`,
+            link: task.deal_id ? `deal.html?id=${task.deal_id}` : '#',
+            priority: 2
+        });
+    });
+
+    if (items.length === 0) {
+        container.innerHTML = `
+            <div class="text-center py-6 px-4 bg-white/60 rounded-xl">
+                <svg class="w-12 h-12 mx-auto mb-2 text-green-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M9 12.75L11.25 15 15 9.75M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+                <div class="font-medium text-green-800">Всё под контролем!</div>
+                <div class="text-sm text-green-700/70 mt-1">Нет просроченных задач</div>
+            </div>
+        `;
+        return;
+    }
+
+    items.sort((a, b) => a.priority - b.priority);
+
+    container.innerHTML = items.slice(0, 6).map(item => `
+        <a href="${item.link}" class="flex items-center gap-3 p-3 bg-white/60 rounded-xl hover:bg-white transition-all">
+            <svg class="w-4 h-4 text-red-500 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                ${item.type === 'lead'
+                    ? '<path stroke-linecap="round" stroke-linejoin="round" d="M15.75 6a3.75 3.75 0 11-7.5 0 3.75 3.75 0 017.5 0zM4.501 20.118a7.5 7.5 0 0114.998 0A17.933 17.933 0 0112 21.75c-2.676 0-5.216-.584-7.499-1.632z" />'
+                    : '<path stroke-linecap="round" stroke-linejoin="round" d="M12 6v6h4.5m4.5 0a9 9 0 11-18 0 9 9 0 0118 0z" />'
+                }
+            </svg>
+            <span class="text-sm flex-1 text-red-900">${e(item.text)}</span>
+            <svg class="w-4 h-4 text-red-400 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M8.25 4.5l7.5 7.5-7.5 7.5" />
+            </svg>
+        </a>
+    `).join('');
+
+    if (items.length > 6) {
+        container.insertAdjacentHTML('beforeend',
+            `<div class="text-center text-sm text-red-700/60 pt-2">и ещё ${items.length - 6}...</div>`
+        );
+    }
+}
+
+function renderFunnel() {
+    const container = document.getElementById('funnelChart');
+
+    const statuses = CrmUtils.STATUSES.filter(s => s !== 'cancelled' && s !== 'upsell');
+    const counts = {};
+    statuses.forEach(s => counts[s] = 0);
+    deals.forEach(d => {
+        if (counts[d.status] !== undefined) counts[d.status]++;
+    });
+
+    // Общее количество в воронке
+    const total = Object.values(counts).reduce((sum, c) => sum + c, 0);
+    document.getElementById('funnelTotal').textContent = total > 0 ? `(${total})` : '';
+
+    const maxCount = Math.max(...Object.values(counts), 1);
+
+    container.innerHTML = statuses.map(status => {
+        const count = counts[status];
+        const width = Math.max(count / maxCount * 100, 8);
+        const color = CrmUtils.STATUS_COLORS[status];
+        const label = CrmUtils.getStatusLabel(status);
+
+        return `
+            <div class="funnel-row">
+                <div class="funnel-label">${label}</div>
+                <div class="funnel-bar-container">
+                    <div class="funnel-bar" style="width: ${width}%; background-color: ${color};">
+                        ${count > 0 ? count : ''}
+                    </div>
+                </div>
+            </div>
+        `;
+    }).join('');
+}
+
+function renderFinances() {
+    const expected = deals.reduce((sum, d) => sum + Number(d.total_charged || 0), 0);
+    const received = deals.reduce((sum, d) => sum + Number(d.total_paid || 0), 0);
+    const percent = expected > 0 ? Math.round(received / expected * 100) : 0;
+
+    document.getElementById('financeExpected').textContent = CrmUtils.formatMoney(expected);
+    document.getElementById('financeReceived').textContent = CrmUtils.formatMoney(received);
+    document.getElementById('financePercent').textContent = percent + '%';
+    document.getElementById('financeProgressBar').style.width = percent + '%';
+}
+
+function renderManagersLoad() {
+    const container = document.getElementById('managersLoad');
+
+    const byManager = {};
+    deals.filter(d => CrmUtils.isActive(d)).forEach(deal => {
+        const managerId = deal.manager_id || 'unassigned';
+        const manager = deal.manager;
+        const key = managerId;
+
+        if (!byManager[key]) {
+            byManager[key] = {
+                name: manager ? CrmUtils.getGuestName(manager) : 'Не назначен',
+                initials: manager ? getInitials(manager) : '?',
+                count: 0
+            };
+        }
+        byManager[key].count++;
+    });
+
+    const managers = Object.values(byManager).sort((a, b) => b.count - a.count);
+
+    if (managers.length === 0) {
+        container.innerHTML = `
+            <div class="text-center py-4 px-4 bg-white/40 rounded-xl text-violet-700/60">
+                Нет активных сделок
+            </div>
+        `;
+        return;
+    }
+
+    const maxCount = Math.max(...managers.map(m => m.count), 1);
+
+    container.innerHTML = managers.map(m => {
+        const width = m.count / maxCount * 100;
+        return `
+            <div class="flex items-center gap-3 p-2 bg-white/40 rounded-xl">
+                <div class="w-9 h-9 rounded-full flex items-center justify-center text-white text-sm font-medium" style="background: #7C3AED;">${m.initials}</div>
+                <div class="flex-1">
+                    <div class="text-sm font-medium text-violet-900 mb-1">${e(m.name)}</div>
+                    <div class="h-2 bg-violet-200 rounded-full overflow-hidden">
+                        <div class="h-full rounded-full" style="width: ${width}%; background: #7C3AED;"></div>
+                    </div>
+                </div>
+                <div class="text-lg font-bold text-violet-700">${m.count}</div>
+            </div>
+        `;
+    }).join('');
+}
+
+function getInitials(person) {
+    const name = person.spiritual_name || person.first_name || '';
+    return name.substring(0, 2).toUpperCase();
+}
+
+function renderCancellations() {
+    const container = document.getElementById('cancellationReasons');
+
+    const cancelled = deals.filter(d => d.status === 'cancelled');
+
+    if (cancelled.length === 0) {
+        container.innerHTML = `
+            <div class="col-span-full text-center py-4 text-base-content/50">
+                <svg class="w-10 h-10 mx-auto mb-2 opacity-30" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M15.182 15.182a4.5 4.5 0 01-6.364 0M21 12a9 9 0 11-18 0 9 9 0 0118 0zM9.75 9.75c0 .414-.168.75-.375.75S9 10.164 9 9.75 9.168 9 9.375 9s.375.336.375.75zm-.375 0h.008v.015h-.008V9.75zm5.625 0c0 .414-.168.75-.375.75s-.375-.336-.375-.75.168-.75.375-.75.375.336.375.75zm-.375 0h.008v.015h-.008V9.75z" />
+                </svg>
+                Нет отмен
+            </div>
+        `;
+        return;
+    }
+
+    const byReason = {};
+    cancelled.forEach(deal => {
+        const reason = deal.cancellation_reason;
+        const key = reason?.code || 'unknown';
+        const name = reason ? Layout.getName(reason) : 'Не указана';
+
+        if (!byReason[key]) {
+            byReason[key] = { name, count: 0 };
+        }
+        byReason[key].count++;
+    });
+
+    const reasons = Object.values(byReason).sort((a, b) => b.count - a.count);
+    const total = cancelled.length;
+    const maxCount = Math.max(...reasons.map(r => r.count), 1);
+
+    container.innerHTML = reasons.map(r => {
+        const percent = Math.round(r.count / total * 100);
+        const width = r.count / maxCount * 100;
+        return `
+            <div class="cancellation-item">
+                <div class="flex-1">
+                    <div class="text-sm font-medium">${e(r.name)}</div>
+                    <div class="text-xs text-base-content/50">${r.count} шт.</div>
+                </div>
+                <div class="flex items-center gap-3">
+                    <div class="cancellation-bar">
+                        <div class="cancellation-bar-fill" style="width: ${width}%"></div>
+                    </div>
+                    <span class="text-sm font-medium w-10 text-right">${percent}%</span>
+                </div>
+            </div>
+        `;
+    }).join('');
+}
+
+function renderSources() {
+    const container = document.getElementById('sourcesChart');
+
+    const bySource = {};
+    deals.forEach(deal => {
+        const source = deal.source || 'unknown';
+        if (!bySource[source]) {
+            bySource[source] = { count: 0, converted: 0 };
+        }
+        bySource[source].count++;
+        if (deal.status === 'completed' || deal.status === 'checked_in' || deal.status === 'fully_paid') {
+            bySource[source].converted++;
+        }
+    });
+
+    const sources = Object.entries(bySource)
+        .map(([key, val]) => ({
+            key,
+            name: t('crm_source_' + key) || key,
+            count: val.count,
+            conversion: val.count > 0 ? Math.round(val.converted / val.count * 100) : 0
+        }))
+        .sort((a, b) => b.count - a.count);
+
+    if (sources.length === 0) {
+        container.innerHTML = `
+            <div class="text-center py-4 px-4 bg-white/40 rounded-xl text-cyan-700/60">
+                Нет данных
+            </div>
+        `;
+        return;
+    }
+
+    const maxCount = Math.max(...sources.map(s => s.count), 1);
+
+    const sourceIcons = {
+        website: '<path stroke-linecap="round" stroke-linejoin="round" d="M12 21a9.004 9.004 0 008.716-6.747M12 21a9.004 9.004 0 01-8.716-6.747M12 21c2.485 0 4.5-4.03 4.5-9S14.485 3 12 3m0 18c-2.485 0-4.5-4.03-4.5-9S9.515 3 12 3m0 0a8.997 8.997 0 017.843 4.582M12 3a8.997 8.997 0 00-7.843 4.582m15.686 0A11.953 11.953 0 0112 10.5c-2.998 0-5.74-1.1-7.843-2.918m15.686 0A8.959 8.959 0 0121 12c0 .778-.099 1.533-.284 2.253m0 0A17.919 17.919 0 0112 16.5c-3.162 0-6.133-.815-8.716-2.247m0 0A9.015 9.015 0 013 12c0-1.605.42-3.113 1.157-4.418" />',
+        telegram: '<path stroke-linecap="round" stroke-linejoin="round" d="M6 12L3.269 3.126A59.768 59.768 0 0121.485 12 59.77 59.77 0 013.27 20.876L5.999 12zm0 0h7.5" />',
+        whatsapp: '<path stroke-linecap="round" stroke-linejoin="round" d="M8.625 12a.375.375 0 11-.75 0 .375.375 0 01.75 0zm0 0H8.25m4.125 0a.375.375 0 11-.75 0 .375.375 0 01.75 0zm0 0H12m4.125 0a.375.375 0 11-.75 0 .375.375 0 01.75 0zm0 0h-.375M21 12c0 4.556-4.03 8.25-9 8.25a9.764 9.764 0 01-2.555-.337A5.972 5.972 0 015.41 20.97a5.969 5.969 0 01-.474-.065 4.48 4.48 0 00.978-2.025c.09-.457-.133-.901-.467-1.226C3.93 16.178 3 14.189 3 12c0-4.556 4.03-8.25 9-8.25s9 3.694 9 8.25z" />',
+        referral: '<path stroke-linecap="round" stroke-linejoin="round" d="M18 18.72a9.094 9.094 0 003.741-.479 3 3 0 00-4.682-2.72m.94 3.198l.001.031c0 .225-.012.447-.037.666A11.944 11.944 0 0112 21c-2.17 0-4.207-.576-5.963-1.584A6.062 6.062 0 016 18.719m12 0a5.971 5.971 0 00-.941-3.197m0 0A5.995 5.995 0 0012 12.75a5.995 5.995 0 00-5.058 2.772m0 0a3 3 0 00-4.681 2.72 8.986 8.986 0 003.74.477m.94-3.197a5.971 5.971 0 00-.94 3.197M15 6.75a3 3 0 11-6 0 3 3 0 016 0zm6 3a2.25 2.25 0 11-4.5 0 2.25 2.25 0 014.5 0zm-13.5 0a2.25 2.25 0 11-4.5 0 2.25 2.25 0 014.5 0z" />',
+        repeat: '<path stroke-linecap="round" stroke-linejoin="round" d="M16.023 9.348h4.992v-.001M2.985 19.644v-4.992m0 0h4.992m-4.993 0l3.181 3.183a8.25 8.25 0 0013.803-3.7M4.031 9.865a8.25 8.25 0 0113.803-3.7l3.181 3.182m0-4.991v4.99" />'
+    };
+
+    container.innerHTML = sources.map(s => {
+        const width = s.count / maxCount * 100;
+        const icon = sourceIcons[s.key] || '<path stroke-linecap="round" stroke-linejoin="round" d="M9.879 7.519c1.171-1.025 3.071-1.025 4.242 0 1.172 1.025 1.172 2.687 0 3.712-.203.179-.43.326-.67.442-.745.361-1.45.999-1.45 1.827v.75M21 12a9 9 0 11-18 0 9 9 0 0118 0zm-9 5.25h.008v.008H12v-.008z" />';
+
+        return `
+            <div class="flex items-center gap-3 p-2 bg-white/40 rounded-xl">
+                <div class="w-8 h-8 rounded-lg flex items-center justify-center" style="background: #0891B2;">
+                    <svg class="w-4 h-4 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
+                        ${icon}
+                    </svg>
+                </div>
+                <div class="flex-1">
+                    <div class="flex items-center justify-between mb-1">
+                        <span class="text-sm font-medium text-cyan-900">${e(s.name)}</span>
+                        <span class="text-xs font-medium text-emerald-600">${s.conversion}%</span>
+                    </div>
+                    <div class="h-2 bg-cyan-200 rounded-full overflow-hidden">
+                        <div class="h-full rounded-full" style="width: ${width}%; background: #0891B2;"></div>
+                    </div>
+                </div>
+                <div class="text-lg font-bold text-cyan-700">${s.count}</div>
+            </div>
+        `;
+    }).join('');
+}
+
+// ==================== INIT ====================
+async function init() {
+    await Layout.init({
+        module: 'crm',
+        menuId: 'crm_analytics',
+        itemId: 'crm_dashboard'
+    });
+
+    restoreCollapsedStates();
+    await loadRetreats();
+    await loadDashboard();
+}
+
+init();
+</script>
+
+</body>
+</html>

@@ -573,20 +573,65 @@ async function loadRetreatsData(guestId) {
         currentRetreat,
         upcomingRetreats,
         pastRetreats,
-        availableRetreats
+        availableRetreats,
+        crmDeals
     ] = await Promise.all([
         getCurrentRetreat(guestId),
         getUpcomingRetreats(guestId),
         getPastRetreats(guestId),
-        getAvailableRetreats()
+        getAvailableRetreats(),
+        getCrmDeals(guestId)
     ]);
 
     return {
         currentRetreat,
         upcomingRetreats,
         pastRetreats,
-        availableRetreats
+        availableRetreats,
+        crmDeals
     };
+}
+
+/**
+ * Загрузить CRM-заявки гостя (активные сделки)
+ * @param {string} guestId
+ * @returns {Promise<array>}
+ */
+async function getCrmDeals(guestId) {
+    try {
+        const { data, error } = await db
+            .from('crm_deals')
+            .select(`
+                id,
+                status,
+                total_services,
+                total_paid,
+                currency,
+                created_at,
+                retreat:retreats (
+                    id,
+                    name_ru,
+                    name_en,
+                    name_hi,
+                    start_date,
+                    end_date
+                )
+            `)
+            .eq('vaishnava_id', guestId)
+            .not('status', 'in', '(completed,cancelled)')
+            .order('created_at', { ascending: false });
+
+        if (error) {
+            console.error('Ошибка загрузки CRM заявок:', error);
+            return [];
+        }
+
+        return data || [];
+
+    } catch (error) {
+        console.error('Ошибка загрузки CRM заявок:', error);
+        return [];
+    }
 }
 
 // Экспорт
@@ -598,6 +643,7 @@ window.PortalData = {
     getUpcomingRetreats,
     getPastRetreats,
     getAvailableRetreats,
+    getCrmDeals,
     getMaterials,
     getMaterialBySlug,
     updateProfile,

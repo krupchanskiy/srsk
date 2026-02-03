@@ -82,6 +82,31 @@ const modules = {
                 { id: 'translations', href: 'settings/translations.html' }
             ]}
         ]
+    },
+    crm: {
+        id: 'crm',
+        nameKey: 'module_crm',
+        icon: '💼',
+        hasLocations: false,
+        defaultPage: 'crm/index.html',
+        menuConfig: [
+            { id: 'crm_sales', items: [
+                { id: 'crm_kanban', href: 'crm/index.html' },
+                { id: 'crm_deals', href: 'crm/deals.html' },
+                { id: 'crm_tasks', href: 'crm/tasks.html' }
+            ]},
+            { id: 'crm_analytics', items: [
+                { id: 'crm_dashboard', href: 'crm/dashboard.html' },
+                { id: 'crm_activity_log', href: 'crm/activity-log.html' }
+            ]},
+            { id: 'crm_settings', items: [
+                { id: 'crm_services', href: 'crm/services.html' },
+                { id: 'crm_currencies', href: 'crm/currencies.html' },
+                { id: 'crm_tags', href: 'crm/tags.html' },
+                { id: 'crm_templates', href: 'crm/templates.html' },
+                { id: 'crm_managers', href: 'crm/managers.html' }
+            ]}
+        ]
     }
 };
 
@@ -130,7 +155,24 @@ const pagePermissions = {
 
     // Settings
     'settings/translations.html': 'view_translations',
-    'settings/user-management.html': 'manage_users'
+    'settings/user-management.html': 'manage_users',
+
+    // CRM - Продажи
+    'crm/index.html': 'view_crm',
+    'crm/deals.html': 'view_crm',
+    'crm/deal.html': 'view_crm',
+    'crm/tasks.html': 'view_crm',
+
+    // CRM - Аналитика
+    'crm/dashboard.html': 'view_crm_dashboard',
+    'crm/activity-log.html': 'view_crm_dashboard',
+
+    // CRM - Настройки
+    'crm/services.html': 'edit_crm_settings',
+    'crm/currencies.html': 'edit_crm_settings',
+    'crm/tags.html': 'edit_crm_settings',
+    'crm/templates.html': 'edit_crm_settings',
+    'crm/managers.html': 'edit_crm_settings'
 };
 
 // ==================== STATE ====================
@@ -176,7 +218,7 @@ function getMenuConfig() {
 }
 
 // Список всех подпапок модулей
-const MODULE_FOLDERS = ['kitchen', 'stock', 'ashram', 'vaishnavas', 'placement', 'reception', 'settings'];
+const MODULE_FOLDERS = ['kitchen', 'stock', 'ashram', 'vaishnavas', 'placement', 'reception', 'settings', 'crm'];
 
 // Определить текущую подпапку (если есть)
 function getCurrentFolder() {
@@ -392,7 +434,7 @@ function getHeaderHTML() {
                         <a href="${adjustHref('index.html')}" class="text-xl font-semibold whitespace-nowrap hover:opacity-80 transition-opacity" data-i18n="app_name">Шри Рупа Сева Кунджа</a>
                         <div class="relative location-selector" id="locationDesktop">
                             <button class="flex items-center justify-between gap-2 w-full text-xl opacity-70 hover:opacity-100 transition-opacity" data-toggle="location">
-                                <span class="location-name">${currentModule === 'housing' ? t('module_housing') : ''}</span>
+                                <span class="location-name">${currentModule === 'housing' ? t('module_housing') : currentModule === 'crm' ? t('module_crm') : ''}</span>
                                 <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 transition-transform location-arrow" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
                                     <path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7" />
                                 </svg>
@@ -407,7 +449,7 @@ function getHeaderHTML() {
                         <span class="text-xl opacity-50">·</span>
                         <div class="relative location-selector" id="locationMobile">
                             <button class="flex items-center gap-1 text-xl opacity-70" data-toggle="location">
-                                <span class="location-name">${currentModule === 'housing' ? t('module_housing') : ''}</span>
+                                <span class="location-name">${currentModule === 'housing' ? t('module_housing') : currentModule === 'crm' ? t('module_crm') : ''}</span>
                                 <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 transition-transform location-arrow" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
                                     <path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7" />
                                 </svg>
@@ -538,6 +580,7 @@ function getFooterHTML() {
 // ==================== HEADER FUNCTIONS ====================
 function buildLocationOptions() {
     const isHousing = currentModule === 'housing';
+    const isCrm = currentModule === 'crm';
 
     $$('.location-dropdown').forEach(el => {
         // Очищаем содержимое
@@ -547,7 +590,7 @@ function buildLocationOptions() {
         locations.forEach(loc => {
             const button = document.createElement('button');
             button.className = 'w-full text-left px-4 py-2 hover:bg-base-200 text-base-content';
-            if (!isHousing && loc.slug === currentLocation) {
+            if (!isHousing && !isCrm && loc.slug === currentLocation) {
                 button.classList.add('font-medium');
             }
             button.dataset.loc = loc.slug;
@@ -569,6 +612,16 @@ function buildLocationOptions() {
         housingBtn.dataset.module = 'housing';
         housingBtn.textContent = t('module_housing'); // безопасно
         el.appendChild(housingBtn);
+
+        // Кнопка "CRM"
+        const crmBtn = document.createElement('button');
+        crmBtn.className = 'w-full text-left px-4 py-2 hover:bg-base-200 text-base-content';
+        if (isCrm) {
+            crmBtn.classList.add('font-medium');
+        }
+        crmBtn.dataset.module = 'crm';
+        crmBtn.textContent = t('module_crm'); // безопасно
+        el.appendChild(crmBtn);
     });
 }
 
@@ -857,12 +910,12 @@ function initHeaderEvents() {
 
     // Global click handler
     document.addEventListener('click', e => {
-        if (e.target.dataset.module === 'housing') {
-            // Клик на "Проживание" - переключаемся на модуль housing
-            switchModule('housing');
+        if (e.target.dataset.module) {
+            // Клик на модуль (housing, crm) - переключаемся
+            switchModule(e.target.dataset.module);
         } else if (e.target.dataset.loc) {
-            // Клик на локацию (кухню) - если в housing, сначала переключаемся на kitchen
-            if (currentModule === 'housing') {
+            // Клик на локацию (кухню) - если не в kitchen, сначала переключаемся
+            if (currentModule !== 'kitchen') {
                 currentModule = 'kitchen';
                 localStorage.setItem('srsk_module', 'kitchen');
                 // Выбираем локацию и переходим на страницу кухни
@@ -975,10 +1028,13 @@ async function initLayout(page = { module: null, menuId: 'kitchen', itemId: null
     // Загружаем локации всегда (для выпадающего списка)
     await loadLocations();
 
-    // Устанавливаем цвет для модуля housing
+    // Устанавливаем цвет для модулей без локаций
     if (currentModule === 'housing') {
         setColor('#8b5cf6');
         $$('.location-name').forEach(el => el.textContent = t('module_housing'));
+    } else if (currentModule === 'crm') {
+        setColor('#10b981');
+        $$('.location-name').forEach(el => el.textContent = t('module_crm'));
     }
 
     buildMobileMenu();

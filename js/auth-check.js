@@ -26,8 +26,8 @@
 
         // Если нет сессии - редирект на логин
         if (!session) {
-            localStorage.setItem('srsk_redirect_after_login', window.location.pathname + window.location.search);
-            window.location.href = '/login.html';
+            const returnUrl = encodeURIComponent(window.location.pathname + window.location.search);
+            window.location.href = '/login.html?redirect=' + returnUrl;
             return;
         }
 
@@ -43,7 +43,8 @@
             console.error('Failed to load vaishnava:', vError);
             // Если пользователя нет в vaishnavas - выход
             await db.auth.signOut();
-            window.location.href = '/login.html';
+            const returnUrl = encodeURIComponent(window.location.pathname + window.location.search);
+            window.location.href = '/login.html?redirect=' + returnUrl;
             return;
         }
 
@@ -179,6 +180,7 @@
 
     } catch (err) {
         console.error('Auth check exception:', err);
-        window.location.href = '/login.html';
+        const returnUrl = encodeURIComponent(window.location.pathname + window.location.search);
+        window.location.href = '/login.html?redirect=' + returnUrl;
     }
 })();
