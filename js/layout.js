@@ -627,11 +627,18 @@ function buildSubmenuBar() {
         `;
     }).join('');
 
-    initSubmenuMargins();
+    // Пересчитать отступы после следующего кадра отрисовки (гарантирует завершение layout)
+    requestAnimationFrame(() => {
+        requestAnimationFrame(() => {
+            initSubmenuMargins();
+        });
+    });
 
     // Пересчитать после загрузки шрифтов (кэш может вернуть данные до загрузки шрифтов)
     if (document.fonts && document.fonts.ready) {
-        document.fonts.ready.then(() => initSubmenuMargins());
+        document.fonts.ready.then(() => {
+            requestAnimationFrame(() => initSubmenuMargins());
+        });
     }
 }
 
