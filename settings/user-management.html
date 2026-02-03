@@ -952,7 +952,7 @@
         // Инициализация
         window.addEventListener('DOMContentLoaded', async () => {
             // Инициализация layout (хедер, футер, переводы)
-            await Layout.init({ module: 'housing', menuId: 'settings', itemId: 'user_management' });
+            await Layout.init({ module: 'admin', menuId: 'access', itemId: 'user_management' });
 
             // Подождать пока auth-check.js создаст hasPermission
             while (typeof window.hasPermission !== 'function') {

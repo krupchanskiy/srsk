@@ -472,7 +472,7 @@
         // ==================== INIT ====================
         async function init() {
             // Инициализируем layout (хедер, футер, локации)
-            await Layout.init({ menuId: 'settings', itemId: 'translations' });
+            await Layout.init({ module: 'admin', menuId: 'system', itemId: 'translations' });
 
             // Загружаем данные страницы
             await loadTranslations();

@@ -34,14 +34,11 @@ const modules = {
                 { id: 'inventory', href: 'stock/inventory.html' },
                 { id: 'stock_settings', href: 'stock/stock-settings.html' }
             ]},
-            { id: 'ashram', items: [
-                { id: 'retreats', href: 'ashram/retreats.html' },
+            { id: 'team', items: [
                 { id: 'vaishnavas_team', href: 'vaishnavas/team.html' }
             ]},
             { id: 'settings', items: [
-                { id: 'dictionaries', href: 'kitchen/dictionaries.html' },
-                { id: 'translations', href: 'settings/translations.html' },
-                { id: 'festivals', href: 'ashram/festivals.html' }
+                { id: 'dictionaries', href: 'kitchen/dictionaries.html' }
             ]}
         ]
     },
@@ -70,16 +67,10 @@ const modules = {
                 { id: 'bookings', href: 'placement/bookings.html' },
                 { id: 'cleaning', href: 'reception/cleaning.html' }
             ]},
-            { id: 'ashram', items: [
-                { id: 'retreats', href: 'ashram/retreats.html' },
-                { id: 'festivals', href: 'ashram/festivals.html' }
-            ]},
             { id: 'settings', items: [
                 { id: 'buildings', href: 'reception/buildings.html' },
                 { id: 'rooms', href: 'reception/rooms.html' },
-                { id: 'housing_dictionaries', href: 'reception/dictionaries.html' },
-                { id: 'user_management', href: 'settings/user-management.html' },
-                { id: 'translations', href: 'settings/translations.html' }
+                { id: 'housing_dictionaries', href: 'reception/dictionaries.html' }
             ]}
         ]
     },
@@ -105,6 +96,25 @@ const modules = {
                 { id: 'crm_tags', href: 'crm/tags.html' },
                 { id: 'crm_templates', href: 'crm/templates.html' },
                 { id: 'crm_managers', href: 'crm/managers.html' }
+            ]}
+        ]
+    },
+    admin: {
+        id: 'admin',
+        nameKey: 'module_admin',
+        icon: '⚙️',
+        hasLocations: false,
+        defaultPage: 'ashram/retreats.html',
+        menuConfig: [
+            { id: 'ashram', items: [
+                { id: 'retreats', href: 'ashram/retreats.html' },
+                { id: 'festivals', href: 'ashram/festivals.html' }
+            ]},
+            { id: 'access', items: [
+                { id: 'user_management', href: 'settings/user-management.html' }
+            ]},
+            { id: 'system', items: [
+                { id: 'translations', href: 'settings/translations.html' }
             ]}
         ]
     }
@@ -434,7 +444,7 @@ function getHeaderHTML() {
                         <a href="${adjustHref('index.html')}" class="text-xl font-semibold whitespace-nowrap hover:opacity-80 transition-opacity" data-i18n="app_name">Шри Рупа Сева Кунджа</a>
                         <div class="relative location-selector" id="locationDesktop">
                             <button class="flex items-center justify-between gap-2 w-full text-xl opacity-70 hover:opacity-100 transition-opacity" data-toggle="location">
-                                <span class="location-name">${currentModule === 'housing' ? t('module_housing') : currentModule === 'crm' ? t('module_crm') : ''}</span>
+                                <span class="location-name">${currentModule === 'housing' ? t('module_housing') : currentModule === 'crm' ? t('module_crm') : currentModule === 'admin' ? t('module_admin') : ''}</span>
                                 <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 transition-transform location-arrow" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
                                     <path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7" />
                                 </svg>
@@ -449,7 +459,7 @@ function getHeaderHTML() {
                         <span class="text-xl opacity-50">·</span>
                         <div class="relative location-selector" id="locationMobile">
                             <button class="flex items-center gap-1 text-xl opacity-70" data-toggle="location">
-                                <span class="location-name">${currentModule === 'housing' ? t('module_housing') : currentModule === 'crm' ? t('module_crm') : ''}</span>
+                                <span class="location-name">${currentModule === 'housing' ? t('module_housing') : currentModule === 'crm' ? t('module_crm') : currentModule === 'admin' ? t('module_admin') : ''}</span>
                                 <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 transition-transform location-arrow" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
                                     <path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7" />
                                 </svg>
@@ -581,6 +591,7 @@ function getFooterHTML() {
 function buildLocationOptions() {
     const isHousing = currentModule === 'housing';
     const isCrm = currentModule === 'crm';
+    const isAdmin = currentModule === 'admin';
 
     $$('.location-dropdown').forEach(el => {
         // Очищаем содержимое
@@ -590,7 +601,7 @@ function buildLocationOptions() {
         locations.forEach(loc => {
             const button = document.createElement('button');
             button.className = 'w-full text-left px-4 py-2 hover:bg-base-200 text-base-content';
-            if (!isHousing && !isCrm && loc.slug === currentLocation) {
+            if (!isHousing && !isCrm && !isAdmin && loc.slug === currentLocation) {
                 button.classList.add('font-medium');
             }
             button.dataset.loc = loc.slug;
@@ -622,6 +633,16 @@ function buildLocationOptions() {
         crmBtn.dataset.module = 'crm';
         crmBtn.textContent = t('module_crm'); // безопасно
         el.appendChild(crmBtn);
+
+        // Кнопка "Управление"
+        const adminBtn = document.createElement('button');
+        adminBtn.className = 'w-full text-left px-4 py-2 hover:bg-base-200 text-base-content';
+        if (isAdmin) {
+            adminBtn.classList.add('font-medium');
+        }
+        adminBtn.dataset.module = 'admin';
+        adminBtn.textContent = t('module_admin'); // безопасно
+        el.appendChild(adminBtn);
     });
 }
 
@@ -710,6 +731,10 @@ function updateHeaderLanguage() {
     // Обновляем название в селекторе
     if (currentModule === 'housing') {
         $$('.location-name').forEach(el => el.textContent = t('module_housing'));
+    } else if (currentModule === 'crm') {
+        $$('.location-name').forEach(el => el.textContent = t('module_crm'));
+    } else if (currentModule === 'admin') {
+        $$('.location-name').forEach(el => el.textContent = t('module_admin'));
     } else {
         const loc = locations.find(l => l.slug === currentLocation);
         if (loc) {
@@ -824,9 +849,13 @@ function selectLocation(slug, isInitial = false) {
     const loc = locations.find(l => l.slug === slug);
     if (!loc) return;
 
-    // Обновляем название в селекторе (для housing показываем "Проживание")
+    // Обновляем название в селекторе (для модулей без локаций показываем название модуля)
     if (currentModule === 'housing') {
         $$('.location-name').forEach(el => el.textContent = t('module_housing'));
+    } else if (currentModule === 'crm') {
+        $$('.location-name').forEach(el => el.textContent = t('module_crm'));
+    } else if (currentModule === 'admin') {
+        $$('.location-name').forEach(el => el.textContent = t('module_admin'));
     } else {
         $$('.location-name').forEach(el => el.textContent = getName(loc));
         setColor(loc.color);
@@ -1035,6 +1064,9 @@ async function initLayout(page = { module: null, menuId: 'kitchen', itemId: null
     } else if (currentModule === 'crm') {
         setColor('#10b981');
         $$('.location-name').forEach(el => el.textContent = t('module_crm'));
+    } else if (currentModule === 'admin') {
+        setColor('#5b21b6');
+        $$('.location-name').forEach(el => el.textContent = t('module_admin'));
     }
 
     buildMobileMenu();

@@ -99,11 +99,10 @@
                                 <li><a href="stock/stock-settings.html" onclick="selectModule('kitchen')" class="hover:text-orange-600 transition-colors" data-i18n="nav_stock_settings">Настройки склада</a></li>
                             </ul>
                         </div>
-                        <!-- Ашрам -->
+                        <!-- Команда -->
                         <div class="break-inside-avoid mb-4 mt-6">
-                            <h3 class="text-xs font-semibold uppercase tracking-wider text-orange-600 mb-2" data-i18n="nav_ashram">Ашрам</h3>
+                            <h3 class="text-xs font-semibold uppercase tracking-wider text-orange-600 mb-2" data-i18n="nav_team">Команда</h3>
                             <ul class="space-y-1 text-sm">
-                                <li><a href="ashram/retreats.html" onclick="selectModule('kitchen')" class="hover:text-orange-600 transition-colors" data-i18n="nav_retreats">Ретриты</a></li>
                                 <li><a href="vaishnavas/team.html" onclick="selectModule('kitchen')" class="hover:text-orange-600 transition-colors" data-i18n="nav_vaishnavas_team">Команда</a></li>
                             </ul>
                         </div>
@@ -112,8 +111,6 @@
                             <h3 class="text-xs font-semibold uppercase tracking-wider text-orange-600 mb-2" data-i18n="nav_settings">Настройки</h3>
                             <ul class="space-y-1 text-sm">
                                 <li><a href="kitchen/dictionaries.html" onclick="selectModule('kitchen')" class="hover:text-orange-600 transition-colors" data-i18n="nav_dictionaries">Справочники</a></li>
-                                <li><a href="settings/translations.html" onclick="selectModule('kitchen')" class="hover:text-orange-600 transition-colors" data-i18n="nav_translations">Переводы</a></li>
-                                <li><a href="ashram/festivals.html" onclick="selectModule('kitchen')" class="hover:text-orange-600 transition-colors" data-i18n="nav_festivals">Фестивали</a></li>
                             </ul>
                         </div>
                     </div>
@@ -162,14 +159,6 @@
                                 <li><a href="reception/cleaning.html" onclick="selectModule('housing')" class="hover:text-purple-600 transition-colors" data-i18n="nav_cleaning">Уборка</a></li>
                             </ul>
                         </div>
-                        <!-- Ашрам -->
-                        <div class="break-inside-avoid mb-4 mt-6">
-                            <h3 class="text-xs font-semibold uppercase tracking-wider text-purple-600 mb-2" data-i18n="nav_ashram">Ашрам</h3>
-                            <ul class="space-y-1 text-sm">
-                                <li><a href="ashram/retreats.html" onclick="selectModule('housing')" class="hover:text-purple-600 transition-colors" data-i18n="nav_retreats">Ретриты</a></li>
-                                <li><a href="ashram/festivals.html" onclick="selectModule('housing')" class="hover:text-purple-600 transition-colors" data-i18n="nav_festivals">Фестивали</a></li>
-                            </ul>
-                        </div>
                         <!-- Настройки -->
                         <div class="break-inside-avoid mb-4 mt-6">
                             <h3 class="text-xs font-semibold uppercase tracking-wider text-purple-600 mb-2" data-i18n="nav_settings">Настройки</h3>
@@ -177,8 +166,44 @@
                                 <li><a href="reception/buildings.html" onclick="selectModule('housing')" class="hover:text-purple-600 transition-colors" data-i18n="nav_buildings">Здания</a></li>
                                 <li><a href="reception/rooms.html" onclick="selectModule('housing')" class="hover:text-purple-600 transition-colors" data-i18n="nav_rooms">Комнаты</a></li>
                                 <li><a href="reception/dictionaries.html" onclick="selectModule('housing')" class="hover:text-purple-600 transition-colors" data-i18n="nav_housing_dictionaries">Справочники</a></li>
-                                <li><a href="settings/user-management.html" onclick="selectModule('housing')" class="hover:text-purple-600 transition-colors" data-i18n="nav_user_management">Доступ</a></li>
-                                <li><a href="settings/translations.html" onclick="selectModule('housing')" class="hover:text-purple-600 transition-colors" data-i18n="nav_translations">Переводы</a></li>
+                            </ul>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Admin Module -->
+                <div class="bg-base-100 rounded-2xl shadow-sm overflow-hidden border-t-4 border-violet-800">
+                    <a href="ashram/retreats.html" onclick="selectModule('admin')"
+                       class="block px-6 py-5 bg-gradient-to-r from-violet-100 to-transparent hover:from-violet-200 transition-colors">
+                        <div class="flex items-center gap-4">
+                            <div class="text-4xl">⚙️</div>
+                            <div>
+                                <h2 class="text-2xl font-bold" data-i18n="module_admin">Управление</h2>
+                                <p class="text-sm opacity-60" data-i18n="module_admin_subtitle">Ретриты, доступ, система</p>
+                            </div>
+                        </div>
+                    </a>
+                    <div class="px-6 py-4 columns-2 gap-6">
+                        <!-- Ашрам -->
+                        <div class="break-inside-avoid mb-4">
+                            <h3 class="text-xs font-semibold uppercase tracking-wider text-violet-800 mb-2" data-i18n="nav_ashram">Ашрам</h3>
+                            <ul class="space-y-1 text-sm">
+                                <li><a href="ashram/retreats.html" onclick="selectModule('admin')" class="hover:text-violet-800 transition-colors" data-i18n="nav_retreats">Ретриты</a></li>
+                                <li><a href="ashram/festivals.html" onclick="selectModule('admin')" class="hover:text-violet-800 transition-colors" data-i18n="nav_festivals">Праздники</a></li>
+                            </ul>
+                        </div>
+                        <!-- Доступ -->
+                        <div class="break-inside-avoid mb-4">
+                            <h3 class="text-xs font-semibold uppercase tracking-wider text-violet-800 mb-2" data-i18n="nav_access">Доступ</h3>
+                            <ul class="space-y-1 text-sm">
+                                <li><a href="settings/user-management.html" onclick="selectModule('admin')" class="hover:text-violet-800 transition-colors" data-i18n="nav_user_management">Пользователи</a></li>
+                            </ul>
+                        </div>
+                        <!-- Система -->
+                        <div class="break-inside-avoid mb-4 mt-6">
+                            <h3 class="text-xs font-semibold uppercase tracking-wider text-violet-800 mb-2" data-i18n="nav_system">Система</h3>
+                            <ul class="space-y-1 text-sm">
+                                <li><a href="settings/translations.html" onclick="selectModule('admin')" class="hover:text-violet-800 transition-colors" data-i18n="nav_translations">Переводы</a></li>
                             </ul>
                         </div>
                     </div>

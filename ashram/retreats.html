@@ -946,7 +946,7 @@
 
         // ==================== INIT ====================
         async function init() {
-            await Layout.init({ menuId: 'ashram', itemId: 'retreats' });
+            await Layout.init({ module: 'admin', menuId: 'ashram', itemId: 'retreats' });
             Layout.showLoader();
 
             // Load retreats and holidays in parallel
