@@ -287,6 +287,7 @@ Housing (модуль проживания):
 - `user_roles` — назначенные роли пользователей (роли комбинируются: повар + организатор)
 - `user_permissions` — индивидуальные переопределения прав (is_granted: true/false)
 - `superusers` — таблица UUID суперпользователей (без RLS для проверки прав)
+- Суперпользователи имеют доступ к модулю Admin (Управление)
 
 **Типы пользователей:**
 - **Staff (команда)** — проходит одобрение администратора, получает роли
@@ -452,6 +453,8 @@ const quantityToPurchase = wastePercent > 0
 CSS-переменная `--current-color` определяет акцентный цвет:
 - **Kitchen**: `#f49800` (оранжевый)
 - **Housing**: `#8b5cf6` (фиолетовый)
+- **CRM**: `#10b981` (изумрудный)
+- **Admin**: `#5b21b6` (тёмно-фиолетовый)
 
 Использовать для кнопок, активных табов, подменю. Цвет устанавливается через `js/color-init.js` в `<head>` для предотвращения мигания при загрузке.
 
@@ -534,7 +537,12 @@ Layout.showNotification('Проверьте заполнение полей', 'w
 - crm_analytics: activity_log
 - crm_settings: templates, tags, services, currencies, managers
 
-**Общее:** раздел «Ашрам» (retreats, festivals) присутствует в Kitchen и Housing модулях.
+**Admin** (управление) — **только для суперпользователей**:
+- ashram: retreats, festivals
+- access: user_management
+- system: translations
+
+**Примечание:** Модуль Admin доступен только суперпользователям (`is_superuser = true`). Кнопка модуля скрыта в селекторе, страницы редиректят на index.html при отсутствии прав.
 
 Ключи переводов: `nav_kitchen`, `nav_vaishnavas_team`, `nav_crm_dashboard`, etc.
 
@@ -787,11 +795,11 @@ tbody.innerHTML = users.map(u => `<td>${escapeHtml(u.email)}</td>`).join('');
 | Инвентаризация | `stock/inventory.html` |
 | Настройки склада | `stock/stock-settings.html` |
 
-### ashram/ (Ашрам)
-| Термин | Файл |
-|--------|------|
-| Ретриты | `ashram/retreats.html` |
-| Праздники | `ashram/festivals.html` |
+### ashram/ (Ашрам) — модуль Admin
+| Термин | Файл | Особенности |
+|--------|------|-------------|
+| Ретриты | `ashram/retreats.html` | Только суперпользователи |
+| Праздники | `ashram/festivals.html` | Только суперпользователи |
 
 ### crm/ (CRM)
 | Термин | Файл |
@@ -808,11 +816,11 @@ tbody.innerHTML = users.map(u => `<td>${escapeHtml(u.email)}</td>`).join('');
 | Курсы валют | `crm/currencies.html` |
 | Менеджеры | `crm/managers.html` |
 
-### settings/ (Настройки)
-| Термин | Файл |
-|--------|------|
-| Переводы | `settings/translations.html` |
-| Управление пользователями | `settings/user-management.html` |
+### settings/ (Настройки) — модуль Admin
+| Термин | Файл | Особенности |
+|--------|------|-------------|
+| Переводы | `settings/translations.html` | Только суперпользователи |
+| Управление пользователями | `settings/user-management.html` | Только суперпользователи |
 
 ### Корень
 | Термин | Файл | Особенности |
