@@ -459,7 +459,7 @@ function getHeaderHTML() {
                         <a href="${adjustHref('index.html')}" class="text-xl font-semibold whitespace-nowrap hover:opacity-80 transition-opacity" data-i18n="app_name">Шри Рупа Сева Кунджа</a>
                         <div class="relative location-selector" id="locationDesktop">
                             <button class="flex items-center justify-between gap-2 w-full text-xl opacity-70 hover:opacity-100 transition-opacity" data-toggle="location">
-                                <span class="location-name">${currentModule === 'housing' ? t('module_housing') : currentModule === 'crm' ? t('module_crm') : currentModule === 'admin' ? t('module_admin') : ''}</span>
+                                <span class="location-name">${currentModule === 'housing' ? t('module_housing') : currentModule === 'crm' ? t('module_crm') : currentModule === 'portal' ? t('module_portal') : currentModule === 'admin' ? t('module_admin') : ''}</span>
                                 <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 transition-transform location-arrow" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
                                     <path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7" />
                                 </svg>
@@ -474,7 +474,7 @@ function getHeaderHTML() {
                         <span class="text-xl opacity-50">·</span>
                         <div class="relative location-selector" id="locationMobile">
                             <button class="flex items-center gap-1 text-xl opacity-70" data-toggle="location">
-                                <span class="location-name">${currentModule === 'housing' ? t('module_housing') : currentModule === 'crm' ? t('module_crm') : currentModule === 'admin' ? t('module_admin') : ''}</span>
+                                <span class="location-name">${currentModule === 'housing' ? t('module_housing') : currentModule === 'crm' ? t('module_crm') : currentModule === 'portal' ? t('module_portal') : currentModule === 'admin' ? t('module_admin') : ''}</span>
                                 <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 transition-transform location-arrow" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
                                     <path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7" />
                                 </svg>
@@ -631,7 +631,7 @@ function buildLocationOptions() {
 
         // Кнопка "Проживание"
         const housingBtn = document.createElement('button');
-        housingBtn.className = 'w-full text-left px-4 py-2 hover:bg-base-200 text-base-content';
+        housingBtn.className = 'w-full text-left px-4 py-2 hover:bg-base-200 text-base-content cursor-pointer';
         if (isHousing) {
             housingBtn.classList.add('font-medium');
         }
@@ -641,7 +641,7 @@ function buildLocationOptions() {
 
         // Кнопка "CRM"
         const crmBtn = document.createElement('button');
-        crmBtn.className = 'w-full text-left px-4 py-2 hover:bg-base-200 text-base-content';
+        crmBtn.className = 'w-full text-left px-4 py-2 hover:bg-base-200 text-base-content cursor-pointer';
         if (isCrm) {
             crmBtn.classList.add('font-medium');
         }
@@ -651,7 +651,7 @@ function buildLocationOptions() {
 
         // Кнопка "Профиль гостя"
         const portalBtn = document.createElement('button');
-        portalBtn.className = 'w-full text-left px-4 py-2 hover:bg-base-200 text-base-content';
+        portalBtn.className = 'w-full text-left px-4 py-2 hover:bg-base-200 text-base-content cursor-pointer';
         if (currentModule === 'portal') {
             portalBtn.classList.add('font-medium');
         }
@@ -662,7 +662,7 @@ function buildLocationOptions() {
         // Кнопка "Управление" — только для суперпользователей
         if (window.currentUser?.is_superuser) {
             const adminBtn = document.createElement('button');
-            adminBtn.className = 'w-full text-left px-4 py-2 hover:bg-base-200 text-base-content';
+            adminBtn.className = 'w-full text-left px-4 py-2 hover:bg-base-200 text-base-content cursor-pointer';
             if (isAdmin) {
                 adminBtn.classList.add('font-medium');
             }
@@ -760,6 +760,8 @@ function updateHeaderLanguage() {
         $$('.location-name').forEach(el => el.textContent = t('module_housing'));
     } else if (currentModule === 'crm') {
         $$('.location-name').forEach(el => el.textContent = t('module_crm'));
+    } else if (currentModule === 'portal') {
+        $$('.location-name').forEach(el => el.textContent = t('module_portal'));
     } else if (currentModule === 'admin') {
         $$('.location-name').forEach(el => el.textContent = t('module_admin'));
     } else {
@@ -881,6 +883,8 @@ function selectLocation(slug, isInitial = false) {
         $$('.location-name').forEach(el => el.textContent = t('module_housing'));
     } else if (currentModule === 'crm') {
         $$('.location-name').forEach(el => el.textContent = t('module_crm'));
+    } else if (currentModule === 'portal') {
+        $$('.location-name').forEach(el => el.textContent = t('module_portal'));
     } else if (currentModule === 'admin') {
         $$('.location-name').forEach(el => el.textContent = t('module_admin'));
     } else {
@@ -1091,6 +1095,9 @@ async function initLayout(page = { module: null, menuId: 'kitchen', itemId: null
     } else if (currentModule === 'crm') {
         setColor('#10b981');
         $$('.location-name').forEach(el => el.textContent = t('module_crm'));
+    } else if (currentModule === 'portal') {
+        setColor('#147D30');
+        $$('.location-name').forEach(el => el.textContent = t('module_portal'));
     } else if (currentModule === 'admin') {
         setColor('#374151');
         $$('.location-name').forEach(el => el.textContent = t('module_admin'));
