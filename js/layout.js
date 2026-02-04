@@ -104,10 +104,10 @@ const modules = {
         nameKey: 'module_portal',
         icon: '👤',
         hasLocations: false,
-        defaultPage: 'portal/materials.html',
+        defaultPage: 'guest-portal/materials-admin.html',
         menuConfig: [
             { id: 'portal_content', items: [
-                { id: 'portal_materials', href: 'portal/materials.html' }
+                { id: 'portal_materials', href: 'guest-portal/materials-admin.html' }
             ]}
         ]
     },
@@ -197,7 +197,7 @@ const pagePermissions = {
     'crm/managers.html': 'edit_crm_settings',
 
     // Portal (Профиль гостя)
-    'portal/materials.html': 'edit_portal_materials'
+    'guest-portal/materials-admin.html': 'edit_portal_materials'
 };
 
 // ==================== STATE ====================
@@ -243,7 +243,7 @@ function getMenuConfig() {
 }
 
 // Список всех подпапок модулей
-const MODULE_FOLDERS = ['kitchen', 'stock', 'ashram', 'vaishnavas', 'placement', 'reception', 'settings', 'crm', 'portal'];
+const MODULE_FOLDERS = ['kitchen', 'stock', 'ashram', 'vaishnavas', 'placement', 'reception', 'settings', 'crm', 'guest-portal'];
 
 // Определить текущую подпапку (если есть)
 function getCurrentFolder() {
