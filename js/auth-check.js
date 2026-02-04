@@ -178,6 +178,9 @@
 
         console.log('✅ Permissions system ready');
 
+        // Отправить событие о готовности авторизации
+        window.dispatchEvent(new CustomEvent('authReady', { detail: window.currentUser }));
+
     } catch (err) {
         console.error('Auth check exception:', err);
         const returnUrl = encodeURIComponent(window.location.pathname + window.location.search);

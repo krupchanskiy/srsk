@@ -949,20 +949,19 @@
             }
         }
 
-        // Ждём пока auth-check.js загрузит currentUser
+        // Ждём событие authReady от auth-check.js
         function waitForAuth(maxWait = 3000) {
             return new Promise(resolve => {
                 if (window.currentUser) {
                     resolve();
                     return;
                 }
-                const start = Date.now();
-                const check = setInterval(() => {
-                    if (window.currentUser || Date.now() - start > maxWait) {
-                        clearInterval(check);
-                        resolve();
-                    }
-                }, 50);
+                const handler = () => resolve();
+                window.addEventListener('authReady', handler, { once: true });
+                setTimeout(() => {
+                    window.removeEventListener('authReady', handler);
+                    resolve();
+                }, maxWait);
             });
         }
 
