@@ -945,8 +945,26 @@
         window.onLanguageChange = () => updateUI();
 
         // ==================== INIT ====================
+        // Ждём пока auth-check.js загрузит currentUser
+        function waitForAuth(maxWait = 3000) {
+            return new Promise(resolve => {
+                if (window.currentUser) {
+                    resolve();
+                    return;
+                }
+                const start = Date.now();
+                const check = setInterval(() => {
+                    if (window.currentUser || Date.now() - start > maxWait) {
+                        clearInterval(check);
+                        resolve();
+                    }
+                }, 50);
+            });
+        }
+
         async function init() {
             await Layout.init({ module: 'admin', menuId: 'ashram', itemId: 'retreats' });
+            await waitForAuth();
 
             // Модуль admin только для суперпользователей
             if (!window.currentUser?.is_superuser) {
