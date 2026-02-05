@@ -94,6 +94,7 @@ npm run test:stock     # Только тесты склада
 | `bookings.js` | `placement/bookings.html` — бронирования |
 | `kitchen-menu.js` | `kitchen/menu.html` — планирование меню |
 | `stock-requests.js` | `stock/requests.html` — заявки на склад |
+| `departures.js` | `vaishnavas/departures.html` — логистика отъездов |
 
 ### Работа с БД
 
@@ -154,6 +155,43 @@ resident.check_in/check_out       ← существующее размещен�
 
 Занятость комнат считается по **пиковой одновременной** загрузке (sweep line), а не по суммарному количеству проживавших.
 
+### CHECK constraints в БД
+
+```
+retreat_registrations.status: 'guest' | 'team' | 'cancelled'
+retreat_registrations.meal_type: 'prasad' | 'self' | 'child'
+```
+
+Отправка других значений → ошибка 400 от Supabase.
+
+### Категории резидентов и цвета шахматки
+
+Таблица `resident_categories` определяет цвета баров в `timeline.html`:
+
+| Категория | Цвет | ID |
+|-----------|------|----|
+| Команда | #10b981 (зелёный) | `10c4c929-...` |
+| Гость | #3b82f6 (синий) | `6ad3bfdd-...` |
+| Участник ретрита | #8b5cf6 (фиолетовый) | `a825c26c-...` |
+| Волонтёр | #f59e0b (оранжевый) | `cdb7a43e-...` |
+| Важный гость | #f76a3b (красный) | `ab57efc9-...` |
+
+При заселении `category_id` назначается автоматически через `STATUS_CATEGORY_MAP` в `preliminary.js`:
+- `reg.status = 'guest'` → Участник ретрита
+- `reg.status = 'team'` → Команда
+- fallback → Гость
+
+### Трансферы: 4 направления
+
+```
+arrival           ← из аэропорта (рейс прилёта)
+arrival_retreat   ← на ретрит (если НЕ сразу из аэропорта, direct_arrival=false)
+departure_retreat ← с ретрита (если НЕ сразу в аэропорт, direct_departure=false)
+departure         ← в аэропорт (рейс вылета)
+```
+
+На одного гостя может быть от 0 до 4 трансферов.
+
 ### XSS защита
 ```javascript
 Layout.escapeHtml(user.name)                    // экранировать пользовательские данные
@@ -177,11 +215,11 @@ if (window.currentUser?.is_superuser) { ... }
 retreats (start_date, end_date)
   └─ retreat_registrations (vaishnava_id, arrival_datetime, departure_datetime,
                             meal_type, status, direct_arrival, direct_departure)
-       └─ guest_transfers (direction: 'arrival'|'departure', flight_datetime,
-                           flight_number, needs_transfer)
+       └─ guest_transfers (direction, flight_datetime, flight_number, needs_transfer)
+            direction: 'arrival' | 'arrival_retreat' | 'departure_retreat' | 'departure'
 
 vaishnavas (spiritual_name, first_name, last_name, gender, phone, email, ...)
-  └─ residents (room_id, retreat_id, check_in DATE, check_out DATE, status)
+  └─ residents (room_id, retreat_id, check_in DATE, check_out DATE, status, category_id)
        └─ rooms (number, capacity, building_id, floor)
             └─ buildings (name_ru, name_en, name_hi)
 ```
@@ -214,6 +252,7 @@ mcp__supabase__get_logs({ project_id, service: 'auth' })
 | RLS ошибка | Использовать `.select()` вместо `.single()` |
 | N+1 запросы | Загрузить всё через `.in()`, группировать на клиенте |
 | Tailwind desktop | `tailwind.config = { theme: { extend: { screens: { 'desktop': '1200px' } } } }` |
+| Кэш JS после деплоя | Обновить `?v=N` в `<script src="...js?v=N">` |
 
 ---
 
