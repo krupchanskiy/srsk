@@ -437,6 +437,8 @@ function openGuestModal(registrationId = null) {
             form.elements.vaishnava_id.value = reg.vaishnava.id;
             form.elements.status.value = reg.status;
             form.elements.org_notes.value = reg.org_notes || '';
+            form.elements.early_checkin.checked = reg.early_checkin || false;
+            form.elements.late_checkout.checked = reg.late_checkout || false;
 
             const v = reg.vaishnava;
             const name = v.spiritual_name || `${v.first_name} ${v.last_name}`;
@@ -512,6 +514,8 @@ document.getElementById('guestForm').addEventListener('submit', async (e) => {
     const vaishnavId = form.elements.vaishnava_id.value;
     const status = form.elements.status.value;
     const orgNotes = form.elements.org_notes.value;
+    const earlyCheckin = form.elements.early_checkin.checked;
+    const lateCheckout = form.elements.late_checkout.checked;
 
     if (!vaishnavId) {
         Layout.showNotification(t('select_vaishnava'), 'warning');
@@ -524,7 +528,9 @@ document.getElementById('guestForm').addEventListener('submit', async (e) => {
             .from('retreat_registrations')
             .update({
                 status,
-                org_notes: orgNotes || null
+                org_notes: orgNotes || null,
+                early_checkin: earlyCheckin,
+                late_checkout: lateCheckout
             })
             .eq('id', registrationId);
 
@@ -541,7 +547,9 @@ document.getElementById('guestForm').addEventListener('submit', async (e) => {
                 retreat_id: retreatId,
                 vaishnava_id: vaishnavId,
                 status,
-                org_notes: orgNotes || null
+                org_notes: orgNotes || null,
+                early_checkin: earlyCheckin,
+                late_checkout: lateCheckout
             });
 
         if (error) {

@@ -646,6 +646,8 @@ function openStayModal(stayId = null) {
                 form.querySelector('[name="end_date"]').value = stay.end_date;
             }
             form.querySelector('[name="comment"]').value = stay.comment || '';
+            form.querySelector('[name="early_checkin"]').checked = stay.early_checkin || false;
+            form.querySelector('[name="late_checkout"]').checked = stay.late_checkout || false;
         }
         document.getElementById('stayModalTitle').textContent = t('edit_stay') || 'Редактировать';
         document.querySelectorAll('.edit-stay-only').forEach(el => el.classList.remove('hidden'));
@@ -672,6 +674,8 @@ async function saveStay(event) {
         vaishnava_id: person.id,
         start_date: isPermanent ? '2020-01-01' : form.start_date.value,
         end_date: isPermanent ? '2099-12-31' : form.end_date.value,
+        early_checkin: form.early_checkin.checked,
+        late_checkout: form.late_checkout.checked,
         comment: form.comment.value || null
     };
 
@@ -859,6 +863,10 @@ function openEditRegModal(registrationId) {
     // Питание
     document.getElementById('editMealType').value = reg.meal_type || '';
 
+    // Ранний заезд / Поздний выезд
+    document.getElementById('editEarlyCheckin').checked = reg.early_checkin || false;
+    document.getElementById('editLateCheckout').checked = reg.late_checkout || false;
+
     // Трансферы
     const transfers = reg.guest_transfers || [];
     const arrival = transfers.find(t => t.direction === 'arrival');
@@ -899,6 +907,8 @@ async function saveRegistration() {
         const regData = {
             status: document.getElementById('editRegStatus').value,
             meal_type: document.getElementById('editMealType').value || null,
+            early_checkin: document.getElementById('editEarlyCheckin').checked,
+            late_checkout: document.getElementById('editLateCheckout').checked,
             accommodation_wishes: document.getElementById('editAccommodationWishes').value || null,
             companions: document.getElementById('editCompanions').value || null,
             extended_stay: document.getElementById('editExtendedStay').value || null,

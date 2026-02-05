@@ -610,6 +610,18 @@
                     </div>
                 </div>
 
+                <!-- Ранний заезд / Поздний выезд -->
+                <div class="flex gap-4 mb-4">
+                    <label class="label cursor-pointer gap-2">
+                        <input type="checkbox" name="early_checkin" class="checkbox checkbox-sm checkbox-primary" />
+                        <span class="label-text text-sm">Ранний заезд</span>
+                    </label>
+                    <label class="label cursor-pointer gap-2">
+                        <input type="checkbox" name="late_checkout" class="checkbox checkbox-sm checkbox-primary" />
+                        <span class="label-text text-sm">Поздний выезд</span>
+                    </label>
+                </div>
+
                 <div class="form-control mb-4">
                     <label class="label"><span class="label-text" data-i18n="comment">Комментарий</span></label>
                     <input type="text" name="comment" class="input input-bordered" placeholder="Например: Картика">
@@ -733,6 +745,18 @@
                         <option value="self" data-i18n="meal_type_self">Самостоятельно</option>
                         <option value="child" data-i18n="meal_type_child">Детское</option>
                     </select>
+                </div>
+
+                <!-- Ранний заезд / Поздний выезд -->
+                <div class="flex gap-4">
+                    <label class="label cursor-pointer gap-2">
+                        <input type="checkbox" id="editEarlyCheckin" class="checkbox checkbox-sm checkbox-primary" />
+                        <span class="label-text text-sm">Ранний заезд</span>
+                    </label>
+                    <label class="label cursor-pointer gap-2">
+                        <input type="checkbox" id="editLateCheckout" class="checkbox checkbox-sm checkbox-primary" />
+                        <span class="label-text text-sm">Поздний выезд</span>
+                    </label>
                 </div>
 
                 <!-- Прилёт -->
