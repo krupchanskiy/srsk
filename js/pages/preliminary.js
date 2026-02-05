@@ -501,14 +501,14 @@ function renderTable() {
                 <td class="text-sm">${e(reg.companions || '—')}</td>
                 <td class="text-sm">${e(reg.accommodation_wishes || '—')}</td>
                 <td class="text-center text-sm ${arrivalProblem ? 'bg-warning/30' : ''}" onclick="event.stopPropagation()">
-                    <input type="datetime-local" class="input input-xs input-bordered w-[10.5rem]"
+                    <input type="datetime-local" class="input input-xs input-bordered w-full min-w-[13rem]"
                         value="${effectiveCheckIn || ''}"
                         onchange="onCheckInChange('${reg.id}', this.value)"
                         ${disabledAttr} />
                     ${(arrivalFlightNum || arrivalTransfer) ? `<div class="text-xs opacity-60 mt-0.5 whitespace-nowrap">${arrivalFlightNum}${arrivalTransfer}</div>` : ''}
                 </td>
                 <td class="text-center text-sm ${departureProblem ? 'bg-warning/30' : ''}" onclick="event.stopPropagation()">
-                    <input type="datetime-local" class="input input-xs input-bordered w-[10.5rem]"
+                    <input type="datetime-local" class="input input-xs input-bordered w-full min-w-[13rem]"
                         value="${effectiveCheckOut || ''}"
                         onchange="onCheckOutChange('${reg.id}', this.value)"
                         ${disabledAttr} />
