@@ -683,8 +683,8 @@ async function onRoomChange(registrationId, roomId) {
         room_id: roomId,
         vaishnava_id: reg.vaishnava_id,
         retreat_id: retreatId,
-        check_in: retreat?.start_date || null,
-        check_out: retreat?.end_date || null,
+        check_in: reg.resident?.check_in || reg.arrival_datetime?.slice(0, 10) || retreat?.start_date || null,
+        check_out: reg.resident?.check_out || reg.departure_datetime?.slice(0, 10) || retreat?.end_date || null,
         status: 'confirmed'
     };
 
@@ -740,8 +740,8 @@ async function saveSelfAccommodation(registrationId) {
         room_id: null, // NULL indicates self-accommodation
         vaishnava_id: reg.vaishnava_id,
         retreat_id: retreatId,
-        check_in: retreat?.start_date || null,
-        check_out: retreat?.end_date || null,
+        check_in: reg.resident?.check_in || reg.arrival_datetime?.slice(0, 10) || retreat?.start_date || null,
+        check_out: reg.resident?.check_out || reg.departure_datetime?.slice(0, 10) || retreat?.end_date || null,
         status: 'confirmed'
     };
 
@@ -1018,8 +1018,8 @@ function openPlacementModal(registrationId) {
         registrationId: registrationId,
         vaishnavId: reg.vaishnava_id,
         retreatId: retreat?.id || null,
-        checkIn: reg.resident?.check_in || retreat?.start_date || null,
-        checkOut: reg.resident?.check_out || retreat?.end_date || null,
+        checkIn: reg.resident?.check_in || reg.arrival_datetime?.slice(0, 10) || retreat?.start_date || null,
+        checkOut: reg.resident?.check_out || reg.departure_datetime?.slice(0, 10) || retreat?.end_date || null,
         mode: 'list',
         occupancy: {},
         currentBuildingId: buildings[0]?.id || null,

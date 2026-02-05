@@ -725,7 +725,15 @@ function openPlacementModal(registrationId) {
         checkOutInput.value = retreat.end_date;
     }
 
-    // Check if already has placement
+    // Индивидуальные даты приезда/отъезда имеют приоритет над датами ретрита
+    if (currentPlacementRegistration.arrival_datetime) {
+        checkInInput.value = currentPlacementRegistration.arrival_datetime.slice(0, 10);
+    }
+    if (currentPlacementRegistration.departure_datetime) {
+        checkOutInput.value = currentPlacementRegistration.departure_datetime.slice(0, 10);
+    }
+
+    // Существующее размещение имеет наивысший приоритет
     if (currentPlacementRegistration.placement && currentPlacementRegistration.placement.length > 0) {
         const p = currentPlacementRegistration.placement[0];
         checkInInput.value = p.check_in;
