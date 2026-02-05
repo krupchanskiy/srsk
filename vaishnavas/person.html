@@ -753,7 +753,8 @@
                     <div class="grid grid-cols-2 gap-3">
                         <div class="form-control">
                             <label class="label label-text text-xs">Дата и время рейса</label>
-                            <input type="datetime-local" id="editArrivalDatetime" class="input input-bordered input-sm" />
+                            <input type="datetime-local" id="editArrivalDatetime" class="input input-bordered input-sm"
+                                   onchange="updateCalcArrival()" />
                         </div>
                         <div class="form-control">
                             <label class="label label-text text-xs">Номер рейса</label>
@@ -777,6 +778,10 @@
                                        onchange="toggleDirectArrival(this.checked)" checked />
                                 <span class="label-text text-xs">Еду сразу на ретрит</span>
                             </label>
+                            <div id="calcArrivalBlock" class="mt-2">
+                                <span class="label-text text-xs text-base-content/60">Приезд в ШРСК (рейс + 4ч):</span>
+                                <span id="calcArrivalTime" class="text-xs font-medium ml-1">—</span>
+                            </div>
                             <div id="customArrivalBlock" class="hidden mt-2">
                                 <label class="label label-text text-xs">Дата и время приезда к нам</label>
                                 <input type="datetime-local" id="editArrivalAtAshram" class="input input-bordered input-sm w-full" />
@@ -791,7 +796,8 @@
                     <div class="grid grid-cols-2 gap-3">
                         <div class="form-control">
                             <label class="label label-text text-xs">Дата и время рейса</label>
-                            <input type="datetime-local" id="editDepartureDatetime" class="input input-bordered input-sm" />
+                            <input type="datetime-local" id="editDepartureDatetime" class="input input-bordered input-sm"
+                                   onchange="updateCalcDeparture()" />
                         </div>
                         <div class="form-control">
                             <label class="label label-text text-xs">Номер рейса</label>
@@ -815,6 +821,10 @@
                                        onchange="toggleDirectDeparture(this.checked)" checked />
                                 <span class="label-text text-xs">Еду сразу из ретрита</span>
                             </label>
+                            <div id="calcDepartureBlock" class="mt-2">
+                                <span class="label-text text-xs text-base-content/60">Отъезд из ШРСК (рейс − 7ч):</span>
+                                <span id="calcDepartureTime" class="text-xs font-medium ml-1">—</span>
+                            </div>
                             <div id="customDepartureBlock" class="hidden mt-2">
                                 <label class="label label-text text-xs">Дата и время отъезда от нас</label>
                                 <input type="datetime-local" id="editDepartureFromAshram" class="input input-bordered input-sm w-full" />

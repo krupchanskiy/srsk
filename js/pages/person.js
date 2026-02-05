@@ -850,9 +850,13 @@ async function updateRegistrationStatus(registrationId, newStatus, selectElement
 
 function toggleDirectArrival(checked) {
     document.getElementById('customArrivalBlock').classList.toggle('hidden', checked);
+    document.getElementById('calcArrivalBlock').classList.toggle('hidden', !checked);
+    if (checked) updateCalcArrival();
 }
 function toggleDirectDeparture(checked) {
     document.getElementById('customDepartureBlock').classList.toggle('hidden', checked);
+    document.getElementById('calcDepartureBlock').classList.toggle('hidden', !checked);
+    if (checked) updateCalcDeparture();
 }
 
 // Сдвигает datetime-local значение на N часов (локальное время)
@@ -860,9 +864,31 @@ function addHoursToDatetime(datetimeStr, hours) {
     if (!datetimeStr) return null;
     const d = new Date(datetimeStr);
     d.setHours(d.getHours() + hours);
-    // Возвращаем в формате datetime-local (YYYY-MM-DDTHH:MM)
     const pad = n => String(n).padStart(2, '0');
     return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+}
+
+// Форматирует datetime-local в читаемый вид: "12 фев, 14:30"
+function formatDatetimeShort(datetimeStr) {
+    if (!datetimeStr) return '—';
+    const d = new Date(datetimeStr);
+    const months = ['янв', 'фев', 'мар', 'апр', 'май', 'июн', 'июл', 'авг', 'сен', 'окт', 'ноя', 'дек'];
+    const pad = n => String(n).padStart(2, '0');
+    return `${d.getDate()} ${months[d.getMonth()]}, ${pad(d.getHours())}:${pad(d.getMinutes())}`;
+}
+
+// Пересчитать расчётное время приезда (рейс + 4ч)
+function updateCalcArrival() {
+    const flightVal = document.getElementById('editArrivalDatetime').value;
+    const calc = addHoursToDatetime(flightVal, 4);
+    document.getElementById('calcArrivalTime').textContent = formatDatetimeShort(calc);
+}
+
+// Пересчитать расчётное время отъезда (рейс − 7ч)
+function updateCalcDeparture() {
+    const flightVal = document.getElementById('editDepartureDatetime').value;
+    const calc = addHoursToDatetime(flightVal, -7);
+    document.getElementById('calcDepartureTime').textContent = formatDatetimeShort(calc);
 }
 
 let currentEditRegId = null;
