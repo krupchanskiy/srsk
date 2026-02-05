@@ -1308,7 +1308,7 @@ function renderRegistrations() {
             const arrivalTime = formatFlightDateTime(arrival.flight_datetime, arrival.notes);
             const ashramArrival = reg.arrival_datetime
                 ? formatDatetimeShort(reg.arrival_datetime)
-                : (arrival.flight_datetime ? formatDatetimeShort(addHoursToDatetime(arrival.flight_datetime.slice(0, 16), 4)) : null);
+                : (arrival.flight_datetime ? formatDatetimeShort(addHoursToDatetime(arrival.flight_datetime, 4)) : null);
             detailsHtml += `
                 <div class="detail-section">
                     <div class="detail-label">✈️ Прилёт</div>
@@ -1325,7 +1325,7 @@ function renderRegistrations() {
             const departureTime = formatFlightDateTime(departure.flight_datetime, departure.notes);
             const ashramDeparture = reg.departure_datetime
                 ? formatDatetimeShort(reg.departure_datetime)
-                : (departure.flight_datetime ? formatDatetimeShort(addHoursToDatetime(departure.flight_datetime.slice(0, 16), -7)) : null);
+                : (departure.flight_datetime ? formatDatetimeShort(addHoursToDatetime(departure.flight_datetime, -7)) : null);
             detailsHtml += `
                 <div class="detail-section">
                     <div class="detail-label">✈️ Вылет</div>
