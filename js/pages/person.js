@@ -855,6 +855,16 @@ function toggleDirectDeparture(checked) {
     document.getElementById('customDepartureBlock').classList.toggle('hidden', checked);
 }
 
+// Сдвигает datetime-local значение на N часов (локальное время)
+function addHoursToDatetime(datetimeStr, hours) {
+    if (!datetimeStr) return null;
+    const d = new Date(datetimeStr);
+    d.setHours(d.getHours() + hours);
+    // Возвращаем в формате datetime-local (YYYY-MM-DDTHH:MM)
+    const pad = n => String(n).padStart(2, '0');
+    return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+}
+
 let currentEditRegId = null;
 
 function openEditRegModal(registrationId) {
@@ -924,10 +934,10 @@ async function saveRegistration() {
             direct_arrival: directArrival,
             direct_departure: directDeparture,
             arrival_datetime: directArrival
-                ? (document.getElementById('editArrivalDatetime').value || null)
+                ? addHoursToDatetime(document.getElementById('editArrivalDatetime').value, 4)
                 : (document.getElementById('editArrivalAtAshram').value || null),
             departure_datetime: directDeparture
-                ? (document.getElementById('editDepartureDatetime').value || null)
+                ? addHoursToDatetime(document.getElementById('editDepartureDatetime').value, -7)
                 : (document.getElementById('editDepartureFromAshram').value || null),
             accommodation_wishes: document.getElementById('editAccommodationWishes').value || null,
             companions: document.getElementById('editCompanions').value || null,
