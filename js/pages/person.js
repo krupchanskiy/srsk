@@ -1299,19 +1299,20 @@ function renderRegistrations() {
         const departure = transfers.find(t => t.direction === 'departure');
 
         // Check if there's any detail to show
-        const hasDetails = arrival || departure || reg.resident || reg.guest_accommodations?.[0] || reg.accommodation_wishes || reg.companions || reg.payment_notes || reg.org_notes || reg.extended_stay || reg.guest_questions;
+        const hasDetails = arrival || departure || reg.arrival_datetime || reg.departure_datetime || reg.resident || reg.guest_accommodations?.[0] || reg.accommodation_wishes || reg.companions || reg.payment_notes || reg.org_notes || reg.extended_stay || reg.guest_questions;
 
         // Build details HTML
         let detailsHtml = '';
 
         if (arrival) {
             const arrivalTime = formatFlightDateTime(arrival.flight_datetime, arrival.notes);
+            const ashramArrival = reg.arrival_datetime ? formatDatetimeShort(reg.arrival_datetime) : null;
             detailsHtml += `
                 <div class="detail-section">
                     <div class="detail-label">✈️ Прилёт</div>
                     <div class="text-sm space-y-1">
-                        ${arrivalTime ? `<div><span class="opacity-60">Время:</span> ${arrivalTime}</div>` : ''}
-                        ${arrival.flight_number ? `<div><span class="opacity-60">Рейс:</span> ${arrival.flight_number}</div>` : ''}
+                        ${arrivalTime ? `<div><span class="opacity-60">Рейс:</span> ${arrivalTime}${arrival.flight_number ? ` (${arrival.flight_number})` : ''}</div>` : ''}
+                        ${ashramArrival ? `<div><span class="opacity-60">Приезд в ШРСК:</span> ${ashramArrival}</div>` : ''}
                         <div><span class="opacity-60">Трансфер:</span> ${arrival.needs_transfer === 'yes' ? '✅ Нужен' : arrival.needs_transfer === 'no' ? '❌ Не нужен' : arrival.needs_transfer || '—'}</div>
                     </div>
                 </div>
@@ -1320,12 +1321,13 @@ function renderRegistrations() {
 
         if (departure) {
             const departureTime = formatFlightDateTime(departure.flight_datetime, departure.notes);
+            const ashramDeparture = reg.departure_datetime ? formatDatetimeShort(reg.departure_datetime) : null;
             detailsHtml += `
                 <div class="detail-section">
                     <div class="detail-label">✈️ Вылет</div>
                     <div class="text-sm space-y-1">
-                        ${departureTime ? `<div><span class="opacity-60">Время:</span> ${departureTime}</div>` : ''}
-                        ${departure.flight_number ? `<div><span class="opacity-60">Рейс:</span> ${departure.flight_number}</div>` : ''}
+                        ${departureTime ? `<div><span class="opacity-60">Рейс:</span> ${departureTime}${departure.flight_number ? ` (${departure.flight_number})` : ''}</div>` : ''}
+                        ${ashramDeparture ? `<div><span class="opacity-60">Отъезд из ШРСК:</span> ${ashramDeparture}</div>` : ''}
                         <div><span class="opacity-60">Трансфер:</span> ${departure.needs_transfer === 'yes' ? '✅ Нужен' : departure.needs_transfer === 'no' ? '❌ Не нужен' : departure.needs_transfer || '—'}</div>
                     </div>
                 </div>
