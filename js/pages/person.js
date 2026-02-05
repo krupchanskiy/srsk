@@ -848,6 +848,13 @@ async function updateRegistrationStatus(registrationId, newStatus, selectElement
 
 // ==================== EDIT REGISTRATION ====================
 
+function toggleDirectArrival(checked) {
+    document.getElementById('customArrivalBlock').classList.toggle('hidden', checked);
+}
+function toggleDirectDeparture(checked) {
+    document.getElementById('customDepartureBlock').classList.toggle('hidden', checked);
+}
+
 let currentEditRegId = null;
 
 function openEditRegModal(registrationId) {
@@ -862,10 +869,6 @@ function openEditRegModal(registrationId) {
 
     // Питание
     document.getElementById('editMealType').value = reg.meal_type || '';
-
-    // Ранний заезд / Поздний выезд
-    document.getElementById('editEarlyCheckin').checked = reg.early_checkin || false;
-    document.getElementById('editLateCheckout').checked = reg.late_checkout || false;
 
     // Трансферы
     const transfers = reg.guest_transfers || [];
@@ -883,6 +886,14 @@ function openEditRegModal(registrationId) {
     document.getElementById('editDepartureFlight').value = departure?.flight_number || '';
     document.getElementById('editDepartureTransfer').value = departure?.needs_transfer || '';
     document.getElementById('editDepartureNotes').value = departure?.notes || '';
+
+    // Прямой приезд/отъезд
+    document.getElementById('editDirectArrival').checked = reg.direct_arrival !== false;
+    toggleDirectArrival(reg.direct_arrival !== false);
+    document.getElementById('editArrivalAtAshram').value = reg.arrival_datetime ? reg.arrival_datetime.slice(0, 16) : '';
+    document.getElementById('editDirectDeparture').checked = reg.direct_departure !== false;
+    toggleDirectDeparture(reg.direct_departure !== false);
+    document.getElementById('editDepartureFromAshram').value = reg.departure_datetime ? reg.departure_datetime.slice(0, 16) : '';
 
     // Остальные поля
     document.getElementById('editAccommodationWishes').value = reg.accommodation_wishes || '';
@@ -904,11 +915,20 @@ async function saveRegistration() {
 
     try {
         // Обновляем регистрацию
+        const directArrival = document.getElementById('editDirectArrival').checked;
+        const directDeparture = document.getElementById('editDirectDeparture').checked;
+
         const regData = {
             status: document.getElementById('editRegStatus').value,
             meal_type: document.getElementById('editMealType').value || null,
-            early_checkin: document.getElementById('editEarlyCheckin').checked,
-            late_checkout: document.getElementById('editLateCheckout').checked,
+            direct_arrival: directArrival,
+            direct_departure: directDeparture,
+            arrival_datetime: directArrival
+                ? (document.getElementById('editArrivalDatetime').value || null)
+                : (document.getElementById('editArrivalAtAshram').value || null),
+            departure_datetime: directDeparture
+                ? (document.getElementById('editDepartureDatetime').value || null)
+                : (document.getElementById('editDepartureFromAshram').value || null),
             accommodation_wishes: document.getElementById('editAccommodationWishes').value || null,
             companions: document.getElementById('editCompanions').value || null,
             extended_stay: document.getElementById('editExtendedStay').value || null,

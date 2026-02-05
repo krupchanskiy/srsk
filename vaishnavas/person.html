@@ -747,24 +747,12 @@
                     </select>
                 </div>
 
-                <!-- Ранний заезд / Поздний выезд -->
-                <div class="flex gap-4">
-                    <label class="label cursor-pointer gap-2">
-                        <input type="checkbox" id="editEarlyCheckin" class="checkbox checkbox-sm checkbox-primary" />
-                        <span class="label-text text-sm">Ранний заезд</span>
-                    </label>
-                    <label class="label cursor-pointer gap-2">
-                        <input type="checkbox" id="editLateCheckout" class="checkbox checkbox-sm checkbox-primary" />
-                        <span class="label-text text-sm">Поздний выезд</span>
-                    </label>
-                </div>
-
                 <!-- Прилёт -->
                 <div class="border rounded-lg p-3">
                     <div class="font-medium mb-2">✈️ Прилёт</div>
                     <div class="grid grid-cols-2 gap-3">
                         <div class="form-control">
-                            <label class="label label-text text-xs">Дата и время</label>
+                            <label class="label label-text text-xs">Дата и время рейса</label>
                             <input type="datetime-local" id="editArrivalDatetime" class="input input-bordered input-sm" />
                         </div>
                         <div class="form-control">
@@ -783,6 +771,17 @@
                             <label class="label label-text text-xs">Примечание</label>
                             <input type="text" id="editArrivalNotes" class="input input-bordered input-sm" placeholder="07.02.2025 в 08:00" />
                         </div>
+                        <div class="col-span-2 mt-1">
+                            <label class="label cursor-pointer justify-start gap-2 py-0">
+                                <input type="checkbox" id="editDirectArrival" class="checkbox checkbox-xs checkbox-primary"
+                                       onchange="toggleDirectArrival(this.checked)" checked />
+                                <span class="label-text text-xs">Еду сразу на ретрит</span>
+                            </label>
+                            <div id="customArrivalBlock" class="hidden mt-2">
+                                <label class="label label-text text-xs">Дата и время приезда к нам</label>
+                                <input type="datetime-local" id="editArrivalAtAshram" class="input input-bordered input-sm w-full" />
+                            </div>
+                        </div>
                     </div>
                 </div>
 
@@ -791,7 +790,7 @@
                     <div class="font-medium mb-2">✈️ Вылет</div>
                     <div class="grid grid-cols-2 gap-3">
                         <div class="form-control">
-                            <label class="label label-text text-xs">Дата и время</label>
+                            <label class="label label-text text-xs">Дата и время рейса</label>
                             <input type="datetime-local" id="editDepartureDatetime" class="input input-bordered input-sm" />
                         </div>
                         <div class="form-control">
@@ -809,6 +808,17 @@
                         <div class="form-control">
                             <label class="label label-text text-xs">Примечание</label>
                             <input type="text" id="editDepartureNotes" class="input input-bordered input-sm" placeholder="23.02.2025 в 13:00" />
+                        </div>
+                        <div class="col-span-2 mt-1">
+                            <label class="label cursor-pointer justify-start gap-2 py-0">
+                                <input type="checkbox" id="editDirectDeparture" class="checkbox checkbox-xs checkbox-primary"
+                                       onchange="toggleDirectDeparture(this.checked)" checked />
+                                <span class="label-text text-xs">Еду сразу из ретрита</span>
+                            </label>
+                            <div id="customDepartureBlock" class="hidden mt-2">
+                                <label class="label label-text text-xs">Дата и время отъезда от нас</label>
+                                <input type="datetime-local" id="editDepartureFromAshram" class="input input-bordered input-sm w-full" />
+                            </div>
                         </div>
                     </div>
                 </div>

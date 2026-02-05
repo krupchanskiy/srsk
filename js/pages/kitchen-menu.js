@@ -317,7 +317,7 @@ async function loadEatingCounts(startDate, endDate) {
         retreatIds.length > 0
             ? Layout.db
                 .from('retreat_registrations')
-                .select('retreat_id, early_checkin, late_checkout')
+                .select('retreat_id, arrival_datetime, departure_datetime')
                 .in('retreat_id', retreatIds)
                 .eq('is_deleted', false)
                 .not('status', 'in', '("cancelled","rejected")')
@@ -353,15 +353,43 @@ async function loadEatingCounts(startDate, endDate) {
 
         let breakfastGuests = 0, lunchGuests = 0;
 
-        // Гости: привязаны к ретриту, день заезда = retreat.start_date, выезда = retreat.end_date
+        // Гости: привязаны к ретриту, считаем по времени приезда/отъезда
+        const BREAKFAST_CUTOFF = 10; // до 10:00 — считаем на завтрак
+        const LUNCH_CUTOFF = 13;     // до 13:00 — считаем на обед
         for (const retreat of retreatsInPeriod) {
             if (dateStr >= retreat.start_date && dateStr <= retreat.end_date) {
                 const regsForRetreat = guestRegistrations.filter(r => r.retreat_id === retreat.id);
                 for (const reg of regsForRetreat) {
                     const isFirstDay = (dateStr === retreat.start_date);
                     const isLastDay = (dateStr === retreat.end_date);
-                    if (!isFirstDay || reg.early_checkin) breakfastGuests++;
-                    if (!isLastDay || reg.late_checkout) lunchGuests++;
+
+                    let getsBreakfast = true;
+                    let getsLunch = true;
+
+                    if (isFirstDay) {
+                        if (reg.arrival_datetime) {
+                            const hour = new Date(reg.arrival_datetime).getHours();
+                            getsBreakfast = hour < BREAKFAST_CUTOFF;
+                            getsLunch = hour < LUNCH_CUTOFF;
+                        } else {
+                            // Нет данных → обычный заезд (только обед)
+                            getsBreakfast = false;
+                        }
+                    }
+
+                    if (isLastDay) {
+                        if (reg.departure_datetime) {
+                            const hour = new Date(reg.departure_datetime).getHours();
+                            getsBreakfast = getsBreakfast && hour >= BREAKFAST_CUTOFF;
+                            getsLunch = getsLunch && hour >= LUNCH_CUTOFF;
+                        } else {
+                            // Нет данных → обычный выезд (только завтрак)
+                            getsLunch = false;
+                        }
+                    }
+
+                    if (getsBreakfast) breakfastGuests++;
+                    if (getsLunch) lunchGuests++;
                 }
             }
         }

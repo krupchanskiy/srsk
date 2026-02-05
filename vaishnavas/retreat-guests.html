@@ -304,16 +304,16 @@
                     <p id="selectedVaishnav" class="text-sm mt-1 text-primary hidden"></p>
                 </div>
 
-                <!-- Ранний заезд / Поздний выезд -->
-                <div class="flex gap-4">
-                    <label class="label cursor-pointer gap-2">
-                        <input type="checkbox" name="early_checkin" class="checkbox checkbox-sm checkbox-primary" />
-                        <span class="label-text text-sm">Ранний заезд</span>
-                    </label>
-                    <label class="label cursor-pointer gap-2">
-                        <input type="checkbox" name="late_checkout" class="checkbox checkbox-sm checkbox-primary" />
-                        <span class="label-text text-sm">Поздний выезд</span>
-                    </label>
+                <!-- Время приезда / отъезда -->
+                <div class="grid grid-cols-2 gap-3">
+                    <div class="form-control">
+                        <label class="label"><span class="label-text text-sm">Приезд к нам</span></label>
+                        <input type="datetime-local" name="arrival_datetime" class="input input-bordered input-sm w-full" />
+                    </div>
+                    <div class="form-control">
+                        <label class="label"><span class="label-text text-sm">Отъезд от нас</span></label>
+                        <input type="datetime-local" name="departure_datetime" class="input input-bordered input-sm w-full" />
+                    </div>
                 </div>
 
                 <!-- Org Notes -->
