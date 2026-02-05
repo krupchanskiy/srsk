@@ -455,12 +455,13 @@ function renderTable() {
         const departureTransfer = departure?.needs_transfer === 'yes' ? ' 🚐' : '';
         const arrivalFlightNum = arrival?.flight_number ? e(arrival.flight_number) : '';
         const departureFlightNum = departure?.flight_number ? e(departure.flight_number) : '';
-        // datetime-local значение: arrival_datetime → flight_datetime → дата+T00:00
-        const effectiveCheckIn = reg.arrival_datetime?.slice(0, 16)
+        // Верхний инпут — время рейса (или arrival_datetime если сразу на ретрит)
+        // Когда direct_arrival=false, arrival_datetime показывается во втором инпуте
+        const effectiveCheckIn = (reg.direct_arrival === false ? null : reg.arrival_datetime?.slice(0, 16))
             || arrival?.flight_datetime?.slice(0, 16)
             || (reg.resident?.check_in ? reg.resident.check_in + 'T00:00' : null)
             || (retreat?.start_date ? retreat.start_date + 'T00:00' : '');
-        const effectiveCheckOut = reg.departure_datetime?.slice(0, 16)
+        const effectiveCheckOut = (reg.direct_departure === false ? null : reg.departure_datetime?.slice(0, 16))
             || departure?.flight_datetime?.slice(0, 16)
             || (reg.resident?.check_out ? reg.resident.check_out + 'T00:00' : null)
             || (retreat?.end_date ? retreat.end_date + 'T00:00' : '');
@@ -721,11 +722,26 @@ async function onCheckInChange(registrationId, datetimeValue) {
     if (!reg) return;
 
     try {
-        const { error: regError } = await Layout.db
-            .from('retreat_registrations')
-            .update({ arrival_datetime: datetimeValue || null })
-            .eq('id', registrationId);
-        if (regError) throw regError;
+        if (reg.direct_arrival === false) {
+            // Не сразу на ретрит → верхний инпут = время рейса → сохраняем в arrival transfer
+            const transfers = reg.guest_transfers || [];
+            const arrival = transfers.find(t => t.direction === 'arrival');
+            if (arrival) {
+                await Layout.db.from('guest_transfers')
+                    .update({ flight_datetime: datetimeValue || null })
+                    .eq('id', arrival.id);
+            } else if (datetimeValue) {
+                await Layout.db.from('guest_transfers')
+                    .insert({ registration_id: registrationId, direction: 'arrival', flight_datetime: datetimeValue });
+            }
+        } else {
+            // Сразу на ретрит → сохраняем в arrival_datetime
+            const { error: regError } = await Layout.db
+                .from('retreat_registrations')
+                .update({ arrival_datetime: datetimeValue || null })
+                .eq('id', registrationId);
+            if (regError) throw regError;
+        }
 
         // residents.check_in — DATE, сохраняем только дату
         if (reg.resident?.id && datetimeValue) {
@@ -752,11 +768,26 @@ async function onCheckOutChange(registrationId, datetimeValue) {
     if (!reg) return;
 
     try {
-        const { error: regError } = await Layout.db
-            .from('retreat_registrations')
-            .update({ departure_datetime: datetimeValue || null })
-            .eq('id', registrationId);
-        if (regError) throw regError;
+        if (reg.direct_departure === false) {
+            // Не сразу в аэропорт → верхний инпут = время рейса → сохраняем в departure transfer
+            const transfers = reg.guest_transfers || [];
+            const departure = transfers.find(t => t.direction === 'departure');
+            if (departure) {
+                await Layout.db.from('guest_transfers')
+                    .update({ flight_datetime: datetimeValue || null })
+                    .eq('id', departure.id);
+            } else if (datetimeValue) {
+                await Layout.db.from('guest_transfers')
+                    .insert({ registration_id: registrationId, direction: 'departure', flight_datetime: datetimeValue });
+            }
+        } else {
+            // Сразу в аэропорт → сохраняем в departure_datetime
+            const { error: regError } = await Layout.db
+                .from('retreat_registrations')
+                .update({ departure_datetime: datetimeValue || null })
+                .eq('id', registrationId);
+            if (regError) throw regError;
+        }
 
         // residents.check_out — DATE, сохраняем только дату
         if (reg.resident?.id && datetimeValue) {
