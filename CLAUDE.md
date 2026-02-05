@@ -91,7 +91,7 @@ const name = vaishnava.spiritual_name ||
              `${vaishnava.first_name || ''} ${vaishnava.last_name || ''}`.trim();
 ```
 
-### Даты — только локальное время!
+### ⚠️ ДАТЫ И ВРЕМЯ — ВСЕГДА ЛОКАЛЬНОЕ ВРЕМЯ! НИКОГДА НЕ UTC!
 ```javascript
 // Правильно
 const d = new Date(date);
@@ -100,6 +100,8 @@ return `${d.getDate()}.${d.getMonth()+1}.${d.getFullYear()}`;
 // Неправильно (сдвигает дату в UTC!)
 date.toISOString().split('T')[0];  // ❌
 ```
+
+**ВАЖНО:** При работе с TIMESTAMPTZ из Supabase — НЕ обрезать строку через `.slice(0, 16)` перед `new Date()`. Таймзона из БД должна сохраняться, чтобы `new Date()` корректно привёл к локальному времени. Все расчёты (приезд = рейс + 4ч, отъезд = рейс − 7ч) — в локальном времени.
 
 ### XSS защита
 ```javascript
