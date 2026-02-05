@@ -831,7 +831,7 @@ async function renderPlacementListView() {
 
         buildingRooms.forEach(room => {
             const roomOccupancy = occupancyMap[room.id] || [];
-            const occupiedBeds = roomOccupancy.length;
+            const occupiedBeds = getRoomPeakOccupancy(roomOccupancy);
             const freeBeds = room.capacity - occupiedBeds;
             const isFull = freeBeds <= 0;
 
@@ -967,6 +967,20 @@ async function renderPlacementPlanView() {
     }
 }
 
+// Пиковая одновременная занятость комнаты (sweep line)
+function getRoomPeakOccupancy(residents) {
+    if (!residents || residents.length === 0) return 0;
+    const events = [];
+    residents.forEach(r => {
+        events.push({ d: r.check_in, v: 1 });
+        events.push({ d: r.check_out, v: -1 });
+    });
+    events.sort((a, b) => a.d.localeCompare(b.d) || a.v - b.v);
+    let cur = 0, peak = 0;
+    events.forEach(e => { cur += e.v; peak = Math.max(peak, cur); });
+    return peak;
+}
+
 function renderPlanRoomMarkers(occupancyMap) {
     const svg = document.getElementById('planFloorPlanSvg');
     const buildingRooms = rooms.filter(r =>
@@ -980,7 +994,7 @@ function renderPlanRoomMarkers(occupancyMap) {
 
     buildingRooms.forEach(room => {
         const roomOccupancy = occupancyMap[room.id] || [];
-        const occupiedBeds = roomOccupancy.length;
+        const occupiedBeds = getRoomPeakOccupancy(roomOccupancy);
         const freeBeds = room.capacity - occupiedBeds;
         const isFull = freeBeds <= 0;
 

@@ -151,7 +151,7 @@ async function loadRoomOccupancy() {
 
     const { data: residentsData, error } = await Layout.db
         .from('residents')
-        .select('id, room_id')
+        .select('id, room_id, check_in, check_out')
         .not('room_id', 'is', null)
         .in('status', ['active', 'confirmed'])
         .lte('check_in', retreat.end_date)
@@ -163,13 +163,31 @@ async function loadRoomOccupancy() {
         return;
     }
 
-    // Подсчёт занятости по комнатам
-    placementState.occupancy = {};
+    placementState.occupancy = calcPeakOccupancy(residentsData);
+}
+
+// Пиковая одновременная занятость комнат (sweep line)
+function calcPeakOccupancy(residentsData, excludeId) {
+    const byRoom = {};
     (residentsData || []).forEach(r => {
-        if (r.room_id) {
-            placementState.occupancy[r.room_id] = (placementState.occupancy[r.room_id] || 0) + 1;
-        }
+        if (!r.room_id || r.id === excludeId) return;
+        (byRoom[r.room_id] ||= []).push(r);
     });
+
+    const occupancy = {};
+    for (const [roomId, list] of Object.entries(byRoom)) {
+        const events = [];
+        list.forEach(r => {
+            events.push({ d: r.check_in, v: 1 });
+            events.push({ d: r.check_out, v: -1 });
+        });
+        // Выезд (-1) раньше заезда (+1) в один день — выезд освобождает место
+        events.sort((a, b) => a.d.localeCompare(b.d) || a.v - b.v);
+        let cur = 0, peak = 0;
+        events.forEach(e => { cur += e.v; peak = Math.max(peak, cur); });
+        occupancy[roomId] = peak;
+    }
+    return occupancy;
 }
 
 async function loadVaishnavas() {
@@ -1084,11 +1102,9 @@ async function onPlacementDatesChange() {
 }
 
 async function loadPlacementOccupancy(checkIn, checkOut) {
-    // Загружаем все размещения из единой таблицы residents
-    // Исключаем выселенных (checked_out)
     const { data: residentsData, error } = await Layout.db
         .from('residents')
-        .select('id, room_id')
+        .select('id, room_id, check_in, check_out')
         .not('room_id', 'is', null)
         .in('status', ['active', 'confirmed'])
         .lte('check_in', checkOut)
@@ -1096,13 +1112,7 @@ async function loadPlacementOccupancy(checkIn, checkOut) {
 
     if (error) console.error('Error loading residents:', error);
 
-    // Подсчёт занятости по комнатам (исключаем текущего при переселении)
-    placementState.occupancy = {};
-    (residentsData || []).forEach(r => {
-        if (r.room_id && r.id !== placementState.existingResidentId) {
-            placementState.occupancy[r.room_id] = (placementState.occupancy[r.room_id] || 0) + 1;
-        }
-    });
+    placementState.occupancy = calcPeakOccupancy(residentsData, placementState.existingResidentId);
 }
 
 function switchPlacementMode(mode) {
