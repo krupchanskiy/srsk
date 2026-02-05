@@ -902,6 +902,114 @@ function setupFilters() {
 }
 
 // ==================== GUEST MODAL ====================
+// === Добавить нового гостя (создание вайшнава + регистрация) ===
+
+function openNewGuestModal() {
+    if (!retreatId) {
+        Layout.showNotification(t('select_retreat_first'), 'warning');
+        return;
+    }
+    const form = document.getElementById('newGuestForm');
+    form.reset();
+    document.getElementById('newGuestModal').showModal();
+}
+
+document.addEventListener('DOMContentLoaded', () => {
+    const form = document.getElementById('newGuestForm');
+    if (!form) return;
+    form.addEventListener('submit', async (ev) => {
+        ev.preventDefault();
+        const f = ev.target;
+
+        // Валидация
+        if (!f.gender.value) {
+            Layout.showNotification('Укажите пол', 'warning');
+            return;
+        }
+        if (!f.phone.value.trim() && !f.email.value.trim()) {
+            Layout.showNotification('Укажите телефон или email', 'warning');
+            return;
+        }
+
+        try {
+            // 1. Создать вайшнава
+            const { data: vData, error: vErr } = await Layout.db
+                .from('vaishnavas')
+                .insert({
+                    first_name: f.first_name.value.trim() || null,
+                    last_name: f.last_name.value.trim() || null,
+                    spiritual_name: f.spiritual_name.value.trim() || null,
+                    gender: f.gender.value,
+                    birth_date: f.birth_date.value || null,
+                    phone: f.phone.value.trim() || null,
+                    email: f.email.value.trim() || null,
+                    telegram: f.telegram.value.trim() || null,
+                    country: f.country.value.trim() || null,
+                    city: f.city.value.trim() || null,
+                    india_experience: f.india_experience.value.trim() || null
+                })
+                .select('id')
+                .single();
+            if (vErr) throw vErr;
+
+            // 2. Создать регистрацию на ретрит
+            const { data: regData, error: regErr } = await Layout.db
+                .from('retreat_registrations')
+                .insert({
+                    retreat_id: retreatId,
+                    vaishnava_id: vData.id,
+                    status: f.status.value || 'pending',
+                    meal_type: f.meal_type.value || 'prasad',
+                    companions: f.companions.value.trim() || null,
+                    accommodation_wishes: f.accommodation_wishes.value.trim() || null,
+                    extended_stay: f.extended_stay.value.trim() || null,
+                    guest_questions: f.guest_questions.value.trim() || null,
+                    org_notes: f.org_notes.value.trim() || null,
+                    arrival_datetime: f.arrival_datetime.value || null,
+                    departure_datetime: f.departure_datetime.value || null
+                })
+                .select('id')
+                .single();
+            if (regErr) throw regErr;
+
+            // 3. Создать трансферы (если есть данные)
+            const transfers = [];
+            if (f.arrival_datetime.value || f.arrival_flight.value.trim()) {
+                transfers.push({
+                    registration_id: regData.id,
+                    direction: 'arrival',
+                    flight_datetime: f.arrival_datetime.value || null,
+                    flight_number: f.arrival_flight.value.trim() || null,
+                    needs_transfer: f.arrival_transfer.value || null
+                });
+            }
+            if (f.departure_datetime.value || f.departure_flight.value.trim()) {
+                transfers.push({
+                    registration_id: regData.id,
+                    direction: 'departure',
+                    flight_datetime: f.departure_datetime.value || null,
+                    flight_number: f.departure_flight.value.trim() || null,
+                    needs_transfer: f.departure_transfer.value || null
+                });
+            }
+            if (transfers.length > 0) {
+                const { error: tErr } = await Layout.db
+                    .from('guest_transfers')
+                    .insert(transfers);
+                if (tErr) console.error('Error creating transfers:', tErr);
+            }
+
+            document.getElementById('newGuestModal').close();
+            await Promise.all([loadVaishnavas(), loadRegistrations()]);
+            Layout.showNotification('Гость добавлен', 'success');
+        } catch (err) {
+            Layout.handleError(err, 'Создание гостя');
+        }
+    });
+});
+
+// === Добавить существующего гостя ===
+
 let selectedVaishnavId = null;
 
 function openGuestModal(registrationId = null) {

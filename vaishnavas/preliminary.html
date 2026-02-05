@@ -195,6 +195,12 @@
                     </svg>
                     <span data-i18n="add_guest">Добавить гостя</span>
                 </button>
+                <button class="btn btn-secondary gap-2" data-permission="create_vaishnava" onclick="openNewGuestModal()">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M18 9v3m0 0v3m0-3h3m-3 0h-3m-2-5a4 4 0 11-8 0 4 4 0 018 0zM3 20a6 6 0 0112 0v1H3v-1z" />
+                    </svg>
+                    Добавить нового
+                </button>
             </div>
         </div>
 
@@ -431,6 +437,155 @@
                 <div class="modal-action">
                     <button type="button" class="btn btn-ghost" onclick="guestModal.close()" data-i18n="cancel">Отмена</button>
                     <button type="submit" class="btn btn-primary" data-i18n="save">Сохранить</button>
+                </div>
+            </form>
+        </div>
+        <form method="dialog" class="modal-backdrop"><button>close</button></form>
+    </dialog>
+
+    <!-- New Guest Modal -->
+    <dialog id="newGuestModal" class="modal">
+        <div class="modal-box max-w-2xl">
+            <button type="button" class="btn btn-sm btn-circle btn-ghost absolute right-2 top-2" onclick="newGuestModal.close()">✕</button>
+            <h3 class="font-bold text-lg mb-4">Добавить нового гостя</h3>
+
+            <form id="newGuestForm" class="space-y-4">
+                <!-- Личные данные -->
+                <div class="divider text-sm opacity-60 mt-0">Личные данные</div>
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div>
+                        <label class="label py-0.5"><span class="label-text">Имя</span></label>
+                        <input type="text" name="first_name" class="input input-bordered input-sm w-full" />
+                    </div>
+                    <div>
+                        <label class="label py-0.5"><span class="label-text">Фамилия</span></label>
+                        <input type="text" name="last_name" class="input input-bordered input-sm w-full" />
+                    </div>
+                    <div>
+                        <label class="label py-0.5"><span class="label-text">Духовное имя</span></label>
+                        <input type="text" name="spiritual_name" class="input input-bordered input-sm w-full" />
+                    </div>
+                    <div>
+                        <label class="label py-0.5"><span class="label-text">Пол <span class="text-error">*</span></span></label>
+                        <select name="gender" class="select select-bordered select-sm w-full" required>
+                            <option value="">—</option>
+                            <option value="female">Женский</option>
+                            <option value="male">Мужской</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="label py-0.5"><span class="label-text">Дата рождения</span></label>
+                        <input type="date" name="birth_date" class="input input-bordered input-sm w-full" />
+                    </div>
+                    <div>
+                        <label class="label py-0.5"><span class="label-text">Телефон <span class="text-error">*</span></span></label>
+                        <input type="tel" name="phone" class="input input-bordered input-sm w-full" />
+                    </div>
+                    <div>
+                        <label class="label py-0.5"><span class="label-text">Email <span class="text-error">*</span></span></label>
+                        <input type="email" name="email" class="input input-bordered input-sm w-full" />
+                    </div>
+                    <div>
+                        <label class="label py-0.5"><span class="label-text">Telegram</span></label>
+                        <input type="text" name="telegram" class="input input-bordered input-sm w-full" />
+                    </div>
+                    <div>
+                        <label class="label py-0.5"><span class="label-text">Страна</span></label>
+                        <input type="text" name="country" class="input input-bordered input-sm w-full" />
+                    </div>
+                    <div>
+                        <label class="label py-0.5"><span class="label-text">Город</span></label>
+                        <input type="text" name="city" class="input input-bordered input-sm w-full" />
+                    </div>
+                    <div class="sm:col-span-2">
+                        <label class="label py-0.5"><span class="label-text">Опыт Индии</span></label>
+                        <input type="text" name="india_experience" class="input input-bordered input-sm w-full" />
+                    </div>
+                </div>
+
+                <!-- Регистрация -->
+                <div class="divider text-sm opacity-60">Регистрация</div>
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div>
+                        <label class="label py-0.5"><span class="label-text">Статус</span></label>
+                        <select name="status" class="select select-bordered select-sm w-full">
+                            <option value="pending">Планирует</option>
+                            <option value="confirmed">Подтверждено</option>
+                            <option value="team">Команда</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="label py-0.5"><span class="label-text">Питание</span></label>
+                        <select name="meal_type" class="select select-bordered select-sm w-full">
+                            <option value="prasad">Прасад</option>
+                            <option value="self">Своё</option>
+                            <option value="child">Детское</option>
+                        </select>
+                    </div>
+                    <div class="sm:col-span-2">
+                        <label class="label py-0.5"><span class="label-text">Спутники</span></label>
+                        <input type="text" name="companions" class="input input-bordered input-sm w-full" />
+                    </div>
+                    <div class="sm:col-span-2">
+                        <label class="label py-0.5"><span class="label-text">Пожелания по размещению</span></label>
+                        <textarea name="accommodation_wishes" rows="2" class="textarea textarea-bordered textarea-sm w-full"></textarea>
+                    </div>
+                    <div>
+                        <label class="label py-0.5"><span class="label-text">Продлённое проживание</span></label>
+                        <input type="text" name="extended_stay" class="input input-bordered input-sm w-full" />
+                    </div>
+                    <div>
+                        <label class="label py-0.5"><span class="label-text">Заметки орг.</span></label>
+                        <input type="text" name="org_notes" class="input input-bordered input-sm w-full" />
+                    </div>
+                    <div class="sm:col-span-2">
+                        <label class="label py-0.5"><span class="label-text">Вопросы гостя</span></label>
+                        <textarea name="guest_questions" rows="2" class="textarea textarea-bordered textarea-sm w-full"></textarea>
+                    </div>
+                </div>
+
+                <!-- Заезд / Выезд -->
+                <div class="divider text-sm opacity-60">Заезд / Выезд</div>
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div>
+                        <label class="label py-0.5"><span class="label-text">Дата и время заезда</span></label>
+                        <input type="datetime-local" name="arrival_datetime" class="input input-bordered input-sm w-full" />
+                    </div>
+                    <div>
+                        <label class="label py-0.5"><span class="label-text">Дата и время выезда</span></label>
+                        <input type="datetime-local" name="departure_datetime" class="input input-bordered input-sm w-full" />
+                    </div>
+                    <div>
+                        <label class="label py-0.5"><span class="label-text">Рейс прилёта</span></label>
+                        <input type="text" name="arrival_flight" class="input input-bordered input-sm w-full" placeholder="AI156" />
+                    </div>
+                    <div>
+                        <label class="label py-0.5"><span class="label-text">Рейс вылета</span></label>
+                        <input type="text" name="departure_flight" class="input input-bordered input-sm w-full" placeholder="AI155" />
+                    </div>
+                    <div>
+                        <label class="label py-0.5"><span class="label-text">Трансфер из аэропорта</span></label>
+                        <select name="arrival_transfer" class="select select-bordered select-sm w-full">
+                            <option value="">Не указано</option>
+                            <option value="yes">Нужен</option>
+                            <option value="no">Не нужен</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="label py-0.5"><span class="label-text">Трансфер в аэропорт</span></label>
+                        <select name="departure_transfer" class="select select-bordered select-sm w-full">
+                            <option value="">Не указано</option>
+                            <option value="yes">Нужен</option>
+                            <option value="no">Не нужен</option>
+                        </select>
+                    </div>
+                </div>
+
+                <p class="text-xs opacity-50">* Пол и хотя бы телефон или email обязательны</p>
+
+                <div class="modal-action">
+                    <button type="button" class="btn btn-ghost" onclick="newGuestModal.close()">Отмена</button>
+                    <button type="submit" class="btn btn-primary">Сохранить</button>
                 </div>
             </form>
         </div>
