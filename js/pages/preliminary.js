@@ -515,14 +515,21 @@ function renderTable() {
                             ${disabledAttr} />
                         <span class="text-xs opacity-50">сразу на ретрит</span>
                     </label>
-                    <select class="select select-xs select-bordered w-full mt-1 ${reg.direct_arrival !== false ? 'hidden' : ''}"
-                        id="arrRetreatTransfer_${reg.id}"
-                        onchange="onArrivalRetreatTransferChange('${reg.id}', this.value)"
-                        ${disabledAttr}>
-                        <option value="">🚐 —</option>
-                        <option value="yes" ${arrivalRetreat?.needs_transfer === 'yes' ? 'selected' : ''}>🚐 Нужен</option>
-                        <option value="no" ${arrivalRetreat?.needs_transfer === 'no' ? 'selected' : ''}>🚐 Не нужен</option>
-                    </select>
+                    <div id="arrRetreatBlock_${reg.id}" class="${reg.direct_arrival !== false ? 'hidden' : ''}">
+                        <input type="datetime-local" class="input input-xs input-bordered w-full mt-1"
+                            value="${arrivalRetreat?.flight_datetime?.slice(0, 16) || reg.arrival_datetime?.slice(0, 16) || ''}"
+                            onchange="onArrivalRetreatDatetimeChange('${reg.id}', this.value)"
+                            placeholder="Приезд на ретрит"
+                            ${disabledAttr} />
+                        <select class="select select-xs select-bordered w-full mt-1"
+                            id="arrRetreatTransfer_${reg.id}"
+                            onchange="onArrivalRetreatTransferChange('${reg.id}', this.value)"
+                            ${disabledAttr}>
+                            <option value="">🚐 —</option>
+                            <option value="yes" ${arrivalRetreat?.needs_transfer === 'yes' ? 'selected' : ''}>🚐 Нужен</option>
+                            <option value="no" ${arrivalRetreat?.needs_transfer === 'no' ? 'selected' : ''}>🚐 Не нужен</option>
+                        </select>
+                    </div>
                 </td>
                 <td class="text-center text-sm ${departureProblem ? 'bg-warning/30' : ''}" onclick="event.stopPropagation()">
                     <input type="datetime-local" class="input input-xs input-bordered w-full min-w-[13rem]"
@@ -537,14 +544,21 @@ function renderTable() {
                             ${disabledAttr} />
                         <span class="text-xs opacity-50">сразу в аэропорт</span>
                     </label>
-                    <select class="select select-xs select-bordered w-full mt-1 ${reg.direct_departure !== false ? 'hidden' : ''}"
-                        id="depRetreatTransfer_${reg.id}"
-                        onchange="onDepartureRetreatTransferChange('${reg.id}', this.value)"
-                        ${disabledAttr}>
-                        <option value="">🚐 —</option>
-                        <option value="yes" ${departureRetreat?.needs_transfer === 'yes' ? 'selected' : ''}>🚐 Нужен</option>
-                        <option value="no" ${departureRetreat?.needs_transfer === 'no' ? 'selected' : ''}>🚐 Не нужен</option>
-                    </select>
+                    <div id="depRetreatBlock_${reg.id}" class="${reg.direct_departure !== false ? 'hidden' : ''}">
+                        <input type="datetime-local" class="input input-xs input-bordered w-full mt-1"
+                            value="${departureRetreat?.flight_datetime?.slice(0, 16) || reg.departure_datetime?.slice(0, 16) || ''}"
+                            onchange="onDepartureRetreatDatetimeChange('${reg.id}', this.value)"
+                            placeholder="Отъезд с ретрита"
+                            ${disabledAttr} />
+                        <select class="select select-xs select-bordered w-full mt-1"
+                            id="depRetreatTransfer_${reg.id}"
+                            onchange="onDepartureRetreatTransferChange('${reg.id}', this.value)"
+                            ${disabledAttr}>
+                            <option value="">🚐 —</option>
+                            <option value="yes" ${departureRetreat?.needs_transfer === 'yes' ? 'selected' : ''}>🚐 Нужен</option>
+                            <option value="no" ${departureRetreat?.needs_transfer === 'no' ? 'selected' : ''}>🚐 Не нужен</option>
+                        </select>
+                    </div>
                 </td>
                 <td class="text-sm">${e(reg.extended_stay || '—')}</td>
                 <td class="text-sm">${e(reg.guest_questions || '—')}</td>
@@ -776,9 +790,9 @@ async function onDirectArrivalChange(registrationId, checked, checkboxEl) {
             .eq('id', registrationId);
         if (error) throw error;
 
-        // Показать/скрыть селект трансфера
-        const select = document.getElementById(`arrRetreatTransfer_${registrationId}`);
-        if (select) select.classList.toggle('hidden', checked);
+        // Показать/скрыть блок (datetime + трансфер)
+        const block = document.getElementById(`arrRetreatBlock_${registrationId}`);
+        if (block) block.classList.toggle('hidden', checked);
 
         // Если включили «сразу» — удалить arrival_retreat трансфер
         if (checked) {
@@ -811,9 +825,9 @@ async function onDirectDepartureChange(registrationId, checked, checkboxEl) {
             .eq('id', registrationId);
         if (error) throw error;
 
-        // Показать/скрыть селект трансфера
-        const select = document.getElementById(`depRetreatTransfer_${registrationId}`);
-        if (select) select.classList.toggle('hidden', checked);
+        // Показать/скрыть блок (datetime + трансфер)
+        const block = document.getElementById(`depRetreatBlock_${registrationId}`);
+        if (block) block.classList.toggle('hidden', checked);
 
         // Если включили «сразу» — удалить departure_retreat трансфер
         if (checked) {
@@ -827,6 +841,96 @@ async function onDirectDepartureChange(registrationId, checked, checkboxEl) {
     } catch (err) {
         Layout.handleError(err, 'Сохранение direct_departure');
         checkboxEl.checked = !checked;
+    }
+}
+
+async function onArrivalRetreatDatetimeChange(registrationId, datetimeValue) {
+    if (!window.hasPermission || !window.hasPermission('edit_preliminary')) {
+        Layout.showNotification('Недостаточно прав для редактирования', 'error');
+        return;
+    }
+    const reg = registrations.find(r => r.id === registrationId);
+    if (!reg) return;
+
+    try {
+        // Сохраняем в arrival_datetime регистрации
+        const { error: regError } = await Layout.db
+            .from('retreat_registrations')
+            .update({ arrival_datetime: datetimeValue || null })
+            .eq('id', registrationId);
+        if (regError) throw regError;
+        reg.arrival_datetime = datetimeValue || null;
+
+        // Обновляем flight_datetime в arrival_retreat трансфере
+        const transfers = reg.guest_transfers || [];
+        const existing = transfers.find(t => t.direction === 'arrival_retreat');
+        if (existing) {
+            await Layout.db.from('guest_transfers')
+                .update({ flight_datetime: datetimeValue || null })
+                .eq('id', existing.id);
+            existing.flight_datetime = datetimeValue || null;
+        } else if (datetimeValue) {
+            const { data, error } = await Layout.db.from('guest_transfers')
+                .insert({ registration_id: registrationId, direction: 'arrival_retreat', flight_datetime: datetimeValue })
+                .select().single();
+            if (error) throw error;
+            if (!reg.guest_transfers) reg.guest_transfers = [];
+            reg.guest_transfers.push(data);
+        }
+
+        // Обновляем residents.check_in
+        if (reg.resident?.id && datetimeValue) {
+            await Layout.db.from('residents')
+                .update({ check_in: datetimeValue.slice(0, 10) })
+                .eq('id', reg.resident.id);
+        }
+    } catch (err) {
+        Layout.handleError(err, 'Сохранение даты приезда на ретрит');
+    }
+}
+
+async function onDepartureRetreatDatetimeChange(registrationId, datetimeValue) {
+    if (!window.hasPermission || !window.hasPermission('edit_preliminary')) {
+        Layout.showNotification('Недостаточно прав для редактирования', 'error');
+        return;
+    }
+    const reg = registrations.find(r => r.id === registrationId);
+    if (!reg) return;
+
+    try {
+        // Сохраняем в departure_datetime регистрации
+        const { error: regError } = await Layout.db
+            .from('retreat_registrations')
+            .update({ departure_datetime: datetimeValue || null })
+            .eq('id', registrationId);
+        if (regError) throw regError;
+        reg.departure_datetime = datetimeValue || null;
+
+        // Обновляем flight_datetime в departure_retreat трансфере
+        const transfers = reg.guest_transfers || [];
+        const existing = transfers.find(t => t.direction === 'departure_retreat');
+        if (existing) {
+            await Layout.db.from('guest_transfers')
+                .update({ flight_datetime: datetimeValue || null })
+                .eq('id', existing.id);
+            existing.flight_datetime = datetimeValue || null;
+        } else if (datetimeValue) {
+            const { data, error } = await Layout.db.from('guest_transfers')
+                .insert({ registration_id: registrationId, direction: 'departure_retreat', flight_datetime: datetimeValue })
+                .select().single();
+            if (error) throw error;
+            if (!reg.guest_transfers) reg.guest_transfers = [];
+            reg.guest_transfers.push(data);
+        }
+
+        // Обновляем residents.check_out
+        if (reg.resident?.id && datetimeValue) {
+            await Layout.db.from('residents')
+                .update({ check_out: datetimeValue.slice(0, 10) })
+                .eq('id', reg.resident.id);
+        }
+    } catch (err) {
+        Layout.handleError(err, 'Сохранение даты отъезда с ретрита');
     }
 }
 
