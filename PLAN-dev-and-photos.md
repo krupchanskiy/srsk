@@ -14,25 +14,27 @@
 
 Любой пуш в `main` = сразу production. Нет возможности проверить изменения на живом URL перед выкаткой.
 
-### Рекомендуемое решение: ветки + Netlify
+### Рекомендуемое решение: ветки + Vercel
 
 **Почему НЕ два репо:**
 
 - Синк CNAME, конфликты, двойная работа
 - У вас УЖЕ есть два Supabase-проекта (dev и prod) — этого достаточно для разделения данных
 
-**Почему Netlify, а не Vercel:**
+**Почему Vercel:**
 
-- Для статики без сборки — Netlify проще (zero config)
+- Встроенный cron (`vercel.json`) — нужен для очереди распознавания лиц
+- Лучшая поддержка Vite (для будущей миграции на TypeScript, Фаза 3)
+- Serverless Functions с хорошим DX — если понадобится серверная логика сверх Supabase Edge Functions
 - Бесплатный план: 100GB bandwidth, deploy previews для PR
-- Не нужен серверный рантайм (для AI будут Edge Functions)
+- Zero config для статики
 
 **Схема:**
 
 ```
 main branch  → GitHub Pages  → in.rupaseva.com     (prod, Supabase prod)
-dev branch   → Netlify        → dev.rupaseva.com    (staging, Supabase dev)
-feature/*    → Netlify preview → random-url.netlify.app (PR preview)
+dev branch   → Vercel         → dev.rupaseva.com    (staging, Supabase dev)
+feature/*    → Vercel preview  → random-url.vercel.app (PR preview)
 ```
 
 ### Шаги реализации
@@ -67,19 +69,20 @@ git checkout -b dev
 git push origin dev
 ```
 
-**3. Подключение Netlify (30 минут)**
+**3. Подключение Vercel (30 минут)**
 
-1. Зарегистрироваться на netlify.com
-2. New site → Import from GitHub → krupchanskiy/srsk
-3. Branch to deploy: `dev`
-4. Publish directory: `/` (корень)
-5. Deploy previews: включить для всех PR
-6. Custom domain: `dev.rupaseva.com`
+1. Зарегистрироваться на vercel.com
+2. New Project → Import from GitHub → krupchanskiy/srsk
+3. Framework Preset: Other
+4. Root Directory: `/`
+5. Git Branch: `dev` (production branch в Vercel = dev ветка нашего репо)
+6. Deploy previews: включены по умолчанию для всех PR
+7. Custom domain: `dev.rupaseva.com`
 
 **4. DNS для dev.rupaseva.com (10 минут)**
 
 ```
-dev.rupaseva.com → CNAME → <site-name>.netlify.app
+dev.rupaseva.com → CNAME → cname.vercel-dns.com
 ```
 
 **5. Синхронизация данных между Supabase dev и prod**
@@ -121,6 +124,20 @@ supabase db dump --project-ref llttmftapmwebidgevmg --schema-only > prod-schema.
 8. Создаёшь PR из dev → main
 9. Мержишь → GitHub Pages деплоит на in.rupaseva.com
 ```
+
+**6. Vercel cron для очереди распознавания (добавить в Фазе 2)**
+
+```json
+// vercel.json
+{
+  "crons": [{
+    "path": "/api/process-face-queue",
+    "schedule": "* * * * *"
+  }]
+}
+```
+
+Vercel cron будет дёргать Supabase Edge Function для обработки очереди.
 
 ### Оценка: 2-3 часа на всё
 
@@ -396,9 +413,9 @@ Dev-окружение ← БЛОКИРУЕТ → Фотогалерея
 
 - [ ] Автоопределение окружения в config.js
 - [ ] Ветка dev
-- [ ] Netlify подключение
+- [ ] Vercel подключение
 - [ ] DNS dev.rupaseva.com
-- [ ] Проверка: dev Supabase работает через Netlify
+- [ ] Проверка: dev Supabase работает через Vercel
 
 ### Фаза 1: Фотогалерея БЕЗ AI (3-5 дней)
 
