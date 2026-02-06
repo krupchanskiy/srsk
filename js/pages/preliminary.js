@@ -16,6 +16,16 @@ let importStats = { created: 0, updated: 0, skipped: 0 };
 const t = key => Layout.t(key);
 const e = str => Layout.escapeHtml(str);
 
+// Сдвигает datetime значение на N часов (локальное время).
+// .slice(0,16) убирает таймзону из TIMESTAMPTZ, т.к. БД хранит локальное время как UTC.
+function addHoursToDatetime(datetimeStr, hours) {
+    if (!datetimeStr) return null;
+    const d = new Date(datetimeStr.slice(0, 16));
+    d.setHours(d.getHours() + hours);
+    const pad = n => String(n).padStart(2, '0');
+    return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+}
+
 // ==================== DATA LOADING ====================
 let allRetreats = [];
 
@@ -520,7 +530,7 @@ function renderTable() {
                         <input type="datetime-local" class="input input-xs input-bordered w-full mt-1"
                             value="${arrivalRetreat?.flight_datetime?.slice(0, 16) || reg.arrival_datetime?.slice(0, 16) || ''}"
                             onchange="onArrivalRetreatDatetimeChange('${reg.id}', this.value)"
-                            placeholder="Приезд на ретрит"
+                            placeholder="Время приезда в ШРСК"
                             ${disabledAttr} />
                         <select class="select select-xs select-bordered w-full mt-1"
                             id="arrRetreatTransfer_${reg.id}"
@@ -543,13 +553,13 @@ function renderTable() {
                             ${reg.direct_departure !== false ? 'checked' : ''}
                             onchange="onDirectDepartureChange('${reg.id}', this.checked, this)"
                             ${disabledAttr} />
-                        <span class="text-xs opacity-50">сразу в аэропорт</span>
+                        <span class="text-xs opacity-50">с ретрита на самолёт</span>
                     </label>
                     <div id="depRetreatBlock_${reg.id}" class="${reg.direct_departure !== false ? 'hidden' : ''}">
                         <input type="datetime-local" class="input input-xs input-bordered w-full mt-1"
                             value="${departureRetreat?.flight_datetime?.slice(0, 16) || reg.departure_datetime?.slice(0, 16) || ''}"
                             onchange="onDepartureRetreatDatetimeChange('${reg.id}', this.value)"
-                            placeholder="Отъезд с ретрита"
+                            placeholder="Время выезда из ШРСК"
                             ${disabledAttr} />
                         <select class="select select-xs select-bordered w-full mt-1"
                             id="depRetreatTransfer_${reg.id}"
@@ -1279,13 +1289,16 @@ document.addEventListener('DOMContentLoaded', () => {
             // 2. Создать регистрацию на ретрит
             const directArrival = f.direct_arrival.checked;
             const directDeparture = f.direct_departure.checked;
-            // Если «сразу на ретрит» — arrival_datetime = время рейса, иначе отдельное поле
+            // Если «сразу на ретрит» — arrival_datetime = рейс + 4ч (время в пути из аэропорта)
+            // Если нет — берём вручную указанное «Время приезда в ШРСК»
             const arrivalDt = directArrival
-                ? (f.arrival_flight_datetime.value || null)
-                : (f.arrival_datetime.value || f.arrival_flight_datetime.value || null);
+                ? addHoursToDatetime(f.arrival_flight_datetime.value, 4)
+                : (f.arrival_datetime.value || null);
+            // Если «с ретрита на самолёт» — departure_datetime = рейс − 7ч (время выезда из ШРСК)
+            // Если нет — берём вручную указанное «Время выезда из ШРСК»
             const departureDt = directDeparture
-                ? (f.departure_flight_datetime.value || null)
-                : (f.departure_datetime.value || f.departure_flight_datetime.value || null);
+                ? addHoursToDatetime(f.departure_flight_datetime.value, -7)
+                : (f.departure_datetime.value || null);
 
             const { data: regData, error: regErr } = await Layout.db
                 .from('retreat_registrations')

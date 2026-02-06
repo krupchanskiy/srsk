@@ -567,11 +567,11 @@
                 <label class="label cursor-pointer justify-start gap-2 py-1">
                     <input type="checkbox" name="direct_arrival" class="checkbox checkbox-sm" checked
                         onchange="document.getElementById('arrivalDatetimeRow').classList.toggle('hidden', this.checked)" />
-                    <span class="label-text">Сразу на ретрит (из аэропорта)</span>
+                    <span class="label-text">Сразу на ретрит</span>
                 </label>
                 <div id="arrivalDatetimeRow" class="hidden grid grid-cols-1 sm:grid-cols-3 gap-3">
                     <div class="sm:col-span-2">
-                        <label class="label py-0.5"><span class="label-text">Дата и время приезда на ретрит</span></label>
+                        <label class="label py-0.5"><span class="label-text">Время приезда в ШРСК</span></label>
                         <input type="datetime-local" name="arrival_datetime" class="input input-bordered input-sm w-full" />
                     </div>
                     <div>
@@ -611,7 +611,7 @@
                 </label>
                 <div id="departureDatetimeRow" class="hidden grid grid-cols-1 sm:grid-cols-3 gap-3">
                     <div class="sm:col-span-2">
-                        <label class="label py-0.5"><span class="label-text">Дата и время отъезда с ретрита</span></label>
+                        <label class="label py-0.5"><span class="label-text">Время выезда из ШРСК</span></label>
                         <input type="datetime-local" name="departure_datetime" class="input input-bordered input-sm w-full" />
                     </div>
                     <div>
