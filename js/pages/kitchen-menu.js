@@ -453,11 +453,11 @@ function formatEatingLine(dateStr, cssClass) {
 
     // Если числа совпадают — одна строка
     if (bfTotal === lnTotal) {
-        return `<div class="${cssClass}" title="${titleText}">🍽 ${bf.guests}+${bf.team}+${bf.residents || 0}=${bfTotal}</div>`;
+        return `<div class="${cssClass}" title="${titleText}">Завтрак и обед: ${bf.guests}+${bf.team}+${bf.residents || 0}=${bfTotal}</div>`;
     }
 
     // Разные — показываем завтрак и обед
-    return `<div class="${cssClass}" title="${titleText}">🌅${bfTotal} 🍽${lnTotal}</div>`;
+    return `<div class="${cssClass}" title="${titleText}">Завтрак: ${bfTotal}, Обед: ${lnTotal}</div>`;
 }
 
 // ==================== RENDERING ====================
