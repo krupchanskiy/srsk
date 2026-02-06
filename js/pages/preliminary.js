@@ -433,11 +433,11 @@ function updateSortIcons() {
     });
 }
 
-// SVG-иконки для ячеек таблицы (Heroicons outline, 16x16)
+// SVG-иконки для ячеек таблицы
 const IC = {
-    plane: `<svg class="w-4 h-4 inline -mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M6 12L3.269 3.126A59.768 59.768 0 0121.485 12 59.77 59.77 0 013.27 20.876L5.999 12zm0 0h7.5"/></svg>`,
+    plane: `<svg class="w-4 h-4 inline -mt-0.5" viewBox="0 0 24 24" fill="currentColor"><path d="M21 16v-2l-8-5V3.5a1.5 1.5 0 00-3 0V9l-8 5v2l8-2.5V19l-2 1.5V22l3.5-1 3.5 1v-1.5L13 19v-5.5l8 2.5z"/></svg>`,
     pin: `<svg class="w-4 h-4 inline -mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M15 10.5a3 3 0 11-6 0 3 3 0 016 0z"/><path stroke-linecap="round" stroke-linejoin="round" d="M19.5 10.5c0 7.142-7.5 11.25-7.5 11.25S4.5 17.642 4.5 10.5a7.5 7.5 0 1115 0z"/></svg>`,
-    bus: `<svg class="w-4 h-4 inline -mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="12" rx="2"/><path stroke-linecap="round" stroke-linejoin="round" d="M3 10h18"/><circle cx="7.5" cy="18" r="1.5"/><circle cx="16.5" cy="18" r="1.5"/></svg>`,
+    taxi: `<svg class="w-4 h-4 inline -mt-0.5" viewBox="0 0 103.07 59.75" fill="currentColor"><path d="M5.75,53.47c-1.68-1.71-2.63-4.23-2.68-6.64,2.97-10.49,6.26-20.89,9.36-31.35,1.71-5.78,1.81-10.95,9.24-12.11h58.86c3.74.23,7.15,2.76,8.35,6.35.33,1,.31,1.98.58,2.89,3.38,11.42,6.9,22.8,10.18,34.25-.11,4.72-3.5,8.64-8.16,9.3H11.55c-2.09-.16-4.35-1.22-5.8-2.7ZM21.72,9.78c-2.2.69-1.86,2.64-2.36,4.28-3.3,10.95-6.61,21.9-9.85,32.87-.47,2.23,1.92,3.11,3.77,3.19h76.19c1.99-.17,3.63-.69,3.83-2.97-3.25-10.64-6.4-21.3-9.61-31.95-.48-1.59-.56-4.58-2.24-5.26l-59.73-.16Z"/><polygon points="60.75 20.68 63.64 26.16 67.25 20.68 72.58 20.68 66.57 29.82 72.29 38.86 66.96 38.86 63.64 33.67 61.04 38.86 55.27 38.86 60.98 29.81 55.27 20.68 60.75 20.68"/><path d="M37.96,38.86l6.09-18.15,4.45-.05,6.48,18.2h-4.76l-1.27-3.29-4.91-.14-.89,3.43h-5.19ZM48.06,31.93c-.5-1.5-.78-3.12-1.3-4.61-.1-.28-.03-.66-.42-.58l-1.45,5.19h3.17Z"/><polygon points="39.12 20.68 39.12 25.01 33.92 25.01 33.92 38.86 28.73 38.86 28.73 25.01 23.54 25.01 23.54 20.68 39.12 20.68"/><rect x="74.03" y="20.68" width="5.19" height="18.18"/></svg>`,
 };
 
 function renderTable() {
@@ -489,12 +489,12 @@ function renderTable() {
         if (arrivalFlightDt) {
             const p = [IC.plane, formatDatetimeShort(arrivalFlightDt)];
             if (arrival?.flight_number) p.push(e(arrival.flight_number));
-            if (arrival?.needs_transfer === 'yes') p.push(IC.bus);
+            if (arrival?.needs_transfer === 'yes') p.push(IC.taxi);
             arrivalLines.push(p.join(' '));
         }
         if (arrivalAtAshram && arrivalAtAshram !== arrivalFlightDt) {
             const p = [IC.pin, formatDatetimeShort(arrivalAtAshram)];
-            if (arrivalRetreat?.needs_transfer === 'yes') p.push(IC.bus);
+            if (arrivalRetreat?.needs_transfer === 'yes') p.push(IC.taxi);
             arrivalLines.push(p.join(' '));
         }
         if (!arrivalLines.length) {
@@ -507,13 +507,13 @@ function renderTable() {
         const departureLines = [];
         if (departureFromAshram && departureFromAshram !== departureFlightDt) {
             const p = [IC.pin, formatDatetimeShort(departureFromAshram)];
-            if (departureRetreat?.needs_transfer === 'yes') p.push(IC.bus);
+            if (departureRetreat?.needs_transfer === 'yes') p.push(IC.taxi);
             departureLines.push(p.join(' '));
         }
         if (departureFlightDt) {
             const p = [IC.plane, formatDatetimeShort(departureFlightDt)];
             if (departure?.flight_number) p.push(e(departure.flight_number));
-            if (departure?.needs_transfer === 'yes') p.push(IC.bus);
+            if (departure?.needs_transfer === 'yes') p.push(IC.taxi);
             departureLines.push(p.join(' '));
         }
         if (!departureLines.length) {
