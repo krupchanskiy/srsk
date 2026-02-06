@@ -663,8 +663,8 @@ function renderMealSection(dateStr, mealType, index, mealData, isEkadashiDay) {
                     const notEkadashiWarning = isEkadashiDay && !recipe.ekadashi;
                     const categoryName = recipe.category ? getName(recipe.category) : '';
 
-                    // Для кафе — редактируемое количество (если есть права), для остальных — бейдж
-                    const quantityHtml = isCafe && canEdit ? `
+                    // Редактируемое количество (если есть права), иначе — бейдж
+                    const quantityHtml = canEdit ? `
                         <div class="join no-print">
                             <input type="number"
                                    class="input input-sm input-bordered join-item w-16 text-center"
