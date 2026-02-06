@@ -522,16 +522,18 @@ document.getElementById('guestForm').addEventListener('submit', async (e) => {
         return;
     }
 
-    // Предупреждение, если даты выходят за пределы ретрита
+    // Автоперенос дат в другой ретрит или предупреждение
+    let actualArrival = arrivalDatetime;
+    let actualDeparture = departureDatetime;
     if (retreat) {
-        const warnings = [];
-        if (arrivalDatetime && arrivalDatetime.slice(0, 10) < retreat.start_date) {
-            warnings.push(`Прибытие (${arrivalDatetime.slice(0, 10)}) раньше начала ретрита (${retreat.start_date})`);
-        }
-        if (departureDatetime && departureDatetime.slice(0, 10) > retreat.end_date) {
-            warnings.push(`Выезд (${departureDatetime.slice(0, 10)}) позже окончания ретрита (${retreat.end_date}). Возможно, вылет относится к другому ретриту?`);
-        }
-        if (warnings.length && !confirm(warnings.join('\n') + '\n\nВсё равно сохранить?')) return;
+        const moveResult = await Utils.checkAndMoveDatesAcrossRetreats({
+            db: Layout.db, registrationId: registrationId || '_new_', vaishnavId: vaishnavId,
+            retreat, arrivalDatetime, departureDatetime
+        });
+        if (moveResult.warnings.length && !confirm(moveResult.warnings.join('\n') + '\n\nВсё равно сохранить?')) return;
+        if (moveResult.clearedDeparture) actualDeparture = null;
+        if (moveResult.clearedArrival) actualArrival = null;
+        moveResult.notifications.forEach(n => Layout.showNotification(n, 'info'));
     }
 
     if (registrationId) {
@@ -541,8 +543,8 @@ document.getElementById('guestForm').addEventListener('submit', async (e) => {
             .update({
                 status,
                 org_notes: orgNotes || null,
-                arrival_datetime: arrivalDatetime,
-                departure_datetime: departureDatetime
+                arrival_datetime: actualArrival,
+                departure_datetime: actualDeparture
             })
             .eq('id', registrationId);
 
@@ -552,7 +554,7 @@ document.getElementById('guestForm').addEventListener('submit', async (e) => {
             return;
         }
 
-        // Синхронизируем residents.check_in/check_out
+        // Синхронизируем residents.check_in/check_out (по оригинальным датам)
         const reg = registrations.find(r => r.id === registrationId);
         const residentId = reg?.placement?.[0]?.id;
         if (residentId) {
@@ -572,8 +574,8 @@ document.getElementById('guestForm').addEventListener('submit', async (e) => {
                 vaishnava_id: vaishnavId,
                 status,
                 org_notes: orgNotes || null,
-                arrival_datetime: arrivalDatetime,
-                departure_datetime: departureDatetime
+                arrival_datetime: actualArrival,
+                departure_datetime: actualDeparture
             });
 
         if (error) {

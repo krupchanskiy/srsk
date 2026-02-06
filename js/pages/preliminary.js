@@ -824,16 +824,18 @@ async function saveTransfers() {
             ? addHoursToDatetime(document.getElementById('tmDepartureDatetime').value, -7)
             : (document.getElementById('tmDepartureFromAshram').value || null);
 
-        // Предупреждение, если даты выходят за пределы ретрита
+        // Автоперенос дат в другой ретрит или предупреждение
+        let actualArrival = arrivalDatetime;
+        let actualDeparture = departureDatetime;
         if (retreat) {
-            const warnings = [];
-            if (arrivalDatetime && arrivalDatetime.slice(0, 10) < retreat.start_date) {
-                warnings.push(`Прибытие (${arrivalDatetime.slice(0, 10)}) раньше начала ретрита (${retreat.start_date})`);
-            }
-            if (departureDatetime && departureDatetime.slice(0, 10) > retreat.end_date) {
-                warnings.push(`Выезд (${departureDatetime.slice(0, 10)}) позже окончания ретрита (${retreat.end_date}). Возможно, вылет относится к другому ретриту?`);
-            }
-            if (warnings.length && !confirm(warnings.join('\n') + '\n\nВсё равно сохранить?')) return;
+            const moveResult = await Utils.checkAndMoveDatesAcrossRetreats({
+                db: Layout.db, registrationId: regId, vaishnavId: reg.vaishnava_id,
+                retreat, arrivalDatetime, departureDatetime
+            });
+            if (moveResult.warnings.length && !confirm(moveResult.warnings.join('\n') + '\n\nВсё равно сохранить?')) return;
+            if (moveResult.clearedDeparture) actualDeparture = null;
+            if (moveResult.clearedArrival) actualArrival = null;
+            moveResult.notifications.forEach(n => Layout.showNotification(n, 'info'));
         }
 
         // 1. Обновляем регистрацию
@@ -842,8 +844,8 @@ async function saveTransfers() {
             .update({
                 direct_arrival: directArrival,
                 direct_departure: directDeparture,
-                arrival_datetime: arrivalDatetime,
-                departure_datetime: departureDatetime
+                arrival_datetime: actualArrival,
+                departure_datetime: actualDeparture
             })
             .eq('id', regId);
         if (regError) throw regError;

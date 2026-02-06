@@ -986,17 +986,19 @@ async function saveRegistration() {
             guest_questions: document.getElementById('editGuestQuestions').value || null
         };
 
-        // Предупреждение, если даты выходят за пределы ретрита
+        // Автоперенос дат в другой ретрит или предупреждение
         const retreat = reg.retreats;
+        const origArrival = regData.arrival_datetime;
+        const origDeparture = regData.departure_datetime;
         if (retreat) {
-            const warnings = [];
-            if (regData.arrival_datetime && regData.arrival_datetime.slice(0, 10) < retreat.start_date) {
-                warnings.push(`Прибытие (${regData.arrival_datetime.slice(0, 10)}) раньше начала ретрита (${retreat.start_date})`);
-            }
-            if (regData.departure_datetime && regData.departure_datetime.slice(0, 10) > retreat.end_date) {
-                warnings.push(`Выезд (${regData.departure_datetime.slice(0, 10)}) позже окончания ретрита (${retreat.end_date}). Возможно, вылет относится к другому ретриту?`);
-            }
-            if (warnings.length && !confirm(warnings.join('\n') + '\n\nВсё равно сохранить?')) return;
+            const moveResult = await Utils.checkAndMoveDatesAcrossRetreats({
+                db: Layout.db, registrationId: regId, vaishnavId: reg.vaishnava_id,
+                retreat, arrivalDatetime: regData.arrival_datetime, departureDatetime: regData.departure_datetime
+            });
+            if (moveResult.warnings.length && !confirm(moveResult.warnings.join('\n') + '\n\nВсё равно сохранить?')) return;
+            if (moveResult.clearedDeparture) regData.departure_datetime = null;
+            if (moveResult.clearedArrival) regData.arrival_datetime = null;
+            moveResult.notifications.forEach(n => Layout.showNotification(n, 'info'));
         }
 
         const { error: regError } = await Layout.db
@@ -1006,11 +1008,11 @@ async function saveRegistration() {
 
         if (regError) throw regError;
 
-        // Синхронизируем residents.check_in/check_out с arrival/departure_datetime
+        // Синхронизируем residents.check_in/check_out (по оригинальным датам — физический выезд не меняется)
         if (reg.resident?.id) {
             const resUpdate = {};
-            if (regData.arrival_datetime) resUpdate.check_in = regData.arrival_datetime.slice(0, 10);
-            if (regData.departure_datetime) resUpdate.check_out = regData.departure_datetime.slice(0, 10);
+            if (origArrival) resUpdate.check_in = origArrival.slice(0, 10);
+            if (origDeparture) resUpdate.check_out = origDeparture.slice(0, 10);
             if (Object.keys(resUpdate).length > 0) {
                 await Layout.db.from('residents').update(resUpdate).eq('id', reg.resident.id);
             }
