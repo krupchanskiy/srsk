@@ -225,7 +225,7 @@ CREATE TABLE retreat_photos (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   retreat_id UUID REFERENCES retreats(id) NOT NULL,
   storage_path TEXT NOT NULL,          -- путь в Supabase Storage
-  thumbnail_path TEXT,                 -- уменьшенная версия
+  -- thumbnails не хранятся: CDN Image Transforms генерирует на лету
   uploaded_by UUID REFERENCES profiles(id),
   uploaded_at TIMESTAMPTZ DEFAULT now(),
   width INT,
@@ -280,17 +280,31 @@ CREATE TABLE face_search_log (
 | | За ретрит | За год (×10) | Накопительно |
 |---|---|---|---|
 | Оригиналы (700 × 7.5 МБ) | 5.25 ГБ | 52.5 ГБ | +52.5 ГБ/год |
-| Thumbnails (700 × 0.2 МБ) | 0.14 ГБ | 1.4 ГБ | +1.4 ГБ/год |
-| **Итого** | **~5.4 ГБ** | **~54 ГБ** | **+54 ГБ/год** |
+| Thumbnails | **0** (CDN Image Transforms) | **0** | **0** |
+| **Итого** | **~5.25 ГБ** | **~52.5 ГБ** | **+52.5 ГБ/год** |
+
+Thumbnails не хранятся отдельно — Supabase CDN генерирует и кэширует их на лету:
+
+```javascript
+// Оригинал (для просмотра полного фото)
+supabase.storage.from('retreat-photos').getPublicUrl('photo.jpg')
+
+// Thumbnail для галереи (CDN ресайзит и кэширует автоматически)
+supabase.storage.from('retreat-photos').getPublicUrl('photo.jpg', {
+  transform: { width: 400, height: 300 }
+})
+```
+
+CDN глобально распределён — фото отдаются с ближайшего узла (Индия, Европа, США).
 
 **Хранение: Supabase Storage (входит в Pro, уже оплачен)**
 
 | Год | Накоплено | В лимит Pro (100 ГБ)? | Доплата |
 |-----|----------|----------------------|---------|
-| 1 | 54 ГБ | Да | **$0** |
-| 2 | 108 ГБ | 8 ГБ сверх | $0.17/мес |
-| 3 | 162 ГБ | 62 ГБ сверх | $1.30/мес |
-| 5 | 270 ГБ | 170 ГБ сверх | $3.57/мес |
+| 1 | 52.5 ГБ | Да | **$0** |
+| 2 | 105 ГБ | 5 ГБ сверх | $0.11/мес |
+| 3 | 157.5 ГБ | 57.5 ГБ сверх | $1.21/мес |
+| 5 | 262.5 ГБ | 162.5 ГБ сверх | $3.41/мес |
 
 Bandwidth: ~50 ГБ в пик ретрита — в рамках 250 ГБ/мес Pro.
 
@@ -422,7 +436,7 @@ Dev-окружение ← БЛОКИРУЕТ → Фотогалерея
 - [ ] Supabase Storage bucket `retreat-photos`
 - [ ] Admin: страница загрузки фото
 - [ ] Guest Portal: галерея фото ретрита
-- [ ] Thumbnail generation (resize при загрузке)
+- [ ] Thumbnails через CDN Image Transforms (без генерации, Pro фича)
 - [ ] Скачивание фото
 
 ### Фаза 2: AI Face Recognition (2-4 дня)
