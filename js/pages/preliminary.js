@@ -26,13 +26,15 @@ function addHoursToDatetime(datetimeStr, hours) {
     return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
 }
 
-// Форматирует datetime в читаемый вид: "12 фев, 14:30"
+// Форматирует datetime в читаемый вид: "12 фев, 14:30" (или "12 фев" если время 00:00)
 function formatDatetimeShort(datetimeStr) {
     if (!datetimeStr) return '—';
     const d = new Date(datetimeStr.slice(0, 16));
     const months = ['янв', 'фев', 'мар', 'апр', 'май', 'июн', 'июл', 'авг', 'сен', 'окт', 'ноя', 'дек'];
     const pad = n => String(n).padStart(2, '0');
-    return `${d.getDate()} ${months[d.getMonth()]}, ${pad(d.getHours())}:${pad(d.getMinutes())}`;
+    const dateStr = `${d.getDate()} ${months[d.getMonth()]}`;
+    if (d.getHours() === 0 && d.getMinutes() === 0) return dateStr;
+    return `${dateStr}, ${pad(d.getHours())}:${pad(d.getMinutes())}`;
 }
 
 // ==================== DATA LOADING ====================
@@ -474,19 +476,24 @@ function renderTable() {
         const departureTransfer = departure?.needs_transfer === 'yes' ? ' 🚐' : '';
         const arrivalFlightNum = arrival?.flight_number ? e(arrival.flight_number) : '';
         const departureFlightNum = departure?.flight_number ? e(departure.flight_number) : '';
-        // Верхний инпут — время рейса (или arrival_datetime если сразу на ретрит)
-        // Когда direct_arrival=false, arrival_datetime показывается во втором инпуте
-        const effectiveCheckIn = (reg.direct_arrival === false ? null : reg.arrival_datetime?.slice(0, 16))
+        // Дата заезда/выезда: arrival_datetime всегда приоритетна (независимо от direct_arrival)
+        const effectiveCheckIn = reg.arrival_datetime?.slice(0, 16)
             || arrival?.flight_datetime?.slice(0, 16)
             || (reg.resident?.check_in ? reg.resident.check_in + 'T00:00' : null)
             || (retreat?.start_date ? retreat.start_date + 'T00:00' : '');
-        const effectiveCheckOut = (reg.direct_departure === false ? null : reg.departure_datetime?.slice(0, 16))
+        const effectiveCheckOut = reg.departure_datetime?.slice(0, 16)
             || departure?.flight_datetime?.slice(0, 16)
             || (reg.resident?.check_out ? reg.resident.check_out + 'T00:00' : null)
             || (retreat?.end_date ? retreat.end_date + 'T00:00' : '');
 
-        const arrivalProblem = !arrival || (arrival?.notes && !arrival?.flight_datetime);
-        const departureProblem = !departure || (departure?.notes && !departure?.flight_datetime);
+        // Проблема: нет данных о прибытии/отъезде.
+        // При самостоятельном приезде (direct_arrival=false) отсутствие трансфера arrival — нормально.
+        const arrivalProblem = reg.direct_arrival === false
+            ? !reg.arrival_datetime
+            : (!arrival || (arrival?.notes && !arrival?.flight_datetime));
+        const departureProblem = reg.direct_departure === false
+            ? !reg.departure_datetime
+            : (!departure || (departure?.notes && !departure?.flight_datetime));
 
         // Получить локальные заметки
         const localNotes = getLocalNotes(reg.id);
