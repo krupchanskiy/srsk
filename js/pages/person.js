@@ -86,6 +86,11 @@ function canEditProfile() {
 }
 
 function applyEditPermissions() {
+    // Если авторизация ещё не завершилась — ждём событие authReady
+    if (!window.currentUser) {
+        window.addEventListener('authReady', () => applyEditPermissions(), { once: true });
+        return;
+    }
     const canEdit = canEditProfile();
     const editBtn = document.getElementById('editPersonBtn');
     const deleteBtn = document.getElementById('deletePersonBtn');
