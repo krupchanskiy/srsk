@@ -269,7 +269,7 @@ async function loadMenuData() {
         .select(`
             *,
             cook:vaishnavas(*),
-            dishes:menu_dishes(*, recipe:recipes(*))
+            dishes:menu_dishes(*, recipe:recipes(*, category:recipe_categories(*)))
         `)
         .eq('location_id', locationId)
         .gte('date', startDate)
@@ -556,7 +556,11 @@ function renderDay() {
 }
 
 function renderMealSection(dateStr, mealType, index, mealData, isEkadashiDay) {
-    const dishes = mealData?.dishes || [];
+    const dishes = (mealData?.dishes || []).slice().sort((a, b) => {
+        const sa = a.recipe?.category?.sort_order ?? 999;
+        const sb = b.recipe?.category?.sort_order ?? 999;
+        return sa - sb;
+    });
     // Если порции = 50 (дефолт), используем рассчитанное значение
     const portions = (mealData?.portions && mealData.portions !== 50) ? mealData.portions : getEatingTotal(dateStr, mealType);
     const cook = mealData?.cook;
@@ -615,14 +619,16 @@ function renderMealSection(dateStr, mealType, index, mealData, isEkadashiDay) {
                     />
                     <span class="text-sm opacity-60">${t('persons')}</span>
                 </div>
+                ${totalG > 0 ? `<span class="text-sm opacity-60">х${totalG} ${getUnitShort('g')}</span>` : ''}
             </div>
             <div class="print-only print-meal-info">
-                ${t('cook')}:&nbsp;<strong>${getPersonName(cook) || '—'}</strong> · ${t('portions')}:&nbsp;<strong>${portions}</strong>
+                ${t('cook')}:&nbsp;<strong>${getPersonName(cook) || '—'}</strong> · ${t('portions')}:&nbsp;<strong>${portions}</strong>${totalG > 0 ? ` · х${totalG} ${getUnitShort('g')}` : ''}
             </div>
     ` : `
             <div class="flex items-center gap-4 mb-3 p-2 bg-base-100 rounded-lg text-sm opacity-70">
                 <span>${t('cook')}: <strong>${getPersonName(cook) || '—'}</strong></span>
                 <span>${t('portions')}: <strong>${portions}</strong></span>
+                ${totalG > 0 ? `<span>х${totalG} ${getUnitShort('g')}</span>` : ''}
             </div>
     `);
 
@@ -1434,7 +1440,7 @@ async function saveDish() {
             portion_size: portionSize,
             portion_unit: portionUnit
         })
-        .select('*, recipe:recipes(*)')
+        .select('*, recipe:recipes(*, category:recipe_categories(*))')
         .single();
 
     if (error) {
