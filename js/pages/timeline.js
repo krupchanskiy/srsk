@@ -49,8 +49,8 @@ function dateToDayIndex(dateStr) {
 async function loadTimelineData() {
     const endDate = new Date(baseDate);
     endDate.setDate(endDate.getDate() + DAYS_TO_SHOW);
-    const startDateStr = baseDate.toISOString().split('T')[0];
-    const endDateStr = endDate.toISOString().split('T')[0];
+    const startDateStr = formatDateYMD(baseDate);
+    const endDateStr = formatDateYMD(endDate);
 
     // Загружаем параллельно
     const [buildingsData, roomsRes, residentsRes, retreatsRes, cleaningsRes] = await Promise.all([
@@ -303,8 +303,8 @@ async function loadTimelineData() {
                                 isCompleted: res.cleaning_done || false,
                                 rawData: {
                                     room_id: room.id,
-                                    start_date: getDateForDay(cleaningStartDay).toISOString().split('T')[0],
-                                    end_date: getDateForDay(cleaningEndDay).toISOString().split('T')[0]
+                                    start_date: formatDateYMD(getDateForDay(cleaningStartDay)),
+                                    end_date: formatDateYMD(getDateForDay(cleaningEndDay))
                                 }
                             };
                         }
@@ -1145,9 +1145,15 @@ async function checkoutResident() {
         checkoutDate = res.check_out;
     }
 
-    // Финальная проверка: дата не раньше заезда и не позже оригинального выезда
+    // Финальная проверка: дата не раньше заезда
     if (!checkoutDate || checkoutDate < res.check_in) {
         checkoutDate = res.check_out || res.check_in;
+    }
+
+    // Если дата выезда в прошлом — используем сегодня (реальный день выселения)
+    const today = formatDateYMD(new Date());
+    if (checkoutDate < today) {
+        checkoutDate = today;
     }
 
     const { error } = await Layout.db
