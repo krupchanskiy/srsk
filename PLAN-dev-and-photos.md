@@ -746,7 +746,7 @@ Dev-окружение ← БЛОКИРУЕТ → Фотогалерея
 │   ├── search-face (мгновенный, по запросу гостя)
 │   ├── delete-photos (каскад: Rekognition + Storage + БД)
 │   └── telegram-webhook (обработка /start, /stop)
-├── AWS аккаунт + Rekognition доступ ← настроить
+├── AWS аккаунт + Rekognition доступ ✅ ГОТОВО (07.02.2026)
 ├── Telegram бот (@rupaseva_bot) ← создать через @BotFather
 ├── Фото профиля у гостей ← уже есть (vaishnava-photos bucket)
 └── Fallback: селфи через камеру для гостей без фото профиля
@@ -778,7 +778,7 @@ Dev-окружение ← БЛОКИРУЕТ → Фотогалерея
 
 ### Фаза 2: AI Face Recognition (2-4 дня)
 
-- [ ] AWS аккаунт + Rekognition доступ (IAM user с минимальными правами)
+- [x] AWS аккаунт + Rekognition доступ (IAM user с минимальными правами) ✅ 07.02.2026
 - [ ] Миграции БД (photo_faces, face_tags, face_search_log)
 - [ ] RLS на photo_faces, face_tags, face_search_log
 - [ ] Edge Function: index-faces (батчами по 20 фото, вызов с фронтенда)

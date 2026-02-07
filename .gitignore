@@ -6,3 +6,4 @@ playwright.config.js
 test-results/
 tests/
 task.md
+.env*

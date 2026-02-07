@@ -8,8 +8,22 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 - **Stack**: Vanilla JS + DaisyUI + Tailwind CSS + Supabase (без сборки)
 - **Production**: https://in.rupaseva.com
-- **Supabase Project ID**: `llttmftapmwebidgevmg`
+- **Supabase Project ID (prod)**: `llttmftapmwebidgevmg`
+- **Supabase Project ID (dev)**: `vzuiwpeovnzfokekdetq`
 - **Языки интерфейса**: русский, английский, хинди
+
+### AWS (Rekognition)
+
+- **Account**: srsk (8188-1114-2778)
+- **Region**: `ap-south-1` (Mumbai)
+- **IAM user**: `srsk-rekognition` (policy: `SrskRekognitionOnly`)
+- **Ключи**: сохранены в Supabase Edge Function Secrets (`AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`, `AWS_REGION`)
+
+### Supabase CLI
+
+- **Version**: 2.75.0
+- **Access token**: сохранён в `.env.local` (в `.gitignore`)
+- **Деплой Edge Functions**: `supabase functions deploy <name> --project-ref llttmftapmwebidgevmg --no-verify-jwt`
 
 ---
 
