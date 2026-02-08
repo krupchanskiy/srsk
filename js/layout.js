@@ -22,6 +22,7 @@ const modules = {
         menuConfig: [
             { id: 'kitchen', items: [
                 { id: 'menu', href: 'kitchen/menu.html' },
+                { id: 'planner', href: 'kitchen/menu-board.html' },
                 { id: 'menu_templates', href: 'kitchen/menu-templates.html' },
                 { id: 'recipes', href: 'kitchen/recipes.html' },
                 { id: 'products', href: 'kitchen/products.html' }
@@ -137,6 +138,7 @@ const modules = {
 const pagePermissions = {
     // Kitchen
     'kitchen/menu.html': 'view_menu',
+    'kitchen/menu-board.html': 'view_menu',
     'kitchen/menu-templates.html': 'view_menu_templates',
     'kitchen/recipes.html': 'view_recipes',
     'kitchen/products.html': 'view_products',
@@ -201,9 +203,16 @@ const pagePermissions = {
 };
 
 // ==================== STATE ====================
-let currentModule = localStorage.getItem('srsk_module') || 'kitchen';
-let currentLang = localStorage.getItem('srsk_lang') || 'ru';
-let currentLocation = localStorage.getItem('srsk_location') || 'main';
+let currentModule, currentLang, currentLocation;
+try {
+    currentModule = localStorage.getItem('srsk_module') || 'kitchen';
+    currentLang = localStorage.getItem('srsk_lang') || 'ru';
+    currentLocation = localStorage.getItem('srsk_location') || 'main';
+} catch {
+    currentModule = 'kitchen';
+    currentLang = 'ru';
+    currentLocation = 'main';
+}
 let locations = [];
 let translations = {}; // { key: { ru: '...', en: '...', hi: '...' } }
 
