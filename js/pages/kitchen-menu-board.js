@@ -1229,6 +1229,33 @@ async function doImport() {
     }
 }
 
+// ==================== REALTIME ====================
+let realtimeTimeout = null;
+
+function subscribeToRealtime() {
+    const channel = Layout.db.channel('menu-board-realtime');
+
+    channel.on('postgres_changes',
+        { event: '*', schema: 'public', table: 'menu_meals' },
+        handleRealtimeChange
+    );
+
+    channel.on('postgres_changes',
+        { event: '*', schema: 'public', table: 'menu_dishes' },
+        handleRealtimeChange
+    );
+
+    channel.subscribe();
+}
+
+function handleRealtimeChange() {
+    if (realtimeTimeout) clearTimeout(realtimeTimeout);
+    realtimeTimeout = setTimeout(async () => {
+        await loadMenuData();
+        Layout.showNotification(t('data_updated') || 'Данные обновлены', 'info');
+    }, 500);
+}
+
 // ==================== INIT ====================
 async function init() {
     await Layout.init({ module: 'kitchen', menuId: 'kitchen', itemId: 'planner' });
@@ -1236,9 +1263,9 @@ async function init() {
     await loadData();
     Layout.hideLoader();
 
-    renderLegend();
     syncScroll();
     setupDelegation();
+    subscribeToRealtime();
 }
 
 window.onLanguageChange = () => {
