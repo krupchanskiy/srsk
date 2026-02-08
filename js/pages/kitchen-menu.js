@@ -449,15 +449,15 @@ function formatEatingLine(dateStr, cssClass) {
     const lnTotal = ln ? ln.guests + ln.team + (ln.residents || 0) : 0;
     if (bfTotal === 0 && lnTotal === 0) return '';
 
-    const titleText = 'Ретрит + Команда + Проживающие';
+    const titleText = t('eating_tooltip');
 
     // Если числа совпадают — одна строка
     if (bfTotal === lnTotal) {
-        return `<div class="${cssClass}" title="${titleText}">Завтрак и обед: ${bf.guests}+${bf.team}+${bf.residents || 0}=${bfTotal}</div>`;
+        return `<div class="${cssClass}" title="${titleText}">${t('breakfast_and_lunch')}: ${bf.guests}+${bf.team}+${bf.residents || 0}=${bfTotal}</div>`;
     }
 
     // Разные — показываем завтрак и обед
-    return `<div class="${cssClass}" title="${titleText}">Завтрак: ${bfTotal}, Обед: ${lnTotal}</div>`;
+    return `<div class="${cssClass}" title="${titleText}">${t('breakfast')}: ${bfTotal}, ${t('lunch')}: ${lnTotal}</div>`;
 }
 
 // ==================== RENDERING ====================
@@ -1845,6 +1845,7 @@ async function loadIngredientsForRecipes(recipeIds) {
 }
 
 async function openMealDetailsModal(dateStr, mealType) {
+    selectedMealType = mealType;
     const mealData = menuData[dateStr]?.[mealType];
     if (!mealData?.dishes?.length) return;
 
@@ -1959,16 +1960,45 @@ function formatIngredientAmount(amount, unit) {
     return { value: Layout.formatQuantity(amount, unit), unit: unit };
 }
 
+function getPrintTitle(mealType) {
+    const MONTHS = ['jan','feb','mar','apr','may','jun','jul','aug','sep','oct','nov','dec'];
+    const pad = n => String(n).padStart(2, '0');
+
+    // Модалка деталей: menu-lunch-2026-02-07
+    if (mealType) {
+        return `menu-${mealType}-${formatDate(currentDate)}`;
+    }
+
+    switch (currentView) {
+        case 'day':
+            return `menu-day-${formatDate(currentDate)}`;
+        case 'week': {
+            const weekEnd = new Date(currentWeekStart);
+            weekEnd.setDate(weekEnd.getDate() + 6);
+            return `menu-week-${formatDate(currentWeekStart)}-${pad(weekEnd.getDate())}`;
+        }
+        case 'month':
+            return `menu-month-${MONTHS[currentMonth.getMonth()]}${currentMonth.getFullYear()}`;
+        case 'period':
+            if (periodStart && periodEnd) {
+                return `menu-period-${formatDate(periodStart)}-${pad(periodEnd.getDate())}`;
+            }
+            return `menu-period-${formatDate(currentDate)}`;
+        default:
+            return `menu-${formatDate(currentDate)}`;
+    }
+}
+
 function printMenu() {
     const origTitle = document.title;
-    document.title = `menu-${formatDate(currentDate)}`;
+    document.title = getPrintTitle();
     window.print();
     setTimeout(() => { document.title = origTitle; }, 200);
 }
 
 function printMealDetails() {
     const origTitle = document.title;
-    document.title = `menu-${formatDate(currentDate)}`;
+    document.title = getPrintTitle(selectedMealType);
     document.body.classList.add('printing-modal');
     mealDetailsModal.classList.add('print-modal-active');
     window.print();
