@@ -12,6 +12,15 @@ const getName = (item, lang) => Layout.getName(item, lang || Layout.currentLang)
 const getPersonName = person => Layout.getPersonName(person, Layout.currentLang);
 const canEditMenu = () => window.hasPermission?.('edit_menu') ?? false;
 
+// Безопасный парсинг даты YYYY-MM-DD как локальное время
+function parseLocalDate(val) {
+    if (val instanceof Date) return new Date(val);
+    if (typeof val === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(val)) {
+        return new Date(val + 'T00:00:00');
+    }
+    return new Date(val);
+}
+
 // ==================== STATE ====================
 let baseDate = new Date();
 baseDate.setDate(baseDate.getDate() - 3); // начинаем за 3 дня до сегодня
@@ -463,8 +472,8 @@ function renderRetreats() {
 
         if (r.end_date < rangeStart || r.start_date > rangeEnd) continue;
 
-        const rStart = DateUtils.parseDate(r.start_date < rangeStart ? rangeStart : r.start_date);
-        const rEnd = DateUtils.parseDate(r.end_date > rangeEnd ? rangeEnd : r.end_date);
+        const rStart = parseLocalDate(r.start_date < rangeStart ? rangeStart : r.start_date);
+        const rEnd = parseLocalDate(r.end_date > rangeEnd ? rangeEnd : r.end_date);
 
         const startDay = Math.round((rStart - baseDate) / (1000 * 60 * 60 * 24));
         const endDay = Math.round((rEnd - baseDate) / (1000 * 60 * 60 * 24));
@@ -686,7 +695,7 @@ function openDishModal(dateStr, mealType) {
     selectedMealType = mealType;
     selectedRecipe = null;
 
-    const date = DateUtils.parseDate(dateStr);
+    const date = parseLocalDate(dateStr);
     const monthNames = getMonthNames();
     const dayNames = getDayNamesShort();
 
