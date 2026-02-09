@@ -195,8 +195,8 @@
         }
 
         /* Fullscreen mode */
-        body.board-fullscreen #header-placeholder,
-        body.board-fullscreen #footer-placeholder {
+        body.board-fullscreen > header,
+        body.board-fullscreen > footer {
             display: none !important;
         }
         body.board-fullscreen main {
@@ -238,11 +238,6 @@
                     </svg>
                     <span data-i18n="import_from_menu">Шаблон из меню</span>
                 </button>
-                <button class="btn btn-ghost btn-sm btn-square" data-action="toggle-fullscreen" title="На весь экран">
-                    <svg id="fullscreenIcon" xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 8V4m0 0h4M4 4l5 5m11-1V4m0 0h-4m4 0l-5 5M4 16v4m0 0h4m-4 0l5-5m11 5v-4m0 4h-4m4 0l-5-5" />
-                    </svg>
-                </button>
                 <div class="join border border-base-300 rounded-lg bg-white">
                     <button class="join-item btn btn-sm bg-white border-0" data-action="shift-month" data-dir="-1">
                         <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -256,6 +251,11 @@
                         </svg>
                     </button>
                 </div>
+                <button class="btn btn-ghost btn-sm btn-square" data-action="toggle-fullscreen" title="На весь экран">
+                    <svg id="fullscreenIcon" xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 8V4m0 0h4M4 4l5 5m11-1V4m0 0h-4m4 0l-5 5M4 16v4m0 0h4m-4 0l5-5m11 5v-4m0 4h-4m4 0l-5-5" />
+                    </svg>
+                </button>
             </div>
         </div>
 
