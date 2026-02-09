@@ -7,7 +7,9 @@
 
 // Определяем окружение по домену
 const hostname = window.location.hostname;
-const isDev = hostname.includes('dev.') || hostname.includes('-dev') || hostname.includes('localhost');
+const isFileProtocol = window.location.protocol === 'file:';
+const isLocalhost = hostname === 'localhost' || hostname === '127.0.0.1' || hostname.startsWith('192.168.') || hostname.startsWith('10.') || hostname.startsWith('172.');
+const isDev = isFileProtocol || isLocalhost || hostname.includes('dev-srsk') || hostname.includes('dev.') || hostname.includes('-dev');
 
 // Конфигурации для разных окружений
 const ENVIRONMENTS = {
@@ -30,6 +32,9 @@ window.CONFIG = {
     // SERVICE_ROLE_KEY используется только для users.html (управление пользователями)
     SUPABASE_SERVICE_ROLE_KEY: null // TODO: Вставить service role key если нужен
 };
+
+console.log('[ENV]', window.CONFIG.ENV + ':', location.hostname || 'file://', '→', window.CONFIG.SUPABASE_URL);
+
 
 // Создаём ЕДИНСТВЕННЫЙ экземпляр Supabase клиента
 // Все модули должны использовать window.supabaseClient вместо создания нового
