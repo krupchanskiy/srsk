@@ -1182,11 +1182,19 @@ function openPlacementModal(registrationId) {
         ${reg.accommodation_wishes ? `<div class="text-sm opacity-60 mt-1">${reg.accommodation_wishes}</div>` : ''}
     `;
 
-    // Set default dates from retreat
-    if (retreat) {
-        document.getElementById('placementCheckIn').value = retreat.start_date;
-        document.getElementById('placementCheckOut').value = retreat.end_date;
-    }
+    // Даты заезда/выезда: arrival/departure → рейс → ретрит
+    const arrivalFlight = (reg.guest_transfers || []).find(t => t.direction === 'arrival');
+    const departureFlight = (reg.guest_transfers || []).find(t => t.direction === 'departure');
+
+    const checkIn = reg.arrival_datetime?.slice(0, 10)
+        || arrivalFlight?.flight_datetime?.slice(0, 10)
+        || retreat?.start_date || '';
+    const checkOut = reg.departure_datetime?.slice(0, 10)
+        || departureFlight?.flight_datetime?.slice(0, 10)
+        || retreat?.end_date || '';
+
+    document.getElementById('placementCheckIn').value = checkIn;
+    document.getElementById('placementCheckOut').value = checkOut;
 
     modal.showModal();
     updateRoomsList();
