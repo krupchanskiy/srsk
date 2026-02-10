@@ -455,6 +455,23 @@
         <form method="dialog" class="modal-backdrop"><button>close</button></form>
     </dialog>
 
+    <!-- Eating Count Change Alert -->
+    <dialog id="eatingChangeModal" class="modal">
+        <div class="modal-box max-w-md">
+            <h3 class="font-bold text-lg mb-3">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6 inline-block text-warning -mt-1 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                </svg>
+                <span data-i18n="eating_count_changed">Количество едоков изменилось</span>
+            </h3>
+            <div id="eatingChangeBody" class="space-y-2 text-sm"></div>
+            <div class="modal-action">
+                <button type="button" class="btn btn-primary" onclick="dismissEatingChangeAlert()">OK</button>
+            </div>
+        </div>
+        <form method="dialog" class="modal-backdrop"><button>close</button></form>
+    </dialog>
+
     <script src="../js/config.js?v=2"></script>
     <script src="../js/auth-check.js?v=3"></script>
     <script src="../js/cache.js"></script>
@@ -463,6 +480,6 @@
     <script src="../js/translit.js"></script>
     <script src="../js/auto-translate.js"></script>
     <script src="../js/layout.js?v=5"></script>
-    <script src="../js/pages/kitchen-menu.js?v=17"></script>
+    <script src="../js/pages/kitchen-menu.js?v=18"></script>
 </body>
 </html>

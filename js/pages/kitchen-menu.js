@@ -505,6 +505,115 @@ function formatEatingLine(dateStr, cssClass) {
     return `<div class="${cssClass}" title="${titleText}">${t('breakfast')}: ${bfTotal}, ${t('lunch')}: ${lnTotal}</div>`;
 }
 
+// ==================== EATING COUNT CHANGE ALERT ====================
+const EATING_ALERT_THRESHOLD = 5;   // порог: ±5 человек
+const EATING_ALERT_COOLDOWN = 3600000; // 1 час в мс
+
+function getEatingTotalForDate(dateStr) {
+    const counts = eatingCounts[dateStr];
+    if (!counts) return null;
+    const bf = counts.breakfast;
+    const ln = counts.lunch;
+    const bfTotal = bf ? bf.guests + bf.team + (bf.residents || 0) : 0;
+    const lnTotal = ln ? ln.guests + ln.team + (ln.residents || 0) : 0;
+    if (bfTotal === 0 && lnTotal === 0) return null;
+    return { breakfast: bfTotal, lunch: lnTotal };
+}
+
+async function checkEatingCountChanges() {
+    try {
+        // Cooldown: не чаще раза в час
+        const lastCheck = localStorage.getItem('menu_eating_alert_time');
+        if (lastCheck && Date.now() - parseInt(lastCheck) < EATING_ALERT_COOLDOWN) return;
+
+        const today = formatDate(new Date());
+        const tomorrow = formatDate(new Date(Date.now() + 86400000));
+        const datesToCheck = [today, tomorrow];
+
+        // Загружаем данные за today/tomorrow если их нет (вид может быть на другом периоде)
+        if (!eatingCounts[today] && !eatingCounts[tomorrow]) {
+            const saved = { ...eatingCounts };
+            await loadEatingCounts(today, tomorrow);
+            // Восстанавливаем старые данные, добавляя today/tomorrow
+            const todayCounts = eatingCounts[today];
+            const tomorrowCounts = eatingCounts[tomorrow];
+            eatingCounts = saved;
+            if (todayCounts) eatingCounts[today] = todayCounts;
+            if (tomorrowCounts) eatingCounts[tomorrow] = tomorrowCounts;
+        }
+
+        const savedRaw = localStorage.getItem('menu_eating_counts');
+        const saved = savedRaw ? JSON.parse(savedRaw) : {};
+
+        const changes = [];
+        const newCounts = {};
+
+        for (const dateStr of datesToCheck) {
+            const current = getEatingTotalForDate(dateStr);
+            if (!current) continue;
+            newCounts[dateStr] = current;
+
+            const prev = saved[dateStr];
+            if (!prev) continue; // первый раз — просто сохраняем, без алерта
+
+            const bfDiff = current.breakfast - prev.breakfast;
+            const lnDiff = current.lunch - prev.lunch;
+
+            if (Math.abs(bfDiff) >= EATING_ALERT_THRESHOLD || Math.abs(lnDiff) >= EATING_ALERT_THRESHOLD) {
+                changes.push({ dateStr, prev, current, bfDiff, lnDiff });
+            }
+        }
+
+        // Сохраняем текущие значения (для следующей проверки)
+        // Но только если нет изменений — иначе сохраним после "Ок"
+        if (changes.length === 0) {
+            localStorage.setItem('menu_eating_counts', JSON.stringify(newCounts));
+            localStorage.setItem('menu_eating_alert_time', String(Date.now()));
+            return;
+        }
+
+        // Показываем алерт
+        const body = Layout.$('#eatingChangeBody');
+        const monthNames = getMonthNames();
+        const dayNames = getDayNames();
+
+        body.innerHTML = changes.map(ch => {
+            const d = parseLocalDate(ch.dateStr);
+            const dateLabel = `${d.getDate()} ${monthNames[d.getMonth()]}, ${dayNames[d.getDay()]}`;
+            const lines = [];
+            if (Math.abs(ch.bfDiff) >= EATING_ALERT_THRESHOLD) {
+                const arrow = ch.bfDiff > 0 ? '↑' : '↓';
+                const color = ch.bfDiff > 0 ? 'text-error' : 'text-success';
+                lines.push(`${t('breakfast')}: ${ch.prev.breakfast} → <span class="font-bold ${color}">${ch.current.breakfast}</span> (${arrow}${Math.abs(ch.bfDiff)})`);
+            }
+            if (Math.abs(ch.lnDiff) >= EATING_ALERT_THRESHOLD) {
+                const arrow = ch.lnDiff > 0 ? '↑' : '↓';
+                const color = ch.lnDiff > 0 ? 'text-error' : 'text-success';
+                lines.push(`${t('lunch')}: ${ch.prev.lunch} → <span class="font-bold ${color}">${ch.current.lunch}</span> (${arrow}${Math.abs(ch.lnDiff)})`);
+            }
+            return `<div class="p-3 bg-base-200 rounded-lg">
+                <div class="font-medium mb-1">${dateLabel}</div>
+                ${lines.map(l => `<div>${l}</div>`).join('')}
+            </div>`;
+        }).join('');
+
+        // Сохраняем новые значения во временное хранилище — применим после "Ок"
+        window._pendingEatingCounts = newCounts;
+        Layout.$('#eatingChangeModal').showModal();
+    } catch { /* localStorage недоступен — игнорируем */ }
+}
+
+function dismissEatingChangeAlert() {
+    Layout.$('#eatingChangeModal').close();
+    try {
+        if (window._pendingEatingCounts) {
+            localStorage.setItem('menu_eating_counts', JSON.stringify(window._pendingEatingCounts));
+            delete window._pendingEatingCounts;
+        }
+        localStorage.setItem('menu_eating_alert_time', String(Date.now()));
+    } catch { /* игнорируем */ }
+}
+
 // ==================== RENDERING ====================
 function render() {
     if (currentView === 'day') {
@@ -2145,6 +2254,9 @@ async function init() {
     Layout.showLoader();
     await loadData();
     Layout.hideLoader();
+
+    // Проверка изменения количества едоков (async, не блокируем UI)
+    checkEatingCountChanges();
 
     // Делегирование для view-контейнеров
     setupViewDelegation(Layout.$('#dayContent'));
