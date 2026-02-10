@@ -220,7 +220,10 @@ async function generateRequest() {
         return;
     }
 
-    const menuData = await loadMenuForPeriod(fromDate, toDate);
+    const [menuData, eatingCounts] = await Promise.all([
+        loadMenuForPeriod(fromDate, toDate),
+        EatingUtils.loadCounts(fromDate, toDate)
+    ]);
 
     if (menuData.length === 0) {
         showAlert(tr('menu_not_found', 'Меню на выбранный период не найдено'));
@@ -231,7 +234,8 @@ async function generateRequest() {
     const ingredientTotals = {};
 
     menuData.forEach(meal => {
-        const mealPortions = meal.portions || 1;
+        // Актуальное количество едоков на дату и приём пищи
+        const mealPortions = EatingUtils.getTotal(eatingCounts, meal.date, meal.meal_type);
 
         (meal.dishes || []).forEach(dish => {
             const recipe = recipes.find(r => r.id === dish.recipe_id);

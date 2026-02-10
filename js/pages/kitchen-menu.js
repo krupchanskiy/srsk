@@ -17,7 +17,6 @@ let retreats = [];
 let holidays = [];
 let cooks = [];
 let eatingCounts = {}; // { 'YYYY-MM-DD': { breakfast: { guests, team, residents }, lunch: { guests, team, residents } } }
-let staffIds = []; // Кеш ID сотрудников для loadEatingCounts
 
 let selectedDate = null;
 let selectedMealType = null;
@@ -233,7 +232,6 @@ async function loadData() {
         retreatsResult,
         holidaysResult,
         cooksResult,
-        staffResult,
         unitsResult
     ] = await Promise.all([
         recipesQuery,
@@ -254,11 +252,6 @@ async function loadData() {
             .eq('is_team_member', true)
             .eq('is_deleted', false)
             .eq('departments.name_en', 'Kitchen'),
-        // Загружаем staff IDs один раз для loadEatingCounts
-        Layout.db
-            .from('vaishnavas')
-            .select('id')
-            .eq('user_type', 'staff'),
         Cache.getOrLoad('units', async () => {
             const { data, error } = await Layout.db.from('units').select('*');
             if (error) { console.error('Error loading units:', error); return null; }
@@ -271,7 +264,6 @@ async function loadData() {
     retreats = retreatsResult.data || [];
     holidays = holidaysResult.data || [];
     cooks = cooksResult.data || [];
-    staffIds = (staffResult.data || []).map(s => s.id);
     units = unitsResult || [];
 
     // Load menu for current period
@@ -345,128 +337,7 @@ async function loadMenuData() {
 
 // Загрузка количества едоков на период
 async function loadEatingCounts(startDate, endDate) {
-    eatingCounts = {};
-
-    // Используем уже загруженные retreats (фильтруем по периоду)
-    const retreatsInPeriod = retreats.filter(r =>
-        r.start_date <= endDate && r.end_date >= startDate
-    );
-    const retreatIds = retreatsInPeriod.map(r => r.id);
-
-    // Параллельные запросы (staffIds уже загружены в loadData)
-    const [guestRegResult, teamStaysResult, residentsResult] = await Promise.all([
-        retreatIds.length > 0
-            ? Layout.db
-                .from('retreat_registrations')
-                .select('retreat_id, vaishnava_id, arrival_datetime, departure_datetime')
-                .in('retreat_id', retreatIds)
-                .eq('is_deleted', false)
-                .not('status', 'in', '("cancelled","rejected")')
-                .or('meal_type.eq.prasad,meal_type.is.null')
-            : Promise.resolve({ data: [] }),
-        staffIds.length > 0
-            ? Layout.db
-                .from('vaishnava_stays')
-                .select('vaishnava_id, start_date, end_date, early_checkin, late_checkout')
-                .in('vaishnava_id', staffIds)
-                .lte('start_date', endDate)
-                .gte('end_date', startDate)
-            : Promise.resolve({ data: [] }),
-        // Проживающие, которые едят с нами (meal_type = prasad или не указано)
-        Layout.db
-            .from('residents')
-            .select('id, vaishnava_id, check_in, check_out, early_checkin, late_checkout')
-            .eq('status', 'active')
-            .or('meal_type.eq.prasad,meal_type.is.null')
-            .lte('check_in', endDate)
-            .or(`check_out.gte.${startDate},check_out.is.null`)
-    ]);
-
-    const guestRegistrations = guestRegResult.data || [];
-    const teamStays = teamStaysResult.data || [];
-    const residentsData = residentsResult.data || [];
-
-    // Подсчитываем для каждого дня отдельно завтрак и обед
-    const firstDay = new Date(startDate + 'T00:00:00');
-    const lastDay = new Date(endDate + 'T00:00:00');
-    for (let d = new Date(firstDay); d <= lastDay; d.setDate(d.getDate() + 1)) {
-        const dateStr = formatDate(d);
-
-        const breakfastGuestIds = new Set();
-        const lunchGuestIds = new Set();
-
-        // Гости: привязаны к ретриту, считаем по времени приезда/отъезда
-        const BREAKFAST_CUTOFF = 10; // до 10:00 — считаем на завтрак
-        const LUNCH_CUTOFF = 13;     // до 13:00 — считаем на обед
-        for (const retreat of retreatsInPeriod) {
-            if (dateStr >= retreat.start_date && dateStr <= retreat.end_date) {
-                const regsForRetreat = guestRegistrations.filter(r => r.retreat_id === retreat.id);
-                for (const reg of regsForRetreat) {
-                    const isFirstDay = (dateStr === retreat.start_date);
-                    const isLastDay = (dateStr === retreat.end_date);
-
-                    let getsBreakfast = true;
-                    let getsLunch = true;
-
-                    if (isFirstDay) {
-                        if (reg.arrival_datetime) {
-                            const hour = new Date(reg.arrival_datetime.slice(0, 16)).getHours();
-                            getsBreakfast = hour < BREAKFAST_CUTOFF;
-                            getsLunch = hour < LUNCH_CUTOFF;
-                        } else {
-                            // Нет данных → обычный заезд (только обед)
-                            getsBreakfast = false;
-                        }
-                    }
-
-                    if (isLastDay) {
-                        if (reg.departure_datetime) {
-                            const hour = new Date(reg.departure_datetime.slice(0, 16)).getHours();
-                            getsBreakfast = getsBreakfast && hour >= BREAKFAST_CUTOFF;
-                            getsLunch = getsLunch && hour >= LUNCH_CUTOFF;
-                        } else {
-                            // Нет данных → обычный выезд (только завтрак)
-                            getsLunch = false;
-                        }
-                    }
-
-                    if (getsBreakfast) breakfastGuestIds.add(reg.vaishnava_id);
-                    if (getsLunch) lunchGuestIds.add(reg.vaishnava_id);
-                }
-            }
-        }
-
-        // Команда: staff по vaishnava_stays (Set для уникальности)
-        const teamBreakfast = new Set();
-        const teamLunch = new Set();
-        for (const stay of teamStays) {
-            if (stay.start_date <= dateStr && stay.end_date >= dateStr) {
-                const isFirstDay = (dateStr === stay.start_date);
-                const isLastDay = (dateStr === stay.end_date);
-                if (!isFirstDay || stay.early_checkin) teamBreakfast.add(stay.vaishnava_id);
-                if (!isLastDay || stay.late_checkout) teamLunch.add(stay.vaishnava_id);
-            }
-        }
-
-        // Проживающие: активные резиденты с meal_type=prasad
-        // Исключаем тех, кто уже посчитан как гость ретрита или команда
-        let breakfastResidents = 0, lunchResidents = 0;
-        for (const r of residentsData) {
-            if (r.check_in <= dateStr && (!r.check_out || r.check_out >= dateStr)) {
-                const isFirstDay = (dateStr === r.check_in);
-                const isLastDay = (r.check_out && dateStr === r.check_out);
-                const alreadyBreakfast = breakfastGuestIds.has(r.vaishnava_id) || teamBreakfast.has(r.vaishnava_id);
-                const alreadyLunch = lunchGuestIds.has(r.vaishnava_id) || teamLunch.has(r.vaishnava_id);
-                if (!alreadyBreakfast && (!isFirstDay || r.early_checkin)) breakfastResidents++;
-                if (!alreadyLunch && (!isLastDay || r.late_checkout)) lunchResidents++;
-            }
-        }
-
-        eatingCounts[dateStr] = {
-            breakfast: { guests: breakfastGuestIds.size, team: teamBreakfast.size, residents: breakfastResidents },
-            lunch:     { guests: lunchGuestIds.size,     team: teamLunch.size,     residents: lunchResidents }
-        };
-    }
+    eatingCounts = await EatingUtils.loadCounts(startDate, endDate);
 }
 
 // Получить количество питающихся на дату и приём пищи (для порций)
