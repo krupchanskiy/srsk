@@ -259,6 +259,12 @@
                                 <span class="sort-icon" data-sort="gender_age">↕</span>
                             </div>
                         </th>
+                        <th class="cursor-pointer hover:bg-base-200 select-none" onclick="toggleSort('status')">
+                            <div class="flex items-center gap-1">
+                                <span data-i18n="status">Статус</span>
+                                <span class="sort-icon" data-sort="status">↕</span>
+                            </div>
+                        </th>
                         <th class="cursor-pointer hover:bg-base-200 select-none whitespace-nowrap" onclick="toggleSort('india_experience')">
                             <div class="flex items-center gap-1">
                                 <span>Опыт в Индии</span>
@@ -878,7 +884,7 @@
         if (btn) { btn.classList.toggle('btn-active', isFS); btn.title = isFS ? 'Обычный вид' : 'На весь экран'; }
     }
     </script>
-    <script src="../js/pages/preliminary.js?v=10"></script>
+    <script src="../js/pages/preliminary.js?v=11"></script>
 
 </body>
 </html>

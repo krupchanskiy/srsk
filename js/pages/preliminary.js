@@ -366,6 +366,10 @@ function filterRegistrations() {
             // Сортировка по номеру комнаты
             aVal = (a.resident?.rooms?.number || 'zzz').toLowerCase();
             bVal = (b.resident?.rooms?.number || 'zzz').toLowerCase();
+        } else if (sortField === 'status') {
+            const statusOrder = { guest: 1, team: 2, cancelled: 3 };
+            aVal = statusOrder[a.status] || 99;
+            bVal = statusOrder[b.status] || 99;
         } else if (sortField === 'meal_type') {
             // Сортировка по типу питания
             const mealOrder = { prasad: 1, self: 2, child: 3 };
@@ -449,6 +453,11 @@ function renderTable() {
     // Проверка прав на редактирование
     const canEdit = window.hasPermission && window.hasPermission('edit_preliminary');
     const disabledAttr = canEdit ? '' : 'disabled';
+
+    // Переводы для статусов
+    const statusGuest = t('status_guest');
+    const statusTeam = t('status_team');
+    const statusCancelled = t('status_cancelled');
 
     // Переводы для типов питания
     const mealTypeNotSpecified = t('not_specified');
@@ -580,6 +589,15 @@ function renderTable() {
                     </div>
                 </td>
                 <td class="text-sm whitespace-nowrap ${v?.gender === 'male' ? 'bg-blue-500/10' : v?.gender === 'female' ? 'bg-pink-500/10' : ''}">${genderAge}</td>
+                <td class="text-sm" data-stop-propagation>
+                    <select class="select select-xs select-bordered w-full ${reg.status === 'guest' ? 'status-guest' : reg.status === 'team' ? 'status-team' : reg.status === 'cancelled' ? 'status-cancelled' : ''}"
+                        data-action="status-change" data-id="${reg.id}"
+                        ${disabledAttr}>
+                        <option value="guest" ${reg.status === 'guest' ? 'selected' : ''}>${statusGuest}</option>
+                        <option value="team" ${reg.status === 'team' ? 'selected' : ''}>${statusTeam}</option>
+                        <option value="cancelled" ${reg.status === 'cancelled' ? 'selected' : ''}>${statusCancelled}</option>
+                    </select>
+                </td>
                 <td class="text-sm">${e(v?.india_experience || '—')}</td>
                 <td class="text-sm">${e(reg.companions || '—')}</td>
                 <td class="text-sm">${e(reg.accommodation_wishes || '—')}</td>
@@ -663,6 +681,7 @@ if (guestsTableEl && !guestsTableEl._delegated) {
         if (!target) return;
         const id = target.dataset.id;
         switch (target.dataset.action) {
+            case 'status-change': updateStatus(id, target.value, target); break;
             case 'meal-type-change': onMealTypeChange(id, target.value, target); break;
             case 'save-local-notes': saveLocalNotes(id, target.value); break;
             case 'building-change': onBuildingChange(id, target.value); break;
