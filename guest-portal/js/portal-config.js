@@ -6,10 +6,23 @@
 'use strict';
 
 // Определяем окружение по домену
+// ВАЖНО: localhost / file:// / vercel preview / dev-* домены считаем DEV
 const hostname = window.location.hostname;
+
 const isFileProtocol = window.location.protocol === 'file:';
-const isLocalhost = hostname === 'localhost' || hostname === '127.0.0.1' || hostname.startsWith('192.168.') || hostname.startsWith('10.') || hostname.startsWith('172.');
-const isDev = isFileProtocol || isLocalhost || hostname.includes('dev-srsk') || hostname.includes('dev.') || hostname.includes('-dev');
+const isLocalhost =
+  hostname === 'localhost' ||
+  hostname === '127.0.0.1' ||
+  hostname.startsWith('192.168.') ||
+  hostname.startsWith('10.') ||
+  hostname.startsWith('172.');
+
+const isDev =
+  isFileProtocol ||
+  isLocalhost ||
+  hostname.includes('dev-srsk') ||
+  hostname.includes('dev.') ||
+  hostname.includes('-dev');
 
 // Конфигурации для разных окружений
 const ENVIRONMENTS = {
