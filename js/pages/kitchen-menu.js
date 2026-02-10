@@ -317,7 +317,7 @@ async function loadEatingCounts(startDate, endDate) {
         retreatIds.length > 0
             ? Layout.db
                 .from('retreat_registrations')
-                .select('retreat_id, arrival_datetime, departure_datetime')
+                .select('retreat_id, vaishnava_id, arrival_datetime, departure_datetime')
                 .in('retreat_id', retreatIds)
                 .eq('is_deleted', false)
                 .not('status', 'in', '("cancelled","rejected")')
@@ -334,7 +334,7 @@ async function loadEatingCounts(startDate, endDate) {
         // Проживающие, которые едят с нами (meal_type = prasad или не указано)
         Layout.db
             .from('residents')
-            .select('id, check_in, check_out, early_checkin, late_checkout')
+            .select('id, vaishnava_id, check_in, check_out, early_checkin, late_checkout')
             .eq('status', 'active')
             .or('meal_type.eq.prasad,meal_type.is.null')
             .lte('check_in', endDate)
@@ -351,7 +351,8 @@ async function loadEatingCounts(startDate, endDate) {
     for (let d = new Date(firstDay); d <= lastDay; d.setDate(d.getDate() + 1)) {
         const dateStr = formatDate(d);
 
-        let breakfastGuests = 0, lunchGuests = 0;
+        const breakfastGuestIds = new Set();
+        const lunchGuestIds = new Set();
 
         // Гости: привязаны к ретриту, считаем по времени приезда/отъезда
         const BREAKFAST_CUTOFF = 10; // до 10:00 — считаем на завтрак
@@ -388,8 +389,8 @@ async function loadEatingCounts(startDate, endDate) {
                         }
                     }
 
-                    if (getsBreakfast) breakfastGuests++;
-                    if (getsLunch) lunchGuests++;
+                    if (getsBreakfast) breakfastGuestIds.add(reg.vaishnava_id);
+                    if (getsLunch) lunchGuestIds.add(reg.vaishnava_id);
                 }
             }
         }
@@ -407,19 +408,22 @@ async function loadEatingCounts(startDate, endDate) {
         }
 
         // Проживающие: активные резиденты с meal_type=prasad
+        // Исключаем тех, кто уже посчитан как гость ретрита или команда
         let breakfastResidents = 0, lunchResidents = 0;
         for (const r of residentsData) {
             if (r.check_in <= dateStr && (!r.check_out || r.check_out >= dateStr)) {
                 const isFirstDay = (dateStr === r.check_in);
                 const isLastDay = (r.check_out && dateStr === r.check_out);
-                if (!isFirstDay || r.early_checkin) breakfastResidents++;
-                if (!isLastDay || r.late_checkout) lunchResidents++;
+                const alreadyBreakfast = breakfastGuestIds.has(r.vaishnava_id) || teamBreakfast.has(r.vaishnava_id);
+                const alreadyLunch = lunchGuestIds.has(r.vaishnava_id) || teamLunch.has(r.vaishnava_id);
+                if (!alreadyBreakfast && (!isFirstDay || r.early_checkin)) breakfastResidents++;
+                if (!alreadyLunch && (!isLastDay || r.late_checkout)) lunchResidents++;
             }
         }
 
         eatingCounts[dateStr] = {
-            breakfast: { guests: breakfastGuests, team: teamBreakfast.size, residents: breakfastResidents },
-            lunch:     { guests: lunchGuests,     team: teamLunch.size,     residents: lunchResidents }
+            breakfast: { guests: breakfastGuestIds.size, team: teamBreakfast.size, residents: breakfastResidents },
+            lunch:     { guests: lunchGuestIds.size,     team: teamLunch.size,     residents: lunchResidents }
         };
     }
 }
@@ -586,7 +590,7 @@ function renderMealSection(dateStr, mealType, index, mealData, isEkadashiDay) {
     if (dishes.length === 0) {
         const canEdit = canEditMenu();
         return `
-            <div class="p-4 rounded-lg bg-white/40 meal-empty no-print" ${canEdit ? `onclick="openDishModal('${dateStr}', '${mealType}')"` : ''} style="${canEdit ? 'cursor: pointer;' : ''}">
+            <div class="p-4 rounded-lg bg-white/40 meal-empty no-print" ${canEdit ? `data-action="open-dish-modal" data-date="${dateStr}" data-meal-type="${mealType}"` : ''} style="${canEdit ? 'cursor: pointer;' : ''}">
                 <div class="flex items-center justify-center py-8">
                     <div class="flex items-center gap-3 opacity-40">
                         ${canEdit ? `<svg xmlns="http://www.w3.org/2000/svg" class="h-10 w-10" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -605,7 +609,7 @@ function renderMealSection(dateStr, mealType, index, mealData, isEkadashiDay) {
             <div class="flex items-center gap-4 mb-3 p-2 bg-base-100 rounded-lg no-print">
                 <div class="flex items-center gap-2 flex-1">
                     <span class="text-sm opacity-60">${t('cook')}:</span>
-                    <select class="select select-sm select-bordered flex-1" onchange="updateMealCook('${dateStr}', '${mealType}', this.value)">
+                    <select class="select select-sm select-bordered flex-1" data-action="update-meal-cook" data-date="${dateStr}" data-meal-type="${mealType}">
                         <option value="">— ${t('select_cook')} —</option>
                         ${cooks.map(c => `<option value="${c.id}" ${mealData?.cook_id === c.id ? 'selected' : ''}>${getPersonName(c)}</option>`).join('')}
                     </select>
@@ -615,7 +619,7 @@ function renderMealSection(dateStr, mealType, index, mealData, isEkadashiDay) {
                            class="input input-sm input-bordered w-20 text-center"
                            value="${portions}"
                            min="1"
-                           onchange="updateMealPortions('${dateStr}', '${mealType}', this.value)"
+                           data-action="update-meal-portions" data-date="${dateStr}" data-meal-type="${mealType}"
                     />
                     <span class="text-sm opacity-60">${t('persons')}</span>
                 </div>
@@ -642,7 +646,7 @@ function renderMealSection(dateStr, mealType, index, mealData, isEkadashiDay) {
                 <div class="flex items-center gap-1">
                     ${dishes.length > 0 ? `
                     <button class="btn btn-ghost btn-md btn-square opacity-50 hover:opacity-100 no-print"
-                            onclick="openMealDetailsModal('${dateStr}', '${mealType}')"
+                            data-action="open-meal-details-modal" data-date="${dateStr}" data-meal-type="${mealType}"
                             title="${t('view_details') || 'Просмотреть детали'}">
                         <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/>
@@ -651,7 +655,7 @@ function renderMealSection(dateStr, mealType, index, mealData, isEkadashiDay) {
                     </button>
                     ` : ''}
                     ${canEdit ? `
-                    <button class="btn btn-ghost btn-md btn-square opacity-50 hover:opacity-100 no-print" onclick="openDishModal('${dateStr}', '${mealType}')">
+                    <button class="btn btn-ghost btn-md btn-square opacity-50 hover:opacity-100 no-print" data-action="open-dish-modal" data-date="${dateStr}" data-meal-type="${mealType}">
                         <svg xmlns="http://www.w3.org/2000/svg" class="h-7 w-7" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" />
                         </svg>
@@ -686,7 +690,7 @@ function renderMealSection(dateStr, mealType, index, mealData, isEkadashiDay) {
                                    value="${dish.portion_size || ''}"
                                    min="0"
                                    step="0.5"
-                                   onchange="updateDishQuantity('${dish.id}', this.value)"
+                                   data-action="update-dish-quantity" data-dish-id="${dish.id}"
                             />
                             <span class="btn btn-sm join-item no-animation pointer-events-none bg-base-200">${getUnitShort(dish.portion_unit)}</span>
                         </div>
@@ -704,7 +708,7 @@ function renderMealSection(dateStr, mealType, index, mealData, isEkadashiDay) {
                             <div class="flex items-center gap-2">
                                 ${quantityHtml}
                                 ${canEdit ? `
-                                <button class="btn btn-ghost btn-sm btn-square text-error/60 hover:text-error hover:bg-error/10 no-print" onclick="removeDish('${dateStr}', '${mealType}', '${dish.id}')">
+                                <button class="btn btn-ghost btn-sm btn-square text-error/60 hover:text-error hover:bg-error/10 no-print" data-action="remove-dish" data-date="${dateStr}" data-meal-type="${mealType}" data-dish-id="${dish.id}">
                                     <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
                                     </svg>
@@ -773,7 +777,7 @@ function renderWeek() {
                             ${holidayLine}
                         </div>
                         ${canEdit ? `
-                        <button class="btn btn-ghost btn-sm btn-square opacity-50 hover:opacity-100 no-print" onclick="openDayDetail('${dateStr}')">
+                        <button class="btn btn-ghost btn-sm btn-square opacity-50 hover:opacity-100 no-print" data-action="open-day-detail" data-date="${dateStr}">
                             <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
                             </svg>
@@ -883,7 +887,7 @@ function renderPeriod() {
                             ${holidayLine}
                         </div>
                         ${canEdit ? `
-                        <button class="btn btn-ghost btn-sm btn-square opacity-50 hover:opacity-100 no-print" onclick="openDayDetail('${dateStr}')">
+                        <button class="btn btn-ghost btn-sm btn-square opacity-50 hover:opacity-100 no-print" data-action="open-day-detail" data-date="${dateStr}">
                             <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
                             </svg>
@@ -1016,7 +1020,7 @@ function renderMonth() {
         const eatingLine = formatEatingLine(dateStr, 'text-xs text-gray-500 font-medium');
 
         return `
-            <div class="min-h-20 rounded shadow-sm p-1.5 ${isToday ? 'ring-2' : ''} cursor-pointer hover:opacity-80 flex flex-col" style="${bgStyle} ${borderStyle}" onclick="openDayDetail('${dateStr}')">
+            <div class="min-h-20 rounded shadow-sm p-1.5 ${isToday ? 'ring-2' : ''} cursor-pointer hover:opacity-80 flex flex-col" style="${bgStyle} ${borderStyle}" data-action="open-day-detail" data-date="${dateStr}">
                 <div class="flex justify-between items-start mb-1">
                     <span class="font-bold text-sm ${isToday ? 'text-primary' : ''}">${date.getDate()}</span>
                     ${holidayIndicator}
@@ -1113,7 +1117,7 @@ function onPeriodDatesChange() {
 }
 
 function openDayDetail(dateStr) {
-    currentDate = new Date(dateStr);
+    currentDate = DateUtils.parseDate(dateStr);
     setView('day');
 }
 
@@ -1213,7 +1217,7 @@ function openDishModal(dateStr, mealType) {
     selectedMealType = mealType;
     selectedRecipe = null;
 
-    const date = new Date(dateStr);
+    const date = DateUtils.parseDate(dateStr);
     const m = getMonthNames();
     const d = getDayNames();
 
@@ -1244,9 +1248,9 @@ function openDishModal(dateStr, mealType) {
 function buildCategoryButtons() {
     const container = Layout.$('#categoryButtons');
     container.innerHTML = `
-        <button type="button" class="btn btn-sm filter-btn ${currentCategory === 'all' ? 'active' : ''}" data-cat="all" onclick="filterByCategory('all')">${t('filter_all') || 'Все'}</button>
+        <button type="button" class="btn btn-sm filter-btn ${currentCategory === 'all' ? 'active' : ''}" data-cat="all" data-action="filter-by-category" data-category="all">${t('filter_all') || 'Все'}</button>
         ${categories.map(cat => `
-            <button type="button" class="btn btn-sm filter-btn ${currentCategory === cat.slug ? 'active' : ''}" data-cat="${cat.slug}" style="--cat-color: ${cat.color};" onclick="filterByCategory('${cat.slug}')">${getName(cat)}</button>
+            <button type="button" class="btn btn-sm filter-btn ${currentCategory === cat.slug ? 'active' : ''}" data-cat="${cat.slug}" style="--cat-color: ${cat.color};" data-action="filter-by-category" data-category="${cat.slug}">${getName(cat)}</button>
         `).join('')}
     `;
 }
@@ -1288,7 +1292,7 @@ function filterRecipes(query) {
         dropdown.innerHTML = `<div class="p-3 text-sm opacity-50">${t('nothing_found')}</div>`;
     } else {
         dropdown.innerHTML = filtered.map(r => `
-            <div class="p-3 hover:bg-base-200 cursor-pointer border-b border-base-200 last:border-0 ${isEkadashiDay && !r.ekadashi ? 'opacity-50' : ''}" onclick="selectRecipe('${r.id}')">
+            <div class="p-3 hover:bg-base-200 cursor-pointer border-b border-base-200 last:border-0 ${isEkadashiDay && !r.ekadashi ? 'opacity-50' : ''}" data-action="select-recipe" data-id="${r.id}">
                 <div class="font-medium flex items-center gap-2">
                     ${getName(r)}
                     ${r.ekadashi ? '<span class="text-xs text-amber-600">э</span>' : ''}
@@ -1332,7 +1336,7 @@ function filterByCategory(category) {
         list.innerHTML = `<div class="p-3 text-sm opacity-50 text-center">${t('nothing_found')}</div>`;
     } else {
         list.innerHTML = filtered.map(r => `
-            <div class="p-3 hover:bg-base-200 cursor-pointer border-b border-base-200 last:border-0 ${isEkadashiDay && !r.ekadashi ? 'opacity-50' : ''}" onclick="selectRecipe('${r.id}')">
+            <div class="p-3 hover:bg-base-200 cursor-pointer border-b border-base-200 last:border-0 ${isEkadashiDay && !r.ekadashi ? 'opacity-50' : ''}" data-action="select-recipe" data-id="${r.id}">
                 <div class="font-medium flex items-center gap-2">
                     ${getName(r)}
                     ${r.ekadashi ? '<span class="text-xs text-amber-600">э</span>' : ''}
@@ -1708,7 +1712,7 @@ async function checkExistingMenuForApply(startDateStr, dayCount) {
     const locationId = getCurrentLocation()?.id;
     if (!locationId) return;
 
-    const startDate = new Date(startDateStr);
+    const startDate = DateUtils.parseDate(startDateStr);
     const endDate = new Date(startDate);
     endDate.setDate(endDate.getDate() + dayCount - 1);
 
@@ -1849,7 +1853,7 @@ async function openMealDetailsModal(dateStr, mealType) {
     const mealData = menuData[dateStr]?.[mealType];
     if (!mealData?.dishes?.length) return;
 
-    const date = new Date(dateStr);
+    const date = DateUtils.parseDate(dateStr);
     const m = getMonthNames();
     const d = getDayNames();
     const portions = mealData.portions || 50;
@@ -2010,11 +2014,81 @@ function printMealDetails() {
 }
 
 // ==================== INIT ====================
+// ==================== ДЕЛЕГИРОВАНИЕ КЛИКОВ ====================
+// Общий обработчик для всех view-контейнеров (day/week/period/month)
+function setupViewDelegation(el) {
+    if (!el || el._delegated) return;
+    el._delegated = true;
+    el.addEventListener('click', ev => {
+        const btn = ev.target.closest('[data-action]');
+        if (!btn) return;
+        const { action, date, mealType, dishId, id } = btn.dataset;
+        switch (action) {
+            case 'open-dish-modal': openDishModal(date, mealType); break;
+            case 'open-meal-details-modal': openMealDetailsModal(date, mealType); break;
+            case 'remove-dish': removeDish(date, mealType, dishId); break;
+            case 'open-day-detail': openDayDetail(date); break;
+        }
+    });
+    // Делегирование change-событий (повар, порции, количество блюда)
+    el.addEventListener('change', ev => {
+        const target = ev.target.closest('[data-action]');
+        if (!target) return;
+        const { action, date, mealType, dishId } = target.dataset;
+        switch (action) {
+            case 'update-meal-cook': updateMealCook(date, mealType, target.value); break;
+            case 'update-meal-portions': updateMealPortions(date, mealType, target.value); break;
+            case 'update-dish-quantity': updateDishQuantity(dishId, target.value); break;
+        }
+    });
+}
+
+function setupRecipeDelegation() {
+    // Делегирование для поиска рецептов (dropdown)
+    const dropdown = Layout.$('#recipeDropdown');
+    if (dropdown && !dropdown._delegated) {
+        dropdown._delegated = true;
+        dropdown.addEventListener('click', ev => {
+            const el = ev.target.closest('[data-action="select-recipe"]');
+            if (el) selectRecipe(el.dataset.id);
+        });
+    }
+
+    // Делегирование для списка рецептов по категориям
+    const catList = Layout.$('#categoryRecipeList');
+    if (catList && !catList._delegated) {
+        catList._delegated = true;
+        catList.addEventListener('click', ev => {
+            const el = ev.target.closest('[data-action="select-recipe"]');
+            if (el) selectRecipe(el.dataset.id);
+        });
+    }
+
+    // Делегирование для кнопок категорий
+    const catBtns = Layout.$('#categoryButtons');
+    if (catBtns && !catBtns._delegated) {
+        catBtns._delegated = true;
+        catBtns.addEventListener('click', ev => {
+            const el = ev.target.closest('[data-action="filter-by-category"]');
+            if (el) filterByCategory(el.dataset.category);
+        });
+    }
+}
+
 async function init() {
     await Layout.init({ module: 'kitchen', menuId: 'kitchen', itemId: 'menu' });
     Layout.showLoader();
     await loadData();
     Layout.hideLoader();
+
+    // Делегирование для view-контейнеров
+    setupViewDelegation(Layout.$('#dayContent'));
+    setupViewDelegation(Layout.$('#weekGrid'));
+    setupViewDelegation(Layout.$('#periodGrid'));
+    setupViewDelegation(Layout.$('#monthGrid'));
+
+    // Делегирование для модалки рецептов
+    setupRecipeDelegation();
 }
 
 window.onLanguageChange = () => {

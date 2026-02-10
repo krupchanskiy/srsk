@@ -24,12 +24,6 @@
             display: flex;
             flex-shrink: 0;
         }
-        .retreats-label {
-            min-width: 120px;
-            width: 120px;
-            background: #f3f4f6;
-            flex-shrink: 0;
-        }
         .retreats-content {
             position: relative;
             flex: 1;
@@ -95,24 +89,6 @@
             text-align: center;
             font-weight: 600;
             font-size: 13px;
-        }
-        .board-table thead tr:nth-child(2) th {
-            top: 29px;
-            font-weight: 400;
-            font-size: 11px;
-            color: #6b7280;
-        }
-        .meal-label-cell {
-            position: sticky;
-            left: 0;
-            z-index: 4;
-            background: white;
-            min-width: 120px;
-            width: 120px;
-            font-weight: 600;
-            font-size: 13px;
-            padding: 6px 10px;
-            vertical-align: top;
         }
         .meal-cell {
             min-width: 190px;
@@ -263,7 +239,6 @@
         <div class="bg-white rounded-lg shadow overflow-hidden board-wrapper" style="max-height: calc(100vh - 200px); display: flex; flex-direction: column;">
             <!-- Retreat bar -->
             <div class="retreats-bar">
-                <div class="retreats-label"></div>
                 <div class="retreats-content">
                     <div class="retreats-scroll" id="retreatsScroll"></div>
                 </div>

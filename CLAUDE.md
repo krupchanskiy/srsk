@@ -6,11 +6,12 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 **ШРСК** (Sri Rupa Seva Kunja) — веб-приложение для управления ашрамом.
 
-- **Stack**: Vanilla JS + DaisyUI + Tailwind CSS + Supabase (без сборки)
+- **Stack**: Vanilla JS + DaisyUI 4.x + Tailwind CSS + Supabase (без сборки, CDN)
 - **Production**: https://in.rupaseva.com
 - **Supabase Project ID (prod)**: `llttmftapmwebidgevmg`
 - **Supabase Project ID (dev)**: `vzuiwpeovnzfokekdetq`
 - **Языки интерфейса**: русский, английский, хинди
+- **Деплой**: GitHub Pages из main (~1-2 мин), нет шага сборки
 
 ### AWS (Rekognition)
 
@@ -38,9 +39,12 @@ npm run test:kitchen   # Только тесты кухни
 npm run test:vaishnavas # Только тесты вайшнавов
 npm run test:housing   # Только тесты размещения
 npm run test:stock     # Только тесты склада
+
+# Один тест:
+npx playwright test tests/kitchen.spec.js --grep "название теста"
 ```
 
-Тесты в `tests/*.spec.js`, Playwright config в `playwright.config.js`, base URL `http://localhost:3000`.
+Тесты в `tests/*.spec.js`, Playwright config в `playwright.config.js`, base URL `http://localhost:3000`, locale `ru-RU`.
 
 ---
 
@@ -51,7 +55,7 @@ npm run test:stock     # Только тесты склада
 |------|------------|
 | [docs/architecture.md](docs/architecture.md) | Структура проекта, модули, инициализация |
 | [docs/auth.md](docs/auth.md) | Авторизация, права, роли |
-| [docs/utilities.md](docs/utilities.md) | Layout.*, Utils.*, Cache.*, CrmUtils.* |
+| [docs/utilities.md](docs/utilities.md) | Layout.*, Utils.*, Cache.*, CrmUtils.*, DateUtils.* |
 | [docs/patterns.md](docs/patterns.md) | Паттерны кода: формы, таблицы, модалки |
 | [docs/database.md](docs/database.md) | Таблицы БД, связи, типичные запросы |
 
@@ -73,7 +77,7 @@ npm run test:stock     # Только тесты склада
 
 ```html
 <head>
-    <script src="js/color-init.js"></script>   <!-- ПЕРВЫМ — тема модуля -->
+    <script src="js/color-init.js"></script>   <!-- ПЕРВЫМ — тема модуля (FOUC prevention) -->
 </head>
 <body>
     <div id="header-placeholder"></div>
@@ -84,6 +88,8 @@ npm run test:stock     # Только тесты склада
     <script src="js/cache.js"></script>
     <script src="js/utils.js"></script>
     <script src="js/layout.js"></script>
+    <script src="js/date-utils.js"></script>    <!-- Опционально -->
+    <script src="js/auth-check.js"></script>    <!-- Опционально: авторизация -->
     <script src="js/pages/timeline.js"></script> <!-- Опционально: page-specific JS -->
     <script>
         async function init() {
@@ -94,6 +100,21 @@ npm run test:stock     # Только тесты склада
     </script>
 </body>
 ```
+
+### Глобальные объекты (доступны после init)
+
+| Объект | Файл | Назначение |
+|--------|------|------------|
+| `Layout` | layout.js | Центральный хаб: `.db`, `.t()`, `.getName()`, `.handleError()`, `.showNotification()`, `.escapeHtml()`, `.pluralize()`, `.debounce()` |
+| `DateUtils` | date-utils.js | `.parseDate()`, `.toISO()`, `.formatDate()`, `.formatDateRange()` |
+| `Cache` | cache.js | `.getOrLoad(key, loaderFn, ttl)`, `.invalidate(key)` |
+| `Utils` | utils.js | `.isValidColor()`, `escapeHtml()` |
+| `CrmUtils` | crm-utils.js | Статусы воронки, иконки, форматирование денег |
+| `VaishnavasUtils` | vaishnavas-utils.js | Рендер списков людей |
+| `Translit` | translit.js | `.ru()` (кириллица→латиница), `.hi()` (деванагари→IAST) |
+| `AutoTranslate` | auto-translate.js | Автоперевод через MyMemory API |
+| `window.currentUser` | auth-check.js | Профиль, права текущего пользователя |
+| `window.hasPermission(code)` | auth-check.js | Проверка права по коду |
 
 ### Page-specific JS (`js/pages/`)
 
@@ -107,8 +128,9 @@ npm run test:stock     # Только тесты склада
 | `retreat-guests.js` | `vaishnavas/retreat-guests.html` — гости ретрита |
 | `bookings.js` | `placement/bookings.html` — бронирования |
 | `kitchen-menu.js` | `kitchen/menu.html` — планирование меню |
+| `kitchen-menu-board.js` | `kitchen/menu-board.html` — доска меню |
 | `stock-requests.js` | `stock/requests.html` — заявки на склад |
-| `departures.js` | `vaishnavas/departures.html` — логистика отъездов |
+| `departures.js` | `placement/departures.html` — логистика отъездов |
 
 ### Работа с БД
 
@@ -132,6 +154,9 @@ Layout.t('save')      // "Сохранить" (i18n)
 | Housing | #8b5cf6 | vaishnavas/, placement/, reception/ |
 | CRM | #10b981 | crm/ |
 | Admin | #374151 | ashram/, settings/ (только superuser) |
+| Guest Portal | — | guest-portal/ (отдельная конфигурация и дизайн) |
+
+Цвет модуля задаётся CSS-переменной `--current-color` через `color-init.js`.
 
 ---
 
@@ -145,14 +170,23 @@ const name = vaishnava.spiritual_name ||
 ```
 
 ### ⚠️ ДАТЫ И ВРЕМЯ — ВСЕГДА ЛОКАЛЬНОЕ ВРЕМЯ! НИКОГДА НЕ UTC!
-```javascript
-// Правильно
-const d = new Date(date);
-return `${d.getDate()}.${d.getMonth()+1}.${d.getFullYear()}`;
 
-// Неправильно (сдвигает дату в UTC!)
-date.toISOString().split('T')[0];  // ❌
+**Дата-only строки** (`YYYY-MM-DD`) — ВСЕГДА через `DateUtils.parseDate()`:
+```javascript
+// Правильно — парсит как локальное время (добавляет T00:00:00)
+const d = DateUtils.parseDate('2026-02-09');
+
+// Неправильно — new Date('YYYY-MM-DD') парсит как UTC → сдвиг на -1 день!
+const d = new Date('2026-02-09');  // ❌
 ```
+
+**Колонки, требующие parseDate**: `start_date`, `end_date`, `check_in`, `check_out`, `birth_date`, `date`, `period_from`, `period_to`, `due_date`, `inventory_date`, `problem_date`.
+
+**Timestamps** (`flight_datetime`, `created_at`, `updated_at`) — безопасны с `new Date()`.
+
+**Клонирование Date-объектов** (`new Date(existingDateObj)`) — безопасно, не менять.
+
+**Получение ISO-даты**: `DateUtils.toISO(date)` вместо `toISOString().split('T')[0]`.
 
 **ВАЖНО:** datetime-local инпуты сохраняют время БЕЗ таймзоны → PostgreSQL TIMESTAMPTZ хранит его как UTC. При чтении из БД приходит `+00:00`, и `new Date()` сдвигает на таймзону браузера. Поэтому ВСЕГДА используй `.slice(0, 16)` перед `new Date()` для значений из TIMESTAMPTZ — это убирает ложную таймзону и парсит как локальное время.
 
@@ -216,12 +250,38 @@ Layout.escapeHtml(user.name)                    // экранировать по
 Utils.isValidColor(color) ? color : '#ccc'      // валидировать цвета
 ```
 
+Также доступна функция `e()` как короткий алиас для `escapeHtml` в шаблонах.
+
 ### Права доступа
 ```javascript
 if (!window.hasPermission?.('edit_products')) return;
 await waitForAuth();
 if (window.currentUser?.is_superuser) { ... }
 ```
+
+HTML-атрибут `data-permission="edit_products"` — Layout.js автоматически скрывает элементы без права.
+
+### Event delegation (паттерн для действий в шаблонах)
+```javascript
+// В HTML: data-action="delete" data-id="${id}"
+document.addEventListener('click', (e) => {
+    const btn = e.target.closest('[data-action]');
+    if (!btn) return;
+    switch (btn.dataset.action) {
+        case 'delete': handleDelete(btn.dataset.id); break;
+    }
+});
+```
+
+Для контейнеров, которые перерисовываются — флаг `_delegated` для предотвращения дублирования слушателей.
+
+### Кэширование
+```javascript
+const buildings = await Cache.getOrLoad('buildings', () => loadBuildings(), 60000);
+Cache.invalidate('buildings');
+```
+
+Ключи кэша: `buildings`, `buildings_with_rooms`, `buildings_names`, `rooms`, `retreats`, `all_retreats`, `translations`.
 
 ---
 
@@ -242,6 +302,12 @@ vaishnavas (spiritual_name, first_name, last_name, gender, phone, email, ...)
             └─ buildings (name_ru, name_en, name_hi)
 ```
 
+### CRM воронка
+```
+crm_deals: lead → contacted → invoice_sent → prepaid → tickets →
+           room_booked → checked_in → fully_paid → completed (+ upsell, cancelled)
+```
+
 ---
 
 ## Миграции
@@ -257,6 +323,7 @@ mcp__supabase__apply_migration({ project_id: 'llttmftapmwebidgevmg', name: '108_
 mcp__supabase__execute_sql({ project_id, query })
 mcp__supabase__list_tables({ project_id, schemas: ['public'] })
 mcp__supabase__get_logs({ project_id, service: 'auth' })
+mcp__supabase__get_advisors({ project_id, type: 'security' })
 ```
 
 ---
@@ -271,15 +338,8 @@ mcp__supabase__get_logs({ project_id, service: 'auth' })
 | N+1 запросы | Загрузить всё через `.in()`, группировать на клиенте |
 | Tailwind desktop | `tailwind.config = { theme: { extend: { screens: { 'desktop': '1200px' } } } }` |
 | Кэш JS после деплоя | Обновить `?v=N` в `<script src="...js?v=N">` |
-
----
-
-## Деплой
-
-- GitHub Pages автоматически из main
-- После коммита ~1-2 минуты
-- Нет шага сборки — статические HTML/JS/CSS
-- Cache busting: `script.js?v=2`
+| `departures.js` formatDateTime | Своя реализация (DD.MM HH:MM), не заменять на DateUtils |
+| `crm-utils.js` formatDateTime | Принимает полные timestamps, не менять на parseDate |
 
 ---
 

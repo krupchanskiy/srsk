@@ -4,7 +4,6 @@
 // ==================== CONFIG ====================
 const DAYS_TO_SHOW = 35;
 const COL_WIDTH = 190;
-const LABEL_WIDTH = 120;
 
 const e = str => Layout.escapeHtml(str);
 const t = key => Layout.t(key);
@@ -226,7 +225,7 @@ async function loadEatingCounts(startDate, endDate) {
         retreatIds.length > 0
             ? Layout.db
                 .from('retreat_registrations')
-                .select('retreat_id, arrival_datetime, departure_datetime')
+                .select('retreat_id, vaishnava_id, arrival_datetime, departure_datetime')
                 .in('retreat_id', retreatIds)
                 .eq('is_deleted', false)
                 .not('status', 'in', '("cancelled","rejected")')
@@ -242,7 +241,7 @@ async function loadEatingCounts(startDate, endDate) {
             : Promise.resolve({ data: [] }),
         Layout.db
             .from('residents')
-            .select('id, check_in, check_out, early_checkin, late_checkout')
+            .select('id, vaishnava_id, check_in, check_out, early_checkin, late_checkout')
             .eq('status', 'active')
             .or('meal_type.eq.prasad,meal_type.is.null')
             .lte('check_in', endDate)
@@ -261,7 +260,8 @@ async function loadEatingCounts(startDate, endDate) {
     for (let d = new Date(firstDay); d <= lastDay; d.setDate(d.getDate() + 1)) {
         const dateStr = formatDate(d);
 
-        let breakfastGuests = 0, lunchGuests = 0;
+        const breakfastGuestIds = new Set();
+        const lunchGuestIds = new Set();
 
         for (const retreat of retreatsInPeriod) {
             if (dateStr >= retreat.start_date && dateStr <= retreat.end_date) {
@@ -293,8 +293,8 @@ async function loadEatingCounts(startDate, endDate) {
                         }
                     }
 
-                    if (getsBreakfast) breakfastGuests++;
-                    if (getsLunch) lunchGuests++;
+                    if (getsBreakfast) breakfastGuestIds.add(reg.vaishnava_id);
+                    if (getsLunch) lunchGuestIds.add(reg.vaishnava_id);
                 }
             }
         }
@@ -310,19 +310,22 @@ async function loadEatingCounts(startDate, endDate) {
             }
         }
 
+        // Исключаем тех, кто уже посчитан как гость ретрита или команда
         let breakfastResidents = 0, lunchResidents = 0;
         for (const r of residentsData) {
             if (r.check_in <= dateStr && (!r.check_out || r.check_out >= dateStr)) {
                 const isFirstDay = (dateStr === r.check_in);
                 const isLastDay = (r.check_out && dateStr === r.check_out);
-                if (!isFirstDay || r.early_checkin) breakfastResidents++;
-                if (!isLastDay || r.late_checkout) lunchResidents++;
+                const alreadyBreakfast = breakfastGuestIds.has(r.vaishnava_id) || teamBreakfast.has(r.vaishnava_id);
+                const alreadyLunch = lunchGuestIds.has(r.vaishnava_id) || teamLunch.has(r.vaishnava_id);
+                if (!alreadyBreakfast && (!isFirstDay || r.early_checkin)) breakfastResidents++;
+                if (!alreadyLunch && (!isLastDay || r.late_checkout)) lunchResidents++;
             }
         }
 
         eatingCounts[dateStr] = {
-            breakfast: { guests: breakfastGuests, team: teamBreakfast.size, residents: breakfastResidents },
-            lunch:     { guests: lunchGuests,     team: teamLunch.size,     residents: lunchResidents }
+            breakfast: { guests: breakfastGuestIds.size, team: teamBreakfast.size, residents: breakfastResidents },
+            lunch:     { guests: lunchGuestIds.size,     team: teamLunch.size,     residents: lunchResidents }
         };
     }
 }
@@ -346,24 +349,8 @@ function renderBoard() {
         days.push(d);
     }
 
-    // Sticky label для заголовков
-    const labelStyle = `position: sticky; left: 0; z-index: 6; background: white; min-width: ${LABEL_WIDTH}px; width: ${LABEL_WIDTH}px;`;
-
-    // thead: строка дат + строка дней недели
-    let headHtml = '<thead>';
-
-    // Строка с числами
-    headHtml += `<tr><th style="${labelStyle}"></th>`;
-    for (const d of days) {
-        const dateStr = formatDate(d);
-        const isToday = dateStr === today;
-        const cls = isToday ? 'day-today-header' : '';
-        headHtml += `<th class="${cls}" style="min-width: ${COL_WIDTH}px; width: ${COL_WIDTH}px;">${d.getDate()}</th>`;
-    }
-    headHtml += '</tr>';
-
-    // Строка с днями недели
-    headHtml += `<tr><th style="${labelStyle}"></th>`;
+    // thead: одна строка — число + день недели
+    let headHtml = '<thead><tr>';
     for (const d of days) {
         const dateStr = formatDate(d);
         const isToday = dateStr === today;
@@ -371,16 +358,14 @@ function renderBoard() {
         const isWeekend = dow === 0 || dow === 6;
         const cls = isToday ? 'day-today-header' : '';
         const color = isWeekend ? 'color: #ef4444;' : '';
-        headHtml += `<th class="${cls}" style="min-width: ${COL_WIDTH}px; width: ${COL_WIDTH}px; ${color}">${dayNames[dow]}</th>`;
+        headHtml += `<th class="${cls}" style="min-width: ${COL_WIDTH}px; width: ${COL_WIDTH}px; ${color}">${d.getDate()} ${dayNames[dow]}</th>`;
     }
-    headHtml += '</tr>';
-    headHtml += '</thead>';
+    headHtml += '</tr></thead>';
 
     // tbody: строки по типам приёмов пищи
     let bodyHtml = '<tbody>';
     for (const mt of types) {
         bodyHtml += '<tr>';
-        bodyHtml += `<td class="meal-label-cell">${e(t(mt) || mt)}</td>`;
 
         for (const d of days) {
             const dateStr = formatDate(d);
