@@ -19,6 +19,8 @@ let currentProductCategory = 'all';
 let highlightRequestId = null; // ID заявки для подсветки после сохранения
 let buyers = []; // Список закупщиков
 let addingToViewedRequest = false; // Флаг: добавляем в просматриваемую заявку
+let generatedEatingCounts = null; // Кол-во едоков для отображения в шапке
+let generatedPeriod = null; // Период генерации {from, to}
 
 const t = key => Layout.t(key);
 
@@ -225,6 +227,10 @@ async function generateRequest() {
         EatingUtils.loadCounts(fromDate, toDate)
     ]);
 
+    // Сохраняем для отображения в шапке
+    generatedEatingCounts = eatingCounts;
+    generatedPeriod = { from: fromDate, to: toDate };
+
     if (menuData.length === 0) {
         showAlert(tr('menu_not_found', 'Меню на выбранный период не найдено'));
         return;
@@ -340,6 +346,8 @@ async function createManualRequest() {
     requestItems = [];
     savedRequestId = null;
     savedRequestNumber = null;
+    generatedEatingCounts = null;
+    generatedPeriod = null;
     nextRequestNumber = await getNextRequestNumber();
 
     // Clear period fields for manual requests
@@ -376,6 +384,35 @@ function renderResults() {
         titleEl.textContent = `${tr('new_request_tab', 'Новая заявка')} #${formatNumberWithYear(nextRequestNumber)}`;
     } else {
         titleEl.textContent = tr('new_request_tab', 'Новая заявка');
+    }
+
+    // Информация о порциях по датам
+    const portionsEl = Layout.$('#portionsInfo');
+    if (generatedEatingCounts && generatedPeriod) {
+        const lines = [];
+        const d = DateUtils.parseDate(generatedPeriod.from);
+        const end = DateUtils.parseDate(generatedPeriod.to);
+        while (d <= end) {
+            const ds = DateUtils.toISO(d);
+            const day = generatedEatingCounts[ds];
+            if (day) {
+                const bTotal = day.breakfast ? day.breakfast.guests + day.breakfast.team + (day.breakfast.residents || 0) : 0;
+                const lTotal = day.lunch ? day.lunch.guests + day.lunch.team + (day.lunch.residents || 0) : 0;
+                const maxTotal = Math.max(bTotal, lTotal);
+                const dd = d.getDate().toString().padStart(2, '0');
+                const mm = (d.getMonth() + 1).toString().padStart(2, '0');
+                lines.push(`${dd}.${mm} — ${maxTotal || '?'}`);
+            }
+            d.setDate(d.getDate() + 1);
+        }
+        if (lines.length > 0) {
+            portionsEl.textContent = `${tr('portions_count', 'Кол-во порций')}: ${lines.join(', ')}`;
+            portionsEl.classList.remove('hidden');
+        } else {
+            portionsEl.classList.add('hidden');
+        }
+    } else {
+        portionsEl.classList.add('hidden');
     }
 
     // Always show results section (hide choice section)
@@ -1052,6 +1089,8 @@ window.onLocationChange = async function() {
     // Сбрасываем текущую заявку при смене локации
     requestItems = [];
     savedRequestId = null;
+    generatedEatingCounts = null;
+    generatedPeriod = null;
     Layout.$('#resultsSection').classList.add('hidden');
     Layout.$('#requestChoiceSection').classList.remove('hidden');
     renderSavedRequests();
