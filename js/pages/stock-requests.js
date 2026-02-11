@@ -21,6 +21,7 @@ let buyers = []; // Список закупщиков
 let addingToViewedRequest = false; // Флаг: добавляем в просматриваемую заявку
 let generatedEatingCounts = null; // Кол-во едоков для отображения в шапке
 let generatedPeriod = null; // Период генерации {from, to}
+let generatedActualPortions = null; // Фактические порции (с учётом ручных от повара)
 
 const t = key => Layout.t(key);
 
@@ -238,10 +239,15 @@ async function generateRequest() {
 
     // Calculate required ingredients
     const ingredientTotals = {};
+    const actualPortions = {}; // {date: {meal_type: N}} — фактические порции
 
     menuData.forEach(meal => {
-        // Актуальное количество едоков на дату и приём пищи
-        const mealPortions = EatingUtils.getTotal(eatingCounts, meal.date, meal.meal_type);
+        // Приоритет: ручное кол-во повара → автоматический расчёт
+        const mealPortions = meal.portions || EatingUtils.getTotal(eatingCounts, meal.date, meal.meal_type);
+
+        // Сохраняем фактические порции для отображения
+        if (!actualPortions[meal.date]) actualPortions[meal.date] = {};
+        actualPortions[meal.date][meal.meal_type] = mealPortions;
 
         (meal.dishes || []).forEach(dish => {
             const recipe = recipes.find(r => r.id === dish.recipe_id);
@@ -265,6 +271,8 @@ async function generateRequest() {
             });
         });
     });
+
+    generatedActualPortions = actualPortions;
 
     // Calculate what needs to be purchased
     requestItems = [];
@@ -348,6 +356,7 @@ async function createManualRequest() {
     savedRequestNumber = null;
     generatedEatingCounts = null;
     generatedPeriod = null;
+    generatedActualPortions = null;
     nextRequestNumber = await getNextRequestNumber();
 
     // Clear period fields for manual requests
@@ -386,19 +395,17 @@ function renderResults() {
         titleEl.textContent = tr('new_request_tab', 'Новая заявка');
     }
 
-    // Информация о порциях по датам
+    // Информация о порциях по датам (фактические — с учётом ручных от повара)
     const portionsEl = Layout.$('#portionsInfo');
-    if (generatedEatingCounts && generatedPeriod) {
+    if (generatedActualPortions && generatedPeriod) {
         const lines = [];
         const d = DateUtils.parseDate(generatedPeriod.from);
         const end = DateUtils.parseDate(generatedPeriod.to);
         while (d <= end) {
             const ds = DateUtils.toISO(d);
-            const day = generatedEatingCounts[ds];
-            if (day) {
-                const bTotal = day.breakfast ? day.breakfast.guests + day.breakfast.team + (day.breakfast.residents || 0) : 0;
-                const lTotal = day.lunch ? day.lunch.guests + day.lunch.team + (day.lunch.residents || 0) : 0;
-                const maxTotal = Math.max(bTotal, lTotal);
+            const dayPortions = generatedActualPortions[ds];
+            if (dayPortions) {
+                const maxTotal = Math.max(...Object.values(dayPortions));
                 const dd = d.getDate().toString().padStart(2, '0');
                 const mm = (d.getMonth() + 1).toString().padStart(2, '0');
                 lines.push(`${dd}.${mm} — ${maxTotal || '?'}`);
@@ -1091,6 +1098,7 @@ window.onLocationChange = async function() {
     savedRequestId = null;
     generatedEatingCounts = null;
     generatedPeriod = null;
+    generatedActualPortions = null;
     Layout.$('#resultsSection').classList.add('hidden');
     Layout.$('#requestChoiceSection').classList.remove('hidden');
     renderSavedRequests();
