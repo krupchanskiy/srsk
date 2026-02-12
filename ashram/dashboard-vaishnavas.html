@@ -289,10 +289,16 @@ function getRoomText(resident) {
     return bName ? `${e(bName)} → ${e(room.number)}` : e(room.number);
 }
 
+function formatShortDate(str) {
+    if (!str) return '?';
+    const d = DateUtils.parseDate(str);
+    const dd = String(d.getDate()).padStart(2, '0');
+    const mm = String(d.getMonth() + 1).padStart(2, '0');
+    return `${dd}.${mm}`;
+}
+
 function formatDateRange(resident) {
-    const ci = resident.check_in ? DateUtils.format(DateUtils.parseDate(resident.check_in), 'dd.MM') : '?';
-    const co = resident.check_out ? DateUtils.format(DateUtils.parseDate(resident.check_out), 'dd.MM') : '?';
-    return `${ci} — ${co}`;
+    return `${formatShortDate(resident.check_in)} — ${formatShortDate(resident.check_out)}`;
 }
 
 function renderTable(residents) {
