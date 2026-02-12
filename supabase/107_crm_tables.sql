@@ -149,7 +149,9 @@ CREATE TABLE crm_deals (
     last_contacted_at TIMESTAMPTZ,
 
     created_at TIMESTAMPTZ DEFAULT NOW(),
-    updated_at TIMESTAMPTZ DEFAULT NOW()
+    updated_at TIMESTAMPTZ DEFAULT NOW(),
+
+    CONSTRAINT crm_deals_retreat_vaishnava_unique UNIQUE (retreat_id, vaishnava_id)
 );
 
 -- Теги сделок (many-to-many)
