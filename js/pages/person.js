@@ -160,7 +160,7 @@ async function loadRegistrations(personId) {
         if (retreatIds.length > 0) {
             const { data: residentsData } = await Layout.db
                 .from('residents')
-                .select('id, retreat_id, room_id, category_id, resident_categories:category_id(id, slug, color, name_ru, name_en, name_hi), rooms(number, buildings(name_ru, name_en, name_hi))')
+                .select('id, retreat_id, room_id, check_in, check_out, category_id, resident_categories:category_id(id, slug, color, name_ru, name_en, name_hi), rooms(number, buildings(name_ru, name_en, name_hi))')
                 .eq('vaishnava_id', personId)
                 .in('retreat_id', retreatIds)
                 .eq('status', 'confirmed');
@@ -912,17 +912,30 @@ function renderPermanentResident() {
         `<option value="${c.id}" ${c.id === res.category_id ? 'selected' : ''}>${Layout.getName(c)}</option>`
     ).join('');
 
+    const isPermanent = res.check_out >= '2099-01-01';
+
     content.innerHTML = `
         <div class="flex flex-col gap-3">
             <div class="flex items-center gap-2">
                 <span class="opacity-60 text-sm">Комната:</span>
                 <span class="font-medium ${res.room_id ? 'text-success' : 'text-error'}">${roomInfo}</span>
             </div>
-            ${res.check_in ? `<div class="flex items-center gap-2">
-                <span class="opacity-60 text-sm">Заезд:</span>
-                <span class="text-sm">${formatDate(res.check_in)}</span>
-                ${res.check_out && res.check_out < '2099-01-01' ? `<span class="opacity-60 text-sm ml-2">Выезд:</span><span class="text-sm">${formatDate(res.check_out)}</span>` : ''}
-            </div>` : ''}
+            <div class="grid grid-cols-2 gap-3">
+                <div>
+                    <span class="opacity-60 text-xs">Заезд</span>
+                    <input type="date" class="input input-bordered input-sm w-full" id="permResCheckIn" value="${res.check_in || ''}" onchange="savePermanentResidentDates()" />
+                </div>
+                <div>
+                    <span class="opacity-60 text-xs">Выезд</span>
+                    <div class="flex items-center gap-2">
+                        <input type="date" class="input input-bordered input-sm flex-1" id="permResCheckOut" value="${isPermanent ? '' : (res.check_out || '')}" ${isPermanent ? 'disabled' : ''} onchange="savePermanentResidentDates()" />
+                        <label class="flex items-center gap-1 cursor-pointer whitespace-nowrap">
+                            <input type="checkbox" class="checkbox checkbox-xs" id="permResPermanent" ${isPermanent ? 'checked' : ''} onchange="togglePermanentResidentCheckout(this.checked)" />
+                            <span class="text-xs opacity-60">постоянно</span>
+                        </label>
+                    </div>
+                </div>
+            </div>
             <div class="flex items-center gap-2">
                 <span class="opacity-60 text-sm" data-i18n="category">${t('category') || 'Категория'}</span>
                 ${cat ? `<span class="badge badge-sm" style="background-color: ${cat.color}20; color: ${cat.color}; border-color: ${cat.color}">${Layout.getName(cat)}</span>` : ''}
@@ -932,6 +945,42 @@ function renderPermanentResident() {
             </div>
         </div>
     `;
+}
+
+function togglePermanentResidentCheckout(isPermanent) {
+    const checkOutInput = document.getElementById('permResCheckOut');
+    if (isPermanent) {
+        checkOutInput.value = '';
+        checkOutInput.disabled = true;
+    } else {
+        checkOutInput.disabled = false;
+        checkOutInput.focus();
+    }
+    savePermanentResidentDates();
+}
+
+async function savePermanentResidentDates() {
+    if (!permanentResident?.id) return;
+
+    const checkIn = document.getElementById('permResCheckIn').value || null;
+    const isPermanent = document.getElementById('permResPermanent').checked;
+    const checkOut = isPermanent ? '2099-12-31' : (document.getElementById('permResCheckOut').value || null);
+
+    if (!checkIn) return;
+
+    try {
+        const { error } = await Layout.db
+            .from('residents')
+            .update({ check_in: checkIn, check_out: checkOut })
+            .eq('id', permanentResident.id);
+        if (error) throw error;
+
+        permanentResident.check_in = checkIn;
+        permanentResident.check_out = checkOut;
+    } catch (err) {
+        console.error('Error saving dates:', err);
+        Layout.showNotification((t('error_saving') || 'Ошибка сохранения') + ': ' + err.message, 'error');
+    }
 }
 
 async function changePermanentResidentCategory(categoryId) {
@@ -981,6 +1030,29 @@ async function updateRegistrationStatus(registrationId, newStatus, selectElement
         if (selectElement && oldStatus) {
             selectElement.value = oldStatus;
         }
+    }
+}
+
+async function changeResidentDate(residentId, field, value) {
+    if (!residentId || !field || !value) return;
+
+    try {
+        const { error } = await Layout.db
+            .from('residents')
+            .update({ [field]: value })
+            .eq('id', residentId);
+        if (error) throw error;
+
+        // Обновить локальные данные без полной перезагрузки
+        for (const reg of registrations) {
+            if (reg.resident?.id === residentId) {
+                reg.resident[field] = value;
+                break;
+            }
+        }
+    } catch (err) {
+        console.error('Error saving date:', err);
+        Layout.showNotification((t('error_saving') || 'Ошибка сохранения') + ': ' + err.message, 'error');
     }
 }
 
@@ -1587,6 +1659,8 @@ function renderRegistrations() {
                 updateRegistrationStatus(target.dataset.id, target.value, target);
             } else if (target.dataset.action === 'change-category') {
                 changeResidentCategory(target.dataset.residentId, target.value);
+            } else if (target.dataset.action === 'change-resident-dates') {
+                changeResidentDate(target.dataset.residentId, target.dataset.field, target.value);
             }
         });
     }
@@ -1689,6 +1763,22 @@ function renderRegistrations() {
                     </div>
                 `;
             }
+            // Даты заезда/выезда для ретритного resident
+            detailsHtml += `
+                <div class="detail-section">
+                    <div class="detail-label">📅 Даты проживания</div>
+                    <div class="grid grid-cols-2 gap-2" style="max-width: 320px;">
+                        <div>
+                            <span class="text-xs opacity-60">Заезд</span>
+                            <input type="date" class="input input-bordered input-xs w-full" value="${resident.check_in || ''}" data-action="change-resident-dates" data-resident-id="${resident.id}" data-field="check_in" />
+                        </div>
+                        <div>
+                            <span class="text-xs opacity-60">Выезд</span>
+                            <input type="date" class="input input-bordered input-xs w-full" value="${resident.check_out || ''}" data-action="change-resident-dates" data-resident-id="${resident.id}" data-field="check_out" />
+                        </div>
+                    </div>
+                </div>
+            `;
         } else if (accommodation?.room_number) {
             // Legacy accommodation data
             detailsHtml += `
