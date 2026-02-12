@@ -28,7 +28,7 @@ const EatingUtils = {
             retreatIds.length > 0
                 ? Layout.db
                     .from('retreat_registrations')
-                    .select('retreat_id, vaishnava_id, arrival_datetime, departure_datetime')
+                    .select('id, retreat_id, vaishnava_id, arrival_datetime, departure_datetime, guest_transfers(direction, flight_datetime)')
                     .in('retreat_id', retreatIds)
                     .eq('is_deleted', false)
                     .not('status', 'in', '("cancelled","rejected")')
@@ -78,38 +78,51 @@ const EatingUtils = {
 
             // Гости ретритов
             for (const retreat of retreatsInPeriod) {
-                if (dateStr >= retreat.start_date && dateStr <= retreat.end_date) {
-                    const regs = guestRegistrations.filter(r => r.retreat_id === retreat.id);
-                    for (const reg of regs) {
-                        const isFirstDay = (dateStr === retreat.start_date);
-                        const isLastDay = (dateStr === retreat.end_date);
+                if (dateStr < retreat.start_date || dateStr > retreat.end_date) continue;
+                const regs = guestRegistrations.filter(r => r.retreat_id === retreat.id);
+                for (const reg of regs) {
+                    // Трансферы: arrival и departure рейсы
+                    const transfers = reg.guest_transfers || [];
+                    const arrivalFlight = transfers.find(t => t.direction === 'arrival')?.flight_datetime;
+                    const departureFlight = transfers.find(t => t.direction === 'departure')?.flight_datetime;
 
-                        let getsBreakfast = true;
-                        let getsLunch = true;
+                    // Эффективные даты: arrival_datetime → рейс → даты ретрита
+                    const arrivalDt = reg.arrival_datetime || arrivalFlight;
+                    const departureDt = reg.departure_datetime || departureFlight;
+                    const effectiveStart = arrivalDt ? arrivalDt.slice(0, 10) : retreat.start_date;
+                    const effectiveEnd = departureDt ? departureDt.slice(0, 10) : retreat.end_date;
 
-                        if (isFirstDay) {
-                            if (reg.arrival_datetime) {
-                                const hour = new Date(reg.arrival_datetime.slice(0, 16)).getHours();
-                                getsBreakfast = hour < BREAKFAST_CUTOFF;
-                                getsLunch = hour < LUNCH_CUTOFF;
-                            } else {
-                                getsBreakfast = false;
-                            }
+                    // Пропускаем если дата вне диапазона гостя
+                    if (dateStr < effectiveStart || dateStr > effectiveEnd) continue;
+
+                    const isFirstDay = (dateStr === effectiveStart);
+                    const isLastDay = (dateStr === effectiveEnd);
+
+                    let getsBreakfast = true;
+                    let getsLunch = true;
+
+                    if (isFirstDay) {
+                        if (arrivalDt) {
+                            const hour = new Date(arrivalDt.slice(0, 16)).getHours();
+                            getsBreakfast = hour < BREAKFAST_CUTOFF;
+                            getsLunch = hour < LUNCH_CUTOFF;
+                        } else {
+                            getsBreakfast = false;
                         }
-
-                        if (isLastDay) {
-                            if (reg.departure_datetime) {
-                                const hour = new Date(reg.departure_datetime.slice(0, 16)).getHours();
-                                getsBreakfast = getsBreakfast && hour >= BREAKFAST_CUTOFF;
-                                getsLunch = getsLunch && hour >= LUNCH_CUTOFF;
-                            } else {
-                                getsLunch = false;
-                            }
-                        }
-
-                        if (getsBreakfast) breakfastGuestIds.add(reg.vaishnava_id);
-                        if (getsLunch) lunchGuestIds.add(reg.vaishnava_id);
                     }
+
+                    if (isLastDay) {
+                        if (departureDt) {
+                            const hour = new Date(departureDt.slice(0, 16)).getHours();
+                            getsBreakfast = getsBreakfast && hour >= BREAKFAST_CUTOFF;
+                            getsLunch = getsLunch && hour >= LUNCH_CUTOFF;
+                        } else {
+                            getsLunch = false;
+                        }
+                    }
+
+                    if (getsBreakfast) breakfastGuestIds.add(reg.vaishnava_id);
+                    if (getsLunch) lunchGuestIds.add(reg.vaishnava_id);
                 }
             }
 
