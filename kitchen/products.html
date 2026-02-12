@@ -48,7 +48,7 @@
                 <h1 class="text-2xl font-bold" data-i18n="products_title">Продукты</h1>
                 <p class="text-sm opacity-60" id="productsCount">Загрузка...</p>
             </div>
-            <button class="btn btn-primary gap-2" onclick="openAddModal()">
+            <button class="btn btn-primary gap-2" onclick="openAddModal()" data-permission="edit_products">
                 <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" />
                 </svg>
@@ -221,12 +221,12 @@
     </dialog>
 
     <script src="../js/config.js"></script>
-    <script src="../js/auth-check.js?v=2"></script>
+    <script src="../js/auth-check.js?v=3"></script>
     <script src="../js/cache.js"></script>
-    <script src="../js/utils.js"></script>
+    <script src="../js/utils.js?v=2"></script>
     <script src="../js/translit.js"></script>
     <script src="../js/auto-translate.js"></script>
-    <script src="../js/layout.js"></script>
+    <script src="../js/layout.js?v=5"></script>
     <script>
         // ==================== STATE ====================
         let currentCategory = 'all';
@@ -458,6 +458,7 @@
             const tbody = Layout.$('#productsTable');
             const countEl = Layout.$('#productsCount');
             const lang = Layout.currentLang;
+            const canEdit = window.hasPermission && window.hasPermission('edit_products');
 
             let filtered = products.filter(product => {
                 const matchesCategory = currentCategory === 'all' || product.product_categories?.slug === currentCategory;
@@ -514,7 +515,7 @@
                         <td class="text-center">
                             ${product.ekadashi ? '<span class="text-success" title="Подходит для Экадаши">✓</span>' : '<span class="text-error opacity-50" title="Не подходит для Экадаши">✗</span>'}
                         </td>
-                        <td>
+                        ${canEdit ? `<td>
                             <div class="flex gap-1">
                                 <button class="btn btn-ghost btn-sm btn-square" onclick="openEditModal('${product.id}')">
                                     <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -527,7 +528,7 @@
                                     </svg>
                                 </button>
                             </div>
-                        </td>
+                        </td>` : '<td></td>'}
                     </tr>
                 `;
             }).join('');
@@ -535,6 +536,10 @@
 
         // ==================== MODAL ====================
         function openAddModal() {
+            if (!window.hasPermission || !window.hasPermission('edit_products')) {
+                Layout.showNotification('Недостаточно прав', 'error');
+                return;
+            }
             Layout.$('#modalTitle').textContent = t('add_product');
             Layout.$('#editForm').reset();
             Layout.$('input[name="id"]').value = '';
@@ -550,6 +555,10 @@
         }
 
         function openEditModal(id) {
+            if (!window.hasPermission || !window.hasPermission('edit_products')) {
+                Layout.showNotification('Недостаточно прав', 'error');
+                return;
+            }
             const product = products.find(p => p.id === id);
             if (!product) return;
 
@@ -574,6 +583,10 @@
 
         // ==================== CRUD ====================
         async function saveProduct(formData) {
+            if (!window.hasPermission || !window.hasPermission('edit_products')) {
+                Layout.showNotification('Недостаточно прав', 'error');
+                return false;
+            }
             const id = formData.get('id');
             const isNew = !id;
 
@@ -621,7 +634,7 @@
             }
 
             if (error) {
-                alert(t('error') + ': ' + error.message);
+                Layout.showNotification(t('error') + ': ' + error.message, 'error');
                 return false;
             }
 
@@ -631,6 +644,10 @@
         }
 
         async function deleteProduct(id) {
+            if (!window.hasPermission || !window.hasPermission('edit_products')) {
+                Layout.showNotification('Недостаточно прав', 'error');
+                return;
+            }
             const product = products.find(p => p.id === id);
             if (!product) return;
 
@@ -639,7 +656,7 @@
 
             const { error } = await Layout.db.from('products').delete().eq('id', id);
             if (error) {
-                alert(t('error') + ': ' + error.message);
+                Layout.showNotification(t('error') + ': ' + error.message, 'error');
                 return;
             }
 
@@ -703,7 +720,7 @@
 
         // ==================== INIT ====================
         async function init() {
-            await Layout.init({ menuId: 'kitchen', itemId: 'products' });
+            await Layout.init({ module: 'kitchen', menuId: 'kitchen', itemId: 'products' });
             await Promise.all([loadCategories(), loadUnits()]);
             await loadProducts();
             updatePageUI();

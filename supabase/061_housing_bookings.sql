@@ -111,7 +111,7 @@ BEGIN
             SELECT COUNT(*)::INTEGER
             FROM residents res
             WHERE res.room_id = r.id
-              AND res.status = 'active'
+              AND res.status = 'confirmed'
               AND res.check_in <= target_date
               AND (res.check_out IS NULL OR res.check_out > target_date)
               AND (res.team_member_id IS NOT NULL OR res.guest_name IS NOT NULL)
@@ -121,7 +121,7 @@ BEGIN
             SELECT COUNT(*)::INTEGER
             FROM residents res
             WHERE res.room_id = r.id
-              AND res.status = 'active'
+              AND res.status = 'confirmed'
               AND res.check_in <= target_date
               AND (res.check_out IS NULL OR res.check_out > target_date)
               AND res.booking_id IS NOT NULL
@@ -133,7 +133,7 @@ BEGIN
             SELECT COUNT(*)::INTEGER
             FROM residents res
             WHERE res.room_id = r.id
-              AND res.status = 'active'
+              AND res.status = 'confirmed'
               AND res.check_out = target_date
         ), 0) AS needs_cleaning
     FROM rooms r
@@ -166,7 +166,7 @@ BEGIN
             SELECT COUNT(*)::INTEGER
             FROM residents res
             WHERE res.booking_id IN (SELECT id FROM bookings WHERE status = 'active')
-              AND res.status = 'active'
+              AND res.status = 'confirmed'
               AND res.check_in <= target_date
               AND (res.check_out IS NULL OR res.check_out >= target_date)
               AND (res.team_member_id IS NOT NULL OR res.guest_name IS NOT NULL)
@@ -176,7 +176,7 @@ BEGIN
             SELECT COUNT(*)::INTEGER
             FROM residents res
             WHERE res.booking_id IN (SELECT id FROM bookings WHERE status = 'active')
-              AND res.status = 'active'
+              AND res.status = 'confirmed'
               AND res.check_in <= target_date
               AND (res.check_out IS NULL OR res.check_out >= target_date)
               AND res.team_member_id IS NULL
@@ -262,7 +262,7 @@ BEGIN
             SELECT COUNT(*)::INTEGER
             FROM residents res
             WHERE res.booking_id = b.id
-              AND res.status = 'active'
+              AND res.status = 'confirmed'
               AND (res.team_member_id IS NOT NULL OR res.guest_name IS NOT NULL)
         ), 0) AS beds_filled,
         -- Ожидают заполнения
@@ -270,7 +270,7 @@ BEGIN
             SELECT COUNT(*)::INTEGER
             FROM residents res
             WHERE res.booking_id = b.id
-              AND res.status = 'active'
+              AND res.status = 'confirmed'
               AND res.team_member_id IS NULL
               AND res.guest_name IS NULL
         ), 0) AS beds_pending,
@@ -291,7 +291,7 @@ BEGIN
             JOIN buildings bld ON r.building_id = bld.id
             LEFT JOIN team_members tm ON res.team_member_id = tm.id
             WHERE res.booking_id = b.id
-              AND res.status = 'active'
+              AND res.status = 'confirmed'
         ), '[]'::jsonb) AS rooms
     FROM bookings b
     LEFT JOIN retreats ret ON b.retreat_id = ret.id

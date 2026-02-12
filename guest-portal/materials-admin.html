@@ -1,0 +1,545 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Управление материалами | Rupa Seva</title>
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg">
+
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        'srsk-green': '#147D30',
+                        'srsk-green-light': '#1a9e3d',
+                        'srsk-orange': '#FFBA47',
+                        'srsk-bg': '#F5F3EF'
+                    }
+                }
+            }
+        }
+    </script>
+
+    <!-- Supabase -->
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+
+    <!-- Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans:wght@400;500;600;700&family=Noto+Sans+Devanagari:wght@400;500;600;700&display=swap" rel="stylesheet">
+
+    <!-- Portal CSS -->
+    <link rel="stylesheet" href="css/portal.css">
+
+    <style>
+        .admin-card {
+            background: white;
+            border-radius: 0.75rem;
+            padding: 1rem;
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+            transition: all 0.2s;
+            border: 1px solid #e5e7eb;
+        }
+        .admin-card:hover {
+            box-shadow: 0 4px 12px rgba(0,0,0,0.08);
+        }
+        .admin-card.unpublished {
+            opacity: 0.6;
+            background: #f9fafb;
+        }
+        .icon-btn {
+            padding: 0.5rem;
+            border-radius: 0.5rem;
+            transition: all 0.15s;
+        }
+        .icon-btn:hover {
+            background: #f3f4f6;
+        }
+        .icon-btn.danger:hover {
+            background: #fef2f2;
+            color: #dc2626;
+        }
+        .form-input {
+            width: 100%;
+            padding: 0.625rem 0.875rem;
+            border: 1px solid #d1d5db;
+            border-radius: 0.5rem;
+            font-size: 0.875rem;
+            transition: border-color 0.15s;
+        }
+        .form-input:focus {
+            outline: none;
+            border-color: var(--srsk-green);
+            box-shadow: 0 0 0 3px rgba(20, 125, 48, 0.1);
+        }
+        .form-label {
+            display: block;
+            font-size: 0.875rem;
+            font-weight: 500;
+            color: #374151;
+            margin-bottom: 0.375rem;
+        }
+        .content-editor {
+            min-height: 200px;
+            font-family: monospace;
+            font-size: 0.8125rem;
+            line-height: 1.5;
+        }
+        .tab-btn {
+            padding: 0.5rem 1rem;
+            font-size: 0.875rem;
+            font-weight: 500;
+            border-radius: 0.5rem 0.5rem 0 0;
+            border: 1px solid #e5e7eb;
+            border-bottom: none;
+            background: #f9fafb;
+            color: #6b7280;
+            margin-right: -1px;
+        }
+        .tab-btn.active {
+            background: white;
+            color: var(--srsk-green);
+            position: relative;
+            z-index: 1;
+        }
+        .tab-content {
+            border: 1px solid #e5e7eb;
+            border-radius: 0 0.5rem 0.5rem 0.5rem;
+            padding: 1rem;
+            background: white;
+        }
+    </style>
+</head>
+<body class="bg-srsk-bg min-h-screen flex flex-col">
+
+    <div id="header-placeholder"></div>
+
+    <main class="container mx-auto px-4 py-6 flex-1">
+        <div class="max-w-4xl mx-auto">
+
+            <!-- Заголовок -->
+            <div class="flex items-center justify-between mb-6">
+                <div>
+                    <h1 class="text-2xl font-bold text-gray-800">Управление материалами</h1>
+                    <p class="text-gray-500">Создание и редактирование учебных материалов</p>
+                </div>
+                <button onclick="openEditModal()" class="btn-primary flex items-center gap-2">
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/>
+                    </svg>
+                    Добавить
+                </button>
+            </div>
+
+            <!-- Список материалов -->
+            <div id="materials-list" class="space-y-3">
+                <!-- Загрузка... -->
+            </div>
+
+        </div>
+    </main>
+
+    <div id="footer-placeholder"></div>
+
+    <!-- Модальное окно редактирования -->
+    <div id="editModal" class="fixed inset-0 bg-black/50 z-50 hidden items-center justify-center p-4">
+        <div class="bg-white rounded-xl max-w-3xl w-full max-h-[90vh] overflow-y-auto">
+            <!-- Заголовок модалки -->
+            <div class="flex items-center justify-between p-4 border-b sticky top-0 bg-white">
+                <h2 id="modalTitle" class="text-lg font-semibold">Новый материал</h2>
+                <button onclick="closeEditModal()" class="p-2 hover:bg-gray-100 rounded-lg">
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+                    </svg>
+                </button>
+            </div>
+
+            <!-- Форма -->
+            <form id="editForm" class="p-4 space-y-4">
+                <input type="hidden" name="id">
+
+                <!-- Slug и иконка -->
+                <div class="grid grid-cols-2 gap-4">
+                    <div>
+                        <label class="form-label">URL-идентификатор (slug)</label>
+                        <input type="text" name="slug" class="form-input" placeholder="how-to-get-here" required pattern="[a-z0-9\-]+">
+                        <p class="text-xs text-gray-400 mt-1">Латиница, цифры и дефисы</p>
+                    </div>
+                    <div>
+                        <label class="form-label">Иконка</label>
+                        <select name="icon" class="form-input">
+                            <option value="book">Книга</option>
+                            <option value="map">Карта</option>
+                            <option value="clipboard">Список</option>
+                            <option value="home">Дом</option>
+                            <option value="currency">Валюта</option>
+                            <option value="question">Вопрос</option>
+                        </select>
+                    </div>
+                </div>
+
+                <!-- Порядок и публикация -->
+                <div class="grid grid-cols-2 gap-4">
+                    <div>
+                        <label class="form-label">Порядок сортировки</label>
+                        <input type="number" name="sort_order" class="form-input" value="0">
+                    </div>
+                    <div class="flex items-center pt-6">
+                        <label class="flex items-center gap-2 cursor-pointer">
+                            <input type="checkbox" name="is_published" class="w-4 h-4 rounded border-gray-300 text-srsk-green focus:ring-srsk-green">
+                            <span class="text-sm font-medium text-gray-700">Опубликовано</span>
+                        </label>
+                    </div>
+                </div>
+
+                <!-- Заголовки -->
+                <div>
+                    <label class="form-label">Заголовок</label>
+                    <div class="grid grid-cols-3 gap-2">
+                        <input type="text" name="title_ru" class="form-input" placeholder="Русский" required>
+                        <input type="text" name="title_en" class="form-input" placeholder="English">
+                        <input type="text" name="title_hi" class="form-input" placeholder="हिंदी">
+                    </div>
+                </div>
+
+                <!-- Контент с табами -->
+                <div>
+                    <label class="form-label">Содержимое (HTML)</label>
+
+                    <!-- Табы языков -->
+                    <div class="flex">
+                        <button type="button" class="tab-btn active" onclick="switchContentTab('ru')">Русский</button>
+                        <button type="button" class="tab-btn" onclick="switchContentTab('en')">English</button>
+                        <button type="button" class="tab-btn" onclick="switchContentTab('hi')">हिंदी</button>
+                    </div>
+
+                    <div class="tab-content">
+                        <!-- Кнопка загрузки изображения -->
+                        <div class="flex items-center gap-2 mb-2">
+                            <button type="button" onclick="triggerImageUpload()" class="text-sm text-srsk-green hover:underline flex items-center gap-1">
+                                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"/>
+                                </svg>
+                                Вставить изображение
+                            </button>
+                            <input type="file" id="imageInput" accept="image/*" class="hidden" onchange="handleImageUpload(this)">
+                        </div>
+
+                        <textarea name="content_ru" class="form-input content-editor" placeholder="<h2>Заголовок</h2><p>Текст...</p>"></textarea>
+                        <textarea name="content_en" class="form-input content-editor hidden" placeholder="<h2>Title</h2><p>Text...</p>"></textarea>
+                        <textarea name="content_hi" class="form-input content-editor hidden" placeholder="<h2>शीर्षक</h2><p>पाठ...</p>"></textarea>
+                    </div>
+
+                    <p class="text-xs text-gray-400 mt-1">Используйте HTML теги: &lt;h2&gt;, &lt;h3&gt;, &lt;p&gt;, &lt;ul&gt;, &lt;li&gt;, &lt;a&gt;, &lt;strong&gt;, &lt;img&gt;</p>
+                </div>
+
+                <!-- Кнопки -->
+                <div class="flex justify-end gap-3 pt-4 border-t">
+                    <button type="button" onclick="closeEditModal()" class="btn-ghost">Отмена</button>
+                    <button type="submit" class="btn-primary">Сохранить</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Scripts -->
+    <script src="js/portal-config.js"></script>
+    <script src="js/portal-auth.js"></script>
+    <script src="js/portal-layout.js?v=5"></script>
+    <script src="../js/date-utils.js"></script>
+    <script src="js/portal-data.js?v=2"></script>
+
+    <script>
+        let materials = [];
+        let editingId = null;
+        let currentContentLang = 'ru';
+
+        async function init() {
+            PortalLayout.showLoader();
+
+            // Проверяем авторизацию
+            const guest = await PortalAuth.checkGuestAuth();
+            if (!guest) return;
+
+            // Проверяем права (только staff)
+            if (!guest.isStaff) {
+                PortalLayout.showNotification('Доступ запрещён', 'error');
+                window.location.href = 'index.html';
+                return;
+            }
+
+            // Инициализируем layout
+            await PortalLayout.init({ activeNav: 'materials' });
+
+            // Загружаем материалы
+            await loadMaterials();
+
+            PortalLayout.hideLoader();
+        }
+
+        async function loadMaterials() {
+            materials = await PortalData.getAllMaterials();
+            renderMaterialsList();
+        }
+
+        function renderMaterialsList() {
+            const container = document.getElementById('materials-list');
+
+            if (materials.length === 0) {
+                container.innerHTML = `
+                    <div class="text-center py-12 text-gray-500">
+                        <svg class="w-12 h-12 mx-auto mb-4 text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253"/>
+                        </svg>
+                        <p>Материалов пока нет</p>
+                        <button onclick="openEditModal()" class="mt-4 text-srsk-green hover:underline">Создать первый материал</button>
+                    </div>
+                `;
+                return;
+            }
+
+            container.innerHTML = materials.map(m => `
+                <div class="admin-card ${m.is_published ? '' : 'unpublished'}">
+                    <div class="material-icon flex-shrink-0">
+                        ${getMaterialIcon(m.icon)}
+                    </div>
+                    <div class="flex-1 min-w-0">
+                        <div class="font-semibold text-gray-800">${escapeHtml(m.title_ru || m.title_en || 'Без названия')}</div>
+                        <div class="text-sm text-gray-400">/${escapeHtml(m.slug)}</div>
+                    </div>
+                    <div class="flex items-center gap-1">
+                        <!-- Переключатель публикации -->
+                        <button onclick="togglePublished('${m.id}', ${!m.is_published})" class="icon-btn" title="${m.is_published ? 'Скрыть' : 'Опубликовать'}">
+                            ${m.is_published
+                                ? '<svg class="w-5 h-5 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"/></svg>'
+                                : '<svg class="w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.88 9.88l-3.29-3.29m7.532 7.532l3.29 3.29M3 3l3.59 3.59m0 0A9.953 9.953 0 0112 5c4.478 0 8.268 2.943 9.543 7a10.025 10.025 0 01-4.132 5.411m0 0L21 21"/></svg>'
+                            }
+                        </button>
+                        <!-- Редактировать -->
+                        <button onclick="openEditModal('${m.id}')" class="icon-btn" title="Редактировать">
+                            <svg class="w-5 h-5 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/>
+                            </svg>
+                        </button>
+                        <!-- Удалить -->
+                        <button onclick="deleteMaterial('${m.id}')" class="icon-btn danger" title="Удалить">
+                            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/>
+                            </svg>
+                        </button>
+                    </div>
+                </div>
+            `).join('');
+        }
+
+        function openEditModal(id = null) {
+            editingId = id;
+            const form = document.getElementById('editForm');
+            form.reset();
+
+            // Сброс табов
+            currentContentLang = 'ru';
+            switchContentTab('ru');
+
+            if (id) {
+                const material = materials.find(m => m.id === id);
+                if (material) {
+                    document.getElementById('modalTitle').textContent = 'Редактирование материала';
+                    form.elements.id.value = material.id;
+                    form.elements.slug.value = material.slug || '';
+                    form.elements.icon.value = material.icon || 'book';
+                    form.elements.sort_order.value = material.sort_order || 0;
+                    form.elements.is_published.checked = material.is_published;
+                    form.elements.title_ru.value = material.title_ru || '';
+                    form.elements.title_en.value = material.title_en || '';
+                    form.elements.title_hi.value = material.title_hi || '';
+                    form.elements.content_ru.value = material.content_ru || '';
+                    form.elements.content_en.value = material.content_en || '';
+                    form.elements.content_hi.value = material.content_hi || '';
+                }
+            } else {
+                document.getElementById('modalTitle').textContent = 'Новый материал';
+            }
+
+            document.getElementById('editModal').classList.remove('hidden');
+            document.getElementById('editModal').classList.add('flex');
+        }
+
+        function closeEditModal() {
+            document.getElementById('editModal').classList.add('hidden');
+            document.getElementById('editModal').classList.remove('flex');
+            editingId = null;
+        }
+
+        function switchContentTab(lang) {
+            currentContentLang = lang;
+
+            // Обновляем кнопки табов
+            document.querySelectorAll('.tab-btn').forEach(btn => {
+                btn.classList.remove('active');
+            });
+            event.target.classList.add('active');
+
+            // Показываем нужный textarea
+            document.querySelectorAll('.content-editor').forEach(el => {
+                el.classList.add('hidden');
+            });
+            document.querySelector(`textarea[name="content_${lang}"]`).classList.remove('hidden');
+        }
+
+        function triggerImageUpload() {
+            document.getElementById('imageInput').click();
+        }
+
+        async function handleImageUpload(input) {
+            if (!input.files || !input.files[0]) return;
+
+            const file = input.files[0];
+
+            // Проверка размера (макс 5MB)
+            if (file.size > 5 * 1024 * 1024) {
+                PortalLayout.showNotification('Файл слишком большой (макс. 5MB)', 'error');
+                return;
+            }
+
+            PortalLayout.showLoader();
+
+            // Генерируем временный ID если создаём новый материал
+            const materialId = editingId || 'temp_' + Date.now();
+
+            const result = await PortalData.uploadMaterialImage(file, materialId);
+
+            PortalLayout.hideLoader();
+
+            if (result.success) {
+                // Вставляем img тег в активный textarea
+                const textarea = document.querySelector(`textarea[name="content_${currentContentLang}"]`);
+                const imgTag = `<img src="${result.url}" alt="" style="max-width: 100%; height: auto; margin: 1rem 0;">`;
+
+                // Вставляем в позицию курсора
+                const start = textarea.selectionStart;
+                const end = textarea.selectionEnd;
+                const text = textarea.value;
+                textarea.value = text.substring(0, start) + imgTag + text.substring(end);
+                textarea.focus();
+                textarea.setSelectionRange(start + imgTag.length, start + imgTag.length);
+
+                PortalLayout.showNotification('Изображение загружено', 'success');
+            } else {
+                PortalLayout.showNotification('Ошибка загрузки: ' + result.error, 'error');
+            }
+
+            input.value = '';
+        }
+
+        document.getElementById('editForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+
+            const form = e.target;
+            const data = {
+                slug: form.elements.slug.value.trim(),
+                icon: form.elements.icon.value,
+                sort_order: parseInt(form.elements.sort_order.value) || 0,
+                is_published: form.elements.is_published.checked,
+                title_ru: form.elements.title_ru.value.trim(),
+                title_en: form.elements.title_en.value.trim(),
+                title_hi: form.elements.title_hi.value.trim(),
+                content_ru: form.elements.content_ru.value,
+                content_en: form.elements.content_en.value,
+                content_hi: form.elements.content_hi.value
+            };
+
+            if (!data.slug || !data.title_ru) {
+                PortalLayout.showNotification('Заполните обязательные поля', 'error');
+                return;
+            }
+
+            PortalLayout.showLoader();
+
+            let result;
+            if (editingId) {
+                result = await PortalData.updateMaterial(editingId, data);
+            } else {
+                result = await PortalData.createMaterial(data);
+            }
+
+            PortalLayout.hideLoader();
+
+            if (result.success) {
+                PortalLayout.showNotification('Сохранено', 'success');
+                closeEditModal();
+                await loadMaterials();
+            } else {
+                PortalLayout.showNotification('Ошибка: ' + result.error, 'error');
+            }
+        });
+
+        async function togglePublished(id, isPublished) {
+            const result = await PortalData.toggleMaterialPublished(id, isPublished);
+
+            if (result.success) {
+                // Обновляем локально
+                const material = materials.find(m => m.id === id);
+                if (material) material.is_published = isPublished;
+                renderMaterialsList();
+                PortalLayout.showNotification(isPublished ? 'Опубликовано' : 'Скрыто', 'success');
+            } else {
+                PortalLayout.showNotification('Ошибка: ' + result.error, 'error');
+            }
+        }
+
+        async function deleteMaterial(id) {
+            if (!confirm('Удалить этот материал?')) return;
+
+            PortalLayout.showLoader();
+            const result = await PortalData.deleteMaterial(id);
+            PortalLayout.hideLoader();
+
+            if (result.success) {
+                PortalLayout.showNotification('Удалено', 'success');
+                await loadMaterials();
+            } else {
+                PortalLayout.showNotification('Ошибка: ' + result.error, 'error');
+            }
+        }
+
+        function escapeHtml(str) {
+            if (!str) return '';
+            return String(str)
+                .replace(/&/g, '&amp;')
+                .replace(/</g, '&lt;')
+                .replace(/>/g, '&gt;')
+                .replace(/"/g, '&quot;');
+        }
+
+        function getMaterialIcon(iconName) {
+            const icons = {
+                'map': '<svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 20l-5.447-2.724A1 1 0 013 16.382V5.618a1 1 0 011.447-.894L9 7m0 13l6-3m-6 3V7m6 10l4.553 2.276A1 1 0 0021 18.382V7.618a1 1 0 00-.553-.894L15 4m0 13V4m0 0L9 7"/></svg>',
+                'book': '<svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253"/></svg>',
+                'clipboard': '<svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01"/></svg>',
+                'home': '<svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6"/></svg>',
+                'currency': '<svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>',
+                'question': '<svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8.228 9c.549-1.165 2.03-2 3.772-2 2.21 0 4 1.343 4 3 0 1.4-1.278 2.575-3.006 2.907-.542.104-.994.54-.994 1.093m0 3h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>'
+            };
+            return icons[iconName] || icons['book'];
+        }
+
+        // Закрытие модалки по Escape
+        document.addEventListener('keydown', (e) => {
+            if (e.key === 'Escape') closeEditModal();
+        });
+
+        // Закрытие по клику на фон
+        document.getElementById('editModal').addEventListener('click', (e) => {
+            if (e.target === e.currentTarget) closeEditModal();
+        });
+
+        init();
+    </script>
+</body>
+</html>

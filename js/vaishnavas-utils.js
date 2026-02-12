@@ -20,6 +20,15 @@ window.replacePhotoWithPlaceholder = function(img) {
     img.replaceWith(placeholder);
 };
 
+/** Глобальный обработчик клика по аватарам (event delegation для XSS-безопасности) */
+document.addEventListener('click', function(event) {
+    const avatarPhoto = event.target.closest('.avatar-photo');
+    if (avatarPhoto && avatarPhoto.dataset.photoUrl) {
+        event.stopPropagation();
+        Layout.openPhotoModal(avatarPhoto.dataset.photoUrl);
+    }
+});
+
 /** Имя и фамилия через пробел, или "без имени" */
 function getDisplayName(person) {
     return [person.first_name, person.last_name].filter(Boolean).join(' ') || t('no_name');
@@ -266,7 +275,7 @@ function renderPersonRow(person, opts = {}) {
         .toUpperCase());
 
     const avatarHtml = photoUrl
-        ? `<img src="${e(photoUrl)}" class="w-10 h-10 rounded-full object-cover cursor-pointer" alt="" data-initials="${initials}" onerror="replacePhotoWithPlaceholder(this)" onclick="event.stopPropagation(); Layout.openPhotoModal('${e(photoUrl)}')">`
+        ? `<img src="${e(photoUrl)}" class="w-10 h-10 rounded-full object-cover cursor-pointer avatar-photo" alt="" data-initials="${initials}" data-photo-url="${e(photoUrl)}" onerror="replacePhotoWithPlaceholder(this)">`
         : `<div class="w-10 h-10 rounded-full bg-gradient-to-br from-purple-500 to-pink-500 flex items-center justify-center text-white font-semibold">${initials}</div>`;
 
     return `
@@ -372,13 +381,13 @@ async function saveNewPerson(event, opts = {}) {
         first_name: form.first_name.value || null,
         last_name: form.last_name.value || null,
         spiritual_name: form.spiritual_name.value || null,
-        phone: form.phone.value || null
+        phone: form.phone.value || null,
+        email: form.email?.value || null,
+        telegram_username: form.telegram_username?.value || null
     };
 
-    // is_team_member определяется по-разному на каждой странице
-    if (opts.isTeamMember !== undefined) {
-        data.is_team_member = opts.isTeamMember;
-    } else if (form.is_team_member) {
+    // is_team_member определяется по галочке в форме
+    if (form.is_team_member) {
         data.is_team_member = form.is_team_member.type === 'checkbox'
             ? form.is_team_member.checked
             : form.is_team_member.value === 'true';

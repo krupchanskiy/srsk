@@ -85,7 +85,7 @@
                     </svg>
                     <span data-i18n="occupancy_list">Список</span>
                 </a>
-                <button id="editPositionsBtn" class="btn btn-outline btn-primary gap-2 hidden" onclick="goToEditor()">
+                <button id="editPositionsBtn" class="btn btn-outline btn-primary gap-2 hidden" data-permission="edit_floor_plan" onclick="goToEditor()">
                     <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
                     </svg>
@@ -116,7 +116,7 @@
             <div id="noPlanState" class="hidden p-8 text-center">
                 <div class="text-6xl mb-4 opacity-30">🏗️</div>
                 <p class="text-lg opacity-60 mb-4" data-i18n="floor_plan_no_plan">План этажа не загружен</p>
-                <button class="btn btn-primary gap-2" onclick="openUploadModal()">
+                <button class="btn btn-primary gap-2" data-permission="edit_floor_plan" onclick="openUploadModal()">
                     <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" />
                     </svg>
@@ -167,7 +167,7 @@
                             <span class="text-xs" data-i18n="floor_plan_mothballed">Консервация</span>
                         </div>
                     </div>
-                    <div class="flex gap-2">
+                    <div class="flex gap-2" data-permission="edit_floor_plan">
                         <button class="btn btn-ghost btn-sm gap-1" onclick="openUploadModal()">
                             <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" />
@@ -226,7 +226,7 @@
                 </div>
             </div>
 
-            <div class="modal-action">
+            <div class="modal-action" data-permission="edit_floor_plan">
                 <button type="button" class="btn btn-primary gap-2" onclick="addResidentToRoom()">
                     <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" />
@@ -273,12 +273,13 @@
     </dialog>
 
     <script src="../js/config.js"></script>
-    <script src="../js/auth-check.js?v=2"></script>
+    <script src="../js/auth-check.js?v=3"></script>
     <script src="../js/cache.js"></script>
-    <script src="../js/utils.js"></script>
+    <script src="../js/utils.js?v=2"></script>
     <script src="../js/translit.js"></script>
     <script src="../js/auto-translate.js"></script>
-    <script src="../js/layout.js"></script>
+    <script src="../js/date-utils.js"></script>
+    <script src="../js/layout.js?v=5"></script>
     <script>
         // ==================== STATE ====================
         let buildings = [];
@@ -292,7 +293,7 @@
         let selectedRoomId = null;
 
         const t = key => Layout.t(key);
-        const today = new Date().toISOString().split('T')[0];
+        const today = DateUtils.toISO(new Date());
 
         // ==================== DATA ====================
         async function loadBuildings() {
@@ -628,8 +629,8 @@
                             ${r.category_name_ru ? `<div class="text-xs opacity-60">${Layout.currentLang === 'ru' ? r.category_name_ru : r.category_name_en || r.category_name_ru}</div>` : ''}
                         </div>
                         <div class="text-xs opacity-60">
-                            ${r.check_in ? new Date(r.check_in).toLocaleDateString() : ''}
-                            ${r.check_out ? ` — ${new Date(r.check_out).toLocaleDateString()}` : ''}
+                            ${r.check_in ? DateUtils.parseDate(r.check_in).toLocaleDateString() : ''}
+                            ${r.check_out ? ` — ${DateUtils.parseDate(r.check_out).toLocaleDateString()}` : ''}
                         </div>
                     </div>
                 `).join('');
@@ -739,7 +740,7 @@
 
             } catch (err) {
                 console.error('Upload error:', err);
-                alert(t('load_error') + ': ' + err.message);
+                Layout.showNotification(t('load_error') + ': ' + err.message, 'error');
             } finally {
                 uploadBtn.disabled = false;
                 uploadBtn.textContent = t('save');
@@ -775,7 +776,7 @@
 
             } catch (err) {
                 console.error('Delete error:', err);
-                alert(t('delete_error') + ': ' + err.message);
+                Layout.showNotification(t('delete_error') + ': ' + err.message, 'error');
             }
         }
 

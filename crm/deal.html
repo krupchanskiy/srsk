@@ -1,0 +1,1198 @@
+<!DOCTYPE html>
+<html lang="ru" data-theme="light">
+<head>
+    <script src="../js/color-init.js"></script>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Сделка — CRM — ШРСК</title>
+    <link href="https://cdn.jsdelivr.net/npm/daisyui@4.12.14/dist/full.min.css" rel="stylesheet" />
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script>tailwind.config = { theme: { extend: { screens: { 'desktop': '1200px' } } } }</script>
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="../css/common.css">
+</head>
+<body class="bg-base-200 min-h-screen flex flex-col">
+
+<div id="header-placeholder"></div>
+
+<main class="container mx-auto px-4 py-6 flex-1">
+    <!-- Хлебные крошки -->
+    <div class="text-sm breadcrumbs mb-4">
+        <ul>
+            <li><a href="deals.html">Все сделки</a></li>
+            <li id="breadcrumbGuest">Загрузка...</li>
+        </ul>
+    </div>
+
+    <div class="flex flex-col lg:flex-row gap-6">
+        <!-- Основной контент -->
+        <div class="flex-1">
+            <!-- Заголовок — плашка с именем и статусом -->
+            <div id="dealStatusBanner" class="rounded-xl px-5 py-4 mb-4 flex items-center justify-between gap-4">
+                <div>
+                    <h1 class="text-2xl font-bold text-white" id="guestName">—</h1>
+                    <div class="text-white/70" id="guestContact">—</div>
+                </div>
+                <div class="flex items-center gap-2 text-white/90">
+                    <span id="dealStatusIcon" class="w-6 h-6"></span>
+                    <span id="dealStatusName" class="text-lg font-semibold"></span>
+                </div>
+            </div>
+
+            <!-- Вкладки -->
+            <div class="tabs tabs-boxed mb-4">
+                <button class="tab tab-active" onclick="switchTab('info')" id="tabInfo">Инфо</button>
+                <button class="tab" onclick="switchTab('services')" id="tabServices">Услуги</button>
+                <button class="tab" onclick="switchTab('payments')" id="tabPayments">Оплаты</button>
+                <button class="tab" onclick="switchTab('tasks')" id="tabTasks">Задачи</button>
+                <button class="tab" onclick="switchTab('history')" id="tabHistory">История</button>
+            </div>
+
+            <!-- Контент вкладок -->
+            <div id="tabContent" class="card bg-base-100 shadow-sm">
+                <div class="card-body">
+                    <div class="text-center py-8">
+                        <span class="loading loading-spinner loading-md"></span>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Боковая панель -->
+        <div class="w-full lg:w-80 space-y-4">
+            <!-- Статус -->
+            <div class="card bg-base-100 shadow-sm">
+                <div class="card-body p-4">
+                    <h3 class="font-bold mb-3">Статус</h3>
+                    <select id="statusSelect" class="select select-bordered w-full" onchange="changeStatus(this.value)">
+                    </select>
+
+                    <div class="mt-3">
+                        <label class="label py-1"><span class="label-text text-xs">Режим работы</span></label>
+                        <select id="workModeSelect" class="select select-bordered select-sm w-full" onchange="changeWorkMode(this.value)">
+                            <option value="active">Активная работа</option>
+                            <option value="long_term">Долгий дожим</option>
+                            <option value="paused">На паузе</option>
+                        </select>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Менеджер -->
+            <div class="card bg-base-100 shadow-sm">
+                <div class="card-body p-4">
+                    <h3 class="font-bold mb-3">Менеджер</h3>
+                    <select id="managerSelect" class="select select-bordered w-full" onchange="changeManager(this.value)">
+                        <option value="">Не назначен</option>
+                    </select>
+                </div>
+            </div>
+
+            <!-- Финансы -->
+            <div class="card bg-base-100 shadow-sm">
+                <div class="card-body p-4">
+                    <h3 class="font-bold mb-3">Финансы</h3>
+                    <div class="grid grid-cols-2 gap-3">
+                        <div class="py-2 pl-4 pr-3 rounded-r-lg bg-slate-100 border-l-4 border-slate-400">
+                            <div class="text-xs text-base-content/60">Начислено</div>
+                            <div class="text-lg font-bold font-mono text-slate-700" id="financeCharged">₹ 0</div>
+                        </div>
+                        <div class="py-2 pl-4 pr-3 rounded-r-lg bg-emerald-50 border-l-4 border-emerald-400">
+                            <div class="text-xs text-base-content/60">Оплачено</div>
+                            <div class="text-lg font-bold font-mono text-emerald-600" id="financePaid">₹ 0</div>
+                        </div>
+                        <div class="py-2 pl-4 pr-3 rounded-r-lg border-l-4" id="financeBalanceCard">
+                            <div class="text-xs text-base-content/60">Баланс</div>
+                            <div class="text-lg font-bold font-mono" id="financeBalance">₹ 0</div>
+                        </div>
+                        <div class="py-2 pl-4 pr-3 rounded-r-lg bg-violet-50 border-l-4 border-violet-400">
+                            <div class="text-xs text-base-content/60">Депозит</div>
+                            <div class="text-lg font-bold font-mono text-violet-600" id="financeDeposit">₹ 0</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Теги -->
+            <div class="card bg-base-100 shadow-sm">
+                <div class="card-body p-4">
+                    <h3 class="font-bold mb-3">Теги</h3>
+                    <div id="dealTags" class="flex flex-wrap gap-2 mb-3"></div>
+                    <select id="addTagSelect" class="select select-bordered select-sm w-full" onchange="addTag(this.value)">
+                        <option value="">+ Добавить тег...</option>
+                    </select>
+                </div>
+            </div>
+
+            <!-- Действия -->
+            <div class="card bg-base-100 shadow-sm">
+                <div class="card-body p-4">
+                    <h3 class="font-bold mb-3">Действия</h3>
+                    <div class="space-y-2">
+                        <button class="btn btn-sm btn-block btn-outline gap-2" onclick="openTemplatesModal()" id="templatesBtn">
+                            Шаблоны сообщений
+                        </button>
+                        <button class="btn btn-sm btn-block btn-outline text-error gap-2" onclick="cancelDeal()" id="cancelBtn">
+                            Отменить сделку
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</main>
+
+<div id="footer-placeholder"></div>
+
+<!-- Модалка добавления услуги -->
+<dialog id="addServiceModal" class="modal">
+    <div class="modal-box">
+        <h3 class="font-bold text-lg mb-4">Добавить услугу</h3>
+        <form onsubmit="saveService(event)">
+            <input type="hidden" id="editServiceId">
+
+            <div class="form-control mb-3">
+                <label class="label"><span class="label-text">Услуга</span></label>
+                <select id="serviceSelect" class="select select-bordered" onchange="onServiceSelect()">
+                    <option value="">Выберите услугу...</option>
+                    <option value="custom">— Другое (ввести вручную) —</option>
+                </select>
+            </div>
+
+            <div id="customServiceDesc" class="form-control mb-3 hidden">
+                <label class="label"><span class="label-text">Описание</span></label>
+                <input type="text" id="serviceDescription" class="input input-bordered">
+            </div>
+
+            <div class="grid grid-cols-3 gap-3 mb-4">
+                <div class="form-control">
+                    <label class="label"><span class="label-text">Кол-во</span></label>
+                    <input type="number" id="serviceQty" class="input input-bordered" value="1" min="0.01" step="0.01" oninput="calcServiceTotal()">
+                </div>
+                <div class="form-control">
+                    <label class="label"><span class="label-text">Цена (₹)</span></label>
+                    <input type="number" id="servicePrice" class="input input-bordered" value="0" min="0" step="0.01" oninput="calcServiceTotal()">
+                </div>
+                <div class="form-control">
+                    <label class="label"><span class="label-text">Итого (₹)</span></label>
+                    <input type="number" id="serviceTotal" class="input input-bordered font-bold" readonly>
+                </div>
+            </div>
+
+            <div class="modal-action">
+                <button type="button" class="btn" onclick="closeServiceModal()">Отмена</button>
+                <button type="submit" class="btn btn-primary">Сохранить</button>
+            </div>
+        </form>
+    </div>
+    <form method="dialog" class="modal-backdrop"><button>close</button></form>
+</dialog>
+
+<!-- Модалка добавления оплаты -->
+<dialog id="addPaymentModal" class="modal">
+    <div class="modal-box">
+        <h3 class="font-bold text-lg mb-4">Добавить оплату</h3>
+        <form onsubmit="savePayment(event)">
+            <div class="grid grid-cols-2 gap-3 mb-3">
+                <div class="form-control">
+                    <label class="label"><span class="label-text">Сумма</span></label>
+                    <input type="number" id="paymentAmount" class="input input-bordered" required min="0.01" step="0.01">
+                </div>
+                <div class="form-control">
+                    <label class="label"><span class="label-text">Валюта</span></label>
+                    <select id="paymentCurrency" class="select select-bordered" onchange="updatePaymentRate()">
+                    </select>
+                </div>
+            </div>
+
+            <div class="bg-base-200 p-3 rounded-lg mb-3">
+                <div class="text-sm">Курс: <span id="paymentRate">1</span> → <span id="paymentInr">—</span></div>
+            </div>
+
+            <div class="grid grid-cols-2 gap-3 mb-3">
+                <div class="form-control">
+                    <label class="label"><span class="label-text">Тип</span></label>
+                    <select id="paymentType" class="select select-bordered">
+                        <option value="org_fee">Оргвзнос</option>
+                        <option value="accommodation">Проживание</option>
+                        <option value="meals">Питание</option>
+                        <option value="deposit">Депозит</option>
+                        <option value="other">Другое</option>
+                    </select>
+                </div>
+                <div class="form-control">
+                    <label class="label"><span class="label-text">Способ</span></label>
+                    <select id="paymentMethod" class="select select-bordered">
+                        <option value="cash">Наличные</option>
+                        <option value="card">Карта</option>
+                        <option value="transfer">Перевод</option>
+                    </select>
+                </div>
+            </div>
+
+            <div class="form-control mb-4">
+                <label class="label"><span class="label-text">Заметка</span></label>
+                <input type="text" id="paymentNotes" class="input input-bordered">
+            </div>
+
+            <div class="modal-action">
+                <button type="button" class="btn" onclick="closePaymentModal()">Отмена</button>
+                <button type="submit" class="btn btn-primary">Сохранить</button>
+            </div>
+        </form>
+    </div>
+    <form method="dialog" class="modal-backdrop"><button>close</button></form>
+</dialog>
+
+<!-- Модалка добавления коммуникации -->
+<dialog id="addCommModal" class="modal">
+    <div class="modal-box">
+        <h3 class="font-bold text-lg mb-4">Записать контакт</h3>
+        <form onsubmit="saveComm(event)">
+            <div class="grid grid-cols-2 gap-3 mb-3">
+                <div class="form-control">
+                    <label class="label"><span class="label-text">Тип</span></label>
+                    <select id="commType" class="select select-bordered">
+                        <option value="call">Звонок</option>
+                        <option value="whatsapp">WhatsApp</option>
+                        <option value="telegram">Телеграм</option>
+                        <option value="email">Email</option>
+                        <option value="note">Заметка</option>
+                    </select>
+                </div>
+                <div class="form-control">
+                    <label class="label"><span class="label-text">Направление</span></label>
+                    <select id="commDirection" class="select select-bordered">
+                        <option value="outbound">Исходящий</option>
+                        <option value="inbound">Входящий</option>
+                        <option value="internal">Внутренний</option>
+                    </select>
+                </div>
+            </div>
+
+            <div class="form-control mb-3">
+                <label class="label"><span class="label-text">Краткое описание *</span></label>
+                <input type="text" id="commSummary" class="input input-bordered" required placeholder="Например: Обсудили даты приезда">
+            </div>
+
+            <div class="form-control mb-4">
+                <label class="label"><span class="label-text">Подробности</span></label>
+                <textarea id="commContent" class="textarea textarea-bordered" rows="3"></textarea>
+            </div>
+
+            <div class="modal-action">
+                <button type="button" class="btn" onclick="closeCommModal()">Отмена</button>
+                <button type="submit" class="btn btn-primary">Сохранить</button>
+            </div>
+        </form>
+    </div>
+    <form method="dialog" class="modal-backdrop"><button>close</button></form>
+</dialog>
+
+<!-- Модалка добавления задачи -->
+<dialog id="addTaskModal" class="modal">
+    <div class="modal-box">
+        <h3 class="font-bold text-lg mb-4">Новая задача</h3>
+        <form onsubmit="saveTask(event)">
+            <div class="form-control mb-3">
+                <label class="label"><span class="label-text">Задача *</span></label>
+                <input type="text" id="taskTitle" class="input input-bordered" required>
+            </div>
+
+            <div class="grid grid-cols-2 gap-3 mb-3">
+                <div class="form-control">
+                    <label class="label"><span class="label-text">Дата</span></label>
+                    <input type="date" id="taskDueDate" class="input input-bordered">
+                </div>
+                <div class="form-control">
+                    <label class="label"><span class="label-text">Приоритет</span></label>
+                    <select id="taskPriority" class="select select-bordered">
+                        <option value="low">Низкий</option>
+                        <option value="normal" selected>Обычный</option>
+                        <option value="high">Высокий</option>
+                        <option value="urgent">Срочный</option>
+                    </select>
+                </div>
+            </div>
+
+            <div class="form-control mb-4">
+                <label class="label"><span class="label-text">Описание</span></label>
+                <textarea id="taskDescription" class="textarea textarea-bordered" rows="2"></textarea>
+            </div>
+
+            <div class="modal-action">
+                <button type="button" class="btn" onclick="closeTaskModal()">Отмена</button>
+                <button type="submit" class="btn btn-primary">Создать</button>
+            </div>
+        </form>
+    </div>
+    <form method="dialog" class="modal-backdrop"><button>close</button></form>
+</dialog>
+
+<!-- Модалка шаблонов -->
+<dialog id="templatesModal" class="modal">
+    <div class="modal-box max-w-2xl">
+        <h3 class="font-bold text-lg mb-4">Шаблоны сообщений</h3>
+        <div id="templatesList" class="space-y-3"></div>
+        <div class="modal-action">
+            <button class="btn" onclick="closeTemplatesModal()">Закрыть</button>
+        </div>
+    </div>
+    <form method="dialog" class="modal-backdrop"><button>close</button></form>
+</dialog>
+
+<script src="../js/config.js"></script>
+<script src="../js/auth-check.js"></script>
+<script src="../js/cache.js"></script>
+<script src="../js/utils.js?v=2"></script>
+<script src="../js/layout.js"></script>
+<script src="../js/crm-utils.js"></script>
+
+<script>
+const t = key => Layout.t(key);
+const e = str => Layout.escapeHtml(str);
+
+// ==================== STATE ====================
+let dealId = new URLSearchParams(window.location.search).get('id');
+let deal = null;
+let guest = null;
+let retreat = null;
+let services = [];
+let dealServices = [];
+let payments = [];
+let tasks = [];
+let communications = [];
+let history = [];
+let tags = [];
+let dealTags = [];
+let managers = [];
+let currencies = [];
+let templates = [];
+let currentTab = 'info';
+let counts = { services: 0, payments: 0, tasks: 0 };
+
+// ==================== DATA ====================
+async function loadDeal() {
+    if (!dealId) {
+        Layout.showNotification('ID сделки не указан', 'error');
+        return;
+    }
+
+    const { data, error } = await Layout.db
+        .from('crm_deals')
+        .select(`
+            *,
+            vaishnavas:vaishnava_id(*),
+            retreats:retreat_id(*),
+            manager:manager_id(id, spiritual_name, first_name, last_name),
+            cancellation_reason:cancellation_reason_id(*)
+        `)
+        .eq('id', dealId)
+        .single();
+
+    if (error || !data) {
+        Layout.handleError(error, 'Загрузка сделки');
+        return;
+    }
+
+    deal = data;
+    guest = data.vaishnavas;
+    retreat = data.retreats;
+
+    renderHeader();
+    renderSidebar();
+    await loadCounts();
+    loadTabData();
+}
+
+async function loadCounts() {
+    const [servicesRes, paymentsRes, tasksRes] = await Promise.all([
+        Layout.db.from('crm_deal_services').select('id', { count: 'exact', head: true }).eq('deal_id', dealId),
+        Layout.db.from('crm_payments').select('id', { count: 'exact', head: true }).eq('deal_id', dealId),
+        Layout.db.from('crm_tasks').select('id', { count: 'exact', head: true }).eq('deal_id', dealId).is('completed_at', null)
+    ]);
+
+    counts.services = servicesRes.count || 0;
+    counts.payments = paymentsRes.count || 0;
+    counts.tasks = tasksRes.count || 0;
+
+    updateTabCounts();
+}
+
+function updateTabCounts() {
+    const badge = (n) => n > 0 ? `<sup class="ml-1 text-xs opacity-70">${n}</sup>` : '';
+
+    document.getElementById('tabServices').innerHTML = 'Услуги' + badge(counts.services);
+    document.getElementById('tabPayments').innerHTML = 'Оплаты' + badge(counts.payments);
+    document.getElementById('tabTasks').innerHTML = 'Задачи' + badge(counts.tasks);
+}
+
+async function loadReferenceData() {
+    const [servicesRes, tagsRes, managersRes, crmRolesRes, currenciesRes, templatesRes, dealTagsRes] = await Promise.all([
+        Layout.db.from('crm_services').select('*').eq('is_active', true).order('sort_order'),
+        Layout.db.from('crm_tags').select('*').order('sort_order'),
+        Layout.db.from('vaishnavas')
+            .select('id, spiritual_name, first_name, last_name, is_superuser, user_id')
+            .eq('is_team_member', true)
+            .eq('is_deleted', false),
+        // Получаем user_id тех, у кого есть CRM роли
+        Layout.db.from('user_roles')
+            .select('user_id, roles!inner(code)')
+            .eq('is_active', true)
+            .like('roles.code', 'crm_%'),
+        Layout.db.from('crm_currencies').select('*').order('sort_order'),
+        Layout.db.from('crm_message_templates').select('*').order('sort_order'),
+        Layout.db.from('crm_deal_tags').select('tag_id').eq('deal_id', dealId)
+    ]);
+
+    services = servicesRes.data || [];
+    tags = tagsRes.data || [];
+    currencies = currenciesRes.data || [];
+    templates = templatesRes.data || [];
+    dealTags = (dealTagsRes.data || []).map(dt => dt.tag_id);
+
+    // Фильтруем менеджеров: только суперпользователи или с CRM ролями
+    const crmUserIds = new Set((crmRolesRes.data || []).map(r => r.user_id));
+    managers = (managersRes.data || []).filter(m =>
+        m.is_superuser || crmUserIds.has(m.user_id)
+    );
+
+    populateSelects();
+}
+
+async function loadTabData() {
+    switch (currentTab) {
+        case 'services':
+            await loadDealServices();
+            break;
+        case 'payments':
+            await loadPayments();
+            break;
+        case 'tasks':
+            await loadTasks();
+            break;
+        case 'history':
+            await loadHistory();
+            break;
+    }
+    renderTab();
+}
+
+async function loadDealServices() {
+    const { data } = await Layout.db
+        .from('crm_deal_services')
+        .select('*, crm_services(name_ru, name_en)')
+        .eq('deal_id', dealId)
+        .order('created_at');
+    dealServices = data || [];
+}
+
+async function loadPayments() {
+    const { data } = await Layout.db
+        .from('crm_payments')
+        .select('*, received_by:vaishnavas(spiritual_name, first_name)')
+        .eq('deal_id', dealId)
+        .order('received_at', { ascending: false });
+    payments = data || [];
+}
+
+async function loadTasks() {
+    const { data } = await Layout.db
+        .from('crm_tasks')
+        .select('*, assignee:assignee_id(spiritual_name, first_name)')
+        .eq('deal_id', dealId)
+        .order('due_date', { nullsFirst: false });
+    tasks = data || [];
+}
+
+async function loadHistory() {
+    const [commRes, histRes] = await Promise.all([
+        Layout.db.from('crm_communications')
+            .select('*, created_by:vaishnavas(spiritual_name, first_name)')
+            .eq('deal_id', dealId)
+            .order('created_at', { ascending: false }),
+        Layout.db.from('crm_deal_history')
+            .select('*, changed_by:vaishnavas(spiritual_name, first_name)')
+            .eq('deal_id', dealId)
+            .order('changed_at', { ascending: false })
+    ]);
+    communications = commRes.data || [];
+    history = histRes.data || [];
+}
+
+// ==================== RENDER ====================
+function renderHeader() {
+    document.getElementById('breadcrumbGuest').textContent = CrmUtils.getGuestName(guest);
+    document.getElementById('guestName').textContent = CrmUtils.getGuestName(guest);
+    document.getElementById('guestContact').textContent = CrmUtils.getGuestContact(guest);
+
+    // Плашка статуса
+    const statusColor = CrmUtils.STATUS_COLORS[deal.status] || '#6b7280';
+    const statusSvg = CrmUtils.STATUS_SVG_ICONS[deal.status] || '';
+    const statusName = t('crm_status_' + deal.status) || deal.status;
+
+    document.getElementById('dealStatusBanner').style.backgroundColor = statusColor;
+    document.getElementById('dealStatusIcon').innerHTML = statusSvg;
+    document.getElementById('dealStatusName').textContent = statusName;
+
+    document.title = `${CrmUtils.getGuestShortName(guest)} — CRM — ШРСК`;
+}
+
+function renderSidebar() {
+    // Статус
+    const statusSelect = document.getElementById('statusSelect');
+    statusSelect.innerHTML = CrmUtils.STATUSES.map(s =>
+        `<option value="${s}" ${s === deal.status ? 'selected' : ''}>${CrmUtils.getStatusLabel(s)}</option>`
+    ).join('');
+
+    // Режим работы
+    document.getElementById('workModeSelect').value = deal.work_mode || 'active';
+
+    // Менеджер
+    const managerSelect = document.getElementById('managerSelect');
+    managerSelect.innerHTML = '<option value="">Не назначен</option>' +
+        managers.map(m => `<option value="${m.id}" ${m.id === deal.manager_id ? 'selected' : ''}>
+            ${e(CrmUtils.getGuestName(m))}</option>`).join('');
+
+    // Финансы
+    document.getElementById('financeCharged').textContent = CrmUtils.formatMoney(deal.total_charged);
+    document.getElementById('financePaid').textContent = CrmUtils.formatMoney(deal.total_paid);
+    document.getElementById('financeDeposit').textContent = CrmUtils.formatMoney(deal.deposit_balance);
+
+    // Баланс с динамической стилизацией
+    const balance = (deal.total_charged || 0) - (deal.total_paid || 0);
+    const balanceCard = document.getElementById('financeBalanceCard');
+    const balanceValue = document.getElementById('financeBalance');
+
+    if (balance > 0) {
+        // Должен (красный)
+        balanceCard.className = 'py-2 pl-4 pr-3 rounded-r-lg bg-rose-50 border-l-4 border-rose-400';
+        balanceValue.className = 'text-lg font-bold font-mono text-rose-600';
+        balanceValue.textContent = '−' + CrmUtils.formatMoney(balance);
+    } else if (balance < 0) {
+        // Переплата (синий)
+        balanceCard.className = 'py-2 pl-4 pr-3 rounded-r-lg bg-sky-50 border-l-4 border-sky-400';
+        balanceValue.className = 'text-lg font-bold font-mono text-sky-600';
+        balanceValue.textContent = '+' + CrmUtils.formatMoney(Math.abs(balance));
+    } else {
+        // Ноль (зелёный)
+        balanceCard.className = 'py-2 pl-4 pr-3 rounded-r-lg bg-emerald-50 border-l-4 border-emerald-400';
+        balanceValue.className = 'text-lg font-bold font-mono text-emerald-600';
+        balanceValue.textContent = CrmUtils.formatMoney(0);
+    }
+
+    // Теги
+    renderTags();
+
+    // Скрыть кнопку отмены если уже отменено
+    document.getElementById('cancelBtn').classList.toggle('hidden', deal.status === 'cancelled');
+}
+
+function renderTags() {
+    const container = document.getElementById('dealTags');
+    const activeTags = tags.filter(t => dealTags.includes(t.id));
+
+    container.innerHTML = activeTags.length === 0
+        ? '<span class="text-base-content/30 text-sm">Нет тегов</span>'
+        : activeTags.map(tag => `
+            <span class="badge gap-1" style="background-color: ${tag.color}; color: white;">
+                ${e(Layout.getName(tag))}
+                <button onclick="removeTag('${tag.id}')" class="hover:opacity-70">×</button>
+            </span>
+        `).join('');
+
+    // Обновляем селект добавления
+    const availableTags = tags.filter(t => !dealTags.includes(t.id));
+    document.getElementById('addTagSelect').innerHTML = '<option value="">+ Добавить тег...</option>' +
+        availableTags.map(t => `<option value="${t.id}">${e(Layout.getName(t))}</option>`).join('');
+}
+
+function populateSelects() {
+    // Услуги
+    const serviceSelect = document.getElementById('serviceSelect');
+    serviceSelect.innerHTML = '<option value="">Выберите услугу...</option>' +
+        '<option value="custom">— Другое (ввести вручную) —</option>' +
+        services.map(s => `<option value="${s.id}" data-price="${s.default_price}">${e(Layout.getName(s))}</option>`).join('');
+
+    // Валюты
+    const currencySelect = document.getElementById('paymentCurrency');
+    currencySelect.innerHTML = currencies.map(c =>
+        `<option value="${c.code}" data-rate="${c.rate_to_inr}">${c.code} (${c.symbol})</option>`
+    ).join('');
+}
+
+function switchTab(tab) {
+    currentTab = tab;
+    document.querySelectorAll('.tabs .tab').forEach((el, i) => {
+        el.classList.toggle('tab-active', ['info', 'services', 'payments', 'tasks', 'history'][i] === tab);
+    });
+    loadTabData();
+}
+
+function renderTab() {
+    const container = document.getElementById('tabContent');
+    let html = '';
+
+    switch (currentTab) {
+        case 'info':
+            html = renderInfoTab();
+            break;
+        case 'services':
+            html = renderServicesTab();
+            break;
+        case 'payments':
+            html = renderPaymentsTab();
+            break;
+        case 'tasks':
+            html = renderTasksTab();
+            break;
+        case 'history':
+            html = renderHistoryTab();
+            break;
+    }
+
+    container.innerHTML = `<div class="card-body">${html}</div>`;
+}
+
+function renderInfoTab() {
+    return `
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div>
+                <h3 class="font-bold mb-3">Контактные данные</h3>
+                <table class="table table-sm">
+                    <tr><td class="text-base-content/50 w-32">Телефон</td><td>${e(guest.phone || '—')}</td></tr>
+                    <tr><td class="text-base-content/50">Email</td><td>${e(guest.email || '—')}</td></tr>
+                    <tr><td class="text-base-content/50">Telegram</td><td>${e(guest.telegram || '—')}</td></tr>
+                    <tr><td class="text-base-content/50">Страна</td><td>${e(guest.country || '—')}</td></tr>
+                    <tr><td class="text-base-content/50">Город</td><td>${e(guest.city || '—')}</td></tr>
+                </table>
+                <a href="../vaishnavas/profile.html?id=${guest.id}" class="btn btn-sm btn-ghost mt-2">
+                    Открыть профиль →
+                </a>
+            </div>
+            <div>
+                <h3 class="font-bold mb-3">Ретрит и предпочтения</h3>
+                <table class="table table-sm">
+                    <tr><td class="text-base-content/50 w-32">Ретрит</td>
+                        <td><span class="badge whitespace-nowrap" style="background-color: ${retreat?.color}; color: white;">${e(Layout.getName(retreat))}</span></td></tr>
+                    <tr><td class="text-base-content/50">Даты</td>
+                        <td>${CrmUtils.formatDate(retreat?.start_date)} — ${CrmUtils.formatDate(retreat?.end_date)}</td></tr>
+                    <tr><td class="text-base-content/50">Проживание</td>
+                        <td>${t('crm_accommodation_' + (deal.accommodation_preference || 'in_ashram')) || deal.accommodation_preference || '—'}</td></tr>
+                    <tr><td class="text-base-content/50">Питание</td>
+                        <td>${t('crm_meals_' + (deal.meals_preference || 'ashram')) || deal.meals_preference || '—'}</td></tr>
+                    <tr><td class="text-base-content/50">Источник</td>
+                        <td>${t('crm_source_' + deal.source) || deal.source || '—'}</td></tr>
+                </table>
+            </div>
+        </div>
+        ${deal.notes ? `<div class="mt-6"><h3 class="font-bold mb-2">Заметки</h3><p class="text-base-content/70">${e(deal.notes)}</p></div>` : ''}
+        ${deal.group_id ? `<div class="alert mt-6"><span class="flex items-center gap-2">${CrmUtils.UI_ICONS.users} Групповая заявка ${deal.is_group_main ? '(главный контакт)' : ''}</span></div>` : ''}
+    `;
+}
+
+function renderServicesTab() {
+    const total = dealServices.reduce((sum, s) => sum + Number(s.total_price), 0);
+
+    return `
+        <div class="flex justify-between items-center mb-4">
+            <h3 class="font-bold">Услуги</h3>
+            <button class="btn btn-sm btn-primary" onclick="openServiceModal()">+ Добавить</button>
+        </div>
+        ${dealServices.length === 0
+            ? '<p class="text-base-content/50 text-center py-4">Нет добавленных услуг</p>'
+            : `<table class="table">
+                <thead><tr><th>Услуга</th><th class="text-right">Кол-во</th><th class="text-right">Цена</th><th class="text-right">Итого</th><th></th></tr></thead>
+                <tbody>
+                    ${dealServices.map(s => `
+                        <tr>
+                            <td>${e(s.crm_services ? Layout.getName(s.crm_services) : s.description)}</td>
+                            <td class="text-right">${s.quantity}</td>
+                            <td class="text-right font-mono">${CrmUtils.formatMoney(s.unit_price)}</td>
+                            <td class="text-right font-mono font-bold">${CrmUtils.formatMoney(s.total_price)}</td>
+                            <td><button class="btn btn-ghost btn-xs text-error" onclick="deleteService('${s.id}')">${CrmUtils.UI_ICONS.trash}</button></td>
+                        </tr>
+                    `).join('')}
+                </tbody>
+                <tfoot><tr><td colspan="3" class="text-right font-bold">Итого:</td><td class="text-right font-mono font-bold text-lg">${CrmUtils.formatMoney(total)}</td><td></td></tr></tfoot>
+            </table>`
+        }
+    `;
+}
+
+function renderPaymentsTab() {
+    const total = payments.reduce((sum, p) => sum + Number(p.amount_inr), 0);
+
+    return `
+        <div class="flex justify-between items-center mb-4">
+            <h3 class="font-bold">Оплаты</h3>
+            <button class="btn btn-sm btn-primary" onclick="openPaymentModal()">+ Добавить</button>
+        </div>
+        ${payments.length === 0
+            ? '<p class="text-base-content/50 text-center py-4">Нет оплат</p>'
+            : `<table class="table">
+                <thead><tr><th>Дата</th><th>Тип</th><th class="text-right">Сумма</th><th class="text-right">В ₹</th><th>Принял</th><th></th></tr></thead>
+                <tbody>
+                    ${payments.map(p => `
+                        <tr>
+                            <td class="text-sm">${CrmUtils.formatDateTime(p.received_at)}</td>
+                            <td><span class="badge badge-ghost badge-sm">${t('crm_payment_type_' + p.payment_type) || p.payment_type}</span></td>
+                            <td class="text-right font-mono">${CrmUtils.formatMoney(p.amount, p.currency)}</td>
+                            <td class="text-right font-mono font-bold">${CrmUtils.formatMoney(p.amount_inr)}</td>
+                            <td class="text-sm">${p.received_by ? e(CrmUtils.getGuestShortName(p.received_by)) : '—'}</td>
+                            <td><button class="btn btn-ghost btn-xs text-error" onclick="deletePayment('${p.id}')">${CrmUtils.UI_ICONS.trash}</button></td>
+                        </tr>
+                    `).join('')}
+                </tbody>
+                <tfoot><tr><td colspan="3"></td><td class="text-right font-mono font-bold text-lg">${CrmUtils.formatMoney(total)}</td><td colspan="2"></td></tr></tfoot>
+            </table>`
+        }
+    `;
+}
+
+function renderTasksTab() {
+    return `
+        <div class="flex justify-between items-center mb-4">
+            <h3 class="font-bold">Задачи</h3>
+            <button class="btn btn-sm btn-primary" onclick="openTaskModal()">+ Добавить</button>
+        </div>
+        ${tasks.length === 0
+            ? '<p class="text-base-content/50 text-center py-4">Нет задач</p>'
+            : `<div class="space-y-2">
+                ${tasks.map(task => {
+                    const isOverdue = CrmUtils.isTaskOverdue(task);
+                    const isDone = !!task.completed_at;
+                    return `
+                        <div class="flex items-center gap-3 p-3 rounded-lg ${isDone ? 'bg-base-200 opacity-60' : isOverdue ? 'bg-error/10' : 'bg-base-200'}">
+                            <input type="checkbox" class="checkbox" ${isDone ? 'checked' : ''} onchange="toggleTask('${task.id}', this.checked)">
+                            <div class="flex-1 ${isDone ? 'line-through' : ''}">
+                                <div class="font-medium">${e(task.title)}</div>
+                                ${task.due_date ? `<div class="text-xs ${isOverdue ? 'text-error' : 'text-base-content/50'}">${CrmUtils.formatDate(task.due_date)}</div>` : ''}
+                            </div>
+                            <span class="badge badge-sm" style="background-color: ${CrmUtils.PRIORITY_COLORS[task.priority]}; color: white;">
+                                ${t('crm_priority_' + task.priority) || task.priority}
+                            </span>
+                        </div>
+                    `;
+                }).join('')}
+            </div>`
+        }
+    `;
+}
+
+function renderHistoryTab() {
+    // Объединяем коммуникации и историю статусов
+    const allItems = [
+        ...communications.map(c => ({ ...c, itemType: 'comm' })),
+        ...history.map(h => ({ ...h, itemType: 'history', created_at: h.changed_at }))
+    ].sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
+
+    return `
+        <div class="flex justify-between items-center mb-4">
+            <h3 class="font-bold">История</h3>
+            <button class="btn btn-sm btn-primary" onclick="openCommModal()">+ Записать контакт</button>
+        </div>
+        ${allItems.length === 0
+            ? '<p class="text-base-content/50 text-center py-4">Нет записей</p>'
+            : `<div class="space-y-3">
+                ${allItems.map(item => {
+                    if (item.itemType === 'comm') {
+                        const svgIcon = CrmUtils.COMM_SVG_ICONS[item.type] || CrmUtils.COMM_SVG_ICONS.note;
+                        return `
+                            <div class="flex gap-3 p-3 bg-base-200 rounded-lg">
+                                <div class="w-8 h-8 flex items-center justify-center text-primary">${svgIcon}</div>
+                                <div class="flex-1">
+                                    <div class="font-medium">${e(item.summary)}</div>
+                                    ${item.content ? `<div class="text-sm text-base-content/70 mt-1">${e(item.content)}</div>` : ''}
+                                    <div class="text-xs text-base-content/50 mt-2">
+                                        ${CrmUtils.formatDateTime(item.created_at)}
+                                        ${item.created_by ? ` • ${e(CrmUtils.getGuestShortName(item.created_by))}` : ''}
+                                    </div>
+                                </div>
+                            </div>
+                        `;
+                    } else {
+                        const arrowSvg = '<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-5 h-5"><path stroke-linecap="round" stroke-linejoin="round" d="M13.5 4.5 21 12m0 0-7.5 7.5M21 12H3" /></svg>';
+                        return `
+                            <div class="flex gap-3 p-3 border-l-4 border-primary/30">
+                                <div class="w-8 h-8 flex items-center justify-center text-primary">${arrowSvg}</div>
+                                <div>
+                                    <div class="text-sm">
+                                        Статус изменён: ${CrmUtils.getStatusBadge(item.old_status, 'sm')} → ${CrmUtils.getStatusBadge(item.new_status, 'sm')}
+                                    </div>
+                                    <div class="text-xs text-base-content/50 mt-1">
+                                        ${CrmUtils.formatDateTime(item.created_at)}
+                                        ${item.changed_by ? ` • ${e(CrmUtils.getGuestShortName(item.changed_by))}` : ''}
+                                    </div>
+                                </div>
+                            </div>
+                        `;
+                    }
+                }).join('')}
+            </div>`
+        }
+    `;
+}
+
+// ==================== ACTIONS ====================
+async function changeStatus(newStatus) {
+    if (newStatus === deal.status) return;
+
+    const { error } = await Layout.db
+        .from('crm_deals')
+        .update({
+            status: newStatus,
+            first_contacted_at: deal.first_contacted_at || (newStatus === 'contacted' ? new Date().toISOString() : null),
+            last_contacted_at: new Date().toISOString()
+        })
+        .eq('id', dealId);
+
+    if (error) {
+        Layout.handleError(error, 'Изменение статуса');
+        return;
+    }
+
+    deal.status = newStatus;
+
+    // Обновляем плашку статуса
+    const statusColor = CrmUtils.STATUS_COLORS[newStatus] || '#6b7280';
+    const statusSvg = CrmUtils.STATUS_SVG_ICONS[newStatus] || '';
+    const statusName = t('crm_status_' + newStatus) || newStatus;
+    document.getElementById('dealStatusBanner').style.backgroundColor = statusColor;
+    document.getElementById('dealStatusIcon').innerHTML = statusSvg;
+    document.getElementById('dealStatusName').textContent = statusName;
+
+    Layout.showNotification('Статус изменён', 'success');
+}
+
+async function changeWorkMode(mode) {
+    const { error } = await Layout.db.from('crm_deals').update({ work_mode: mode }).eq('id', dealId);
+    if (error) Layout.handleError(error, 'Сохранение');
+    else {
+        deal.work_mode = mode;
+        Layout.showNotification('Сохранено', 'success');
+    }
+}
+
+async function changeManager(managerId) {
+    const { error } = await Layout.db.from('crm_deals').update({ manager_id: managerId || null }).eq('id', dealId);
+    if (error) Layout.handleError(error, 'Назначение менеджера');
+    else {
+        deal.manager_id = managerId;
+        Layout.showNotification('Менеджер назначен', 'success');
+    }
+}
+
+async function addTag(tagId) {
+    if (!tagId) return;
+    const { error } = await Layout.db.from('crm_deal_tags').insert({ deal_id: dealId, tag_id: tagId });
+    if (error) Layout.handleError(error, 'Добавление тега');
+    else {
+        dealTags.push(tagId);
+        renderTags();
+    }
+    document.getElementById('addTagSelect').value = '';
+}
+
+async function removeTag(tagId) {
+    const { error } = await Layout.db.from('crm_deal_tags').delete().eq('deal_id', dealId).eq('tag_id', tagId);
+    if (error) Layout.handleError(error, 'Удаление тега');
+    else {
+        dealTags = dealTags.filter(id => id !== tagId);
+        renderTags();
+    }
+}
+
+async function cancelDeal() {
+    if (!confirm('Отменить эту сделку?')) return;
+    await changeStatus('cancelled');
+    document.getElementById('cancelBtn').classList.add('hidden');
+}
+
+// ==================== SERVICES ====================
+function openServiceModal() {
+    document.getElementById('editServiceId').value = '';
+    document.getElementById('serviceSelect').value = '';
+    document.getElementById('serviceDescription').value = '';
+    document.getElementById('serviceQty').value = 1;
+    document.getElementById('servicePrice').value = 0;
+    document.getElementById('serviceTotal').value = 0;
+    document.getElementById('customServiceDesc').classList.add('hidden');
+    document.getElementById('addServiceModal').showModal();
+}
+
+function closeServiceModal() { document.getElementById('addServiceModal').close(); }
+
+function onServiceSelect() {
+    const select = document.getElementById('serviceSelect');
+    const isCustom = select.value === 'custom';
+    document.getElementById('customServiceDesc').classList.toggle('hidden', !isCustom);
+
+    if (!isCustom && select.value) {
+        const price = select.selectedOptions[0].dataset.price || 0;
+        document.getElementById('servicePrice').value = price;
+        calcServiceTotal();
+    }
+}
+
+function calcServiceTotal() {
+    const qty = parseFloat(document.getElementById('serviceQty').value) || 0;
+    const price = parseFloat(document.getElementById('servicePrice').value) || 0;
+    document.getElementById('serviceTotal').value = (qty * price).toFixed(2);
+}
+
+async function saveService(event) {
+    event.preventDefault();
+    const serviceId = document.getElementById('serviceSelect').value;
+    const isCustom = serviceId === 'custom';
+
+    const data = {
+        deal_id: dealId,
+        service_id: isCustom ? null : serviceId,
+        description: isCustom ? document.getElementById('serviceDescription').value.trim() : null,
+        quantity: parseFloat(document.getElementById('serviceQty').value),
+        unit_price: parseFloat(document.getElementById('servicePrice').value),
+        total_price: parseFloat(document.getElementById('serviceTotal').value)
+    };
+
+    const { error } = await Layout.db.from('crm_deal_services').insert(data);
+    if (error) { Layout.handleError(error, 'Добавление услуги'); return; }
+
+    Layout.showNotification('Услуга добавлена', 'success');
+    closeServiceModal();
+    await loadDealServices();
+    counts.services++;
+    updateTabCounts();
+    renderTab();
+    await refreshDeal();
+}
+
+async function deleteService(id) {
+    if (!confirm('Удалить услугу?')) return;
+    const { error } = await Layout.db.from('crm_deal_services').delete().eq('id', id);
+    if (error) { Layout.handleError(error, 'Удаление'); return; }
+    await loadDealServices();
+    counts.services = Math.max(0, counts.services - 1);
+    updateTabCounts();
+    renderTab();
+    await refreshDeal();
+}
+
+// ==================== PAYMENTS ====================
+function openPaymentModal() {
+    document.getElementById('paymentAmount').value = '';
+    document.getElementById('paymentCurrency').value = 'INR';
+    document.getElementById('paymentType').value = 'org_fee';
+    document.getElementById('paymentMethod').value = 'cash';
+    document.getElementById('paymentNotes').value = '';
+    updatePaymentRate();
+    document.getElementById('addPaymentModal').showModal();
+}
+
+function closePaymentModal() { document.getElementById('addPaymentModal').close(); }
+
+function updatePaymentRate() {
+    const select = document.getElementById('paymentCurrency');
+    const rate = select.selectedOptions[0]?.dataset.rate || 1;
+    const amount = parseFloat(document.getElementById('paymentAmount').value) || 0;
+    document.getElementById('paymentRate').textContent = rate;
+    document.getElementById('paymentInr').textContent = CrmUtils.formatMoney(amount * rate);
+}
+
+async function savePayment(event) {
+    event.preventDefault();
+    const currency = document.getElementById('paymentCurrency').value;
+    const rate = parseFloat(document.getElementById('paymentCurrency').selectedOptions[0]?.dataset.rate) || 1;
+    const amount = parseFloat(document.getElementById('paymentAmount').value);
+
+    const data = {
+        deal_id: dealId,
+        amount: amount,
+        currency: currency,
+        rate_to_inr: rate,
+        amount_inr: amount * rate,
+        payment_type: document.getElementById('paymentType').value,
+        payment_method: document.getElementById('paymentMethod').value,
+        notes: document.getElementById('paymentNotes').value.trim() || null,
+        received_by: window.currentUser?.vaishnava_id || null
+    };
+
+    const { error } = await Layout.db.from('crm_payments').insert(data);
+    if (error) { Layout.handleError(error, 'Добавление оплаты'); return; }
+
+    Layout.showNotification('Оплата добавлена', 'success');
+    closePaymentModal();
+    await loadPayments();
+    counts.payments++;
+    updateTabCounts();
+    renderTab();
+    await refreshDeal();
+}
+
+async function deletePayment(id) {
+    if (!confirm('Удалить оплату?')) return;
+    const { error } = await Layout.db.from('crm_payments').delete().eq('id', id);
+    if (error) { Layout.handleError(error, 'Удаление'); return; }
+    await loadPayments();
+    counts.payments = Math.max(0, counts.payments - 1);
+    updateTabCounts();
+    renderTab();
+    await refreshDeal();
+}
+
+// ==================== TASKS ====================
+function openTaskModal() {
+    document.getElementById('taskTitle').value = '';
+    document.getElementById('taskDueDate').value = '';
+    document.getElementById('taskPriority').value = 'normal';
+    document.getElementById('taskDescription').value = '';
+    document.getElementById('addTaskModal').showModal();
+}
+
+function closeTaskModal() { document.getElementById('addTaskModal').close(); }
+
+async function saveTask(event) {
+    event.preventDefault();
+    const data = {
+        deal_id: dealId,
+        title: document.getElementById('taskTitle').value.trim(),
+        due_date: document.getElementById('taskDueDate').value || null,
+        priority: document.getElementById('taskPriority').value,
+        description: document.getElementById('taskDescription').value.trim() || null,
+        assignee_id: deal.manager_id || window.currentUser?.vaishnava_id || null,
+        created_by: window.currentUser?.vaishnava_id || null
+    };
+
+    const { error } = await Layout.db.from('crm_tasks').insert(data);
+    if (error) { Layout.handleError(error, 'Создание задачи'); return; }
+
+    Layout.showNotification('Задача создана', 'success');
+    closeTaskModal();
+    await loadTasks();
+    counts.tasks++;
+    updateTabCounts();
+    renderTab();
+}
+
+async function toggleTask(id, completed) {
+    const { error } = await Layout.db.from('crm_tasks')
+        .update({ completed_at: completed ? new Date().toISOString() : null })
+        .eq('id', id);
+    if (error) { Layout.handleError(error, 'Обновление задачи'); return; }
+    await loadTasks();
+    counts.tasks = completed ? Math.max(0, counts.tasks - 1) : counts.tasks + 1;
+    updateTabCounts();
+    renderTab();
+}
+
+// ==================== COMMUNICATIONS ====================
+function openCommModal() {
+    document.getElementById('commType').value = 'call';
+    document.getElementById('commDirection').value = 'outbound';
+    document.getElementById('commSummary').value = '';
+    document.getElementById('commContent').value = '';
+    document.getElementById('addCommModal').showModal();
+}
+
+function closeCommModal() { document.getElementById('addCommModal').close(); }
+
+async function saveComm(event) {
+    event.preventDefault();
+    const data = {
+        deal_id: dealId,
+        type: document.getElementById('commType').value,
+        direction: document.getElementById('commDirection').value,
+        summary: document.getElementById('commSummary').value.trim(),
+        content: document.getElementById('commContent').value.trim() || null,
+        created_by: window.currentUser?.vaishnava_id || null
+    };
+
+    const { error } = await Layout.db.from('crm_communications').insert(data);
+    if (error) { Layout.handleError(error, 'Сохранение'); return; }
+
+    // Обновляем время последнего контакта
+    await Layout.db.from('crm_deals').update({
+        last_contacted_at: new Date().toISOString(),
+        first_contacted_at: deal.first_contacted_at || new Date().toISOString()
+    }).eq('id', dealId);
+
+    Layout.showNotification('Контакт записан', 'success');
+    closeCommModal();
+    await loadHistory();
+    renderTab();
+}
+
+// ==================== TEMPLATES ====================
+function openTemplatesModal() {
+    const container = document.getElementById('templatesList');
+
+    const data = {
+        retreat_name: Layout.getName(retreat),
+        manager_name: deal.manager ? CrmUtils.getGuestName(deal.manager) : '',
+        guest_name: CrmUtils.getGuestName(guest),
+        org_fee: retreat?.org_fee || 0,
+        total_amount: deal.total_charged,
+        check_in: CrmUtils.formatDate(retreat?.start_date),
+        check_out: CrmUtils.formatDate(retreat?.end_date)
+    };
+
+    container.innerHTML = templates.map(tpl => {
+        const lang = Layout.currentLang || 'ru';
+        const text = CrmUtils.fillTemplate(tpl[`template_${lang}`] || tpl.template_ru, data);
+        return `
+            <div class="bg-base-200 p-3 rounded-lg">
+                <div class="flex justify-between items-start mb-2">
+                    <span class="font-medium">${e(Layout.getName(tpl))}</span>
+                    <button class="btn btn-ghost btn-xs gap-1" onclick="copyTemplateText(\`${text.replace(/`/g, '\\`')}\`)">${CrmUtils.UI_ICONS.copy} Копировать</button>
+                </div>
+                <div class="text-sm whitespace-pre-wrap text-base-content/70">${e(text)}</div>
+            </div>
+        `;
+    }).join('');
+
+    document.getElementById('templatesModal').showModal();
+}
+
+function closeTemplatesModal() { document.getElementById('templatesModal').close(); }
+
+async function copyTemplateText(text) {
+    await CrmUtils.copyToClipboard(text);
+}
+
+// ==================== HELPERS ====================
+async function refreshDeal() {
+    const { data } = await Layout.db.from('crm_deals').select('total_charged, total_paid, deposit_balance').eq('id', dealId).single();
+    if (data) {
+        deal.total_charged = data.total_charged;
+        deal.total_paid = data.total_paid;
+        deal.deposit_balance = data.deposit_balance;
+        renderSidebar();
+    }
+}
+
+// ==================== INIT ====================
+function initIcons() {
+    const docIcon = CrmUtils.UI_ICONS.document;
+    const xIcon = CrmUtils.STATUS_SVG_ICONS.cancelled;
+    document.getElementById('templatesBtn').innerHTML = docIcon + ' Шаблоны сообщений';
+    document.getElementById('cancelBtn').innerHTML = xIcon + ' Отменить сделку';
+}
+
+async function init() {
+    await Layout.init({
+        module: 'crm',
+        menuId: 'crm_sales',
+        itemId: 'crm_deals'
+    });
+
+    initIcons();
+    await loadReferenceData();
+    await loadDeal();
+}
+
+init();
+</script>
+
+</body>
+</html>

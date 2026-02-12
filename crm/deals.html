@@ -1,0 +1,597 @@
+<!DOCTYPE html>
+<html lang="ru" data-theme="light">
+<head>
+    <script src="../js/color-init.js"></script>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Все сделки — CRM — ШРСК</title>
+    <link href="https://cdn.jsdelivr.net/npm/daisyui@4.12.14/dist/full.min.css" rel="stylesheet" />
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script>tailwind.config = { theme: { extend: { screens: { 'desktop': '1200px' } } } }</script>
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="../css/common.css">
+    <style>
+        .deal-row:hover { background-color: oklch(var(--b2)); cursor: pointer; }
+        .overdue { border-left: 3px solid #ef4444; }
+    </style>
+</head>
+<body class="bg-base-200 min-h-screen flex flex-col">
+
+<div id="header-placeholder"></div>
+
+<main class="container mx-auto px-4 py-6 flex-1">
+    <!-- Заголовок и кнопка -->
+    <div class="flex flex-wrap justify-between items-center gap-4 mb-6">
+        <h1 class="text-2xl font-bold" data-i18n="nav_crm_deals">Все сделки</h1>
+        <button class="btn btn-primary" onclick="openNewDealModal()" data-permission="edit_crm">
+            + <span data-i18n="crm_add_deal">Новая сделка</span>
+        </button>
+    </div>
+
+    <!-- Фильтры -->
+    <div class="card bg-base-100 shadow-sm mb-4">
+        <div class="card-body p-4">
+            <div class="flex flex-wrap gap-3 items-end">
+                <!-- Ретрит -->
+                <div class="form-control">
+                    <label class="label py-1"><span class="label-text text-xs">Ретрит</span></label>
+                    <select id="filterRetreat" class="select select-bordered select-sm" onchange="applyFilters()">
+                        <option value="">Все</option>
+                    </select>
+                </div>
+
+                <!-- Статус -->
+                <div class="form-control">
+                    <label class="label py-1"><span class="label-text text-xs">Статус</span></label>
+                    <select id="filterStatus" class="select select-bordered select-sm" onchange="applyFilters()">
+                        <option value="">Все</option>
+                        <option value="active">Активные</option>
+                        <option value="cancelled">Отменённые</option>
+                        <option value="completed">Завершённые</option>
+                    </select>
+                </div>
+
+                <!-- Менеджер -->
+                <div class="form-control">
+                    <label class="label py-1"><span class="label-text text-xs">Менеджер</span></label>
+                    <select id="filterManager" class="select select-bordered select-sm" onchange="applyFilters()">
+                        <option value="">Все</option>
+                        <option value="my">Мои</option>
+                        <option value="unassigned">Не назначен</option>
+                    </select>
+                </div>
+
+                <!-- Поиск -->
+                <div class="form-control flex-1 min-w-[200px]">
+                    <label class="label py-1"><span class="label-text text-xs">Поиск</span></label>
+                    <input type="text" id="filterSearch" class="input input-bordered input-sm"
+                           placeholder="Имя, телефон, email..." oninput="applyFiltersDebounced()">
+                </div>
+
+                <!-- Сброс -->
+                <button class="btn btn-ghost btn-sm" onclick="resetFilters()">Сбросить</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Статистика -->
+    <div class="flex gap-4 mb-4 text-sm">
+        <span id="statsTotal" class="text-base-content/70">—</span>
+        <span id="statsOverdue" class="text-error hidden">—</span>
+    </div>
+
+    <!-- Таблица -->
+    <div class="card bg-base-100 shadow-sm">
+        <div class="card-body p-0">
+            <div class="overflow-x-auto">
+                <table class="table">
+                    <thead>
+                        <tr>
+                            <th class="w-8"></th>
+                            <th class="cursor-pointer hover:bg-base-200" onclick="setSort('guest')">
+                                <span class="inline-flex items-center gap-1">Гость <span id="sort-guest" class="text-xs opacity-50"></span></span>
+                            </th>
+                            <th class="cursor-pointer hover:bg-base-200" onclick="setSort('retreat')">
+                                <span class="inline-flex items-center gap-1">Ретрит <span id="sort-retreat" class="text-xs opacity-50"></span></span>
+                            </th>
+                            <th class="cursor-pointer hover:bg-base-200" onclick="setSort('status')">
+                                <span class="inline-flex items-center gap-1">Статус <span id="sort-status" class="text-xs opacity-50"></span></span>
+                            </th>
+                            <th class="cursor-pointer hover:bg-base-200" onclick="setSort('manager')">
+                                <span class="inline-flex items-center gap-1">Менеджер <span id="sort-manager" class="text-xs opacity-50"></span></span>
+                            </th>
+                            <th class="cursor-pointer hover:bg-base-200 text-right" onclick="setSort('paid')">
+                                <span class="inline-flex items-center gap-1 justify-end">Оплачено <span id="sort-paid" class="text-xs opacity-50"></span></span>
+                            </th>
+                            <th class="cursor-pointer hover:bg-base-200" onclick="setSort('created')">
+                                <span class="inline-flex items-center gap-1">Создано <span id="sort-created" class="text-xs opacity-50"></span></span>
+                            </th>
+                        </tr>
+                    </thead>
+                    <tbody id="dealsTable">
+                        <tr><td colspan="7" class="text-center py-8">
+                            <span class="loading loading-spinner loading-md"></span>
+                        </td></tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <!-- Пагинация -->
+    <div class="flex justify-center mt-4">
+        <div class="join" id="pagination"></div>
+    </div>
+</main>
+
+<div id="footer-placeholder"></div>
+
+<!-- Модалка новой сделки -->
+<dialog id="newDealModal" class="modal">
+    <div class="modal-box">
+        <h3 class="font-bold text-lg mb-4">Новая сделка</h3>
+        <form id="newDealForm" onsubmit="createDeal(event)">
+            <div class="form-control mb-3">
+                <label class="label"><span class="label-text">Ретрит *</span></label>
+                <select id="newDealRetreat" class="select select-bordered" required>
+                    <option value="">Выберите ретрит...</option>
+                </select>
+            </div>
+
+            <div class="form-control mb-3">
+                <label class="label"><span class="label-text">Гость *</span></label>
+                <div class="flex gap-2">
+                    <select id="newDealGuest" class="select select-bordered flex-1">
+                        <option value="">Выберите или создайте нового...</option>
+                    </select>
+                    <button type="button" class="btn btn-ghost" onclick="toggleNewGuestForm()">+ Новый</button>
+                </div>
+            </div>
+
+            <!-- Форма нового гостя (скрыта по умолчанию) -->
+            <div id="newGuestForm" class="hidden bg-base-200 p-3 rounded-lg mb-3 space-y-2">
+                <div class="grid grid-cols-2 gap-2">
+                    <input type="text" id="newGuestFirstName" class="input input-bordered input-sm" placeholder="Имя">
+                    <input type="text" id="newGuestLastName" class="input input-bordered input-sm" placeholder="Фамилия">
+                </div>
+                <input type="text" id="newGuestSpiritualName" class="input input-bordered input-sm w-full" placeholder="Духовное имя">
+                <div class="grid grid-cols-2 gap-2">
+                    <input type="tel" id="newGuestPhone" class="input input-bordered input-sm" placeholder="Телефон">
+                    <input type="email" id="newGuestEmail" class="input input-bordered input-sm" placeholder="Email">
+                </div>
+            </div>
+
+            <div class="form-control mb-3">
+                <label class="label"><span class="label-text">Источник</span></label>
+                <select id="newDealSource" class="select select-bordered">
+                    <option value="website">Сайт</option>
+                    <option value="telegram">Телеграм</option>
+                    <option value="referral">Рекомендация</option>
+                    <option value="repeat">Повторный гость</option>
+                    <option value="portal">Личный кабинет</option>
+                </select>
+            </div>
+
+            <div class="form-control mb-4">
+                <label class="label"><span class="label-text">Заметки</span></label>
+                <textarea id="newDealNotes" class="textarea textarea-bordered" rows="2"></textarea>
+            </div>
+
+            <div class="modal-action">
+                <button type="button" class="btn" onclick="closeNewDealModal()">Отмена</button>
+                <button type="submit" class="btn btn-primary">Создать</button>
+            </div>
+        </form>
+    </div>
+    <form method="dialog" class="modal-backdrop"><button>close</button></form>
+</dialog>
+
+<script src="../js/config.js"></script>
+<script src="../js/auth-check.js"></script>
+<script src="../js/cache.js"></script>
+<script src="../js/utils.js?v=2"></script>
+<script src="../js/layout.js"></script>
+<script src="../js/crm-utils.js"></script>
+
+<script>
+const t = key => Layout.t(key);
+const e = str => Layout.escapeHtml(str);
+
+// ==================== STATE ====================
+let deals = [];
+let retreats = [];
+let guests = [];
+let currentPage = 1;
+const pageSize = 50;
+let filteredDeals = [];
+let debounceTimer = null;
+let sortField = 'created';
+let sortDir = 'desc';
+
+// ==================== SORTING ====================
+function setSort(field) {
+    if (sortField === field) {
+        sortDir = sortDir === 'asc' ? 'desc' : 'asc';
+    } else {
+        sortField = field;
+        sortDir = 'asc';
+    }
+    updateSortIndicators();
+    sortDeals();
+    currentPage = 1;
+    renderTable();
+    renderPagination();
+}
+
+function updateSortIndicators() {
+    ['guest', 'retreat', 'status', 'manager', 'paid', 'created'].forEach(f => {
+        const el = document.getElementById(`sort-${f}`);
+        if (el) el.textContent = sortField === f ? (sortDir === 'asc' ? '↑' : '↓') : '';
+    });
+}
+
+function sortDeals() {
+    filteredDeals.sort((a, b) => {
+        let aVal, bVal;
+
+        switch (sortField) {
+            case 'guest':
+                aVal = CrmUtils.getGuestName(a.vaishnavas).toLowerCase();
+                bVal = CrmUtils.getGuestName(b.vaishnavas).toLowerCase();
+                break;
+            case 'retreat':
+                aVal = Layout.getName(a.retreats)?.toLowerCase() || '';
+                bVal = Layout.getName(b.retreats)?.toLowerCase() || '';
+                break;
+            case 'status':
+                aVal = a.status || '';
+                bVal = b.status || '';
+                break;
+            case 'manager':
+                aVal = a.manager ? CrmUtils.getGuestName(a.manager).toLowerCase() : '';
+                bVal = b.manager ? CrmUtils.getGuestName(b.manager).toLowerCase() : '';
+                // Пустые в конец
+                if (!aVal && bVal) return 1;
+                if (aVal && !bVal) return -1;
+                break;
+            case 'paid':
+                aVal = a.total_paid || 0;
+                bVal = b.total_paid || 0;
+                break;
+            case 'created':
+            default:
+                aVal = a.created_at || '';
+                bVal = b.created_at || '';
+                break;
+        }
+
+        if (aVal < bVal) return sortDir === 'asc' ? -1 : 1;
+        if (aVal > bVal) return sortDir === 'asc' ? 1 : -1;
+        return 0;
+    });
+}
+
+// ==================== DATA ====================
+async function loadData() {
+    // Загружаем ретриты для фильтров
+    const { data: retreatsData } = await Layout.db
+        .from('retreats')
+        .select('id, name_ru, name_en, color, start_date')
+        .order('start_date', { ascending: false });
+    retreats = retreatsData || [];
+
+    // Заполняем select ретритов
+    const retreatSelect = document.getElementById('filterRetreat');
+    const newDealRetreatSelect = document.getElementById('newDealRetreat');
+
+    retreats.forEach(r => {
+        const opt = `<option value="${r.id}">${e(Layout.getName(r))}</option>`;
+        retreatSelect.insertAdjacentHTML('beforeend', opt);
+        newDealRetreatSelect.insertAdjacentHTML('beforeend', opt);
+    });
+
+    await loadDeals();
+}
+
+async function loadDeals() {
+    const { data, error } = await Layout.db
+        .from('crm_deals')
+        .select(`
+            *,
+            vaishnavas:vaishnava_id(id, spiritual_name, first_name, last_name, phone, email),
+            retreats:retreat_id(id, name_ru, name_en, color),
+            manager:manager_id(id, spiritual_name, first_name, last_name)
+        `)
+        .order('created_at', { ascending: false });
+
+    if (error) {
+        Layout.handleError(error, 'Загрузка сделок');
+        return;
+    }
+
+    deals = data || [];
+    applyFilters();
+}
+
+async function loadGuests() {
+    const { data } = await Layout.db
+        .from('vaishnavas')
+        .select('id, spiritual_name, first_name, last_name, phone, email')
+        .eq('is_deleted', false)
+        .order('spiritual_name');
+
+    guests = data || [];
+
+    const select = document.getElementById('newDealGuest');
+    select.innerHTML = '<option value="">Выберите или создайте нового...</option>' +
+        guests.map(g => `<option value="${g.id}">${e(CrmUtils.getGuestName(g))} ${g.phone ? '(' + g.phone + ')' : ''}</option>`).join('');
+}
+
+// ==================== FILTERS ====================
+function applyFilters() {
+    const retreatId = document.getElementById('filterRetreat').value;
+    const status = document.getElementById('filterStatus').value;
+    const manager = document.getElementById('filterManager').value;
+    const search = document.getElementById('filterSearch').value.toLowerCase().trim();
+
+    const currentUserId = window.currentUser?.vaishnava_id;
+
+    filteredDeals = deals.filter(d => {
+        // Ретрит
+        if (retreatId && d.retreat_id !== retreatId) return false;
+
+        // Статус
+        if (status === 'active' && (d.status === 'cancelled' || d.status === 'completed')) return false;
+        if (status === 'cancelled' && d.status !== 'cancelled') return false;
+        if (status === 'completed' && d.status !== 'completed') return false;
+
+        // Менеджер
+        if (manager === 'my' && d.manager_id !== currentUserId) return false;
+        if (manager === 'unassigned' && d.manager_id) return false;
+
+        // Поиск
+        if (search) {
+            const guest = d.vaishnavas;
+            const searchStr = [
+                guest?.spiritual_name,
+                guest?.first_name,
+                guest?.last_name,
+                guest?.phone,
+                guest?.email
+            ].filter(Boolean).join(' ').toLowerCase();
+            if (!searchStr.includes(search)) return false;
+        }
+
+        return true;
+    });
+
+    currentPage = 1;
+    sortDeals();
+    renderTable();
+    renderStats();
+    renderPagination();
+    updateSortIndicators();
+}
+
+function applyFiltersDebounced() {
+    clearTimeout(debounceTimer);
+    debounceTimer = setTimeout(applyFilters, 300);
+}
+
+function resetFilters() {
+    document.getElementById('filterRetreat').value = '';
+    document.getElementById('filterStatus').value = '';
+    document.getElementById('filterManager').value = '';
+    document.getElementById('filterSearch').value = '';
+    applyFilters();
+}
+
+// ==================== RENDER ====================
+function renderTable() {
+    const tbody = document.getElementById('dealsTable');
+    const start = (currentPage - 1) * pageSize;
+    const pageDeals = filteredDeals.slice(start, start + pageSize);
+
+    if (pageDeals.length === 0) {
+        tbody.innerHTML = `<tr><td colspan="7" class="text-center py-8 text-base-content/50">
+            ${t('crm_no_deals') || 'Нет сделок'}
+        </td></tr>`;
+        return;
+    }
+
+    tbody.innerHTML = pageDeals.map(d => {
+        const guest = d.vaishnavas;
+        const retreat = d.retreats;
+        const manager = d.manager;
+        const isOverdue = CrmUtils.isOverdue(d);
+
+        return `
+            <tr class="deal-row ${isOverdue ? 'overdue' : ''}" onclick="openDeal('${d.id}')">
+                <td>
+                    ${isOverdue ? `<span title="Без контакта > 24ч" class="text-error">${CrmUtils.UI_ICONS.exclamationCircle}</span>` : ''}
+                    ${d.is_group_main ? `<span title="Главный в группе">${CrmUtils.UI_ICONS.user}</span>` : ''}
+                </td>
+                <td>
+                    <div class="font-medium">${e(CrmUtils.getGuestName(guest))}</div>
+                    <div class="text-xs text-base-content/50">${e(guest?.phone || guest?.email || '')}</div>
+                </td>
+                <td>
+                    <span class="badge badge-sm" style="background-color: ${retreat?.color || '#6b7280'}; color: white;">
+                        ${e(Layout.getName(retreat) || '—')}
+                    </span>
+                </td>
+                <td>${CrmUtils.getStatusBadge(d.status)}</td>
+                <td class="text-sm">${manager ? e(CrmUtils.getGuestShortName(manager)) : '<span class="text-base-content/30">—</span>'}</td>
+                <td class="text-right font-mono text-sm">
+                    ${d.total_paid > 0 ? CrmUtils.formatMoney(d.total_paid) : '<span class="text-base-content/30">—</span>'}
+                </td>
+                <td class="text-sm text-base-content/50">${CrmUtils.formatDate(d.created_at)}</td>
+            </tr>
+        `;
+    }).join('');
+}
+
+function renderStats() {
+    const total = filteredDeals.length;
+    const overdue = filteredDeals.filter(d => CrmUtils.isOverdue(d)).length;
+
+    document.getElementById('statsTotal').textContent = `Найдено: ${total}`;
+
+    const overdueEl = document.getElementById('statsOverdue');
+    if (overdue > 0) {
+        overdueEl.innerHTML = `<span class="inline-flex items-center gap-1"><span class="text-error">${CrmUtils.UI_ICONS.exclamationCircle}</span> Без контакта: ${overdue}</span>`;
+        overdueEl.classList.remove('hidden');
+    } else {
+        overdueEl.classList.add('hidden');
+    }
+}
+
+function renderPagination() {
+    const totalPages = Math.ceil(filteredDeals.length / pageSize);
+    const container = document.getElementById('pagination');
+
+    if (totalPages <= 1) {
+        container.innerHTML = '';
+        return;
+    }
+
+    let html = '';
+    for (let i = 1; i <= totalPages; i++) {
+        html += `<button class="join-item btn btn-sm ${i === currentPage ? 'btn-active' : ''}"
+                         onclick="goToPage(${i})">${i}</button>`;
+    }
+    container.innerHTML = html;
+}
+
+function goToPage(page) {
+    currentPage = page;
+    renderTable();
+    renderPagination();
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+}
+
+// ==================== ACTIONS ====================
+function openDeal(id) {
+    window.location.href = `deal.html?id=${id}`;
+}
+
+function openNewDealModal() {
+    document.getElementById('newDealForm').reset();
+    document.getElementById('newGuestForm').classList.add('hidden');
+    loadGuests();
+    document.getElementById('newDealModal').showModal();
+}
+
+function closeNewDealModal() {
+    document.getElementById('newDealModal').close();
+}
+
+function toggleNewGuestForm() {
+    const form = document.getElementById('newGuestForm');
+    const select = document.getElementById('newDealGuest');
+
+    if (form.classList.contains('hidden')) {
+        form.classList.remove('hidden');
+        select.disabled = true;
+        select.value = '';
+    } else {
+        form.classList.add('hidden');
+        select.disabled = false;
+    }
+}
+
+async function createDeal(event) {
+    event.preventDefault();
+
+    const retreatId = document.getElementById('newDealRetreat').value;
+    let guestId = document.getElementById('newDealGuest').value;
+
+    if (!retreatId) {
+        Layout.showNotification('Выберите ретрит', 'error');
+        return;
+    }
+
+    // Создаём нового гостя если нужно
+    if (!guestId) {
+        const firstName = document.getElementById('newGuestFirstName').value.trim();
+        const lastName = document.getElementById('newGuestLastName').value.trim();
+        const spiritualName = document.getElementById('newGuestSpiritualName').value.trim();
+        const phone = document.getElementById('newGuestPhone').value.trim();
+        const email = document.getElementById('newGuestEmail').value.trim();
+
+        if (!firstName && !spiritualName) {
+            Layout.showNotification('Укажите имя или духовное имя гостя', 'error');
+            return;
+        }
+
+        const { data: newGuest, error: guestError } = await Layout.db
+            .from('vaishnavas')
+            .insert({
+                first_name: firstName || null,
+                last_name: lastName || null,
+                spiritual_name: spiritualName || null,
+                phone: phone || null,
+                email: email || null
+            })
+            .select('id')
+            .single();
+
+        if (guestError) {
+            Layout.handleError(guestError, 'Создание гостя');
+            return;
+        }
+
+        guestId = newGuest.id;
+    }
+
+    // Создаём сделку
+    const dealData = {
+        retreat_id: retreatId,
+        vaishnava_id: guestId,
+        source: document.getElementById('newDealSource').value,
+        notes: document.getElementById('newDealNotes').value.trim() || null,
+        status: 'lead'
+    };
+
+    // Назначаем менеджера из очереди
+    const nextManager = await CrmUtils.getNextManager(retreatId);
+    if (nextManager) {
+        dealData.manager_id = nextManager.manager_id;
+        await CrmUtils.updateManagerLastAssigned(nextManager.manager_id);
+    }
+
+    const { data: newDeal, error: dealError } = await Layout.db
+        .from('crm_deals')
+        .insert(dealData)
+        .select('id')
+        .single();
+
+    if (dealError) {
+        Layout.handleError(dealError, 'Создание сделки');
+        return;
+    }
+
+    Layout.showNotification('Сделка создана', 'success');
+    closeNewDealModal();
+
+    // Открываем карточку сделки
+    window.location.href = `deal.html?id=${newDeal.id}`;
+}
+
+// ==================== INIT ====================
+async function init() {
+    await Layout.init({
+        module: 'crm',
+        menuId: 'crm_sales',
+        itemId: 'crm_deals'
+    });
+
+    await loadData();
+}
+
+init();
+</script>
+
+</body>
+</html>

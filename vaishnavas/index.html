@@ -118,7 +118,28 @@
                     </tr>
                 </thead>
                 <tbody id="peopleTable">
-                    <!-- Will be populated by JS -->
+                    <!-- Skeleton loader - будет заменён данными -->
+                    <tr class="skeleton-table-row">
+                        <td><div class="flex items-center gap-3"><div class="skeleton skeleton-avatar"></div><div class="flex-1"><div class="skeleton skeleton-text w-32 mb-1"></div><div class="skeleton skeleton-text-sm w-20"></div></div></div></td>
+                        <td><div class="skeleton skeleton-text w-16"></div></td>
+                        <td><div class="skeleton skeleton-text w-24"></div></td>
+                        <td><div class="skeleton skeleton-text w-28"></div></td>
+                        <td></td>
+                    </tr>
+                    <tr class="skeleton-table-row">
+                        <td><div class="flex items-center gap-3"><div class="skeleton skeleton-avatar"></div><div class="flex-1"><div class="skeleton skeleton-text w-40 mb-1"></div><div class="skeleton skeleton-text-sm w-16"></div></div></div></td>
+                        <td><div class="skeleton skeleton-text w-20"></div></td>
+                        <td><div class="skeleton skeleton-text w-20"></div></td>
+                        <td><div class="skeleton skeleton-text w-24"></div></td>
+                        <td></td>
+                    </tr>
+                    <tr class="skeleton-table-row">
+                        <td><div class="flex items-center gap-3"><div class="skeleton skeleton-avatar"></div><div class="flex-1"><div class="skeleton skeleton-text w-28 mb-1"></div><div class="skeleton skeleton-text-sm w-24"></div></div></div></td>
+                        <td><div class="skeleton skeleton-text w-12"></div></td>
+                        <td><div class="skeleton skeleton-text w-28"></div></td>
+                        <td><div class="skeleton skeleton-text w-20"></div></td>
+                        <td></td>
+                    </tr>
                 </tbody>
             </table>
             <div id="emptyState" class="hidden text-center py-12 opacity-50">
@@ -140,6 +161,14 @@
             <h3 class="font-bold text-lg mb-4" data-i18n="add_vaishnava">Добавить вайшнава</h3>
 
             <form id="addForm" onsubmit="saveNewPerson(event)">
+                <div class="form-control mb-4">
+                    <label class="label">
+                        <span class="label-text font-medium" data-i18n="spiritual_name">Духовное имя</span>
+                        <span class="label-text-alt opacity-50" data-i18n="optional">необязательно</span>
+                    </label>
+                    <input type="text" name="spiritual_name" class="input input-bordered">
+                </div>
+
                 <div class="grid grid-cols-2 gap-4 mb-4">
                     <div class="form-control">
                         <label class="label">
@@ -157,16 +186,26 @@
 
                 <div class="form-control mb-4">
                     <label class="label">
-                        <span class="label-text font-medium" data-i18n="spiritual_name">Духовное имя</span>
+                        <span class="label-text font-medium">Email *</span>
                     </label>
-                    <input type="text" name="spiritual_name" class="input input-bordered">
+                    <input type="email" name="email" class="input input-bordered" required>
                 </div>
 
-                <div class="form-control mb-4">
-                    <label class="label">
-                        <span class="label-text font-medium" data-i18n="phone">Телефон</span>
-                    </label>
-                    <input type="tel" name="phone" class="input input-bordered">
+                <div class="grid grid-cols-2 gap-4 mb-4">
+                    <div class="form-control">
+                        <label class="label">
+                            <span class="label-text font-medium" data-i18n="phone">Телефон</span>
+                            <span class="label-text-alt opacity-50" data-i18n="optional">необязательно</span>
+                        </label>
+                        <input type="tel" name="phone" class="input input-bordered">
+                    </div>
+                    <div class="form-control">
+                        <label class="label">
+                            <span class="label-text font-medium">Telegram</span>
+                            <span class="label-text-alt opacity-50" data-i18n="optional">необязательно</span>
+                        </label>
+                        <input type="text" name="telegram_username" class="input input-bordered" placeholder="username">
+                    </div>
                 </div>
 
                 <div class="form-control mb-4">
@@ -186,13 +225,14 @@
     </dialog>
 
     <script src="../js/config.js"></script>
-    <script src="../js/auth-check.js?v=2"></script>
-    <script src="../js/permissions-ui.js"></script>
+    <script src="../js/auth-check.js?v=3"></script>
+    <script src="../js/permissions-ui.js?v=2"></script>
     <script src="../js/cache.js"></script>
-    <script src="../js/utils.js"></script>
+    <script src="../js/utils.js?v=2"></script>
     <script src="../js/translit.js"></script>
     <script src="../js/auto-translate.js"></script>
-    <script src="../js/layout.js"></script>
+    <script src="../js/date-utils.js"></script>
+    <script src="../js/layout.js?v=5"></script>
     <script src="../js/vaishnavas-utils.js"></script>
     <script>
         const V = VaishnavasUtils;
@@ -200,7 +240,7 @@
         let stays = {};
         let totalCount = 0;
         const state = { currentFilter: 'all', searchQuery: '', sortField: 'name', sortDirection: 'asc', currentPage: 1 };
-        const today = new Date().toISOString().split('T')[0];
+        const today = DateUtils.toISO(new Date());
 
         async function init() {
             const params = new URLSearchParams(window.location.search);
@@ -313,7 +353,7 @@
             const futureStays = personStays.filter(s => s.start_date > today).sort((a, b) => a.start_date.localeCompare(b.start_date));
             if (futureStays.length > 0) {
                 const nextStay = futureStays[0];
-                const date = new Date(nextStay.start_date);
+                const date = DateUtils.parseDate(nextStay.start_date);
                 const formatted = date.toLocaleDateString('ru-RU', { day: 'numeric', month: 'short' });
 
                 // Если есть информация о ретрите (для гостей)

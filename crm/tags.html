@@ -1,0 +1,272 @@
+<!DOCTYPE html>
+<html lang="ru" data-theme="light">
+<head>
+    <script src="../js/color-init.js"></script>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Теги — CRM — ШРСК</title>
+    <link href="https://cdn.jsdelivr.net/npm/daisyui@4.12.14/dist/full.min.css" rel="stylesheet" />
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script>tailwind.config = { theme: { extend: { screens: { 'desktop': '1200px' } } } }</script>
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="../css/common.css">
+</head>
+<body class="bg-base-200 min-h-screen flex flex-col">
+
+<div id="header-placeholder"></div>
+
+<main class="container mx-auto px-4 py-6 flex-1">
+    <!-- Заголовок -->
+    <div class="flex justify-between items-center mb-6">
+        <h1 class="text-2xl font-bold" data-i18n="nav_crm_tags">Теги</h1>
+        <button class="btn btn-primary" onclick="openAddModal()" data-permission="edit_crm_settings">
+            + <span data-i18n="add">Добавить</span>
+        </button>
+    </div>
+
+    <!-- Сетка тегов -->
+    <div id="tagsGrid" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+        <div class="text-center py-8">
+            <span class="loading loading-spinner loading-md"></span>
+        </div>
+    </div>
+</main>
+
+<div id="footer-placeholder"></div>
+
+<!-- Модалка добавления/редактирования -->
+<dialog id="tagModal" class="modal">
+    <div class="modal-box max-w-sm">
+        <h3 class="font-bold text-lg mb-4" id="modalTitle">Тег</h3>
+        <form id="tagForm" onsubmit="saveTag(event)">
+            <input type="hidden" id="tagId">
+
+            <div class="form-control mb-3">
+                <label class="label"><span class="label-text">Код</span></label>
+                <input type="text" id="tagCode" class="input input-bordered" required
+                       pattern="[a-z_]+" placeholder="vip">
+            </div>
+
+            <div class="form-control mb-3">
+                <label class="label"><span class="label-text">Название (RU)</span></label>
+                <input type="text" id="tagNameRu" class="input input-bordered" required>
+            </div>
+
+            <div class="form-control mb-3">
+                <label class="label"><span class="label-text">Название (EN)</span></label>
+                <input type="text" id="tagNameEn" class="input input-bordered" required>
+            </div>
+
+            <div class="form-control mb-3">
+                <label class="label"><span class="label-text">Название (HI)</span></label>
+                <input type="text" id="tagNameHi" class="input input-bordered">
+            </div>
+
+            <div class="form-control mb-4">
+                <label class="label"><span class="label-text" data-i18n="crm_color">Цвет</span></label>
+                <div class="flex gap-2 items-center">
+                    <input type="color" id="tagColor" class="w-12 h-10 rounded cursor-pointer" value="#6b7280">
+                    <input type="text" id="tagColorText" class="input input-bordered flex-1 font-mono"
+                           value="#6b7280" pattern="#[0-9a-fA-F]{6}">
+                </div>
+            </div>
+
+            <div class="form-control mb-4">
+                <label class="label"><span class="label-text">Предпросмотр</span></label>
+                <div id="tagPreview" class="flex gap-2">
+                    <span class="badge" style="background-color: #6b7280; color: white;">Пример</span>
+                </div>
+            </div>
+
+            <div class="modal-action">
+                <button type="button" class="btn" onclick="closeModal()">Отмена</button>
+                <button type="submit" class="btn btn-primary">Сохранить</button>
+            </div>
+        </form>
+    </div>
+    <form method="dialog" class="modal-backdrop"><button>close</button></form>
+</dialog>
+
+<script src="../js/config.js"></script>
+<script src="../js/auth-check.js"></script>
+<script src="../js/cache.js"></script>
+<script src="../js/utils.js?v=2"></script>
+<script src="../js/layout.js"></script>
+<script src="../js/crm-utils.js"></script>
+
+<script>
+const t = key => Layout.t(key);
+const e = str => Layout.escapeHtml(str);
+
+let tags = [];
+
+// ==================== DATA ====================
+async function loadTags() {
+    const { data, error } = await Layout.db
+        .from('crm_tags')
+        .select('*')
+        .order('sort_order');
+
+    if (error) {
+        Layout.handleError(error, 'Загрузка тегов');
+        return;
+    }
+    tags = data || [];
+    renderGrid();
+}
+
+// ==================== RENDER ====================
+function renderGrid() {
+    const grid = document.getElementById('tagsGrid');
+
+    if (tags.length === 0) {
+        grid.innerHTML = `<div class="col-span-full text-center py-8 text-base-content/50">
+            Нет тегов
+        </div>`;
+        return;
+    }
+
+    grid.innerHTML = tags.map(tag => `
+        <div class="card bg-base-100 shadow-sm">
+            <div class="card-body p-4">
+                <div class="flex items-center justify-between">
+                    <span class="badge badge-lg gap-1" style="background-color: ${tag.color}; color: white;">
+                        ${e(Layout.getName(tag))}
+                    </span>
+                    <div class="flex gap-1">
+                        <button class="btn btn-ghost btn-xs" onclick="editTag('${tag.id}')"
+                                data-permission="edit_crm_settings">${CrmUtils.UI_ICONS.edit}</button>
+                        <button class="btn btn-ghost btn-xs text-error" onclick="deleteTag('${tag.id}')"
+                                data-permission="edit_crm_settings">${CrmUtils.UI_ICONS.trash}</button>
+                    </div>
+                </div>
+                <div class="text-xs text-base-content/50 mt-2">
+                    <span class="font-mono">${e(tag.code)}</span>
+                </div>
+            </div>
+        </div>
+    `).join('');
+}
+
+// ==================== MODAL ====================
+function openAddModal() {
+    document.getElementById('modalTitle').textContent = 'Новый тег';
+    document.getElementById('tagForm').reset();
+    document.getElementById('tagId').value = '';
+    document.getElementById('tagColor').value = '#6b7280';
+    document.getElementById('tagColorText').value = '#6b7280';
+    updatePreview();
+    document.getElementById('tagModal').showModal();
+}
+
+function editTag(id) {
+    const tag = tags.find(t => t.id === id);
+    if (!tag) return;
+
+    document.getElementById('modalTitle').textContent = 'Редактирование тега';
+    document.getElementById('tagId').value = tag.id;
+    document.getElementById('tagCode').value = tag.code;
+    document.getElementById('tagNameRu').value = tag.name_ru || '';
+    document.getElementById('tagNameEn').value = tag.name_en || '';
+    document.getElementById('tagNameHi').value = tag.name_hi || '';
+    document.getElementById('tagColor').value = tag.color || '#6b7280';
+    document.getElementById('tagColorText').value = tag.color || '#6b7280';
+    updatePreview();
+
+    document.getElementById('tagModal').showModal();
+}
+
+function closeModal() {
+    document.getElementById('tagModal').close();
+}
+
+function updatePreview() {
+    const color = document.getElementById('tagColor').value;
+    const name = document.getElementById('tagNameRu').value || 'Пример';
+    document.getElementById('tagPreview').innerHTML = `
+        <span class="badge badge-lg" style="background-color: ${color}; color: white;">${e(name)}</span>
+    `;
+}
+
+function syncColor(source) {
+    if (source === 'picker') {
+        document.getElementById('tagColorText').value = document.getElementById('tagColor').value;
+    } else {
+        const val = document.getElementById('tagColorText').value;
+        if (/^#[0-9a-fA-F]{6}$/.test(val)) {
+            document.getElementById('tagColor').value = val;
+        }
+    }
+    updatePreview();
+}
+
+// ==================== SAVE ====================
+async function saveTag(event) {
+    event.preventDefault();
+
+    const id = document.getElementById('tagId').value;
+    const data = {
+        code: document.getElementById('tagCode').value.trim().toLowerCase(),
+        name_ru: document.getElementById('tagNameRu').value.trim(),
+        name_en: document.getElementById('tagNameEn').value.trim(),
+        name_hi: document.getElementById('tagNameHi').value.trim() || null,
+        color: document.getElementById('tagColor').value
+    };
+
+    let error;
+    if (id) {
+        ({ error } = await Layout.db.from('crm_tags').update(data).eq('id', id));
+    } else {
+        ({ error } = await Layout.db.from('crm_tags').insert(data));
+    }
+
+    if (error) {
+        Layout.handleError(error, 'Сохранение тега');
+        return;
+    }
+
+    Layout.showNotification(t('saved') || 'Сохранено', 'success');
+    closeModal();
+    await loadTags();
+}
+
+// ==================== DELETE ====================
+async function deleteTag(id) {
+    const tag = tags.find(t => t.id === id);
+    if (!tag) return;
+
+    if (!confirm(`Удалить тег "${Layout.getName(tag)}"?`)) return;
+
+    const { error } = await Layout.db.from('crm_tags').delete().eq('id', id);
+
+    if (error) {
+        Layout.handleError(error, 'Удаление тега');
+        return;
+    }
+
+    Layout.showNotification(t('deleted') || 'Удалено', 'success');
+    await loadTags();
+}
+
+// ==================== INIT ====================
+async function init() {
+    await Layout.init({
+        module: 'crm',
+        menuId: 'crm_settings',
+        itemId: 'crm_tags'
+    });
+
+    // События для синхронизации цвета
+    document.getElementById('tagColor').addEventListener('input', () => syncColor('picker'));
+    document.getElementById('tagColorText').addEventListener('input', () => syncColor('text'));
+    document.getElementById('tagNameRu').addEventListener('input', updatePreview);
+
+    await loadTags();
+}
+
+init();
+</script>
+
+</body>
+</html>

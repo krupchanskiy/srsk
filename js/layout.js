@@ -22,6 +22,7 @@ const modules = {
         menuConfig: [
             { id: 'kitchen', items: [
                 { id: 'menu', href: 'kitchen/menu.html' },
+                { id: 'planner', href: 'kitchen/menu-board.html' },
                 { id: 'menu_templates', href: 'kitchen/menu-templates.html' },
                 { id: 'recipes', href: 'kitchen/recipes.html' },
                 { id: 'products', href: 'kitchen/products.html' }
@@ -34,14 +35,11 @@ const modules = {
                 { id: 'inventory', href: 'stock/inventory.html' },
                 { id: 'stock_settings', href: 'stock/stock-settings.html' }
             ]},
-            { id: 'ashram', items: [
-                { id: 'retreats', href: 'ashram/retreats.html' },
+            { id: 'team', items: [
                 { id: 'vaishnavas_team', href: 'vaishnavas/team.html' }
             ]},
             { id: 'settings', items: [
-                { id: 'dictionaries', href: 'kitchen/dictionaries.html' },
-                { id: 'translations', href: 'settings/translations.html' },
-                { id: 'festivals', href: 'ashram/festivals.html' }
+                { id: 'dictionaries', href: 'kitchen/dictionaries.html' }
             ]}
         ]
     },
@@ -60,24 +58,79 @@ const modules = {
             { id: 'placement', items: [
                 { id: 'retreat_guests', href: 'vaishnavas/retreat-guests.html' },
                 { id: 'preliminary', href: 'vaishnavas/preliminary.html' },
+                { id: 'groups', href: 'vaishnavas/groups.html' },
                 { id: 'arrivals', href: 'placement/arrivals.html' },
                 { id: 'departures', href: 'placement/departures.html' },
                 { id: 'transfers', href: 'placement/transfers.html' }
             ]},
             { id: 'reception', items: [
                 { id: 'timeline', href: 'placement/timeline.html' },
+                { id: 'floor_plans', href: 'reception/floor-plan.html' },
                 { id: 'bookings', href: 'placement/bookings.html' },
                 { id: 'cleaning', href: 'reception/cleaning.html' }
-            ]},
-            { id: 'ashram', items: [
-                { id: 'retreats', href: 'ashram/retreats.html' },
-                { id: 'festivals', href: 'ashram/festivals.html' }
             ]},
             { id: 'settings', items: [
                 { id: 'buildings', href: 'reception/buildings.html' },
                 { id: 'rooms', href: 'reception/rooms.html' },
-                { id: 'housing_dictionaries', href: 'reception/dictionaries.html' },
-                { id: 'user_management', href: 'settings/user-management.html' },
+                { id: 'housing_dictionaries', href: 'reception/dictionaries.html' }
+            ]}
+        ]
+    },
+    crm: {
+        id: 'crm',
+        nameKey: 'module_crm',
+        icon: '💼',
+        hasLocations: false,
+        defaultPage: 'crm/index.html',
+        menuConfig: [
+            { id: 'crm_sales', items: [
+                { id: 'crm_kanban', href: 'crm/index.html' },
+                { id: 'crm_deals', href: 'crm/deals.html' },
+                { id: 'crm_tasks', href: 'crm/tasks.html' }
+            ]},
+            { id: 'crm_analytics', items: [
+                { id: 'crm_dashboard', href: 'crm/dashboard.html' },
+                { id: 'crm_activity_log', href: 'crm/activity-log.html' }
+            ]},
+            { id: 'crm_settings', items: [
+                { id: 'crm_services', href: 'crm/services.html' },
+                { id: 'crm_currencies', href: 'crm/currencies.html' },
+                { id: 'crm_tags', href: 'crm/tags.html' },
+                { id: 'crm_templates', href: 'crm/templates.html' },
+                { id: 'crm_managers', href: 'crm/managers.html' }
+            ]}
+        ]
+    },
+    portal: {
+        id: 'portal',
+        nameKey: 'module_portal',
+        icon: '👤',
+        hasLocations: false,
+        defaultPage: 'guest-portal/materials-admin.html',
+        menuConfig: [
+            { id: 'portal_content', items: [
+                { id: 'portal_materials', href: 'guest-portal/materials-admin.html' }
+            ]}
+        ]
+    },
+    admin: {
+        id: 'admin',
+        nameKey: 'module_admin',
+        icon: '⚙️',
+        hasLocations: false,
+        defaultPage: 'ashram/retreats.html',
+        menuConfig: [
+            { id: 'ashram', items: [
+                { id: 'retreats', href: 'ashram/retreats.html' },
+                { id: 'festivals', href: 'ashram/festivals.html' }
+            ]},
+            { id: 'dashboards', items: [
+                { id: 'dashboard_vaishnavas', href: 'ashram/dashboard-vaishnavas.html' }
+            ]},
+            { id: 'access', items: [
+                { id: 'user_management', href: 'settings/user-management.html' }
+            ]},
+            { id: 'system', items: [
                 { id: 'translations', href: 'settings/translations.html' }
             ]}
         ]
@@ -85,41 +138,87 @@ const modules = {
 };
 
 // ==================== PAGE PERMISSIONS MAP ====================
-// Карта прав для доступа к страницам
+// Карта прав для доступа к страницам (v5 - RBAC refactor)
 const pagePermissions = {
-    // Housing - Vaishnavas
+    // Kitchen
+    'kitchen/menu.html': 'view_menu',
+    'kitchen/menu-board.html': 'view_menu',
+    'kitchen/menu-templates.html': 'view_menu_templates',
+    'kitchen/recipes.html': 'view_recipes',
+    'kitchen/products.html': 'view_products',
+    'kitchen/dictionaries.html': 'view_kitchen_dictionaries',
+
+    // Stock
+    'stock/stock.html': 'view_stock',
+    'stock/requests.html': 'view_requests',
+    'stock/receive.html': 'receive_stock',
+    'stock/issue.html': 'issue_stock',
+    'stock/inventory.html': 'conduct_inventory',
+    'stock/stock-settings.html': 'view_stock_settings',
+
+    // Vaishnavas
     'vaishnavas/index.html': 'view_vaishnavas',
     'vaishnavas/guests.html': 'view_guests',
     'vaishnavas/team.html': 'view_team',
 
-    // Housing - Placement
-    'placement/bookings.html': 'view_bookings',
+    // Placement
     'placement/timeline.html': 'view_timeline',
-    'placement/arrivals.html': 'manage_arrivals',
-    'placement/departures.html': 'manage_departures',
-    'placement/transfers.html': 'manage_transfers',
-    'vaishnavas/preliminary.html': 'view_preliminary',
+    'placement/bookings.html': 'view_bookings',
     'vaishnavas/retreat-guests.html': 'view_retreat_guests',
+    'vaishnavas/preliminary.html': 'view_preliminary',
+    'vaishnavas/groups.html': 'view_preliminary',
+    'placement/arrivals.html': 'view_arrivals',
+    'placement/departures.html': 'view_departures',
+    'placement/transfers.html': 'view_transfers',
 
-    // Housing - Reception
+    // Reception
+    'reception/floor-plan.html': 'view_floor_plan',
     'reception/cleaning.html': 'view_cleaning',
     'reception/rooms.html': 'view_rooms',
     'reception/buildings.html': 'view_buildings',
+    'reception/dictionaries.html': 'view_housing_dictionaries',
 
-    // Housing - Ashram
+    // Ashram
     'ashram/retreats.html': 'view_retreats',
     'ashram/festivals.html': 'view_festivals',
+    'ashram/dashboard-vaishnavas.html': 'view_retreats',
 
-    // Housing - Settings
-    'reception/dictionaries.html': 'view_dictionaries',
+    // Settings
+    'settings/translations.html': 'view_translations',
     'settings/user-management.html': 'manage_users',
-    'settings/translations.html': 'view_translations'
+
+    // CRM - Продажи
+    'crm/index.html': 'view_crm',
+    'crm/deals.html': 'view_crm',
+    'crm/deal.html': 'view_crm',
+    'crm/tasks.html': 'view_crm',
+
+    // CRM - Аналитика
+    'crm/dashboard.html': 'view_crm_dashboard',
+    'crm/activity-log.html': 'view_crm_dashboard',
+
+    // CRM - Настройки
+    'crm/services.html': 'edit_crm_settings',
+    'crm/currencies.html': 'edit_crm_settings',
+    'crm/tags.html': 'edit_crm_settings',
+    'crm/templates.html': 'edit_crm_settings',
+    'crm/managers.html': 'edit_crm_settings',
+
+    // Portal (Профиль гостя)
+    'guest-portal/materials-admin.html': 'edit_portal_materials'
 };
 
 // ==================== STATE ====================
-let currentModule = localStorage.getItem('srsk_module') || 'kitchen';
-let currentLang = localStorage.getItem('srsk_lang') || 'ru';
-let currentLocation = localStorage.getItem('srsk_location') || 'main';
+let currentModule, currentLang, currentLocation;
+try {
+    currentModule = localStorage.getItem('srsk_module') || 'kitchen';
+    currentLang = localStorage.getItem('srsk_lang') || 'ru';
+    currentLocation = localStorage.getItem('srsk_location') || 'main';
+} catch {
+    currentModule = 'kitchen';
+    currentLang = 'ru';
+    currentLocation = 'main';
+}
 let locations = [];
 let translations = {}; // { key: { ru: '...', en: '...', hi: '...' } }
 
@@ -159,7 +258,7 @@ function getMenuConfig() {
 }
 
 // Список всех подпапок модулей
-const MODULE_FOLDERS = ['kitchen', 'stock', 'ashram', 'vaishnavas', 'placement', 'reception', 'settings'];
+const MODULE_FOLDERS = ['kitchen', 'stock', 'ashram', 'vaishnavas', 'placement', 'reception', 'settings', 'crm', 'guest-portal'];
 
 // Определить текущую подпапку (если есть)
 function getCurrentFolder() {
@@ -280,26 +379,44 @@ function getPersonName(person, lang = currentLang) {
 }
 
 // ==================== TRANSLATIONS ====================
-async function loadTranslations() {
-    const data = await Cache.getOrLoad('translations', async () => {
-        const { data, error } = await db.from('translations').select('key, ru, en, hi');
-        if (error) {
-            console.error('Error loading translations:', error);
-            return null;
+async function loadTranslations(retried = false) {
+    const data = await Cache.getOrLoad('translations_v4', async () => {
+        // Supabase ограничивает 1000 записей на запрос, используем пагинацию
+        const allData = [];
+        let from = 0;
+        const pageSize = 1000;
+
+        while (true) {
+            const { data, error } = await db.from('translations')
+                .select('key, ru, en, hi')
+                .range(from, from + pageSize - 1);
+
+            if (error) {
+                console.error('Error loading translations:', error);
+                return null;
+            }
+
+            if (!data || data.length === 0) break;
+            allData.push(...data);
+
+            if (data.length < pageSize) break; // Последняя страница
+            from += pageSize;
         }
-        return data;
+
+        return allData;
     });
 
     if (!data) return;
 
     // Проверка на наличие новых переводов (для автоинвалидации устаревшего кэша)
-    const requiredKeys = ['self_accommodation'];
+    // Добавляйте сюда ключи новых обязательных переводов
+    const requiredKeys = ['self_accommodation', 'nav_user_management'];
     const hasAllKeys = requiredKeys.every(key => data.some(row => row.key === key));
 
-    if (!hasAllKeys) {
-        // Кэш устарел, инвалидируем и перезагружаем
-        Cache.invalidate('translations');
-        return loadTranslations();
+    if (!hasAllKeys && !retried) {
+        // Кэш устарел, инвалидируем и перезагружаем (только 1 раз)
+        Cache.invalidate('translations_v4');
+        return loadTranslations(true);
     }
 
     // Преобразуем массив в объект { key: { ru, en, hi } }
@@ -357,7 +474,7 @@ function getHeaderHTML() {
                         <a href="${adjustHref('index.html')}" class="text-xl font-semibold whitespace-nowrap hover:opacity-80 transition-opacity" data-i18n="app_name">Шри Рупа Сева Кунджа</a>
                         <div class="relative location-selector" id="locationDesktop">
                             <button class="flex items-center justify-between gap-2 w-full text-xl opacity-70 hover:opacity-100 transition-opacity" data-toggle="location">
-                                <span class="location-name">${currentModule === 'housing' ? t('module_housing') : ''}</span>
+                                <span class="location-name">${currentModule === 'housing' ? t('module_housing') : currentModule === 'crm' ? t('module_crm') : currentModule === 'portal' ? t('module_portal') : currentModule === 'admin' ? t('module_admin') : ''}</span>
                                 <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 transition-transform location-arrow" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
                                     <path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7" />
                                 </svg>
@@ -372,7 +489,7 @@ function getHeaderHTML() {
                         <span class="text-xl opacity-50">·</span>
                         <div class="relative location-selector" id="locationMobile">
                             <button class="flex items-center gap-1 text-xl opacity-70" data-toggle="location">
-                                <span class="location-name">${currentModule === 'housing' ? t('module_housing') : ''}</span>
+                                <span class="location-name">${currentModule === 'housing' ? t('module_housing') : currentModule === 'crm' ? t('module_crm') : currentModule === 'portal' ? t('module_portal') : currentModule === 'admin' ? t('module_admin') : ''}</span>
                                 <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 transition-transform location-arrow" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
                                     <path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7" />
                                 </svg>
@@ -503,6 +620,8 @@ function getFooterHTML() {
 // ==================== HEADER FUNCTIONS ====================
 function buildLocationOptions() {
     const isHousing = currentModule === 'housing';
+    const isCrm = currentModule === 'crm';
+    const isAdmin = currentModule === 'admin';
 
     $$('.location-dropdown').forEach(el => {
         // Очищаем содержимое
@@ -512,7 +631,7 @@ function buildLocationOptions() {
         locations.forEach(loc => {
             const button = document.createElement('button');
             button.className = 'w-full text-left px-4 py-2 hover:bg-base-200 text-base-content';
-            if (!isHousing && loc.slug === currentLocation) {
+            if (!isHousing && !isCrm && !isAdmin && loc.slug === currentLocation) {
                 button.classList.add('font-medium');
             }
             button.dataset.loc = loc.slug;
@@ -527,13 +646,45 @@ function buildLocationOptions() {
 
         // Кнопка "Проживание"
         const housingBtn = document.createElement('button');
-        housingBtn.className = 'w-full text-left px-4 py-2 hover:bg-base-200 text-base-content';
+        housingBtn.className = 'w-full text-left px-4 py-2 hover:bg-base-200 text-base-content cursor-pointer';
         if (isHousing) {
             housingBtn.classList.add('font-medium');
         }
         housingBtn.dataset.module = 'housing';
         housingBtn.textContent = t('module_housing'); // безопасно
         el.appendChild(housingBtn);
+
+        // Кнопка "CRM"
+        const crmBtn = document.createElement('button');
+        crmBtn.className = 'w-full text-left px-4 py-2 hover:bg-base-200 text-base-content cursor-pointer';
+        if (isCrm) {
+            crmBtn.classList.add('font-medium');
+        }
+        crmBtn.dataset.module = 'crm';
+        crmBtn.textContent = t('module_crm'); // безопасно
+        el.appendChild(crmBtn);
+
+        // Кнопка "Профиль гостя"
+        const portalBtn = document.createElement('button');
+        portalBtn.className = 'w-full text-left px-4 py-2 hover:bg-base-200 text-base-content cursor-pointer';
+        if (currentModule === 'portal') {
+            portalBtn.classList.add('font-medium');
+        }
+        portalBtn.dataset.module = 'portal';
+        portalBtn.textContent = t('module_portal'); // безопасно
+        el.appendChild(portalBtn);
+
+        // Кнопка "Управление" — только для суперпользователей
+        if (window.currentUser?.is_superuser) {
+            const adminBtn = document.createElement('button');
+            adminBtn.className = 'w-full text-left px-4 py-2 hover:bg-base-200 text-base-content cursor-pointer';
+            if (isAdmin) {
+                adminBtn.classList.add('font-medium');
+            }
+            adminBtn.dataset.module = 'admin';
+            adminBtn.textContent = t('module_admin'); // безопасно
+            el.appendChild(adminBtn);
+        }
     });
 }
 
@@ -592,11 +743,18 @@ function buildSubmenuBar() {
         `;
     }).join('');
 
-    initSubmenuMargins();
+    // Пересчитать отступы после следующего кадра отрисовки (гарантирует завершение layout)
+    requestAnimationFrame(() => {
+        requestAnimationFrame(() => {
+            initSubmenuMargins();
+        });
+    });
 
     // Пересчитать после загрузки шрифтов (кэш может вернуть данные до загрузки шрифтов)
     if (document.fonts && document.fonts.ready) {
-        document.fonts.ready.then(() => initSubmenuMargins());
+        document.fonts.ready.then(() => {
+            requestAnimationFrame(() => initSubmenuMargins());
+        });
     }
 }
 
@@ -615,6 +773,12 @@ function updateHeaderLanguage() {
     // Обновляем название в селекторе
     if (currentModule === 'housing') {
         $$('.location-name').forEach(el => el.textContent = t('module_housing'));
+    } else if (currentModule === 'crm') {
+        $$('.location-name').forEach(el => el.textContent = t('module_crm'));
+    } else if (currentModule === 'portal') {
+        $$('.location-name').forEach(el => el.textContent = t('module_portal'));
+    } else if (currentModule === 'admin') {
+        $$('.location-name').forEach(el => el.textContent = t('module_admin'));
     } else {
         const loc = locations.find(l => l.slug === currentLocation);
         if (loc) {
@@ -729,9 +893,15 @@ function selectLocation(slug, isInitial = false) {
     const loc = locations.find(l => l.slug === slug);
     if (!loc) return;
 
-    // Обновляем название в селекторе (для housing показываем "Проживание")
+    // Обновляем название в селекторе (для модулей без локаций показываем название модуля)
     if (currentModule === 'housing') {
         $$('.location-name').forEach(el => el.textContent = t('module_housing'));
+    } else if (currentModule === 'crm') {
+        $$('.location-name').forEach(el => el.textContent = t('module_crm'));
+    } else if (currentModule === 'portal') {
+        $$('.location-name').forEach(el => el.textContent = t('module_portal'));
+    } else if (currentModule === 'admin') {
+        $$('.location-name').forEach(el => el.textContent = t('module_admin'));
     } else {
         $$('.location-name').forEach(el => el.textContent = getName(loc));
         setColor(loc.color);
@@ -815,12 +985,12 @@ function initHeaderEvents() {
 
     // Global click handler
     document.addEventListener('click', e => {
-        if (e.target.dataset.module === 'housing') {
-            // Клик на "Проживание" - переключаемся на модуль housing
-            switchModule('housing');
+        if (e.target.dataset.module) {
+            // Клик на модуль (housing, crm) - переключаемся
+            switchModule(e.target.dataset.module);
         } else if (e.target.dataset.loc) {
-            // Клик на локацию (кухню) - если в housing, сначала переключаемся на kitchen
-            if (currentModule === 'housing') {
+            // Клик на локацию (кухню) - если не в kitchen, сначала переключаемся
+            if (currentModule !== 'kitchen') {
                 currentModule = 'kitchen';
                 localStorage.setItem('srsk_module', 'kitchen');
                 // Выбираем локацию и переходим на страницу кухни
@@ -933,16 +1103,35 @@ async function initLayout(page = { module: null, menuId: 'kitchen', itemId: null
     // Загружаем локации всегда (для выпадающего списка)
     await loadLocations();
 
-    // Устанавливаем цвет для модуля housing
+    // Устанавливаем цвет для модулей без локаций
     if (currentModule === 'housing') {
         setColor('#8b5cf6');
         $$('.location-name').forEach(el => el.textContent = t('module_housing'));
+    } else if (currentModule === 'crm') {
+        setColor('#10b981');
+        $$('.location-name').forEach(el => el.textContent = t('module_crm'));
+    } else if (currentModule === 'portal') {
+        setColor('#147D30');
+        $$('.location-name').forEach(el => el.textContent = t('module_portal'));
+    } else if (currentModule === 'admin') {
+        setColor('#374151');
+        $$('.location-name').forEach(el => el.textContent = t('module_admin'));
     }
 
     buildMobileMenu();
     buildSubmenuBar();
     initHeaderEvents();
     updateUserInfo();
+
+    // Если auth ещё не готов — перестроить меню после авторизации (фильтрация по правам)
+    if (!window.currentUser) {
+        window.addEventListener('authReady', () => {
+            buildLocationOptions();
+            buildMobileMenu();
+            buildSubmenuBar();
+            updateUserInfo();
+        }, { once: true });
+    }
 
     // На главной странице (без menuId) скрываем селектор локаций
     if (!page.menuId) {

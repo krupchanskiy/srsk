@@ -3,6 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <script src="js/color-init.js"></script>
+    <script>document.documentElement.style.setProperty('--current-color', '#f59e0b');</script>
 
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>ШРСК — Система управления</title>
@@ -18,29 +19,21 @@
 </head>
 <body class="bg-base-200 min-h-screen flex flex-col">
 
-    <main class="container mx-auto px-4 py-8 flex-1">
-        <div class="max-w-5xl mx-auto relative">
+    <!-- Прелоадер -->
+    <div id="pageLoader" class="fixed inset-0 bg-base-200 z-50 flex items-center justify-center">
+        <span class="loading loading-spinner loading-lg text-primary"></span>
+    </div>
 
-            <!-- Language Switcher & Logout -->
-            <div class="absolute top-0 right-0 flex gap-2">
-                <div class="join bg-white rounded-lg">
-                    <button class="join-item btn btn-sm lang-btn bg-white hover:bg-base-200" data-lang="ru">RU</button>
-                    <button class="join-item btn btn-sm lang-btn bg-white hover:bg-base-200" data-lang="en">EN</button>
-                    <button class="join-item btn btn-sm lang-btn bg-white hover:bg-base-200" data-lang="hi">HI</button>
-                </div>
-                <button class="btn btn-sm btn-ghost" onclick="Layout.logout()" title="Выход">
-                    <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-                        <path stroke-linecap="round" stroke-linejoin="round" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
-                    </svg>
-                </button>
-            </div>
+    <main class="container mx-auto px-4 py-8 flex-1">
+        <div class="max-w-5xl mx-auto">
 
             <!-- Header -->
-            <div class="text-center mb-10">
-                <svg class="h-32 w-auto mx-auto mb-4" viewBox="0 0 148.95 182.44" xmlns="http://www.w3.org/2000/svg">
+            <div class="flex flex-col sm:flex-row items-center gap-6 mb-10">
+                <!-- Logo -->
+                <svg id="mainLogo" class="h-28 sm:h-32 w-auto flex-shrink-0" viewBox="0 0 148.95 182.44" xmlns="http://www.w3.org/2000/svg">
                     <style>
                         .logo-text { fill: #13110c; }
-                        .logo-accent { fill: var(--current-color); }
+                        .logo-accent { fill: var(--current-color); transition: fill 0.3s ease; }
                     </style>
                     <path class="logo-text" d="M24.44,33.99c0-1.56-.46-2.83-1.39-3.81-.93-.98-2.09-1.86-3.48-2.62-1.39-.76-2.91-1.48-4.54-2.14-1.63-.67-3.15-1.48-4.54-2.42-1.39-.95-2.55-2.12-3.48-3.51-.93-1.39-1.39-3.17-1.39-5.32,0-3.05,1.06-5.46,3.18-7.24,2.12-1.78,5.12-2.67,9.02-2.67,2.26,0,4.33.17,6.18.5,1.86.34,3.3.76,4.35,1.28l-1.39,4.12c-.85-.42-2.11-.82-3.76-1.21-1.65-.38-3.52-.58-5.6-.58-2.45,0-4.29.55-5.52,1.64-1.22,1.1-1.84,2.39-1.84,3.87s.46,2.66,1.39,3.62c.93.96,2.09,1.83,3.48,2.59,1.39.76,2.91,1.51,4.54,2.26,1.63.74,3.15,1.61,4.54,2.59,1.39.98,2.55,2.16,3.48,3.54.93,1.38,1.39,3.08,1.39,5.12,0,1.67-.3,3.18-.89,4.51-.59,1.34-1.47,2.49-2.62,3.46-1.15.97-2.54,1.71-4.18,2.23-1.64.52-3.49.78-5.57.78-2.79,0-5.09-.21-6.91-.64-1.82-.43-3.23-.9-4.23-1.42l1.56-4.12c.85.47,2.12.93,3.79,1.38,1.67.45,3.55.68,5.63.68,1.23,0,2.38-.12,3.45-.36,1.08-.24,2.01-.63,2.79-1.17.78-.54,1.4-1.22,1.87-2.03.46-.82.7-1.78.7-2.9"/>
                     <rect class="logo-text" x="61.63" y="4.91" width="4.62" height="38.99"/>
@@ -57,141 +50,138 @@
                     <path class="logo-accent" d="M87.13,48.87h-4.62v24.95c0,1.89.04,3.53-.27,4.87-.31,1.36-.79,2.43-1.45,3.22-.61.86-1.48,1.47-2.59,1.84-.73.3-1.55.49-2.47.56-.31.06-.61.1-.92.1h-.19c-1.16-.06-2.2-.25-3.12-.56-1.16-.37-2.14-.95-2.93-1.75-.81-.86-1.39-1.96-1.74-3.32-.37-1.34-.56-3-.56-4.96v-24.95h-4.6v27.15c0,4.17,1.16,7.29,3.49,9.37,1.16,1.05,2.61,1.82,4.33,2.3.36.13.78.23,1.28.29-4.23,1.53-7.11,3.62-8.65,6.25-2.15,3.24-2.21,7.35-.19,12.33l12.59,30.6,12.16-30.6c1.95-4.97,1.89-9.08-.19-12.33-1.47-2.58-4.25-4.63-8.36-6.15.49-.13.97-.26,1.45-.39,1.6-.48,2.95-1.28,4.04-2.37,1.16-1.11,2.03-2.49,2.59-4.14.61-1.71.92-3.74.92-6.08v-26.23M82.69,96.53c1.23,2.21,1.17,5-.17,8.36l-8.02,20.76-8.45-20.76c-1.4-3.36-1.46-6.14-.17-8.36,1.41-2.28,4.19-3.96,8.36-5.06,4.17,1.1,6.98,2.79,8.45,5.06"/>
                     <path class="logo-text" d="M83.56,138.6h-1.05v24.73c0,2,.08,3.83-.31,5.19-.19.65-.29,1.04-.57,1.57-.33.53-.67,1-.98,1.41-.05.07-.11.13-.16.19-.77.79-1.71,1.37-2.84,1.73-1.09.35-1.93.53-3.29.55-1.37-.02-2.21-.21-3.3-.55-1.13-.36-2.07-.94-2.84-1.73-.05-.06-.11-.13-.16-.19-.16-.21-.35-.43-.54-.67-.48-.7-.68-1.14-.96-2.11-.39-1.36-.31-3.28-.31-5.38v-24.73h-4.6v26.91c0,4.23,1.17,7.39,3.51,9.47,1.81,1.61,3.71,2.59,6.6,2.95.7.11,1.45.16,2.33.16.09,0,.17,0,.26,0,.09,0,.17,0,.26,0,.88,0,1.62-.06,2.33-.16,2.89-.37,4.8-1.35,6.6-2.95,2.34-2.08,3.51-5.24,3.51-9.47v-26.91h-3.49Z"/>
                 </svg>
-                <h1 class="text-2xl font-bold mb-1" data-i18n="welcome_title">Добро пожаловать!</h1>
-                <p class="opacity-60 text-sm" data-i18n="welcome_subtitle">Выберите модуль для работы</p>
+
+                <!-- Welcome text & controls -->
+                <div class="flex-1 text-center sm:text-left">
+                    <h1 class="text-2xl mb-1">
+                        <span id="userName"></span><span data-i18n="welcome_suffix">, добро пожаловать!</span>
+                    </h1>
+                    <p class="opacity-60 text-sm mb-4">
+                        <span data-i18n="welcome_subtitle">Выберите модуль для работы</span>
+                        <span data-i18n="welcome_or"> или перейдите в </span><a id="profileLink" href="#" class="link link-hover" style="color: var(--current-color)" data-i18n="welcome_profile">свой профиль</a>
+                    </p>
+                    <div class="flex items-center justify-center sm:justify-start gap-2">
+                        <div class="join bg-white rounded-lg">
+                            <button class="join-item btn btn-sm lang-btn bg-white hover:bg-base-200" data-lang="ru">RU</button>
+                            <button class="join-item btn btn-sm lang-btn bg-white hover:bg-base-200" data-lang="en">EN</button>
+                            <button class="join-item btn btn-sm lang-btn bg-white hover:bg-base-200" data-lang="hi">HI</button>
+                        </div>
+                        <button class="btn btn-sm btn-ghost" onclick="Layout.logout()" title="Выход">
+                            <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                                <path stroke-linecap="round" stroke-linejoin="round" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
+                            </svg>
+                        </button>
+                    </div>
+                </div>
             </div>
 
             <!-- Modules Grid -->
-            <div class="grid grid-cols-1 lg:grid-cols-2 gap-8">
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-6">
 
                 <!-- Kitchen Module -->
-                <div class="bg-base-100 rounded-2xl shadow-sm overflow-hidden border-t-4 border-orange-400">
-                    <a href="kitchen/menu.html" onclick="selectModule('kitchen')"
-                       class="block px-6 py-5 bg-gradient-to-r from-orange-50 to-transparent hover:from-orange-100 transition-colors">
-                        <div class="flex items-center gap-4">
-                            <div class="text-4xl">🥗</div>
-                            <div>
-                                <h2 class="text-2xl font-bold" data-i18n="module_kitchen">Кухня</h2>
-                                <p class="text-sm opacity-60" data-i18n="module_kitchen_subtitle">Меню, рецепты, склад</p>
+                <a href="kitchen/menu.html" onclick="selectModule('kitchen')" data-color="#f59e0b"
+                   class="module-card group rounded-2xl shadow-md hover:shadow-lg transition-all hover:scale-[1.02]"
+                   style="background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%);">
+                    <div class="p-6">
+                        <div class="flex items-center gap-4 mb-3">
+                            <div class="w-12 h-12 rounded-xl bg-white/20 flex items-center justify-center">
+                                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-7 h-7 text-white">
+                                    <path stroke-linecap="round" stroke-linejoin="round" d="M12 8.25v-1.5m0 1.5c-1.355 0-2.697.056-4.024.166C6.845 8.51 6 9.473 6 10.608v2.513m6-4.871c1.355 0 2.697.056 4.024.166C17.155 8.51 18 9.473 18 10.608v2.513M15 8.25v-1.5m-6 1.5v-1.5m12 9.75-1.5.75a3.354 3.354 0 0 1-3 0 3.354 3.354 0 0 0-3 0 3.354 3.354 0 0 1-3 0 3.354 3.354 0 0 0-3 0 3.354 3.354 0 0 1-3 0L3 16.5m18-4.5a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" />
+                                </svg>
                             </div>
+                            <h2 class="text-2xl font-bold text-white" data-i18n="module_kitchen">Кухня</h2>
                         </div>
-                    </a>
-                    <div class="px-6 py-4 columns-2 gap-6">
-                        <!-- Кухня -->
-                        <div class="break-inside-avoid mb-4">
-                            <h3 class="text-xs font-semibold uppercase tracking-wider text-orange-600 mb-2" data-i18n="nav_kitchen">Кухня</h3>
-                            <ul class="space-y-1 text-sm">
-                                <li><a href="kitchen/menu.html" onclick="selectModule('kitchen')" class="hover:text-orange-600 transition-colors" data-i18n="nav_menu">Меню</a></li>
-                                <li><a href="kitchen/menu-templates.html" onclick="selectModule('kitchen')" class="hover:text-orange-600 transition-colors" data-i18n="nav_menu_templates">Шаблоны меню</a></li>
-                                <li><a href="kitchen/recipes.html" onclick="selectModule('kitchen')" class="hover:text-orange-600 transition-colors" data-i18n="nav_recipes">Рецепты</a></li>
-                                <li><a href="kitchen/products.html" onclick="selectModule('kitchen')" class="hover:text-orange-600 transition-colors" data-i18n="nav_products">Продукты</a></li>
-                            </ul>
-                        </div>
-                        <!-- Склад -->
-                        <div class="break-inside-avoid mb-4">
-                            <h3 class="text-xs font-semibold uppercase tracking-wider text-orange-600 mb-2" data-i18n="nav_stock">Склад</h3>
-                            <ul class="space-y-1 text-sm">
-                                <li><a href="stock/stock.html" onclick="selectModule('kitchen')" class="hover:text-orange-600 transition-colors" data-i18n="nav_stock_balance">Остатки</a></li>
-                                <li><a href="stock/requests.html" onclick="selectModule('kitchen')" class="hover:text-orange-600 transition-colors" data-i18n="nav_requests">Заявки</a></li>
-                                <li><a href="stock/receive.html" onclick="selectModule('kitchen')" class="hover:text-orange-600 transition-colors" data-i18n="nav_receive">Приёмка</a></li>
-                                <li><a href="stock/issue.html" onclick="selectModule('kitchen')" class="hover:text-orange-600 transition-colors" data-i18n="nav_issue">Выдача</a></li>
-                                <li><a href="stock/inventory.html" onclick="selectModule('kitchen')" class="hover:text-orange-600 transition-colors" data-i18n="nav_inventory">Инвентаризация</a></li>
-                                <li><a href="stock/stock-settings.html" onclick="selectModule('kitchen')" class="hover:text-orange-600 transition-colors" data-i18n="nav_stock_settings">Настройки склада</a></li>
-                            </ul>
-                        </div>
-                        <!-- Ашрам -->
-                        <div class="break-inside-avoid mb-4 mt-6">
-                            <h3 class="text-xs font-semibold uppercase tracking-wider text-orange-600 mb-2" data-i18n="nav_ashram">Ашрам</h3>
-                            <ul class="space-y-1 text-sm">
-                                <li><a href="ashram/retreats.html" onclick="selectModule('kitchen')" class="hover:text-orange-600 transition-colors" data-i18n="nav_retreats">Ретриты</a></li>
-                                <li><a href="vaishnavas/team.html" onclick="selectModule('kitchen')" class="hover:text-orange-600 transition-colors" data-i18n="nav_vaishnavas_team">Команда</a></li>
-                            </ul>
-                        </div>
-                        <!-- Настройки -->
-                        <div class="break-inside-avoid mb-4 mt-6">
-                            <h3 class="text-xs font-semibold uppercase tracking-wider text-orange-600 mb-2" data-i18n="nav_settings">Настройки</h3>
-                            <ul class="space-y-1 text-sm">
-                                <li><a href="kitchen/dictionaries.html" onclick="selectModule('kitchen')" class="hover:text-orange-600 transition-colors" data-i18n="nav_dictionaries">Справочники</a></li>
-                                <li><a href="settings/translations.html" onclick="selectModule('kitchen')" class="hover:text-orange-600 transition-colors" data-i18n="nav_translations">Переводы</a></li>
-                                <li><a href="ashram/festivals.html" onclick="selectModule('kitchen')" class="hover:text-orange-600 transition-colors" data-i18n="nav_festivals">Фестивали</a></li>
-                            </ul>
+                        <div class="flex flex-wrap gap-2 text-sm text-white/80">
+                            <span data-i18n="nav_menu">Меню</span>
+                            <span>•</span>
+                            <span data-i18n="nav_recipes">Рецепты</span>
+                            <span>•</span>
+                            <span data-i18n="nav_stock">Склад</span>
                         </div>
                     </div>
-                </div>
+                </a>
 
                 <!-- Housing Module -->
-                <div class="bg-base-100 rounded-2xl shadow-sm overflow-hidden border-t-4 border-purple-400">
-                    <a href="placement/timeline.html" onclick="selectModule('housing')"
-                       class="block px-6 py-5 bg-gradient-to-r from-purple-50 to-transparent hover:from-purple-100 transition-colors">
-                        <div class="flex items-center gap-4">
-                            <div class="text-4xl">🏠</div>
-                            <div>
-                                <h2 class="text-2xl font-bold" data-i18n="module_housing">Проживание</h2>
-                                <p class="text-sm opacity-60" data-i18n="module_housing_subtitle">Здания, комнаты, гости</p>
+                <a href="placement/timeline.html" onclick="selectModule('housing')" data-color="#8b5cf6"
+                   class="module-card group rounded-2xl shadow-md hover:shadow-lg transition-all hover:scale-[1.02]"
+                   style="background: linear-gradient(135deg, #8b5cf6 0%, #7c3aed 100%);">
+                    <div class="p-6">
+                        <div class="flex items-center gap-4 mb-3">
+                            <div class="w-12 h-12 rounded-xl bg-white/20 flex items-center justify-center">
+                                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-7 h-7 text-white">
+                                    <path stroke-linecap="round" stroke-linejoin="round" d="m2.25 12 8.954-8.955c.44-.439 1.152-.439 1.591 0L21.75 12M4.5 9.75v10.125c0 .621.504 1.125 1.125 1.125H9.75v-4.875c0-.621.504-1.125 1.125-1.125h2.25c.621 0 1.125.504 1.125 1.125V21h4.125c.621 0 1.125-.504 1.125-1.125V9.75M8.25 21h8.25" />
+                                </svg>
                             </div>
+                            <h2 class="text-2xl font-bold text-white" data-i18n="module_housing">Проживание</h2>
                         </div>
-                    </a>
-                    <div class="px-6 py-4 columns-2 gap-6">
-                        <!-- Вайшнавы -->
-                        <div class="break-inside-avoid mb-4">
-                            <h3 class="text-xs font-semibold uppercase tracking-wider text-purple-600 mb-2" data-i18n="nav_vaishnavas">Вайшнавы</h3>
-                            <ul class="space-y-1 text-sm">
-                                <li><a href="vaishnavas/index.html" onclick="selectModule('housing')" class="hover:text-purple-600 transition-colors" data-i18n="nav_vaishnavas_all">Все</a></li>
-                                <li><a href="vaishnavas/guests.html" onclick="selectModule('housing')" class="hover:text-purple-600 transition-colors" data-i18n="nav_vaishnavas_guests">Гости</a></li>
-                                <li><a href="vaishnavas/team.html" onclick="selectModule('housing')" class="hover:text-purple-600 transition-colors" data-i18n="nav_vaishnavas_team">Команда</a></li>
-                            </ul>
-                        </div>
-                        <!-- Размещение -->
-                        <div class="break-inside-avoid mb-4">
-                            <h3 class="text-xs font-semibold uppercase tracking-wider text-purple-600 mb-2" data-i18n="nav_placement">Размещение</h3>
-                            <ul class="space-y-1 text-sm">
-                                <li><a href="vaishnavas/retreat-guests.html" onclick="selectModule('housing')" class="hover:text-purple-600 transition-colors" data-i18n="nav_retreat_guests">Распределение</a></li>
-                                <li><a href="vaishnavas/preliminary.html" onclick="selectModule('housing')" class="hover:text-purple-600 transition-colors" data-i18n="nav_preliminary">Предварительное</a></li>
-                                <li><a href="placement/arrivals.html" onclick="selectModule('housing')" class="hover:text-purple-600 transition-colors" data-i18n="nav_arrivals">Заезды</a></li>
-                                <li><a href="placement/departures.html" onclick="selectModule('housing')" class="hover:text-purple-600 transition-colors" data-i18n="nav_departures">Выезды</a></li>
-                                <li><a href="placement/transfers.html" onclick="selectModule('housing')" class="hover:text-purple-600 transition-colors" data-i18n="nav_transfers">Трансферы</a></li>
-                            </ul>
-                        </div>
-                        <!-- Ресепшен -->
-                        <div class="break-inside-avoid mb-4 mt-6">
-                            <h3 class="text-xs font-semibold uppercase tracking-wider text-purple-600 mb-2" data-i18n="nav_reception">Ресепшен</h3>
-                            <ul class="space-y-1 text-sm">
-                                <li><a href="placement/timeline.html" onclick="selectModule('housing')" class="hover:text-purple-600 transition-colors" data-i18n="nav_timeline">Шахматка</a></li>
-                                <li><a href="placement/bookings.html" onclick="selectModule('housing')" class="hover:text-purple-600 transition-colors" data-i18n="nav_bookings">Бронирования</a></li>
-                                <li><a href="reception/cleaning.html" onclick="selectModule('housing')" class="hover:text-purple-600 transition-colors" data-i18n="nav_cleaning">Уборка</a></li>
-                            </ul>
-                        </div>
-                        <!-- Ашрам -->
-                        <div class="break-inside-avoid mb-4 mt-6">
-                            <h3 class="text-xs font-semibold uppercase tracking-wider text-purple-600 mb-2" data-i18n="nav_ashram">Ашрам</h3>
-                            <ul class="space-y-1 text-sm">
-                                <li><a href="ashram/retreats.html" onclick="selectModule('housing')" class="hover:text-purple-600 transition-colors" data-i18n="nav_retreats">Ретриты</a></li>
-                                <li><a href="ashram/festivals.html" onclick="selectModule('housing')" class="hover:text-purple-600 transition-colors" data-i18n="nav_festivals">Фестивали</a></li>
-                            </ul>
-                        </div>
-                        <!-- Настройки -->
-                        <div class="break-inside-avoid mb-4 mt-6">
-                            <h3 class="text-xs font-semibold uppercase tracking-wider text-purple-600 mb-2" data-i18n="nav_settings">Настройки</h3>
-                            <ul class="space-y-1 text-sm">
-                                <li><a href="reception/buildings.html" onclick="selectModule('housing')" class="hover:text-purple-600 transition-colors" data-i18n="nav_buildings">Здания</a></li>
-                                <li><a href="reception/rooms.html" onclick="selectModule('housing')" class="hover:text-purple-600 transition-colors" data-i18n="nav_rooms">Комнаты</a></li>
-                                <li><a href="reception/dictionaries.html" onclick="selectModule('housing')" class="hover:text-purple-600 transition-colors" data-i18n="nav_housing_dictionaries">Справочники</a></li>
-                            </ul>
+                        <div class="flex flex-wrap gap-2 text-sm text-white/80">
+                            <span data-i18n="nav_timeline">Шахматка</span>
+                            <span>•</span>
+                            <span data-i18n="nav_vaishnavas">Вайшнавы</span>
+                            <span>•</span>
+                            <span data-i18n="nav_cleaning">Уборка</span>
                         </div>
                     </div>
-                </div>
+                </a>
+
+                <!-- CRM Module -->
+                <a href="crm/dashboard.html" onclick="selectModule('crm')" data-color="#10b981"
+                   class="module-card group rounded-2xl shadow-md hover:shadow-lg transition-all hover:scale-[1.02]"
+                   style="background: linear-gradient(135deg, #10b981 0%, #059669 100%);">
+                    <div class="p-6">
+                        <div class="flex items-center gap-4 mb-3">
+                            <div class="w-12 h-12 rounded-xl bg-white/20 flex items-center justify-center">
+                                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-7 h-7 text-white">
+                                    <path stroke-linecap="round" stroke-linejoin="round" d="M18 18.72a9.094 9.094 0 0 0 3.741-.479 3 3 0 0 0-4.682-2.72m.94 3.198.001.031c0 .225-.012.447-.037.666A11.944 11.944 0 0 1 12 21c-2.17 0-4.207-.576-5.963-1.584A6.062 6.062 0 0 1 6 18.719m12 0a5.971 5.971 0 0 0-.941-3.197m0 0A5.995 5.995 0 0 0 12 12.75a5.995 5.995 0 0 0-5.058 2.772m0 0a3 3 0 0 0-4.681 2.72 8.986 8.986 0 0 0 3.74.477m.94-3.197a5.971 5.971 0 0 0-.94 3.197M15 6.75a3 3 0 1 1-6 0 3 3 0 0 1 6 0Zm6 3a2.25 2.25 0 1 1-4.5 0 2.25 2.25 0 0 1 4.5 0Zm-13.5 0a2.25 2.25 0 1 1-4.5 0 2.25 2.25 0 0 1 4.5 0Z" />
+                                </svg>
+                            </div>
+                            <h2 class="text-2xl font-bold text-white" data-i18n="module_crm">CRM</h2>
+                        </div>
+                        <div class="flex flex-wrap gap-2 text-sm text-white/80">
+                            <span data-i18n="nav_crm_dashboard">Канбан</span>
+                            <span>•</span>
+                            <span data-i18n="nav_crm_deals">Сделки</span>
+                            <span>•</span>
+                            <span data-i18n="nav_crm_tasks">Задачи</span>
+                        </div>
+                    </div>
+                </a>
+
+                <!-- Admin Module (только для суперпользователей) -->
+                <a href="ashram/retreats.html" onclick="selectModule('admin')" id="adminModule" data-color="#374151"
+                   class="module-card group rounded-2xl shadow-md hover:shadow-lg transition-all hover:scale-[1.02] hidden"
+                   style="background: linear-gradient(135deg, #374151 0%, #1f2937 100%);">
+                    <div class="p-6">
+                        <div class="flex items-center gap-4 mb-3">
+                            <div class="w-12 h-12 rounded-xl bg-white/20 flex items-center justify-center">
+                                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-7 h-7 text-white">
+                                    <path stroke-linecap="round" stroke-linejoin="round" d="M9.594 3.94c.09-.542.56-.94 1.11-.94h2.593c.55 0 1.02.398 1.11.94l.213 1.281c.063.374.313.686.645.87.074.04.147.083.22.127.325.196.72.257 1.075.124l1.217-.456a1.125 1.125 0 0 1 1.37.49l1.296 2.247a1.125 1.125 0 0 1-.26 1.431l-1.003.827c-.293.241-.438.613-.43.992a7.723 7.723 0 0 1 0 .255c-.008.378.137.75.43.991l1.004.827c.424.35.534.955.26 1.43l-1.298 2.247a1.125 1.125 0 0 1-1.369.491l-1.217-.456c-.355-.133-.75-.072-1.076.124a6.47 6.47 0 0 1-.22.128c-.331.183-.581.495-.644.869l-.213 1.281c-.09.543-.56.94-1.11.94h-2.594c-.55 0-1.019-.398-1.11-.94l-.213-1.281c-.062-.374-.312-.686-.644-.87a6.52 6.52 0 0 1-.22-.127c-.325-.196-.72-.257-1.076-.124l-1.217.456a1.125 1.125 0 0 1-1.369-.49l-1.297-2.247a1.125 1.125 0 0 1 .26-1.431l1.004-.827c.292-.24.437-.613.43-.991a6.932 6.932 0 0 1 0-.255c.007-.38-.138-.751-.43-.992l-1.004-.827a1.125 1.125 0 0 1-.26-1.43l1.297-2.247a1.125 1.125 0 0 1 1.37-.491l1.216.456c.356.133.751.072 1.076-.124.072-.044.146-.086.22-.128.332-.183.582-.495.644-.869l.214-1.28Z" />
+                                    <path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 1 1-6 0 3 3 0 0 1 6 0Z" />
+                                </svg>
+                            </div>
+                            <h2 class="text-2xl font-bold text-white" data-i18n="module_admin">Управление</h2>
+                        </div>
+                        <div class="flex flex-wrap gap-2 text-sm text-white/80">
+                            <span data-i18n="nav_retreats">Ретриты</span>
+                            <span>•</span>
+                            <span data-i18n="nav_festivals">Праздники</span>
+                            <span>•</span>
+                            <span data-i18n="nav_user_management">Пользователи</span>
+                        </div>
+                    </div>
+                </a>
 
             </div>
         </div>
     </main>
 
-    <script src="js/config.js"></script>
-    <script src="js/auth-check.js?v=2"></script>
+    <script src="js/config.js?v=2"></script>
+    <script src="js/auth-check.js?v=3"></script>
     <script src="js/cache.js"></script>
-    <script src="js/utils.js"></script>
+    <script src="js/utils.js?v=2"></script>
     <script src="js/translit.js"></script>
     <script src="js/auto-translate.js"></script>
-    <script src="js/layout.js"></script>
+    <script src="js/layout.js?v=5"></script>
     <script>
         window.onLanguageChange = function(lang) {
             Layout.updateAllTranslations();
@@ -201,14 +191,65 @@
             localStorage.setItem('srsk_module', moduleId);
         }
 
+        // Смена цвета тилаки при наведении на плашку модуля
+        function setTilakColor(color) {
+            document.documentElement.style.setProperty('--current-color', color);
+        }
+
+        // Назначаем обработчики после загрузки DOM
+        document.addEventListener('DOMContentLoaded', () => {
+            document.querySelectorAll('.module-card').forEach(card => {
+                card.addEventListener('mouseenter', () => {
+                    const color = card.dataset.color;
+                    if (color) setTilakColor(color);
+                });
+            });
+        });
+
+        // Ждём событие authReady от auth-check.js
+        function waitForAuth(maxWait = 3000) {
+            return new Promise(resolve => {
+                if (window.currentUser) {
+                    resolve();
+                    return;
+                }
+                const handler = () => resolve();
+                window.addEventListener('authReady', handler, { once: true });
+                // Таймаут на случай если событие уже было
+                setTimeout(() => {
+                    window.removeEventListener('authReady', handler);
+                    resolve();
+                }, maxWait);
+            });
+        }
+
         async function init() {
             await Layout.init({ menuId: null, itemId: null });
+            await waitForAuth();
+
+            // Показать имя пользователя
+            const userName = window.currentUser?.name || '';
+            document.getElementById('userName').textContent = userName;
+
+            // Установить ссылку на профиль (гостевой портал)
+            const vaishnavaId = window.currentUser?.vaishnava_id;
+            if (vaishnavaId) {
+                document.getElementById('profileLink').href = `/guest-portal/index.html?view=${vaishnavaId}`;
+            }
+
+            // Показать модуль "Управление" только суперпользователям
+            if (window.currentUser?.is_superuser) {
+                document.getElementById('adminModule')?.classList.remove('hidden');
+            }
 
             // Установить активную кнопку языка
             const currentLang = localStorage.getItem('srsk_lang') || 'ru';
             document.querySelectorAll('.lang-btn').forEach(btn => {
                 btn.classList.toggle('active', btn.dataset.lang === currentLang);
             });
+
+            // Скрыть прелоадер
+            document.getElementById('pageLoader')?.remove();
         }
 
         init();

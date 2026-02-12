@@ -1,0 +1,255 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Новый пароль | Rupa Seva</title>
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg">
+
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        'srsk-green': '#147D30',
+                        'srsk-green-light': '#1a9e3d',
+                        'srsk-orange': '#FFBA47',
+                        'srsk-bg': '#F5F3EF'
+                    }
+                }
+            }
+        }
+    </script>
+
+    <!-- Supabase -->
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+
+    <!-- Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+
+    <!-- Portal CSS -->
+    <link rel="stylesheet" href="../css/portal.css">
+</head>
+<body class="bg-srsk-bg">
+
+    <div class="login-container">
+        <div class="login-card">
+            <!-- Логотип -->
+            <div class="flex justify-center mb-4">
+                <img src="../img/logo.svg" alt="ШРСК" class="h-24">
+            </div>
+
+            <!-- Состояние загрузки -->
+            <div id="loading-state" class="text-center py-8">
+                <div class="w-12 h-12 border-4 border-srsk-green border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
+                <p class="text-gray-600">Проверка сессии...</p>
+            </div>
+
+            <!-- Форма нового пароля -->
+            <div id="form-state" class="hidden">
+                <h1 class="login-title">Новый пароль</h1>
+                <p class="login-subtitle">Введите новый пароль для вашего аккаунта</p>
+
+                <!-- Сообщение об ошибке -->
+                <div id="error-alert" class="alert alert-error hidden"></div>
+
+                <form id="reset-form" class="space-y-4">
+                    <div class="form-group">
+                        <label class="label">Новый пароль</label>
+                        <div class="relative">
+                            <input type="password" id="password" class="input pr-10" required
+                                   placeholder="Минимум 6 символов"
+                                   minlength="6"
+                                   autocomplete="new-password">
+                            <button type="button" id="toggle-password"
+                                    class="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600">
+                                <svg class="w-5 h-5" id="eye-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/>
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"/>
+                                </svg>
+                            </button>
+                        </div>
+                    </div>
+
+                    <div class="form-group">
+                        <label class="label">Подтвердите пароль</label>
+                        <input type="password" id="password-confirm" class="input" required
+                               placeholder="Повторите пароль"
+                               minlength="6"
+                               autocomplete="new-password">
+                    </div>
+
+                    <button type="submit" id="submit-btn" class="btn-primary w-full">
+                        <span>Сохранить пароль</span>
+                        <svg id="loading-spinner" class="w-5 h-5 animate-spin hidden" fill="none" viewBox="0 0 24 24">
+                            <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                            <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                        </svg>
+                    </button>
+                </form>
+            </div>
+
+            <!-- Состояние успеха -->
+            <div id="success-state" class="hidden text-center py-8">
+                <div class="w-12 h-12 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                    <svg class="w-6 h-6 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/>
+                    </svg>
+                </div>
+                <p class="font-medium text-gray-900">Пароль изменён!</p>
+                <p class="text-sm text-gray-500 mt-1">Перенаправляем...</p>
+            </div>
+
+            <!-- Состояние ошибки сессии -->
+            <div id="error-state" class="hidden text-center py-8">
+                <div class="w-12 h-12 bg-red-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                    <svg class="w-6 h-6 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+                    </svg>
+                </div>
+                <p class="font-medium text-gray-900 mb-2">Ссылка недействительна</p>
+                <p class="text-sm text-gray-500 mb-4">Ссылка для сброса пароля устарела или уже была использована.</p>
+                <a href="/login" class="inline-block px-4 py-2 bg-srsk-green text-white rounded-lg hover:bg-srsk-green-light transition-colors">
+                    Вернуться на страницу входа
+                </a>
+            </div>
+        </div>
+    </div>
+
+    <!-- Scripts -->
+    <script src="../js/portal-config.js"></script>
+    <script>
+        const db = window.portalSupabase;
+
+        function showState(state) {
+            ['loading-state', 'form-state', 'success-state', 'error-state'].forEach(id => {
+                document.getElementById(id).classList.add('hidden');
+            });
+            document.getElementById(state).classList.remove('hidden');
+        }
+
+        function showError(message) {
+            const alert = document.getElementById('error-alert');
+            alert.textContent = message;
+            alert.classList.remove('hidden');
+        }
+
+        function hideError() {
+            document.getElementById('error-alert').classList.add('hidden');
+        }
+
+        // Toggle пароля
+        function togglePassword() {
+            const input = document.getElementById('password');
+            const icon = document.getElementById('eye-icon');
+
+            if (input.type === 'password') {
+                input.type = 'text';
+                icon.innerHTML = `
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.88 9.88l-3.29-3.29m7.532 7.532l3.29 3.29M3 3l3.59 3.59m0 0A9.953 9.953 0 0112 5c4.478 0 8.268 2.943 9.543 7a10.025 10.025 0 01-4.132 5.411m0 0L21 21"/>
+                `;
+            } else {
+                input.type = 'password';
+                icon.innerHTML = `
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/>
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"/>
+                `;
+            }
+        }
+
+        // Обработка формы
+        async function handleSubmit(e) {
+            e.preventDefault();
+            hideError();
+
+            const password = document.getElementById('password').value;
+            const passwordConfirm = document.getElementById('password-confirm').value;
+            const submitBtn = document.getElementById('submit-btn');
+            const spinner = document.getElementById('loading-spinner');
+
+            // Проверка совпадения паролей
+            if (password !== passwordConfirm) {
+                showError('Пароли не совпадают');
+                return;
+            }
+
+            if (password.length < 6) {
+                showError('Пароль должен быть не менее 6 символов');
+                return;
+            }
+
+            submitBtn.disabled = true;
+            spinner.classList.remove('hidden');
+
+            try {
+                const { error } = await db.auth.updateUser({ password });
+
+                if (error) {
+                    console.error('Update password error:', error);
+                    showError('Не удалось изменить пароль. Попробуйте ещё раз.');
+                    return;
+                }
+
+                // Успех!
+                showState('success-state');
+
+                // Получаем информацию о пользователе для редиректа
+                const { data: { session } } = await db.auth.getSession();
+                if (session) {
+                    const { data: vaishnava } = await db
+                        .from('vaishnavas')
+                        .select('is_team')
+                        .eq('user_id', session.user.id)
+                        .single();
+
+                    setTimeout(() => {
+                        if (vaishnava && vaishnava.is_team) {
+                            window.location.href = 'https://srsk.rupaseva.com/';
+                        } else {
+                            window.location.href = '/';
+                        }
+                    }, 1500);
+                } else {
+                    setTimeout(() => {
+                        window.location.href = '/login';
+                    }, 1500);
+                }
+
+            } catch (error) {
+                console.error('Password reset error:', error);
+                showError('Произошла ошибка. Попробуйте позже.');
+            } finally {
+                submitBtn.disabled = false;
+                spinner.classList.add('hidden');
+            }
+        }
+
+        // Инициализация
+        async function init() {
+            // Даём время Supabase обработать токены из URL
+            await new Promise(resolve => setTimeout(resolve, 500));
+
+            // Проверяем сессию
+            const { data: { session }, error } = await db.auth.getSession();
+
+            if (error || !session) {
+                showState('error-state');
+                return;
+            }
+
+            // Показываем форму
+            showState('form-state');
+
+            // Обработчики
+            document.getElementById('reset-form').addEventListener('submit', handleSubmit);
+            document.getElementById('toggle-password').addEventListener('click', togglePassword);
+        }
+
+        init();
+    </script>
+</body>
+</html>

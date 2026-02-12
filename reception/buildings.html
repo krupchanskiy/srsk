@@ -152,13 +152,14 @@
     </dialog>
 
     <script src="../js/config.js"></script>
-    <script src="../js/auth-check.js?v=2"></script>
-    <script src="../js/permissions-ui.js"></script>
+    <script src="../js/auth-check.js?v=3"></script>
+    <script src="../js/permissions-ui.js?v=2"></script>
     <script src="../js/cache.js"></script>
-    <script src="../js/utils.js"></script>
+    <script src="../js/utils.js?v=2"></script>
     <script src="../js/translit.js"></script>
     <script src="../js/auto-translate.js"></script>
-    <script src="../js/layout.js"></script>
+    <script src="../js/date-utils.js"></script>
+    <script src="../js/layout.js?v=5"></script>
     <script>
         // ==================== STATE ====================
         let buildings = [];
@@ -170,7 +171,7 @@
 
         function formatDate(dateStr) {
             if (!dateStr) return '—';
-            const date = new Date(dateStr);
+            const date = DateUtils.parseDate(dateStr);
             return date.toLocaleDateString(Layout.currentLang === 'hi' ? 'hi-IN' : Layout.currentLang === 'en' ? 'en-US' : 'ru-RU', {
                 day: 'numeric', month: 'short'
             });
@@ -410,13 +411,13 @@
                     if (error) throw error;
                 }
 
-                Cache.invalidate('buildings');
+                Cache.invalidate('buildings'); Cache.invalidate('buildings_with_rooms'); Cache.invalidate('buildings_names');
                 closeBuildingModal();
                 buildings = await loadBuildings();
                 render();
             } catch (err) {
                 console.error('Error saving building:', err);
-                alert(t('save_error') + ': ' + err.message);
+                Layout.showNotification(t('save_error') + ': ' + err.message, 'error');
             }
         }
 
@@ -428,14 +429,14 @@
                 const { error } = await Layout.db.from('buildings').delete().eq('id', editingBuildingId);
                 if (error) throw error;
 
-                Cache.invalidate('buildings');
+                Cache.invalidate('buildings'); Cache.invalidate('buildings_with_rooms'); Cache.invalidate('buildings_names');
                 closeBuildingModal();
                 buildings = await loadBuildings();
                 roomCounts = await loadRoomCounts();
                 render();
             } catch (err) {
                 console.error('Error deleting building:', err);
-                alert(t('delete_error') + ': ' + err.message);
+                Layout.showNotification(t('delete_error') + ': ' + err.message, 'error');
             }
         }
 

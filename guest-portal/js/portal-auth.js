@@ -19,10 +19,7 @@ async function checkGuestAuth() {
         // Проверяем сессию
         const { data: { session }, error: sessionError } = await db.auth.getSession();
 
-        console.log('[Portal Auth] Session:', session ? session.user.id : 'null');
-
         if (sessionError || !session) {
-            console.log('[Portal Auth] No session, redirecting');
             redirectToLogin('no_session');
             return null;
         }
@@ -52,8 +49,6 @@ async function checkGuestAuth() {
             `)
             .eq('user_id', session.user.id)
             .maybeSingle();
-
-        console.log('[Portal Auth] Vaishnava query result:', { vaishnava, userError });
 
         if (userError) {
             console.error('[Portal Auth] Query error:', userError);
@@ -114,9 +109,9 @@ async function checkGuestAuth() {
 function redirectToLogin(reason) {
     const currentPage = window.location.pathname;
     // Не редиректим если уже на странице логина
-    if (currentPage.includes('login.html')) return;
+    if (currentPage.includes('/login')) return;
 
-    window.location.href = `login.html?reason=${reason}&redirect=${encodeURIComponent(currentPage)}`;
+    window.location.href = `/login/?reason=${reason}&redirect=${encodeURIComponent(currentPage)}`;
 }
 
 /**
@@ -126,12 +121,105 @@ async function logout() {
     try {
         await db.auth.signOut();
         window.currentGuest = null;
-        window.location.href = 'login.html';
+        window.location.href = '/login/';
     } catch (error) {
         console.error('Ошибка выхода:', error);
         // Принудительно очищаем и редиректим
         window.currentGuest = null;
-        window.location.href = 'login.html';
+        window.location.href = '/login/';
+    }
+}
+
+/**
+ * Отправка magic link на email
+ * @param {string} email
+ * @returns {Promise<{success: boolean, error?: string, isNewUser?: boolean}>}
+ */
+async function sendMagicLink(email) {
+    try {
+        // Проверяем есть ли vaishnava с таким email
+        const { data: vaishnava, error: checkError } = await db
+            .from('vaishnavas')
+            .select('id, email, user_id, is_active')
+            .ilike('email', email)
+            .maybeSingle();
+
+        if (checkError) {
+            console.error('[Magic Link] Check error:', checkError);
+            return { success: false, error: 'check_failed' };
+        }
+
+        // Если нет записи — предлагаем зарегистрироваться
+        if (!vaishnava) {
+            return { success: false, error: 'not_registered', isNewUser: true };
+        }
+
+        // Если аккаунт деактивирован
+        if (vaishnava.is_active === false) {
+            return { success: false, error: 'account_disabled' };
+        }
+
+        // Отправляем magic link
+        const redirectUrl = window.location.origin + '/auth-callback/';
+        const { error: otpError } = await db.auth.signInWithOtp({
+            email: email,
+            options: {
+                emailRedirectTo: redirectUrl,
+                shouldCreateUser: true // Создаст auth user если его нет
+            }
+        });
+
+        if (otpError) {
+            console.error('[Magic Link] OTP error:', otpError);
+            return { success: false, error: 'send_failed' };
+        }
+
+        return { success: true };
+
+    } catch (error) {
+        console.error('[Magic Link] Error:', error);
+        return { success: false, error: 'unknown_error' };
+    }
+}
+
+/**
+ * Связывание auth user с существующим vaishnava
+ * Вызывается после успешного входа по magic link
+ * Использует database function для обхода RLS
+ * @returns {Promise<{success: boolean, vaishnavId?: string, error?: string}>}
+ */
+async function linkAuthUserToVaishnava() {
+    try {
+        const { data: { session } } = await db.auth.getSession();
+        if (!session) {
+            return { success: false, error: 'no_session' };
+        }
+
+        // Вызываем database function
+        const { data, error } = await db.rpc('link_auth_user_to_vaishnava');
+
+        if (error) {
+            console.error('[Link] RPC error:', error);
+            return { success: false, error: 'rpc_failed' };
+        }
+
+        // Функция возвращает массив с одной строкой
+        const result = data?.[0];
+        if (!result) {
+            console.error('[Link] No result from RPC');
+            return { success: false, error: 'no_result' };
+        }
+
+        if (!result.success) {
+            console.error('[Link] Function returned error:', result.error_code);
+            return { success: false, error: result.error_code };
+        }
+
+        return { success: true, vaishnavId: result.vaishnava_id };
+
+    } catch (error) {
+        console.error('[Link] Error:', error);
+        return { success: false, error: 'unknown_error' };
     }
 }
 
@@ -222,6 +310,8 @@ window.PortalAuth = {
     checkGuestAuth,
     login,
     logout,
+    sendMagicLink,
+    linkAuthUserToVaishnava,
     getGuestDisplayName,
     getProfileCompleteness,
     redirectToLogin

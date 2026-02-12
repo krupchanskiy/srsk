@@ -100,12 +100,12 @@
     <div id="footer-placeholder"></div>
 
     <script src="../js/config.js"></script>
-    <script src="../js/auth-check.js?v=2"></script>
+    <script src="../js/auth-check.js?v=3"></script>
     <script src="../js/cache.js"></script>
-    <script src="../js/utils.js"></script>
+    <script src="../js/utils.js?v=2"></script>
     <script src="../js/translit.js"></script>
     <script src="../js/auto-translate.js"></script>
-    <script src="../js/layout.js"></script>
+    <script src="../js/layout.js?v=5"></script>
     <script>
         // ==================== STATE ====================
         const PAGE_SIZE = 50;
@@ -294,7 +294,10 @@
 
                 const photoHtml = showPhotos ? `
                     <figure class="h-32 bg-base-200 overflow-hidden">
-                        <img src="${recipe.photo_url}" alt="${Layout.getName(recipe)}" class="w-full h-full object-cover" onerror="this.style.display='none'; this.parentElement.innerHTML='<div class=\\'h-full w-full flex items-center justify-center text-4xl\\'>${cat?.emoji || '🍽️'}</div>'" />
+                        ${recipe.photo_url
+                            ? `<img src="${recipe.photo_url}" alt="${Layout.getName(recipe)}" class="w-full h-full object-cover" onerror="this.style.display='none'; this.parentElement.innerHTML='<div class=\\'h-full w-full flex items-center justify-center text-4xl\\'>${cat?.emoji || '🍽️'}</div>'" />`
+                            : `<div class="h-full w-full flex items-center justify-center text-4xl">${cat?.emoji || '🍽️'}</div>`
+                        }
                     </figure>
                 ` : '';
 
@@ -420,7 +423,7 @@
         // ==================== INIT ====================
         async function init() {
             // Инициализируем layout (хедер, футер, локации)
-            await Layout.init({ menuId: 'kitchen', itemId: 'recipes' });
+            await Layout.init({ module: 'kitchen', menuId: 'kitchen', itemId: 'recipes' });
 
             // Загружаем данные страницы
             await loadLocationId();

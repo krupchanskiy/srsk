@@ -8,13 +8,19 @@
     <link rel="icon" type="image/svg+xml" href="/favicon.svg">
     <link href="https://cdn.jsdelivr.net/npm/daisyui@4.12.14/dist/full.min.css" rel="stylesheet" />
     <script src="https://cdn.tailwindcss.com"></script>
+    <script>tailwind.config = { theme: { extend: { screens: { 'desktop': '1200px' } } } }</script>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script src="../js/color-init.js"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans:wght@400;500;600;700&family=Noto+Sans+Devanagari:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="../css/common.css">
 </head>
 
-<body class="bg-base-200">
-    <div id="header"></div>
+<body class="bg-base-200 min-h-screen flex flex-col">
+    <div id="header-placeholder"></div>
 
-    <div class="container mx-auto p-4">
+    <main class="container mx-auto p-4 flex-1">
         <div class="flex justify-between items-center mb-6">
             <h1 class="text-3xl font-bold">Управление пользователями</h1>
         </div>
@@ -39,14 +45,15 @@
         </div>
 
         <!-- Поиск и фильтры -->
-        <div class="mb-4 flex gap-2">
+        <div class="mb-4 flex flex-wrap gap-2">
             <input type="text" id="searchInput" placeholder="Поиск по имени или email..."
-                   class="input input-bordered flex-1" onkeyup="filterUsers()">
-            <select id="moduleFilter" class="select select-bordered" onchange="filterUsers()">
-                <option value="">Все модули</option>
-                <option value="housing">Housing</option>
-                <option value="kitchen">Kitchen</option>
-            </select>
+                   class="input input-bordered flex-1 min-w-48" onkeyup="filterUsers()">
+            <button class="btn btn-outline btn-primary" onclick="sendBulkInvites()">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
+                </svg>
+                Пригласить всех без аккаунта (<span id="countNoAccount">0</span>)
+            </button>
         </div>
 
         <!-- Таблица пользователей -->
@@ -64,16 +71,18 @@
                     </tr>
                 </thead>
                 <tbody id="usersTableBody">
-                    <tr>
-                        <td colspan="7" class="text-center py-8">
-                            <span class="loading loading-spinner loading-lg"></span>
-                            <p class="mt-2">Загрузка пользователей...</p>
-                        </td>
-                    </tr>
+                    <!-- Skeleton loader -->
+                    <tr class="skeleton-row"><td><div class="skeleton w-10 h-10 rounded-full"></div></td><td><div class="skeleton h-4 w-32"></div></td><td><div class="skeleton h-4 w-40"></div></td><td><div class="skeleton h-4 w-16"></div></td><td><div class="skeleton h-4 w-20"></div></td><td><div class="skeleton h-4 w-24"></div></td><td><div class="skeleton h-8 w-24"></div></td></tr>
+                    <tr class="skeleton-row"><td><div class="skeleton w-10 h-10 rounded-full"></div></td><td><div class="skeleton h-4 w-28"></div></td><td><div class="skeleton h-4 w-36"></div></td><td><div class="skeleton h-4 w-16"></div></td><td><div class="skeleton h-4 w-20"></div></td><td><div class="skeleton h-4 w-20"></div></td><td><div class="skeleton h-8 w-24"></div></td></tr>
+                    <tr class="skeleton-row"><td><div class="skeleton w-10 h-10 rounded-full"></div></td><td><div class="skeleton h-4 w-36"></div></td><td><div class="skeleton h-4 w-44"></div></td><td><div class="skeleton h-4 w-16"></div></td><td><div class="skeleton h-4 w-20"></div></td><td><div class="skeleton h-4 w-28"></div></td><td><div class="skeleton h-8 w-24"></div></td></tr>
+                    <tr class="skeleton-row"><td><div class="skeleton w-10 h-10 rounded-full"></div></td><td><div class="skeleton h-4 w-24"></div></td><td><div class="skeleton h-4 w-32"></div></td><td><div class="skeleton h-4 w-16"></div></td><td><div class="skeleton h-4 w-20"></div></td><td><div class="skeleton h-4 w-16"></div></td><td><div class="skeleton h-8 w-24"></div></td></tr>
+                    <tr class="skeleton-row"><td><div class="skeleton w-10 h-10 rounded-full"></div></td><td><div class="skeleton h-4 w-30"></div></td><td><div class="skeleton h-4 w-38"></div></td><td><div class="skeleton h-4 w-16"></div></td><td><div class="skeleton h-4 w-20"></div></td><td><div class="skeleton h-4 w-24"></div></td><td><div class="skeleton h-8 w-24"></div></td></tr>
                 </tbody>
             </table>
         </div>
-    </div>
+    </main>
+
+    <div id="footer-placeholder"></div>
 
     <!-- Модалка управления пользователем -->
     <dialog id="manageUserModal" class="modal">
@@ -99,7 +108,7 @@
                     </label>
                 </div>
 
-                <div class="divider">Роли Housing</div>
+                <div class="divider">Роли</div>
 
                 <!-- Роли -->
                 <div id="rolesContainer" class="space-y-2 max-h-60 overflow-y-auto">
@@ -110,11 +119,8 @@
 
                 <!-- Индивидуальные права -->
                 <div class="flex gap-2">
-                    <button class="btn btn-sm btn-outline" onclick="openAddPermissionModal()">
-                        + Добавить право
-                    </button>
-                    <button class="btn btn-sm btn-outline btn-error" onclick="openRevokePermissionModal()">
-                        − Убрать право
+                    <button class="btn btn-sm btn-outline" onclick="openPermissionsModal()">
+                        Настроить права
                     </button>
                 </div>
 
@@ -176,24 +182,65 @@
     </dialog>
 
     <script src="../js/config.js"></script>
-    <script src="../js/auth-check.js?v=2"></script>
+    <script src="../js/auth-check.js?v=3"></script>
     <script src="../js/cache.js"></script>
-    <script src="../js/utils.js"></script>
+    <script src="../js/utils.js?v=2"></script>
     <script src="../js/translit.js"></script>
     <script src="../js/auto-translate.js"></script>
-    <script src="../js/layout.js"></script>
+    <script src="../js/layout.js?v=5"></script>
     <script>
         const db = window.supabaseClient;
+
+        // Экранирование HTML для защиты от XSS
+        function escapeHtml(str) {
+            if (!str) return '';
+            return String(str)
+                .replace(/&/g, '&amp;')
+                .replace(/</g, '&lt;')
+                .replace(/>/g, '&gt;')
+                .replace(/"/g, '&quot;')
+                .replace(/'/g, '&#039;');
+        }
 
         let allUsers = [];
         let currentTab = 'all';
         let currentUserId = null;
         let approvalAction = null;
+        let countsLoaded = false;
+        let isLoading = false;
 
-        // Загрузка пользователей
-        async function loadUsers() {
+        // Загрузка только счётчиков (быстро, без ролей)
+        async function loadCounts() {
             try {
                 const { data: users, error } = await db
+                    .from('vaishnavas')
+                    .select('id, user_id, email, user_type, approval_status, is_active')
+                    .eq('is_deleted', false);
+
+                if (error) throw error;
+
+                document.getElementById('countAll').textContent = users.length;
+                document.getElementById('countPending').textContent = users.filter(u => u.approval_status === 'pending').length;
+                document.getElementById('countStaff').textContent = users.filter(u => u.user_type === 'staff').length;
+                document.getElementById('countGuest').textContent = users.filter(u => u.user_type === 'guest').length;
+                document.getElementById('countBlocked').textContent = users.filter(u => u.approval_status === 'blocked' || !u.is_active).length;
+                document.getElementById('countNoAccount').textContent = users.filter(u => !u.user_id && u.email).length;
+                countsLoaded = true;
+            } catch (err) {
+                console.error('Load counts error:', err);
+            }
+        }
+
+        // Загрузка пользователей с фильтрацией (оптимизировано)
+        async function loadUsers(filter = {}) {
+            if (isLoading) return;
+            isLoading = true;
+
+            const tbody = document.getElementById('usersTableBody');
+            tbody.innerHTML = '<tr><td colspan="7" class="text-center py-8"><span class="loading loading-spinner loading-lg"></span></td></tr>';
+
+            try {
+                let query = db
                     .from('vaishnavas')
                     .select(`
                         id,
@@ -206,51 +253,70 @@
                         user_type,
                         approval_status,
                         is_superuser,
-                        is_active,
-                        is_deleted
+                        is_active
                     `)
                     .eq('is_deleted', false)
                     .order('created_at', { ascending: false });
 
+                // Применить фильтры на уровне БД
+                if (filter.tab === 'pending') {
+                    query = query.eq('approval_status', 'pending');
+                } else if (filter.tab === 'staff') {
+                    query = query.eq('user_type', 'staff');
+                } else if (filter.tab === 'guest') {
+                    query = query.eq('user_type', 'guest');
+                } else if (filter.tab === 'blocked') {
+                    query = query.or('approval_status.eq.blocked,is_active.eq.false');
+                }
+
+                // Поиск
+                if (filter.search && filter.search.length >= 2) {
+                    const s = filter.search.toLowerCase();
+                    query = query.or(`spiritual_name.ilike.%${s}%,first_name.ilike.%${s}%,last_name.ilike.%${s}%,email.ilike.%${s}%`);
+                }
+
+                // Лимит для производительности
+                query = query.limit(100);
+
+                const { data: users, error } = await query;
                 if (error) throw error;
 
-                // Загрузить роли для каждого пользователя
-                for (let user of users) {
-                    if (user.user_id) {
-                        const { data: roles } = await db
-                            .from('user_roles')
-                            .select(`
-                                roles!inner (
-                                    name_ru,
-                                    code,
-                                    module_id
-                                )
-                            `)
-                            .eq('user_id', user.user_id)
-                            .eq('is_active', true);
+                // Загрузить роли ОДНИМ запросом (вместо N+1)
+                const userIds = users.filter(u => u.user_id).map(u => u.user_id);
+                let rolesMap = {};
 
-                        user.roles = roles || [];
-                    } else {
-                        user.roles = [];
+                if (userIds.length > 0) {
+                    const { data: allRoles } = await db
+                        .from('user_roles')
+                        .select(`
+                            user_id,
+                            roles!inner (name_ru, code)
+                        `)
+                        .in('user_id', userIds)
+                        .eq('is_active', true);
+
+                    // Группировать по user_id
+                    if (allRoles) {
+                        allRoles.forEach(r => {
+                            if (!rolesMap[r.user_id]) rolesMap[r.user_id] = [];
+                            rolesMap[r.user_id].push(r);
+                        });
                     }
                 }
 
+                // Присвоить роли пользователям
+                users.forEach(u => {
+                    u.roles = rolesMap[u.user_id] || [];
+                });
+
                 allUsers = users;
-                updateCounts();
                 renderUsers();
             } catch (err) {
                 console.error('Load users error:', err);
-                alert('Ошибка загрузки пользователей: ' + err.message);
+                tbody.innerHTML = '<tr><td colspan="7" class="text-center py-8 text-error">Ошибка загрузки</td></tr>';
+            } finally {
+                isLoading = false;
             }
-        }
-
-        // Обновить счётчики
-        function updateCounts() {
-            document.getElementById('countAll').textContent = allUsers.length;
-            document.getElementById('countPending').textContent = allUsers.filter(u => u.approval_status === 'pending').length;
-            document.getElementById('countStaff').textContent = allUsers.filter(u => u.user_type === 'staff').length;
-            document.getElementById('countGuest').textContent = allUsers.filter(u => u.user_type === 'guest').length;
-            document.getElementById('countBlocked').textContent = allUsers.filter(u => u.approval_status === 'blocked' || !u.is_active).length;
         }
 
         // Переключение табов
@@ -258,73 +324,88 @@
             currentTab = tab;
             document.querySelectorAll('.tab').forEach(t => t.classList.remove('tab-active'));
             document.querySelector(`[data-tab="${tab}"]`).classList.add('tab-active');
-            renderUsers();
+            document.getElementById('searchInput').value = '';
+
+            if (tab === 'all') {
+                // Показать placeholder вместо загрузки всех
+                showPlaceholder();
+            } else {
+                loadUsers({ tab });
+            }
         }
 
-        // Фильтрация пользователей
+        // Показать placeholder
+        function showPlaceholder() {
+            allUsers = [];
+            const tbody = document.getElementById('usersTableBody');
+            tbody.innerHTML = `
+                <tr>
+                    <td colspan="7" class="text-center py-12">
+                        <div class="text-base-content/50">
+                            <svg xmlns="http://www.w3.org/2000/svg" class="h-12 w-12 mx-auto mb-3 opacity-30" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                            </svg>
+                            <p class="text-lg font-medium mb-1">Введите имя для поиска</p>
+                            <p class="text-sm">или выберите категорию выше</p>
+                        </div>
+                    </td>
+                </tr>
+            `;
+        }
+
+        // Фильтрация с debounce
+        let searchTimeout;
         function filterUsers() {
-            renderUsers();
+            clearTimeout(searchTimeout);
+            const searchText = document.getElementById('searchInput').value.trim();
+
+            if (searchText.length === 0) {
+                if (currentTab === 'all') {
+                    showPlaceholder();
+                } else {
+                    loadUsers({ tab: currentTab });
+                }
+                return;
+            }
+
+            if (searchText.length < 2) return;
+
+            searchTimeout = setTimeout(() => {
+                loadUsers({ search: searchText, tab: currentTab !== 'all' ? currentTab : null });
+            }, 300);
         }
 
-        // Отрисовка таблицы
+        // Отрисовка таблицы (фильтрация уже на стороне БД)
         function renderUsers() {
-            const searchText = document.getElementById('searchInput').value.toLowerCase();
-            const moduleFilter = document.getElementById('moduleFilter').value;
-
-            let filtered = allUsers;
-
-            // Фильтр по табу
-            if (currentTab === 'pending') {
-                filtered = filtered.filter(u => u.approval_status === 'pending');
-            } else if (currentTab === 'staff') {
-                filtered = filtered.filter(u => u.user_type === 'staff');
-            } else if (currentTab === 'guest') {
-                filtered = filtered.filter(u => u.user_type === 'guest');
-            } else if (currentTab === 'blocked') {
-                filtered = filtered.filter(u => u.approval_status === 'blocked' || !u.is_active);
-            }
-
-            // Поиск
-            if (searchText) {
-                filtered = filtered.filter(u =>
-                    (u.spiritual_name?.toLowerCase().includes(searchText)) ||
-                    (u.first_name?.toLowerCase().includes(searchText)) ||
-                    (u.last_name?.toLowerCase().includes(searchText)) ||
-                    (u.email?.toLowerCase().includes(searchText))
-                );
-            }
-
-            // Фильтр по модулю
-            if (moduleFilter) {
-                filtered = filtered.filter(u =>
-                    u.roles.some(r => r.roles.module_id === moduleFilter)
-                );
-            }
-
             const tbody = document.getElementById('usersTableBody');
 
-            if (filtered.length === 0) {
+            if (allUsers.length === 0) {
                 tbody.innerHTML = '<tr><td colspan="7" class="text-center py-8">Пользователи не найдены</td></tr>';
                 return;
             }
 
-            tbody.innerHTML = filtered.map(user => `
+            tbody.innerHTML = allUsers.map(user => {
+                const displayName = escapeHtml(user.spiritual_name || `${user.first_name || ''} ${user.last_name || ''}`.trim());
+                const initial = (user.spiritual_name || user.first_name || '?')[0];
+                const safeEmail = escapeHtml(user.email);
+
+                return `
                 <tr>
                     <td>
                         <div class="avatar">
                             <div class="w-10 h-10 rounded-full">
                                 ${user.photo_url
-                                    ? `<img src="${user.photo_url}" alt="${user.spiritual_name || user.first_name}">`
-                                    : `<div class="bg-primary text-primary-content w-full h-full flex items-center justify-center text-xl">${(user.spiritual_name || user.first_name || '?')[0]}</div>`
+                                    ? `<img src="${escapeHtml(user.photo_url)}" alt="${displayName}">`
+                                    : `<div class="bg-primary text-primary-content w-full h-full flex items-center justify-center text-xl">${escapeHtml(initial)}</div>`
                                 }
                             </div>
                         </div>
                     </td>
                     <td>
-                        <div class="font-bold">${user.spiritual_name || user.first_name + ' ' + (user.last_name || '')}</div>
+                        <div class="font-bold">${displayName}</div>
                         ${user.is_superuser ? '<span class="badge badge-warning badge-sm">Superuser</span>' : ''}
                     </td>
-                    <td>${user.email}</td>
+                    <td>${safeEmail}</td>
                     <td>
                         <span class="badge ${user.user_type === 'staff' ? 'badge-primary' : 'badge-secondary'}">
                             ${user.user_type === 'staff' ? 'Команда' : 'Гость'}
@@ -334,13 +415,15 @@
                         ${getStatusBadge(user)}
                     </td>
                     <td>
+                        <div class="flex flex-wrap gap-1">
                         ${user.roles.length > 0
-                            ? user.roles.map(r => `<span class="badge badge-sm badge-outline">${r.roles.name_ru}</span>`).join(' ')
+                            ? user.roles.map(r => `<span class="badge badge-sm badge-outline">${r.roles.name_ru}</span>`).join('')
                             : '<span class="text-xs opacity-50">Нет ролей</span>'
                         }
+                        </div>
                     </td>
                     <td>
-                        <div class="flex gap-1">
+                        <div class="flex gap-1 flex-wrap">
                             ${user.approval_status === 'pending'
                                 ? `
                                     <button class="btn btn-xs btn-success" onclick="approveUser('${user.id}')">Одобрить</button>
@@ -348,10 +431,20 @@
                                 `
                                 : `<button class="btn btn-xs btn-primary" onclick="openManageModal('${user.id}')">Управление</button>`
                             }
+                            ${!user.user_id && user.email
+                                ? `<button class="btn btn-xs btn-outline btn-secondary" onclick="sendInvite('${user.id}', '${safeEmail.replace(/'/g, "\\'")}')">
+                                    <svg xmlns="http://www.w3.org/2000/svg" class="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
+                                    </svg>
+                                    Пригласить
+                                   </button>`
+                                : ''
+                            }
                         </div>
                     </td>
                 </tr>
-            `).join('');
+                `;
+            }).join('');
         }
 
         // Получить badge статуса
@@ -424,11 +517,12 @@
                 }
 
                 closeApprovalModal();
-                loadUsers();
-                alert(approvalAction === 'approve' ? '✅ Заявка одобрена' : '❌ Заявка отклонена');
+                loadCounts(); // Обновить счётчики в табах
+                loadUsers({ tab: currentTab !== 'all' ? currentTab : null });
+                Layout.showNotification(approvalAction === 'approve' ? 'Заявка одобрена' : 'Заявка отклонена', 'success');
             } catch (err) {
                 console.error('Approval error:', err);
-                alert('Ошибка: ' + err.message);
+                Layout.showNotification('Ошибка: ' + err.message, 'error');
             }
         }
 
@@ -442,7 +536,7 @@
 
             // Проверить что у пользователя есть user_id (привязан к auth.users)
             if (!user.user_id) {
-                alert('У этого пользователя нет аккаунта в системе. Управление ролями и правами недоступно.');
+                Layout.showNotification('У этого пользователя нет аккаунта в системе. Управление ролями и правами недоступно.', 'warning');
                 return;
             }
 
@@ -454,12 +548,12 @@
             document.getElementById('modalIsActive').checked = user.is_active;
             document.getElementById('modalIsSuperuser').checked = user.is_superuser;
 
-            // Загрузить все роли Housing
+            // Загрузить все кросс-модульные роли
             const { data: allRoles } = await db
                 .from('roles')
                 .select('id, code, name_ru, description_ru')
-                .eq('module_id', (await db.from('modules').select('id').eq('code', 'housing').single()).data.id)
-                .order('name_ru');
+                .is('module_id', null)
+                .order('sort_order');
 
             // Загрузить роли пользователя
             const { data: userRoles } = await db
@@ -473,13 +567,13 @@
             // Отрисовать роли
             const rolesContainer = document.getElementById('rolesContainer');
             rolesContainer.innerHTML = allRoles.map(role => `
-                <label class="label cursor-pointer justify-start gap-2">
-                    <input type="checkbox" class="checkbox checkbox-sm"
+                <label class="label cursor-pointer justify-start gap-3 py-2 px-3 rounded-lg hover:bg-base-200 transition-colors">
+                    <input type="checkbox" class="checkbox checkbox-sm checkbox-primary"
                            data-role-id="${role.id}"
                            ${userRoleIds.includes(role.id) ? 'checked' : ''}>
-                    <div>
+                    <div class="flex-1">
                         <div class="font-medium">${role.name_ru}</div>
-                        <div class="text-xs opacity-60">${role.description_ru}</div>
+                        <div class="text-xs opacity-60">${role.description_ru || ''}</div>
                     </div>
                 </label>
             `).join('');
@@ -522,7 +616,7 @@
             try {
                 const user = allUsers.find(u => u.user_id === currentUserId);
                 if (!user) {
-                    alert('Пользователь не найден');
+                    Layout.showNotification('Пользователь не найден', 'error');
                     return;
                 }
 
@@ -544,41 +638,43 @@
                     .update({ is_active: false })
                     .eq('user_id', user.user_id);
 
-                // Добавить выбранные роли
-                for (let roleId of checkedRoles) {
-                    await db
-                        .from('user_roles')
-                        .upsert({
-                            user_id: user.user_id,
-                            role_id: roleId,
-                            is_active: true,
-                            assigned_by: window.currentUser.id,
-                            assigned_at: new Date().toISOString()
-                        }, {
-                            onConflict: 'user_id,role_id'
-                        });
+                // Добавить выбранные роли (batch upsert)
+                if (checkedRoles.length > 0) {
+                    const rolesData = checkedRoles.map(roleId => ({
+                        user_id: user.user_id,
+                        role_id: roleId,
+                        is_active: true,
+                        assigned_by: window.currentUser.id,
+                        assigned_at: new Date().toISOString()
+                    }));
+                    await db.from('user_roles').upsert(rolesData, { onConflict: 'user_id,role_id' });
                 }
 
                 closeManageModal();
-                loadUsers();
-                alert('✅ Изменения сохранены');
+                loadCounts(); // Обновить счётчики в табах
+                loadUsers({ tab: currentTab !== 'all' ? currentTab : null });
+                Layout.showNotification('Изменения сохранены', 'success');
             } catch (err) {
                 console.error('Save error:', err);
-                alert('Ошибка сохранения: ' + err.message);
+                Layout.showNotification('Ошибка сохранения: ' + err.message, 'error');
             }
         }
 
-        // Заблокировать пользователя
+        // Заблокировать пользователя (с optimistic update)
         async function blockUser() {
             if (!confirm('Вы уверены что хотите заблокировать этого пользователя?')) return;
 
-            try {
-                const user = allUsers.find(u => u.user_id === currentUserId);
-                if (!user) {
-                    alert('Пользователь не найден');
-                    return;
-                }
+            const user = allUsers.find(u => u.user_id === currentUserId);
+            if (!user) {
+                Layout.showNotification('Пользователь не найден', 'error');
+                return;
+            }
 
+            // Optimistic update: сразу закрываем модалку и показываем уведомление
+            closeManageModal();
+            Layout.showNotification('Пользователь заблокирован', 'success');
+
+            try {
                 await db
                     .from('vaishnavas')
                     .update({
@@ -587,45 +683,31 @@
                     })
                     .eq('id', user.id);
 
-                closeManageModal();
-                loadUsers();
-                alert('🚫 Пользователь заблокирован');
+                loadCounts(); // Обновить счётчики в табах
+                loadUsers({ tab: currentTab !== 'all' ? currentTab : null });
             } catch (err) {
                 console.error('Block error:', err);
-                alert('Ошибка: ' + err.message);
+                Layout.showNotification('Ошибка блокировки: ' + err.message, 'error');
+                // Перезагружаем список чтобы откатить UI
+                loadUsers({ tab: currentTab !== 'all' ? currentTab : null });
             }
         }
 
         async function openPermissionsModal() {
             if (!currentUserId) return;
 
-            // Загрузить модуль Housing
-            const { data: housingModule, error: moduleError } = await db
-                .from('modules')
-                .select('id')
-                .eq('code', 'housing')
-                .single();
-
-            if (moduleError || !housingModule) {
-                console.error('Module error:', moduleError);
-                alert('Ошибка загрузки модуля Housing');
-                return;
-            }
-
-            // Загрузить все права Housing
+            // Загрузить все глобальные права (кросс-модульные)
             const { data: allPerms, error: permsError } = await db
                 .from('permissions')
                 .select('id, code, name_ru, category')
-                .eq('module_id', housingModule.id)
+                .is('module_id', null)
                 .order('category, name_ru');
 
             if (permsError || !allPerms || allPerms.length === 0) {
                 console.error('Permissions error:', permsError);
-                alert('Нет доступных прав');
+                Layout.showNotification('Нет доступных прав', 'warning');
                 return;
             }
-
-            console.log('Loaded permissions:', allPerms.length);
 
             // Загрузить права пользователя из ролей
             const { data: userRoles } = await db
@@ -712,22 +794,11 @@
             document.getElementById('permissionSelectModal').showModal();
         }
 
-        // Заменяем обе старые функции на одну
-        function openAddPermissionModal() {
-            openPermissionsModal();
-        }
-
-        function openRevokePermissionModal() {
-            openPermissionsModal();
-        }
-
         async function togglePermission(checkbox) {
             const permId = checkbox.dataset.permId;
             const permCode = checkbox.dataset.permCode;
             const permName = checkbox.dataset.permName;
             const isGranted = checkbox.checked;
-
-            console.log('togglePermission:', { permId, permCode, permName, isGranted, currentUserId });
 
             try {
                 // Использовать upsert для автоматической вставки или обновления
@@ -757,12 +828,155 @@
             } catch (err) {
                 // Откатить чекбокс при ошибке
                 checkbox.checked = !isGranted;
-                alert('Ошибка: ' + err.message);
+                Layout.showNotification('Ошибка: ' + err.message, 'error');
             }
+        }
+
+        // Отправить приглашение одному пользователю
+        async function sendInvite(vaishnavId, email) {
+            const user = allUsers.find(u => u.id === vaishnavId);
+            const userName = user?.spiritual_name || user?.first_name || email;
+
+            if (!confirm(`Отправить приглашение пользователю ${userName} (${email})?`)) {
+                return;
+            }
+
+            try {
+                const { data: { session } } = await db.auth.getSession();
+                if (!session) {
+                    Layout.showNotification('Сессия истекла. Перезагрузите страницу.', 'error');
+                    return;
+                }
+
+                const response = await fetch(
+                    `${window.CONFIG.SUPABASE_URL}/functions/v1/send-invite`,
+                    {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'Authorization': `Bearer ${session.access_token}`
+                        },
+                        body: JSON.stringify({ email, vaishnavId })
+                    }
+                );
+
+                const result = await response.json();
+
+                if (!response.ok) {
+                    if (result.alreadyHasAccount) {
+                        Layout.showNotification('У пользователя уже есть аккаунт', 'info');
+                        loadUsers({ tab: currentTab !== 'all' ? currentTab : null });
+                    } else {
+                        throw new Error(result.error || 'Ошибка отправки');
+                    }
+                    return;
+                }
+
+                Layout.showNotification(`Приглашение отправлено на ${email}`, 'success');
+
+            } catch (err) {
+                console.error('Send invite error:', err);
+                Layout.showNotification('Ошибка отправки приглашения: ' + err.message, 'error');
+            }
+        }
+
+        // Массовая отправка приглашений
+        async function sendBulkInvites() {
+            const usersWithoutAccount = allUsers.filter(u => !u.user_id && u.email);
+
+            if (usersWithoutAccount.length === 0) {
+                Layout.showNotification('Нет пользователей без аккаунта', 'info');
+                return;
+            }
+
+            if (!confirm(`Отправить приглашения ${usersWithoutAccount.length} пользователям?\n\nЭто может занять некоторое время.`)) {
+                return;
+            }
+
+            try {
+                const { data: { session } } = await db.auth.getSession();
+                if (!session) {
+                    Layout.showNotification('Сессия истекла. Перезагрузите страницу.', 'error');
+                    return;
+                }
+
+                let sent = 0;
+                let errors = 0;
+                const errorList = [];
+
+                for (const user of usersWithoutAccount) {
+                    try {
+                        const response = await fetch(
+                            `${window.CONFIG.SUPABASE_URL}/functions/v1/send-invite`,
+                            {
+                                method: 'POST',
+                                headers: {
+                                    'Content-Type': 'application/json',
+                                    'Authorization': `Bearer ${session.access_token}`
+                                },
+                                body: JSON.stringify({ email: user.email, vaishnavId: user.id })
+                            }
+                        );
+
+                        const result = await response.json();
+
+                        if (response.ok) {
+                            sent++;
+                        } else {
+                            errors++;
+                            errorList.push(`${user.email}: ${result.error}`);
+                        }
+
+                        // Небольшая задержка между запросами
+                        await new Promise(r => setTimeout(r, 200));
+
+                    } catch (err) {
+                        errors++;
+                        errorList.push(`${user.email}: ${err.message}`);
+                    }
+                }
+
+                if (errors > 0) {
+                    console.error('Bulk invite errors:', errorList);
+                    Layout.showNotification(`Отправлено: ${sent}, ошибок: ${errors}`, 'warning');
+                } else {
+                    Layout.showNotification(`Приглашения отправлены: ${sent}`, 'success');
+                }
+
+            } catch (err) {
+                console.error('Bulk invite error:', err);
+                Layout.showNotification('Ошибка массовой отправки: ' + err.message, 'error');
+            }
+        }
+
+        // Ждём событие authReady от auth-check.js
+        function waitForAuth(maxWait = 3000) {
+            return new Promise(resolve => {
+                if (window.currentUser) {
+                    resolve();
+                    return;
+                }
+                const handler = () => resolve();
+                window.addEventListener('authReady', handler, { once: true });
+                setTimeout(() => {
+                    window.removeEventListener('authReady', handler);
+                    resolve();
+                }, maxWait);
+            });
         }
 
         // Инициализация
         window.addEventListener('DOMContentLoaded', async () => {
+            // Инициализация layout (хедер, футер, переводы)
+            await Layout.init({ module: 'admin', menuId: 'access', itemId: 'user_management' });
+            await waitForAuth();
+
+            // Модуль admin только для суперпользователей
+            if (!window.currentUser?.is_superuser) {
+                window.location.href = '../index.html';
+                return;
+            }
+
             // Подождать пока auth-check.js создаст hasPermission
             while (typeof window.hasPermission !== 'function') {
                 await new Promise(resolve => setTimeout(resolve, 50));
@@ -770,12 +984,14 @@
 
             // Проверка прав доступа
             if (!window.hasPermission('manage_users') && !window.currentUser?.is_superuser) {
-                alert('У вас нет прав для доступа к этой странице');
+                Layout.showNotification('У вас нет прав для доступа к этой странице', 'error');
                 window.location.href = '/';
                 return;
             }
 
-            loadUsers();
+            // Быстрая загрузка: только счётчики + placeholder
+            loadCounts();
+            showPlaceholder();
         });
     </script>
 </body>

@@ -9,7 +9,7 @@
     function applyPermissions() {
         // Проверяем что пользователь загружен и hasPermission доступна
         if (!window.currentUser || !window.hasPermission) {
-            console.warn('[permissions-ui] currentUser или hasPermission не доступны');
+            window.addEventListener('authReady', () => applyPermissions(), { once: true });
             return;
         }
 

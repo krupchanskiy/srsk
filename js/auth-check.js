@@ -26,8 +26,8 @@
 
         // Если нет сессии - редирект на логин
         if (!session) {
-            localStorage.setItem('srsk_redirect_after_login', window.location.pathname + window.location.search);
-            window.location.href = '/login.html';
+            const returnUrl = encodeURIComponent(window.location.pathname + window.location.search);
+            window.location.href = '/login.html?redirect=' + returnUrl;
             return;
         }
 
@@ -43,7 +43,8 @@
             console.error('Failed to load vaishnava:', vError);
             // Если пользователя нет в vaishnavas - выход
             await db.auth.signOut();
-            window.location.href = '/login.html';
+            const returnUrl = encodeURIComponent(window.location.pathname + window.location.search);
+            window.location.href = '/login.html?redirect=' + returnUrl;
             return;
         }
 
@@ -55,12 +56,13 @@
 
         if (vaishnava.approval_status === 'rejected' || vaishnava.approval_status === 'blocked' || !vaishnava.is_active) {
             await db.auth.signOut();
+            // Используем alert т.к. Layout может быть не загружен, и мы уходим на /login.html
             alert('Ваш аккаунт заблокирован или отклонён. Свяжитесь с администратором.');
             window.location.href = '/login.html';
             return;
         }
 
-        // Загрузить права пользователя
+        // Загрузить права пользователя одним запросом через SQL функцию
         let permissions = [];
 
         if (vaishnava.is_superuser) {
@@ -70,58 +72,14 @@
                 .select('code');
             permissions = allPerms ? allPerms.map(p => p.code) : [];
         } else {
-            // Загрузить права через роли
-            const { data: userRoles } = await db
-                .from('user_roles')
-                .select(`
-                    role_id,
-                    roles!inner (
-                        id,
-                        code
-                    )
-                `)
-                .eq('user_id', session.user.id)
-                .eq('is_active', true);
+            // Получить права через оптимизированную SQL функцию (1 запрос вместо 3)
+            const { data: userPerms, error: permsError } = await db
+                .rpc('get_user_permissions', { p_user_id: session.user.id });
 
-            if (userRoles && userRoles.length > 0) {
-                const roleIds = userRoles.map(r => r.role_id);
-                const { data: rolePerms } = await db
-                    .from('role_permissions')
-                    .select(`
-                        permission_id,
-                        permissions!inner (
-                            code
-                        )
-                    `)
-                    .in('role_id', roleIds);
-
-                permissions = rolePerms ? rolePerms.map(rp => rp.permissions.code) : [];
+            if (permsError) {
+                console.error('Failed to load permissions:', permsError);
             }
-
-            // Загрузить индивидуальные права (переопределения)
-            const { data: userPerms } = await db
-                .from('user_permissions')
-                .select(`
-                    is_granted,
-                    permissions!inner (
-                        code
-                    )
-                `)
-                .eq('user_id', session.user.id);
-
-            if (userPerms) {
-                userPerms.forEach(up => {
-                    if (up.is_granted) {
-                        // Добавить право
-                        if (!permissions.includes(up.permissions.code)) {
-                            permissions.push(up.permissions.code);
-                        }
-                    } else {
-                        // Убрать право
-                        permissions = permissions.filter(p => p !== up.permissions.code);
-                    }
-                });
-            }
+            permissions = userPerms ? userPerms.map(p => p.permission_code) : [];
         }
 
         // Сохранить в window.currentUser
@@ -160,12 +118,73 @@
             }
         }
 
-        console.log('✅ User authenticated:', session.user.email);
-        console.log('📋 Permissions loaded:', permissions.length, 'permissions');
-        console.log('👤 User type:', vaishnava.user_type, '| Superuser:', vaishnava.is_superuser);
+        console.log('✅ User authenticated');
+        console.log('📋 Permissions loaded:', permissions.length);
+        console.log('👤 User type:', vaishnava.user_type);
+
+        // Добавить класс роли на body для CSS-контроля
+        document.body.classList.add(`user-type-${vaishnava.user_type}`);
+        if (vaishnava.is_superuser) {
+            document.body.classList.add('is-superuser');
+        }
+
+        // Обновить аватар в хедере (Layout мог загрузиться раньше, чем auth завершился)
+        if (typeof Layout !== 'undefined' && Layout.updateUserInfo) {
+            Layout.updateUserInfo();
+        }
+
+        // Глобальная функция применения прав к UI-элементам
+        window.applyPermissions = function() {
+            if (!window.currentUser || !window.hasPermission) return;
+            if (window.currentUser.is_superuser) {
+                // Суперюзер видит всё — скрыть сообщения об отсутствии прав
+                document.querySelectorAll('[data-no-permission]').forEach(el => {
+                    el.style.display = 'none';
+                });
+                return;
+            }
+
+            // Скрыть элементы без нужных прав
+            document.querySelectorAll('[data-permission]').forEach(el => {
+                const perm = el.getAttribute('data-permission');
+                if (!window.hasPermission(perm)) {
+                    el.style.display = 'none';
+                    el.classList.add('permission-hidden');
+                    if (el.tagName === 'BUTTON' || el.tagName === 'INPUT') {
+                        el.disabled = true;
+                    }
+                }
+            });
+
+            // Показать сообщения когда НЕТ прав (обратная логика)
+            document.querySelectorAll('[data-no-permission]').forEach(el => {
+                const perm = el.getAttribute('data-no-permission');
+                if (window.hasPermission(perm)) {
+                    el.style.display = 'none'; // Есть права — скрыть сообщение
+                } else {
+                    el.style.display = ''; // Нет прав — показать сообщение
+                }
+            });
+        };
+
+        // Применить права к статическим элементам
+        if (document.readyState === 'loading') {
+            document.addEventListener('DOMContentLoaded', window.applyPermissions);
+        } else {
+            window.applyPermissions();
+        }
+
+        // Применить повторно через 500мс для динамического контента
+        setTimeout(window.applyPermissions, 500);
+
+        console.log('✅ Permissions system ready');
+
+        // Отправить событие о готовности авторизации
+        window.dispatchEvent(new CustomEvent('authReady', { detail: window.currentUser }));
 
     } catch (err) {
         console.error('Auth check exception:', err);
-        window.location.href = '/login.html';
+        const returnUrl = encodeURIComponent(window.location.pathname + window.location.search);
+        window.location.href = '/login.html?redirect=' + returnUrl;
     }
 })();

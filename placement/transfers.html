@@ -182,12 +182,12 @@
     <div id="footer-placeholder"></div>
 
     <script src="../js/config.js"></script>
-    <script src="../js/auth-check.js?v=2"></script>
+    <script src="../js/auth-check.js?v=3"></script>
     <script src="../js/cache.js"></script>
-    <script src="../js/utils.js"></script>
+    <script src="../js/utils.js?v=2"></script>
     <script src="../js/translit.js"></script>
     <script src="../js/auto-translate.js"></script>
-    <script src="../js/layout.js"></script>
+    <script src="../js/layout.js?v=5"></script>
     <script>
         let transfers = [];
         let residentsMap = new Map();
@@ -500,10 +500,15 @@
         // ==================== ТАКСИ ====================
         function renderTaxiBadge(transfer) {
             const taxiIcon = '<svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4" viewBox="0 0 103.07 59.75" fill="currentColor"><path d="M5.75,53.47c-1.68-1.71-2.63-4.23-2.68-6.64,2.97-10.49,6.26-20.89,9.36-31.35,1.71-5.78,1.81-10.95,9.24-12.11h58.86c3.74.23,7.15,2.76,8.35,6.35.33,1,.31,1.98.58,2.89,3.38,11.42,6.9,22.8,10.18,34.25-.11,4.72-3.5,8.64-8.16,9.3H11.55c-2.09-.16-4.35-1.22-5.8-2.7ZM21.72,9.78c-2.2.69-1.86,2.64-2.36,4.28-3.3,10.95-6.61,21.9-9.85,32.87-.47,2.23,1.92,3.11,3.77,3.19h76.19c1.99-.17,3.63-.69,3.83-2.97-3.25-10.64-6.4-21.3-9.61-31.95-.48-1.59-.56-4.58-2.24-5.26l-59.73-.16Z"/><polygon points="60.75 20.68 63.64 26.16 67.25 20.68 72.58 20.68 66.57 29.82 72.29 38.86 66.96 38.86 63.64 33.67 61.04 38.86 55.27 38.86 60.98 29.81 55.27 20.68 60.75 20.68"/><path d="M37.96,38.86l6.09-18.15,4.45-.05,6.48,18.2h-4.76l-1.27-3.29-4.91-.14-.89,3.43h-5.19ZM48.06,31.93c-.5-1.5-.78-3.12-1.3-4.61-.1-.28-.03-.66-.42-.58l-1.45,5.19h3.17Z"/><polygon points="39.12 20.68 39.12 25.01 33.92 25.01 33.92 38.86 28.73 38.86 28.73 25.01 23.54 25.01 23.54 20.68 39.12 20.68"/><rect x="74.03" y="20.68" width="5.19" height="18.18"/></svg>';
+            const canManage = window.hasPermission && window.hasPermission('manage_transfers');
             if (transfer.taxi_status === 'ordered') {
-                return `<div class="badge badge-success gap-1 cursor-pointer" onclick="event.stopPropagation(); showTaxiDetails('${transfer.id}')">${taxiIcon}Такси заказано</div>`;
+                return canManage
+                    ? `<div class="badge badge-success gap-1 cursor-pointer" onclick="event.stopPropagation(); showTaxiDetails('${transfer.id}')">${taxiIcon}Такси заказано</div>`
+                    : `<div class="badge badge-success gap-1">${taxiIcon}Такси заказано</div>`;
             }
-            return `<button class="btn btn-xs btn-outline gap-1" onclick="event.stopPropagation(); openTaxiModal('${transfer.id}')">${taxiIcon}Заказать такси</button>`;
+            return canManage
+                ? `<button class="btn btn-xs btn-outline gap-1" onclick="event.stopPropagation(); openTaxiModal('${transfer.id}')">${taxiIcon}Заказать такси</button>`
+                : '';
         }
 
         function renderTaxiCards() {
@@ -598,6 +603,7 @@
         }
 
         function renderTaxiCard(transfer, isOrdered = false) {
+            const canManage = window.hasPermission && window.hasPermission('manage_transfers');
             const reg = transfer.retreat_registrations;
             const v = reg?.vaishnavas;
             const retreat = reg?.retreats;
@@ -703,6 +709,7 @@
                         </div>
 
                         <!-- Action Buttons -->
+                        ${canManage ? `
                         <div class="card-actions mt-3 gap-2">
                             ${isOrdered
                                 ? `<button class="btn btn-sm btn-success btn-outline flex-1 gap-1" onclick="event.stopPropagation(); showTaxiDetails('${transfer.id}')">
@@ -729,6 +736,7 @@
                                   </button>`
                             }
                         </div>
+                        ` : ''}
                     </div>
                 </div>
             `;
@@ -751,7 +759,7 @@
             const orderedBy = document.getElementById('taxiOrderedBy').value.trim();
 
             if (!orderedBy) {
-                alert(t('specify_your_name'));
+                Layout.showNotification(t('specify_your_name'), 'warning');
                 return;
             }
 
@@ -768,7 +776,7 @@
 
             if (error) {
                 console.error('Error saving taxi order:', error);
-                alert(t('error_saving') + ': ' + error.message);
+                Layout.showNotification(t('error_saving') + ': ' + error.message, 'error');
                 return;
             }
 
@@ -805,7 +813,7 @@
             const orderedBy = document.getElementById('taxiDetailsOrderedBy').value.trim();
 
             if (!orderedBy) {
-                alert(t('specify_your_name'));
+                Layout.showNotification(t('specify_your_name'), 'warning');
                 return;
             }
 
@@ -819,7 +827,7 @@
 
             if (error) {
                 console.error('Error updating taxi details:', error);
-                alert(t('error_saving') + ': ' + error.message);
+                Layout.showNotification(t('error_saving') + ': ' + error.message, 'error');
                 return;
             }
 
@@ -858,7 +866,7 @@
 
             if (error) {
                 console.error('Error cancelling taxi:', error);
-                alert(t('cancel_error') + ': ' + error.message);
+                Layout.showNotification(t('cancel_error') + ': ' + error.message, 'error');
                 return;
             }
 

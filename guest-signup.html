@@ -71,7 +71,7 @@
                 </div>
 
                 <div class="form-control mt-6">
-                    <button type="submit" class="btn btn-primary">
+                    <button type="submit" class="btn bg-[#4A7C59] hover:bg-[#3d6649] text-white border-none">
                         Зарегистрироваться
                     </button>
                 </div>
@@ -81,7 +81,7 @@
 
             <p class="text-sm text-center">
                 Уже есть аккаунт?
-                <a href="/login.html" class="link link-primary">Войти</a>
+                <a href="/login/" class="link text-[#4A7C59] hover:text-[#3d6649]">Войти</a>
             </p>
         </div>
     </div>
@@ -171,10 +171,10 @@
                 if (signInError) {
                     // Если не удалось залогинить сразу, отправить на login
                     alert('✅ Регистрация успешна! Теперь войдите в систему.');
-                    window.location.href = '/login.html';
+                    window.location.href = '/login/';
                 } else {
-                    // Успешная авторизация - переход на профиль
-                    window.location.href = `/vaishnavas/person.html?id=${vData.id}`;
+                    // Успешная авторизация - переход в guest portal
+                    window.location.href = '/guest-portal/';
                 }
 
             } catch (err) {

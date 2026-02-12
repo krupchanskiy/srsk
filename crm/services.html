@@ -1,0 +1,380 @@
+<!DOCTYPE html>
+<html lang="ru" data-theme="light">
+<head>
+    <script src="../js/color-init.js"></script>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Услуги и цены — CRM — ШРСК</title>
+    <link href="https://cdn.jsdelivr.net/npm/daisyui@4.12.14/dist/full.min.css" rel="stylesheet" />
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script>tailwind.config = { theme: { extend: { screens: { 'desktop': '1200px' } } } }</script>
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="../css/common.css">
+</head>
+<body class="bg-base-200 min-h-screen flex flex-col">
+
+<div id="header-placeholder"></div>
+
+<main class="container mx-auto px-4 py-6 flex-1">
+    <!-- Заголовок -->
+    <div class="flex justify-between items-center mb-6">
+        <h1 class="text-2xl font-bold" data-i18n="nav_crm_services">Услуги и цены</h1>
+        <button class="btn btn-primary" onclick="openAddModal()" data-permission="edit_crm_settings">
+            + <span data-i18n="add">Добавить</span>
+        </button>
+    </div>
+
+    <!-- Таблица услуг -->
+    <div class="card bg-base-100 shadow-sm">
+        <div class="card-body p-0">
+            <div class="overflow-x-auto">
+                <table class="table table-zebra">
+                    <thead>
+                        <tr>
+                            <th class="cursor-pointer hover:bg-base-200" onclick="setSort('name')" data-i18n="col_name">
+                                <span class="inline-flex items-center gap-1">Название <span id="sort-name" class="text-xs opacity-50">↑</span></span>
+                            </th>
+                            <th class="cursor-pointer hover:bg-base-200" onclick="setSort('category')" data-i18n="crm_category">
+                                <span class="inline-flex items-center gap-1">Категория <span id="sort-category" class="text-xs opacity-50"></span></span>
+                            </th>
+                            <th class="cursor-pointer hover:bg-base-200" onclick="setSort('unit')" data-i18n="crm_unit">
+                                <span class="inline-flex items-center gap-1">Единица <span id="sort-unit" class="text-xs opacity-50"></span></span>
+                            </th>
+                            <th class="cursor-pointer hover:bg-base-200" onclick="setSort('price')" data-i18n="crm_default_price">
+                                <span class="inline-flex items-center gap-1">Базовая цена (₹) <span id="sort-price" class="text-xs opacity-50"></span></span>
+                            </th>
+                            <th class="cursor-pointer hover:bg-base-200" onclick="setSort('status')" data-i18n="col_status">
+                                <span class="inline-flex items-center gap-1">Статус <span id="sort-status" class="text-xs opacity-50"></span></span>
+                            </th>
+                            <th class="w-20"></th>
+                        </tr>
+                    </thead>
+                    <tbody id="servicesTable">
+                        <tr><td colspan="6" class="text-center py-8">
+                            <span class="loading loading-spinner loading-md"></span>
+                        </td></tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</main>
+
+<div id="footer-placeholder"></div>
+
+<!-- Модалка добавления/редактирования -->
+<dialog id="serviceModal" class="modal">
+    <div class="modal-box">
+        <h3 class="font-bold text-lg mb-4" id="modalTitle">Услуга</h3>
+        <form id="serviceForm" onsubmit="saveService(event)">
+            <input type="hidden" id="serviceId">
+
+            <div class="form-control mb-3">
+                <label class="label"><span class="label-text" data-i18n="col_code">Код</span></label>
+                <input type="text" id="serviceCode" class="input input-bordered" required
+                       pattern="[a-z_]+" placeholder="org_fee">
+                <label class="label"><span class="label-text-alt">Латиница, нижнее подчёркивание</span></label>
+            </div>
+
+            <div class="grid grid-cols-2 gap-3 mb-3">
+                <div class="form-control">
+                    <label class="label"><span class="label-text">Название (RU)</span></label>
+                    <input type="text" id="serviceNameRu" class="input input-bordered" required>
+                </div>
+                <div class="form-control">
+                    <label class="label"><span class="label-text">Название (EN)</span></label>
+                    <input type="text" id="serviceNameEn" class="input input-bordered" required>
+                </div>
+            </div>
+
+            <div class="form-control mb-3">
+                <label class="label"><span class="label-text">Название (HI)</span></label>
+                <input type="text" id="serviceNameHi" class="input input-bordered">
+            </div>
+
+            <div class="grid grid-cols-2 gap-3 mb-3">
+                <div class="form-control">
+                    <label class="label"><span class="label-text" data-i18n="crm_category">Категория</span></label>
+                    <select id="serviceCategory" class="select select-bordered" required>
+                        <option value="accommodation">Проживание</option>
+                        <option value="meals">Питание</option>
+                        <option value="transport">Транспорт</option>
+                        <option value="other">Другое</option>
+                    </select>
+                </div>
+                <div class="form-control">
+                    <label class="label"><span class="label-text" data-i18n="crm_unit">Единица</span></label>
+                    <select id="serviceUnit" class="select select-bordered">
+                        <option value="day">день</option>
+                        <option value="piece">шт</option>
+                        <option value="person">чел</option>
+                    </select>
+                </div>
+            </div>
+
+            <div class="grid grid-cols-2 gap-3 mb-3">
+                <div class="form-control">
+                    <label class="label"><span class="label-text" data-i18n="crm_default_price">Базовая цена (₹)</span></label>
+                    <input type="number" id="servicePrice" class="input input-bordered" min="0" step="0.01" value="0">
+                </div>
+                <div class="form-control">
+                    <label class="label"><span class="label-text">Сортировка</span></label>
+                    <input type="number" id="serviceSortOrder" class="input input-bordered" min="0" value="0">
+                </div>
+            </div>
+
+            <div class="form-control mb-4">
+                <label class="label cursor-pointer justify-start gap-3">
+                    <input type="checkbox" id="serviceActive" class="checkbox checkbox-primary" checked>
+                    <span class="label-text" data-i18n="col_active">Активна</span>
+                </label>
+            </div>
+
+            <div class="modal-action">
+                <button type="button" class="btn" onclick="closeModal()">Отмена</button>
+                <button type="submit" class="btn btn-primary">Сохранить</button>
+            </div>
+        </form>
+    </div>
+    <form method="dialog" class="modal-backdrop"><button>close</button></form>
+</dialog>
+
+<script src="../js/config.js"></script>
+<script src="../js/auth-check.js"></script>
+<script src="../js/cache.js"></script>
+<script src="../js/utils.js?v=2"></script>
+<script src="../js/layout.js"></script>
+<script src="../js/crm-utils.js"></script>
+
+<script>
+const t = key => Layout.t(key);
+const e = str => Layout.escapeHtml(str);
+
+let services = [];
+let sortField = 'name';
+let sortDir = 'asc';
+
+// ==================== SORTING ====================
+function setSort(field) {
+    if (sortField === field) {
+        sortDir = sortDir === 'asc' ? 'desc' : 'asc';
+    } else {
+        sortField = field;
+        sortDir = 'asc';
+    }
+    updateSortIndicators();
+    sortServices();
+    renderTable();
+}
+
+function updateSortIndicators() {
+    ['name', 'category', 'unit', 'price', 'status'].forEach(f => {
+        const el = document.getElementById(`sort-${f}`);
+        if (el) el.textContent = sortField === f ? (sortDir === 'asc' ? '↑' : '↓') : '';
+    });
+}
+
+function sortServices() {
+    services.sort((a, b) => {
+        let aVal, bVal;
+
+        switch (sortField) {
+            case 'name':
+                aVal = Layout.getName(a)?.toLowerCase() || '';
+                bVal = Layout.getName(b)?.toLowerCase() || '';
+                break;
+            case 'category':
+                aVal = a.category || '';
+                bVal = b.category || '';
+                break;
+            case 'unit':
+                aVal = a.unit || '';
+                bVal = b.unit || '';
+                break;
+            case 'price':
+                aVal = a.default_price_inr || 0;
+                bVal = b.default_price_inr || 0;
+                break;
+            case 'status':
+                aVal = a.is_active ? 1 : 0;
+                bVal = b.is_active ? 1 : 0;
+                break;
+            default:
+                aVal = Layout.getName(a)?.toLowerCase() || '';
+                bVal = Layout.getName(b)?.toLowerCase() || '';
+        }
+
+        if (aVal < bVal) return sortDir === 'asc' ? -1 : 1;
+        if (aVal > bVal) return sortDir === 'asc' ? 1 : -1;
+        return 0;
+    });
+}
+
+// ==================== DATA ====================
+async function loadServices() {
+    const { data, error } = await Layout.db
+        .from('crm_services')
+        .select('*')
+        .order('sort_order');
+
+    if (error) {
+        Layout.handleError(error, 'Загрузка услуг');
+        return;
+    }
+    services = data || [];
+    sortServices();
+    renderTable();
+    updateSortIndicators();
+}
+
+// ==================== RENDER ====================
+function renderTable() {
+    const tbody = document.getElementById('servicesTable');
+
+    if (services.length === 0) {
+        tbody.innerHTML = `<tr><td colspan="6" class="text-center py-8 text-base-content/50">
+            ${t('crm_no_services') || 'Нет услуг'}
+        </td></tr>`;
+        return;
+    }
+
+    const categoryLabels = {
+        accommodation: t('crm_cat_accommodation') || 'Проживание',
+        meals: t('crm_cat_meals') || 'Питание',
+        transport: t('crm_cat_transport') || 'Транспорт',
+        other: t('crm_cat_other') || 'Другое'
+    };
+
+    const unitLabels = {
+        day: t('crm_unit_day') || 'день',
+        piece: t('crm_unit_piece') || 'шт',
+        person: t('crm_unit_person') || 'чел'
+    };
+
+    tbody.innerHTML = services.map(s => `
+        <tr>
+            <td>
+                <div class="font-medium">${e(Layout.getName(s))}</div>
+                <div class="text-xs text-base-content/50">${e(s.code)}</div>
+            </td>
+            <td>${categoryLabels[s.category] || s.category}</td>
+            <td>${unitLabels[s.unit] || s.unit || '—'}</td>
+            <td class="font-mono">${CrmUtils.formatMoney(s.default_price)}</td>
+            <td>
+                ${s.is_active
+                    ? '<span class="badge badge-success badge-sm">Активна</span>'
+                    : '<span class="badge badge-ghost badge-sm">Неактивна</span>'}
+            </td>
+            <td>
+                <div class="flex gap-1">
+                    <button class="btn btn-ghost btn-xs" onclick="editService('${s.id}')"
+                            data-permission="edit_crm_settings" title="Редактировать">${CrmUtils.UI_ICONS.edit}</button>
+                    <button class="btn btn-ghost btn-xs text-error" onclick="deleteService('${s.id}')"
+                            data-permission="edit_crm_settings" title="Удалить">${CrmUtils.UI_ICONS.trash}</button>
+                </div>
+            </td>
+        </tr>
+    `).join('');
+}
+
+// ==================== MODAL ====================
+function openAddModal() {
+    document.getElementById('modalTitle').textContent = 'Новая услуга';
+    document.getElementById('serviceForm').reset();
+    document.getElementById('serviceId').value = '';
+    document.getElementById('serviceActive').checked = true;
+    document.getElementById('serviceModal').showModal();
+}
+
+function editService(id) {
+    const service = services.find(s => s.id === id);
+    if (!service) return;
+
+    document.getElementById('modalTitle').textContent = 'Редактирование услуги';
+    document.getElementById('serviceId').value = service.id;
+    document.getElementById('serviceCode').value = service.code;
+    document.getElementById('serviceNameRu').value = service.name_ru || '';
+    document.getElementById('serviceNameEn').value = service.name_en || '';
+    document.getElementById('serviceNameHi').value = service.name_hi || '';
+    document.getElementById('serviceCategory').value = service.category;
+    document.getElementById('serviceUnit').value = service.unit || 'piece';
+    document.getElementById('servicePrice').value = service.default_price || 0;
+    document.getElementById('serviceSortOrder').value = service.sort_order || 0;
+    document.getElementById('serviceActive').checked = service.is_active;
+
+    document.getElementById('serviceModal').showModal();
+}
+
+function closeModal() {
+    document.getElementById('serviceModal').close();
+}
+
+// ==================== SAVE ====================
+async function saveService(event) {
+    event.preventDefault();
+
+    const id = document.getElementById('serviceId').value;
+    const data = {
+        code: document.getElementById('serviceCode').value.trim().toLowerCase(),
+        name_ru: document.getElementById('serviceNameRu').value.trim(),
+        name_en: document.getElementById('serviceNameEn').value.trim(),
+        name_hi: document.getElementById('serviceNameHi').value.trim() || null,
+        category: document.getElementById('serviceCategory').value,
+        unit: document.getElementById('serviceUnit').value,
+        default_price: parseFloat(document.getElementById('servicePrice').value) || 0,
+        sort_order: parseInt(document.getElementById('serviceSortOrder').value) || 0,
+        is_active: document.getElementById('serviceActive').checked
+    };
+
+    let error;
+    if (id) {
+        ({ error } = await Layout.db.from('crm_services').update(data).eq('id', id));
+    } else {
+        ({ error } = await Layout.db.from('crm_services').insert(data));
+    }
+
+    if (error) {
+        Layout.handleError(error, 'Сохранение услуги');
+        return;
+    }
+
+    Layout.showNotification(t('saved') || 'Сохранено', 'success');
+    closeModal();
+    await loadServices();
+}
+
+// ==================== DELETE ====================
+async function deleteService(id) {
+    const service = services.find(s => s.id === id);
+    if (!service) return;
+
+    if (!confirm(`Удалить услугу "${Layout.getName(service)}"?`)) return;
+
+    const { error } = await Layout.db.from('crm_services').delete().eq('id', id);
+
+    if (error) {
+        Layout.handleError(error, 'Удаление услуги');
+        return;
+    }
+
+    Layout.showNotification(t('deleted') || 'Удалено', 'success');
+    await loadServices();
+}
+
+// ==================== INIT ====================
+async function init() {
+    await Layout.init({
+        module: 'crm',
+        menuId: 'crm_settings',
+        itemId: 'crm_services'
+    });
+
+    await loadServices();
+}
+
+init();
+</script>
+
+</body>
+</html>

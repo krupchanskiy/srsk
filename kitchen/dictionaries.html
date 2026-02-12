@@ -90,12 +90,12 @@
     </dialog>
 
     <script src="../js/config.js"></script>
-    <script src="../js/auth-check.js?v=2"></script>
+    <script src="../js/auth-check.js?v=3"></script>
     <script src="../js/cache.js"></script>
-    <script src="../js/utils.js"></script>
+    <script src="../js/utils.js?v=2"></script>
     <script src="../js/translit.js"></script>
     <script src="../js/auto-translate.js"></script>
-    <script src="../js/layout.js"></script>
+    <script src="../js/layout.js?v=5"></script>
     <script>
         // ==================== STATE ====================
         let currentTab = 'recipe_categories';
@@ -262,15 +262,17 @@
                 );
             }
 
+            const canEdit = window.hasPermission && window.hasPermission('edit_kitchen_dictionaries');
+
             const headerCells = config.columns.map(col =>
                 `<th class="bg-base-100 ${col.width || ''}">${col.label ? t(col.label) : ''}</th>`
-            ).join('') + '<th class="bg-base-100 w-24"></th>';
+            ).join('') + (canEdit ? '<th class="bg-base-100 w-24"></th>' : '');
 
             // Для product_densities используем product_id как идентификатор строки
             const rowIdField = currentTab === 'product_densities' ? 'product_id' : 'id';
 
             const bodyRows = rows.length === 0
-                ? `<tr><td colspan="${config.columns.length + 1}" class="text-center py-8 opacity-50">${t('no_data')}</td></tr>`
+                ? `<tr><td colspan="${config.columns.length + (canEdit ? 1 : 0)}" class="text-center py-8 opacity-50">${t('no_data')}</td></tr>`
                 : rows.map(row => {
                     const rowId = row[rowIdField];
                     const cells = config.columns.map(col => {
@@ -280,9 +282,7 @@
                         return `<td>${row[col.key] || ''}</td>`;
                     }).join('');
 
-                    return `
-                        <tr class="border-b border-base-200 hover:bg-base-50" data-id="${rowId}">
-                            ${cells}
+                    const actionButtons = canEdit ? `
                             <td class="flex gap-1">
                                 <button class="btn btn-ghost btn-sm btn-square" onclick="openEditModal('${rowId}')">
                                     <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -294,7 +294,12 @@
                                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
                                     </svg>
                                 </button>
-                            </td>
+                            </td>` : '';
+
+                    return `
+                        <tr class="border-b border-base-200 hover:bg-base-50" data-id="${rowId}">
+                            ${cells}
+                            ${actionButtons}
                         </tr>
                     `;
                 }).join('');
@@ -307,15 +312,18 @@
                          oninput="filterDensities(this.value)" />`
                 : `<span class="text-sm opacity-60">${rows.length} ${t('items')}</span>`;
 
-            container.innerHTML = `
-                <div class="flex justify-between items-center mb-4">
-                    ${leftPanel}
+            const addButton = canEdit ? `
                     <button class="btn btn-primary btn-sm gap-2" onclick="openAddModal()">
                         <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" />
                         </svg>
                         <span data-i18n="add">${t('add')}</span>
-                    </button>
+                    </button>` : '';
+
+            container.innerHTML = `
+                <div class="flex justify-between items-center mb-4">
+                    ${leftPanel}
+                    ${addButton}
                 </div>
                 <div class="bg-base-100 rounded-xl shadow-sm overflow-hidden">
                     <div class="overflow-x-auto">
@@ -401,6 +409,10 @@
         }
 
         async function openAddModal() {
+            if (!window.hasPermission || !window.hasPermission('edit_kitchen_dictionaries')) {
+                Layout.showNotification('Недостаточно прав', 'error');
+                return;
+            }
             const config = tableConfig[currentTab];
             // Для плотностей загружаем продукты
             if (currentTab === 'product_densities') {
@@ -415,6 +427,10 @@
         }
 
         async function openEditModal(id) {
+            if (!window.hasPermission || !window.hasPermission('edit_kitchen_dictionaries')) {
+                Layout.showNotification('Недостаточно прав', 'error');
+                return;
+            }
             const config = tableConfig[currentTab];
             // Для плотностей ищем по product_id
             const item = currentTab === 'product_densities'
@@ -476,7 +492,7 @@
             }
 
             if (error) {
-                alert(t('error') + ': ' + error.message);
+                Layout.showNotification(t('error') + ': ' + error.message, 'error');
                 return false;
             }
 
@@ -489,6 +505,10 @@
         }
 
         async function deleteItem(id) {
+            if (!window.hasPermission || !window.hasPermission('edit_kitchen_dictionaries')) {
+                Layout.showNotification('Недостаточно прав', 'error');
+                return;
+            }
             if (!confirm(t('confirm_delete'))) return;
 
             const config = tableConfig[currentTab];
@@ -497,7 +517,7 @@
             const { error } = await Layout.db.from(config.table).delete().eq(idField, id);
 
             if (error) {
-                alert(t('error') + ': ' + error.message);
+                Layout.showNotification(t('error') + ': ' + error.message, 'error');
                 return;
             }
 
@@ -569,7 +589,7 @@
 
         // ==================== INIT ====================
         async function init() {
-            await Layout.init({ menuId: 'settings', itemId: 'dictionaries' });
+            await Layout.init({ module: 'kitchen', menuId: 'settings', itemId: 'dictionaries' });
             await loadData(currentTab);
         }
 

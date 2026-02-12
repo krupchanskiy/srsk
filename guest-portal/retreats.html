@@ -58,7 +58,8 @@
     <!-- Scripts -->
     <script src="js/portal-config.js"></script>
     <script src="js/portal-auth.js"></script>
-    <script src="js/portal-layout.js"></script>
+    <script src="js/portal-layout.js?v=5"></script>
+    <script src="../js/date-utils.js"></script>
     <script src="js/portal-data.js"></script>
 
     <script>
@@ -86,10 +87,25 @@
             PortalLayout.hideLoader();
         }
 
+        // Статусы CRM для отображения гостю
+        const CRM_STATUS_LABELS = {
+            lead: { ru: 'Заявка принята', en: 'Application received', icon: '📝' },
+            contacted: { ru: 'Связались с вами', en: 'Contacted', icon: '📞' },
+            invoice_sent: { ru: 'Счёт отправлен', en: 'Invoice sent', icon: '📧' },
+            prepaid: { ru: 'Предоплата получена', en: 'Prepaid', icon: '💳' },
+            tickets: { ru: 'Билеты подтверждены', en: 'Tickets confirmed', icon: '✈️' },
+            room_booked: { ru: 'Комната забронирована', en: 'Room booked', icon: '🏠' },
+            checked_in: { ru: 'Вы на ретрите', en: 'Checked in', icon: '✅' },
+            fully_paid: { ru: 'Полная оплата', en: 'Fully paid', icon: '💰' }
+        };
+
         function renderRetreats(data) {
             const container = document.getElementById('retreats-content');
 
             container.innerHTML = `
+                <!-- Активные заявки CRM -->
+                ${renderCrmDeals(data.crmDeals)}
+
                 <!-- Текущий ретрит -->
                 ${data.currentRetreat ? renderCurrentRetreat(data.currentRetreat) : ''}
 
@@ -143,7 +159,7 @@
                                 <div class="flex items-center justify-between">
                                     <div class="flex items-center gap-4">
                                         <div class="w-12 h-12 bg-srsk-orange/20 rounded-lg flex flex-col items-center justify-center">
-                                            <span class="text-lg font-bold text-srsk-orange">${new Date(reg.retreat.start_date).getDate()}</span>
+                                            <span class="text-lg font-bold text-srsk-orange">${DateUtils.parseDate(reg.retreat.start_date).getDate()}</span>
                                             <span class="text-xs text-srsk-orange">${getMonthShort(reg.retreat.start_date)}</span>
                                         </div>
                                         <div>
@@ -181,7 +197,7 @@
                                 <div class="card p-4 hover:shadow-md transition-shadow">
                                     <div class="flex items-start gap-4">
                                         <div class="w-14 h-14 bg-srsk-green/10 rounded-lg flex flex-col items-center justify-center flex-shrink-0">
-                                            <span class="text-xl font-bold text-srsk-green">${new Date(retreat.start_date).getDate()}</span>
+                                            <span class="text-xl font-bold text-srsk-green">${DateUtils.parseDate(retreat.start_date).getDate()}</span>
                                             <span class="text-xs text-srsk-green">${getMonthShort(retreat.start_date)}</span>
                                         </div>
                                         <div class="flex-1 min-w-0">
@@ -192,10 +208,19 @@
                                             ` : ''}
                                         </div>
                                     </div>
-                                    <div class="mt-4 pt-4 border-t flex justify-end">
-                                        <button class="btn-secondary text-sm py-1.5" disabled title="${t('portal_registration_coming_soon')}">
-                                            ${t('portal_register_btn')}
-                                        </button>
+                                    <div class="mt-4 pt-4 border-t flex justify-end gap-2">
+                                        <a href="/retreat.html?id=${retreat.id}" class="btn-ghost text-sm py-1.5">
+                                            ${t('portal_view_details')}
+                                        </a>
+                                        ${retreat.registration_open ? `
+                                            <a href="/retreat.html?id=${retreat.id}" class="btn-primary text-sm py-1.5">
+                                                ${t('portal_register_btn')}
+                                            </a>
+                                        ` : `
+                                            <button class="btn-secondary text-sm py-1.5" disabled title="${t('portal_registration_coming_soon')}">
+                                                ${t('portal_register_btn')}
+                                            </button>
+                                        `}
                                     </div>
                                 </div>
                             `).join('')}
@@ -249,13 +274,68 @@
             `;
         }
 
+        function renderCrmDeals(deals) {
+            if (!deals || deals.length === 0) return '';
+
+            const lang = PortalLayout.getLang();
+
+            return `
+                <div class="mb-6">
+                    <h2 class="section-title">${lang === 'ru' ? '📋 Мои заявки' : '📋 My Applications'}</h2>
+                    <p class="section-subtitle">${lang === 'ru' ? 'Статус ваших заявок на ретриты' : 'Status of your retreat applications'}</p>
+
+                    <div class="space-y-3">
+                        ${deals.map(deal => {
+                            const retreat = deal.retreat;
+                            const statusInfo = CRM_STATUS_LABELS[deal.status] || { ru: deal.status, en: deal.status, icon: '📝' };
+                            const statusLabel = lang === 'ru' ? statusInfo.ru : statusInfo.en;
+
+                            return `
+                                <div class="card p-4">
+                                    <div class="flex items-start justify-between gap-4">
+                                        <div class="flex items-center gap-4">
+                                            <div class="w-12 h-12 bg-emerald-100 rounded-lg flex flex-col items-center justify-center">
+                                                <span class="text-2xl">${statusInfo.icon}</span>
+                                            </div>
+                                            <div>
+                                                <h3 class="font-semibold text-gray-800">${escapeHtml(getName(retreat))}</h3>
+                                                <p class="text-sm text-gray-500">${formatDateRange(retreat?.start_date, retreat?.end_date)}</p>
+                                            </div>
+                                        </div>
+                                        <div class="text-right">
+                                            <span class="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium bg-emerald-100 text-emerald-800">
+                                                ${statusLabel}
+                                            </span>
+                                            ${deal.total_paid > 0 ? `
+                                                <div class="text-sm text-gray-500 mt-1">
+                                                    ${lang === 'ru' ? 'Оплачено' : 'Paid'}: ₹${deal.total_paid.toLocaleString()}
+                                                </div>
+                                            ` : ''}
+                                        </div>
+                                    </div>
+                                    ${deal.total_services > 0 && deal.total_services !== deal.total_paid ? `
+                                        <div class="mt-3 pt-3 border-t">
+                                            <div class="flex justify-between text-sm">
+                                                <span class="text-gray-500">${lang === 'ru' ? 'К оплате' : 'To pay'}:</span>
+                                                <span class="font-medium">₹${(deal.total_services - deal.total_paid).toLocaleString()}</span>
+                                            </div>
+                                        </div>
+                                    ` : ''}
+                                </div>
+                            `;
+                        }).join('')}
+                    </div>
+                </div>
+            `;
+        }
+
         function getDescription(retreat) {
             const lang = PortalLayout.getLang();
             return retreat[`description_${lang}`] || retreat.description_en || retreat.description_ru || '';
         }
 
         function getMonthShort(dateStr) {
-            const date = new Date(dateStr);
+            const date = DateUtils.parseDate(dateStr);
             const lang = PortalLayout.getLang();
             const locale = lang === 'ru' ? 'ru-RU' : lang === 'hi' ? 'hi-IN' : 'en-US';
             return date.toLocaleDateString(locale, { month: 'short' }).replace('.', '');

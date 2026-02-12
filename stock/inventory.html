@@ -44,6 +44,14 @@
             <button class="tab" data-tab="completed" onclick="switchTab('completed')" data-i18n="completed_inventories">Завершённые</button>
         </div>
 
+        <!-- Сообщение об отсутствии прав -->
+        <div class="alert alert-warning mb-6" data-no-permission="conduct_inventory" style="display: none;">
+            <svg xmlns="http://www.w3.org/2000/svg" class="stroke-current shrink-0 h-6 w-6" fill="none" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+            </svg>
+            <span>У вас нет прав для совершения действий на этой странице. Доступен только просмотр.</span>
+        </div>
+
         <!-- New Inventory Tab -->
         <div id="tabNew" class="tab-pane">
             <div class="bg-base-100 rounded-lg p-6 shadow-sm max-w-xl">
@@ -67,7 +75,7 @@
                         <textarea id="inventoryNotes" class="textarea textarea-bordered w-full" rows="2"></textarea>
                     </div>
 
-                    <button class="btn btn-primary w-full" onclick="createInventory()" data-i18n="create_inventory">
+                    <button class="btn btn-primary w-full" onclick="createInventory()" data-i18n="create_inventory" data-permission="conduct_inventory">
                         Создать инвентаризацию
                     </button>
                 </div>
@@ -153,7 +161,7 @@
             </div>
 
             <!-- Actions -->
-            <div class="flex justify-between items-center mt-4">
+            <div class="flex justify-between items-center mt-4" data-permission="conduct_inventory">
                 <button class="btn btn-ghost btn-error" onclick="cancelInventory()" data-i18n="cancel_inventory">
                     Отменить
                 </button>
@@ -180,12 +188,13 @@
     </dialog>
 
     <script src="../js/config.js"></script>
-    <script src="../js/auth-check.js?v=2"></script>
+    <script src="../js/auth-check.js?v=3"></script>
     <script src="../js/cache.js"></script>
-    <script src="../js/utils.js"></script>
+    <script src="../js/utils.js?v=2"></script>
     <script src="../js/translit.js"></script>
     <script src="../js/auto-translate.js"></script>
-    <script src="../js/layout.js"></script>
+    <script src="../js/date-utils.js"></script>
+    <script src="../js/layout.js?v=5"></script>
     <script>
         // ==================== STATE ====================
         let inventories = [];
@@ -378,7 +387,7 @@
         // ==================== CREATE INVENTORY ====================
         async function createInventory() {
             if (selectedCategories.size === 0) {
-                alert(tr('select_categories', 'Выберите хотя бы одну категорию'));
+                Layout.showNotification(tr('select_categories', 'Выберите хотя бы одну категорию'), 'warning');
                 return;
             }
 
@@ -399,7 +408,7 @@
 
             if (error) {
                 console.error('Error creating inventory:', error);
-                alert(tr('save_error', 'Ошибка создания'));
+                Layout.showNotification(tr('save_error', 'Ошибка создания'), 'error');
                 return;
             }
 
@@ -472,7 +481,7 @@
             const discrepancies = items.filter(i =>
                 i.actual_quantity !== null && i.actual_quantity !== i.expected_quantity
             ).length;
-            const date = new Date(inv.inventory_date).toLocaleDateString('ru-RU');
+            const date = DateUtils.parseDate(inv.inventory_date).toLocaleDateString('ru-RU');
 
             const borderColor = status === 'cancelled' ? 'border-gray-300' :
                                status === 'completed' ? 'border-green-500' : 'border-yellow-500';
@@ -539,7 +548,7 @@
             Layout.$('#nonZeroFilter').checked = false;
 
             Layout.$('#countingTitle').textContent = `${tr('inventory_title', 'Инвентаризация')} #${formatNumberWithYear(inv.number)}`;
-            Layout.$('#countingInfo').textContent = new Date(inv.inventory_date).toLocaleDateString('ru-RU');
+            Layout.$('#countingInfo').textContent = DateUtils.parseDate(inv.inventory_date).toLocaleDateString('ru-RU');
 
             // Disable apply button if completed/cancelled
             Layout.$('#applyBtn').disabled = inv.status !== 'in_progress';
@@ -808,9 +817,9 @@
 
         // ==================== INIT ====================
         async function init() {
-            await Layout.init({ menuId: 'stock', itemId: 'inventory' });
+            await Layout.init({ module: 'kitchen', menuId: 'stock', itemId: 'inventory' });
 
-            Layout.$('#inventoryDate').value = new Date().toISOString().split('T')[0];
+            Layout.$('#inventoryDate').value = DateUtils.toISO(new Date());
 
             const activeBtn = document.querySelector('#mainTabs .tab[data-tab="new"]');
             activeBtn.style.backgroundColor = 'var(--current-color)';

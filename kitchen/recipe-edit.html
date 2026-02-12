@@ -378,12 +378,12 @@
     </dialog>
 
     <script src="../js/config.js"></script>
-    <script src="../js/auth-check.js?v=2"></script>
+    <script src="../js/auth-check.js?v=3"></script>
     <script src="../js/cache.js"></script>
-    <script src="../js/utils.js"></script>
+    <script src="../js/utils.js?v=2"></script>
     <script src="../js/translit.js"></script>
     <script src="../js/auto-translate.js"></script>
-    <script src="../js/layout.js"></script>
+    <script src="../js/layout.js?v=5"></script>
     <script>
         // ==================== STATE ====================
         let recipeId = null;
@@ -427,10 +427,10 @@
                 }
             } catch (e) {
                 console.error('Translation error:', e);
+            } finally {
+                btn.classList.remove('loading');
+                btn.textContent = '🌐 Auto';
             }
-
-            btn.classList.remove('loading');
-            btn.textContent = '🌐 Auto';
         }
 
         async function autoTranslateStep(index, toLang, btn) {
@@ -453,10 +453,10 @@
                 instructions[index][toLang] = translated;
             } catch (e) {
                 console.error('Translation error:', e);
+            } finally {
+                btn.classList.remove('loading');
+                btn.textContent = '🌐 Auto';
             }
-
-            btn.classList.remove('loading');
-            btn.textContent = '🌐 Auto';
         }
 
         // ==================== TRANSLITERATION ====================
@@ -1019,7 +1019,14 @@
         }
 
         // ==================== SAVE / DELETE ====================
+        let saving = false;
+
         async function saveRecipe() {
+            if (saving) return;
+            saving = true;
+            // Блокируем все кнопки сохранения
+            document.querySelectorAll('[onclick="saveRecipe()"], #recipeForm [type="submit"]').forEach(btn => btn.disabled = true);
+
             const f = form();
 
             // Build instructions text
@@ -1050,11 +1057,8 @@
             try {
                 let savedRecipeId = recipeId;
 
-                console.log('Saving recipe data:', recipeData);
-
                 if (recipeId) {
                     // Update existing
-                    console.log('Updating recipe:', recipeId);
                     const { error } = await Layout.db.from('recipes').update(recipeData).eq('id', recipeId);
                     if (error) {
                         console.error('Update error:', error);
@@ -1062,7 +1066,6 @@
                     }
                 } else {
                     // Create new
-                    console.log('Creating new recipe');
                     const { data, error } = await Layout.db.from('recipes').insert(recipeData).select().single();
                     if (error) {
                         console.error('Insert error:', error);
@@ -1072,7 +1075,6 @@
                 }
 
                 // Save ingredients
-                console.log('Deleting old ingredients for:', savedRecipeId);
                 const { error: delError } = await Layout.db.from('recipe_ingredients').delete().eq('recipe_id', savedRecipeId);
                 if (delError) {
                     console.error('Delete ingredients error:', delError);
@@ -1088,7 +1090,6 @@
                         notes: ing.notes || null,
                         sort_order: idx + 1
                     }));
-                    console.log('Inserting ingredients:', ingData);
                     const { error: ingError } = await Layout.db.from('recipe_ingredients').insert(ingData);
                     if (ingError) {
                         console.error('Insert ingredients error:', ingError);
@@ -1119,12 +1120,13 @@
                 }
 
                 // Redirect to view page
-                console.log('Success! Redirecting to:', savedRecipeId);
                 window.location.href = `recipe.html?id=${savedRecipeId}`;
 
             } catch (err) {
                 console.error('Error saving recipe:', err);
-                alert(t('save_error') + ':\n' + (err.message || JSON.stringify(err)));
+                Layout.showNotification(t('save_error') + ': ' + (err.message || JSON.stringify(err)), 'error');
+                saving = false;
+                document.querySelectorAll('[onclick="saveRecipe()"], #recipeForm [type="submit"]').forEach(btn => btn.disabled = false);
             }
         }
 
@@ -1139,7 +1141,7 @@
                 window.location.href = 'recipes.html';
             } catch (err) {
                 console.error('Error deleting recipe:', err);
-                alert(t('delete_error') || 'Ошибка удаления: ' + err.message);
+                Layout.showNotification(t('delete_error') || 'Ошибка удаления: ' + err.message, 'error');
             }
         }
 
@@ -1180,7 +1182,7 @@
 
         // ==================== INIT ====================
         async function init() {
-            await Layout.init({ menuId: 'kitchen', itemId: 'recipes' });
+            await Layout.init({ module: 'kitchen', menuId: 'kitchen', itemId: 'recipes' });
 
             // Get recipe ID from URL
             const params = new URLSearchParams(window.location.search);

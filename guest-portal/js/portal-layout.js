@@ -208,6 +208,15 @@ function renderHeader(activeNav) {
                                     </svg>
                                     <span data-i18n="portal_my_profile">Мой профиль</span>
                                 </a>
+                                ${guest.isStaff ? `
+                                <hr class="my-1">
+                                <a href="materials-admin.html" class="flex items-center gap-2 px-4 py-2 text-sm text-gray-700 hover:bg-gray-100">
+                                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/>
+                                    </svg>
+                                    <span data-i18n="portal_materials_admin">Управление материалами</span>
+                                </a>
+                                ` : ''}
                                 <hr class="my-1">
                                 <button onclick="PortalAuth.logout()" class="flex items-center gap-2 px-4 py-2 text-sm text-red-600 hover:bg-gray-100 w-full text-left">
                                     <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -374,7 +383,7 @@ function hideLoader() {
 function formatDate(dateStr, options = {}) {
     if (!dateStr) return '';
 
-    const date = new Date(dateStr);
+    const date = DateUtils.parseDate(dateStr);
     const locale = currentLang === 'ru' ? 'ru-RU' : currentLang === 'hi' ? 'hi-IN' : 'en-US';
 
     const defaultOptions = {
@@ -392,8 +401,8 @@ function formatDate(dateStr, options = {}) {
 function formatDateRange(startDate, endDate) {
     if (!startDate || !endDate) return '';
 
-    const start = new Date(startDate);
-    const end = new Date(endDate);
+    const start = DateUtils.parseDate(startDate);
+    const end = DateUtils.parseDate(endDate);
     const locale = currentLang === 'ru' ? 'ru-RU' : currentLang === 'hi' ? 'hi-IN' : 'en-US';
 
     // Если один месяц

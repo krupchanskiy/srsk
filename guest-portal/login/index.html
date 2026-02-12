@@ -1,0 +1,598 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Вход | Rupa Seva</title>
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg">
+
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        'srsk-green': '#147D30',
+                        'srsk-green-light': '#1a9e3d',
+                        'srsk-orange': '#FFBA47',
+                        'srsk-bg': '#F5F3EF'
+                    }
+                }
+            }
+        }
+    </script>
+
+    <!-- Supabase -->
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+
+    <!-- Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans:wght@400;500;600;700&family=Noto+Sans+Devanagari:wght@400;500;600;700&display=swap" rel="stylesheet">
+
+    <!-- Portal CSS -->
+    <link rel="stylesheet" href="../css/portal.css">
+</head>
+<body class="bg-srsk-bg">
+
+    <div class="login-container">
+        <div class="login-card">
+            <!-- Логотип -->
+            <div class="flex justify-center mb-4">
+                <img src="../img/logo.svg" alt="ШРСК" class="h-24">
+            </div>
+
+            <!-- Заголовок -->
+            <h1 class="login-title" data-i18n="portal_login_title">Личный кабинет</h1>
+            <p class="login-subtitle" data-i18n="portal_login_subtitle">Войдите, чтобы продолжить</p>
+
+            <!-- Сообщение об ошибке -->
+            <div id="error-alert" class="alert alert-error hidden"></div>
+
+            <!-- Переключатель режима входа -->
+            <div class="flex rounded-lg bg-gray-100 p-1 mb-4" id="login-tabs">
+                <button type="button" id="tab-password" class="flex-1 py-2 px-3 text-sm font-medium rounded-md transition-colors bg-white shadow-sm text-gray-900" onclick="switchLoginMode('password')">
+                    <span data-i18n="portal_tab_password">По паролю</span>
+                </button>
+                <button type="button" id="tab-magic" class="flex-1 py-2 px-3 text-sm font-medium rounded-md transition-colors text-gray-500" onclick="switchLoginMode('magic')">
+                    <span data-i18n="portal_tab_magic">По ссылке</span>
+                </button>
+            </div>
+
+            <!-- Форма входа по паролю -->
+            <form id="login-form" class="space-y-4">
+                <div class="form-group">
+                    <label class="label" data-i18n="portal_email">Email</label>
+                    <input type="email" id="email" class="input" required
+                           placeholder="email@example.com"
+                           autocomplete="email">
+                </div>
+
+                <div class="form-group">
+                    <label class="label" data-i18n="portal_password">Пароль</label>
+                    <div class="relative">
+                        <input type="password" id="password" class="input pr-10" required
+                               placeholder="********"
+                               autocomplete="current-password">
+                        <button type="button" id="toggle-password"
+                                class="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600">
+                            <svg class="w-5 h-5" id="eye-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/>
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"/>
+                            </svg>
+                        </button>
+                    </div>
+                </div>
+
+                <button type="submit" id="submit-btn" class="btn-primary w-full">
+                    <span data-i18n="portal_login_btn">Войти</span>
+                    <svg id="loading-spinner" class="w-5 h-5 animate-spin hidden" fill="none" viewBox="0 0 24 24">
+                        <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                        <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                    </svg>
+                </button>
+
+                <button type="button" class="w-full text-sm text-gray-500 hover:text-srsk-green mt-2" onclick="showForgotPassword()">
+                    <span data-i18n="portal_forgot_password">Забыли пароль?</span>
+                </button>
+            </form>
+
+            <!-- Форма сброса пароля -->
+            <form id="forgot-form" class="space-y-4 hidden">
+                <div class="form-group">
+                    <label class="label" data-i18n="portal_email">Email</label>
+                    <input type="email" id="forgot-email" class="input" required
+                           placeholder="email@example.com"
+                           autocomplete="email">
+                </div>
+
+                <p class="text-sm text-gray-500" data-i18n="portal_forgot_hint">Мы отправим ссылку для сброса пароля</p>
+
+                <button type="submit" id="forgot-btn" class="btn-primary w-full">
+                    <span data-i18n="portal_send_reset_link">Отправить ссылку</span>
+                    <svg id="forgot-spinner" class="w-5 h-5 animate-spin hidden" fill="none" viewBox="0 0 24 24">
+                        <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                        <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                    </svg>
+                </button>
+
+                <button type="button" class="w-full text-sm text-gray-500 hover:text-srsk-green" onclick="hideForgotPassword()">
+                    <span data-i18n="portal_back_to_login">Вернуться к входу</span>
+                </button>
+            </form>
+
+            <!-- Сообщение об успешной отправке сброса -->
+            <div id="forgot-success" class="hidden text-center py-4">
+                <div class="w-12 h-12 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-3">
+                    <svg class="w-6 h-6 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/>
+                    </svg>
+                </div>
+                <p class="font-medium text-gray-900" data-i18n="portal_reset_link_sent">Ссылка отправлена!</p>
+                <p class="text-sm text-gray-500 mt-1" data-i18n="portal_check_email_reset">Проверьте почту и перейдите по ссылке для сброса пароля</p>
+                <button type="button" class="text-sm text-srsk-green mt-3 hover:underline" onclick="hideForgotPassword()">
+                    <span data-i18n="portal_back_to_login">Вернуться к входу</span>
+                </button>
+            </div>
+
+            <!-- Форма входа по magic link -->
+            <form id="magic-form" class="space-y-4 hidden">
+                <div class="form-group">
+                    <label class="label" data-i18n="portal_email">Email</label>
+                    <input type="email" id="magic-email" class="input" required
+                           placeholder="email@example.com"
+                           autocomplete="email">
+                </div>
+
+                <p class="text-sm text-gray-500" data-i18n="portal_magic_hint">Мы отправим ссылку для входа на вашу почту</p>
+
+                <button type="submit" id="magic-btn" class="btn-primary w-full">
+                    <span data-i18n="portal_send_link">Отправить ссылку</span>
+                    <svg id="magic-spinner" class="w-5 h-5 animate-spin hidden" fill="none" viewBox="0 0 24 24">
+                        <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                        <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                    </svg>
+                </button>
+            </form>
+
+            <!-- Сообщение об успешной отправке -->
+            <div id="magic-success" class="hidden text-center py-4">
+                <div class="w-12 h-12 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-3">
+                    <svg class="w-6 h-6 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/>
+                    </svg>
+                </div>
+                <p class="font-medium text-gray-900" data-i18n="portal_link_sent">Ссылка отправлена!</p>
+                <p class="text-sm text-gray-500 mt-1" data-i18n="portal_check_email">Проверьте вашу почту и перейдите по ссылке</p>
+                <button type="button" class="text-sm text-srsk-green mt-3 hover:underline" onclick="resetMagicForm()">
+                    <span data-i18n="portal_send_again">Отправить ещё раз</span>
+                </button>
+            </div>
+
+            <!-- Разделитель -->
+            <div class="relative my-6">
+                <div class="absolute inset-0 flex items-center">
+                    <div class="w-full border-t border-gray-200"></div>
+                </div>
+                <div class="relative flex justify-center text-sm">
+                    <span class="px-2 bg-white text-gray-500" data-i18n="portal_or">или</span>
+                </div>
+            </div>
+
+            <!-- Ссылка на регистрацию -->
+            <p class="text-center text-sm text-gray-600">
+                <span data-i18n="portal_no_account">Ещё нет аккаунта?</span>
+                <a href="/guest-signup.html" class="text-srsk-green font-medium hover:underline" data-i18n="portal_register">Зарегистрироваться</a>
+            </p>
+
+            <!-- Переключатель языка -->
+            <div class="flex justify-center gap-2 mt-6">
+                <button class="lang-btn px-3 py-1 text-sm rounded-lg" data-lang="ru">RU</button>
+                <button class="lang-btn px-3 py-1 text-sm rounded-lg" data-lang="en">EN</button>
+                <button class="lang-btn px-3 py-1 text-sm rounded-lg" data-lang="hi">HI</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Scripts -->
+    <script src="../js/portal-config.js"></script>
+    <script src="../js/portal-auth.js"></script>
+    <script>
+        const db = window.portalSupabase;
+        let currentLang = localStorage.getItem('srsk_lang') || 'ru';
+        let translations = {};
+
+        // Переводы для страницы логина (fallback если БД недоступна)
+        const fallbackTranslations = {
+            portal_login_title: { ru: 'Личный кабинет', en: 'Personal Account', hi: 'व्यक्तिगत खाता' },
+            portal_login_subtitle: { ru: 'Войдите, чтобы продолжить', en: 'Sign in to continue', hi: 'जारी रखने के लिए साइन इन करें' },
+            portal_email: { ru: 'Email', en: 'Email', hi: 'ईमेल' },
+            portal_password: { ru: 'Пароль', en: 'Password', hi: 'पासवर्ड' },
+            portal_login_btn: { ru: 'Войти', en: 'Sign In', hi: 'साइन इन' },
+            portal_or: { ru: 'или', en: 'or', hi: 'या' },
+            portal_no_account: { ru: 'Ещё нет аккаунта?', en: "Don't have an account?", hi: 'खाता नहीं है?' },
+            portal_register: { ru: 'Зарегистрироваться', en: 'Register', hi: 'पंजीकरण करें' },
+            portal_tab_password: { ru: 'По паролю', en: 'Password', hi: 'पासवर्ड' },
+            portal_tab_magic: { ru: 'По ссылке', en: 'Email link', hi: 'ईमेल लिंक' },
+            portal_magic_hint: { ru: 'Мы отправим ссылку для входа на вашу почту', en: 'We will send a login link to your email', hi: 'हम आपके ईमेल पर लॉगिन लिंक भेजेंगे' },
+            portal_send_link: { ru: 'Отправить ссылку', en: 'Send link', hi: 'लिंक भेजें' },
+            portal_link_sent: { ru: 'Ссылка отправлена!', en: 'Link sent!', hi: 'लिंक भेज दिया गया!' },
+            portal_check_email: { ru: 'Проверьте вашу почту и перейдите по ссылке', en: 'Check your email and click the link', hi: 'अपना ईमेल जांचें और लिंक पर क्लिक करें' },
+            portal_send_again: { ru: 'Отправить ещё раз', en: 'Send again', hi: 'फिर से भेजें' },
+            error_invalid_credentials: { ru: 'Неверный email или пароль', en: 'Invalid email or password', hi: 'गलत ईमेल या पासवर्ड' },
+            error_user_not_found: { ru: 'Пользователь не найден', en: 'User not found', hi: 'उपयोगकर्ता नहीं मिला' },
+            error_not_registered: { ru: 'Этот email не зарегистрирован. Пожалуйста, зарегистрируйтесь.', en: 'This email is not registered. Please sign up.', hi: 'यह ईमेल पंजीकृत नहीं है। कृपया साइन अप करें।' },
+            error_account_disabled: { ru: 'Ваш аккаунт деактивирован', en: 'Your account is disabled', hi: 'आपका खाता निष्क्रिय है' },
+            error_send_failed: { ru: 'Не удалось отправить ссылку. Попробуйте позже.', en: 'Failed to send link. Please try again.', hi: 'लिंक भेजने में विफल। कृपया पुनः प्रयास करें।' },
+            error_unknown: { ru: 'Произошла ошибка. Попробуйте позже.', en: 'An error occurred. Please try again.', hi: 'एक त्रुटि हुई। कृपया पुनः प्रयास करें।' },
+            portal_forgot_password: { ru: 'Забыли пароль?', en: 'Forgot password?', hi: 'पासवर्ड भूल गए?' },
+            portal_forgot_hint: { ru: 'Мы отправим ссылку для сброса пароля', en: 'We will send a password reset link', hi: 'हम पासवर्ड रीसेट लिंक भेजेंगे' },
+            portal_send_reset_link: { ru: 'Отправить ссылку', en: 'Send link', hi: 'लिंक भेजें' },
+            portal_back_to_login: { ru: 'Вернуться к входу', en: 'Back to login', hi: 'लॉगिन पर वापस' },
+            portal_reset_link_sent: { ru: 'Ссылка отправлена!', en: 'Link sent!', hi: 'लिंक भेज दिया गया!' },
+            portal_check_email_reset: { ru: 'Проверьте почту и перейдите по ссылке для сброса пароля', en: 'Check your email and click the link to reset password', hi: 'अपना ईमेल जांचें और पासवर्ड रीसेट करने के लिए लिंक पर क्लिक करें' },
+            error_cooldown: { ru: 'Подождите минуту перед повторной отправкой', en: 'Please wait a minute before sending again', hi: 'कृपया दोबारा भेजने से पहले एक मिनट प्रतीक्षा करें' }
+        };
+
+        // Загрузка переводов
+        async function loadTranslations() {
+            try {
+                const { data, error } = await db
+                    .from('translations')
+                    .select('key, ru, en, hi')
+                    .in('key', Object.keys(fallbackTranslations));
+
+                if (!error && data) {
+                    for (const row of data) {
+                        translations[row.key] = { ru: row.ru, en: row.en, hi: row.hi };
+                    }
+                }
+            } catch (e) {
+                console.warn('Не удалось загрузить переводы:', e);
+            }
+
+            // Добавляем fallback переводы
+            for (const [key, value] of Object.entries(fallbackTranslations)) {
+                if (!translations[key]) {
+                    translations[key] = value;
+                }
+            }
+        }
+
+        // Получить перевод
+        function t(key) {
+            const trans = translations[key] || fallbackTranslations[key];
+            if (!trans) return key;
+            return trans[currentLang] || trans['en'] || trans['ru'] || key;
+        }
+
+        // Обновить все переводы
+        function updateTranslations() {
+            document.querySelectorAll('[data-i18n]').forEach(el => {
+                el.textContent = t(el.dataset.i18n);
+            });
+
+            // Обновляем кнопки языка
+            document.querySelectorAll('.lang-btn').forEach(btn => {
+                btn.classList.toggle('active', btn.dataset.lang === currentLang);
+            });
+        }
+
+        // Показать ошибку
+        function showError(messageKey) {
+            const alert = document.getElementById('error-alert');
+            alert.textContent = t(messageKey);
+            alert.classList.remove('hidden');
+        }
+
+        // Скрыть ошибку
+        function hideError() {
+            document.getElementById('error-alert').classList.add('hidden');
+        }
+
+        // Переключение режима входа
+        let loginMode = 'password';
+
+        function switchLoginMode(mode) {
+            loginMode = mode;
+            hideError();
+
+            const tabPassword = document.getElementById('tab-password');
+            const tabMagic = document.getElementById('tab-magic');
+            const formPassword = document.getElementById('login-form');
+            const formMagic = document.getElementById('magic-form');
+            const magicSuccess = document.getElementById('magic-success');
+
+            if (mode === 'password') {
+                tabPassword.classList.add('bg-white', 'shadow-sm', 'text-gray-900');
+                tabPassword.classList.remove('text-gray-500');
+                tabMagic.classList.remove('bg-white', 'shadow-sm', 'text-gray-900');
+                tabMagic.classList.add('text-gray-500');
+                formPassword.classList.remove('hidden');
+                formMagic.classList.add('hidden');
+                magicSuccess.classList.add('hidden');
+            } else {
+                tabMagic.classList.add('bg-white', 'shadow-sm', 'text-gray-900');
+                tabMagic.classList.remove('text-gray-500');
+                tabPassword.classList.remove('bg-white', 'shadow-sm', 'text-gray-900');
+                tabPassword.classList.add('text-gray-500');
+                formMagic.classList.remove('hidden');
+                formPassword.classList.add('hidden');
+                magicSuccess.classList.add('hidden');
+            }
+        }
+
+        // Сброс формы magic link
+        function resetMagicForm() {
+            document.getElementById('magic-success').classList.add('hidden');
+            document.getElementById('magic-form').classList.remove('hidden');
+            document.getElementById('magic-email').value = '';
+        }
+
+        // Показать форму сброса пароля
+        function showForgotPassword() {
+            hideError();
+            document.getElementById('login-form').classList.add('hidden');
+            document.getElementById('forgot-form').classList.remove('hidden');
+            document.getElementById('forgot-success').classList.add('hidden');
+            document.getElementById('login-tabs').classList.add('hidden');
+        }
+
+        // Скрыть форму сброса пароля
+        function hideForgotPassword() {
+            hideError();
+            document.getElementById('forgot-form').classList.add('hidden');
+            document.getElementById('forgot-success').classList.add('hidden');
+            document.getElementById('login-form').classList.remove('hidden');
+            document.getElementById('forgot-email').value = '';
+            document.getElementById('login-tabs').classList.remove('hidden');
+        }
+
+        // Обработка формы сброса пароля
+        async function handleForgotPassword(e) {
+            e.preventDefault();
+            hideError();
+
+            const email = document.getElementById('forgot-email').value.trim();
+            const submitBtn = document.getElementById('forgot-btn');
+            const spinner = document.getElementById('forgot-spinner');
+
+            submitBtn.disabled = true;
+            spinner.classList.remove('hidden');
+
+            try {
+                const { error } = await db.auth.resetPasswordForEmail(email, {
+                    redirectTo: window.location.origin + '/reset-password/'
+                });
+
+                if (error) {
+                    console.error('Reset password error:', error);
+                    showError('error_send_failed');
+                    return;
+                }
+
+                // Успех — показываем сообщение
+                document.getElementById('forgot-form').classList.add('hidden');
+                document.getElementById('forgot-success').classList.remove('hidden');
+
+            } catch (error) {
+                console.error('Reset password error:', error);
+                showError('error_unknown');
+            } finally {
+                submitBtn.disabled = false;
+                spinner.classList.add('hidden');
+            }
+        }
+
+        // Обработка magic link формы
+        let magicLinkLastSent = 0;
+        const MAGIC_LINK_COOLDOWN = 60000; // 60 секунд
+
+        async function handleMagicLink(e) {
+            e.preventDefault();
+            hideError();
+
+            // Клиентский cooldown
+            const elapsed = Date.now() - magicLinkLastSent;
+            if (elapsed < MAGIC_LINK_COOLDOWN) {
+                const remaining = Math.ceil((MAGIC_LINK_COOLDOWN - elapsed) / 1000);
+                showError('error_cooldown');
+                return;
+            }
+
+            const email = document.getElementById('magic-email').value.trim();
+            const submitBtn = document.getElementById('magic-btn');
+            const spinner = document.getElementById('magic-spinner');
+
+            submitBtn.disabled = true;
+            spinner.classList.remove('hidden');
+
+            try {
+                const result = await window.PortalAuth.sendMagicLink(email);
+
+                if (!result.success) {
+                    if (result.isNewUser) {
+                        showError('error_not_registered');
+                    } else if (result.error === 'account_disabled') {
+                        showError('error_account_disabled');
+                    } else if (result.error === 'send_failed') {
+                        showError('error_send_failed');
+                    } else {
+                        showError('error_unknown');
+                    }
+                    return;
+                }
+
+                // Успех — записываем время отправки и показываем сообщение
+                magicLinkLastSent = Date.now();
+                document.getElementById('magic-form').classList.add('hidden');
+                document.getElementById('magic-success').classList.remove('hidden');
+
+            } catch (error) {
+                console.error('Magic link error:', error);
+                showError('error_unknown');
+            } finally {
+                submitBtn.disabled = false;
+                spinner.classList.add('hidden');
+            }
+        }
+
+        // Обработка формы
+        async function handleLogin(e) {
+            e.preventDefault();
+            hideError();
+
+            const email = document.getElementById('email').value.trim();
+            const password = document.getElementById('password').value;
+            const submitBtn = document.getElementById('submit-btn');
+            const spinner = document.getElementById('loading-spinner');
+
+            // Блокируем кнопку
+            submitBtn.disabled = true;
+            spinner.classList.remove('hidden');
+
+            try {
+                // Пробуем войти
+                const { data, error } = await db.auth.signInWithPassword({
+                    email: email,
+                    password: password
+                });
+
+                if (error) {
+                    showError('error_invalid_credentials');
+                    return;
+                }
+
+                // Проверяем пользователя
+                const { data: vaishnava, error: userError } = await db
+                    .from('vaishnavas')
+                    .select('user_type, is_active, is_team_member')
+                    .eq('user_id', data.user.id)
+                    .maybeSingle();
+
+                if (userError) {
+                    console.error('[Login] Query error:', userError);
+                    await db.auth.signOut();
+                    showError('error_user_not_found');
+                    return;
+                }
+
+                if (!vaishnava) {
+                    console.error('[Login] User not found for auth.uid:', data.user.id);
+                    await db.auth.signOut();
+                    showError('error_user_not_found');
+                    return;
+                }
+
+                if (vaishnava.is_active === false) {
+                    await db.auth.signOut();
+                    showError('error_account_disabled');
+                    return;
+                }
+
+                // Успешно! Редирект в зависимости от типа
+                const redirect = new URLSearchParams(window.location.search).get('redirect');
+                if (redirect) {
+                    window.location.href = redirect;
+                } else if (vaishnava.is_team_member) {
+                    // Команда → полное приложение
+                    window.location.href = '/';
+                } else {
+                    // Гость → гостевой портал
+                    window.location.href = '/guest-portal/';
+                }
+
+            } catch (error) {
+                console.error('Ошибка входа:', error);
+                showError('error_unknown');
+            } finally {
+                submitBtn.disabled = false;
+                spinner.classList.add('hidden');
+            }
+        }
+
+        // Toggle пароля
+        function togglePassword() {
+            const input = document.getElementById('password');
+            const icon = document.getElementById('eye-icon');
+
+            if (input.type === 'password') {
+                input.type = 'text';
+                icon.innerHTML = `
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.88 9.88l-3.29-3.29m7.532 7.532l3.29 3.29M3 3l3.59 3.59m0 0A9.953 9.953 0 0112 5c4.478 0 8.268 2.943 9.543 7a10.025 10.025 0 01-4.132 5.411m0 0L21 21"/>
+                `;
+            } else {
+                input.type = 'password';
+                icon.innerHTML = `
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/>
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"/>
+                `;
+            }
+        }
+
+        // Проверка сессии при загрузке
+        async function checkExistingSession() {
+            const { data: { session } } = await db.auth.getSession();
+
+            if (session) {
+                // Проверяем есть ли пользователь в vaishnavas
+                const { data: vaishnava } = await db
+                    .from('vaishnavas')
+                    .select('user_type, is_active, is_team_member')
+                    .eq('user_id', session.user.id)
+                    .single();
+
+                if (vaishnava && vaishnava.is_active !== false) {
+                    // Уже залогинен — редирект по типу
+                    if (vaishnava.is_team_member) {
+                        window.location.href = '/';
+                    } else {
+                        window.location.href = '/guest-portal/';
+                    }
+                    return;
+                }
+            }
+        }
+
+        // Инициализация
+        async function init() {
+            await loadTranslations();
+            updateTranslations();
+
+            // Показать причину редиректа если есть
+            const reason = new URLSearchParams(window.location.search).get('reason');
+            if (reason) {
+                const reasonMap = {
+                    'no_session': 'error_invalid_credentials',
+                    'user_not_found': 'error_user_not_found',
+                    'account_disabled': 'error_account_disabled'
+                };
+                if (reasonMap[reason]) {
+                    showError(reasonMap[reason]);
+                }
+            }
+
+            // Проверяем существующую сессию
+            await checkExistingSession();
+
+            // Обработчики событий
+            document.getElementById('login-form').addEventListener('submit', handleLogin);
+            document.getElementById('magic-form').addEventListener('submit', handleMagicLink);
+            document.getElementById('forgot-form').addEventListener('submit', handleForgotPassword);
+            document.getElementById('toggle-password').addEventListener('click', togglePassword);
+
+            // Переключатель языка
+            document.querySelectorAll('.lang-btn').forEach(btn => {
+                btn.addEventListener('click', () => {
+                    currentLang = btn.dataset.lang;
+                    localStorage.setItem('srsk_lang', currentLang);
+                    updateTranslations();
+                });
+            });
+        }
+
+        init();
+    </script>
+</body>
+</html>

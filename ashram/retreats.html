@@ -225,12 +225,61 @@
                     <input type="hidden" name="color" value="#6366f1" />
                 </div>
 
+                <!-- Registration Settings -->
+                <div class="divider text-sm opacity-50">Регистрация</div>
+
+                <!-- Registration Toggle -->
+                <div class="form-control">
+                    <label class="label cursor-pointer justify-start gap-3">
+                        <input type="checkbox" name="registration_open" class="toggle toggle-primary" />
+                        <span class="label-text font-medium">Регистрация открыта</span>
+                    </label>
+                </div>
+
+                <!-- Registration Dates -->
+                <div class="grid grid-cols-2 gap-4">
+                    <div>
+                        <label class="label"><span class="label-text font-medium">Начало регистрации</span></label>
+                        <input type="date" name="registration_start" class="input input-bordered w-full input-sm" />
+                    </div>
+                    <div>
+                        <label class="label"><span class="label-text font-medium">Окончание регистрации</span></label>
+                        <input type="date" name="registration_end" class="input input-bordered w-full input-sm" />
+                    </div>
+                </div>
+
+                <!-- Slug -->
+                <div>
+                    <label class="label"><span class="label-text font-medium">URL-slug (латиницей)</span></label>
+                    <div class="join w-full">
+                        <span class="join-item btn btn-sm no-animation">/retreat.html?slug=</span>
+                        <input type="text" name="slug" class="input input-bordered input-sm join-item flex-1" placeholder="vrindavan-2025" pattern="[a-z0-9\-]+" />
+                    </div>
+                    <p class="text-xs opacity-50 mt-1">Только строчные буквы, цифры и дефис</p>
+                </div>
+
+                <!-- Public Link (only when editing) -->
+                <div id="publicLinkSection" class="hidden">
+                    <label class="label"><span class="label-text font-medium">Публичная ссылка</span></label>
+                    <div class="join w-full">
+                        <input type="text" id="publicLinkInput" class="input input-bordered input-sm join-item flex-1 bg-base-200" readonly />
+                        <button type="button" class="btn btn-sm join-item btn-primary" onclick="copyPublicLink()">
+                            <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 5H6a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2v-1M8 5a2 2 0 002 2h2a2 2 0 002-2M8 5a2 2 0 012-2h2a2 2 0 012 2m0 0h2a2 2 0 012 2v3m2 4H10m0 0l3-3m-3 3l3 3" />
+                            </svg>
+                            Копировать
+                        </button>
+                    </div>
+                </div>
+
+                <div class="divider text-sm opacity-50">Медиа</div>
+
                 <!-- Image -->
                 <div>
                     <label class="label"><span class="label-text font-medium">Изображение</span></label>
                     <div class="flex items-start gap-4">
                         <!-- Preview -->
-                        <div id="imagePreview" class="w-32 h-20 rounded-lg bg-base-200 flex items-center justify-center overflow-hidden border border-base-300">
+                        <div id="imagePreview" class="w-24 h-24 rounded-lg bg-base-200 flex items-center justify-center overflow-hidden border border-base-300">
                             <svg xmlns="http://www.w3.org/2000/svg" class="h-8 w-8 opacity-30" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
                             </svg>
@@ -271,13 +320,14 @@
     </dialog>
 
     <script src="../js/config.js"></script>
-    <script src="../js/auth-check.js?v=2"></script>
-    <script src="../js/permissions-ui.js"></script>
+    <script src="../js/auth-check.js?v=3"></script>
+    <script src="../js/permissions-ui.js?v=2"></script>
     <script src="../js/cache.js"></script>
-    <script src="../js/utils.js"></script>
+    <script src="../js/utils.js?v=2"></script>
     <script src="../js/translit.js"></script>
     <script src="../js/auto-translate.js"></script>
-    <script src="../js/layout.js"></script>
+    <script src="../js/date-utils.js"></script>
+    <script src="../js/layout.js?v=5"></script>
     <script>
         // ==================== STATE ====================
         let retreats = [];
@@ -367,7 +417,7 @@
 
         // ==================== LIST VIEW ====================
         function filterRetreats() {
-            const today = new Date().toISOString().split('T')[0];
+            const today = DateUtils.toISO(new Date());
 
             return retreats.filter(r => {
                 if (currentFilter === 'upcoming') return r.end_date >= today;
@@ -381,8 +431,8 @@
             const opts = { day: 'numeric', month: 'short' };
             if (lang === 'en') opts.month = 'short';
 
-            const s = new Date(start);
-            const e = new Date(end);
+            const s = DateUtils.parseDate(start);
+            const e = DateUtils.parseDate(end);
             const sStr = s.toLocaleDateString(lang === 'hi' ? 'hi-IN' : lang === 'en' ? 'en-US' : 'ru-RU', opts);
             const eStr = e.toLocaleDateString(lang === 'hi' ? 'hi-IN' : lang === 'en' ? 'en-US' : 'ru-RU', { ...opts, year: 'numeric' });
 
@@ -390,8 +440,8 @@
         }
 
         function getDaysCount(start, end) {
-            const s = new Date(start);
-            const e = new Date(end);
+            const s = DateUtils.parseDate(start);
+            const e = DateUtils.parseDate(end);
             return Math.ceil((e - s) / (1000 * 60 * 60 * 24)) + 1;
         }
 
@@ -413,13 +463,13 @@
                 const name = Layout.getName(r);
                 const desc = r[`description_${lang}`] || r.description_ru || '';
                 const days = getDaysCount(r.start_date, r.end_date);
-                const today = new Date().toISOString().split('T')[0];
+                const today = DateUtils.toISO(new Date());
                 const isActive = r.start_date <= today && r.end_date >= today;
                 const isPast = r.end_date < today;
 
                 // Image or color bar
                 const imageBlock = r.image_url
-                    ? `<div class="w-24 h-16 rounded-lg overflow-hidden flex-shrink-0">
+                    ? `<div class="w-16 h-16 rounded-lg overflow-hidden flex-shrink-0">
                            <img src="${r.image_url}" class="w-full h-full object-cover" alt="${name}" />
                        </div>`
                     : `<div class="w-1 self-stretch rounded-full" style="background-color: ${r.color}"></div>`;
@@ -432,6 +482,7 @@
                             <div class="flex items-center gap-2 mb-1">
                                 <h3 class="font-bold text-lg">${name}</h3>
                                 ${isActive ? `<span class="badge badge-sm" style="background-color: ${r.color}; color: white;">Сейчас</span>` : ''}
+                                ${r.registration_open ? `<span class="badge badge-sm badge-success">Регистрация</span>` : ''}
                             </div>
                             ${desc ? `<p class="text-sm opacity-60 mb-2 line-clamp-2">${desc}</p>` : ''}
                             <div class="flex flex-wrap gap-3 text-sm opacity-70">
@@ -458,6 +509,12 @@
                             </div>
                         </div>
                         <div class="flex flex-col gap-2">
+                            <a href="../retreat.html?id=${r.id}" target="_blank" class="btn btn-ghost btn-sm gap-1" onclick="event.stopPropagation()" title="Открыть публичную страницу">
+                                <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
+                                </svg>
+                                <span>Страница</span>
+                            </a>
                             <a href="../vaishnavas/retreat-guests.html?id=${r.id}" class="btn btn-ghost btn-sm gap-1" onclick="event.stopPropagation()">
                                 <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z" />
@@ -494,7 +551,7 @@
             let startOffset = firstDay.getDay() - 1;
             if (startOffset < 0) startOffset = 6;
 
-            const today = new Date().toISOString().split('T')[0];
+            const today = DateUtils.toISO(new Date());
             let html = '';
 
             // Previous month days
@@ -607,6 +664,7 @@
             const form = document.getElementById('retreatForm');
             const title = document.getElementById('modalTitle');
             const deleteSection = document.getElementById('deleteSection');
+            const publicLinkSection = document.getElementById('publicLinkSection');
 
             form.reset();
             resetImagePreview();
@@ -625,6 +683,19 @@
                     renderColorPicker(retreat.color || COLORS[0]);
                     deleteSection.classList.remove('hidden');
 
+                    // Registration fields
+                    form.registration_open.checked = retreat.registration_open || false;
+                    form.registration_start.value = retreat.registration_start || '';
+                    form.registration_end.value = retreat.registration_end || '';
+                    form.slug.value = retreat.slug || '';
+
+                    // Show public link
+                    publicLinkSection.classList.remove('hidden');
+                    const publicUrl = retreat.slug
+                        ? `https://in.rupaseva.com/retreat.html?slug=${retreat.slug}`
+                        : `https://in.rupaseva.com/retreat.html?id=${retreat.id}`;
+                    document.getElementById('publicLinkInput').value = publicUrl;
+
                     // Show existing image
                     if (retreat.image_url) {
                         showImagePreview(retreat.image_url);
@@ -636,10 +707,18 @@
                 // Random default color
                 renderColorPicker(COLORS[Math.floor(Math.random() * COLORS.length)]);
                 deleteSection.classList.add('hidden');
+                publicLinkSection.classList.add('hidden');
             }
 
             Layout.setupAutoTranslate('#retreatForm', ['name', 'description']);
             modal.showModal();
+        }
+
+        function copyPublicLink() {
+            const input = document.getElementById('publicLinkInput');
+            navigator.clipboard.writeText(input.value).then(() => {
+                Layout.showNotification('Ссылка скопирована', 'success');
+            });
         }
 
         // ==================== IMAGE HANDLING ====================
@@ -733,7 +812,11 @@
                 end_date: form.end_date.value,
                 expected_participants: parseInt(form.expected_participants.value) || 0,
                 color: form.color.value,
-                image_url: form.image_url.value || null
+                image_url: form.image_url.value || null,
+                registration_open: form.registration_open.checked,
+                registration_start: form.registration_start.value || null,
+                registration_end: form.registration_end.value || null,
+                slug: form.slug.value.trim().toLowerCase() || null
             };
 
             try {
@@ -765,12 +848,13 @@
                     if (error) throw error;
                 }
 
+                Cache.invalidate('retreats'); Cache.invalidate('all_retreats');
                 closeModal();
                 retreats = await loadRetreats();
                 render();
             } catch (err) {
                 console.error('Error saving retreat:', err);
-                alert(t('error_saving') + ': ' + err.message);
+                Layout.showNotification(t('error_saving') + ': ' + err.message, 'error');
             } finally {
                 submitBtn.disabled = false;
                 submitBtn.innerHTML = t('save');
@@ -785,12 +869,13 @@
                 const { error } = await Layout.db.from('retreats').delete().eq('id', editingId);
                 if (error) throw error;
 
+                Cache.invalidate('retreats'); Cache.invalidate('all_retreats');
                 closeModal();
                 retreats = await loadRetreats();
                 render();
             } catch (err) {
                 console.error('Error deleting retreat:', err);
-                alert(t('error_deleting') + ': ' + err.message);
+                Layout.showNotification(t('error_deleting') + ': ' + err.message, 'error');
             }
         }
 
@@ -815,7 +900,7 @@
 
         function renderFilters() {
             const container = document.getElementById('listFilters');
-            const today = new Date().toISOString().split('T')[0];
+            const today = DateUtils.toISO(new Date());
 
             const counts = {
                 upcoming: retreats.filter(r => r.end_date >= today).length,
@@ -863,8 +948,32 @@
         window.onLanguageChange = () => updateUI();
 
         // ==================== INIT ====================
+        // Ждём событие authReady от auth-check.js
+        function waitForAuth(maxWait = 3000) {
+            return new Promise(resolve => {
+                if (window.currentUser) {
+                    resolve();
+                    return;
+                }
+                const handler = () => resolve();
+                window.addEventListener('authReady', handler, { once: true });
+                setTimeout(() => {
+                    window.removeEventListener('authReady', handler);
+                    resolve();
+                }, maxWait);
+            });
+        }
+
         async function init() {
-            await Layout.init({ menuId: 'ashram', itemId: 'retreats' });
+            await Layout.init({ module: 'admin', menuId: 'ashram', itemId: 'retreats' });
+            await waitForAuth();
+
+            // Модуль admin только для суперпользователей
+            if (!window.currentUser?.is_superuser) {
+                window.location.href = '../index.html';
+                return;
+            }
+
             Layout.showLoader();
 
             // Load retreats and holidays in parallel

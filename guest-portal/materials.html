@@ -3,10 +3,8 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Материалы | Rupa Seva Guest Portal</title>
+    <title>Материалы | Rupa Seva</title>
     <link rel="icon" type="image/svg+xml" href="/favicon.svg">
-
-    <!-- Tailwind CSS -->
     <script src="https://cdn.tailwindcss.com"></script>
     <script>
         tailwind.config = {
@@ -22,18 +20,11 @@
             }
         }
     </script>
-
-    <!-- Supabase -->
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-
-    <!-- Google Fonts -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Noto+Sans:wght@400;500;600;700&family=Noto+Sans+Devanagari:wght@400;500;600;700&display=swap" rel="stylesheet">
-
-    <!-- Portal CSS -->
     <link rel="stylesheet" href="css/portal.css">
-
     <style>
         .material-content h2 {
             font-size: 1.25rem;
@@ -67,53 +58,160 @@
             color: #147D30;
             text-decoration: underline;
         }
-        .material-content a:hover {
-            color: #1a9e3d;
-        }
         .material-content strong {
             font-weight: 600;
             color: #1f2937;
+        }
+        .material-card {
+            background: white;
+            border-radius: 12px;
+            padding: 16px;
+            display: flex;
+            align-items: center;
+            gap: 16px;
+            cursor: pointer;
+            transition: all 0.2s;
+            border: 2px solid transparent;
+        }
+        .material-card:hover {
+            border-color: #FFBA47;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.08);
+        }
+        .material-icon {
+            width: 48px;
+            height: 48px;
+            background: #f0fdf4;
+            border-radius: 12px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: #147D30;
+            flex-shrink: 0;
+        }
+        .lang-btn.active {
+            background-color: rgba(255, 255, 255, 0.2);
+            color: white;
         }
     </style>
 </head>
 <body class="bg-srsk-bg min-h-screen flex flex-col">
 
-    <div id="header-placeholder"></div>
+    <!-- Хедер -->
+    <header class="bg-srsk-green">
+        <div class="max-w-6xl mx-auto px-4 md:px-6 lg:px-8">
+            <div class="flex items-center justify-between h-16 relative">
+                <!-- Назад в профиль -->
+                <a href="index.html" class="flex items-center gap-1 text-white/80 hover:text-white text-sm">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"/>
+                    </svg>
+                    <span>в профиль</span>
+                </a>
 
-    <main class="container mx-auto px-4 py-6 flex-1">
-        <div class="max-w-4xl mx-auto">
+                <!-- Логотип по центру -->
+                <a href="index.html" class="flex items-center absolute left-1/2 -translate-x-1/2">
+                    <svg class="h-10" viewBox="0 0 308.75 98.28">
+                        <path fill="#FFBA47" d="M143.64,4.26h-4.62v24.95c0,1.89.04,3.53-.27,4.87-.31,1.36-.79,2.43-1.45,3.22-.61.86-1.48,1.47-2.59,1.84-.73.3-1.55.49-2.47.56-.31.06-.61.1-.92.1h-.19c-1.16-.06-2.2-.25-3.12-.56-1.16-.37-2.14-.95-2.93-1.75-.81-.86-1.39-1.96-1.74-3.32-.37-1.34-.56-3-.56-4.96V4.26h-4.6v27.15c0,4.17,1.16,7.29,3.49,9.37,1.16,1.05,2.61,1.82,4.33,2.3.36.13.78.23,1.28.29-4.23,1.53-7.11,3.62-8.65,6.25-2.15,3.24-2.21,7.35-.19,12.33l12.59,30.6,12.16-30.6c1.95-4.97,1.89-9.08-.19-12.33-1.47-2.58-4.25-4.63-8.36-6.15.49-.13.97-.26,1.45-.39,1.6-.48,2.95-1.28,4.04-2.37,1.16-1.11,2.03-2.49,2.59-4.14.61-1.71.92-3.74.92-6.08V4.26M139.21,51.92c1.23,2.21,1.17,5-.17,8.36l-8.02,20.76-8.45-20.76c-1.4-3.36-1.46-6.14-.17-8.36,1.41-2.28,4.19-3.96,8.36-5.06,4.17,1.1,6.98,2.79,8.45,5.06"/>
+                        <path fill="#fff" d="M26.44,33.99c0-1.56-.46-2.83-1.39-3.81-.93-.98-2.09-1.86-3.48-2.62-1.39-.76-2.91-1.48-4.54-2.14-1.63-.67-3.15-1.48-4.54-2.42-1.39-.95-2.55-2.12-3.48-3.51-.93-1.39-1.39-3.17-1.39-5.32,0-3.05,1.06-5.46,3.18-7.24,2.12-1.78,5.12-2.67,9.02-2.67,2.26,0,4.33.17,6.18.5,1.86.34,3.3.76,4.35,1.28l-1.39,4.12c-.85-.42-2.11-.82-3.76-1.21-1.65-.38-3.52-.58-5.6-.58-2.45,0-4.29.55-5.52,1.64-1.22,1.1-1.84,2.39-1.84,3.87s.46,2.66,1.39,3.62c.93.96,2.09,1.83,3.48,2.59,1.39.76,2.91,1.51,4.54,2.26,1.63.74,3.15,1.61,4.54,2.59,1.39.98,2.55,2.16,3.48,3.54.93,1.38,1.39,3.08,1.39,5.12,0,1.67-.3,3.18-.89,4.51-.59,1.34-1.47,2.49-2.62,3.46-1.15.97-2.54,1.71-4.18,2.23-1.64.52-3.49.78-5.57.78-2.79,0-5.09-.21-6.91-.64-1.82-.43-3.23-.9-4.23-1.42l1.56-4.12c.85.47,2.12.93,3.79,1.38,1.67.45,3.55.68,5.63.68,1.23,0,2.38-.12,3.45-.36,1.08-.24,2.01-.63,2.79-1.17.78-.54,1.4-1.22,1.87-2.03.46-.82.7-1.78.7-2.9"/>
+                        <rect fill="#fff" x="63.63" y="4.91" width="4.62" height="38.99"/>
+                        <path fill="#fff" d="M89.54,5.25c1.41-.26,3.04-.46,4.87-.61,1.84-.15,3.52-.22,5.04-.22,1.71,0,3.33.19,4.87.56,1.54.37,2.9.98,4.07,1.84,1.17.86,2.11,1.97,2.81,3.34s1.06,3.05,1.06,5.01c0,3.04-.84,5.51-2.51,7.41-1.67,1.89-2.76,2.86-5.32,3.49l10.86,17.79h-5.4l-10.27-16.82h-5.46s0,16.82,0,16.82h-4.62V5.25ZM99.57,8.43h-1.5c-.52,0-1.02.02-1.5.06-.48.04-.94.08-1.37.11-.43.04-.77.09-1.03.17v14.37h4.34c2.56,0,4.68-.63,6.35-1.89,1.67-1.26,2.51-3.23,2.51-5.9,0-2.01-.69-3.66-2.06-4.96-1.37-1.3-3.29-1.95-5.74-1.95"/>
+                        <path fill="#fff" d="M150.26,5.25c1.41-.33,2.93-.56,4.57-.67,1.63-.11,3.25-.17,4.85-.17,1.71,0,3.44.17,5.21.5,1.76.33,3.37.95,4.82,1.84,1.45.89,2.63,2.12,3.54,3.68.91,1.56,1.36,3.55,1.36,5.96s-.43,4.38-1.28,6.02c-.86,1.64-1.99,2.96-3.4,3.98-1.41,1.02-3.03,1.75-4.85,2.2-1.82.45-3.7.67-5.63.67h-.92c-.43,0-.87,0-1.34-.03-.46-.02-.92-.05-1.37-.08-.45-.04-.76-.07-.95-.11v14.82h-4.62V5.25ZM159.78,8.43c-.97,0-1.89.02-2.79.06-.89.04-1.6.13-2.12.28v16.16c.19.08.48.12.89.14.41.02.84.04,1.28.06.45.02.87.03,1.28.03h.89c1.26,0,2.52-.12,3.76-.36,1.24-.24,2.37-.68,3.37-1.31,1-.63,1.81-1.52,2.42-2.67.61-1.15.92-2.62.92-4.4,0-1.52-.29-2.79-.86-3.81-.58-1.02-1.34-1.84-2.28-2.45-.95-.61-2.01-1.05-3.2-1.31-1.19-.26-2.37-.39-3.56-.39"/>
+                        <path fill="#fff" d="M80.84,80.79c0-1.56-.46-2.83-1.39-3.82-.93-.98-2.09-1.86-3.48-2.62-1.39-.76-2.91-1.48-4.54-2.15-1.63-.67-3.15-1.47-4.54-2.42-1.39-.95-2.55-2.12-3.48-3.51-.93-1.39-1.39-3.17-1.39-5.32,0-3.04,1.06-5.46,3.18-7.24,2.12-1.78,5.12-2.67,9.02-2.67,2.26,0,4.33.17,6.18.5,1.86.33,3.3.76,4.35,1.28l-1.39,4.12c-.85-.42-2.11-.82-3.76-1.21-1.65-.38-3.52-.58-5.6-.58-2.45,0-4.29.55-5.52,1.64-1.22,1.1-1.84,2.39-1.84,3.87s.46,2.66,1.39,3.62c.93.97,2.09,1.83,3.48,2.59,1.39.76,2.91,1.51,4.54,2.26,1.63.74,3.15,1.61,4.54,2.59,1.39.98,2.55,2.16,3.48,3.54.93,1.38,1.39,3.08,1.39,5.12,0,1.67-.3,3.18-.89,4.51-.59,1.34-1.47,2.49-2.62,3.45-1.15.97-2.54,1.71-4.18,2.23-1.64.52-3.49.78-5.57.78-2.79,0-5.09-.21-6.91-.64-1.82-.43-3.23-.9-4.23-1.42l1.56-4.12c.85.47,2.12.93,3.79,1.38,1.67.45,3.55.68,5.63.68,1.23,0,2.38-.12,3.45-.36,1.08-.24,2.01-.63,2.79-1.17.78-.54,1.4-1.22,1.87-2.03.46-.82.7-1.78.7-2.9"/>
+                        <polygon fill="#fff" points="89.42 51.71 111.13 51.71 111.13 55.84 94.05 55.84 94.05 68.59 109.25 68.59 109.25 72.72 94.05 72.72 94.05 86.59 112.38 86.59 112.38 90.71 89.42 90.71 89.42 51.71"/>
+                        <polygon fill="#fff" points="195.8 72.33 195.61 72.33 195.61 90.38 190.98 90.38 190.98 51.39 195.61 51.39 195.61 68.77 195.69 68.77 211.2 51.39 216.55 51.39 199.62 69.92 217.8 90.38 212.43 90.38 195.8 72.33"/>
+                        <path fill="#fff" d="M291.04,51.39h4.62v30.42c0,2.97-.66,5.24-1.98,6.8-1.32,1.56-3.31,2.34-5.99,2.34-.3,0-.67-.02-1.11-.06-.45-.04-.89-.09-1.34-.17-.45-.08-.88-.17-1.31-.28-.43-.11-.77-.24-1.03-.39l.89-3.9c1.04.45,2.17.67,3.4.67,1.56,0,2.59-.55,3.09-1.64.5-1.09.75-2.59.75-4.48v-29.3Z"/>
+                        <path fill="#fff" d="M158.1,51.1h-2.12l-14.76,39.61h4.62l3.88-10.81h14.3l3.99,10.81h4.9l-14.82-39.61ZM151.22,75.89l5.71-15.69,5.71,15.69h-11.42Z"/>
+                        <path fill="#fff" d="M188.73,4.25h-2.12l-14.76,39.61h4.62l3.88-10.81h14.3l3.99,10.81h4.9l-14.82-39.61ZM181.86,29.04l5.71-15.69,5.71,15.69h-11.42Z"/>
+                        <path fill="#fff" d="M35.03,5.3c1.41-.26,3.04-.46,4.87-.61,1.84-.15,3.52-.22,5.04-.22,1.71,0,3.33.19,4.87.56,1.54.37,2.9.98,4.07,1.84,1.17.85,2.11,1.97,2.81,3.34s1.06,3.04,1.06,5.01c0,3.05-.84,5.52-2.51,7.41-1.67,1.89-2.76,2.86-5.32,3.49l10.86,17.79h-5.4l-10.27-16.82h-5.46s0,16.82,0,16.82h-4.62V5.3ZM45.05,8.47h-1.5c-.52,0-1.02.02-1.5.06-.48.04-.94.08-1.37.11-.43.04-.77.09-1.03.17v14.37h4.34c2.56,0,4.68-.63,6.35-1.89,1.67-1.26,2.51-3.23,2.51-5.91,0-2-.69-3.66-2.06-4.96-1.37-1.3-3.29-1.95-5.74-1.95"/>
+                        <polygon fill="#fff" points="274.27 51.39 274.27 76.79 274.27 80.33 253.05 50.78 250.6 50.78 250.6 90.38 254.94 90.38 254.94 61.19 276.17 91 278.62 91 278.62 51.39 274.27 51.39"/>
+                        <path fill="#fff" d="M241.51,51.39h-1.05v24.73c0,2,.08,3.83-.31,5.19-.19.65-.29,1.04-.57,1.57-.33.53-.67,1-.98,1.41-.05.07-.11.13-.16.19-.77.79-1.71,1.37-2.84,1.73-1.09.35-1.93.53-3.29.55-1.37-.02-2.21-.21-3.3-.55-1.13-.36-2.07-.94-2.84-1.73-.05-.06-.11-.13-.16-.19-.16-.21-.35-.43-.54-.67-.48-.7-.68-1.14-.96-2.11-.39-1.36-.31-3.28-.31-5.38v-24.73h-4.6v26.91c0,4.23,1.17,7.39,3.51,9.47,1.81,1.61,3.71,2.59,6.6,2.95.7.11,1.45.16,2.33.16.09,0,.17,0,.26,0,.09,0,.17,0,.26,0,.88,0,1.62-.06,2.33-.16,2.89-.37,4.8-1.35,6.6-2.95,2.34-2.08,3.51-5.24,3.51-9.47v-26.91h-3.49Z"/>
+                    </svg>
+                </a>
 
+                <!-- Переключатель языка -->
+                <div id="lang-switcher" class="flex items-center gap-1 bg-white/10 rounded-lg p-1">
+                    <button class="lang-btn px-2 py-1 text-sm rounded text-white/70 hover:text-white" data-lang="ru">RU</button>
+                    <button class="lang-btn px-2 py-1 text-sm rounded text-white/70 hover:text-white" data-lang="en">EN</button>
+                    <button class="lang-btn px-2 py-1 text-sm rounded text-white/70 hover:text-white" data-lang="hi">HI</button>
+                </div>
+            </div>
+        </div>
+    </header>
+
+    <!-- Контент -->
+    <main class="flex-1 bg-white">
+        <div class="max-w-4xl mx-auto px-4 md:px-6 lg:px-8 py-6 md:py-8">
             <!-- Список материалов -->
             <div id="materials-list"></div>
-
             <!-- Детальный просмотр материала -->
             <div id="material-detail" class="hidden"></div>
-
         </div>
     </main>
 
-    <div id="footer-placeholder"></div>
+    <!-- Футер -->
+    <footer class="bg-srsk-green">
+        <div class="max-w-6xl mx-auto px-4 md:px-6 lg:px-8 py-6">
+            <div class="flex flex-col items-center gap-4">
+                <p class="text-white/80 text-sm">Присоединяйтесь к Шри Рупа Сева Кундже</p>
+                <div class="flex flex-wrap justify-center gap-3">
+                    <a href="https://www.rupaseva.com" target="_blank" class="w-12 h-12 bg-white/10 rounded-full flex items-center justify-center hover:bg-white/30 transition-colors text-white">
+                        <svg class="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <circle cx="12" cy="12" r="10"/>
+                            <path d="M2 12h20M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/>
+                        </svg>
+                    </a>
+                    <a href="https://t.me/rupaseva" target="_blank" class="w-12 h-12 bg-white/10 rounded-full flex items-center justify-center hover:bg-[#26A5E4] transition-colors text-white">
+                        <svg class="w-5 h-5" viewBox="0 0 24 24" fill="currentColor">
+                            <path d="M11.944 0A12 12 0 0 0 0 12a12 12 0 0 0 12 12 12 12 0 0 0 12-12A12 12 0 0 0 12 0a12 12 0 0 0-.056 0zm4.962 7.224c.1-.002.321.023.465.14a.506.506 0 0 1 .171.325c.016.093.036.306.02.472-.18 1.898-.962 6.502-1.36 8.627-.168.9-.499 1.201-.82 1.23-.696.065-1.225-.46-1.9-.902-1.056-.693-1.653-1.124-2.678-1.8-1.185-.78-.417-1.21.258-1.91.177-.184 3.247-2.977 3.307-3.23.007-.032.014-.15-.056-.212s-.174-.041-.249-.024c-.106.024-1.793 1.14-5.061 3.345-.48.33-.913.49-1.302.48-.428-.008-1.252-.241-1.865-.44-.752-.245-1.349-.374-1.297-.789.027-.216.325-.437.893-.663 3.498-1.524 5.83-2.529 6.998-3.014 3.332-1.386 4.025-1.627 4.476-1.635z"/>
+                        </svg>
+                    </a>
+                    <a href="https://www.youtube.com/@Rupaseva" target="_blank" class="w-12 h-12 bg-white/10 rounded-full flex items-center justify-center hover:bg-[#FF0000] transition-colors text-white">
+                        <svg class="w-5 h-5" viewBox="0 0 24 24" fill="currentColor">
+                            <path d="M23.498 6.186a3.016 3.016 0 0 0-2.122-2.136C19.505 3.545 12 3.545 12 3.545s-7.505 0-9.377.505A3.017 3.017 0 0 0 .502 6.186C0 8.07 0 12 0 12s0 3.93.502 5.814a3.016 3.016 0 0 0 2.122 2.136c1.871.505 9.376.505 9.376.505s7.505 0 9.377-.505a3.015 3.015 0 0 0 2.122-2.136C24 15.93 24 12 24 12s0-3.93-.502-5.814zM9.545 15.568V8.432L15.818 12l-6.273 3.568z"/>
+                        </svg>
+                    </a>
+                    <a href="https://rutube.ru/channel/67606039/" target="_blank" class="w-12 h-12 bg-white/10 rounded-full flex items-center justify-center hover:bg-black transition-colors text-white">
+                        <svg class="w-5 h-5" viewBox="0 0 24 24" fill="currentColor">
+                            <path d="M12.76 11.54c.56 0 .86-.24.86-.72 0-.5-.3-.74-.86-.74h-1.12v1.46h1.12zm8.67-7.38v15.68a2.62 2.62 0 01-2.62 2.62H5.2a2.62 2.62 0 01-2.62-2.62V4.16A2.62 2.62 0 015.2 1.54h13.61a2.62 2.62 0 012.62 2.62zm-5.27 6.4c0-1.7-1.18-2.7-3.14-2.7H9.5v8.3h1.94v-2.88h.94l1.42 2.88h2.12l-1.68-3.18c.96-.46 1.52-1.36 1.52-2.42z"/>
+                        </svg>
+                    </a>
+                    <a href="https://www.instagram.com/rupaseva/" target="_blank" class="w-12 h-12 bg-white/10 rounded-full flex items-center justify-center hover:bg-gradient-to-tr hover:from-[#f09433] hover:via-[#e6683c] hover:to-[#bc1888] transition-colors text-white">
+                        <svg class="w-5 h-5" viewBox="0 0 24 24" fill="currentColor">
+                            <path d="M12 0C8.74 0 8.333.015 7.053.072 5.775.132 4.905.333 4.14.63c-.789.306-1.459.717-2.126 1.384S.935 3.35.63 4.14C.333 4.905.131 5.775.072 7.053.012 8.333 0 8.74 0 12s.015 3.667.072 4.947c.06 1.277.261 2.148.558 2.913.306.788.717 1.459 1.384 2.126.667.666 1.336 1.079 2.126 1.384.766.296 1.636.499 2.913.558C8.333 23.988 8.74 24 12 24s3.667-.015 4.947-.072c1.277-.06 2.148-.262 2.913-.558.788-.306 1.459-.718 2.126-1.384.666-.667 1.079-1.335 1.384-2.126.296-.765.499-1.636.558-2.913.06-1.28.072-1.687.072-4.947s-.015-3.667-.072-4.947c-.06-1.277-.262-2.149-.558-2.913-.306-.789-.718-1.459-1.384-2.126C21.319 1.347 20.651.935 19.86.63c-.765-.297-1.636-.499-2.913-.558C15.667.012 15.26 0 12 0zm0 2.16c3.203 0 3.585.016 4.85.071 1.17.055 1.805.249 2.227.415.562.217.96.477 1.382.896.419.42.679.819.896 1.381.164.422.36 1.057.413 2.227.057 1.266.07 1.646.07 4.85s-.015 3.585-.074 4.85c-.061 1.17-.256 1.805-.421 2.227-.224.562-.479.96-.899 1.382-.419.419-.824.679-1.38.896-.42.164-1.065.36-2.235.413-1.274.057-1.649.07-4.859.07-3.211 0-3.586-.015-4.859-.074-1.171-.061-1.816-.256-2.236-.421-.569-.224-.96-.479-1.379-.899-.421-.419-.69-.824-.9-1.38-.165-.42-.359-1.065-.42-2.235-.045-1.26-.061-1.649-.061-4.844 0-3.196.016-3.586.061-4.861.061-1.17.255-1.814.42-2.234.21-.57.479-.96.9-1.381.419-.419.81-.689 1.379-.898.42-.166 1.051-.361 2.221-.421 1.275-.045 1.65-.06 4.859-.06l.045.03zm0 3.678c-3.405 0-6.162 2.76-6.162 6.162 0 3.405 2.76 6.162 6.162 6.162 3.405 0 6.162-2.76 6.162-6.162 0-3.405-2.76-6.162-6.162-6.162zM12 16c-2.21 0-4-1.79-4-4s1.79-4 4-4 4 1.79 4 4-1.79 4-4 4zm7.846-10.405c0 .795-.646 1.44-1.44 1.44-.795 0-1.44-.646-1.44-1.44 0-.794.646-1.439 1.44-1.439.793-.001 1.44.645 1.44 1.439z"/>
+                        </svg>
+                    </a>
+                    <a href="https://vk.com/rupaseva" target="_blank" class="w-12 h-12 bg-white/10 rounded-full flex items-center justify-center hover:bg-[#4C75A3] transition-colors text-white">
+                        <svg class="w-5 h-5" viewBox="0 0 24 24" fill="currentColor">
+                            <path d="M15.684 0H8.316C1.592 0 0 1.592 0 8.316v7.368C0 22.408 1.592 24 8.316 24h7.368C22.408 24 24 22.408 24 15.684V8.316C24 1.592 22.391 0 15.684 0zm3.692 17.123h-1.744c-.66 0-.864-.525-2.05-1.727-1.033-1-1.49-1.135-1.744-1.135-.356 0-.458.102-.458.593v1.575c0 .424-.135.678-1.253.678-1.846 0-3.896-1.12-5.339-3.202-2.17-3.042-2.763-5.32-2.763-5.793 0-.254.102-.491.593-.491h1.744c.44 0 .61.203.78.677.863 2.49 2.303 4.675 2.896 4.675.22 0 .322-.102.322-.66V9.721c-.068-1.186-.695-1.287-.695-1.71 0-.203.17-.407.44-.407h2.744c.373 0 .508.203.508.643v3.473c0 .372.17.508.271.508.22 0 .407-.136.813-.542 1.254-1.406 2.151-3.574 2.151-3.574.119-.254.322-.491.763-.491h1.744c.525 0 .644.27.525.643-.22 1.017-2.354 4.031-2.354 4.031-.186.305-.254.44 0 .78.186.254.796.779 1.203 1.253.745.847 1.32 1.558 1.473 2.05.17.49-.085.744-.576.744z"/>
+                        </svg>
+                    </a>
+                </div>
+            </div>
+        </div>
+    </footer>
 
     <!-- Scripts -->
     <script src="js/portal-config.js"></script>
     <script src="js/portal-auth.js"></script>
-    <script src="js/portal-layout.js"></script>
+    <script src="../js/date-utils.js"></script>
     <script src="js/portal-data.js"></script>
 
     <script>
-        const t = key => PortalLayout.t(key);
-        const escapeHtml = str => PortalLayout.escapeHtml(str);
         let currentSlug = null;
+        let currentLang = localStorage.getItem('srsk_lang') || 'ru';
+
+        function escapeHtml(str) {
+            if (!str) return '';
+            return String(str).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+        }
 
         async function init() {
-            PortalLayout.showLoader();
-
             // Проверяем авторизацию
             const guest = await PortalAuth.checkGuestAuth();
             if (!guest) return;
 
-            // Инициализируем layout
-            await PortalLayout.init({ activeNav: 'materials' });
+            // Инициализируем переключатель языка
+            initLangSwitcher();
 
             // Проверяем URL параметры
             const params = new URLSearchParams(window.location.search);
@@ -124,8 +222,27 @@
             } else {
                 await showMaterialsList();
             }
+        }
 
-            PortalLayout.hideLoader();
+        function initLangSwitcher() {
+            const buttons = document.querySelectorAll('.lang-btn');
+            buttons.forEach(btn => {
+                if (btn.dataset.lang === currentLang) {
+                    btn.classList.add('active');
+                }
+                btn.addEventListener('click', () => {
+                    currentLang = btn.dataset.lang;
+                    localStorage.setItem('srsk_lang', currentLang);
+                    buttons.forEach(b => b.classList.remove('active'));
+                    btn.classList.add('active');
+                    // Перезагружаем контент
+                    if (currentSlug) {
+                        showMaterial(currentSlug);
+                    } else {
+                        showMaterialsList();
+                    }
+                });
+            });
         }
 
         async function showMaterialsList() {
@@ -145,14 +262,12 @@
             const material = await PortalData.getMaterialBySlug(slug);
 
             if (!material) {
-                PortalLayout.showNotification(t('portal_material_not_found'), 'error');
+                alert('Материал не найден');
                 await showMaterialsList();
                 return;
             }
 
             renderMaterialDetail(material);
-
-            // Обновляем URL без перезагрузки
             history.pushState({}, '', `materials.html?id=${slug}`);
         }
 
@@ -160,13 +275,11 @@
             const container = document.getElementById('materials-list');
 
             container.innerHTML = `
-                <!-- Заголовок -->
                 <div class="mb-6">
-                    <h1 class="text-2xl font-bold text-gray-800" data-i18n="portal_materials_title">Полезные материалы</h1>
-                    <p class="text-gray-500" data-i18n="portal_materials_subtitle">Информация для гостей ашрама</p>
+                    <h1 class="text-2xl font-bold text-gray-800">Полезные материалы</h1>
+                    <p class="text-gray-500">Информация для гостей ашрама</p>
                 </div>
 
-                <!-- Сетка карточек -->
                 <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
                     ${materials.map(material => `
                         <div class="material-card" onclick="showMaterial('${escapeHtml(material.slug)}')">
@@ -185,11 +298,11 @@
                 </div>
 
                 ${materials.length === 0 ? `
-                    <div class="empty-state">
-                        <svg class="empty-state-icon mx-auto" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <div class="text-center py-12 text-gray-500">
+                        <svg class="w-12 h-12 mx-auto mb-4 text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253"/>
                         </svg>
-                        <p>${t('portal_no_materials')}</p>
+                        <p>Материалов пока нет</p>
                     </div>
                 ` : ''}
             `;
@@ -197,21 +310,17 @@
 
         function renderMaterialDetail(material) {
             const container = document.getElementById('material-detail');
-            const lang = PortalLayout.getLang();
-            const content = material[`content_${lang}`] || material.content_en || material.content_ru || '';
+            const content = material[`content_${currentLang}`] || material.content_en || material.content_ru || '';
 
             container.innerHTML = `
-                <!-- Кнопка назад -->
                 <button onclick="goBack()" class="flex items-center gap-2 text-gray-500 hover:text-gray-700 mb-4">
                     <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"/>
                     </svg>
-                    <span data-i18n="portal_back">Назад</span>
+                    <span>Назад</span>
                 </button>
 
-                <!-- Карточка материала -->
-                <div class="card">
-                    <!-- Заголовок -->
+                <div class="bg-white rounded-2xl shadow-sm overflow-hidden">
                     <div class="p-6 border-b">
                         <div class="flex items-center gap-4">
                             <div class="material-icon w-12 h-12">
@@ -220,20 +329,17 @@
                             <h1 class="text-2xl font-bold text-gray-800">${escapeHtml(getTitle(material))}</h1>
                         </div>
                     </div>
-
-                    <!-- Содержимое -->
                     <div class="p-6 material-content">
                         ${content}
                     </div>
                 </div>
 
-                <!-- Навигация между материалами -->
-                <div class="flex justify-between mt-6">
-                    <button onclick="goBack()" class="btn-ghost">
+                <div class="flex justify-start mt-6">
+                    <button onclick="goBack()" class="flex items-center gap-2 text-gray-500 hover:text-gray-700">
                         <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"/>
                         </svg>
-                        <span data-i18n="portal_all_materials">Все материалы</span>
+                        <span>Все материалы</span>
                     </button>
                 </div>
             `;
@@ -244,11 +350,9 @@
             showMaterialsList();
         }
 
-        // Обработка навигации браузера
         window.addEventListener('popstate', async () => {
             const params = new URLSearchParams(window.location.search);
             const slug = params.get('id');
-
             if (slug) {
                 await showMaterial(slug);
             } else {
@@ -257,15 +361,11 @@
         });
 
         function getTitle(item) {
-            const lang = PortalLayout.getLang();
-            return item[`title_${lang}`] || item.title_en || item.title_ru || '';
+            return item[`title_${currentLang}`] || item.title_en || item.title_ru || '';
         }
 
         function getPreview(material) {
-            const lang = PortalLayout.getLang();
-            const content = material[`content_${lang}`] || material.content_en || material.content_ru || '';
-
-            // Удаляем HTML теги и берём первые 100 символов
+            const content = material[`content_${currentLang}`] || material.content_en || material.content_ru || '';
             const text = content.replace(/<[^>]*>/g, '').trim();
             return text.length > 100 ? text.substring(0, 100) + '...' : text;
         }

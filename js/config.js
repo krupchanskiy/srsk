@@ -6,8 +6,9 @@
 'use strict';
 
 // Определяем окружение по домену
+// ВАЖНО: localhost использует production, чтобы совпадать с portal-config.js
 const hostname = window.location.hostname;
-const isDev = hostname.includes('dev.') || hostname.includes('-dev') || hostname.includes('localhost');
+const isDev = hostname.includes('dev.') || hostname.includes('-dev');
 
 // Конфигурации для разных окружений
 const ENVIRONMENTS = {

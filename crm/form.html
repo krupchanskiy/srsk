@@ -1,0 +1,780 @@
+<!DOCTYPE html>
+<html lang="ru" data-theme="light">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Заявка на ретрит — ШРСК</title>
+    <link href="https://cdn.jsdelivr.net/npm/daisyui@4.12.14/dist/full.min.css" rel="stylesheet" />
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        body { font-family: 'Noto Sans', sans-serif; }
+        .step { display: none; }
+        .step.active { display: block; }
+        .step-indicator { transition: all 0.3s; }
+        .step-indicator.completed { background-color: #10b981; color: white; }
+        .step-indicator.active { background-color: #3b82f6; color: white; }
+    </style>
+</head>
+<body class="bg-gradient-to-br from-emerald-50 to-teal-100 min-h-screen">
+
+<div class="container mx-auto px-4 py-8 max-w-2xl">
+    <!-- Логотип -->
+    <div class="text-center mb-8">
+        <img src="../img/logo.png" alt="ШРСК" class="h-16 mx-auto mb-4" onerror="this.style.display='none'">
+        <h1 class="text-2xl font-bold text-gray-800" id="pageTitle">Заявка на ретрит</h1>
+    </div>
+
+    <!-- Индикатор шагов -->
+    <div class="flex justify-center gap-2 mb-8" id="stepIndicators">
+        <div class="step-indicator w-10 h-10 rounded-full flex items-center justify-center font-bold active" data-step="1">1</div>
+        <div class="w-8 h-1 bg-gray-300 self-center rounded"></div>
+        <div class="step-indicator w-10 h-10 rounded-full flex items-center justify-center font-bold bg-gray-300" data-step="2">2</div>
+        <div class="w-8 h-1 bg-gray-300 self-center rounded"></div>
+        <div class="step-indicator w-10 h-10 rounded-full flex items-center justify-center font-bold bg-gray-300" data-step="3">3</div>
+    </div>
+
+    <!-- Форма -->
+    <form id="applicationForm" class="card bg-white shadow-xl">
+        <div class="card-body">
+            <!-- ШАГ 1: Личные данные -->
+            <div class="step active" data-step="1">
+                <h2 class="text-xl font-bold mb-6 flex items-center gap-2"><svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-6 h-6"><path stroke-linecap="round" stroke-linejoin="round" d="M15.75 6a3.75 3.75 0 1 1-7.5 0 3.75 3.75 0 0 1 7.5 0ZM4.501 20.118a7.5 7.5 0 0 1 14.998 0A17.933 17.933 0 0 1 12 21.75c-2.676 0-5.216-.584-7.499-1.632Z" /></svg> Личные данные</h2>
+
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div class="form-control">
+                        <label class="label"><span class="label-text">Духовное имя</span></label>
+                        <input type="text" name="spiritual_name" class="input input-bordered"
+                               placeholder="Если есть">
+                    </div>
+
+                    <div class="form-control">
+                        <label class="label"><span class="label-text">Имя <span class="text-error">*</span></span></label>
+                        <input type="text" name="first_name" class="input input-bordered" required>
+                    </div>
+
+                    <div class="form-control">
+                        <label class="label"><span class="label-text">Фамилия</span></label>
+                        <input type="text" name="last_name" class="input input-bordered">
+                    </div>
+
+                    <div class="form-control">
+                        <label class="label"><span class="label-text">Пол <span class="text-error">*</span></span></label>
+                        <select name="gender" class="select select-bordered" required>
+                            <option value="">Выберите</option>
+                            <option value="male">Мужской</option>
+                            <option value="female">Женский</option>
+                        </select>
+                    </div>
+
+                    <div class="form-control">
+                        <label class="label"><span class="label-text">Телефон <span class="text-error">*</span></span></label>
+                        <input type="tel" name="phone" class="input input-bordered"
+                               placeholder="+7 999 123 45 67" required>
+                    </div>
+
+                    <div class="form-control">
+                        <label class="label"><span class="label-text">Email</span></label>
+                        <input type="email" name="email" class="input input-bordered"
+                               placeholder="your@email.com">
+                    </div>
+
+                    <div class="form-control">
+                        <label class="label"><span class="label-text">Telegram</span></label>
+                        <input type="text" name="telegram" class="input input-bordered"
+                               placeholder="@username">
+                    </div>
+
+                    <div class="form-control">
+                        <label class="label"><span class="label-text">Город</span></label>
+                        <input type="text" name="city" class="input input-bordered">
+                    </div>
+                </div>
+
+                <div class="flex justify-end mt-6">
+                    <button type="button" class="btn btn-primary" onclick="nextStep()">
+                        Далее →
+                    </button>
+                </div>
+            </div>
+
+            <!-- ШАГ 2: Ретрит и услуги -->
+            <div class="step" data-step="2">
+                <h2 class="text-xl font-bold mb-6">🏕️ Ретрит</h2>
+
+                <div class="form-control mb-4">
+                    <label class="label"><span class="label-text">Ретрит <span class="text-error">*</span></span></label>
+                    <select name="retreat_id" id="retreatSelect" class="select select-bordered" required onchange="loadServices()">
+                        <option value="">Загрузка...</option>
+                    </select>
+                </div>
+
+                <div id="retreatInfo" class="alert alert-info mb-4 hidden">
+                    <div>
+                        <div class="font-bold" id="retreatName"></div>
+                        <div class="text-sm" id="retreatDates"></div>
+                    </div>
+                </div>
+
+                <div class="form-control mb-4">
+                    <label class="label"><span class="label-text">Тип размещения</span></label>
+                    <select name="room_type" id="roomTypeSelect" class="select select-bordered">
+                        <option value="">Выберите ретрит сначала</option>
+                    </select>
+                </div>
+
+                <div class="form-control mb-4">
+                    <label class="label"><span class="label-text">Дополнительные услуги</span></label>
+                    <div id="servicesContainer" class="space-y-2">
+                        <div class="text-base-content/50 text-sm">Выберите ретрит для отображения услуг</div>
+                    </div>
+                </div>
+
+                <div class="form-control mb-4">
+                    <label class="label"><span class="label-text">Питание</span></label>
+                    <div class="flex flex-wrap gap-4">
+                        <label class="label cursor-pointer gap-2">
+                            <input type="checkbox" name="needs_breakfast" class="checkbox checkbox-primary">
+                            <span class="label-text">Завтрак</span>
+                        </label>
+                        <label class="label cursor-pointer gap-2">
+                            <input type="checkbox" name="needs_lunch" class="checkbox checkbox-primary">
+                            <span class="label-text">Обед</span>
+                        </label>
+                        <label class="label cursor-pointer gap-2">
+                            <input type="checkbox" name="needs_dinner" class="checkbox checkbox-primary">
+                            <span class="label-text">Ужин</span>
+                        </label>
+                    </div>
+                </div>
+
+                <div class="flex justify-between mt-6">
+                    <button type="button" class="btn btn-ghost" onclick="prevStep()">← Назад</button>
+                    <button type="button" class="btn btn-primary" onclick="nextStep()">Далее →</button>
+                </div>
+            </div>
+
+            <!-- ШАГ 3: Дополнительно -->
+            <div class="step" data-step="3">
+                <h2 class="text-xl font-bold mb-6 flex items-center gap-2"><svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-6 h-6"><path stroke-linecap="round" stroke-linejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 0 0-3.375-3.375h-1.5A1.125 1.125 0 0 1 13.5 7.125v-1.5a3.375 3.375 0 0 0-3.375-3.375H8.25m0 12.75h7.5m-7.5 3H12M10.5 2.25H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 0 0-9-9Z" /></svg> Дополнительно</h2>
+
+                <!-- Дети -->
+                <div class="mb-6">
+                    <div class="flex items-center justify-between mb-3">
+                        <label class="label-text font-medium">👶 Дети (до 14 лет)</label>
+                        <button type="button" class="btn btn-sm btn-outline gap-1" onclick="addChildRow()">
+                            <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" />
+                            </svg>
+                            Добавить ребёнка
+                        </button>
+                    </div>
+                    <div id="childrenRows" class="space-y-3"></div>
+                </div>
+
+                <div class="form-control mb-4">
+                    <label class="label"><span class="label-text">Сопровождающие (имена)</span></label>
+                    <textarea name="companions" class="textarea textarea-bordered" rows="2"
+                              placeholder="Имена взрослых, которые приедут с вами"></textarea>
+                    <label class="label">
+                        <span class="label-text-alt">Укажите, если подаёте заявку на группу</span>
+                    </label>
+                </div>
+
+                <div class="form-control mb-4">
+                    <label class="label"><span class="label-text">Комментарий</span></label>
+                    <textarea name="notes" class="textarea textarea-bordered" rows="3"
+                              placeholder="Особые пожелания, вопросы, ограничения по здоровью..."></textarea>
+                </div>
+
+                <div class="form-control mb-4">
+                    <label class="label"><span class="label-text">Откуда узнали о ретрите?</span></label>
+                    <select name="source" class="select select-bordered">
+                        <option value="">Выберите</option>
+                        <option value="instagram">Instagram</option>
+                        <option value="telegram">Telegram</option>
+                        <option value="youtube">YouTube</option>
+                        <option value="facebook">Facebook</option>
+                        <option value="friend">От друзей</option>
+                        <option value="website">Сайт</option>
+                        <option value="repeat">Был(а) раньше</option>
+                        <option value="other">Другое</option>
+                    </select>
+                </div>
+
+                <div class="form-control mb-6">
+                    <label class="label cursor-pointer justify-start gap-3">
+                        <input type="checkbox" name="privacy_agreed" class="checkbox checkbox-primary" required>
+                        <span class="label-text">
+                            Я согласен(а) на обработку персональных данных <span class="text-error">*</span>
+                        </span>
+                    </label>
+                </div>
+
+                <div class="flex justify-between">
+                    <button type="button" class="btn btn-ghost" onclick="prevStep()">← Назад</button>
+                    <button type="submit" class="btn btn-success gap-2" id="submitBtn">
+                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-5 h-5"><path stroke-linecap="round" stroke-linejoin="round" d="m4.5 12.75 6 6 9-13.5" /></svg> Отправить заявку
+                    </button>
+                </div>
+            </div>
+        </div>
+    </form>
+
+    <!-- Сообщение об успехе -->
+    <div id="successMessage" class="card bg-white shadow-xl hidden">
+        <div class="card-body text-center py-12">
+            <div class="text-success mb-4"><svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-16 h-16 mx-auto"><path stroke-linecap="round" stroke-linejoin="round" d="M16.5 18.75h-9m9 0a3 3 0 0 1 3 3h-15a3 3 0 0 1 3-3m9 0v-3.375c0-.621-.503-1.125-1.125-1.125h-.871M7.5 18.75v-3.375c0-.621.504-1.125 1.125-1.125h.872m5.007 0H9.497m5.007 0a7.454 7.454 0 0 1-.982-3.172M9.497 14.25a7.454 7.454 0 0 0 .981-3.172M5.25 4.236c-.982.143-1.954.317-2.916.52A6.003 6.003 0 0 0 7.73 9.728M5.25 4.236V4.5c0 2.108.966 3.99 2.48 5.228M5.25 4.236V2.721C7.456 2.41 9.71 2.25 12 2.25c2.291 0 4.545.16 6.75.47v1.516M7.73 9.728a6.726 6.726 0 0 0 2.748 1.35m8.272-6.842V4.5c0 2.108-.966 3.99-2.48 5.228m2.48-5.492a46.32 46.32 0 0 1 2.916.52 6.003 6.003 0 0 1-5.395 4.972m0 0a6.726 6.726 0 0 1-2.749 1.35m0 0a6.772 6.772 0 0 1-2.752 0" /></svg></div>
+            <h2 class="text-2xl font-bold text-success mb-2">Заявка отправлена!</h2>
+            <p class="text-base-content/70 mb-6">
+                Мы свяжемся с вами в ближайшее время для подтверждения участия.
+            </p>
+            <div class="alert alert-info">
+                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" class="stroke-current shrink-0 w-6 h-6"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+                <span>Проверьте свой телефон — мы напишем в WhatsApp или Telegram</span>
+            </div>
+            <div class="mt-6">
+                <a href="form.html" class="btn btn-outline">Подать ещё одну заявку</a>
+            </div>
+        </div>
+    </div>
+
+    <!-- Ошибка -->
+    <div id="errorMessage" class="alert alert-error mt-4 hidden">
+        <svg xmlns="http://www.w3.org/2000/svg" class="stroke-current shrink-0 h-6 w-6" fill="none" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2m7-2a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+        <span id="errorText"></span>
+    </div>
+</div>
+
+<script src="../js/date-utils.js"></script>
+<script src="../js/config.js"></script>
+
+<script>
+// ==================== SUPABASE ====================
+const db = window.supabaseClient || supabase.createClient(
+    window.CONFIG.SUPABASE_URL,
+    window.CONFIG.SUPABASE_ANON_KEY
+);
+
+// ==================== STATE ====================
+let currentStep = 1;
+let retreats = [];
+let services = [];
+let urlParams = {};
+
+// ==================== URL PARAMS ====================
+function parseUrlParams() {
+    const params = new URLSearchParams(window.location.search);
+    urlParams = {
+        retreat: params.get('retreat'),
+        utm_source: params.get('utm_source'),
+        utm_medium: params.get('utm_medium'),
+        utm_campaign: params.get('utm_campaign'),
+        utm_content: params.get('utm_content'),
+        ref: params.get('ref')
+    };
+}
+
+// ==================== DATA LOADING ====================
+async function loadRetreats() {
+    const { data, error } = await db
+        .from('retreats')
+        .select('id, name_ru, name_en, slug, start_date, end_date, location, color')
+        .gte('end_date', DateUtils.toISO(new Date()))
+        .order('start_date', { ascending: true });
+
+    if (error) {
+        showError('Не удалось загрузить список ретритов');
+        return;
+    }
+
+    retreats = data || [];
+
+    const select = document.getElementById('retreatSelect');
+    select.innerHTML = '<option value="">Выберите ретрит</option>';
+
+    retreats.forEach(r => {
+        const dates = formatDateRange(r.start_date, r.end_date);
+        select.insertAdjacentHTML('beforeend',
+            `<option value="${r.id}" data-slug="${r.slug || ''}">${escapeHtml(r.name_ru)} (${dates})</option>`
+        );
+    });
+
+    // Выбираем ретрит из URL
+    if (urlParams.retreat) {
+        const retreat = retreats.find(r => r.slug === urlParams.retreat || r.id === urlParams.retreat);
+        if (retreat) {
+            select.value = retreat.id;
+            loadServices();
+        }
+    }
+}
+
+async function loadServices() {
+    const retreatId = document.getElementById('retreatSelect').value;
+
+    if (!retreatId) {
+        document.getElementById('roomTypeSelect').innerHTML = '<option value="">Выберите ретрит сначала</option>';
+        document.getElementById('servicesContainer').innerHTML = '<div class="text-base-content/50 text-sm">Выберите ретрит для отображения услуг</div>';
+        document.getElementById('retreatInfo').classList.add('hidden');
+        return;
+    }
+
+    // Показываем инфо о ретрите
+    const retreat = retreats.find(r => r.id === retreatId);
+    if (retreat) {
+        document.getElementById('retreatName').textContent = retreat.name_ru;
+        document.getElementById('retreatDates').textContent =
+            `${formatDateRange(retreat.start_date, retreat.end_date)} • ${retreat.location || ''}`;
+        document.getElementById('retreatInfo').classList.remove('hidden');
+    }
+
+    // Загружаем услуги
+    const { data, error } = await db
+        .from('crm_services')
+        .select('*')
+        .eq('is_active', true)
+        .order('type', { ascending: true })
+        .order('sort_order', { ascending: true });
+
+    if (error) {
+        console.error('Error loading services:', error);
+        return;
+    }
+
+    services = data || [];
+
+    // Типы размещения
+    const roomTypes = services.filter(s => s.type === 'room');
+    const roomSelect = document.getElementById('roomTypeSelect');
+    roomSelect.innerHTML = '<option value="">Без размещения</option>';
+    roomTypes.forEach(s => {
+        roomSelect.insertAdjacentHTML('beforeend',
+            `<option value="${s.id}">${escapeHtml(s.name_ru)} — ${formatPrice(s.base_price_inr)}</option>`
+        );
+    });
+
+    // Дополнительные услуги
+    const extras = services.filter(s => s.type === 'extra' || s.type === 'transport');
+    const container = document.getElementById('servicesContainer');
+
+    if (extras.length === 0) {
+        container.innerHTML = '<div class="text-base-content/50 text-sm">Дополнительных услуг нет</div>';
+        return;
+    }
+
+    container.innerHTML = extras.map(s => `
+        <label class="label cursor-pointer justify-start gap-3 bg-base-200 rounded-lg px-4">
+            <input type="checkbox" name="service_${s.id}" value="${s.id}" class="checkbox checkbox-sm checkbox-primary">
+            <span class="label-text flex-1">${escapeHtml(s.name_ru)}</span>
+            <span class="text-sm font-mono">${formatPrice(s.base_price_inr)}</span>
+        </label>
+    `).join('');
+}
+
+// ==================== STEPS NAVIGATION ====================
+function updateStepIndicators() {
+    document.querySelectorAll('.step-indicator').forEach(el => {
+        const step = parseInt(el.dataset.step);
+        el.classList.remove('active', 'completed');
+        if (step < currentStep) {
+            el.classList.add('completed');
+        } else if (step === currentStep) {
+            el.classList.add('active');
+        } else {
+            el.classList.add('bg-gray-300');
+        }
+    });
+
+    document.querySelectorAll('.step').forEach(el => {
+        el.classList.toggle('active', parseInt(el.dataset.step) === currentStep);
+    });
+}
+
+function nextStep() {
+    if (!validateCurrentStep()) return;
+    if (currentStep < 3) {
+        currentStep++;
+        updateStepIndicators();
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+    }
+}
+
+function prevStep() {
+    if (currentStep > 1) {
+        currentStep--;
+        updateStepIndicators();
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+    }
+}
+
+function validateCurrentStep() {
+    const step = document.querySelector(`.step[data-step="${currentStep}"]`);
+    const requiredFields = step.querySelectorAll('[required]');
+
+    for (const field of requiredFields) {
+        if (!field.value) {
+            field.focus();
+            field.classList.add('input-error', 'select-error');
+            setTimeout(() => field.classList.remove('input-error', 'select-error'), 2000);
+            return false;
+        }
+    }
+
+    return true;
+}
+
+// ==================== FORM SUBMISSION ====================
+async function submitForm(e) {
+    e.preventDefault();
+
+    if (!validateCurrentStep()) return;
+
+    const btn = document.getElementById('submitBtn');
+    btn.disabled = true;
+    btn.innerHTML = '<span class="loading loading-spinner loading-sm"></span> Отправка...';
+    hideError();
+
+    try {
+        const form = document.getElementById('applicationForm');
+        const formData = new FormData(form);
+
+        // 1. Собираем данные гостя
+        const guestData = {
+            spiritual_name: formData.get('spiritual_name') || null,
+            first_name: formData.get('first_name'),
+            last_name: formData.get('last_name') || null,
+            gender: formData.get('gender'),
+            phone: normalizePhone(formData.get('phone')),
+            email: formData.get('email') || null,
+            telegram: formData.get('telegram') || null,
+            city: formData.get('city') || null
+        };
+
+        // 2. Ищем или создаём гостя
+        let vaishnavaId = await findOrCreateVaishnava(guestData);
+
+        // 3. Собираем данные сделки
+        const retreatId = formData.get('retreat_id');
+
+        // Получаем менеджера через round-robin
+        const managerId = await getNextManager(retreatId);
+
+        // Собираем выбранные услуги
+        const selectedServices = [];
+        services.forEach(s => {
+            if (formData.get(`service_${s.id}`)) {
+                selectedServices.push(s.id);
+            }
+        });
+
+        // UTM данные
+        const utmData = {};
+        if (urlParams.utm_source) utmData.utm_source = urlParams.utm_source;
+        if (urlParams.utm_medium) utmData.utm_medium = urlParams.utm_medium;
+        if (urlParams.utm_campaign) utmData.utm_campaign = urlParams.utm_campaign;
+        if (urlParams.utm_content) utmData.utm_content = urlParams.utm_content;
+        if (urlParams.ref) utmData.ref = urlParams.ref;
+
+        // Заметки
+        let notes = formData.get('notes') || '';
+        const companions = formData.get('companions');
+        if (companions) {
+            notes = `Сопровождающие: ${companions}\n\n${notes}`;
+        }
+
+        const source = formData.get('source');
+        const meal_prefs = [];
+        if (formData.get('needs_breakfast')) meal_prefs.push('breakfast');
+        if (formData.get('needs_lunch')) meal_prefs.push('lunch');
+        if (formData.get('needs_dinner')) meal_prefs.push('dinner');
+
+        const dealData = {
+            vaishnava_id: vaishnavaId,
+            retreat_id: retreatId,
+            manager_id: managerId,
+            status: 'lead',
+            source: source || (urlParams.utm_source ? `utm:${urlParams.utm_source}` : 'form'),
+            notes: notes.trim() || null,
+            utm_data: Object.keys(utmData).length > 0 ? utmData : null,
+            work_mode: 'active',
+            group_size: companions ? countCompanions(companions) + 1 : 1,
+            created_at: new Date().toISOString()
+        };
+
+        // 4. Создаём сделку
+        const { data: deal, error: dealError } = await db
+            .from('crm_deals')
+            .insert(dealData)
+            .select('id')
+            .single();
+
+        if (dealError) throw dealError;
+
+        // 5. Добавляем услуги
+        const roomType = formData.get('room_type');
+        const dealServices = [];
+
+        if (roomType) {
+            const roomService = services.find(s => s.id === roomType);
+            if (roomService) {
+                dealServices.push({
+                    deal_id: deal.id,
+                    service_id: roomType,
+                    quantity: 1,
+                    unit_price_inr: roomService.base_price_inr,
+                    notes: null
+                });
+            }
+        }
+
+        selectedServices.forEach(serviceId => {
+            const service = services.find(s => s.id === serviceId);
+            if (service) {
+                dealServices.push({
+                    deal_id: deal.id,
+                    service_id: serviceId,
+                    quantity: 1,
+                    unit_price_inr: service.base_price_inr,
+                    notes: null
+                });
+            }
+        });
+
+        if (dealServices.length > 0) {
+            await db.from('crm_deal_services').insert(dealServices);
+        }
+
+        // 6. Создаём детей (если указаны)
+        const formChildren = getChildrenFromForm();
+        if (formChildren.length > 0) {
+            for (const child of formChildren) {
+                // Создаём ребёнка как vaishnava с parent_id
+                const { data: childRecord, error: childError } = await db
+                    .from('vaishnavas')
+                    .insert({
+                        first_name: child.first_name,
+                        birth_date: child.birth_date,
+                        gender: child.gender,
+                        parent_id: vaishnavaId,
+                        is_guest: true,
+                        is_deleted: false
+                    })
+                    .select('id')
+                    .single();
+
+                if (childError) {
+                    console.error('Ошибка создания ребёнка:', childError);
+                    continue;
+                }
+
+                // Регистрируем ребёнка на ретрит с meal_type='child'
+                await db.from('retreat_registrations').insert({
+                    retreat_id: retreatId,
+                    vaishnava_id: childRecord.id,
+                    status: 'guest',
+                    meal_type: 'child'
+                });
+            }
+
+            // Обновляем group_size с учётом детей
+            await db.from('crm_deals')
+                .update({ group_size: dealData.group_size + formChildren.length })
+                .eq('id', deal.id);
+        }
+
+        // 7. Показываем успех
+        document.getElementById('applicationForm').classList.add('hidden');
+        document.getElementById('successMessage').classList.remove('hidden');
+
+    } catch (error) {
+        console.error('Submit error:', error);
+        showError('Произошла ошибка при отправке заявки. Попробуйте ещё раз.');
+        btn.disabled = false;
+        btn.innerHTML = '<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-5 h-5"><path stroke-linecap="round" stroke-linejoin="round" d="m4.5 12.75 6 6 9-13.5" /></svg> Отправить заявку';
+    }
+}
+
+async function findOrCreateVaishnava(data) {
+    // Ищем по телефону
+    const { data: existing } = await db
+        .from('vaishnavas')
+        .select('id')
+        .eq('phone', data.phone)
+        .single();
+
+    if (existing) {
+        // Обновляем данные если нужно
+        await db.from('vaishnavas')
+            .update({
+                spiritual_name: data.spiritual_name || undefined,
+                last_name: data.last_name || undefined,
+                email: data.email || undefined,
+                telegram: data.telegram || undefined,
+                city: data.city || undefined
+            })
+            .eq('id', existing.id);
+        return existing.id;
+    }
+
+    // Создаём нового
+    const { data: created, error } = await db
+        .from('vaishnavas')
+        .insert({
+            ...data,
+            is_guest: true,
+            is_deleted: false
+        })
+        .select('id')
+        .single();
+
+    if (error) throw error;
+    return created.id;
+}
+
+async function getNextManager(retreatId) {
+    // Получаем очередь менеджеров для ретрита
+    const { data: queue } = await db
+        .from('crm_manager_queue')
+        .select('manager_id, current_position')
+        .or(`retreat_id.eq.${retreatId},retreat_id.is.null`)
+        .eq('is_active', true)
+        .order('current_position', { ascending: true })
+        .limit(1);
+
+    if (!queue || queue.length === 0) {
+        // Берём любого активного менеджера
+        const { data: managers } = await db
+            .from('crm_manager_queue')
+            .select('manager_id')
+            .eq('is_active', true)
+            .limit(1);
+
+        return managers?.[0]?.manager_id || null;
+    }
+
+    const manager = queue[0];
+
+    // Обновляем позицию в очереди
+    await db
+        .from('crm_manager_queue')
+        .update({ current_position: manager.current_position + 1 })
+        .eq('manager_id', manager.manager_id);
+
+    return manager.manager_id;
+}
+
+// ==================== CHILDREN ====================
+
+let childRowCounter = 0;
+
+function addChildRow() {
+    childRowCounter++;
+    const container = document.getElementById('childrenRows');
+    const row = document.createElement('div');
+    row.className = 'flex items-end gap-2 p-3 bg-base-200 rounded-lg';
+    row.dataset.childRow = childRowCounter;
+    row.innerHTML = `
+        <div class="form-control flex-1">
+            <label class="label py-0"><span class="label-text text-xs">Имя *</span></label>
+            <input type="text" class="input input-bordered input-sm child-name" required>
+        </div>
+        <div class="form-control w-36">
+            <label class="label py-0"><span class="label-text text-xs">Дата рождения</span></label>
+            <input type="date" class="input input-bordered input-sm child-birth-date">
+        </div>
+        <div class="form-control w-28">
+            <label class="label py-0"><span class="label-text text-xs">Пол</span></label>
+            <select class="select select-bordered select-sm child-gender">
+                <option value="">—</option>
+                <option value="male">М</option>
+                <option value="female">Ж</option>
+            </select>
+        </div>
+        <button type="button" class="btn btn-sm btn-ghost btn-circle text-error" onclick="this.closest('[data-child-row]').remove()">✕</button>
+    `;
+    container.appendChild(row);
+}
+
+function getChildrenFromForm() {
+    const rows = document.querySelectorAll('[data-child-row]');
+    const result = [];
+    rows.forEach(row => {
+        const name = row.querySelector('.child-name')?.value?.trim();
+        if (!name) return;
+        result.push({
+            first_name: name,
+            birth_date: row.querySelector('.child-birth-date')?.value || null,
+            gender: row.querySelector('.child-gender')?.value || null
+        });
+    });
+    return result;
+}
+
+// ==================== HELPERS ====================
+function formatDateRange(start, end) {
+    if (!start) return '';
+    const s = DateUtils.parseDate(start);
+    const e = end ? DateUtils.parseDate(end) : null;
+
+    const months = ['янв', 'фев', 'мар', 'апр', 'мая', 'июн', 'июл', 'авг', 'сен', 'окт', 'ноя', 'дек'];
+
+    if (e && s.getMonth() === e.getMonth()) {
+        return `${s.getDate()}–${e.getDate()} ${months[s.getMonth()]}`;
+    }
+
+    if (e) {
+        return `${s.getDate()} ${months[s.getMonth()]} – ${e.getDate()} ${months[e.getMonth()]}`;
+    }
+
+    return `${s.getDate()} ${months[s.getMonth()]}`;
+}
+
+function formatPrice(amount) {
+    if (!amount) return '—';
+    return '₹' + amount.toLocaleString('ru-RU');
+}
+
+function normalizePhone(phone) {
+    if (!phone) return null;
+    return phone.replace(/[^\d+]/g, '');
+}
+
+function countCompanions(text) {
+    if (!text) return 0;
+    // Считаем по запятым или переносам строк
+    return text.split(/[,\n]/).filter(s => s.trim()).length;
+}
+
+function escapeHtml(str) {
+    if (!str) return '';
+    return String(str)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;');
+}
+
+function showError(message) {
+    document.getElementById('errorText').textContent = message;
+    document.getElementById('errorMessage').classList.remove('hidden');
+}
+
+function hideError() {
+    document.getElementById('errorMessage').classList.add('hidden');
+}
+
+// ==================== INIT ====================
+async function init() {
+    parseUrlParams();
+    await loadRetreats();
+
+    document.getElementById('applicationForm').addEventListener('submit', submitForm);
+}
+
+init();
+</script>
+
+</body>
+</html>

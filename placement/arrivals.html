@@ -102,7 +102,20 @@
         </div>
 
         <!-- Table -->
-        <div id="tableContainer"></div>
+        <div id="tableContainer">
+            <!-- Skeleton loader -->
+            <div id="tableSkeleton" class="bg-base-100 rounded-xl shadow overflow-hidden">
+                <table class="table">
+                    <thead><tr><th><div class="skeleton h-4 w-24"></div></th><th><div class="skeleton h-4 w-20"></div></th><th><div class="skeleton h-4 w-28"></div></th><th><div class="skeleton h-4 w-32"></div></th><th><div class="skeleton h-4 w-28"></div></th><th><div class="skeleton h-4 w-24"></div></th></tr></thead>
+                    <tbody>
+                        <tr><td><div class="flex items-center gap-3"><div class="skeleton w-10 h-10 rounded-full"></div><div class="skeleton h-4 w-28"></div></div></td><td><div class="skeleton h-4 w-16"></div></td><td><div class="skeleton h-4 w-24"></div></td><td><div class="skeleton h-4 w-20"></div></td><td><div class="skeleton h-4 w-32"></div></td><td><div class="skeleton h-4 w-24"></div></td></tr>
+                        <tr><td><div class="flex items-center gap-3"><div class="skeleton w-10 h-10 rounded-full"></div><div class="skeleton h-4 w-32"></div></div></td><td><div class="skeleton h-4 w-16"></div></td><td><div class="skeleton h-4 w-24"></div></td><td><div class="skeleton h-4 w-20"></div></td><td><div class="skeleton h-4 w-28"></div></td><td><div class="skeleton h-4 w-20"></div></td></tr>
+                        <tr><td><div class="flex items-center gap-3"><div class="skeleton w-10 h-10 rounded-full"></div><div class="skeleton h-4 w-24"></div></div></td><td><div class="skeleton h-4 w-16"></div></td><td><div class="skeleton h-4 w-24"></div></td><td><div class="skeleton h-4 w-20"></div></td><td><div class="skeleton h-4 w-36"></div></td><td><div class="skeleton h-4 w-28"></div></td></tr>
+                        <tr><td><div class="flex items-center gap-3"><div class="skeleton w-10 h-10 rounded-full"></div><div class="skeleton h-4 w-36"></div></div></td><td><div class="skeleton h-4 w-16"></div></td><td><div class="skeleton h-4 w-24"></div></td><td><div class="skeleton h-4 w-20"></div></td><td><div class="skeleton h-4 w-24"></div></td><td><div class="skeleton h-4 w-24"></div></td></tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
         <div id="noData" class="hidden text-center py-12 opacity-50">
             <div class="text-4xl mb-2">✈️</div>
             <p data-i18n="select_retreat_for_arrivals">Выберите ретрит для просмотра заездов</p>
@@ -169,12 +182,13 @@
     <div id="footer-placeholder"></div>
 
     <script src="../js/config.js"></script>
-    <script src="../js/auth-check.js?v=2"></script>
+    <script src="../js/auth-check.js?v=3"></script>
     <script src="../js/cache.js"></script>
-    <script src="../js/utils.js"></script>
+    <script src="../js/utils.js?v=2"></script>
     <script src="../js/translit.js"></script>
     <script src="../js/auto-translate.js"></script>
-    <script src="../js/layout.js"></script>
+    <script src="../js/date-utils.js"></script>
+    <script src="../js/layout.js?v=5"></script>
     <script>
         const t = key => Layout.t(key);
 
@@ -193,6 +207,15 @@
             placeholder.textContent = initials;
             img.replaceWith(placeholder);
         };
+
+        // Глобальный обработчик клика по аватарам (event delegation для XSS-безопасности)
+        document.addEventListener('click', function(event) {
+            const avatarPhoto = event.target.closest('.avatar-photo');
+            if (avatarPhoto && avatarPhoto.dataset.photoUrl) {
+                event.stopPropagation();
+                Layout.openPhotoModal(avatarPhoto.dataset.photoUrl);
+            }
+        });
 
         // ==================== DATA LOADING ====================
         async function loadRetreats() {
@@ -359,12 +382,9 @@
             renderTable();
         }
 
-        // Helper to format date as YYYY-MM-DD in local timezone
+        // Алиас для DateUtils.toISO
         function toLocalDateStr(date) {
-            const year = date.getFullYear();
-            const month = (date.getMonth() + 1).toString().padStart(2, '0');
-            const day = date.getDate().toString().padStart(2, '0');
-            return `${year}-${month}-${day}`;
+            return DateUtils.toISO(date);
         }
 
         function updateStats() {
@@ -488,14 +508,7 @@
         // ==================== HELPERS ====================
         function calculateAge(birthDate) {
             if (!birthDate) return '';
-            const today = new Date();
-            const birth = new Date(birthDate);
-            let age = today.getFullYear() - birth.getFullYear();
-            const monthDiff = today.getMonth() - birth.getMonth();
-            if (monthDiff < 0 || (monthDiff === 0 && today.getDate() < birth.getDate())) {
-                age--;
-            }
-            return age;
+            return DateUtils.calculateAge(birthDate);
         }
 
         function formatDateTime(datetime) {
@@ -624,7 +637,7 @@
                 .toUpperCase());
 
             const avatarHtml = photoUrl
-                ? `<img src="${e(photoUrl)}" class="w-10 h-10 rounded-full object-cover cursor-pointer" alt="" data-initials="${initials}" onerror="replacePhotoWithPlaceholder(this)" onclick="event.stopPropagation(); Layout.openPhotoModal('${e(photoUrl)}')">`
+                ? `<img src="${e(photoUrl)}" class="w-10 h-10 rounded-full object-cover cursor-pointer avatar-photo" alt="" data-initials="${initials}" data-photo-url="${e(photoUrl)}" onerror="replacePhotoWithPlaceholder(this)">`
                 : `<div class="w-10 h-10 rounded-full bg-gradient-to-br from-purple-500 to-pink-500 flex items-center justify-center text-white font-semibold">${initials}</div>`;
 
             // Контакты
@@ -666,6 +679,7 @@
         }
 
         function renderCard(reg) {
+            const e = Layout.escapeHtml;
             const v = reg.vaishnavas;
             const name = v ? `${v.first_name || ''} ${v.last_name || ''}`.trim() : '—';
             const spiritualName = v?.spiritual_name || '';
@@ -690,10 +704,10 @@
             // Имя (клик → person.html)
             html += `<a href="../vaishnavas/person.html?id=${v?.id}" class="hover:underline">`;
             if (spiritualName) {
-                html += `<span class="font-semibold">${spiritualName}</span>`;
-                html += `<span class="text-xs opacity-60 ml-1.5">${name}</span>`;
+                html += `<span class="font-semibold">${e(spiritualName)}</span>`;
+                html += `<span class="text-xs opacity-60 ml-1.5">${e(name)}</span>`;
             } else {
-                html += `<span class="font-semibold">${name}</span>`;
+                html += `<span class="font-semibold">${e(name)}</span>`;
             }
             html += `</a>`;
 
@@ -1004,6 +1018,33 @@
             Layout.showLoader();
             await loadRetreats();
             Layout.hideLoader();
+
+            // Realtime: автообновление при изменениях
+            subscribeToRealtime();
+        }
+
+        // Realtime подписка
+        function subscribeToRealtime() {
+            Layout.db.channel('arrivals-realtime')
+                .on('postgres_changes',
+                    { event: '*', schema: 'public', table: 'guest_transfers' },
+                    handleRealtimeChange
+                )
+                .on('postgres_changes',
+                    { event: '*', schema: 'public', table: 'residents' },
+                    handleRealtimeChange
+                )
+                .subscribe();
+        }
+
+        let realtimeTimeout = null;
+        function handleRealtimeChange(payload) {
+            if (realtimeTimeout) clearTimeout(realtimeTimeout);
+            realtimeTimeout = setTimeout(async () => {
+                await loadRegistrations();
+                renderTable();
+                Layout.showNotification('Данные обновлены', 'info');
+            }, 500);
         }
 
         init();

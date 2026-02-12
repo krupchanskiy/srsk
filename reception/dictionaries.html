@@ -45,7 +45,7 @@
         <div class="tabs tabs-boxed bg-base-100 p-1 mb-6 inline-flex flex-wrap">
             <button class="tab tab-active" data-tab="building_types" data-i18n="dict_building_types">Типы зданий</button>
             <button class="tab" data-tab="room_types" data-i18n="dict_room_types">Типы комнат</button>
-            <button class="tab" data-tab="resident_categories" data-i18n="dict_resident_categories">Категории проживающих</button>
+            <button class="tab" data-tab="resident_categories" data-i18n="dict_resident_categories">Категории</button>
             <button class="tab" data-tab="departments" data-i18n="dict_departments">Департаменты</button>
         </div>
 
@@ -78,12 +78,12 @@
     </dialog>
 
     <script src="../js/config.js"></script>
-    <script src="../js/auth-check.js?v=2"></script>
+    <script src="../js/auth-check.js?v=3"></script>
     <script src="../js/cache.js"></script>
-    <script src="../js/utils.js"></script>
+    <script src="../js/utils.js?v=2"></script>
     <script src="../js/translit.js"></script>
     <script src="../js/auto-translate.js"></script>
-    <script src="../js/layout.js"></script>
+    <script src="../js/layout.js?v=5"></script>
     <script>
         // ==================== STATE ====================
         let currentTab = 'building_types';
@@ -197,13 +197,14 @@
             const config = tableConfig[currentTab];
             const rows = data[currentTab];
             const container = Layout.$('#tabContent');
+            const canEdit = window.hasPermission && window.hasPermission('edit_housing_dictionaries');
 
             const headerCells = config.columns.map(col =>
                 `<th class="bg-base-100 ${col.width || ''}">${col.label ? t(col.label) : ''}</th>`
-            ).join('') + '<th class="bg-base-100 w-24"></th>';
+            ).join('') + (canEdit ? '<th class="bg-base-100 w-24"></th>' : '');
 
             const bodyRows = rows.length === 0
-                ? `<tr><td colspan="${config.columns.length + 1}" class="text-center py-8 opacity-50">${t('no_data')}</td></tr>`
+                ? `<tr><td colspan="${config.columns.length + (canEdit ? 1 : 0)}" class="text-center py-8 opacity-50">${t('no_data')}</td></tr>`
                 : rows.map(row => {
                     const cells = config.columns.map(col => {
                         if (col.type === 'color') {
@@ -212,9 +213,7 @@
                         return `<td>${row[col.key] || ''}</td>`;
                     }).join('');
 
-                    return `
-                        <tr class="border-b border-base-200 hover:bg-base-50" data-id="${row.id}">
-                            ${cells}
+                    const actionButtons = canEdit ? `
                             <td class="flex gap-1">
                                 <button class="btn btn-ghost btn-sm btn-square" onclick="openEditModal('${row.id}')">
                                     <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -226,20 +225,28 @@
                                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
                                     </svg>
                                 </button>
-                            </td>
+                            </td>` : '';
+
+                    return `
+                        <tr class="border-b border-base-200 hover:bg-base-50" data-id="${row.id}">
+                            ${cells}
+                            ${actionButtons}
                         </tr>
                     `;
                 }).join('');
 
-            container.innerHTML = `
-                <div class="flex justify-between items-center mb-4">
-                    <span class="text-sm opacity-60">${rows.length} ${t('items')}</span>
+            const addButton = canEdit ? `
                     <button class="btn btn-primary btn-sm gap-2" onclick="openAddModal()">
                         <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" />
                         </svg>
                         <span data-i18n="add">${t('add')}</span>
-                    </button>
+                    </button>` : '';
+
+            container.innerHTML = `
+                <div class="flex justify-between items-center mb-4">
+                    <span class="text-sm opacity-60">${rows.length} ${t('items')}</span>
+                    ${addButton}
                 </div>
                 <div class="bg-base-100 rounded-xl shadow-sm overflow-hidden">
                     <div class="overflow-x-auto">
@@ -302,6 +309,10 @@
         }
 
         function openAddModal() {
+            if (!window.hasPermission || !window.hasPermission('edit_housing_dictionaries')) {
+                Layout.showNotification(t('no_permission') || 'Недостаточно прав', 'error');
+                return;
+            }
             const config = tableConfig[currentTab];
             Layout.$('#modalTitle').textContent = t('add') + ' — ' + t(config.titleKey);
             Layout.$('input[name="id"]').value = '';
@@ -312,6 +323,10 @@
         }
 
         function openEditModal(id) {
+            if (!window.hasPermission || !window.hasPermission('edit_housing_dictionaries')) {
+                Layout.showNotification(t('no_permission') || 'Недостаточно прав', 'error');
+                return;
+            }
             const config = tableConfig[currentTab];
             const item = data[currentTab].find(r => r.id === id);
             if (!item) return;
@@ -362,7 +377,7 @@
             }
 
             if (error) {
-                alert(t('error') + ': ' + error.message);
+                Layout.showNotification(t('error') + ': ' + error.message, 'error');
                 return false;
             }
 
@@ -374,13 +389,17 @@
         }
 
         async function deleteItem(id) {
+            if (!window.hasPermission || !window.hasPermission('edit_housing_dictionaries')) {
+                Layout.showNotification(t('no_permission') || 'Недостаточно прав', 'error');
+                return;
+            }
             if (!confirm(t('confirm_delete'))) return;
 
             const config = tableConfig[currentTab];
             const { error } = await Layout.db.from(config.table).delete().eq('id', id);
 
             if (error) {
-                alert(t('error') + ': ' + error.message);
+                Layout.showNotification(t('error') + ': ' + error.message, 'error');
                 return;
             }
 

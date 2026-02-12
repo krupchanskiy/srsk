@@ -1,0 +1,384 @@
+<!DOCTYPE html>
+<html lang="ru" data-theme="light">
+<head>
+    <script src="../js/color-init.js"></script>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Менеджеры — CRM — ШРСК</title>
+    <link href="https://cdn.jsdelivr.net/npm/daisyui@4.12.14/dist/full.min.css" rel="stylesheet" />
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script>tailwind.config = { theme: { extend: { screens: { 'desktop': '1200px' } } } }</script>
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="../css/common.css">
+</head>
+<body class="bg-base-200 min-h-screen flex flex-col">
+
+<div id="header-placeholder"></div>
+
+<main class="container mx-auto px-4 py-6 flex-1">
+    <!-- Заголовок -->
+    <div class="flex justify-between items-center mb-6">
+        <h1 class="text-2xl font-bold" data-i18n="nav_crm_managers">Менеджеры</h1>
+    </div>
+
+    <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <!-- Менеджеры по ретритам -->
+        <div class="card bg-base-100 shadow-sm">
+            <div class="card-body">
+                <h2 class="card-title mb-4">Менеджеры ретритов</h2>
+                <p class="text-sm text-base-content/70 mb-4">
+                    Выберите, какие менеджеры работают с каждым ретритом
+                </p>
+
+                <div id="retreatManagersList" class="space-y-4">
+                    <div class="text-center py-4">
+                        <span class="loading loading-spinner loading-md"></span>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Очередь распределения -->
+        <div class="card bg-base-100 shadow-sm">
+            <div class="card-body">
+                <h2 class="card-title mb-4">Очередь распределения заявок</h2>
+                <p class="text-sm text-base-content/70 mb-4">
+                    Новые заявки распределяются по очереди (round-robin)
+                </p>
+
+                <div id="queueList" class="space-y-2">
+                    <div class="text-center py-4">
+                        <span class="loading loading-spinner loading-md"></span>
+                    </div>
+                </div>
+
+                <div class="divider"></div>
+
+                <div class="form-control">
+                    <label class="label"><span class="label-text">Добавить в очередь</span></label>
+                    <div class="flex gap-2">
+                        <select id="addToQueueSelect" class="select select-bordered flex-1">
+                            <option value="">Выберите менеджера...</option>
+                        </select>
+                        <button class="btn btn-primary" onclick="addToQueue()" data-permission="edit_crm_settings">
+                            Добавить
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</main>
+
+<div id="footer-placeholder"></div>
+
+<script src="../js/config.js"></script>
+<script src="../js/auth-check.js"></script>
+<script src="../js/cache.js"></script>
+<script src="../js/utils.js?v=2"></script>
+<script src="../js/date-utils.js"></script>
+<script src="../js/layout.js"></script>
+<script src="../js/crm-utils.js"></script>
+
+<script>
+const t = key => Layout.t(key);
+const e = str => Layout.escapeHtml(str);
+
+let retreats = [];
+let managers = [];  // Все члены команды с ролью sales_manager или sales_head
+let retreatManagers = [];  // Связь ретрит-менеджер
+let queue = [];  // Очередь распределения
+
+// ==================== DATA ====================
+async function loadData() {
+    // Сначала получаем user_id с ролями sales_manager или sales_head
+    const rolesRes = await Layout.db.from('roles')
+        .select('id')
+        .in('code', ['sales_manager', 'sales_head']);
+
+    if (rolesRes.error) {
+        Layout.handleError(rolesRes.error, 'Загрузка ролей');
+        return;
+    }
+
+    const roleIds = (rolesRes.data || []).map(r => r.id);
+
+    // Получаем user_id пользователей с этими ролями
+    const userRolesRes = await Layout.db.from('user_roles')
+        .select('user_id')
+        .in('role_id', roleIds)
+        .eq('is_active', true);
+
+    if (userRolesRes.error) {
+        Layout.handleError(userRolesRes.error, 'Загрузка ролей пользователей');
+        return;
+    }
+
+    const managerUserIds = [...new Set((userRolesRes.data || []).map(r => r.user_id))];
+
+    // Загружаем параллельно остальные данные
+    const [retreatsRes, managersRes, rmRes, queueRes] = await Promise.all([
+        Layout.db.from('retreats')
+            .select('id, name_ru, name_en, start_date, end_date, color')
+            .gte('end_date', DateUtils.toISO(new Date()))
+            .order('start_date'),
+
+        // Получаем менеджеров по их user_id
+        managerUserIds.length > 0
+            ? Layout.db.from('vaishnavas')
+                .select('id, spiritual_name, first_name, last_name, user_id')
+                .in('user_id', managerUserIds)
+                .eq('is_deleted', false)
+            : Promise.resolve({ data: [], error: null }),
+
+        Layout.db.from('crm_retreat_managers')
+            .select('retreat_id, manager_id, is_active'),
+
+        Layout.db.from('crm_manager_queue')
+            .select('id, manager_id, last_assigned_at, is_active, vaishnavas(id, spiritual_name, first_name, last_name)')
+            .order('last_assigned_at', { ascending: true, nullsFirst: true })
+    ]);
+
+    if (retreatsRes.error) Layout.handleError(retreatsRes.error, 'Загрузка ретритов');
+    if (managersRes.error) Layout.handleError(managersRes.error, 'Загрузка менеджеров');
+    if (rmRes.error) Layout.handleError(rmRes.error, 'Загрузка связей');
+    if (queueRes.error) Layout.handleError(queueRes.error, 'Загрузка очереди');
+
+    retreats = retreatsRes.data || [];
+    managers = managersRes.data || [];
+    retreatManagers = rmRes.data || [];
+    queue = queueRes.data || [];
+
+    renderRetreatManagers();
+    renderQueue();
+    updateAddToQueueSelect();
+}
+
+// ==================== RENDER ====================
+function getManagerName(v) {
+    if (!v) return '';
+    return v.spiritual_name || `${v.first_name || ''} ${v.last_name || ''}`.trim() || 'Без имени';
+}
+
+function renderRetreatManagers() {
+    const container = document.getElementById('retreatManagersList');
+
+    if (retreats.length === 0) {
+        container.innerHTML = '<div class="text-center text-base-content/50">Нет активных ретритов</div>';
+        return;
+    }
+
+    container.innerHTML = retreats.map(retreat => {
+        // Менеджеры этого ретрита
+        const assignedIds = retreatManagers
+            .filter(rm => rm.retreat_id === retreat.id && rm.is_active)
+            .map(rm => rm.manager_id);
+
+        const allSelected = managers.length > 0 && managers.every(m => assignedIds.includes(m.id));
+
+        const checkboxes = managers.map(m => {
+            const checked = assignedIds.includes(m.id);
+            return `
+                <label class="flex items-center gap-2 cursor-pointer">
+                    <input type="checkbox" class="checkbox checkbox-sm checkbox-primary manager-checkbox"
+                           data-retreat="${retreat.id}" data-manager="${m.id}"
+                           ${checked ? 'checked' : ''}
+                           onchange="toggleRetreatManager('${retreat.id}', '${m.id}', this.checked)"
+                           data-permission="edit_crm_settings">
+                    <span class="text-sm">${e(getManagerName(m))}</span>
+                </label>
+            `;
+        }).join('');
+
+        const selectAllCheckbox = managers.length > 1 ? `
+            <label class="flex items-center gap-2 cursor-pointer font-medium">
+                <input type="checkbox" class="checkbox checkbox-sm checkbox-primary"
+                       ${allSelected ? 'checked' : ''}
+                       onchange="toggleAllManagers('${retreat.id}', this.checked)"
+                       data-permission="edit_crm_settings">
+                <span class="text-sm">Все</span>
+            </label>
+            <span class="text-base-content/20">|</span>
+        ` : '';
+
+        return `
+            <div class="border rounded-lg p-3" style="border-left: 4px solid ${retreat.color || '#6b7280'}">
+                <div class="font-medium mb-2">${e(Layout.getName(retreat))}</div>
+                <div class="text-xs text-base-content/50 mb-2">
+                    ${CrmUtils.formatDate(retreat.start_date)} — ${CrmUtils.formatDate(retreat.end_date)}
+                </div>
+                <div class="flex flex-wrap gap-3 items-center">
+                    ${managers.length > 0 ? selectAllCheckbox + checkboxes : '<span class="text-sm text-base-content/50">Нет менеджеров</span>'}
+                </div>
+            </div>
+        `;
+    }).join('');
+}
+
+function renderQueue() {
+    const container = document.getElementById('queueList');
+
+    if (queue.length === 0) {
+        container.innerHTML = '<div class="text-center text-base-content/50 py-4">Очередь пуста</div>';
+        return;
+    }
+
+    container.innerHTML = queue.map((q, idx) => {
+        const name = getManagerName(q.vaishnavas);
+        const lastAssigned = q.last_assigned_at
+            ? CrmUtils.formatRelativeTime(q.last_assigned_at)
+            : 'никогда';
+
+        return `
+            <div class="flex items-center gap-3 p-2 bg-base-200 rounded-lg ${!q.is_active ? 'opacity-50' : ''}">
+                <span class="badge badge-ghost">${idx + 1}</span>
+                <div class="flex-1">
+                    <div class="font-medium">${e(name)}</div>
+                    <div class="text-xs text-base-content/50">Последнее назначение: ${lastAssigned}</div>
+                </div>
+                <div class="flex gap-1">
+                    <label class="swap" title="${q.is_active ? 'Активен' : 'На паузе'}">
+                        <input type="checkbox" ${q.is_active ? 'checked' : ''}
+                               onchange="toggleQueueActive('${q.id}', this.checked)"
+                               data-permission="edit_crm_settings">
+                        <span class="swap-on text-success">${CrmUtils.UI_ICONS.checkCircle}</span>
+                        <span class="swap-off text-base-content/30">${CrmUtils.UI_ICONS.checkCircle}</span>
+                    </label>
+                    <button class="btn btn-ghost btn-xs text-error" onclick="removeFromQueue('${q.id}')"
+                            data-permission="edit_crm_settings" title="Удалить">${CrmUtils.UI_ICONS.trash}</button>
+                </div>
+            </div>
+        `;
+    }).join('');
+}
+
+function updateAddToQueueSelect() {
+    const select = document.getElementById('addToQueueSelect');
+    const inQueue = queue.map(q => q.manager_id);
+    const available = managers.filter(m => !inQueue.includes(m.id));
+
+    select.innerHTML = '<option value="">Выберите менеджера...</option>' +
+        available.map(m => `<option value="${m.id}">${e(getManagerName(m))}</option>`).join('');
+}
+
+// ==================== ACTIONS ====================
+async function toggleAllManagers(retreatId, isActive) {
+    // Обновляем все чекбоксы визуально
+    document.querySelectorAll(`.manager-checkbox[data-retreat="${retreatId}"]`).forEach(cb => {
+        cb.checked = isActive;
+    });
+
+    // Сохраняем каждого менеджера
+    for (const m of managers) {
+        await toggleRetreatManager(retreatId, m.id, isActive, true);
+    }
+
+    Layout.showNotification(isActive ? 'Все менеджеры назначены' : 'Все менеджеры сняты', 'success');
+}
+
+async function toggleRetreatManager(retreatId, managerId, isActive, silent = false) {
+    // Проверяем, есть ли уже запись
+    const existing = retreatManagers.find(rm => rm.retreat_id === retreatId && rm.manager_id === managerId);
+
+    let error;
+    if (existing) {
+        // Обновляем
+        ({ error } = await Layout.db
+            .from('crm_retreat_managers')
+            .update({ is_active: isActive })
+            .eq('retreat_id', retreatId)
+            .eq('manager_id', managerId));
+    } else if (isActive) {
+        // Создаём
+        ({ error } = await Layout.db
+            .from('crm_retreat_managers')
+            .insert({ retreat_id: retreatId, manager_id: managerId, is_active: true }));
+    }
+
+    if (error) {
+        Layout.handleError(error, 'Сохранение');
+        return;
+    }
+
+    // Обновляем локальные данные
+    if (existing) {
+        existing.is_active = isActive;
+    } else if (isActive) {
+        retreatManagers.push({ retreat_id: retreatId, manager_id: managerId, is_active: true });
+    }
+
+    if (!silent) {
+        Layout.showNotification(t('saved') || 'Сохранено', 'success');
+    }
+}
+
+async function toggleQueueActive(queueId, isActive) {
+    const { error } = await Layout.db
+        .from('crm_manager_queue')
+        .update({ is_active: isActive })
+        .eq('id', queueId);
+
+    if (error) {
+        Layout.handleError(error, 'Сохранение');
+        return;
+    }
+
+    const item = queue.find(q => q.id === queueId);
+    if (item) item.is_active = isActive;
+
+    Layout.showNotification(isActive ? 'Менеджер активирован' : 'Менеджер на паузе', 'success');
+    renderQueue();
+}
+
+async function addToQueue() {
+    const select = document.getElementById('addToQueueSelect');
+    const managerId = select.value;
+    if (!managerId) return;
+
+    const { error } = await Layout.db
+        .from('crm_manager_queue')
+        .insert({ manager_id: managerId, is_active: true });
+
+    if (error) {
+        Layout.handleError(error, 'Добавление в очередь');
+        return;
+    }
+
+    Layout.showNotification('Менеджер добавлен в очередь', 'success');
+    await loadData();
+}
+
+async function removeFromQueue(queueId) {
+    if (!confirm('Удалить менеджера из очереди?')) return;
+
+    const { error } = await Layout.db
+        .from('crm_manager_queue')
+        .delete()
+        .eq('id', queueId);
+
+    if (error) {
+        Layout.handleError(error, 'Удаление из очереди');
+        return;
+    }
+
+    Layout.showNotification('Удалено из очереди', 'success');
+    await loadData();
+}
+
+// ==================== INIT ====================
+async function init() {
+    await Layout.init({
+        module: 'crm',
+        menuId: 'crm_settings',
+        itemId: 'crm_managers'
+    });
+
+    await loadData();
+}
+
+init();
+</script>
+
+</body>
+</html>

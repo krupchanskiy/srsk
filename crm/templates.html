@@ -1,0 +1,274 @@
+<!DOCTYPE html>
+<html lang="ru" data-theme="light">
+<head>
+    <script src="../js/color-init.js"></script>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Шаблоны сообщений — CRM — ШРСК</title>
+    <link href="https://cdn.jsdelivr.net/npm/daisyui@4.12.14/dist/full.min.css" rel="stylesheet" />
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script>tailwind.config = { theme: { extend: { screens: { 'desktop': '1200px' } } } }</script>
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="../css/common.css">
+</head>
+<body class="bg-base-200 min-h-screen flex flex-col">
+
+<div id="header-placeholder"></div>
+
+<main class="container mx-auto px-4 py-6 flex-1">
+    <!-- Заголовок -->
+    <div class="flex justify-between items-center mb-6">
+        <h1 class="text-2xl font-bold" data-i18n="nav_crm_templates">Шаблоны сообщений</h1>
+        <button class="btn btn-primary" onclick="openAddModal()" data-permission="edit_crm_settings">
+            + <span data-i18n="add">Добавить</span>
+        </button>
+    </div>
+
+    <!-- Подсказка -->
+    <div class="alert mb-6">
+        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" class="stroke-info shrink-0 w-6 h-6"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+        <div>
+            <div class="font-medium">Переменные для шаблонов:</div>
+            <code class="text-xs">{retreat_name}, {manager_name}, {guest_name}, {org_fee}, {total_amount}, {check_in}, {check_out}</code>
+        </div>
+    </div>
+
+    <!-- Список шаблонов -->
+    <div id="templatesList" class="space-y-4">
+        <div class="text-center py-8">
+            <span class="loading loading-spinner loading-md"></span>
+        </div>
+    </div>
+</main>
+
+<div id="footer-placeholder"></div>
+
+<!-- Модалка добавления/редактирования -->
+<dialog id="templateModal" class="modal">
+    <div class="modal-box max-w-2xl">
+        <h3 class="font-bold text-lg mb-4" id="modalTitle">Шаблон</h3>
+        <form id="templateForm" onsubmit="saveTemplate(event)">
+            <input type="hidden" id="templateId">
+
+            <div class="grid grid-cols-2 gap-3 mb-3">
+                <div class="form-control">
+                    <label class="label"><span class="label-text">Код</span></label>
+                    <input type="text" id="templateCode" class="input input-bordered" required
+                           pattern="[a-z_]+" placeholder="welcome">
+                </div>
+                <div class="form-control">
+                    <label class="label"><span class="label-text">Сортировка</span></label>
+                    <input type="number" id="templateSortOrder" class="input input-bordered" min="0" value="0">
+                </div>
+            </div>
+
+            <div class="grid grid-cols-2 gap-3 mb-3">
+                <div class="form-control">
+                    <label class="label"><span class="label-text">Название (RU)</span></label>
+                    <input type="text" id="templateNameRu" class="input input-bordered" required>
+                </div>
+                <div class="form-control">
+                    <label class="label"><span class="label-text">Название (EN)</span></label>
+                    <input type="text" id="templateNameEn" class="input input-bordered" required>
+                </div>
+            </div>
+
+            <div class="divider">Текст шаблона</div>
+
+            <div class="form-control mb-3">
+                <label class="label"><span class="label-text">Русский</span></label>
+                <textarea id="templateTextRu" class="textarea textarea-bordered h-32" required></textarea>
+            </div>
+
+            <div class="form-control mb-3">
+                <label class="label"><span class="label-text">English</span></label>
+                <textarea id="templateTextEn" class="textarea textarea-bordered h-32" required></textarea>
+            </div>
+
+            <div class="form-control mb-4">
+                <label class="label"><span class="label-text">हिंदी (опционально)</span></label>
+                <textarea id="templateTextHi" class="textarea textarea-bordered h-32"></textarea>
+            </div>
+
+            <div class="modal-action">
+                <button type="button" class="btn" onclick="closeModal()">Отмена</button>
+                <button type="submit" class="btn btn-primary">Сохранить</button>
+            </div>
+        </form>
+    </div>
+    <form method="dialog" class="modal-backdrop"><button>close</button></form>
+</dialog>
+
+<script src="../js/config.js"></script>
+<script src="../js/auth-check.js"></script>
+<script src="../js/cache.js"></script>
+<script src="../js/utils.js?v=2"></script>
+<script src="../js/layout.js"></script>
+<script src="../js/crm-utils.js"></script>
+
+<script>
+const t = key => Layout.t(key);
+const e = str => Layout.escapeHtml(str);
+
+let templates = [];
+
+// ==================== DATA ====================
+async function loadTemplates() {
+    const { data, error } = await Layout.db
+        .from('crm_message_templates')
+        .select('*')
+        .order('sort_order');
+
+    if (error) {
+        Layout.handleError(error, 'Загрузка шаблонов');
+        return;
+    }
+    templates = data || [];
+    renderList();
+}
+
+// ==================== RENDER ====================
+function renderList() {
+    const list = document.getElementById('templatesList');
+
+    if (templates.length === 0) {
+        list.innerHTML = `<div class="text-center py-8 text-base-content/50">
+            Нет шаблонов
+        </div>`;
+        return;
+    }
+
+    list.innerHTML = templates.map(tpl => `
+        <div class="card bg-base-100 shadow-sm">
+            <div class="card-body p-4">
+                <div class="flex items-start justify-between gap-4">
+                    <div class="flex-1">
+                        <div class="flex items-center gap-2 mb-2">
+                            <span class="font-bold">${e(Layout.getName(tpl))}</span>
+                            <span class="badge badge-ghost badge-sm font-mono">${e(tpl.code)}</span>
+                        </div>
+                        <div class="text-sm text-base-content/70 whitespace-pre-wrap line-clamp-3">
+                            ${e(tpl.template_ru || tpl.template_en)}
+                        </div>
+                    </div>
+                    <div class="flex gap-1 shrink-0">
+                        <button class="btn btn-ghost btn-sm" onclick="copyTemplate('${tpl.id}')"
+                                title="Копировать">${CrmUtils.UI_ICONS.copy}</button>
+                        <button class="btn btn-ghost btn-sm" onclick="editTemplate('${tpl.id}')"
+                                data-permission="edit_crm_settings" title="Редактировать">${CrmUtils.UI_ICONS.edit}</button>
+                        <button class="btn btn-ghost btn-sm text-error" onclick="deleteTemplate('${tpl.id}')"
+                                data-permission="edit_crm_settings" title="Удалить">${CrmUtils.UI_ICONS.trash}</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    `).join('');
+}
+
+// ==================== ACTIONS ====================
+async function copyTemplate(id) {
+    const tpl = templates.find(t => t.id === id);
+    if (!tpl) return;
+
+    const lang = Layout.currentLang || 'ru';
+    const text = tpl[`template_${lang}`] || tpl.template_ru || tpl.template_en;
+
+    await CrmUtils.copyToClipboard(text);
+}
+
+// ==================== MODAL ====================
+function openAddModal() {
+    document.getElementById('modalTitle').textContent = 'Новый шаблон';
+    document.getElementById('templateForm').reset();
+    document.getElementById('templateId').value = '';
+    document.getElementById('templateModal').showModal();
+}
+
+function editTemplate(id) {
+    const tpl = templates.find(t => t.id === id);
+    if (!tpl) return;
+
+    document.getElementById('modalTitle').textContent = 'Редактирование шаблона';
+    document.getElementById('templateId').value = tpl.id;
+    document.getElementById('templateCode').value = tpl.code;
+    document.getElementById('templateSortOrder').value = tpl.sort_order || 0;
+    document.getElementById('templateNameRu').value = tpl.name_ru || '';
+    document.getElementById('templateNameEn').value = tpl.name_en || '';
+    document.getElementById('templateTextRu').value = tpl.template_ru || '';
+    document.getElementById('templateTextEn').value = tpl.template_en || '';
+    document.getElementById('templateTextHi').value = tpl.template_hi || '';
+
+    document.getElementById('templateModal').showModal();
+}
+
+function closeModal() {
+    document.getElementById('templateModal').close();
+}
+
+// ==================== SAVE ====================
+async function saveTemplate(event) {
+    event.preventDefault();
+
+    const id = document.getElementById('templateId').value;
+    const data = {
+        code: document.getElementById('templateCode').value.trim().toLowerCase(),
+        name_ru: document.getElementById('templateNameRu').value.trim(),
+        name_en: document.getElementById('templateNameEn').value.trim(),
+        template_ru: document.getElementById('templateTextRu').value.trim(),
+        template_en: document.getElementById('templateTextEn').value.trim(),
+        template_hi: document.getElementById('templateTextHi').value.trim() || null,
+        sort_order: parseInt(document.getElementById('templateSortOrder').value) || 0
+    };
+
+    let error;
+    if (id) {
+        ({ error } = await Layout.db.from('crm_message_templates').update(data).eq('id', id));
+    } else {
+        ({ error } = await Layout.db.from('crm_message_templates').insert(data));
+    }
+
+    if (error) {
+        Layout.handleError(error, 'Сохранение шаблона');
+        return;
+    }
+
+    Layout.showNotification(t('saved') || 'Сохранено', 'success');
+    closeModal();
+    await loadTemplates();
+}
+
+// ==================== DELETE ====================
+async function deleteTemplate(id) {
+    const tpl = templates.find(t => t.id === id);
+    if (!tpl) return;
+
+    if (!confirm(`Удалить шаблон "${Layout.getName(tpl)}"?`)) return;
+
+    const { error } = await Layout.db.from('crm_message_templates').delete().eq('id', id);
+
+    if (error) {
+        Layout.handleError(error, 'Удаление шаблона');
+        return;
+    }
+
+    Layout.showNotification(t('deleted') || 'Удалено', 'success');
+    await loadTemplates();
+}
+
+// ==================== INIT ====================
+async function init() {
+    await Layout.init({
+        module: 'crm',
+        menuId: 'crm_settings',
+        itemId: 'crm_templates'
+    });
+
+    await loadTemplates();
+}
+
+init();
+</script>
+
+</body>
+</html>

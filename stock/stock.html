@@ -67,9 +67,11 @@
         </div>
 
         <div class="space-y-3" id="stockList">
-            <div class="bg-base-100 rounded-lg p-4 shadow-sm skeleton h-20"></div>
-            <div class="bg-base-100 rounded-lg p-4 shadow-sm skeleton h-20"></div>
-            <div class="bg-base-100 rounded-lg p-4 shadow-sm skeleton h-20"></div>
+            <!-- Skeleton loader -->
+            <div class="bg-base-100 rounded-lg p-4 shadow-sm border-l-4 border-base-300"><div class="flex items-center justify-between"><div class="flex items-center gap-3"><div class="skeleton w-10 h-10 rounded-lg"></div><div><div class="skeleton h-5 w-32 mb-1"></div><div class="skeleton h-3 w-20"></div></div></div><div class="flex items-center gap-4"><div class="skeleton h-8 w-24"></div><div class="skeleton h-4 w-16"></div></div></div></div>
+            <div class="bg-base-100 rounded-lg p-4 shadow-sm border-l-4 border-base-300"><div class="flex items-center justify-between"><div class="flex items-center gap-3"><div class="skeleton w-10 h-10 rounded-lg"></div><div><div class="skeleton h-5 w-40 mb-1"></div><div class="skeleton h-3 w-24"></div></div></div><div class="flex items-center gap-4"><div class="skeleton h-8 w-20"></div><div class="skeleton h-4 w-12"></div></div></div></div>
+            <div class="bg-base-100 rounded-lg p-4 shadow-sm border-l-4 border-base-300"><div class="flex items-center justify-between"><div class="flex items-center gap-3"><div class="skeleton w-10 h-10 rounded-lg"></div><div><div class="skeleton h-5 w-28 mb-1"></div><div class="skeleton h-3 w-16"></div></div></div><div class="flex items-center gap-4"><div class="skeleton h-8 w-28"></div><div class="skeleton h-4 w-20"></div></div></div></div>
+            <div class="bg-base-100 rounded-lg p-4 shadow-sm border-l-4 border-base-300"><div class="flex items-center justify-between"><div class="flex items-center gap-3"><div class="skeleton w-10 h-10 rounded-lg"></div><div><div class="skeleton h-5 w-36 mb-1"></div><div class="skeleton h-3 w-20"></div></div></div><div class="flex items-center gap-4"><div class="skeleton h-8 w-24"></div><div class="skeleton h-4 w-16"></div></div></div></div>
         </div>
 
     </main>
@@ -77,12 +79,12 @@
     <div id="footer-placeholder"></div>
 
     <script src="../js/config.js"></script>
-    <script src="../js/auth-check.js?v=2"></script>
+    <script src="../js/auth-check.js?v=3"></script>
     <script src="../js/cache.js"></script>
-    <script src="../js/utils.js"></script>
+    <script src="../js/utils.js?v=2"></script>
     <script src="../js/translit.js"></script>
     <script src="../js/auto-translate.js"></script>
-    <script src="../js/layout.js"></script>
+    <script src="../js/layout.js?v=5"></script>
     <script>
         // ==================== STATE ====================
         let currentCategory = 'all';
@@ -371,7 +373,7 @@
 
         // ==================== INIT ====================
         async function init() {
-            await Layout.init({ menuId: 'stock', itemId: 'stock_balance' });
+            await Layout.init({ module: 'kitchen', menuId: 'stock', itemId: 'stock_balance' });
             Layout.showLoader();
             await loadLocationId();
             await loadCategories();
@@ -379,6 +381,28 @@
             await loadStock();
             updatePageLanguage();
             Layout.hideLoader();
+
+            // Realtime: автообновление при изменениях
+            subscribeToRealtime();
+        }
+
+        // Realtime подписка на изменения склада
+        function subscribeToRealtime() {
+            Layout.db.channel('stock-realtime')
+                .on('postgres_changes',
+                    { event: '*', schema: 'public', table: 'stock' },
+                    handleRealtimeChange
+                )
+                .subscribe();
+        }
+
+        let realtimeTimeout = null;
+        function handleRealtimeChange(payload) {
+            if (realtimeTimeout) clearTimeout(realtimeTimeout);
+            realtimeTimeout = setTimeout(async () => {
+                await loadStock();
+                Layout.showNotification('Данные обновлены', 'info');
+            }, 500);
         }
 
         init();

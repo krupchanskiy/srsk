@@ -64,6 +64,14 @@
             <button class="tab" data-tab="deleted" onclick="switchTab('deleted')" data-i18n="deleted_issuances_tab">Удалённые</button>
         </div>
 
+        <!-- Сообщение об отсутствии прав -->
+        <div class="alert alert-warning mb-6" data-no-permission="issue_stock" style="display: none;">
+            <svg xmlns="http://www.w3.org/2000/svg" class="stroke-current shrink-0 h-6 w-6" fill="none" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+            </svg>
+            <span>У вас нет прав для совершения действий на этой странице. Доступен только просмотр.</span>
+        </div>
+
         <!-- New Issuance Tab -->
         <div id="tabNew" class="tab-pane">
 
@@ -99,7 +107,7 @@
                         </div>
                     </div>
 
-                    <button class="btn btn-primary w-full mt-4" onclick="generateFromMenu()" data-i18n="generate">
+                    <button class="btn btn-primary w-full mt-4" onclick="generateFromMenu()" data-i18n="generate" data-permission="issue_stock">
                         Сформировать
                     </button>
                 </div>
@@ -111,7 +119,7 @@
 
                     <div class="flex-1"></div>
 
-                    <button class="btn btn-outline btn-primary w-full" onclick="createManualIssue()" data-i18n="create_issue">
+                    <button class="btn btn-outline btn-primary w-full" onclick="createManualIssue()" data-i18n="create_issue" data-permission="issue_stock">
                         Создать выдачу
                     </button>
                 </div>
@@ -177,7 +185,7 @@
                             <div class="text-sm opacity-60" data-i18n="total_items_short">Позиций</div>
                             <div class="text-2xl font-bold" id="issuanceTotal">0</div>
                         </div>
-                        <button type="button" class="btn btn-primary" id="saveIssuanceBtn" onclick="saveIssuance()">
+                        <button type="button" class="btn btn-primary" id="saveIssuanceBtn" onclick="saveIssuance()" data-permission="issue_stock">
                             <span class="loading loading-spinner loading-sm hidden" id="saveSpinner"></span>
                             <span id="saveText" data-i18n="save_issuance">Сохранить выдачу</span>
                         </button>
@@ -360,12 +368,14 @@
     </dialog>
 
     <script src="../js/config.js"></script>
-    <script src="../js/auth-check.js?v=2"></script>
+    <script src="../js/auth-check.js?v=3"></script>
     <script src="../js/cache.js"></script>
-    <script src="../js/utils.js"></script>
+    <script src="../js/utils.js?v=2"></script>
     <script src="../js/translit.js"></script>
     <script src="../js/auto-translate.js"></script>
-    <script src="../js/layout.js"></script>
+    <script src="../js/date-utils.js"></script>
+    <script src="../js/eating-utils.js"></script>
+    <script src="../js/layout.js?v=5"></script>
     <script>
         // ==================== STATE ====================
         let issuances = [];
@@ -569,7 +579,7 @@
                 dropdown.innerHTML = `<div class="p-3 text-center opacity-50">${tr('not_found', 'Не найдено')}</div>`;
             } else {
                 dropdown.innerHTML = filtered.map(p => `
-                    <div class="p-2 hover:bg-base-200 cursor-pointer" onclick="selectProduct('${p.id}')">
+                    <div class="p-2 hover:bg-base-200 cursor-pointer" data-action="select-product" data-id="${p.id}">
                         <div class="font-medium">${Layout.getName(p)}</div>
                         <div class="text-xs opacity-50">${p.product_categories?.emoji || ''} ${Layout.getName(p.product_categories)}</div>
                     </div>
@@ -596,7 +606,7 @@
                 container.innerHTML = `<div class="p-4 text-center opacity-50">${tr('no_products_in_category', 'В этой категории нет продуктов')}</div>`;
             } else {
                 container.innerHTML = filtered.map(p => `
-                    <div class="p-2 hover:bg-base-200 cursor-pointer border-b border-base-200 last:border-b-0" onclick="selectProduct('${p.id}')">
+                    <div class="p-2 hover:bg-base-200 cursor-pointer border-b border-base-200 last:border-b-0" data-action="select-product" data-id="${p.id}">
                         <div class="font-medium">${Layout.getName(p)}</div>
                         <div class="text-xs opacity-50">${p.product_categories?.emoji || ''} ${Layout.getName(p.product_categories)}</div>
                     </div>
@@ -720,15 +730,10 @@
                 .select('id, name_ru')
                 .in('name_ru', ['Кухня', 'Кафе']);
 
-            console.log('Departments loaded:', depts, 'Error:', deptsError);
-
             const kitchenDeptIds = depts?.map(d => d.id) || [];
 
             if (kitchenDeptIds.length === 0) {
                 console.warn('Kitchen/Cafe departments not found');
-                // Попробуем загрузить все департаменты для отладки
-                const { data: allDepts } = await Layout.db.from('departments').select('id, name_ru');
-                console.log('All departments:', allDepts);
                 cooks = [];
                 renderCooksSelect();
                 return;
@@ -743,8 +748,6 @@
                 .in('department_id', kitchenDeptIds)
                 .order('spiritual_name');
 
-            console.log('Cooks loaded:', data, 'Error:', error);
-
             if (error) { console.error('Error loading cooks:', error); return; }
             cooks = data || [];
             renderCooksSelect();
@@ -753,10 +756,11 @@
         function renderCooksSelect() {
             const select = Layout.$('#issuanceReceiver');
             if (!select) return;
+            const e = Layout.escapeHtml;
             select.innerHTML = `<option value="">${tr('select_receiver', '— Выберите —')}</option>` +
                 cooks.map(c => {
                     const name = c.spiritual_name || `${c.first_name || ''} ${c.last_name || ''}`.trim() || 'Без имени';
-                    return `<option value="${c.id}">${name}</option>`;
+                    return `<option value="${c.id}">${e(name)}</option>`;
                 }).join('');
         }
 
@@ -816,7 +820,7 @@
                             ${product?.waste_percent ? `<div class="text-xs opacity-60 mt-1">(+${product.waste_percent}% на очистку)</div>` : ''}
                         </td>
                         <td>
-                            <button class="btn btn-ghost btn-sm btn-square text-error" onclick="removeIssuanceItem(${idx})">
+                            <button class="btn btn-ghost btn-sm btn-square text-error" data-action="remove-issuance-item" data-index="${idx}">
                                 <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
                                 </svg>
@@ -882,6 +886,7 @@
         }
 
         async function saveIssuance() {
+            if (!window.hasPermission?.('issue_stock')) return;
             // Блокируем сразу синхронно
             if (saving) return;
             saving = true;
@@ -927,18 +932,21 @@
             try {
                 const locationId = (await Layout.db.from('locations').select('id').eq('slug', Layout.currentLocation).single()).data?.id;
 
-                const issuanceData = {
-                    location_id: locationId,
-                    issuance_date: Layout.$('#issuanceDate').value,
-                    receiver_id: receiverId,
-                    notes: Layout.$('#issuanceNotes').value.trim()
-                };
+                const items = issuanceItemsList.map(i => {
+                    const product = products.find(p => p.id === i.product_id);
+                    return {
+                        product_id: i.product_id,
+                        quantity: toStockUnit(i.quantity, i.display_unit, product?.unit)
+                    };
+                });
 
-                const { data: issuance, error } = await Layout.db
-                    .from('stock_issuances')
-                    .insert(issuanceData)
-                    .select()
-                    .single();
+                const { error } = await Layout.db.rpc('save_stock_issuance', {
+                    p_location_id: locationId,
+                    p_date: Layout.$('#issuanceDate').value,
+                    p_receiver_id: receiverId,
+                    p_notes: Layout.$('#issuanceNotes').value.trim(),
+                    p_items: items
+                });
 
                 if (error) {
                     console.error('Error saving issuance:', error);
@@ -947,38 +955,9 @@
                     return;
                 }
 
-                const items = issuanceItemsList.map(i => ({
-                    issuance_id: issuance.id,
-                    product_id: i.product_id,
-                    quantity: i.quantity
-                }));
-
-                const { error: itemsError } = await Layout.db.from('stock_issuance_items').insert(items);
-
-                if (itemsError) {
-                    console.error('Error saving items:', itemsError);
-                }
-
-                // Update stock quantities (SUBTRACT)
-                for (const item of issuanceItemsList) {
-                    const { data: stockItem } = await Layout.db
-                        .from('stock')
-                        .select('id, current_quantity')
-                        .eq('product_id', item.product_id)
-                        .eq('location_id', locationId)
-                        .single();
-
-                    if (stockItem) {
-                        const newQty = Math.max(0, stockItem.current_quantity - item.quantity);
-                        await Layout.db.from('stock').update({
-                            current_quantity: newQty
-                        }).eq('id', stockItem.id);
-                    }
-                }
-
                 // Clear form and switch to saved tab
                 issuanceItemsList = [];
-                Layout.$('#issuanceDate').value = new Date().toISOString().split('T')[0];
+                Layout.$('#issuanceDate').value = DateUtils.toISO(new Date());
                 Layout.$('#issuanceReceiver').value = '';
                 Layout.$('#issuanceNotes').value = '';
                 renderIssuanceItems();
@@ -1045,19 +1024,19 @@
             let actions = '';
             if (status === 'saved') {
                 actions = `
-                    <button class="btn btn-ghost btn-sm text-sm opacity-60 normal-case font-normal" onclick="archiveIssuance('${rec.id}')">${tr('to_archive', 'В архив')}</button>
+                    <button class="btn btn-ghost btn-sm text-sm opacity-60 normal-case font-normal" data-action="archive-issuance" data-id="${rec.id}">${tr('to_archive', 'В архив')}</button>
                     <span class="text-base-300">|</span>
-                    <button class="btn btn-ghost btn-sm text-sm text-error opacity-60 normal-case font-normal" onclick="deleteIssuance('${rec.id}')">${tr('delete', 'Удалить')}</button>
+                    <button class="btn btn-ghost btn-sm text-sm text-error opacity-60 normal-case font-normal" data-action="delete-issuance" data-id="${rec.id}">${tr('delete', 'Удалить')}</button>
                 `;
             } else if (status === 'archived') {
                 actions = `
-                    <button class="btn btn-ghost btn-sm text-sm text-error opacity-60 normal-case font-normal" onclick="deleteIssuance('${rec.id}')">${tr('delete', 'Удалить')}</button>
+                    <button class="btn btn-ghost btn-sm text-sm text-error opacity-60 normal-case font-normal" data-action="delete-issuance" data-id="${rec.id}">${tr('delete', 'Удалить')}</button>
                 `;
             } else if (status === 'deleted') {
                 actions = `
-                    <button class="btn btn-ghost btn-sm text-sm text-success opacity-60 normal-case font-normal" onclick="restoreIssuance('${rec.id}')">${tr('restore', 'Восстановить')}</button>
+                    <button class="btn btn-ghost btn-sm text-sm text-success opacity-60 normal-case font-normal" data-action="restore-issuance" data-id="${rec.id}">${tr('restore', 'Восстановить')}</button>
                     <span class="text-base-300">|</span>
-                    <button class="btn btn-ghost btn-sm text-sm text-error opacity-60 normal-case font-normal" onclick="permanentDeleteIssuance('${rec.id}')">${tr('delete_permanently', 'Удалить навсегда')}</button>
+                    <button class="btn btn-ghost btn-sm text-sm text-error opacity-60 normal-case font-normal" data-action="permanent-delete-issuance" data-id="${rec.id}">${tr('delete_permanently', 'Удалить навсегда')}</button>
                 `;
             }
 
@@ -1074,7 +1053,7 @@
                                 <div class="text-xs opacity-60">${tr('items', 'позиций')}</div>
                             </div>
                             <div class="flex items-center gap-2">
-                                <button class="btn btn-ghost btn-md" title="${tr('view', 'Просмотр')}" onclick="viewIssuance('${rec.id}')">
+                                <button class="btn btn-ghost btn-md" title="${tr('view', 'Просмотр')}" data-action="view-issuance" data-id="${rec.id}">
                                     <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
                                         <path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
                                         <path stroke-linecap="round" stroke-linejoin="round" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
@@ -1129,7 +1108,7 @@
                             </div>
                         </td>
                         <td>
-                            <button class="btn btn-ghost btn-sm btn-square text-error" onclick="removeViewedItem(${idx})">
+                            <button class="btn btn-ghost btn-sm btn-square text-error" data-action="remove-viewed-item" data-index="${idx}">
                                 <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
                                 </svg>
@@ -1151,19 +1130,24 @@
         }
 
         async function saveViewedIssuance() {
+            if (!window.hasPermission?.('issue_stock')) return;
             if (!viewingIssuance) return;
 
-            // Delete old items
-            await Layout.db.from('stock_issuance_items').delete().eq('issuance_id', viewingIssuance.id);
-
-            // Insert new items
             const items = viewingItems.map(i => ({
-                issuance_id: viewingIssuance.id,
                 product_id: i.product_id,
                 quantity: i.quantity
             }));
 
-            await Layout.db.from('stock_issuance_items').insert(items);
+            const { error } = await Layout.db.rpc('update_stock_issuance_items', {
+                p_issuance_id: viewingIssuance.id,
+                p_items: items
+            });
+
+            if (error) {
+                console.error('Error updating issuance items:', error);
+                showAlert(tr('save_error', 'Ошибка сохранения'));
+                return;
+            }
 
             closeViewIssuanceModal();
             await loadIssuances();
@@ -1183,6 +1167,7 @@
 
         // ==================== ARCHIVE & DELETE ====================
         async function archiveIssuance(id) {
+            if (!window.hasPermission?.('issue_stock')) return;
             if (!await showConfirm(tr('archive_confirm', 'Переместить в архив?'))) return;
 
             const { error } = await Layout.db.from('stock_issuances').update({ archived: true }).eq('id', id);
@@ -1195,6 +1180,7 @@
         }
 
         async function deleteIssuance(id) {
+            if (!window.hasPermission?.('issue_stock')) return;
             if (!await showConfirm(tr('delete_confirm', 'Переместить в удалённые?'))) return;
 
             const { error } = await Layout.db.from('stock_issuances').update({ deleted: true }).eq('id', id);
@@ -1208,6 +1194,7 @@
         }
 
         async function restoreIssuance(id) {
+            if (!window.hasPermission?.('issue_stock')) return;
             const { error } = await Layout.db.from('stock_issuances').update({ deleted: false }).eq('id', id);
             if (error) {
                 console.error('Error restoring:', error);
@@ -1218,6 +1205,7 @@
         }
 
         async function permanentDeleteIssuance(id) {
+            if (!window.hasPermission?.('issue_stock')) return;
             if (!await showConfirm(tr('permanent_delete_confirm', 'Удалить навсегда? Количества на складе будут возвращены. Это действие нельзя отменить!'))) return;
 
             const rec = issuances.find(r => r.id === id);
@@ -1301,7 +1289,7 @@
 
         function createManualIssue() {
             issuanceItemsList = [];
-            Layout.$('#issuanceDate').value = new Date().toISOString().split('T')[0];
+            Layout.$('#issuanceDate').value = DateUtils.toISO(new Date());
             Layout.$('#issuanceReceiver').value = '';
             Layout.$('#issuanceNotes').value = '';
             renderIssuanceItems();
@@ -1338,7 +1326,7 @@
                 // Step 1: Get meals for the selected date
                 const { data: meals, error: mealsError } = await Layout.db
                     .from('menu_meals')
-                    .select('id, meal_type, portions')
+                    .select('id, meal_type, portions, date')
                     .eq('location_id', locationId)
                     .eq('date', date)
                     .in('meal_type', mealTypes);
@@ -1401,6 +1389,9 @@
                     return output / portion;
                 }
 
+                // Загружаем кол-во едоков как fallback (если повар не задал порции вручную)
+                const eatingCounts = await EatingUtils.loadCounts(date, date);
+
                 // Collect all ingredients with proper scaling
                 const ingredientsMap = {};
 
@@ -1409,7 +1400,7 @@
                     const recipe = recipesMap[dish.recipe_id];
                     if (!meal) return;
 
-                    const mealPortions = meal.portions || 1;
+                    const mealPortions = meal.portions || EatingUtils.getTotal(eatingCounts, meal.date, meal.meal_type);
                     const recipePortions = getRecipePortions(recipe);
                     const scale = mealPortions / recipePortions;
 
@@ -1471,10 +1462,10 @@
 
         // ==================== INIT ====================
         async function init() {
-            await Layout.init({ menuId: 'stock', itemId: 'issue' });
+            await Layout.init({ module: 'kitchen', menuId: 'stock', itemId: 'issue' });
 
             // Set initial dates
-            const today = new Date().toISOString().split('T')[0];
+            const today = DateUtils.toISO(new Date());
             Layout.$('#issuanceDate').value = today;
             Layout.$('#menuLoadDate').value = today;
 
@@ -1497,6 +1488,26 @@
             initialized = true;
             Layout.updateAllTranslations();
         }
+
+        // ==================== EVENT DELEGATION ====================
+        document.addEventListener('click', e => {
+            const el = e.target.closest('[data-action]');
+            if (!el) return;
+            const action = el.dataset.action;
+            const id = el.dataset.id;
+            const index = el.dataset.index;
+
+            switch(action) {
+                case 'select-product': selectProduct(id); break;
+                case 'remove-issuance-item': removeIssuanceItem(parseInt(index)); break;
+                case 'archive-issuance': archiveIssuance(id); break;
+                case 'delete-issuance': deleteIssuance(id); break;
+                case 'restore-issuance': restoreIssuance(id); break;
+                case 'permanent-delete-issuance': permanentDeleteIssuance(id); break;
+                case 'view-issuance': viewIssuance(id); break;
+                case 'remove-viewed-item': removeViewedItem(parseInt(index)); break;
+            }
+        });
 
         init();
     </script>

@@ -286,12 +286,13 @@
     </dialog>
 
     <script src="../js/config.js"></script>
-    <script src="../js/auth-check.js?v=2"></script>
+    <script src="../js/auth-check.js?v=3"></script>
     <script src="../js/cache.js"></script>
-    <script src="../js/utils.js"></script>
+    <script src="../js/utils.js?v=2"></script>
     <script src="../js/translit.js"></script>
     <script src="../js/auto-translate.js"></script>
-    <script src="../js/layout.js"></script>
+    <script src="../js/date-utils.js"></script>
+    <script src="../js/layout.js?v=5"></script>
     <script>
         // ==================== STATE ====================
         let templates = [];
@@ -465,7 +466,7 @@
         }
 
         function formatDate(date) {
-            return date.toISOString().split('T')[0];
+            return DateUtils.toISO(date);
         }
 
         // Parse date string as local date (not UTC)
@@ -522,7 +523,7 @@
             const toDate = Layout.$('#importToDate').value;
 
             if (!name) {
-                alert(t('enter_template_name'));
+                Layout.showNotification(t('enter_template_name'), 'warning');
                 return;
             }
 
@@ -547,7 +548,7 @@
             // Build template data structure
             templateData = {};
             (mealsData || []).forEach(meal => {
-                const mealDate = new Date(meal.date);
+                const mealDate = DateUtils.parseDate(meal.date);
                 const dayNumber = Math.ceil((mealDate - from) / (1000 * 60 * 60 * 24)) + 1;
 
                 if (!templateData[dayNumber]) {
@@ -810,7 +811,7 @@
 
             const nameRu = Layout.$('#templateNameRu').value.trim();
             if (!nameRu) {
-                alert(t('enter_template_name'));
+                Layout.showNotification(t('enter_template_name'), 'warning');
                 return;
             }
 
@@ -903,7 +904,7 @@
                 await loadData();
             } catch (error) {
                 console.error('Error saving template:', error);
-                alert(t('save_error'));
+                Layout.showNotification(t('save_error'), 'error');
             } finally {
                 saveBtn.disabled = false;
                 saveBtn.textContent = t('save');
@@ -1089,7 +1090,7 @@
             if (!template) return;
 
             const today = new Date();
-            Layout.$('#applyStartDate').value = today.toISOString().split('T')[0];
+            Layout.$('#applyStartDate').value = DateUtils.toISO(today);
 
             updateApplyPreview();
             applyTemplateModal.showModal();
@@ -1126,7 +1127,7 @@
             const locationId = getCurrentLocation()?.id;
             if (!locationId) return;
 
-            const startDate = new Date(startDateStr);
+            const startDate = DateUtils.parseDate(startDateStr);
             const endDate = new Date(startDate);
             endDate.setDate(endDate.getDate() + dayCount - 1);
 
@@ -1135,7 +1136,7 @@
                 .select('id')
                 .eq('location_id', locationId)
                 .gte('date', startDateStr)
-                .lte('date', endDate.toISOString().split('T')[0])
+                .lte('date', DateUtils.toISO(endDate))
                 .limit(1);
 
             Layout.$('#overwriteWarning').classList.toggle('hidden', !existingMeals?.length);
@@ -1166,7 +1167,7 @@
                 for (let dayOffset = 0; dayOffset < template.day_count; dayOffset++) {
                     const targetDate = new Date(startDate);
                     targetDate.setDate(targetDate.getDate() + dayOffset);
-                    const targetDateStr = targetDate.toISOString().split('T')[0];
+                    const targetDateStr = DateUtils.toISO(targetDate);
                     const dayNumber = dayOffset + 1;
 
                     // Get meals for this day from template
@@ -1234,7 +1235,7 @@
                 showSuccess(t('template_applied'), `${formatDisplayDate(startDate)} — ${formatDisplayDate(endDate)}`);
             } catch (error) {
                 console.error('Error applying template:', error);
-                alert(t('template_apply_error'));
+                Layout.showNotification(t('template_apply_error'), 'error');
             } finally {
                 applyBtn.disabled = false;
                 applyBtn.textContent = t('apply_template');
@@ -1243,7 +1244,7 @@
 
         // ==================== INIT ====================
         async function init() {
-            await Layout.init({ menuId: 'kitchen', itemId: 'menu_templates' });
+            await Layout.init({ module: 'kitchen', menuId: 'kitchen', itemId: 'menu_templates' });
             await loadData();
         }
 

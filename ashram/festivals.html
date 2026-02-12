@@ -46,7 +46,7 @@
                 <h1 class="text-2xl font-bold" data-i18n="holidays_title">Праздники</h1>
                 <p class="text-sm opacity-60" id="holidaysCount">Загрузка...</p>
             </div>
-            <button class="btn btn-primary gap-2" onclick="openModal()">
+            <button class="btn btn-primary gap-2" data-permission="edit_festivals" onclick="openModal()">
                 <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" />
                 </svg>
@@ -168,12 +168,13 @@
     </dialog>
 
     <script src="../js/config.js"></script>
-    <script src="../js/auth-check.js?v=2"></script>
+    <script src="../js/auth-check.js?v=3"></script>
     <script src="../js/cache.js"></script>
-    <script src="../js/utils.js"></script>
+    <script src="../js/utils.js?v=2"></script>
     <script src="../js/translit.js"></script>
     <script src="../js/auto-translate.js"></script>
-    <script src="../js/layout.js"></script>
+    <script src="../js/date-utils.js"></script>
+    <script src="../js/layout.js?v=5"></script>
     <script>
         // ==================== STATE ====================
         let holidays = [];
@@ -245,7 +246,7 @@
         // ==================== RENDERING ====================
         function buildYearFilter() {
             const select = Layout.$('#yearFilter');
-            const years = [...new Set(holidays.map(h => new Date(h.date).getFullYear()))].sort((a, b) => b - a);
+            const years = [...new Set(holidays.map(h => DateUtils.parseDate(h.date).getFullYear()))].sort((a, b) => b - a);
 
             // Добавляем текущий год если его нет
             if (!years.includes(currentYear)) {
@@ -264,7 +265,7 @@
 
             // Считаем праздники по типам для текущего года
             holidays.forEach(h => {
-                const year = new Date(h.date).getFullYear();
+                const year = DateUtils.parseDate(h.date).getFullYear();
                 if (year === currentYear) {
                     counts.all++;
                     counts[h.type] = (counts[h.type] || 0) + 1;
@@ -295,7 +296,7 @@
             const lang = Layout.currentLang;
 
             let filtered = holidays.filter(h => {
-                const year = new Date(h.date).getFullYear();
+                const year = DateUtils.parseDate(h.date).getFullYear();
                 if (year !== currentYear) return false;
                 if (currentType !== 'all' && h.type !== currentType) return false;
                 if (searchQuery) {
@@ -315,10 +316,11 @@
                 return;
             }
 
+            const canEdit = window.hasPermission && window.hasPermission('edit_festivals');
             tbody.innerHTML = filtered.map(h => {
                 const typeInfo = HOLIDAY_TYPES[h.type] || HOLIDAY_TYPES.major;
                 const typeLabel = typeInfo[lang] || typeInfo.ru;
-                const date = new Date(h.date);
+                const date = DateUtils.parseDate(h.date);
                 const dateStr = date.toLocaleDateString(lang === 'ru' ? 'ru-RU' : lang === 'hi' ? 'hi-IN' : 'en-US', {
                     day: 'numeric',
                     month: 'short',
@@ -338,13 +340,13 @@
                             </span>
                         </td>
                         <td>
-                            <div class="flex gap-1">
+                            ${canEdit ? `<div class="flex gap-1">
                                 <button class="btn btn-ghost btn-sm btn-square" onclick="editHoliday('${h.id}')" title="Редактировать">
                                     <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
                                     </svg>
                                 </button>
-                            </div>
+                            </div>` : ''}
                         </td>
                     </tr>
                 `;
@@ -361,7 +363,7 @@
             Layout.$('#deleteSection').classList.add('hidden');
 
             // Устанавливаем дату по умолчанию - сегодня
-            form.date.value = new Date().toISOString().split('T')[0];
+            form.date.value = DateUtils.toISO(new Date());
 
             Layout.setupAutoTranslate('#holidayForm', ['name']);
             holidayModal.showModal();
@@ -405,7 +407,7 @@
             };
 
             if (!data.name_ru) {
-                alert(t('enter_festival_name'));
+                Layout.showNotification(t('enter_festival_name'), 'warning');
                 return;
             }
 
@@ -418,7 +420,7 @@
 
             if (error) {
                 console.error('Error saving holiday:', error);
-                alert(t('error_saving') + ': ' + error.message);
+                Layout.showNotification(t('error_saving') + ': ' + error.message, 'error');
                 return;
             }
 
@@ -433,7 +435,7 @@
             const { error } = await Layout.db.from('holidays').delete().eq('id', editingId);
             if (error) {
                 console.error('Error deleting holiday:', error);
-                alert(t('error_deleting') + ': ' + error.message);
+                Layout.showNotification(t('error_deleting') + ': ' + error.message, 'error');
                 return;
             }
 
@@ -477,8 +479,32 @@
         };
 
         // ==================== INIT ====================
+        // Ждём событие authReady от auth-check.js
+        function waitForAuth(maxWait = 3000) {
+            return new Promise(resolve => {
+                if (window.currentUser) {
+                    resolve();
+                    return;
+                }
+                const handler = () => resolve();
+                window.addEventListener('authReady', handler, { once: true });
+                setTimeout(() => {
+                    window.removeEventListener('authReady', handler);
+                    resolve();
+                }, maxWait);
+            });
+        }
+
         async function init() {
-            await Layout.init({ menuId: 'settings', itemId: 'festivals' });
+            await Layout.init({ module: 'admin', menuId: 'ashram', itemId: 'festivals' });
+            await waitForAuth();
+
+            // Модуль admin только для суперпользователей
+            if (!window.currentUser?.is_superuser) {
+                window.location.href = '../index.html';
+                return;
+            }
+
             await loadHolidays();
         }
 

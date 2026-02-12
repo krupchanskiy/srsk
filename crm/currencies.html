@@ -1,0 +1,291 @@
+<!DOCTYPE html>
+<html lang="ru" data-theme="light">
+<head>
+    <script src="../js/color-init.js"></script>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Курсы валют — CRM — ШРСК</title>
+    <link href="https://cdn.jsdelivr.net/npm/daisyui@4.12.14/dist/full.min.css" rel="stylesheet" />
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script>tailwind.config = { theme: { extend: { screens: { 'desktop': '1200px' } } } }</script>
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="../css/common.css">
+</head>
+<body class="bg-base-200 min-h-screen flex flex-col">
+
+<div id="header-placeholder"></div>
+
+<main class="container mx-auto px-4 py-6 flex-1">
+    <!-- Заголовок -->
+    <div class="flex justify-between items-center mb-6">
+        <h1 class="text-2xl font-bold" data-i18n="nav_crm_currencies">Курсы валют</h1>
+    </div>
+
+    <!-- Информация -->
+    <div class="alert alert-info mb-6">
+        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" class="stroke-current shrink-0 w-6 h-6"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+        <span>Все платежи пересчитываются в рупии (INR) по указанному курсу. Обновляйте курсы регулярно.</span>
+    </div>
+
+    <!-- Таблица валют -->
+    <div class="card bg-base-100 shadow-sm">
+        <div class="card-body p-0">
+            <div class="overflow-x-auto">
+                <table class="table">
+                    <thead>
+                        <tr>
+                            <th class="cursor-pointer hover:bg-base-200" onclick="setSort('code')">
+                                <span class="inline-flex items-center gap-1">Код <span id="sort-code" class="text-xs opacity-50">↑</span></span>
+                            </th>
+                            <th class="cursor-pointer hover:bg-base-200" onclick="setSort('name')" data-i18n="col_name">
+                                <span class="inline-flex items-center gap-1">Название <span id="sort-name" class="text-xs opacity-50"></span></span>
+                            </th>
+                            <th>Символ</th>
+                            <th class="cursor-pointer hover:bg-base-200" onclick="setSort('rate')" data-i18n="crm_rate_to_inr">
+                                <span class="inline-flex items-center gap-1">Курс к ₹ <span id="sort-rate" class="text-xs opacity-50"></span></span>
+                            </th>
+                            <th>Пример: 1000</th>
+                            <th class="cursor-pointer hover:bg-base-200" onclick="setSort('updated')">
+                                <span class="inline-flex items-center gap-1">Обновлено <span id="sort-updated" class="text-xs opacity-50"></span></span>
+                            </th>
+                            <th class="w-20"></th>
+                        </tr>
+                    </thead>
+                    <tbody id="currenciesTable">
+                        <tr><td colspan="7" class="text-center py-8">
+                            <span class="loading loading-spinner loading-md"></span>
+                        </td></tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</main>
+
+<div id="footer-placeholder"></div>
+
+<!-- Модалка редактирования курса -->
+<dialog id="currencyModal" class="modal">
+    <div class="modal-box max-w-sm">
+        <h3 class="font-bold text-lg mb-4" id="modalTitle">Редактирование курса</h3>
+        <form id="currencyForm" onsubmit="saveCurrency(event)">
+            <input type="hidden" id="currencyCode">
+
+            <div class="form-control mb-4">
+                <label class="label"><span class="label-text">Валюта</span></label>
+                <div id="currencyDisplay" class="text-xl font-bold"></div>
+            </div>
+
+            <div class="form-control mb-4">
+                <label class="label"><span class="label-text" data-i18n="crm_rate_to_inr">Курс к рупии (₹)</span></label>
+                <input type="number" id="currencyRate" class="input input-bordered"
+                       min="0.0001" step="0.0001" required>
+                <label class="label">
+                    <span class="label-text-alt">1 единица валюты = X рупий</span>
+                </label>
+            </div>
+
+            <div class="bg-base-200 p-3 rounded-lg mb-4">
+                <div class="text-sm text-base-content/70">Пример:</div>
+                <div class="text-lg font-mono" id="rateExample">—</div>
+            </div>
+
+            <div class="modal-action">
+                <button type="button" class="btn" onclick="closeModal()">Отмена</button>
+                <button type="submit" class="btn btn-primary">Сохранить</button>
+            </div>
+        </form>
+    </div>
+    <form method="dialog" class="modal-backdrop"><button>close</button></form>
+</dialog>
+
+<script src="../js/config.js"></script>
+<script src="../js/auth-check.js"></script>
+<script src="../js/cache.js"></script>
+<script src="../js/utils.js?v=2"></script>
+<script src="../js/layout.js"></script>
+<script src="../js/crm-utils.js"></script>
+
+<script>
+const t = key => Layout.t(key);
+const e = str => Layout.escapeHtml(str);
+
+let currencies = [];
+let sortField = 'code';
+let sortDir = 'asc';
+
+// ==================== SORTING ====================
+function setSort(field) {
+    if (sortField === field) {
+        sortDir = sortDir === 'asc' ? 'desc' : 'asc';
+    } else {
+        sortField = field;
+        sortDir = 'asc';
+    }
+    updateSortIndicators();
+    sortCurrencies();
+    renderTable();
+}
+
+function updateSortIndicators() {
+    ['code', 'name', 'rate', 'updated'].forEach(f => {
+        const el = document.getElementById(`sort-${f}`);
+        if (el) el.textContent = sortField === f ? (sortDir === 'asc' ? '↑' : '↓') : '';
+    });
+}
+
+function sortCurrencies() {
+    currencies.sort((a, b) => {
+        let aVal, bVal;
+
+        switch (sortField) {
+            case 'code':
+                aVal = a.code || '';
+                bVal = b.code || '';
+                break;
+            case 'name':
+                aVal = Layout.getName(a)?.toLowerCase() || '';
+                bVal = Layout.getName(b)?.toLowerCase() || '';
+                break;
+            case 'rate':
+                aVal = a.rate_to_inr || 0;
+                bVal = b.rate_to_inr || 0;
+                break;
+            case 'updated':
+                aVal = a.updated_at || '';
+                bVal = b.updated_at || '';
+                break;
+            default:
+                aVal = a.code || '';
+                bVal = b.code || '';
+        }
+
+        if (aVal < bVal) return sortDir === 'asc' ? -1 : 1;
+        if (aVal > bVal) return sortDir === 'asc' ? 1 : -1;
+        return 0;
+    });
+}
+
+// ==================== DATA ====================
+async function loadCurrencies() {
+    const { data, error } = await Layout.db
+        .from('crm_currencies')
+        .select('*')
+        .order('sort_order');
+
+    if (error) {
+        Layout.handleError(error, 'Загрузка валют');
+        return;
+    }
+    currencies = data || [];
+    sortCurrencies();
+    renderTable();
+    updateSortIndicators();
+}
+
+// ==================== RENDER ====================
+function renderTable() {
+    const tbody = document.getElementById('currenciesTable');
+
+    tbody.innerHTML = currencies.map(c => {
+        const example = (1000 * c.rate_to_inr).toLocaleString('ru-RU', { maximumFractionDigits: 2 });
+        const updated = c.updated_at ? CrmUtils.formatDateTime(c.updated_at) : '—';
+
+        return `
+            <tr class="${c.is_default ? 'bg-base-200' : ''}">
+                <td class="font-mono font-bold">${e(c.code)}</td>
+                <td>${e(Layout.getName(c))}</td>
+                <td class="text-xl">${e(c.symbol)}</td>
+                <td class="font-mono">${c.rate_to_inr}</td>
+                <td class="font-mono text-base-content/70">
+                    ${c.symbol} 1000 = ₹ ${example}
+                </td>
+                <td class="text-sm text-base-content/50">${updated}</td>
+                <td>
+                    ${c.is_default
+                        ? '<span class="badge badge-ghost badge-sm">Базовая</span>'
+                        : `<button class="btn btn-ghost btn-xs" onclick="editCurrency('${c.code}')"
+                                data-permission="edit_crm_settings" title="Изменить курс">${CrmUtils.UI_ICONS.edit}</button>`}
+                </td>
+            </tr>
+        `;
+    }).join('');
+}
+
+// ==================== MODAL ====================
+function editCurrency(code) {
+    const currency = currencies.find(c => c.code === code);
+    if (!currency || currency.is_default) return;
+
+    document.getElementById('currencyCode').value = currency.code;
+    document.getElementById('currencyDisplay').textContent = `${currency.symbol} ${currency.code} — ${Layout.getName(currency)}`;
+    document.getElementById('currencyRate').value = currency.rate_to_inr;
+    updateRateExample();
+
+    document.getElementById('currencyModal').showModal();
+}
+
+function closeModal() {
+    document.getElementById('currencyModal').close();
+}
+
+function updateRateExample() {
+    const rate = parseFloat(document.getElementById('currencyRate').value) || 0;
+    const code = document.getElementById('currencyCode').value;
+    const currency = currencies.find(c => c.code === code);
+    const symbol = currency?.symbol || '';
+
+    const result = (1000 * rate).toLocaleString('ru-RU', { maximumFractionDigits: 2 });
+    document.getElementById('rateExample').textContent = `${symbol} 1000 = ₹ ${result}`;
+}
+
+// ==================== SAVE ====================
+async function saveCurrency(event) {
+    event.preventDefault();
+
+    const code = document.getElementById('currencyCode').value;
+    const rate = parseFloat(document.getElementById('currencyRate').value);
+
+    if (!rate || rate <= 0) {
+        Layout.showNotification('Укажите корректный курс', 'error');
+        return;
+    }
+
+    const { error } = await Layout.db
+        .from('crm_currencies')
+        .update({
+            rate_to_inr: rate,
+            updated_at: new Date().toISOString()
+        })
+        .eq('code', code);
+
+    if (error) {
+        Layout.handleError(error, 'Сохранение курса');
+        return;
+    }
+
+    Layout.showNotification(t('saved') || 'Курс обновлён', 'success');
+    closeModal();
+    await loadCurrencies();
+}
+
+// ==================== INIT ====================
+async function init() {
+    await Layout.init({
+        module: 'crm',
+        menuId: 'crm_settings',
+        itemId: 'crm_currencies'
+    });
+
+    // Обновление примера при вводе
+    document.getElementById('currencyRate').addEventListener('input', updateRateExample);
+
+    await loadCurrencies();
+}
+
+init();
+</script>
+
+</body>
+</html>

@@ -1,0 +1,375 @@
+<!DOCTYPE html>
+<html lang="ru" data-theme="light">
+<head>
+    <script src="../js/color-init.js"></script>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Канбан — CRM — ШРСК</title>
+    <link href="https://cdn.jsdelivr.net/npm/daisyui@4.12.14/dist/full.min.css" rel="stylesheet" />
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script src="https://cdn.jsdelivr.net/npm/sortablejs@1.15.0/Sortable.min.js"></script>
+    <script>tailwind.config = { theme: { extend: { screens: { 'desktop': '1200px' } } } }</script>
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="../css/common.css">
+    <style>
+        .kanban-container {
+            display: flex;
+            gap: 1rem;
+            overflow-x: auto;
+            padding-bottom: 1rem;
+            min-height: calc(100vh - 250px);
+        }
+        .kanban-column {
+            min-width: 280px;
+            max-width: 280px;
+            background: oklch(var(--b2));
+            border-radius: 0.5rem;
+            display: flex;
+            flex-direction: column;
+        }
+        .kanban-header {
+            padding: 0.75rem;
+            font-weight: 600;
+            border-bottom: 1px solid oklch(var(--b3));
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .kanban-cards {
+            flex: 1;
+            padding: 0.5rem;
+            overflow-y: auto;
+            min-height: 100px;
+        }
+        .kanban-card {
+            background: oklch(var(--b1));
+            border-radius: 0.5rem;
+            padding: 0.75rem;
+            margin-bottom: 0.5rem;
+            cursor: pointer;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+            transition: box-shadow 0.2s, transform 0.2s;
+        }
+        .kanban-card:hover {
+            box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+            transform: translateY(-1px);
+        }
+        .kanban-card.overdue {
+            border-left: 3px solid #ef4444;
+        }
+        .kanban-card.sortable-ghost {
+            opacity: 0.4;
+        }
+        .kanban-card.sortable-chosen {
+            box-shadow: 0 8px 24px rgba(0,0,0,0.2);
+        }
+        .column-cancelled { opacity: 0.7; }
+    </style>
+</head>
+<body class="bg-base-200 min-h-screen flex flex-col">
+
+<div id="header-placeholder"></div>
+
+<main class="container mx-auto px-4 py-6 flex-1 flex flex-col">
+    <!-- Заголовок и фильтры -->
+    <div class="flex flex-wrap justify-between items-center gap-4 mb-4">
+        <h1 class="text-2xl font-bold" data-i18n="nav_crm_kanban">Канбан</h1>
+
+        <div class="flex flex-wrap gap-3 items-center">
+            <!-- Ретрит -->
+            <select id="filterRetreat" class="select select-bordered select-sm" onchange="loadDeals()">
+                <option value="">Все ретриты</option>
+            </select>
+
+            <!-- Менеджер -->
+            <select id="filterManager" class="select select-bordered select-sm" onchange="applyFilters()">
+                <option value="">Все менеджеры</option>
+                <option value="my">Мои</option>
+                <option value="unassigned">Не назначен</option>
+            </select>
+
+            <!-- Режим -->
+            <select id="filterMode" class="select select-bordered select-sm" onchange="applyFilters()">
+                <option value="">Все режимы</option>
+                <option value="active">Активные</option>
+                <option value="long_term">Долгий дожим</option>
+                <option value="paused">На паузе</option>
+            </select>
+
+            <!-- Новая сделка -->
+            <a href="deals.html" class="btn btn-sm btn-ghost">Все сделки →</a>
+        </div>
+    </div>
+
+    <!-- Статистика -->
+    <div class="flex gap-4 mb-4 text-sm flex-wrap">
+        <span id="statsTotal" class="text-base-content/70">—</span>
+        <span id="statsOverdue" class="text-error hidden">—</span>
+    </div>
+
+    <!-- Канбан -->
+    <div class="kanban-container" id="kanbanContainer">
+        <div class="text-center py-8 w-full">
+            <span class="loading loading-spinner loading-lg"></span>
+        </div>
+    </div>
+</main>
+
+<div id="footer-placeholder"></div>
+
+<script src="../js/config.js"></script>
+<script src="../js/auth-check.js"></script>
+<script src="../js/cache.js"></script>
+<script src="../js/utils.js?v=2"></script>
+<script src="../js/layout.js"></script>
+<script src="../js/crm-utils.js"></script>
+
+<script>
+const t = key => Layout.t(key);
+const e = str => Layout.escapeHtml(str);
+
+// ==================== STATE ====================
+let deals = [];
+let retreats = [];
+let filteredDeals = [];
+let sortableInstances = [];
+
+// Статусы для канбана (исключаем upsell для простоты)
+const KANBAN_STATUSES = [
+    'lead', 'contacted', 'invoice_sent', 'prepaid', 'tickets',
+    'room_booked', 'checked_in', 'fully_paid', 'completed', 'cancelled'
+];
+
+// ==================== DATA ====================
+async function loadRetreats() {
+    const { data } = await Layout.db
+        .from('retreats')
+        .select('id, name_ru, name_en, color, start_date')
+        .order('start_date', { ascending: false });
+
+    retreats = data || [];
+
+    const select = document.getElementById('filterRetreat');
+    retreats.forEach(r => {
+        select.insertAdjacentHTML('beforeend',
+            `<option value="${r.id}">${e(Layout.getName(r))}</option>`
+        );
+    });
+}
+
+async function loadDeals() {
+    const retreatId = document.getElementById('filterRetreat').value;
+
+    let query = Layout.db
+        .from('crm_deals')
+        .select(`
+            *,
+            vaishnavas:vaishnava_id(id, spiritual_name, first_name, last_name, phone),
+            retreats:retreat_id(id, name_ru, name_en, color),
+            manager:manager_id(id, spiritual_name, first_name)
+        `)
+        .order('created_at', { ascending: false });
+
+    if (retreatId) {
+        query = query.eq('retreat_id', retreatId);
+    }
+
+    const { data, error } = await query;
+
+    if (error) {
+        Layout.handleError(error, 'Загрузка сделок');
+        return;
+    }
+
+    deals = data || [];
+    applyFilters();
+}
+
+// ==================== FILTERS ====================
+function applyFilters() {
+    const manager = document.getElementById('filterManager').value;
+    const mode = document.getElementById('filterMode').value;
+    const currentUserId = window.currentUser?.vaishnava_id;
+
+    filteredDeals = deals.filter(d => {
+        if (manager === 'my' && d.manager_id !== currentUserId) return false;
+        if (manager === 'unassigned' && d.manager_id) return false;
+        if (mode && d.work_mode !== mode) return false;
+        return true;
+    });
+
+    renderKanban();
+    renderStats();
+}
+
+// ==================== RENDER ====================
+function renderStats() {
+    const total = filteredDeals.length;
+    const overdue = filteredDeals.filter(d => CrmUtils.isOverdue(d)).length;
+    const active = filteredDeals.filter(d => CrmUtils.isActive(d)).length;
+
+    document.getElementById('statsTotal').textContent = `Всего: ${total} | Активных: ${active}`;
+
+    const overdueEl = document.getElementById('statsOverdue');
+    if (overdue > 0) {
+        overdueEl.innerHTML = `<span class="inline-flex items-center gap-1"><span class="text-error">${CrmUtils.UI_ICONS.exclamationCircle}</span> Без контакта >24ч: ${overdue}</span>`;
+        overdueEl.classList.remove('hidden');
+    } else {
+        overdueEl.classList.add('hidden');
+    }
+}
+
+function renderKanban() {
+    const container = document.getElementById('kanbanContainer');
+
+    // Уничтожаем старые sortable instances
+    sortableInstances.forEach(s => s.destroy());
+    sortableInstances = [];
+
+    // Группируем сделки по статусам
+    const byStatus = {};
+    KANBAN_STATUSES.forEach(s => byStatus[s] = []);
+    filteredDeals.forEach(d => {
+        if (byStatus[d.status]) {
+            byStatus[d.status].push(d);
+        }
+    });
+
+    container.innerHTML = KANBAN_STATUSES.map(status => {
+        const deals = byStatus[status];
+        const color = CrmUtils.STATUS_COLORS[status];
+        const svgIcon = CrmUtils.STATUS_SVG_ICONS[status];
+        const label = CrmUtils.getStatusLabel(status);
+        const isCancelled = status === 'cancelled';
+
+        return `
+            <div class="kanban-column ${isCancelled ? 'column-cancelled' : ''}" data-status="${status}">
+                <div class="kanban-header" style="border-top: 3px solid ${color};">
+                    <span class="flex items-center gap-2" style="color: ${color}">${svgIcon} <span class="text-base-content">${label}</span></span>
+                    <span class="badge badge-sm">${deals.length}</span>
+                </div>
+                <div class="kanban-cards" id="column-${status}">
+                    ${deals.map(d => renderCard(d)).join('')}
+                </div>
+            </div>
+        `;
+    }).join('');
+
+    // Инициализируем drag-n-drop
+    initSortable();
+}
+
+function renderCard(deal) {
+    const guest = deal.vaishnavas;
+    const retreat = deal.retreats;
+    const isOverdue = CrmUtils.isOverdue(deal);
+
+    return `
+        <div class="kanban-card ${isOverdue ? 'overdue' : ''}"
+             data-id="${deal.id}"
+             onclick="openDeal('${deal.id}')">
+            <div class="flex items-start justify-between gap-2 mb-2">
+                <div class="font-medium text-sm leading-tight">${e(CrmUtils.getGuestShortName(guest))}</div>
+                ${isOverdue ? `<span title="Без контакта >24ч" class="text-error">${CrmUtils.UI_ICONS.exclamationCircle}</span>` : ''}
+            </div>
+            <div class="text-xs text-base-content/50 mb-2">${e(guest?.phone || '')}</div>
+            <div class="flex items-center justify-between">
+                <span class="badge badge-xs" style="background-color: ${retreat?.color || '#6b7280'}; color: white;">
+                    ${e(Layout.getName(retreat)?.substring(0, 15) || '—')}
+                </span>
+                ${deal.total_paid > 0
+                    ? `<span class="text-xs font-mono text-success">${CrmUtils.formatMoney(deal.total_paid)}</span>`
+                    : ''}
+            </div>
+            ${deal.manager ? `<div class="text-xs text-base-content/40 mt-2 flex items-center gap-1"><svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-3 h-3"><path stroke-linecap="round" stroke-linejoin="round" d="M15.75 6a3.75 3.75 0 1 1-7.5 0 3.75 3.75 0 0 1 7.5 0ZM4.501 20.118a7.5 7.5 0 0 1 14.998 0A17.933 17.933 0 0 1 12 21.75c-2.676 0-5.216-.584-7.499-1.632Z" /></svg>${e(CrmUtils.getGuestShortName(deal.manager))}</div>` : ''}
+        </div>
+    `;
+}
+
+// ==================== DRAG & DROP ====================
+function initSortable() {
+    KANBAN_STATUSES.forEach(status => {
+        const el = document.getElementById(`column-${status}`);
+        if (!el) return;
+
+        const sortable = new Sortable(el, {
+            group: 'kanban',
+            animation: 150,
+            ghostClass: 'sortable-ghost',
+            chosenClass: 'sortable-chosen',
+            dragClass: 'sortable-drag',
+            onEnd: async function(evt) {
+                const dealId = evt.item.dataset.id;
+                const newStatus = evt.to.id.replace('column-', '');
+                const oldStatus = evt.from.id.replace('column-', '');
+
+                if (newStatus === oldStatus) return;
+
+                // Оптимистично обновляем UI
+                const deal = filteredDeals.find(d => d.id === dealId);
+                if (deal) deal.status = newStatus;
+
+                // Сохраняем в БД
+                const { error } = await Layout.db
+                    .from('crm_deals')
+                    .update({
+                        status: newStatus,
+                        first_contacted_at: deal?.first_contacted_at || (newStatus === 'contacted' ? new Date().toISOString() : null),
+                        last_contacted_at: new Date().toISOString()
+                    })
+                    .eq('id', dealId);
+
+                if (error) {
+                    Layout.handleError(error, 'Изменение статуса');
+                    // Откатываем
+                    await loadDeals();
+                    return;
+                }
+
+                Layout.showNotification(`Статус: ${CrmUtils.getStatusLabel(newStatus)}`, 'success');
+                renderStats();
+            }
+        });
+
+        sortableInstances.push(sortable);
+    });
+}
+
+// ==================== ACTIONS ====================
+function openDeal(id) {
+    window.location.href = `deal.html?id=${id}`;
+}
+
+// ==================== REALTIME ====================
+function subscribeToChanges() {
+    const channel = Layout.db.channel('crm-deals-changes')
+        .on('postgres_changes', {
+            event: '*',
+            schema: 'public',
+            table: 'crm_deals'
+        }, payload => {
+            // Перезагружаем данные при изменениях
+            loadDeals();
+        })
+        .subscribe();
+}
+
+// ==================== INIT ====================
+async function init() {
+    await Layout.init({
+        module: 'crm',
+        menuId: 'crm_sales',
+        itemId: 'crm_kanban'
+    });
+
+    await loadRetreats();
+    await loadDeals();
+    subscribeToChanges();
+}
+
+init();
+</script>
+
+</body>
+</html>
