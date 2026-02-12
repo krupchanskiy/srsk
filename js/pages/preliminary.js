@@ -251,9 +251,9 @@ function formatDateRange(start, end) {
     const lang = Layout.currentLang;
     const opts = { day: 'numeric', month: 'short', year: 'numeric' };
     const locale = lang === 'hi' ? 'hi-IN' : lang === 'en' ? 'en-US' : 'ru-RU';
-    const s = DateUtils.parseDate(start).toLocaleDateString(locale, opts);
-    const e = DateUtils.parseDate(end).toLocaleDateString(locale, opts);
-    return `${s} — ${e}`;
+    const startStr = DateUtils.parseDate(start).toLocaleDateString(locale, opts);
+    const endStr = DateUtils.parseDate(end).toLocaleDateString(locale, opts);
+    return `${startStr} — ${endStr}`;
 }
 
 function calculateAge(birthDate) {

@@ -178,9 +178,9 @@ async function loadVaishnavas() {
 // ==================== RENDERING ====================
 function formatDateRange(startDate, endDate) {
     const months = ['янв', 'фев', 'мар', 'апр', 'май', 'июн', 'июл', 'авг', 'сен', 'окт', 'ноя', 'дек'];
-    const s = DateUtils.parseDate(startDate);
-    const e = DateUtils.parseDate(endDate);
-    return `${s.getDate()} ${months[s.getMonth()]} — ${e.getDate()} ${months[e.getMonth()]}`;
+    const sd = DateUtils.parseDate(startDate);
+    const ed = DateUtils.parseDate(endDate);
+    return `${sd.getDate()} ${months[sd.getMonth()]} — ${ed.getDate()} ${months[ed.getMonth()]}`;
 }
 
 function renderTable() {
