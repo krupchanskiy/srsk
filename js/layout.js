@@ -195,7 +195,7 @@ const pagePermissions = {
     'ashram/retreats.html': 'view_retreats',
     'ashram/festivals.html': 'view_festivals',
     'ashram/dashboard-vaishnavas.html': 'view_retreats',
-
+    
     // Photos
     'photos/upload.html': 'upload_photos',
     'photos/manage.html': 'upload_photos',
