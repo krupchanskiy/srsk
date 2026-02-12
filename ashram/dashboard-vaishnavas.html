@@ -552,8 +552,8 @@ function renderDashboard(present) {
         const total = arr.length;
         const eating = arr.filter(r => r.has_meals).length;
         const housing = arr.filter(r => r.rooms).length;
-        document.getElementById(idPrefix).textContent = `${total} / ${eating} / ${housing}`;
-        document.getElementById(idPrefix + 'Sub').textContent = 'всего / едят / живут';
+        document.getElementById(idPrefix).textContent = `${total} / ${housing} / ${eating}`;
+        document.getElementById(idPrefix + 'Sub').textContent = 'всего / живут / едят';
     }
 
     setMetric('metricTotal', allPresent);
