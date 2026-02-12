@@ -403,6 +403,46 @@ function formatEatingLine(dateStr, cssClass) {
     return `<div class="${cssClass}" title="${titleText}">${autoLine}</div>`;
 }
 
+// Детальная разбивка едоков для дневного вида
+function formatEatingDetailed(dateStr) {
+    const counts = eatingCounts[dateStr];
+    if (!counts) return '';
+
+    const dayMenu = menuData[dateStr];
+
+    const renderMeal = (mc, mealKey, label) => {
+        if (!mc) return '';
+        const total = mc.guests + mc.team + (mc.residents || 0) + (mc.groups || 0);
+        if (total === 0) return '';
+
+        const parts = [];
+        if (mc.guests) parts.push(`${t('status_guest') || 'Гости'} – ${mc.guests}`);
+        if (mc.team) parts.push(`${t('status_team') || 'Команда'} – ${mc.team}`);
+        if (mc.residents) parts.push(`${t('residents') || 'Резиденты'} – ${mc.residents}`);
+        if (mc.groups) parts.push(`${t('nav_groups') || 'Группы'} – ${mc.groups}`);
+
+        let cookLine = '';
+        const cookPortions = dayMenu?.[mealKey]?.portions;
+        if (cookPortions && cookPortions !== total) {
+            cookLine = `<div class="text-xs opacity-60 mt-0.5">${t('cook') || 'Повар'}: ${cookPortions}</div>`;
+        }
+
+        return `
+            <div class="mb-2">
+                <div class="font-semibold text-sm">${label}: ${parts.join(', ')} = ${total}</div>
+                ${cookLine}
+            </div>
+        `;
+    };
+
+    const bfHtml = renderMeal(counts.breakfast, 'breakfast', t('breakfast') || 'Завтрак');
+    const lnHtml = renderMeal(counts.lunch, 'lunch', t('lunch') || 'Обед');
+
+    if (!bfHtml && !lnHtml) return '';
+
+    return `<div class="mt-2 text-gray-500">${bfHtml}${lnHtml}</div>`;
+}
+
 // ==================== EATING COUNT CHANGE ALERT ====================
 const EATING_ALERT_THRESHOLD = 5;   // порог: ±5 человек
 const EATING_ALERT_COOLDOWN = 3600000; // 1 час в мс
@@ -578,8 +618,8 @@ function renderDay() {
         acharyaBanner = `<div class="text-center py-1.5 text-sm opacity-70 border-b border-base-200/50 no-print">${acharyaNames}</div>`;
     }
 
-    // Количество питающихся
-    const eatingLine = formatEatingLine(dateStr, 'text-sm text-gray-500 font-medium mt-1');
+    // Количество питающихся — детальная разбивка для дневного вида
+    const eatingDetailed = formatEatingDetailed(dateStr);
 
     container.innerHTML = `
         <div class="print-only print-header">${getPrintHeader(dateText, extraInfo)}</div>
@@ -588,14 +628,14 @@ function renderDay() {
             ${acharyaBanner}
 
             <div class="p-4 border-b border-base-200/50 no-print" style="${retreat ? `border-left: 4px solid ${retreat.color};` : (majorFestival ? 'border-left: 4px solid #EAB308;' : '')}">
-                <div class="flex justify-between items-center">
+                <div class="flex justify-between items-start">
                     <div>
                         <div class="text-lg font-semibold">${currentDate.getDate()} ${m[currentDate.getMonth()]} ${currentDate.getFullYear()}</div>
                         <div class="text-sm opacity-60">${d[currentDate.getDay()]}</div>
                     </div>
                     <div class="text-right">
                         ${retreat ? `<div class="text-sm font-bold uppercase tracking-wide" style="color: ${retreat.color};">${getName(retreat)}</div>` : `<div class="text-sm opacity-40">${t('no_retreat')}</div>`}
-                        ${eatingLine}
+                        ${eatingDetailed}
                     </div>
                 </div>
             </div>
