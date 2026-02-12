@@ -62,7 +62,7 @@ function renderGroups() {
                 <td class="text-sm opacity-70 max-w-xs truncate">${e(g.notes || '')}</td>
                 <td>
                     <button class="btn btn-ghost btn-sm btn-square" data-action="edit-group" data-id="${g.id}" data-permission="edit_preliminary">
-                        <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-8 w-8" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
                         </svg>
                     </button>
@@ -77,7 +77,7 @@ function openGroupModal(groupId = null) {
     editingGroupId = groupId;
     const form = Layout.$('#groupForm');
     const title = Layout.$('#groupModalTitle');
-    const deleteSection = Layout.$('#deleteGroupSection');
+    const deleteBtn = Layout.$('#deleteGroupBtn');
 
     form.reset();
 
@@ -93,11 +93,11 @@ function openGroupModal(groupId = null) {
             form.breakfast.checked = g.breakfast !== false;
             form.lunch.checked = g.lunch !== false;
             form.notes.value = g.notes || '';
-            deleteSection.classList.remove('hidden');
+            deleteBtn.classList.remove('hidden');
         }
     } else {
         title.textContent = t('add_group') || 'Добавить группу';
-        deleteSection.classList.add('hidden');
+        deleteBtn.classList.add('hidden');
     }
 
     Layout.$('#groupModal').showModal();
