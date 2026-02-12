@@ -540,7 +540,7 @@ async function loadDictionaries() {
             if (error) { console.error('Error loading resident_categories:', error); return null; }
             return (data || []).filter(c => (c.sort_order || 0) < 999);
         }),
-        Layout.db.from('vaishnavas').select('id, spiritual_name, first_name, last_name, gender, phone, birth_date').eq('is_deleted', false).order('spiritual_name')
+        Utils.fetchAll((from, to) => Layout.db.from('vaishnavas').select('id, spiritual_name, first_name, last_name, gender, phone, birth_date').eq('is_deleted', false).order('spiritual_name').range(from, to))
     ]);
     categories = catData || [];
     vaishnavas = vaishnavasRes.data || [];

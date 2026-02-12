@@ -149,6 +149,26 @@ async function checkAndMoveDatesAcrossRetreats({ db, registrationId, vaishnavId,
     return result;
 }
 
-window.Utils = { pluralize, debounce, escapeHtml, isValidColor, checkAndMoveDatesAcrossRetreats };
+/**
+ * Итеративная загрузка всех записей из Supabase (обход лимита 1000)
+ * @param {function} queryBuilder - функция (from, to) => query с .range(from, to)
+ * @param {number} pageSize - размер страницы (по умолчанию 1000)
+ * @returns {Promise<{data: array, error: object|null}>}
+ */
+async function fetchAll(queryBuilder, pageSize = 1000) {
+    const all = [];
+    let from = 0;
+    while (true) {
+        const { data, error } = await queryBuilder(from, from + pageSize - 1);
+        if (error) return { data: null, error };
+        if (!data || data.length === 0) break;
+        all.push(...data);
+        if (data.length < pageSize) break;
+        from += pageSize;
+    }
+    return { data: all, error: null };
+}
+
+window.Utils = { pluralize, debounce, escapeHtml, isValidColor, checkAndMoveDatesAcrossRetreats, fetchAll };
 
 })();

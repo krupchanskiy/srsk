@@ -1018,11 +1018,24 @@ function getMaterialIcon(iconName) {
 // Загрузить список учителей для автокомплита
 async function loadTeachersList() {
     try {
-        const { data, error } = await window.portalSupabase
-            .from('vaishnavas')
-            .select('spiritual_teacher')
-            .not('spiritual_teacher', 'is', null)
-            .not('spiritual_teacher', 'eq', '');
+        const all = [];
+        let from = 0;
+        const PAGE = 1000;
+        while (true) {
+            const { data: page, error: pageErr } = await window.portalSupabase
+                .from('vaishnavas')
+                .select('spiritual_teacher')
+                .not('spiritual_teacher', 'is', null)
+                .not('spiritual_teacher', 'eq', '')
+                .range(from, from + PAGE - 1);
+            if (pageErr) throw pageErr;
+            if (!page || page.length === 0) break;
+            all.push(...page);
+            if (page.length < PAGE) break;
+            from += PAGE;
+        }
+        const data = all;
+        const error = null;
 
         if (error) throw error;
 

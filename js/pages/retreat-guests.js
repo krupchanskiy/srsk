@@ -160,9 +160,12 @@ async function loadRegistrations() {
 }
 
 async function loadVaishnavas() {
-    const { data, error } = await Layout.db
-        .from('vaishnavas')
-        .select('id, first_name, last_name, spiritual_name, phone, email, birth_date, gender, telegram');
+    const { data, error } = await Utils.fetchAll((from, to) =>
+        Layout.db
+            .from('vaishnavas')
+            .select('id, first_name, last_name, spiritual_name, phone, email, birth_date, gender, telegram')
+            .range(from, to)
+    );
 
     if (error) {
         console.error('Error loading vaishnavas:', error);

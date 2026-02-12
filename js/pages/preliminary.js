@@ -229,11 +229,14 @@ function getRegCheckOut(reg) {
 }
 
 async function loadVaishnavas() {
-    const { data, error } = await Layout.db
-        .from('vaishnavas')
-        .select('id, first_name, last_name, spiritual_name, phone, email, telegram, birth_date, is_team_member, photo_url')
-        .eq('is_deleted', false)
-        .order('first_name');
+    const { data, error } = await Utils.fetchAll((from, to) =>
+        Layout.db
+            .from('vaishnavas')
+            .select('id, first_name, last_name, spiritual_name, phone, email, telegram, birth_date, is_team_member, photo_url')
+            .eq('is_deleted', false)
+            .order('first_name')
+            .range(from, to)
+    );
 
     if (error) {
         console.error('Error loading vaishnavas:', error);

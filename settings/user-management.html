@@ -209,22 +209,25 @@
         let countsLoaded = false;
         let isLoading = false;
 
-        // Загрузка только счётчиков (быстро, без ролей)
+        // Загрузка только счётчиков (параллельные count-запросы, без лимита 1000)
         async function loadCounts() {
             try {
-                const { data: users, error } = await db
-                    .from('vaishnavas')
-                    .select('id, user_id, email, user_type, approval_status, is_active')
-                    .eq('is_deleted', false);
+                const base = db.from('vaishnavas').select('id', { count: 'exact', head: true }).eq('is_deleted', false);
+                const [allRes, pendingRes, staffRes, guestRes, blockedRes, noAccountRes] = await Promise.all([
+                    db.from('vaishnavas').select('id', { count: 'exact', head: true }).eq('is_deleted', false),
+                    db.from('vaishnavas').select('id', { count: 'exact', head: true }).eq('is_deleted', false).eq('approval_status', 'pending'),
+                    db.from('vaishnavas').select('id', { count: 'exact', head: true }).eq('is_deleted', false).eq('user_type', 'staff'),
+                    db.from('vaishnavas').select('id', { count: 'exact', head: true }).eq('is_deleted', false).eq('user_type', 'guest'),
+                    db.from('vaishnavas').select('id', { count: 'exact', head: true }).eq('is_deleted', false).or('approval_status.eq.blocked,is_active.eq.false'),
+                    db.from('vaishnavas').select('id', { count: 'exact', head: true }).eq('is_deleted', false).is('user_id', null).not('email', 'is', null)
+                ]);
 
-                if (error) throw error;
-
-                document.getElementById('countAll').textContent = users.length;
-                document.getElementById('countPending').textContent = users.filter(u => u.approval_status === 'pending').length;
-                document.getElementById('countStaff').textContent = users.filter(u => u.user_type === 'staff').length;
-                document.getElementById('countGuest').textContent = users.filter(u => u.user_type === 'guest').length;
-                document.getElementById('countBlocked').textContent = users.filter(u => u.approval_status === 'blocked' || !u.is_active).length;
-                document.getElementById('countNoAccount').textContent = users.filter(u => !u.user_id && u.email).length;
+                document.getElementById('countAll').textContent = allRes.count || 0;
+                document.getElementById('countPending').textContent = pendingRes.count || 0;
+                document.getElementById('countStaff').textContent = staffRes.count || 0;
+                document.getElementById('countGuest').textContent = guestRes.count || 0;
+                document.getElementById('countBlocked').textContent = blockedRes.count || 0;
+                document.getElementById('countNoAccount').textContent = noAccountRes.count || 0;
                 countsLoaded = true;
             } catch (err) {
                 console.error('Load counts error:', err);

@@ -114,10 +114,10 @@ async function loadDepartments() {
             if (error) { console.error('Error loading departments:', error); return null; }
             return data;
         }),
-        Layout.db.from('vaishnavas').select('id, spiritual_name, first_name, last_name')
-            .eq('is_team_member', true).eq('is_deleted', false).order('spiritual_name'),
-        Layout.db.from('vaishnavas').select('spiritual_teacher')
-            .not('spiritual_teacher', 'is', null).eq('is_deleted', false),
+        Utils.fetchAll((from, to) => Layout.db.from('vaishnavas').select('id, spiritual_name, first_name, last_name')
+            .eq('is_team_member', true).eq('is_deleted', false).order('spiritual_name').range(from, to)),
+        Utils.fetchAll((from, to) => Layout.db.from('vaishnavas').select('spiritual_teacher')
+            .not('spiritual_teacher', 'is', null).eq('is_deleted', false).range(from, to)),
         Layout.db.from('spiritual_teachers').select('name_ru, name_en').order('sort_order')
     ]);
     departments = deptData || [];
