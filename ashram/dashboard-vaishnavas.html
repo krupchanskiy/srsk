@@ -103,6 +103,10 @@
             padding: 0.5rem 0.75rem;
             opacity: 0.6;
             font-weight: 600;
+            white-space: nowrap;
+        }
+        .resident-table th:hover {
+            opacity: 1;
         }
         .resident-table td {
             padding: 0.5rem 0.75rem;
@@ -308,10 +312,62 @@ function formatDateRange(resident) {
     return `${formatShortDate(resident.check_in)} — ${formatShortDate(resident.check_out)}`;
 }
 
-function renderTable(residents) {
+// Хранилище данных и состояния сортировки по категориям
+const groupedData = {};
+const sortState = {};
+
+const SORT_COLUMNS = [
+    { key: 'name',  label: () => t('col_name')  || 'Имя' },
+    { key: 'dates', label: () => t('col_dates') || 'Даты' },
+    { key: 'room',  label: () => t('col_room')  || 'Комната' },
+    { key: 'meals', label: () => t('col_meals') || 'Питание' }
+];
+
+function getSortValue(r, key) {
+    switch (key) {
+        case 'name':  return getDisplayName(r).toLowerCase();
+        case 'dates': return r.check_in || '';
+        case 'room':  return getRoomText(r).toLowerCase();
+        case 'meals': return r.has_meals ? 0 : 1;
+    }
+}
+
+function sortResidents(slug, colKey) {
+    const prev = sortState[slug];
+    if (prev && prev.key === colKey) {
+        prev.asc = !prev.asc;
+    } else {
+        sortState[slug] = { key: colKey, asc: true };
+    }
+    rerenderTable(slug);
+}
+
+function rerenderTable(slug) {
+    const container = document.querySelector(`.collapsible-body[data-section="${slug}"] .table-wrapper`);
+    if (!container) return;
+    const residents = [...(groupedData[slug] || [])];
+    const st = sortState[slug];
+    if (st) {
+        residents.sort((a, b) => {
+            const va = getSortValue(a, st.key);
+            const vb = getSortValue(b, st.key);
+            const cmp = va < vb ? -1 : va > vb ? 1 : 0;
+            return st.asc ? cmp : -cmp;
+        });
+    }
+    container.innerHTML = buildTable(residents, slug);
+}
+
+function buildTable(residents, slug) {
     if (!residents.length) {
         return `<div class="text-center py-4 opacity-50">${t('no_data') || 'Нет данных'}</div>`;
     }
+
+    const st = sortState[slug];
+    const headers = SORT_COLUMNS.map(col => {
+        const arrow = st && st.key === col.key ? (st.asc ? ' ↑' : ' ↓') : '';
+        return `<th data-action="sort" data-slug="${slug}" data-col="${col.key}" style="cursor:pointer;">${col.label()}${arrow}</th>`;
+    }).join('');
 
     const rows = residents.map(r => {
         const name = e(getDisplayName(r));
@@ -331,15 +387,10 @@ function renderTable(residents) {
         </tr>`;
     }).join('');
 
-    return `<div class="overflow-x-auto"><table class="resident-table">
-        <thead><tr>
-            <th>${t('field_name') || 'Имя'}</th>
-            <th>${t('field_dates') || 'Даты'}</th>
-            <th>${t('field_room') || 'Комната'}</th>
-            <th>${t('dashboard_eating') || 'Питание'}</th>
-        </tr></thead>
+    return `<table class="resident-table">
+        <thead><tr>${headers}</tr></thead>
         <tbody>${rows}</tbody>
-    </table></div>`;
+    </table>`;
 }
 
 function renderCategorySection(slug, catName, residents) {
@@ -347,6 +398,8 @@ function renderCategorySection(slug, catName, residents) {
     const icon = CATEGORY_ICONS[slug] || CATEGORY_ICONS.guest;
     const eating = residents.filter(r => r.has_meals).length;
     const subtitle = `${residents.length} ${t('dashboard_present_now') || 'присутствуют'}, ${eating} ${t('dashboard_eating') || 'едят'}`;
+
+    groupedData[slug] = residents;
 
     return `<div class="collapsible-card" style="background: ${cfg.bg};">
         <div class="collapsible-header" data-section="${slug}" onclick="toggleSection('${slug}')">
@@ -363,7 +416,7 @@ function renderCategorySection(slug, catName, residents) {
             </svg>
         </div>
         <div class="collapsible-body" data-section="${slug}">
-            ${renderTable(residents)}
+            <div class="overflow-x-auto table-wrapper">${buildTable(residents, slug)}</div>
         </div>
     </div>`;
 }
@@ -456,6 +509,14 @@ async function loadDashboard() {
 
     restoreCollapsedStates();
 }
+
+// ==================== INIT ====================
+// ==================== EVENT DELEGATION ====================
+document.addEventListener('click', (ev) => {
+    const btn = ev.target.closest('[data-action="sort"]');
+    if (!btn) return;
+    sortResidents(btn.dataset.slug, btn.dataset.col);
+});
 
 // ==================== INIT ====================
 async function init() {
