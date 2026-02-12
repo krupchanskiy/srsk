@@ -206,7 +206,7 @@ resident.check_in/check_out       ← существующее размещен�
 ### CHECK constraints в БД
 
 ```
-retreat_registrations.status: 'guest' | 'team' | 'cancelled'
+retreat_registrations.status: 'guest' | 'team' | 'volunteer' | 'vip' | 'cancelled'
 retreat_registrations.meal_type: 'prasad' | 'self' | 'child'
 ```
 
@@ -227,6 +227,8 @@ retreat_registrations.meal_type: 'prasad' | 'self' | 'child'
 При заселении `category_id` назначается автоматически через `STATUS_CATEGORY_MAP` в `preliminary.js`:
 - `reg.status = 'guest'` → Участник ретрита
 - `reg.status = 'team'` → Команда
+- `reg.status = 'volunteer'` → Волонтёр
+- `reg.status = 'vip'` → Важный гость
 - fallback → Гость
 
 ### Трансферы: 4 направления

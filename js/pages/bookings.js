@@ -100,7 +100,7 @@ async function loadBookings() {
             .from('residents')
             .select('id, booking_id, vaishnava_id, guest_name')
             .in('booking_id', bookingIds)
-            .eq('status', 'active');
+            .eq('status', 'confirmed');
 
         // Group residents by booking_id
         const residentsByBooking = {};
@@ -840,7 +840,9 @@ async function saveNewBooking() {
                 booking_id: booking.id,
                 check_in: form.check_in.value,
                 check_out: form.check_out.value,
-                status: 'active'
+                has_housing: true,
+                has_meals: null,
+                status: 'confirmed'
             });
         });
 

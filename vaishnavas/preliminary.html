@@ -18,8 +18,10 @@
         .status-guest { background: #dbeafe; color: #1e40af; border-color: #93c5fd; }
         .status-team { background: #d1fae5; color: #065f46; border-color: #6ee7b7; }
         .status-cancelled { background: #fee2e2; color: #991b1b; border-color: #fca5a5; }
+        .status-volunteer { background: #FEF3C7; color: #92400E; border-color: #fcd34d; }
+        .status-vip { background: #fce4ec; color: #9d174d; border-color: #f9a8d4; }
 
-        select.status-guest, select.status-team, select.status-cancelled {
+        select.status-guest, select.status-team, select.status-volunteer, select.status-vip, select.status-cancelled {
             font-weight: 500;
             font-size: 0.75rem;
             height: 1.75rem;
@@ -43,6 +45,8 @@
             padding-bottom: 0;
             padding-left: 0.5rem;
         }
+
+        tr.row-cancelled td { background: rgba(153, 27, 27, 0.13); }
 
         .table td { padding: 0.5rem 0.75rem; border-right: 1px solid white; }
         .table th { padding: 0.5rem 0.75rem; border-right: 1px solid white; }
@@ -235,6 +239,8 @@
                     <button class="btn btn-xs filter-btn active" data-filter="all" data-i18n="all">Все</button>
                     <button class="btn btn-xs btn-ghost filter-btn" data-filter="guest" data-i18n="status_guest">Гость</button>
                     <button class="btn btn-xs btn-ghost filter-btn" data-filter="team" data-i18n="status_team">Команда</button>
+                    <button class="btn btn-xs btn-ghost filter-btn" data-filter="volunteer" data-i18n="status_volunteer">Волонтёр</button>
+                    <button class="btn btn-xs btn-ghost filter-btn" data-filter="vip" data-i18n="status_vip">ВИП</button>
                     <button class="btn btn-xs btn-ghost filter-btn" data-filter="cancelled" data-i18n="status_cancelled">Отказ</button>
                     <div class="border-l border-base-300 h-6 mx-1"></div>
                     <button class="btn btn-xs btn-ghost filter-btn" data-filter="accommodated" data-i18n="accommodated">Заселены</button>
@@ -531,6 +537,8 @@
                         <select name="status" class="select select-bordered select-sm w-full">
                             <option value="guest">Гость</option>
                             <option value="team">Команда</option>
+                            <option value="volunteer">Волонтёр</option>
+                            <option value="vip">ВИП</option>
                             <option value="cancelled">Отказ</option>
                         </select>
                     </div>
@@ -693,6 +701,14 @@
                     <label class="label"><span class="label-text font-medium">Выезд</span></label>
                     <input type="date" id="placementCheckOut" class="input input-bordered w-full" onchange="onPlacementDatesChange()" />
                 </div>
+            </div>
+
+            <!-- Категория -->
+            <div class="form-control mb-4">
+                <label class="label"><span class="label-text font-medium" data-i18n="category">Категория</span></label>
+                <select id="placementCategory" class="select select-bordered w-full">
+                    <option value="">—</option>
+                </select>
             </div>
 
             <!-- Сообщение если даты не выбраны -->
@@ -884,7 +900,7 @@
         if (btn) { btn.classList.toggle('btn-active', isFS); btn.title = isFS ? 'Обычный вид' : 'На весь экран'; }
     }
     </script>
-    <script src="../js/pages/preliminary.js?v=11"></script>
+    <script src="../js/pages/preliminary.js?v=12"></script>
 
 </body>
 </html>

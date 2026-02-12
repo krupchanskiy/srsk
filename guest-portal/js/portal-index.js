@@ -1045,7 +1045,11 @@ async function init() {
     // Всегда проверяем авторизацию — для отображения в хедере
     const loggedInUser = await PortalAuth.checkGuestAuth();
 
-    if (viewId) {
+    if (viewId && loggedInUser && viewId === loggedInUser.id) {
+        // Свой профиль через ?view= — редирект на обычный режим
+        window.location.replace('index.html');
+        return;
+    } else if (viewId) {
         // Режим просмотра чужого профиля
         isPublicView = true;
 

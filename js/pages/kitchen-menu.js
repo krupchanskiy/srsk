@@ -16,7 +16,7 @@ let menuData = {}; // { 'YYYY-MM-DD': { breakfast: {...}, lunch: {...}, dinner: 
 let retreats = [];
 let holidays = [];
 let cooks = [];
-let eatingCounts = {}; // { 'YYYY-MM-DD': { breakfast: { guests, team, residents }, lunch: { guests, team, residents } } }
+let eatingCounts = {}; // { 'YYYY-MM-DD': { breakfast: { team, volunteers, vips, guests, groups }, lunch: {...} } }
 
 let selectedDate = null;
 let selectedMealType = null;
@@ -342,14 +342,12 @@ async function loadEatingCounts(startDate, endDate) {
 
 // Получить количество питающихся на дату и приём пищи (для порций)
 function getEatingTotal(dateStr, mealType) {
-    const counts = eatingCounts[dateStr];
-    if (!counts) return 50;
-    // Для dinner/menu используем данные обеда (те же люди)
-    const key = (mealType === 'breakfast') ? 'breakfast' : 'lunch';
-    const mc = counts[key];
-    if (!mc) return 50;
-    const total = mc.guests + mc.team + (mc.residents || 0);
-    return total > 0 ? total : 50;
+    return EatingUtils.getTotal(eatingCounts, dateStr, mealType);
+}
+
+// Сумма всех полей meal-counts
+function mealTotal(mc) {
+    return (mc.team || 0) + (mc.volunteers || 0) + (mc.vips || 0) + (mc.guests || 0) + (mc.groups || 0);
 }
 
 // Строка с подсчётом питающихся (завтрак / обед)
@@ -361,19 +359,84 @@ function formatEatingLine(dateStr, cssClass) {
     const ln = counts.lunch;
     if (!bf && !ln) return '';
 
-    const bfTotal = bf ? bf.guests + bf.team + (bf.residents || 0) : 0;
-    const lnTotal = ln ? ln.guests + ln.team + (ln.residents || 0) : 0;
+    const bfTotal = bf ? mealTotal(bf) : 0;
+    const lnTotal = ln ? mealTotal(ln) : 0;
     if (bfTotal === 0 && lnTotal === 0) return '';
 
     const titleText = t('eating_tooltip');
 
-    // Если числа совпадают — одна строка
+    // Формирование строки разбивки: team+vol+vip+guests+groups
+    const fmtParts = (mc) => {
+        const parts = [mc.team, mc.volunteers, mc.vips, mc.guests];
+        if (mc.groups) parts.push(mc.groups);
+        return parts.join('+');
+    };
+
+    // Авторасчёт
+    let autoLine;
     if (bfTotal === lnTotal) {
-        return `<div class="${cssClass}" title="${titleText}">${t('breakfast_and_lunch')}: ${bf.guests}+${bf.team}+${bf.residents || 0}=${bfTotal}</div>`;
+        autoLine = `${t('breakfast_and_lunch')}: ${fmtParts(bf)}=${bfTotal}`;
+    } else {
+        autoLine = `${t('breakfast')}: ${bfTotal}, ${t('lunch')}: ${lnTotal}`;
     }
 
-    // Разные — показываем завтрак и обед
-    return `<div class="${cssClass}" title="${titleText}">${t('breakfast')}: ${bfTotal}, ${t('lunch')}: ${lnTotal}</div>`;
+    // Проверяем ручные порции повара
+    const dayMenu = menuData[dateStr];
+    if (dayMenu) {
+        const cookBf = dayMenu.breakfast?.portions;
+        const cookLn = dayMenu.lunch?.portions;
+        const hasBfOverride = cookBf && cookBf !== bfTotal;
+        const hasLnOverride = cookLn && cookLn !== lnTotal;
+
+        if (hasBfOverride || hasLnOverride) {
+            const actualBf = cookBf || bfTotal;
+            const actualLn = cookLn || lnTotal;
+            const cookStr = (actualBf === actualLn)
+                ? actualBf
+                : `${actualBf}/${actualLn}`;
+            autoLine += ` → ${t('cook')}: ${cookStr}`;
+        }
+    }
+
+    return `<div class="${cssClass}" title="${titleText}">${autoLine}</div>`;
+}
+
+// Детальная разбивка едоков для дневного вида
+function formatEatingDetailed(dateStr) {
+    const counts = eatingCounts[dateStr];
+    if (!counts) return '';
+
+    const dayMenu = menuData[dateStr];
+
+    const renderMeal = (mc, mealKey, label) => {
+        if (!mc) return '';
+        const total = mealTotal(mc);
+        if (total === 0) return '';
+
+        const parts = [];
+        if (mc.team) parts.push(`${t('status_team') || 'Команда'} – ${mc.team}`);
+        if (mc.volunteers) parts.push(`${t('category_volunteer') || 'Волонтёры'} – ${mc.volunteers}`);
+        if (mc.vips) parts.push(`${t('category_vip') || 'ВИП'} – ${mc.vips}`);
+        if (mc.guests) parts.push(`${t('status_guest') || 'Гости'} – ${mc.guests}`);
+        if (mc.groups) parts.push(`${t('nav_groups') || 'Группы'} – ${mc.groups}`);
+
+        const cookPortions = dayMenu?.[mealKey]?.portions;
+        const hasCookOverride = cookPortions && cookPortions !== total;
+
+        let line = `<span class="text-sm">${label}: ${parts.join(', ')} = ${total}</span>`;
+        if (hasCookOverride) {
+            line += ` <span class="text-sm font-bold">→ ${t('cook') || 'Повар'}: ${cookPortions}</span>`;
+        }
+
+        return `<div class="mb-1">${line}</div>`;
+    };
+
+    const bfHtml = renderMeal(counts.breakfast, 'breakfast', t('breakfast') || 'Завтрак');
+    const lnHtml = renderMeal(counts.lunch, 'lunch', t('lunch') || 'Обед');
+
+    if (!bfHtml && !lnHtml) return '';
+
+    return `<div class="mt-2 text-gray-500">${bfHtml}${lnHtml}</div>`;
 }
 
 // ==================== EATING COUNT CHANGE ALERT ====================
@@ -383,10 +446,8 @@ const EATING_ALERT_COOLDOWN = 3600000; // 1 час в мс
 function getEatingTotalForDate(dateStr) {
     const counts = eatingCounts[dateStr];
     if (!counts) return null;
-    const bf = counts.breakfast;
-    const ln = counts.lunch;
-    const bfTotal = bf ? bf.guests + bf.team + (bf.residents || 0) : 0;
-    const lnTotal = ln ? ln.guests + ln.team + (ln.residents || 0) : 0;
+    const bfTotal = counts.breakfast ? mealTotal(counts.breakfast) : 0;
+    const lnTotal = counts.lunch ? mealTotal(counts.lunch) : 0;
     if (bfTotal === 0 && lnTotal === 0) return null;
     return { breakfast: bfTotal, lunch: lnTotal };
 }
@@ -551,8 +612,8 @@ function renderDay() {
         acharyaBanner = `<div class="text-center py-1.5 text-sm opacity-70 border-b border-base-200/50 no-print">${acharyaNames}</div>`;
     }
 
-    // Количество питающихся
-    const eatingLine = formatEatingLine(dateStr, 'text-sm text-gray-500 font-medium mt-1');
+    // Количество питающихся — детальная разбивка для дневного вида
+    const eatingDetailed = formatEatingDetailed(dateStr);
 
     container.innerHTML = `
         <div class="print-only print-header">${getPrintHeader(dateText, extraInfo)}</div>
@@ -561,14 +622,14 @@ function renderDay() {
             ${acharyaBanner}
 
             <div class="p-4 border-b border-base-200/50 no-print" style="${retreat ? `border-left: 4px solid ${retreat.color};` : (majorFestival ? 'border-left: 4px solid #EAB308;' : '')}">
-                <div class="flex justify-between items-center">
+                <div class="flex justify-between items-start">
                     <div>
                         <div class="text-lg font-semibold">${currentDate.getDate()} ${m[currentDate.getMonth()]} ${currentDate.getFullYear()}</div>
                         <div class="text-sm opacity-60">${d[currentDate.getDay()]}</div>
                     </div>
                     <div class="text-right">
                         ${retreat ? `<div class="text-sm font-bold uppercase tracking-wide" style="color: ${retreat.color};">${getName(retreat)}</div>` : `<div class="text-sm opacity-40">${t('no_retreat')}</div>`}
-                        ${eatingLine}
+                        ${eatingDetailed}
                     </div>
                 </div>
             </div>
@@ -1886,7 +1947,7 @@ async function openMealDetailsModal(dateStr, mealType) {
     const date = DateUtils.parseDate(dateStr);
     const m = getMonthNames();
     const d = getDayNames();
-    const portions = getEatingTotal(dateStr, mealType);
+    const portions = (mealData.portions && mealData.portions !== 50) ? mealData.portions : getEatingTotal(dateStr, mealType);
     const cook = mealData.cook;
 
     // Заголовки

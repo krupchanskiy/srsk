@@ -413,16 +413,17 @@
                     </div>
                 </div>
 
-                <!-- Team Section (only for team members) -->
+                <!-- Team / Service Section -->
                 <div class="section-card" id="teamSection">
                     <div class="flex items-center justify-between mb-4">
-                        <h3 class="font-semibold" data-i18n="team_info">Член команды</h3>
+                        <h3 class="font-semibold">Команда / Служение</h3>
                         <label class="flex items-center gap-2 cursor-pointer edit-only">
                             <input type="checkbox" id="editIsTeamMember" class="checkbox checkbox-sm checkbox-primary" onchange="toggleTeamFields()">
                         </label>
                         <span class="badge badge-primary view-only" id="teamBadgeView"></span>
                     </div>
-                    <div id="teamFields" class="space-y-3">
+                    <!-- Поля служения (для команды и волонтёров) -->
+                    <div id="serviceFields" class="space-y-3">
                         <div>
                             <div class="info-label" data-i18n="department">Департамент</div>
                             <div class="view-only info-value" id="viewDepartment">—</div>
@@ -442,6 +443,9 @@
                                 <option value="">—</option>
                             </select>
                         </div>
+                    </div>
+                    <!-- Поля только для команды (паспорт, виза, инд. телефон) -->
+                    <div id="teamOnlyFields" class="space-y-3 mt-3">
                         <div>
                             <div class="info-label" data-i18n="passport">Паспорт</div>
                             <div class="view-only info-value" id="viewPassport">—</div>
@@ -503,6 +507,12 @@
 
             <!-- Right column: History -->
             <div class="lg:col-span-2 space-y-6">
+                <!-- Current Accommodation (permanent residents without retreat) -->
+                <div class="section-card hidden" id="currentAccommodationSection">
+                    <h3 class="font-semibold mb-4">Текущее размещение</h3>
+                    <div id="currentAccommodationContent"></div>
+                </div>
+
                 <!-- Retreat Registrations -->
                 <div class="section-card" id="retreatsSection">
                     <div class="flex items-center justify-between mb-4">
@@ -981,6 +991,6 @@
     <script src="../js/modal-utils.js"></script>
     <script src="../js/date-utils.js"></script>
     <script src="../js/layout.js?v=5"></script>
-    <script src="../js/pages/person.js?v=6"></script>
+    <script src="../js/pages/person.js?v=7"></script>
 </body>
 </html>

@@ -58,6 +58,7 @@ const modules = {
             { id: 'placement', items: [
                 { id: 'retreat_guests', href: 'vaishnavas/retreat-guests.html' },
                 { id: 'preliminary', href: 'vaishnavas/preliminary.html' },
+                { id: 'groups', href: 'vaishnavas/groups.html' },
                 { id: 'arrivals', href: 'placement/arrivals.html' },
                 { id: 'departures', href: 'placement/departures.html' },
                 { id: 'transfers', href: 'placement/transfers.html' }
@@ -136,6 +137,9 @@ const modules = {
                 { id: 'retreats', href: 'ashram/retreats.html' },
                 { id: 'festivals', href: 'ashram/festivals.html' }
             ]},
+            { id: 'dashboards', items: [
+                { id: 'dashboard_vaishnavas', href: 'ashram/dashboard-vaishnavas.html' }
+            ]},
             { id: 'access', items: [
                 { id: 'user_management', href: 'settings/user-management.html' }
             ]},
@@ -175,6 +179,7 @@ const pagePermissions = {
     'placement/bookings.html': 'view_bookings',
     'vaishnavas/retreat-guests.html': 'view_retreat_guests',
     'vaishnavas/preliminary.html': 'view_preliminary',
+    'vaishnavas/groups.html': 'view_preliminary',
     'placement/arrivals.html': 'view_arrivals',
     'placement/departures.html': 'view_departures',
     'placement/transfers.html': 'view_transfers',
@@ -189,6 +194,7 @@ const pagePermissions = {
     // Ashram
     'ashram/retreats.html': 'view_retreats',
     'ashram/festivals.html': 'view_festivals',
+    'ashram/dashboard-vaishnavas.html': 'view_retreats',
 
     // Photos
     'photos/upload.html': 'upload_photos',
@@ -1158,6 +1164,7 @@ async function initLayout(page = { module: null, menuId: 'kitchen', itemId: null
     // Если auth ещё не готов — перестроить меню после авторизации (фильтрация по правам)
     if (!window.currentUser) {
         window.addEventListener('authReady', () => {
+            buildLocationOptions();
             buildMobileMenu();
             buildSubmenuBar();
             updateUserInfo();

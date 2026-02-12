@@ -47,9 +47,9 @@ BEGIN
             res.room_id,
             COUNT(*)::INTEGER AS occupied_count
         FROM residents res
-        WHERE res.status = 'active'
+        WHERE res.status = 'confirmed'
           AND res.check_in <= target_date
-          AND (res.check_out IS NULL OR res.check_out >= target_date)
+          AND (res.check_out IS NULL OR res.check_out > target_date)
         GROUP BY res.room_id
     ) occ ON occ.room_id = r.id
     WHERE r.is_active = true
@@ -88,9 +88,9 @@ BEGIN
     resident_stats AS (
         SELECT COUNT(*)::INTEGER AS occupied
         FROM residents res
-        WHERE res.status = 'active'
+        WHERE res.status = 'confirmed'
           AND res.check_in <= target_date
-          AND (res.check_out IS NULL OR res.check_out >= target_date)
+          AND (res.check_out IS NULL OR res.check_out > target_date)
     ),
     building_stats AS (
         SELECT COUNT(*)::INTEGER AS buildings
@@ -148,7 +148,7 @@ BEGIN
     LEFT JOIN team_members tm ON tm.id = res.team_member_id
     LEFT JOIN resident_categories rc ON rc.id = res.category_id
     WHERE res.room_id = target_room_id
-      AND res.status = 'active'
+      AND res.status = 'confirmed'
       AND res.check_in <= target_date
       AND (res.check_out IS NULL OR res.check_out >= target_date)
     ORDER BY res.check_in;
@@ -190,7 +190,7 @@ BEGIN
     SELECT COUNT(*)::INTEGER INTO current_occ
     FROM residents res
     WHERE res.room_id = target_room_id
-      AND res.status = 'active'
+      AND res.status = 'confirmed'
       AND res.id IS DISTINCT FROM exclude_resident_id
       AND res.check_in < end_date
       AND (res.check_out IS NULL OR res.check_out > start_date);
@@ -241,7 +241,7 @@ BEGIN
     LEFT JOIN team_members tm ON tm.id = res.team_member_id
     LEFT JOIN resident_categories rc ON rc.id = res.category_id
     WHERE res.check_in = target_date
-      AND res.status = 'active';
+      AND res.status = 'confirmed';
 
     -- Выезды
     RETURN QUERY
@@ -261,6 +261,6 @@ BEGIN
     LEFT JOIN team_members tm ON tm.id = res.team_member_id
     LEFT JOIN resident_categories rc ON rc.id = res.category_id
     WHERE res.check_out = target_date
-      AND res.status = 'active';
+      AND res.status = 'confirmed';
 END;
 $$;

@@ -145,7 +145,7 @@ async function loadRegistrations() {
             .select('*, rooms(id, number, building_id, buildings(id, name_ru, name_en, name_hi))')
             .eq('retreat_id', retreatId)
             .in('vaishnava_id', vaishnavIds)
-            .in('status', ['active', 'confirmed']);
+            .eq('status', 'confirmed');
 
         // Привязываем residents к регистрациям
         const residentsByVaishnava = (residentsData || []).reduce((acc, res) => {
@@ -174,7 +174,7 @@ async function loadRoomOccupancy() {
         .from('residents')
         .select('id, room_id, check_in, check_out')
         .not('room_id', 'is', null)
-        .in('status', ['active', 'confirmed'])
+        .eq('status', 'confirmed')
         .lte('check_in', retreat.end_date)
         .gte('check_out', retreat.start_date);
 
@@ -367,7 +367,7 @@ function filterRegistrations() {
             aVal = (a.resident?.rooms?.number || 'zzz').toLowerCase();
             bVal = (b.resident?.rooms?.number || 'zzz').toLowerCase();
         } else if (sortField === 'status') {
-            const statusOrder = { guest: 1, team: 2, cancelled: 3 };
+            const statusOrder = { team: 1, volunteer: 2, guest: 3, vip: 4, cancelled: 5 };
             aVal = statusOrder[a.status] || 99;
             bVal = statusOrder[b.status] || 99;
         } else if (sortField === 'meal_type') {
@@ -457,6 +457,8 @@ function renderTable() {
     // Переводы для статусов
     const statusGuest = t('status_guest');
     const statusTeam = t('status_team');
+    const statusVolunteer = t('status_volunteer') || 'Волонтёр';
+    const statusVip = t('status_vip') || 'ВИП';
     const statusCancelled = t('status_cancelled');
 
     // Переводы для типов питания
@@ -575,7 +577,7 @@ function renderTable() {
         const childBadge = isChild ? ' <span class="badge badge-xs badge-warning">ребёнок</span>' : '';
 
         return `
-            <tr class="hover align-top${isChild ? ' opacity-80' : ''}">
+            <tr class="hover align-top${reg.status === 'cancelled' ? ' row-cancelled' : ''}${isChild ? ' opacity-80' : ''}">
                 <td class="cursor-pointer ${buildingId === 'self' ? 'bg-error/20' : (buildingId && roomId) ? 'bg-success/20' : ''}" data-action="navigate-person" data-id="${v?.id}">
                     <div class="flex gap-3 items-center${isChild ? ' pl-4' : ''}">
                         ${photoUrl
@@ -590,11 +592,13 @@ function renderTable() {
                 </td>
                 <td class="text-sm whitespace-nowrap ${v?.gender === 'male' ? 'bg-blue-500/10' : v?.gender === 'female' ? 'bg-pink-500/10' : ''}">${genderAge}</td>
                 <td class="text-sm" data-stop-propagation>
-                    <select class="select select-xs select-bordered w-full ${reg.status === 'guest' ? 'status-guest' : reg.status === 'team' ? 'status-team' : reg.status === 'cancelled' ? 'status-cancelled' : ''}"
+                    <select class="select select-xs select-bordered w-full ${reg.status === 'guest' ? 'status-guest' : reg.status === 'team' ? 'status-team' : reg.status === 'volunteer' ? 'status-volunteer' : reg.status === 'vip' ? 'status-vip' : reg.status === 'cancelled' ? 'status-cancelled' : ''}"
                         data-action="status-change" data-id="${reg.id}"
                         ${disabledAttr}>
                         <option value="guest" ${reg.status === 'guest' ? 'selected' : ''}>${statusGuest}</option>
                         <option value="team" ${reg.status === 'team' ? 'selected' : ''}>${statusTeam}</option>
+                        <option value="volunteer" ${reg.status === 'volunteer' ? 'selected' : ''}>${statusVolunteer}</option>
+                        <option value="vip" ${reg.status === 'vip' ? 'selected' : ''}>${statusVip}</option>
                         <option value="cancelled" ${reg.status === 'cancelled' ? 'selected' : ''}>${statusCancelled}</option>
                     </select>
                 </td>
@@ -1072,7 +1076,9 @@ async function onRoomChange(registrationId, roomId) {
         check_in: getRegCheckIn(reg),
         check_out: getRegCheckOut(reg),
         status: 'confirmed',
-        category_id: STATUS_CATEGORY_MAP[reg.status] || DEFAULT_CATEGORY_ID
+        category_id: STATUS_CATEGORY_MAP[reg.status] || DEFAULT_CATEGORY_ID,
+        has_housing: true,
+        has_meals: reg.meal_type !== 'self'
     };
 
     try {
@@ -1130,7 +1136,9 @@ async function saveSelfAccommodation(registrationId) {
         check_in: getRegCheckIn(reg),
         check_out: getRegCheckOut(reg),
         status: 'confirmed',
-        category_id: STATUS_CATEGORY_MAP[reg.status] || DEFAULT_CATEGORY_ID
+        category_id: STATUS_CATEGORY_MAP[reg.status] || DEFAULT_CATEGORY_ID,
+        has_housing: false,
+        has_meals: reg.meal_type !== 'self'
     };
 
     try {
@@ -1505,9 +1513,25 @@ let floorPlans = [];
 // Маппинг статуса регистрации → category_id для шахматки
 const STATUS_CATEGORY_MAP = {
     'team': '10c4c929-6aaf-4b73-a15a-b7c5ab70f64b',   // Команда
-    'guest': 'a825c26c-597c-4c9c-a68d-7bf6f1a66ee8'    // Участник ретрита
+    'guest': '6ad3bfdd-cb95-453a-b589-986717615736',   // Гость
+    'volunteer': 'cdb7a43e-51a8-47cd-ac97-c6fdf4fccd5e', // Волонтёр
+    'vip': 'ab57efc9-504a-4a31-93e6-6de8daa46bb7'      // Важный гость
 };
 const DEFAULT_CATEGORY_ID = '6ad3bfdd-cb95-453a-b589-986717615736'; // Гость
+
+let residentCategories = [];
+
+async function loadResidentCategories() {
+    residentCategories = await Cache.getOrLoad('resident_categories', async () => {
+        const { data, error } = await Layout.db
+            .from('resident_categories')
+            .select('id, slug, name_ru, name_en, name_hi, color, sort_order')
+            .lt('sort_order', 999)
+            .order('sort_order');
+        if (error) { console.error('Error loading categories:', error); return []; }
+        return data || [];
+    }, 5 * 60 * 1000);
+}
 
 let placementState = {
     registrationId: null,
@@ -1580,7 +1604,8 @@ function openPlacementModal(registrationId) {
         currentBuildingId: buildings[0]?.id || null,
         currentFloor: 1,
         existingResidentId: reg.resident?.id || null,
-        regStatus: reg.status || null
+        regStatus: reg.status || null,
+        mealType: reg.meal_type || null
     };
 
     const modal = document.getElementById('placementModal');
@@ -1595,6 +1620,15 @@ function openPlacementModal(registrationId) {
         <div class="font-medium">${e(name)}${e(spiritualName)}</div>
         ${reg.accommodation_wishes ? `<div class="text-sm opacity-60 mt-1">Пожелания: ${e(reg.accommodation_wishes)}</div>` : ''}
     `;
+
+    // Заполнить dropdown категории
+    const catSelect = document.getElementById('placementCategory');
+    catSelect.innerHTML = residentCategories.map(c =>
+        `<option value="${c.id}">${Layout.getName(c)}</option>`
+    ).join('');
+    // Предвыбрать по статусу регистрации
+    const preselectedCat = STATUS_CATEGORY_MAP[reg.status] || DEFAULT_CATEGORY_ID;
+    catSelect.value = preselectedCat;
 
     // Установить даты из ретрита
     document.getElementById('placementCheckIn').value = placementState.checkIn || '';
@@ -1644,7 +1678,7 @@ async function loadPlacementOccupancy(checkIn, checkOut) {
         .from('residents')
         .select('id, room_id, check_in, check_out')
         .not('room_id', 'is', null)
-        .in('status', ['active', 'confirmed'])
+        .eq('status', 'confirmed')
         .lte('check_in', checkOut)
         .gte('check_out', checkIn);
 
@@ -1898,7 +1932,11 @@ async function selectPlacementRoom(roomId, buildingId) {
         check_in: placementState.checkIn || null,
         check_out: placementState.checkOut || null,
         status: 'confirmed',
-        category_id: STATUS_CATEGORY_MAP[placementState.regStatus] || DEFAULT_CATEGORY_ID
+        category_id: document.getElementById('placementCategory')?.value
+            || STATUS_CATEGORY_MAP[placementState.regStatus]
+            || DEFAULT_CATEGORY_ID,
+        has_housing: true,
+        has_meals: placementState.mealType ? placementState.mealType !== 'self' : true
     };
 
     try {
@@ -2960,7 +2998,7 @@ async function init() {
     await Layout.init({ module: 'housing', menuId: 'placement', itemId: 'preliminary' });
     Layout.showLoader();
 
-    await Promise.all([loadAllRetreats(), loadVaishnavas(), loadBuildingsAndRooms()]);
+    await Promise.all([loadAllRetreats(), loadVaishnavas(), loadBuildingsAndRooms(), loadResidentCategories()]);
 
     setupFilters();
     updateSortIcons();

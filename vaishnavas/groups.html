@@ -1,0 +1,130 @@
+<!DOCTYPE html>
+<html lang="ru" data-theme="light">
+<head>
+    <meta charset="UTF-8">
+    <script src="../js/color-init.js"></script>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Группы — ШРСК</title>
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg">
+    <link href="https://cdn.jsdelivr.net/npm/daisyui@4.12.14/dist/full.min.css" rel="stylesheet" />
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script>tailwind.config = { theme: { extend: { screens: { 'desktop': '1200px' } } } }</script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans:wght@400;500;600;700&family=Noto+Sans+Devanagari:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="../css/common.css">
+</head>
+<body class="bg-base-200 min-h-screen flex flex-col">
+
+    <div id="header-placeholder"></div>
+
+    <main class="container mx-auto px-4 py-6 flex-1">
+
+        <!-- Page Header -->
+        <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6">
+            <h1 class="text-2xl font-bold" data-i18n="nav_groups">Группы</h1>
+            <button class="btn btn-primary gap-2" data-action="open-group-modal" data-permission="edit_preliminary">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" />
+                </svg>
+                <span data-i18n="add_group">Добавить группу</span>
+            </button>
+        </div>
+
+        <!-- Groups Table -->
+        <div class="overflow-x-auto">
+            <table class="table table-zebra bg-base-100 rounded-lg shadow-sm">
+                <thead>
+                    <tr>
+                        <th data-i18n="group_name">Название</th>
+                        <th data-i18n="dates">Даты</th>
+                        <th data-i18n="people_count">Кол-во</th>
+                        <th data-i18n="breakfast">Завтрак</th>
+                        <th data-i18n="lunch">Обед</th>
+                        <th data-i18n="notes">Заметки</th>
+                        <th></th>
+                    </tr>
+                </thead>
+                <tbody id="groupsTable">
+                    <!-- Will be populated by JS -->
+                </tbody>
+            </table>
+            <div id="noGroups" class="hidden text-center py-12 opacity-50">
+                <div class="text-4xl mb-2">👥</div>
+                <p data-i18n="no_groups">Нет групп</p>
+            </div>
+        </div>
+
+    </main>
+
+    <div id="footer-placeholder"></div>
+
+    <!-- Add/Edit Group Modal -->
+    <dialog id="groupModal" class="modal">
+        <div class="modal-box max-w-lg relative">
+            <button type="button" class="btn btn-sm btn-circle btn-ghost absolute right-2 top-2" data-action="close-modal">✕</button>
+            <h3 class="font-bold text-lg mb-4" id="groupModalTitle" data-i18n="add_group">Добавить группу</h3>
+
+            <form id="groupForm" class="space-y-4">
+                <input type="hidden" name="id" />
+
+                <div>
+                    <label class="label"><span class="label-text font-medium" data-i18n="group_name">Название группы</span><span class="text-error ml-1">*</span></label>
+                    <input type="text" name="name" class="input input-bordered w-full" required />
+                </div>
+
+                <div class="grid grid-cols-2 gap-4">
+                    <div>
+                        <label class="label"><span class="label-text font-medium" data-i18n="start_date">Дата начала</span><span class="text-error ml-1">*</span></label>
+                        <input type="date" name="start_date" class="input input-bordered w-full" required />
+                    </div>
+                    <div>
+                        <label class="label"><span class="label-text font-medium" data-i18n="end_date">Дата окончания</span><span class="text-error ml-1">*</span></label>
+                        <input type="date" name="end_date" class="input input-bordered w-full" required />
+                    </div>
+                </div>
+
+                <div>
+                    <label class="label"><span class="label-text font-medium" data-i18n="people_count">Кол-во человек</span><span class="text-error ml-1">*</span></label>
+                    <input type="number" name="people_count" class="input input-bordered w-full" min="1" value="1" required />
+                </div>
+
+                <div class="flex gap-6">
+                    <label class="label cursor-pointer gap-2">
+                        <input type="checkbox" name="breakfast" class="checkbox checkbox-primary" checked />
+                        <span class="label-text" data-i18n="breakfast">Завтрак</span>
+                    </label>
+                    <label class="label cursor-pointer gap-2">
+                        <input type="checkbox" name="lunch" class="checkbox checkbox-primary" checked />
+                        <span class="label-text" data-i18n="lunch">Обед</span>
+                    </label>
+                </div>
+
+                <div>
+                    <label class="label"><span class="label-text font-medium" data-i18n="notes">Заметки</span></label>
+                    <textarea name="notes" rows="2" class="textarea textarea-bordered w-full"></textarea>
+                </div>
+
+                <div class="modal-action">
+                    <button type="button" class="btn btn-error btn-outline hidden" id="deleteGroupBtn" data-action="delete-group" data-i18n="delete">Удалить</button>
+                    <div class="flex-1"></div>
+                    <button type="button" class="btn btn-ghost" data-action="close-modal" data-i18n="cancel">Отмена</button>
+                    <button type="submit" class="btn btn-primary" data-i18n="save">Сохранить</button>
+                </div>
+            </form>
+        </div>
+        <form method="dialog" class="modal-backdrop"><button>close</button></form>
+    </dialog>
+
+    <script src="../js/config.js"></script>
+    <script src="../js/auth-check.js?v=3"></script>
+    <script src="../js/permissions-ui.js?v=2"></script>
+    <script src="../js/cache.js"></script>
+    <script src="../js/utils.js?v=2"></script>
+    <script src="../js/date-utils.js"></script>
+    <script src="../js/layout.js?v=5"></script>
+    <script src="../js/pages/groups.js"></script>
+
+</body>
+</html>

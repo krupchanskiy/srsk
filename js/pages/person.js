@@ -11,6 +11,8 @@ let departments = [];
 let teamMembers = [];
 let spiritualTeachers = [];
 let buildings = [];
+let residentCategories = [];
+let permanentResident = null;
 let isEditMode = false;
 
 const today = DateUtils.toISO(new Date());
@@ -44,15 +46,17 @@ async function init() {
     // Сначала загружаем справочники, чтобы select'ы были заполнены
     await Promise.all([
         loadDepartments(),
-        loadBuildingsAndRooms()
+        loadBuildingsAndRooms(),
+        loadResidentCategories()
     ]);
     populateCountriesList();
     // Потом загружаем человека (renderPerson установит значения в select'ы)
     await loadPerson(personId);
-    // Параллельно загружаем историю и детей
+    // Параллельно загружаем историю, размещение и детей
     await Promise.all([
         loadStays(personId),
         loadRegistrations(personId),
+        loadPermanentResident(personId),
         loadChildren(personId)
     ]);
     Layout.hideLoader();
@@ -156,10 +160,10 @@ async function loadRegistrations(personId) {
         if (retreatIds.length > 0) {
             const { data: residentsData } = await Layout.db
                 .from('residents')
-                .select('retreat_id, room_id, rooms(number, buildings(name_ru, name_en, name_hi))')
+                .select('id, retreat_id, room_id, check_in, check_out, has_meals, category_id, resident_categories:category_id(id, slug, color, name_ru, name_en, name_hi), rooms(number, buildings(name_ru, name_en, name_hi))')
                 .eq('vaishnava_id', personId)
                 .in('retreat_id', retreatIds)
-                .in('status', ['active', 'confirmed']);
+                .eq('status', 'confirmed');
 
             // Map residents to registrations
             if (residentsData) {
@@ -174,6 +178,7 @@ async function loadRegistrations(personId) {
     }
 
     renderRegistrations();
+    toggleTeamSections();
 }
 
 function renderPerson() {
@@ -320,9 +325,15 @@ function renderPerson() {
 
 function toggleTeamSections() {
     const isTeam = person?.is_team_member || document.getElementById('editIsTeamMember')?.checked;
+    const isVolunteer = registrations.some(r =>
+        r.resident?.resident_categories?.slug === 'volunteer')
+        || permanentResident?.resident_categories?.slug === 'volunteer';
+    const showServiceFields = isTeam || isVolunteer;
+
     document.getElementById('staysSection').style.display = isTeam ? 'block' : 'none';
-    document.getElementById('teamSection').style.display = isTeam ? 'block' : 'none';
-    document.getElementById('indiaExperienceField').style.display = isTeam ? 'none' : 'block';
+    document.getElementById('teamSection').style.display = showServiceFields ? 'block' : 'none';
+    document.getElementById('teamOnlyFields').style.display = isTeam ? '' : 'none';
+    document.getElementById('indiaExperienceField').style.display = showServiceFields ? 'none' : 'block';
 }
 
 function toggleTeamFields() {
@@ -851,6 +862,168 @@ async function loadBuildingsAndRooms() {
     }, 3600000) || [];
 }
 
+async function loadResidentCategories() {
+    residentCategories = await Cache.getOrLoad('resident_categories', async () => {
+        const { data, error } = await Layout.db
+            .from('resident_categories')
+            .select('id, slug, name_ru, name_en, name_hi, color, sort_order')
+            .lt('sort_order', 999)
+            .order('sort_order');
+        if (error) { console.error('Error loading categories:', error); return []; }
+        return data || [];
+    }, 5 * 60 * 1000);
+}
+
+// ==================== PERMANENT RESIDENT ====================
+
+async function loadPermanentResident(personId) {
+    const { data } = await Layout.db
+        .from('residents')
+        .select('id, room_id, category_id, check_in, check_out, has_meals, resident_categories:category_id(id, slug, color, name_ru, name_en, name_hi), rooms(number, buildings(name_ru, name_en, name_hi))')
+        .eq('vaishnava_id', personId)
+        .is('retreat_id', null)
+        .eq('status', 'confirmed')
+        .maybeSingle();
+
+    permanentResident = data || null;
+    renderPermanentResident();
+    toggleTeamSections();
+}
+
+function renderPermanentResident() {
+    const section = document.getElementById('currentAccommodationSection');
+    const content = document.getElementById('currentAccommodationContent');
+    if (!section || !content) return;
+
+    if (!permanentResident) {
+        section.classList.add('hidden');
+        return;
+    }
+
+    section.classList.remove('hidden');
+
+    const res = permanentResident;
+    const cat = res.resident_categories;
+    const roomInfo = res.rooms
+        ? `${res.rooms.buildings ? Layout.getName(res.rooms.buildings) + ', ' : ''}${res.rooms.number}`
+        : (t('self_accommodation') || 'Самостоятельно');
+
+    const catOptionsHtml = residentCategories.map(c =>
+        `<option value="${c.id}" ${c.id === res.category_id ? 'selected' : ''}>${Layout.getName(c)}</option>`
+    ).join('');
+
+    const isPermanent = res.check_out >= '2099-01-01';
+
+    content.innerHTML = `
+        <div class="flex flex-col gap-3">
+            <div class="flex items-center gap-2">
+                <span class="opacity-60 text-sm">Комната:</span>
+                <span class="font-medium ${res.room_id ? 'text-success' : 'text-error'}">${roomInfo}</span>
+            </div>
+            <div class="grid grid-cols-2 gap-3">
+                <div>
+                    <span class="opacity-60 text-xs">Заезд</span>
+                    <input type="date" class="input input-bordered input-sm w-full" id="permResCheckIn" value="${res.check_in || ''}" onchange="savePermanentResidentDates()" />
+                </div>
+                <div>
+                    <span class="opacity-60 text-xs">Выезд</span>
+                    <div class="flex items-center gap-2">
+                        <input type="date" class="input input-bordered input-sm flex-1" id="permResCheckOut" value="${isPermanent ? '' : (res.check_out || '')}" ${isPermanent ? 'disabled' : ''} onchange="savePermanentResidentDates()" />
+                        <label class="flex items-center gap-1 cursor-pointer whitespace-nowrap">
+                            <input type="checkbox" class="checkbox checkbox-xs" id="permResPermanent" ${isPermanent ? 'checked' : ''} onchange="togglePermanentResidentCheckout(this.checked)" />
+                            <span class="text-xs opacity-60">постоянно</span>
+                        </label>
+                    </div>
+                </div>
+            </div>
+            <div class="flex items-center gap-2">
+                <span class="opacity-60 text-sm" data-i18n="category">${t('category') || 'Категория'}</span>
+                ${cat ? `<span class="badge badge-sm" style="background-color: ${cat.color}20; color: ${cat.color}; border-color: ${cat.color}">${Layout.getName(cat)}</span>` : ''}
+                <select class="select select-xs select-bordered" id="permanentResidentCategory" onchange="changePermanentResidentCategory(this.value)">
+                    ${catOptionsHtml}
+                </select>
+            </div>
+            <div class="flex items-center gap-2">
+                <span class="opacity-60 text-sm">${t('meal_type') || 'Питание'}</span>
+                <label class="flex items-center gap-2 cursor-pointer">
+                    <input type="checkbox" class="checkbox checkbox-sm checkbox-success" id="permResMeals" ${res.has_meals ? 'checked' : ''} onchange="changePermanentResidentMeals(this.checked)" />
+                    <span class="text-sm">${t('meal_type_prasad') || 'Питается с нами'}</span>
+                </label>
+            </div>
+        </div>
+    `;
+}
+
+function togglePermanentResidentCheckout(isPermanent) {
+    const checkOutInput = document.getElementById('permResCheckOut');
+    if (isPermanent) {
+        checkOutInput.value = '';
+        checkOutInput.disabled = true;
+    } else {
+        checkOutInput.disabled = false;
+        checkOutInput.focus();
+    }
+    savePermanentResidentDates();
+}
+
+async function savePermanentResidentDates() {
+    if (!permanentResident?.id) return;
+
+    const checkIn = document.getElementById('permResCheckIn').value || null;
+    const isPermanent = document.getElementById('permResPermanent').checked;
+    const checkOut = isPermanent ? '2099-12-31' : (document.getElementById('permResCheckOut').value || null);
+
+    if (!checkIn) return;
+
+    try {
+        const { error } = await Layout.db
+            .from('residents')
+            .update({ check_in: checkIn, check_out: checkOut })
+            .eq('id', permanentResident.id);
+        if (error) throw error;
+
+        permanentResident.check_in = checkIn;
+        permanentResident.check_out = checkOut;
+    } catch (err) {
+        console.error('Error saving dates:', err);
+        Layout.showNotification((t('error_saving') || 'Ошибка сохранения') + ': ' + err.message, 'error');
+    }
+}
+
+async function changePermanentResidentCategory(categoryId) {
+    if (!permanentResident?.id || !categoryId) return;
+
+    try {
+        const { error } = await Layout.db
+            .from('residents')
+            .update({ category_id: categoryId })
+            .eq('id', permanentResident.id);
+        if (error) throw error;
+
+        await loadPermanentResident(person.id);
+    } catch (err) {
+        console.error('Error changing category:', err);
+        Layout.showNotification((t('error_saving') || 'Ошибка сохранения') + ': ' + err.message, 'error');
+    }
+}
+
+async function changePermanentResidentMeals(hasMeals) {
+    if (!permanentResident?.id) return;
+
+    try {
+        const { error } = await Layout.db
+            .from('residents')
+            .update({ has_meals: hasMeals })
+            .eq('id', permanentResident.id);
+        if (error) throw error;
+
+        permanentResident.has_meals = hasMeals;
+    } catch (err) {
+        console.error('Error changing meals:', err);
+        Layout.showNotification((t('error_saving') || 'Ошибка сохранения') + ': ' + err.message, 'error');
+    }
+}
+
 // ==================== REGISTRATION STATUS ====================
 
 async function updateRegistrationStatus(registrationId, newStatus, selectElement) {
@@ -881,6 +1054,69 @@ async function updateRegistrationStatus(registrationId, newStatus, selectElement
         if (selectElement && oldStatus) {
             selectElement.value = oldStatus;
         }
+    }
+}
+
+async function changeResidentDate(residentId, field, value) {
+    if (!residentId || !field || !value) return;
+
+    try {
+        const { error } = await Layout.db
+            .from('residents')
+            .update({ [field]: value })
+            .eq('id', residentId);
+        if (error) throw error;
+
+        // Обновить локальные данные без полной перезагрузки
+        for (const reg of registrations) {
+            if (reg.resident?.id === residentId) {
+                reg.resident[field] = value;
+                break;
+            }
+        }
+    } catch (err) {
+        console.error('Error saving date:', err);
+        Layout.showNotification((t('error_saving') || 'Ошибка сохранения') + ': ' + err.message, 'error');
+    }
+}
+
+async function changeResidentCategory(residentId, categoryId) {
+    if (!residentId || !categoryId) return;
+
+    try {
+        const { error } = await Layout.db
+            .from('residents')
+            .update({ category_id: categoryId })
+            .eq('id', residentId);
+        if (error) throw error;
+
+        await loadRegistrations(person.id);
+    } catch (err) {
+        console.error('Error changing category:', err);
+        Layout.showNotification((t('error_saving') || 'Ошибка сохранения') + ': ' + err.message, 'error');
+    }
+}
+
+async function changeResidentMeals(residentId, hasMeals) {
+    if (!residentId) return;
+
+    try {
+        const { error } = await Layout.db
+            .from('residents')
+            .update({ has_meals: hasMeals })
+            .eq('id', residentId);
+        if (error) throw error;
+
+        // Обновить локальные данные без полной перезагрузки
+        for (const reg of registrations) {
+            if (reg.resident?.id === residentId) {
+                reg.resident.has_meals = hasMeals;
+                break;
+            }
+        }
+    } catch (err) {
+        console.error('Error changing meals:', err);
+        Layout.showNotification((t('error_saving') || 'Ошибка сохранения') + ': ' + err.message, 'error');
     }
 }
 
@@ -1217,6 +1453,7 @@ async function updateRoomsList() {
         // Заселённые гости (residents)
         Layout.db.from('residents')
             .select('room_id')
+            .eq('status', 'confirmed')
             .lte('check_in', checkOut)
             .gte('check_out', checkIn),
         // Бронирования гостей ретритов (guest_accommodations)
@@ -1467,6 +1704,12 @@ function renderRegistrations() {
             ev.stopPropagation();
             if (target.dataset.action === 'update-registration-status') {
                 updateRegistrationStatus(target.dataset.id, target.value, target);
+            } else if (target.dataset.action === 'change-category') {
+                changeResidentCategory(target.dataset.residentId, target.value);
+            } else if (target.dataset.action === 'change-resident-dates') {
+                changeResidentDate(target.dataset.residentId, target.dataset.field, target.value);
+            } else if (target.dataset.action === 'change-meals') {
+                changeResidentMeals(target.dataset.residentId, target.checked);
             }
         });
     }
@@ -1569,12 +1812,56 @@ function renderRegistrations() {
                     </div>
                 `;
             }
+            // Даты заезда/выезда для ретритного resident
+            detailsHtml += `
+                <div class="detail-section">
+                    <div class="detail-label">📅 Даты проживания</div>
+                    <div class="grid grid-cols-2 gap-2" style="max-width: 320px;">
+                        <div>
+                            <span class="text-xs opacity-60">Заезд</span>
+                            <input type="date" class="input input-bordered input-xs w-full" value="${resident.check_in || ''}" data-action="change-resident-dates" data-resident-id="${resident.id}" data-field="check_in" />
+                        </div>
+                        <div>
+                            <span class="text-xs opacity-60">Выезд</span>
+                            <input type="date" class="input input-bordered input-xs w-full" value="${resident.check_out || ''}" data-action="change-resident-dates" data-resident-id="${resident.id}" data-field="check_out" />
+                        </div>
+                    </div>
+                </div>
+            `;
         } else if (accommodation?.room_number) {
             // Legacy accommodation data
             detailsHtml += `
                 <div class="detail-section">
                     <div class="detail-label">🏠 Размещение</div>
                     <div class="text-sm font-medium text-success">${accommodation.building_name ? accommodation.building_name + ', ' : ''}${accommodation.room_number}</div>
+                </div>
+            `;
+        }
+
+        // Категория проживающего
+        if (resident) {
+            const cat = resident.resident_categories;
+            const catOptionsHtml = residentCategories.map(c =>
+                `<option value="${c.id}" ${c.id === resident.category_id ? 'selected' : ''}>${Layout.getName(c)}</option>`
+            ).join('');
+            detailsHtml += `
+                <div class="detail-section">
+                    <div class="detail-label" data-i18n="category">${t('category') || 'Категория'}</div>
+                    <div class="flex items-center gap-2">
+                        ${cat ? `<span class="badge badge-sm" style="background-color: ${cat.color}20; color: ${cat.color}; border-color: ${cat.color}">${Layout.getName(cat)}</span>` : ''}
+                        <select class="select select-xs select-bordered" data-action="change-category" data-resident-id="${resident.id}">
+                            ${catOptionsHtml}
+                        </select>
+                    </div>
+                </div>
+            `;
+            detailsHtml += `
+                <div class="detail-section">
+                    <div class="detail-label">${t('meal_type') || 'Питание'}</div>
+                    <label class="flex items-center gap-2 cursor-pointer">
+                        <input type="checkbox" class="checkbox checkbox-xs checkbox-success" data-action="change-meals" data-resident-id="${resident.id}" ${resident.has_meals ? 'checked' : ''} />
+                        <span class="text-sm">${t('meal_type_prasad') || 'Питается с нами'}</span>
+                    </label>
                 </div>
             `;
         }

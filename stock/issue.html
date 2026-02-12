@@ -374,6 +374,7 @@
     <script src="../js/translit.js"></script>
     <script src="../js/auto-translate.js"></script>
     <script src="../js/date-utils.js"></script>
+    <script src="../js/eating-utils.js"></script>
     <script src="../js/layout.js?v=5"></script>
     <script>
         // ==================== STATE ====================
@@ -1325,7 +1326,7 @@
                 // Step 1: Get meals for the selected date
                 const { data: meals, error: mealsError } = await Layout.db
                     .from('menu_meals')
-                    .select('id, meal_type, portions')
+                    .select('id, meal_type, portions, date')
                     .eq('location_id', locationId)
                     .eq('date', date)
                     .in('meal_type', mealTypes);
@@ -1388,6 +1389,9 @@
                     return output / portion;
                 }
 
+                // Загружаем кол-во едоков как fallback (если повар не задал порции вручную)
+                const eatingCounts = await EatingUtils.loadCounts(date, date);
+
                 // Collect all ingredients with proper scaling
                 const ingredientsMap = {};
 
@@ -1396,7 +1400,7 @@
                     const recipe = recipesMap[dish.recipe_id];
                     if (!meal) return;
 
-                    const mealPortions = meal.portions || 1;
+                    const mealPortions = meal.portions || EatingUtils.getTotal(eatingCounts, meal.date, meal.meal_type);
                     const recipePortions = getRecipePortions(recipe);
                     const scale = mealPortions / recipePortions;
 

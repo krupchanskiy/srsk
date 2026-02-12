@@ -121,7 +121,7 @@ async function loadRegistrations() {
             .from('residents')
             .select('vaishnava_id, room_id, rooms(number, buildings(id, name_ru, name_en, name_hi))')
             .in('vaishnava_id', vaishnavaIds)
-            .in('status', ['active', 'confirmed']);
+            .eq('status', 'confirmed');
 
         if (resResult.data) {
             resResult.data.forEach(r => {
