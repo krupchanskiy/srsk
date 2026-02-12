@@ -418,8 +418,9 @@ function buildTable(residents, slug) {
 function renderCategorySection(slug, catName, residents) {
     const cfg = CATEGORY_CONFIG[slug] || CATEGORY_CONFIG.guest;
     const icon = CATEGORY_ICONS[slug] || CATEGORY_ICONS.guest;
+    const housing = residents.filter(r => r.rooms).length;
     const eating = residents.filter(r => r.has_meals).length;
-    const subtitle = `${residents.length} ${t('dashboard_present_now') || 'присутствуют'}, ${eating} ${t('dashboard_eating') || 'едят'}`;
+    const subtitle = `${residents.length} всего / ${housing} живут / ${eating} едят`;
 
     groupedData[slug] = residents;
 
