@@ -538,7 +538,7 @@ async function loadDictionaries() {
         Cache.getOrLoad('resident_categories', async () => {
             const { data, error } = await Layout.db.from('resident_categories').select('*').order('sort_order');
             if (error) { console.error('Error loading resident_categories:', error); return null; }
-            return data;
+            return (data || []).filter(c => (c.sort_order || 0) < 999);
         }),
         Layout.db.from('vaishnavas').select('id, spiritual_name, first_name, last_name, gender, phone, birth_date').eq('is_deleted', false).order('spiritual_name')
     ]);
@@ -723,6 +723,7 @@ async function saveCheckin(e) {
     if (!canEditTimeline()) return;
     const form = e.target;
 
+    const mealTypeVal = form.meal_type.value || 'prasad';
     const data = {
         room_id: modalContext.roomId,
         category_id: form.category_id.value || null,
@@ -733,7 +734,9 @@ async function saveCheckin(e) {
         check_out: form.check_out.value || null,
         early_checkin: form.early_checkin.checked,
         late_checkout: form.late_checkout.checked,
-        meal_type: form.meal_type.value || 'prasad',
+        meal_type: mealTypeVal,
+        has_housing: true,
+        has_meals: mealTypeVal !== 'self',
         notes: form.notes.value || null,
         status: 'confirmed'
     };
@@ -819,6 +822,8 @@ async function saveBooking(e) {
             check_out: form.check_out.value,
             early_checkin: earlyCheckin,
             late_checkout: lateCheckout,
+            has_housing: true,
+            has_meals: null,
             status: 'confirmed'
         });
     }
@@ -978,10 +983,10 @@ function openResidentModal(guestData, buildingName, roomName) {
 
     // Питание
     if (!isBooking) {
-        const mealLabels = { prasad: 'С нами', child: 'Детское', self: 'Самостоятельно' };
+        const mealsLabel = res.has_meals === true ? 'Питается' : res.has_meals === false ? 'Не питается' : 'Не определён';
         infoHtml += `<div class="flex justify-between py-1 border-b">
             <span class="text-gray-500">Питание:</span>
-            <span class="font-medium">${mealLabels[res.meal_type] || 'С нами'}</span>
+            <span class="font-medium">${mealsLabel}</span>
         </div>`;
     }
 

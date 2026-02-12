@@ -840,6 +840,8 @@ async function saveNewBooking() {
                 booking_id: booking.id,
                 check_in: form.check_in.value,
                 check_out: form.check_out.value,
+                has_housing: true,
+                has_meals: null,
                 status: 'confirmed'
             });
         });

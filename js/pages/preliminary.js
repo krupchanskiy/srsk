@@ -1072,7 +1072,9 @@ async function onRoomChange(registrationId, roomId) {
         check_in: getRegCheckIn(reg),
         check_out: getRegCheckOut(reg),
         status: 'confirmed',
-        category_id: STATUS_CATEGORY_MAP[reg.status] || DEFAULT_CATEGORY_ID
+        category_id: STATUS_CATEGORY_MAP[reg.status] || DEFAULT_CATEGORY_ID,
+        has_housing: true,
+        has_meals: reg.meal_type !== 'self'
     };
 
     try {
@@ -1130,7 +1132,9 @@ async function saveSelfAccommodation(registrationId) {
         check_in: getRegCheckIn(reg),
         check_out: getRegCheckOut(reg),
         status: 'confirmed',
-        category_id: STATUS_CATEGORY_MAP[reg.status] || DEFAULT_CATEGORY_ID
+        category_id: STATUS_CATEGORY_MAP[reg.status] || DEFAULT_CATEGORY_ID,
+        has_housing: false,
+        has_meals: reg.meal_type !== 'self'
     };
 
     try {
@@ -1505,7 +1509,7 @@ let floorPlans = [];
 // Маппинг статуса регистрации → category_id для шахматки
 const STATUS_CATEGORY_MAP = {
     'team': '10c4c929-6aaf-4b73-a15a-b7c5ab70f64b',   // Команда
-    'guest': 'a825c26c-597c-4c9c-a68d-7bf6f1a66ee8'    // Участник ретрита
+    'guest': '6ad3bfdd-cb95-453a-b589-986717615736'    // Гость
 };
 const DEFAULT_CATEGORY_ID = '6ad3bfdd-cb95-453a-b589-986717615736'; // Гость
 
@@ -1898,7 +1902,9 @@ async function selectPlacementRoom(roomId, buildingId) {
         check_in: placementState.checkIn || null,
         check_out: placementState.checkOut || null,
         status: 'confirmed',
-        category_id: STATUS_CATEGORY_MAP[placementState.regStatus] || DEFAULT_CATEGORY_ID
+        category_id: STATUS_CATEGORY_MAP[placementState.regStatus] || DEFAULT_CATEGORY_ID,
+        has_housing: true,
+        has_meals: true
     };
 
     try {

@@ -16,7 +16,7 @@ let menuData = {}; // { 'YYYY-MM-DD': { breakfast: {...}, lunch: {...}, dinner: 
 let retreats = [];
 let holidays = [];
 let cooks = [];
-let eatingCounts = {}; // { 'YYYY-MM-DD': { breakfast: { guests, team, residents }, lunch: { guests, team, residents } } }
+let eatingCounts = {}; // { 'YYYY-MM-DD': { breakfast: { team, volunteers, vips, guests, groups }, lunch: {...} } }
 
 let selectedDate = null;
 let selectedMealType = null;
@@ -342,14 +342,12 @@ async function loadEatingCounts(startDate, endDate) {
 
 // Получить количество питающихся на дату и приём пищи (для порций)
 function getEatingTotal(dateStr, mealType) {
-    const counts = eatingCounts[dateStr];
-    if (!counts) return 50;
-    // Для dinner/menu используем данные обеда (те же люди)
-    const key = (mealType === 'breakfast') ? 'breakfast' : 'lunch';
-    const mc = counts[key];
-    if (!mc) return 50;
-    const total = mc.guests + mc.team + (mc.residents || 0) + (mc.groups || 0);
-    return total > 0 ? total : 50;
+    return EatingUtils.getTotal(eatingCounts, dateStr, mealType);
+}
+
+// Сумма всех полей meal-counts
+function mealTotal(mc) {
+    return (mc.team || 0) + (mc.volunteers || 0) + (mc.vips || 0) + (mc.guests || 0) + (mc.groups || 0);
 }
 
 // Строка с подсчётом питающихся (завтрак / обед)
@@ -361,17 +359,17 @@ function formatEatingLine(dateStr, cssClass) {
     const ln = counts.lunch;
     if (!bf && !ln) return '';
 
-    const bfTotal = bf ? bf.guests + bf.team + (bf.residents || 0) + (bf.groups || 0) : 0;
-    const lnTotal = ln ? ln.guests + ln.team + (ln.residents || 0) + (ln.groups || 0) : 0;
+    const bfTotal = bf ? mealTotal(bf) : 0;
+    const lnTotal = ln ? mealTotal(ln) : 0;
     if (bfTotal === 0 && lnTotal === 0) return '';
 
     const titleText = t('eating_tooltip');
 
-    // Формирование строки разбивки
+    // Формирование строки разбивки: team+vol+vip+guests+groups
     const fmtParts = (mc) => {
-        let parts = `${mc.guests}+${mc.team}+${mc.residents || 0}`;
-        if (mc.groups) parts += `+${mc.groups}`;
-        return parts;
+        const parts = [mc.team, mc.volunteers, mc.vips, mc.guests];
+        if (mc.groups) parts.push(mc.groups);
+        return parts.join('+');
     };
 
     // Авторасчёт
@@ -412,13 +410,14 @@ function formatEatingDetailed(dateStr) {
 
     const renderMeal = (mc, mealKey, label) => {
         if (!mc) return '';
-        const total = mc.guests + mc.team + (mc.residents || 0) + (mc.groups || 0);
+        const total = mealTotal(mc);
         if (total === 0) return '';
 
         const parts = [];
-        if (mc.guests) parts.push(`${t('status_guest') || 'Гости'} – ${mc.guests}`);
         if (mc.team) parts.push(`${t('status_team') || 'Команда'} – ${mc.team}`);
-        if (mc.residents) parts.push(`${t('residents') || 'Резиденты'} – ${mc.residents}`);
+        if (mc.volunteers) parts.push(`${t('category_volunteer') || 'Волонтёры'} – ${mc.volunteers}`);
+        if (mc.vips) parts.push(`${t('category_vip') || 'ВИП'} – ${mc.vips}`);
+        if (mc.guests) parts.push(`${t('status_guest') || 'Гости'} – ${mc.guests}`);
         if (mc.groups) parts.push(`${t('nav_groups') || 'Группы'} – ${mc.groups}`);
 
         const cookPortions = dayMenu?.[mealKey]?.portions;
@@ -447,10 +446,8 @@ const EATING_ALERT_COOLDOWN = 3600000; // 1 час в мс
 function getEatingTotalForDate(dateStr) {
     const counts = eatingCounts[dateStr];
     if (!counts) return null;
-    const bf = counts.breakfast;
-    const ln = counts.lunch;
-    const bfTotal = bf ? bf.guests + bf.team + (bf.residents || 0) + (bf.groups || 0) : 0;
-    const lnTotal = ln ? ln.guests + ln.team + (ln.residents || 0) + (ln.groups || 0) : 0;
+    const bfTotal = counts.breakfast ? mealTotal(counts.breakfast) : 0;
+    const lnTotal = counts.lunch ? mealTotal(counts.lunch) : 0;
     if (bfTotal === 0 && lnTotal === 0) return null;
     return { breakfast: bfTotal, lunch: lnTotal };
 }
