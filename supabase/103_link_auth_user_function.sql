@@ -34,11 +34,13 @@ BEGIN
         RETURN;
     END IF;
 
-    -- Ищем vaishnava по email
+    -- Ищем vaishnava по email (FOR UPDATE блокирует строку от параллельного UPDATE)
     SELECT id, user_id INTO v_vaishnava_id, v_existing_user_id
     FROM vaishnavas
     WHERE LOWER(email) = LOWER(v_email)
-    LIMIT 1;
+    ORDER BY id
+    LIMIT 1
+    FOR UPDATE;
 
     IF v_vaishnava_id IS NULL THEN
         -- Не найден
