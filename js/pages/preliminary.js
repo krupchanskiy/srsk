@@ -136,30 +136,30 @@ async function loadRegistrations() {
 
     registrations = data || [];
 
-    // Загружаем размещения из residents (единая таблица для шахматки)
-    // Исключаем выселенных (checked_out)
+    // Загружаем размещения и занятость комнат параллельно
     const vaishnavIds = registrations.map(r => r.vaishnava_id).filter(Boolean);
-    if (vaishnavIds.length > 0) {
-        const { data: residentsData } = await Layout.db
-            .from('residents')
-            .select('*, rooms(id, number, building_id, buildings(id, name_ru, name_en, name_hi))')
-            .eq('retreat_id', retreatId)
-            .in('vaishnava_id', vaishnavIds)
-            .eq('status', 'confirmed');
 
-        // Привязываем residents к регистрациям
-        const residentsByVaishnava = (residentsData || []).reduce((acc, res) => {
-            acc[res.vaishnava_id] = res;
-            return acc;
-        }, {});
+    const [residentsResult] = await Promise.all([
+        vaishnavIds.length > 0
+            ? Layout.db
+                .from('residents')
+                .select('*, rooms(id, number, building_id, buildings(id, name_ru, name_en, name_hi))')
+                .eq('retreat_id', retreatId)
+                .in('vaishnava_id', vaishnavIds)
+                .eq('status', 'confirmed')
+            : Promise.resolve({ data: [] }),
+        loadRoomOccupancy()
+    ]);
 
-        registrations.forEach(reg => {
-            reg.resident = residentsByVaishnava[reg.vaishnava_id] || null;
-        });
-    }
+    // Привязываем residents к регистрациям
+    const residentsByVaishnava = (residentsResult.data || []).reduce((acc, res) => {
+        acc[res.vaishnava_id] = res;
+        return acc;
+    }, {});
 
-    // Загрузить занятость комнат для корректного отображения
-    await loadRoomOccupancy();
+    registrations.forEach(reg => {
+        reg.resident = residentsByVaishnava[reg.vaishnava_id] || null;
+    });
 
     renderTable();
 }
