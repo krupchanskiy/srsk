@@ -24,6 +24,15 @@ serve(async (req) => {
   }
 
   try {
+    // 1. Проверка авторизации
+    const authHeader = req.headers.get('authorization');
+    if (!authHeader) {
+      return new Response(
+        JSON.stringify({ error: 'Missing authorization header' }),
+        { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
     const { photo_ids, retreat_id }: DeleteRequest = await req.json();
 
     if (!photo_ids || !Array.isArray(photo_ids) || photo_ids.length === 0) {
@@ -34,10 +43,43 @@ serve(async (req) => {
       throw new Error('retreat_id обязателен');
     }
 
-    // Supabase клиент
+    // Supabase клиент (Service Role для обхода RLS)
     const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
     const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
     const supabase = createClient(supabaseUrl, supabaseKey);
+
+    // 2. Получить user из JWT через Service Role (проверка токена)
+    const token = authHeader.replace('Bearer ', '');
+    const { data: { user }, error: userError } = await supabase.auth.getUser(token);
+
+    if (userError || !user) {
+      console.error('Auth error:', userError);
+      return new Response(
+        JSON.stringify({ error: 'Invalid authorization token' }),
+        { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    // 3. Проверить право upload_photos через функцию has_permission
+    const { data: hasPermission, error: permError } = await supabase.rpc('has_permission', {
+      perm_code: 'upload_photos',
+      user_uuid: user.id,
+    });
+
+    if (permError) {
+      console.error('Ошибка проверки прав:', permError);
+      return new Response(
+        JSON.stringify({ error: 'Permission check failed' }),
+        { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    if (!hasPermission) {
+      return new Response(
+        JSON.stringify({ error: 'No upload_photos permission' }),
+        { status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
 
     // AWS Rekognition клиент
     const rekognitionClient = new RekognitionClient({
@@ -52,10 +94,10 @@ serve(async (req) => {
 
     console.log(`Удаление ${photo_ids.length} фотографий`);
 
-    // 1. Получить storage_path и face_id для удаляемых фото
+    // 1. Получить storage_path, thumb_path и face_id для удаляемых фото
     const { data: photos, error: photosError } = await supabase
       .from('retreat_photos')
-      .select('id, storage_path')
+      .select('id, storage_path, thumb_path')
       .in('id', photo_ids);
 
     if (photosError) throw photosError;
@@ -102,9 +144,16 @@ serve(async (req) => {
       }
     }
 
-    // 4. Удалить из Storage
-    const storagePaths = photos.map((p) => p.storage_path);
-    console.log(`Удаление ${storagePaths.length} файлов из Storage`);
+    // 4. Удалить из Storage (оригиналы + превью)
+    const storagePaths: string[] = [];
+    photos.forEach((p) => {
+      storagePaths.push(p.storage_path);
+      if (p.thumb_path) {
+        storagePaths.push(p.thumb_path);
+      }
+    });
+
+    console.log(`Удаление ${storagePaths.length} файлов из Storage (оригиналы + превью)`);
 
     const { error: storageError } = await supabase.storage
       .from('retreat-photos')

@@ -464,34 +464,32 @@ async function confirmDelete() {
     try {
         const photoIds = Array.from(selectedPhotoIds);
 
-        // Get storage paths before deletion
-        const photosToDelete = photos.filter(p => photoIds.includes(p.id));
-        const storagePaths = photosToDelete.map(p => p.storage_path);
+        console.log('Deleting photos via Edge Function:', photoIds.length);
 
-        console.log('Deleting photos:', photoIds.length);
-        console.log('Storage paths:', storagePaths);
-
-        // Delete from storage FIRST (before DB, so we still have paths)
-        if (storagePaths.length > 0) {
-            const { data: storageData, error: storageError } = await Layout.db.storage
-                .from('retreat-photos')
-                .remove(storagePaths);
-
-            if (storageError) {
-                console.error('Storage deletion error:', storageError);
-                throw new Error(`Не удалось удалить файлы из Storage: ${storageError.message}`);
-            }
-
-            console.log('Storage deletion result:', storageData);
+        // Получить текущую сессию для передачи JWT токена
+        const { data: { session } } = await Layout.db.auth.getSession();
+        if (!session) {
+            throw new Error('Сессия не найдена. Пожалуйста, войдите в систему снова.');
         }
 
-        // Delete from database
-        const { error: dbError } = await Layout.db
-            .from('retreat_photos')
-            .delete()
-            .in('id', photoIds);
+        // Вызываем Edge Function для каскадного удаления
+        // (AWS Rekognition → Storage → БД)
+        const { data, error } = await Layout.db.functions.invoke('delete-photos', {
+            body: {
+                photo_ids: photoIds,
+                retreat_id: currentRetreatId
+            },
+            headers: {
+                Authorization: `Bearer ${session.access_token}`
+            }
+        });
 
-        if (dbError) throw dbError;
+        if (error) {
+            console.error('Edge Function error:', error);
+            throw new Error(error.message || 'Ошибка при удалении фото');
+        }
+
+        console.log('Delete result:', data);
 
         const deletedText = Layout.t('successfully_deleted') || 'Успешно удалено';
         const photosText = Layout.t('photos') || 'фото';
