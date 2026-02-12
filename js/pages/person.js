@@ -12,6 +12,7 @@ let teamMembers = [];
 let spiritualTeachers = [];
 let buildings = [];
 let residentCategories = [];
+let permanentResident = null;
 let isEditMode = false;
 
 const today = DateUtils.toISO(new Date());
@@ -51,10 +52,11 @@ async function init() {
     populateCountriesList();
     // Потом загружаем человека (renderPerson установит значения в select'ы)
     await loadPerson(personId);
-    // Параллельно загружаем историю и детей
+    // Параллельно загружаем историю, размещение и детей
     await Promise.all([
         loadStays(personId),
         loadRegistrations(personId),
+        loadPermanentResident(personId),
         loadChildren(personId)
     ]);
     Layout.hideLoader();
@@ -324,7 +326,8 @@ function renderPerson() {
 function toggleTeamSections() {
     const isTeam = person?.is_team_member || document.getElementById('editIsTeamMember')?.checked;
     const isVolunteer = registrations.some(r =>
-        r.resident?.resident_categories?.slug === 'volunteer');
+        r.resident?.resident_categories?.slug === 'volunteer')
+        || permanentResident?.resident_categories?.slug === 'volunteer';
     const showServiceFields = isTeam || isVolunteer;
 
     document.getElementById('staysSection').style.display = isTeam ? 'block' : 'none';
@@ -869,6 +872,83 @@ async function loadResidentCategories() {
         if (error) { console.error('Error loading categories:', error); return []; }
         return data || [];
     }, 5 * 60 * 1000);
+}
+
+// ==================== PERMANENT RESIDENT ====================
+
+async function loadPermanentResident(personId) {
+    const { data } = await Layout.db
+        .from('residents')
+        .select('id, room_id, category_id, check_in, check_out, resident_categories:category_id(id, slug, color, name_ru, name_en, name_hi), rooms(number, buildings(name_ru, name_en, name_hi))')
+        .eq('vaishnava_id', personId)
+        .is('retreat_id', null)
+        .eq('status', 'confirmed')
+        .maybeSingle();
+
+    permanentResident = data || null;
+    renderPermanentResident();
+    toggleTeamSections();
+}
+
+function renderPermanentResident() {
+    const section = document.getElementById('currentAccommodationSection');
+    const content = document.getElementById('currentAccommodationContent');
+    if (!section || !content) return;
+
+    if (!permanentResident) {
+        section.classList.add('hidden');
+        return;
+    }
+
+    section.classList.remove('hidden');
+
+    const res = permanentResident;
+    const cat = res.resident_categories;
+    const roomInfo = res.rooms
+        ? `${res.rooms.buildings ? Layout.getName(res.rooms.buildings) + ', ' : ''}${res.rooms.number}`
+        : (t('self_accommodation') || 'Самостоятельно');
+
+    const catOptionsHtml = residentCategories.map(c =>
+        `<option value="${c.id}" ${c.id === res.category_id ? 'selected' : ''}>${Layout.getName(c)}</option>`
+    ).join('');
+
+    content.innerHTML = `
+        <div class="flex flex-col gap-3">
+            <div class="flex items-center gap-2">
+                <span class="opacity-60 text-sm">Комната:</span>
+                <span class="font-medium ${res.room_id ? 'text-success' : 'text-error'}">${roomInfo}</span>
+            </div>
+            ${res.check_in ? `<div class="flex items-center gap-2">
+                <span class="opacity-60 text-sm">Заезд:</span>
+                <span class="text-sm">${formatDate(res.check_in)}</span>
+                ${res.check_out && res.check_out < '2099-01-01' ? `<span class="opacity-60 text-sm ml-2">Выезд:</span><span class="text-sm">${formatDate(res.check_out)}</span>` : ''}
+            </div>` : ''}
+            <div class="flex items-center gap-2">
+                <span class="opacity-60 text-sm" data-i18n="category">${t('category') || 'Категория'}</span>
+                ${cat ? `<span class="badge badge-sm" style="background-color: ${cat.color}20; color: ${cat.color}; border-color: ${cat.color}">${Layout.getName(cat)}</span>` : ''}
+                <select class="select select-xs select-bordered" id="permanentResidentCategory" onchange="changePermanentResidentCategory(this.value)">
+                    ${catOptionsHtml}
+                </select>
+            </div>
+        </div>
+    `;
+}
+
+async function changePermanentResidentCategory(categoryId) {
+    if (!permanentResident?.id || !categoryId) return;
+
+    try {
+        const { error } = await Layout.db
+            .from('residents')
+            .update({ category_id: categoryId })
+            .eq('id', permanentResident.id);
+        if (error) throw error;
+
+        await loadPermanentResident(person.id);
+    } catch (err) {
+        console.error('Error changing category:', err);
+        Layout.showNotification((t('error_saving') || 'Ошибка сохранения') + ': ' + err.message, 'error');
+    }
 }
 
 // ==================== REGISTRATION STATUS ====================
