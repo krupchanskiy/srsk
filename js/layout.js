@@ -1184,6 +1184,15 @@ function formatQuantity(amount, unit) {
     return Math.ceil(amount * 100) / 100;
 }
 
+// Заменить битое изображение на заглушку с инициалами
+window.replacePhotoWithPlaceholder = function(img) {
+    const initials = img.dataset.initials || '?';
+    const placeholder = document.createElement('div');
+    placeholder.className = 'w-10 h-10 rounded-full bg-gradient-to-br from-purple-500 to-pink-500 flex items-center justify-center text-white font-semibold';
+    placeholder.textContent = initials;
+    img.replaceWith(placeholder);
+};
+
 // Открыть модальное окно с фотографией
 function openPhotoModal(photoUrl) {
     if (!photoUrl) return;

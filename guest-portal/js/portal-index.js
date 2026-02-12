@@ -158,8 +158,7 @@ document.addEventListener('keydown', (e) => {
 function formatBirthDate(dateStr) {
     if (!dateStr) return '';
     const date = DateUtils.parseDate(dateStr);
-    const months = ['января', 'февраля', 'марта', 'апреля', 'мая', 'июня',
-                   'июля', 'августа', 'сентября', 'октября', 'ноября', 'декабря'];
+    const months = DateUtils.monthNames[DateUtils.getLang()] || DateUtils.monthNames.ru;
     return `${date.getDate()} ${months[date.getMonth()]} ${date.getFullYear()}`;
 }
 
@@ -557,21 +556,14 @@ async function handleProfileSave(e) {
 
 // Форматирование даты ретрита
 function formatRetreatDates(startDate, endDate) {
-    const start = DateUtils.parseDate(startDate);
-    const end = DateUtils.parseDate(endDate);
-    const months = ['янв', 'фев', 'мар', 'апр', 'мая', 'июн', 'июл', 'авг', 'сен', 'окт', 'ноя', 'дек'];
-
-    if (start.getMonth() === end.getMonth()) {
-        return `${start.getDate()}–${end.getDate()} ${months[start.getMonth()]}`;
-    }
-    return `${start.getDate()} ${months[start.getMonth()]} – ${end.getDate()} ${months[end.getMonth()]}`;
+    return DateUtils.formatRangeShort(startDate, endDate);
 }
 
 // Форматирование даты/времени трансфера
 function formatTransferDateTime(datetime) {
     if (!datetime) return '';
     const date = new Date(datetime);
-    const months = ['янв', 'фев', 'мар', 'апр', 'мая', 'июн', 'июл', 'авг', 'сен', 'окт', 'ноя', 'дек'];
+    const months = DateUtils.monthNamesShort[DateUtils.getLang()] || DateUtils.monthNamesShort.ru;
     const hours = date.getHours().toString().padStart(2, '0');
     const minutes = date.getMinutes().toString().padStart(2, '0');
     return `${date.getDate()} ${months[date.getMonth()]}, ${hours}:${minutes}`;

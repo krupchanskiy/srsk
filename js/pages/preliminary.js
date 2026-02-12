@@ -30,7 +30,7 @@ function addHoursToDatetime(datetimeStr, hours) {
 function formatDatetimeShort(datetimeStr) {
     if (!datetimeStr) return '—';
     const d = new Date(datetimeStr.slice(0, 16));
-    const months = ['янв', 'фев', 'мар', 'апр', 'май', 'июн', 'июл', 'авг', 'сен', 'окт', 'ноя', 'дек'];
+    const months = DateUtils.monthNamesShort.ru;
     const pad = n => String(n).padStart(2, '0');
     const dateStr = `${d.getDate()} ${months[d.getMonth()]}`;
     if (d.getHours() === 0 && d.getMinutes() === 0) return dateStr;
@@ -86,7 +86,7 @@ async function selectRetreat(id) {
 
     if (!retreat) return;
 
-    document.getElementById('retreatDates').textContent = formatDateRange(retreat.start_date, retreat.end_date);
+    document.getElementById('retreatDates').textContent = DateUtils.formatRange(retreat.start_date, retreat.end_date);
     document.title = `${Layout.getName(retreat)} — ШРСК`;
 
     // Update URL
@@ -247,14 +247,6 @@ async function loadVaishnavas() {
 }
 
 // ==================== RENDERING ====================
-function formatDateRange(start, end) {
-    const lang = Layout.currentLang;
-    const opts = { day: 'numeric', month: 'short', year: 'numeric' };
-    const locale = lang === 'hi' ? 'hi-IN' : lang === 'en' ? 'en-US' : 'ru-RU';
-    const startStr = DateUtils.parseDate(start).toLocaleDateString(locale, opts);
-    const endStr = DateUtils.parseDate(end).toLocaleDateString(locale, opts);
-    return `${startStr} — ${endStr}`;
-}
 
 function calculateAge(birthDate) {
     if (!birthDate) return '';
@@ -317,8 +309,8 @@ function filterRegistrations() {
         let aVal, bVal;
 
         if (sortField === 'name') {
-            aVal = (a.vaishnavas?.spiritual_name || `${a.vaishnavas?.first_name || ''} ${a.vaishnavas?.last_name || ''}`.trim()).toLowerCase();
-            bVal = (b.vaishnavas?.spiritual_name || `${b.vaishnavas?.first_name || ''} ${b.vaishnavas?.last_name || ''}`.trim()).toLowerCase();
+            aVal = getVaishnavName(a.vaishnavas, '').toLowerCase();
+            bVal = getVaishnavName(b.vaishnavas, '').toLowerCase();
         } else if (sortField === 'gender_age') {
             // Сортировка по полу, потом по возрасту
             const genderOrder = { male: 1, female: 2 };
@@ -830,8 +822,7 @@ function openTransferModal(registrationId) {
 
     // Имя гостя
     const v = reg.vaishnavas;
-    const name = v?.spiritual_name || `${v?.first_name || ''} ${v?.last_name || ''}`.trim() || '';
-    document.getElementById('transferModalName').textContent = name;
+    document.getElementById('transferModalName').textContent = getVaishnavName(v, '');
 
     // Трансферы
     const transfers = reg.guest_transfers || [];
@@ -2763,95 +2754,6 @@ async function createOrUpdateRegistration(vaishnavId, parsed) {
     await createTransfers(registrationId, parsed);
 }
 
-function parseDateTimeString(str, retreatYear) {
-    if (!str) return null;
-
-    const months = {
-        'января': 1, 'февраля': 2, 'марта': 3, 'апреля': 4,
-        'мая': 5, 'июня': 6, 'июля': 7, 'августа': 8,
-        'сентября': 9, 'октября': 10, 'ноября': 11, 'декабря': 12
-    };
-
-    // Format: "7 февраля 18:30" or "7 февраля, 18:30"
-    let match = str.match(/(\d{1,2})\s+(января|февраля|марта|апреля|мая|июня|июля|августа|сентября|октября|ноября|декабря)[,]?\s*(\d{1,2}):(\d{2})/i);
-    if (match) {
-        const day = parseInt(match[1]);
-        const month = months[match[2].toLowerCase()];
-        const hour = parseInt(match[3]);
-        const minute = parseInt(match[4]);
-        const year = retreatYear || new Date().getFullYear();
-        return new Date(year, month - 1, day, hour, minute).toISOString();
-    }
-
-    // Format: "22.02.26 5:50" or "22.02.2026 5:50"
-    match = str.match(/(\d{1,2})\.(\d{1,2})\.(\d{2,4})\s+(\d{1,2}):(\d{2})/);
-    if (match) {
-        const day = parseInt(match[1]);
-        const month = parseInt(match[2]);
-        let year = parseInt(match[3]);
-        if (year < 100) year += 2000;
-        const hour = parseInt(match[4]);
-        const minute = parseInt(match[5]);
-        return new Date(year, month - 1, day, hour, minute).toISOString();
-    }
-
-    // Format: "06.02.2026 в 04.05" (с предлогом "в" и точкой в времени)
-    match = str.match(/(\d{1,2})\.(\d{1,2})\.(\d{2,4})\s*в\s*(\d{1,2})\.(\d{2})/i);
-    if (match) {
-        const day = parseInt(match[1]);
-        const month = parseInt(match[2]);
-        let year = parseInt(match[3]);
-        if (year < 100) year += 2000;
-        const hour = parseInt(match[4]);
-        const minute = parseInt(match[5]);
-        return new Date(year, month - 1, day, hour, minute).toISOString();
-    }
-
-    // Format: "7.02. в 00.25" или "7.02 в 00:25" (день.месяц без года, предлог "в", время)
-    match = str.match(/(\d{1,2})\.(\d{1,2})\.?\s*в\s*(\d{1,2})[.:](\d{2})/i);
-    if (match) {
-        const day = parseInt(match[1]);
-        const month = parseInt(match[2]);
-        const hour = parseInt(match[3]);
-        const minute = parseInt(match[4]);
-        const year = retreatYear || new Date().getFullYear();
-        return new Date(year, month - 1, day, hour, minute).toISOString();
-    }
-
-    // Format: "7.02 00:25" или "7.02. 00.25" (день.месяц без года, время без "в")
-    match = str.match(/(\d{1,2})\.(\d{1,2})\.?\s+(\d{1,2})[.:](\d{2})/);
-    if (match) {
-        const day = parseInt(match[1]);
-        const month = parseInt(match[2]);
-        const hour = parseInt(match[3]);
-        const minute = parseInt(match[4]);
-        const year = retreatYear || new Date().getFullYear();
-        return new Date(year, month - 1, day, hour, minute).toISOString();
-    }
-
-    // Format: "06.02.2026" or "22.02.26" (только дата без времени)
-    match = str.match(/(\d{1,2})\.(\d{1,2})\.(\d{2,4})(?!\s*[\d:в])/);
-    if (match) {
-        const day = parseInt(match[1]);
-        const month = parseInt(match[2]);
-        let year = parseInt(match[3]);
-        if (year < 100) year += 2000;
-        return new Date(year, month - 1, day, 12, 0).toISOString();
-    }
-
-    // Format: "7 февраля" (no time)
-    match = str.match(/(\d{1,2})\s+(января|февраля|марта|апреля|мая|июня|июля|августа|сентября|октября|ноября|декабря)/i);
-    if (match) {
-        const day = parseInt(match[1]);
-        const month = months[match[2].toLowerCase()];
-        const year = retreatYear || new Date().getFullYear();
-        return new Date(year, month - 1, day, 12, 0).toISOString();
-    }
-
-    // Can't parse - return null
-    return null;
-}
-
 async function createTransfers(registrationId, parsed) {
     // Delete existing transfers for this registration
     await Layout.db
@@ -2864,7 +2766,7 @@ async function createTransfers(registrationId, parsed) {
 
     // Arrival
     if (parsed.arrivalTime || parsed.arrivalFlight) {
-        const flightDatetime = parseDateTimeString(parsed.arrivalTime, retreatYear);
+        const flightDatetime = DateUtils.parseDateTimeString(parsed.arrivalTime, retreatYear);
         transfers.push({
             registration_id: registrationId,
             direction: 'arrival',
@@ -2877,7 +2779,7 @@ async function createTransfers(registrationId, parsed) {
 
     // Departure
     if (parsed.departureTime || parsed.departureFlight) {
-        const flightDatetime = parseDateTimeString(parsed.departureTime, retreatYear);
+        const flightDatetime = DateUtils.parseDateTimeString(parsed.departureTime, retreatYear);
         transfers.push({
             registration_id: registrationId,
             direction: 'departure',

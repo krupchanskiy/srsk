@@ -717,8 +717,7 @@ function formatDateRange(start, end) {
     if (!start) return '';
     const s = DateUtils.parseDate(start);
     const e = end ? DateUtils.parseDate(end) : null;
-
-    const months = ['янв', 'фев', 'мар', 'апр', 'мая', 'июн', 'июл', 'авг', 'сен', 'окт', 'ноя', 'дек'];
+    const months = DateUtils.monthNamesShort[DateUtils.getLang()] || DateUtils.monthNamesShort.ru;
 
     if (e && s.getMonth() === e.getMonth()) {
         return `${s.getDate()}–${e.getDate()} ${months[s.getMonth()]}`;

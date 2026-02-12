@@ -400,18 +400,7 @@ function formatDate(dateStr, options = {}) {
  */
 function formatDateRange(startDate, endDate) {
     if (!startDate || !endDate) return '';
-
-    const start = DateUtils.parseDate(startDate);
-    const end = DateUtils.parseDate(endDate);
-    const locale = currentLang === 'ru' ? 'ru-RU' : currentLang === 'hi' ? 'hi-IN' : 'en-US';
-
-    // Если один месяц
-    if (start.getMonth() === end.getMonth() && start.getFullYear() === end.getFullYear()) {
-        return `${start.getDate()}–${end.getDate()} ${start.toLocaleDateString(locale, { month: 'long', year: 'numeric' })}`;
-    }
-
-    // Разные месяцы
-    return `${start.toLocaleDateString(locale, { day: 'numeric', month: 'short' })} – ${end.toLocaleDateString(locale, { day: 'numeric', month: 'short', year: 'numeric' })}`;
+    return DateUtils.formatRange(startDate, endDate, currentLang);
 }
 
 /**

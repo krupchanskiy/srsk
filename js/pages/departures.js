@@ -7,15 +7,6 @@ let buildings = [];
 let selectedBuildingId = 'all';
 let searchQuery = '';
 
-// Заменить битое изображение на заглушку с инициалами
-window.replacePhotoWithPlaceholder = function(img) {
-    const initials = img.dataset.initials || '?';
-    const placeholder = document.createElement('div');
-    placeholder.className = 'w-10 h-10 rounded-full bg-gradient-to-br from-purple-500 to-pink-500 flex items-center justify-center text-white font-semibold';
-    placeholder.textContent = initials;
-    img.replaceWith(placeholder);
-};
-
 // Глобальный обработчик клика по аватарам (event delegation для XSS-безопасности)
 document.addEventListener('click', function(event) {
     const avatarPhoto = event.target.closest('.avatar-photo');
@@ -660,8 +651,8 @@ function renderTable() {
     if (noTimeGroup.length > 0) {
         // Сортируем по имени
         noTimeGroup.sort((a, b) => {
-            const aName = (a.vaishnavas?.spiritual_name || `${a.vaishnavas?.first_name || ''} ${a.vaishnavas?.last_name || ''}`.trim()).toLowerCase();
-            const bName = (b.vaishnavas?.spiritual_name || `${b.vaishnavas?.first_name || ''} ${b.vaishnavas?.last_name || ''}`.trim()).toLowerCase();
+            const aName = getVaishnavName(a.vaishnavas, '').toLowerCase();
+            const bName = getVaishnavName(b.vaishnavas, '').toLowerCase();
             return aName.localeCompare(bName);
         });
 

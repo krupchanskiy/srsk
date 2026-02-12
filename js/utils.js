@@ -169,6 +169,22 @@ async function fetchAll(queryBuilder, pageSize = 1000) {
     return { data: all, error: null };
 }
 
-window.Utils = { pluralize, debounce, escapeHtml, isValidColor, checkAndMoveDatesAcrossRetreats, fetchAll };
+/** Получить отображаемое имя вайшнава: духовное или гражданское */
+function getVaishnavName(v, fallback) {
+    if (!v) return fallback || '—';
+    return v.spiritual_name || `${v.first_name || ''} ${v.last_name || ''}`.trim() || fallback || '—';
+}
+
+/** Полное имя: "Духовное (Имя Фамилия)" или просто гражданское */
+function getVaishnavFullName(v, fallback) {
+    if (!v) return fallback || '—';
+    const civil = `${v.first_name || ''} ${v.last_name || ''}`.trim();
+    return v.spiritual_name ? `${v.spiritual_name} (${civil})` : civil || fallback || '—';
+}
+
+window.getVaishnavName = getVaishnavName;
+window.getVaishnavFullName = getVaishnavFullName;
+
+window.Utils = { pluralize, debounce, escapeHtml, isValidColor, checkAndMoveDatesAcrossRetreats, fetchAll, getVaishnavName, getVaishnavFullName };
 
 })();

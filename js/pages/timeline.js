@@ -209,8 +209,7 @@ async function loadTimelineData() {
                     // Получаем имя резидента
                     let guestName = res.guest_name || '';
                     if (res.vaishnavas) {
-                        const v = res.vaishnavas;
-                        guestName = v.spiritual_name || `${v.first_name} ${v.last_name}`.trim();
+                        guestName = getVaishnavName(res.vaishnavas, '');
                     }
                     // Если это бронирование - показываем название брони или имя контакта
                     if (!guestName && res.bookings) {
@@ -643,10 +642,6 @@ function showBookingForm() {
 }
 
 // ===== Поиск вайшнавов =====
-function getVaishnavName(v) {
-    return v.spiritual_name || `${v.first_name || ''} ${v.last_name || ''}`.trim() || 'Без имени';
-}
-
 function searchVaishnavas(query) {
     const suggestionsEl = document.getElementById('vaishnavaSuggestions');
     if (!query || query.length < 2) {
@@ -1123,7 +1118,7 @@ async function loadRetreatTimes(retreatId, vaishnavId) {
 function formatTimestampShort(datetimeStr) {
     if (!datetimeStr) return '—';
     const d = new Date(datetimeStr.slice(0, 16));
-    const months = ['янв', 'фев', 'мар', 'апр', 'май', 'июн', 'июл', 'авг', 'сен', 'окт', 'ноя', 'дек'];
+    const months = DateUtils.monthNamesShort.ru;
     const pad = n => String(n).padStart(2, '0');
     return `${d.getDate()} ${months[d.getMonth()]}, ${pad(d.getHours())}:${pad(d.getMinutes())}`;
 }

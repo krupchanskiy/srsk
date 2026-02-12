@@ -413,13 +413,8 @@ function populateSeniorsSelect() {
     const filtered = teamMembers.filter(m => m.id !== currentId);
     select.innerHTML = '<option value="">—</option>' +
         filtered.map(m => {
-            const name = m.spiritual_name || `${m.first_name || ''} ${m.last_name || ''}`.trim() || '—';
-            return `<option value="${m.id}">${name}</option>`;
+            return `<option value="${m.id}">${getVaishnavName(m)}</option>`;
         }).join('');
-}
-
-function getVaishnavName(v) {
-    return v.spiritual_name || `${v.first_name || ''} ${v.last_name || ''}`.trim() || '—';
 }
 
 // ===== Автокомплит духовного учителя =====
@@ -481,8 +476,7 @@ function formatFlightDateTime(datetime, fallbackNotes) {
     // БД хранит локальное время как UTC в TIMESTAMPTZ — убираем таймзону
     const date = new Date(datetime.slice(0, 16));
     const day = date.getDate();
-    const monthNames = ['янв', 'фев', 'мар', 'апр', 'май', 'июн', 'июл', 'авг', 'сен', 'окт', 'ноя', 'дек'];
-    const month = monthNames[date.getMonth()];
+    const month = DateUtils.monthNamesShort.ru[date.getMonth()];
     const hours = date.getHours().toString().padStart(2, '0');
     const minutes = date.getMinutes().toString().padStart(2, '0');
     return `${day} ${month}, ${hours}:${minutes}`;
@@ -1148,7 +1142,7 @@ function addHoursToDatetime(datetimeStr, hours) {
 function formatDatetimeShort(datetimeStr) {
     if (!datetimeStr) return '—';
     const d = new Date(datetimeStr.slice(0, 16));
-    const months = ['янв', 'фев', 'мар', 'апр', 'май', 'июн', 'июл', 'авг', 'сен', 'окт', 'ноя', 'дек'];
+    const months = DateUtils.monthNamesShort.ru;
     const pad = n => String(n).padStart(2, '0');
     return `${d.getDate()} ${months[d.getMonth()]}, ${pad(d.getHours())}:${pad(d.getMinutes())}`;
 }

@@ -427,16 +427,7 @@
         }
 
         function formatDateRange(start, end) {
-            const lang = Layout.currentLang;
-            const opts = { day: 'numeric', month: 'short' };
-            if (lang === 'en') opts.month = 'short';
-
-            const s = DateUtils.parseDate(start);
-            const e = DateUtils.parseDate(end);
-            const sStr = s.toLocaleDateString(lang === 'hi' ? 'hi-IN' : lang === 'en' ? 'en-US' : 'ru-RU', opts);
-            const eStr = e.toLocaleDateString(lang === 'hi' ? 'hi-IN' : lang === 'en' ? 'en-US' : 'ru-RU', { ...opts, year: 'numeric' });
-
-            return `${sStr} — ${eStr}`;
+            return DateUtils.formatRange(start, end);
         }
 
         function getDaysCount(start, end) {

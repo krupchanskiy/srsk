@@ -75,11 +75,7 @@ async function selectRetreat(id) {
     // Update dates display
     const startDate = DateUtils.parseDate(retreat.start_date);
     const endDate = DateUtils.parseDate(retreat.end_date);
-    const formatDate = (d) => {
-        const months = ['янв', 'фев', 'мар', 'апр', 'май', 'июн', 'июл', 'авг', 'сен', 'окт', 'ноя', 'дек'];
-        return `${d.getDate()} ${months[d.getMonth()]}`;
-    };
-    document.getElementById('retreatDates').textContent = `${formatDate(startDate)} — ${formatDate(endDate)} ${endDate.getFullYear()}`;
+    document.getElementById('retreatDates').textContent = `${DateUtils.formatRangeShort(startDate, endDate)} ${endDate.getFullYear()}`;
 
     // Set CSS variable for theme color
     if (retreat.color) {
@@ -176,13 +172,6 @@ async function loadVaishnavas() {
 }
 
 // ==================== RENDERING ====================
-function formatDateRange(startDate, endDate) {
-    const months = ['янв', 'фев', 'мар', 'апр', 'май', 'июн', 'июл', 'авг', 'сен', 'окт', 'ноя', 'дек'];
-    const sd = DateUtils.parseDate(startDate);
-    const ed = DateUtils.parseDate(endDate);
-    return `${sd.getDate()} ${months[sd.getMonth()]} — ${ed.getDate()} ${months[ed.getMonth()]}`;
-}
-
 function renderTable() {
     const tbody = document.getElementById('guestsTable');
     const noGuests = document.getElementById('noGuests');
@@ -233,9 +222,7 @@ function renderTable() {
     tbody.innerHTML = orderedRegs.map(reg => {
         const v = reg.vaishnava;
         const isChild = !!v.parent_id;
-        const name = v.spiritual_name
-            ? `${v.spiritual_name}`
-            : `${v.first_name || ''} ${v.last_name || ''}`.trim();
+        const name = getVaishnavName(v);
 
         const statusClass = `status-${reg.status}`;
 
@@ -338,8 +325,8 @@ function filterRegistrations() {
         let aVal, bVal;
 
         if (sortField === 'name') {
-            aVal = a.vaishnava.spiritual_name || a.vaishnava.first_name || '';
-            bVal = b.vaishnava.spiritual_name || b.vaishnava.first_name || '';
+            aVal = getVaishnavName(a.vaishnava, '');
+            bVal = getVaishnavName(b.vaishnava, '');
         } else if (sortField === 'status') {
             const order = { guest: 1, team: 2, cancelled: 3 };
             aVal = order[a.status] || 0;
@@ -450,8 +437,7 @@ function openGuestModal(registrationId = null) {
             form.elements.departure_datetime.value = reg.departure_datetime ? reg.departure_datetime.slice(0, 16) : '';
 
             const v = reg.vaishnava;
-            const name = v.spiritual_name || `${v.first_name} ${v.last_name}`;
-            selectedDisplay.textContent = `✓ ${name}`;
+            selectedDisplay.textContent = `✓ ${getVaishnavName(v)}`;
             selectedDisplay.classList.remove('hidden');
             searchInput.disabled = true;
         }
@@ -484,12 +470,10 @@ function searchVaishnavas(query) {
     }
 
     suggestions.innerHTML = matches.map(v => {
-        const name = v.spiritual_name
-            ? `${v.spiritual_name} (${v.first_name || ''} ${v.last_name || ''})`
-            : `${v.first_name || ''} ${v.last_name || ''}`;
+        const name = getVaishnavFullName(v);
         return `
             <div class="p-2 hover:bg-base-200 cursor-pointer" data-action="select-vaishnav" data-id="${v.id}">
-                <div class="font-medium">${e(name.trim())}</div>
+                <div class="font-medium">${e(name)}</div>
                 <div class="text-xs opacity-60">${e(v.email || '')} ${e(v.phone || '')}</div>
             </div>
         `;
@@ -515,12 +499,8 @@ function selectVaishnav(id) {
     document.getElementById('vaishnavSearch').value = '';
     document.getElementById('vaishnavSuggestions').classList.add('hidden');
 
-    const name = v.spiritual_name
-        ? `${v.spiritual_name} (${v.first_name || ''} ${v.last_name || ''})`
-        : `${v.first_name || ''} ${v.last_name || ''}`;
-
     const selectedDisplay = document.getElementById('selectedVaishnav');
-    selectedDisplay.textContent = `✓ ${name.trim()}`;
+    selectedDisplay.textContent = `✓ ${getVaishnavFullName(v)}`;
     selectedDisplay.classList.remove('hidden');
 }
 
@@ -617,11 +597,7 @@ function openInfoModal(registrationId) {
     const title = document.getElementById('infoModalTitle');
     const content = document.getElementById('infoModalContent');
 
-    const name = v.spiritual_name
-        ? `${v.spiritual_name} (${v.first_name || ''} ${v.last_name || ''})`
-        : `${v.first_name || ''} ${v.last_name || ''}`;
-
-    title.textContent = name.trim();
+    title.textContent = getVaishnavFullName(v);
 
     // Format transfers
     const arrival = reg.transfers?.find(t => t.direction === 'arrival');
@@ -712,7 +688,7 @@ function openInfoModal(registrationId) {
                     <div class="text-sm bg-success/10 rounded p-2 mt-1">
                         🏠 Комната ${e(p.room?.number || '?')} (${e(p.room?.building?.name_ru || '')})
                         <br>
-                        <span class="opacity-60">${formatDateRange(p.check_in, p.check_out)}</span>
+                        <span class="opacity-60">${DateUtils.formatRangeShort(p.check_in, p.check_out)}</span>
                     </div>
                 `).join('')}
             </div>
@@ -749,13 +725,9 @@ function openPlacementModal(registrationId) {
 
     const modal = document.getElementById('placementModal');
     const v = currentPlacementRegistration.vaishnava;
-    const name = v.spiritual_name
-        ? `${v.spiritual_name} (${v.first_name || ''} ${v.last_name || ''})`
-        : `${v.first_name || ''} ${v.last_name || ''}`;
-
     // Show guest info
     document.getElementById('placementGuestInfo').innerHTML = `
-        <div class="font-medium">${e(name.trim())}</div>
+        <div class="font-medium">${e(getVaishnavFullName(v))}</div>
         <div class="text-sm opacity-60">${v.gender === 'male' ? '👨 Мужчина' : v.gender === 'female' ? '👩 Женщина' : ''}</div>
         ${currentPlacementRegistration.accommodation_wishes ? `<div class="text-sm opacity-70 mt-1">Пожелание: ${e(currentPlacementRegistration.accommodation_wishes)}</div>` : ''}
     `;
@@ -1835,104 +1807,6 @@ async function createOrUpdateRegistration(vaishnavId, parsed) {
     await createTransfers(registrationId, parsed);
 }
 
-function parseDateTimeString(str, retreatYear) {
-    if (!str) return null;
-
-    const months = {
-        'января': 1, 'февраля': 2, 'марта': 3, 'апреля': 4,
-        'мая': 5, 'июня': 6, 'июля': 7, 'августа': 8,
-        'сентября': 9, 'октября': 10, 'ноября': 11, 'декабря': 12
-    };
-
-    // Format: "7 февраля 18:30" or "7 февраля, 18:30" or "7 февраля, 04.05 утра"
-    let match = str.match(/(\d{1,2})\s+(января|февраля|марта|апреля|мая|июня|июля|августа|сентября|октября|ноября|декабря)[,]?\s*(\d{1,2})[.:](\d{2})(?:\s*(утра|дня|вечера|ночи))?/i);
-    if (match) {
-        const day = parseInt(match[1]);
-        const month = months[match[2].toLowerCase()];
-        let hour = parseInt(match[3]);
-        const minute = parseInt(match[4]);
-        const period = match[5] ? match[5].toLowerCase() : null;
-        // «вечера» или «дня» после 12 — прибавляем 12 (если hour < 12)
-        if (period === 'вечера' || period === 'дня') {
-            if (hour < 12) hour += 12;
-        } else if (period === 'ночи') {
-            // "12 ночи" = 0, но "1 ночи" = 1
-            if (hour === 12) hour = 0;
-        }
-        // «утра» — оставляем как есть
-        const year = retreatYear || new Date().getFullYear();
-        return new Date(year, month - 1, day, hour, minute).toISOString();
-    }
-
-    // Format: "22.02.26 5:50" or "22.02.2026 5:50" or "22.02.26 5.50"
-    match = str.match(/(\d{1,2})\.(\d{1,2})\.(\d{2,4})\s+(\d{1,2})[.:](\d{2})/);
-    if (match) {
-        const day = parseInt(match[1]);
-        const month = parseInt(match[2]);
-        let year = parseInt(match[3]);
-        if (year < 100) year += 2000;
-        const hour = parseInt(match[4]);
-        const minute = parseInt(match[5]);
-        return new Date(year, month - 1, day, hour, minute).toISOString();
-    }
-
-    // Format: "06.02.2026 в 04.05" (с предлогом "в" и точкой в времени)
-    match = str.match(/(\d{1,2})\.(\d{1,2})\.(\d{2,4})\s*в\s*(\d{1,2})\.(\d{2})/i);
-    if (match) {
-        const day = parseInt(match[1]);
-        const month = parseInt(match[2]);
-        let year = parseInt(match[3]);
-        if (year < 100) year += 2000;
-        const hour = parseInt(match[4]);
-        const minute = parseInt(match[5]);
-        return new Date(year, month - 1, day, hour, minute).toISOString();
-    }
-
-    // Format: "7.02. в 00.25" или "7.02 в 00:25" (день.месяц без года, предлог "в", время)
-    match = str.match(/(\d{1,2})\.(\d{1,2})\.?\s*в\s*(\d{1,2})[.:](\d{2})/i);
-    if (match) {
-        const day = parseInt(match[1]);
-        const month = parseInt(match[2]);
-        const hour = parseInt(match[3]);
-        const minute = parseInt(match[4]);
-        const year = retreatYear || new Date().getFullYear();
-        return new Date(year, month - 1, day, hour, minute).toISOString();
-    }
-
-    // Format: "7.02 00:25" или "7.02. 00.25" (день.месяц без года, время без "в")
-    match = str.match(/(\d{1,2})\.(\d{1,2})\.?\s+(\d{1,2})[.:](\d{2})/);
-    if (match) {
-        const day = parseInt(match[1]);
-        const month = parseInt(match[2]);
-        const hour = parseInt(match[3]);
-        const minute = parseInt(match[4]);
-        const year = retreatYear || new Date().getFullYear();
-        return new Date(year, month - 1, day, hour, minute).toISOString();
-    }
-
-    // Format: "06.02.2026" or "22.02.26" (только дата без времени)
-    match = str.match(/(\d{1,2})\.(\d{1,2})\.(\d{2,4})(?!\s*[\d:в])/);
-    if (match) {
-        const day = parseInt(match[1]);
-        const month = parseInt(match[2]);
-        let year = parseInt(match[3]);
-        if (year < 100) year += 2000;
-        return new Date(year, month - 1, day, 12, 0).toISOString();
-    }
-
-    // Format: "7 февраля" (no time)
-    match = str.match(/(\d{1,2})\s+(января|февраля|марта|апреля|мая|июня|июля|августа|сентября|октября|ноября|декабря)/i);
-    if (match) {
-        const day = parseInt(match[1]);
-        const month = months[match[2].toLowerCase()];
-        const year = retreatYear || new Date().getFullYear();
-        return new Date(year, month - 1, day, 12, 0).toISOString();
-    }
-
-    // Can't parse - return null
-    return null;
-}
-
 async function createTransfers(registrationId, parsed) {
     // Delete existing transfers for this registration
     await Layout.db
@@ -1945,7 +1819,7 @@ async function createTransfers(registrationId, parsed) {
 
     // Arrival
     if (parsed.arrivalTime || parsed.arrivalFlight) {
-        const flightDatetime = parseDateTimeString(parsed.arrivalTime, retreatYear);
+        const flightDatetime = DateUtils.parseDateTimeString(parsed.arrivalTime, retreatYear);
         transfers.push({
             registration_id: registrationId,
             direction: 'arrival',
@@ -1958,7 +1832,7 @@ async function createTransfers(registrationId, parsed) {
 
     // Departure
     if (parsed.departureTime || parsed.departureFlight) {
-        const flightDatetime = parseDateTimeString(parsed.departureTime, retreatYear);
+        const flightDatetime = DateUtils.parseDateTimeString(parsed.departureTime, retreatYear);
         transfers.push({
             registration_id: registrationId,
             direction: 'departure',
