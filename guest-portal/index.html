@@ -52,6 +52,24 @@
         .hide-scrollbar::-webkit-scrollbar {
             display: none;
         }
+        .gallery-scroll-btn {
+            width: 40px;
+            height: 40px;
+            border-radius: 9999px;
+            background: rgba(255, 255, 255, 0.9);
+            box-shadow: 0 6px 16px rgba(0, 0, 0, 0.15);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: #4A90D9;
+            transition: transform 0.15s, background 0.15s, box-shadow 0.15s;
+        }
+        .gallery-scroll-btn:hover {
+           
+            background: #ffffff;
+            box-shadow: 0 8px 20px rgba(0, 0, 0, 0.18);
+        }
+        
     </style>
 </head>
 <body class="bg-srsk-bg min-h-screen">
@@ -83,11 +101,11 @@
 
                 <!-- Меню (десктоп) -->
                 <nav class="hidden md:flex items-center gap-6">
-                    <a href="#" class="text-white/90 hover:text-srsk-orange transition-colors text-base font-medium uppercase tracking-wide" data-i18n="nav_profile">Профиль</a>
-                    <a href="#" class="text-white/90 hover:text-srsk-orange transition-colors text-base font-medium uppercase tracking-wide" data-i18n="nav_retreats">Ретриты</a>
-                    <a href="#" class="text-white/90 hover:text-srsk-orange transition-colors text-base font-medium uppercase tracking-wide" data-i18n="nav_materials">Материалы</a>
-                    <a href="#" class="text-white/90 hover:text-srsk-orange transition-colors text-base font-medium uppercase tracking-wide" data-i18n="nav_gallery">Галерея</a>
-                    <a href="#" class="text-white/90 hover:text-srsk-orange transition-colors text-base font-medium uppercase tracking-wide" data-i18n="nav_contacts">Контакты</a>
+                    <a href="index.html" class="text-white/90 hover:text-srsk-orange transition-colors text-base font-medium uppercase tracking-wide" data-i18n="nav_profile">Профиль</a>
+                    <a href="retreats.html" class="text-white/90 hover:text-srsk-orange transition-colors text-base font-medium uppercase tracking-wide" data-i18n="nav_retreats">Ретриты</a>
+                    <a href="materials.html" class="text-white/90 hover:text-srsk-orange transition-colors text-base font-medium uppercase tracking-wide" data-i18n="nav_materials">Материалы</a>
+                    <a href="photos.html" class="text-white/90 hover:text-srsk-orange transition-colors text-base font-medium uppercase tracking-wide" data-i18n="nav_gallery">Галерея</a>
+                    <a href="contacts.html" class="text-white/90 hover:text-srsk-orange transition-colors text-base font-medium uppercase tracking-wide" data-i18n="nav_contacts">Контакты</a>
 
                     <!-- Разделитель -->
                     <div class="w-px h-6 bg-white/20"></div>
@@ -129,11 +147,11 @@
             <nav id="mobile-menu" class="hidden md:hidden pb-4">
                 <div class="flex flex-col gap-4">
                     <div id="mobile-name" class="text-white/90 text-sm font-medium py-2 border-b border-white/10 mb-1"></div>
-                    <a href="#" class="text-white/90 hover:text-srsk-orange transition-colors text-base font-medium py-2 uppercase tracking-wide" data-i18n="nav_profile">Профиль</a>
-                    <a href="#" class="text-white/90 hover:text-srsk-orange transition-colors text-base font-medium py-2 uppercase tracking-wide" data-i18n="nav_retreats">Ретриты</a>
-                    <a href="#" class="text-white/90 hover:text-srsk-orange transition-colors text-base font-medium py-2 uppercase tracking-wide" data-i18n="nav_materials">Материалы</a>
-                    <a href="#" class="text-white/90 hover:text-srsk-orange transition-colors text-base font-medium py-2 uppercase tracking-wide" data-i18n="nav_gallery">Галерея</a>
-                    <a href="#" class="text-white/90 hover:text-srsk-orange transition-colors text-base font-medium py-2 uppercase tracking-wide" data-i18n="nav_contacts">Контакты</a>
+                    <a href="index.html" class="text-white/90 hover:text-srsk-orange transition-colors text-base font-medium py-2 uppercase tracking-wide" data-i18n="nav_profile">Профиль</a>
+                    <a href="retreats.html" class="text-white/90 hover:text-srsk-orange transition-colors text-base font-medium py-2 uppercase tracking-wide" data-i18n="nav_retreats">Ретриты</a>
+                    <a href="materials.html" class="text-white/90 hover:text-srsk-orange transition-colors text-base font-medium py-2 uppercase tracking-wide" data-i18n="nav_materials">Материалы</a>
+                    <a href="photos.html" class="text-white/90 hover:text-srsk-orange transition-colors text-base font-medium py-2 uppercase tracking-wide" data-i18n="nav_gallery">Галерея</a>
+                    <a href="contacts.html" class="text-white/90 hover:text-srsk-orange transition-colors text-base font-medium py-2 uppercase tracking-wide" data-i18n="nav_contacts">Контакты</a>
                     <button onclick="PortalAuth.logout()" class="text-white/60 hover:text-white transition-colors text-base font-medium py-2 mt-2 border-t border-white/10 pt-4 flex items-center gap-2 uppercase tracking-wide w-full">
                         <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24">
                             <path stroke-linecap="round" stroke-linejoin="round" d="M15.75 9V5.25A2.25 2.25 0 0013.5 3h-6a2.25 2.25 0 00-2.25 2.25v13.5A2.25 2.25 0 007.5 21h6a2.25 2.25 0 002.25-2.25V15M12 9l-3 3m0 0l3 3m-3-3h12.75" />
@@ -148,7 +166,7 @@
     <main class="p-4 md:p-6 lg:p-8">
     <div class="max-w-6xl mx-auto">
 
-        <!-- Верхняя часть: Профиль + (Ретрит + Трансфер) -->
+        <!-- Верхняя часть: Профиль + Telegram уведомления + (Ретрит + Трансфер) -->
         <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
 
             <!-- Скелетон профиля -->
@@ -364,8 +382,43 @@
                 </div>
             </div>
 
+            <!-- Telegram уведомления -->
+            <div id="telegram-card" class="card md:col-span-3 bg-gradient-to-br from-blue-500 to-blue-600 text-white">
+                <div class="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+                    <div class="flex items-start gap-3">
+                        <svg class="w-10 h-10 flex-shrink-0" viewBox="0 0 24 24" fill="currentColor">
+                            <path d="M11.944 0A12 12 0 0 0 0 12a12 12 0 0 0 12 12 12 12 0 0 0 12-12A12 12 0 0 0 12 0a12 12 0 0 0-.056 0zm4.962 7.224c.1-.002.321.023.465.14a.506.506 0 0 1 .171.325c.016.093.036.306.02.472-.18 1.898-.962 6.502-1.36 8.627-.168.9-.499 1.201-.82 1.23-.696.065-1.225-.46-1.9-.902-1.056-.693-1.653-1.124-2.678-1.8-1.185-.78-.417-1.21.258-1.91.177-.184 3.247-2.977 3.307-3.23.007-.032.014-.15-.056-.212s-.174-.041-.249-.024c-.106.024-1.793 1.14-5.061 3.345-.48.33-.913.49-1.302.48-.428-.008-1.252-.241-1.865-.44-.752-.245-1.349-.374-1.297-.789.027-.216.325-.437.893-.663 3.498-1.524 5.83-2.529 6.998-3.014 3.332-1.386 4.025-1.627 4.476-1.635z"/>
+                        </svg>
+                        <div>
+                            <h3 class="font-semibold text-lg mb-1" data-i18n="telegram_notifications_title">Telegram уведомления</h3>
+                            <p id="telegram-status" class="text-sm text-white/80" data-i18n="telegram_notifications_desc">Получайте уведомления о новых фото с ретрита</p>
+                        </div>
+                    </div>
+                    <div class="flex items-center gap-3 sm:ml-auto">
+                        <!-- Статус подключено -->
+                        <div id="telegram-connected" class="hidden items-center gap-2 px-4 py-2 bg-white/20 rounded-lg">
+                            <svg class="w-5 h-5 text-green-300" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" d="M9 12.75L11.25 15 15 9.75M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                            </svg>
+                            <span class="text-sm font-medium" data-i18n="telegram_connected">Подключено</span>
+                        </div>
+                        <!-- Кнопка подключить -->
+                        <button id="telegram-connect-btn" onclick="connectTelegram()" class="hidden px-5 py-2.5 bg-white text-blue-600 font-medium rounded-lg hover:bg-white/90 transition-colors flex items-center gap-2">
+                            <span data-i18n="telegram_connect">Подключить</span>
+                            <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" d="M13.5 4.5L21 12m0 0l-7.5 7.5M21 12H3" />
+                            </svg>
+                        </button>
+                        <!-- Кнопка отключить -->
+                        <button id="telegram-disconnect-btn" onclick="disconnectTelegram()" class="hidden px-4 py-2 border border-white/30 text-white rounded-lg hover:bg-white/10 transition-colors text-sm font-medium" data-i18n="telegram_disconnect">
+                            Отключить
+                        </button>
+                    </div>
+                </div>
+            </div>
+
             <!-- Правая колонка: Ретрит + Трансфер -->
-            <div class="md:col-span-2 flex flex-col gap-4">
+            <div class="md:col-span-3 flex flex-col gap-4">
 
                 <!-- Скелетон загрузки ретрита -->
                 <div id="retreat-skeleton" class="card flex-1 p-0 overflow-hidden animate-pulse" style="background: #F5F5F5;">
@@ -657,14 +710,14 @@
         </div>
 
         <!-- Галерея (большой блок) -->
-        <div class="card mb-4 border-2 border-transparent hover:border-blue-300 transition-all cursor-pointer" style="background: #F0F7FF;" onclick="showComingSoon()">
+        <div class="card mb-4 border-2 border-transparent hover:border-blue-300 transition-all cursor-pointer" style="background: #F0F7FF;" onclick="window.location.href='photos.html'">
             <div class="flex items-center justify-between mb-4">
                 <div>
                     <div class="card-label mb-1" style="color: #4A90D9;">Галерея</div>
-                    <div class="text-xl font-semibold text-gray-800">24 фото с вами</div>
+                    <div class="text-xl font-semibold text-gray-800" id="galleryTitle">Фотографии ретрита</div>
                 </div>
-                <a href="#" class="text-sm font-medium hover:underline flex items-center gap-1" style="color: #4A90D9;">
-                    Смотреть все
+                <a href="photos.html" class="text-sm font-medium hover:underline flex items-center gap-1" style="color: #4A90D9;" onclick="event.stopPropagation()">
+                    <span data-i18n="view_all">Смотреть все</span>
                     <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24">
                         <path stroke-linecap="round" stroke-linejoin="round" d="M13.5 4.5L21 12m0 0l-7.5 7.5M21 12H3" />
                     </svg>
@@ -672,73 +725,20 @@
             </div>
 
             <!-- Прокрутка фото -->
-            <div class="relative">
-                <div class="flex gap-3 overflow-x-auto hide-scrollbar pb-2 snap-x snap-mandatory">
-                    <!-- Фото 1 (горизонтальное большое) -->
-                    <div class="flex-shrink-0 w-64 h-44 bg-gradient-to-br from-blue-100 to-blue-200 rounded-xl overflow-hidden cursor-pointer hover:scale-[1.02] transition-transform snap-start relative group">
-                        <div class="absolute inset-0 flex items-center justify-center">
-                            <svg class="w-12 h-12 text-blue-300" fill="none" stroke="currentColor" stroke-width="1" viewBox="0 0 24 24">
-                                <path stroke-linecap="round" stroke-linejoin="round" d="M2.25 15.75l5.159-5.159a2.25 2.25 0 013.182 0l5.159 5.159m-1.5-1.5l1.409-1.409a2.25 2.25 0 013.182 0l2.909 2.909m-18 3.75h16.5a1.5 1.5 0 001.5-1.5V6a1.5 1.5 0 00-1.5-1.5H3.75A1.5 1.5 0 002.25 6v12a1.5 1.5 0 001.5 1.5zm10.5-11.25h.008v.008h-.008V8.25zm.375 0a.375.375 0 11-.75 0 .375.375 0 01.75 0z" />
-                            </svg>
-                        </div>
-                        <div class="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/50 to-transparent p-3 opacity-0 group-hover:opacity-100 transition-opacity">
-                            <div class="text-white text-sm">Фестиваль 2025</div>
-                        </div>
-                    </div>
-
-                    <!-- Фото 2 (вертикальное - узкое) -->
-                    <div class="flex-shrink-0 w-28 h-44 bg-gradient-to-br from-indigo-100 to-indigo-200 rounded-xl overflow-hidden cursor-pointer hover:scale-[1.02] transition-transform snap-start relative group">
-                        <div class="absolute inset-0 flex items-center justify-center">
-                            <svg class="w-8 h-8 text-indigo-300" fill="none" stroke="currentColor" stroke-width="1" viewBox="0 0 24 24">
-                                <path stroke-linecap="round" stroke-linejoin="round" d="M2.25 15.75l5.159-5.159a2.25 2.25 0 013.182 0l5.159 5.159m-1.5-1.5l1.409-1.409a2.25 2.25 0 013.182 0l2.909 2.909m-18 3.75h16.5a1.5 1.5 0 001.5-1.5V6a1.5 1.5 0 00-1.5-1.5H3.75A1.5 1.5 0 002.25 6v12a1.5 1.5 0 001.5 1.5zm10.5-11.25h.008v.008h-.008V8.25zm.375 0a.375.375 0 11-.75 0 .375.375 0 01.75 0z" />
-                            </svg>
-                        </div>
-                    </div>
-
-                    <!-- Фото 3 (квадратное) -->
-                    <div class="flex-shrink-0 w-44 h-44 bg-gradient-to-br from-purple-100 to-purple-200 rounded-xl overflow-hidden cursor-pointer hover:scale-[1.02] transition-transform snap-start relative group">
-                        <div class="absolute inset-0 flex items-center justify-center">
-                            <svg class="w-10 h-10 text-purple-300" fill="none" stroke="currentColor" stroke-width="1" viewBox="0 0 24 24">
-                                <path stroke-linecap="round" stroke-linejoin="round" d="M2.25 15.75l5.159-5.159a2.25 2.25 0 013.182 0l5.159 5.159m-1.5-1.5l1.409-1.409a2.25 2.25 0 013.182 0l2.909 2.909m-18 3.75h16.5a1.5 1.5 0 001.5-1.5V6a1.5 1.5 0 00-1.5-1.5H3.75A1.5 1.5 0 002.25 6v12a1.5 1.5 0 001.5 1.5zm10.5-11.25h.008v.008h-.008V8.25zm.375 0a.375.375 0 11-.75 0 .375.375 0 01.75 0z" />
-                            </svg>
-                        </div>
-                    </div>
-
-                    <!-- Фото 4 (вертикальное - узкое) -->
-                    <div class="flex-shrink-0 w-32 h-44 bg-gradient-to-br from-rose-100 to-rose-200 rounded-xl overflow-hidden cursor-pointer hover:scale-[1.02] transition-transform snap-start relative group">
-                        <div class="absolute inset-0 flex items-center justify-center">
-                            <svg class="w-8 h-8 text-rose-300" fill="none" stroke="currentColor" stroke-width="1" viewBox="0 0 24 24">
-                                <path stroke-linecap="round" stroke-linejoin="round" d="M2.25 15.75l5.159-5.159a2.25 2.25 0 013.182 0l5.159 5.159m-1.5-1.5l1.409-1.409a2.25 2.25 0 013.182 0l2.909 2.909m-18 3.75h16.5a1.5 1.5 0 001.5-1.5V6a1.5 1.5 0 00-1.5-1.5H3.75A1.5 1.5 0 002.25 6v12a1.5 1.5 0 001.5 1.5zm10.5-11.25h.008v.008h-.008V8.25zm.375 0a.375.375 0 11-.75 0 .375.375 0 01.75 0z" />
-                            </svg>
-                        </div>
-                    </div>
-
-                    <!-- Фото 5 (горизонтальное) -->
-                    <div class="flex-shrink-0 w-56 h-44 bg-gradient-to-br from-cyan-100 to-cyan-200 rounded-xl overflow-hidden cursor-pointer hover:scale-[1.02] transition-transform snap-start relative group">
-                        <div class="absolute inset-0 flex items-center justify-center">
-                            <svg class="w-10 h-10 text-cyan-300" fill="none" stroke="currentColor" stroke-width="1" viewBox="0 0 24 24">
-                                <path stroke-linecap="round" stroke-linejoin="round" d="M2.25 15.75l5.159-5.159a2.25 2.25 0 013.182 0l5.159 5.159m-1.5-1.5l1.409-1.409a2.25 2.25 0 013.182 0l2.909 2.909m-18 3.75h16.5a1.5 1.5 0 001.5-1.5V6a1.5 1.5 0 00-1.5-1.5H3.75A1.5 1.5 0 002.25 6v12a1.5 1.5 0 001.5 1.5zm10.5-11.25h.008v.008h-.008V8.25zm.375 0a.375.375 0 11-.75 0 .375.375 0 01.75 0z" />
-                            </svg>
-                        </div>
-                    </div>
-
-                    <!-- Фото 6 (квадратное) -->
-                    <div class="flex-shrink-0 w-44 h-44 bg-gradient-to-br from-teal-100 to-teal-200 rounded-xl overflow-hidden cursor-pointer hover:scale-[1.02] transition-transform snap-start relative group">
-                        <div class="absolute inset-0 flex items-center justify-center">
-                            <svg class="w-10 h-10 text-teal-300" fill="none" stroke="currentColor" stroke-width="1" viewBox="0 0 24 24">
-                                <path stroke-linecap="round" stroke-linejoin="round" d="M2.25 15.75l5.159-5.159a2.25 2.25 0 013.182 0l5.159 5.159m-1.5-1.5l1.409-1.409a2.25 2.25 0 013.182 0l2.909 2.909m-18 3.75h16.5a1.5 1.5 0 001.5-1.5V6a1.5 1.5 0 00-1.5-1.5H3.75A1.5 1.5 0 002.25 6v12a1.5 1.5 0 001.5 1.5zm10.5-11.25h.008v.008h-.008V8.25zm.375 0a.375.375 0 11-.75 0 .375.375 0 01.75 0z" />
-                            </svg>
-                        </div>
-                    </div>
-
-                    <!-- Ещё фото -->
-                    <div class="flex-shrink-0 w-36 h-44 bg-blue-50 rounded-xl overflow-hidden cursor-pointer hover:bg-blue-100 transition-colors snap-start flex items-center justify-center">
-                        <div class="text-center">
-                            <div class="text-3xl font-light text-blue-400">+18</div>
-                            <div class="text-sm text-blue-400 mt-1">фото</div>
-                        </div>
-                    </div>
+            <div id="galleryPreview" class="relative">
+                <button id="photoPreviewPrev" class="gallery-scroll-btn hidden md:flex absolute left-2 top-1/2 -translate-y-1/2 z-10" onclick="event.stopPropagation()" aria-label="Прокрутить влево">
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M15 19l-7-7 7-7" />
+                    </svg>
+                </button>
+                <div class="flex gap-3 overflow-x-auto hide-scrollbar pb-2 snap-x snap-mandatory" id="photoPreviewContainer">
+                    <!-- Будет заполнено JS -->
                 </div>
+                <button id="photoPreviewNext" class="gallery-scroll-btn hidden md:flex absolute right-2 top-1/2 -translate-y-1/2 z-10" onclick="event.stopPropagation()" aria-label="Прокрутить вправо">
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M9 5l7 7-7 7" />
+                    </svg>
+                </button>
             </div>
         </div>
 
@@ -895,6 +895,41 @@
             <button onclick="closeComingSoon()" class="w-full bg-srsk-green text-white font-medium py-2.5 px-4 rounded-xl hover:bg-srsk-green/90 transition-colors">
                 Ок
             </button>
+        </div>
+    </div>
+
+    <!-- Модальное окно: Telegram Deep Link -->
+    <div id="telegramLinkModal" class="fixed inset-0 bg-black/50 z-50 hidden flex items-center justify-center p-4" onclick="closeTelegramLinkModal()">
+        <div class="bg-white rounded-2xl p-6 max-w-md w-full shadow-xl" onclick="event.stopPropagation()">
+            <div class="flex items-center justify-between mb-4">
+                <h3 class="text-xl font-semibold text-gray-800" data-i18n="telegram_connect_title">Подключить Telegram</h3>
+                <button onclick="closeTelegramLinkModal()" class="text-gray-400 hover:text-gray-600">
+                    <svg class="w-6 h-6" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
+                    </svg>
+                </button>
+            </div>
+
+            <div class="space-y-4">
+                <p class="text-gray-600 text-sm" data-i18n="telegram_connect_instruction">
+                    Нажмите на кнопку ниже, чтобы открыть Telegram и подключить уведомления:
+                </p>
+
+                <!-- QR код (опционально, можно добавить позже) -->
+                <!-- <div id="telegram-qr-code" class="flex justify-center py-4"></div> -->
+
+                <a id="telegram-deep-link" href="#" target="_blank" class="block w-full bg-blue-500 hover:bg-blue-600 text-white font-medium py-3 px-4 rounded-lg transition-colors flex items-center justify-center gap-2">
+                    <svg class="w-5 h-5" viewBox="0 0 24 24" fill="currentColor">
+                        <path d="M11.944 0A12 12 0 0 0 0 12a12 12 0 0 0 12 12 12 12 0 0 0 12-12A12 12 0 0 0 12 0a12 12 0 0 0-.056 0zm4.962 7.224c.1-.002.321.023.465.14a.506.506 0 0 1 .171.325c.016.093.036.306.02.472-.18 1.898-.962 6.502-1.36 8.627-.168.9-.499 1.201-.82 1.23-.696.065-1.225-.46-1.9-.902-1.056-.693-1.653-1.124-2.678-1.8-1.185-.78-.417-1.21.258-1.91.177-.184 3.247-2.977 3.307-3.23.007-.032.014-.15-.056-.212s-.174-.041-.249-.024c-.106.024-1.793 1.14-5.061 3.345-.48.33-.913.49-1.302.48-.428-.008-1.252-.241-1.865-.44-.752-.245-1.349-.374-1.297-.789.027-.216.325-.437.893-.663 3.498-1.524 5.83-2.529 6.998-3.014 3.332-1.386 4.025-1.627 4.476-1.635z"/>
+                    </svg>
+                    <span data-i18n="telegram_open">Открыть Telegram</span>
+                </a>
+
+                <div class="text-xs text-gray-500 text-center">
+                    <p data-i18n="telegram_link_expires">Ссылка действительна 15 минут</p>
+                    <p class="mt-1" data-i18n="telegram_link_wait">Ожидаем подтверждения...</p>
+                </div>
+            </div>
         </div>
     </div>
 

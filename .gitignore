@@ -7,3 +7,4 @@ test-results/
 tests/
 task.md
 .env*
+supabase/.temp/

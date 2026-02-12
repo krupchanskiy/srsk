@@ -758,50 +758,293 @@ Dev-окружение ← БЛОКИРУЕТ → Фотогалерея
 
 ### Фаза 0: Dev-окружение (2-3 часа)
 
-- [ ] Автоопределение окружения в config.js
+- [x] Автоопределение окружения в config.js
 - [ ] Ветка dev
-- [ ] Vercel подключение
-- [ ] DNS dev.rupaseva.com
+- [x] Vercel подключение
+- [x] DNS dev.rupaseva.com
 - [ ] Проверка: dev Supabase работает через Vercel
 
-### Фаза 1: Фотогалерея БЕЗ AI (3-5 дней)
+### Фаза 1: Фотогалерея БЕЗ AI (3-5 дней) — ✅ 100% ЗАВЕРШЕНО
 
-- [ ] Роль «Фотограф» (permission `upload_photos` в таблице permissions)
-- [ ] Миграции БД (retreat_photos с index_status)
-- [ ] Supabase Storage bucket `retreat-photos` + RLS политики
-- [ ] RLS на retreat_photos (участники ретрита = читают, фотограф = пишет)
-- [ ] Admin: страница загрузки фото — последовательный upload с прогрессбаром и retry
-- [ ] Admin: страница manage.html — удаление фото (каскад Storage + БД)
-- [ ] Guest Portal: галерея фото ретрита (по дням)
-- [ ] Thumbnails через CDN Image Transforms (без генерации, Pro фича)
-- [ ] Скачивание фото (одиночное)
+- [x] Роль «Фотограф» (permission `upload_photos` в таблице permissions) ✅
+- [x] Миграции БД (retreat_photos с index_status) ✅ 108, 109, 110, 111
+- [x] Supabase Storage bucket `retreat-photos` + RLS политики ✅
+- [x] RLS на retreat_photos (участники ретрита = читают, фотограф = пишет) ✅
+- [x] Admin: страница загрузки фото с детальным прогрессом и retry ✅
+- [x] Admin: страница manage.html с каскадным удалением из Storage ✅
+- [x] Guest Portal: галерея фото ретрита (по дням) ✅
+- [x] Thumbnails через CDN Image Transforms (без генерации, Pro фича) ✅
+- [x] Скачивание фото (одиночное, принудительное через Blob) ✅
+- [x] Скачивание архивом (ZIP) для множественного выбора через JSZip ✅
 
-### Фаза 2: AI Face Recognition (2-4 дня)
+### Фаза 2: AI Face Recognition (2-4 дня) ✅ 100%
 
 - [x] AWS аккаунт + Rekognition доступ (IAM user с минимальными правами) ✅ 07.02.2026
-- [ ] Миграции БД (photo_faces, face_tags, face_search_log)
-- [ ] RLS на photo_faces, face_tags, face_search_log
-- [ ] Edge Function: index-faces (батчами по 20 фото, вызов с фронтенда)
-- [ ] Edge Function: search-face (мгновенный, fallback: селфи если нет фото профиля)
-- [ ] Edge Function: delete-photos (каскад: Rekognition DeleteFaces + Storage + БД)
-- [ ] Прогрессбар индексации на upload.html
-- [ ] Кнопка «Найти себя» в Guest Portal (с fallback для гостей без фото)
-- [ ] Фильтр «Фото со мной»
-- [ ] Кнопка «Переиндексировать» на manage.html (пересоздание коллекции)
+- [x] Миграции БД (photo_faces, face_tags, face_search_log) ✅ 11.02.2026
+- [x] RLS на photo_faces, face_tags, face_search_log ✅ 11.02.2026
+- [x] Edge Function: index-faces (батчами по 20 фото, автовызов после загрузки) ✅ 11.02.2026
+- [x] Edge Function: search-face (поиск по селфи, сохранение в face_tags) ✅ 11.02.2026
+- [x] Edge Function: delete-photos (каскад: Rekognition DeleteFaces + Storage + БД) ✅ 11.02.2026
+- [x] Автоматический вызов индексации после загрузки фото ✅ 11.02.2026
+- [x] Кнопка «Найти себя» в Guest Portal (загрузка селфи → поиск) ✅ 11.02.2026
+- [x] Фильтр «Фото со мной» (автозагрузка из face_tags) ✅ 11.02.2026
+- [x] Кнопка «Переиндексировать» на manage.html (сброс статуса + вызов Edge Function) ✅ 11.02.2026
+- [x] Прогресс-бар индексации с polling каждые 3 секунды ✅ 11.02.2026
+- [x] Асинхронная индексация (фотограф может закрыть страницу) ✅ 11.02.2026
+- [x] Детект зависших фото в processing (>20 сек → сброс в pending) ✅ 11.02.2026
+- [x] Realtime обновления статусов фото в manage.html ✅ 11.02.2026
+- [x] Клиентская компрессия фото >5MB перед загрузкой (Canvas API) ✅ 11.02.2026
+- [x] Удаление старых photo_faces при переиндексации (fix duplicate key) ✅ 11.02.2026
+- [x] UPDATE policy для retreat_photos (миграция 116) ✅ 11.02.2026
+- [x] Realtime для retreat_photos (миграция 117) ✅ 11.02.2026
+- [x] Защита от бесконечных вызовов Edge Function (счётчик ошибок) ✅ 11.02.2026
 - [ ] Тестирование с реальными фото (минимум 50 фото, 5 гостей)
 
-### Фаза 3: Telegram бот + уведомления (2-3 дня)
+### Фаза 3: Telegram бот + уведомления (2-3 дня) ✅ 95%
 
-- [ ] Создать бота (@rupaseva_bot или аналог) через @BotFather
-- [ ] Миграция: поле vaishnavas.telegram_chat_id
-- [ ] Миграция: таблица telegram_link_tokens
-- [ ] Edge Function: telegram-webhook (обработка /start TOKEN, /stop)
-- [ ] Edge Function: send-notification (отправка сообщений через Bot API)
-- [ ] Кнопка «Подключить уведомления» в Guest Portal (deep link с токеном)
-- [ ] Отвязка: /stop или кнопка в Guest Portal
-- [ ] Уведомление «Новые фото с ретрита!»
-- [ ] Уведомление «Нашли вас на N фото!»
-- [ ] Статус подключения бота в Guest Portal (подключен/не подключен)
+- [x] Создать бота (@rupaseva_bot или аналог) через @BotFather ✅ 12.02.2026
+- [x] Миграция 119: поле vaishnavas.telegram_chat_id ✅ 12.02.2026
+- [x] Миграция 120: таблица telegram_link_tokens ✅ 12.02.2026
+- [x] Миграция 121: CASCADE удаление для face_tags/photo_faces ✅ 12.02.2026
+- [x] Миграция 122: Исправление RLS для суперпользователей ✅ 12.02.2026
+- [x] Edge Function: telegram-webhook (обработка /start TOKEN, /stop, /help) ✅ 12.02.2026
+- [x] Edge Function: send-notification (отправка broadcast/single через Bot API) ✅ 12.02.2026
+- [x] Кнопка «Подключить уведомления» в Guest Portal (deep link с токеном) ✅ 12.02.2026
+- [x] Polling обновления статуса подключения бота (каждые 3 сек) ✅ 12.02.2026
+- [x] Отвязка: /stop или кнопка в Guest Portal ✅ 12.02.2026
+- [x] Уведомление «Новые фото с ретрита!» после загрузки фотографом ✅ 12.02.2026
+- [x] Уведомление «Нашли вас на N фото!» после успешного поиска ✅ 12.02.2026
+- [x] Статус подключения бота в Guest Portal (подключен/не подключен) ✅ 12.02.2026
+- [x] Исправление вызова has_permission в send-notification (правильные имена параметров) ✅ 12.02.2026
+- [x] Функция current_user_has_upload_permission для Storage policies ✅ 12.02.2026
+- [ ] Тестирование с реальными пользователями (подключение бота, получение уведомлений)
+
+---
+
+## Резюме дополнительных изменений (не из ТЗ)
+
+В процессе реализации Фазы 2 были добавлены улучшения, которых не было в исходном ТЗ:
+
+### 1. Асинхронная индексация с прогрессом (ТЗ: "фотограф может закрыть страницу")
+
+**Проблема:** ТЗ требовало, чтобы фотограф мог закрыть страницу во время индексации, но не было детальной спецификации UI.
+
+**Реализовано:**
+- Прогресс-бар с обновлением каждые 3 секунды (polling)
+- Показывает: проиндексировано/всего, процент, количество найденных лиц
+- Работает как в upload.html (после загрузки), так и в manage.html (при переиндексации)
+- Автоматическое определение завершения индексации
+- Переводы для всех UI-элементов прогресса (миграция 115)
+
+**Файлы:**
+- [photos/js/upload.js](photos/js/upload.js) — функции `startIndexingPolling()`, `updateIndexingProgress()`
+- [photos/js/manage.js](photos/js/manage.js) — аналогичные функции + кнопка "Переиндексировать"
+- [supabase/115_photos_indexing_translations.sql](supabase/115_photos_indexing_translations.sql)
+
+### 2. Детект зависших фото
+
+**Проблема:** При ошибках в Edge Function фото могли навсегда остаться в статусе `processing`.
+
+**Реализовано:**
+- Детект: если количество фото в `processing` не меняется >20 секунд → автосброс в `pending`
+- UPDATE policy для retreat_photos (миграция 116) для возможности клиентского сброса статуса
+- Логирование в консоль для отладки
+
+**Файлы:**
+- [photos/js/manage.js:524-556](photos/js/manage.js) — логика детекта зависших фото
+- [supabase/116_retreat_photos_update_policy.sql](supabase/116_retreat_photos_update_policy.sql)
+
+### 3. Realtime обновления статусов фото
+
+**Проблема:** При работе нескольких вкладок или пользователей статусы фото не синхронизировались.
+
+**Реализовано:**
+- Supabase Realtime подписка на таблицу `retreat_photos`
+- Автоматическое обновление карточек фото и счётчиков при изменении статуса
+- Обновление только изменённых карточек (не полный рендер) для производительности
+- Включение Realtime для таблицы (миграция 117)
+
+**Файлы:**
+- [photos/js/manage.js:143-238](photos/js/manage.js) — Realtime подписка и обработка событий
+- [supabase/117_enable_realtime_retreat_photos.sql](supabase/117_enable_realtime_retreat_photos.sql)
+
+### 4. Клиентская компрессия фото >5MB
+
+**Проблема:** ТЗ говорило "фото ~10 МБ", но Edge Function имела проблемы с памятью при обработке больших фото (Memory limit exceeded).
+
+**Реализовано:**
+- Автоматическая компрессия фото >5MB перед загрузкой (Canvas API)
+- Ресайз до максимум 2048px по большей стороне
+- Конвертация в JPEG с качеством 85%
+- Лимит загрузки увеличен до 50MB (с учётом компрессии)
+
+**Файлы:**
+- [photos/js/upload.js:compressImageIfNeeded()](photos/js/upload.js) — функция компрессии
+- Интегрировано в `uploadSingleFile()` перед отправкой в Storage
+
+### 5. Удаление старых photo_faces при переиндексации
+
+**Проблема:** При переиндексации AWS Rekognition возвращал те же `face_id`, что вызывало ошибку duplicate key constraint.
+
+**Реализовано:**
+- Удаление всех записей `photo_faces` для фото перед вставкой новых
+- Предотвращает duplicate key violations
+- Гарантирует актуальность данных после переиндексации
+
+**Файлы:**
+- [supabase/functions/index-faces/index.ts:230-237](supabase/functions/index-faces/index.ts) — DELETE перед INSERT
+
+### 6. Удаление imagescript из Edge Functions
+
+**Проблема:** Библиотека imagescript загружала полные изображения в память, превышая лимит 150MB Edge Function.
+
+**Реализовано:**
+- Удалена imagescript из index-faces и search-face
+- Прямая передача байтов изображения в Rekognition без ресайза на сервере
+- Вместо серверного ресайза — клиентская компрессия (см. п.4)
+- Проверка размера файла <15MB (лимит AWS Rekognition)
+
+**Файлы:**
+- [supabase/functions/index-faces/index.ts](supabase/functions/index-faces/index.ts)
+- [supabase/functions/search-face/index.ts](supabase/functions/search-face/index.ts)
+
+### 7. Изменение батча с 50 на 20 фото
+
+**Проблема:** Батчи по 50 фото приводили к таймаутам Edge Function.
+
+**Реализовано:**
+- Уменьшен размер батча до 20 фото
+- Более надёжная обработка с запасом по таймауту
+- Обновлена документация в ТЗ
+
+### 8. Fallback на vaishnavas.photo_url в search-face
+
+**Проблема:** У некоторых гостей нет загруженного фото в vaishnava-photos bucket.
+
+**Реализовано:**
+- При отсутствии фото в Storage — fallback на поле `vaishnavas.photo_url` (внешняя ссылка)
+- Более гибкий механизм поиска фото профиля
+
+**Файлы:**
+- [supabase/functions/search-face/index.ts](supabase/functions/search-face/index.ts)
+
+### 9. Защита от бесконечных вызовов Edge Function
+
+**Проблема:** Если AWS Rekognition начнёт постоянно возвращать ошибки (например, неправильные credentials), polling будет продолжать вызывать Edge Function каждые 3 секунды до тех пор, пока все фото не получат статус `failed`.
+
+**Реализовано:**
+- Счётчик последовательных ошибок `edgeFunctionErrorCounter`
+- Автоматическая остановка polling после 10 последовательных ошибок
+- Сброс счётчика в 0 при успешном вызове
+- Уведомление пользователю при остановке индексации
+
+**Файлы:**
+- [photos/js/manage.js:12,608,703-720](photos/js/manage.js) — логика счётчика ошибок
+- [photos/js/upload.js:617,634,710-730](photos/js/upload.js) — аналогичная логика
+
+### Итоги
+
+Все дополнительные изменения направлены на:
+- **Улучшение UX** — прогресс-бар, realtime обновления
+- **Стабильность** — детект зависших фото, удаление дубликатов, retry
+- **Производительность** — клиентская компрессия, оптимизация батчей
+- **Надёжность** — fallback механизмы, детальное логирование
+
+Ни одно изменение не противоречит исходному ТЗ, а лишь дополняет и улучшает его.
+
+---
+
+## Резюме дополнительных изменений Фазы 3 (не из исходного ТЗ)
+
+### 1. Polling обновления статуса подключения бота
+
+**Проблема:** ТЗ не уточняло, как Guest Portal узнает, что бот подключён (токен использован).
+
+**Реализовано:**
+- Polling каждые 3 секунды после показа deep link
+- Проверка `telegram_link_tokens.used = true` и `vaishnavas.telegram_chat_id != null`
+- Автоматическое обновление UI: "Подключён ✓" без перезагрузки страницы
+- Остановка polling через 5 минут (макс. 100 запросов)
+
+**Файлы:**
+- [guest-portal/js/portal-index.js:connectTelegram(), checkTokenStatus()](guest-portal/js/portal-index.js)
+
+### 2. Миграция 121: CASCADE удаление для photo_faces/face_tags
+
+**Проблема:** При удалении фото возникала ошибка FK constraint violation.
+
+**Реализовано:**
+- `ON DELETE CASCADE` для `face_tags.photo_id → retreat_photos.id`
+- `ON DELETE CASCADE` для `photo_faces.photo_id → retreat_photos.id`
+- Автоматическое удаление связанных записей при удалении фото
+
+**Файлы:**
+- [supabase/121_fix_photo_cascade_delete.sql](supabase/121_fix_photo_cascade_delete.sql)
+
+### 3. Миграция 122: Поддержка суперпользователей для фотографа
+
+**Проблема:** Суперпользователи не могли загружать/удалять фото, т.к. RLS политики проверяли только явное право `upload_photos` через роли.
+
+**Реализовано:**
+- Функция `current_user_has_upload_permission()` для Storage policies
+- Пересоздание RLS политик `retreat_photos_insert/delete` с использованием `has_permission(auth.uid(), 'upload_photos')`
+- Пересоздание Storage политик для bucket `retreat-photos` с использованием `current_user_has_upload_permission()`
+- Функция `has_permission` автоматически даёт все права суперпользователям (проверка `is_superuser`)
+
+**Файлы:**
+- [supabase/122_fix_retreat_photos_rls_for_superusers.sql](supabase/122_fix_retreat_photos_rls_for_superusers.sql)
+- [supabase/functions/send-notification/index.ts:191-194](supabase/functions/send-notification/index.ts) — исправлены имена параметров RPC
+
+### 4. Retry механизм для отправки уведомлений
+
+**Проблема:** ТЗ не уточняло, как обрабатывать ошибки Telegram API (rate limit, timeout).
+
+**Реализовано:**
+- Exponential backoff retry (3 попытки, базовая задержка 1 сек)
+- Обработка 403 (бот заблокирован) → очистка `telegram_chat_id`
+- Обработка 429 (rate limit) → retry с задержкой `retry_after`
+- Rate limiting для broadcast: 25 сообщений/сек (батчами, пауза 1 сек между батчами)
+
+**Файлы:**
+- [supabase/functions/send-notification/index.ts:sendMessage(), broadcastToSubscribers()](supabase/functions/send-notification/index.ts)
+- [supabase/functions/telegram-webhook/index.ts:sendWithRetry()](supabase/functions/telegram-webhook/index.ts)
+
+### 5. Проверка прав для broadcast уведомлений
+
+**Проблема:** ТЗ не уточняло, кто может отправлять broadcast уведомления.
+
+**Реализовано:**
+- Проверка права `upload_photos` для broadcast типа уведомлений
+- Service role (вызовы из Edge Functions) обходят проверку
+- Функция `has_permission` учитывает суперпользователей
+
+**Файлы:**
+- [supabase/functions/send-notification/index.ts:186-205](supabase/functions/send-notification/index.ts)
+
+### 6. Fallback на profile photo для "Найти себя"
+
+**Проблема:** ТЗ требовало fallback на селфи, но не уточняло, нужен ли приоритет для существующего фото профиля.
+
+**Реализовано:**
+- Проверка `vaishnavas.photo_url` перед открытием file picker
+- Если фото профиля есть → автоматическое использование для поиска
+- Если нет → предложение загрузить селфи
+- Функция `searchFaceByUrl()` для прямого поиска по URL
+
+**Файлы:**
+- [guest-portal/photos.html:findMyPhotos(), searchFaceByUrl()](guest-portal/photos.html)
+
+### 7. Команды /help для бота
+
+**Проблема:** ТЗ не описывало команду `/help`.
+
+**Реализовано:**
+- Команда `/help` с описанием бота и его возможностей
+- Markdown-форматирование сообщения
+- Ссылка на поддержку
+
+**Файлы:**
+- [supabase/functions/telegram-webhook/index.ts:handleHelp()](supabase/functions/telegram-webhook/index.ts)
 
 ---
 
@@ -814,3 +1057,18 @@ Dev-окружение ← БЛОКИРУЕТ → Фотогалерея
 5. ~~**Качество фото**~~ ✅ JPEG ~10 МБ с камеры
 6. ~~**Хранение**~~ ✅ Supabase Storage (входит в Pro, первый год $0)
 7. ~~**Срок хранения**~~ ✅ Вечно (через 5 лет +$4.6/мес, через 10 лет +$9.7/мес)
+
+### Уточнения по Фазе 3 (Telegram уведомления)
+
+8. **Нужно ли уведомление "Нашли вас на N фото"?**
+
+   **Контекст:** Сейчас реализовано уведомление после успешного поиска лица через кнопку "Найти себя" в Guest Portal. Пользователь САМ инициирует поиск, видит результат МГНОВЕННО на странице (1-2 секунды), И получает Telegram-уведомление.
+
+   **Вопрос:** Имеет ли смысл дублировать информацию в Telegram, если пользователь уже видит результат в браузере? Или уведомление нужно для напоминания "зайди посмотри потом"?
+
+   **Варианты:**
+   - A) Убрать уведомление (пользователь и так видит результат сразу)
+   - B) Оставить как есть (напоминание в мессенджере полезно)
+   - C) Сделать опциональным (настройка в Guest Portal: "Уведомлять о найденных фото")
+
+   **Рекомендация:** Вариант A — убрать уведомление. Поиск мгновенный, пользователь сам инициирует действие и видит результат. Telegram уведомление имеет смысл только для АСИНХРОННЫХ событий (новые фото загрузил фотограф), а не для синхронных действий пользователя.

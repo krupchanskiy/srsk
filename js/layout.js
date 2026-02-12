@@ -113,6 +113,19 @@ const modules = {
             ]}
         ]
     },
+    photos: {
+        id: 'photos',
+        nameKey: 'module_photos',
+        icon: '📸',
+        hasLocations: false,
+        defaultPage: '/photos/upload.html',
+        menuConfig: [
+            { id: 'photos', items: [
+                { id: 'upload_photos', href: '/photos/upload.html' },
+                { id: 'manage_photos', href: '/photos/manage.html' }
+            ]}
+        ]
+    },
     admin: {
         id: 'admin',
         nameKey: 'module_admin',
@@ -182,6 +195,10 @@ const pagePermissions = {
     'ashram/retreats.html': 'view_retreats',
     'ashram/festivals.html': 'view_festivals',
     'ashram/dashboard-vaishnavas.html': 'view_retreats',
+    
+    // Photos
+    'photos/upload.html': 'upload_photos',
+    'photos/manage.html': 'upload_photos',
 
     // Settings
     'settings/translations.html': 'view_translations',
@@ -258,7 +275,7 @@ function getMenuConfig() {
 }
 
 // Список всех подпапок модулей
-const MODULE_FOLDERS = ['kitchen', 'stock', 'ashram', 'vaishnavas', 'placement', 'reception', 'settings', 'crm', 'guest-portal'];
+const MODULE_FOLDERS = ['kitchen', 'stock', 'ashram', 'vaishnavas', 'placement', 'reception', 'settings', 'crm', 'guest-portal', 'photos'];
 
 // Определить текущую подпапку (если есть)
 function getCurrentFolder() {
@@ -380,7 +397,7 @@ function getPersonName(person, lang = currentLang) {
 
 // ==================== TRANSLATIONS ====================
 async function loadTranslations(retried = false) {
-    const data = await Cache.getOrLoad('translations_v4', async () => {
+    const data = await Cache.getOrLoad('translations_v5', async () => {
         // Supabase ограничивает 1000 записей на запрос, используем пагинацию
         const allData = [];
         let from = 0;
@@ -415,7 +432,7 @@ async function loadTranslations(retried = false) {
 
     if (!hasAllKeys && !retried) {
         // Кэш устарел, инвалидируем и перезагружаем (только 1 раз)
-        Cache.invalidate('translations_v4');
+        Cache.invalidate('translations_v5');
         return loadTranslations(true);
     }
 
@@ -474,7 +491,7 @@ function getHeaderHTML() {
                         <a href="${adjustHref('index.html')}" class="text-xl font-semibold whitespace-nowrap hover:opacity-80 transition-opacity" data-i18n="app_name">Шри Рупа Сева Кунджа</a>
                         <div class="relative location-selector" id="locationDesktop">
                             <button class="flex items-center justify-between gap-2 w-full text-xl opacity-70 hover:opacity-100 transition-opacity" data-toggle="location">
-                                <span class="location-name">${currentModule === 'housing' ? t('module_housing') : currentModule === 'crm' ? t('module_crm') : currentModule === 'portal' ? t('module_portal') : currentModule === 'admin' ? t('module_admin') : ''}</span>
+                                <span class="location-name">${currentModule === 'housing' ? t('module_housing') : currentModule === 'crm' ? t('module_crm') : currentModule === 'portal' ? t('module_portal') : currentModule === 'photos' ? t('module_photos') : currentModule === 'admin' ? t('module_admin') : ''}</span>
                                 <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 transition-transform location-arrow" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
                                     <path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7" />
                                 </svg>
@@ -489,7 +506,7 @@ function getHeaderHTML() {
                         <span class="text-xl opacity-50">·</span>
                         <div class="relative location-selector" id="locationMobile">
                             <button class="flex items-center gap-1 text-xl opacity-70" data-toggle="location">
-                                <span class="location-name">${currentModule === 'housing' ? t('module_housing') : currentModule === 'crm' ? t('module_crm') : currentModule === 'portal' ? t('module_portal') : currentModule === 'admin' ? t('module_admin') : ''}</span>
+                                <span class="location-name">${currentModule === 'housing' ? t('module_housing') : currentModule === 'crm' ? t('module_crm') : currentModule === 'portal' ? t('module_portal') : currentModule === 'photos' ? t('module_photos') : currentModule === 'admin' ? t('module_admin') : ''}</span>
                                 <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 transition-transform location-arrow" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
                                     <path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7" />
                                 </svg>
@@ -664,6 +681,18 @@ function buildLocationOptions() {
         crmBtn.textContent = t('module_crm'); // безопасно
         el.appendChild(crmBtn);
 
+        // Кнопка "Фото" — только для пользователей с upload_photos
+        if (window.hasPermission && window.hasPermission('upload_photos')) {
+            const photosBtn = document.createElement('button');
+            photosBtn.className = 'w-full text-left px-4 py-2 hover:bg-base-200 text-base-content cursor-pointer';
+            if (currentModule === 'photos') {
+                photosBtn.classList.add('font-medium');
+            }
+            photosBtn.dataset.module = 'photos';
+            photosBtn.textContent = t('module_photos'); // безопасно
+            el.appendChild(photosBtn);
+        }
+
         // Кнопка "Профиль гостя"
         const portalBtn = document.createElement('button');
         portalBtn.className = 'w-full text-left px-4 py-2 hover:bg-base-200 text-base-content cursor-pointer';
@@ -777,6 +806,8 @@ function updateHeaderLanguage() {
         $$('.location-name').forEach(el => el.textContent = t('module_crm'));
     } else if (currentModule === 'portal') {
         $$('.location-name').forEach(el => el.textContent = t('module_portal'));
+    } else if (currentModule === 'photos') {
+        $$('.location-name').forEach(el => el.textContent = t('module_photos'));
     } else if (currentModule === 'admin') {
         $$('.location-name').forEach(el => el.textContent = t('module_admin'));
     } else {
@@ -831,13 +862,15 @@ function updateFooterLanguage() {
 const submenuMargins = {};
 
 function calcSubmenuMargin(groupId) {
-    // Берём первый пункт меню текущего модуля для выравнивания
-    const menuConfig = getMenuConfig();
-    const firstMenuId = menuConfig[0]?.id || 'kitchen';
-    const firstNavLink = $(`.nav-link[data-submenu="${firstMenuId}"]`);
+    // Берём пункт меню для выравнивания submenu (по groupId)
+    // Ищем nav-link с data-submenu или data-menu-id
+    let navLink = $(`.nav-link[data-submenu="${groupId}"]`);
+    if (!navLink) {
+        navLink = $(`.nav-link[data-menu-id="${groupId}"]`);
+    }
     const submenuBar = $('#submenuBar');
     const group = $(`.submenu-group[data-group="${groupId}"]`);
-    if (!firstNavLink || !submenuBar || !group) return 0;
+    if (!navLink || !submenuBar || !group) return 0;
 
     const firstLink = group.querySelector('.submenu-link');
     if (!firstLink) return 0;
@@ -849,13 +882,13 @@ function calcSubmenuMargin(groupId) {
     // Force reflow — нужно чтобы браузер применил стили до измерения позиции
     void firstLink.offsetWidth;
 
-    const navRect = firstNavLink.getBoundingClientRect();
+    const navRect = navLink.getBoundingClientRect();
     const barRect = submenuBar.getBoundingClientRect();
     const linkRect = firstLink.getBoundingClientRect();
 
-    const kitchenCenterX = navRect.left + navRect.width / 2 - barRect.left;
+    const menuCenterX = navRect.left + navRect.width / 2 - barRect.left;
     const linkLeftRelative = linkRect.left - barRect.left;
-    const margin = kitchenCenterX - linkLeftRelative - linkRect.width / 2;
+    const margin = menuCenterX - linkLeftRelative - linkRect.width / 2;
 
     firstLink.style.marginLeft = margin + 'px';
     firstLink.style.transition = '';
@@ -900,6 +933,8 @@ function selectLocation(slug, isInitial = false) {
         $$('.location-name').forEach(el => el.textContent = t('module_crm'));
     } else if (currentModule === 'portal') {
         $$('.location-name').forEach(el => el.textContent = t('module_portal'));
+    } else if (currentModule === 'photos') {
+        $$('.location-name').forEach(el => el.textContent = t('module_photos'));
     } else if (currentModule === 'admin') {
         $$('.location-name').forEach(el => el.textContent = t('module_admin'));
     } else {
@@ -1113,6 +1148,9 @@ async function initLayout(page = { module: null, menuId: 'kitchen', itemId: null
     } else if (currentModule === 'portal') {
         setColor('#147D30');
         $$('.location-name').forEach(el => el.textContent = t('module_portal'));
+    } else if (currentModule === 'photos') {
+        setColor('#ec4899');
+        $$('.location-name').forEach(el => el.textContent = t('module_photos'));
     } else if (currentModule === 'admin') {
         setColor('#374151');
         $$('.location-name').forEach(el => el.textContent = t('module_admin'));

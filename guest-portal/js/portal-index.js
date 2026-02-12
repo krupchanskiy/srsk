@@ -318,6 +318,9 @@ function populateProfile(guest) {
             document.getElementById('header-photo').innerHTML =
                 `<img src="${guest.photoUrl}" alt="" class="w-full h-full object-cover">`;
         }
+
+        // Проверяем статус Telegram уведомлений
+        checkTelegramStatus();
     }
 }
 
@@ -1068,9 +1071,12 @@ async function init() {
         loadTeachersList();
         loadUpcomingRetreats(loggedInUser.id);
         loadActiveRetreat(loggedInUser.id);
+        loadPhotoGalleryPreview(loggedInUser.id);
         loadMaterialsCards();
         document.getElementById('profile-form').addEventListener('submit', handleProfileSave);
     }
+
+    setupPhotoPreviewScroller();
 }
 
 // Загрузить публичный профиль другого пользователя
@@ -1148,6 +1154,435 @@ async function loadPublicProfile(vaishnavId) {
     } catch (e) {
         console.error('Ошибка:', e);
         document.body.innerHTML = '<div class="flex items-center justify-center min-h-screen text-gray-500">Ошибка загрузки</div>';
+    }
+}
+
+// ==================== PHOTO GALLERY PREVIEW ====================
+async function loadPhotoGalleryPreview(vaishnavId) {
+    try {
+        const supabase = window.portalSupabase;
+        if (!supabase) {
+            console.error('Supabase client not initialized');
+            return;
+        }
+
+        // Get user's retreats
+        const { data: registrations, error: regError } = await supabase
+            .from('retreat_registrations')
+            .select('retreat_id')
+            .eq('vaishnava_id', vaishnavId)
+            .in('status', ['guest', 'team']);
+
+        if (regError || !registrations || registrations.length === 0) {
+            // Нет ретритов - скрыть весь блок галереи
+            const galleryBlock = document.getElementById('galleryPreview');
+            if (galleryBlock && galleryBlock.parentElement) {
+                galleryBlock.parentElement.style.display = 'none';
+            }
+            return;
+        }
+
+        const retreatIds = registrations.map(r => r.retreat_id);
+
+        // TODO Фаза 2: Load photos with user's face first
+        // const { data: myPhotoIds } = await supabase
+        //     .from('face_tags')
+        //     .select('photo_id')
+        //     .eq('vaishnava_id', vaishnavId);
+        // const myPhotos = myPhotoIds?.map(t => t.photo_id) || [];
+
+        // Get total count
+        const { count: totalCount } = await supabase
+            .from('retreat_photos')
+            .select('id', { count: 'exact', head: true })
+            .in('retreat_id', retreatIds)
+            .eq('index_status', 'indexed');
+
+        // Load retreat details
+        const { data: retreatsData, error: retreatsError } = await supabase
+            .from('retreats')
+            .select('id, name_ru, name_en, name_hi')
+            .in('id', retreatIds);
+
+        if (retreatsError) {
+            console.error('Error loading retreats:', retreatsError);
+            return;
+        }
+
+        const retreatsMap = {};
+        (retreatsData || []).forEach(r => {
+            retreatsMap[r.id] = r;
+        });
+
+        // Load my photos (with face tags) first if any, then fill with other photos
+        let myPhotoIds = [];
+        if (window.currentGuest && window.currentGuest.id) {
+            const { data: myPhotoData } = await supabase
+                .from('face_tags')
+                .select('photo_id')
+                .eq('vaishnava_id', window.currentGuest.id);
+
+            myPhotoIds = myPhotoData?.map(t => t.photo_id) || [];
+            console.debug('[gallery] myPhotoIds loaded:', myPhotoIds.length);
+        } else {
+            console.debug('[gallery] currentGuest missing, skipping myPhotoIds');
+        }
+
+        let photos = [];
+        if (myPhotoIds.length > 0) {
+            // First, load photos with user's face, limited to user's retreats
+            const { data: myPhotos, error: myPhotosError } = await supabase
+                .from('retreat_photos')
+                .select('id, storage_path, thumb_path, retreat_id, uploaded_at')
+                .in('id', myPhotoIds)
+                .in('retreat_id', retreatIds)
+                .eq('index_status', 'indexed')
+                .order('uploaded_at', { ascending: false })
+                .limit(10);
+
+            if (myPhotosError) {
+                console.error('Error loading my photos:', myPhotosError);
+            } else {
+                photos = myPhotos || [];
+            }
+
+            const remaining = Math.max(0, 10 - photos.length);
+            if (remaining > 0) {
+                const notInIds = myPhotoIds.map(id => `"${String(id)}"`).join(',');
+                const { data: otherPhotos, error: otherError } = await supabase
+                    .from('retreat_photos')
+                    .select('id, storage_path, thumb_path, retreat_id, uploaded_at')
+                    .in('retreat_id', retreatIds)
+                    .eq('index_status', 'indexed')
+                    .not('id', 'in', `(${notInIds})`)
+                    .order('uploaded_at', { ascending: false })
+                    .limit(remaining);
+
+                if (otherError) {
+                    console.error('Error loading other photos:', otherError);
+                } else {
+                    photos = photos.concat(otherPhotos || []);
+                }
+            }
+        } else {
+            // No face tags: just show recent photos from user's retreats
+            const { data: recentPhotos, error: photosError } = await supabase
+                .from('retreat_photos')
+                .select('id, storage_path, thumb_path, retreat_id, uploaded_at')
+                .in('retreat_id', retreatIds)
+                .eq('index_status', 'indexed')
+                .order('uploaded_at', { ascending: false })
+                .limit(10);
+
+            if (photosError) {
+                console.error('Error loading photos:', photosError);
+                return;
+            }
+            photos = recentPhotos || [];
+        }
+
+        // Add retreat info to photos (даже если пусто — для заглушки)
+        const photosWithRetreats = photos && photos.length > 0
+            ? photos.map((photo, idx) => ({
+                ...photo,
+                _idx: idx,
+                retreat: retreatsMap[photo.retreat_id]
+            }))
+            : [];
+
+        console.debug('[gallery] photos final count:', photosWithRetreats.length);
+        renderPhotoPreview(photosWithRetreats, totalCount || photosWithRetreats.length, myPhotoIds);
+    } catch (e) {
+        console.error('Error loading photo gallery preview:', e);
+    }
+}
+
+function renderPhotoPreview(photos, totalCount, myPhotoIds = []) {
+    const container = document.getElementById('photoPreviewContainer');
+    const titleEl = document.getElementById('galleryTitle');
+    const prevBtn = document.getElementById('photoPreviewPrev');
+    const nextBtn = document.getElementById('photoPreviewNext');
+    const lang = localStorage.getItem('language') || 'ru';
+    const myPhotoIdSet = new Set(myPhotoIds.map(id => String(id)));
+
+    // Заглушка, если нет фото
+    if (!photos || photos.length === 0) {
+        if (titleEl) {
+            titleEl.textContent = 'Фотографии ретрита';
+        }
+
+        // Скрыть кнопки навигации
+        if (prevBtn) prevBtn.classList.add('hidden');
+        if (nextBtn) nextBtn.classList.add('hidden');
+
+        container.innerHTML = `
+            <div class="w-full flex flex-col items-center justify-center py-12 px-4">
+                <svg class="w-20 h-20 text-blue-200 mb-4" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M2.25 15.75l5.159-5.159a2.25 2.25 0 013.182 0l5.159 5.159m-1.5-1.5l1.409-1.409a2.25 2.25 0 013.182 0l2.909 2.909m-18 3.75h16.5a1.5 1.5 0 001.5-1.5V6a1.5 1.5 0 00-1.5-1.5H3.75A1.5 1.5 0 002.25 6v12a1.5 1.5 0 001.5 1.5zm10.5-11.25h.008v.008h-.008V8.25zm.375 0a.375.375 0 11-.75 0 .375.375 0 01.75 0z" />
+                </svg>
+                <div class="text-gray-400 text-center mb-2 font-medium">Пока нет фотографий</div>
+                <div class="text-gray-400 text-sm text-center">Фотографии появятся после вашего ретрита</div>
+            </div>
+        `;
+        return;
+    }
+
+    // Update title with count
+    if (titleEl) {
+        const text = totalCount === 1 ? '1 фотография' : `${totalCount} фотографий`;
+        titleEl.textContent = text;
+    }
+
+    container.innerHTML = photos.map(photo => {
+        const url = getPhotoStorageUrl(photo.thumb_path || photo.storage_path);
+        const retreatName = photo.retreat ? (photo.retreat[`name_${lang}`] || photo.retreat.name_ru) : '';
+        const isMine = myPhotoIdSet.has(String(photo.id));
+
+        return `
+            <div class="flex-shrink-0 w-64 h-44 rounded-xl overflow-hidden cursor-pointer hover:scale-[1.02] transition-transform snap-start relative group">
+                <img src="${url}" alt="Photo" class="w-full h-full object-cover">
+                ${isMine ? '<div class="absolute top-2 right-2 bg-srsk-orange text-white text-xs px-2 py-1 rounded-full font-medium">Вы</div>' : ''}
+                <div class="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/60 to-transparent p-3 opacity-0 group-hover:opacity-100 transition-opacity">
+                    <div class="text-white text-sm truncate">${escapeHtml(retreatName)}</div>
+                </div>
+            </div>
+        `;
+    }).join('');
+
+    // Обновить видимость стрелок
+    setupPhotoPreviewScroller();
+}
+
+function setupPhotoPreviewScroller() {
+    const container = document.getElementById('photoPreviewContainer');
+    const prevBtn = document.getElementById('photoPreviewPrev');
+    const nextBtn = document.getElementById('photoPreviewNext');
+    if (!container) return;
+
+    const scrollByAmount = () => Math.max(200, Math.round(container.clientWidth * 0.9));
+    const updateArrowVisibility = () => {
+        if (!prevBtn || !nextBtn) return;
+        const maxScrollLeft = container.scrollWidth - container.clientWidth;
+        const atStart = container.scrollLeft <= 1;
+        const atEnd = container.scrollLeft >= maxScrollLeft - 1;
+        prevBtn.classList.toggle('hidden', atStart);
+        nextBtn.classList.toggle('hidden', atEnd);
+    };
+
+    if (prevBtn && !prevBtn.dataset.bound) {
+        prevBtn.dataset.bound = '1';
+        prevBtn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            container.scrollBy({ left: -scrollByAmount(), behavior: 'smooth' });
+        });
+    }
+
+    if (nextBtn && !nextBtn.dataset.bound) {
+        nextBtn.dataset.bound = '1';
+        nextBtn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            container.scrollBy({ left: scrollByAmount(), behavior: 'smooth' });
+        });
+    }
+
+    if (!container.dataset.arrowBound) {
+        container.dataset.arrowBound = '1';
+        container.addEventListener('scroll', updateArrowVisibility, { passive: true });
+        window.addEventListener('resize', updateArrowVisibility);
+        requestAnimationFrame(updateArrowVisibility);
+    }
+}
+
+function getPhotoStorageUrl(storagePath) {
+    const supabase = window.portalSupabase;
+    if (!supabase) return '';
+
+    const { data } = supabase.storage
+        .from('retreat-photos')
+        .getPublicUrl(storagePath);
+    return data.publicUrl;
+}
+
+/**
+ * Telegram Bot Integration
+ */
+
+// Перезагрузить профиль гостя
+async function loadGuestProfile() {
+    try {
+        const loggedInUser = await PortalAuth.checkGuestAuth();
+        if (!loggedInUser) return;
+
+        window.currentGuest = loggedInUser;
+        populateProfile(loggedInUser);
+
+        // Обновляем статус Telegram после перезагрузки профиля
+        await checkTelegramStatus();
+
+        console.log('Profile reloaded, telegram_chat_id:', loggedInUser.telegram_chat_id);
+    } catch (err) {
+        console.error('Error reloading profile:', err);
+    }
+}
+
+// Проверка статуса подключения Telegram
+async function checkTelegramStatus() {
+    const guest = window.currentGuest;
+    if (!guest) return;
+
+    const connected = !!guest.telegram_chat_id;
+
+    // Показываем/скрываем элементы в зависимости от статуса
+    const connectedEl = document.getElementById('telegram-connected');
+    const connectBtn = document.getElementById('telegram-connect-btn');
+    const disconnectBtn = document.getElementById('telegram-disconnect-btn');
+
+    if (connected) {
+        connectedEl.classList.remove('hidden');
+        connectedEl.classList.add('flex');
+        connectBtn.classList.add('hidden');
+        disconnectBtn.classList.remove('hidden');
+    } else {
+        connectedEl.classList.add('hidden');
+        connectedEl.classList.remove('flex');
+        connectBtn.classList.remove('hidden');
+        disconnectBtn.classList.add('hidden');
+    }
+}
+
+// Подключить Telegram уведомления
+async function connectTelegram() {
+    const guest = window.currentGuest;
+    if (!guest?.id) {
+        PortalLayout.showNotification('Ошибка загрузки профиля', 'error');
+        return;
+    }
+
+    try {
+        // Генерируем одноразовый токен с TTL 15 минут
+        const token = crypto.randomUUID();
+        const expiresAt = new Date(Date.now() + 15 * 60 * 1000).toISOString();
+
+        const { data, error } = await window.portalSupabase
+            .from('telegram_link_tokens')
+            .insert({
+                token,
+                vaishnava_id: guest.id,
+                expires_at: expiresAt,
+                used: false
+            })
+            .select()
+            .single();
+
+        if (error) {
+            console.error('Error creating telegram token:', error);
+            PortalLayout.showNotification('Ошибка создания ссылки', 'error');
+            return;
+        }
+
+        // Получаем имя бота из конфига
+        const botName = window.PORTAL_CONFIG?.TELEGRAM_BOT_NAME || 'rupaseva_bot';
+        const deepLink = `https://t.me/${botName}?start=${token}`;
+
+        // Показываем модальное окно с ссылкой
+        showTelegramLinkModal(deepLink, token);
+
+    } catch (err) {
+        console.error('Error connecting telegram:', err);
+        PortalLayout.showNotification('Ошибка подключения', 'error');
+    }
+}
+
+// Показать модальное окно с deep link
+function showTelegramLinkModal(deepLink, token) {
+    const modal = document.getElementById('telegramLinkModal');
+    if (!modal) return;
+
+    document.getElementById('telegram-deep-link').href = deepLink;
+    document.getElementById('telegram-deep-link').textContent = deepLink;
+
+    // QR код (опционально, можно добавить библиотеку qrcode.js позже)
+    // const qrContainer = document.getElementById('telegram-qr-code');
+    // new QRCode(qrContainer, deepLink);
+
+    modal.classList.remove('hidden');
+    document.body.style.overflow = 'hidden';
+
+    // Polling для проверки использования токена
+    const pollInterval = setInterval(async () => {
+        const { data, error } = await window.portalSupabase
+            .from('telegram_link_tokens')
+            .select('used')
+            .eq('token', token)
+            .single();
+
+        if (error) {
+            console.warn('Polling error:', error);
+            clearInterval(pollInterval);
+            return;
+        }
+
+        console.log('Polling token status:', data);
+
+        if (data && data.used) {
+            console.log('Token used! Updating profile...');
+            clearInterval(pollInterval);
+            closeTelegramLinkModal();
+
+            // Обновляем профиль
+            await loadGuestProfile();
+
+            PortalLayout.showNotification('Telegram успешно подключён!', 'success');
+        }
+    }, 3000); // Проверяем каждые 3 секунды
+
+    // Останавливаем polling через 15 минут (токен истекает)
+    setTimeout(() => clearInterval(pollInterval), 15 * 60 * 1000);
+}
+
+function closeTelegramLinkModal() {
+    const modal = document.getElementById('telegramLinkModal');
+    if (!modal) return;
+
+    modal.classList.add('hidden');
+    document.body.style.overflow = '';
+}
+
+// Отключить Telegram уведомления
+async function disconnectTelegram() {
+    const guest = window.currentGuest;
+    if (!guest?.id) {
+        PortalLayout.showNotification('Ошибка загрузки профиля', 'error');
+        return;
+    }
+
+    if (!confirm('Отключить Telegram уведомления?')) {
+        return;
+    }
+
+    try {
+        const { error } = await window.portalSupabase
+            .from('vaishnavas')
+            .update({ telegram_chat_id: null })
+            .eq('id', guest.id);
+
+        if (error) {
+            console.error('Error disconnecting telegram:', error);
+            PortalLayout.showNotification('Ошибка отключения', 'error');
+            return;
+        }
+
+        // Обновляем локальный кеш
+        window.currentGuest.telegram_chat_id = null;
+
+        // Обновляем UI
+        await checkTelegramStatus();
+
+        PortalLayout.showNotification('Telegram уведомления отключены', 'success');
+
+    } catch (err) {
+        console.error('Error disconnecting telegram:', err);
+        PortalLayout.showNotification('Ошибка отключения', 'error');
     }
 }
 

@@ -1,0 +1,357 @@
+<!DOCTYPE html>
+<html lang="ru" data-theme="light">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Управление фото | Rupa Seva</title>
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg">
+
+    <!-- Color Init (ПЕРВЫМ для предотвращения FOUC) -->
+    <script src="../photos/js/color-init.js"></script>
+
+    <!-- DaisyUI + Tailwind CSS -->
+    <link href="https://cdn.jsdelivr.net/npm/daisyui@4.12.14/dist/full.min.css" rel="stylesheet" />
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>tailwind.config = { theme: { extend: { screens: { 'desktop': '1200px' } } } }</script>
+
+    <!-- Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans:wght@400;500;600;700&family=Noto+Sans+Devanagari:wght@400;500;600;700&display=swap" rel="stylesheet">
+
+    <!-- Common Styles -->
+    <link rel="stylesheet" href="../css/common.css">
+
+    <!-- Supabase -->
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+
+    <style>
+        .photo-card {
+            position: relative;
+            aspect-ratio: 1;
+            border-radius: 0.5rem;
+            overflow: hidden;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        .photo-card:hover {
+            transform: scale(1.05);
+            box-shadow: 0 10px 25px rgba(0,0,0,0.15);
+        }
+        .photo-card img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+        }
+        .photo-card .photo-checkbox {
+            position: absolute;
+            top: 8px;
+            left: 8px;
+            z-index: 10;
+            width: 24px;
+            height: 24px;
+            cursor: pointer;
+            accent-color: var(--current-color);
+        }
+        .photo-card.selected {
+            outline: 4px solid #ec4899;
+            outline-offset: -4px;
+        }
+        .status-badge {
+            position: absolute;
+            bottom: 8px;
+            right: 8px;
+            padding: 4px 8px;
+            border-radius: 4px;
+            font-size: 11px;
+            font-weight: 500;
+            backdrop-filter: blur(4px);
+        }
+        .status-pending { background: rgba(251, 191, 36, 0.9); color: #78350f; }
+        .status-processing { background: rgba(59, 130, 246, 0.9); color: white; }
+        .status-indexed { background: rgba(16, 185, 129, 0.9); color: white; }
+        .status-failed { background: rgba(239, 68, 68, 0.9); color: white; }
+
+        /* Lightbox styles */
+        .lightbox {
+            display: none;
+            position: fixed;
+            z-index: 1000;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0,0,0,0.95);
+            align-items: center;
+            justify-content: center;
+        }
+        .lightbox.active {
+            display: flex;
+        }
+        .lightbox img {
+            max-width: 90%;
+            max-height: 90vh;
+            object-fit: contain;
+        }
+        .lightbox-close {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            color: white;
+            font-size: 40px;
+            cursor: pointer;
+            z-index: 1001;
+            width: 50px;
+            height: 50px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background: rgba(255,255,255,0.1);
+            border-radius: 50%;
+            transition: all 0.2s;
+        }
+        .lightbox-close:hover {
+            background: rgba(255,255,255,0.2);
+        }
+        .lightbox-nav {
+            position: absolute;
+            top: 50%;
+            transform: translateY(-50%);
+            color: white;
+            cursor: pointer;
+            z-index: 1001;
+            width: 60px;
+            height: 60px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background: rgba(255,255,255,0.1);
+            border-radius: 50%;
+            transition: all 0.2s;
+            user-select: none;
+        }
+        .lightbox-nav:hover {
+            background: rgba(255,255,255,0.2);
+        }
+        .lightbox-prev {
+            left: 20px;
+        }
+        .lightbox-next {
+            right: 20px;
+        }
+    </style>
+</head>
+<body class="bg-base-200 min-h-screen flex flex-col">
+
+    <div id="header-placeholder"></div>
+
+    <main class="container mx-auto px-4 py-6 flex-1">
+
+        <!-- Page Header -->
+        <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6">
+            <h1 class="text-2xl font-bold" data-i18n="manage_photos_title">Управление фотографиями</h1>
+            <div class="flex gap-3">
+                <button id="deleteSelectedBtn" class="btn btn-error gap-2" disabled>
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                    </svg>
+                    <span data-i18n="delete_selected">Удалить выбранные</span>
+                </button>
+                <div class="dropdown dropdown-end">
+                    <button tabindex="0" class="btn btn-ghost gap-2">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                        </svg>
+                        <span data-i18n="reindex">Индексация</span>
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" />
+                        </svg>
+                    </button>
+                    <ul tabindex="0" class="dropdown-content menu bg-base-100 rounded-box z-[1] w-64 p-2 shadow-lg border border-base-300">
+                        <li>
+                            <a id="reindexPendingBtn" class="flex flex-col items-start py-3">
+                                <span class="font-medium" data-i18n="reindex_pending">Индексировать необработанные</span>
+                                <span class="text-xs opacity-60" data-i18n="reindex_pending_hint">Только фото со статусом "Ожидает" и "Ошибка"</span>
+                            </a>
+                        </li>
+                        <li>
+                            <a id="reindexAllBtn" class="flex flex-col items-start py-3">
+                                <span class="font-medium" data-i18n="reindex_all">Переиндексировать всё</span>
+                                <span class="text-xs opacity-60" data-i18n="reindex_all_hint">Сброс всех фото и полная переиндексация</span>
+                            </a>
+                        </li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+
+        <!-- Retreat Selector -->
+        <div class="bg-base-100 rounded-xl p-6 mb-6 shadow-sm">
+            <label class="label">
+                <span class="label-text font-medium" data-i18n="select_retreat">Выберите ретрит</span>
+            </label>
+            <select id="retreatSelect" class="select select-bordered w-full max-w-md">
+                <option value="" data-i18n="loading">Загрузка...</option>
+            </select>
+        </div>
+
+        <!-- Прогресс индексации -->
+        <div id="indexingProgressContainer" class="mb-6 hidden">
+            <div class="bg-base-100 rounded-xl p-6 shadow-sm">
+                <div class="flex items-start gap-3 mb-3">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 flex-shrink-0 mt-0.5 animate-spin" style="color: #ec4899;" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/>
+                    </svg>
+                    <div class="flex-1">
+                        <div class="text-sm font-medium" style="color: #831843;">
+                            <span data-i18n="indexing_faces">Индексация лиц</span>: <span id="indexingStats">0/0</span>
+                        </div>
+                        <div class="text-xs opacity-70 mt-1" style="color: #831843;" data-i18n="indexing_message">
+                            Вы можете закрыть эту страницу — индексация продолжится автоматически
+                        </div>
+                    </div>
+                </div>
+                <!-- Прогресс-бар -->
+                <div class="mb-2" style="height: 8px; background: rgba(236, 72, 153, 0.2); border-radius: 4px; overflow: hidden;">
+                    <div id="indexingBar" style="height: 100%; width: 0%; background: #ec4899; transition: width 0.3s ease;"></div>
+                </div>
+                <div class="flex items-center justify-between text-xs" style="color: #831843;">
+                    <span><span data-i18n="faces_found">Найдено лиц</span>: <span id="facesFound">0</span></span>
+                    <span id="indexingPercent">0%</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- Stats -->
+        <div id="statsContainer" class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6 hidden">
+            <div class="bg-base-100 rounded-xl p-4 shadow-sm">
+                <div class="text-sm opacity-60 mb-1" data-i18n="total_photos">Всего фото</div>
+                <div class="text-2xl font-bold" id="totalCount">0</div>
+            </div>
+            <div class="bg-base-100 rounded-xl p-4 shadow-sm">
+                <div class="text-sm opacity-60 mb-1" data-i18n="indexed">Проиндексировано</div>
+                <div class="text-2xl font-bold text-success" id="indexedCount">0</div>
+            </div>
+            <div class="bg-base-100 rounded-xl p-4 shadow-sm">
+                <div class="text-sm opacity-60 mb-1" data-i18n="pending">Ожидает</div>
+                <div class="text-2xl font-bold text-warning" id="pendingCount">0</div>
+            </div>
+            <div class="bg-base-100 rounded-xl p-4 shadow-sm">
+                <div class="text-sm opacity-60 mb-1" data-i18n="failed">Ошибка</div>
+                <div class="text-2xl font-bold text-error" id="failedCount">0</div>
+            </div>
+        </div>
+
+        <!-- Photos Grid -->
+        <div id="photosContainer" class="hidden">
+            <div class="flex items-center justify-between mb-4">
+                <div class="flex items-center gap-4">
+                    <label class="flex items-center gap-2 cursor-pointer">
+                        <input type="checkbox" id="selectAllCheckbox" class="checkbox checkbox-primary">
+                        <span class="text-sm" data-i18n="select_all">Выбрать все</span>
+                    </label>
+                    <span id="selectedCount" class="text-sm opacity-60"></span>
+                </div>
+                <div class="form-control">
+                    <label class="label cursor-pointer gap-2">
+                        <span class="label-text text-sm" data-i18n="filter_status">Фильтр:</span>
+                        <select id="statusFilter" class="select select-bordered select-sm">
+                            <option value="all" data-i18n="all">Все</option>
+                            <option value="pending" data-i18n="pending">Ожидает</option>
+                            <option value="processing" data-i18n="processing">Обрабатывается</option>
+                            <option value="indexed" data-i18n="indexed">Проиндексировано</option>
+                            <option value="failed" data-i18n="failed">Ошибка</option>
+                        </select>
+                    </label>
+                </div>
+            </div>
+
+            <div id="photosGrid" class="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-6 gap-4">
+                <!-- Photos will be rendered here -->
+            </div>
+
+            <div id="noPhotos" class="hidden text-center py-12 opacity-50">
+                <div class="text-4xl mb-2">📷</div>
+                <p data-i18n="no_photos">Нет фотографий</p>
+            </div>
+        </div>
+
+        <div id="emptyState" class="text-center py-12 opacity-50">
+            <div class="text-4xl mb-2">📸</div>
+            <p data-i18n="select_retreat_to_view">Выберите ретрит для просмотра фотографий</p>
+        </div>
+
+    </main>
+
+    <div id="footer-placeholder"></div>
+
+    <!-- Delete Confirmation Modal -->
+    <dialog id="deleteModal" class="modal">
+        <div class="modal-box">
+            <h3 class="font-bold text-lg mb-4" data-i18n="delete_confirm">Удалить фото?</h3>
+            <p class="mb-4">
+                <span data-i18n="delete_confirm_text">Это действие нельзя отменить. Будет удалено</span>
+                <strong id="deleteCount">0</strong>
+                <span data-i18n="photos">фото</span>.
+            </p>
+            <div class="modal-action">
+                <button class="btn btn-ghost" onclick="deleteModal.close()" data-i18n="cancel">Отмена</button>
+                <button id="confirmDeleteBtn" class="btn btn-error" data-i18n="delete">Удалить</button>
+            </div>
+        </div>
+        <form method="dialog" class="modal-backdrop"><button>close</button></form>
+    </dialog>
+
+    <!-- Reindex Confirmation Modal -->
+    <dialog id="reindexModal" class="modal">
+        <div class="modal-box">
+            <h3 id="reindexModalTitle" class="font-bold text-lg mb-4" data-i18n="reindex_confirm">Переиндексировать фотографии?</h3>
+            <p id="reindexModalText" class="mb-4" data-i18n="reindex_confirm_text">Это может занять несколько минут.</p>
+            <div class="modal-action">
+                <button class="btn btn-ghost" onclick="reindexModal.close()" data-i18n="cancel">Отмена</button>
+                <button id="confirmReindexBtn" class="btn btn-primary" data-i18n="start">Начать</button>
+            </div>
+        </div>
+        <form method="dialog" class="modal-backdrop"><button>close</button></form>
+    </dialog>
+
+    <!-- Lightbox -->
+    <div id="lightbox" class="lightbox">
+        <span class="lightbox-close" onclick="closeLightbox()">&times;</span>
+        <span class="lightbox-prev lightbox-nav" onclick="navigateLightbox(-1)">
+            <svg class="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7" />
+            </svg>
+        </span>
+        <img id="lightboxImg" src="" alt="">
+        <span class="lightbox-next lightbox-nav" onclick="navigateLightbox(1)">
+            <svg class="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" />
+            </svg>
+        </span>
+        <div class="absolute bottom-8 left-1/2 transform -translate-x-1/2 flex gap-4">
+            <button id="downloadBtn" type="button" class="px-6 py-3 bg-white text-gray-800 rounded-xl font-medium hover:bg-gray-100 transition-colors flex items-center gap-2 cursor-pointer">
+                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                </svg>
+                Скачать
+            </button>
+        </div>
+    </div>
+
+    <!-- Core Dependencies -->
+    <script src="../js/config.js"></script>
+    <script src="../js/auth-check.js?v=3"></script>
+    <script src="../js/permissions-ui.js?v=2"></script>
+    <script src="../js/cache.js"></script>
+    <script src="../js/utils.js?v=2"></script>
+    <script src="../js/layout.js?v=6"></script>
+
+    <!-- Page Logic -->
+    <script src="../photos/js/manage.js"></script>
+    <script>
+        Layout.init({ module: 'photos', menuId: 'photos', itemId: 'manage_photos' });
+    </script>
+
+</body>
+</html>

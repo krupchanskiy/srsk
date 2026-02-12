@@ -147,6 +147,28 @@
                     </div>
                 </a>
 
+                <!-- Photos Module (только для пользователей с upload_photos) -->
+                <a href="photos/upload.html" onclick="selectModule('photos')" id="photosModule" data-color="#ec4899"
+                   class="module-card group rounded-2xl shadow-md hover:shadow-lg transition-all hover:scale-[1.02] hidden"
+                   style="background: linear-gradient(135deg, #ec4899 0%, #db2777 100%);">
+                    <div class="p-6">
+                        <div class="flex items-center gap-4 mb-3">
+                            <div class="w-12 h-12 rounded-xl bg-white/20 flex items-center justify-center">
+                                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-7 h-7 text-white">
+                                    <path stroke-linecap="round" stroke-linejoin="round" d="M6.827 6.175A2.31 2.31 0 0 1 5.186 7.23c-.38.054-.757.112-1.134.175C2.999 7.58 2.25 8.507 2.25 9.574V18a2.25 2.25 0 0 0 2.25 2.25h15A2.25 2.25 0 0 0 21.75 18V9.574c0-1.067-.75-1.994-1.802-2.169a47.865 47.865 0 0 0-1.134-.175 2.31 2.31 0 0 1-1.64-1.055l-.822-1.316a2.192 2.192 0 0 0-1.736-1.039 48.774 48.774 0 0 0-5.232 0 2.192 2.192 0 0 0-1.736 1.039l-.821 1.316Z" />
+                                    <path stroke-linecap="round" stroke-linejoin="round" d="M16.5 12.75a4.5 4.5 0 1 1-9 0 4.5 4.5 0 0 1 9 0ZM18.75 10.5h.008v.008h-.008V10.5Z" />
+                                </svg>
+                            </div>
+                            <h2 class="text-2xl font-bold text-white" data-i18n="module_photos">Фото</h2>
+                        </div>
+                        <div class="flex flex-wrap gap-2 text-sm text-white/80">
+                            <span data-i18n="nav_upload_photos">Загрузка фото</span>
+                            <span>•</span>
+                            <span data-i18n="nav_manage_photos">Управление фото</span>
+                        </div>
+                    </div>
+                </a>
+
                 <!-- Admin Module (только для суперпользователей) -->
                 <a href="ashram/retreats.html" onclick="selectModule('admin')" id="adminModule" data-color="#374151"
                    class="module-card group rounded-2xl shadow-md hover:shadow-lg transition-all hover:scale-[1.02] hidden"
@@ -235,6 +257,11 @@
             const vaishnavaId = window.currentUser?.vaishnava_id;
             if (vaishnavaId) {
                 document.getElementById('profileLink').href = `/guest-portal/index.html?view=${vaishnavaId}`;
+            }
+
+            // Показать модуль "Фото" только пользователям с upload_photos
+            if (window.hasPermission && window.hasPermission('upload_photos')) {
+                document.getElementById('photosModule')?.classList.remove('hidden');
             }
 
             // Показать модуль "Управление" только суперпользователям

@@ -1,0 +1,1081 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Фотогалерея — ШРСК</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans:wght@300;400;500;600;700&family=Noto+Sans+Devanagari:wght@400;500;600&display=swap" rel="stylesheet">
+    <!-- Portal CSS -->
+    <link rel="stylesheet" href="css/portal.css">
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        'srsk-green': '#147D30',
+                        'srsk-orange': '#FFBA47',
+                        'srsk-bg': '#F5F3EF',
+                    },
+                    fontFamily: {
+                        'sans': ['Noto Sans', 'Noto Sans Devanagari', 'sans-serif'],
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        body {
+            font-family: 'Noto Sans', 'Noto Sans Devanagari', sans-serif;
+        }
+        .photo-card {
+            position: relative;
+            aspect-ratio: 1;
+            border-radius: 12px;
+            overflow: hidden;
+            cursor: pointer;
+            transition: all 0.2s;
+            background: #f0f0f0;
+        }
+        .photo-card:hover {
+            transform: scale(1.05);
+            box-shadow: 0 10px 25px rgba(0,0,0,0.15);
+        }
+        .photo-card img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+        }
+        .photo-card .photo-checkbox {
+            position: absolute;
+            top: 8px;
+            left: 8px;
+            z-index: 10;
+            width: 24px;
+            height: 24px;
+            cursor: pointer;
+            accent-color: #147D30;
+        }
+        .photo-card.selected {
+            outline: 4px solid #147D30;
+            outline-offset: -4px;
+        }
+        .lightbox {
+            display: none;
+            position: fixed;
+            z-index: 1000;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0,0,0,0.95);
+            align-items: center;
+            justify-content: center;
+        }
+        .lightbox.active {
+            display: flex;
+        }
+        .lightbox img {
+            max-width: 90%;
+            max-height: 90vh;
+            object-fit: contain;
+        }
+        .lightbox-close {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            color: white;
+            font-size: 40px;
+            cursor: pointer;
+            z-index: 1001;
+            width: 50px;
+            height: 50px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background: rgba(255,255,255,0.1);
+            border-radius: 50%;
+            transition: all 0.2s;
+        }
+        .lightbox-close:hover {
+            background: rgba(255,255,255,0.2);
+        }
+        .lightbox-nav {
+            position: absolute;
+            top: 50%;
+            transform: translateY(-50%);
+            color: white;
+            cursor: pointer;
+            z-index: 1001;
+            width: 60px;
+            height: 60px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background: rgba(255,255,255,0.1);
+            border-radius: 50%;
+            transition: all 0.2s;
+            user-select: none;
+        }
+        .lightbox-nav:hover {
+            background: rgba(255,255,255,0.2);
+        }
+        .lightbox-prev {
+            left: 20px;
+        }
+        .lightbox-next {
+            right: 20px;
+        }
+        .day-section {
+            scroll-margin-top: 100px;
+        }
+    </style>
+</head>
+<body class="bg-srsk-bg min-h-screen">
+
+    <!-- Шапка -->
+    <header class="bg-srsk-green sticky top-0 z-50">
+        <div class="max-w-7xl mx-auto px-4 md:px-6 lg:px-8">
+            <div class="flex items-center justify-between h-16">
+                <a href="index.html" class="text-white text-xl font-semibold">← Назад</a>
+                <h1 class="text-white text-lg font-medium" id="pageTitle">Фотогалерея</h1>
+                <div class="w-20"></div> <!-- Spacer for centering -->
+            </div>
+        </div>
+    </header>
+
+    <!-- Основной контент -->
+    <main class="max-w-7xl mx-auto px-4 md:px-6 lg:px-8 py-8">
+
+        <!-- Фильтры -->
+        <div class="mb-8 bg-white rounded-2xl shadow-sm p-6">
+            <div class="flex flex-col md:flex-row gap-4 items-start md:items-center justify-between">
+                <!-- Фильтр по ретриту -->
+                <div class="flex-1 w-full md:w-auto">
+                    <label class="block text-sm font-medium text-gray-700 mb-2">Ретрит</label>
+                    <select id="retreatFilter" class="w-full px-4 py-3 bg-white rounded-xl border border-gray-200 focus:outline-none focus:ring-2 focus:ring-srsk-green">
+                        <option value="all">Все ретриты</option>
+                    </select>
+                </div>
+
+                <!-- Фильтр по дню -->
+                <div class="flex-1 w-full md:w-auto">
+                    <label class="block text-sm font-medium text-gray-700 mb-2">День</label>
+                    <select id="dayFilter" class="w-full px-4 py-3 bg-white rounded-xl border border-gray-200 focus:outline-none focus:ring-2 focus:ring-srsk-green">
+                        <option value="all">Все дни</option>
+                    </select>
+                </div>
+
+                <!-- Чекбокс "Фото со мной" -->
+                <div class="flex items-end h-full pt-7">
+                    <label class="flex items-center gap-2 cursor-pointer">
+                        <input type="checkbox" id="myPhotosOnly" class="w-5 h-5 text-srsk-green rounded border-gray-300 focus:ring-srsk-green">
+                        <span class="text-sm font-medium text-gray-700">Фото со мной</span>
+                        <span id="myPhotosCount" class="text-xs text-gray-500 hidden"></span>
+                    </label>
+                </div>
+            </div>
+
+            <!-- Кнопка "Найти себя" -->
+            <div id="searchFaceSection" class="mt-6 pt-6 border-t border-gray-200">
+                <div class="flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
+                    <div>
+                        <h3 class="text-lg font-semibold text-gray-800 mb-1">Найдите себя на фотографиях</h3>
+                        <p class="text-sm text-gray-600">Загрузите своё фото, и AI найдёт все снимки с вами</p>
+                    </div>
+                    <div class="flex gap-2">
+                        <input type="file" id="selfieInput" accept="image/jpeg,image/jpg,image/png" class="hidden">
+                        <button id="findMeBtn" class="px-6 py-3 bg-srsk-green text-white rounded-xl font-medium hover:bg-green-700 transition-colors whitespace-nowrap flex items-center gap-2">
+                            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                            </svg>
+                            Найти себя
+                        </button>
+                    </div>
+                </div>
+                <!-- Статус поиска -->
+                <div id="searchStatus" class="hidden mt-4 p-4 rounded-xl bg-blue-50 border border-blue-200">
+                    <div class="flex items-center gap-3">
+                        <div id="searchStatusSpinner" class="w-6 h-6 border-2 border-blue-500 border-t-transparent rounded-full animate-spin"></div>
+                        <div id="searchStatusCheck" class="hidden w-6 h-6 text-green-600">
+                            <svg class="w-6 h-6" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7" />
+                            </svg>
+                        </div>
+                        <span class="text-sm text-blue-800" id="searchStatusText">Поиск...</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Счётчик фото и панель выбора -->
+        <div class="mb-6 flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
+            <div id="photoCount" class="text-gray-600">
+                <!-- Будет заполнено JS -->
+            </div>
+            <!-- Панель множественного выбора -->
+            <div id="selectionPanel" class="hidden flex items-center gap-3">
+                <span id="selectedCount" class="text-sm font-medium text-gray-700">Выбрано: 0</span>
+                <button id="selectAllBtn" class="px-4 py-2 text-sm bg-gray-100 hover:bg-gray-200 rounded-lg transition-colors">
+                    Выбрать все
+                </button>
+                <button id="downloadSelectedBtn" class="px-4 py-2 text-sm bg-srsk-green text-white rounded-lg hover:bg-green-700 transition-colors flex items-center gap-2">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                    </svg>
+                    Скачать ZIP
+                </button>
+            </div>
+        </div>
+
+        <!-- Галерея по дням -->
+        <div id="galleryContainer">
+            <!-- Будет заполнено JS -->
+        </div>
+
+        <!-- Пустое состояние -->
+        <div id="emptyState" class="hidden flex flex-col items-center justify-center py-20 px-4">
+            <svg class="w-24 h-24 text-blue-200 mb-6" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M2.25 15.75l5.159-5.159a2.25 2.25 0 013.182 0l5.159 5.159m-1.5-1.5l1.409-1.409a2.25 2.25 0 013.182 0l2.909 2.909m-18 3.75h16.5a1.5 1.5 0 001.5-1.5V6a1.5 1.5 0 00-1.5-1.5H3.75A1.5 1.5 0 002.25 6v12a1.5 1.5 0 001.5 1.5zm10.5-11.25h.008v.008h-.008V8.25zm.375 0a.375.375 0 11-.75 0 .375.375 0 01.75 0z" />
+            </svg>
+            <h2 class="text-2xl font-semibold text-gray-700 mb-2">Пока нет фотографий</h2>
+            <p class="text-gray-500 text-center max-w-md">Фотографии появятся после вашего ретрита</p>
+        </div>
+
+        <!-- Loader -->
+        <div id="loader" class="text-center py-20">
+            <div class="inline-block w-12 h-12 border-4 border-gray-200 border-t-srsk-green rounded-full animate-spin"></div>
+            <p class="mt-4 text-gray-600">Загрузка фотографий...</p>
+        </div>
+
+    </main>
+
+    <!-- Lightbox -->
+    <div id="lightbox" class="lightbox">
+        <span class="lightbox-close" onclick="closeLightbox()">&times;</span>
+        <span class="lightbox-prev lightbox-nav" onclick="navigateLightbox(-1)">
+            <svg class="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7" />
+            </svg>
+        </span>
+        <img id="lightboxImg" src="" alt="">
+        <span class="lightbox-next lightbox-nav" onclick="navigateLightbox(1)">
+            <svg class="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" />
+            </svg>
+        </span>
+        <div class="absolute bottom-8 left-1/2 transform -translate-x-1/2 flex gap-4">
+            <button id="downloadBtn" type="button" class="px-6 py-3 bg-white text-gray-800 rounded-xl font-medium hover:bg-gray-100 transition-colors flex items-center gap-2 cursor-pointer">
+                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                </svg>
+                Скачать
+            </button>
+        </div>
+    </div>
+
+    <!-- JSZip для создания архивов -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+
+    <!-- Supabase -->
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script src="js/portal-config.js"></script>
+    <script src="js/portal-auth.js"></script>
+
+    <script>
+        // ==================== STATE ====================
+        let allPhotos = [];
+        let myPhotos = []; // Фото где есть пользователь (пока пустой массив, будет в Фазе 2)
+        let filteredPhotos = [];
+        let currentPhotoIndex = 0;
+        let retreats = [];
+        let currentRetreatFilter = 'all';
+        let currentDayFilter = 'all';
+        let showMyPhotosOnly = false;
+        let selectedPhotoIds = new Set(); // Выбранные фото для скачивания
+
+        // ==================== INIT ====================
+        async function init() {
+            // Check auth first
+            const guest = await PortalAuth.checkGuestAuth();
+
+            if (!guest) {
+                // checkGuestAuth already redirects to login
+                return;
+            }
+
+            // Load user's retreats
+            await loadRetreats();
+        }
+
+        async function loadRetreats() {
+            const supabase = window.portalSupabase;
+            if (!supabase) {
+                console.error('Supabase client not initialized');
+                showEmpty();
+                return;
+            }
+
+            const currentUser = window.currentGuest;
+            if (!currentUser || !currentUser.id) {
+                console.error('Current user not found');
+                showEmpty();
+                return;
+            }
+
+            // Get retreat IDs where user is registered
+            const { data: registrations, error: regError } = await supabase
+                .from('retreat_registrations')
+                .select('retreat_id')
+                .eq('vaishnava_id', currentUser.id)
+                .in('status', ['guest', 'team']);
+
+            if (regError) {
+                console.error('Error loading registrations:', regError);
+                showEmpty();
+                return;
+            }
+
+            if (!registrations || registrations.length === 0) {
+                showEmpty();
+                return;
+            }
+
+            const retreatIds = registrations.map(r => r.retreat_id);
+
+            // Load retreat details
+            const { data: retreatsData, error: retreatsError } = await supabase
+                .from('retreats')
+                .select('id, name_ru, name_en, name_hi, start_date, end_date')
+                .in('id', retreatIds)
+                .order('start_date', { ascending: false });
+
+            if (retreatsError) {
+                console.error('Error loading retreats:', retreatsError);
+                showEmpty();
+                return;
+            }
+
+            retreats = retreatsData || [];
+
+            if (retreats.length === 0) {
+                showEmpty();
+                return;
+            }
+
+            // Load all photos from all user's retreats
+            await loadAllPhotos();
+        }
+
+        async function loadAllPhotos() {
+            const supabase = window.portalSupabase;
+            if (!supabase) {
+                console.error('Supabase client not initialized');
+                showEmpty();
+                return;
+            }
+
+            document.getElementById('loader').classList.remove('hidden');
+            document.getElementById('emptyState').classList.add('hidden');
+
+            const retreatIds = retreats.map(r => r.id);
+
+            // Load all photos (без вложенного запроса к retreats)
+            const { data, error } = await supabase
+                .from('retreat_photos')
+                .select('*')
+                .in('retreat_id', retreatIds)
+                .eq('index_status', 'indexed')
+                .order('uploaded_at', { ascending: false });
+
+            document.getElementById('loader').classList.add('hidden');
+
+            if (error) {
+                console.error('Error loading photos:', error);
+                showEmpty();
+                return;
+            }
+
+            // Добавляем информацию о ретрите из уже загруженного массива retreats
+            allPhotos = (data || []).map(photo => {
+                const retreat = retreats.find(r => r.id === photo.retreat_id);
+                return {
+                    ...photo,
+                    retreat_name_ru: retreat?.name_ru,
+                    retreat_name_en: retreat?.name_en,
+                    retreat_name_hi: retreat?.name_hi
+                };
+            });
+
+            if (allPhotos.length === 0) {
+                showEmpty();
+                return;
+            }
+
+            // Load my photos (with face tags)
+            const currentUser = window.currentGuest;
+            if (currentUser && currentUser.id) {
+                const { data: myPhotoData } = await supabase
+                    .from('face_tags')
+                    .select('photo_id')
+                    .eq('vaishnava_id', currentUser.id);
+
+                myPhotos = myPhotoData?.map(t => t.photo_id) || [];
+
+                console.log('My photos loaded:', myPhotos.length);
+            }
+
+            renderFilters();
+            applyFilters();
+        }
+
+        function showEmpty() {
+            document.getElementById('loader').classList.add('hidden');
+            document.getElementById('emptyState').classList.remove('hidden');
+            document.getElementById('galleryContainer').innerHTML = '';
+            document.getElementById('photoCount').textContent = '';
+        }
+
+        function renderFilters() {
+            const lang = localStorage.getItem('language') || 'ru';
+
+            // Retreat filter
+            const retreatFilter = document.getElementById('retreatFilter');
+            retreatFilter.innerHTML = '<option value="all">Все ретриты</option>' +
+                retreats.map(r => {
+                    const name = r[`name_${lang}`] || r.name_ru;
+                    return `<option value="${r.id}">${name}</option>`;
+                }).join('');
+
+            retreatFilter.addEventListener('change', (e) => {
+                currentRetreatFilter = e.target.value;
+                applyFilters();
+            });
+
+            // Day filter - will be populated after filtering by retreat
+            const dayFilterSelect = document.getElementById('dayFilter');
+            dayFilterSelect.addEventListener('change', (e) => {
+                currentDayFilter = e.target.value;
+                applyFilters();
+            });
+
+            // My photos checkbox
+            const myPhotosCheckbox = document.getElementById('myPhotosOnly');
+            myPhotosCheckbox.addEventListener('change', (e) => {
+                showMyPhotosOnly = e.target.checked;
+                applyFilters();
+            });
+
+            // Update my photos count
+            if (myPhotos.length > 0) {
+                document.getElementById('myPhotosCount').textContent = `(${myPhotos.length})`;
+                document.getElementById('myPhotosCount').classList.remove('hidden');
+            } else {
+                myPhotosCheckbox.disabled = true;
+                myPhotosCheckbox.parentElement.classList.add('opacity-50', 'cursor-not-allowed');
+            }
+        }
+
+        function applyFilters() {
+            let photos = [...allPhotos];
+
+            // Filter by retreat
+            if (currentRetreatFilter !== 'all') {
+                photos = photos.filter(p => p.retreat_id === currentRetreatFilter);
+            }
+
+            // Filter by my photos
+            if (showMyPhotosOnly && myPhotos.length > 0) {
+                photos = photos.filter(p => myPhotos.includes(p.id));
+            }
+
+            // Update day filter options based on current photos
+            updateDayFilter(photos);
+
+            // Filter by day
+            if (currentDayFilter !== 'all') {
+                const dayNum = parseInt(currentDayFilter);
+                photos = photos.filter(p => (p.day_number || 0) === dayNum);
+            }
+
+            // Sort: my photos first, then by date
+            photos.sort((a, b) => {
+                const aIsMine = myPhotos.includes(a.id);
+                const bIsMine = myPhotos.includes(b.id);
+
+                if (aIsMine && !bIsMine) return -1;
+                if (!aIsMine && bIsMine) return 1;
+
+                // Both mine or both not mine - sort by date
+                return new Date(b.uploaded_at) - new Date(a.uploaded_at);
+            });
+
+            filteredPhotos = photos;
+
+            if (filteredPhotos.length === 0) {
+                showEmpty();
+            } else {
+                renderGallery();
+            }
+        }
+
+        function updateDayFilter(photos) {
+            const days = [...new Set(photos.map(p => p.day_number || 0))].sort((a, b) => a - b);
+            const dayFilterSelect = document.getElementById('dayFilter');
+
+            dayFilterSelect.innerHTML = '<option value="all">Все дни</option>' +
+                days.map(day => {
+                    const label = day == 0 ? 'Без даты' : `День ${day}`;
+                    const count = photos.filter(p => (p.day_number || 0) === day).length;
+                    return `<option value="${day}">${label} (${count})</option>`;
+                }).join('');
+
+            // Восстановить выбранное значение
+            dayFilterSelect.value = currentDayFilter;
+        }
+
+        function renderGallery() {
+            document.getElementById('emptyState').classList.add('hidden');
+
+            // Group by day and retreat
+            const photosByDay = {};
+            filteredPhotos.forEach(photo => {
+                const day = photo.day_number || 0;
+                if (!photosByDay[day]) photosByDay[day] = [];
+                photosByDay[day].push(photo);
+            });
+
+            const days = Object.keys(photosByDay).sort((a, b) => a - b);
+
+            // Photo count
+            const myCount = filteredPhotos.filter(p => myPhotos.includes(p.id)).length;
+            const countText = myCount > 0
+                ? `Всего: ${filteredPhotos.length} (с вами: ${myCount})`
+                : `Всего фотографий: ${filteredPhotos.length}`;
+            document.getElementById('photoCount').textContent = countText;
+
+            // Render gallery
+            const container = document.getElementById('galleryContainer');
+            const lang = localStorage.getItem('language') || 'ru';
+
+            container.innerHTML = days.map(day => {
+                const dayPhotos = photosByDay[day];
+                const label = day == 0 ? 'Без даты' : `День ${day}`;
+
+                return `
+                    <div id="day-${day}" class="day-section mb-12">
+                        <h2 class="text-2xl font-semibold text-gray-800 mb-4">${label}</h2>
+                        <div class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4">
+                            ${dayPhotos.map(photo => {
+                                const globalIdx = filteredPhotos.indexOf(photo);
+                                const url = getPhotoUrl(photo.storage_path);
+                                const thumbUrl = getPhotoUrl(photo.thumb_path || photo.storage_path);
+                                const isMine = myPhotos.includes(photo.id);
+                                const retreatName = photo[`retreat_name_${lang}`] || photo.retreat_name_ru || '';
+
+                                const isSelected = selectedPhotoIds.has(photo.id);
+                                return `
+                                    <div class="photo-card ${isMine ? 'ring-4 ring-srsk-orange' : ''} ${isSelected ? 'selected' : ''}">
+                                        <input type="checkbox" class="photo-checkbox" data-photo-id="${photo.id}" ${isSelected ? 'checked' : ''}
+                                               onclick="event.stopPropagation(); togglePhotoSelection('${photo.id}')">
+                                        <img src="${thumbUrl}" alt="Photo" loading="lazy" onclick="openLightbox(${globalIdx})">
+                                        ${isMine ? '<div class="absolute top-2 right-2 bg-srsk-orange text-white text-xs px-2 py-1 rounded-full">Вы</div>' : ''}
+                                        ${currentRetreatFilter === 'all' && retreatName ? `<div class="absolute bottom-2 left-2 right-2 bg-black bg-opacity-60 text-white text-xs px-2 py-1 rounded truncate">${retreatName}</div>` : ''}
+                                    </div>
+                                `;
+                            }).join('')}
+                        </div>
+                    </div>
+                `;
+            }).join('');
+
+            // Update selection UI after render
+            updateSelectionUI();
+        }
+
+        function getPhotoUrl(storagePath) {
+            const supabase = window.portalSupabase;
+            if (!supabase) return '';
+
+            const { data } = supabase.storage
+                .from('retreat-photos')
+                .getPublicUrl(storagePath);
+            return data.publicUrl;
+        }
+
+        function scrollToDay(dayId) {
+            if (dayId === 'all') {
+                window.scrollTo({ top: 0, behavior: 'smooth' });
+            } else {
+                document.getElementById(dayId).scrollIntoView({ behavior: 'smooth' });
+            }
+        }
+
+        // ==================== LIGHTBOX ====================
+        function openLightbox(index) {
+            currentPhotoIndex = index;
+            updateLightbox();
+            document.getElementById('lightbox').classList.add('active');
+            document.body.style.overflow = 'hidden';
+        }
+
+        function closeLightbox() {
+            document.getElementById('lightbox').classList.remove('active');
+            document.body.style.overflow = '';
+        }
+
+        function navigateLightbox(direction) {
+            currentPhotoIndex += direction;
+            if (currentPhotoIndex < 0) currentPhotoIndex = filteredPhotos.length - 1;
+            if (currentPhotoIndex >= filteredPhotos.length) currentPhotoIndex = 0;
+            updateLightbox();
+        }
+
+        function updateLightbox() {
+            const photo = filteredPhotos[currentPhotoIndex];
+            const url = getPhotoUrl(photo.storage_path);
+            const filename = photo.storage_path.split('/').pop();
+
+            document.getElementById('lightboxImg').src = url;
+
+            // Удаляем атрибуты href и download, используем onclick
+            const downloadBtn = document.getElementById('downloadBtn');
+            downloadBtn.removeAttribute('href');
+            downloadBtn.removeAttribute('download');
+            downloadBtn.onclick = () => downloadPhotoFile(url, filename);
+        }
+
+        async function downloadPhotoFile(url, filename) {
+            try {
+                const response = await fetch(url);
+                const blob = await response.blob();
+                const blobUrl = URL.createObjectURL(blob);
+
+                const a = document.createElement('a');
+                a.href = blobUrl;
+                a.download = filename;
+                document.body.appendChild(a);
+                a.click();
+                document.body.removeChild(a);
+
+                // Освобождаем память
+                URL.revokeObjectURL(blobUrl);
+            } catch (error) {
+                console.error('Ошибка скачивания фото:', error);
+                alert('Не удалось скачать фото. Попробуйте ещё раз.');
+            }
+        }
+
+        // ==================== MULTIPLE SELECTION ====================
+        function togglePhotoSelection(photoId) {
+            if (selectedPhotoIds.has(photoId)) {
+                selectedPhotoIds.delete(photoId);
+            } else {
+                selectedPhotoIds.add(photoId);
+            }
+            updateSelectionUI();
+        }
+
+        function updateSelectionUI() {
+            const count = selectedPhotoIds.size;
+            document.getElementById('selectedCount').textContent = `Выбрано: ${count}`;
+
+            const panel = document.getElementById('selectionPanel');
+            const downloadBtn = document.getElementById('downloadSelectedBtn');
+
+            if (count > 0) {
+                panel.classList.remove('hidden');
+                downloadBtn.disabled = false;
+            } else {
+                panel.classList.add('hidden');
+                downloadBtn.disabled = true;
+            }
+
+            // Update checkboxes state
+            document.querySelectorAll('.photo-checkbox').forEach(checkbox => {
+                const photoId = checkbox.dataset.photoId;
+                checkbox.checked = selectedPhotoIds.has(photoId);
+                const card = checkbox.closest('.photo-card');
+                card.classList.toggle('selected', selectedPhotoIds.has(photoId));
+            });
+
+            // Update select all button
+            const selectAllBtn = document.getElementById('selectAllBtn');
+            const allSelected = filteredPhotos.length > 0 && filteredPhotos.every(p => selectedPhotoIds.has(p.id));
+            selectAllBtn.textContent = allSelected ? 'Снять выбор' : 'Выбрать все';
+        }
+
+        function selectAllPhotos() {
+            const selectAllBtn = document.getElementById('selectAllBtn');
+            const allSelected = filteredPhotos.every(p => selectedPhotoIds.has(p.id));
+
+            if (allSelected) {
+                // Deselect all
+                filteredPhotos.forEach(p => selectedPhotoIds.delete(p.id));
+            } else {
+                // Select all filtered
+                filteredPhotos.forEach(p => selectedPhotoIds.add(p.id));
+            }
+
+            updateSelectionUI();
+        }
+
+        async function downloadSelectedAsZip() {
+            if (selectedPhotoIds.size === 0) return;
+
+            const btn = document.getElementById('downloadSelectedBtn');
+            const originalText = btn.innerHTML;
+            btn.disabled = true;
+            btn.innerHTML = '<span class="loading loading-spinner loading-sm"></span> Подготовка...';
+
+            try {
+                const zip = new JSZip();
+                const selectedPhotos = allPhotos.filter(p => selectedPhotoIds.has(p.id));
+
+                // Download photos and add to zip
+                let processed = 0;
+                for (const photo of selectedPhotos) {
+                    try {
+                        const url = getPhotoUrl(photo.storage_path);
+                        const response = await fetch(url);
+                        const blob = await response.blob();
+                        const filename = photo.storage_path.split('/').pop();
+
+                        zip.file(filename, blob);
+                        processed++;
+
+                        btn.innerHTML = `<span class="loading loading-spinner loading-sm"></span> ${processed}/${selectedPhotos.length}`;
+                    } catch (error) {
+                        console.error('Failed to download photo:', photo.id, error);
+                    }
+                }
+
+                btn.innerHTML = '<span class="loading loading-spinner loading-sm"></span> Создание архива...';
+
+                // Generate zip file
+                const zipBlob = await zip.generateAsync({ type: 'blob' });
+
+                // Download zip
+                const zipUrl = URL.createObjectURL(zipBlob);
+                const a = document.createElement('a');
+                a.href = zipUrl;
+                a.download = `photos-${new Date().toISOString().split('T')[0]}.zip`;
+                document.body.appendChild(a);
+                a.click();
+                document.body.removeChild(a);
+                URL.revokeObjectURL(zipUrl);
+
+                // Clear selection
+                selectedPhotoIds.clear();
+                updateSelectionUI();
+
+            } catch (error) {
+                console.error('Error creating ZIP:', error);
+                alert('Не удалось создать архив. Попробуйте ещё раз.');
+            } finally {
+                btn.disabled = false;
+                btn.innerHTML = originalText;
+            }
+        }
+
+        // ==================== FACE SEARCH ====================
+        async function findMyPhotos() {
+            const currentUser = window.currentGuest;
+
+            // Проверяем есть ли фото профиля
+            if (currentUser?.photoUrl) {
+                console.log('Используем фото профиля:', currentUser.photoUrl);
+                await searchFaceByUrl(currentUser.photoUrl);
+            } else {
+                // Нет фото профиля - просим загрузить селфи
+                console.log('Фото профиля отсутствует, запрос селфи');
+                document.getElementById('selfieInput').click();
+            }
+        }
+
+        async function searchFaceByUrl(photoUrl) {
+            const supabase = window.portalSupabase;
+            const currentUser = window.currentGuest;
+
+            if (!supabase || !currentUser) {
+                alert('Ошибка: пользователь не авторизован');
+                return;
+            }
+
+            // Показать статус
+            const statusDiv = document.getElementById('searchStatus');
+            const statusText = document.getElementById('searchStatusText');
+            const statusSpinner = document.getElementById('searchStatusSpinner');
+            const statusCheck = document.getElementById('searchStatusCheck');
+            statusDiv.classList.remove('hidden');
+            statusText.textContent = 'Поиск лиц...';
+            statusSpinner.classList.remove('hidden');
+            statusCheck.classList.add('hidden');
+
+            try {
+                const retreatIds = retreats.map(r => r.id);
+                let allFoundPhotoIds = new Set();
+
+                for (const retreatId of retreatIds) {
+                    try {
+                        const { data: searchResult, error: searchError } = await supabase.functions.invoke(
+                            'search-face',
+                            {
+                                body: {
+                                    retreat_id: retreatId,
+                                    vaishnava_id: currentUser.id,
+                                    threshold: 80
+                                }
+                            }
+                        );
+
+                        if (searchError) {
+                            console.error('Search error for retreat:', retreatId, searchError);
+                            continue;
+                        }
+
+                        if (searchResult?.matched_photo_ids) {
+                            searchResult.matched_photo_ids.forEach(id => allFoundPhotoIds.add(id));
+                        }
+                    } catch (err) {
+                        console.error('Error searching retreat:', retreatId, err);
+                    }
+                }
+
+                // Обновить myPhotos и применить фильтры
+                myPhotos = Array.from(allFoundPhotoIds);
+
+                if (myPhotos.length === 0) {
+                    statusDiv.classList.remove('bg-blue-50', 'border-blue-200');
+                    statusDiv.classList.add('bg-yellow-50', 'border-yellow-200');
+                    statusText.className = 'text-sm text-yellow-800';
+                    statusText.textContent = 'Не найдено фото с вами. Попробуйте загрузить другое фото.';
+                    statusSpinner.classList.add('hidden');
+                    statusCheck.classList.add('hidden');
+
+                    setTimeout(() => {
+                        statusDiv.classList.add('hidden');
+                    }, 5000);
+                } else {
+                    statusDiv.classList.remove('bg-blue-50', 'border-blue-200');
+                    statusDiv.classList.add('bg-green-50', 'border-green-200');
+                    statusText.className = 'text-sm text-green-800';
+                    statusText.textContent = `Найдено ${myPhotos.length} фото с вами!`;
+                    statusSpinner.classList.add('hidden');
+                    statusCheck.classList.remove('hidden');
+
+                    setTimeout(() => {
+                        statusDiv.classList.add('hidden');
+                    }, 3000);
+
+                    // Включить чекбокс "Фото со мной"
+                    const myPhotosCheckbox = document.getElementById('myPhotosOnly');
+                    myPhotosCheckbox.disabled = false;
+                    myPhotosCheckbox.parentElement.classList.remove('opacity-50', 'cursor-not-allowed');
+
+                    // Обновить счётчик
+                    document.getElementById('myPhotosCount').textContent = `(${myPhotos.length})`;
+                    document.getElementById('myPhotosCount').classList.remove('hidden');
+
+                    // Применить фильтр
+                    renderFilters();
+                    applyFilters();
+                }
+
+            } catch (error) {
+                console.error('Error in face search:', error);
+                statusDiv.classList.remove('bg-blue-50', 'border-blue-200');
+                statusDiv.classList.add('bg-red-50', 'border-red-200');
+                statusText.className = 'text-sm text-red-800';
+                statusText.textContent = `Ошибка: ${error.message}`;
+                statusSpinner.classList.add('hidden');
+                statusCheck.classList.add('hidden');
+
+                setTimeout(() => {
+                    statusDiv.classList.add('hidden');
+                }, 5000);
+            }
+        }
+
+        async function handleSelfieUpload(file) {
+            if (!file) return;
+
+            // Валидация
+            if (!file.type.match(/image\/(jpeg|jpg|png)/)) {
+                alert('Пожалуйста, загрузите фото в формате JPG или PNG');
+                return;
+            }
+
+            if (file.size > 10 * 1024 * 1024) {
+                alert('Размер файла не должен превышать 10 МБ');
+                return;
+            }
+
+            const supabase = window.portalSupabase;
+            const currentUser = window.currentGuest;
+
+            if (!supabase || !currentUser) {
+                alert('Ошибка: пользователь не авторизован');
+                return;
+            }
+
+            // Показать статус
+            const statusDiv = document.getElementById('searchStatus');
+            const statusText = document.getElementById('searchStatusText');
+            const statusSpinner = document.getElementById('searchStatusSpinner');
+            const statusCheck = document.getElementById('searchStatusCheck');
+            statusDiv.classList.remove('hidden');
+            statusText.textContent = 'Загрузка фото...';
+            statusSpinner.classList.remove('hidden');
+            statusCheck.classList.add('hidden');
+
+            try {
+                // 1. Загрузить селфи в Storage (временно)
+                const fileName = `selfies/${currentUser.id}/${Date.now()}.${file.name.split('.').pop()}`;
+                const { data: uploadData, error: uploadError } = await supabase.storage
+                    .from('retreat-photos')
+                    .upload(fileName, file, {
+                        cacheControl: '3600',
+                        contentType: file.type
+                    });
+
+                if (uploadError) throw uploadError;
+
+                // 2. Получить публичный URL
+                const { data: urlData } = supabase.storage
+                    .from('retreat-photos')
+                    .getPublicUrl(fileName);
+
+                if (!urlData?.publicUrl) {
+                    throw new Error('Не удалось получить URL селфи');
+                }
+
+                // 3. Вызвать Edge Function для каждого ретрита
+                statusText.textContent = 'Поиск лиц...';
+                statusSpinner.classList.remove('hidden');
+                statusCheck.classList.add('hidden');
+
+                const retreatIds = retreats.map(r => r.id);
+                let allFoundPhotoIds = new Set();
+
+                for (const retreatId of retreatIds) {
+                    try {
+                        const { data: searchResult, error: searchError } = await supabase.functions.invoke(
+                            'search-face',
+                            {
+                                body: {
+                                    retreat_id: retreatId,
+                                    photo_url: urlData.publicUrl,
+                                    vaishnava_id: currentUser.id,
+                                    threshold: 80
+                                }
+                            }
+                        );
+
+                        if (searchError) {
+                            console.error('Search error for retreat:', retreatId, searchError);
+                            continue;
+                        }
+
+                        if (searchResult?.matched_photo_ids) {
+                            searchResult.matched_photo_ids.forEach(id => allFoundPhotoIds.add(id));
+                        }
+                    } catch (err) {
+                        console.error('Error searching retreat:', retreatId, err);
+                    }
+                }
+
+                // 4. Удалить временное селфи
+                await supabase.storage.from('retreat-photos').remove([fileName]);
+
+                // 5. Обновить myPhotos и применить фильтры
+                myPhotos = Array.from(allFoundPhotoIds);
+
+                if (myPhotos.length === 0) {
+                    statusDiv.classList.remove('bg-blue-50', 'border-blue-200');
+                    statusDiv.classList.add('bg-yellow-50', 'border-yellow-200');
+                    statusText.className = 'text-sm text-yellow-800';
+                    statusText.textContent = 'Не найдено фото с вами. Попробуйте другое фото или проверьте позже.';
+                    statusSpinner.classList.add('hidden');
+                    statusCheck.classList.add('hidden');
+
+                    setTimeout(() => {
+                        statusDiv.classList.add('hidden');
+                    }, 5000);
+                } else {
+                    statusDiv.classList.remove('bg-blue-50', 'border-blue-200');
+                    statusDiv.classList.add('bg-green-50', 'border-green-200');
+                    statusText.className = 'text-sm text-green-800';
+                    statusText.textContent = `Найдено ${myPhotos.length} фото с вами!`;
+                    statusSpinner.classList.add('hidden');
+                    statusCheck.classList.remove('hidden');
+
+                    setTimeout(() => {
+                        statusDiv.classList.add('hidden');
+                    }, 3000);
+
+                    // Включить чекбокс "Фото со мной"
+                    const myPhotosCheckbox = document.getElementById('myPhotosOnly');
+                    myPhotosCheckbox.disabled = false;
+                    myPhotosCheckbox.parentElement.classList.remove('opacity-50', 'cursor-not-allowed');
+
+                    // Обновить счётчик
+                    document.getElementById('myPhotosCount').textContent = `(${myPhotos.length})`;
+                    document.getElementById('myPhotosCount').classList.remove('hidden');
+
+                    // Применить фильтр
+                    renderFilters();
+                    applyFilters();
+                }
+
+            } catch (error) {
+                console.error('Error in face search:', error);
+                statusDiv.classList.remove('bg-blue-50', 'border-blue-200');
+                statusDiv.classList.add('bg-red-50', 'border-red-200');
+                statusText.className = 'text-sm text-red-800';
+                statusText.textContent = `Ошибка: ${error.message}`;
+                statusSpinner.classList.add('hidden');
+                statusCheck.classList.add('hidden');
+
+                setTimeout(() => {
+                    statusDiv.classList.add('hidden');
+                }, 5000);
+            }
+        }
+
+        // Event listeners for face search
+        document.getElementById('findMeBtn').addEventListener('click', findMyPhotos);
+        document.getElementById('selfieInput').addEventListener('change', (e) => {
+            if (e.target.files && e.target.files[0]) {
+                handleSelfieUpload(e.target.files[0]);
+                e.target.value = ''; // Reset для повторной загрузки
+            }
+        });
+
+        // Event listeners for selection
+        document.getElementById('selectAllBtn').addEventListener('click', selectAllPhotos);
+        document.getElementById('downloadSelectedBtn').addEventListener('click', downloadSelectedAsZip);
+
+        // Keyboard navigation
+        document.addEventListener('keydown', (e) => {
+            const lightbox = document.getElementById('lightbox');
+            if (!lightbox.classList.contains('active')) return;
+
+            if (e.key === 'Escape') closeLightbox();
+            if (e.key === 'ArrowLeft') navigateLightbox(-1);
+            if (e.key === 'ArrowRight') navigateLightbox(1);
+        });
+
+        // Close on background click
+        document.getElementById('lightbox').addEventListener('click', (e) => {
+            if (e.target.id === 'lightbox') closeLightbox();
+        });
+
+        // ==================== START ====================
+        init();
+    </script>
+
+</body>
+</html>
