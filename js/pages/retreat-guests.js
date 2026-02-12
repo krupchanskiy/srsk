@@ -106,6 +106,7 @@ async function loadRegistrations() {
             org_notes,
             extended_stay,
             guest_questions,
+            meal_type,
             vaishnava:vaishnavas (
                 id,
                 first_name,
@@ -120,7 +121,7 @@ async function loadRegistrations() {
                 parent_id,
                 birth_date
             ),
-            placement:room_residents!inner (
+            placement:room_residents (
                 id,
                 check_in,
                 check_out,
@@ -150,53 +151,9 @@ async function loadRegistrations() {
         return;
     }
 
-    // Handle guests without placement (LEFT JOIN simulation)
-    const { data: allRegs } = await Layout.db
-        .from('retreat_registrations')
-        .select(`
-            id,
-            status,
-            registration_date,
-            companions,
-            accommodation_wishes,
-            payment_notes,
-            org_notes,
-            extended_stay,
-            guest_questions,
-            meal_type,
-            vaishnava:vaishnavas (
-                id,
-                first_name,
-                last_name,
-                spiritual_name,
-                phone,
-                email,
-                gender,
-                country,
-                city,
-                telegram,
-                parent_id,
-                birth_date
-            ),
-            transfers:guest_transfers (
-                direction,
-                needs_transfer,
-                flight_number,
-                flight_datetime,
-                notes
-            )
-        `)
-        .eq('retreat_id', retreatId);
-
-    // Merge: use allRegs as base, add placement from data
-    const placementMap = {};
-    (data || []).forEach(r => {
-        placementMap[r.id] = r.placement;
-    });
-
-    registrations = (allRegs || []).map(r => ({
+    registrations = (data || []).map(r => ({
         ...r,
-        placement: placementMap[r.id] || []
+        placement: r.placement || []
     }));
 
     renderTable();
