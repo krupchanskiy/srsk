@@ -124,6 +124,9 @@ const modules = {
                 { id: 'retreats', href: 'ashram/retreats.html' },
                 { id: 'festivals', href: 'ashram/festivals.html' }
             ]},
+            { id: 'dashboards', items: [
+                { id: 'dashboard_vaishnavas', href: 'ashram/dashboard-vaishnavas.html' }
+            ]},
             { id: 'access', items: [
                 { id: 'user_management', href: 'settings/user-management.html' }
             ]},
@@ -178,6 +181,7 @@ const pagePermissions = {
     // Ashram
     'ashram/retreats.html': 'view_retreats',
     'ashram/festivals.html': 'view_festivals',
+    'ashram/dashboard-vaishnavas.html': 'view_retreats',
 
     // Settings
     'settings/translations.html': 'view_translations',
