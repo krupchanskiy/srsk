@@ -328,7 +328,7 @@ function getSortValue(r, key) {
         case 'name':  return getDisplayName(r).toLowerCase();
         case 'dates': return r.check_in || '';
         case 'room':  return getRoomText(r).toLowerCase();
-        case 'meals': return r.has_meals ? 0 : 1;
+        case 'meals': return isEating(r) ? 0 : 1;
     }
 }
 
@@ -375,7 +375,7 @@ function buildTable(residents, slug) {
         const nameHtml = link ? `<a href="${link}">${name}</a>` : name;
         const dates = formatDateRange(r);
         const room = getRoomText(r);
-        const mealBadge = r.has_meals
+        const mealBadge = isEating(r)
             ? `<span class="meal-badge yes">${t('dashboard_eating') || 'Питаются'}</span>`
             : `<span class="meal-badge no">${t('dashboard_not_eating') || 'Нет'}</span>`;
 
@@ -396,7 +396,7 @@ function buildTable(residents, slug) {
 function renderCategorySection(slug, catName, residents) {
     const cfg = CATEGORY_CONFIG[slug] || CATEGORY_CONFIG.guest;
     const icon = CATEGORY_ICONS[slug] || CATEGORY_ICONS.guest;
-    const eating = residents.filter(r => r.has_meals).length;
+    const eating = residents.filter(r => isEating(r)).length;
     const subtitle = `${residents.length} ${t('dashboard_present_now') || 'присутствуют'}, ${eating} ${t('dashboard_eating') || 'едят'}`;
 
     groupedData[slug] = residents;
@@ -422,21 +422,47 @@ function renderCategorySection(slug, catName, residents) {
 }
 
 // ==================== LOAD ====================
-async function loadDashboard() {
-    const { data, error } = await Layout.db
-        .from('residents')
-        .select(`
-            id, vaishnava_id, guest_name, check_in, check_out, has_meals, has_housing, notes, status,
-            resident_categories!inner(slug, name_ru, name_en, name_hi, color, sort_order),
-            vaishnavas:vaishnava_id(id, spiritual_name, first_name, last_name),
-            rooms:room_id(number, buildings:building_id(name_ru, name_en, name_hi))
-        `)
-        .eq('status', 'confirmed');
-
-    if (error) {
-        Layout.handleError(error);
-        return;
+// Определение питания: meal_type из регистрации (источник правды), fallback на has_meals
+function isEating(resident) {
+    if (resident._meal_type) {
+        return resident._meal_type === 'prasad' || resident._meal_type === 'child';
     }
+    return !!resident.has_meals;
+}
+
+async function loadDashboard() {
+    const [resResult, regResult] = await Promise.all([
+        Layout.db
+            .from('residents')
+            .select(`
+                id, vaishnava_id, retreat_id, guest_name, check_in, check_out, has_meals, has_housing, notes, status,
+                resident_categories!inner(slug, name_ru, name_en, name_hi, color, sort_order),
+                vaishnavas:vaishnava_id(id, spiritual_name, first_name, last_name),
+                rooms:room_id(number, buildings:building_id(name_ru, name_en, name_hi))
+            `)
+            .eq('status', 'confirmed'),
+        Layout.db
+            .from('retreat_registrations')
+            .select('vaishnava_id, retreat_id, meal_type')
+    ]);
+
+    if (resResult.error) { Layout.handleError(resResult.error); return; }
+    if (regResult.error) { Layout.handleError(regResult.error); return; }
+
+    const data = resResult.data;
+
+    // Мап регистраций: vaishnava_id+retreat_id → meal_type
+    const regMap = {};
+    (regResult.data || []).forEach(rr => {
+        regMap[`${rr.vaishnava_id}_${rr.retreat_id}`] = rr.meal_type;
+    });
+
+    // Обогащаем резидентов meal_type из регистраций
+    data.forEach(r => {
+        if (r.vaishnava_id && r.retreat_id) {
+            r._meal_type = regMap[`${r.vaishnava_id}_${r.retreat_id}`] || null;
+        }
+    });
 
     const today = DateUtils.toISO(new Date());
 
@@ -462,7 +488,7 @@ async function loadDashboard() {
 
     // Metrics
     const totalPresent = present.length;
-    const totalEating = present.filter(r => r.has_meals).length;
+    const totalEating = present.filter(r => isEating(r)).length;
     const totalAll = data.length;
 
     document.getElementById('metricTotal').textContent = totalPresent;
@@ -476,19 +502,19 @@ async function loadDashboard() {
 
     document.getElementById('metricTeam').textContent = teamRes.length;
     document.getElementById('metricTeamSub').textContent =
-        `${teamRes.filter(r => r.has_meals).length} ${t('dashboard_eating') || 'едят'}`;
+        `${teamRes.filter(r => isEating(r)).length} ${t('dashboard_eating') || 'едят'}`;
 
     document.getElementById('metricVolunteer').textContent = volRes.length;
     document.getElementById('metricVolunteerSub').textContent =
-        `${volRes.filter(r => r.has_meals).length} ${t('dashboard_eating') || 'едят'}`;
+        `${volRes.filter(r => isEating(r)).length} ${t('dashboard_eating') || 'едят'}`;
 
     document.getElementById('metricVip').textContent = vipRes.length;
     document.getElementById('metricVipSub').textContent =
-        `${vipRes.filter(r => r.has_meals).length} ${t('dashboard_eating') || 'едят'}`;
+        `${vipRes.filter(r => isEating(r)).length} ${t('dashboard_eating') || 'едят'}`;
 
     document.getElementById('metricGuest').textContent = guestRes.length;
     document.getElementById('metricGuestSub').textContent =
-        `${guestRes.filter(r => r.has_meals).length} ${t('dashboard_eating') || 'едят'}`;
+        `${guestRes.filter(r => isEating(r)).length} ${t('dashboard_eating') || 'едят'}`;
 
     // Render sections
     const container = document.getElementById('categorySections');
