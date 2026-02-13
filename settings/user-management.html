@@ -304,7 +304,7 @@
                 // Лимит для производительности
                 query = query.limit(100);
 
-                const { data: users, error } = await query;
+                let { data: users, error } = await query;
                 if (error) throw error;
 
                 // Загрузить роли ОДНИМ запросом (вместо N+1)
