@@ -873,7 +873,6 @@ async function deleteChildPortal() {
 
     closeChildPortal();
 
-    const guest = window.currentGuest;
     if (guest?.id) {
         const freshChildren = await PortalData.getChildren(guest.id);
         renderPortalChildren(freshChildren);
