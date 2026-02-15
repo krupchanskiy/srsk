@@ -298,12 +298,13 @@ async function generateRequest() {
             ? shortageCleanedGrams / (1 - wastePercent / 100)
             : shortageCleanedGrams;
 
-        if (toPurchaseGrams > 0) {
+        {
             const categorySlug = product?.product_categories?.slug;
             const isVegetable = categorySlug === 'vegetables';
 
-            // Определяем единицу - если закупить >= 1 кг или овощи, используем кг, иначе граммы
-            const useKg = toPurchaseGrams >= 1000 || isVegetable;
+            // Определяем единицу по нужному количеству (или закупочному, если есть)
+            const referenceGrams = toPurchaseGrams > 0 ? toPurchaseGrams : neededGrams;
+            const useKg = referenceGrams >= 1000 || isVegetable;
             const unit = useKg ? 'kg' : 'g';
 
             // Конвертируем всё в выбранную единицу
@@ -312,7 +313,9 @@ async function generateRequest() {
             const toPurchase = useKg ? toPurchaseGrams / 1000 : toPurchaseGrams;
 
             // Округляем количество для закупки (учитываем min_purchase)
-            const roundedPurchase = roundForPurchase(toPurchase, unit, categorySlug, product?.min_purchase);
+            const roundedPurchase = toPurchaseGrams > 0
+                ? roundForPurchase(toPurchase, unit, categorySlug, product?.min_purchase)
+                : 0;
 
             // Get last price from stock (price per kg)
             const lastPrice = stock?.last_price || null;
@@ -328,13 +331,16 @@ async function generateRequest() {
                 to_purchase: roundedPurchase,
                 unit: unit,
                 last_price: lastPrice,
-                est_sum: lastPrice ? purchaseKg * lastPrice : null
+                est_sum: lastPrice && roundedPurchase > 0 ? purchaseKg * lastPrice : null
             });
         }
     });
 
-    // Sort by category
+    // Сортировка: сначала ненулевые (по категории), потом нулевые (по категории)
     requestItems.sort((a, b) => {
+        const aZero = a.to_purchase <= 0 ? 1 : 0;
+        const bZero = b.to_purchase <= 0 ? 1 : 0;
+        if (aZero !== bZero) return aZero - bZero;
         const catA = a.product?.product_categories?.name_ru || '';
         const catB = b.product?.product_categories?.name_ru || '';
         return catA.localeCompare(catB);
@@ -425,13 +431,16 @@ function renderResults() {
     // Always show results section (hide choice section)
     Layout.$('#requestChoiceSection')?.classList.add('hidden');
     Layout.$('#resultsSection').classList.remove('hidden');
-    Layout.$('#totalItems').textContent = requestItems.length;
 
-    // Calculate total sum
+    // Считаем только ненулевые позиции для счётчика
+    const purchaseItems = requestItems.filter(i => i.to_purchase > 0);
+    Layout.$('#totalItems').textContent = purchaseItems.length;
+
+    // Calculate total sum (только по ненулевым)
     let totalSum = 0;
     let hasAllPrices = true;
 
-    requestItems.forEach(item => {
+    purchaseItems.forEach(item => {
         if (item.est_sum !== null) {
             totalSum += item.est_sum;
         } else {
@@ -459,10 +468,14 @@ function renderResults() {
         const product = item.product;
         const cat = product?.product_categories;
         const unit = localizeUnit(item.unit);
+        const isZero = item.to_purchase <= 0;
         const estSum = item.est_sum !== null ? '₹' + Math.round(item.est_sum).toLocaleString() : '—';
 
+        // Нулевые строки — приглушённые, с зелёной галочкой «есть на складе»
+        const rowClass = isZero ? 'opacity-40' : '';
+
         return `
-            <tr>
+            <tr class="${rowClass}">
                 <td>
                     <div class="font-medium">${Layout.getName(product)}</div>
                     <div class="text-xs opacity-50">${product?.name_en || ''}</div>
@@ -473,9 +486,14 @@ function renderResults() {
                     </span>
                 </td>
                 <td class="text-right">${formatQty(item.needed, item.unit)} ${unit}</td>
-                <td class="text-right opacity-60">${formatQty(item.in_stock, item.unit)} ${unit}</td>
+                <td class="text-right">${formatQty(item.in_stock, item.unit)} ${unit}</td>
                 <td class="text-right">
-                    <div class="join">
+                    ${isZero ? `<span class="badge badge-success badge-sm gap-1">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
+                        </svg>
+                        ${tr('in_stock_label', 'На складе')}
+                    </span>` : `<div class="join">
                         <input type="number"
                             class="input input-bordered input-sm join-item w-20 text-right font-bold"
                             style="color: var(--current-color)"
@@ -486,15 +504,15 @@ function renderResults() {
                         />
                         <span class="btn btn-sm join-item no-animation pointer-events-none bg-base-200">${unit}</span>
                     </div>
-                    ${product?.waste_percent ? `<div class="text-xs opacity-60 mt-1">(+${product.waste_percent}% ${t('for_cleaning')})</div>` : ''}
+                    ${product?.waste_percent ? `<div class="text-xs opacity-60 mt-1">(+${product.waste_percent}% ${t('for_cleaning')})</div>` : ''}`}
                 </td>
-                <td class="text-right opacity-70">${estSum}</td>
+                <td class="text-right opacity-70">${isZero ? '—' : estSum}</td>
                 <td>
-                    <button class="btn btn-ghost btn-sm btn-square text-error/60 hover:text-error hover:bg-error/10" data-action="remove-item" data-index="${index}" title="${t('remove')}">
+                    ${isZero ? '' : `<button class="btn btn-ghost btn-sm btn-square text-error/60 hover:text-error hover:bg-error/10" data-action="remove-item" data-index="${index}" title="${t('remove')}">
                         <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
                         </svg>
-                    </button>
+                    </button>`}
                 </td>
             </tr>
         `;
@@ -530,13 +548,22 @@ async function saveRequest() {
         return;
     }
 
-    // Save quantities in grams for consistency, and price per kg
-    const items = requestItems.map(i => ({
-        request_id: request.id,
-        product_id: i.product_id,
-        quantity: toGrams(i.to_purchase, i.unit),
-        price: i.last_price  // price per kg at time of request
-    }));
+    // Сохраняем только ненулевые позиции (нулевые — для проверки при формировании)
+    const items = requestItems
+        .filter(i => i.to_purchase > 0)
+        .map(i => ({
+            request_id: request.id,
+            product_id: i.product_id,
+            quantity: toGrams(i.to_purchase, i.unit),
+            price: i.last_price  // price per kg at time of request
+        }));
+
+    if (items.length === 0) {
+        // Удаляем пустую заявку
+        await Layout.db.from('purchase_requests').delete().eq('id', request.id);
+        showAlert(tr('no_items_to_purchase', 'Нет позиций для закупки — всё есть на складе'));
+        return;
+    }
 
     await Layout.db.from('purchase_request_items').insert(items);
 
