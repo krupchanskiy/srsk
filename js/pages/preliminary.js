@@ -600,13 +600,11 @@ function renderTable() {
                 <td class="text-sm">${e(v?.india_experience || '—')}</td>
                 <td class="text-sm">${e(reg.companions || '—')}</td>
                 <td class="text-sm">${e(reg.accommodation_wishes || '—')}</td>
-                <td class="text-center text-sm whitespace-nowrap ${arrivalProblem ? 'bg-warning/30' : ''}" data-stop-propagation>
+                <td class="text-center text-sm whitespace-nowrap ${arrivalProblem ? 'bg-warning/30' : ''} ${canEdit ? 'cursor-pointer hover:bg-base-200/50' : ''}" ${canEdit ? `data-action="open-transfer-modal" data-id="${reg.id}"` : 'data-stop-propagation'}>
                     ${arrivalLines.map(l => `<div>${l}</div>`).join('')}
-                    ${canEdit ? `<a class="text-xs link opacity-60 hover:opacity-100 cursor-pointer" data-action="open-transfer-modal" data-id="${reg.id}">${t('preliminary_edit_short')}</a>` : ''}
                 </td>
-                <td class="text-center text-sm whitespace-nowrap ${departureProblem ? 'bg-warning/30' : ''}" data-stop-propagation>
+                <td class="text-center text-sm whitespace-nowrap ${departureProblem ? 'bg-warning/30' : ''} ${canEdit ? 'cursor-pointer hover:bg-base-200/50' : ''}" ${canEdit ? `data-action="open-transfer-modal" data-id="${reg.id}"` : 'data-stop-propagation'}>
                     ${departureLines.map(l => `<div>${l}</div>`).join('')}
-                    ${canEdit ? `<a class="text-xs link opacity-60 hover:opacity-100 cursor-pointer" data-action="open-transfer-modal" data-id="${reg.id}">${t('preliminary_edit_short')}</a>` : ''}
                 </td>
                 <td class="text-sm">${e(reg.extended_stay || '—')}</td>
                 <td class="text-sm">${e(reg.guest_questions || '—')}</td>
