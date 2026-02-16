@@ -41,7 +41,7 @@
 
         <div class="mb-6">
             <h1 class="text-2xl font-bold" data-i18n="stock_inventory_title">Остатки на складе</h1>
-            <p class="text-sm opacity-60" id="stockCount">Загрузка...</p>
+            <p class="text-sm opacity-60" id="stockCount" data-i18n="loading">Загрузка...</p>
         </div>
 
         <div class="flex flex-col sm:flex-row gap-4 mb-4">
@@ -285,8 +285,8 @@
                                 <div class="text-sm opacity-60">${Layout.getName(cat) || ''}</div>
                                 ${item.placement || item.supplier ? `
                                 <div class="text-xs opacity-50 mt-1 flex flex-wrap gap-3">
-                                    ${item.placement ? `<span title="${t('placement') || 'Размещение'}">📍 ${item.placement}</span>` : ''}
-                                    ${item.supplier ? `<span title="${t('supplier') || 'Поставщик'}">📦 ${item.supplier}</span>` : ''}
+                                    ${item.placement ? `<span title="${t('placement')}">📍 ${item.placement}</span>` : ''}
+                                    ${item.supplier ? `<span title="${t('supplier')}">📦 ${item.supplier}</span>` : ''}
                                 </div>
                                 ` : ''}
                             </div>
@@ -401,7 +401,7 @@
             if (realtimeTimeout) clearTimeout(realtimeTimeout);
             realtimeTimeout = setTimeout(async () => {
                 await loadStock();
-                Layout.showNotification('Данные обновлены', 'info');
+                Layout.showNotification(t('data_updated'), 'info');
             }, 500);
         }
 

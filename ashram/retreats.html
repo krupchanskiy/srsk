@@ -5,7 +5,7 @@
     <script src="../js/color-init.js"></script>
 
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Ретриты — ШРСК</title>
+    <title data-i18n="retreats_page_title">Ретриты — ШРСК</title>
     <link rel="icon" type="image/svg+xml" href="/favicon.svg">
     <link href="https://cdn.jsdelivr.net/npm/daisyui@4.12.14/dist/full.min.css" rel="stylesheet" />
     <script src="https://cdn.tailwindcss.com"></script>
@@ -170,14 +170,14 @@
 
                 <!-- Name RU -->
                 <div>
-                    <label class="label"><span class="label-text font-medium">Название (RU) *</span></label>
+                    <label class="label"><span class="label-text font-medium" data-i18n="retreats_name_ru">Название (RU) *</span></label>
                     <input type="text" name="name_ru" class="input input-bordered w-full" required />
                 </div>
 
                 <!-- Name EN -->
                 <div>
                     <label class="label">
-                        <span class="label-text font-medium">Name (EN)</span>
+                        <span class="label-text font-medium" data-i18n="retreats_name_en">Name (EN)</span>
                         <button type="button" class="translate-btn" onclick="autoTranslate('name_ru', 'name_en', 'ru', 'en', this)">🌐 Auto</button>
                     </label>
                     <input type="text" name="name_en" class="input input-bordered w-full" />
@@ -185,14 +185,14 @@
 
                 <!-- Description RU -->
                 <div>
-                    <label class="label"><span class="label-text font-medium">Описание (RU)</span></label>
+                    <label class="label"><span class="label-text font-medium" data-i18n="retreats_description_ru">Описание (RU)</span></label>
                     <textarea name="description_ru" rows="2" class="textarea textarea-bordered w-full"></textarea>
                 </div>
 
                 <!-- Description EN -->
                 <div>
                     <label class="label">
-                        <span class="label-text font-medium">Description (EN)</span>
+                        <span class="label-text font-medium" data-i18n="retreats_description_en">Description (EN)</span>
                         <button type="button" class="translate-btn" onclick="autoTranslate('description_ru', 'description_en', 'ru', 'en', this)">🌐 Auto</button>
                     </label>
                     <textarea name="description_en" rows="2" class="textarea textarea-bordered w-full"></textarea>
@@ -226,57 +226,57 @@
                 </div>
 
                 <!-- Registration Settings -->
-                <div class="divider text-sm opacity-50">Регистрация</div>
+                <div class="divider text-sm opacity-50" data-i18n="retreats_registration">Регистрация</div>
 
                 <!-- Registration Toggle -->
                 <div class="form-control">
                     <label class="label cursor-pointer justify-start gap-3">
                         <input type="checkbox" name="registration_open" class="toggle toggle-primary" />
-                        <span class="label-text font-medium">Регистрация открыта</span>
+                        <span class="label-text font-medium" data-i18n="retreats_registration_open">Регистрация открыта</span>
                     </label>
                 </div>
 
                 <!-- Registration Dates -->
                 <div class="grid grid-cols-2 gap-4">
                     <div>
-                        <label class="label"><span class="label-text font-medium">Начало регистрации</span></label>
+                        <label class="label"><span class="label-text font-medium" data-i18n="retreats_registration_start">Начало регистрации</span></label>
                         <input type="date" name="registration_start" class="input input-bordered w-full input-sm" />
                     </div>
                     <div>
-                        <label class="label"><span class="label-text font-medium">Окончание регистрации</span></label>
+                        <label class="label"><span class="label-text font-medium" data-i18n="retreats_registration_end">Окончание регистрации</span></label>
                         <input type="date" name="registration_end" class="input input-bordered w-full input-sm" />
                     </div>
                 </div>
 
                 <!-- Slug -->
                 <div>
-                    <label class="label"><span class="label-text font-medium">URL-slug (латиницей)</span></label>
+                    <label class="label"><span class="label-text font-medium" data-i18n="retreats_slug">URL-slug (латиницей)</span></label>
                     <div class="join w-full">
                         <span class="join-item btn btn-sm no-animation">/retreat.html?slug=</span>
                         <input type="text" name="slug" class="input input-bordered input-sm join-item flex-1" placeholder="vrindavan-2025" pattern="[a-z0-9\-]+" />
                     </div>
-                    <p class="text-xs opacity-50 mt-1">Только строчные буквы, цифры и дефис</p>
+                    <p class="text-xs opacity-50 mt-1" data-i18n="retreats_slug_hint">Только строчные буквы, цифры и дефис</p>
                 </div>
 
                 <!-- Public Link (only when editing) -->
                 <div id="publicLinkSection" class="hidden">
-                    <label class="label"><span class="label-text font-medium">Публичная ссылка</span></label>
+                    <label class="label"><span class="label-text font-medium" data-i18n="retreats_public_link">Публичная ссылка</span></label>
                     <div class="join w-full">
                         <input type="text" id="publicLinkInput" class="input input-bordered input-sm join-item flex-1 bg-base-200" readonly />
                         <button type="button" class="btn btn-sm join-item btn-primary" onclick="copyPublicLink()">
                             <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 5H6a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2v-1M8 5a2 2 0 002 2h2a2 2 0 002-2M8 5a2 2 0 012-2h2a2 2 0 012 2m0 0h2a2 2 0 012 2v3m2 4H10m0 0l3-3m-3 3l3 3" />
                             </svg>
-                            Копировать
+                            <span data-i18n="retreats_copy">Копировать</span>
                         </button>
                     </div>
                 </div>
 
-                <div class="divider text-sm opacity-50">Медиа</div>
+                <div class="divider text-sm opacity-50" data-i18n="retreats_media">Медиа</div>
 
                 <!-- Image -->
                 <div>
-                    <label class="label"><span class="label-text font-medium">Изображение</span></label>
+                    <label class="label"><span class="label-text font-medium" data-i18n="retreats_image">Изображение</span></label>
                     <div class="flex items-start gap-4">
                         <!-- Preview -->
                         <div id="imagePreview" class="w-24 h-24 rounded-lg bg-base-200 flex items-center justify-center overflow-hidden border border-base-300">
@@ -287,12 +287,12 @@
                         <!-- Upload controls -->
                         <div class="flex-1">
                             <input type="file" name="image_file" id="imageInput" accept="image/*" class="file-input file-input-bordered file-input-sm w-full" />
-                            <p class="text-xs opacity-50 mt-1">Рекомендуемый размер: 800x400 px</p>
+                            <p class="text-xs opacity-50 mt-1" data-i18n="retreats_image_hint">Рекомендуемый размер: 800x400 px</p>
                             <button type="button" id="removeImageBtn" class="btn btn-ghost btn-xs text-error mt-1 hidden" onclick="removeImage()">
                                 <svg xmlns="http://www.w3.org/2000/svg" class="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
                                 </svg>
-                                Удалить
+                                <span data-i18n="retreats_remove_image">Удалить</span>
                             </button>
                         </div>
                     </div>
@@ -427,16 +427,7 @@
         }
 
         function formatDateRange(start, end) {
-            const lang = Layout.currentLang;
-            const opts = { day: 'numeric', month: 'short' };
-            if (lang === 'en') opts.month = 'short';
-
-            const s = DateUtils.parseDate(start);
-            const e = DateUtils.parseDate(end);
-            const sStr = s.toLocaleDateString(lang === 'hi' ? 'hi-IN' : lang === 'en' ? 'en-US' : 'ru-RU', opts);
-            const eStr = e.toLocaleDateString(lang === 'hi' ? 'hi-IN' : lang === 'en' ? 'en-US' : 'ru-RU', { ...opts, year: 'numeric' });
-
-            return `${sStr} — ${eStr}`;
+            return DateUtils.formatRange(start, end);
         }
 
         function getDaysCount(start, end) {

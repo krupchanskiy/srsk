@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <script src="../js/color-init.js"></script>
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Трансферы — ШРСК</title>
+    <title data-i18n="transfers_page_title">Трансферы — ШРСК</title>
     <link rel="icon" type="image/svg+xml" href="/favicon.svg">
     <link href="https://cdn.jsdelivr.net/npm/daisyui@4.12.14/dist/full.min.css" rel="stylesheet" />
     <script src="https://cdn.tailwindcss.com"></script>
@@ -52,15 +52,15 @@
 
         <!-- Main Tabs -->
         <div class="tabs tabs-boxed bg-base-100 mb-4">
-            <button class="tab tab-active" data-view="transfers" onclick="setView('transfers')">Трансферы</button>
-            <button class="tab" data-view="taxi" onclick="setView('taxi')">Такси <span id="taxiCountBadge" class="badge badge-warning badge-sm ml-1 hidden">0</span></button>
+            <button class="tab tab-active" data-view="transfers" onclick="setView('transfers')" data-i18n="transfers_tab_transfers">Трансферы</button>
+            <button class="tab" data-view="taxi" onclick="setView('taxi')"><span data-i18n="transfers_tab_taxi">Такси</span> <span id="taxiCountBadge" class="badge badge-warning badge-sm ml-1 hidden">0</span></button>
         </div>
 
         <!-- Search, Legend and Direction Filter -->
         <div class="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-4 mb-4">
             <!-- Search -->
             <div class="w-full lg:w-auto lg:flex-1 max-w-md">
-                <input type="text" id="searchInput" class="input input-bordered w-full" placeholder="Поиск по имени, телефону, рейсу..." oninput="handleSearch()">
+                <input type="text" id="searchInput" class="input input-bordered w-full" placeholder="Поиск по имени, телефону, рейсу..." data-i18n-placeholder="transfers_search_placeholder" oninput="handleSearch()">
             </div>
 
             <!-- Legend -->
@@ -82,9 +82,9 @@
             <!-- Direction filter -->
             <div id="directionFilter" class="flex-shrink-0">
                 <div class="tabs tabs-boxed bg-base-100">
-                    <button class="tab tab-active" data-filter="all" onclick="setFilter('all')">Все</button>
-                    <button class="tab" data-filter="arrival" onclick="setFilter('arrival')">Заезды</button>
-                    <button class="tab" data-filter="departure" onclick="setFilter('departure')">Выезды</button>
+                    <button class="tab tab-active" data-filter="all" onclick="setFilter('all')" data-i18n="transfers_filter_all">Все</button>
+                    <button class="tab" data-filter="arrival" onclick="setFilter('arrival')" data-i18n="transfers_filter_arrivals">Заезды</button>
+                    <button class="tab" data-filter="departure" onclick="setFilter('departure')" data-i18n="transfers_filter_departures">Выезды</button>
                 </div>
             </div>
         </div>
@@ -100,7 +100,7 @@
                 <svg xmlns="http://www.w3.org/2000/svg" class="w-16 h-16 mx-auto mb-2 opacity-30" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16V6a1 1 0 00-1-1H4a1 1 0 00-1 1v10a1 1 0 001 1h1m8-1a1 1 0 01-1 1H9m4-1V8a1 1 0 011-1h2.586a1 1 0 01.707.293l3.414 3.414a1 1 0 01.293.707V16a1 1 0 01-1 1h-1m-6-1a1 1 0 001 1h1M5 17a2 2 0 104 0m-4 0a2 2 0 114 0m6 0a2 2 0 104 0m-4 0a2 2 0 114 0" />
                 </svg>
-                <p>Нет трансферов</p>
+                <p data-i18n="transfers_no_transfers">Нет трансферов</p>
             </div>
         </div>
 
@@ -117,7 +117,7 @@
                     <polygon points="39.12 20.68 39.12 25.01 33.92 25.01 33.92 38.86 28.73 38.86 28.73 25.01 23.54 25.01 23.54 20.68 39.12 20.68"/>
                     <rect x="74.03" y="20.68" width="5.19" height="18.18"/>
                 </svg>
-                <p>Нет такси</p>
+                <p data-i18n="transfers_no_taxi">Нет такси</p>
             </div>
         </div>
 
@@ -129,18 +129,18 @@
             <form method="dialog">
                 <button class="btn btn-sm btn-circle btn-ghost absolute right-2 top-2">✕</button>
             </form>
-            <h3 class="font-bold text-lg mb-4">Заказ такси</h3>
+            <h3 class="font-bold text-lg mb-4" data-i18n="transfers_taxi_order">Заказ такси</h3>
             <input type="hidden" id="taxiTransferId">
             <div class="form-control mb-3">
-                <label class="label"><span class="label-text">Информация о водителе</span></label>
-                <textarea id="taxiDriverInfo" class="textarea textarea-bordered" rows="3" placeholder="Имя, телефон, марка авто..."></textarea>
+                <label class="label"><span class="label-text" data-i18n="transfers_driver_info">Информация о водителе</span></label>
+                <textarea id="taxiDriverInfo" class="textarea textarea-bordered" rows="3" placeholder="Имя, телефон, марка авто..." data-i18n-placeholder="transfers_driver_info_placeholder"></textarea>
             </div>
             <div class="form-control mb-4">
-                <label class="label"><span class="label-text">Кто заказал:</span></label>
-                <input type="text" id="taxiOrderedBy" class="input input-bordered" placeholder="Кто заказывает">
+                <label class="label"><span class="label-text" data-i18n="transfers_ordered_by">Кто заказал:</span></label>
+                <input type="text" id="taxiOrderedBy" class="input input-bordered" placeholder="Кто заказывает" data-i18n-placeholder="transfers_ordered_by_placeholder">
             </div>
             <div class="modal-action">
-                <button class="btn btn-primary" onclick="saveTaxiOrder()">Заказать</button>
+                <button class="btn btn-primary" onclick="saveTaxiOrder()" data-i18n="transfers_order_btn">Заказать</button>
             </div>
         </div>
         <form method="dialog" class="modal-backdrop"><button>close</button></form>
@@ -160,20 +160,20 @@
                     <polygon points="39.12 20.68 39.12 25.01 33.92 25.01 33.92 38.86 28.73 38.86 28.73 25.01 23.54 25.01 23.54 20.68 39.12 20.68"/>
                     <rect x="74.03" y="20.68" width="5.19" height="18.18"/>
                 </svg>
-                <span>Такси заказано</span>
+                <span data-i18n="transfers_taxi_ordered">Такси заказано</span>
             </h3>
             <input type="hidden" id="taxiDetailsTransferId">
             <div class="form-control mb-3">
-                <label class="label"><span class="label-text">Информация о водителе</span></label>
-                <textarea id="taxiDetailsDriver" class="textarea textarea-bordered" rows="3" placeholder="Имя, телефон, марка авто..."></textarea>
+                <label class="label"><span class="label-text" data-i18n="transfers_driver_info">Информация о водителе</span></label>
+                <textarea id="taxiDetailsDriver" class="textarea textarea-bordered" rows="3" placeholder="Имя, телефон, марка авто..." data-i18n-placeholder="transfers_driver_info_placeholder"></textarea>
             </div>
             <div class="form-control mb-4">
-                <label class="label"><span class="label-text">Кто заказал:</span></label>
-                <input type="text" id="taxiDetailsOrderedBy" class="input input-bordered" placeholder="Кто заказывает">
+                <label class="label"><span class="label-text" data-i18n="transfers_ordered_by">Кто заказал:</span></label>
+                <input type="text" id="taxiDetailsOrderedBy" class="input input-bordered" placeholder="Кто заказывает" data-i18n-placeholder="transfers_ordered_by_placeholder">
             </div>
             <div class="modal-action">
-                <button class="btn btn-primary" onclick="saveEditedTaxiDetails()">Сохранить</button>
-                <button class="btn btn-error btn-outline" onclick="cancelTaxiFromDetails()">Отменить такси</button>
+                <button class="btn btn-primary" onclick="saveEditedTaxiDetails()" data-i18n="save">Сохранить</button>
+                <button class="btn btn-error btn-outline" onclick="cancelTaxiFromDetails()" data-i18n="transfers_cancel_taxi">Отменить такси</button>
             </div>
         </div>
         <form method="dialog" class="modal-backdrop"><button>close</button></form>

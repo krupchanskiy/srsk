@@ -489,7 +489,7 @@ async function moveDish(dishId, sourceDate, sourceMealType, targetDate, targetMe
     // Проверить уникальность рецепта в целевой ячейке
     const targetMeal = menuData[targetDate]?.[targetMealType];
     if (targetMeal?.dishes?.some(d => d.recipe_id === recipeId)) {
-        Layout.showNotification(t('already_added') || 'Это блюдо уже добавлено', 'warning');
+        Layout.showNotification(t('already_added'), 'warning');
         return;
     }
 
@@ -524,7 +524,7 @@ async function moveDish(dishId, sourceDate, sourceMealType, targetDate, targetMe
         .eq('id', dishId);
 
     if (error) {
-        Layout.showNotification(t('error') || 'Ошибка', 'error');
+        Layout.showNotification(t('error'), 'error');
         return;
     }
 
@@ -563,7 +563,7 @@ function openDishModal(dateStr, mealType) {
     document.getElementById('recipeDropdown').classList.add('hidden');
     document.getElementById('selectedRecipeDisplay').classList.add('hidden');
     document.getElementById('portionSize').value = 200;
-    document.getElementById('portionUnit').textContent = '\u0433';
+    document.getElementById('portionUnit').textContent = t('unit_g');
     document.getElementById('saveDishBtn').disabled = true;
     document.getElementById('totalCalculation').textContent = '\u2014';
 
@@ -580,7 +580,7 @@ function openDishModal(dateStr, mealType) {
 function buildCategoryButtons() {
     const container = document.getElementById('categoryButtons');
     container.innerHTML = `
-        <button type="button" class="btn btn-sm filter-btn ${currentCategory === 'all' ? 'active' : ''}" data-cat="all" data-action="filter-category" data-category="all">${t('filter_all') || 'Все'}</button>
+        <button type="button" class="btn btn-sm filter-btn ${currentCategory === 'all' ? 'active' : ''}" data-cat="all" data-action="filter-category" data-category="all">${t('filter_all')}</button>
         ${categories.map(cat => `
             <button type="button" class="btn btn-sm filter-btn ${currentCategory === cat.slug ? 'active' : ''}" data-cat="${cat.slug}" data-action="filter-category" data-category="${cat.slug}">${getName(cat)}</button>
         `).join('')}
@@ -710,7 +710,7 @@ function clearSelectedRecipe() {
 function updateTotalCalculation() {
     const size = parseInt(document.getElementById('portionSize').value) || 0;
     const unit = document.getElementById('portionUnit').textContent;
-    document.getElementById('totalCalculation').textContent = `${size} ${unit} ${t('per_person') || 'на человека'}`;
+    document.getElementById('totalCalculation').textContent = `${size} ${unit} ${t('per_person')}`;
 }
 
 async function saveDish() {
@@ -723,7 +723,7 @@ async function saveDish() {
 
     // Проверка экадаши
     if (isEkadashi(selectedDate) && !selectedRecipe.ekadashi) {
-        if (!confirm(`\u26A0\uFE0F ${selectedDate} \u2014 ${t('confirm_ekadashi') || 'это экадаши. Продолжить?'}`)) {
+        if (!confirm(`\u26A0\uFE0F ${selectedDate} \u2014 ${t('confirm_ekadashi')}`)) {
             return;
         }
     }
@@ -731,7 +731,7 @@ async function saveDish() {
     // Проверка дубликата
     const mealData = menuData[selectedDate]?.[selectedMealType];
     if (mealData?.dishes?.some(d => d.recipe_id === selectedRecipe.id)) {
-        Layout.showNotification(t('already_added') || 'Это блюдо уже добавлено', 'warning');
+        Layout.showNotification(t('already_added'), 'warning');
         return;
     }
 
@@ -751,7 +751,7 @@ async function saveDish() {
             .single();
 
         if (!newMeal) {
-            Layout.showNotification(t('error') || 'Ошибка', 'error');
+            Layout.showNotification(t('error'), 'error');
             return;
         }
         mealId = newMeal.id;
@@ -770,7 +770,7 @@ async function saveDish() {
         .single();
 
     if (error) {
-        Layout.showNotification(t('error') || 'Ошибка', 'error');
+        Layout.showNotification(t('error'), 'error');
         return;
     }
 
@@ -1000,7 +1000,7 @@ async function updateImportPreview() {
     document.getElementById('importDayCountText').textContent = Layout.pluralize(dayCount, DAY_FORMS);
     document.getElementById('importMealsCount').textContent = mealsCount > 0
         ? `${Layout.pluralize(mealsCount, MEAL_FORMS)}, ${Layout.pluralize(dishesCount, DISH_FORMS)}`
-        : (t('nothing_found') || 'Нет данных');
+        : t('nothing_found');
     document.getElementById('importPreview').classList.remove('hidden');
     document.getElementById('importBtn').disabled = mealsCount === 0;
 }
@@ -1011,7 +1011,7 @@ async function doImport() {
     const toDate = document.getElementById('importToDate').value;
 
     if (!name) {
-        Layout.showNotification(t('enter_template_name') || 'Введите название', 'warning');
+        Layout.showNotification(t('enter_template_name'), 'warning');
         return;
     }
 
@@ -1080,12 +1080,12 @@ async function doImport() {
         }
 
         importModal.close();
-        Layout.showNotification(t('template_saved') || 'Шаблон сохранён', 'success');
+        Layout.showNotification(t('template_saved'), 'success');
     } catch (error) {
-        Layout.showNotification(t('error') || 'Ошибка', 'error');
+        Layout.showNotification(t('error'), 'error');
     } finally {
         importBtn.disabled = false;
-        importBtn.textContent = t('import') || 'Импортировать';
+        importBtn.textContent = t('import');
     }
 }
 
@@ -1122,7 +1122,7 @@ function handleRealtimeChange() {
     if (realtimeTimeout) clearTimeout(realtimeTimeout);
     realtimeTimeout = setTimeout(async () => {
         await loadMenuData();
-        Layout.showNotification(t('data_updated') || 'Данные обновлены', 'info');
+        Layout.showNotification(t('data_updated'), 'info');
     }, 500);
 }
 

@@ -4,7 +4,7 @@
     <script src="../js/color-init.js"></script>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Курсы валют — CRM — ШРСК</title>
+    <title data-i18n-title="crm_currencies_page_title">Курсы валют — CRM — ШРСК</title>
     <link href="https://cdn.jsdelivr.net/npm/daisyui@4.12.14/dist/full.min.css" rel="stylesheet" />
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
@@ -25,7 +25,7 @@
     <!-- Информация -->
     <div class="alert alert-info mb-6">
         <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" class="stroke-current shrink-0 w-6 h-6"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
-        <span>Все платежи пересчитываются в рупии (INR) по указанному курсу. Обновляйте курсы регулярно.</span>
+        <span data-i18n="crm_currencies_info">Все платежи пересчитываются в рупии (INR) по указанному курсу. Обновляйте курсы регулярно.</span>
     </div>
 
     <!-- Таблица валют -->
@@ -36,18 +36,18 @@
                     <thead>
                         <tr>
                             <th class="cursor-pointer hover:bg-base-200" onclick="setSort('code')">
-                                <span class="inline-flex items-center gap-1">Код <span id="sort-code" class="text-xs opacity-50">↑</span></span>
+                                <span class="inline-flex items-center gap-1" data-i18n="col_code">Код <span id="sort-code" class="text-xs opacity-50">↑</span></span>
                             </th>
                             <th class="cursor-pointer hover:bg-base-200" onclick="setSort('name')" data-i18n="col_name">
                                 <span class="inline-flex items-center gap-1">Название <span id="sort-name" class="text-xs opacity-50"></span></span>
                             </th>
-                            <th>Символ</th>
+                            <th data-i18n="crm_symbol">Символ</th>
                             <th class="cursor-pointer hover:bg-base-200" onclick="setSort('rate')" data-i18n="crm_rate_to_inr">
                                 <span class="inline-flex items-center gap-1">Курс к ₹ <span id="sort-rate" class="text-xs opacity-50"></span></span>
                             </th>
-                            <th>Пример: 1000</th>
+                            <th data-i18n="crm_example_1000">Пример: 1000</th>
                             <th class="cursor-pointer hover:bg-base-200" onclick="setSort('updated')">
-                                <span class="inline-flex items-center gap-1">Обновлено <span id="sort-updated" class="text-xs opacity-50"></span></span>
+                                <span class="inline-flex items-center gap-1" data-i18n="crm_updated">Обновлено <span id="sort-updated" class="text-xs opacity-50"></span></span>
                             </th>
                             <th class="w-20"></th>
                         </tr>
@@ -68,12 +68,12 @@
 <!-- Модалка редактирования курса -->
 <dialog id="currencyModal" class="modal">
     <div class="modal-box max-w-sm">
-        <h3 class="font-bold text-lg mb-4" id="modalTitle">Редактирование курса</h3>
+        <h3 class="font-bold text-lg mb-4" id="modalTitle" data-i18n="crm_edit_rate">Редактирование курса</h3>
         <form id="currencyForm" onsubmit="saveCurrency(event)">
             <input type="hidden" id="currencyCode">
 
             <div class="form-control mb-4">
-                <label class="label"><span class="label-text">Валюта</span></label>
+                <label class="label"><span class="label-text" data-i18n="crm_currency">Валюта</span></label>
                 <div id="currencyDisplay" class="text-xl font-bold"></div>
             </div>
 
@@ -82,18 +82,18 @@
                 <input type="number" id="currencyRate" class="input input-bordered"
                        min="0.0001" step="0.0001" required>
                 <label class="label">
-                    <span class="label-text-alt">1 единица валюты = X рупий</span>
+                    <span class="label-text-alt" data-i18n="crm_rate_hint">1 единица валюты = X рупий</span>
                 </label>
             </div>
 
             <div class="bg-base-200 p-3 rounded-lg mb-4">
-                <div class="text-sm text-base-content/70">Пример:</div>
+                <div class="text-sm text-base-content/70" data-i18n="crm_example">Пример:</div>
                 <div class="text-lg font-mono" id="rateExample">—</div>
             </div>
 
             <div class="modal-action">
-                <button type="button" class="btn" onclick="closeModal()">Отмена</button>
-                <button type="submit" class="btn btn-primary">Сохранить</button>
+                <button type="button" class="btn" onclick="closeModal()" data-i18n="cancel">Отмена</button>
+                <button type="submit" class="btn btn-primary" data-i18n="save">Сохранить</button>
             </div>
         </form>
     </div>

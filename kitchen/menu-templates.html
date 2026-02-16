@@ -31,7 +31,7 @@
         <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6">
             <div>
                 <h1 class="text-2xl font-bold" data-i18n="menu_templates_title">Шаблоны меню</h1>
-                <p class="text-sm opacity-60" id="templatesCount">Загрузка...</p>
+                <p class="text-sm opacity-60" id="templatesCount" data-i18n="loading">Загрузка...</p>
             </div>
             <div class="flex gap-2">
                 <button class="btn btn-ghost gap-2" onclick="openImportModal()">
@@ -51,7 +51,7 @@
 
         <!-- Templates List -->
         <div class="space-y-3" id="templatesList">
-            <div class="bg-base-100 rounded-xl shadow-sm p-4 text-center opacity-50">Загрузка...</div>
+            <div class="bg-base-100 rounded-xl shadow-sm p-4 text-center opacity-50" data-i18n="loading">Загрузка...</div>
         </div>
 
     </main>
@@ -68,20 +68,20 @@
                 <!-- Template Name -->
                 <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
                     <div>
-                        <label class="label"><span class="label-text font-medium">Название (RU)</span></label>
-                        <input type="text" id="templateNameRu" class="input input-bordered w-full" placeholder="Недельное меню" />
+                        <label class="label"><span class="label-text font-medium" data-i18n="field_name_ru">Название (RU)</span></label>
+                        <input type="text" id="templateNameRu" class="input input-bordered w-full" data-i18n-placeholder="template_name_placeholder" placeholder="Недельное меню" />
                     </div>
                     <div>
                         <label class="label">
-                            <span class="label-text font-medium">Name (EN)</span>
-                            <button type="button" class="text-xs opacity-60 hover:opacity-100" onclick="autoTranslate('templateNameRu', 'templateNameEn', 'ru', 'en', this)">🌐 Auto</button>
+                            <span class="label-text font-medium" data-i18n="field_name_en">Name (EN)</span>
+                            <button type="button" class="text-xs opacity-60 hover:opacity-100" data-i18n="auto_translate_btn" onclick="autoTranslate('templateNameRu', 'templateNameEn', 'ru', 'en', this)">🌐 Auto</button>
                         </label>
                         <input type="text" id="templateNameEn" class="input input-bordered w-full" placeholder="Weekly menu" />
                     </div>
                     <div>
                         <label class="label">
-                            <span class="label-text font-medium">नाम (HI)</span>
-                            <button type="button" class="text-xs opacity-60 hover:opacity-100" onclick="autoTranslate('templateNameRu', 'templateNameHi', 'ru', 'hi', this)">🌐 Auto</button>
+                            <span class="label-text font-medium" data-i18n="field_name_hi">नाम (HI)</span>
+                            <button type="button" class="text-xs opacity-60 hover:opacity-100" data-i18n="auto_translate_btn" onclick="autoTranslate('templateNameRu', 'templateNameHi', 'ru', 'hi', this)">🌐 Auto</button>
                         </label>
                         <input type="text" id="templateNameHi" class="input input-bordered w-full" />
                     </div>
@@ -90,20 +90,20 @@
                 <!-- Description -->
                 <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
                     <div>
-                        <label class="label"><span class="label-text font-medium">Описание (RU)</span></label>
-                        <textarea id="templateDescRu" class="textarea textarea-bordered w-full" rows="2" placeholder="Описание шаблона"></textarea>
+                        <label class="label"><span class="label-text font-medium" data-i18n="field_desc_ru">Описание (RU)</span></label>
+                        <textarea id="templateDescRu" class="textarea textarea-bordered w-full" rows="2" data-i18n-placeholder="template_desc_placeholder" placeholder="Описание шаблона"></textarea>
                     </div>
                     <div>
                         <label class="label">
-                            <span class="label-text font-medium">Description (EN)</span>
-                            <button type="button" class="text-xs opacity-60 hover:opacity-100" onclick="autoTranslate('templateDescRu', 'templateDescEn', 'ru', 'en', this)">🌐 Auto</button>
+                            <span class="label-text font-medium" data-i18n="field_desc_en">Description (EN)</span>
+                            <button type="button" class="text-xs opacity-60 hover:opacity-100" data-i18n="auto_translate_btn" onclick="autoTranslate('templateDescRu', 'templateDescEn', 'ru', 'en', this)">🌐 Auto</button>
                         </label>
                         <textarea id="templateDescEn" class="textarea textarea-bordered w-full" rows="2"></textarea>
                     </div>
                     <div>
                         <label class="label">
-                            <span class="label-text font-medium">विवरण (HI)</span>
-                            <button type="button" class="text-xs opacity-60 hover:opacity-100" onclick="autoTranslate('templateDescRu', 'templateDescHi', 'ru', 'hi', this)">🌐 Auto</button>
+                            <span class="label-text font-medium" data-i18n="field_desc_hi">विवरण (HI)</span>
+                            <button type="button" class="text-xs opacity-60 hover:opacity-100" data-i18n="auto_translate_btn" onclick="autoTranslate('templateDescRu', 'templateDescHi', 'ru', 'hi', this)">🌐 Auto</button>
                         </label>
                         <textarea id="templateDescHi" class="textarea textarea-bordered w-full" rows="2"></textarea>
                     </div>
@@ -234,7 +234,7 @@
                         <input type="text"
                                id="recipeSearch"
                                class="input input-bordered w-full"
-                               placeholder="Начните вводить название..."
+                               placeholder="Начните вводить название..." data-i18n-placeholder="search_placeholder"
                                autocomplete="off"
                                oninput="filterRecipes(this.value)"
                                onfocus="showRecipeDropdown()"
@@ -512,7 +512,7 @@
             Layout.$('#importDayCountText').textContent = pluralizeDays(dayCount);
             Layout.$('#importMealsCount').textContent = mealsCount > 0
                 ? `${pluralizeMeals(mealsCount)}, ${pluralizeDishes(dishesCount)}`
-                : t('no_templates').replace('шаблонов', 'данных меню');
+                : t('no_menu_data');
             Layout.$('#importPreview').classList.remove('hidden');
             Layout.$('#importBtn').disabled = mealsCount === 0;
         }
@@ -937,7 +937,7 @@
         function buildCategoryButtons() {
             const container = Layout.$('#categoryButtons');
             container.innerHTML = `
-                <button type="button" class="btn btn-sm filter-btn ${currentCategory === 'all' ? 'active' : ''}" data-cat="all" onclick="filterByCategory('all')">${t('filter_all') || 'Все'}</button>
+                <button type="button" class="btn btn-sm filter-btn ${currentCategory === 'all' ? 'active' : ''}" data-cat="all" onclick="filterByCategory('all')">${t('filter_all')}</button>
                 ${categories.map(cat => `
                     <button type="button" class="btn btn-sm filter-btn ${currentCategory === cat.slug ? 'active' : ''}" data-cat="${cat.slug}" onclick="filterByCategory('${cat.slug}')">${getName(cat)}</button>
                 `).join('')}

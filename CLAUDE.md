@@ -254,14 +254,23 @@ Utils.isValidColor(color) ? color : '#ccc'      // валидировать цв
 
 Также доступна функция `e()` как короткий алиас для `escapeHtml` в шаблонах.
 
-### Права доступа
+### Права доступа и Auth-First Rendering
+
+**Auth-First**: `Layout.init()` ждёт auth-check.js через `Promise.all([loadTranslations(), waitForAuth()])` перед рендером навигации. Всё рендерится один раз — без flash.
+
 ```javascript
+// Проверка прав в коде
 if (!window.hasPermission?.('edit_products')) return;
-await waitForAuth();
 if (window.currentUser?.is_superuser) { ... }
 ```
 
-HTML-атрибут `data-permission="edit_products"` — Layout.js автоматически скрывает элементы без права.
+**HTML-атрибуты**:
+- `data-permission="edit_products"` — скрыть элемент если НЕТ права
+- `data-no-permission="edit_products"` — показать элемент если НЕТ права (обратная логика)
+
+**Навигация фильтруется по правам**: `pagePermissions` в layout.js (50+ записей путь→право), `filterMenuByPermissions()`, `buildLocationOptions()`. Если модуль недоступен — автопереключение через `getFirstAccessibleModule()`.
+
+Подробнее: [docs/auth.md](docs/auth.md), [docs/roles-permissions.md](docs/roles-permissions.md).
 
 ### Event delegation (паттерн для действий в шаблонах)
 ```javascript
@@ -314,10 +323,10 @@ crm_deals: lead → contacted → invoice_sent → prepaid → tickets →
 
 ## Миграции
 
-SQL-миграции в `supabase/` нумеруются `001_` — `107_`. Новые миграции через MCP:
+SQL-миграции в `supabase/` нумеруются `001_` — `109_`. Новые миграции через MCP:
 
 ```javascript
-mcp__supabase__apply_migration({ project_id: 'llttmftapmwebidgevmg', name: '108_description', query: 'SQL...' })
+mcp__supabase__apply_migration({ project_id: 'llttmftapmwebidgevmg', name: '110_description', query: 'SQL...' })
 ```
 
 Другие MCP-операции:

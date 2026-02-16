@@ -4,7 +4,7 @@
     <script src="../js/color-init.js"></script>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Теги — CRM — ШРСК</title>
+    <title data-i18n-title="crm_tags_page_title">Теги — CRM — ШРСК</title>
     <link href="https://cdn.jsdelivr.net/npm/daisyui@4.12.14/dist/full.min.css" rel="stylesheet" />
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
@@ -38,28 +38,28 @@
 <!-- Модалка добавления/редактирования -->
 <dialog id="tagModal" class="modal">
     <div class="modal-box max-w-sm">
-        <h3 class="font-bold text-lg mb-4" id="modalTitle">Тег</h3>
+        <h3 class="font-bold text-lg mb-4" id="modalTitle" data-i18n="crm_tag">Тег</h3>
         <form id="tagForm" onsubmit="saveTag(event)">
             <input type="hidden" id="tagId">
 
             <div class="form-control mb-3">
-                <label class="label"><span class="label-text">Код</span></label>
+                <label class="label"><span class="label-text" data-i18n="col_code">Код</span></label>
                 <input type="text" id="tagCode" class="input input-bordered" required
                        pattern="[a-z_]+" placeholder="vip">
             </div>
 
             <div class="form-control mb-3">
-                <label class="label"><span class="label-text">Название (RU)</span></label>
+                <label class="label"><span class="label-text" data-i18n="crm_name_ru">Название (RU)</span></label>
                 <input type="text" id="tagNameRu" class="input input-bordered" required>
             </div>
 
             <div class="form-control mb-3">
-                <label class="label"><span class="label-text">Название (EN)</span></label>
+                <label class="label"><span class="label-text" data-i18n="crm_name_en">Название (EN)</span></label>
                 <input type="text" id="tagNameEn" class="input input-bordered" required>
             </div>
 
             <div class="form-control mb-3">
-                <label class="label"><span class="label-text">Название (HI)</span></label>
+                <label class="label"><span class="label-text" data-i18n="crm_name_hi">Название (HI)</span></label>
                 <input type="text" id="tagNameHi" class="input input-bordered">
             </div>
 
@@ -73,15 +73,15 @@
             </div>
 
             <div class="form-control mb-4">
-                <label class="label"><span class="label-text">Предпросмотр</span></label>
+                <label class="label"><span class="label-text" data-i18n="crm_preview">Предпросмотр</span></label>
                 <div id="tagPreview" class="flex gap-2">
                     <span class="badge" style="background-color: #6b7280; color: white;">Пример</span>
                 </div>
             </div>
 
             <div class="modal-action">
-                <button type="button" class="btn" onclick="closeModal()">Отмена</button>
-                <button type="submit" class="btn btn-primary">Сохранить</button>
+                <button type="button" class="btn" onclick="closeModal()" data-i18n="cancel">Отмена</button>
+                <button type="submit" class="btn btn-primary" data-i18n="save">Сохранить</button>
             </div>
         </form>
     </div>

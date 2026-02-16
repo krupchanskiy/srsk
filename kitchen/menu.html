@@ -164,7 +164,7 @@
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7" />
                         </svg>
                     </button>
-                    <button class="join-item btn btn-sm bg-white border-0 font-bold view-btn active" data-view="day" onclick="goToToday()" data-i18n="today">Сегодня</button>
+                    <button class="join-item btn btn-sm bg-white border-0 font-bold view-btn active" data-view="day" onclick="goToToday()" data-i18n="day">День</button>
                     <button class="join-item btn btn-sm bg-white border-0" onclick="nextPeriod()">
                         <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" />
@@ -272,7 +272,7 @@
     <dialog id="dishModal" class="modal">
         <div class="modal-box max-w-lg relative">
             <button type="button" class="btn btn-sm btn-circle btn-ghost absolute right-2 top-2" onclick="dishModal.close()">✕</button>
-            <h3 class="font-bold text-lg mb-4" id="dishModalTitle">Добавить блюдо</h3>
+            <h3 class="font-bold text-lg mb-4" id="dishModalTitle" data-i18n="add_dish">Добавить блюдо</h3>
 
             <div class="space-y-4">
                 <!-- Tabs -->

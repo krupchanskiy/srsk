@@ -7,15 +7,6 @@ let buildings = [];
 let selectedBuildingId = 'all';
 let searchQuery = '';
 
-// Заменить битое изображение на заглушку с инициалами
-window.replacePhotoWithPlaceholder = function(img) {
-    const initials = img.dataset.initials || '?';
-    const placeholder = document.createElement('div');
-    placeholder.className = 'w-10 h-10 rounded-full bg-gradient-to-br from-purple-500 to-pink-500 flex items-center justify-center text-white font-semibold';
-    placeholder.textContent = initials;
-    img.replaceWith(placeholder);
-};
-
 // Глобальный обработчик клика по аватарам (event delegation для XSS-безопасности)
 document.addEventListener('click', function(event) {
     const avatarPhoto = event.target.closest('.avatar-photo');
@@ -302,7 +293,7 @@ function updateChart() {
         const count = hourCounts[h];
         const heightPx = count > 0 ? Math.max(Math.round((count / maxCount) * maxBarHeight), 10) : 5;
         const barBg = count > 0 ? '#570df8' : '#e5e7eb';
-        const title = `${h.toString().padStart(2, '0')}:00 — ${count} чел.`;
+        const title = `${h.toString().padStart(2, '0')}:00 — ${count} ${t('departures_people_short')}`;
 
         return `<div style="flex: 1; display: flex; flex-direction: column; justify-content: flex-end; align-items: center; min-width: 8px;" title="${title}">
             ${count > 0 ? `<div style="font-size: 11px; font-weight: 500; margin-bottom: 2px;">${count}</div>` : ''}
@@ -354,7 +345,7 @@ function formatDateLabel(dateStr) {
     const date = new Date(dateStr + 'T12:00:00');
     const day = date.getDate().toString().padStart(2, '0');
     const month = (date.getMonth() + 1).toString().padStart(2, '0');
-    const weekDays = ['Вс', 'Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб'];
+    const weekDays = DateUtils.dayNamesShort[Layout.currentLang] || DateUtils.dayNamesShort.ru;
     return `${day}.${month}, ${weekDays[date.getDay()]}`;
 }
 
@@ -528,10 +519,10 @@ function renderCard(reg) {
     const infoParts = [];
     if (genderAge) infoParts.push(genderAge);
     if (estimatedCheckout) {
-        infoParts.push(`<span class="font-semibold text-base-content" title="Выезд из ШРСК">← ${formatTime(estimatedCheckout)}</span>`);
+        infoParts.push(`<span class="font-semibold text-base-content" title="${t('departures_checkout_from_srsc')}">← ${formatTime(estimatedCheckout)}</span>`);
     }
     if (flightTime) {
-        infoParts.push(`<span title="Время вылета">✈ ${formatDateTime(flightTime)}</span>`);
+        infoParts.push(`<span title="${t('departures_flight_time')}">✈ ${formatDateTime(flightTime)}</span>`);
     }
     if (departure?.needs_transfer === 'yes') {
         if (departure.taxi_status === 'ordered') {
@@ -542,9 +533,9 @@ function renderCard(reg) {
     }
     if (accommodation) {
         if (accommodation.isSelfAccommodation) {
-            infoParts.push(`<span class="font-semibold text-error bg-error/20 px-2 py-1 rounded" title="Размещение">🏠 ${Layout.t('self_accommodation')}</span>`);
+            infoParts.push(`<span class="font-semibold text-error bg-error/20 px-2 py-1 rounded" title="${t('accommodation')}">🏠 ${Layout.t('self_accommodation')}</span>`);
         } else {
-            infoParts.push(`<span class="font-semibold bg-success/20 px-2 py-1 rounded" title="Размещение">🏠 ${accommodation.buildingName}, ${accommodation.roomNumber}</span>`);
+            infoParts.push(`<span class="font-semibold bg-success/20 px-2 py-1 rounded" title="${t('accommodation')}">🏠 ${accommodation.buildingName}, ${accommodation.roomNumber}</span>`);
         }
     }
 
@@ -559,7 +550,7 @@ function renderCard(reg) {
             <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347z"/><path d="M12 0C5.373 0 0 5.373 0 12c0 2.126.554 4.12 1.522 5.856L.057 23.988l6.272-1.418A11.935 11.935 0 0012 24c6.627 0 12-5.373 12-12S18.627 0 12 0zm0 21.75c-1.875 0-3.66-.507-5.228-1.467l-.375-.222-3.89.88.918-3.792-.244-.388A9.698 9.698 0 012.25 12 9.75 9.75 0 0112 2.25 9.75 9.75 0 0121.75 12 9.75 9.75 0 0112 21.75z"/></svg>
             WA</a>`);
     } else if (phone) {
-        contactParts.push(`<a href="tel:${phone}" class="btn btn-xs btn-ghost gap-1" title="Позвонить">📞 ${v.phone}</a>`);
+        contactParts.push(`<a href="tel:${phone}" class="btn btn-xs btn-ghost gap-1" title="${t('departures_call')}">📞 ${v.phone}</a>`);
     }
     if (telegram) {
         const tgUsername = telegram.replace(/^@/, '');
@@ -660,8 +651,8 @@ function renderTable() {
     if (noTimeGroup.length > 0) {
         // Сортируем по имени
         noTimeGroup.sort((a, b) => {
-            const aName = (a.vaishnavas?.spiritual_name || `${a.vaishnavas?.first_name || ''} ${a.vaishnavas?.last_name || ''}`.trim()).toLowerCase();
-            const bName = (b.vaishnavas?.spiritual_name || `${b.vaishnavas?.first_name || ''} ${b.vaishnavas?.last_name || ''}`.trim()).toLowerCase();
+            const aName = getVaishnavName(a.vaishnavas, '').toLowerCase();
+            const bName = getVaishnavName(b.vaishnavas, '').toLowerCase();
             return aName.localeCompare(bName);
         });
 
@@ -880,7 +871,7 @@ function handleRealtimeChange(payload) {
     realtimeTimeout = setTimeout(async () => {
         await loadRegistrations();
         renderTable();
-        Layout.showNotification('Данные обновлены', 'info');
+        Layout.showNotification(t('departures_data_updated'), 'info');
     }, 500);
 }
 

@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Управление материалами | Rupa Seva</title>
+    <title data-i18n="portal_page_title_materials_admin">Управление материалами | Rupa Seva</title>
     <link rel="icon" type="image/svg+xml" href="/favicon.svg">
 
     <!-- Tailwind CSS -->
@@ -125,14 +125,14 @@
             <!-- Заголовок -->
             <div class="flex items-center justify-between mb-6">
                 <div>
-                    <h1 class="text-2xl font-bold text-gray-800">Управление материалами</h1>
-                    <p class="text-gray-500">Создание и редактирование учебных материалов</p>
+                    <h1 class="text-2xl font-bold text-gray-800" data-i18n="portal_materials_admin_title">Управление материалами</h1>
+                    <p class="text-gray-500" data-i18n="portal_materials_admin_subtitle">Создание и редактирование учебных материалов</p>
                 </div>
                 <button onclick="openEditModal()" class="btn-primary flex items-center gap-2">
                     <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/>
                     </svg>
-                    Добавить
+                    <span data-i18n="portal_add">Добавить</span>
                 </button>
             </div>
 
@@ -151,7 +151,7 @@
         <div class="bg-white rounded-xl max-w-3xl w-full max-h-[90vh] overflow-y-auto">
             <!-- Заголовок модалки -->
             <div class="flex items-center justify-between p-4 border-b sticky top-0 bg-white">
-                <h2 id="modalTitle" class="text-lg font-semibold">Новый материал</h2>
+                <h2 id="modalTitle" class="text-lg font-semibold" data-i18n="portal_new_material">Новый материал</h2>
                 <button onclick="closeEditModal()" class="p-2 hover:bg-gray-100 rounded-lg">
                     <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
@@ -166,19 +166,19 @@
                 <!-- Slug и иконка -->
                 <div class="grid grid-cols-2 gap-4">
                     <div>
-                        <label class="form-label">URL-идентификатор (slug)</label>
+                        <label class="form-label" data-i18n="portal_slug_label">URL-идентификатор (slug)</label>
                         <input type="text" name="slug" class="form-input" placeholder="how-to-get-here" required pattern="[a-z0-9\-]+">
-                        <p class="text-xs text-gray-400 mt-1">Латиница, цифры и дефисы</p>
+                        <p class="text-xs text-gray-400 mt-1" data-i18n="portal_slug_hint">Латиница, цифры и дефисы</p>
                     </div>
                     <div>
-                        <label class="form-label">Иконка</label>
+                        <label class="form-label" data-i18n="portal_icon_label">Иконка</label>
                         <select name="icon" class="form-input">
-                            <option value="book">Книга</option>
-                            <option value="map">Карта</option>
-                            <option value="clipboard">Список</option>
-                            <option value="home">Дом</option>
-                            <option value="currency">Валюта</option>
-                            <option value="question">Вопрос</option>
+                            <option value="book" data-i18n="portal_icon_book">Книга</option>
+                            <option value="map" data-i18n="portal_icon_map">Карта</option>
+                            <option value="clipboard" data-i18n="portal_icon_list">Список</option>
+                            <option value="home" data-i18n="portal_icon_home">Дом</option>
+                            <option value="currency" data-i18n="portal_icon_currency">Валюта</option>
+                            <option value="question" data-i18n="portal_icon_question">Вопрос</option>
                         </select>
                     </div>
                 </div>
@@ -186,22 +186,22 @@
                 <!-- Порядок и публикация -->
                 <div class="grid grid-cols-2 gap-4">
                     <div>
-                        <label class="form-label">Порядок сортировки</label>
+                        <label class="form-label" data-i18n="portal_sort_order">Порядок сортировки</label>
                         <input type="number" name="sort_order" class="form-input" value="0">
                     </div>
                     <div class="flex items-center pt-6">
                         <label class="flex items-center gap-2 cursor-pointer">
                             <input type="checkbox" name="is_published" class="w-4 h-4 rounded border-gray-300 text-srsk-green focus:ring-srsk-green">
-                            <span class="text-sm font-medium text-gray-700">Опубликовано</span>
+                            <span class="text-sm font-medium text-gray-700" data-i18n="portal_published">Опубликовано</span>
                         </label>
                     </div>
                 </div>
 
                 <!-- Заголовки -->
                 <div>
-                    <label class="form-label">Заголовок</label>
+                    <label class="form-label" data-i18n="portal_title_label">Заголовок</label>
                     <div class="grid grid-cols-3 gap-2">
-                        <input type="text" name="title_ru" class="form-input" placeholder="Русский" required>
+                        <input type="text" name="title_ru" class="form-input" data-i18n-placeholder="portal_lang_russian" placeholder="Русский" required>
                         <input type="text" name="title_en" class="form-input" placeholder="English">
                         <input type="text" name="title_hi" class="form-input" placeholder="हिंदी">
                     </div>
@@ -209,11 +209,11 @@
 
                 <!-- Контент с табами -->
                 <div>
-                    <label class="form-label">Содержимое (HTML)</label>
+                    <label class="form-label" data-i18n="portal_content_label">Содержимое (HTML)</label>
 
                     <!-- Табы языков -->
                     <div class="flex">
-                        <button type="button" class="tab-btn active" onclick="switchContentTab('ru')">Русский</button>
+                        <button type="button" class="tab-btn active" onclick="switchContentTab('ru')" data-i18n="portal_lang_russian">Русский</button>
                         <button type="button" class="tab-btn" onclick="switchContentTab('en')">English</button>
                         <button type="button" class="tab-btn" onclick="switchContentTab('hi')">हिंदी</button>
                     </div>
@@ -225,7 +225,7 @@
                                 <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"/>
                                 </svg>
-                                Вставить изображение
+                                <span data-i18n="portal_insert_image">Вставить изображение</span>
                             </button>
                             <input type="file" id="imageInput" accept="image/*" class="hidden" onchange="handleImageUpload(this)">
                         </div>
@@ -235,13 +235,13 @@
                         <textarea name="content_hi" class="form-input content-editor hidden" placeholder="<h2>शीर्षक</h2><p>पाठ...</p>"></textarea>
                     </div>
 
-                    <p class="text-xs text-gray-400 mt-1">Используйте HTML теги: &lt;h2&gt;, &lt;h3&gt;, &lt;p&gt;, &lt;ul&gt;, &lt;li&gt;, &lt;a&gt;, &lt;strong&gt;, &lt;img&gt;</p>
+                    <p class="text-xs text-gray-400 mt-1" data-i18n="portal_html_hint">Используйте HTML теги: &lt;h2&gt;, &lt;h3&gt;, &lt;p&gt;, &lt;ul&gt;, &lt;li&gt;, &lt;a&gt;, &lt;strong&gt;, &lt;img&gt;</p>
                 </div>
 
                 <!-- Кнопки -->
                 <div class="flex justify-end gap-3 pt-4 border-t">
-                    <button type="button" onclick="closeEditModal()" class="btn-ghost">Отмена</button>
-                    <button type="submit" class="btn-primary">Сохранить</button>
+                    <button type="button" onclick="closeEditModal()" class="btn-ghost" data-i18n="portal_cancel">Отмена</button>
+                    <button type="submit" class="btn-primary" data-i18n="portal_save">Сохранить</button>
                 </div>
             </form>
         </div>

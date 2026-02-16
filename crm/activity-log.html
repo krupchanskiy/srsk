@@ -4,7 +4,7 @@
     <script src="../js/color-init.js"></script>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Журнал действий — CRM — ШРСК</title>
+    <title data-i18n-title="crm_activity_log_page_title">Журнал действий — CRM — ШРСК</title>
     <link href="https://cdn.jsdelivr.net/npm/daisyui@4.12.14/dist/full.min.css" rel="stylesheet" />
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
@@ -28,45 +28,45 @@
             <div class="flex flex-wrap gap-3 items-end">
                 <!-- Период -->
                 <div class="form-control">
-                    <label class="label py-1"><span class="label-text text-xs">Период</span></label>
+                    <label class="label py-1"><span class="label-text text-xs" data-i18n="crm_period">Период</span></label>
                     <select id="filterPeriod" class="select select-bordered select-sm" onchange="loadLog()">
-                        <option value="today">Сегодня</option>
-                        <option value="week" selected>Неделя</option>
-                        <option value="month">Месяц</option>
-                        <option value="all">Всё время</option>
+                        <option value="today" data-i18n="crm_period_today">Сегодня</option>
+                        <option value="week" selected data-i18n="crm_period_week">Неделя</option>
+                        <option value="month" data-i18n="crm_period_month">Месяц</option>
+                        <option value="all" data-i18n="crm_period_all">Всё время</option>
                     </select>
                 </div>
 
                 <!-- Менеджер -->
                 <div class="form-control">
-                    <label class="label py-1"><span class="label-text text-xs">Менеджер</span></label>
+                    <label class="label py-1"><span class="label-text text-xs" data-i18n="crm_manager">Менеджер</span></label>
                     <select id="filterManager" class="select select-bordered select-sm" onchange="applyFilters()">
-                        <option value="">Все</option>
+                        <option value="" data-i18n="all">Все</option>
                     </select>
                 </div>
 
                 <!-- Тип действия -->
                 <div class="form-control">
-                    <label class="label py-1"><span class="label-text text-xs">Тип действия</span></label>
+                    <label class="label py-1"><span class="label-text text-xs" data-i18n="crm_action_type">Тип действия</span></label>
                     <select id="filterAction" class="select select-bordered select-sm" onchange="applyFilters()">
-                        <option value="">Все</option>
-                        <option value="status_change">Смена статуса</option>
-                        <option value="payment_added">Добавление оплаты</option>
-                        <option value="task_created">Создание задачи</option>
-                        <option value="communication_added">Запись контакта</option>
-                        <option value="deal_assigned">Назначение сделки</option>
+                        <option value="" data-i18n="all">Все</option>
+                        <option value="status_change" data-i18n="crm_action_status_change">Смена статуса</option>
+                        <option value="payment_added" data-i18n="crm_action_payment_added">Добавление оплаты</option>
+                        <option value="task_created" data-i18n="crm_action_task_created">Создание задачи</option>
+                        <option value="communication_added" data-i18n="crm_action_communication_added">Запись контакта</option>
+                        <option value="deal_assigned" data-i18n="crm_action_deal_assigned">Назначение сделки</option>
                     </select>
                 </div>
 
                 <!-- Ретрит -->
                 <div class="form-control">
-                    <label class="label py-1"><span class="label-text text-xs">Ретрит</span></label>
+                    <label class="label py-1"><span class="label-text text-xs" data-i18n="crm_retreat">Ретрит</span></label>
                     <select id="filterRetreat" class="select select-bordered select-sm" onchange="applyFilters()">
-                        <option value="">Все</option>
+                        <option value="" data-i18n="all">Все</option>
                     </select>
                 </div>
 
-                <button class="btn btn-ghost btn-sm" onclick="resetFilters()">Сбросить</button>
+                <button class="btn btn-ghost btn-sm" onclick="resetFilters()" data-i18n="reset">Сбросить</button>
             </div>
         </div>
     </div>
@@ -84,18 +84,18 @@
                     <thead>
                         <tr>
                             <th class="w-40 cursor-pointer hover:bg-base-200" onclick="setSort('time')">
-                                <span class="inline-flex items-center gap-1">Время <span id="sort-time" class="text-xs opacity-50">↓</span></span>
+                                <span class="inline-flex items-center gap-1" data-i18n="crm_time">Время <span id="sort-time" class="text-xs opacity-50">↓</span></span>
                             </th>
                             <th class="cursor-pointer hover:bg-base-200" onclick="setSort('manager')">
-                                <span class="inline-flex items-center gap-1">Менеджер <span id="sort-manager" class="text-xs opacity-50"></span></span>
+                                <span class="inline-flex items-center gap-1" data-i18n="crm_manager">Менеджер <span id="sort-manager" class="text-xs opacity-50"></span></span>
                             </th>
                             <th class="cursor-pointer hover:bg-base-200" onclick="setSort('guest')">
-                                <span class="inline-flex items-center gap-1">Гость <span id="sort-guest" class="text-xs opacity-50"></span></span>
+                                <span class="inline-flex items-center gap-1" data-i18n="crm_guest">Гость <span id="sort-guest" class="text-xs opacity-50"></span></span>
                             </th>
                             <th class="cursor-pointer hover:bg-base-200" onclick="setSort('action')">
-                                <span class="inline-flex items-center gap-1">Действие <span id="sort-action" class="text-xs opacity-50"></span></span>
+                                <span class="inline-flex items-center gap-1" data-i18n="crm_action">Действие <span id="sort-action" class="text-xs opacity-50"></span></span>
                             </th>
-                            <th>Детали</th>
+                            <th data-i18n="crm_details">Детали</th>
                         </tr>
                     </thead>
                     <tbody id="logTable">

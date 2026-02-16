@@ -84,7 +84,7 @@ function openGroupModal(groupId = null) {
     if (groupId) {
         const g = groups.find(x => x.id === groupId);
         if (g) {
-            title.textContent = t('edit_group') || 'Редактировать группу';
+            title.textContent = t('edit_group');
             form.id.value = g.id;
             form.name.value = g.name || '';
             form.start_date.value = g.start_date || '';
@@ -96,7 +96,7 @@ function openGroupModal(groupId = null) {
             deleteBtn.classList.remove('hidden');
         }
     } else {
-        title.textContent = t('add_group') || 'Добавить группу';
+        title.textContent = t('add_group');
         deleteBtn.classList.add('hidden');
     }
 
@@ -124,7 +124,7 @@ async function saveGroup(ev) {
 
     if (!data.name || !data.start_date || !data.end_date) return;
     if (data.start_date > data.end_date) {
-        Layout.showNotification(t('date_error') || 'Дата начала не может быть позже даты окончания', 'error');
+        Layout.showNotification(t('groups_date_error'), 'error');
         return;
     }
 
@@ -140,16 +140,16 @@ async function saveGroup(ev) {
         closeModal();
         groups = await loadGroups();
         renderGroups();
-        Layout.showNotification(t('saved') || 'Сохранено', 'success');
+        Layout.showNotification(t('groups_saved'), 'success');
     } catch (err) {
         console.error('Error saving group:', err);
-        Layout.showNotification((t('save_error') || 'Ошибка сохранения') + ': ' + err.message, 'error');
+        Layout.showNotification(t('groups_save_error') + ': ' + err.message, 'error');
     }
 }
 
 async function deleteGroup() {
     if (!editingGroupId) return;
-    if (!confirm(t('delete_group_confirm') || 'Удалить эту группу?')) return;
+    if (!confirm(t('groups_delete_confirm'))) return;
 
     try {
         const { error } = await Layout.db.from('meal_groups').delete().eq('id', editingGroupId);
@@ -158,10 +158,10 @@ async function deleteGroup() {
         closeModal();
         groups = await loadGroups();
         renderGroups();
-        Layout.showNotification(t('deleted') || 'Удалено', 'success');
+        Layout.showNotification(t('groups_deleted'), 'success');
     } catch (err) {
         console.error('Error deleting group:', err);
-        Layout.showNotification((t('delete_error') || 'Ошибка удаления') + ': ' + err.message, 'error');
+        Layout.showNotification(t('groups_delete_error') + ': ' + err.message, 'error');
     }
 }
 

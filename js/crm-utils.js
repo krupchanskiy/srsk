@@ -179,7 +179,7 @@ const CrmUtils = {
         const hours = Math.floor(diff / 3600000);
         const days = Math.floor(diff / 86400000);
 
-        if (minutes < 1) return Layout.t('just_now') || 'только что';
+        if (minutes < 1) return Layout.t('just_now');
         if (minutes < 60) return `${minutes} мин назад`;
         if (hours < 24) return `${hours} ч назад`;
         if (days < 7) return `${days} дн назад`;
@@ -424,11 +424,11 @@ const CrmUtils = {
     async copyToClipboard(text) {
         try {
             await navigator.clipboard.writeText(text);
-            Layout.showNotification(Layout.t('copied') || 'Скопировано', 'success');
+            Layout.showNotification(Layout.t('copied'), 'success');
             return true;
         } catch (err) {
             console.error('Copy failed:', err);
-            Layout.showNotification(Layout.t('copy_failed') || 'Ошибка копирования', 'error');
+            Layout.showNotification(Layout.t('copy_failed'), 'error');
             return false;
         }
     },

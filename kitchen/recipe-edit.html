@@ -132,14 +132,14 @@
                         <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
                             <div>
                                 <label class="label">
-                                    <span class="label-text font-medium">Название (RU) *</span>
+                                    <span class="label-text font-medium" data-i18n="field_name_ru">Название (RU) *</span>
                                 </label>
                                 <input type="text" name="name_ru" class="input input-bordered w-full" required />
                             </div>
                             <div>
                                 <label class="label">
-                                    <span class="label-text font-medium">Name (EN) *</span>
-                                    <button type="button" class="translate-btn" onclick="autoTranslate('name_ru', 'name_en', 'ru', 'en', this)">🌐 Auto</button>
+                                    <span class="label-text font-medium" data-i18n="field_name_en">Name (EN) *</span>
+                                    <button type="button" class="translate-btn" data-i18n="auto_translate_btn" onclick="autoTranslate('name_ru', 'name_en', 'ru', 'en', this)">🌐 Auto</button>
                                 </label>
                                 <input type="text" name="name_en" class="input input-bordered w-full" required />
                             </div>
@@ -149,8 +149,8 @@
                         <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
                             <div>
                                 <label class="label">
-                                    <span class="label-text font-medium">नाम (HI)</span>
-                                    <button type="button" class="translate-btn" onclick="autoTranslate('name_ru', 'name_hi', 'ru', 'hi', this)">🌐 Auto</button>
+                                    <span class="label-text font-medium" data-i18n="field_name_hi">नाम (HI)</span>
+                                    <button type="button" class="translate-btn" data-i18n="auto_translate_btn" onclick="autoTranslate('name_ru', 'name_hi', 'ru', 'hi', this)">🌐 Auto</button>
                                 </label>
                                 <input type="text" name="name_hi" id="nameHiInput" class="input input-bordered w-full" oninput="updateTranslit()" />
                             </div>
@@ -158,7 +158,7 @@
                                 <label class="label">
                                     <span class="label-text font-medium" data-i18n="field_translit">Транслитерация (IAST)</span>
                                 </label>
-                                <input type="text" name="translit" id="translitInput" class="input input-bordered w-full bg-base-200" placeholder="Автоматически" readonly />
+                                <input type="text" name="translit" id="translitInput" class="input input-bordered w-full bg-base-200" data-i18n-placeholder="automatically" placeholder="Автоматически" readonly />
                             </div>
                         </div>
 
@@ -185,9 +185,9 @@
                                 <div class="flex gap-2">
                                     <input type="number" name="output_amount" min="0.1" step="0.1" class="input input-bordered w-full" />
                                     <select name="output_unit" class="select select-bordered w-20">
-                                        <option value="kg">кг</option>
-                                        <option value="l">л</option>
-                                        <option value="pcs">шт</option>
+                                        <option value="kg" data-i18n="unit_kg">кг</option>
+                                        <option value="l" data-i18n="unit_l">л</option>
+                                        <option value="pcs" data-i18n="unit_pcs">шт</option>
                                     </select>
                                 </div>
                             </div>
@@ -198,9 +198,9 @@
                                 <div class="flex gap-2">
                                     <input type="number" name="portion_amount" min="1" class="input input-bordered w-full" />
                                     <select name="portion_unit" class="select select-bordered w-20">
-                                        <option value="g">г</option>
-                                        <option value="ml">мл</option>
-                                        <option value="pcs">шт</option>
+                                        <option value="g" data-i18n="unit_g">г</option>
+                                        <option value="ml" data-i18n="unit_ml">мл</option>
+                                        <option value="pcs" data-i18n="unit_pcs">шт</option>
                                     </select>
                                 </div>
                             </div>
@@ -220,14 +220,14 @@
                         <div>
                             <label class="label">
                                 <span class="label-text">EN</span>
-                                <button type="button" class="translate-btn" onclick="autoTranslate('description_ru', 'description_en', 'ru', 'en', this)">🌐 Auto</button>
+                                <button type="button" class="translate-btn" data-i18n="auto_translate_btn" onclick="autoTranslate('description_ru', 'description_en', 'ru', 'en', this)">🌐 Auto</button>
                             </label>
                             <textarea name="description_en" rows="3" class="textarea textarea-bordered w-full"></textarea>
                         </div>
                         <div>
                             <label class="label">
                                 <span class="label-text">HI</span>
-                                <button type="button" class="translate-btn" onclick="autoTranslate('description_ru', 'description_hi', 'ru', 'hi', this)">🌐 Auto</button>
+                                <button type="button" class="translate-btn" data-i18n="auto_translate_btn" onclick="autoTranslate('description_ru', 'description_hi', 'ru', 'hi', this)">🌐 Auto</button>
                             </label>
                             <textarea name="description_hi" rows="3" class="textarea textarea-bordered w-full"></textarea>
                         </div>
@@ -362,7 +362,7 @@
                 <div id="productNotesSection" class="hidden">
                     <label class="label">
                         <span class="label-text font-medium" data-i18n="notes">Примечание</span>
-                        <span class="label-text-alt opacity-50">(опционально)</span>
+                        <span class="label-text-alt opacity-50" data-i18n="optional_hint">(опционально)</span>
                     </label>
                     <input type="text" id="productNotesInput" class="input input-bordered w-full"
                            placeholder="для теста, для начинки..." data-i18n-placeholder="notes_placeholder" />
@@ -719,10 +719,10 @@
                                 ${unitOptions}
                             </select>
                         </div>
-                        <input type="text" value="${ing.notes || ''}" placeholder="${t('notes_short') || 'прим.'}"
+                        <input type="text" value="${ing.notes || ''}" placeholder="${t('notes_short')}"
                                class="input input-bordered input-sm w-28"
                                onchange="updateIngredient(${index}, 'notes', this.value.trim() || null)" />
-                        <button type="button" class="btn btn-ghost btn-sm btn-square opacity-40 hover:opacity-100 hover:text-error" onclick="removeIngredient(${index})">
+                        <button type="button" class="btn btn-ghost btn-sm btn-square opacity-40 hover:opacity-100 hover:text-error" onclick="removeIngredient(${index})" title="${t('delete')}">
                             <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
                             </svg>
@@ -775,7 +775,7 @@
 
         function buildProductCategoryButtons() {
             const container = document.getElementById('productCategoryButtons');
-            let html = `<button type="button" class="btn btn-sm ${currentProductCategory === 'all' ? '' : 'btn-ghost'}" data-cat="all" style="${currentProductCategory === 'all' ? 'background-color: var(--current-color); border-color: var(--current-color); color: white;' : ''}">${t('all') || 'Все'}</button>`;
+            let html = `<button type="button" class="btn btn-sm ${currentProductCategory === 'all' ? '' : 'btn-ghost'}" data-cat="all" style="${currentProductCategory === 'all' ? 'background-color: var(--current-color); border-color: var(--current-color); color: white;' : ''}">${t('all')}</button>`;
             productCategories.forEach(cat => {
                 const isActive = currentProductCategory === cat.slug;
                 html += `<button type="button" class="btn btn-sm ${isActive ? '' : 'btn-ghost'}" data-cat="${cat.slug}" style="${isActive ? 'background-color: var(--current-color); border-color: var(--current-color); color: white;' : ''}">${cat.emoji || ''} ${Layout.getName(cat)}</button>`;
@@ -805,7 +805,7 @@
             ).slice(0, 10);
 
             if (filtered.length === 0) {
-                dropdown.innerHTML = `<div class="p-3 text-center opacity-50">${t('not_found') || 'Не найдено'}</div>`;
+                dropdown.innerHTML = `<div class="p-3 text-center opacity-50">${t('not_found')}</div>`;
             } else {
                 dropdown.innerHTML = filtered.map(p => `
                     <div class="p-2 hover:bg-base-200 cursor-pointer" onclick="selectProductModal('${p.id}')">
@@ -832,7 +832,7 @@
             }
 
             if (filtered.length === 0) {
-                container.innerHTML = `<div class="p-4 text-center opacity-50">${t('no_products_in_category') || 'В этой категории нет продуктов'}</div>`;
+                container.innerHTML = `<div class="p-4 text-center opacity-50">${t('no_products_in_category')}</div>`;
             } else {
                 container.innerHTML = filtered.map(p => `
                     <div class="p-2 hover:bg-base-200 cursor-pointer border-b border-base-200 last:border-b-0" onclick="selectProductModal('${p.id}')">
@@ -1062,14 +1062,14 @@
                     const { error } = await Layout.db.from('recipes').update(recipeData).eq('id', recipeId);
                     if (error) {
                         console.error('Update error:', error);
-                        throw new Error('Ошибка обновления рецепта: ' + error.message);
+                        throw new Error(t('save_error') + ': ' + error.message);
                     }
                 } else {
                     // Create new
                     const { data, error } = await Layout.db.from('recipes').insert(recipeData).select().single();
                     if (error) {
                         console.error('Insert error:', error);
-                        throw new Error('Ошибка создания рецепта: ' + error.message);
+                        throw new Error(t('save_error') + ': ' + error.message);
                     }
                     savedRecipeId = data.id;
                 }
@@ -1078,7 +1078,7 @@
                 const { error: delError } = await Layout.db.from('recipe_ingredients').delete().eq('recipe_id', savedRecipeId);
                 if (delError) {
                     console.error('Delete ingredients error:', delError);
-                    throw new Error('Ошибка удаления ингредиентов: ' + delError.message);
+                    throw new Error(t('delete_error') + ': ' + delError.message);
                 }
 
                 if (ingredients.length > 0) {
@@ -1093,7 +1093,7 @@
                     const { error: ingError } = await Layout.db.from('recipe_ingredients').insert(ingData);
                     if (ingError) {
                         console.error('Insert ingredients error:', ingError);
-                        throw new Error('Ошибка добавления ингредиентов: ' + ingError.message);
+                        throw new Error(t('save_error') + ': ' + ingError.message);
                     }
                 }
 
@@ -1132,7 +1132,7 @@
 
         async function deleteRecipe() {
             if (!recipeId) return;
-            if (!confirm(t('delete_confirm') || 'Удалить этот рецепт? Это действие нельзя отменить.')) return;
+            if (!confirm(t('delete_confirm'))) return;
 
             try {
                 await Layout.db.from('recipe_ingredients').delete().eq('recipe_id', recipeId);
@@ -1141,7 +1141,7 @@
                 window.location.href = 'recipes.html';
             } catch (err) {
                 console.error('Error deleting recipe:', err);
-                Layout.showNotification(t('delete_error') || 'Ошибка удаления: ' + err.message, 'error');
+                Layout.showNotification(t('delete_error') + ': ' + err.message, 'error');
             }
         }
 
@@ -1161,10 +1161,10 @@
 
             // Update page title
             if (recipeId) {
-                document.getElementById('pageTitle').textContent = t('edit_recipe') || 'Редактирование рецепта';
+                document.getElementById('pageTitle').textContent = t('edit_recipe');
                 document.getElementById('deleteBtn').classList.remove('hidden');
             } else {
-                document.getElementById('pageTitle').textContent = t('new_recipe') || 'Новый рецепт';
+                document.getElementById('pageTitle').textContent = t('new_recipe');
                 document.getElementById('deleteBtn').classList.add('hidden');
             }
         }

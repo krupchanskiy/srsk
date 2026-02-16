@@ -4,7 +4,7 @@
     <script src="../js/color-init.js"></script>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Канбан — CRM — ШРСК</title>
+    <title data-i18n-title="crm_kanban_page_title">Канбан — CRM — ШРСК</title>
     <link href="https://cdn.jsdelivr.net/npm/daisyui@4.12.14/dist/full.min.css" rel="stylesheet" />
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
@@ -79,26 +79,26 @@
         <div class="flex flex-wrap gap-3 items-center">
             <!-- Ретрит -->
             <select id="filterRetreat" class="select select-bordered select-sm" onchange="loadDeals()">
-                <option value="">Все ретриты</option>
+                <option value="" data-i18n="crm_all_retreats">Все ретриты</option>
             </select>
 
             <!-- Менеджер -->
             <select id="filterManager" class="select select-bordered select-sm" onchange="applyFilters()">
-                <option value="">Все менеджеры</option>
-                <option value="my">Мои</option>
-                <option value="unassigned">Не назначен</option>
+                <option value="" data-i18n="crm_all_managers">Все менеджеры</option>
+                <option value="my" data-i18n="crm_my">Мои</option>
+                <option value="unassigned" data-i18n="crm_unassigned">Не назначен</option>
             </select>
 
             <!-- Режим -->
             <select id="filterMode" class="select select-bordered select-sm" onchange="applyFilters()">
-                <option value="">Все режимы</option>
-                <option value="active">Активные</option>
-                <option value="long_term">Долгий дожим</option>
-                <option value="paused">На паузе</option>
+                <option value="" data-i18n="crm_all_modes">Все режимы</option>
+                <option value="active" data-i18n="crm_mode_active">Активные</option>
+                <option value="long_term" data-i18n="crm_mode_long_term">Долгий дожим</option>
+                <option value="paused" data-i18n="crm_mode_paused">На паузе</option>
             </select>
 
             <!-- Новая сделка -->
-            <a href="deals.html" class="btn btn-sm btn-ghost">Все сделки →</a>
+            <a href="deals.html" class="btn btn-sm btn-ghost" data-i18n="crm_all_deals_link">Все сделки →</a>
         </div>
     </div>
 

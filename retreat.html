@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Ретрит | Rupa Seva</title>
+    <title data-i18n="retreat_page_title">Ретрит | Rupa Seva</title>
     <link rel="icon" type="image/svg+xml" href="/favicon.svg">
 
     <!-- Open Graph для шаринга -->
@@ -229,7 +229,7 @@
 
                     <!-- Размещение -->
                     <div id="accommodation-card" class="hidden rounded-2xl p-5" style="background: #E8F5E9;">
-                        <div class="text-xs font-medium uppercase tracking-wider mb-3" style="color: #2E7D32;">Размещение</div>
+                        <div class="text-xs font-medium uppercase tracking-wider mb-3" style="color: #2E7D32;" data-i18n="retreat_accommodation">Размещение</div>
                         <div class="p-4 bg-white/60 rounded-xl">
                             <p id="accommodation-room" class="text-xl font-medium text-gray-800"></p>
                             <div id="accommodation-roommate" class="hidden mt-3 pt-3 border-t border-gray-200/50">
@@ -248,7 +248,7 @@
 
                     <!-- Самостоятельное проживание -->
                     <div id="self-accommodation-card" class="hidden rounded-2xl p-5" style="background: #FFF3E0;">
-                        <div class="text-xs font-medium uppercase tracking-wider mb-3" style="color: #E65100;">Размещение</div>
+                        <div class="text-xs font-medium uppercase tracking-wider mb-3" style="color: #E65100;" data-i18n="retreat_accommodation">Размещение</div>
                         <div class="p-4 bg-white/60 rounded-xl">
                             <p class="text-xl font-medium text-gray-800" data-i18n="retreat_self_accommodation">Самостоятельное</p>
                         </div>
@@ -256,7 +256,7 @@
 
                     <!-- Трансфер -->
                     <div id="transfer-card" class="hidden rounded-2xl p-5" style="background: #FFF3CD;">
-                        <div class="text-xs font-medium uppercase tracking-wider mb-3" style="color: #997A00;">Трансфер</div>
+                        <div class="text-xs font-medium uppercase tracking-wider mb-3" style="color: #997A00;" data-i18n="retreat_transfer">Трансфер</div>
 
                         <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
                             <!-- Прилёт -->
@@ -265,7 +265,7 @@
                                     <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24">
                                         <path stroke-linecap="round" stroke-linejoin="round" d="M6 12L3.269 3.126A59.768 59.768 0 0121.485 12 59.77 59.77 0 013.27 20.876L5.999 12zm0 0h7.5" />
                                     </svg>
-                                    Прилёт
+                                    <span data-i18n="retreat_arrival">Прилёт</span>
                                 </div>
                                 <div id="arrival-datetime" class="text-xl font-medium text-gray-800"></div>
                                 <div id="arrival-flight" class="text-sm text-gray-500"></div>
@@ -285,7 +285,7 @@
                                     <svg class="w-4 h-4 rotate-180" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24">
                                         <path stroke-linecap="round" stroke-linejoin="round" d="M6 12L3.269 3.126A59.768 59.768 0 0121.485 12 59.77 59.77 0 013.27 20.876L5.999 12zm0 0h7.5" />
                                     </svg>
-                                    Вылет
+                                    <span data-i18n="retreat_departure">Вылет</span>
                                 </div>
                                 <div id="departure-datetime" class="text-xl font-medium text-gray-800"></div>
                                 <div id="departure-flight" class="text-sm text-gray-500"></div>
@@ -534,17 +534,17 @@
                     <form id="application-form" class="space-y-4">
                         <div class="form-group">
                             <label class="label" data-i18n="retreat_companions">С кем едете</label>
-                            <textarea id="app-companions" class="input" rows="2" placeholder="Имена попутчиков, если едете не один"></textarea>
+                            <textarea id="app-companions" class="input" rows="2" placeholder="Имена попутчиков, если едете не один" data-i18n-placeholder="retreat_companions_placeholder"></textarea>
                         </div>
 
                         <div class="form-group">
                             <label class="label" data-i18n="retreat_accommodation_wishes">Пожелания по размещению</label>
-                            <textarea id="app-accommodation" class="input" rows="3" placeholder="Соседи, этаж, особенности..."></textarea>
+                            <textarea id="app-accommodation" class="input" rows="3" placeholder="Соседи, этаж, особенности..." data-i18n-placeholder="retreat_accommodation_placeholder"></textarea>
                         </div>
 
                         <div class="form-group">
                             <label class="label" data-i18n="retreat_questions">Вопросы организаторам</label>
-                            <textarea id="app-questions" class="input" rows="3" placeholder="Ваши вопросы..."></textarea>
+                            <textarea id="app-questions" class="input" rows="3" placeholder="Ваши вопросы..." data-i18n-placeholder="retreat_questions_placeholder"></textarea>
                         </div>
 
                         <button type="submit" class="btn-primary w-full">

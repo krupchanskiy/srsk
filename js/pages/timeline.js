@@ -4,6 +4,7 @@
 // Конфигурация
 const DAYS_TO_SHOW = 90; // 3 месяца
 const CELL_WIDTH = 24;   // ширина половины дня
+const t = key => Layout.t(key);
 const e = str => Layout.escapeHtml(str);
 
 // Состояние сворачивания
@@ -209,8 +210,7 @@ async function loadTimelineData() {
                     // Получаем имя резидента
                     let guestName = res.guest_name || '';
                     if (res.vaishnavas) {
-                        const v = res.vaishnavas;
-                        guestName = v.spiritual_name || `${v.first_name} ${v.last_name}`.trim();
+                        guestName = getVaishnavName(res.vaishnavas, '');
                     }
                     // Если это бронирование - показываем название брони или имя контакта
                     if (!guestName && res.bookings) {
@@ -438,7 +438,7 @@ function isWeekend(dayIndex) {
 
 // Получить день недели
 function getWeekdayName(dayIndex) {
-    const days = ['вс', 'пн', 'вт', 'ср', 'чт', 'пт', 'сб'];
+    const days = DateUtils.dayNamesShort[Layout.currentLang] || DateUtils.dayNamesShort.ru;
     const date = getDateForDay(dayIndex);
     return days[date.getDay()];
 }
@@ -519,7 +519,7 @@ function openActionModal(dayIndex, roomId, buildingName, roomName, bedName, half
 
     // Заполняем поля
     const location = bedName
-        ? `${buildingName} → ${roomName} → Место ${bedName}`
+        ? `${buildingName} → ${roomName} → ${t('timeline_bed')} ${bedName}`
         : `${buildingName} → ${roomName}`;
     document.getElementById('modalLocation').textContent = location;
     document.getElementById('modalCheckIn').value = formatDateForInput(checkInDate);
@@ -540,7 +540,7 @@ async function loadDictionaries() {
             if (error) { console.error('Error loading resident_categories:', error); return null; }
             return (data || []).filter(c => (c.sort_order || 0) < 999);
         }),
-        Layout.db.from('vaishnavas').select('id, spiritual_name, first_name, last_name, gender, phone, birth_date').eq('is_deleted', false).order('spiritual_name')
+        Utils.fetchAll((from, to) => Layout.db.from('vaishnavas').select('id, spiritual_name, first_name, last_name, gender, phone, birth_date').eq('is_deleted', false).order('spiritual_name').range(from, to))
     ]);
     categories = catData || [];
     vaishnavas = vaishnavasRes.data || [];
@@ -570,21 +570,21 @@ function renderLegend() {
     // Бронирования (штриховка)
     const bookingHtml = `<div class="flex items-center gap-1.5">
         <span class="w-4 h-4 rounded" style="background: repeating-linear-gradient(45deg, #3b82f6, #3b82f6 2px, rgba(255,255,255,0.5) 2px, rgba(255,255,255,0.5) 4px); border: 1px dashed rgba(0,0,0,0.3);"></span>
-        <span class="text-sm text-gray-600">Бронь</span>
+        <span class="text-sm text-gray-600">${t('timeline_booking')}</span>
     </div>`;
 
     // Уборка и бельё
     const cleaningHtml = `<div class="flex items-center gap-1.5">
         <span class="w-4 h-4 rounded" style="background: #9ca3af;"></span>
-        <span class="text-sm text-gray-600">Уборка</span>
+        <span class="text-sm text-gray-600">${t('timeline_cleaning')}</span>
     </div>
     <div class="flex items-center gap-1.5">
         <span class="w-4 h-4 rounded" style="background: #06b6d4;"></span>
-        <span class="text-sm text-gray-600">Бельё</span>
+        <span class="text-sm text-gray-600">${t('timeline_bedding')}</span>
     </div>
     <div class="flex items-center gap-1.5">
         <span class="w-4 h-4 rounded" style="background: #22c55e;"></span>
-        <span class="text-sm text-gray-600">Готово</span>
+        <span class="text-sm text-gray-600">${t('timeline_done')}</span>
     </div>`;
 
     legend.innerHTML = categoriesHtml + bookingHtml + cleaningHtml;
@@ -643,10 +643,6 @@ function showBookingForm() {
 }
 
 // ===== Поиск вайшнавов =====
-function getVaishnavName(v) {
-    return v.spiritual_name || `${v.first_name || ''} ${v.last_name || ''}`.trim() || 'Без имени';
-}
-
 function searchVaishnavas(query) {
     const suggestionsEl = document.getElementById('vaishnavaSuggestions');
     if (!query || query.length < 2) {
@@ -662,11 +658,11 @@ function searchVaishnavas(query) {
     }).slice(0, 10);
 
     if (matches.length === 0) {
-        suggestionsEl.innerHTML = '<div class="p-3 text-gray-500 text-sm">Не найдено</div>';
+        suggestionsEl.innerHTML = `<div class="p-3 text-gray-500 text-sm">${t('timeline_not_found')}</div>`;
     } else {
         suggestionsEl.innerHTML = matches.map(v => {
             const name = getVaishnavName(v);
-            const badge = v.is_team_member ? '<span class="badge badge-sm badge-primary ml-2">Команда</span>' : '';
+            const badge = v.is_team_member ? `<span class="badge badge-sm badge-primary ml-2">${t('timeline_team')}</span>` : '';
             return `<div class="p-2 hover:bg-base-200 cursor-pointer flex items-center" data-action="select-vaishnava" data-id="${v.id}">
                 <span>${e(name)}</span>${badge}
             </div>`;
@@ -922,13 +918,13 @@ function openResidentModal(guestData, buildingName, roomName) {
     const isCheckedOut = res.status === 'checked_out';
 
     // Заголовок
-    let title = isBooking ? 'Бронирование' : 'Проживание';
-    if (isCheckedOut) title = 'Выселен';
+    let title = isBooking ? t('timeline_booking') : t('timeline_stay');
+    if (isCheckedOut) title = t('timeline_checked_out');
     document.getElementById('residentModalTitle').textContent = title;
 
     // Локация
     document.getElementById('residentModalLocation').textContent =
-        `${buildingName} → Номер ${roomName}`;
+        `${buildingName} → ${t('timeline_room')} ${roomName}`;
 
     // Информация
     let infoHtml = '';
@@ -938,54 +934,54 @@ function openResidentModal(guestData, buildingName, roomName) {
         ? `<a href="../vaishnavas/person.html?id=${res.vaishnava_id}" class="link link-primary">${guestData.name}</a>`
         : guestData.name;
     infoHtml += `<div class="flex justify-between py-1 border-b">
-        <span class="text-gray-500">Гость:</span>
+        <span class="text-gray-500">${t('timeline_guest')}:</span>
         <span class="font-medium">${nameLink}</span>
     </div>`;
 
     // Категория
     if (res.resident_categories) {
         infoHtml += `<div class="flex justify-between py-1 border-b">
-            <span class="text-gray-500">Категория:</span>
+            <span class="text-gray-500">${t('timeline_category')}:</span>
             <span class="font-medium">${Layout.getName(res.resident_categories)}</span>
         </div>`;
     }
 
     // Даты
     infoHtml += `<div class="flex justify-between py-1 border-b">
-        <span class="text-gray-500">Заезд:</span>
-        <span class="font-medium">${formatDisplayDate(res.check_in)}${res.early_checkin ? ' (ранний)' : ''}</span>
+        <span class="text-gray-500">${t('timeline_checkin')}:</span>
+        <span class="font-medium">${formatDisplayDate(res.check_in)}${res.early_checkin ? ` (${t('timeline_early')})` : ''}</span>
     </div>`;
     // Плейсхолдер для времени приезда (заполняется асинхронно)
     infoHtml += `<div id="residentArrivalTime" class="hidden flex justify-between py-1 border-b">
-        <span class="text-gray-500">Время приезда:</span>
+        <span class="text-gray-500">${t('timeline_arrival_time')}:</span>
         <span class="font-medium" id="residentArrivalTimeValue"></span>
     </div>`;
 
     if (res.check_out) {
         infoHtml += `<div class="flex justify-between py-1 border-b">
-            <span class="text-gray-500">Выезд:</span>
-            <span class="font-medium">${formatDisplayDate(res.check_out)}${res.late_checkout ? ' (поздний)' : ''}</span>
+            <span class="text-gray-500">${t('timeline_checkout')}:</span>
+            <span class="font-medium">${formatDisplayDate(res.check_out)}${res.late_checkout ? ` (${t('timeline_late')})` : ''}</span>
         </div>`;
     }
     // Плейсхолдер для времени отъезда
     infoHtml += `<div id="residentDepartureTime" class="hidden flex justify-between py-1 border-b">
-        <span class="text-gray-500">Время отъезда:</span>
+        <span class="text-gray-500">${t('timeline_departure_time')}:</span>
         <span class="font-medium" id="residentDepartureTimeValue"></span>
     </div>`;
 
     // Телефон
     if (res.guest_phone) {
         infoHtml += `<div class="flex justify-between py-1 border-b">
-            <span class="text-gray-500">Телефон:</span>
+            <span class="text-gray-500">${t('timeline_phone')}:</span>
             <span class="font-medium">${e(res.guest_phone)}</span>
         </div>`;
     }
 
     // Питание
     if (!isBooking) {
-        const mealsLabel = res.has_meals === true ? 'Питается' : res.has_meals === false ? 'Не питается' : 'Не определён';
+        const mealsLabel = res.has_meals === true ? t('timeline_meals_yes') : res.has_meals === false ? t('timeline_meals_no') : t('timeline_meals_unknown');
         infoHtml += `<div class="flex justify-between py-1 border-b">
-            <span class="text-gray-500">Питание:</span>
+            <span class="text-gray-500">${t('timeline_meals')}:</span>
             <span class="font-medium">${mealsLabel}</span>
         </div>`;
     }
@@ -993,7 +989,7 @@ function openResidentModal(guestData, buildingName, roomName) {
     // Примечания
     if (res.notes) {
         infoHtml += `<div class="flex justify-between py-1 border-b">
-            <span class="text-gray-500">Примечания:</span>
+            <span class="text-gray-500">${t('timeline_notes')}:</span>
             <span class="font-medium">${e(res.notes)}</span>
         </div>`;
     }
@@ -1002,13 +998,13 @@ function openResidentModal(guestData, buildingName, roomName) {
     if (res.bookings) {
         if (res.bookings.name) {
             infoHtml += `<div class="flex justify-between py-1 border-b">
-                <span class="text-gray-500">Бронь:</span>
+                <span class="text-gray-500">${t('timeline_booking')}:</span>
                 <span class="font-medium">${e(res.bookings.name)}</span>
             </div>`;
         }
         if (res.bookings.contact_name) {
             infoHtml += `<div class="flex justify-between py-1 border-b">
-                <span class="text-gray-500">Контакт:</span>
+                <span class="text-gray-500">${t('timeline_contact')}:</span>
                 <span class="font-medium">${e(res.bookings.contact_name)}</span>
             </div>`;
         }
@@ -1027,19 +1023,19 @@ function openResidentModal(guestData, buildingName, roomName) {
                 <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M18 9v3m0 0v3m0-3h3m-3 0h-3m-2-5a4 4 0 11-8 0 4 4 0 018 0zM3 20a6 6 0 0112 0v1H3v-1z" />
                 </svg>
-                Заселить
+                ${t('timeline_checkin_action')}
             </button>`;
             actionsHtml += `<button class="btn btn-info btn-outline" data-action="show-move-screen">
                 <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4" />
                 </svg>
-                Перенос
+                ${t('timeline_move')}
             </button>`;
             actionsHtml += `<button class="btn btn-error btn-outline" data-action="cancel-booking">
                 <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
                 </svg>
-                Отменить
+                ${t('timeline_cancel')}
             </button>`;
         } else if (!isCheckedOut) {
             // Действия для заселённого гостя (не выселенного)
@@ -1047,19 +1043,19 @@ function openResidentModal(guestData, buildingName, roomName) {
                 <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
                 </svg>
-                Выселить
+                ${t('timeline_checkout_action')}
             </button>`;
             actionsHtml += `<button class="btn btn-outline" data-action="show-edit-dates-screen">
                 <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
                 </svg>
-                Даты
+                ${t('timeline_dates')}
             </button>`;
             actionsHtml += `<button class="btn btn-info btn-outline" data-action="show-move-screen">
                 <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4" />
                 </svg>
-                Перенос
+                ${t('timeline_move')}
             </button>`;
         }
         // Для выселенных (isCheckedOut) — только кнопка удаления
@@ -1069,10 +1065,10 @@ function openResidentModal(guestData, buildingName, roomName) {
             <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
             </svg>
-            Удалить
+            ${t('timeline_delete')}
         </button>`;
     } else {
-        actionsHtml = '<p class="text-sm opacity-60">Только просмотр</p>';
+        actionsHtml = `<p class="text-sm opacity-60">${t('timeline_view_only')}</p>`;
     }
 
     document.getElementById('residentActions').innerHTML = actionsHtml;
@@ -1123,7 +1119,7 @@ async function loadRetreatTimes(retreatId, vaishnavId) {
 function formatTimestampShort(datetimeStr) {
     if (!datetimeStr) return '—';
     const d = new Date(datetimeStr.slice(0, 16));
-    const months = ['янв', 'фев', 'мар', 'апр', 'май', 'июн', 'июл', 'авг', 'сен', 'окт', 'ноя', 'дек'];
+    const months = DateUtils.monthNamesShort.ru;
     const pad = n => String(n).padStart(2, '0');
     return `${d.getDate()} ${months[d.getMonth()]}, ${pad(d.getHours())}:${pad(d.getMinutes())}`;
 }
@@ -1307,7 +1303,7 @@ async function showMoveScreen() {
 
     // Загружаем список номеров
     const roomsList = document.getElementById('roomsList');
-    roomsList.innerHTML = '<div class="text-center py-4">Загрузка...</div>';
+    roomsList.innerHTML = `<div class="text-center py-4">${t('timeline_loading')}</div>`;
 
     const res = currentResident.rawData;
     const checkIn = res.check_in;
@@ -1336,7 +1332,7 @@ async function showMoveScreen() {
     const residents = residentsRes.data || [];
 
     if (buildings.length === 0) {
-        roomsList.innerHTML = '<div class="text-center py-4 text-gray-500">Нет доступных номеров</div>';
+        roomsList.innerHTML = `<div class="text-center py-4 text-gray-500">${t('timeline_no_rooms')}</div>`;
         return;
     }
 
@@ -1439,7 +1435,7 @@ function openCleaningModal(cleaningId) {
 
     // Локация
     document.getElementById('cleaningModalLocation').textContent =
-        `${cleaningData.buildingName} → Номер ${cleaningData.roomName}`;
+        `${cleaningData.buildingName} → ${t('timeline_room')} ${cleaningData.roomName}`;
 
     // Даты
     document.getElementById('cleaningStartDate').value = raw.start_date;
@@ -1647,13 +1643,12 @@ function renderRetreats() {
     });
 
     // Названия месяцев на первых числах
-    const monthNames = ['ЯНВАРЬ', 'ФЕВРАЛЬ', 'МАРТ', 'АПРЕЛЬ', 'МАЙ', 'ИЮНЬ',
-        'ИЮЛЬ', 'АВГУСТ', 'СЕНТЯБРЬ', 'ОКТЯБРЬ', 'НОЯБРЬ', 'ДЕКАБРЬ'];
+    const monthNamesArr = DateUtils.monthNames[Layout.currentLang] || DateUtils.monthNames.ru;
     for (let day = 0; day < DAYS_TO_SHOW; day++) {
         const date = getDateForDay(day);
         if (date.getDate() === 1) {
             const left = day * CELL_WIDTH * 2 + 2;
-            html += `<div class="month-label" style="left: ${left}px;">${monthNames[date.getMonth()]}</div>`;
+            html += `<div class="month-label" style="left: ${left}px;">${monthNamesArr[date.getMonth()].toUpperCase()}</div>`;
         }
     }
 
@@ -1679,13 +1674,13 @@ function renderTable() {
     // Строка с числами
     html += `<tr class="row-dates"><th class="sticky-col">
         <div class="flex gap-1">
-            <button class="btn btn-xs btn-ghost opacity-60 hover:opacity-100" data-action="collapse-all-buildings" title="Свернуть всё">
+            <button class="btn btn-xs btn-ghost opacity-60 hover:opacity-100" data-action="collapse-all-buildings" title="${t('timeline_collapse_all')}">
                 <svg xmlns="http://www.w3.org/2000/svg" class="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 9H4m16 6H4" /></svg>
             </button>
-            <button class="btn btn-xs btn-ghost opacity-60 hover:opacity-100" data-action="collapse-all-rooms" title="Свернуть номера">
+            <button class="btn btn-xs btn-ghost opacity-60 hover:opacity-100" data-action="collapse-all-rooms" title="${t('timeline_collapse_rooms')}">
                 <svg xmlns="http://www.w3.org/2000/svg" class="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 12H4" /></svg>
             </button>
-            <button class="btn btn-xs btn-ghost opacity-60 hover:opacity-100" data-action="expand-all" title="Развернуть всё">
+            <button class="btn btn-xs btn-ghost opacity-60 hover:opacity-100" data-action="expand-all" title="${t('timeline_expand_all')}">
                 <svg xmlns="http://www.w3.org/2000/svg" class="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" /></svg>
             </button>
         </div>
@@ -1753,7 +1748,7 @@ function renderTable() {
             // Заголовок номера — показываем сводку по занятости
             html += `<tr class="row-room ${hiddenClass}">`;
             html += `<td class="sticky-col" data-action="toggle-room" data-id="${room.id}">`;
-            html += `<span class="toggle-arrow ${roomArrowClass}">▼</span> Номер ${room.name}</td>`;
+            html += `<span class="toggle-arrow ${roomArrowClass}">▼</span> ${t('timeline_room')} ${room.name}</td>`;
 
             // Вычисляем сегменты занятости только для свёрнутых номеров
             let segments = [];
@@ -1872,7 +1867,7 @@ function renderTable() {
             const bedsHiddenClass = (buildingCollapsed || roomCollapsed) ? 'collapsed' : '';
 
             room.beds.forEach(bed => {
-                const bedLabel = bed.name ? `Место ${bed.name}` : '';
+                const bedLabel = bed.name ? `${t('timeline_bed')} ${bed.name}` : '';
                 html += `<tr class="row-bed ${bedsHiddenClass}"><td class="sticky-col">${bedLabel}</td>`;
 
                 // Всегда рендерим все ячейки (DAYS_TO_SHOW * 2)
@@ -2093,8 +2088,15 @@ function handleRealtimeChange(payload) {
     realtimeTimeout = setTimeout(async () => {
         await loadTimelineData();
         renderTable();
-        Layout.showNotification('Данные обновлены', 'info');
+        Layout.showNotification(t('timeline_data_updated'), 'info');
     }, 500);
 }
+
+window.onLanguageChange = () => {
+    Layout.updateAllTranslations();
+    renderRetreats();
+    renderTable();
+    renderLegend();
+};
 
 init();

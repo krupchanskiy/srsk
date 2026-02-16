@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Вход | Rupa Seva</title>
+    <title data-i18n="portal_page_title_auth_callback">Вход | Rupa Seva</title>
     <link rel="icon" type="image/svg+xml" href="/favicon.svg">
 
     <!-- Tailwind CSS -->
@@ -46,7 +46,7 @@
             <!-- Состояние загрузки -->
             <div id="loading-state" class="text-center py-8">
                 <div class="w-12 h-12 border-4 border-srsk-green border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
-                <p class="text-gray-600" id="status-text">Выполняется вход...</p>
+                <p class="text-gray-600" id="status-text" data-i18n="portal_logging_in">Выполняется вход...</p>
             </div>
 
             <!-- Состояние ошибки -->
@@ -56,9 +56,9 @@
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
                     </svg>
                 </div>
-                <p class="font-medium text-gray-900 mb-2" id="error-title">Ошибка входа</p>
-                <p class="text-sm text-gray-500 mb-4" id="error-message">Не удалось выполнить вход</p>
-                <a href="/login" class="inline-block px-4 py-2 bg-srsk-green text-white rounded-lg hover:bg-srsk-green-light transition-colors">
+                <p class="font-medium text-gray-900 mb-2" id="error-title" data-i18n="portal_login_error">Ошибка входа</p>
+                <p class="text-sm text-gray-500 mb-4" id="error-message" data-i18n="portal_login_failed">Не удалось выполнить вход</p>
+                <a href="/login" class="inline-block px-4 py-2 bg-srsk-green text-white rounded-lg hover:bg-srsk-green-light transition-colors" data-i18n="portal_back_to_login_page">
                     Вернуться на страницу входа
                 </a>
             </div>
@@ -70,8 +70,8 @@
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/>
                     </svg>
                 </div>
-                <p class="font-medium text-gray-900">Вход выполнен!</p>
-                <p class="text-sm text-gray-500 mt-1">Перенаправляем в личный кабинет...</p>
+                <p class="font-medium text-gray-900" data-i18n="portal_login_success">Вход выполнен!</p>
+                <p class="text-sm text-gray-500 mt-1" data-i18n="portal_redirecting_to_cabinet">Перенаправляем в личный кабинет...</p>
             </div>
         </div>
     </div>

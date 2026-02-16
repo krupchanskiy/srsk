@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Хедер — Тест</title>
+    <title data-i18n="header_page_title">Хедер — Тест</title>
     <link rel="icon" type="image/svg+xml" href="/favicon.svg">
     <link href="https://cdn.jsdelivr.net/npm/daisyui@4.12.14/dist/full.min.css" rel="stylesheet" />
     <script src="https://cdn.tailwindcss.com"></script>
@@ -52,7 +52,7 @@
                     
                     <!-- Desktop: full name + selector -->
                     <div class="hidden md:flex flex-col">
-                        <a href="kitchen-menu.html" class="text-xl font-semibold whitespace-nowrap hover:opacity-80 transition-opacity">Шри Рупа Сева Кунджа</a>
+                        <a href="kitchen-menu.html" class="text-xl font-semibold whitespace-nowrap hover:opacity-80 transition-opacity" data-i18n="header_full_name">Шри Рупа Сева Кунджа</a>
                         <div class="relative location-selector" id="locationDesktop">
                             <button class="flex items-center justify-between gap-2 w-full text-xl opacity-70 hover:opacity-100 transition-opacity" data-toggle="location">
                                 <span class="location-name">Основная кухня</span>
@@ -82,10 +82,10 @@
                 
                 <!-- Desktop Navigation -->
                 <nav class="hidden desktop:flex items-center gap-2" id="mainNav">
-                    <a href="#" class="nav-link px-5 py-6 text-base font-semibold tracking-wide uppercase opacity-60" data-submenu="kitchen">Кухня</a>
-                    <a href="#" class="nav-link px-5 py-6 text-base font-semibold tracking-wide uppercase opacity-60" data-submenu="stock">Склад</a>
-                    <a href="#" class="nav-link px-5 py-6 text-base font-semibold tracking-wide uppercase opacity-60" data-submenu="ashram">Ашрам</a>
-                    <a href="#" class="nav-link px-5 py-6 text-base font-semibold tracking-wide uppercase opacity-60" data-submenu="settings">Настройки</a>
+                    <a href="#" class="nav-link px-5 py-6 text-base font-semibold tracking-wide uppercase opacity-60" data-submenu="kitchen" data-i18n="header_nav_kitchen">Кухня</a>
+                    <a href="#" class="nav-link px-5 py-6 text-base font-semibold tracking-wide uppercase opacity-60" data-submenu="stock" data-i18n="header_nav_stock">Склад</a>
+                    <a href="#" class="nav-link px-5 py-6 text-base font-semibold tracking-wide uppercase opacity-60" data-submenu="ashram" data-i18n="header_nav_ashram">Ашрам</a>
+                    <a href="#" class="nav-link px-5 py-6 text-base font-semibold tracking-wide uppercase opacity-60" data-submenu="settings" data-i18n="header_nav_settings">Настройки</a>
                 </nav>
                 
                 <!-- Right: Language, User, Mobile Menu Button -->
@@ -139,22 +139,22 @@
     <!-- Test Content -->
     <main class="container mx-auto px-4 py-8">
         <div class="bg-base-100 rounded-xl p-8 shadow-sm">
-            <h1 class="text-2xl font-bold mb-4">Тестовая страница</h1>
-            <p class="opacity-60 mb-6">Проверка отображения хедера на разных размерах экрана.</p>
+            <h1 class="text-2xl font-bold mb-4" data-i18n="header_test_title">Тестовая страница</h1>
+            <p class="opacity-60 mb-6" data-i18n="header_test_description">Проверка отображения хедера на разных размерах экрана.</p>
             <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
                 <div class="bg-base-200 rounded-lg p-4 text-center">
                     <div class="text-3xl mb-2">📱</div>
-                    <div class="font-medium">Телефон</div>
+                    <div class="font-medium" data-i18n="header_test_phone">Телефон</div>
                     <div class="text-sm opacity-60">&lt; 768px</div>
                 </div>
                 <div class="bg-base-200 rounded-lg p-4 text-center">
                     <div class="text-3xl mb-2">📱</div>
-                    <div class="font-medium">Планшет</div>
+                    <div class="font-medium" data-i18n="header_test_tablet">Планшет</div>
                     <div class="text-sm opacity-60">768px — 1200px</div>
                 </div>
                 <div class="bg-base-200 rounded-lg p-4 text-center">
                     <div class="text-3xl mb-2">🖥️</div>
-                    <div class="font-medium">Десктоп</div>
+                    <div class="font-medium" data-i18n="header_test_desktop">Десктоп</div>
                     <div class="text-sm opacity-60">≥ 1200px</div>
                 </div>
             </div>

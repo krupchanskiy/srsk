@@ -4,7 +4,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Ожидание одобрения — ШРСК</title>
+    <title data-i18n="pending_page_title">Ожидание одобрения — ШРСК</title>
     <link rel="icon" type="image/svg+xml" href="/favicon.svg">
     <link href="https://cdn.jsdelivr.net/npm/daisyui@4.12.14/dist/full.min.css" rel="stylesheet" />
     <script src="https://cdn.tailwindcss.com"></script>
@@ -16,17 +16,17 @@
         <div class="card-body text-center">
             <div class="text-8xl mb-6">⏳</div>
 
-            <h2 class="card-title text-3xl justify-center mb-4">Ожидайте одобрения</h2>
+            <h2 class="card-title text-3xl justify-center mb-4" data-i18n="pending_title">Ожидайте одобрения</h2>
 
-            <p class="text-lg mb-4">Ваша заявка на регистрацию отправлена администратору.</p>
+            <p class="text-lg mb-4" data-i18n="pending_description">Ваша заявка на регистрацию отправлена администратору.</p>
 
             <div class="alert alert-info">
                 <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" class="stroke-current shrink-0 w-6 h-6">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
                 </svg>
                 <div class="text-left">
-                    <p class="font-bold">Что дальше?</p>
-                    <p class="text-sm">После одобрения заявки вы получите уведомление на email и сможете войти в систему.</p>
+                    <p class="font-bold" data-i18n="pending_what_next">Что дальше?</p>
+                    <p class="text-sm" data-i18n="pending_what_next_hint">После одобрения заявки вы получите уведомление на email и сможете войти в систему.</p>
                 </div>
             </div>
 
@@ -35,13 +35,13 @@
                     <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
                     </svg>
-                    Выйти
+                    <span data-i18n="pending_logout">Выйти</span>
                 </button>
                 <button class="btn btn-primary" onclick="checkStatus()">
                     <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
                     </svg>
-                    Проверить статус
+                    <span data-i18n="pending_check_status">Проверить статус</span>
                 </button>
             </div>
         </div>

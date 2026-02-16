@@ -6,34 +6,42 @@
 
 CREATE OR REPLACE FUNCTION public.get_user_permissions(p_user_id uuid)
 RETURNS TABLE(permission_code text)
-LANGUAGE sql
+LANGUAGE plpgsql
 STABLE
 SECURITY DEFINER
+SET search_path = public
 AS $$
-    -- Права от ролей пользователя
-    SELECT DISTINCT p.code
-    FROM user_roles ur
-    JOIN role_permissions rp ON rp.role_id = ur.role_id
-    JOIN permissions p ON p.id = rp.permission_id
-    WHERE ur.user_id = p_user_id AND ur.is_active = true
+BEGIN
+    -- Только свои права
+    IF auth.uid() IS NULL OR auth.uid() != p_user_id THEN
+        RETURN;
+    END IF;
 
-    UNION
+    RETURN QUERY
+        -- Права от ролей пользователя
+        SELECT DISTINCT p.code
+        FROM user_roles ur
+        JOIN role_permissions rp ON rp.role_id = ur.role_id
+        JOIN permissions p ON p.id = rp.permission_id
+        WHERE ur.user_id = p_user_id AND ur.is_active = true
 
-    -- Индивидуальные granted права
-    SELECT p.code
-    FROM user_permissions up
-    JOIN permissions p ON p.id = up.permission_id
-    WHERE up.user_id = p_user_id AND up.is_granted = true
+        UNION
 
-    EXCEPT
+        -- Индивидуальные granted права
+        SELECT p.code
+        FROM user_permissions up
+        JOIN permissions p ON p.id = up.permission_id
+        WHERE up.user_id = p_user_id AND up.is_granted = true
 
-    -- Индивидуальные revoked права
-    SELECT p.code
-    FROM user_permissions up
-    JOIN permissions p ON p.id = up.permission_id
-    WHERE up.user_id = p_user_id AND up.is_granted = false
+        EXCEPT
+
+        -- Индивидуальные revoked права
+        SELECT p.code
+        FROM user_permissions up
+        JOIN permissions p ON p.id = up.permission_id
+        WHERE up.user_id = p_user_id AND up.is_granted = false;
+END;
 $$;
 
--- Права на выполнение
+-- Права на выполнение (только authenticated, НЕ anon)
 GRANT EXECUTE ON FUNCTION public.get_user_permissions(uuid) TO authenticated;
-GRANT EXECUTE ON FUNCTION public.get_user_permissions(uuid) TO anon;

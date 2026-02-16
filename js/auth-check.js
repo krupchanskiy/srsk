@@ -13,6 +13,8 @@
         return;
     }
 
+    window._authInProgress = true;
+
     try {
         // Используем централизованный Supabase клиент из config.js
         const db = window.supabaseClient;
@@ -98,21 +100,26 @@
             return window.currentUser?.is_superuser || window.currentUser?.permissions.includes(permCode);
         };
 
-        // Проверка доступа для гостей
-        if (vaishnava.user_type === 'guest') {
+        // Проверка доступа: основное приложение или гостевой портал
+        // Если у пользователя есть права кроме базовых гостевых — пускаем в основное приложение
+        const guestOnlyPerms = new Set(['view_own_profile', 'edit_own_profile', 'view_own_bookings']);
+        const isGuestOnly = !vaishnava.is_superuser
+            && (permissions.length === 0 || permissions.every(p => guestOnlyPerms.has(p)));
+
+        if (isGuestOnly) {
             const path = window.location.pathname;
 
-            // Гость может ТОЛЬКО на свою страницу профиля
-            if (path.endsWith('/vaishnavas/person.html')) {
+            // Гость без доп. прав — только свой профиль и гостевой портал
+            if (path.startsWith('/guest-portal/')) {
+                // Гостевой портал — разрешаем
+            } else if (path.endsWith('/vaishnavas/person.html')) {
                 const urlParams = new URLSearchParams(window.location.search);
                 const personId = urlParams.get('id');
                 if (!personId || personId !== vaishnava.id) {
-                    // Гость пытается зайти на чужую страницу или без ID
                     window.location.href = `/vaishnavas/person.html?id=${vaishnava.id}`;
                     return;
                 }
             } else {
-                // Гость на любой другой странице - редирект на свой профиль
                 window.location.href = `/vaishnavas/person.html?id=${vaishnava.id}`;
                 return;
             }

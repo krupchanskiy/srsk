@@ -414,25 +414,25 @@ function formatEatingDetailed(dateStr) {
         if (total === 0) return '';
 
         const parts = [];
-        if (mc.team) parts.push(`${t('status_team') || 'Команда'} – ${mc.team}`);
-        if (mc.volunteers) parts.push(`${t('category_volunteer') || 'Волонтёры'} – ${mc.volunteers}`);
-        if (mc.vips) parts.push(`${t('category_vip') || 'ВИП'} – ${mc.vips}`);
-        if (mc.guests) parts.push(`${t('status_guest') || 'Гости'} – ${mc.guests}`);
-        if (mc.groups) parts.push(`${t('nav_groups') || 'Группы'} – ${mc.groups}`);
+        if (mc.team) parts.push(`${t('status_team')} – ${mc.team}`);
+        if (mc.volunteers) parts.push(`${t('category_volunteer')} – ${mc.volunteers}`);
+        if (mc.vips) parts.push(`${t('category_vip')} – ${mc.vips}`);
+        if (mc.guests) parts.push(`${t('status_guest')} – ${mc.guests}`);
+        if (mc.groups) parts.push(`${t('nav_groups')} – ${mc.groups}`);
 
         const cookPortions = dayMenu?.[mealKey]?.portions;
         const hasCookOverride = cookPortions && cookPortions !== total;
 
         let line = `<span class="text-sm">${label}: ${parts.join(', ')} = ${total}</span>`;
         if (hasCookOverride) {
-            line += ` <span class="text-sm font-bold">→ ${t('cook') || 'Повар'}: ${cookPortions}</span>`;
+            line += ` <span class="text-sm font-bold">→ ${t('cook')}: ${cookPortions}</span>`;
         }
 
         return `<div class="mb-1">${line}</div>`;
     };
 
-    const bfHtml = renderMeal(counts.breakfast, 'breakfast', t('breakfast') || 'Завтрак');
-    const lnHtml = renderMeal(counts.lunch, 'lunch', t('lunch') || 'Обед');
+    const bfHtml = renderMeal(counts.breakfast, 'breakfast', t('breakfast'));
+    const lnHtml = renderMeal(counts.lunch, 'lunch', t('lunch'));
 
     if (!bfHtml && !lnHtml) return '';
 
@@ -729,7 +729,7 @@ function renderMealSection(dateStr, mealType, index, mealData, isEkadashiDay) {
                     ${dishes.length > 0 ? `
                     <button class="btn btn-ghost btn-md btn-square opacity-50 hover:opacity-100 no-print"
                             data-action="open-meal-details-modal" data-date="${dateStr}" data-meal-type="${mealType}"
-                            title="${t('view_details') || 'Просмотреть детали'}">
+                            title="${t('view_details')}">
                         <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/>
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"/>
@@ -1319,7 +1319,7 @@ function openDishModal(dateStr, mealType) {
     Layout.$('#recipeDropdown').classList.add('hidden');
     Layout.$('#selectedRecipeDisplay').classList.add('hidden');
     Layout.$('#portionSize').value = 200;
-    Layout.$('#portionUnit').textContent = 'г';
+    Layout.$('#portionUnit').textContent = t('unit_g');
     Layout.$('#saveDishBtn').disabled = true;
     Layout.$('#totalCalculation').textContent = '—';
 
@@ -1339,7 +1339,7 @@ function openDishModal(dateStr, mealType) {
 function buildCategoryButtons() {
     const container = Layout.$('#categoryButtons');
     container.innerHTML = `
-        <button type="button" class="btn btn-sm filter-btn ${currentCategory === 'all' ? 'active' : ''}" data-cat="all" data-action="filter-by-category" data-category="all">${t('filter_all') || 'Все'}</button>
+        <button type="button" class="btn btn-sm filter-btn ${currentCategory === 'all' ? 'active' : ''}" data-cat="all" data-action="filter-by-category" data-category="all">${t('filter_all')}</button>
         ${categories.map(cat => `
             <button type="button" class="btn btn-sm filter-btn ${currentCategory === cat.slug ? 'active' : ''}" data-cat="${cat.slug}" style="--cat-color: ${cat.color};" data-action="filter-by-category" data-category="${cat.slug}">${getName(cat)}</button>
         `).join('')}
@@ -1735,7 +1735,7 @@ async function saveAsTemplate() {
         }
 
         saveTemplateModal.close();
-        showSuccess(t('template_saved') || 'Шаблон сохранён', name);
+        showSuccess(t('template_saved'), name);
         await loadTemplates();
     } catch (error) {
         console.error('Error saving template:', error);
@@ -1910,7 +1910,7 @@ async function applySelectedTemplate() {
         const formatDisplayDate = d => d.toLocaleDateString(Layout.currentLang === 'ru' ? 'ru-RU' : 'en-US', {
             day: 'numeric', month: 'long', year: 'numeric'
         });
-        showSuccess(t('template_applied') || 'Шаблон применён', `${formatDisplayDate(startDate)} — ${formatDisplayDate(endDate)}`);
+        showSuccess(t('template_applied'), `${formatDisplayDate(startDate)} — ${formatDisplayDate(endDate)}`);
 
         await loadMenuData();
     } catch (error) {
@@ -2019,8 +2019,8 @@ function renderMealDetailsContent(dishes, portions) {
                     <table class="table table-sm w-full">
                         <thead>
                             <tr class="border-b border-base-200">
-                                <th class="text-left">${t('ingredient') || 'Ингредиент'}</th>
-                                <th class="text-right w-28">${t('quantity') || 'Количество'}</th>
+                                <th class="text-left">${t('ingredient')}</th>
+                                <th class="text-right w-28">${t('quantity')}</th>
                             </tr>
                         </thead>
                         <tbody>
@@ -2043,7 +2043,7 @@ function renderMealDetailsContent(dishes, portions) {
                             }).join('')}
                         </tbody>
                     </table>
-                    ` : `<p class="text-center opacity-50 py-4">${t('no_ingredients') || 'Ингредиенты не добавлены'}</p>`}
+                    ` : `<p class="text-center opacity-50 py-4">${t('no_ingredients')}</p>`}
                 </div>
             </div>
         `;

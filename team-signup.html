@@ -4,7 +4,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Регистрация члена команды — ШРСК</title>
+    <title data-i18n="signup_team_page_title">Регистрация члена команды — ШРСК</title>
     <link rel="icon" type="image/svg+xml" href="/favicon.svg">
     <link href="https://cdn.jsdelivr.net/npm/daisyui@4.12.14/dist/full.min.css" rel="stylesheet" />
     <script src="https://cdn.tailwindcss.com"></script>
@@ -14,51 +14,51 @@
 <body class="bg-base-200 min-h-screen flex items-center justify-center p-4">
     <div class="card bg-base-100 shadow-xl max-w-md w-full">
         <div class="card-body">
-            <h2 class="card-title text-2xl mb-2">Регистрация члена команды</h2>
-            <p class="text-sm opacity-60 mb-4">После регистрации ваша заявка будет отправлена на одобрение администратору</p>
+            <h2 class="card-title text-2xl mb-2" data-i18n="signup_team_title">Регистрация члена команды</h2>
+            <p class="text-sm opacity-60 mb-4" data-i18n="signup_team_subtitle">После регистрации ваша заявка будет отправлена на одобрение администратору</p>
 
             <form id="teamSignupForm" class="space-y-4">
                 <div class="form-control">
                     <label class="label">
-                        <span class="label-text">Email *</span>
+                        <span class="label-text" data-i18n="signup_email_label">Email *</span>
                     </label>
                     <input type="email" name="email" class="input input-bordered" required>
                 </div>
 
                 <div class="form-control">
                     <label class="label">
-                        <span class="label-text">Пароль *</span>
+                        <span class="label-text" data-i18n="signup_password_label">Пароль *</span>
                     </label>
                     <input type="password" name="password" class="input input-bordered" required minlength="6">
                     <label class="label">
-                        <span class="label-text-alt">Минимум 6 символов</span>
+                        <span class="label-text-alt" data-i18n="signup_password_hint">Минимум 6 символов</span>
                     </label>
                 </div>
 
                 <div class="form-control">
                     <label class="label">
-                        <span class="label-text">Имя *</span>
+                        <span class="label-text" data-i18n="signup_first_name_label">Имя *</span>
                     </label>
                     <input type="text" name="first_name" class="input input-bordered" required>
                 </div>
 
                 <div class="form-control">
                     <label class="label">
-                        <span class="label-text">Фамилия *</span>
+                        <span class="label-text" data-i18n="signup_last_name_label">Фамилия *</span>
                     </label>
                     <input type="text" name="last_name" class="input input-bordered" required>
                 </div>
 
                 <div class="form-control">
                     <label class="label">
-                        <span class="label-text">Духовное имя</span>
+                        <span class="label-text" data-i18n="signup_spiritual_name_label">Духовное имя</span>
                     </label>
                     <input type="text" name="spiritual_name" class="input input-bordered">
                 </div>
 
                 <div class="form-control">
                     <label class="label">
-                        <span class="label-text">Telegram (никнейм без @)</span>
+                        <span class="label-text" data-i18n="signup_telegram_label">Telegram (никнейм без @)</span>
                     </label>
                     <input type="text" name="telegram" class="input input-bordered" placeholder="username">
                 </div>
@@ -71,7 +71,7 @@
                 </div>
 
                 <div class="form-control mt-6">
-                    <button type="submit" class="btn btn-primary">
+                    <button type="submit" class="btn btn-primary" data-i18n="signup_submit_btn">
                         Зарегистрироваться
                     </button>
                 </div>
@@ -80,8 +80,8 @@
             <div class="divider"></div>
 
             <p class="text-sm text-center">
-                Уже есть аккаунт?
-                <a href="/login.html" class="link link-primary">Войти</a>
+                <span data-i18n="signup_already_have_account">Уже есть аккаунт?</span>
+                <a href="/login.html" class="link link-primary" data-i18n="signup_login_link">Войти</a>
             </p>
         </div>
     </div>

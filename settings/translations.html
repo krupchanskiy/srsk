@@ -5,7 +5,7 @@
     <script src="../js/color-init.js"></script>
 
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Переводы — ШРСК</title>
+    <title data-i18n="translations_page_title">Переводы — ШРСК</title>
     <link rel="icon" type="image/svg+xml" href="/favicon.svg">
     <link href="https://cdn.jsdelivr.net/npm/daisyui@4.12.14/dist/full.min.css" rel="stylesheet" />
     <script src="https://cdn.tailwindcss.com"></script>
@@ -80,7 +80,7 @@
         <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6">
             <div>
                 <h1 class="text-2xl font-bold" data-i18n="translations_title">Переводы интерфейса</h1>
-                <p class="text-sm opacity-60" id="translationsCount">Загрузка...</p>
+                <p class="text-sm opacity-60" id="translationsCount" data-i18n="loading">Загрузка...</p>
             </div>
             <button class="btn btn-primary gap-2" data-permission="edit_translations" onclick="openAddModal()">
                 <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -101,7 +101,7 @@
                 </button>
             </div>
             <select class="select select-bordered" id="pageFilter">
-                <option value="">Все страницы</option>
+                <option value="" data-i18n="translations_all_pages">Все страницы</option>
             </select>
         </div>
 
@@ -125,11 +125,14 @@
                         </tr>
                     </thead>
                     <tbody id="translationsTable">
-                        <tr><td colspan="5" class="text-center py-8 opacity-50">Загрузка...</td></tr>
+                        <tr><td colspan="5" class="text-center py-8 opacity-50" data-i18n="loading">Загрузка...</td></tr>
                     </tbody>
                 </table>
             </div>
         </div>
+
+        <!-- Пагинация -->
+        <div id="pagination" class="flex justify-center items-center gap-2 py-4"></div>
 
     </main>
 
@@ -144,7 +147,7 @@
             <form id="addForm" class="space-y-4">
                 <div>
                     <label class="label"><span class="label-text font-medium" data-i18n="col_key">Ключ</span></label>
-                    <input type="text" name="key" class="input input-bordered w-full" placeholder="например: btn_submit" required />
+                    <input type="text" name="key" class="input input-bordered w-full" placeholder="например: btn_submit" data-i18n-placeholder="translations_key_placeholder" required />
                     <p class="text-xs opacity-50 mt-1" data-i18n="key_hint">Уникальный идентификатор, латиница и подчёркивания</p>
                 </div>
                 <div>
@@ -170,8 +173,8 @@
                     <select name="page" id="modalPageSelect" class="select select-bordered w-full" required></select>
                 </div>
                 <div>
-                    <label class="label"><span class="label-text font-medium" data-i18n="context">Контекст</span> <span class="text-xs opacity-50">(необязательно)</span></label>
-                    <input type="text" name="context" class="input input-bordered w-full" placeholder="Уточнение где используется" />
+                    <label class="label"><span class="label-text font-medium" data-i18n="context">Контекст</span> <span class="text-xs opacity-50" data-i18n="translations_optional">(необязательно)</span></label>
+                    <input type="text" name="context" class="input input-bordered w-full" placeholder="Уточнение где используется" data-i18n-placeholder="translations_context_placeholder" />
                 </div>
                 <div class="modal-action">
                     <button type="button" class="btn btn-ghost" onclick="addModal.close()" data-i18n="cancel">Отмена</button>
@@ -191,9 +194,13 @@
     <script src="../js/layout.js?v=5"></script>
     <script>
         // ==================== STATE ====================
-        let translations = [];
+        const PAGE_SIZE = 50;
+        let currentPage = 0;
+        let totalCount = 0;
         let searchQuery = '';
         let pageFilter = '';
+        let currentData = []; // текущая страница данных
+        let pageOptions = []; // список страниц из БД
 
         // Алиасы для удобства
         const t = key => Layout.t(key);
@@ -240,69 +247,92 @@
         };
 
         // ==================== DATA ====================
-        async function loadTranslations() {
-            const { data, error } = await Layout.db
+
+        // Загрузка списка страниц из БД (для фильтра и модалки)
+        async function loadPageOptions() {
+            const { data } = await Layout.db
                 .from('translations')
-                .select('*')
+                .select('page')
+                .not('page', 'is', null)
+                .order('page');
+            pageOptions = [...new Set(data.map(d => d.page))];
+            buildPageFilter();
+            buildModalPageSelect();
+        }
+
+        // Серверная пагинация + поиск + фильтр
+        async function loadPage() {
+            const table = Layout.$('#translationsTable');
+            table.innerHTML = `<tr><td colspan="5" class="text-center py-8 opacity-50">${t('loading')}</td></tr>`;
+
+            let query = Layout.db.from('translations')
+                .select('*', { count: 'exact' })
                 .order('page')
-                .order('key');
+                .order('key')
+                .range(currentPage * PAGE_SIZE, (currentPage + 1) * PAGE_SIZE - 1);
+
+            if (searchQuery) {
+                const q = searchQuery.replace(/[%_]/g, c => '\\' + c);
+                query = query.or(`key.ilike.%${q}%,ru.ilike.%${q}%,en.ilike.%${q}%,hi.ilike.%${q}%`);
+            }
+            if (pageFilter) {
+                query = query.eq('page', pageFilter);
+            }
+
+            const { data, count, error } = await query;
 
             if (error) {
                 console.error('Error:', error);
+                table.innerHTML = `<tr><td colspan="5" class="text-center py-8 text-error">${t('error')}</td></tr>`;
                 return;
             }
 
-            translations = data;
-            buildPageFilter();
-            renderTable();
+            currentData = data;
+            totalCount = count;
+            renderTable(data);
+            renderPagination();
         }
 
         function buildPageFilter() {
-            const pages = [...new Set(translations.map(t => t.page).filter(Boolean))];
             const select = Layout.$('#pageFilter');
+            const current = pageFilter;
             select.innerHTML = `<option value="">${t('all_pages')}</option>` +
-                pages.map(p => `<option value="${p}">${getPageName(p)}</option>`).join('');
+                pageOptions.map(p => `<option value="${p}" ${p === current ? 'selected' : ''}>${getPageName(p)}</option>`).join('');
         }
 
-        function renderTable() {
+        function renderTable(data) {
             const table = Layout.$('#translationsTable');
             const countEl = Layout.$('#translationsCount');
             const canEdit = window.hasPermission && window.hasPermission('edit_translations');
 
-            const filtered = translations.filter(row => {
-                const matchesSearch = searchQuery === '' ||
-                    row.key.toLowerCase().includes(searchQuery.toLowerCase()) ||
-                    row.ru.toLowerCase().includes(searchQuery.toLowerCase()) ||
-                    row.en.toLowerCase().includes(searchQuery.toLowerCase()) ||
-                    row.hi.includes(searchQuery);
-                const matchesPage = pageFilter === '' || row.page === pageFilter;
-                return matchesSearch && matchesPage;
-            });
+            const from = currentPage * PAGE_SIZE + 1;
+            const to = Math.min(from + data.length - 1, totalCount);
+            countEl.textContent = totalCount > 0
+                ? `${from}–${to} / ${Layout.pluralize(totalCount, TRANSLATION_FORMS)}`
+                : Layout.pluralize(0, TRANSLATION_FORMS);
 
-            countEl.textContent = Layout.pluralize(filtered.length, TRANSLATION_FORMS);
-
-            if (filtered.length === 0) {
+            if (data.length === 0) {
                 table.innerHTML = `<tr><td colspan="5" class="text-center py-8 opacity-50">${t('no_translations')}</td></tr>`;
                 return;
             }
 
-            table.innerHTML = filtered.map(row => `
+            table.innerHTML = data.map(row => `
                 <tr class="border-b border-base-200" data-id="${row.id}">
                     <td class="align-top">
-                        <code class="text-sm bg-base-200 px-2 py-1 rounded">${row.key}</code>
+                        <code class="text-sm bg-base-200 px-2 py-1 rounded">${escapeHtml(row.key)}</code>
                         ${row.page ? `<div class="context-text mt-1">${getPageName(row.page)}</div>` : ''}
                     </td>
                     <td class="edit-cell p-0">
-                        <input type="text" class="edit-input" value="${escapeHtml(row.ru)}" data-field="ru" data-id="${row.id}" ${canEdit ? '' : 'readonly'} />
+                        <input type="text" class="edit-input" value="${escapeHtml(row.ru)}" data-field="ru" data-id="${row.id}" data-orig="${escapeHtml(row.ru)}" ${canEdit ? '' : 'readonly'} />
                     </td>
                     <td class="edit-cell p-0">
-                        <input type="text" class="edit-input" value="${escapeHtml(row.en)}" data-field="en" data-id="${row.id}" ${canEdit ? '' : 'readonly'} />
+                        <input type="text" class="edit-input" value="${escapeHtml(row.en)}" data-field="en" data-id="${row.id}" data-orig="${escapeHtml(row.en)}" ${canEdit ? '' : 'readonly'} />
                     </td>
                     <td class="edit-cell p-0">
-                        <input type="text" class="edit-input" value="${escapeHtml(row.hi)}" data-field="hi" data-id="${row.id}" ${canEdit ? '' : 'readonly'} />
+                        <input type="text" class="edit-input" value="${escapeHtml(row.hi)}" data-field="hi" data-id="${row.id}" data-orig="${escapeHtml(row.hi)}" ${canEdit ? '' : 'readonly'} />
                     </td>
                     <td>
-                        ${canEdit ? `<button class="btn btn-ghost btn-sm btn-square text-error" onclick="deleteTranslation('${row.id}')">
+                        ${canEdit ? `<button class="btn btn-ghost btn-sm btn-square text-error" data-action="delete" data-id="${row.id}">
                             <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
                             </svg>
@@ -310,17 +340,51 @@
                     </td>
                 </tr>
             `).join('');
+        }
 
-            // Bind blur handlers for auto-save
-            Layout.$$('.edit-input', table).forEach(input => {
-                input.addEventListener('blur', () => saveField(input));
-                input.addEventListener('keydown', e => {
-                    if (e.key === 'Enter') {
-                        e.preventDefault();
-                        input.blur();
-                    }
-                });
-            });
+        // Пагинация
+        function renderPagination() {
+            const pag = Layout.$('#pagination');
+            const totalPages = Math.ceil(totalCount / PAGE_SIZE);
+
+            if (totalPages <= 1) {
+                pag.innerHTML = '';
+                return;
+            }
+
+            let html = '';
+
+            // Кнопка «Назад»
+            html += `<button class="btn btn-sm btn-ghost" data-page="${currentPage - 1}" ${currentPage === 0 ? 'disabled' : ''}>←</button>`;
+
+            // Номера страниц
+            const pages = buildPageNumbers(currentPage, totalPages);
+            for (const p of pages) {
+                if (p === '...') {
+                    html += `<span class="px-1 opacity-40">…</span>`;
+                } else {
+                    const active = p === currentPage;
+                    html += `<button class="btn btn-sm ${active ? 'btn-primary' : 'btn-ghost'}" data-page="${p}">${p + 1}</button>`;
+                }
+            }
+
+            // Кнопка «Далее»
+            html += `<button class="btn btn-sm btn-ghost" data-page="${currentPage + 1}" ${currentPage >= totalPages - 1 ? 'disabled' : ''}>→</button>`;
+
+            pag.innerHTML = html;
+        }
+
+        // Генерация номеров страниц: 0 1 ... 5 [6] 7 ... 42
+        function buildPageNumbers(current, total) {
+            if (total <= 7) return Array.from({ length: total }, (_, i) => i);
+            const pages = new Set([0, 1, current - 1, current, current + 1, total - 2, total - 1]);
+            const sorted = [...pages].filter(p => p >= 0 && p < total).sort((a, b) => a - b);
+            const result = [];
+            for (let i = 0; i < sorted.length; i++) {
+                if (i > 0 && sorted[i] - sorted[i - 1] > 1) result.push('...');
+                result.push(sorted[i]);
+            }
+            return result;
         }
 
         function escapeHtml(text) {
@@ -335,11 +399,10 @@
             const id = input.dataset.id;
             const field = input.dataset.field;
             const value = input.value;
+            const origValue = input.dataset.orig;
             const row = input.closest('tr');
 
-            // Find original value
-            const original = translations.find(t => t.id === id);
-            if (original && original[field] === value) return; // No change
+            if (origValue === value) return; // Без изменений
 
             row.classList.add('saving');
 
@@ -352,10 +415,10 @@
 
             if (error) {
                 Layout.showNotification(t('error') + ': ' + error.message, 'error');
-                input.value = original[field];
+                input.value = origValue;
             } else {
-                const item = translations.find(tr => tr.id === id);
-                if (item) item[field] = value;
+                input.dataset.orig = value;
+                Cache.invalidate('translations_v4');
                 row.classList.add('saved');
                 setTimeout(() => row.classList.remove('saved'), 500);
             }
@@ -376,8 +439,8 @@
             if (error) {
                 Layout.showNotification(t('error') + ': ' + error.message, 'error');
             } else {
-                translations = translations.filter(tr => tr.id !== id);
-                renderTable();
+                Cache.invalidate('translations_v4');
+                loadPage();
             }
         }
 
@@ -390,14 +453,39 @@
             addModal.showModal();
         }
 
-        // ==================== EVENT LISTENERS ====================
+        // ==================== EVENT DELEGATION ====================
         document.addEventListener('DOMContentLoaded', () => {
+            const table = Layout.$('#translationsTable');
             const searchInput = Layout.$('#searchInput');
             const clearBtn = Layout.$('#clearSearch');
-            const debouncedSearch = Layout.debounce(() => renderTable(), 200);
+
+            // Event delegation для blur (auto-save) — capture для blur
+            table.addEventListener('blur', e => {
+                if (e.target.matches('.edit-input')) saveField(e.target);
+            }, true);
+
+            // Event delegation для Enter → blur
+            table.addEventListener('keydown', e => {
+                if (e.target.matches('.edit-input') && e.key === 'Enter') {
+                    e.preventDefault();
+                    e.target.blur();
+                }
+            });
+
+            // Event delegation для кнопки удаления
+            table.addEventListener('click', e => {
+                const btn = e.target.closest('[data-action="delete"]');
+                if (btn) deleteTranslation(btn.dataset.id);
+            });
+
+            // Серверный поиск с debounce
+            const debouncedSearch = Layout.debounce(() => {
+                currentPage = 0;
+                loadPage();
+            }, 400);
 
             searchInput?.addEventListener('input', e => {
-                searchQuery = e.target.value;
+                searchQuery = e.target.value.trim();
                 clearBtn?.classList.toggle('hidden', !e.target.value);
                 debouncedSearch();
             });
@@ -405,16 +493,29 @@
             clearBtn?.addEventListener('click', () => {
                 searchInput.value = '';
                 searchQuery = '';
+                currentPage = 0;
                 clearBtn.classList.add('hidden');
-                renderTable();
+                loadPage();
                 searchInput.focus();
             });
 
+            // Фильтр по странице
             Layout.$('#pageFilter')?.addEventListener('change', e => {
                 pageFilter = e.target.value;
-                renderTable();
+                currentPage = 0;
+                loadPage();
             });
 
+            // Пагинация — клики по кнопкам
+            Layout.$('#pagination')?.addEventListener('click', e => {
+                const btn = e.target.closest('[data-page]');
+                if (!btn || btn.disabled) return;
+                currentPage = parseInt(btn.dataset.page);
+                loadPage();
+                window.scrollTo({ top: 0, behavior: 'smooth' });
+            });
+
+            // Форма добавления
             Layout.$('#addForm')?.addEventListener('submit', async e => {
                 e.preventDefault();
                 const form = e.target;
@@ -427,18 +528,17 @@
                     context: form.context.value.trim() || null
                 };
 
-                const { data: inserted, error } = await Layout.db
+                const { error } = await Layout.db
                     .from('translations')
-                    .insert(data)
-                    .select()
-                    .single();
+                    .insert(data);
 
                 if (error) {
                     Layout.showNotification(t('error') + ': ' + error.message, 'error');
                 } else {
-                    translations.push(inserted);
-                    buildPageFilter();
-                    renderTable();
+                    Cache.invalidate('translations_v4');
+                    await loadPageOptions();
+                    currentPage = 0;
+                    await loadPage();
                     addModal.close();
                 }
             });
@@ -449,17 +549,13 @@
             Layout.updateAllTranslations();
             buildPageFilter();
             buildModalPageSelect();
-            renderTable();
         }
-
-        // Список страниц для селекта в модалке
-        const pageKeys = ['common', 'navigation', 'recipes', 'products', 'menu', 'team', 'retreats', 'filters', 'stock', 'settings', 'translations'];
 
         function buildModalPageSelect() {
             const select = Layout.$('#modalPageSelect');
             if (!select) return;
 
-            select.innerHTML = pageKeys.map(key =>
+            select.innerHTML = pageOptions.map(key =>
                 `<option value="${key}">${getPageName(key)}</option>`
             ).join('');
         }
@@ -467,6 +563,7 @@
         // Callback при смене языка (вызывается из layout.js)
         window.onLanguageChange = function(lang) {
             updatePageUI();
+            loadPage();
         };
 
         // ==================== INIT ====================
@@ -497,11 +594,8 @@
                 return;
             }
 
-            // Загружаем данные страницы
-            await loadTranslations();
-
-            // Инициализируем селект в модалке
-            buildModalPageSelect();
+            // Загружаем список страниц и первую страницу данных параллельно
+            await Promise.all([loadPageOptions(), loadPage()]);
         }
 
         init();

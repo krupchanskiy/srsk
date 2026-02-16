@@ -4,7 +4,7 @@
     <script src="../js/color-init.js"></script>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Менеджеры — CRM — ШРСК</title>
+    <title data-i18n-title="crm_managers_page_title">Менеджеры — CRM — ШРСК</title>
     <link href="https://cdn.jsdelivr.net/npm/daisyui@4.12.14/dist/full.min.css" rel="stylesheet" />
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
@@ -26,8 +26,8 @@
         <!-- Менеджеры по ретритам -->
         <div class="card bg-base-100 shadow-sm">
             <div class="card-body">
-                <h2 class="card-title mb-4">Менеджеры ретритов</h2>
-                <p class="text-sm text-base-content/70 mb-4">
+                <h2 class="card-title mb-4" data-i18n="crm_retreat_managers">Менеджеры ретритов</h2>
+                <p class="text-sm text-base-content/70 mb-4" data-i18n="crm_retreat_managers_desc">
                     Выберите, какие менеджеры работают с каждым ретритом
                 </p>
 
@@ -42,8 +42,8 @@
         <!-- Очередь распределения -->
         <div class="card bg-base-100 shadow-sm">
             <div class="card-body">
-                <h2 class="card-title mb-4">Очередь распределения заявок</h2>
-                <p class="text-sm text-base-content/70 mb-4">
+                <h2 class="card-title mb-4" data-i18n="crm_assignment_queue">Очередь распределения заявок</h2>
+                <p class="text-sm text-base-content/70 mb-4" data-i18n="crm_assignment_queue_desc">
                     Новые заявки распределяются по очереди (round-robin)
                 </p>
 
@@ -56,12 +56,12 @@
                 <div class="divider"></div>
 
                 <div class="form-control">
-                    <label class="label"><span class="label-text">Добавить в очередь</span></label>
+                    <label class="label"><span class="label-text" data-i18n="crm_add_to_queue">Добавить в очередь</span></label>
                     <div class="flex gap-2">
                         <select id="addToQueueSelect" class="select select-bordered flex-1">
-                            <option value="">Выберите менеджера...</option>
+                            <option value="" data-i18n="crm_select_manager">Выберите менеджера...</option>
                         </select>
-                        <button class="btn btn-primary" onclick="addToQueue()" data-permission="edit_crm_settings">
+                        <button class="btn btn-primary" onclick="addToQueue()" data-permission="edit_crm_settings" data-i18n="add">
                             Добавить
                         </button>
                     </div>

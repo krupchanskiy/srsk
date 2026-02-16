@@ -5,7 +5,7 @@
     <script src="../js/color-init.js"></script>
 
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Пользователи — ШРСК</title>
+    <title data-i18n="users_page_title">Пользователи — ШРСК</title>
     <link rel="icon" type="image/svg+xml" href="/favicon.svg">
     <link href="https://cdn.jsdelivr.net/npm/daisyui@4.12.14/dist/full.min.css" rel="stylesheet" />
     <script src="https://cdn.tailwindcss.com"></script>
@@ -30,7 +30,7 @@
         <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6">
             <div>
                 <h1 class="text-2xl font-bold" data-i18n="nav_vaishnavas_team">Команда</h1>
-                <p class="text-sm opacity-60" id="usersCount">Загрузка...</p>
+                <p class="text-sm opacity-60" id="usersCount" data-i18n="loading">Загрузка...</p>
             </div>
             <a href="../vaishnavas/team.html" class="btn btn-primary gap-2">
                 <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -43,7 +43,7 @@
         <!-- Search & Filters -->
         <div class="flex flex-col sm:flex-row gap-4 mb-6">
             <div class="flex-1 max-w-md relative">
-                <input type="text" id="searchInput" placeholder="Поиск по имени или email..." class="input input-bordered w-full pr-10" />
+                <input type="text" id="searchInput" placeholder="Поиск по имени или email..." data-i18n-placeholder="users_search_placeholder" class="input input-bordered w-full pr-10" />
                 <button type="button" id="clearSearch" class="absolute right-3 top-1/2 -translate-y-1/2 text-base-content/40 hover:text-base-content hidden">
                     <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
@@ -51,7 +51,7 @@
                 </button>
             </div>
             <select id="filterDepartment" class="select select-bordered">
-                <option value="all">Все департаменты</option>
+                <option value="all" data-i18n="users_all_departments">Все департаменты</option>
             </select>
         </div>
 

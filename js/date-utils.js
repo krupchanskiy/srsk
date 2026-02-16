@@ -212,5 +212,110 @@ window.DateUtils = {
         endDate = this.parseDate(endDate);
         const diff = endDate - startDate;
         return Math.floor(diff / (1000 * 60 * 60 * 24));
+    },
+
+    // Короткий диапазон дат без года: "5 янв — 10 фев"
+    formatRangeShort(startDate, endDate, lang) {
+        startDate = this.parseDate(startDate);
+        endDate = this.parseDate(endDate);
+        lang = lang || this.getLang();
+        const sm = this.monthNamesShort[lang]?.[startDate.getMonth()] || this.monthNamesShort.ru[startDate.getMonth()];
+        const em = this.monthNamesShort[lang]?.[endDate.getMonth()] || this.monthNamesShort.ru[endDate.getMonth()];
+        return `${startDate.getDate()} ${sm} — ${endDate.getDate()} ${em}`;
+    },
+
+    // Парсинг строки даты/времени в свободном формате → ISO string
+    parseDateTimeString(str, retreatYear) {
+        if (!str) return null;
+
+        const months = {
+            'января': 1, 'февраля': 2, 'марта': 3, 'апреля': 4,
+            'мая': 5, 'июня': 6, 'июля': 7, 'августа': 8,
+            'сентября': 9, 'октября': 10, 'ноября': 11, 'декабря': 12
+        };
+
+        // "7 февраля 18:30" / "7 февраля, 18:30" / "7 февраля, 04.05 утра"
+        let match = str.match(/(\d{1,2})\s+(января|февраля|марта|апреля|мая|июня|июля|августа|сентября|октября|ноября|декабря)[,]?\s*(\d{1,2})[.:](\d{2})(?:\s*(утра|дня|вечера|ночи))?/i);
+        if (match) {
+            const day = parseInt(match[1]);
+            const month = months[match[2].toLowerCase()];
+            let hour = parseInt(match[3]);
+            const minute = parseInt(match[4]);
+            const period = match[5] ? match[5].toLowerCase() : null;
+            if (period === 'вечера' || period === 'дня') {
+                if (hour < 12) hour += 12;
+            } else if (period === 'ночи') {
+                if (hour === 12) hour = 0;
+            }
+            const year = retreatYear || new Date().getFullYear();
+            return new Date(year, month - 1, day, hour, minute).toISOString();
+        }
+
+        // "22.02.26 5:50" / "22.02.2026 5:50" / "22.02.26 5.50"
+        match = str.match(/(\d{1,2})\.(\d{1,2})\.(\d{2,4})\s+(\d{1,2})[.:](\d{2})/);
+        if (match) {
+            const day = parseInt(match[1]);
+            const month = parseInt(match[2]);
+            let year = parseInt(match[3]);
+            if (year < 100) year += 2000;
+            const hour = parseInt(match[4]);
+            const minute = parseInt(match[5]);
+            return new Date(year, month - 1, day, hour, minute).toISOString();
+        }
+
+        // "06.02.2026 в 04.05"
+        match = str.match(/(\d{1,2})\.(\d{1,2})\.(\d{2,4})\s*в\s*(\d{1,2})\.(\d{2})/i);
+        if (match) {
+            const day = parseInt(match[1]);
+            const month = parseInt(match[2]);
+            let year = parseInt(match[3]);
+            if (year < 100) year += 2000;
+            const hour = parseInt(match[4]);
+            const minute = parseInt(match[5]);
+            return new Date(year, month - 1, day, hour, minute).toISOString();
+        }
+
+        // "7.02. в 00.25" / "7.02 в 00:25"
+        match = str.match(/(\d{1,2})\.(\d{1,2})\.?\s*в\s*(\d{1,2})[.:](\d{2})/i);
+        if (match) {
+            const day = parseInt(match[1]);
+            const month = parseInt(match[2]);
+            const hour = parseInt(match[3]);
+            const minute = parseInt(match[4]);
+            const year = retreatYear || new Date().getFullYear();
+            return new Date(year, month - 1, day, hour, minute).toISOString();
+        }
+
+        // "7.02 00:25" / "7.02. 00.25"
+        match = str.match(/(\d{1,2})\.(\d{1,2})\.?\s+(\d{1,2})[.:](\d{2})/);
+        if (match) {
+            const day = parseInt(match[1]);
+            const month = parseInt(match[2]);
+            const hour = parseInt(match[3]);
+            const minute = parseInt(match[4]);
+            const year = retreatYear || new Date().getFullYear();
+            return new Date(year, month - 1, day, hour, minute).toISOString();
+        }
+
+        // "06.02.2026" / "22.02.26" (только дата)
+        match = str.match(/(\d{1,2})\.(\d{1,2})\.(\d{2,4})(?!\s*[\d:в])/);
+        if (match) {
+            const day = parseInt(match[1]);
+            const month = parseInt(match[2]);
+            let year = parseInt(match[3]);
+            if (year < 100) year += 2000;
+            return new Date(year, month - 1, day, 12, 0).toISOString();
+        }
+
+        // "7 февраля" (без времени)
+        match = str.match(/(\d{1,2})\s+(января|февраля|марта|апреля|мая|июня|июля|августа|сентября|октября|ноября|декабря)/i);
+        if (match) {
+            const day = parseInt(match[1]);
+            const month = months[match[2].toLowerCase()];
+            const year = retreatYear || new Date().getFullYear();
+            return new Date(year, month - 1, day, 12, 0).toISOString();
+        }
+
+        return null;
     }
 };

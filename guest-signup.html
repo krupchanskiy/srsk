@@ -4,7 +4,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Регистрация гостя — ШРСК</title>
+    <title data-i18n="signup_guest_page_title">Регистрация гостя — ШРСК</title>
     <link rel="icon" type="image/svg+xml" href="/favicon.svg">
     <link href="https://cdn.jsdelivr.net/npm/daisyui@4.12.14/dist/full.min.css" rel="stylesheet" />
     <script src="https://cdn.tailwindcss.com"></script>
@@ -14,51 +14,51 @@
 <body class="bg-base-200 min-h-screen flex items-center justify-center p-4">
     <div class="card bg-base-100 shadow-xl max-w-md w-full">
         <div class="card-body">
-            <h2 class="card-title text-2xl mb-2">Регистрация гостя</h2>
-            <p class="text-sm opacity-60 mb-4">После регистрации вы сразу получите доступ к своему профилю</p>
+            <h2 class="card-title text-2xl mb-2" data-i18n="signup_guest_title">Регистрация гостя</h2>
+            <p class="text-sm opacity-60 mb-4" data-i18n="signup_guest_subtitle">После регистрации вы сразу получите доступ к своему профилю</p>
 
             <form id="guestSignupForm" class="space-y-4">
                 <div class="form-control">
                     <label class="label">
-                        <span class="label-text">Email *</span>
+                        <span class="label-text" data-i18n="signup_email_label">Email *</span>
                     </label>
                     <input type="email" name="email" class="input input-bordered" required>
                 </div>
 
                 <div class="form-control">
                     <label class="label">
-                        <span class="label-text">Пароль *</span>
+                        <span class="label-text" data-i18n="signup_password_label">Пароль *</span>
                     </label>
                     <input type="password" name="password" class="input input-bordered" required minlength="6">
                     <label class="label">
-                        <span class="label-text-alt">Минимум 6 символов</span>
+                        <span class="label-text-alt" data-i18n="signup_password_hint">Минимум 6 символов</span>
                     </label>
                 </div>
 
                 <div class="form-control">
                     <label class="label">
-                        <span class="label-text">Имя *</span>
+                        <span class="label-text" data-i18n="signup_first_name_label">Имя *</span>
                     </label>
                     <input type="text" name="first_name" class="input input-bordered" required>
                 </div>
 
                 <div class="form-control">
                     <label class="label">
-                        <span class="label-text">Фамилия *</span>
+                        <span class="label-text" data-i18n="signup_last_name_label">Фамилия *</span>
                     </label>
                     <input type="text" name="last_name" class="input input-bordered" required>
                 </div>
 
                 <div class="form-control">
                     <label class="label">
-                        <span class="label-text">Духовное имя</span>
+                        <span class="label-text" data-i18n="signup_spiritual_name_label">Духовное имя</span>
                     </label>
                     <input type="text" name="spiritual_name" class="input input-bordered">
                 </div>
 
                 <div class="form-control">
                     <label class="label">
-                        <span class="label-text">Telegram (никнейм без @)</span>
+                        <span class="label-text" data-i18n="signup_telegram_label">Telegram (никнейм без @)</span>
                     </label>
                     <input type="text" name="telegram" class="input input-bordered" placeholder="username">
                 </div>
@@ -71,7 +71,7 @@
                 </div>
 
                 <div class="form-control mt-6">
-                    <button type="submit" class="btn bg-[#4A7C59] hover:bg-[#3d6649] text-white border-none">
+                    <button type="submit" class="btn bg-[#4A7C59] hover:bg-[#3d6649] text-white border-none" data-i18n="signup_submit_btn">
                         Зарегистрироваться
                     </button>
                 </div>
@@ -80,8 +80,8 @@
             <div class="divider"></div>
 
             <p class="text-sm text-center">
-                Уже есть аккаунт?
-                <a href="/login/" class="link text-[#4A7C59] hover:text-[#3d6649]">Войти</a>
+                <span data-i18n="signup_already_have_account">Уже есть аккаунт?</span>
+                <a href="/login/" class="link text-[#4A7C59] hover:text-[#3d6649]" data-i18n="signup_login_link">Войти</a>
             </p>
         </div>
     </div>
@@ -107,14 +107,13 @@
             const telegram = formData.get('telegram');
 
             try {
-                // 1. Проверить, не зарегистрирован ли уже этот email
-                const { data: existingVaishnava } = await db
-                    .from('vaishnavas')
-                    .select('id, email, spiritual_name, first_name, last_name')
-                    .ilike('email', email)
-                    .single();
+                // 1. Проверить, не зарегистрирован ли уже этот email (через RPC)
+                const { data: emailExists, error: checkError } = await db
+                    .rpc('check_email_exists', { check_email: email });
 
-                if (existingVaishnava) {
+                if (checkError) throw checkError;
+
+                if (emailExists) {
                     throw new Error('Вы уже зарегистрированы в системе. Используйте функцию восстановления пароля на странице входа.');
                 }
 
@@ -132,50 +131,29 @@
 
                 if (authError) throw authError;
 
-                // 3. Создать запись в vaishnavas
-                const { data: vData, error: vError } = await db.from('vaishnavas').insert({
-                    user_id: authData.user.id,
-                    email,
-                    first_name: firstName,
-                    last_name: lastName,
-                    spiritual_name: spiritualName || null,
-                    telegram_username: telegram || null,
-                    user_type: 'guest',
-                    approval_status: 'approved', // ← Автоматически одобрено!
-                    is_team_member: false
-                }).select().single();
-
-                if (vError) throw vError;
-
-                // 4. Назначить роль Guest
-                const { data: guestRole } = await db
-                    .from('roles')
-                    .select('id')
-                    .eq('code', 'guest')
-                    .single();
-
-                if (guestRole) {
-                    await db.from('user_roles').insert({
-                        user_id: authData.user.id,
-                        role_id: guestRole.id,
-                        is_active: true
-                    });
-                }
-
-                // 5. Залогинить и перенаправить на профиль
+                // 3. Залогинить (нужен authenticated для RPC)
                 const { error: signInError } = await db.auth.signInWithPassword({
                     email,
                     password
                 });
 
-                if (signInError) {
-                    // Если не удалось залогинить сразу, отправить на login
-                    alert('✅ Регистрация успешна! Теперь войдите в систему.');
-                    window.location.href = '/login/';
-                } else {
-                    // Успешная авторизация - переход в guest portal
-                    window.location.href = '/guest-portal/';
-                }
+                if (signInError) throw signInError;
+
+                // 4. Создать запись vaishnavas + роль Guest (через RPC)
+                const { data: vaishnavId, error: rpcError } = await db
+                    .rpc('create_guest_account', {
+                        p_user_id: authData.user.id,
+                        p_email: email,
+                        p_first_name: firstName,
+                        p_last_name: lastName,
+                        p_spiritual_name: spiritualName || '',
+                        p_telegram: telegram || ''
+                    });
+
+                if (rpcError) throw rpcError;
+
+                // 5. Перенаправить на страницу ожидания одобрения
+                window.location.href = '/pending-approval.html';
 
             } catch (err) {
                 console.error('Signup error:', err);

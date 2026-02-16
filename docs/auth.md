@@ -2,242 +2,251 @@
 
 ## Обзор системы
 
-Система использует кросс-модульные роли с комбинируемыми правами.
+RBAC с кросс-модульными ролями. Права определяются ролями + индивидуальными переопределениями.
 
 ### Типы пользователей
 
 | Тип | Регистрация | Одобрение | Доступ |
 |-----|-------------|-----------|--------|
-| **Guest** (гость) | guest-signup.html | Автоматическое | Только свой профиль |
+| **Guest** (гость) | guest-signup.html | Автоматическое | Гостевой портал + свой профиль |
 | **Staff** (команда) | team-signup.html | Требуется | Согласно ролям |
-| **Superuser** | Вручную в БД | — | Полный доступ |
+| **Superuser** | `vaishnavas.is_superuser = true` | — | Полный доступ |
 
 ---
 
 ## Таблицы авторизации
 
 ```
-modules              # Модули системы (kitchen, housing) — для категоризации
-permissions          # Атомарные права (edit_products, manage_cleaning)
-roles                # Роли (team_member, cook, chef, receptionist)
+modules              # Модули системы (kitchen, housing, crm) — для категоризации
+permissions          # Атомарные права (view_menu, edit_products, conduct_inventory)
+roles                # Роли (team_member, cook, chef, receptionist, sales_head...)
 role_permissions     # Связь ролей и прав
-user_roles           # Роли пользователей (комбинируются)
-user_permissions     # Индивидуальные переопределения
-superusers           # UUID суперпользователей (без RLS!)
-profiles             # Статус одобрения (approval_status)
-vaishnavas           # Профили людей
+user_roles           # Роли пользователей (комбинируются, is_active)
+user_permissions     # Индивидуальные переопределения (is_granted: true/false)
+vaishnavas           # Профили людей (user_type, approval_status, is_superuser, is_active)
 ```
+
+### Как вычисляются права
+
+SQL-функция `get_user_permissions(p_user_id)` (миграция 099):
+```
+(права из role_permissions через user_roles)
+UNION (индивидуально добавленные: user_permissions WHERE is_granted = true)
+EXCEPT (индивидуально отобранные: user_permissions WHERE is_granted = false)
+```
+
+Суперпользователь — все права из таблицы `permissions` без фильтрации.
 
 ### Категории прав (permissions.category)
 
-| Категория | Описание |
-|-----------|----------|
-| kitchen | Рецепты, меню, продукты |
-| stock | Склад, заявки, инвентаризация |
-| placement | Размещение гостей |
-| reception | Комнаты, здания, уборка |
-| ashram | Ретриты, праздники |
-| vaishnavas | База людей |
-| settings | Настройки системы |
-| profile | Профиль пользователя |
+| Категория | Примеры прав |
+|-----------|-------------|
+| kitchen | view_menu, edit_menu, view_recipes, edit_products |
+| stock | view_stock, receive_stock, issue_stock, conduct_inventory |
+| placement | view_preliminary, edit_timeline, manage_arrivals |
+| reception | view_rooms, edit_floor_plan, manage_cleaning |
+| vaishnavas | view_vaishnavas, create_vaishnava, edit_vaishnava |
+| ashram | view_retreats, edit_retreat, view_festivals |
+| crm | view_crm, edit_crm, view_crm_dashboard, edit_crm_settings |
+| settings | view_translations, manage_users |
+| profile | view_own_profile, edit_own_profile, view_own_bookings |
+| portal | edit_portal_materials |
 
 ---
 
-## Флоу авторизации
+## Флоу авторизации (auth-check.js)
 
-### auth-check.js
-
-Файл подключается на всех защищённых страницах:
+Подключается на всех защищённых страницах ПЕРЕД layout.js.
 
 ```javascript
-// 1. Проверка сессии
-const { data: { session } } = await supabaseClient.auth.getSession();
+// 1. Публичные страницы — выход без проверки
+const publicPages = ['login.html', 'team-signup.html', 'guest-signup.html', 'pending-approval.html'];
+if (publicPages.includes(currentPage)) return;
+
+// 2. Флаг для layout.js: auth запущен, ждите authReady
+window._authInProgress = true;
+
+// 3. Проверка сессии
+const { data: { session } } = await db.auth.getSession();
 if (!session) → редирект на login.html
 
-// 2. Загрузка профиля
-const profile = await db.from('profiles').select('*').eq('user_id', userId);
+// 4. Загрузка профиля из vaishnavas
+const vaishnava = await db.from('vaishnavas')
+    .select('id, spiritual_name, first_name, last_name, photo_url, user_type, approval_status, is_superuser, is_active')
+    .eq('user_id', session.user.id).eq('is_deleted', false).single();
 
-// 3. Проверка статуса
-if (profile.approval_status === 'pending') → редирект на pending-approval.html
-if (profile.approval_status === 'rejected') → редирект на login.html
-if (profile.approval_status === 'blocked') → редирект на login.html
+// 5. Проверка статуса
+if (approval_status === 'pending') → pending-approval.html
+if (approval_status === 'rejected' || 'blocked' || !is_active) → signOut + login.html
 
-// 4. Загрузка прав
-const permissions = await getUserPermissions(userId);
+// 6. Загрузка прав
+//    Суперпользователь: все коды из permissions
+//    Обычный: RPC get_user_permissions(p_user_id)
+const permissions = [...];
 
-// 5. Установка глобальных объектов
-window.currentUser = { ...profile, permissions };
-window.hasPermission = (code) => permissions.includes(code);
+// 7. Установка глобальных объектов
+window.currentUser = { ...session.user, vaishnava_id, name, photo_url, user_type, is_superuser, permissions };
+window.hasPermission = (code) => is_superuser || permissions.includes(code);
 
-// 6. Отправка события готовности
+// 8. Guest-only detection
+//    Если все права ⊂ {view_own_profile, edit_own_profile, view_own_bookings}
+//    → редирект на гостевой портал или свой профиль
+
+// 9. CSS-классы на body
+document.body.classList.add('user-type-' + user_type);
+if (is_superuser) document.body.classList.add('is-superuser');
+
+// 10. applyPermissions() — скрытие элементов по data-permission
+//     Вызывается сразу + повторно через 500мс для динамического контента
+
+// 11. Событие готовности
 window.dispatchEvent(new CustomEvent('authReady', { detail: window.currentUser }));
 ```
 
-### Ожидание авторизации
+---
 
-Для страниц, которым нужно дождаться загрузки прав:
+## Auth-First Rendering (layout.js)
+
+**Принцип**: `Layout.init()` ждёт завершения auth-check.js ПЕРЕД рендером навигации. Всё рендерится один раз, сразу правильно — без flash неавторизованных пунктов.
+
+### waitForAuth()
 
 ```javascript
-function waitForAuth(maxWait = 3000) {
+function waitForAuth() {
+    if (window.currentUser) return Promise.resolve();     // auth уже готов
+    if (!window._authInProgress) return Promise.resolve(); // нет auth-check.js (страница без auth)
     return new Promise(resolve => {
-        if (window.currentUser) { resolve(); return; }
-
-        const handler = () => resolve();
-        window.addEventListener('authReady', handler, { once: true });
-
-        setTimeout(() => {
-            window.removeEventListener('authReady', handler);
-            resolve();
-        }, maxWait);
+        window.addEventListener('authReady', resolve, { once: true });
     });
 }
+```
 
-// Использование
-await waitForAuth();
-if (window.currentUser?.is_superuser) {
-    // показать админ-функции
+Без таймаута — auth-check.js либо завершается, либо делает redirect.
+
+### Порядок инициализации Layout.init()
+
+```
+await Promise.all([loadTranslations(), waitForAuth()])   // параллельно!
+→ автовыбор доступного модуля (getFirstAccessibleModule)
+→ checkPageAccess()                                       // редирект если нет прав
+→ getHeaderHTML() / getFooterHTML()                       // уже с фильтрацией!
+→ await loadLocations()
+→ buildMobileMenu(), buildSubmenuBar()
+→ initHeaderEvents(), updateUserInfo()
+```
+
+### Автовыбор модуля
+
+Если `localStorage.srsk_module = 'kitchen'`, а у пользователя нет кухонных прав:
+```javascript
+function getFirstAccessibleModule() {
+    const order = ['kitchen', 'housing', 'crm', 'portal', 'admin'];
+    // Возвращает первый модуль, где filterMenuByPermissions даёт непустое меню
 }
 ```
 
 ---
 
-## Проверка прав
+## Фильтрация навигации по правам
 
-### 1. HTML атрибут (скрытие элементов)
-
-```html
-<button data-permission="edit_products" onclick="openAddModal()">
-    Добавить
-</button>
-```
-
-Layout.js автоматически скрывает элементы без соответствующего права.
-
-### 2. CSS классы на body
-
-```css
-/* Автоматически добавляются auth-check.js */
-body.user-type-guest [data-hide-for-guests] { display: none !important; }
-body.user-type-guest .edit-action { display: none !important; }
-body.is-superuser .admin-only { display: block; }
-```
-
-### 3. JS проверка в функциях
+### pagePermissions — карта страница→право
 
 ```javascript
-function openAddModal() {
-    if (!window.hasPermission?.('edit_products')) {
-        Layout.showNotification('Недостаточно прав', 'error');
-        return;
-    }
-    // открыть модалку...
-}
+const pagePermissions = {
+    'kitchen/menu.html': 'view_menu',
+    'kitchen/recipes.html': 'view_recipes',
+    'stock/stock.html': 'view_stock',
+    'stock/requests.html': 'view_requests',
+    'placement/timeline.html': 'view_timeline',
+    'crm/index.html': 'view_crm',
+    'settings/user-management.html': 'manage_users',
+    // ... 50+ записей
+};
+```
+
+Полная карта — в `js/layout.js`, объект `pagePermissions`.
+
+### filterMenuByPermissions(menuConfig)
+
+Фильтрует секции меню модуля: для каждого item проверяет `pagePermissions[item.href]` через `hasPermission()`. Пустые секции удаляются.
+
+**Важно**: если `!window.currentUser` — показывает всё (для страниц без auth-check.js).
+
+### checkPageAccess()
+
+Блокирует прямой переход по URL. Если у пользователя нет права на текущую страницу → `window.location.href = '/'`.
+
+### Фильтрация выпадашки локаций (buildLocationOptions)
+
+- **Кухонные локации** — только при наличии хотя бы одного кухонного права
+- **Проживание** — при наличии хотя бы одного housing-права
+- **CRM** — при `view_crm`
+- **Профиль гостя** — при `edit_portal_materials`
+- **Управление** — только `is_superuser`
+
+### Desktop навигация (buildMainNav)
+
+Перестраивает `#mainNav` innerHTML. Использует event delegation (обработчик на `#mainNav`, не на отдельных ссылках) — иначе `buildMainNav()` при смене языка теряет обработчики.
+
+---
+
+## Проверка прав в UI
+
+### 1. HTML-атрибут data-permission (скрытие)
+
+```html
+<button data-permission="edit_products">Добавить</button>
+```
+
+`applyPermissions()` в auth-check.js скрывает элементы без нужного права. Кнопки/инпуты также получают `disabled = true`.
+
+### 2. HTML-атрибут data-no-permission (обратная логика)
+
+```html
+<div data-no-permission="edit_products">У вас нет прав на редактирование</div>
+```
+
+Показывается когда права НЕТ, скрывается когда право ЕСТЬ.
+
+### 3. JS проверка
+
+```javascript
+if (!window.hasPermission?.('edit_products')) return;
 ```
 
 ### 4. Условный рендеринг
 
 ```javascript
-function renderTable() {
-    const canEdit = window.hasPermission?.('edit_products');
-
-    return items.map(item => `
-        <tr>
-            <td>${Layout.escapeHtml(item.name)}</td>
-            ${canEdit ? `<td><button onclick="edit('${item.id}')">✏️</button></td>` : '<td></td>'}
-        </tr>
-    `).join('');
-}
-```
-
----
-
-## Роли и права
-
-### Встроенные роли
-
-| Роль | Права |
-|------|-------|
-| `team_member` | Базовый доступ для команды |
-| `cook` | Работа с меню и рецептами |
-| `chef` | Полный доступ к кухне |
-| `warehouse_manager` | Склад и заявки |
-| `receptionist` | Комнаты, уборка, здания |
-| `organizer` | Размещение, гости, трансферы |
-| `guest` | Только свой профиль |
-
-### Основные права
-
-**Kitchen:**
-- `edit_products` — редактирование продуктов
-- `edit_recipes` — редактирование рецептов
-- `edit_menu` — редактирование меню
-- `edit_kitchen_dictionaries` — справочники кухни
-
-**Stock:**
-- `view_stock` — просмотр склада
-- `edit_stock` — редактирование склада
-- `manage_requests` — работа с заявками
-
-**Housing:**
-- `edit_housing_dictionaries` — справочники проживания
-- `edit_floor_plan` — редактирование планов
-- `manage_cleaning` — управление уборкой
-- `edit_preliminary` — распределение гостей
-- `manage_transfers` — управление трансферами
-
-**Profile:**
-- `edit_own_profile` — редактирование своего профиля
-- `edit_vaishnava` — редактирование любых профилей
-
-**Settings:**
-- `edit_translations` — редактирование переводов
-
----
-
-## Суперпользователи
-
-Суперпользователи:
-- Имеют доступ ко всем модулям включая Admin
-- Обходят все проверки прав
-- Видят всё меню без фильтрации
-
-### Проверка суперпользователя
-
-```javascript
-// В auth-check.js
-const { data: superuser } = await db
-    .from('superusers')
-    .select('user_id')
-    .eq('user_id', userId)
-    .maybeSingle();
-
-window.currentUser.is_superuser = !!superuser;
-document.body.classList.toggle('is-superuser', !!superuser);
-```
-
-### Добавление суперпользователя
-
-```sql
-INSERT INTO superusers (user_id) VALUES ('uuid-пользователя');
+const canEdit = window.hasPermission?.('edit_products');
+return `${canEdit ? '<button>Редактировать</button>' : ''}`;
 ```
 
 ---
 
 ## RLS политики
 
-Большинство таблиц используют простые политики:
+### SQL-функции для RLS (миграция 049, обновлены в 098b)
 
 ```sql
--- Полный доступ для authenticated
-CREATE POLICY "all_access" ON table_name
-FOR ALL USING (true);
+-- Проверка атомарного права
+CREATE FUNCTION user_has_permission(perm_code text) RETURNS boolean
+-- Логика: role_permissions UNION granted user_permissions EXCEPT revoked user_permissions
 
--- Справочники: чтение для всех
-CREATE POLICY "public_read" ON reference_table
-FOR SELECT USING (true);
+-- Проверка доступа к локации
+CREATE FUNCTION user_has_location_access(loc_id uuid) RETURNS boolean
+-- Проверяет таблицу user_locations
 ```
 
-**Важно:** Таблица `superusers` имеет **RLS disabled** для избежания рекурсии.
+Политики используют эти функции для контроля доступа на уровне БД, не только на клиенте.
+
+---
+
+## Суперпользователи
+
+- Флаг `vaishnavas.is_superuser` (boolean)
+- Обходят все проверки: `hasPermission()` всегда true, `filterMenuByPermissions()` возвращает всё, `checkPageAccess()` пропускает
+- Видят модуль Admin (ashram, settings)
+- Получают CSS-класс `body.is-superuser`
 
 ---
 
@@ -246,42 +255,14 @@ FOR SELECT USING (true);
 | Страница | Назначение |
 |----------|------------|
 | `login.html` | Вход в систему |
-| `guest-signup.html` | Регистрация гостей |
-| `team-signup.html` | Регистрация команды |
+| `guest-signup.html` | Регистрация гостей (автоодобрение) |
+| `team-signup.html` | Регистрация команды (требует одобрения) |
 | `pending-approval.html` | Ожидание одобрения |
-| `reset-password/` | Сброс пароля |
-| `auth-callback/` | Callback OAuth |
-
----
-
-## Фильтрация меню
-
-Layout.js автоматически фильтрует меню по правам:
-
-```javascript
-// js/layout.js
-const pagePermissions = {
-    'products': 'edit_products',
-    'recipes': 'edit_recipes',
-    'floor-plan': 'edit_floor_plan',
-    // ...
-};
-
-function filterMenuByPermissions(menuItems) {
-    // Суперпользователи видят всё
-    if (currentUser?.is_superuser) return menuItems;
-
-    return menuItems.filter(item => {
-        const required = pagePermissions[item.id];
-        if (!required) return true;  // Нет ограничений
-        return hasPermission(required);
-    });
-}
-```
 
 ---
 
 ## Связанная документация
 
+- [Роли и права — детализация](./roles-permissions.md)
 - [Архитектура](./architecture.md)
 - [Утилиты](./utilities.md)

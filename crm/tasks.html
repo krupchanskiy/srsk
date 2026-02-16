@@ -4,7 +4,7 @@
     <script src="../js/color-init.js"></script>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Мои задачи — CRM — ШРСК</title>
+    <title data-i18n-title="crm_tasks_page_title">Мои задачи — CRM — ШРСК</title>
     <link href="https://cdn.jsdelivr.net/npm/daisyui@4.12.14/dist/full.min.css" rel="stylesheet" />
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
@@ -29,17 +29,17 @@
 
         <div class="flex gap-3">
             <select id="filterStatus" class="select select-bordered select-sm" onchange="applyFilters()">
-                <option value="active">Активные</option>
-                <option value="all">Все</option>
-                <option value="completed">Завершённые</option>
+                <option value="active" data-i18n="crm_filter_active">Активные</option>
+                <option value="all" data-i18n="all">Все</option>
+                <option value="completed" data-i18n="crm_filter_completed">Завершённые</option>
             </select>
 
             <select id="filterPriority" class="select select-bordered select-sm" onchange="applyFilters()">
-                <option value="">Все приоритеты</option>
-                <option value="urgent">Срочные</option>
-                <option value="high">Высокие</option>
-                <option value="normal">Обычные</option>
-                <option value="low">Низкие</option>
+                <option value="" data-i18n="crm_all_priorities">Все приоритеты</option>
+                <option value="urgent" data-i18n="crm_priority_urgent">Срочные</option>
+                <option value="high" data-i18n="crm_priority_high">Высокие</option>
+                <option value="normal" data-i18n="crm_priority_normal">Обычные</option>
+                <option value="low" data-i18n="crm_priority_low">Низкие</option>
             </select>
         </div>
     </div>
@@ -47,19 +47,19 @@
     <!-- Статистика -->
     <div class="stats shadow mb-6">
         <div class="stat">
-            <div class="stat-title">Всего</div>
+            <div class="stat-title" data-i18n="crm_stat_total">Всего</div>
             <div class="stat-value text-2xl" id="statTotal">—</div>
         </div>
         <div class="stat">
-            <div class="stat-title">На сегодня</div>
+            <div class="stat-title" data-i18n="crm_stat_today">На сегодня</div>
             <div class="stat-value text-2xl text-primary" id="statToday">—</div>
         </div>
         <div class="stat">
-            <div class="stat-title">Просрочено</div>
+            <div class="stat-title" data-i18n="crm_stat_overdue">Просрочено</div>
             <div class="stat-value text-2xl text-error" id="statOverdue">—</div>
         </div>
         <div class="stat">
-            <div class="stat-title">Завершено</div>
+            <div class="stat-title" data-i18n="crm_stat_done">Завершено</div>
             <div class="stat-value text-2xl text-success" id="statCompleted">—</div>
         </div>
     </div>
@@ -68,37 +68,37 @@
     <div class="space-y-6">
         <!-- Просроченные -->
         <div id="sectionOverdue" class="hidden">
-            <h2 class="text-lg font-bold text-error mb-3 flex items-center gap-2" id="headerOverdue">Просроченные</h2>
+            <h2 class="text-lg font-bold text-error mb-3 flex items-center gap-2" id="headerOverdue" data-i18n="crm_section_overdue">Просроченные</h2>
             <div id="tasksOverdue" class="space-y-2"></div>
         </div>
 
         <!-- На сегодня -->
         <div id="sectionToday" class="hidden">
-            <h2 class="text-lg font-bold text-primary mb-3 flex items-center gap-2" id="headerToday">На сегодня</h2>
+            <h2 class="text-lg font-bold text-primary mb-3 flex items-center gap-2" id="headerToday" data-i18n="crm_section_today">На сегодня</h2>
             <div id="tasksToday" class="space-y-2"></div>
         </div>
 
         <!-- На этой неделе -->
         <div id="sectionWeek" class="hidden">
-            <h2 class="text-lg font-bold mb-3 flex items-center gap-2" id="headerWeek">На этой неделе</h2>
+            <h2 class="text-lg font-bold mb-3 flex items-center gap-2" id="headerWeek" data-i18n="crm_section_week">На этой неделе</h2>
             <div id="tasksWeek" class="space-y-2"></div>
         </div>
 
         <!-- Позже -->
         <div id="sectionLater" class="hidden">
-            <h2 class="text-lg font-bold text-base-content/70 mb-3 flex items-center gap-2" id="headerLater">Позже</h2>
+            <h2 class="text-lg font-bold text-base-content/70 mb-3 flex items-center gap-2" id="headerLater" data-i18n="crm_section_later">Позже</h2>
             <div id="tasksLater" class="space-y-2"></div>
         </div>
 
         <!-- Без даты -->
         <div id="sectionNoDate" class="hidden">
-            <h2 class="text-lg font-bold text-base-content/50 mb-3 flex items-center gap-2" id="headerNoDate">Без даты</h2>
+            <h2 class="text-lg font-bold text-base-content/50 mb-3 flex items-center gap-2" id="headerNoDate" data-i18n="crm_section_no_date">Без даты</h2>
             <div id="tasksNoDate" class="space-y-2"></div>
         </div>
 
         <!-- Завершённые -->
         <div id="sectionCompleted" class="hidden">
-            <h2 class="text-lg font-bold text-success mb-3 flex items-center gap-2" id="headerCompleted">Завершённые</h2>
+            <h2 class="text-lg font-bold text-success mb-3 flex items-center gap-2" id="headerCompleted" data-i18n="crm_filter_completed">Завершённые</h2>
             <div id="tasksCompleted" class="space-y-2"></div>
         </div>
     </div>
@@ -106,8 +106,8 @@
     <!-- Пусто -->
     <div id="emptyState" class="text-center py-12 hidden">
         <div class="mb-4 text-success" id="emptyIcon"></div>
-        <div class="text-xl font-medium">Нет активных задач</div>
-        <div class="text-base-content/50">Все задачи выполнены!</div>
+        <div class="text-xl font-medium" data-i18n="crm_no_active_tasks">Нет активных задач</div>
+        <div class="text-base-content/50" data-i18n="crm_all_tasks_done">Все задачи выполнены!</div>
     </div>
 </main>
 
@@ -115,25 +115,25 @@
 <dialog id="completeModal" class="modal">
     <div class="modal-box max-w-md">
         <button type="button" class="btn btn-sm btn-circle btn-ghost absolute right-2 top-2" onclick="closeCompleteModal()">✕</button>
-        <h3 class="font-bold text-lg mb-4">Завершить задачу?</h3>
+        <h3 class="font-bold text-lg mb-4" data-i18n="crm_complete_task_confirm">Завершить задачу?</h3>
 
         <div id="completeTaskTitle" class="font-medium text-base-content/80 mb-4 p-3 bg-base-200 rounded-lg"></div>
 
         <div class="form-control mb-4">
             <label class="label">
-                <span class="label-text">Комментарий (опционально)</span>
+                <span class="label-text" data-i18n="crm_comment_optional">Комментарий (опционально)</span>
             </label>
             <textarea id="completionComment" class="textarea textarea-bordered w-full"
-                      rows="3" placeholder="Результат, заметки..."></textarea>
+                      rows="3" placeholder="Результат, заметки..." data-i18n-placeholder="crm_completion_placeholder"></textarea>
         </div>
 
         <div class="modal-action">
-            <button type="button" class="btn btn-ghost" onclick="closeCompleteModal()">Отмена</button>
+            <button type="button" class="btn btn-ghost" onclick="closeCompleteModal()" data-i18n="cancel">Отмена</button>
             <button type="button" class="btn btn-success" onclick="confirmCompleteTask()">
                 <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-5 h-5">
                     <path stroke-linecap="round" stroke-linejoin="round" d="m4.5 12.75 6 6 9-13.5" />
                 </svg>
-                Завершить
+                <span data-i18n="crm_complete">Завершить</span>
             </button>
         </div>
     </div>

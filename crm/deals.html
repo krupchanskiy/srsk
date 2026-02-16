@@ -4,7 +4,7 @@
     <script src="../js/color-init.js"></script>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Все сделки — CRM — ШРСК</title>
+    <title data-i18n-title="crm_deals_page_title">Все сделки — CRM — ШРСК</title>
     <link href="https://cdn.jsdelivr.net/npm/daisyui@4.12.14/dist/full.min.css" rel="stylesheet" />
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
@@ -35,42 +35,42 @@
             <div class="flex flex-wrap gap-3 items-end">
                 <!-- Ретрит -->
                 <div class="form-control">
-                    <label class="label py-1"><span class="label-text text-xs">Ретрит</span></label>
+                    <label class="label py-1"><span class="label-text text-xs" data-i18n="crm_retreat">Ретрит</span></label>
                     <select id="filterRetreat" class="select select-bordered select-sm" onchange="applyFilters()">
-                        <option value="">Все</option>
+                        <option value="" data-i18n="all">Все</option>
                     </select>
                 </div>
 
                 <!-- Статус -->
                 <div class="form-control">
-                    <label class="label py-1"><span class="label-text text-xs">Статус</span></label>
+                    <label class="label py-1"><span class="label-text text-xs" data-i18n="col_status">Статус</span></label>
                     <select id="filterStatus" class="select select-bordered select-sm" onchange="applyFilters()">
-                        <option value="">Все</option>
-                        <option value="active">Активные</option>
-                        <option value="cancelled">Отменённые</option>
-                        <option value="completed">Завершённые</option>
+                        <option value="" data-i18n="all">Все</option>
+                        <option value="active" data-i18n="crm_filter_active">Активные</option>
+                        <option value="cancelled" data-i18n="crm_filter_cancelled">Отменённые</option>
+                        <option value="completed" data-i18n="crm_filter_completed">Завершённые</option>
                     </select>
                 </div>
 
                 <!-- Менеджер -->
                 <div class="form-control">
-                    <label class="label py-1"><span class="label-text text-xs">Менеджер</span></label>
+                    <label class="label py-1"><span class="label-text text-xs" data-i18n="crm_manager">Менеджер</span></label>
                     <select id="filterManager" class="select select-bordered select-sm" onchange="applyFilters()">
-                        <option value="">Все</option>
-                        <option value="my">Мои</option>
-                        <option value="unassigned">Не назначен</option>
+                        <option value="" data-i18n="all">Все</option>
+                        <option value="my" data-i18n="crm_my">Мои</option>
+                        <option value="unassigned" data-i18n="crm_unassigned">Не назначен</option>
                     </select>
                 </div>
 
                 <!-- Поиск -->
                 <div class="form-control flex-1 min-w-[200px]">
-                    <label class="label py-1"><span class="label-text text-xs">Поиск</span></label>
+                    <label class="label py-1"><span class="label-text text-xs" data-i18n="search">Поиск</span></label>
                     <input type="text" id="filterSearch" class="input input-bordered input-sm"
-                           placeholder="Имя, телефон, email..." oninput="applyFiltersDebounced()">
+                           placeholder="Имя, телефон, email..." data-i18n-placeholder="crm_search_placeholder" oninput="applyFiltersDebounced()">
                 </div>
 
                 <!-- Сброс -->
-                <button class="btn btn-ghost btn-sm" onclick="resetFilters()">Сбросить</button>
+                <button class="btn btn-ghost btn-sm" onclick="resetFilters()" data-i18n="reset">Сбросить</button>
             </div>
         </div>
     </div>
@@ -90,22 +90,22 @@
                         <tr>
                             <th class="w-8"></th>
                             <th class="cursor-pointer hover:bg-base-200" onclick="setSort('guest')">
-                                <span class="inline-flex items-center gap-1">Гость <span id="sort-guest" class="text-xs opacity-50"></span></span>
+                                <span class="inline-flex items-center gap-1" data-i18n="crm_guest">Гость <span id="sort-guest" class="text-xs opacity-50"></span></span>
                             </th>
                             <th class="cursor-pointer hover:bg-base-200" onclick="setSort('retreat')">
-                                <span class="inline-flex items-center gap-1">Ретрит <span id="sort-retreat" class="text-xs opacity-50"></span></span>
+                                <span class="inline-flex items-center gap-1" data-i18n="crm_retreat">Ретрит <span id="sort-retreat" class="text-xs opacity-50"></span></span>
                             </th>
                             <th class="cursor-pointer hover:bg-base-200" onclick="setSort('status')">
-                                <span class="inline-flex items-center gap-1">Статус <span id="sort-status" class="text-xs opacity-50"></span></span>
+                                <span class="inline-flex items-center gap-1" data-i18n="col_status">Статус <span id="sort-status" class="text-xs opacity-50"></span></span>
                             </th>
                             <th class="cursor-pointer hover:bg-base-200" onclick="setSort('manager')">
-                                <span class="inline-flex items-center gap-1">Менеджер <span id="sort-manager" class="text-xs opacity-50"></span></span>
+                                <span class="inline-flex items-center gap-1" data-i18n="crm_manager">Менеджер <span id="sort-manager" class="text-xs opacity-50"></span></span>
                             </th>
                             <th class="cursor-pointer hover:bg-base-200 text-right" onclick="setSort('paid')">
-                                <span class="inline-flex items-center gap-1 justify-end">Оплачено <span id="sort-paid" class="text-xs opacity-50"></span></span>
+                                <span class="inline-flex items-center gap-1 justify-end" data-i18n="crm_paid">Оплачено <span id="sort-paid" class="text-xs opacity-50"></span></span>
                             </th>
                             <th class="cursor-pointer hover:bg-base-200" onclick="setSort('created')">
-                                <span class="inline-flex items-center gap-1">Создано <span id="sort-created" class="text-xs opacity-50"></span></span>
+                                <span class="inline-flex items-center gap-1" data-i18n="crm_created">Создано <span id="sort-created" class="text-xs opacity-50"></span></span>
                             </th>
                         </tr>
                     </thead>
@@ -130,57 +130,57 @@
 <!-- Модалка новой сделки -->
 <dialog id="newDealModal" class="modal">
     <div class="modal-box">
-        <h3 class="font-bold text-lg mb-4">Новая сделка</h3>
+        <h3 class="font-bold text-lg mb-4" data-i18n="crm_new_deal">Новая сделка</h3>
         <form id="newDealForm" onsubmit="createDeal(event)">
             <div class="form-control mb-3">
-                <label class="label"><span class="label-text">Ретрит *</span></label>
+                <label class="label"><span class="label-text" data-i18n="crm_retreat_required">Ретрит *</span></label>
                 <select id="newDealRetreat" class="select select-bordered" required>
-                    <option value="">Выберите ретрит...</option>
+                    <option value="" data-i18n="crm_select_retreat">Выберите ретрит...</option>
                 </select>
             </div>
 
             <div class="form-control mb-3">
-                <label class="label"><span class="label-text">Гость *</span></label>
+                <label class="label"><span class="label-text" data-i18n="crm_guest_required">Гость *</span></label>
                 <div class="flex gap-2">
                     <select id="newDealGuest" class="select select-bordered flex-1">
-                        <option value="">Выберите или создайте нового...</option>
+                        <option value="" data-i18n="crm_select_or_create_guest">Выберите или создайте нового...</option>
                     </select>
-                    <button type="button" class="btn btn-ghost" onclick="toggleNewGuestForm()">+ Новый</button>
+                    <button type="button" class="btn btn-ghost" onclick="toggleNewGuestForm()" data-i18n="crm_new_guest_btn">+ Новый</button>
                 </div>
             </div>
 
             <!-- Форма нового гостя (скрыта по умолчанию) -->
             <div id="newGuestForm" class="hidden bg-base-200 p-3 rounded-lg mb-3 space-y-2">
                 <div class="grid grid-cols-2 gap-2">
-                    <input type="text" id="newGuestFirstName" class="input input-bordered input-sm" placeholder="Имя">
-                    <input type="text" id="newGuestLastName" class="input input-bordered input-sm" placeholder="Фамилия">
+                    <input type="text" id="newGuestFirstName" class="input input-bordered input-sm" placeholder="Имя" data-i18n-placeholder="crm_first_name">
+                    <input type="text" id="newGuestLastName" class="input input-bordered input-sm" placeholder="Фамилия" data-i18n-placeholder="crm_last_name">
                 </div>
-                <input type="text" id="newGuestSpiritualName" class="input input-bordered input-sm w-full" placeholder="Духовное имя">
+                <input type="text" id="newGuestSpiritualName" class="input input-bordered input-sm w-full" placeholder="Духовное имя" data-i18n-placeholder="crm_spiritual_name">
                 <div class="grid grid-cols-2 gap-2">
-                    <input type="tel" id="newGuestPhone" class="input input-bordered input-sm" placeholder="Телефон">
+                    <input type="tel" id="newGuestPhone" class="input input-bordered input-sm" placeholder="Телефон" data-i18n-placeholder="crm_phone">
                     <input type="email" id="newGuestEmail" class="input input-bordered input-sm" placeholder="Email">
                 </div>
             </div>
 
             <div class="form-control mb-3">
-                <label class="label"><span class="label-text">Источник</span></label>
+                <label class="label"><span class="label-text" data-i18n="crm_source">Источник</span></label>
                 <select id="newDealSource" class="select select-bordered">
-                    <option value="website">Сайт</option>
-                    <option value="telegram">Телеграм</option>
-                    <option value="referral">Рекомендация</option>
-                    <option value="repeat">Повторный гость</option>
-                    <option value="portal">Личный кабинет</option>
+                    <option value="website" data-i18n="crm_source_website">Сайт</option>
+                    <option value="telegram" data-i18n="crm_source_telegram">Телеграм</option>
+                    <option value="referral" data-i18n="crm_source_referral">Рекомендация</option>
+                    <option value="repeat" data-i18n="crm_source_repeat">Повторный гость</option>
+                    <option value="portal" data-i18n="crm_source_portal">Личный кабинет</option>
                 </select>
             </div>
 
             <div class="form-control mb-4">
-                <label class="label"><span class="label-text">Заметки</span></label>
+                <label class="label"><span class="label-text" data-i18n="crm_notes">Заметки</span></label>
                 <textarea id="newDealNotes" class="textarea textarea-bordered" rows="2"></textarea>
             </div>
 
             <div class="modal-action">
-                <button type="button" class="btn" onclick="closeNewDealModal()">Отмена</button>
-                <button type="submit" class="btn btn-primary">Создать</button>
+                <button type="button" class="btn" onclick="closeNewDealModal()" data-i18n="cancel">Отмена</button>
+                <button type="submit" class="btn btn-primary" data-i18n="create">Создать</button>
             </div>
         </form>
     </div>

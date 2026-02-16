@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <script src="../js/color-init.js"></script>
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Выезды</title>
+    <title data-i18n="departures_page_title">Выезды</title>
     <link rel="icon" type="image/svg+xml" href="/favicon.svg">
     <link href="https://cdn.jsdelivr.net/npm/daisyui@4.4.19/dist/full.min.css" rel="stylesheet" type="text/css" />
     <script src="https://cdn.tailwindcss.com"></script>
@@ -116,18 +116,18 @@
             <form method="dialog">
                 <button class="btn btn-sm btn-circle btn-ghost absolute right-2 top-2">✕</button>
             </form>
-            <h3 class="font-bold text-lg mb-4">Заказ такси</h3>
+            <h3 class="font-bold text-lg mb-4" data-i18n="transfers_taxi_order">Заказ такси</h3>
             <input type="hidden" id="taxiTransferId">
             <div class="form-control mb-3">
-                <label class="label"><span class="label-text">Информация о водителе</span></label>
-                <textarea id="taxiDriverInfo" class="textarea textarea-bordered" rows="3" placeholder="Имя, телефон, марка авто..."></textarea>
+                <label class="label"><span class="label-text" data-i18n="transfers_driver_info">Информация о водителе</span></label>
+                <textarea id="taxiDriverInfo" class="textarea textarea-bordered" rows="3" placeholder="Имя, телефон, марка авто..." data-i18n-placeholder="transfers_driver_info_placeholder"></textarea>
             </div>
             <div class="form-control mb-4">
-                <label class="label"><span class="label-text">Кто заказал:</span></label>
-                <input type="text" id="taxiOrderedBy" class="input input-bordered" placeholder="Кто заказывает">
+                <label class="label"><span class="label-text" data-i18n="transfers_ordered_by">Кто заказал:</span></label>
+                <input type="text" id="taxiOrderedBy" class="input input-bordered" placeholder="Кто заказывает" data-i18n-placeholder="transfers_ordered_by_placeholder">
             </div>
             <div class="modal-action">
-                <button class="btn btn-primary" onclick="saveTaxiOrder()">Заказать</button>
+                <button class="btn btn-primary" onclick="saveTaxiOrder()" data-i18n="transfers_order_btn">Заказать</button>
             </div>
         </div>
         <form method="dialog" class="modal-backdrop"><button>close</button></form>
@@ -147,20 +147,20 @@
                     <polygon points="39.12 20.68 39.12 25.01 33.92 25.01 33.92 38.86 28.73 38.86 28.73 25.01 23.54 25.01 23.54 20.68 39.12 20.68"/>
                     <rect x="74.03" y="20.68" width="5.19" height="18.18"/>
                 </svg>
-                <span>Такси заказано</span>
+                <span data-i18n="transfers_taxi_ordered">Такси заказано</span>
             </h3>
             <input type="hidden" id="taxiDetailsTransferId">
             <div class="form-control mb-3">
-                <label class="label"><span class="label-text">Информация о водителе</span></label>
-                <textarea id="taxiDetailsDriver" class="textarea textarea-bordered" rows="3" placeholder="Имя, телефон, марка авто..."></textarea>
+                <label class="label"><span class="label-text" data-i18n="transfers_driver_info">Информация о водителе</span></label>
+                <textarea id="taxiDetailsDriver" class="textarea textarea-bordered" rows="3" placeholder="Имя, телефон, марка авто..." data-i18n-placeholder="transfers_driver_info_placeholder"></textarea>
             </div>
             <div class="form-control mb-4">
-                <label class="label"><span class="label-text">Кто заказал:</span></label>
-                <input type="text" id="taxiDetailsOrderedBy" class="input input-bordered" placeholder="Кто заказывает">
+                <label class="label"><span class="label-text" data-i18n="transfers_ordered_by">Кто заказал:</span></label>
+                <input type="text" id="taxiDetailsOrderedBy" class="input input-bordered" placeholder="Кто заказывает" data-i18n-placeholder="transfers_ordered_by_placeholder">
             </div>
             <div class="modal-action">
-                <button class="btn btn-primary" onclick="saveEditedTaxiDetails()">Сохранить</button>
-                <button class="btn btn-error btn-outline" onclick="cancelTaxiFromDetails()">Отменить такси</button>
+                <button class="btn btn-primary" onclick="saveEditedTaxiDetails()" data-i18n="save">Сохранить</button>
+                <button class="btn btn-error btn-outline" onclick="cancelTaxiFromDetails()" data-i18n="transfers_cancel_taxi">Отменить такси</button>
             </div>
         </div>
         <form method="dialog" class="modal-backdrop"><button>close</button></form>

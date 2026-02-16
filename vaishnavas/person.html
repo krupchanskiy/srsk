@@ -276,7 +276,7 @@
                         </div>
                     </div>
                     <!-- Кнопка удаления фото -->
-                    <button type="button" id="deletePhotoBtn" class="btn btn-ghost btn-sm btn-circle edit-only hidden" onclick="deletePhoto()" title="Удалить фото">
+                    <button type="button" id="deletePhotoBtn" class="btn btn-ghost btn-sm btn-circle edit-only hidden" onclick="deletePhoto()" data-i18n-title="delete_photo" title="Удалить фото">
                         <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 text-error" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
                         </svg>
@@ -307,7 +307,7 @@
                         <div class="flex gap-2">
                             <!-- View mode buttons -->
                             <button class="btn btn-sm gap-2 view-only" style="background: #147D30; border-color: #147D30;" onclick="openGuestPortal()">
-                                <span style="color: #FFBA47; font-weight: 500;">Общедоступный профиль</span>
+                                <span style="color: #FFBA47; font-weight: 500;" data-i18n="public_profile">Общедоступный профиль</span>
                                 <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" style="color: #FFBA47;" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
                                 </svg>
@@ -416,7 +416,7 @@
                 <!-- Team / Service Section -->
                 <div class="section-card" id="teamSection">
                     <div class="flex items-center justify-between mb-4">
-                        <h3 class="font-semibold">Команда / Служение</h3>
+                        <h3 class="font-semibold" data-i18n="team_service">Команда / Служение</h3>
                         <label class="flex items-center gap-2 cursor-pointer edit-only">
                             <input type="checkbox" id="editIsTeamMember" class="checkbox checkbox-sm checkbox-primary" onchange="toggleTeamFields()">
                         </label>
@@ -457,11 +457,11 @@
                                 <div class="view-only info-value" id="viewVisaType">—</div>
                                 <select id="editVisaType" class="editable-select w-full edit-only">
                                     <option value="">—</option>
-                                    <option value="tourist">Туристическая</option>
-                                    <option value="business">Бизнес</option>
-                                    <option value="volunteer">Волонтёрская</option>
-                                    <option value="religious">Религиозная</option>
-                                    <option value="other">Другая</option>
+                                    <option value="tourist" data-i18n="visa_tourist">Туристическая</option>
+                                    <option value="business" data-i18n="visa_business">Бизнес</option>
+                                    <option value="volunteer" data-i18n="visa_volunteer">Волонтёрская</option>
+                                    <option value="religious" data-i18n="visa_religious">Религиозная</option>
+                                    <option value="other" data-i18n="visa_other">Другая</option>
                                 </select>
                             </div>
                             <div>
@@ -509,7 +509,7 @@
             <div class="lg:col-span-2 space-y-6">
                 <!-- Current Accommodation (permanent residents without retreat) -->
                 <div class="section-card hidden" id="currentAccommodationSection">
-                    <h3 class="font-semibold mb-4">Текущее размещение</h3>
+                    <h3 class="font-semibold mb-4" data-i18n="current_accommodation">Текущее размещение</h3>
                     <div id="currentAccommodationContent"></div>
                 </div>
 
@@ -637,7 +637,7 @@
                 <div class="form-control mb-4">
                     <label class="label cursor-pointer justify-start gap-3">
                         <input type="checkbox" id="isPermanentStay" class="checkbox checkbox-success" onchange="togglePermanentStay(this.checked)">
-                        <span class="label-text font-medium">Находится в ШРСК постоянно</span>
+                        <span class="label-text font-medium" data-i18n="permanent_stay">Находится в ШРСК постоянно</span>
                     </label>
                 </div>
 
@@ -658,11 +658,11 @@
                 <div class="flex gap-4 mb-4">
                     <label class="label cursor-pointer gap-2">
                         <input type="checkbox" name="early_checkin" class="checkbox checkbox-sm checkbox-primary" />
-                        <span class="label-text text-sm">Ранний заезд</span>
+                        <span class="label-text text-sm" data-i18n="early_checkin">Ранний заезд</span>
                     </label>
                     <label class="label cursor-pointer gap-2">
                         <input type="checkbox" name="late_checkout" class="checkbox checkbox-sm checkbox-primary" />
-                        <span class="label-text text-sm">Поздний выезд</span>
+                        <span class="label-text text-sm" data-i18n="late_checkout">Поздний выезд</span>
                     </label>
                 </div>
 
@@ -695,8 +695,8 @@
                 <div class="form-control mb-4">
                     <label class="label"><span class="label-text font-medium" data-i18n="status">Статус</span></label>
                     <select id="retreatStatusSelect" class="select select-bordered w-full" required>
-                        <option value="guest">Гость</option>
-                        <option value="team">Команда</option>
+                        <option value="guest" data-i18n="status_guest">Гость</option>
+                        <option value="team" data-i18n="status_team">Команда</option>
                     </select>
                 </div>
                 <div class="form-control mb-4">
@@ -716,7 +716,7 @@
     <dialog id="placementModal" class="modal">
         <div class="modal-box max-w-2xl">
             <button type="button" class="btn btn-sm btn-circle btn-ghost absolute right-2 top-2" onclick="placementModal.close()">✕</button>
-            <h3 class="font-bold text-lg mb-4">Размещение гостя</h3>
+            <h3 class="font-bold text-lg mb-4" data-i18n="guest_placement">Размещение гостя</h3>
 
             <div id="placementRetreatInfo" class="mb-4 p-3 bg-base-200 rounded-lg">
                 <!-- Retreat info will be inserted here -->
@@ -725,38 +725,38 @@
             <!-- Dates -->
             <div class="grid grid-cols-2 gap-4 mb-4">
                 <div class="form-control">
-                    <label class="label"><span class="label-text font-medium">Заезд</span></label>
+                    <label class="label"><span class="label-text font-medium" data-i18n="check_in">Заезд</span></label>
                     <input type="date" id="placementCheckIn" class="input input-bordered" onchange="updateRoomsList()" />
                 </div>
                 <div class="form-control">
-                    <label class="label"><span class="label-text font-medium">Выезд</span></label>
+                    <label class="label"><span class="label-text font-medium" data-i18n="check_out">Выезд</span></label>
                     <input type="date" id="placementCheckOut" class="input input-bordered" onchange="updateRoomsList()" />
                 </div>
             </div>
 
             <!-- Rooms List -->
             <div class="mb-4">
-                <label class="label"><span class="label-text font-medium">Выберите комнату</span></label>
+                <label class="label"><span class="label-text font-medium" data-i18n="select_room">Выберите комнату</span></label>
                 <div id="roomsList" class="space-y-2 max-h-64 overflow-y-auto">
-                    <div class="text-center py-4 opacity-50">Загрузка...</div>
+                    <div class="text-center py-4 opacity-50" data-i18n="loading">Загрузка...</div>
                 </div>
             </div>
 
             <!-- Legend -->
             <div class="flex flex-wrap gap-3 text-xs opacity-60 mb-4">
                 <div class="flex items-center gap-1">
-                    <span class="w-3 h-3 rounded bg-success"></span> Свободно
+                    <span class="w-3 h-3 rounded bg-success"></span> <span data-i18n="room_available">Свободно</span>
                 </div>
                 <div class="flex items-center gap-1">
-                    <span class="w-3 h-3 rounded bg-warning"></span> Частично
+                    <span class="w-3 h-3 rounded bg-warning"></span> <span data-i18n="room_partial">Частично</span>
                 </div>
                 <div class="flex items-center gap-1">
-                    <span class="w-3 h-3 rounded bg-error opacity-50"></span> Занято
+                    <span class="w-3 h-3 rounded bg-error opacity-50"></span> <span data-i18n="room_occupied">Занято</span>
                 </div>
             </div>
 
             <div class="modal-action">
-                <button type="button" class="btn btn-ghost" onclick="placementModal.close()">Отмена</button>
+                <button type="button" class="btn btn-ghost" onclick="placementModal.close()" data-i18n="cancel">Отмена</button>
             </div>
         </div>
         <form method="dialog" class="modal-backdrop"><button>close</button></form>
@@ -766,14 +766,14 @@
     <dialog id="editRegModal" class="modal">
         <div class="modal-box max-w-2xl">
             <button type="button" class="btn btn-sm btn-circle btn-ghost absolute right-2 top-2" onclick="editRegModal.close()">✕</button>
-            <h3 class="font-bold text-lg mb-1">Редактирование регистрации</h3>
+            <h3 class="font-bold text-lg mb-1" data-i18n="edit_registration">Редактирование регистрации</h3>
             <p id="editRegPersonName" class="text-sm opacity-60 mb-4"></p>
             <input type="hidden" id="editRegId" />
 
             <div class="space-y-4">
                 <!-- Статус -->
                 <div class="form-control">
-                    <label class="label"><span class="label-text font-medium">Статус</span></label>
+                    <label class="label"><span class="label-text font-medium" data-i18n="status">Статус</span></label>
                     <select id="editRegStatus" class="select select-bordered">
                         <option value="guest" data-i18n="status_guest">Гость</option>
                         <option value="team" data-i18n="status_team">Команда</option>
@@ -794,50 +794,50 @@
 
                 <!-- Прилёт -->
                 <div class="border rounded-lg p-3">
-                    <div class="font-medium mb-2">✈️ Прилёт</div>
+                    <div class="font-medium mb-2" data-i18n="arrival_flight">Прилёт</div>
                     <div class="grid grid-cols-2 gap-3">
                         <div class="form-control">
-                            <label class="label label-text text-xs">Дата и время рейса</label>
+                            <label class="label label-text text-xs" data-i18n="flight_datetime">Дата и время рейса</label>
                             <input type="datetime-local" id="editArrivalDatetime" class="input input-bordered input-sm"
                                    onchange="updateCalcArrival()" />
                         </div>
                         <div class="form-control">
-                            <label class="label label-text text-xs">Номер рейса</label>
+                            <label class="label label-text text-xs" data-i18n="flight_number">Номер рейса</label>
                             <input type="text" id="editArrivalFlight" class="input input-bordered input-sm" placeholder="SU 123" />
                         </div>
                         <div class="form-control">
-                            <label class="label label-text text-xs">Трансфер</label>
+                            <label class="label label-text text-xs" data-i18n="transfer">Трансфер</label>
                             <select id="editArrivalTransfer" class="select select-bordered select-sm">
-                                <option value="">Не указано</option>
-                                <option value="yes">Нужен</option>
-                                <option value="no">Не нужен</option>
+                                <option value="" data-i18n="not_specified">Не указано</option>
+                                <option value="yes" data-i18n="transfer_needed">Нужен</option>
+                                <option value="no" data-i18n="transfer_not_needed">Не нужен</option>
                             </select>
                         </div>
                         <div class="form-control">
-                            <label class="label label-text text-xs">Примечание</label>
+                            <label class="label label-text text-xs" data-i18n="note">Примечание</label>
                             <input type="text" id="editArrivalNotes" class="input input-bordered input-sm" placeholder="07.02.2025 в 08:00" />
                         </div>
                         <div class="col-span-2 mt-1">
                             <label class="label cursor-pointer justify-start gap-2 py-0">
                                 <input type="checkbox" id="editDirectArrival" class="checkbox checkbox-xs checkbox-primary"
                                        onchange="toggleDirectArrival(this.checked)" checked />
-                                <span class="label-text text-xs">Сразу на ретрит</span>
+                                <span class="label-text text-xs" data-i18n="direct_to_retreat">Сразу на ретрит</span>
                             </label>
                             <div id="calcArrivalBlock" class="mt-2">
-                                <span class="label-text text-xs text-base-content/60">Приезд в ШРСК (рейс + 4ч):</span>
+                                <span class="label-text text-xs text-base-content/60" data-i18n="calc_arrival_time">Приезд в ШРСК (рейс + 4ч):</span>
                                 <span id="calcArrivalTime" class="text-xs font-medium ml-1">—</span>
                             </div>
                             <div id="customArrivalBlock" class="hidden mt-2 grid grid-cols-3 gap-2">
                                 <div class="col-span-2">
-                                    <label class="label label-text text-xs">Время приезда в ШРСК</label>
+                                    <label class="label label-text text-xs" data-i18n="arrival_time_srsk">Время приезда в ШРСК</label>
                                     <input type="datetime-local" id="editArrivalAtAshram" class="input input-bordered input-sm w-full" />
                                 </div>
                                 <div>
-                                    <label class="label label-text text-xs">Трансфер на ретрит</label>
+                                    <label class="label label-text text-xs" data-i18n="transfer_to_retreat">Трансфер на ретрит</label>
                                     <select id="editArrivalRetreatTransfer" class="select select-bordered select-sm w-full">
-                                        <option value="">Не указано</option>
-                                        <option value="yes">Нужен</option>
-                                        <option value="no">Не нужен</option>
+                                        <option value="" data-i18n="not_specified">Не указано</option>
+                                        <option value="yes" data-i18n="transfer_needed">Нужен</option>
+                                        <option value="no" data-i18n="transfer_not_needed">Не нужен</option>
                                     </select>
                                 </div>
                             </div>
@@ -847,50 +847,50 @@
 
                 <!-- Вылет -->
                 <div class="border rounded-lg p-3">
-                    <div class="font-medium mb-2">✈️ Вылет</div>
+                    <div class="font-medium mb-2" data-i18n="departure_flight">Вылет</div>
                     <div class="grid grid-cols-2 gap-3">
                         <div class="form-control">
-                            <label class="label label-text text-xs">Дата и время рейса</label>
+                            <label class="label label-text text-xs" data-i18n="flight_datetime">Дата и время рейса</label>
                             <input type="datetime-local" id="editDepartureDatetime" class="input input-bordered input-sm"
                                    onchange="updateCalcDeparture()" />
                         </div>
                         <div class="form-control">
-                            <label class="label label-text text-xs">Номер рейса</label>
+                            <label class="label label-text text-xs" data-i18n="flight_number">Номер рейса</label>
                             <input type="text" id="editDepartureFlight" class="input input-bordered input-sm" placeholder="SU 456" />
                         </div>
                         <div class="form-control">
-                            <label class="label label-text text-xs">Трансфер</label>
+                            <label class="label label-text text-xs" data-i18n="transfer">Трансфер</label>
                             <select id="editDepartureTransfer" class="select select-bordered select-sm">
-                                <option value="">Не указано</option>
-                                <option value="yes">Нужен</option>
-                                <option value="no">Не нужен</option>
+                                <option value="" data-i18n="not_specified">Не указано</option>
+                                <option value="yes" data-i18n="transfer_needed">Нужен</option>
+                                <option value="no" data-i18n="transfer_not_needed">Не нужен</option>
                             </select>
                         </div>
                         <div class="form-control">
-                            <label class="label label-text text-xs">Примечание</label>
+                            <label class="label label-text text-xs" data-i18n="note">Примечание</label>
                             <input type="text" id="editDepartureNotes" class="input input-bordered input-sm" placeholder="23.02.2025 в 13:00" />
                         </div>
                         <div class="col-span-2 mt-1">
                             <label class="label cursor-pointer justify-start gap-2 py-0">
                                 <input type="checkbox" id="editDirectDeparture" class="checkbox checkbox-xs checkbox-primary"
                                        onchange="toggleDirectDeparture(this.checked)" checked />
-                                <span class="label-text text-xs">С ретрита на самолёт</span>
+                                <span class="label-text text-xs" data-i18n="direct_from_retreat">С ретрита на самолёт</span>
                             </label>
                             <div id="calcDepartureBlock" class="mt-2">
-                                <span class="label-text text-xs text-base-content/60">Отъезд из ШРСК (рейс − 7ч):</span>
+                                <span class="label-text text-xs text-base-content/60" data-i18n="calc_departure_time">Отъезд из ШРСК (рейс − 7ч):</span>
                                 <span id="calcDepartureTime" class="text-xs font-medium ml-1">—</span>
                             </div>
                             <div id="customDepartureBlock" class="hidden mt-2 grid grid-cols-3 gap-2">
                                 <div class="col-span-2">
-                                    <label class="label label-text text-xs">Время выезда из ШРСК</label>
+                                    <label class="label label-text text-xs" data-i18n="departure_time_srsk">Время выезда из ШРСК</label>
                                     <input type="datetime-local" id="editDepartureFromAshram" class="input input-bordered input-sm w-full" />
                                 </div>
                                 <div>
-                                    <label class="label label-text text-xs">Трансфер с ретрита</label>
+                                    <label class="label label-text text-xs" data-i18n="transfer_from_retreat">Трансфер с ретрита</label>
                                     <select id="editDepartureRetreatTransfer" class="select select-bordered select-sm w-full">
-                                        <option value="">Не указано</option>
-                                        <option value="yes">Нужен</option>
-                                        <option value="no">Не нужен</option>
+                                        <option value="" data-i18n="not_specified">Не указано</option>
+                                        <option value="yes" data-i18n="transfer_needed">Нужен</option>
+                                        <option value="no" data-i18n="transfer_not_needed">Не нужен</option>
                                     </select>
                                 </div>
                             </div>
@@ -901,40 +901,40 @@
                 <!-- Пожелания и доп. поля -->
                 <div class="grid grid-cols-2 gap-4">
                     <div class="form-control">
-                        <label class="label"><span class="label-text font-medium">Пожелания по проживанию</span></label>
+                        <label class="label"><span class="label-text font-medium" data-i18n="accommodation_wishes">Пожелания по проживанию</span></label>
                         <input type="text" id="editAccommodationWishes" class="input input-bordered" />
                     </div>
                     <div class="form-control">
-                        <label class="label"><span class="label-text font-medium">Семья / Спутники</span></label>
+                        <label class="label"><span class="label-text font-medium" data-i18n="companions">Семья / Спутники</span></label>
                         <input type="text" id="editCompanions" class="input input-bordered" />
                     </div>
                 </div>
 
                 <div class="form-control">
-                    <label class="label"><span class="label-text font-medium">После ретрита</span></label>
+                    <label class="label"><span class="label-text font-medium" data-i18n="after_retreat">После ретрита</span></label>
                     <textarea id="editExtendedStay" class="textarea textarea-bordered" rows="2"></textarea>
                 </div>
 
                 <div class="grid grid-cols-2 gap-4">
                     <div class="form-control">
-                        <label class="label"><span class="label-text font-medium">Оплата</span></label>
+                        <label class="label"><span class="label-text font-medium" data-i18n="payment">Оплата</span></label>
                         <input type="text" id="editPaymentNotes" class="input input-bordered" />
                     </div>
                     <div class="form-control">
-                        <label class="label"><span class="label-text font-medium">Комментарий ОП</span></label>
+                        <label class="label"><span class="label-text font-medium" data-i18n="org_notes_short">Комментарий ОП</span></label>
                         <input type="text" id="editOrgNotes" class="input input-bordered" />
                     </div>
                 </div>
 
                 <div class="form-control">
-                    <label class="label"><span class="label-text font-medium">Вопросы</span></label>
+                    <label class="label"><span class="label-text font-medium" data-i18n="questions">Вопросы</span></label>
                     <textarea id="editGuestQuestions" class="textarea textarea-bordered" rows="2"></textarea>
                 </div>
             </div>
 
             <div class="modal-action">
-                <button type="button" class="btn btn-ghost" onclick="editRegModal.close()">Отмена</button>
-                <button type="button" class="btn btn-primary" onclick="saveRegistration()">Сохранить</button>
+                <button type="button" class="btn btn-ghost" onclick="editRegModal.close()" data-i18n="cancel">Отмена</button>
+                <button type="button" class="btn btn-primary" onclick="saveRegistration()" data-i18n="save">Сохранить</button>
             </div>
         </div>
         <form method="dialog" class="modal-backdrop"><button>close</button></form>

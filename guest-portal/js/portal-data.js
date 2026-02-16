@@ -706,7 +706,7 @@ async function createChild(parentId, childData) {
  * @param {object} childData
  * @returns {Promise<{success: boolean, error?: string}>}
  */
-async function updateChild(childId, childData) {
+async function updateChild(childId, parentId, childData) {
     try {
         const { error } = await db
             .from('vaishnavas')
@@ -716,7 +716,8 @@ async function updateChild(childId, childData) {
                 gender: childData.gender || null,
                 birth_date: childData.birthDate || null
             })
-            .eq('id', childId);
+            .eq('id', childId)
+            .eq('parent_id', parentId);
 
         if (error) {
             console.error('Ошибка обновления ребёнка:', error);
@@ -736,12 +737,13 @@ async function updateChild(childId, childData) {
  * @param {string} childId
  * @returns {Promise<{success: boolean, error?: string}>}
  */
-async function deleteChild(childId) {
+async function deleteChild(childId, parentId) {
     try {
         const { error } = await db
             .from('vaishnavas')
             .update({ is_deleted: true, parent_id: null })
-            .eq('id', childId);
+            .eq('id', childId)
+            .eq('parent_id', parentId);
 
         if (error) {
             console.error('Ошибка удаления ребёнка:', error);

@@ -5,7 +5,7 @@
     <script src="../js/color-init.js"></script>
 
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Фестивали — ШРСК</title>
+    <title data-i18n="festivals_page_title">Фестивали — ШРСК</title>
     <link rel="icon" type="image/svg+xml" href="/favicon.svg">
     <link href="https://cdn.jsdelivr.net/npm/daisyui@4.12.14/dist/full.min.css" rel="stylesheet" />
     <script src="https://cdn.tailwindcss.com"></script>
@@ -44,7 +44,7 @@
         <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6">
             <div>
                 <h1 class="text-2xl font-bold" data-i18n="holidays_title">Праздники</h1>
-                <p class="text-sm opacity-60" id="holidaysCount">Загрузка...</p>
+                <p class="text-sm opacity-60" id="holidaysCount" data-i18n="loading">Загрузка...</p>
             </div>
             <button class="btn btn-primary gap-2" data-permission="edit_festivals" onclick="openModal()">
                 <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -57,7 +57,7 @@
         <!-- Filters -->
         <div class="flex flex-col sm:flex-row gap-4 mb-4">
             <div class="flex-1 max-w-md relative">
-                <input type="text" id="searchInput" placeholder="Поиск по названию..." class="input input-bordered w-full pr-10" />
+                <input type="text" id="searchInput" placeholder="Поиск по названию..." data-i18n-placeholder="festivals_search_placeholder" class="input input-bordered w-full pr-10" />
                 <button type="button" id="clearSearch" class="absolute right-3 top-1/2 -translate-y-1/2 text-base-content/40 hover:text-base-content hidden">
                     <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
@@ -87,7 +87,7 @@
                         </tr>
                     </thead>
                     <tbody id="holidaysTableBody">
-                        <tr><td colspan="4" class="text-center py-8 opacity-50">Загрузка...</td></tr>
+                        <tr><td colspan="4" class="text-center py-8 opacity-50" data-i18n="loading">Загрузка...</td></tr>
                     </tbody>
                 </table>
             </div>
@@ -110,10 +110,10 @@
                 <div>
                     <label class="label"><span class="label-text font-medium" data-i18n="type">Тип *</span></label>
                     <select name="type" class="select select-bordered w-full" required>
-                        <option value="major">Фестиваль</option>
-                        <option value="ekadashi">Экадаши</option>
-                        <option value="appearance">Явление ачарьи</option>
-                        <option value="disappearance">Уход ачарьи</option>
+                        <option value="major" data-i18n="festivals_type_major">Фестиваль</option>
+                        <option value="ekadashi" data-i18n="festivals_type_ekadashi">Экадаши</option>
+                        <option value="appearance" data-i18n="festivals_type_appearance">Явление ачарьи</option>
+                        <option value="disappearance" data-i18n="festivals_type_disappearance">Уход ачарьи</option>
                     </select>
                 </div>
 
@@ -125,14 +125,14 @@
 
                 <!-- Name RU -->
                 <div>
-                    <label class="label"><span class="label-text font-medium">Название (RU) *</span></label>
+                    <label class="label"><span class="label-text font-medium" data-i18n="festivals_name_ru">Название (RU) *</span></label>
                     <input type="text" name="name_ru" class="input input-bordered w-full" required />
                 </div>
 
                 <!-- Name EN -->
                 <div>
                     <label class="label">
-                        <span class="label-text font-medium">Name (EN)</span>
+                        <span class="label-text font-medium" data-i18n="festivals_name_en">Name (EN)</span>
                         <button type="button" class="translate-btn" onclick="autoTranslate('name_ru', 'name_en', 'ru', 'en', this)">🌐 Auto</button>
                     </label>
                     <input type="text" name="name_en" class="input input-bordered w-full" />
@@ -141,7 +141,7 @@
                 <!-- Name HI -->
                 <div>
                     <label class="label">
-                        <span class="label-text font-medium">नाम (HI)</span>
+                        <span class="label-text font-medium" data-i18n="festivals_name_hi">नाम (HI)</span>
                         <button type="button" class="translate-btn" onclick="autoTranslate('name_ru', 'name_hi', 'ru', 'hi', this)">🌐 Auto</button>
                     </label>
                     <input type="text" name="name_hi" class="input input-bordered w-full" />

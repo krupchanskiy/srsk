@@ -156,7 +156,7 @@
         <!-- Search and Filter -->
         <div class="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2 mb-2">
                 <div class="relative w-full sm:w-56">
-                    <input type="text" id="searchInput" class="input input-bordered input-sm w-full pl-8 pr-7" placeholder="Поиск..." oninput="onSearchInput(this.value)" />
+                    <input type="text" id="searchInput" class="input input-bordered input-sm w-full pl-8 pr-7" data-i18n-placeholder="search" placeholder="Поиск..." oninput="onSearchInput(this.value)" />
                     <svg class="absolute left-2.5 top-1/2 -translate-y-1/2 w-4 h-4 opacity-40" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
                     </svg>
@@ -191,8 +191,8 @@
                                 <span class="sort-icon" data-sort="status">↕</span>
                             </div>
                         </th>
-                        <th class="text-center whitespace-nowrap">Заезд</th>
-                        <th class="text-center whitespace-nowrap">Выезд</th>
+                        <th class="text-center whitespace-nowrap" data-i18n="check_in">Заезд</th>
+                        <th class="text-center whitespace-nowrap" data-i18n="check_out">Выезд</th>
                         <th data-i18n="accommodation_wish">Пожелание</th>
                         <th class="w-16"></th>
                     </tr>
@@ -298,7 +298,7 @@
                 <div>
                     <label class="label"><span class="label-text font-medium" data-i18n="vaishnava">Вайшнав</span></label>
                     <div class="relative">
-                        <input type="text" id="vaishnavSearch" class="input input-bordered w-full" placeholder="Поиск по имени..." autocomplete="off" oninput="searchVaishnavas(this.value)" />
+                        <input type="text" id="vaishnavSearch" class="input input-bordered w-full" data-i18n-placeholder="search_by_name" placeholder="Поиск по имени..." autocomplete="off" oninput="searchVaishnavas(this.value)" />
                         <div id="vaishnavSuggestions" class="hidden absolute z-50 w-full bg-base-100 border border-base-300 rounded-lg mt-1 shadow-lg max-h-48 overflow-y-auto"></div>
                     </div>
                     <p id="selectedVaishnav" class="text-sm mt-1 text-primary hidden"></p>
@@ -307,11 +307,11 @@
                 <!-- Время приезда / отъезда -->
                 <div class="grid grid-cols-2 gap-3">
                     <div class="form-control">
-                        <label class="label"><span class="label-text text-sm">Приезд к нам</span></label>
+                        <label class="label"><span class="label-text text-sm" data-i18n="arrival_to_us">Приезд к нам</span></label>
                         <input type="datetime-local" name="arrival_datetime" class="input input-bordered input-sm w-full" />
                     </div>
                     <div class="form-control">
-                        <label class="label"><span class="label-text text-sm">Отъезд от нас</span></label>
+                        <label class="label"><span class="label-text text-sm" data-i18n="departure_from_us">Отъезд от нас</span></label>
                         <input type="datetime-local" name="departure_datetime" class="input input-bordered input-sm w-full" />
                     </div>
                 </div>
@@ -335,14 +335,14 @@
     <dialog id="infoModal" class="modal">
         <div class="modal-box max-w-lg">
             <button type="button" class="btn btn-sm btn-circle btn-ghost absolute right-2 top-2" onclick="infoModal.close()">✕</button>
-            <h3 class="font-bold text-lg mb-4" id="infoModalTitle">Информация о госте</h3>
+            <h3 class="font-bold text-lg mb-4" id="infoModalTitle" data-i18n="guest_info">Информация о госте</h3>
 
             <div id="infoModalContent" class="space-y-4">
                 <!-- Content will be inserted here -->
             </div>
 
             <div class="modal-action">
-                <button type="button" class="btn btn-ghost" onclick="infoModal.close()">Закрыть</button>
+                <button type="button" class="btn btn-ghost" onclick="infoModal.close()" data-i18n="close">Закрыть</button>
             </div>
         </div>
         <form method="dialog" class="modal-backdrop"><button>close</button></form>
@@ -352,7 +352,7 @@
     <dialog id="placementModal" class="modal">
         <div class="modal-box max-w-4xl">
             <button type="button" class="btn btn-sm btn-circle btn-ghost absolute right-2 top-2" onclick="placementModal.close()">✕</button>
-            <h3 class="font-bold text-lg mb-4">Размещение гостя</h3>
+            <h3 class="font-bold text-lg mb-4" data-i18n="guest_placement">Размещение гостя</h3>
 
             <!-- Инфо о госте -->
             <div id="placementGuestInfo" class="mb-4 p-3 bg-base-200 rounded-lg">
@@ -362,11 +362,11 @@
             <!-- СНАЧАЛА ДАТЫ -->
             <div class="grid grid-cols-2 gap-4 mb-4">
                 <div>
-                    <label class="label"><span class="label-text font-medium">Заезд</span></label>
+                    <label class="label"><span class="label-text font-medium" data-i18n="check_in">Заезд</span></label>
                     <input type="date" id="placementCheckIn" class="input input-bordered w-full" onchange="onPlacementDatesChange()" />
                 </div>
                 <div>
-                    <label class="label"><span class="label-text font-medium">Выезд</span></label>
+                    <label class="label"><span class="label-text font-medium" data-i18n="check_out">Выезд</span></label>
                     <input type="date" id="placementCheckOut" class="input input-bordered w-full" onchange="onPlacementDatesChange()" />
                 </div>
             </div>
@@ -374,7 +374,7 @@
             <!-- Сообщение если даты не выбраны -->
             <div id="placementDateMessage" class="alert alert-info mb-4">
                 <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" class="stroke-current shrink-0 w-6 h-6"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
-                <span>Выберите даты заезда и выезда для просмотра доступных комнат</span>
+                <span data-i18n="select_dates_for_rooms">Выберите даты заезда и выезда для просмотра доступных комнат</span>
             </div>
 
             <!-- Контейнер номеров (скрыт пока нет дат) -->
@@ -382,14 +382,14 @@
 
                 <!-- ТАБЫ: Список / План -->
                 <div class="tabs tabs-boxed placement-tabs mb-4 w-fit">
-                    <button type="button" class="tab tab-active" data-mode="list" onclick="switchPlacementMode('list')">Список</button>
-                    <button type="button" class="tab" data-mode="plan" onclick="switchPlacementMode('plan')">План</button>
+                    <button type="button" class="tab tab-active" data-mode="list" onclick="switchPlacementMode('list')" data-i18n="list_view">Список</button>
+                    <button type="button" class="tab" data-mode="plan" onclick="switchPlacementMode('plan')" data-i18n="plan_view">План</button>
                 </div>
 
                 <!-- Режим СПИСОК -->
                 <div id="placementListView">
                     <div id="roomsList" class="space-y-2 max-h-80 overflow-y-auto">
-                        <div class="text-center py-4 opacity-50">Загрузка...</div>
+                        <div class="text-center py-4 opacity-50" data-i18n="loading">Загрузка...</div>
                     </div>
                 </div>
 
@@ -402,7 +402,7 @@
                     <!-- План этажа -->
                     <div class="floor-plan-container">
                         <img id="planFloorPlanImage" src="" alt="План этажа" class="hidden" />
-                        <div id="planNoFloorPlan" class="text-center py-12 opacity-50">Нет плана для этого этажа</div>
+                        <div id="planNoFloorPlan" class="text-center py-12 opacity-50" data-i18n="no_floor_plan">Нет плана для этого этажа</div>
                         <svg id="planFloorPlanSvg" class="floor-plan-svg hidden" viewBox="0 0 100 100" preserveAspectRatio="xMidYMid meet"></svg>
                     </div>
                 </div>
@@ -410,19 +410,19 @@
                 <!-- Легенда -->
                 <div class="flex flex-wrap gap-3 text-xs opacity-60 mt-4">
                     <div class="flex items-center gap-1">
-                        <span class="w-3 h-3 rounded bg-success"></span> Свободно
+                        <span class="w-3 h-3 rounded bg-success"></span> <span data-i18n="room_available">Свободно</span>
                     </div>
                     <div class="flex items-center gap-1">
-                        <span class="w-3 h-3 rounded bg-warning"></span> Частично
+                        <span class="w-3 h-3 rounded bg-warning"></span> <span data-i18n="room_partial">Частично</span>
                     </div>
                     <div class="flex items-center gap-1">
-                        <span class="w-3 h-3 rounded bg-error opacity-50"></span> Занято
+                        <span class="w-3 h-3 rounded bg-error opacity-50"></span> <span data-i18n="room_occupied">Занято</span>
                     </div>
                 </div>
             </div>
 
             <div class="modal-action">
-                <button type="button" class="btn btn-ghost" onclick="placementModal.close()">Отмена</button>
+                <button type="button" class="btn btn-ghost" onclick="placementModal.close()" data-i18n="cancel">Отмена</button>
             </div>
         </div>
         <form method="dialog" class="modal-backdrop"><button>close</button></form>

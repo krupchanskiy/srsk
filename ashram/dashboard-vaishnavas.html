@@ -4,7 +4,7 @@
     <script src="../js/color-init.js"></script>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Вайшнавы — Дашборд — ШРСК</title>
+    <title data-i18n="ashram_dashboard_vaishnavas_title">Вайшнавы — Дашборд — ШРСК</title>
     <link href="https://cdn.jsdelivr.net/npm/daisyui@4.12.14/dist/full.min.css" rel="stylesheet" />
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
@@ -184,28 +184,28 @@
         </div>
         <div class="bento-card metric-card-compact" style="background: #10b981;">
             <div>
-                <div class="bento-label text-white/70">Команда</div>
+                <div class="bento-label text-white/70" data-i18n="ashram_category_team">Команда</div>
                 <div class="bento-value text-white" id="metricTeam">-</div>
                 <div class="bento-subtitle text-white/70" id="metricTeamSub"></div>
             </div>
         </div>
         <div class="bento-card metric-card-compact" style="background: #f59e0b;">
             <div>
-                <div class="bento-label text-white/70">Волонтёры</div>
+                <div class="bento-label text-white/70" data-i18n="ashram_category_volunteers">Волонтёры</div>
                 <div class="bento-value text-white" id="metricVolunteer">-</div>
                 <div class="bento-subtitle text-white/70" id="metricVolunteerSub"></div>
             </div>
         </div>
         <div class="bento-card metric-card-compact" style="background: #ef4444;">
             <div>
-                <div class="bento-label text-white/70">ВИП</div>
+                <div class="bento-label text-white/70" data-i18n="ashram_category_vip">ВИП</div>
                 <div class="bento-value text-white" id="metricVip">-</div>
                 <div class="bento-subtitle text-white/70" id="metricVipSub"></div>
             </div>
         </div>
         <div class="bento-card metric-card-compact" style="background: #3b82f6;">
             <div>
-                <div class="bento-label text-white/70">Гости</div>
+                <div class="bento-label text-white/70" data-i18n="ashram_category_guests">Гости</div>
                 <div class="bento-value text-white" id="metricGuest">-</div>
                 <div class="bento-subtitle text-white/70" id="metricGuestSub"></div>
             </div>
@@ -418,8 +418,9 @@ function buildTable(residents, slug) {
 function renderCategorySection(slug, catName, residents) {
     const cfg = CATEGORY_CONFIG[slug] || CATEGORY_CONFIG.guest;
     const icon = CATEGORY_ICONS[slug] || CATEGORY_ICONS.guest;
+    const housing = residents.filter(r => r.rooms).length;
     const eating = residents.filter(r => r.has_meals).length;
-    const subtitle = `${residents.length} ${t('dashboard_present_now') || 'присутствуют'}, ${eating} ${t('dashboard_eating') || 'едят'}`;
+    const subtitle = `${residents.length} всего / ${housing} живут / ${eating} едят`;
 
     groupedData[slug] = residents;
 
@@ -552,8 +553,8 @@ function renderDashboard(present) {
         const total = arr.length;
         const eating = arr.filter(r => r.has_meals).length;
         const housing = arr.filter(r => r.rooms).length;
-        document.getElementById(idPrefix).textContent = `${total} / ${eating} / ${housing}`;
-        document.getElementById(idPrefix + 'Sub').textContent = 'всего / едят / живут';
+        document.getElementById(idPrefix).textContent = `${total} / ${housing} / ${eating}`;
+        document.getElementById(idPrefix + 'Sub').textContent = 'всего / живут / едят';
     }
 
     setMetric('metricTotal', allPresent);

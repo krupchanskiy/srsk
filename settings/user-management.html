@@ -4,7 +4,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Управление пользователями — ШРСК</title>
+    <title data-i18n="settings_user_management_title">Управление пользователями — ШРСК</title>
     <link rel="icon" type="image/svg+xml" href="/favicon.svg">
     <link href="https://cdn.jsdelivr.net/npm/daisyui@4.12.14/dist/full.min.css" rel="stylesheet" />
     <script src="https://cdn.tailwindcss.com"></script>
@@ -22,37 +22,37 @@
 
     <main class="container mx-auto p-4 flex-1">
         <div class="flex justify-between items-center mb-6">
-            <h1 class="text-3xl font-bold">Управление пользователями</h1>
+            <h1 class="text-3xl font-bold" data-i18n="settings_user_management_heading">Управление пользователями</h1>
         </div>
 
         <!-- Табы -->
         <div role="tablist" class="tabs tabs-boxed mb-6">
             <a role="tab" class="tab tab-active" data-tab="all" onclick="switchTab('all')">
-                Все (<span id="countAll">0</span>)
+                <span data-i18n="settings_tab_all">Все</span> (<span id="countAll">0</span>)
             </a>
             <a role="tab" class="tab" data-tab="pending" onclick="switchTab('pending')">
-                Ожидают (<span id="countPending">0</span>)
+                <span data-i18n="settings_tab_pending">Ожидают</span> (<span id="countPending">0</span>)
             </a>
-            <a role="tab" class="tab" data-tab="staff" onclick="switchTab('staff')">
-                Команда (<span id="countStaff">0</span>)
+            <a role="tab" class="tab" data-tab="team" onclick="switchTab('team')">
+                <span data-i18n="settings_tab_team">Команда и волонтёры</span> (<span id="countTeam">0</span>)
             </a>
             <a role="tab" class="tab" data-tab="guest" onclick="switchTab('guest')">
-                Гости (<span id="countGuest">0</span>)
+                <span data-i18n="settings_tab_guests">Гости</span> (<span id="countGuest">0</span>)
             </a>
             <a role="tab" class="tab" data-tab="blocked" onclick="switchTab('blocked')">
-                Заблокированные (<span id="countBlocked">0</span>)
+                <span data-i18n="settings_tab_blocked">Заблокированные</span> (<span id="countBlocked">0</span>)
             </a>
         </div>
 
         <!-- Поиск и фильтры -->
         <div class="mb-4 flex flex-wrap gap-2">
-            <input type="text" id="searchInput" placeholder="Поиск по имени или email..."
+            <input type="text" id="searchInput" placeholder="Поиск по имени или email..." data-i18n-placeholder="settings_search_placeholder"
                    class="input input-bordered flex-1 min-w-48" onkeyup="filterUsers()">
             <button class="btn btn-outline btn-primary" onclick="sendBulkInvites()">
                 <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
                 </svg>
-                Пригласить всех без аккаунта (<span id="countNoAccount">0</span>)
+                <span data-i18n="settings_invite_all">Пригласить всех без аккаунта</span> (<span id="countNoAccount">0</span>)
             </button>
         </div>
 
@@ -61,13 +61,13 @@
             <table class="table table-zebra">
                 <thead>
                     <tr>
-                        <th>Фото</th>
-                        <th>Имя</th>
+                        <th data-i18n="settings_col_photo">Фото</th>
+                        <th data-i18n="settings_col_name">Имя</th>
                         <th>Email</th>
-                        <th>Тип</th>
-                        <th>Статус</th>
-                        <th>Роли</th>
-                        <th>Действия</th>
+                        <th data-i18n="settings_col_type">Тип</th>
+                        <th data-i18n="settings_col_status">Статус</th>
+                        <th data-i18n="settings_col_roles">Роли</th>
+                        <th data-i18n="settings_col_actions">Действия</th>
                     </tr>
                 </thead>
                 <tbody id="usersTableBody">
@@ -87,40 +87,40 @@
     <!-- Модалка управления пользователем -->
     <dialog id="manageUserModal" class="modal">
         <div class="modal-box max-w-2xl">
-            <h3 class="font-bold text-lg mb-4">Управление пользователем: <span id="modalUserName"></span></h3>
+            <h3 class="font-bold text-lg mb-4"><span data-i18n="settings_manage_user">Управление пользователем</span>: <span id="modalUserName"></span></h3>
 
             <div class="space-y-4">
                 <!-- Информация о пользователе -->
                 <div class="grid grid-cols-2 gap-2 text-sm">
                     <div><strong>Email:</strong> <span id="modalUserEmail"></span></div>
-                    <div><strong>Тип:</strong> <span id="modalUserType"></span></div>
+                    <div><strong data-i18n="settings_col_type">Тип</strong>: <span id="modalUserType"></span></div>
                 </div>
 
                 <!-- Статус -->
                 <div class="form-control">
                     <label class="label cursor-pointer justify-start gap-2">
                         <input type="checkbox" id="modalIsActive" class="checkbox checkbox-sm" disabled>
-                        <span class="label-text">Активен</span>
+                        <span class="label-text" data-i18n="settings_active">Активен</span>
                     </label>
                     <label class="label cursor-pointer justify-start gap-2">
                         <input type="checkbox" id="modalIsSuperuser" class="checkbox checkbox-sm">
-                        <span class="label-text">Суперпользователь</span>
+                        <span class="label-text" data-i18n="settings_superuser">Суперпользователь</span>
                     </label>
                 </div>
 
-                <div class="divider">Роли</div>
+                <div class="divider" data-i18n="settings_roles">Роли</div>
 
                 <!-- Роли -->
                 <div id="rolesContainer" class="space-y-2 max-h-60 overflow-y-auto">
                     <!-- Роли загружаются динамически -->
                 </div>
 
-                <div class="divider">Индивидуальные права</div>
+                <div class="divider" data-i18n="settings_custom_permissions">Индивидуальные права</div>
 
                 <!-- Индивидуальные права -->
                 <div class="flex gap-2">
                     <button class="btn btn-sm btn-outline" onclick="openPermissionsModal()">
-                        Настроить права
+                        <span data-i18n="settings_configure_permissions">Настроить права</span>
                     </button>
                 </div>
 
@@ -130,9 +130,9 @@
             </div>
 
             <div class="modal-action">
-                <button class="btn btn-error mr-auto" onclick="blockUser()">Заблокировать</button>
-                <button class="btn" onclick="closeManageModal()">Отмена</button>
-                <button class="btn btn-primary" onclick="saveUserChanges()">Сохранить</button>
+                <button class="btn btn-error mr-auto" onclick="blockUser()" data-i18n="settings_block">Заблокировать</button>
+                <button class="btn" onclick="closeManageModal()" data-i18n="cancel">Отмена</button>
+                <button class="btn btn-primary" onclick="saveUserChanges()" data-i18n="save">Сохранить</button>
             </div>
         </div>
         <form method="dialog" class="modal-backdrop">
@@ -143,17 +143,17 @@
     <!-- Модалка управления индивидуальными правами -->
     <dialog id="permissionSelectModal" class="modal">
         <div class="modal-box max-w-4xl">
-            <h3 class="font-bold text-lg mb-4">Индивидуальные права пользователя</h3>
+            <h3 class="font-bold text-lg mb-4" data-i18n="settings_user_permissions_title">Индивидуальные права пользователя</h3>
 
             <div class="alert alert-info mb-4">
-                <div class="text-sm">
+                <div class="text-sm" data-i18n="settings_permissions_hint">
                     <strong>Серые галочки</strong> - права из ролей. <strong>Цветные галочки</strong> - индивидуальные переопределения.
                     <br>Установите галочку чтобы <strong>добавить</strong> право, снимите чтобы <strong>убрать</strong>.
                 </div>
             </div>
 
             <div class="form-control mb-4">
-                <input type="text" id="permissionSearch" placeholder="Поиск права..." class="input input-bordered">
+                <input type="text" id="permissionSearch" placeholder="Поиск права..." data-i18n-placeholder="settings_search_permission" class="input input-bordered">
             </div>
 
             <div class="max-h-96 overflow-y-auto">
@@ -161,7 +161,7 @@
             </div>
 
             <div class="modal-action">
-                <button class="btn" onclick="document.getElementById('permissionSelectModal').close()">Закрыть</button>
+                <button class="btn" onclick="document.getElementById('permissionSelectModal').close()" data-i18n="settings_close">Закрыть</button>
             </div>
         </div>
         <form method="dialog" class="modal-backdrop">
@@ -175,8 +175,8 @@
             <h3 class="font-bold text-lg mb-4" id="approvalTitle"></h3>
             <p id="approvalText"></p>
             <div class="modal-action">
-                <button class="btn" onclick="closeApprovalModal()">Отмена</button>
-                <button class="btn btn-primary" id="approvalConfirmBtn" onclick="confirmApproval()">Подтвердить</button>
+                <button class="btn" onclick="closeApprovalModal()" data-i18n="cancel">Отмена</button>
+                <button class="btn btn-primary" id="approvalConfirmBtn" onclick="confirmApproval()" data-i18n="settings_confirm">Подтвердить</button>
             </div>
         </div>
     </dialog>
@@ -208,23 +208,43 @@
         let approvalAction = null;
         let countsLoaded = false;
         let isLoading = false;
+        let volunteerIds = new Set(); // vaishnava_id волонтёров (для фильтрации табов)
 
-        // Загрузка только счётчиков (быстро, без ролей)
+        // Загрузить ID волонтёров из residents
+        async function loadVolunteerIds() {
+            const { data } = await db
+                .from('residents')
+                .select('vaishnava_id, resident_categories!inner(name_ru)')
+                .eq('resident_categories.name_ru', 'Волонтёр');
+            volunteerIds = new Set(data?.map(r => r.vaishnava_id).filter(Boolean) || []);
+        }
+
+        // Загрузка только счётчиков (параллельные count-запросы, без лимита 1000)
         async function loadCounts() {
             try {
-                const { data: users, error } = await db
-                    .from('vaishnavas')
-                    .select('id, user_id, email, user_type, approval_status, is_active')
-                    .eq('is_deleted', false);
+                const base = db.from('vaishnavas').select('id', { count: 'exact', head: true }).eq('is_deleted', false);
+                const [allRes, pendingRes, staffRes, guestRes, blockedRes, noAccountRes] = await Promise.all([
+                    db.from('vaishnavas').select('id', { count: 'exact', head: true }).eq('is_deleted', false),
+                    db.from('vaishnavas').select('id', { count: 'exact', head: true }).eq('is_deleted', false).eq('approval_status', 'pending'),
+                    db.from('vaishnavas').select('id', { count: 'exact', head: true }).eq('is_deleted', false).eq('user_type', 'staff'),
+                    db.from('vaishnavas').select('id', { count: 'exact', head: true }).eq('is_deleted', false).eq('user_type', 'guest'),
+                    db.from('vaishnavas').select('id', { count: 'exact', head: true }).eq('is_deleted', false).or('approval_status.eq.blocked,is_active.eq.false'),
+                    db.from('vaishnavas').select('id', { count: 'exact', head: true }).eq('is_deleted', false).is('user_id', null).not('email', 'is', null)
+                ]);
 
-                if (error) throw error;
+                // Волонтёры-гости = пересечение volunteerIds с guest user_type
+                const guestVolCount = volunteerIds.size > 0
+                    ? (await db.from('vaishnavas').select('id', { count: 'exact', head: true })
+                        .eq('is_deleted', false).eq('user_type', 'guest')
+                        .in('id', [...volunteerIds])).count || 0
+                    : 0;
 
-                document.getElementById('countAll').textContent = users.length;
-                document.getElementById('countPending').textContent = users.filter(u => u.approval_status === 'pending').length;
-                document.getElementById('countStaff').textContent = users.filter(u => u.user_type === 'staff').length;
-                document.getElementById('countGuest').textContent = users.filter(u => u.user_type === 'guest').length;
-                document.getElementById('countBlocked').textContent = users.filter(u => u.approval_status === 'blocked' || !u.is_active).length;
-                document.getElementById('countNoAccount').textContent = users.filter(u => !u.user_id && u.email).length;
+                document.getElementById('countAll').textContent = allRes.count || 0;
+                document.getElementById('countPending').textContent = pendingRes.count || 0;
+                document.getElementById('countTeam').textContent = (staffRes.count || 0) + guestVolCount;
+                document.getElementById('countGuest').textContent = (guestRes.count || 0) - guestVolCount;
+                document.getElementById('countBlocked').textContent = blockedRes.count || 0;
+                document.getElementById('countNoAccount').textContent = noAccountRes.count || 0;
                 countsLoaded = true;
             } catch (err) {
                 console.error('Load counts error:', err);
@@ -261,8 +281,14 @@
                 // Применить фильтры на уровне БД
                 if (filter.tab === 'pending') {
                     query = query.eq('approval_status', 'pending');
-                } else if (filter.tab === 'staff') {
-                    query = query.eq('user_type', 'staff');
+                } else if (filter.tab === 'team') {
+                    // Команда + волонтёры-гости
+                    const volIds = [...volunteerIds];
+                    if (volIds.length > 0) {
+                        query = query.or(`user_type.eq.staff,id.in.(${volIds.join(',')})`);
+                    } else {
+                        query = query.eq('user_type', 'staff');
+                    }
                 } else if (filter.tab === 'guest') {
                     query = query.eq('user_type', 'guest');
                 } else if (filter.tab === 'blocked') {
@@ -278,7 +304,7 @@
                 // Лимит для производительности
                 query = query.limit(100);
 
-                const { data: users, error } = await query;
+                let { data: users, error } = await query;
                 if (error) throw error;
 
                 // Загрузить роли ОДНИМ запросом (вместо N+1)
@@ -304,10 +330,36 @@
                     }
                 }
 
-                // Присвоить роли пользователям
+                // Загрузить категории размещения (для отображения реального типа)
+                const vaishnavasIds = users.map(u => u.id);
+                let categoryMap = {};
+                if (vaishnavasIds.length > 0) {
+                    const { data: resData } = await db
+                        .from('residents')
+                        .select('vaishnava_id, resident_categories(name_ru, color)')
+                        .in('vaishnava_id', vaishnavasIds)
+                        .order('check_in', { ascending: false });
+
+                    if (resData) {
+                        resData.forEach(r => {
+                            // Берём первую (последнюю по дате) категорию
+                            if (!categoryMap[r.vaishnava_id] && r.resident_categories) {
+                                categoryMap[r.vaishnava_id] = r.resident_categories;
+                            }
+                        });
+                    }
+                }
+
+                // Присвоить роли и категории пользователям
                 users.forEach(u => {
                     u.roles = rolesMap[u.user_id] || [];
+                    u.category = categoryMap[u.id] || null;
                 });
+
+                // На вкладке «Гости» исключаем волонтёров (они на вкладке «Команда и волонтёры»)
+                if (filter.tab === 'guest') {
+                    users = users.filter(u => !volunteerIds.has(u.id));
+                }
 
                 allUsers = users;
                 renderUsers();
@@ -402,14 +454,12 @@
                         </div>
                     </td>
                     <td>
-                        <div class="font-bold">${displayName}</div>
+                        <a href="/vaishnavas/person.html?id=${user.id}" class="font-bold hover:underline">${displayName}</a>
                         ${user.is_superuser ? '<span class="badge badge-warning badge-sm">Superuser</span>' : ''}
                     </td>
                     <td>${safeEmail}</td>
                     <td>
-                        <span class="badge ${user.user_type === 'staff' ? 'badge-primary' : 'badge-secondary'}">
-                            ${user.user_type === 'staff' ? 'Команда' : 'Гость'}
-                        </span>
+                        ${getCategoryBadge(user)}
                     </td>
                     <td>
                         ${getStatusBadge(user)}
@@ -445,6 +495,17 @@
                 </tr>
                 `;
             }).join('');
+        }
+
+        // Получить badge категории (из resident_categories или fallback на user_type)
+        function getCategoryBadge(user) {
+            if (user.category) {
+                const color = Utils.isValidColor(user.category.color) ? user.category.color : '#6b7280';
+                return `<span class="badge text-white border-0" style="background-color: ${escapeHtml(color)}">${escapeHtml(user.category.name_ru)}</span>`;
+            }
+            return `<span class="badge ${user.user_type === 'staff' ? 'badge-primary' : 'badge-secondary'}">
+                ${user.user_type === 'staff' ? 'Команда' : 'Гость'}
+            </span>`;
         }
 
         // Получить badge статуса
@@ -989,7 +1050,8 @@
                 return;
             }
 
-            // Быстрая загрузка: только счётчики + placeholder
+            // Загрузить ID волонтёров, затем счётчики + placeholder
+            await loadVolunteerIds();
             loadCounts();
             showPlaceholder();
         });

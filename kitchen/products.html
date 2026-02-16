@@ -46,7 +46,7 @@
         <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6">
             <div>
                 <h1 class="text-2xl font-bold" data-i18n="products_title">Продукты</h1>
-                <p class="text-sm opacity-60" id="productsCount">Загрузка...</p>
+                <p class="text-sm opacity-60" id="productsCount" data-i18n="loading">Загрузка...</p>
             </div>
             <button class="btn btn-primary gap-2" onclick="openAddModal()" data-permission="edit_products">
                 <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -99,9 +99,9 @@
                                     <span id="sort-icon-unit" class="opacity-40">↕</span>
                                 </div>
                             </th>
-                            <th class="bg-base-100 w-12 text-center cursor-pointer select-none hover:bg-base-200 transition-colors" onclick="toggleSort('ekadashi')" title="Экадаши">
+                            <th class="bg-base-100 w-12 text-center cursor-pointer select-none hover:bg-base-200 transition-colors" onclick="toggleSort('ekadashi')" data-i18n-title="ekadashi_column">
                                 <div class="flex items-center justify-center gap-1">
-                                    <span>Э</span>
+                                    <span data-i18n="ekadashi_short">Э</span>
                                     <span id="sort-icon-ekadashi" class="opacity-40">↕</span>
                                 </div>
                             </th>
@@ -126,7 +126,7 @@
     <dialog id="editModal" class="modal">
         <div class="modal-box relative">
             <button type="button" class="btn btn-sm btn-circle btn-ghost absolute right-2 top-2" onclick="editModal.close()">✕</button>
-            <h3 class="font-bold text-lg mb-4" id="modalTitle">Добавить продукт</h3>
+            <h3 class="font-bold text-lg mb-4" id="modalTitle" data-i18n="add_product">Добавить продукт</h3>
             <form id="editForm" class="space-y-4">
                 <input type="hidden" name="id" />
 
@@ -145,7 +145,7 @@
                     <div>
                         <label class="label">
                             <span class="label-text font-medium" data-i18n="col_english">English</span>
-                            <button type="button" class="translate-btn" onclick="autoTranslate('name_ru', 'name_en', 'ru', 'en', this)">🌐 Auto</button>
+                            <button type="button" class="translate-btn" data-i18n="auto_translate_btn" onclick="autoTranslate('name_ru', 'name_en', 'ru', 'en', this)">🌐 Auto</button>
                         </label>
                         <input type="text" name="name_en" class="input input-bordered w-full" required placeholder="Rice" />
                     </div>
@@ -156,14 +156,14 @@
                     <div>
                         <label class="label">
                             <span class="label-text font-medium" data-i18n="col_hindi">हिंदी</span>
-                            <button type="button" class="translate-btn" onclick="autoTranslate('name_ru', 'name_hi', 'ru', 'hi', this)">🌐 Auto</button>
+                            <button type="button" class="translate-btn" data-i18n="auto_translate_btn" onclick="autoTranslate('name_ru', 'name_hi', 'ru', 'hi', this)">🌐 Auto</button>
                         </label>
                         <input type="text" name="name_hi" id="hindiInput" class="input input-bordered w-full" required placeholder="चावल" />
                     </div>
                     <div>
-                        <label class="label"><span class="label-text font-medium">IAST</span></label>
+                        <label class="label"><span class="label-text font-medium" data-i18n="iast_label">IAST</span></label>
                         <input type="text" name="translit" id="translitInput" class="input input-bordered w-full" placeholder="cāval" />
-                        <label class="label"><span class="label-text-alt opacity-60">Автоматически из хинди</span></label>
+                        <label class="label"><span class="label-text-alt opacity-60" data-i18n="auto_from_hindi">Автоматически из хинди</span></label>
                     </div>
                 </div>
 
@@ -315,7 +315,7 @@
             }
 
             btn.classList.remove('loading');
-            btn.textContent = '🌐 Auto';
+            btn.textContent = t('auto_translate_btn');
         }
 
         const PRODUCT_FORMS = {
@@ -477,7 +477,7 @@
             if (filtered.length === 0) {
                 tbody.innerHTML = `<tr><td colspan="5" class="text-center py-12 opacity-50">
                     <div class="text-4xl mb-2">📦</div>
-                    <div>${t('no_products') || 'Продукты не найдены'}</div>
+                    <div>${t('no_products')}</div>
                 </td></tr>`;
                 return;
             }
@@ -513,7 +513,7 @@
                             </div>
                         </td>
                         <td class="text-center">
-                            ${product.ekadashi ? '<span class="text-success" title="Подходит для Экадаши">✓</span>' : '<span class="text-error opacity-50" title="Не подходит для Экадаши">✗</span>'}
+                            ${product.ekadashi ? `<span class="text-success" title="${t('ekadashi_suitable_tooltip')}">✓</span>` : `<span class="text-error opacity-50" title="${t('ekadashi_not_suitable_tooltip')}">✗</span>`}
                         </td>
                         ${canEdit ? `<td>
                             <div class="flex gap-1">
@@ -537,7 +537,7 @@
         // ==================== MODAL ====================
         function openAddModal() {
             if (!window.hasPermission || !window.hasPermission('edit_products')) {
-                Layout.showNotification('Недостаточно прав', 'error');
+                Layout.showNotification(t('insufficient_permissions'), 'error');
                 return;
             }
             Layout.$('#modalTitle').textContent = t('add_product');
@@ -556,7 +556,7 @@
 
         function openEditModal(id) {
             if (!window.hasPermission || !window.hasPermission('edit_products')) {
-                Layout.showNotification('Недостаточно прав', 'error');
+                Layout.showNotification(t('insufficient_permissions'), 'error');
                 return;
             }
             const product = products.find(p => p.id === id);
@@ -584,7 +584,7 @@
         // ==================== CRUD ====================
         async function saveProduct(formData) {
             if (!window.hasPermission || !window.hasPermission('edit_products')) {
-                Layout.showNotification('Недостаточно прав', 'error');
+                Layout.showNotification(t('insufficient_permissions'), 'error');
                 return false;
             }
             const id = formData.get('id');
@@ -645,7 +645,7 @@
 
         async function deleteProduct(id) {
             if (!window.hasPermission || !window.hasPermission('edit_products')) {
-                Layout.showNotification('Недостаточно прав', 'error');
+                Layout.showNotification(t('insufficient_permissions'), 'error');
                 return;
             }
             const product = products.find(p => p.id === id);

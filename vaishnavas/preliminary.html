@@ -212,9 +212,9 @@
                     <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M18 9v3m0 0v3m0-3h3m-3 0h-3m-2-5a4 4 0 11-8 0 4 4 0 018 0zM3 20a6 6 0 0112 0v1H3v-1z" />
                     </svg>
-                    Добавить нового
+                    <span data-i18n="add_new">Добавить нового</span>
                 </button>
-                <button class="btn btn-ghost btn-sm btn-square" onclick="toggleFullscreen(this)" title="На весь экран">
+                <button class="btn btn-ghost btn-sm btn-square" onclick="toggleFullscreen(this)" data-i18n-title="fullscreen" title="На весь экран">
                     <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 8V4m0 0h4M4 4l5 5m11-1V4m0 0h-4m4 0l-5 5M4 16v4m0 0h4m-4 0l5-5m11 5v-4m0 4h-4m4 0l-5-5" />
                     </svg>
@@ -225,7 +225,7 @@
         <!-- Search and Filter -->
         <div class="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2 mb-2">
                 <div class="relative w-full sm:w-56">
-                    <input type="text" id="searchInput" class="input input-bordered input-sm w-full pl-8 pr-7" placeholder="Поиск..." oninput="onSearchInput(this.value)" />
+                    <input type="text" id="searchInput" class="input input-bordered input-sm w-full pl-8 pr-7" data-i18n-placeholder="search" placeholder="Поиск..." oninput="onSearchInput(this.value)" />
                     <svg class="absolute left-2.5 top-1/2 -translate-y-1/2 w-4 h-4 opacity-40" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
                     </svg>
@@ -255,13 +255,13 @@
                     <tr>
                         <th class="cursor-pointer hover:bg-base-200 select-none" onclick="toggleSort('name')">
                             <div class="flex items-center gap-1">
-                                <span>Имя</span>
+                                <span data-i18n="name">Имя</span>
                                 <span class="sort-icon" data-sort="name">↕</span>
                             </div>
                         </th>
                         <th class="cursor-pointer hover:bg-base-200 select-none whitespace-nowrap" onclick="toggleSort('gender_age')">
                             <div class="flex items-center gap-1">
-                                <span>Пол / Возраст</span>
+                                <span data-i18n="gender_age">Пол / Возраст</span>
                                 <span class="sort-icon" data-sort="gender_age">↕</span>
                             </div>
                         </th>
@@ -273,49 +273,49 @@
                         </th>
                         <th class="cursor-pointer hover:bg-base-200 select-none whitespace-nowrap" onclick="toggleSort('india_experience')">
                             <div class="flex items-center gap-1">
-                                <span>Опыт в Индии</span>
+                                <span data-i18n="india_experience">Опыт в Индии</span>
                                 <span class="sort-icon" data-sort="india_experience">↕</span>
                             </div>
                         </th>
                         <th class="cursor-pointer hover:bg-base-200 select-none" onclick="toggleSort('companions')">
                             <div class="flex items-center gap-1">
-                                <span>С кем едет</span>
+                                <span data-i18n="companions">С кем едет</span>
                                 <span class="sort-icon" data-sort="companions">↕</span>
                             </div>
                         </th>
                         <th class="cursor-pointer hover:bg-base-200 select-none" onclick="toggleSort('accommodation_wishes')">
                             <div class="flex items-center gap-1">
-                                <span>Где хотят жить</span>
+                                <span data-i18n="accommodation_wishes">Где хотят жить</span>
                                 <span class="sort-icon" data-sort="accommodation_wishes">↕</span>
                             </div>
                         </th>
                         <th class="cursor-pointer hover:bg-base-200 select-none text-center whitespace-nowrap" onclick="toggleSort('arrival')">
                             <div class="flex items-center gap-1 justify-center">
-                                <span>Заезд</span>
+                                <span data-i18n="check_in">Заезд</span>
                                 <span class="sort-icon" data-sort="arrival">↕</span>
                             </div>
                         </th>
                         <th class="cursor-pointer hover:bg-base-200 select-none text-center whitespace-nowrap" onclick="toggleSort('departure')">
                             <div class="flex items-center gap-1 justify-center">
-                                <span>Выезд</span>
+                                <span data-i18n="check_out">Выезд</span>
                                 <span class="sort-icon" data-sort="departure">↕</span>
                             </div>
                         </th>
                         <th class="cursor-pointer hover:bg-base-200 select-none" onclick="toggleSort('extended_stay')">
                             <div class="flex items-center gap-1">
-                                <span>Планы до/после</span>
+                                <span data-i18n="extended_stay">Планы до/после</span>
                                 <span class="sort-icon" data-sort="extended_stay">↕</span>
                             </div>
                         </th>
                         <th class="cursor-pointer hover:bg-base-200 select-none" onclick="toggleSort('guest_questions')">
                             <div class="flex items-center gap-1">
-                                <span>Пожелания</span>
+                                <span data-i18n="guest_questions">Пожелания</span>
                                 <span class="sort-icon" data-sort="guest_questions">↕</span>
                             </div>
                         </th>
                         <th class="cursor-pointer hover:bg-base-200 select-none" onclick="toggleSort('org_notes')">
                             <div class="flex items-center gap-1">
-                                <span>Заметки ОП</span>
+                                <span data-i18n="org_notes_short">Заметки ОП</span>
                                 <span class="sort-icon" data-sort="org_notes">↕</span>
                             </div>
                         </th>
@@ -436,11 +436,11 @@
                 <div>
                     <label class="label"><span class="label-text font-medium" data-i18n="status">Статус</span></label>
                     <select name="status" class="select select-bordered w-full">
-                        <option value="pending">Планирует</option>
-                        <option value="confirmed">Подтверждено</option>
-                        <option value="team">Команда</option>
-                        <option value="cancelled">Отказ</option>
-                        <option value="no_response">Не отвечает</option>
+                        <option value="pending" data-i18n="status_pending">Планирует</option>
+                        <option value="confirmed" data-i18n="status_confirmed">Подтверждено</option>
+                        <option value="team" data-i18n="status_team">Команда</option>
+                        <option value="cancelled" data-i18n="status_cancelled">Отказ</option>
+                        <option value="no_response" data-i18n="status_no_response">Не отвечает</option>
                     </select>
                 </div>
 
@@ -448,7 +448,7 @@
                 <div>
                     <label class="label"><span class="label-text font-medium" data-i18n="vaishnava">Вайшнав</span></label>
                     <div class="relative">
-                        <input type="text" id="vaishnavSearch" class="input input-bordered w-full" placeholder="Поиск по имени..." autocomplete="off" oninput="searchVaishnavas(this.value)" />
+                        <input type="text" id="vaishnavSearch" class="input input-bordered w-full" data-i18n-placeholder="search_by_name" placeholder="Поиск по имени..." autocomplete="off" oninput="searchVaishnavas(this.value)" />
                         <div id="vaishnavSuggestions" class="hidden absolute z-50 w-full bg-base-100 border border-base-300 rounded-lg mt-1 shadow-lg max-h-48 overflow-y-auto"></div>
                     </div>
                     <p id="selectedVaishnav" class="text-sm mt-1 text-primary hidden"></p>
@@ -473,38 +473,38 @@
     <dialog id="newGuestModal" class="modal">
         <div class="modal-box max-w-2xl">
             <button type="button" class="btn btn-sm btn-circle btn-ghost absolute right-2 top-2" onclick="newGuestModal.close()">✕</button>
-            <h3 class="font-bold text-lg mb-4">Добавить нового гостя</h3>
+            <h3 class="font-bold text-lg mb-4" data-i18n="add_new_guest">Добавить нового гостя</h3>
 
             <form id="newGuestForm" class="space-y-4">
                 <!-- Личные данные -->
-                <div class="divider text-sm opacity-60 mt-0">Личные данные</div>
+                <div class="divider text-sm opacity-60 mt-0" data-i18n="personal_data">Личные данные</div>
                 <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
                     <div>
-                        <label class="label py-0.5"><span class="label-text">Имя</span></label>
+                        <label class="label py-0.5"><span class="label-text" data-i18n="first_name">Имя</span></label>
                         <input type="text" name="first_name" class="input input-bordered input-sm w-full" />
                     </div>
                     <div>
-                        <label class="label py-0.5"><span class="label-text">Фамилия</span></label>
+                        <label class="label py-0.5"><span class="label-text" data-i18n="last_name">Фамилия</span></label>
                         <input type="text" name="last_name" class="input input-bordered input-sm w-full" />
                     </div>
                     <div>
-                        <label class="label py-0.5"><span class="label-text">Духовное имя</span></label>
+                        <label class="label py-0.5"><span class="label-text" data-i18n="spiritual_name">Духовное имя</span></label>
                         <input type="text" name="spiritual_name" class="input input-bordered input-sm w-full" />
                     </div>
                     <div>
-                        <label class="label py-0.5"><span class="label-text">Пол <span class="text-error">*</span></span></label>
+                        <label class="label py-0.5"><span class="label-text"><span data-i18n="gender">Пол</span> <span class="text-error">*</span></span></label>
                         <select name="gender" class="select select-bordered select-sm w-full" required>
                             <option value="">—</option>
-                            <option value="female">Женский</option>
-                            <option value="male">Мужской</option>
+                            <option value="female" data-i18n="female">Женский</option>
+                            <option value="male" data-i18n="male">Мужской</option>
                         </select>
                     </div>
                     <div>
-                        <label class="label py-0.5"><span class="label-text">Дата рождения</span></label>
+                        <label class="label py-0.5"><span class="label-text" data-i18n="birth_date">Дата рождения</span></label>
                         <input type="date" name="birth_date" class="input input-bordered input-sm w-full" />
                     </div>
                     <div>
-                        <label class="label py-0.5"><span class="label-text">Телефон <span class="text-error">*</span></span></label>
+                        <label class="label py-0.5"><span class="label-text"><span data-i18n="phone">Телефон</span> <span class="text-error">*</span></span></label>
                         <input type="tel" name="phone" class="input input-bordered input-sm w-full" />
                     </div>
                     <div>
@@ -512,151 +512,151 @@
                         <input type="email" name="email" class="input input-bordered input-sm w-full" />
                     </div>
                     <div>
-                        <label class="label py-0.5"><span class="label-text">Telegram</span></label>
+                        <label class="label py-0.5"><span class="label-text" data-i18n="telegram">Telegram</span></label>
                         <input type="text" name="telegram" class="input input-bordered input-sm w-full" />
                     </div>
                     <div>
-                        <label class="label py-0.5"><span class="label-text">Страна</span></label>
+                        <label class="label py-0.5"><span class="label-text" data-i18n="country">Страна</span></label>
                         <input type="text" name="country" class="input input-bordered input-sm w-full" />
                     </div>
                     <div>
-                        <label class="label py-0.5"><span class="label-text">Город</span></label>
+                        <label class="label py-0.5"><span class="label-text" data-i18n="city">Город</span></label>
                         <input type="text" name="city" class="input input-bordered input-sm w-full" />
                     </div>
                     <div class="sm:col-span-2">
-                        <label class="label py-0.5"><span class="label-text">Опыт Индии</span></label>
+                        <label class="label py-0.5"><span class="label-text" data-i18n="india_experience">Опыт Индии</span></label>
                         <input type="text" name="india_experience" class="input input-bordered input-sm w-full" />
                     </div>
                 </div>
 
                 <!-- Регистрация -->
-                <div class="divider text-sm opacity-60">Регистрация</div>
+                <div class="divider text-sm opacity-60" data-i18n="registration">Регистрация</div>
                 <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
                     <div>
-                        <label class="label py-0.5"><span class="label-text">Статус</span></label>
+                        <label class="label py-0.5"><span class="label-text" data-i18n="status">Статус</span></label>
                         <select name="status" class="select select-bordered select-sm w-full">
-                            <option value="guest">Гость</option>
-                            <option value="team">Команда</option>
-                            <option value="volunteer">Волонтёр</option>
-                            <option value="vip">ВИП</option>
-                            <option value="cancelled">Отказ</option>
+                            <option value="guest" data-i18n="status_guest">Гость</option>
+                            <option value="team" data-i18n="status_team">Команда</option>
+                            <option value="volunteer" data-i18n="status_volunteer">Волонтёр</option>
+                            <option value="vip" data-i18n="status_vip">ВИП</option>
+                            <option value="cancelled" data-i18n="status_cancelled">Отказ</option>
                         </select>
                     </div>
                     <div>
-                        <label class="label py-0.5"><span class="label-text">Питание</span></label>
+                        <label class="label py-0.5"><span class="label-text" data-i18n="meal_type">Питание</span></label>
                         <select name="meal_type" class="select select-bordered select-sm w-full">
-                            <option value="prasad">Прасад</option>
-                            <option value="self">Своё</option>
-                            <option value="child">Детское</option>
+                            <option value="prasad" data-i18n="meal_type_prasad">Прасад</option>
+                            <option value="self" data-i18n="meal_type_self">Своё</option>
+                            <option value="child" data-i18n="meal_type_child">Детское</option>
                         </select>
                     </div>
                     <div class="sm:col-span-2">
-                        <label class="label py-0.5"><span class="label-text">Спутники</span></label>
+                        <label class="label py-0.5"><span class="label-text" data-i18n="companions">Спутники</span></label>
                         <input type="text" name="companions" class="input input-bordered input-sm w-full" />
                     </div>
                     <div class="sm:col-span-2">
-                        <label class="label py-0.5"><span class="label-text">Пожелания по размещению</span></label>
+                        <label class="label py-0.5"><span class="label-text" data-i18n="accommodation_wishes">Пожелания по размещению</span></label>
                         <textarea name="accommodation_wishes" rows="2" class="textarea textarea-bordered textarea-sm w-full"></textarea>
                     </div>
                     <div>
-                        <label class="label py-0.5"><span class="label-text">Продлённое проживание</span></label>
+                        <label class="label py-0.5"><span class="label-text" data-i18n="extended_stay">Продлённое проживание</span></label>
                         <input type="text" name="extended_stay" class="input input-bordered input-sm w-full" />
                     </div>
                     <div>
-                        <label class="label py-0.5"><span class="label-text">Заметки орг.</span></label>
+                        <label class="label py-0.5"><span class="label-text" data-i18n="org_notes_short">Заметки орг.</span></label>
                         <input type="text" name="org_notes" class="input input-bordered input-sm w-full" />
                     </div>
                     <div class="sm:col-span-2">
-                        <label class="label py-0.5"><span class="label-text">Вопросы гостя</span></label>
+                        <label class="label py-0.5"><span class="label-text" data-i18n="guest_questions">Вопросы гостя</span></label>
                         <textarea name="guest_questions" rows="2" class="textarea textarea-bordered textarea-sm w-full"></textarea>
                     </div>
                 </div>
 
                 <!-- Прилёт -->
-                <div class="divider text-sm opacity-60">Прилёт</div>
+                <div class="divider text-sm opacity-60" data-i18n="arrival_flight">Прилёт</div>
                 <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
                     <div>
-                        <label class="label py-0.5"><span class="label-text">Дата и время рейса</span></label>
+                        <label class="label py-0.5"><span class="label-text" data-i18n="flight_datetime">Дата и время рейса</span></label>
                         <input type="datetime-local" name="arrival_flight_datetime" class="input input-bordered input-sm w-full" />
                     </div>
                     <div>
-                        <label class="label py-0.5"><span class="label-text">Номер рейса</span></label>
+                        <label class="label py-0.5"><span class="label-text" data-i18n="flight_number">Номер рейса</span></label>
                         <input type="text" name="arrival_flight" class="input input-bordered input-sm w-full" placeholder="AI156" />
                     </div>
                     <div>
-                        <label class="label py-0.5"><span class="label-text">Трансфер</span></label>
+                        <label class="label py-0.5"><span class="label-text" data-i18n="transfer">Трансфер</span></label>
                         <select name="arrival_transfer" class="select select-bordered select-sm w-full">
-                            <option value="">Не указано</option>
-                            <option value="yes">Нужен</option>
-                            <option value="no">Не нужен</option>
+                            <option value="" data-i18n="not_specified">Не указано</option>
+                            <option value="yes" data-i18n="transfer_needed">Нужен</option>
+                            <option value="no" data-i18n="transfer_not_needed">Не нужен</option>
                         </select>
                     </div>
                 </div>
                 <label class="label cursor-pointer justify-start gap-2 py-1">
                     <input type="checkbox" name="direct_arrival" class="checkbox checkbox-sm" checked
                         onchange="document.getElementById('arrivalDatetimeRow').classList.toggle('hidden', this.checked)" />
-                    <span class="label-text">Сразу на ретрит</span>
+                    <span class="label-text" data-i18n="direct_to_retreat">Сразу на ретрит</span>
                 </label>
                 <div id="arrivalDatetimeRow" class="hidden grid grid-cols-1 sm:grid-cols-3 gap-3">
                     <div class="sm:col-span-2">
-                        <label class="label py-0.5"><span class="label-text">Время приезда в ШРСК</span></label>
+                        <label class="label py-0.5"><span class="label-text" data-i18n="arrival_time_srsk">Время приезда в ШРСК</span></label>
                         <input type="datetime-local" name="arrival_datetime" class="input input-bordered input-sm w-full" />
                     </div>
                     <div>
-                        <label class="label py-0.5"><span class="label-text">Трансфер на ретрит</span></label>
+                        <label class="label py-0.5"><span class="label-text" data-i18n="transfer_to_retreat">Трансфер на ретрит</span></label>
                         <select name="arrival_retreat_transfer" class="select select-bordered select-sm w-full">
-                            <option value="">Не указано</option>
-                            <option value="yes">Нужен</option>
-                            <option value="no">Не нужен</option>
+                            <option value="" data-i18n="not_specified">Не указано</option>
+                            <option value="yes" data-i18n="transfer_needed">Нужен</option>
+                            <option value="no" data-i18n="transfer_not_needed">Не нужен</option>
                         </select>
                     </div>
                 </div>
 
                 <!-- Вылет -->
-                <div class="divider text-sm opacity-60">Вылет</div>
+                <div class="divider text-sm opacity-60" data-i18n="departure_flight">Вылет</div>
                 <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
                     <div>
-                        <label class="label py-0.5"><span class="label-text">Дата и время рейса</span></label>
+                        <label class="label py-0.5"><span class="label-text" data-i18n="flight_datetime">Дата и время рейса</span></label>
                         <input type="datetime-local" name="departure_flight_datetime" class="input input-bordered input-sm w-full" />
                     </div>
                     <div>
-                        <label class="label py-0.5"><span class="label-text">Номер рейса</span></label>
+                        <label class="label py-0.5"><span class="label-text" data-i18n="flight_number">Номер рейса</span></label>
                         <input type="text" name="departure_flight" class="input input-bordered input-sm w-full" placeholder="AI155" />
                     </div>
                     <div>
-                        <label class="label py-0.5"><span class="label-text">Трансфер</span></label>
+                        <label class="label py-0.5"><span class="label-text" data-i18n="transfer">Трансфер</span></label>
                         <select name="departure_transfer" class="select select-bordered select-sm w-full">
-                            <option value="">Не указано</option>
-                            <option value="yes">Нужен</option>
-                            <option value="no">Не нужен</option>
+                            <option value="" data-i18n="not_specified">Не указано</option>
+                            <option value="yes" data-i18n="transfer_needed">Нужен</option>
+                            <option value="no" data-i18n="transfer_not_needed">Не нужен</option>
                         </select>
                     </div>
                 </div>
                 <label class="label cursor-pointer justify-start gap-2 py-1">
                     <input type="checkbox" name="direct_departure" class="checkbox checkbox-sm" checked
                         onchange="document.getElementById('departureDatetimeRow').classList.toggle('hidden', this.checked)" />
-                    <span class="label-text">С ретрита на самолёт</span>
+                    <span class="label-text" data-i18n="direct_from_retreat">С ретрита на самолёт</span>
                 </label>
                 <div id="departureDatetimeRow" class="hidden grid grid-cols-1 sm:grid-cols-3 gap-3">
                     <div class="sm:col-span-2">
-                        <label class="label py-0.5"><span class="label-text">Время выезда из ШРСК</span></label>
+                        <label class="label py-0.5"><span class="label-text" data-i18n="departure_time_srsk">Время выезда из ШРСК</span></label>
                         <input type="datetime-local" name="departure_datetime" class="input input-bordered input-sm w-full" />
                     </div>
                     <div>
-                        <label class="label py-0.5"><span class="label-text">Трансфер с ретрита</span></label>
+                        <label class="label py-0.5"><span class="label-text" data-i18n="transfer_from_retreat">Трансфер с ретрита</span></label>
                         <select name="departure_retreat_transfer" class="select select-bordered select-sm w-full">
-                            <option value="">Не указано</option>
-                            <option value="yes">Нужен</option>
-                            <option value="no">Не нужен</option>
+                            <option value="" data-i18n="not_specified">Не указано</option>
+                            <option value="yes" data-i18n="transfer_needed">Нужен</option>
+                            <option value="no" data-i18n="transfer_not_needed">Не нужен</option>
                         </select>
                     </div>
                 </div>
 
-                <p class="text-xs opacity-50">* Пол, телефон или email, духовное имя или имя+фамилия — обязательны</p>
+                <p class="text-xs opacity-50" data-i18n="required_fields_hint">* Пол, телефон или email, духовное имя или имя+фамилия — обязательны</p>
 
                 <div class="modal-action">
-                    <button type="button" class="btn btn-ghost" onclick="newGuestModal.close()">Отмена</button>
-                    <button type="submit" class="btn btn-primary">Сохранить</button>
+                    <button type="button" class="btn btn-ghost" onclick="newGuestModal.close()" data-i18n="cancel">Отмена</button>
+                    <button type="submit" class="btn btn-primary" data-i18n="save">Сохранить</button>
                 </div>
             </form>
         </div>
@@ -667,14 +667,14 @@
     <dialog id="infoModal" class="modal">
         <div class="modal-box max-w-lg">
             <button type="button" class="btn btn-sm btn-circle btn-ghost absolute right-2 top-2" onclick="infoModal.close()">✕</button>
-            <h3 class="font-bold text-lg mb-4" id="infoModalTitle">Информация о госте</h3>
+            <h3 class="font-bold text-lg mb-4" id="infoModalTitle" data-i18n="guest_info">Информация о госте</h3>
 
             <div id="infoModalContent" class="space-y-4">
                 <!-- Content will be inserted here -->
             </div>
 
             <div class="modal-action">
-                <button type="button" class="btn btn-ghost" onclick="infoModal.close()">Закрыть</button>
+                <button type="button" class="btn btn-ghost" onclick="infoModal.close()" data-i18n="close">Закрыть</button>
             </div>
         </div>
         <form method="dialog" class="modal-backdrop"><button>close</button></form>
@@ -684,7 +684,7 @@
     <dialog id="placementModal" class="modal">
         <div class="modal-box max-w-4xl">
             <button type="button" class="btn btn-sm btn-circle btn-ghost absolute right-2 top-2" onclick="placementModal.close()">✕</button>
-            <h3 class="font-bold text-lg mb-4">Размещение гостя</h3>
+            <h3 class="font-bold text-lg mb-4" data-i18n="guest_placement">Размещение гостя</h3>
 
             <!-- Инфо о госте -->
             <div id="placementGuestInfo" class="mb-4 p-3 bg-base-200 rounded-lg">
@@ -694,11 +694,11 @@
             <!-- СНАЧАЛА ДАТЫ -->
             <div class="grid grid-cols-2 gap-4 mb-4">
                 <div>
-                    <label class="label"><span class="label-text font-medium">Заезд</span></label>
+                    <label class="label"><span class="label-text font-medium" data-i18n="check_in">Заезд</span></label>
                     <input type="date" id="placementCheckIn" class="input input-bordered w-full" onchange="onPlacementDatesChange()" />
                 </div>
                 <div>
-                    <label class="label"><span class="label-text font-medium">Выезд</span></label>
+                    <label class="label"><span class="label-text font-medium" data-i18n="check_out">Выезд</span></label>
                     <input type="date" id="placementCheckOut" class="input input-bordered w-full" onchange="onPlacementDatesChange()" />
                 </div>
             </div>
@@ -714,7 +714,7 @@
             <!-- Сообщение если даты не выбраны -->
             <div id="placementDateMessage" class="alert alert-info mb-4">
                 <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" class="stroke-current shrink-0 w-6 h-6"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
-                <span>Выберите даты заезда и выезда для просмотра доступных комнат</span>
+                <span data-i18n="select_dates_for_rooms">Выберите даты заезда и выезда для просмотра доступных комнат</span>
             </div>
 
             <!-- Контейнер номеров (скрыт пока нет дат) -->
@@ -722,14 +722,14 @@
 
                 <!-- ТАБЫ: Список / План -->
                 <div class="tabs tabs-boxed placement-tabs mb-4 w-fit">
-                    <button type="button" class="tab tab-active" data-mode="list" onclick="switchPlacementMode('list')">Список</button>
-                    <button type="button" class="tab" data-mode="plan" onclick="switchPlacementMode('plan')">План</button>
+                    <button type="button" class="tab tab-active" data-mode="list" onclick="switchPlacementMode('list')" data-i18n="list_view">Список</button>
+                    <button type="button" class="tab" data-mode="plan" onclick="switchPlacementMode('plan')" data-i18n="plan_view">План</button>
                 </div>
 
                 <!-- Режим СПИСОК -->
                 <div id="placementListView">
                     <div id="roomsList" class="space-y-2 max-h-80 overflow-y-auto">
-                        <div class="text-center py-4 opacity-50">Загрузка...</div>
+                        <div class="text-center py-4 opacity-50" data-i18n="loading">Загрузка...</div>
                     </div>
                 </div>
 
@@ -742,7 +742,7 @@
                     <!-- План этажа -->
                     <div class="floor-plan-container">
                         <img id="planFloorPlanImage" src="" alt="План этажа" class="hidden" />
-                        <div id="planNoFloorPlan" class="text-center py-12 opacity-50">Нет плана для этого этажа</div>
+                        <div id="planNoFloorPlan" class="text-center py-12 opacity-50" data-i18n="no_floor_plan">Нет плана для этого этажа</div>
                         <svg id="planFloorPlanSvg" class="floor-plan-svg hidden" viewBox="0 0 100 100" preserveAspectRatio="xMidYMid meet"></svg>
                     </div>
                 </div>
@@ -750,19 +750,19 @@
                 <!-- Легенда -->
                 <div class="flex flex-wrap gap-3 text-xs opacity-60 mt-4">
                     <div class="flex items-center gap-1">
-                        <span class="w-3 h-3 rounded bg-success"></span> Свободно
+                        <span class="w-3 h-3 rounded bg-success"></span> <span data-i18n="room_available">Свободно</span>
                     </div>
                     <div class="flex items-center gap-1">
-                        <span class="w-3 h-3 rounded bg-warning"></span> Частично
+                        <span class="w-3 h-3 rounded bg-warning"></span> <span data-i18n="room_partial">Частично</span>
                     </div>
                     <div class="flex items-center gap-1">
-                        <span class="w-3 h-3 rounded bg-error opacity-50"></span> Занято
+                        <span class="w-3 h-3 rounded bg-error opacity-50"></span> <span data-i18n="room_occupied">Занято</span>
                     </div>
                 </div>
             </div>
 
             <div class="modal-action">
-                <button type="button" class="btn btn-ghost" onclick="placementModal.close()">Отмена</button>
+                <button type="button" class="btn btn-ghost" onclick="placementModal.close()" data-i18n="cancel">Отмена</button>
             </div>
         </div>
         <form method="dialog" class="modal-backdrop"><button>close</button></form>
@@ -772,30 +772,30 @@
     <dialog id="transferModal" class="modal">
         <div class="modal-box max-w-2xl">
             <button type="button" class="btn btn-sm btn-circle btn-ghost absolute right-2 top-2" onclick="transferModal.close()">✕</button>
-            <h3 class="font-bold text-lg mb-1">Трансферы</h3>
+            <h3 class="font-bold text-lg mb-1" data-i18n="transfers">Трансферы</h3>
             <p id="transferModalName" class="text-sm opacity-60 mb-4"></p>
             <input type="hidden" id="transferRegId" />
 
             <div class="space-y-4">
                 <!-- Прилёт -->
                 <div class="border rounded-lg p-3">
-                    <div class="font-medium mb-2">✈️ Прилёт</div>
+                    <div class="font-medium mb-2" data-i18n="arrival_flight">Прилёт</div>
                     <div class="grid grid-cols-2 gap-3">
                         <div class="form-control">
-                            <label class="label label-text text-xs">Дата и время рейса</label>
+                            <label class="label label-text text-xs" data-i18n="flight_datetime">Дата и время рейса</label>
                             <input type="datetime-local" id="tmArrivalDatetime" class="input input-bordered input-sm"
                                    onchange="updateCalcArrivalModal()" />
                         </div>
                         <div class="form-control">
-                            <label class="label label-text text-xs">Номер рейса</label>
+                            <label class="label label-text text-xs" data-i18n="flight_number">Номер рейса</label>
                             <input type="text" id="tmArrivalFlight" class="input input-bordered input-sm" placeholder="AI 156" />
                         </div>
                         <div class="form-control">
-                            <label class="label label-text text-xs">Трансфер из аэропорта</label>
+                            <label class="label label-text text-xs" data-i18n="transfer_from_airport">Трансфер из аэропорта</label>
                             <select id="tmArrivalTransfer" class="select select-bordered select-sm">
-                                <option value="">Не указано</option>
-                                <option value="yes">Нужен</option>
-                                <option value="no">Не нужен</option>
+                                <option value="" data-i18n="not_specified">Не указано</option>
+                                <option value="yes" data-i18n="transfer_needed">Нужен</option>
+                                <option value="no" data-i18n="transfer_not_needed">Не нужен</option>
                             </select>
                         </div>
                         <div></div>
@@ -803,23 +803,23 @@
                             <label class="label cursor-pointer justify-start gap-2 py-0">
                                 <input type="checkbox" id="tmDirectArrival" class="checkbox checkbox-xs checkbox-primary"
                                        onchange="toggleDirectArrivalModal(this.checked)" checked />
-                                <span class="label-text text-xs">Сразу на ретрит</span>
+                                <span class="label-text text-xs" data-i18n="direct_to_retreat">Сразу на ретрит</span>
                             </label>
                             <div id="tmCalcArrivalBlock" class="mt-2">
-                                <span class="label-text text-xs text-base-content/60">Время приезда в ШРСК (рейс + 4ч):</span>
+                                <span class="label-text text-xs text-base-content/60" data-i18n="calc_arrival_time">Время приезда в ШРСК (рейс + 4ч):</span>
                                 <span id="tmCalcArrivalTime" class="text-xs font-medium ml-1">—</span>
                             </div>
                             <div id="tmCustomArrivalBlock" class="hidden mt-2 grid grid-cols-3 gap-2">
                                 <div class="col-span-2">
-                                    <label class="label label-text text-xs">Время приезда в ШРСК</label>
+                                    <label class="label label-text text-xs" data-i18n="arrival_time_srsk">Время приезда в ШРСК</label>
                                     <input type="datetime-local" id="tmArrivalAtAshram" class="input input-bordered input-sm w-full" />
                                 </div>
                                 <div>
-                                    <label class="label label-text text-xs">Трансфер в ШРСК</label>
+                                    <label class="label label-text text-xs" data-i18n="transfer_to_srsk">Трансфер в ШРСК</label>
                                     <select id="tmArrivalRetreatTransfer" class="select select-bordered select-sm w-full">
-                                        <option value="">Не указано</option>
-                                        <option value="yes">Нужен</option>
-                                        <option value="no">Не нужен</option>
+                                        <option value="" data-i18n="not_specified">Не указано</option>
+                                        <option value="yes" data-i18n="transfer_needed">Нужен</option>
+                                        <option value="no" data-i18n="transfer_not_needed">Не нужен</option>
                                     </select>
                                 </div>
                             </div>
@@ -829,23 +829,23 @@
 
                 <!-- Вылет -->
                 <div class="border rounded-lg p-3">
-                    <div class="font-medium mb-2">✈️ Вылет</div>
+                    <div class="font-medium mb-2" data-i18n="departure_flight">Вылет</div>
                     <div class="grid grid-cols-2 gap-3">
                         <div class="form-control">
-                            <label class="label label-text text-xs">Дата и время рейса</label>
+                            <label class="label label-text text-xs" data-i18n="flight_datetime">Дата и время рейса</label>
                             <input type="datetime-local" id="tmDepartureDatetime" class="input input-bordered input-sm"
                                    onchange="updateCalcDepartureModal()" />
                         </div>
                         <div class="form-control">
-                            <label class="label label-text text-xs">Номер рейса</label>
+                            <label class="label label-text text-xs" data-i18n="flight_number">Номер рейса</label>
                             <input type="text" id="tmDepartureFlight" class="input input-bordered input-sm" placeholder="AI 155" />
                         </div>
                         <div class="form-control">
-                            <label class="label label-text text-xs">Трансфер в аэропорт</label>
+                            <label class="label label-text text-xs" data-i18n="transfer_to_airport">Трансфер в аэропорт</label>
                             <select id="tmDepartureTransfer" class="select select-bordered select-sm">
-                                <option value="">Не указано</option>
-                                <option value="yes">Нужен</option>
-                                <option value="no">Не нужен</option>
+                                <option value="" data-i18n="not_specified">Не указано</option>
+                                <option value="yes" data-i18n="transfer_needed">Нужен</option>
+                                <option value="no" data-i18n="transfer_not_needed">Не нужен</option>
                             </select>
                         </div>
                         <div></div>
@@ -853,23 +853,23 @@
                             <label class="label cursor-pointer justify-start gap-2 py-0">
                                 <input type="checkbox" id="tmDirectDeparture" class="checkbox checkbox-xs checkbox-primary"
                                        onchange="toggleDirectDepartureModal(this.checked)" checked />
-                                <span class="label-text text-xs">С ретрита на самолёт</span>
+                                <span class="label-text text-xs" data-i18n="direct_from_retreat">С ретрита на самолёт</span>
                             </label>
                             <div id="tmCalcDepartureBlock" class="mt-2">
-                                <span class="label-text text-xs text-base-content/60">Время выезда из ШРСК (рейс − 7ч):</span>
+                                <span class="label-text text-xs text-base-content/60" data-i18n="calc_departure_time">Время выезда из ШРСК (рейс − 7ч):</span>
                                 <span id="tmCalcDepartureTime" class="text-xs font-medium ml-1">—</span>
                             </div>
                             <div id="tmCustomDepartureBlock" class="hidden mt-2 grid grid-cols-3 gap-2">
                                 <div class="col-span-2">
-                                    <label class="label label-text text-xs">Время выезда из ШРСК</label>
+                                    <label class="label label-text text-xs" data-i18n="departure_time_srsk">Время выезда из ШРСК</label>
                                     <input type="datetime-local" id="tmDepartureFromAshram" class="input input-bordered input-sm w-full" />
                                 </div>
                                 <div>
-                                    <label class="label label-text text-xs">Трансфер из ШРСК</label>
+                                    <label class="label label-text text-xs" data-i18n="transfer_from_srsk">Трансфер из ШРСК</label>
                                     <select id="tmDepartureRetreatTransfer" class="select select-bordered select-sm w-full">
-                                        <option value="">Не указано</option>
-                                        <option value="yes">Нужен</option>
-                                        <option value="no">Не нужен</option>
+                                        <option value="" data-i18n="not_specified">Не указано</option>
+                                        <option value="yes" data-i18n="transfer_needed">Нужен</option>
+                                        <option value="no" data-i18n="transfer_not_needed">Не нужен</option>
                                     </select>
                                 </div>
                             </div>
@@ -879,8 +879,8 @@
             </div>
 
             <div class="modal-action">
-                <button type="button" class="btn btn-ghost" onclick="transferModal.close()">Отмена</button>
-                <button type="button" class="btn btn-primary" onclick="saveTransfers()">Сохранить</button>
+                <button type="button" class="btn btn-ghost" onclick="transferModal.close()" data-i18n="cancel">Отмена</button>
+                <button type="button" class="btn btn-primary" onclick="saveTransfers()" data-i18n="save">Сохранить</button>
             </div>
         </div>
         <form method="dialog" class="modal-backdrop"><button>close</button></form>
@@ -900,7 +900,7 @@
         if (btn) { btn.classList.toggle('btn-active', isFS); btn.title = isFS ? 'Обычный вид' : 'На весь экран'; }
     }
     </script>
-    <script src="../js/pages/preliminary.js?v=12"></script>
+    <script src="../js/pages/preliminary.js?v=14"></script>
 
 </body>
 </html>

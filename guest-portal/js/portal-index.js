@@ -158,8 +158,7 @@ document.addEventListener('keydown', (e) => {
 function formatBirthDate(dateStr) {
     if (!dateStr) return '';
     const date = DateUtils.parseDate(dateStr);
-    const months = ['января', 'февраля', 'марта', 'апреля', 'мая', 'июня',
-                   'июля', 'августа', 'сентября', 'октября', 'ноября', 'декабря'];
+    const months = DateUtils.monthNames[DateUtils.getLang()] || DateUtils.monthNames.ru;
     return `${date.getDate()} ${months[date.getMonth()]} ${date.getFullYear()}`;
 }
 
@@ -167,7 +166,7 @@ function formatBirthDate(dateStr) {
 function getDisplayName(guest) {
     return guest.spiritualName ||
            `${guest.firstName || ''} ${guest.lastName || ''}`.trim() ||
-           'Гость';
+           PortalLayout.t('portal_guest');
 }
 
 // Вычислить процент заполнения профиля
@@ -203,11 +202,11 @@ function calculateCompleteness(guest) {
 // Получить статус пользователя
 function getUserStatus(userType) {
     const statuses = {
-        'guest': 'Гость',
-        'staff': 'Команда',
-        'admin': 'Администратор'
+        'guest': PortalLayout.t('portal_status_guest'),
+        'staff': PortalLayout.t('portal_status_staff'),
+        'admin': PortalLayout.t('portal_status_admin')
     };
-    return statuses[userType] || 'Гость';
+    return statuses[userType] || PortalLayout.t('portal_status_guest');
 }
 
 // Заполнить профиль данными
@@ -560,21 +559,14 @@ async function handleProfileSave(e) {
 
 // Форматирование даты ретрита
 function formatRetreatDates(startDate, endDate) {
-    const start = DateUtils.parseDate(startDate);
-    const end = DateUtils.parseDate(endDate);
-    const months = ['янв', 'фев', 'мар', 'апр', 'мая', 'июн', 'июл', 'авг', 'сен', 'окт', 'ноя', 'дек'];
-
-    if (start.getMonth() === end.getMonth()) {
-        return `${start.getDate()}–${end.getDate()} ${months[start.getMonth()]}`;
-    }
-    return `${start.getDate()} ${months[start.getMonth()]} – ${end.getDate()} ${months[end.getMonth()]}`;
+    return DateUtils.formatRangeShort(startDate, endDate);
 }
 
 // Форматирование даты/времени трансфера
 function formatTransferDateTime(datetime) {
     if (!datetime) return '';
     const date = new Date(datetime);
-    const months = ['янв', 'фев', 'мар', 'апр', 'мая', 'июн', 'июл', 'авг', 'сен', 'окт', 'ноя', 'дек'];
+    const months = DateUtils.monthNamesShort[DateUtils.getLang()] || DateUtils.monthNamesShort.ru;
     const hours = date.getHours().toString().padStart(2, '0');
     const minutes = date.getMinutes().toString().padStart(2, '0');
     return `${date.getDate()} ${months[date.getMonth()]}, ${hours}:${minutes}`;
@@ -851,7 +843,7 @@ async function saveChildPortal(event) {
 
     let result;
     if (childId) {
-        result = await PortalData.updateChild(childId, childData);
+        result = await PortalData.updateChild(childId, guest.id, childData);
     } else {
         result = await PortalData.createChild(guest.id, childData);
     }
@@ -874,7 +866,9 @@ async function deleteChildPortal() {
 
     if (!confirm('Удалить ребёнка из вашего профиля?')) return;
 
-    const result = await PortalData.deleteChild(childId);
+    const guest = window.currentGuest;
+    if (!guest?.id) return;
+    const result = await PortalData.deleteChild(childId, guest.id);
     if (!result.success) {
         alert('Ошибка удаления: ' + (result.error || ''));
         return;
@@ -882,7 +876,6 @@ async function deleteChildPortal() {
 
     closeChildPortal();
 
-    const guest = window.currentGuest;
     if (guest?.id) {
         const freshChildren = await PortalData.getChildren(guest.id);
         renderPortalChildren(freshChildren);
@@ -1019,11 +1012,24 @@ function getMaterialIcon(iconName) {
 // Загрузить список учителей для автокомплита
 async function loadTeachersList() {
     try {
-        const { data, error } = await window.portalSupabase
-            .from('vaishnavas')
-            .select('spiritual_teacher')
-            .not('spiritual_teacher', 'is', null)
-            .not('spiritual_teacher', 'eq', '');
+        const all = [];
+        let from = 0;
+        const PAGE = 1000;
+        while (true) {
+            const { data: page, error: pageErr } = await window.portalSupabase
+                .from('vaishnavas')
+                .select('spiritual_teacher')
+                .not('spiritual_teacher', 'is', null)
+                .not('spiritual_teacher', 'eq', '')
+                .range(from, from + PAGE - 1);
+            if (pageErr) throw pageErr;
+            if (!page || page.length === 0) break;
+            all.push(...page);
+            if (page.length < PAGE) break;
+            from += PAGE;
+        }
+        const data = all;
+        const error = null;
 
         if (error) throw error;
 

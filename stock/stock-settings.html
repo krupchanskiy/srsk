@@ -49,7 +49,7 @@
             <svg xmlns="http://www.w3.org/2000/svg" class="stroke-current shrink-0 h-6 w-6" fill="none" viewBox="0 0 24 24">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
             </svg>
-            <span>У вас нет прав для совершения действий на этой странице. Доступен только просмотр.</span>
+            <span data-i18n="no_permission_warning">У вас нет прав для совершения действий на этой странице. Доступен только просмотр.</span>
         </div>
 
         <!-- Tab: Buyers -->
@@ -79,7 +79,7 @@
                             </tr>
                         </thead>
                         <tbody id="buyersTableBody">
-                            <tr><td colspan="5" class="text-center py-8 opacity-50">Загрузка...</td></tr>
+                            <tr><td colspan="5" class="text-center py-8 opacity-50" data-i18n="loading">Загрузка...</td></tr>
                         </tbody>
                     </table>
                 </div>
@@ -109,7 +109,7 @@
                                 </tr>
                             </thead>
                             <tbody id="minStockTableBody">
-                                <tr><td colspan="5" class="text-center py-8 opacity-50">Загрузка...</td></tr>
+                                <tr><td colspan="5" class="text-center py-8 opacity-50" data-i18n="loading">Загрузка...</td></tr>
                             </tbody>
                         </table>
                     </div>
@@ -139,7 +139,7 @@
                                 </tr>
                             </thead>
                             <tbody id="minPurchaseTableBody">
-                                <tr><td colspan="3" class="text-center py-8 opacity-50">Загрузка...</td></tr>
+                                <tr><td colspan="3" class="text-center py-8 opacity-50" data-i18n="loading">Загрузка...</td></tr>
                             </tbody>
                         </table>
                     </div>
@@ -157,29 +157,29 @@
             <form method="dialog">
                 <button class="btn btn-sm btn-circle btn-ghost absolute right-2 top-2">✕</button>
             </form>
-            <h3 class="font-bold text-lg mb-4" id="buyerModalTitle">Добавить закупщика</h3>
+            <h3 class="font-bold text-lg mb-4" id="buyerModalTitle" data-i18n="add_buyer">Добавить закупщика</h3>
 
             <div class="space-y-4">
                 <div>
-                    <label class="label"><span class="label-text font-medium">Имя (русский)</span></label>
-                    <input type="text" id="buyerNameRu" class="input input-bordered w-full" placeholder="Имя закупщика" data-auto-translate="name" />
+                    <label class="label"><span class="label-text font-medium" data-i18n="field_name_ru">Имя (русский)</span></label>
+                    <input type="text" id="buyerNameRu" class="input input-bordered w-full" placeholder="Имя закупщика" data-i18n-placeholder="buyer_name_placeholder" data-auto-translate="name" />
                 </div>
                 <div>
-                    <label class="label"><span class="label-text font-medium">Имя (English)</span></label>
+                    <label class="label"><span class="label-text font-medium" data-i18n="field_name_en">Имя (English)</span></label>
                     <div class="join w-full">
                         <input type="text" id="buyerNameEn" class="input input-bordered join-item flex-1" placeholder="Buyer name" data-auto-translate-target="name" data-auto-translate-lang="en" />
-                        <button type="button" class="btn join-item" onclick="translateBuyerName('en')">Auto</button>
+                        <button type="button" class="btn join-item" onclick="translateBuyerName('en')" data-i18n="auto_translate_btn">Auto</button>
                     </div>
                 </div>
                 <div>
-                    <label class="label"><span class="label-text font-medium">Имя (हिंदी)</span></label>
+                    <label class="label"><span class="label-text font-medium" data-i18n="field_name_hi">Имя (हिंदी)</span></label>
                     <div class="join w-full">
                         <input type="text" id="buyerNameHi" class="input input-bordered join-item flex-1" placeholder="क्रेता का नाम" data-auto-translate-target="name" data-auto-translate-lang="hi" />
-                        <button type="button" class="btn join-item" onclick="translateBuyerName('hi')">Auto</button>
+                        <button type="button" class="btn join-item" onclick="translateBuyerName('hi')" data-i18n="auto_translate_btn">Auto</button>
                     </div>
                 </div>
                 <div>
-                    <label class="label"><span class="label-text font-medium">Телефон</span></label>
+                    <label class="label"><span class="label-text font-medium" data-i18n="phone">Телефон</span></label>
                     <input type="text" id="buyerPhone" class="input input-bordered w-full" placeholder="+91 98765 43210" />
                 </div>
                 <div>
@@ -187,14 +187,14 @@
                     <input type="text" id="buyerWhatsapp" class="input input-bordered w-full" placeholder="+91 98765 43210" />
                 </div>
                 <div>
-                    <label class="label"><span class="label-text font-medium">Примечания</span></label>
-                    <textarea id="buyerNotes" class="textarea textarea-bordered w-full" rows="2" placeholder="Где закупает, особенности..."></textarea>
+                    <label class="label"><span class="label-text font-medium" data-i18n="notes">Примечания</span></label>
+                    <textarea id="buyerNotes" class="textarea textarea-bordered w-full" rows="2" placeholder="Где закупает, особенности..." data-i18n-placeholder="buyer_notes_placeholder"></textarea>
                 </div>
             </div>
 
             <div class="modal-action">
-                <button type="button" class="btn btn-ghost" onclick="closeBuyerModal()">Отмена</button>
-                <button type="button" class="btn btn-primary" onclick="saveBuyer()" data-permission="edit_stock_settings">Сохранить</button>
+                <button type="button" class="btn btn-ghost" onclick="closeBuyerModal()" data-i18n="cancel">Отмена</button>
+                <button type="button" class="btn btn-primary" onclick="saveBuyer()" data-permission="edit_stock_settings" data-i18n="save">Сохранить</button>
             </div>
         </div>
         <form method="dialog" class="modal-backdrop"><button>close</button></form>
@@ -362,7 +362,7 @@
             const tbody = Layout.$('#buyersTableBody');
 
             if (buyers.length === 0) {
-                tbody.innerHTML = '<tr><td colspan="5" class="text-center py-8 opacity-50">Нет закупщиков</td></tr>';
+                tbody.innerHTML = `<tr><td colspan="5" class="text-center py-8 opacity-50">${t('no_buyers')}</td></tr>`;
                 return;
             }
 
@@ -377,12 +377,12 @@
                     <td class="text-sm opacity-60">${e(buyer.notes || '—')}</td>
                     <td>
                         <div class="flex gap-1" data-permission="edit_stock_settings">
-                            <button class="btn btn-ghost btn-sm btn-square" onclick="editBuyer('${buyer.id}')" title="Редактировать">
+                            <button class="btn btn-ghost btn-sm btn-square" onclick="editBuyer('${buyer.id}')" title="${t('edit')}">
                                 <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
                                 </svg>
                             </button>
-                            <button class="btn btn-ghost btn-sm btn-square text-error" onclick="deleteBuyer('${buyer.id}')" title="Удалить">
+                            <button class="btn btn-ghost btn-sm btn-square text-error" onclick="deleteBuyer('${buyer.id}')" title="${t('delete')}">
                                 <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
                                 </svg>
@@ -395,7 +395,7 @@
 
         function openBuyerModal() {
             editingBuyerId = null;
-            Layout.$('#buyerModalTitle').textContent = 'Добавить закупщика';
+            Layout.$('#buyerModalTitle').textContent = t('add_buyer');
             Layout.$('#buyerNameRu').value = '';
             Layout.$('#buyerNameEn').value = '';
             Layout.$('#buyerNameHi').value = '';
@@ -410,7 +410,7 @@
             if (!buyer) return;
 
             editingBuyerId = id;
-            Layout.$('#buyerModalTitle').textContent = 'Редактировать закупщика';
+            Layout.$('#buyerModalTitle').textContent = t('edit_buyer');
             Layout.$('#buyerNameRu').value = buyer.name_ru || '';
             Layout.$('#buyerNameEn').value = buyer.name_en || '';
             Layout.$('#buyerNameHi').value = buyer.name_hi || '';
@@ -427,7 +427,7 @@
         async function translateBuyerName(lang) {
             const sourceText = Layout.$('#buyerNameRu').value.trim();
             if (!sourceText) {
-                showAlert('Введите имя на русском');
+                showAlert(t('enter_name_ru'));
                 return;
             }
 
@@ -444,10 +444,10 @@
                 }
             } catch (error) {
                 console.error('Translation error:', error);
-                showAlert('Ошибка перевода');
+                showAlert(t('translation_error'));
             } finally {
                 button.disabled = false;
-                button.textContent = 'Auto';
+                button.textContent = t('auto_translate_btn');
             }
         }
 
@@ -523,7 +523,7 @@
             }
 
             if (items.length === 0) {
-                tbody.innerHTML = '<tr><td colspan="5" class="text-center py-8 opacity-50">Нет продуктов</td></tr>';
+                tbody.innerHTML = `<tr><td colspan="5" class="text-center py-8 opacity-50">${t('no_products')}</td></tr>`;
                 return;
             }
 
@@ -562,7 +562,7 @@
                             <input type="text"
                                 class="input input-bordered input-sm w-full"
                                 value="${item.placement}"
-                                placeholder="${t('placement_hint') || 'Холодильник, полка...'}"
+                                placeholder="${t('placement_hint')}"
                                 data-product-id="${product.id}"
                                 data-stock-id="${item.stockId || ''}"
                                 onchange="updatePlacement(this)"
@@ -656,7 +656,7 @@
             }
 
             if (items.length === 0) {
-                tbody.innerHTML = '<tr><td colspan="3" class="text-center py-8 opacity-50">Нет продуктов</td></tr>';
+                tbody.innerHTML = `<tr><td colspan="3" class="text-center py-8 opacity-50">${t('no_products')}</td></tr>`;
                 return;
             }
 

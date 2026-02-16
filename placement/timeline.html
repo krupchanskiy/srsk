@@ -6,7 +6,7 @@
     <script src="../js/color-init.js"></script>
 
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Шахматка — ШРСК</title>
+    <title data-i18n="timeline_page_title">Шахматка — ШРСК</title>
     <link rel="icon" type="image/svg+xml" href="/favicon.svg">
     <link href="https://cdn.jsdelivr.net/npm/daisyui@4.12.14/dist/full.min.css" rel="stylesheet" />
     <script src="https://cdn.tailwindcss.com"></script>
@@ -438,16 +438,16 @@
         <!-- Заголовок страницы -->
         <div class="flex justify-between items-center mb-4">
             <div class="flex items-center gap-4">
-                <h1 class="text-2xl font-bold">Шахматка</h1>
+                <h1 class="text-2xl font-bold" data-i18n="timeline_title">Шахматка</h1>
                 <!-- Навигация по месяцам -->
                 <div class="flex gap-2">
-                    <button class="btn btn-sm btn-ghost" onclick="shiftMonth(-1)" title="Месяц назад">
+                    <button class="btn btn-sm btn-ghost" onclick="shiftMonth(-1)" title="Месяц назад" data-i18n-title="timeline_prev_month">
                         <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7" />
                         </svg>
                     </button>
-                    <button class="btn btn-sm btn-ghost" onclick="resetToToday()" title="Сегодня">Сегодня</button>
-                    <button class="btn btn-sm btn-ghost" onclick="shiftMonth(1)" title="Месяц вперёд">
+                    <button class="btn btn-sm btn-ghost" onclick="resetToToday()" title="Сегодня" data-i18n-title="today" data-i18n="today">Сегодня</button>
+                    <button class="btn btn-sm btn-ghost" onclick="shiftMonth(1)" title="Месяц вперёд" data-i18n-title="timeline_next_month">
                         <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" />
                         </svg>
@@ -457,7 +457,7 @@
             <!-- Легенда -->
             <div class="flex items-center gap-4">
                 <div class="flex items-center gap-4" id="legend"></div>
-                <button class="btn btn-ghost btn-sm btn-square" onclick="toggleFullscreen(this)" title="На весь экран">
+                <button class="btn btn-ghost btn-sm btn-square" onclick="toggleFullscreen(this)" title="На весь экран" data-i18n-title="timeline_fullscreen">
                     <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 8V4m0 0h4M4 4l5 5m11-1V4m0 0h-4m4 0l-5 5M4 16v4m0 0h4m-4 0l5-5m11 5v-4m0 4h-4m4 0l-5-5" />
                     </svg>
@@ -490,7 +490,7 @@
         <div class="modal-box max-w-lg">
             <!-- Экран 1: Выбор действия -->
             <div id="actionScreen">
-                <h3 class="font-bold text-lg mb-4">Действие</h3>
+                <h3 class="font-bold text-lg mb-4" data-i18n="timeline_action">Действие</h3>
 
                 <!-- Информация о месте -->
                 <div class="text-sm text-gray-500 mb-4" id="modalLocation"></div>
@@ -499,13 +499,13 @@
                 <div class="grid grid-cols-2 gap-4 mb-6">
                     <div class="form-control">
                         <label class="label">
-                            <span class="label-text font-medium">Заезд</span>
+                            <span class="label-text font-medium" data-i18n="check_in">Заезд</span>
                         </label>
                         <input type="date" id="modalCheckIn" class="input input-bordered" />
                     </div>
                     <div class="form-control">
                         <label class="label">
-                            <span class="label-text font-medium">Выезд</span>
+                            <span class="label-text font-medium" data-i18n="check_out">Выезд</span>
                         </label>
                         <input type="date" id="modalCheckOut" class="input input-bordered" />
                     </div>
@@ -517,37 +517,37 @@
                         <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M18 9v3m0 0v3m0-3h3m-3 0h-3m-2-5a4 4 0 11-8 0 4 4 0 018 0zM3 20a6 6 0 0112 0v1H3v-1z" />
                         </svg>
-                        Заселить
+                        <span data-i18n="timeline_checkin">Заселить</span>
                     </button>
                     <button class="btn btn-info" onclick="showBookingForm()">
                         <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
                         </svg>
-                        Забронировать
+                        <span data-i18n="add_booking">Забронировать</span>
                     </button>
                     <button class="btn btn-warning" onclick="handleAction('cleaning')">
                         <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
                             <path stroke-linecap="round" stroke-linejoin="round" d="M5 3v4M3 5h4M6 17v4m-2-2h4m5-16l2.286 6.857L21 12l-5.714 2.143L13 21l-2.286-6.857L5 12l5.714-2.143L13 3z" />
                         </svg>
-                        Уборка
+                        <span data-i18n="timeline_cleaning">Уборка</span>
                     </button>
                     <button class="btn" style="background: #06b6d4; color: white; border: none;" onclick="handleAction('bedding')">
                         <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
                             <path stroke-linecap="round" stroke-linejoin="round" d="M4 6h16M4 10h16M4 14h16M4 18h16" />
                         </svg>
-                        Бельё
+                        <span data-i18n="timeline_bedding">Бельё</span>
                     </button>
                     <button class="btn btn-error" onclick="handleAction('repair')">
                         <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6V4m0 2a2 2 0 100 4m0-4a2 2 0 110 4m-6 8a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4m6 6v10m6-2a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4" />
                         </svg>
-                        Закрыть на ремонт
+                        <span data-i18n="timeline_close_for_repair">Закрыть на ремонт</span>
                     </button>
                 </div>
 
                 <div class="modal-action">
                     <form method="dialog">
-                        <button class="btn">Отмена</button>
+                        <button class="btn" data-i18n="cancel">Отмена</button>
                     </form>
                 </div>
             </div>
@@ -556,7 +556,7 @@
             <div id="checkinScreen" class="hidden">
                 <div class="flex items-center gap-2 mb-4">
                     <button class="btn btn-ghost btn-sm btn-circle" onclick="showActionScreen()">←</button>
-                    <h3 class="font-bold text-lg">Заселение</h3>
+                    <h3 class="font-bold text-lg" data-i18n="timeline_checkin_title">Заселение</h3>
                 </div>
 
                 <div class="text-sm text-gray-500 mb-4" id="checkinLocation"></div>
@@ -565,7 +565,7 @@
                     <!-- Категория -->
                     <div class="form-control mb-3">
                         <label class="label">
-                            <span class="label-text font-medium">Категория</span>
+                            <span class="label-text font-medium" data-i18n="timeline_category">Категория</span>
                         </label>
                         <select name="category_id" id="checkinCategory" class="select select-bordered w-full">
                             <option value="">—</option>
@@ -575,18 +575,18 @@
                     <!-- Выбор вайшнава -->
                     <div class="form-control mb-3">
                         <label class="label">
-                            <span class="label-text font-medium">Вайшнав</span>
+                            <span class="label-text font-medium" data-i18n="timeline_vaishnava">Вайшнав</span>
                         </label>
                         <div class="relative">
                             <input type="hidden" name="vaishnava_id" id="checkinVaishnavId" />
                             <input type="text" id="checkinVaishnavSearch" class="input input-bordered w-full pr-16"
-                                   placeholder="Поиск по имени..."
+                                   placeholder="Поиск по имени..." data-i18n-placeholder="timeline_search_by_name"
                                    autocomplete="off"
                                    oninput="searchVaishnavas(this.value)"
                                    onfocus="showVaishnavaSuggestions()" />
                             <div class="absolute right-2 top-1/2 -translate-y-1/2 flex gap-1">
                                 <button type="button" class="btn btn-ghost btn-xs hidden" id="clearVaishnava" onclick="clearVaishnavSelection()">✕</button>
-                                <a href="../vaishnavas/person.html" target="_blank" class="btn btn-ghost btn-xs" title="Добавить нового">+</a>
+                                <a href="../vaishnavas/person.html" target="_blank" class="btn btn-ghost btn-xs" title="Добавить нового" data-i18n-title="timeline_add_new">+</a>
                             </div>
                             <div id="vaishnavaSuggestions" class="hidden absolute z-50 w-full bg-base-100 shadow-lg rounded-lg mt-1 max-h-48 overflow-y-auto border"></div>
                         </div>
@@ -594,17 +594,17 @@
 
                     <!-- Данные нового гостя (если не выбран существующий) -->
                     <div id="guestFields">
-                        <div class="divider text-sm opacity-60">Или новый гость</div>
+                        <div class="divider text-sm opacity-60" data-i18n="timeline_or_new_guest">Или новый гость</div>
                         <div class="grid grid-cols-2 gap-3">
                             <div class="form-control">
                                 <label class="label py-1">
-                                    <span class="label-text">Имя</span>
+                                    <span class="label-text" data-i18n="timeline_guest_name">Имя</span>
                                 </label>
                                 <input type="text" name="guest_name" id="checkinGuestName" class="input input-bordered input-sm w-full" />
                             </div>
                             <div class="form-control">
                                 <label class="label py-1">
-                                    <span class="label-text">Телефон</span>
+                                    <span class="label-text" data-i18n="timeline_guest_phone">Телефон</span>
                                 </label>
                                 <input type="tel" name="guest_phone" class="input input-bordered input-sm w-full" />
                             </div>
@@ -616,22 +616,22 @@
                     <div class="grid grid-cols-2 gap-3">
                         <div class="form-control">
                             <label class="label py-1">
-                                <span class="label-text font-medium">Заезд</span>
+                                <span class="label-text font-medium" data-i18n="check_in">Заезд</span>
                             </label>
                             <input type="date" name="check_in" id="checkinDateIn" class="input input-bordered input-sm w-full" required />
                             <label class="label cursor-pointer justify-start gap-2 py-1">
                                 <input type="checkbox" name="early_checkin" class="checkbox checkbox-sm checkbox-primary" />
-                                <span class="label-text text-sm">Ранний заезд</span>
+                                <span class="label-text text-sm" data-i18n="timeline_early_checkin">Ранний заезд</span>
                             </label>
                         </div>
                         <div class="form-control">
                             <label class="label py-1">
-                                <span class="label-text font-medium">Выезд</span>
+                                <span class="label-text font-medium" data-i18n="check_out">Выезд</span>
                             </label>
                             <input type="date" name="check_out" id="checkinDateOut" class="input input-bordered input-sm w-full" />
                             <label class="label cursor-pointer justify-start gap-2 py-1">
                                 <input type="checkbox" name="late_checkout" class="checkbox checkbox-sm checkbox-primary" />
-                                <span class="label-text text-sm">Поздний выезд</span>
+                                <span class="label-text text-sm" data-i18n="timeline_late_checkout">Поздний выезд</span>
                             </label>
                         </div>
                     </div>
@@ -639,26 +639,26 @@
                     <!-- Питание -->
                     <div class="form-control mt-3">
                         <label class="label py-1">
-                            <span class="label-text font-medium">Питание</span>
+                            <span class="label-text font-medium" data-i18n="timeline_meal">Питание</span>
                         </label>
                         <select name="meal_type" class="select select-bordered select-sm w-full">
-                            <option value="prasad">С нами</option>
-                            <option value="child">Детское</option>
-                            <option value="self">Самостоятельно</option>
+                            <option value="prasad" data-i18n="timeline_meal_prasad">С нами</option>
+                            <option value="child" data-i18n="timeline_meal_child">Детское</option>
+                            <option value="self" data-i18n="timeline_meal_self">Самостоятельно</option>
                         </select>
                     </div>
 
                     <!-- Примечания -->
                     <div class="form-control mt-3">
                         <label class="label py-1">
-                            <span class="label-text">Примечания</span>
+                            <span class="label-text" data-i18n="timeline_notes">Примечания</span>
                         </label>
                         <textarea name="notes" rows="2" class="textarea textarea-bordered textarea-sm w-full"></textarea>
                     </div>
 
                     <div class="modal-action">
-                        <button type="button" class="btn btn-ghost" onclick="showActionScreen()">Назад</button>
-                        <button type="submit" class="btn btn-primary">Заселить</button>
+                        <button type="button" class="btn btn-ghost" onclick="showActionScreen()" data-i18n="back">Назад</button>
+                        <button type="submit" class="btn btn-primary" data-i18n="timeline_checkin">Заселить</button>
                     </div>
                 </form>
             </div>
@@ -667,7 +667,7 @@
             <div id="bookingScreen" class="hidden">
                 <div class="flex items-center gap-2 mb-4">
                     <button class="btn btn-ghost btn-sm btn-circle" onclick="showActionScreen()">←</button>
-                    <h3 class="font-bold text-lg">Бронирование</h3>
+                    <h3 class="font-bold text-lg" data-i18n="timeline_booking_title">Бронирование</h3>
                 </div>
 
                 <div class="text-sm text-gray-500 mb-4" id="bookingLocation"></div>
@@ -676,22 +676,22 @@
                     <!-- Название брони -->
                     <div class="form-control mb-3">
                         <label class="label py-1">
-                            <span class="label-text font-medium">Название брони</span>
+                            <span class="label-text font-medium" data-i18n="booking_name">Название брони</span>
                         </label>
-                        <input type="text" name="name" class="input input-bordered input-sm w-full" placeholder="Например: Группа из Москвы" />
+                        <input type="text" name="name" class="input input-bordered input-sm w-full" placeholder="Например: Группа из Москвы" data-i18n-placeholder="booking_name_placeholder" />
                     </div>
 
                     <!-- Контакт -->
                     <div class="grid grid-cols-2 gap-3 mb-3">
                         <div class="form-control">
                             <label class="label py-1">
-                                <span class="label-text font-medium">Контактное лицо</span>
+                                <span class="label-text font-medium" data-i18n="booking_contact_name">Контактное лицо</span>
                             </label>
                             <input type="text" name="contact_name" class="input input-bordered input-sm w-full" required />
                         </div>
                         <div class="form-control">
                             <label class="label py-1">
-                                <span class="label-text font-medium">Телефон</span>
+                                <span class="label-text font-medium" data-i18n="booking_contact_phone">Телефон</span>
                             </label>
                             <input type="tel" name="contact_phone" class="input input-bordered input-sm w-full" />
                         </div>
@@ -701,22 +701,22 @@
                     <div class="grid grid-cols-2 gap-3">
                         <div class="form-control">
                             <label class="label py-1">
-                                <span class="label-text font-medium">Заезд</span>
+                                <span class="label-text font-medium" data-i18n="check_in">Заезд</span>
                             </label>
                             <input type="date" name="check_in" id="bookingDateIn" class="input input-bordered input-sm w-full" required />
                             <label class="label cursor-pointer justify-start gap-2 py-1">
                                 <input type="checkbox" name="early_checkin" class="checkbox checkbox-sm checkbox-info" />
-                                <span class="label-text text-sm">Ранний заезд</span>
+                                <span class="label-text text-sm" data-i18n="timeline_early_checkin">Ранний заезд</span>
                             </label>
                         </div>
                         <div class="form-control">
                             <label class="label py-1">
-                                <span class="label-text font-medium">Выезд</span>
+                                <span class="label-text font-medium" data-i18n="check_out">Выезд</span>
                             </label>
                             <input type="date" name="check_out" id="bookingDateOut" class="input input-bordered input-sm w-full" required />
                             <label class="label cursor-pointer justify-start gap-2 py-1">
                                 <input type="checkbox" name="late_checkout" class="checkbox checkbox-sm checkbox-info" />
-                                <span class="label-text text-sm">Поздний выезд</span>
+                                <span class="label-text text-sm" data-i18n="timeline_late_checkout">Поздний выезд</span>
                             </label>
                         </div>
                     </div>
@@ -724,7 +724,7 @@
                     <!-- Количество мест -->
                     <div class="form-control mt-3">
                         <label class="label py-1">
-                            <span class="label-text font-medium">Количество мест</span>
+                            <span class="label-text font-medium" data-i18n="booking_beds_count">Количество мест</span>
                         </label>
                         <input type="number" name="beds_count" min="1" value="1" class="input input-bordered input-sm w-full" required />
                     </div>
@@ -732,14 +732,14 @@
                     <!-- Примечания -->
                     <div class="form-control mt-3">
                         <label class="label py-1">
-                            <span class="label-text">Примечания</span>
+                            <span class="label-text" data-i18n="timeline_notes">Примечания</span>
                         </label>
                         <textarea name="notes" rows="2" class="textarea textarea-bordered textarea-sm w-full"></textarea>
                     </div>
 
                     <div class="modal-action">
-                        <button type="button" class="btn btn-ghost" onclick="showActionScreen()">Назад</button>
-                        <button type="submit" class="btn btn-info">Забронировать</button>
+                        <button type="button" class="btn btn-ghost" onclick="showActionScreen()" data-i18n="back">Назад</button>
+                        <button type="submit" class="btn btn-info" data-i18n="add_booking">Забронировать</button>
                     </div>
                 </form>
             </div>
@@ -756,7 +756,7 @@
                 <svg class="w-5 h-5 text-gray-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
                     <path stroke-linecap="round" stroke-linejoin="round" d="M5 3v4M3 5h4M6 17v4m-2-2h4m5-16l2.286 6.857L21 12l-5.714 2.143L13 21l-2.286-6.857L5 12l5.714-2.143L13 3z"/>
                 </svg>
-                Уборка
+                <span data-i18n="timeline_cleaning">Уборка</span>
             </h3>
 
             <div class="text-sm text-gray-500 mb-4" id="cleaningModalLocation"></div>
@@ -765,13 +765,13 @@
             <div class="grid grid-cols-2 gap-4 mb-6">
                 <div class="form-control">
                     <label class="label py-1">
-                        <span class="label-text font-medium">Начало</span>
+                        <span class="label-text font-medium" data-i18n="timeline_start">Начало</span>
                     </label>
                     <input type="date" id="cleaningStartDate" class="input input-bordered input-sm" disabled />
                 </div>
                 <div class="form-control">
                     <label class="label py-1">
-                        <span class="label-text font-medium">Окончание</span>
+                        <span class="label-text font-medium" data-i18n="timeline_end">Окончание</span>
                     </label>
                     <input type="date" id="cleaningEndDate" class="input input-bordered input-sm" />
                 </div>
@@ -782,7 +782,7 @@
                 <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
                 </svg>
-                <span>Уборка выполнена</span>
+                <span data-i18n="timeline_cleaning_completed">Уборка выполнена</span>
             </div>
 
             <!-- Кнопки действий (скрываются для выполненных и без прав) -->
@@ -791,13 +791,13 @@
                     <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
                     </svg>
-                    Выполнена
+                    <span data-i18n="timeline_completed">Выполнена</span>
                 </button>
                 <button class="btn btn-info" onclick="extendCleaning()">
                     <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6v6l4 2m6-2a10 10 0 11-20 0 10 10 0 0120 0z" />
                     </svg>
-                    Продлить
+                    <span data-i18n="timeline_extend">Продлить</span>
                 </button>
             </div>
 
@@ -806,12 +806,12 @@
                 <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
                 </svg>
-                Удалить
+                <span data-i18n="delete">Удалить</span>
             </button>
 
             <div class="modal-action">
                 <form method="dialog">
-                    <button class="btn">Закрыть</button>
+                    <button class="btn" data-i18n="close">Закрыть</button>
                 </form>
             </div>
         </div>
@@ -825,7 +825,7 @@
         <div class="modal-box max-w-lg">
             <!-- Экран информации -->
             <div id="residentInfoScreen">
-                <h3 class="font-bold text-lg mb-2" id="residentModalTitle">Резидент</h3>
+                <h3 class="font-bold text-lg mb-2" id="residentModalTitle" data-i18n="timeline_resident">Резидент</h3>
                 <div class="text-sm text-gray-500 mb-4" id="residentModalLocation"></div>
 
                 <!-- Информация -->
@@ -836,7 +836,7 @@
 
                 <div class="modal-action">
                     <form method="dialog">
-                        <button class="btn">Закрыть</button>
+                        <button class="btn" data-i18n="close">Закрыть</button>
                     </form>
                 </div>
             </div>
@@ -845,18 +845,18 @@
             <div id="moveScreen" class="hidden">
                 <div class="flex items-center gap-2 mb-4">
                     <button class="btn btn-ghost btn-sm btn-circle" onclick="showResidentInfoScreen()">←</button>
-                    <h3 class="font-bold text-lg">Перенос в номер</h3>
+                    <h3 class="font-bold text-lg" data-i18n="timeline_move_to_room">Перенос в номер</h3>
                 </div>
 
                 <div class="text-sm text-gray-500 mb-4">
-                    Выберите новый номер для <span id="moveGuestName" class="font-medium"></span>
+                    <span data-i18n="timeline_select_new_room">Выберите новый номер для</span> <span id="moveGuestName" class="font-medium"></span>
                 </div>
 
                 <!-- Список зданий и номеров -->
                 <div class="max-h-64 overflow-y-auto space-y-2" id="roomsList"></div>
 
                 <div class="modal-action">
-                    <button class="btn btn-ghost" onclick="showResidentInfoScreen()">Отмена</button>
+                    <button class="btn btn-ghost" onclick="showResidentInfoScreen()" data-i18n="cancel">Отмена</button>
                 </div>
             </div>
 
@@ -864,7 +864,7 @@
             <div id="editDatesScreen" class="hidden">
                 <div class="flex items-center gap-2 mb-4">
                     <button class="btn btn-ghost btn-sm btn-circle" onclick="showResidentInfoScreen()">←</button>
-                    <h3 class="font-bold text-lg">Изменить даты</h3>
+                    <h3 class="font-bold text-lg" data-i18n="timeline_edit_dates">Изменить даты</h3>
                 </div>
 
                 <div class="text-sm text-gray-500 mb-4">
@@ -873,26 +873,26 @@
 
                 <div class="grid grid-cols-2 gap-4 mb-4">
                     <div class="form-control">
-                        <label class="label"><span class="label-text">Заезд</span></label>
+                        <label class="label"><span class="label-text" data-i18n="check_in">Заезд</span></label>
                         <input type="date" id="editCheckIn" class="input input-bordered">
                         <label class="label cursor-pointer justify-start gap-2 mt-1">
                             <input type="checkbox" id="editEarlyCheckin" class="checkbox checkbox-sm">
-                            <span class="label-text">Ранний заезд</span>
+                            <span class="label-text" data-i18n="timeline_early_checkin">Ранний заезд</span>
                         </label>
                     </div>
                     <div class="form-control">
-                        <label class="label"><span class="label-text">Выезд</span></label>
+                        <label class="label"><span class="label-text" data-i18n="check_out">Выезд</span></label>
                         <input type="date" id="editCheckOut" class="input input-bordered">
                         <label class="label cursor-pointer justify-start gap-2 mt-1">
                             <input type="checkbox" id="editLateCheckout" class="checkbox checkbox-sm">
-                            <span class="label-text">Поздний выезд</span>
+                            <span class="label-text" data-i18n="timeline_late_checkout">Поздний выезд</span>
                         </label>
                     </div>
                 </div>
 
                 <div class="modal-action">
-                    <button class="btn btn-ghost" onclick="showResidentInfoScreen()">Отмена</button>
-                    <button class="btn btn-primary" onclick="saveDates()">Сохранить</button>
+                    <button class="btn btn-ghost" onclick="showResidentInfoScreen()" data-i18n="cancel">Отмена</button>
+                    <button class="btn btn-primary" onclick="saveDates()" data-i18n="save">Сохранить</button>
                 </div>
             </div>
         </div>

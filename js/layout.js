@@ -268,6 +268,40 @@ function filterMenuByPermissions(menuConfig) {
     }).filter(section => section.items.length > 0); // Убрать пустые секции
 }
 
+// Проверка доступа к текущей странице (блокировка прямого перехода по URL)
+function checkPageAccess() {
+    if (!window.currentUser || window.currentUser.is_superuser) return;
+
+    const path = window.location.pathname.replace(/^\//, '');
+    const requiredPerm = pagePermissions[path];
+
+    // Если для страницы указано требуемое право и у пользователя его нет — редирект
+    if (requiredPerm && !window.hasPermission(requiredPerm)) {
+        console.warn('⛔ Нет доступа к', path, '— требуется', requiredPerm);
+        window.location.href = '/';
+    }
+}
+
+// Ждать завершения auth-check.js (если он подключён)
+function waitForAuth() {
+    if (window.currentUser) return Promise.resolve();
+    if (!window._authInProgress) return Promise.resolve();
+    return new Promise(resolve => {
+        window.addEventListener('authReady', resolve, { once: true });
+    });
+}
+
+// Найти первый доступный модуль (для автопереключения)
+function getFirstAccessibleModule() {
+    const order = ['kitchen', 'housing', 'crm', 'portal', 'admin'];
+    for (const id of order) {
+        if (id === 'admin' && !window.currentUser?.is_superuser) continue;
+        const config = filterMenuByPermissions(modules[id]?.menuConfig || []);
+        if (config.some(s => s.items.length > 0)) return id;
+    }
+    return null;
+}
+
 // Получить текущий menuConfig (с фильтрацией по правам)
 function getMenuConfig() {
     const baseConfig = modules[currentModule]?.menuConfig || modules.kitchen.menuConfig;
@@ -467,6 +501,12 @@ function updateAllTranslations() {
         const val = t(key);
         if (val !== key) el.placeholder = val;
     });
+
+    $$('[data-i18n-title]').forEach(el => {
+        const key = el.dataset.i18nTitle;
+        const val = t(key);
+        if (val !== key) el.title = val;
+    });
 }
 
 // ==================== HEADER HTML ====================
@@ -644,42 +684,56 @@ function buildLocationOptions() {
         // Очищаем содержимое
         el.replaceChildren();
 
-        // Добавляем локации (кухни)
-        locations.forEach(loc => {
-            const button = document.createElement('button');
-            button.className = 'w-full text-left px-4 py-2 hover:bg-base-200 text-base-content';
-            if (!isHousing && !isCrm && !isAdmin && loc.slug === currentLocation) {
-                button.classList.add('font-medium');
+        // Проверка кухонных прав
+        const kitchenPerms = ['view_menu', 'view_menu_templates', 'view_recipes', 'view_products',
+            'view_kitchen_dictionaries', 'view_stock', 'view_requests', 'receive_stock',
+            'issue_stock', 'conduct_inventory', 'view_stock_settings'];
+        const hasKitchenAccess = !window.hasPermission || kitchenPerms.some(p => window.hasPermission(p));
+
+        if (hasKitchenAccess) {
+            // Добавляем локации (кухни)
+            locations.forEach(loc => {
+                const button = document.createElement('button');
+                button.className = 'w-full text-left px-4 py-2 hover:bg-base-200 text-base-content';
+                if (!isHousing && !isCrm && !isAdmin && loc.slug === currentLocation) {
+                    button.classList.add('font-medium');
+                }
+                button.dataset.loc = loc.slug;
+                button.textContent = getName(loc); // безопасно
+                el.appendChild(button);
+            });
+
+            // Разделитель
+            const divider = document.createElement('div');
+            divider.className = 'border-t border-base-200 my-1';
+            el.appendChild(divider);
+        }
+
+        // Кнопка "Проживание" — только если есть хотя бы одно право на размещение
+        const housingPerms = ['view_timeline', 'view_bookings', 'view_arrivals', 'view_departures',
+            'view_transfers', 'view_floor_plan', 'view_cleaning', 'view_rooms', 'view_buildings'];
+        if (!window.hasPermission || housingPerms.some(p => window.hasPermission(p))) {
+            const housingBtn = document.createElement('button');
+            housingBtn.className = 'w-full text-left px-4 py-2 hover:bg-base-200 text-base-content cursor-pointer';
+            if (isHousing) {
+                housingBtn.classList.add('font-medium');
             }
-            button.dataset.loc = loc.slug;
-            button.textContent = getName(loc); // безопасно
-            el.appendChild(button);
-        });
-
-        // Разделитель
-        const divider = document.createElement('div');
-        divider.className = 'border-t border-base-200 my-1';
-        el.appendChild(divider);
-
-        // Кнопка "Проживание"
-        const housingBtn = document.createElement('button');
-        housingBtn.className = 'w-full text-left px-4 py-2 hover:bg-base-200 text-base-content cursor-pointer';
-        if (isHousing) {
-            housingBtn.classList.add('font-medium');
+            housingBtn.dataset.module = 'housing';
+            housingBtn.textContent = t('module_housing'); // безопасно
+            el.appendChild(housingBtn);
         }
-        housingBtn.dataset.module = 'housing';
-        housingBtn.textContent = t('module_housing'); // безопасно
-        el.appendChild(housingBtn);
 
-        // Кнопка "CRM"
-        const crmBtn = document.createElement('button');
-        crmBtn.className = 'w-full text-left px-4 py-2 hover:bg-base-200 text-base-content cursor-pointer';
-        if (isCrm) {
-            crmBtn.classList.add('font-medium');
+        // Кнопка "CRM" — только если есть view_crm
+        if (!window.hasPermission || window.hasPermission('view_crm')) {
+            const crmBtn = document.createElement('button');
+            crmBtn.className = 'w-full text-left px-4 py-2 hover:bg-base-200 text-base-content cursor-pointer';
+            if (isCrm) {
+                crmBtn.classList.add('font-medium');
+            }
+            crmBtn.dataset.module = 'crm';
+            crmBtn.textContent = t('module_crm'); // безопасно
+            el.appendChild(crmBtn);
         }
-        crmBtn.dataset.module = 'crm';
-        crmBtn.textContent = t('module_crm'); // безопасно
-        el.appendChild(crmBtn);
 
         // Кнопка "Фото" — только для пользователей с upload_photos
         if (window.hasPermission && window.hasPermission('upload_photos')) {
@@ -693,15 +747,17 @@ function buildLocationOptions() {
             el.appendChild(photosBtn);
         }
 
-        // Кнопка "Профиль гостя"
-        const portalBtn = document.createElement('button');
-        portalBtn.className = 'w-full text-left px-4 py-2 hover:bg-base-200 text-base-content cursor-pointer';
-        if (currentModule === 'portal') {
-            portalBtn.classList.add('font-medium');
+        // Кнопка "Профиль гостя" — только если есть edit_portal_materials
+        if (!window.hasPermission || window.hasPermission('edit_portal_materials')) {
+            const portalBtn = document.createElement('button');
+            portalBtn.className = 'w-full text-left px-4 py-2 hover:bg-base-200 text-base-content cursor-pointer';
+            if (currentModule === 'portal') {
+                portalBtn.classList.add('font-medium');
+            }
+            portalBtn.dataset.module = 'portal';
+            portalBtn.textContent = t('module_portal'); // безопасно
+            el.appendChild(portalBtn);
         }
-        portalBtn.dataset.module = 'portal';
-        portalBtn.textContent = t('module_portal'); // безопасно
-        el.appendChild(portalBtn);
 
         // Кнопка "Управление" — только для суперпользователей
         if (window.currentUser?.is_superuser) {
@@ -787,17 +843,26 @@ function buildSubmenuBar() {
     }
 }
 
+// Перестроение desktop навигации (вызывается при смене языка/прав)
+function buildMainNav() {
+    const nav = $('#mainNav');
+    if (!nav) return;
+    const menuConfig = getMenuConfig();
+    nav.innerHTML = menuConfig.map(({ id, items }) => {
+        if (items.length === 1) {
+            return `<a href="${adjustHref(items[0].href)}" class="nav-link px-5 py-6 text-base font-semibold tracking-wide uppercase ${id === currentPage.menuId ? 'active' : 'opacity-60'}" data-menu-id="${id}">${t('nav_' + id)}</a>`;
+        }
+        return `<a href="#" class="nav-link px-5 py-6 text-base font-semibold tracking-wide uppercase ${id === currentPage.menuId ? 'active' : 'opacity-60'}" data-submenu="${id}" data-menu-id="${id}">${t('nav_' + id)}</a>`;
+    }).join('');
+}
+
 // ==================== LANGUAGE UPDATE ====================
 function updateHeaderLanguage() {
     // Обновляем все элементы с data-i18n (включая app_name)
     updateAllTranslations();
 
-    // Обновляем главное меню (используем ключи nav_kitchen, nav_stock, etc.)
-    $$('.nav-link[data-menu-id]').forEach(link => {
-        const menuId = link.dataset.menuId;
-        const key = `nav_${menuId}`;
-        link.textContent = t(key);
-    });
+    // Перестраиваем desktop навигацию (с учётом прав и языка)
+    buildMainNav();
 
     // Обновляем название в селекторе
     if (currentModule === 'housing') {
@@ -1040,20 +1105,20 @@ function initHeaderEvents() {
         }
     });
 
-    // Desktop nav
-    $$('.nav-link').forEach(link => {
-        link.addEventListener('click', e => {
+    // Desktop nav (делегирование — buildMainNav() перезаписывает innerHTML)
+    const mainNav = $('#mainNav');
+    if (mainNav) {
+        mainNav.addEventListener('click', e => {
+            const link = e.target.closest('.nav-link');
+            if (!link) return;
             const submenuId = link.dataset.submenu;
 
             // Single-item menus: allow navigation (don't preventDefault)
-            if (!submenuId) {
-                // Let the link navigate normally
-                return;
-            }
+            if (!submenuId) return;
 
             // Multi-item menus: show submenu
             e.preventDefault();
-            $$('.nav-link').forEach(l => { l.classList.remove('active'); l.classList.add('opacity-60'); });
+            $$('.nav-link', mainNav).forEach(l => { l.classList.remove('active'); l.classList.add('opacity-60'); });
             link.classList.add('active');
             link.classList.remove('opacity-60');
 
@@ -1068,7 +1133,7 @@ function initHeaderEvents() {
                 $('#submenuBar').classList.add('hidden');
             }
         });
-    });
+    }
 
     // Language switcher
     $$('.lang-btn').forEach(btn => {
@@ -1120,10 +1185,26 @@ async function initLayout(page = { module: null, menuId: 'kitchen', itemId: null
 
     currentPage = page;
 
-    // Сначала загружаем переводы из БД
-    await loadTranslations();
+    // Ждём переводы и авторизацию параллельно
+    await Promise.all([loadTranslations(), waitForAuth()]);
 
-    // Вставляем хедер
+    // Автовыбор доступного модуля (если текущий недоступен)
+    if (window.currentUser && !window.currentUser.is_superuser) {
+        const config = filterMenuByPermissions(modules[currentModule]?.menuConfig || []);
+        const hasAccess = config.some(s => s.items.length > 0);
+        if (!hasAccess) {
+            const accessible = getFirstAccessibleModule();
+            if (accessible) {
+                currentModule = accessible;
+                localStorage.setItem('srsk_module', currentModule);
+            }
+        }
+    }
+
+    // Проверка доступа к текущей странице
+    checkPageAccess();
+
+    // Вставляем хедер (уже с правильной фильтрацией по правам)
     const headerPlaceholder = $('#header-placeholder');
     if (headerPlaceholder) {
         headerPlaceholder.outerHTML = getHeaderHTML();
@@ -1160,16 +1241,6 @@ async function initLayout(page = { module: null, menuId: 'kitchen', itemId: null
     buildSubmenuBar();
     initHeaderEvents();
     updateUserInfo();
-
-    // Если auth ещё не готов — перестроить меню после авторизации (фильтрация по правам)
-    if (!window.currentUser) {
-        window.addEventListener('authReady', () => {
-            buildLocationOptions();
-            buildMobileMenu();
-            buildSubmenuBar();
-            updateUserInfo();
-        }, { once: true });
-    }
 
     // На главной странице (без menuId) скрываем селектор локаций
     if (!page.menuId) {
@@ -1222,6 +1293,15 @@ function formatQuantity(amount, unit) {
     return Math.ceil(amount * 100) / 100;
 }
 
+// Заменить битое изображение на заглушку с инициалами
+window.replacePhotoWithPlaceholder = function(img) {
+    const initials = img.dataset.initials || '?';
+    const placeholder = document.createElement('div');
+    placeholder.className = 'w-10 h-10 rounded-full bg-gradient-to-br from-purple-500 to-pink-500 flex items-center justify-center text-white font-semibold';
+    placeholder.textContent = initials;
+    img.replaceWith(placeholder);
+};
+
 // Открыть модальное окно с фотографией
 function openPhotoModal(photoUrl) {
     if (!photoUrl) return;
@@ -1239,14 +1319,14 @@ async function logout() {
         const { error } = await db.auth.signOut();
         if (error) {
             console.error('Logout error:', error);
-            showNotification('Ошибка выхода', 'error');
+            showNotification(t('layout_logout_error'), 'error');
             return;
         }
         // Редирект на страницу логина
         window.location.href = '/login.html';
     } catch (err) {
         console.error('Logout exception:', err);
-        showNotification('Ошибка выхода', 'error');
+        showNotification(t('layout_logout_error'), 'error');
     }
 }
 
@@ -1269,6 +1349,7 @@ window.Layout = {
     escapeHtml,
     updateAllTranslations,
     switchModule,
+    buildMainNav,
     showLoader,
     hideLoader,
     showNotification,

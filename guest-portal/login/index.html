@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Вход | Rupa Seva</title>
+    <title data-i18n="portal_page_title_login">Вход | Rupa Seva</title>
     <link rel="icon" type="image/svg+xml" href="/favicon.svg">
 
     <!-- Tailwind CSS -->
@@ -438,6 +438,30 @@
             }
         }
 
+        // Проверка: есть ли у пользователя права сверх базовых гостевых
+        async function checkHasOperationalPermissions(userId, isSuperuser) {
+            if (isSuperuser) return true;
+
+            try {
+                const { data: userPerms, error } = await db
+                    .rpc('get_user_permissions', { p_user_id: userId });
+
+                if (error) {
+                    console.error('[Login] Permissions check error:', error);
+                    return false;
+                }
+
+                const guestOnlyPerms = new Set(['view_own_profile', 'edit_own_profile', 'view_own_bookings']);
+                const permissions = userPerms ? userPerms.map(p => p.permission_code) : [];
+
+                // Есть права сверх базовых гостевых → операционный доступ
+                return permissions.length > 0 && !permissions.every(p => guestOnlyPerms.has(p));
+            } catch (e) {
+                console.error('[Login] Permissions check exception:', e);
+                return false;
+            }
+        }
+
         // Обработка формы
         async function handleLogin(e) {
             e.preventDefault();
@@ -467,7 +491,7 @@
                 // Проверяем пользователя
                 const { data: vaishnava, error: userError } = await db
                     .from('vaishnavas')
-                    .select('user_type, is_active, is_team_member')
+                    .select('user_type, is_active, is_superuser, approval_status')
                     .eq('user_id', data.user.id)
                     .maybeSingle();
 
@@ -491,16 +515,31 @@
                     return;
                 }
 
-                // Успешно! Редирект в зависимости от типа
+                if (vaishnava.approval_status === 'pending') {
+                    window.location.href = '/pending-approval.html';
+                    return;
+                }
+
+                if (vaishnava.approval_status === 'rejected' || vaishnava.approval_status === 'blocked') {
+                    await db.auth.signOut();
+                    showError('error_account_disabled');
+                    return;
+                }
+
+                // Определяем куда перенаправлять по правам пользователя
                 const redirect = new URLSearchParams(window.location.search).get('redirect');
-                if (redirect) {
+                if (redirect && redirect.startsWith('/') && !redirect.startsWith('//')) {
                     window.location.href = redirect;
-                } else if (vaishnava.is_team_member) {
-                    // Команда → полное приложение
-                    window.location.href = '/';
                 } else {
-                    // Гость → гостевой портал
-                    window.location.href = '/guest-portal/';
+                    // Проверяем есть ли у пользователя права сверх базовых гостевых
+                    const hasOperationalPerms = await checkHasOperationalPermissions(data.user.id, vaishnava.is_superuser);
+                    if (hasOperationalPerms) {
+                        // Есть права — полное приложение
+                        window.location.href = '/';
+                    } else {
+                        // Только базовые права — гостевой портал
+                        window.location.href = '/guest-portal/';
+                    }
                 }
 
             } catch (error) {
@@ -539,17 +578,22 @@
                 // Проверяем есть ли пользователь в vaishnavas
                 const { data: vaishnava } = await db
                     .from('vaishnavas')
-                    .select('user_type, is_active, is_team_member')
+                    .select('user_type, is_active, is_superuser, approval_status')
                     .eq('user_id', session.user.id)
                     .single();
 
-                if (vaishnava && vaishnava.is_active !== false) {
-                    // Уже залогинен — редирект по типу
-                    if (vaishnava.is_team_member) {
+                if (vaishnava && vaishnava.is_active !== false && vaishnava.approval_status === 'approved') {
+                    // Уже залогинен и одобрен — редирект по правам
+                    const hasOperationalPerms = await checkHasOperationalPermissions(session.user.id, vaishnava.is_superuser);
+                    if (hasOperationalPerms) {
                         window.location.href = '/';
                     } else {
                         window.location.href = '/guest-portal/';
                     }
+                    return;
+                }
+                if (vaishnava && vaishnava.approval_status === 'pending') {
+                    window.location.href = '/pending-approval.html';
                     return;
                 }
             }

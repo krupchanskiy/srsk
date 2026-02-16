@@ -307,7 +307,7 @@
             // Для плотностей показываем поиск, для остальных — количество
             const leftPanel = currentTab === 'product_densities'
                 ? `<input type="text" id="densitySearchInput" class="input input-bordered input-sm w-64"
-                         placeholder="${t('search_product') || 'Поиск продукта...'}"
+                         placeholder="${t('search_product')}"
                          value="${densityFilter}"
                          oninput="filterDensities(this.value)" />`
                 : `<span class="text-sm opacity-60">${rows.length} ${t('items')}</span>`;
@@ -373,7 +373,7 @@
                         <div>
                             <label class="label"><span class="label-text font-medium">${label}</span></label>
                             <select name="${field.name}" id="productSelect" class="select select-bordered w-full" ${required} ${disabled}>
-                                <option value="">${t('select_product') || 'Выберите продукт...'}</option>
+                                <option value="">${t('select_product')}</option>
                                 ${options}
                             </select>
                             ${item ? `<input type="hidden" name="${field.name}" value="${value}" />` : ''}
@@ -410,7 +410,7 @@
 
         async function openAddModal() {
             if (!window.hasPermission || !window.hasPermission('edit_kitchen_dictionaries')) {
-                Layout.showNotification('Недостаточно прав', 'error');
+                Layout.showNotification(t('insufficient_permissions'), 'error');
                 return;
             }
             const config = tableConfig[currentTab];
@@ -428,7 +428,7 @@
 
         async function openEditModal(id) {
             if (!window.hasPermission || !window.hasPermission('edit_kitchen_dictionaries')) {
-                Layout.showNotification('Недостаточно прав', 'error');
+                Layout.showNotification(t('insufficient_permissions'), 'error');
                 return;
             }
             const config = tableConfig[currentTab];
@@ -506,7 +506,7 @@
 
         async function deleteItem(id) {
             if (!window.hasPermission || !window.hasPermission('edit_kitchen_dictionaries')) {
-                Layout.showNotification('Недостаточно прав', 'error');
+                Layout.showNotification(t('insufficient_permissions'), 'error');
                 return;
             }
             if (!confirm(t('confirm_delete'))) return;

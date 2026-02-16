@@ -114,10 +114,10 @@ async function loadDepartments() {
             if (error) { console.error('Error loading departments:', error); return null; }
             return data;
         }),
-        Layout.db.from('vaishnavas').select('id, spiritual_name, first_name, last_name')
-            .eq('is_team_member', true).eq('is_deleted', false).order('spiritual_name'),
-        Layout.db.from('vaishnavas').select('spiritual_teacher')
-            .not('spiritual_teacher', 'is', null).eq('is_deleted', false),
+        Utils.fetchAll((from, to) => Layout.db.from('vaishnavas').select('id, spiritual_name, first_name, last_name')
+            .eq('is_team_member', true).eq('is_deleted', false).order('spiritual_name').range(from, to)),
+        Utils.fetchAll((from, to) => Layout.db.from('vaishnavas').select('spiritual_teacher')
+            .not('spiritual_teacher', 'is', null).eq('is_deleted', false).range(from, to)),
         Layout.db.from('spiritual_teachers').select('name_ru, name_en').order('sort_order')
     ]);
     departments = deptData || [];
@@ -240,7 +240,7 @@ function renderPerson() {
         if (dept) {
             badges.push(`<span class="badge" style="background-color: ${dept.color}20; color: ${dept.color}; border-color: ${dept.color}">${Layout.getName(dept)}</span>`);
         } else {
-            badges.push(`<span class="badge badge-primary">${t('team_member') || 'Команда'}</span>`);
+            badges.push(`<span class="badge badge-primary">${t('team_member')}</span>`);
         }
     }
     badgesEl.innerHTML = badges.join('');
@@ -287,8 +287,8 @@ function renderPerson() {
     document.getElementById('editPassport').value = person.passport || '';
 
     // Виза
-    const visaTypes = { tourist: 'Туристическая', business: 'Бизнес', volunteer: 'Волонтёрская', religious: 'Религиозная', other: 'Другая' };
-    document.getElementById('viewVisaType').textContent = visaTypes[person.visa_type] || '—';
+    const visaTypes = { tourist: t('person_visa_tourist'), business: t('person_visa_business'), volunteer: t('person_visa_volunteer'), religious: t('person_visa_religious'), other: t('person_visa_other') };
+    document.getElementById('viewVisaType').textContent = person.visa_type ? (visaTypes[person.visa_type] || '—') : '—';
     document.getElementById('editVisaType').value = person.visa_type || '';
     document.getElementById('viewVisaExpiry').textContent = person.visa_expiry ? formatDate(person.visa_expiry) : '—';
     document.getElementById('editVisaExpiry').value = person.visa_expiry || '';
@@ -299,7 +299,7 @@ function renderPerson() {
     document.getElementById('editIndianPhoneWhatsapp').checked = person.indian_phone_whatsapp || false;
     document.getElementById('viewIndianPhoneWhatsapp').classList.toggle('hidden', !person.indian_phone_whatsapp);
 
-    document.getElementById('teamBadgeView').textContent = person.is_team_member ? (t('yes') || 'Да') : (t('no') || 'Нет');
+    document.getElementById('teamBadgeView').textContent = person.is_team_member ? t('yes') : t('no');
 
     // Show/hide team-specific sections
     toggleTeamSections();
@@ -413,13 +413,8 @@ function populateSeniorsSelect() {
     const filtered = teamMembers.filter(m => m.id !== currentId);
     select.innerHTML = '<option value="">—</option>' +
         filtered.map(m => {
-            const name = m.spiritual_name || `${m.first_name || ''} ${m.last_name || ''}`.trim() || '—';
-            return `<option value="${m.id}">${name}</option>`;
+            return `<option value="${m.id}">${getVaishnavName(m)}</option>`;
         }).join('');
-}
-
-function getVaishnavName(v) {
-    return v.spiritual_name || `${v.first_name || ''} ${v.last_name || ''}`.trim() || '—';
 }
 
 // ===== Автокомплит духовного учителя =====
@@ -481,8 +476,7 @@ function formatFlightDateTime(datetime, fallbackNotes) {
     // БД хранит локальное время как UTC в TIMESTAMPTZ — убираем таймзону
     const date = new Date(datetime.slice(0, 16));
     const day = date.getDate();
-    const monthNames = ['янв', 'фев', 'мар', 'апр', 'май', 'июн', 'июл', 'авг', 'сен', 'окт', 'ноя', 'дек'];
-    const month = monthNames[date.getMonth()];
+    const month = DateUtils.monthNamesShort.ru[date.getMonth()];
     const hours = date.getHours().toString().padStart(2, '0');
     const minutes = date.getMinutes().toString().padStart(2, '0');
     return `${day} ${month}, ${hours}:${minutes}`;
@@ -501,7 +495,7 @@ function openGuestPortal() {
 
 function enterEditMode() {
     if (!canEditProfile()) {
-        Layout.showNotification(t('no_permission') || 'Недостаточно прав', 'error');
+        Layout.showNotification(t('no_permission'), 'error');
         return;
     }
     isEditMode = true;
@@ -550,7 +544,7 @@ async function savePerson() {
     };
 
     if (!updateData.first_name && !updateData.spiritual_name) {
-        Layout.showNotification(t('name_or_spiritual_required') || 'Укажите имя или духовное имя', 'warning');
+        Layout.showNotification(t('name_or_spiritual_required'), 'warning');
         if (saveBtn) saveBtn.classList.remove('loading');
         return;
     }
@@ -566,7 +560,7 @@ async function savePerson() {
 
     if (error) {
         console.error('Error saving:', error);
-        Layout.showNotification(t('error_saving') || 'Ошибка сохранения', 'error');
+        Layout.showNotification(t('error_saving'), 'error');
         return;
     }
 
@@ -580,11 +574,11 @@ async function savePerson() {
 async function deletePerson() {
     // Удаление требует права edit_vaishnava
     if (!window.hasPermission || !window.hasPermission('edit_vaishnava')) {
-        Layout.showNotification(t('no_permission') || 'Недостаточно прав', 'error');
+        Layout.showNotification(t('no_permission'), 'error');
         return;
     }
 
-    const confirmed = await ModalUtils.confirm(t('confirm_delete') || 'Удалить?');
+    const confirmed = await ModalUtils.confirm(t('confirm_delete'));
     if (!confirmed) return;
 
     const { error } = await Layout.db
@@ -634,7 +628,7 @@ function renderStays() {
         else stayClass += ' stay-past';
 
         const dateDisplay = isPermanent
-            ? 'Находится в ШРСК'
+            ? t('person_at_srsk')
             : `${formatDate(stay.start_date)} — ${formatDate(stay.end_date)}`;
 
         return `
@@ -644,8 +638,8 @@ function renderStays() {
                         <div class="font-medium">${dateDisplay}</div>
                         ${stay.comment ? `<div class="text-sm opacity-60 mt-1">${stay.comment}</div>` : ''}
                     </div>
-                    ${isCurrent ? `<span class="badge badge-success badge-sm">${t('here_now') || 'Здесь'}</span>` : ''}
-                    ${isFuture ? `<span class="badge badge-info badge-sm">${t('planned') || 'План'}</span>` : ''}
+                    ${isCurrent ? `<span class="badge badge-success badge-sm">${t('here_now')}</span>` : ''}
+                    ${isFuture ? `<span class="badge badge-info badge-sm">${t('planned')}</span>` : ''}
                 </div>
             </div>
         `;
@@ -697,10 +691,10 @@ function openStayModal(stayId = null) {
             form.querySelector('[name="early_checkin"]').checked = stay.early_checkin || false;
             form.querySelector('[name="late_checkout"]').checked = stay.late_checkout || false;
         }
-        document.getElementById('stayModalTitle').textContent = t('edit_stay') || 'Редактировать';
+        document.getElementById('stayModalTitle').textContent = t('edit_stay');
         document.querySelectorAll('.edit-stay-only').forEach(el => el.classList.remove('hidden'));
     } else {
-        document.getElementById('stayModalTitle').textContent = t('add_stay') || 'Добавить';
+        document.getElementById('stayModalTitle').textContent = t('add_stay');
         document.querySelectorAll('.edit-stay-only').forEach(el => el.classList.add('hidden'));
     }
 
@@ -746,7 +740,7 @@ async function saveStay(event) {
 
 async function deleteStay() {
     if (!editingStayId) return;
-    const confirmed = await ModalUtils.confirm(t('confirm_delete') || 'Удалить?');
+    const confirmed = await ModalUtils.confirm(t('confirm_delete'));
     if (!confirmed) return;
 
     const { error } = await Layout.db.from('vaishnava_stays').delete().eq('id', editingStayId);
@@ -796,7 +790,7 @@ async function openAddRetreatModal() {
     const unregisteredRetreats = availableRetreats.filter(r => !registeredRetreatIds.includes(r.id));
 
     // Заполняем select
-    select.innerHTML = '<option value="">' + (t('select_retreat') || 'Выберите ретрит...') + '</option>';
+    select.innerHTML = '<option value="">' + t('select_retreat') + '</option>';
     unregisteredRetreats.forEach(retreat => {
         const option = document.createElement('option');
         option.value = retreat.id;
@@ -823,7 +817,7 @@ async function saveRetreatRegistration(event) {
     const orgNotes = document.getElementById('retreatOrgNotes').value.trim() || null;
 
     if (!retreatId) {
-        Layout.showNotification(t('select_retreat') || 'Выберите ретрит', 'warning');
+        Layout.showNotification(t('select_retreat'), 'warning');
         return;
     }
 
@@ -840,7 +834,7 @@ async function saveRetreatRegistration(event) {
 
     if (error) {
         console.error('Error saving registration:', error);
-        Layout.showNotification((t('error_saving') || 'Ошибка сохранения') + ': ' + error.message, 'error');
+        Layout.showNotification(t('error_saving') + ': ' + error.message, 'error');
         return;
     }
 
@@ -906,7 +900,7 @@ function renderPermanentResident() {
     const cat = res.resident_categories;
     const roomInfo = res.rooms
         ? `${res.rooms.buildings ? Layout.getName(res.rooms.buildings) + ', ' : ''}${res.rooms.number}`
-        : (t('self_accommodation') || 'Самостоятельно');
+        : t('self_accommodation');
 
     const catOptionsHtml = residentCategories.map(c =>
         `<option value="${c.id}" ${c.id === res.category_id ? 'selected' : ''}>${Layout.getName(c)}</option>`
@@ -917,37 +911,37 @@ function renderPermanentResident() {
     content.innerHTML = `
         <div class="flex flex-col gap-3">
             <div class="flex items-center gap-2">
-                <span class="opacity-60 text-sm">Комната:</span>
+                <span class="opacity-60 text-sm">${t('person_room')}:</span>
                 <span class="font-medium ${res.room_id ? 'text-success' : 'text-error'}">${roomInfo}</span>
             </div>
             <div class="grid grid-cols-2 gap-3">
                 <div>
-                    <span class="opacity-60 text-xs">Заезд</span>
+                    <span class="opacity-60 text-xs">${t('person_check_in')}</span>
                     <input type="date" class="input input-bordered input-sm w-full" id="permResCheckIn" value="${res.check_in || ''}" onchange="savePermanentResidentDates()" />
                 </div>
                 <div>
-                    <span class="opacity-60 text-xs">Выезд</span>
+                    <span class="opacity-60 text-xs">${t('person_check_out')}</span>
                     <div class="flex items-center gap-2">
                         <input type="date" class="input input-bordered input-sm flex-1" id="permResCheckOut" value="${isPermanent ? '' : (res.check_out || '')}" ${isPermanent ? 'disabled' : ''} onchange="savePermanentResidentDates()" />
                         <label class="flex items-center gap-1 cursor-pointer whitespace-nowrap">
                             <input type="checkbox" class="checkbox checkbox-xs" id="permResPermanent" ${isPermanent ? 'checked' : ''} onchange="togglePermanentResidentCheckout(this.checked)" />
-                            <span class="text-xs opacity-60">постоянно</span>
+                            <span class="text-xs opacity-60">${t('person_permanent')}</span>
                         </label>
                     </div>
                 </div>
             </div>
             <div class="flex items-center gap-2">
-                <span class="opacity-60 text-sm" data-i18n="category">${t('category') || 'Категория'}</span>
+                <span class="opacity-60 text-sm" data-i18n="category">${t('category')}</span>
                 ${cat ? `<span class="badge badge-sm" style="background-color: ${cat.color}20; color: ${cat.color}; border-color: ${cat.color}">${Layout.getName(cat)}</span>` : ''}
                 <select class="select select-xs select-bordered" id="permanentResidentCategory" onchange="changePermanentResidentCategory(this.value)">
                     ${catOptionsHtml}
                 </select>
             </div>
             <div class="flex items-center gap-2">
-                <span class="opacity-60 text-sm">${t('meal_type') || 'Питание'}</span>
+                <span class="opacity-60 text-sm">${t('meal_type')}</span>
                 <label class="flex items-center gap-2 cursor-pointer">
                     <input type="checkbox" class="checkbox checkbox-sm checkbox-success" id="permResMeals" ${res.has_meals ? 'checked' : ''} onchange="changePermanentResidentMeals(this.checked)" />
-                    <span class="text-sm">${t('meal_type_prasad') || 'Питается с нами'}</span>
+                    <span class="text-sm">${t('meal_type_prasad')}</span>
                 </label>
             </div>
         </div>
@@ -986,7 +980,7 @@ async function savePermanentResidentDates() {
         permanentResident.check_out = checkOut;
     } catch (err) {
         console.error('Error saving dates:', err);
-        Layout.showNotification((t('error_saving') || 'Ошибка сохранения') + ': ' + err.message, 'error');
+        Layout.showNotification(t('error_saving') + ': ' + err.message, 'error');
     }
 }
 
@@ -1003,7 +997,7 @@ async function changePermanentResidentCategory(categoryId) {
         await loadPermanentResident(person.id);
     } catch (err) {
         console.error('Error changing category:', err);
-        Layout.showNotification((t('error_saving') || 'Ошибка сохранения') + ': ' + err.message, 'error');
+        Layout.showNotification(t('error_saving') + ': ' + err.message, 'error');
     }
 }
 
@@ -1020,7 +1014,7 @@ async function changePermanentResidentMeals(hasMeals) {
         permanentResident.has_meals = hasMeals;
     } catch (err) {
         console.error('Error changing meals:', err);
-        Layout.showNotification((t('error_saving') || 'Ошибка сохранения') + ': ' + err.message, 'error');
+        Layout.showNotification(t('error_saving') + ': ' + err.message, 'error');
     }
 }
 
@@ -1076,7 +1070,7 @@ async function changeResidentDate(residentId, field, value) {
         }
     } catch (err) {
         console.error('Error saving date:', err);
-        Layout.showNotification((t('error_saving') || 'Ошибка сохранения') + ': ' + err.message, 'error');
+        Layout.showNotification(t('error_saving') + ': ' + err.message, 'error');
     }
 }
 
@@ -1093,7 +1087,7 @@ async function changeResidentCategory(residentId, categoryId) {
         await loadRegistrations(person.id);
     } catch (err) {
         console.error('Error changing category:', err);
-        Layout.showNotification((t('error_saving') || 'Ошибка сохранения') + ': ' + err.message, 'error');
+        Layout.showNotification(t('error_saving') + ': ' + err.message, 'error');
     }
 }
 
@@ -1116,7 +1110,7 @@ async function changeResidentMeals(residentId, hasMeals) {
         }
     } catch (err) {
         console.error('Error changing meals:', err);
-        Layout.showNotification((t('error_saving') || 'Ошибка сохранения') + ': ' + err.message, 'error');
+        Layout.showNotification(t('error_saving') + ': ' + err.message, 'error');
     }
 }
 
@@ -1148,7 +1142,7 @@ function addHoursToDatetime(datetimeStr, hours) {
 function formatDatetimeShort(datetimeStr) {
     if (!datetimeStr) return '—';
     const d = new Date(datetimeStr.slice(0, 16));
-    const months = ['янв', 'фев', 'мар', 'апр', 'май', 'июн', 'июл', 'авг', 'сен', 'окт', 'ноя', 'дек'];
+    const months = DateUtils.monthNamesShort.ru;
     const pad = n => String(n).padStart(2, '0');
     return `${d.getDate()} ${months[d.getMonth()]}, ${pad(d.getHours())}:${pad(d.getMinutes())}`;
 }
@@ -1263,7 +1257,7 @@ async function saveRegistration() {
                 db: Layout.db, registrationId: regId, vaishnavId: reg.vaishnava_id,
                 retreat, arrivalDatetime: regData.arrival_datetime, departureDatetime: regData.departure_datetime
             });
-            if (moveResult.warnings.length && !confirm(moveResult.warnings.join('\n') + '\n\nВсё равно сохранить?')) return;
+            if (moveResult.warnings.length && !confirm(moveResult.warnings.join('\n') + '\n\n' + t('person_save_anyway'))) return;
             if (moveResult.clearedDeparture) regData.departure_datetime = null;
             if (moveResult.clearedArrival) regData.arrival_datetime = null;
             moveResult.notifications.forEach(n => Layout.showNotification(n, 'info'));
@@ -1377,8 +1371,8 @@ async function deleteRegistration(registrationId) {
     if (!reg) return;
 
     const retreat = reg.retreats;
-    const retreatName = retreat ? Layout.getName(retreat) : 'ретрит';
-    if (!confirm(`Удалить регистрацию на «${retreatName}»? Связанные трансферы и размещение тоже будут удалены.`)) return;
+    const retreatName = retreat ? Layout.getName(retreat) : t('person_retreat_fallback');
+    if (!confirm(t('person_confirm_delete_registration') + ` «${retreatName}»?`)) return;
 
     try {
         // Удалить трансферы
@@ -1391,10 +1385,10 @@ async function deleteRegistration(registrationId) {
 
         await loadRegistrations(person.id);
         renderRegistrations();
-        Layout.showNotification('Регистрация удалена', 'success');
+        Layout.showNotification(t('person_registration_deleted'), 'success');
     } catch (err) {
         console.error('Error deleting registration:', err);
-        Layout.showNotification('Ошибка удаления: ' + err.message, 'error');
+        Layout.showNotification(t('error_deleting') + ': ' + err.message, 'error');
     }
 }
 
@@ -1442,7 +1436,7 @@ async function updateRoomsList() {
     const checkOut = document.getElementById('placementCheckOut').value;
 
     if (!checkIn || !checkOut) {
-        roomsList.innerHTML = '<div class="text-center py-4 opacity-50">Укажите даты заезда и выезда</div>';
+        roomsList.innerHTML = '<div class="text-center py-4 opacity-50">' + t('person_specify_dates') + '</div>';
         return;
     }
 
@@ -1497,14 +1491,14 @@ async function updateRoomsList() {
                 <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6" />
                 </svg>
-                Самостоятельное размещение
+                ${t('self_accommodation')}
             </button>
-            <div class="text-xs opacity-50 text-center mt-1">Гость живёт вне ашрама</div>
+            <div class="text-xs opacity-50 text-center mt-1">${t('person_guest_outside')}</div>
         </div>
     `;
 
     if (availableBuildings.length === 0) {
-        roomsList.innerHTML = html + '<div class="text-center py-4 opacity-50">Нет доступных зданий</div>';
+        roomsList.innerHTML = html + '<div class="text-center py-4 opacity-50">' + t('person_no_buildings') + '</div>';
         return;
     }
     availableBuildings.forEach(building => {
@@ -1552,7 +1546,7 @@ async function updateRoomsList() {
         html += `</div></div></div>`;
     });
 
-    roomsList.innerHTML = html || '<div class="text-center py-4 opacity-50">Нет комнат</div>';
+    roomsList.innerHTML = html || '<div class="text-center py-4 opacity-50">' + t('person_no_rooms') + '</div>';
 
     // Делегирование кликов в списке комнат
     if (!roomsList._delegated) {
@@ -1612,7 +1606,7 @@ async function selectRoom(roomId, buildingId) {
 
         document.getElementById('placementModal').close();
         await loadRegistrations(person.id);
-        Layout.showNotification('Размещение сохранено', 'success');
+        Layout.showNotification(t('person_placement_saved'), 'success');
     } catch (err) {
         console.error('Error saving placement:', err);
         Layout.showNotification(t('placement_error') + ': ' + err.message, 'error');
@@ -1659,7 +1653,7 @@ async function selectSelfAccommodation() {
 
         document.getElementById('placementModal').close();
         await loadRegistrations(person.id);
-        Layout.showNotification('Самостоятельное размещение сохранено', 'success');
+        Layout.showNotification(t('person_self_accommodation_saved'), 'success');
     } catch (err) {
         console.error('Error saving self accommodation:', err);
         Layout.showNotification(t('placement_error') + ': ' + err.message, 'error');
@@ -1737,11 +1731,11 @@ function renderRegistrations() {
                 : (arrival.flight_datetime ? formatDatetimeShort(addHoursToDatetime(arrival.flight_datetime, 4)) : null);
             detailsHtml += `
                 <div class="detail-section">
-                    <div class="detail-label">✈️ Прилёт</div>
+                    <div class="detail-label">✈️ ${t('person_arrival')}</div>
                     <div class="text-sm space-y-1">
-                        ${arrivalTime ? `<div><span class="opacity-60">Рейс:</span> ${arrivalTime}${arrival.flight_number ? ` (${arrival.flight_number})` : ''}</div>` : ''}
-                        ${ashramArrival ? `<div><span class="opacity-60">Приезд в ШРСК:</span> ${ashramArrival}</div>` : ''}
-                        <div><span class="opacity-60">Трансфер:</span> ${arrival.needs_transfer === 'yes' ? '✅ Нужен' : arrival.needs_transfer === 'no' ? '❌ Не нужен' : arrival.needs_transfer || '—'}</div>
+                        ${arrivalTime ? `<div><span class="opacity-60">${t('person_flight')}:</span> ${arrivalTime}${arrival.flight_number ? ` (${arrival.flight_number})` : ''}</div>` : ''}
+                        ${ashramArrival ? `<div><span class="opacity-60">${t('person_arrival_at_srsk')}:</span> ${ashramArrival}</div>` : ''}
+                        <div><span class="opacity-60">${t('person_transfer')}:</span> ${arrival.needs_transfer === 'yes' ? '✅ ' + t('person_transfer_needed') : arrival.needs_transfer === 'no' ? '❌ ' + t('person_transfer_not_needed') : arrival.needs_transfer || '—'}</div>
                     </div>
                 </div>
             `;
@@ -1750,10 +1744,10 @@ function renderRegistrations() {
         if (arrivalRetreat) {
             detailsHtml += `
                 <div class="detail-section">
-                    <div class="detail-label">🚐 Трансфер на ретрит</div>
+                    <div class="detail-label">🚐 ${t('person_transfer_to_retreat')}</div>
                     <div class="text-sm space-y-1">
-                        ${arrivalRetreat.flight_datetime ? `<div><span class="opacity-60">Приезд:</span> ${formatDatetimeShort(arrivalRetreat.flight_datetime)}</div>` : ''}
-                        <div><span class="opacity-60">Трансфер:</span> ${arrivalRetreat.needs_transfer === 'yes' ? '✅ Нужен' : arrivalRetreat.needs_transfer === 'no' ? '❌ Не нужен' : '—'}</div>
+                        ${arrivalRetreat.flight_datetime ? `<div><span class="opacity-60">${t('person_arrival_short')}:</span> ${formatDatetimeShort(arrivalRetreat.flight_datetime)}</div>` : ''}
+                        <div><span class="opacity-60">${t('person_transfer')}:</span> ${arrivalRetreat.needs_transfer === 'yes' ? '✅ ' + t('person_transfer_needed') : arrivalRetreat.needs_transfer === 'no' ? '❌ ' + t('person_transfer_not_needed') : '—'}</div>
                     </div>
                 </div>
             `;
@@ -1766,11 +1760,11 @@ function renderRegistrations() {
                 : (departure.flight_datetime ? formatDatetimeShort(addHoursToDatetime(departure.flight_datetime, -7)) : null);
             detailsHtml += `
                 <div class="detail-section">
-                    <div class="detail-label">✈️ Вылет</div>
+                    <div class="detail-label">✈️ ${t('person_departure')}</div>
                     <div class="text-sm space-y-1">
-                        ${departureTime ? `<div><span class="opacity-60">Рейс:</span> ${departureTime}${departure.flight_number ? ` (${departure.flight_number})` : ''}</div>` : ''}
-                        ${ashramDeparture ? `<div><span class="opacity-60">Отъезд из ШРСК:</span> ${ashramDeparture}</div>` : ''}
-                        <div><span class="opacity-60">Трансфер:</span> ${departure.needs_transfer === 'yes' ? '✅ Нужен' : departure.needs_transfer === 'no' ? '❌ Не нужен' : departure.needs_transfer || '—'}</div>
+                        ${departureTime ? `<div><span class="opacity-60">${t('person_flight')}:</span> ${departureTime}${departure.flight_number ? ` (${departure.flight_number})` : ''}</div>` : ''}
+                        ${ashramDeparture ? `<div><span class="opacity-60">${t('person_departure_from_srsk')}:</span> ${ashramDeparture}</div>` : ''}
+                        <div><span class="opacity-60">${t('person_transfer')}:</span> ${departure.needs_transfer === 'yes' ? '✅ ' + t('person_transfer_needed') : departure.needs_transfer === 'no' ? '❌ ' + t('person_transfer_not_needed') : departure.needs_transfer || '—'}</div>
                     </div>
                 </div>
             `;
@@ -1779,10 +1773,10 @@ function renderRegistrations() {
         if (departureRetreat) {
             detailsHtml += `
                 <div class="detail-section">
-                    <div class="detail-label">🚐 Трансфер с ретрита</div>
+                    <div class="detail-label">🚐 ${t('person_transfer_from_retreat')}</div>
                     <div class="text-sm space-y-1">
-                        ${departureRetreat.flight_datetime ? `<div><span class="opacity-60">Отъезд:</span> ${formatDatetimeShort(departureRetreat.flight_datetime)}</div>` : ''}
-                        <div><span class="opacity-60">Трансфер:</span> ${departureRetreat.needs_transfer === 'yes' ? '✅ Нужен' : departureRetreat.needs_transfer === 'no' ? '❌ Не нужен' : '—'}</div>
+                        ${departureRetreat.flight_datetime ? `<div><span class="opacity-60">${t('person_departure_short')}:</span> ${formatDatetimeShort(departureRetreat.flight_datetime)}</div>` : ''}
+                        <div><span class="opacity-60">${t('person_transfer')}:</span> ${departureRetreat.needs_transfer === 'yes' ? '✅ ' + t('person_transfer_needed') : departureRetreat.needs_transfer === 'no' ? '❌ ' + t('person_transfer_not_needed') : '—'}</div>
                     </div>
                 </div>
             `;
@@ -1797,8 +1791,8 @@ function renderRegistrations() {
             if (!resident.room_id) {
                 detailsHtml += `
                     <div class="detail-section">
-                        <div class="detail-label">🏠 Размещение</div>
-                        <div class="text-sm font-medium text-error bg-error/20 px-2 py-1 rounded inline-block">${t('self_accommodation') || 'Самостоятельно'}</div>
+                        <div class="detail-label">🏠 ${t('person_accommodation')}</div>
+                        <div class="text-sm font-medium text-error bg-error/20 px-2 py-1 rounded inline-block">${t('self_accommodation')}</div>
                     </div>
                 `;
             } else if (resident.rooms) {
@@ -1807,7 +1801,7 @@ function renderRegistrations() {
                 const roomNumber = resident.rooms.number || '';
                 detailsHtml += `
                     <div class="detail-section">
-                        <div class="detail-label">🏠 Размещение</div>
+                        <div class="detail-label">🏠 ${t('person_accommodation')}</div>
                         <div class="text-sm font-medium text-success">${buildingName ? buildingName + ', ' : ''}${roomNumber}</div>
                     </div>
                 `;
@@ -1815,14 +1809,14 @@ function renderRegistrations() {
             // Даты заезда/выезда для ретритного resident
             detailsHtml += `
                 <div class="detail-section">
-                    <div class="detail-label">📅 Даты проживания</div>
+                    <div class="detail-label">📅 ${t('person_stay_dates')}</div>
                     <div class="grid grid-cols-2 gap-2" style="max-width: 320px;">
                         <div>
-                            <span class="text-xs opacity-60">Заезд</span>
+                            <span class="text-xs opacity-60">${t('person_check_in')}</span>
                             <input type="date" class="input input-bordered input-xs w-full" value="${resident.check_in || ''}" data-action="change-resident-dates" data-resident-id="${resident.id}" data-field="check_in" />
                         </div>
                         <div>
-                            <span class="text-xs opacity-60">Выезд</span>
+                            <span class="text-xs opacity-60">${t('person_check_out')}</span>
                             <input type="date" class="input input-bordered input-xs w-full" value="${resident.check_out || ''}" data-action="change-resident-dates" data-resident-id="${resident.id}" data-field="check_out" />
                         </div>
                     </div>
@@ -1832,7 +1826,7 @@ function renderRegistrations() {
             // Legacy accommodation data
             detailsHtml += `
                 <div class="detail-section">
-                    <div class="detail-label">🏠 Размещение</div>
+                    <div class="detail-label">🏠 ${t('person_accommodation')}</div>
                     <div class="text-sm font-medium text-success">${accommodation.building_name ? accommodation.building_name + ', ' : ''}${accommodation.room_number}</div>
                 </div>
             `;
@@ -1846,7 +1840,7 @@ function renderRegistrations() {
             ).join('');
             detailsHtml += `
                 <div class="detail-section">
-                    <div class="detail-label" data-i18n="category">${t('category') || 'Категория'}</div>
+                    <div class="detail-label" data-i18n="category">${t('category')}</div>
                     <div class="flex items-center gap-2">
                         ${cat ? `<span class="badge badge-sm" style="background-color: ${cat.color}20; color: ${cat.color}; border-color: ${cat.color}">${Layout.getName(cat)}</span>` : ''}
                         <select class="select select-xs select-bordered" data-action="change-category" data-resident-id="${resident.id}">
@@ -1857,10 +1851,10 @@ function renderRegistrations() {
             `;
             detailsHtml += `
                 <div class="detail-section">
-                    <div class="detail-label">${t('meal_type') || 'Питание'}</div>
+                    <div class="detail-label">${t('meal_type')}</div>
                     <label class="flex items-center gap-2 cursor-pointer">
                         <input type="checkbox" class="checkbox checkbox-xs checkbox-success" data-action="change-meals" data-resident-id="${resident.id}" ${resident.has_meals ? 'checked' : ''} />
-                        <span class="text-sm">${t('meal_type_prasad') || 'Питается с нами'}</span>
+                        <span class="text-sm">${t('meal_type_prasad')}</span>
                     </label>
                 </div>
             `;
@@ -1869,7 +1863,7 @@ function renderRegistrations() {
         if (reg.companions) {
             detailsHtml += `
                 <div class="detail-section">
-                    <div class="detail-label">👨‍👩‍👧 Семья / Спутники</div>
+                    <div class="detail-label">👨‍👩‍👧 ${t('person_companions')}</div>
                     <div class="text-sm">${reg.companions}</div>
                 </div>
             `;
@@ -1878,7 +1872,7 @@ function renderRegistrations() {
         if (reg.accommodation_wishes) {
             detailsHtml += `
                 <div class="detail-section">
-                    <div class="detail-label">🏨 Пожелания по проживанию</div>
+                    <div class="detail-label">🏨 ${t('person_accommodation_wishes')}</div>
                     <div class="text-sm">${reg.accommodation_wishes}</div>
                 </div>
             `;
@@ -1887,7 +1881,7 @@ function renderRegistrations() {
         if (reg.extended_stay) {
             detailsHtml += `
                 <div class="detail-section">
-                    <div class="detail-label">📅 После ретрита</div>
+                    <div class="detail-label">📅 ${t('person_after_retreat')}</div>
                     <div class="text-sm whitespace-pre-line">${reg.extended_stay}</div>
                 </div>
             `;
@@ -1910,7 +1904,7 @@ function renderRegistrations() {
         if (reg.payment_notes) {
             detailsHtml += `
                 <div class="detail-section">
-                    <div class="detail-label">💳 Оплата</div>
+                    <div class="detail-label">💳 ${t('person_payment')}</div>
                     <div class="text-sm">${e(reg.payment_notes)}</div>
                 </div>
             `;
@@ -1919,7 +1913,7 @@ function renderRegistrations() {
         if (reg.org_notes) {
             detailsHtml += `
                 <div class="detail-section">
-                    <div class="detail-label">📋 Комментарий ОП</div>
+                    <div class="detail-label">📋 ${t('person_org_notes')}</div>
                     <div class="text-sm whitespace-pre-line">${e(reg.org_notes)}</div>
                 </div>
             `;
@@ -1928,39 +1922,39 @@ function renderRegistrations() {
         if (reg.guest_questions) {
             detailsHtml += `
                 <div class="detail-section">
-                    <div class="detail-label">❓ Вопросы</div>
+                    <div class="detail-label">❓ ${t('person_questions')}</div>
                     <div class="text-sm whitespace-pre-line">${e(reg.guest_questions)}</div>
                 </div>
             `;
         }
 
-        const regDateStr = reg.registration_date ? `<span class="text-xs opacity-40 ml-2">зарег. ${formatDate(reg.registration_date)}</span>` : '';
+        const regDateStr = reg.registration_date ? `<span class="text-xs opacity-40 ml-2">${t('person_registered_short')} ${formatDate(reg.registration_date)}</span>` : '';
 
         // Actions section
         const actionsHtml = `
             <div class="detail-section border-t pt-3 mt-3 flex items-center gap-3 flex-wrap">
                 <select class="select select-xs status-${reg.status}" style="min-width: 0; padding-right: 1.5rem;" data-action="update-registration-status" data-id="${reg.id}">
-                    <option value="guest" ${reg.status === 'guest' ? 'selected' : ''}>Гость</option>
-                    <option value="team" ${reg.status === 'team' ? 'selected' : ''}>Команда</option>
-                    <option value="cancelled" ${reg.status === 'cancelled' ? 'selected' : ''}>Отказ</option>
+                    <option value="guest" ${reg.status === 'guest' ? 'selected' : ''}>${t('status_guest')}</option>
+                    <option value="team" ${reg.status === 'team' ? 'selected' : ''}>${t('status_team')}</option>
+                    <option value="cancelled" ${reg.status === 'cancelled' ? 'selected' : ''}>${t('status_cancelled')}</option>
                 </select>
                 <button class="btn btn-xs btn-outline gap-1" data-action="open-placement-modal" data-id="${reg.id}">
                     <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6" />
                     </svg>
-                    Заселить
+                    ${t('person_check_in_btn')}
                 </button>
                 <button class="btn btn-xs btn-ghost gap-1" data-action="open-edit-reg-modal" data-id="${reg.id}">
                     <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
                     </svg>
-                    Изменить
+                    ${t('edit')}
                 </button>
                 <button class="btn btn-xs btn-ghost text-error gap-1 ml-auto" data-action="delete-registration" data-id="${reg.id}">
                     <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
                     </svg>
-                    Удалить
+                    ${t('delete')}
                 </button>
             </div>
         `;
@@ -2027,7 +2021,7 @@ function renderChildren() {
         const name = getVaishnavName(child);
         const age = child.birth_date ? DateUtils.calculateAge(child.birth_date) : null;
         const genderIcon = child.gender === 'male' ? '👦' : child.gender === 'female' ? '👧' : '👶';
-        const ageStr = age !== null ? `${age} ${t('years_short') || 'лет'}` : '';
+        const ageStr = age !== null ? `${age} ${t('years_short')}` : '';
         const initials = (child.first_name?.[0] || '') + (child.last_name?.[0] || '');
 
         return `
@@ -2040,7 +2034,7 @@ function renderChildren() {
                     <div class="font-medium truncate">${e(name)}</div>
                     <div class="text-xs opacity-60">${genderIcon} ${ageStr}</div>
                 </div>
-                <button class="btn btn-ghost btn-xs btn-circle" data-action="edit-child" data-id="${child.id}" title="${t('edit') || 'Редактировать'}">
+                <button class="btn btn-ghost btn-xs btn-circle" data-action="edit-child" data-id="${child.id}" title="${t('edit')}">
                     <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
                     </svg>
@@ -2064,9 +2058,9 @@ function openAddChildModal(childId = null) {
             document.getElementById('childGender').value = child.gender || '';
             document.getElementById('childBirthDate').value = child.birth_date || '';
         }
-        document.getElementById('childModalTitle').textContent = t('edit_child') || 'Редактировать ребёнка';
+        document.getElementById('childModalTitle').textContent = t('edit_child');
     } else {
-        document.getElementById('childModalTitle').textContent = t('add_child') || 'Добавить ребёнка';
+        document.getElementById('childModalTitle').textContent = t('add_child');
     }
 
     document.getElementById('addChildModal').showModal();
@@ -2085,7 +2079,7 @@ async function saveChild(event) {
     };
 
     if (!childData.first_name) {
-        Layout.showNotification(t('name_required') || 'Укажите имя', 'warning');
+        Layout.showNotification(t('name_required'), 'warning');
         return;
     }
 
@@ -2099,19 +2093,19 @@ async function saveChild(event) {
 
     if (result.error) {
         console.error('Error saving child:', result.error);
-        Layout.showNotification(t('error_saving') || 'Ошибка сохранения', 'error');
+        Layout.showNotification(t('error_saving'), 'error');
         return;
     }
 
     document.getElementById('addChildModal').close();
     await loadChildren(person.id);
-    Layout.showNotification(childId ? (t('child_updated') || 'Ребёнок обновлён') : (t('child_added') || 'Ребёнок добавлен'), 'success');
+    Layout.showNotification(childId ? t('child_updated') : t('child_added'), 'success');
 }
 
 async function makeIndependent() {
     if (!person?.parent_id) return;
 
-    const confirmed = confirm(t('confirm_make_independent') || 'Сделать этого человека самостоятельным? Он будет отвязан от родителя.');
+    const confirmed = confirm(t('person_confirm_make_independent'));
     if (!confirmed) return;
 
     const { error } = await Layout.db
@@ -2121,14 +2115,14 @@ async function makeIndependent() {
 
     if (error) {
         console.error('Error making independent:', error);
-        Layout.showNotification(t('error_saving') || 'Ошибка', 'error');
+        Layout.showNotification(t('error_saving'), 'error');
         return;
     }
 
     person.parent_id = null;
     person.parent = null;
     renderPerson();
-    Layout.showNotification(t('now_independent') || 'Теперь это самостоятельный аккаунт', 'success');
+    Layout.showNotification(t('person_now_independent'), 'success');
 }
 
 // ==================== PHOTO ====================
@@ -2143,7 +2137,7 @@ function onAvatarClick() {
 
 async function deletePhoto() {
     if (!person || !person.photo_url) return;
-    const confirmed = await ModalUtils.confirm(t('confirm_delete_photo') || 'Удалить фото?');
+    const confirmed = await ModalUtils.confirm(t('person_confirm_delete_photo'));
     if (!confirmed) return;
 
     try {
@@ -2170,7 +2164,7 @@ function uploadPhoto(input) {
     if (!file || !person) return;
 
     if (file.size > 10 * 1024 * 1024) {
-        Layout.showNotification(t('file_too_large') || 'Файл слишком большой', 'warning');
+        Layout.showNotification(t('person_file_too_large'), 'warning');
         input.value = '';
         return;
     }
@@ -2257,7 +2251,7 @@ async function saveCroppedPhoto() {
 
     } catch (err) {
         console.error('Upload error:', err);
-        Layout.showNotification(t('upload_error') || 'Ошибка загрузки', 'error');
+        Layout.showNotification(t('person_upload_error'), 'error');
     } finally {
         wrapper.classList.remove('avatar-uploading');
         overlay.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z" /><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 13a3 3 0 11-6 0 3 3 0 016 0z" /></svg>`;

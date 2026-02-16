@@ -5,7 +5,7 @@
     <script src="../js/color-init.js"></script>
 
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Справочники проживания — ШРСК</title>
+    <title data-i18n="dictionaries_page_title">Справочники проживания — ШРСК</title>
     <link rel="icon" type="image/svg+xml" href="/favicon.svg">
     <link href="https://cdn.jsdelivr.net/npm/daisyui@4.12.14/dist/full.min.css" rel="stylesheet" />
     <script src="https://cdn.tailwindcss.com"></script>
@@ -62,7 +62,7 @@
     <dialog id="editModal" class="modal">
         <div class="modal-box relative">
             <button type="button" class="btn btn-sm btn-circle btn-ghost absolute right-2 top-2" onclick="editModal.close()">✕</button>
-            <h3 class="font-bold text-lg mb-4" id="modalTitle">Добавить</h3>
+            <h3 class="font-bold text-lg mb-4" id="modalTitle" data-i18n="add">Добавить</h3>
             <form id="editForm" class="space-y-4">
                 <input type="hidden" name="id" />
                 <input type="hidden" name="table" />

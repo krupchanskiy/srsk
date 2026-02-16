@@ -75,11 +75,7 @@ async function selectRetreat(id) {
     // Update dates display
     const startDate = DateUtils.parseDate(retreat.start_date);
     const endDate = DateUtils.parseDate(retreat.end_date);
-    const formatDate = (d) => {
-        const months = ['янв', 'фев', 'мар', 'апр', 'май', 'июн', 'июл', 'авг', 'сен', 'окт', 'ноя', 'дек'];
-        return `${d.getDate()} ${months[d.getMonth()]}`;
-    };
-    document.getElementById('retreatDates').textContent = `${formatDate(startDate)} — ${formatDate(endDate)} ${endDate.getFullYear()}`;
+    document.getElementById('retreatDates').textContent = `${DateUtils.formatRangeShort(startDate, endDate)} ${endDate.getFullYear()}`;
 
     // Set CSS variable for theme color
     if (retreat.color) {
@@ -106,6 +102,7 @@ async function loadRegistrations() {
             org_notes,
             extended_stay,
             guest_questions,
+            meal_type,
             vaishnava:vaishnavas (
                 id,
                 first_name,
@@ -120,7 +117,7 @@ async function loadRegistrations() {
                 parent_id,
                 birth_date
             ),
-            placement:room_residents!inner (
+            placement:room_residents (
                 id,
                 check_in,
                 check_out,
@@ -150,62 +147,21 @@ async function loadRegistrations() {
         return;
     }
 
-    // Handle guests without placement (LEFT JOIN simulation)
-    const { data: allRegs } = await Layout.db
-        .from('retreat_registrations')
-        .select(`
-            id,
-            status,
-            registration_date,
-            companions,
-            accommodation_wishes,
-            payment_notes,
-            org_notes,
-            extended_stay,
-            guest_questions,
-            meal_type,
-            vaishnava:vaishnavas (
-                id,
-                first_name,
-                last_name,
-                spiritual_name,
-                phone,
-                email,
-                gender,
-                country,
-                city,
-                telegram,
-                parent_id,
-                birth_date
-            ),
-            transfers:guest_transfers (
-                direction,
-                needs_transfer,
-                flight_number,
-                flight_datetime,
-                notes
-            )
-        `)
-        .eq('retreat_id', retreatId);
-
-    // Merge: use allRegs as base, add placement from data
-    const placementMap = {};
-    (data || []).forEach(r => {
-        placementMap[r.id] = r.placement;
-    });
-
-    registrations = (allRegs || []).map(r => ({
+    registrations = (data || []).map(r => ({
         ...r,
-        placement: placementMap[r.id] || []
+        placement: r.placement || []
     }));
 
     renderTable();
 }
 
 async function loadVaishnavas() {
-    const { data, error } = await Layout.db
-        .from('vaishnavas')
-        .select('id, first_name, last_name, spiritual_name, phone, email, birth_date, gender, telegram');
+    const { data, error } = await Utils.fetchAll((from, to) =>
+        Layout.db
+            .from('vaishnavas')
+            .select('id, first_name, last_name, spiritual_name, phone, email, birth_date, gender, telegram')
+            .range(from, to)
+    );
 
     if (error) {
         console.error('Error loading vaishnavas:', error);
@@ -216,13 +172,6 @@ async function loadVaishnavas() {
 }
 
 // ==================== RENDERING ====================
-function formatDateRange(startDate, endDate) {
-    const months = ['янв', 'фев', 'мар', 'апр', 'май', 'июн', 'июл', 'авг', 'сен', 'окт', 'ноя', 'дек'];
-    const s = DateUtils.parseDate(startDate);
-    const e = DateUtils.parseDate(endDate);
-    return `${s.getDate()} ${months[s.getMonth()]} — ${e.getDate()} ${months[e.getMonth()]}`;
-}
-
 function renderTable() {
     const tbody = document.getElementById('guestsTable');
     const noGuests = document.getElementById('noGuests');
@@ -273,9 +222,7 @@ function renderTable() {
     tbody.innerHTML = orderedRegs.map(reg => {
         const v = reg.vaishnava;
         const isChild = !!v.parent_id;
-        const name = v.spiritual_name
-            ? `${v.spiritual_name}`
-            : `${v.first_name || ''} ${v.last_name || ''}`.trim();
+        const name = getVaishnavName(v);
 
         const statusClass = `status-${reg.status}`;
 
@@ -293,7 +240,7 @@ function renderTable() {
         }
 
         // Child badge
-        const childBadge = isChild ? '<span class="badge badge-sm badge-warning ml-1">ребёнок</span>' : '';
+        const childBadge = isChild ? `<span class="badge badge-sm badge-warning ml-1">${t('retreat_guests_child')}</span>` : '';
         const childIndent = isChild ? 'pl-6' : '';
 
         return `
@@ -315,10 +262,10 @@ function renderTable() {
                 <td class="max-w-xs truncate text-sm opacity-70" title="${e(reg.accommodation_wishes || '')}">${e(reg.accommodation_wishes || '—')}</td>
                 <td>
                     <div class="flex gap-1">
-                        <button class="btn btn-ghost btn-xs" data-action="open-placement-modal" data-id="${reg.id}" title="Размещение">
+                        <button class="btn btn-ghost btn-xs" data-action="open-placement-modal" data-id="${reg.id}" title="${t('retreat_guests_placement')}">
                             🏠
                         </button>
-                        <a href="person.html?id=${v.id}" class="btn btn-ghost btn-xs" data-action="navigate-person" title="Профиль">
+                        <a href="person.html?id=${v.id}" class="btn btn-ghost btn-xs" data-action="navigate-person" title="${t('retreat_guests_profile')}">
                             👤
                         </a>
                     </div>
@@ -378,8 +325,8 @@ function filterRegistrations() {
         let aVal, bVal;
 
         if (sortField === 'name') {
-            aVal = a.vaishnava.spiritual_name || a.vaishnava.first_name || '';
-            bVal = b.vaishnava.spiritual_name || b.vaishnava.first_name || '';
+            aVal = getVaishnavName(a.vaishnava, '');
+            bVal = getVaishnavName(b.vaishnava, '');
         } else if (sortField === 'status') {
             const order = { guest: 1, team: 2, cancelled: 3 };
             aVal = order[a.status] || 0;
@@ -490,8 +437,7 @@ function openGuestModal(registrationId = null) {
             form.elements.departure_datetime.value = reg.departure_datetime ? reg.departure_datetime.slice(0, 16) : '';
 
             const v = reg.vaishnava;
-            const name = v.spiritual_name || `${v.first_name} ${v.last_name}`;
-            selectedDisplay.textContent = `✓ ${name}`;
+            selectedDisplay.textContent = `✓ ${getVaishnavName(v)}`;
             selectedDisplay.classList.remove('hidden');
             searchInput.disabled = true;
         }
@@ -524,12 +470,10 @@ function searchVaishnavas(query) {
     }
 
     suggestions.innerHTML = matches.map(v => {
-        const name = v.spiritual_name
-            ? `${v.spiritual_name} (${v.first_name || ''} ${v.last_name || ''})`
-            : `${v.first_name || ''} ${v.last_name || ''}`;
+        const name = getVaishnavFullName(v);
         return `
             <div class="p-2 hover:bg-base-200 cursor-pointer" data-action="select-vaishnav" data-id="${v.id}">
-                <div class="font-medium">${e(name.trim())}</div>
+                <div class="font-medium">${e(name)}</div>
                 <div class="text-xs opacity-60">${e(v.email || '')} ${e(v.phone || '')}</div>
             </div>
         `;
@@ -555,12 +499,8 @@ function selectVaishnav(id) {
     document.getElementById('vaishnavSearch').value = '';
     document.getElementById('vaishnavSuggestions').classList.add('hidden');
 
-    const name = v.spiritual_name
-        ? `${v.spiritual_name} (${v.first_name || ''} ${v.last_name || ''})`
-        : `${v.first_name || ''} ${v.last_name || ''}`;
-
     const selectedDisplay = document.getElementById('selectedVaishnav');
-    selectedDisplay.textContent = `✓ ${name.trim()}`;
+    selectedDisplay.textContent = `✓ ${getVaishnavFullName(v)}`;
     selectedDisplay.classList.remove('hidden');
 }
 
@@ -588,7 +528,7 @@ document.getElementById('guestForm').addEventListener('submit', async (e) => {
             db: Layout.db, registrationId: registrationId || '_new_', vaishnavId: vaishnavId,
             retreat, arrivalDatetime, departureDatetime
         });
-        if (moveResult.warnings.length && !confirm(moveResult.warnings.join('\n') + '\n\nВсё равно сохранить?')) return;
+        if (moveResult.warnings.length && !confirm(moveResult.warnings.join('\n') + '\n\n' + t('retreat_guests_save_anyway'))) return;
         if (moveResult.clearedDeparture) actualDeparture = null;
         if (moveResult.clearedArrival) actualArrival = null;
         moveResult.notifications.forEach(n => Layout.showNotification(n, 'info'));
@@ -657,11 +597,7 @@ function openInfoModal(registrationId) {
     const title = document.getElementById('infoModalTitle');
     const content = document.getElementById('infoModalContent');
 
-    const name = v.spiritual_name
-        ? `${v.spiritual_name} (${v.first_name || ''} ${v.last_name || ''})`
-        : `${v.first_name || ''} ${v.last_name || ''}`;
-
-    title.textContent = name.trim();
+    title.textContent = getVaishnavFullName(v);
 
     // Format transfers
     const arrival = reg.transfers?.find(t => t.direction === 'arrival');
@@ -672,13 +608,13 @@ function openInfoModal(registrationId) {
         const dt = transfer.flight_datetime ? new Date(transfer.flight_datetime) : null;
         const dateStr = dt ? dt.toLocaleDateString('ru-RU') : '—';
         const timeStr = dt ? dt.toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' }) : '';
-        const needsTransfer = transfer.needs_transfer === 'yes' ? '🚕 Нужен трансфер' : '';
+        const needsTransfer = transfer.needs_transfer === 'yes' ? `🚕 ${t('retreat_guests_needs_transfer')}` : '';
 
         return `
             <div class="bg-base-200 rounded-lg p-3">
                 <div class="font-medium mb-1">${label}</div>
                 <div class="text-sm">${dateStr} ${timeStr}</div>
-                ${transfer.flight_number ? `<div class="text-sm opacity-70">Рейс: ${e(transfer.flight_number)}</div>` : ''}
+                ${transfer.flight_number ? `<div class="text-sm opacity-70">${t('retreat_guests_flight')}: ${e(transfer.flight_number)}</div>` : ''}
                 ${needsTransfer ? `<div class="text-sm text-primary">${needsTransfer}</div>` : ''}
                 ${transfer.notes ? `<div class="text-sm opacity-60">${e(transfer.notes)}</div>` : ''}
             </div>
@@ -688,71 +624,71 @@ function openInfoModal(registrationId) {
     content.innerHTML = `
         <div class="grid grid-cols-2 gap-4 text-sm">
             <div>
-                <span class="opacity-60">Телефон:</span>
+                <span class="opacity-60">${t('retreat_guests_phone')}:</span>
                 <div>${v.phone ? `<a href="tel:${v.phone}" class="link">${e(v.phone)}</a>` : '—'}</div>
             </div>
             <div>
-                <span class="opacity-60">Email:</span>
+                <span class="opacity-60">${t('retreat_guests_email')}:</span>
                 <div>${v.email ? `<a href="mailto:${v.email}" class="link">${e(v.email)}</a>` : '—'}</div>
             </div>
             <div>
-                <span class="opacity-60">Telegram:</span>
+                <span class="opacity-60">${t('retreat_guests_telegram')}:</span>
                 <div>${v.telegram ? `<a href="https://t.me/${v.telegram}" target="_blank" class="link">@${e(v.telegram)}</a>` : '—'}</div>
             </div>
             <div>
-                <span class="opacity-60">Город:</span>
+                <span class="opacity-60">${t('retreat_guests_city')}:</span>
                 <div>${e([v.city, v.country].filter(Boolean).join(', ') || '—')}</div>
             </div>
         </div>
 
         <div class="grid grid-cols-2 gap-4 mt-4">
-            ${formatTransferDetails(arrival, 'Заезд')}
-            ${formatTransferDetails(departure, 'Выезд')}
+            ${formatTransferDetails(arrival, t('retreat_guests_checkin'))}
+            ${formatTransferDetails(departure, t('retreat_guests_checkout'))}
         </div>
 
         ${reg.companions ? `
             <div class="mt-4">
-                <span class="opacity-60 text-sm">Сопровождающие:</span>
+                <span class="opacity-60 text-sm">${t('retreat_guests_companions')}:</span>
                 <div class="text-sm">${e(reg.companions)}</div>
             </div>
         ` : ''}
 
         ${reg.accommodation_wishes ? `
             <div class="mt-4">
-                <span class="opacity-60 text-sm">Пожелания по размещению:</span>
+                <span class="opacity-60 text-sm">${t('retreat_guests_accommodation_wishes')}:</span>
                 <div class="text-sm">${e(reg.accommodation_wishes)}</div>
             </div>
         ` : ''}
 
         ${reg.extended_stay ? `
             <div class="mt-4">
-                <span class="opacity-60 text-sm">Продлённое пребывание:</span>
+                <span class="opacity-60 text-sm">${t('retreat_guests_extended_stay')}:</span>
                 <div class="text-sm">${e(reg.extended_stay)}</div>
             </div>
         ` : ''}
 
         ${reg.org_notes ? `
             <div class="mt-4">
-                <span class="opacity-60 text-sm">Заметки организаторов:</span>
+                <span class="opacity-60 text-sm">${t('retreat_guests_org_notes')}:</span>
                 <div class="text-sm bg-warning/10 rounded p-2">${e(reg.org_notes)}</div>
             </div>
         ` : ''}
 
         ${reg.guest_questions ? `
             <div class="mt-4">
-                <span class="opacity-60 text-sm">Вопросы гостя:</span>
+                <span class="opacity-60 text-sm">${t('retreat_guests_guest_questions')}:</span>
                 <div class="text-sm">${e(reg.guest_questions)}</div>
             </div>
         ` : ''}
 
         ${reg.placement && reg.placement.length > 0 ? `
             <div class="mt-4">
-                <span class="opacity-60 text-sm">Размещение:</span>
+                <span class="opacity-60 text-sm">${t('retreat_guests_placement')}:</span>
                 ${reg.placement.map(p => `
                     <div class="text-sm bg-success/10 rounded p-2 mt-1">
-                        🏠 Комната ${e(p.room?.number || '?')} (${e(p.room?.building?.name_ru || '')})
+                        🏠 ${t('retreat_guests_room')} ${e(p.room?.number || '?')} (${e(p.room?.building?.name_ru || '')})
                         <br>
-                        <span class="opacity-60">${formatDateRange(p.check_in, p.check_out)}</span>
+                        <span class="opacity-60">${DateUtils.formatRangeShort(p.check_in, p.check_out)}</span>
                     </div>
                 `).join('')}
             </div>
@@ -789,15 +725,11 @@ function openPlacementModal(registrationId) {
 
     const modal = document.getElementById('placementModal');
     const v = currentPlacementRegistration.vaishnava;
-    const name = v.spiritual_name
-        ? `${v.spiritual_name} (${v.first_name || ''} ${v.last_name || ''})`
-        : `${v.first_name || ''} ${v.last_name || ''}`;
-
     // Show guest info
     document.getElementById('placementGuestInfo').innerHTML = `
-        <div class="font-medium">${e(name.trim())}</div>
-        <div class="text-sm opacity-60">${v.gender === 'male' ? '👨 Мужчина' : v.gender === 'female' ? '👩 Женщина' : ''}</div>
-        ${currentPlacementRegistration.accommodation_wishes ? `<div class="text-sm opacity-70 mt-1">Пожелание: ${e(currentPlacementRegistration.accommodation_wishes)}</div>` : ''}
+        <div class="font-medium">${e(getVaishnavFullName(v))}</div>
+        <div class="text-sm opacity-60">${v.gender === 'male' ? `👨 ${t('retreat_guests_male')}` : v.gender === 'female' ? `👩 ${t('retreat_guests_female')}` : ''}</div>
+        ${currentPlacementRegistration.accommodation_wishes ? `<div class="text-sm opacity-70 mt-1">${t('retreat_guests_wish')}: ${e(currentPlacementRegistration.accommodation_wishes)}</div>` : ''}
     `;
 
     // Set default dates from retreat
@@ -845,7 +777,7 @@ async function onPlacementDatesChange() {
     if (checkIn >= checkOut) {
         messageDiv.innerHTML = `
             <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" class="stroke-current shrink-0 w-6 h-6"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"></path></svg>
-            <span>Дата выезда должна быть позже даты заезда</span>
+            <span>${t('retreat_guests_checkout_after_checkin')}</span>
         `;
         messageDiv.classList.remove('hidden');
         roomsContainer.classList.add('hidden');
@@ -886,7 +818,7 @@ async function renderPlacementListView() {
     const container = document.getElementById('roomsList');
 
     if (!checkIn || !checkOut) {
-        container.innerHTML = '<div class="text-center py-4 opacity-50">Выберите даты</div>';
+        container.innerHTML = `<div class="text-center py-4 opacity-50">${t('retreat_guests_select_dates')}</div>`;
         return;
     }
 
@@ -922,18 +854,18 @@ async function renderPlacementListView() {
             const isCurrentPlacement = currentPlacementRegistration.placement?.some(p => p.room?.id === room.id);
 
             let statusClass = 'bg-success/20 border-success';
-            let statusText = `${freeBeds} из ${room.capacity} мест`;
+            let statusText = `${freeBeds} ${t('retreat_guests_of')} ${room.capacity} ${t('retreat_guests_beds')}`;
 
             if (isFull) {
                 statusClass = 'bg-error/20 border-error opacity-50';
-                statusText = 'Занято';
+                statusText = t('retreat_guests_occupied');
             } else if (occupiedBeds > 0) {
                 statusClass = 'bg-warning/20 border-warning';
             }
 
             if (isCurrentPlacement) {
                 statusClass = 'bg-primary/20 border-primary';
-                statusText = '✓ Размещён здесь';
+                statusText = t('retreat_guests_placed_here');
             }
 
             html += `
@@ -941,8 +873,8 @@ async function renderPlacementListView() {
                      data-action="select-room" data-id="${room.id}">
                     <div class="flex justify-between items-center">
                         <div>
-                            <span class="font-medium">Комната ${e(room.number)}</span>
-                            <span class="text-sm opacity-60 ml-2">${room.floor} этаж</span>
+                            <span class="font-medium">${t('retreat_guests_room')} ${e(room.number)}</span>
+                            <span class="text-sm opacity-60 ml-2">${room.floor} ${t('retreat_guests_floor')}</span>
                         </div>
                         <span class="text-sm">${statusText}</span>
                     </div>
@@ -951,7 +883,7 @@ async function renderPlacementListView() {
         });
     });
 
-    container.innerHTML = html || '<div class="text-center py-4 opacity-50">Нет доступных комнат</div>';
+    container.innerHTML = html || `<div class="text-center py-4 opacity-50">${t('retreat_guests_no_rooms')}</div>`;
 
     // Делегирование кликов в списке комнат
     if (!container._delegated) {
@@ -1035,7 +967,7 @@ async function renderPlacementPlanView() {
     const floorTabs = document.getElementById('planFloorTabs');
     floorTabs.innerHTML = floors.map(f => {
         const isActive = f === currentPlanFloor;
-        return `<button class="btn btn-xs ${isActive ? 'btn-primary' : 'btn-ghost'}" data-action="select-plan-floor" data-floor="${f}">${f} этаж</button>`;
+        return `<button class="btn btn-xs ${isActive ? 'btn-primary' : 'btn-ghost'}" data-action="select-plan-floor" data-floor="${f}">${f} ${t('retreat_guests_floor')}</button>`;
     }).join('');
     if (!floorTabs._delegated) {
         floorTabs._delegated = true;
@@ -1159,7 +1091,7 @@ async function selectRoom(roomId) {
     const checkOut = document.getElementById('placementCheckOut').value;
 
     if (!checkIn || !checkOut) {
-        Layout.showNotification('Выберите даты заезда и выезда', 'warning');
+        Layout.showNotification(t('retreat_guests_select_dates'), 'warning');
         return;
     }
 
@@ -1172,8 +1104,8 @@ async function selectRoom(roomId) {
     if (existingPlacement) {
         // Remove placement
         const confirmed = await ModalUtils.confirm(
-            'Снять размещение',
-            `Убрать гостя из комнаты ${room.number}?`
+            t('retreat_guests_remove_placement'),
+            `${t('retreat_guests_remove_from_room')} ${room.number}?`
         );
         if (!confirmed) return;
 
@@ -1184,11 +1116,11 @@ async function selectRoom(roomId) {
 
         if (error) {
             console.error('Error removing placement:', error);
-            Layout.showNotification('Ошибка при удалении размещения', 'error');
+            Layout.showNotification(t('retreat_guests_error_removing_placement'), 'error');
             return;
         }
 
-        Layout.showNotification('Размещение снято', 'success');
+        Layout.showNotification(t('retreat_guests_placement_removed'), 'success');
     } else {
         // Create placement
         const { error } = await Layout.db
@@ -1202,11 +1134,11 @@ async function selectRoom(roomId) {
 
         if (error) {
             console.error('Error creating placement:', error);
-            Layout.showNotification('Ошибка при размещении: ' + error.message, 'error');
+            Layout.showNotification(t('retreat_guests_error_placing') + ': ' + error.message, 'error');
             return;
         }
 
-        Layout.showNotification(`Гость размещён в комнате ${room.number} (${building[`name_${Layout.currentLang}`] || building.name_ru})`, 'success');
+        Layout.showNotification(`${t('retreat_guests_guest_placed_in_room')} ${room.number} (${building[`name_${Layout.currentLang}`] || building.name_ru})`, 'success');
     }
 
     document.getElementById('placementModal').close();
@@ -1392,19 +1324,19 @@ async function startImport() {
 
             if (result.status === 'created') {
                 importStats.created++;
-                logMessage(log, `✓ Создан: ${result.name}`, 'success');
+                logMessage(log, `✓ ${t('retreat_guests_import_created')}: ${result.name}`, 'success');
             } else if (result.status === 'updated') {
                 importStats.updated++;
-                logMessage(log, `↻ Обновлён: ${result.name}`, 'info');
+                logMessage(log, `↻ ${t('retreat_guests_import_updated')}: ${result.name}`, 'info');
             } else if (result.status === 'conflict') {
                 conflicts.push(result);
-                logMessage(log, `⚠ Конфликт: ${result.name}`, 'warning');
+                logMessage(log, `⚠ ${t('retreat_guests_import_conflict')}: ${result.name}`, 'warning');
             } else if (result.status === 'skipped') {
                 importStats.skipped++;
-                logMessage(log, `— Пропущен: ${row.name || row.name2}`, 'info');
+                logMessage(log, `— ${t('retreat_guests_import_skipped')}: ${row.name || row.name2}`, 'info');
             }
         } catch (err) {
-            logMessage(log, `✗ Ошибка строка ${i + 1}: ${err.message}`, 'error');
+            logMessage(log, `✗ ${t('retreat_guests_import_error_row')} ${i + 1}: ${err.message}`, 'error');
             importStats.skipped++;
         }
     }
@@ -1620,7 +1552,7 @@ function parseRowData(row) {
         indiaExperience: (row.travel_experience || '').trim() || null,
         telegram,
         photoUrl,
-        displayName: `${firstName} ${lastName}`.trim() || row.name2 || 'Без имени',
+        displayName: `${firstName} ${lastName}`.trim() || row.name2 || t('retreat_guests_no_name'),
 
         // Registration fields
         registrationDate,
@@ -1875,104 +1807,6 @@ async function createOrUpdateRegistration(vaishnavId, parsed) {
     await createTransfers(registrationId, parsed);
 }
 
-function parseDateTimeString(str, retreatYear) {
-    if (!str) return null;
-
-    const months = {
-        'января': 1, 'февраля': 2, 'марта': 3, 'апреля': 4,
-        'мая': 5, 'июня': 6, 'июля': 7, 'августа': 8,
-        'сентября': 9, 'октября': 10, 'ноября': 11, 'декабря': 12
-    };
-
-    // Format: "7 февраля 18:30" or "7 февраля, 18:30" or "7 февраля, 04.05 утра"
-    let match = str.match(/(\d{1,2})\s+(января|февраля|марта|апреля|мая|июня|июля|августа|сентября|октября|ноября|декабря)[,]?\s*(\d{1,2})[.:](\d{2})(?:\s*(утра|дня|вечера|ночи))?/i);
-    if (match) {
-        const day = parseInt(match[1]);
-        const month = months[match[2].toLowerCase()];
-        let hour = parseInt(match[3]);
-        const minute = parseInt(match[4]);
-        const period = match[5] ? match[5].toLowerCase() : null;
-        // «вечера» или «дня» после 12 — прибавляем 12 (если hour < 12)
-        if (period === 'вечера' || period === 'дня') {
-            if (hour < 12) hour += 12;
-        } else if (period === 'ночи') {
-            // "12 ночи" = 0, но "1 ночи" = 1
-            if (hour === 12) hour = 0;
-        }
-        // «утра» — оставляем как есть
-        const year = retreatYear || new Date().getFullYear();
-        return new Date(year, month - 1, day, hour, minute).toISOString();
-    }
-
-    // Format: "22.02.26 5:50" or "22.02.2026 5:50" or "22.02.26 5.50"
-    match = str.match(/(\d{1,2})\.(\d{1,2})\.(\d{2,4})\s+(\d{1,2})[.:](\d{2})/);
-    if (match) {
-        const day = parseInt(match[1]);
-        const month = parseInt(match[2]);
-        let year = parseInt(match[3]);
-        if (year < 100) year += 2000;
-        const hour = parseInt(match[4]);
-        const minute = parseInt(match[5]);
-        return new Date(year, month - 1, day, hour, minute).toISOString();
-    }
-
-    // Format: "06.02.2026 в 04.05" (с предлогом "в" и точкой в времени)
-    match = str.match(/(\d{1,2})\.(\d{1,2})\.(\d{2,4})\s*в\s*(\d{1,2})\.(\d{2})/i);
-    if (match) {
-        const day = parseInt(match[1]);
-        const month = parseInt(match[2]);
-        let year = parseInt(match[3]);
-        if (year < 100) year += 2000;
-        const hour = parseInt(match[4]);
-        const minute = parseInt(match[5]);
-        return new Date(year, month - 1, day, hour, minute).toISOString();
-    }
-
-    // Format: "7.02. в 00.25" или "7.02 в 00:25" (день.месяц без года, предлог "в", время)
-    match = str.match(/(\d{1,2})\.(\d{1,2})\.?\s*в\s*(\d{1,2})[.:](\d{2})/i);
-    if (match) {
-        const day = parseInt(match[1]);
-        const month = parseInt(match[2]);
-        const hour = parseInt(match[3]);
-        const minute = parseInt(match[4]);
-        const year = retreatYear || new Date().getFullYear();
-        return new Date(year, month - 1, day, hour, minute).toISOString();
-    }
-
-    // Format: "7.02 00:25" или "7.02. 00.25" (день.месяц без года, время без "в")
-    match = str.match(/(\d{1,2})\.(\d{1,2})\.?\s+(\d{1,2})[.:](\d{2})/);
-    if (match) {
-        const day = parseInt(match[1]);
-        const month = parseInt(match[2]);
-        const hour = parseInt(match[3]);
-        const minute = parseInt(match[4]);
-        const year = retreatYear || new Date().getFullYear();
-        return new Date(year, month - 1, day, hour, minute).toISOString();
-    }
-
-    // Format: "06.02.2026" or "22.02.26" (только дата без времени)
-    match = str.match(/(\d{1,2})\.(\d{1,2})\.(\d{2,4})(?!\s*[\d:в])/);
-    if (match) {
-        const day = parseInt(match[1]);
-        const month = parseInt(match[2]);
-        let year = parseInt(match[3]);
-        if (year < 100) year += 2000;
-        return new Date(year, month - 1, day, 12, 0).toISOString();
-    }
-
-    // Format: "7 февраля" (no time)
-    match = str.match(/(\d{1,2})\s+(января|февраля|марта|апреля|мая|июня|июля|августа|сентября|октября|ноября|декабря)/i);
-    if (match) {
-        const day = parseInt(match[1]);
-        const month = months[match[2].toLowerCase()];
-        const year = retreatYear || new Date().getFullYear();
-        return new Date(year, month - 1, day, 12, 0).toISOString();
-    }
-
-    // Can't parse - return null
-    return null;
-}
-
 async function createTransfers(registrationId, parsed) {
     // Delete existing transfers for this registration
     await Layout.db
@@ -1985,7 +1819,7 @@ async function createTransfers(registrationId, parsed) {
 
     // Arrival
     if (parsed.arrivalTime || parsed.arrivalFlight) {
-        const flightDatetime = parseDateTimeString(parsed.arrivalTime, retreatYear);
+        const flightDatetime = DateUtils.parseDateTimeString(parsed.arrivalTime, retreatYear);
         transfers.push({
             registration_id: registrationId,
             direction: 'arrival',
@@ -1998,7 +1832,7 @@ async function createTransfers(registrationId, parsed) {
 
     // Departure
     if (parsed.departureTime || parsed.departureFlight) {
-        const flightDatetime = parseDateTimeString(parsed.departureTime, retreatYear);
+        const flightDatetime = DateUtils.parseDateTimeString(parsed.departureTime, retreatYear);
         transfers.push({
             registration_id: registrationId,
             direction: 'departure',
@@ -2032,42 +1866,42 @@ function showConflicts() {
             <div class="conflict-card bg-base-100 rounded-lg p-4">
                 <div class="flex justify-between items-start mb-3">
                     <div>
-                        <strong>Строка ${c.rowNum}:</strong> ${e(c.name)}
-                        <span class="badge badge-sm ml-2">${c.candidates[0]?.score || 0} баллов</span>
+                        <strong>${t('retreat_guests_row')} ${c.rowNum}:</strong> ${e(c.name)}
+                        <span class="badge badge-sm ml-2">${c.candidates[0]?.score || 0} ${t('retreat_guests_points')}</span>
                     </div>
                 </div>
 
                 <div class="grid grid-cols-2 gap-4 text-sm mb-3">
                     <div>
-                        <div class="font-medium mb-1">В CSV:</div>
+                        <div class="font-medium mb-1">${t('retreat_guests_in_csv')}:</div>
                         <div>${e(parsed.firstName)} ${e(parsed.lastName)}</div>
                         <div>${e(parsed.spiritualName || '—')}</div>
                         <div>${e(parsed.email || '—')}</div>
                         <div>${e(parsed.phone || '—')}</div>
                     </div>
                     <div>
-                        <div class="font-medium mb-1">В базе:</div>
+                        <div class="font-medium mb-1">${t('retreat_guests_in_db')}:</div>
                         ${candidate ? `
                             <div class="${parsed.firstName === candidate.first_name ? 'match-same' : 'match-diff'}">${e(candidate.first_name)} ${e(candidate.last_name || '')}</div>
                             <div class="${parsed.spiritualName === candidate.spiritual_name ? 'match-same' : 'match-diff'}">${e(candidate.spiritual_name || '—')}</div>
                             <div class="${parsed.email === candidate.email ? 'match-same' : 'match-diff'}">${e(candidate.email || '—')}</div>
                             <div class="${normalizePhone(parsed.phone) === normalizePhone(candidate.phone) ? 'match-same' : 'match-diff'}">${e(candidate.phone || '—')}</div>
-                        ` : '<div class="opacity-50">Нет совпадений</div>'}
+                        ` : `<div class="opacity-50">${t('retreat_guests_no_matches')}</div>`}
                     </div>
                 </div>
 
                 <div class="flex gap-4">
                     <label class="flex items-center gap-2 cursor-pointer">
                         <input type="radio" name="conflict_${idx}" value="update" class="radio radio-sm" ${candidate ? 'checked' : ''} />
-                        <span>Это тот же человек — обновить</span>
+                        <span>${t('retreat_guests_same_person_update')}</span>
                     </label>
                     <label class="flex items-center gap-2 cursor-pointer">
                         <input type="radio" name="conflict_${idx}" value="create" class="radio radio-sm" ${!candidate ? 'checked' : ''} />
-                        <span>Создать нового</span>
+                        <span>${t('retreat_guests_create_new')}</span>
                     </label>
                     <label class="flex items-center gap-2 cursor-pointer">
                         <input type="radio" name="conflict_${idx}" value="skip" class="radio radio-sm" />
-                        <span>Пропустить</span>
+                        <span>${t('retreat_guests_skip')}</span>
                     </label>
                 </div>
             </div>
@@ -2112,11 +1946,11 @@ function showImportDone() {
     const totalProcessed = importStats.created + importStats.updated + importStats.skipped + conflicts.length;
     const csvCount = csvData.length;
 
-    let summary = `Создано: ${importStats.created}, Обновлено: ${importStats.updated}, Пропущено: ${importStats.skipped}`;
+    let summary = `${t('retreat_guests_import_created')}: ${importStats.created}, ${t('retreat_guests_import_updated')}: ${importStats.updated}, ${t('retreat_guests_import_skipped')}: ${importStats.skipped}`;
 
     // Проверка количества: входные строки должны совпадать с обработанными
     if (totalProcessed !== csvCount) {
-        summary += `\n⚠️ ВНИМАНИЕ: В CSV было ${csvCount} строк, обработано ${totalProcessed}!`;
+        summary += `\n⚠️ ${t('retreat_guests_import_mismatch')}: CSV ${csvCount}, ${t('retreat_guests_import_processed')} ${totalProcessed}!`;
         console.error(`Несовпадение количества! CSV: ${csvCount}, обработано: ${totalProcessed}`);
     }
 

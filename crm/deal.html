@@ -4,7 +4,7 @@
     <script src="../js/color-init.js"></script>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Сделка — CRM — ШРСК</title>
+    <title data-i18n-title="crm_deal_page_title">Сделка — CRM — ШРСК</title>
     <link href="https://cdn.jsdelivr.net/npm/daisyui@4.12.14/dist/full.min.css" rel="stylesheet" />
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
@@ -20,8 +20,8 @@
     <!-- Хлебные крошки -->
     <div class="text-sm breadcrumbs mb-4">
         <ul>
-            <li><a href="deals.html">Все сделки</a></li>
-            <li id="breadcrumbGuest">Загрузка...</li>
+            <li><a href="deals.html" data-i18n="nav_crm_deals">Все сделки</a></li>
+            <li id="breadcrumbGuest" data-i18n="loading">Загрузка...</li>
         </ul>
     </div>
 
@@ -42,11 +42,11 @@
 
             <!-- Вкладки -->
             <div class="tabs tabs-boxed mb-4">
-                <button class="tab tab-active" onclick="switchTab('info')" id="tabInfo">Инфо</button>
-                <button class="tab" onclick="switchTab('services')" id="tabServices">Услуги</button>
-                <button class="tab" onclick="switchTab('payments')" id="tabPayments">Оплаты</button>
-                <button class="tab" onclick="switchTab('tasks')" id="tabTasks">Задачи</button>
-                <button class="tab" onclick="switchTab('history')" id="tabHistory">История</button>
+                <button class="tab tab-active" onclick="switchTab('info')" id="tabInfo" data-i18n="crm_tab_info">Инфо</button>
+                <button class="tab" onclick="switchTab('services')" id="tabServices" data-i18n="crm_tab_services">Услуги</button>
+                <button class="tab" onclick="switchTab('payments')" id="tabPayments" data-i18n="crm_tab_payments">Оплаты</button>
+                <button class="tab" onclick="switchTab('tasks')" id="tabTasks" data-i18n="crm_tab_tasks">Задачи</button>
+                <button class="tab" onclick="switchTab('history')" id="tabHistory" data-i18n="crm_tab_history">История</button>
             </div>
 
             <!-- Контент вкладок -->
@@ -64,16 +64,16 @@
             <!-- Статус -->
             <div class="card bg-base-100 shadow-sm">
                 <div class="card-body p-4">
-                    <h3 class="font-bold mb-3">Статус</h3>
+                    <h3 class="font-bold mb-3" data-i18n="col_status">Статус</h3>
                     <select id="statusSelect" class="select select-bordered w-full" onchange="changeStatus(this.value)">
                     </select>
 
                     <div class="mt-3">
-                        <label class="label py-1"><span class="label-text text-xs">Режим работы</span></label>
+                        <label class="label py-1"><span class="label-text text-xs" data-i18n="crm_work_mode">Режим работы</span></label>
                         <select id="workModeSelect" class="select select-bordered select-sm w-full" onchange="changeWorkMode(this.value)">
-                            <option value="active">Активная работа</option>
-                            <option value="long_term">Долгий дожим</option>
-                            <option value="paused">На паузе</option>
+                            <option value="active" data-i18n="crm_mode_active">Активная работа</option>
+                            <option value="long_term" data-i18n="crm_mode_long_term">Долгий дожим</option>
+                            <option value="paused" data-i18n="crm_mode_paused">На паузе</option>
                         </select>
                     </div>
                 </div>
@@ -82,9 +82,9 @@
             <!-- Менеджер -->
             <div class="card bg-base-100 shadow-sm">
                 <div class="card-body p-4">
-                    <h3 class="font-bold mb-3">Менеджер</h3>
+                    <h3 class="font-bold mb-3" data-i18n="crm_manager">Менеджер</h3>
                     <select id="managerSelect" class="select select-bordered w-full" onchange="changeManager(this.value)">
-                        <option value="">Не назначен</option>
+                        <option value="" data-i18n="crm_unassigned">Не назначен</option>
                     </select>
                 </div>
             </div>
@@ -92,22 +92,22 @@
             <!-- Финансы -->
             <div class="card bg-base-100 shadow-sm">
                 <div class="card-body p-4">
-                    <h3 class="font-bold mb-3">Финансы</h3>
+                    <h3 class="font-bold mb-3" data-i18n="crm_finances">Финансы</h3>
                     <div class="grid grid-cols-2 gap-3">
                         <div class="py-2 pl-4 pr-3 rounded-r-lg bg-slate-100 border-l-4 border-slate-400">
-                            <div class="text-xs text-base-content/60">Начислено</div>
+                            <div class="text-xs text-base-content/60" data-i18n="crm_charged">Начислено</div>
                             <div class="text-lg font-bold font-mono text-slate-700" id="financeCharged">₹ 0</div>
                         </div>
                         <div class="py-2 pl-4 pr-3 rounded-r-lg bg-emerald-50 border-l-4 border-emerald-400">
-                            <div class="text-xs text-base-content/60">Оплачено</div>
+                            <div class="text-xs text-base-content/60" data-i18n="crm_paid">Оплачено</div>
                             <div class="text-lg font-bold font-mono text-emerald-600" id="financePaid">₹ 0</div>
                         </div>
                         <div class="py-2 pl-4 pr-3 rounded-r-lg border-l-4" id="financeBalanceCard">
-                            <div class="text-xs text-base-content/60">Баланс</div>
+                            <div class="text-xs text-base-content/60" data-i18n="crm_balance">Баланс</div>
                             <div class="text-lg font-bold font-mono" id="financeBalance">₹ 0</div>
                         </div>
                         <div class="py-2 pl-4 pr-3 rounded-r-lg bg-violet-50 border-l-4 border-violet-400">
-                            <div class="text-xs text-base-content/60">Депозит</div>
+                            <div class="text-xs text-base-content/60" data-i18n="crm_deposit">Депозит</div>
                             <div class="text-lg font-bold font-mono text-violet-600" id="financeDeposit">₹ 0</div>
                         </div>
                     </div>
@@ -117,10 +117,10 @@
             <!-- Теги -->
             <div class="card bg-base-100 shadow-sm">
                 <div class="card-body p-4">
-                    <h3 class="font-bold mb-3">Теги</h3>
+                    <h3 class="font-bold mb-3" data-i18n="crm_tags">Теги</h3>
                     <div id="dealTags" class="flex flex-wrap gap-2 mb-3"></div>
                     <select id="addTagSelect" class="select select-bordered select-sm w-full" onchange="addTag(this.value)">
-                        <option value="">+ Добавить тег...</option>
+                        <option value="" data-i18n="crm_add_tag">+ Добавить тег...</option>
                     </select>
                 </div>
             </div>
@@ -128,12 +128,12 @@
             <!-- Действия -->
             <div class="card bg-base-100 shadow-sm">
                 <div class="card-body p-4">
-                    <h3 class="font-bold mb-3">Действия</h3>
+                    <h3 class="font-bold mb-3" data-i18n="crm_actions">Действия</h3>
                     <div class="space-y-2">
-                        <button class="btn btn-sm btn-block btn-outline gap-2" onclick="openTemplatesModal()" id="templatesBtn">
+                        <button class="btn btn-sm btn-block btn-outline gap-2" onclick="openTemplatesModal()" id="templatesBtn" data-i18n="crm_message_templates">
                             Шаблоны сообщений
                         </button>
-                        <button class="btn btn-sm btn-block btn-outline text-error gap-2" onclick="cancelDeal()" id="cancelBtn">
+                        <button class="btn btn-sm btn-block btn-outline text-error gap-2" onclick="cancelDeal()" id="cancelBtn" data-i18n="crm_cancel_deal">
                             Отменить сделку
                         </button>
                     </div>
@@ -148,41 +148,41 @@
 <!-- Модалка добавления услуги -->
 <dialog id="addServiceModal" class="modal">
     <div class="modal-box">
-        <h3 class="font-bold text-lg mb-4">Добавить услугу</h3>
+        <h3 class="font-bold text-lg mb-4" data-i18n="crm_add_service">Добавить услугу</h3>
         <form onsubmit="saveService(event)">
             <input type="hidden" id="editServiceId">
 
             <div class="form-control mb-3">
-                <label class="label"><span class="label-text">Услуга</span></label>
+                <label class="label"><span class="label-text" data-i18n="crm_service">Услуга</span></label>
                 <select id="serviceSelect" class="select select-bordered" onchange="onServiceSelect()">
-                    <option value="">Выберите услугу...</option>
-                    <option value="custom">— Другое (ввести вручную) —</option>
+                    <option value="" data-i18n="crm_select_service">Выберите услугу...</option>
+                    <option value="custom" data-i18n="crm_custom_service">— Другое (ввести вручную) —</option>
                 </select>
             </div>
 
             <div id="customServiceDesc" class="form-control mb-3 hidden">
-                <label class="label"><span class="label-text">Описание</span></label>
+                <label class="label"><span class="label-text" data-i18n="crm_description">Описание</span></label>
                 <input type="text" id="serviceDescription" class="input input-bordered">
             </div>
 
             <div class="grid grid-cols-3 gap-3 mb-4">
                 <div class="form-control">
-                    <label class="label"><span class="label-text">Кол-во</span></label>
+                    <label class="label"><span class="label-text" data-i18n="crm_quantity">Кол-во</span></label>
                     <input type="number" id="serviceQty" class="input input-bordered" value="1" min="0.01" step="0.01" oninput="calcServiceTotal()">
                 </div>
                 <div class="form-control">
-                    <label class="label"><span class="label-text">Цена (₹)</span></label>
+                    <label class="label"><span class="label-text" data-i18n="crm_price_inr">Цена (₹)</span></label>
                     <input type="number" id="servicePrice" class="input input-bordered" value="0" min="0" step="0.01" oninput="calcServiceTotal()">
                 </div>
                 <div class="form-control">
-                    <label class="label"><span class="label-text">Итого (₹)</span></label>
+                    <label class="label"><span class="label-text" data-i18n="crm_total_inr">Итого (₹)</span></label>
                     <input type="number" id="serviceTotal" class="input input-bordered font-bold" readonly>
                 </div>
             </div>
 
             <div class="modal-action">
-                <button type="button" class="btn" onclick="closeServiceModal()">Отмена</button>
-                <button type="submit" class="btn btn-primary">Сохранить</button>
+                <button type="button" class="btn" onclick="closeServiceModal()" data-i18n="cancel">Отмена</button>
+                <button type="submit" class="btn btn-primary" data-i18n="save">Сохранить</button>
             </div>
         </form>
     </div>
@@ -192,15 +192,15 @@
 <!-- Модалка добавления оплаты -->
 <dialog id="addPaymentModal" class="modal">
     <div class="modal-box">
-        <h3 class="font-bold text-lg mb-4">Добавить оплату</h3>
+        <h3 class="font-bold text-lg mb-4" data-i18n="crm_add_payment">Добавить оплату</h3>
         <form onsubmit="savePayment(event)">
             <div class="grid grid-cols-2 gap-3 mb-3">
                 <div class="form-control">
-                    <label class="label"><span class="label-text">Сумма</span></label>
+                    <label class="label"><span class="label-text" data-i18n="crm_amount">Сумма</span></label>
                     <input type="number" id="paymentAmount" class="input input-bordered" required min="0.01" step="0.01">
                 </div>
                 <div class="form-control">
-                    <label class="label"><span class="label-text">Валюта</span></label>
+                    <label class="label"><span class="label-text" data-i18n="crm_currency">Валюта</span></label>
                     <select id="paymentCurrency" class="select select-bordered" onchange="updatePaymentRate()">
                     </select>
                 </div>
@@ -212,33 +212,33 @@
 
             <div class="grid grid-cols-2 gap-3 mb-3">
                 <div class="form-control">
-                    <label class="label"><span class="label-text">Тип</span></label>
+                    <label class="label"><span class="label-text" data-i18n="crm_payment_type">Тип</span></label>
                     <select id="paymentType" class="select select-bordered">
-                        <option value="org_fee">Оргвзнос</option>
-                        <option value="accommodation">Проживание</option>
-                        <option value="meals">Питание</option>
-                        <option value="deposit">Депозит</option>
-                        <option value="other">Другое</option>
+                        <option value="org_fee" data-i18n="crm_ptype_org_fee">Оргвзнос</option>
+                        <option value="accommodation" data-i18n="crm_cat_accommodation">Проживание</option>
+                        <option value="meals" data-i18n="crm_cat_meals">Питание</option>
+                        <option value="deposit" data-i18n="crm_deposit">Депозит</option>
+                        <option value="other" data-i18n="crm_cat_other">Другое</option>
                     </select>
                 </div>
                 <div class="form-control">
-                    <label class="label"><span class="label-text">Способ</span></label>
+                    <label class="label"><span class="label-text" data-i18n="crm_payment_method">Способ</span></label>
                     <select id="paymentMethod" class="select select-bordered">
-                        <option value="cash">Наличные</option>
-                        <option value="card">Карта</option>
-                        <option value="transfer">Перевод</option>
+                        <option value="cash" data-i18n="crm_method_cash">Наличные</option>
+                        <option value="card" data-i18n="crm_method_card">Карта</option>
+                        <option value="transfer" data-i18n="crm_method_transfer">Перевод</option>
                     </select>
                 </div>
             </div>
 
             <div class="form-control mb-4">
-                <label class="label"><span class="label-text">Заметка</span></label>
+                <label class="label"><span class="label-text" data-i18n="crm_note">Заметка</span></label>
                 <input type="text" id="paymentNotes" class="input input-bordered">
             </div>
 
             <div class="modal-action">
-                <button type="button" class="btn" onclick="closePaymentModal()">Отмена</button>
-                <button type="submit" class="btn btn-primary">Сохранить</button>
+                <button type="button" class="btn" onclick="closePaymentModal()" data-i18n="cancel">Отмена</button>
+                <button type="submit" class="btn btn-primary" data-i18n="save">Сохранить</button>
             </div>
         </form>
     </div>
@@ -248,42 +248,42 @@
 <!-- Модалка добавления коммуникации -->
 <dialog id="addCommModal" class="modal">
     <div class="modal-box">
-        <h3 class="font-bold text-lg mb-4">Записать контакт</h3>
+        <h3 class="font-bold text-lg mb-4" data-i18n="crm_log_contact">Записать контакт</h3>
         <form onsubmit="saveComm(event)">
             <div class="grid grid-cols-2 gap-3 mb-3">
                 <div class="form-control">
-                    <label class="label"><span class="label-text">Тип</span></label>
+                    <label class="label"><span class="label-text" data-i18n="crm_comm_type">Тип</span></label>
                     <select id="commType" class="select select-bordered">
-                        <option value="call">Звонок</option>
+                        <option value="call" data-i18n="crm_comm_call">Звонок</option>
                         <option value="whatsapp">WhatsApp</option>
-                        <option value="telegram">Телеграм</option>
+                        <option value="telegram" data-i18n="crm_source_telegram">Телеграм</option>
                         <option value="email">Email</option>
-                        <option value="note">Заметка</option>
+                        <option value="note" data-i18n="crm_note">Заметка</option>
                     </select>
                 </div>
                 <div class="form-control">
-                    <label class="label"><span class="label-text">Направление</span></label>
+                    <label class="label"><span class="label-text" data-i18n="crm_direction">Направление</span></label>
                     <select id="commDirection" class="select select-bordered">
-                        <option value="outbound">Исходящий</option>
-                        <option value="inbound">Входящий</option>
-                        <option value="internal">Внутренний</option>
+                        <option value="outbound" data-i18n="crm_dir_outbound">Исходящий</option>
+                        <option value="inbound" data-i18n="crm_dir_inbound">Входящий</option>
+                        <option value="internal" data-i18n="crm_dir_internal">Внутренний</option>
                     </select>
                 </div>
             </div>
 
             <div class="form-control mb-3">
-                <label class="label"><span class="label-text">Краткое описание *</span></label>
-                <input type="text" id="commSummary" class="input input-bordered" required placeholder="Например: Обсудили даты приезда">
+                <label class="label"><span class="label-text" data-i18n="crm_summary_required">Краткое описание *</span></label>
+                <input type="text" id="commSummary" class="input input-bordered" required placeholder="Например: Обсудили даты приезда" data-i18n-placeholder="crm_summary_placeholder">
             </div>
 
             <div class="form-control mb-4">
-                <label class="label"><span class="label-text">Подробности</span></label>
+                <label class="label"><span class="label-text" data-i18n="crm_details">Подробности</span></label>
                 <textarea id="commContent" class="textarea textarea-bordered" rows="3"></textarea>
             </div>
 
             <div class="modal-action">
-                <button type="button" class="btn" onclick="closeCommModal()">Отмена</button>
-                <button type="submit" class="btn btn-primary">Сохранить</button>
+                <button type="button" class="btn" onclick="closeCommModal()" data-i18n="cancel">Отмена</button>
+                <button type="submit" class="btn btn-primary" data-i18n="save">Сохранить</button>
             </div>
         </form>
     </div>
@@ -293,37 +293,37 @@
 <!-- Модалка добавления задачи -->
 <dialog id="addTaskModal" class="modal">
     <div class="modal-box">
-        <h3 class="font-bold text-lg mb-4">Новая задача</h3>
+        <h3 class="font-bold text-lg mb-4" data-i18n="crm_new_task">Новая задача</h3>
         <form onsubmit="saveTask(event)">
             <div class="form-control mb-3">
-                <label class="label"><span class="label-text">Задача *</span></label>
+                <label class="label"><span class="label-text" data-i18n="crm_task_required">Задача *</span></label>
                 <input type="text" id="taskTitle" class="input input-bordered" required>
             </div>
 
             <div class="grid grid-cols-2 gap-3 mb-3">
                 <div class="form-control">
-                    <label class="label"><span class="label-text">Дата</span></label>
+                    <label class="label"><span class="label-text" data-i18n="crm_date">Дата</span></label>
                     <input type="date" id="taskDueDate" class="input input-bordered">
                 </div>
                 <div class="form-control">
-                    <label class="label"><span class="label-text">Приоритет</span></label>
+                    <label class="label"><span class="label-text" data-i18n="crm_priority">Приоритет</span></label>
                     <select id="taskPriority" class="select select-bordered">
-                        <option value="low">Низкий</option>
-                        <option value="normal" selected>Обычный</option>
-                        <option value="high">Высокий</option>
-                        <option value="urgent">Срочный</option>
+                        <option value="low" data-i18n="crm_priority_low">Низкий</option>
+                        <option value="normal" selected data-i18n="crm_priority_normal">Обычный</option>
+                        <option value="high" data-i18n="crm_priority_high">Высокий</option>
+                        <option value="urgent" data-i18n="crm_priority_urgent">Срочный</option>
                     </select>
                 </div>
             </div>
 
             <div class="form-control mb-4">
-                <label class="label"><span class="label-text">Описание</span></label>
+                <label class="label"><span class="label-text" data-i18n="crm_description">Описание</span></label>
                 <textarea id="taskDescription" class="textarea textarea-bordered" rows="2"></textarea>
             </div>
 
             <div class="modal-action">
-                <button type="button" class="btn" onclick="closeTaskModal()">Отмена</button>
-                <button type="submit" class="btn btn-primary">Создать</button>
+                <button type="button" class="btn" onclick="closeTaskModal()" data-i18n="cancel">Отмена</button>
+                <button type="submit" class="btn btn-primary" data-i18n="create">Создать</button>
             </div>
         </form>
     </div>
@@ -333,10 +333,10 @@
 <!-- Модалка шаблонов -->
 <dialog id="templatesModal" class="modal">
     <div class="modal-box max-w-2xl">
-        <h3 class="font-bold text-lg mb-4">Шаблоны сообщений</h3>
+        <h3 class="font-bold text-lg mb-4" data-i18n="crm_message_templates">Шаблоны сообщений</h3>
         <div id="templatesList" class="space-y-3"></div>
         <div class="modal-action">
-            <button class="btn" onclick="closeTemplatesModal()">Закрыть</button>
+            <button class="btn" onclick="closeTemplatesModal()" data-i18n="close">Закрыть</button>
         </div>
     </div>
     <form method="dialog" class="modal-backdrop"><button>close</button></form>

@@ -232,12 +232,12 @@ function renderBookings() {
                         <div class="flex items-center gap-4">
                             <div class="text-center">
                                 <div class="text-2xl font-bold">${totalBeds}</div>
-                                <div class="text-xs opacity-60">${t('booking_beds') || 'мест'}</div>
+                                <div class="text-xs opacity-60">${t('booking_beds')}</div>
                             </div>
 
                             <div class="w-24">
                                 <div class="flex justify-between text-xs mb-1">
-                                    <span>${t('booking_progress') || 'Прогресс'}</span>
+                                    <span>${t('booking_progress')}</span>
                                     <span>${filledBeds}/${totalBeds}</span>
                                 </div>
                                 <progress class="progress ${progressPercent === 100 ? 'progress-success' : progressPercent > 0 ? 'progress-warning' : ''} w-full" value="${progressPercent}" max="100"></progress>
@@ -340,7 +340,7 @@ function openDayModal(dateStr) {
     if (dayBookings.length === 0) return;
 
     const date = DateUtils.parseDate(dateStr);
-    Layout.$('#dayModalTitle').textContent = `${t('bookings_title') || 'Бронирования'} — ${date.toLocaleDateString()}`;
+    Layout.$('#dayModalTitle').textContent = `${t('bookings_title')} — ${date.toLocaleDateString()}`;
 
     const dayModalContentEl = Layout.$('#dayModalContent');
     dayModalContentEl.innerHTML = dayBookings.map(b => `
@@ -354,7 +354,7 @@ function openDayModal(dateStr) {
             </div>
             <div class="text-right">
                 <div class="text-lg font-bold">${b.beds_count}</div>
-                <div class="text-xs opacity-60">${t('booking_beds') || 'мест'}</div>
+                <div class="text-xs opacity-60">${t('booking_beds')}</div>
             </div>
         </div>
     `).join('');
@@ -411,7 +411,7 @@ function openNewBookingModal() {
     const buildingScopeSelect = Layout.$('#newBookingBuildingScope');
     buildingScopeSelect.innerHTML =
         (guesthouse ? `<option value="${guesthouse.id}">${Layout.getName(guesthouse)} (${buildingCapacity[guesthouse.id] || 0})</option>` : '') +
-        `<option value="all">${t('booking_all_buildings') || 'Все здания'} (${totalCapacity})</option>` +
+        `<option value="all">${t('booking_all_buildings')} (${totalCapacity})</option>` +
         buildings.filter(b => b.id !== guesthouse?.id).map(b =>
             `<option value="${b.id}">${Layout.getName(b)} (${buildingCapacity[b.id] || 0})</option>`
         ).join('');
@@ -476,7 +476,7 @@ async function goToBookingStep2() {
         console.error('Error checking availability:', error);
     } else if (problemDates && problemDates.length > 0) {
         const buildingName = buildingScope === 'all'
-            ? (t('booking_all_buildings') || 'Все здания')
+            ? t('booking_all_buildings')
             : Layout.getName(buildings.find(b => b.id === buildingScope)) || '';
 
         showAvailabilityError(problemDates, buildingName, bedsCount);
@@ -532,7 +532,7 @@ function showAvailabilityError(problemDates, buildingName, bedsNeeded) {
                         <div class="${colorClass} h-2 rounded-full" style="width: ${100 - percent}%"></div>
                     </div>
                     <span class="text-sm opacity-70 w-20 text-right">
-                        ${t('booking_available') || 'свободно'} <strong>${d.available_beds}</strong>
+                        ${t('booking_available')} <strong>${d.available_beds}</strong>
                     </span>
                 </div>
             </div>
@@ -562,15 +562,15 @@ async function renderBookingPlan() {
     const buildingRooms = rooms.filter(r => r.building_id === bookingBuildingId);
 
     if (buildingPlans.length === 0) {
-        container.innerHTML = `<div class="col-span-2 text-center py-8 opacity-50">${t('floor_plan_no_plan') || 'Планы этажей не загружены'}</div>`;
+        container.innerHTML = `<div class="col-span-2 text-center py-8 opacity-50">${t('floor_plan_no_plan')}</div>`;
         return;
     }
 
     container.innerHTML = buildingPlans.map(plan => `
         <div class="bg-base-200 rounded-lg p-2">
-            <div class="text-xs font-medium mb-1 opacity-60">${t('floor_plan_floor') || 'Этаж'} ${plan.floor}</div>
+            <div class="text-xs font-medium mb-1 opacity-60">${t('floor_plan_floor')} ${plan.floor}</div>
             <div class="floor-plan-container relative">
-                <img src="${plan.image_url}" alt="Этаж ${plan.floor}" class="w-full" />
+                <img src="${plan.image_url}" alt="${t('floor_plan_floor')} ${plan.floor}" class="w-full" />
                 <svg class="floor-plan-svg absolute top-0 left-0 w-full h-full" id="bookingPlanSvg_${plan.floor}" viewBox="0 0 100 100" preserveAspectRatio="none"></svg>
             </div>
         </div>
@@ -880,7 +880,7 @@ async function openBookingModal(bookingId) {
         ` : ''}
         <!-- Contact Info -->
         <div class="bg-base-200 rounded-lg p-4">
-            <h4 class="font-medium mb-2">${t('booking_contact') || 'Контакт'}</h4>
+            <h4 class="font-medium mb-2">${t('booking_contact')}</h4>
             <div class="grid grid-cols-2 gap-2 text-sm">
                 <div class="opacity-60">${t('booking_contact_name')}</div>
                 <div class="font-medium">${e(details.contact_name)}</div>
@@ -914,8 +914,8 @@ async function openBookingModal(bookingId) {
         <!-- Progress -->
         <div class="bg-base-200 rounded-lg p-4">
             <div class="flex justify-between items-center mb-2">
-                <span class="font-medium">${t('booking_progress') || 'Прогресс'}</span>
-                <span class="text-sm">${details.beds_filled} / ${details.beds_count} ${t('booking_filled') || 'заселено'}</span>
+                <span class="font-medium">${t('booking_progress')}</span>
+                <span class="text-sm">${details.beds_filled} / ${details.beds_count} ${t('booking_filled')}</span>
             </div>
             <progress class="progress ${details.beds_filled === details.beds_count ? 'progress-success' : 'progress-warning'} w-full" value="${details.beds_filled}" max="${details.beds_count}"></progress>
         </div>
@@ -933,7 +933,7 @@ async function openBookingModal(bookingId) {
         <!-- Rooms -->
         ${rooms.length > 0 ? `
             <div>
-                <h4 class="font-medium mb-2">${t('booking_view_rooms') || 'Комнаты'}</h4>
+                <h4 class="font-medium mb-2">${t('booking_view_rooms')}</h4>
                 <div class="space-y-2">
                     ${filledRooms.map(r => `
                         <div class="flex items-center justify-between p-2 bg-success/10 rounded border border-success/30">
@@ -948,7 +948,7 @@ async function openBookingModal(bookingId) {
                             <div>
                                 <span class="font-medium">${Layout.currentLang === 'ru' ? r.building_name_ru : r.building_name_en || r.building_name_ru} / ${r.room_number}</span>
                             </div>
-                            <div class="badge badge-warning badge-sm">${t('booking_placeholder') || 'Ожидает заселения'}</div>
+                            <div class="badge badge-warning badge-sm">${t('booking_placeholder')}</div>
                         </a>
                     `).join('')}
                 </div>
@@ -971,7 +971,7 @@ function closeBookingModal() {
 
 async function cancelBooking() {
     if (!selectedBookingId) return;
-    if (!confirm(t('booking_cancel_confirm') || 'Отменить эту бронь?')) return;
+    if (!confirm(t('bookings_confirm_cancel'))) return;
 
     try {
         const { error: bookingError } = await Layout.db
@@ -1000,7 +1000,7 @@ async function cancelBooking() {
 
 async function deleteBookingPermanently() {
     if (!selectedBookingId) return;
-    if (!confirm('Удалить бронь навсегда? Это действие нельзя отменить.')) return;
+    if (!confirm(t('bookings_confirm_delete'))) return;
 
     try {
         // Сначала удаляем связанных резидентов
@@ -1025,7 +1025,7 @@ async function deleteBookingPermanently() {
 
     } catch (err) {
         console.error('Error deleting booking:', err);
-        alert('Ошибка удаления: ' + err.message);
+        Layout.showNotification(t('bookings_delete_error') + ': ' + err.message, 'error');
     }
 }
 

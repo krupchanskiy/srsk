@@ -486,11 +486,11 @@ function renderResults() {
                         />
                         <span class="btn btn-sm join-item no-animation pointer-events-none bg-base-200">${unit}</span>
                     </div>
-                    ${product?.waste_percent ? `<div class="text-xs opacity-60 mt-1">(+${product.waste_percent}% на очистку)</div>` : ''}
+                    ${product?.waste_percent ? `<div class="text-xs opacity-60 mt-1">(+${product.waste_percent}% ${t('for_cleaning')})</div>` : ''}
                 </td>
                 <td class="text-right opacity-70">${estSum}</td>
                 <td>
-                    <button class="btn btn-ghost btn-sm btn-square text-error/60 hover:text-error hover:bg-error/10" data-action="remove-item" data-index="${index}" title="${t('remove') || 'Удалить'}">
+                    <button class="btn btn-ghost btn-sm btn-square text-error/60 hover:text-error hover:bg-error/10" data-action="remove-item" data-index="${index}" title="${t('remove')}">
                         <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
                         </svg>
@@ -1137,7 +1137,7 @@ function openProductModal(forViewing = false) {
 function buildProductCategoryButtons() {
     const container = Layout.$('#productCategoryButtons');
     container.innerHTML = `
-        <button type="button" class="btn btn-sm filter-btn ${currentProductCategory === 'all' ? 'active' : ''}" data-cat="all" data-action="filter-products-by-category" data-category="all">${t('all') || 'Все'}</button>
+        <button type="button" class="btn btn-sm filter-btn ${currentProductCategory === 'all' ? 'active' : ''}" data-cat="all" data-action="filter-products-by-category" data-category="all">${t('all')}</button>
         ${productCategories.map(cat => `
             <button type="button" class="btn btn-sm filter-btn ${currentProductCategory === cat.slug ? 'active' : ''}" data-cat="${cat.slug}" data-action="filter-products-by-category" data-category="${cat.slug}">${cat.emoji || ''} ${Layout.getName(cat)}</button>
         `).join('')}
@@ -1175,7 +1175,7 @@ function filterProducts(query) {
     ).slice(0, 10);
 
     if (filtered.length === 0) {
-        dropdown.innerHTML = `<div class="p-3 text-sm opacity-50">${t('nothing_found') || 'Ничего не найдено'}</div>`;
+        dropdown.innerHTML = `<div class="p-3 text-sm opacity-50">${t('nothing_found')}</div>`;
     } else {
         dropdown.innerHTML = filtered.map(p => {
             const cat = p.product_categories;
@@ -1213,7 +1213,7 @@ function filterProductsByCategory(category) {
     }
 
     if (filtered.length === 0) {
-        list.innerHTML = `<div class="p-3 text-sm opacity-50 text-center">${t('nothing_found') || 'Ничего не найдено'}</div>`;
+        list.innerHTML = `<div class="p-3 text-sm opacity-50 text-center">${t('nothing_found')}</div>`;
     } else {
         list.innerHTML = filtered.map(p => {
             const cat = p.product_categories;
@@ -1516,7 +1516,7 @@ function handleRealtimeChange(payload) {
     if (realtimeTimeout) clearTimeout(realtimeTimeout);
     realtimeTimeout = setTimeout(async () => {
         await loadSavedRequests();
-        Layout.showNotification('Заявки обновлены', 'info');
+        Layout.showNotification(t('requests_updated'), 'info');
     }, 500);
 }
 

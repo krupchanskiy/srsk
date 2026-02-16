@@ -30,7 +30,7 @@ function addHoursToDatetime(datetimeStr, hours) {
 function formatDatetimeShort(datetimeStr) {
     if (!datetimeStr) return '—';
     const d = new Date(datetimeStr.slice(0, 16));
-    const months = ['янв', 'фев', 'мар', 'апр', 'май', 'июн', 'июл', 'авг', 'сен', 'окт', 'ноя', 'дек'];
+    const months = DateUtils.monthNamesShort.ru;
     const pad = n => String(n).padStart(2, '0');
     const dateStr = `${d.getDate()} ${months[d.getMonth()]}`;
     if (d.getHours() === 0 && d.getMinutes() === 0) return dateStr;
@@ -54,7 +54,7 @@ async function loadAllRetreats() {
 
     // Populate select
     const select = document.getElementById('retreatSelect');
-    select.innerHTML = '<option value="">Выберите ретрит...</option>' +
+    select.innerHTML = `<option value="">${t('preliminary_select_retreat')}</option>` +
         allRetreats.map(r => `<option value="${r.id}">${Layout.getName(r)}</option>`).join('');
 
     // Check URL for retreat id
@@ -86,8 +86,8 @@ async function selectRetreat(id) {
 
     if (!retreat) return;
 
-    document.getElementById('retreatDates').textContent = formatDateRange(retreat.start_date, retreat.end_date);
-    document.title = `${Layout.getName(retreat)} — ШРСК`;
+    document.getElementById('retreatDates').textContent = DateUtils.formatRange(retreat.start_date, retreat.end_date);
+    document.title = `${Layout.getName(retreat)} — ${t('preliminary_app_title')}`;
 
     // Update URL
     const url = new URL(window.location);
@@ -136,30 +136,30 @@ async function loadRegistrations() {
 
     registrations = data || [];
 
-    // Загружаем размещения из residents (единая таблица для шахматки)
-    // Исключаем выселенных (checked_out)
+    // Загружаем размещения и занятость комнат параллельно
     const vaishnavIds = registrations.map(r => r.vaishnava_id).filter(Boolean);
-    if (vaishnavIds.length > 0) {
-        const { data: residentsData } = await Layout.db
-            .from('residents')
-            .select('*, rooms(id, number, building_id, buildings(id, name_ru, name_en, name_hi))')
-            .eq('retreat_id', retreatId)
-            .in('vaishnava_id', vaishnavIds)
-            .eq('status', 'confirmed');
 
-        // Привязываем residents к регистрациям
-        const residentsByVaishnava = (residentsData || []).reduce((acc, res) => {
-            acc[res.vaishnava_id] = res;
-            return acc;
-        }, {});
+    const [residentsResult] = await Promise.all([
+        vaishnavIds.length > 0
+            ? Layout.db
+                .from('residents')
+                .select('*, rooms(id, number, building_id, buildings(id, name_ru, name_en, name_hi))')
+                .eq('retreat_id', retreatId)
+                .in('vaishnava_id', vaishnavIds)
+                .eq('status', 'confirmed')
+            : Promise.resolve({ data: [] }),
+        loadRoomOccupancy()
+    ]);
 
-        registrations.forEach(reg => {
-            reg.resident = residentsByVaishnava[reg.vaishnava_id] || null;
-        });
-    }
+    // Привязываем residents к регистрациям
+    const residentsByVaishnava = (residentsResult.data || []).reduce((acc, res) => {
+        acc[res.vaishnava_id] = res;
+        return acc;
+    }, {});
 
-    // Загрузить занятость комнат для корректного отображения
-    await loadRoomOccupancy();
+    registrations.forEach(reg => {
+        reg.resident = residentsByVaishnava[reg.vaishnava_id] || null;
+    });
 
     renderTable();
 }
@@ -229,11 +229,14 @@ function getRegCheckOut(reg) {
 }
 
 async function loadVaishnavas() {
-    const { data, error } = await Layout.db
-        .from('vaishnavas')
-        .select('id, first_name, last_name, spiritual_name, phone, email, telegram, birth_date, is_team_member, photo_url')
-        .eq('is_deleted', false)
-        .order('first_name');
+    const { data, error } = await Utils.fetchAll((from, to) =>
+        Layout.db
+            .from('vaishnavas')
+            .select('id, first_name, last_name, spiritual_name, phone, email, telegram, birth_date, is_team_member, photo_url')
+            .eq('is_deleted', false)
+            .order('first_name')
+            .range(from, to)
+    );
 
     if (error) {
         console.error('Error loading vaishnavas:', error);
@@ -244,14 +247,6 @@ async function loadVaishnavas() {
 }
 
 // ==================== RENDERING ====================
-function formatDateRange(start, end) {
-    const lang = Layout.currentLang;
-    const opts = { day: 'numeric', month: 'short', year: 'numeric' };
-    const locale = lang === 'hi' ? 'hi-IN' : lang === 'en' ? 'en-US' : 'ru-RU';
-    const s = DateUtils.parseDate(start).toLocaleDateString(locale, opts);
-    const e = DateUtils.parseDate(end).toLocaleDateString(locale, opts);
-    return `${s} — ${e}`;
-}
 
 function calculateAge(birthDate) {
     if (!birthDate) return '';
@@ -314,8 +309,8 @@ function filterRegistrations() {
         let aVal, bVal;
 
         if (sortField === 'name') {
-            aVal = (a.vaishnavas?.spiritual_name || `${a.vaishnavas?.first_name || ''} ${a.vaishnavas?.last_name || ''}`.trim()).toLowerCase();
-            bVal = (b.vaishnavas?.spiritual_name || `${b.vaishnavas?.first_name || ''} ${b.vaishnavas?.last_name || ''}`.trim()).toLowerCase();
+            aVal = getVaishnavName(a.vaishnavas, '').toLowerCase();
+            bVal = getVaishnavName(b.vaishnavas, '').toLowerCase();
         } else if (sortField === 'gender_age') {
             // Сортировка по полу, потом по возрасту
             const genderOrder = { male: 1, female: 2 };
@@ -457,8 +452,8 @@ function renderTable() {
     // Переводы для статусов
     const statusGuest = t('status_guest');
     const statusTeam = t('status_team');
-    const statusVolunteer = t('status_volunteer') || 'Волонтёр';
-    const statusVip = t('status_vip') || 'ВИП';
+    const statusVolunteer = t('status_volunteer');
+    const statusVip = t('status_vip');
     const statusCancelled = t('status_cancelled');
 
     // Переводы для типов питания
@@ -501,7 +496,7 @@ function renderTable() {
         const departureRetreat = transfers.find(t => t.direction === 'departure_retreat');
 
         // Пол и возраст
-        const genderLabel = v?.gender === 'male' ? 'М' : v?.gender === 'female' ? 'Ж' : '';
+        const genderLabel = v?.gender === 'male' ? t('preliminary_gender_m') : v?.gender === 'female' ? t('preliminary_gender_f') : '';
         const age = v?.birth_date ? calculateAge(v.birth_date) : '';
         const genderAge = [genderLabel, age].filter(Boolean).join(', ') || '—';
 
@@ -574,7 +569,7 @@ function renderTable() {
             : name.split(' ').map(w => w[0]).join('').substring(0, 2);
         const initialsUpper = e(initials.toUpperCase());
 
-        const childBadge = isChild ? ' <span class="badge badge-xs badge-warning">ребёнок</span>' : '';
+        const childBadge = isChild ? ` <span class="badge badge-xs badge-warning">${t('preliminary_child')}</span>` : '';
 
         return `
             <tr class="hover align-top${reg.status === 'cancelled' ? ' row-cancelled' : ''}${isChild ? ' opacity-80' : ''}">
@@ -607,11 +602,11 @@ function renderTable() {
                 <td class="text-sm">${e(reg.accommodation_wishes || '—')}</td>
                 <td class="text-center text-sm whitespace-nowrap ${arrivalProblem ? 'bg-warning/30' : ''}" data-stop-propagation>
                     ${arrivalLines.map(l => `<div>${l}</div>`).join('')}
-                    ${canEdit ? `<a class="text-xs link opacity-60 hover:opacity-100 cursor-pointer" data-action="open-transfer-modal" data-id="${reg.id}">ред.</a>` : ''}
+                    ${canEdit ? `<a class="text-xs link opacity-60 hover:opacity-100 cursor-pointer" data-action="open-transfer-modal" data-id="${reg.id}">${t('preliminary_edit_short')}</a>` : ''}
                 </td>
                 <td class="text-center text-sm whitespace-nowrap ${departureProblem ? 'bg-warning/30' : ''}" data-stop-propagation>
                     ${departureLines.map(l => `<div>${l}</div>`).join('')}
-                    ${canEdit ? `<a class="text-xs link opacity-60 hover:opacity-100 cursor-pointer" data-action="open-transfer-modal" data-id="${reg.id}">ред.</a>` : ''}
+                    ${canEdit ? `<a class="text-xs link opacity-60 hover:opacity-100 cursor-pointer" data-action="open-transfer-modal" data-id="${reg.id}">${t('preliminary_edit_short')}</a>` : ''}
                 </td>
                 <td class="text-sm">${e(reg.extended_stay || '—')}</td>
                 <td class="text-sm">${e(reg.guest_questions || '—')}</td>
@@ -670,9 +665,9 @@ const guestsTableEl = document.getElementById('guestsTable');
 if (guestsTableEl && !guestsTableEl._delegated) {
     guestsTableEl._delegated = true;
     guestsTableEl.addEventListener('click', ev => {
-        // Предотвращение всплытия для ячеек с формами
-        if (ev.target.closest('[data-stop-propagation]')) return;
+        // Предотвращение всплытия для ячеек с формами, но пропускаем data-action элементы
         const btn = ev.target.closest('[data-action]');
+        if (!btn && ev.target.closest('[data-stop-propagation]')) return;
         if (!btn) return;
         const id = btn.dataset.id;
         switch (btn.dataset.action) {
@@ -702,7 +697,7 @@ function getLocalNotes(registrationId) {
 
 function saveLocalNotes(registrationId, value) {
     if (!window.hasPermission || !window.hasPermission('edit_preliminary')) {
-        Layout.showNotification('Недостаточно прав', 'error');
+        Layout.showNotification(t('preliminary_no_permission'), 'error');
         return;
     }
     const key = `preliminary_notes_${registrationId}`;
@@ -749,7 +744,7 @@ function renderRoomOptions(buildingId, selectedRoomId, registrationId) {
         const capacity = room.capacity || 1;
         const isFull = occupied >= capacity;
 
-        const label = isFull ? `${room.number} (занято)` : room.number;
+        const label = isFull ? `${room.number} (${t('preliminary_room_occupied')})` : room.number;
         const disabled = isFull ? 'disabled' : '';
         const selected = selectedRoomId === room.id ? 'selected' : '';
 
@@ -762,7 +757,7 @@ function renderRoomOptions(buildingId, selectedRoomId, registrationId) {
 async function onMealTypeChange(registrationId, mealType, selectElement) {
     // Проверка прав
     if (!window.hasPermission || !window.hasPermission('edit_preliminary')) {
-        Layout.showNotification('Недостаточно прав для редактирования', 'error');
+        Layout.showNotification(t('preliminary_no_edit_permission'), 'error');
         return;
     }
 
@@ -827,8 +822,7 @@ function openTransferModal(registrationId) {
 
     // Имя гостя
     const v = reg.vaishnavas;
-    const name = v?.spiritual_name || `${v?.first_name || ''} ${v?.last_name || ''}`.trim() || '';
-    document.getElementById('transferModalName').textContent = name;
+    document.getElementById('transferModalName').textContent = getVaishnavName(v, '');
 
     // Трансферы
     const transfers = reg.guest_transfers || [];
@@ -868,7 +862,7 @@ async function saveTransfers() {
     if (!regId) return;
 
     if (!window.hasPermission || !window.hasPermission('edit_preliminary')) {
-        Layout.showNotification('Недостаточно прав', 'error');
+        Layout.showNotification(t('preliminary_no_permission'), 'error');
         return;
     }
 
@@ -897,7 +891,7 @@ async function saveTransfers() {
                 db: Layout.db, registrationId: regId, vaishnavId: reg.vaishnava_id,
                 retreat, arrivalDatetime, departureDatetime
             });
-            if (moveResult.warnings.length && !confirm(moveResult.warnings.join('\n') + '\n\nВсё равно сохранить?')) return;
+            if (moveResult.warnings.length && !confirm(moveResult.warnings.join('\n') + '\n\n' + t('preliminary_save_anyway'))) return;
             if (moveResult.clearedDeparture) actualDeparture = null;
             if (moveResult.clearedArrival) actualArrival = null;
             moveResult.notifications.forEach(n => Layout.showNotification(n, 'info'));
@@ -997,7 +991,7 @@ async function saveTransfers() {
         // Перезагружаем данные и перерисовываем таблицу
         await loadRegistrations();
         document.getElementById('transferModal').close();
-        Layout.showNotification('Трансферы сохранены', 'success');
+        Layout.showNotification(t('preliminary_transfers_saved'), 'success');
     } catch (err) {
         console.error('Error saving transfers:', err);
         Layout.handleError(err, 'Сохранение трансферов');
@@ -1007,7 +1001,7 @@ async function saveTransfers() {
 async function onBuildingChange(registrationId, buildingId) {
     // Проверка прав
     if (!window.hasPermission || !window.hasPermission('edit_preliminary')) {
-        Layout.showNotification('Недостаточно прав для редактирования', 'error');
+        Layout.showNotification(t('preliminary_no_edit_permission'), 'error');
         return;
     }
 
@@ -1057,7 +1051,7 @@ async function onBuildingChange(registrationId, buildingId) {
 async function onRoomChange(registrationId, roomId) {
     // Проверка прав
     if (!window.hasPermission || !window.hasPermission('edit_preliminary')) {
-        Layout.showNotification('Недостаточно прав для редактирования', 'error');
+        Layout.showNotification(t('preliminary_no_edit_permission'), 'error');
         return;
     }
 
@@ -1125,7 +1119,7 @@ async function deleteResident(residentId) {
 async function saveSelfAccommodation(registrationId) {
     const reg = registrations.find(r => r.id === registrationId);
     if (!reg || !reg.vaishnava_id) {
-        Layout.showNotification('Ошибка: не найдена регистрация или вайшнав', 'error');
+        Layout.showNotification(t('preliminary_registration_not_found'), 'error');
         return;
     }
 
@@ -1208,15 +1202,15 @@ document.addEventListener('DOMContentLoaded', () => {
 
         // Валидация
         if (!f.gender.value) {
-            Layout.showNotification('Укажите пол', 'warning');
+            Layout.showNotification(t('preliminary_specify_gender'), 'warning');
             return;
         }
         if (!f.phone.value.trim() && !f.email.value.trim()) {
-            Layout.showNotification('Укажите телефон или email', 'warning');
+            Layout.showNotification(t('preliminary_specify_phone_or_email'), 'warning');
             return;
         }
         if (!f.spiritual_name.value.trim() && (!f.first_name.value.trim() || !f.last_name.value.trim())) {
-            Layout.showNotification('Укажите духовное имя или имя и фамилию', 'warning');
+            Layout.showNotification(t('preliminary_specify_name'), 'warning');
             return;
         }
 
@@ -1325,7 +1319,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
             document.getElementById('newGuestModal').close();
             await Promise.all([loadVaishnavas(), loadRegistrations()]);
-            Layout.showNotification('Гость добавлен', 'success');
+            Layout.showNotification(t('preliminary_guest_added'), 'success');
         } catch (err) {
             Layout.handleError(err, 'Создание гостя');
         }
@@ -1397,7 +1391,7 @@ function searchVaishnavas(query) {
     container.innerHTML = matches.map(v => {
         const name = `${v.first_name || ''} ${v.last_name || ''}`.trim();
         const spiritual = v.spiritual_name ? ` (${v.spiritual_name})` : '';
-        const badge = v.is_team_member ? '<span class="badge badge-xs badge-primary ml-2">Команда</span>' : '';
+        const badge = v.is_team_member ? `<span class="badge badge-xs badge-primary ml-2">${t('preliminary_team')}</span>` : '';
         return `
             <div class="px-3 py-2 hover:bg-base-200 cursor-pointer flex items-center" data-action="select-vaishnav" data-id="${v.id}" data-name="${e(name)}" data-spiritual="${e(v.spiritual_name || '')}">
                 <span>${e(name)}${e(spiritual)}</span>${badge}
@@ -1618,7 +1612,7 @@ function openPlacementModal(registrationId) {
 
     guestInfo.innerHTML = `
         <div class="font-medium">${e(name)}${e(spiritualName)}</div>
-        ${reg.accommodation_wishes ? `<div class="text-sm opacity-60 mt-1">Пожелания: ${e(reg.accommodation_wishes)}</div>` : ''}
+        ${reg.accommodation_wishes ? `<div class="text-sm opacity-60 mt-1">${t('preliminary_wishes')}: ${e(reg.accommodation_wishes)}</div>` : ''}
     `;
 
     // Заполнить dropdown категории
@@ -1711,7 +1705,7 @@ function renderPlacementListView() {
     const roomsList = document.getElementById('roomsList');
 
     if (buildings.length === 0) {
-        roomsList.innerHTML = '<div class="text-center py-4 opacity-50">Нет доступных зданий</div>';
+        roomsList.innerHTML = `<div class="text-center py-4 opacity-50">${t('preliminary_no_buildings')}</div>`;
         return;
     }
 
@@ -1761,7 +1755,7 @@ function renderPlacementListView() {
         html += `</div></div></div>`;
     });
 
-    roomsList.innerHTML = html || '<div class="text-center py-4 opacity-50">Нет комнат</div>';
+    roomsList.innerHTML = html || `<div class="text-center py-4 opacity-50">${t('preliminary_no_rooms')}</div>`;
 
     // Делегирование кликов в списке комнат
     if (!roomsList._delegated) {
@@ -1782,7 +1776,7 @@ function renderPlacementPlanView() {
         const hasPlans = floorPlans.some(fp => fp.building_id === b.id);
         const isActive = b.id === placementState.currentBuildingId;
         return `<button type="button" class="tab ${isActive ? 'tab-active' : ''} ${!hasPlans ? 'opacity-50' : ''}"
-            data-action="select-plan-building" data-id="${b.id}" ${!hasPlans ? 'title="Нет плана"' : ''}>
+            data-action="select-plan-building" data-id="${b.id}" ${!hasPlans ? `title="${t('preliminary_no_plan')}"` : ''}>
             ${Layout.getName(b)}
         </button>`;
     }).join('');
@@ -1807,7 +1801,7 @@ function renderPlacementPlanView() {
         document.getElementById('planFloorPlanImage').classList.add('hidden');
         document.getElementById('planFloorPlanSvg').classList.add('hidden');
         document.getElementById('planNoFloorPlan').classList.remove('hidden');
-        document.getElementById('planNoFloorPlan').textContent = 'Нет планов для этого здания';
+        document.getElementById('planNoFloorPlan').textContent = t('preliminary_no_plans_for_building');
         return;
     }
 
@@ -1821,7 +1815,7 @@ function renderPlacementPlanView() {
         const isActive = floor === placementState.currentFloor;
         return `<button type="button" class="btn btn-sm ${isActive ? 'btn-primary' : 'btn-ghost'}"
             data-action="select-plan-floor" data-floor="${floor}">
-            ${floor} этаж
+            ${floor} ${t('preliminary_floor')}
         </button>`;
     }).join('');
     const planFloorTabsEl = document.getElementById('planFloorTabs');
@@ -1979,7 +1973,7 @@ function openInfoModal(registrationId) {
     const v = reg.vaishnavas;
     const name = v ? `${v.first_name || ''} ${v.last_name || ''}`.trim() : '';
     const spiritualName = v?.spiritual_name || '';
-    title.textContent = spiritualName || name || 'Информация о госте';
+    title.textContent = spiritualName || name || t('preliminary_guest_info');
 
     // Get transfer info
     const transfers = reg.guest_transfers || [];
@@ -2047,10 +2041,10 @@ function openInfoModal(registrationId) {
             const arrDate = arrival.flight_datetime ? formatFlightDateTime(arrival.flight_datetime) : (arrival.notes || '—');
             flightHtml += `
                 <div>
-                    <div class="text-xs opacity-50 mb-1">Прилёт</div>
+                    <div class="text-xs opacity-50 mb-1">${t('preliminary_arrival_flight')}</div>
                     <div class="font-medium">${arrDate}</div>
                     ${arrival.flight_number ? `<div class="text-sm opacity-70">${arrival.flight_number}</div>` : ''}
-                    ${arrival.needs_transfer === 'yes' ? '<div class="text-sm">🚐 Нужен трансфер</div>' : ''}
+                    ${arrival.needs_transfer === 'yes' ? `<div class="text-sm">${t('preliminary_needs_transfer')}</div>` : ''}
                 </div>
             `;
         }
@@ -2058,10 +2052,10 @@ function openInfoModal(registrationId) {
             const depDate = departure.flight_datetime ? formatFlightDateTime(departure.flight_datetime) : (departure.notes || '—');
             flightHtml += `
                 <div>
-                    <div class="text-xs opacity-50 mb-1">Вылет</div>
+                    <div class="text-xs opacity-50 mb-1">${t('preliminary_departure_flight')}</div>
                     <div class="font-medium">${depDate}</div>
                     ${departure.flight_number ? `<div class="text-sm opacity-70">${departure.flight_number}</div>` : ''}
-                    ${departure.needs_transfer === 'yes' ? '<div class="text-sm">🚐 Нужен трансфер</div>' : ''}
+                    ${departure.needs_transfer === 'yes' ? `<div class="text-sm">${t('preliminary_needs_transfer')}</div>` : ''}
                 </div>
             `;
         }
@@ -2073,7 +2067,7 @@ function openInfoModal(registrationId) {
     if (reg.companions) {
         sections.push(`
             <div>
-                <div class="text-xs opacity-50 mb-1">Семья / Сопровождающие</div>
+                <div class="text-xs opacity-50 mb-1">${t('preliminary_companions')}</div>
                 <div>${e(reg.companions)}</div>
             </div>
         `);
@@ -2083,7 +2077,7 @@ function openInfoModal(registrationId) {
     if (reg.extended_stay) {
         sections.push(`
             <div>
-                <div class="text-xs opacity-50 mb-1">После ретрита</div>
+                <div class="text-xs opacity-50 mb-1">${t('preliminary_after_retreat')}</div>
                 <div>${e(reg.extended_stay)}</div>
             </div>
         `);
@@ -2093,7 +2087,7 @@ function openInfoModal(registrationId) {
     if (reg.accommodation_wishes) {
         sections.push(`
             <div>
-                <div class="text-xs opacity-50 mb-1">Пожелания по проживанию</div>
+                <div class="text-xs opacity-50 mb-1">${t('preliminary_accommodation_wishes')}</div>
                 <div>${e(reg.accommodation_wishes)}</div>
             </div>
         `);
@@ -2103,7 +2097,7 @@ function openInfoModal(registrationId) {
     if (reg.org_notes) {
         sections.push(`
             <div>
-                <div class="text-xs opacity-50 mb-1">Комментарий ОП</div>
+                <div class="text-xs opacity-50 mb-1">${t('preliminary_org_notes')}</div>
                 <div class="whitespace-pre-wrap">${e(reg.org_notes)}</div>
             </div>
         `);
@@ -2113,7 +2107,7 @@ function openInfoModal(registrationId) {
     if (reg.guest_questions) {
         sections.push(`
             <div>
-                <div class="text-xs opacity-50 mb-1">Вопросы</div>
+                <div class="text-xs opacity-50 mb-1">${t('preliminary_questions')}</div>
                 <div class="whitespace-pre-wrap">${e(reg.guest_questions)}</div>
             </div>
         `);
@@ -2121,7 +2115,7 @@ function openInfoModal(registrationId) {
 
     content.innerHTML = sections.length > 0
         ? sections.join('<div class="divider my-2"></div>')
-        : '<div class="text-center opacity-50 py-4">Нет дополнительной информации</div>';
+        : `<div class="text-center opacity-50 py-4">${t('preliminary_no_additional_info')}</div>`;
 
     modal.showModal();
 }
@@ -2305,19 +2299,19 @@ async function startImport() {
 
             if (result.status === 'created') {
                 importStats.created++;
-                logMessage(log, `✓ Создан: ${result.name}`, 'success');
+                logMessage(log, `✓ ${t('preliminary_import_created')}: ${result.name}`, 'success');
             } else if (result.status === 'updated') {
                 importStats.updated++;
-                logMessage(log, `↻ Обновлён: ${result.name}`, 'info');
+                logMessage(log, `↻ ${t('preliminary_import_updated')}: ${result.name}`, 'info');
             } else if (result.status === 'conflict') {
                 conflicts.push(result);
-                logMessage(log, `⚠ Конфликт: ${result.name}`, 'warning');
+                logMessage(log, `⚠ ${t('preliminary_import_conflict')}: ${result.name}`, 'warning');
             } else if (result.status === 'skipped') {
                 importStats.skipped++;
-                logMessage(log, `— Пропущен: ${row.name || row.name2}`, 'info');
+                logMessage(log, `— ${t('preliminary_import_skipped')}: ${row.name || row.name2}`, 'info');
             }
         } catch (err) {
-            logMessage(log, `✗ Ошибка строка ${i + 1}: ${err.message}`, 'error');
+            logMessage(log, `✗ ${t('preliminary_import_error_row')} ${i + 1}: ${err.message}`, 'error');
             importStats.skipped++;
         }
     }
@@ -2533,7 +2527,7 @@ function parseRowData(row) {
         indiaExperience: (row.travel_experience || '').trim() || null,
         telegram,
         photoUrl,
-        displayName: `${firstName} ${lastName}`.trim() || row.name2 || 'Без имени',
+        displayName: `${firstName} ${lastName}`.trim() || row.name2 || t('preliminary_no_name'),
 
         // Registration fields
         registrationDate,
@@ -2760,95 +2754,6 @@ async function createOrUpdateRegistration(vaishnavId, parsed) {
     await createTransfers(registrationId, parsed);
 }
 
-function parseDateTimeString(str, retreatYear) {
-    if (!str) return null;
-
-    const months = {
-        'января': 1, 'февраля': 2, 'марта': 3, 'апреля': 4,
-        'мая': 5, 'июня': 6, 'июля': 7, 'августа': 8,
-        'сентября': 9, 'октября': 10, 'ноября': 11, 'декабря': 12
-    };
-
-    // Format: "7 февраля 18:30" or "7 февраля, 18:30"
-    let match = str.match(/(\d{1,2})\s+(января|февраля|марта|апреля|мая|июня|июля|августа|сентября|октября|ноября|декабря)[,]?\s*(\d{1,2}):(\d{2})/i);
-    if (match) {
-        const day = parseInt(match[1]);
-        const month = months[match[2].toLowerCase()];
-        const hour = parseInt(match[3]);
-        const minute = parseInt(match[4]);
-        const year = retreatYear || new Date().getFullYear();
-        return new Date(year, month - 1, day, hour, minute).toISOString();
-    }
-
-    // Format: "22.02.26 5:50" or "22.02.2026 5:50"
-    match = str.match(/(\d{1,2})\.(\d{1,2})\.(\d{2,4})\s+(\d{1,2}):(\d{2})/);
-    if (match) {
-        const day = parseInt(match[1]);
-        const month = parseInt(match[2]);
-        let year = parseInt(match[3]);
-        if (year < 100) year += 2000;
-        const hour = parseInt(match[4]);
-        const minute = parseInt(match[5]);
-        return new Date(year, month - 1, day, hour, minute).toISOString();
-    }
-
-    // Format: "06.02.2026 в 04.05" (с предлогом "в" и точкой в времени)
-    match = str.match(/(\d{1,2})\.(\d{1,2})\.(\d{2,4})\s*в\s*(\d{1,2})\.(\d{2})/i);
-    if (match) {
-        const day = parseInt(match[1]);
-        const month = parseInt(match[2]);
-        let year = parseInt(match[3]);
-        if (year < 100) year += 2000;
-        const hour = parseInt(match[4]);
-        const minute = parseInt(match[5]);
-        return new Date(year, month - 1, day, hour, minute).toISOString();
-    }
-
-    // Format: "7.02. в 00.25" или "7.02 в 00:25" (день.месяц без года, предлог "в", время)
-    match = str.match(/(\d{1,2})\.(\d{1,2})\.?\s*в\s*(\d{1,2})[.:](\d{2})/i);
-    if (match) {
-        const day = parseInt(match[1]);
-        const month = parseInt(match[2]);
-        const hour = parseInt(match[3]);
-        const minute = parseInt(match[4]);
-        const year = retreatYear || new Date().getFullYear();
-        return new Date(year, month - 1, day, hour, minute).toISOString();
-    }
-
-    // Format: "7.02 00:25" или "7.02. 00.25" (день.месяц без года, время без "в")
-    match = str.match(/(\d{1,2})\.(\d{1,2})\.?\s+(\d{1,2})[.:](\d{2})/);
-    if (match) {
-        const day = parseInt(match[1]);
-        const month = parseInt(match[2]);
-        const hour = parseInt(match[3]);
-        const minute = parseInt(match[4]);
-        const year = retreatYear || new Date().getFullYear();
-        return new Date(year, month - 1, day, hour, minute).toISOString();
-    }
-
-    // Format: "06.02.2026" or "22.02.26" (только дата без времени)
-    match = str.match(/(\d{1,2})\.(\d{1,2})\.(\d{2,4})(?!\s*[\d:в])/);
-    if (match) {
-        const day = parseInt(match[1]);
-        const month = parseInt(match[2]);
-        let year = parseInt(match[3]);
-        if (year < 100) year += 2000;
-        return new Date(year, month - 1, day, 12, 0).toISOString();
-    }
-
-    // Format: "7 февраля" (no time)
-    match = str.match(/(\d{1,2})\s+(января|февраля|марта|апреля|мая|июня|июля|августа|сентября|октября|ноября|декабря)/i);
-    if (match) {
-        const day = parseInt(match[1]);
-        const month = months[match[2].toLowerCase()];
-        const year = retreatYear || new Date().getFullYear();
-        return new Date(year, month - 1, day, 12, 0).toISOString();
-    }
-
-    // Can't parse - return null
-    return null;
-}
-
 async function createTransfers(registrationId, parsed) {
     // Delete existing transfers for this registration
     await Layout.db
@@ -2861,7 +2766,7 @@ async function createTransfers(registrationId, parsed) {
 
     // Arrival
     if (parsed.arrivalTime || parsed.arrivalFlight) {
-        const flightDatetime = parseDateTimeString(parsed.arrivalTime, retreatYear);
+        const flightDatetime = DateUtils.parseDateTimeString(parsed.arrivalTime, retreatYear);
         transfers.push({
             registration_id: registrationId,
             direction: 'arrival',
@@ -2874,7 +2779,7 @@ async function createTransfers(registrationId, parsed) {
 
     // Departure
     if (parsed.departureTime || parsed.departureFlight) {
-        const flightDatetime = parseDateTimeString(parsed.departureTime, retreatYear);
+        const flightDatetime = DateUtils.parseDateTimeString(parsed.departureTime, retreatYear);
         transfers.push({
             registration_id: registrationId,
             direction: 'departure',
@@ -2908,42 +2813,42 @@ function showConflicts() {
             <div class="conflict-card bg-base-100 rounded-lg p-4">
                 <div class="flex justify-between items-start mb-3">
                     <div>
-                        <strong>Строка ${c.rowNum}:</strong> ${e(c.name)}
-                        <span class="badge badge-sm ml-2">${c.candidates[0]?.score || 0} баллов</span>
+                        <strong>${t('preliminary_import_row')} ${c.rowNum}:</strong> ${e(c.name)}
+                        <span class="badge badge-sm ml-2">${c.candidates[0]?.score || 0} ${t('preliminary_import_points')}</span>
                     </div>
                 </div>
 
                 <div class="grid grid-cols-2 gap-4 text-sm mb-3">
                     <div>
-                        <div class="font-medium mb-1">В CSV:</div>
+                        <div class="font-medium mb-1">${t('preliminary_import_in_csv')}:</div>
                         <div>${e(parsed.firstName)} ${e(parsed.lastName)}</div>
                         <div>${e(parsed.spiritualName || '—')}</div>
                         <div>${e(parsed.email || '—')}</div>
                         <div>${e(parsed.phone || '—')}</div>
                     </div>
                     <div>
-                        <div class="font-medium mb-1">В базе:</div>
+                        <div class="font-medium mb-1">${t('preliminary_import_in_db')}:</div>
                         ${candidate ? `
                             <div class="${parsed.firstName === candidate.first_name ? 'match-same' : 'match-diff'}">${e(candidate.first_name)} ${e(candidate.last_name || '')}</div>
                             <div class="${parsed.spiritualName === candidate.spiritual_name ? 'match-same' : 'match-diff'}">${e(candidate.spiritual_name || '—')}</div>
                             <div class="${parsed.email === candidate.email ? 'match-same' : 'match-diff'}">${e(candidate.email || '—')}</div>
                             <div class="${normalizePhone(parsed.phone) === normalizePhone(candidate.phone) ? 'match-same' : 'match-diff'}">${e(candidate.phone || '—')}</div>
-                        ` : '<div class="opacity-50">Нет совпадений</div>'}
+                        ` : `<div class="opacity-50">${t('preliminary_import_no_matches')}</div>`}
                     </div>
                 </div>
 
                 <div class="flex gap-4">
                     <label class="flex items-center gap-2 cursor-pointer">
                         <input type="radio" name="conflict_${idx}" value="update" class="radio radio-sm" ${candidate ? 'checked' : ''} />
-                        <span>Это тот же человек — обновить</span>
+                        <span>${t('preliminary_import_same_person')}</span>
                     </label>
                     <label class="flex items-center gap-2 cursor-pointer">
                         <input type="radio" name="conflict_${idx}" value="create" class="radio radio-sm" ${!candidate ? 'checked' : ''} />
-                        <span>Создать нового</span>
+                        <span>${t('preliminary_import_create_new')}</span>
                     </label>
                     <label class="flex items-center gap-2 cursor-pointer">
                         <input type="radio" name="conflict_${idx}" value="skip" class="radio radio-sm" />
-                        <span>Пропустить</span>
+                        <span>${t('preliminary_import_skip')}</span>
                     </label>
                 </div>
             </div>
@@ -2986,7 +2891,7 @@ function showImportDone() {
     document.getElementById('importResolveBtn').classList.add('hidden');
 
     document.getElementById('importSummary').textContent =
-        `Создано: ${importStats.created}, Обновлено: ${importStats.updated}, Пропущено: ${importStats.skipped}`;
+        `${t('preliminary_import_created')}: ${importStats.created}, ${t('preliminary_import_updated')}: ${importStats.updated}, ${t('preliminary_import_skipped')}: ${importStats.skipped}`;
 
     // Reload data
     loadRegistrations();
@@ -3036,7 +2941,7 @@ function handleRealtimeChange(payload) {
     realtimeTimeout = setTimeout(async () => {
         await loadRegistrations();
         renderTable();
-        Layout.showNotification('Данные обновлены', 'info');
+        Layout.showNotification(t('preliminary_data_updated'), 'info');
     }, 500);
 }
 
