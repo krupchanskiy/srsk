@@ -20,6 +20,7 @@ const isLocalhost =
 const isDev =
   isFileProtocol ||
   isLocalhost ||
+  hostname.includes('vercel.app') ||
   hostname.includes('dev-srsk') ||
   hostname.includes('dev.') ||
   hostname.includes('-dev');
