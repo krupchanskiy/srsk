@@ -139,26 +139,35 @@ async function loadRegistrations() {
     // Загружаем размещения и занятость комнат параллельно
     const vaishnavIds = registrations.map(r => r.vaishnava_id).filter(Boolean);
 
+    // Ищем размещения: для текущего ретрита ИЛИ с перекрывающимися датами
     const [residentsResult] = await Promise.all([
         vaishnavIds.length > 0
             ? Layout.db
                 .from('residents')
                 .select('*, rooms(id, number, building_id, buildings(id, name_ru, name_en, name_hi))')
-                .eq('retreat_id', retreatId)
                 .in('vaishnava_id', vaishnavIds)
                 .eq('status', 'confirmed')
+                .or(`retreat_id.eq.${retreatId},and(check_in.lte.${retreat.end_date},or(check_out.gte.${retreat.start_date},check_out.is.null))`)
             : Promise.resolve({ data: [] }),
         loadRoomOccupancy()
     ]);
 
     // Привязываем residents к регистрациям
-    const residentsByVaishnava = (residentsResult.data || []).reduce((acc, res) => {
-        acc[res.vaishnava_id] = res;
-        return acc;
-    }, {});
+    // Приоритет: размещение текущего ретрита > перекрывающееся из другого ретрита
+    const residentsByVaishnava = {};
+    (residentsResult.data || []).forEach(res => {
+        const existing = residentsByVaishnava[res.vaishnava_id];
+        if (!existing || (res.retreat_id === retreatId && existing.retreat_id !== retreatId)) {
+            residentsByVaishnava[res.vaishnava_id] = res;
+        }
+    });
 
     registrations.forEach(reg => {
-        reg.resident = residentsByVaishnava[reg.vaishnava_id] || null;
+        const res = residentsByVaishnava[reg.vaishnava_id] || null;
+        if (res && res.retreat_id !== retreatId) {
+            res._fromOtherRetreat = true;
+        }
+        reg.resident = res;
     });
 
     renderTable();
@@ -1048,8 +1057,8 @@ async function onBuildingChange(registrationId, buildingId) {
         // Сбросить CSS классы ячеек
         roomCell?.classList.remove('bg-error/20', 'bg-success/20');
         buildingCell?.classList.remove('bg-error/20', 'bg-success/20');
-        // Удалить размещение, если было
-        if (reg?.resident?.id) {
+        // Удалить размещение, если было (только для текущего ретрита)
+        if (reg?.resident?.id && !reg.resident._fromOtherRetreat) {
             await deleteResident(reg.resident.id);
         }
         return;
@@ -1103,15 +1112,15 @@ async function onRoomChange(registrationId, roomId) {
     };
 
     try {
-        if (reg.resident?.id) {
-            // Обновить существующее размещение
+        if (reg.resident?.id && !reg.resident._fromOtherRetreat) {
+            // Обновить существующее размещение (того же ретрита)
             const { error } = await Layout.db
                 .from('residents')
                 .update(data)
                 .eq('id', reg.resident.id);
             if (error) throw error;
         } else {
-            // Создать новое размещение
+            // Создать новое размещение (нет существующего, или оно от другого ретрита)
             const { error } = await Layout.db
                 .from('residents')
                 .insert(data);
@@ -1163,15 +1172,15 @@ async function saveSelfAccommodation(registrationId) {
     };
 
     try {
-        if (reg.resident?.id) {
-            // Обновить существующее размещение
+        if (reg.resident?.id && !reg.resident._fromOtherRetreat) {
+            // Обновить существующее размещение (того же ретрита)
             const { error } = await Layout.db
                 .from('residents')
                 .update(data)
                 .eq('id', reg.resident.id);
             if (error) throw error;
         } else {
-            // Создать новое размещение
+            // Создать новое размещение (нет существующего, или оно от другого ретрита)
             const { error } = await Layout.db
                 .from('residents')
                 .insert(data);
