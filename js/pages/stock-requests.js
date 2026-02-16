@@ -22,6 +22,8 @@ let addingToViewedRequest = false; // Флаг: добавляем в просм
 let generatedEatingCounts = null; // Кол-во едоков для отображения в шапке
 let generatedPeriod = null; // Период генерации {from, to}
 let generatedActualPortions = null; // Фактические порции (с учётом ручных от повара)
+let menuDishesData = []; // Загруженное меню для модалки выбора блюд
+let menuDishesEatingCounts = {}; // Кол-во едоков для модалки выбора блюд
 
 const t = key => Layout.t(key);
 
@@ -171,7 +173,7 @@ async function loadStock() {
 async function loadRecipes() {
     const { data } = await Layout.db
         .from('recipes')
-        .select('*, recipe_ingredients(*)');
+        .select('*, recipe_ingredients(*), category:recipe_categories(*)');
     recipes = data || [];
 }
 
@@ -213,6 +215,110 @@ function clearPeriodButtons() {
     });
 }
 
+// ==================== РАСЧЁТ ИНГРЕДИЕНТОВ ====================
+
+// Расчёт ингредиентов из блюд меню
+// Возвращает { ingredientTotals: {product_id → grams}, actualPortions: {date → {meal_type → N}} }
+function calculateIngredients(menuData, eatingCounts) {
+    const ingredientTotals = {};
+    const actualPortions = {};
+
+    menuData.forEach(meal => {
+        const mealPortions = meal.portions || EatingUtils.getTotal(eatingCounts, meal.date, meal.meal_type);
+        if (!actualPortions[meal.date]) actualPortions[meal.date] = {};
+        actualPortions[meal.date][meal.meal_type] = mealPortions;
+
+        (meal.dishes || []).forEach(dish => {
+            const recipe = recipes.find(r => r.id === dish.recipe_id);
+            if (!recipe?.recipe_ingredients) return;
+
+            const baseOutputGrams = toGrams(recipe.output_amount || 1, recipe.output_unit || 'kg');
+            const targetGrams = mealPortions * (recipe.portion_amount || 150);
+            const multiplier = targetGrams / baseOutputGrams;
+
+            recipe.recipe_ingredients.forEach(ing => {
+                if (!ing.product_id) return;
+                const qtyGrams = toGrams(ing.amount, ing.unit) * multiplier;
+                ingredientTotals[ing.product_id] = (ingredientTotals[ing.product_id] || 0) + qtyGrams;
+            });
+        });
+    });
+
+    return { ingredientTotals, actualPortions };
+}
+
+// Конвертация ingredientTotals → requestItems формат (с вычетом склада, округлением, ценами)
+function buildRequestItems(ingredientTotals) {
+    const items = [];
+
+    Object.entries(ingredientTotals).forEach(([productId, neededGrams]) => {
+        const product = products.find(p => p.id === productId);
+        const stock = stockItems.find(s => s.product_id === productId);
+        const stockGrams = toGrams(stock?.current_quantity, product?.unit);
+
+        const wastePercent = product?.waste_percent || 0;
+        const stockCleanedGrams = wastePercent > 0
+            ? stockGrams * (1 - wastePercent / 100)
+            : stockGrams;
+        const shortageCleanedGrams = Math.max(0, neededGrams - stockCleanedGrams);
+        const toPurchaseGrams = wastePercent > 0
+            ? shortageCleanedGrams / (1 - wastePercent / 100)
+            : shortageCleanedGrams;
+
+        const categorySlug = product?.product_categories?.slug;
+        const isVegetable = categorySlug === 'vegetables';
+        const referenceGrams = toPurchaseGrams > 0 ? toPurchaseGrams : neededGrams;
+        const useKg = referenceGrams >= 1000 || isVegetable;
+        const unit = useKg ? 'kg' : 'g';
+
+        const needed = useKg ? neededGrams / 1000 : neededGrams;
+        const inStock = useKg ? stockGrams / 1000 : stockGrams;
+        const toPurchase = useKg ? toPurchaseGrams / 1000 : toPurchaseGrams;
+
+        const roundedPurchase = toPurchaseGrams > 0
+            ? roundForPurchase(toPurchase, unit, categorySlug, product?.min_purchase)
+            : 0;
+
+        const lastPrice = stock?.last_price || null;
+        const purchaseKg = useKg ? roundedPurchase : roundedPurchase / 1000;
+
+        items.push({
+            product_id: productId,
+            product,
+            needed,
+            in_stock: inStock,
+            to_purchase: roundedPurchase,
+            unit,
+            last_price: lastPrice,
+            est_sum: lastPrice && roundedPurchase > 0 ? purchaseKg * lastPrice : null
+        });
+    });
+
+    return items;
+}
+
+// Мёрж новых ингредиентов в существующие requestItems
+function mergeIngredientsIntoItems(ingredientTotals) {
+    Object.entries(ingredientTotals).forEach(([productId, newGrams]) => {
+        const existingIndex = requestItems.findIndex(item => item.product_id === productId);
+
+        if (existingIndex >= 0) {
+            // Суммируем needed в граммах и пересчитываем
+            const existing = requestItems[existingIndex];
+            const existingNeededGrams = toGrams(existing.needed, existing.unit);
+            const totalNeededGrams = existingNeededGrams + newGrams;
+
+            const recalculated = buildRequestItems({ [productId]: totalNeededGrams });
+            if (recalculated.length > 0) {
+                requestItems[existingIndex] = recalculated[0];
+            }
+        } else {
+            const newItems = buildRequestItems({ [productId]: newGrams });
+            requestItems.push(...newItems);
+        }
+    });
+}
+
 // ==================== GENERATE REQUEST ====================
 async function generateRequest() {
     const fromDate = Layout.$('#periodFrom').value;
@@ -237,104 +343,12 @@ async function generateRequest() {
         return;
     }
 
-    // Calculate required ingredients
-    const ingredientTotals = {};
-    const actualPortions = {}; // {date: {meal_type: N}} — фактические порции
-
-    menuData.forEach(meal => {
-        // Приоритет: ручное кол-во повара → автоматический расчёт
-        const mealPortions = meal.portions || EatingUtils.getTotal(eatingCounts, meal.date, meal.meal_type);
-
-        // Сохраняем фактические порции для отображения
-        if (!actualPortions[meal.date]) actualPortions[meal.date] = {};
-        actualPortions[meal.date][meal.meal_type] = mealPortions;
-
-        (meal.dishes || []).forEach(dish => {
-            const recipe = recipes.find(r => r.id === dish.recipe_id);
-            if (!recipe?.recipe_ingredients) return;
-
-            // Calculate multiplier: (portions × portion size) / recipe output
-            const baseOutputGrams = toGrams(recipe.output_amount || 1, recipe.output_unit || 'kg');
-            const targetGrams = mealPortions * (recipe.portion_amount || 150);
-            const multiplier = targetGrams / baseOutputGrams;
-
-            recipe.recipe_ingredients.forEach(ing => {
-                if (!ing.product_id) return;
-
-                const qtyGrams = toGrams(ing.amount, ing.unit) * multiplier;
-
-                if (ingredientTotals[ing.product_id]) {
-                    ingredientTotals[ing.product_id] += qtyGrams;
-                } else {
-                    ingredientTotals[ing.product_id] = qtyGrams;
-                }
-            });
-        });
-    });
-
+    // Расчёт ингредиентов через общую функцию
+    const { ingredientTotals, actualPortions } = calculateIngredients(menuData, eatingCounts);
     generatedActualPortions = actualPortions;
 
-    // Calculate what needs to be purchased
-    requestItems = [];
-
-    Object.entries(ingredientTotals).forEach(([productId, neededGrams]) => {
-        const product = products.find(p => p.id === productId);
-        const stock = stockItems.find(s => s.product_id === productId);
-        const stockGrams = toGrams(stock?.current_quantity, product?.unit);
-
-        // Процент на очистку применяем сразу
-        const wastePercent = product?.waste_percent || 0;
-
-        // Из того что есть на складе (нечищеного), получится очищенного:
-        const stockCleanedGrams = wastePercent > 0
-            ? stockGrams * (1 - wastePercent / 100)
-            : stockGrams;
-
-        // Не хватает очищенного:
-        const shortageCleanedGrams = Math.max(0, neededGrams - stockCleanedGrams);
-
-        // Чтобы получить недостающее очищенное, нужно закупить нечищеного:
-        const toPurchaseGrams = wastePercent > 0
-            ? shortageCleanedGrams / (1 - wastePercent / 100)
-            : shortageCleanedGrams;
-
-        {
-            const categorySlug = product?.product_categories?.slug;
-            const isVegetable = categorySlug === 'vegetables';
-
-            // Определяем единицу по нужному количеству (или закупочному, если есть)
-            const referenceGrams = toPurchaseGrams > 0 ? toPurchaseGrams : neededGrams;
-            const useKg = referenceGrams >= 1000 || isVegetable;
-            const unit = useKg ? 'kg' : 'g';
-
-            // Конвертируем всё в выбранную единицу
-            const needed = useKg ? neededGrams / 1000 : neededGrams;
-            const inStock = useKg ? stockGrams / 1000 : stockGrams;
-            const toPurchase = useKg ? toPurchaseGrams / 1000 : toPurchaseGrams;
-
-            // Округляем количество для закупки (учитываем min_purchase)
-            const roundedPurchase = toPurchaseGrams > 0
-                ? roundForPurchase(toPurchase, unit, categorySlug, product?.min_purchase)
-                : 0;
-
-            // Get last price from stock (price per kg)
-            const lastPrice = stock?.last_price || null;
-
-            // Сумма считается по округлённому количеству (конвертируем в кг для расчёта)
-            const purchaseKg = useKg ? roundedPurchase : roundedPurchase / 1000;
-
-            requestItems.push({
-                product_id: productId,
-                product,
-                needed: needed,
-                in_stock: inStock,
-                to_purchase: roundedPurchase,
-                unit: unit,
-                last_price: lastPrice,
-                est_sum: lastPrice && roundedPurchase > 0 ? purchaseKg * lastPrice : null
-            });
-        }
-    });
+    // Формируем requestItems через общую функцию
+    requestItems = buildRequestItems(ingredientTotals);
 
     // Сортировка: сначала ненулевые (по категории), потом нулевые (по категории)
     requestItems.sort((a, b) => {
@@ -385,6 +399,178 @@ async function getNextRequestNumber() {
         .order('number', { ascending: false })
         .limit(1);
     return (data?.[0]?.number || 0) + 1;
+}
+
+// ==================== МОДАЛКА ВЫБОРА БЛЮД ИЗ МЕНЮ ====================
+
+function openMenuDishesModal() {
+    const today = new Date();
+    const weekLater = new Date(today);
+    weekLater.setDate(weekLater.getDate() + 6);
+
+    Layout.$('#menuDishesFrom').value = DateUtils.toISO(today);
+    Layout.$('#menuDishesTo').value = DateUtils.toISO(weekLater);
+
+    menuDishesData = [];
+    menuDishesEatingCounts = {};
+    Layout.$('#menuDishesList').innerHTML = `<div class="text-center py-8"><span class="loading loading-spinner"></span></div>`;
+    Layout.$('#menuDishesCount').textContent = '0';
+    Layout.$('#addDishesBtn').disabled = true;
+
+    menuDishesModal.showModal();
+    loadMenuDishes();
+}
+
+async function loadMenuDishes() {
+    const fromDate = Layout.$('#menuDishesFrom').value;
+    const toDate = Layout.$('#menuDishesTo').value;
+    if (!fromDate || !toDate) return;
+
+    Layout.$('#menuDishesList').innerHTML = `<div class="text-center py-8"><span class="loading loading-spinner"></span></div>`;
+
+    const [menuData, eatingCounts] = await Promise.all([
+        loadMenuForPeriod(fromDate, toDate),
+        EatingUtils.loadCounts(fromDate, toDate)
+    ]);
+
+    menuDishesData = menuData;
+    menuDishesEatingCounts = eatingCounts;
+    renderMenuDishes();
+}
+
+function renderMenuDishes() {
+    const container = Layout.$('#menuDishesList');
+
+    if (menuDishesData.length === 0) {
+        container.innerHTML = `<div class="text-center py-8 opacity-50">${tr('menu_not_found', 'Меню на выбранный период не найдено')}</div>`;
+        return;
+    }
+
+    // Группировка по дате
+    const byDate = {};
+    menuDishesData.forEach((meal, mealIdx) => {
+        if (!byDate[meal.date]) byDate[meal.date] = [];
+        byDate[meal.date].push({ meal, mealIdx });
+    });
+
+    const mealTypeOrder = { breakfast: 0, lunch: 1, dinner: 2, menu: 3 };
+    const mealTypeLabels = {
+        breakfast: tr('breakfast', 'Завтрак'),
+        lunch: tr('lunch', 'Обед'),
+        dinner: tr('dinner', 'Ужин'),
+        menu: tr('menu_day', 'Меню')
+    };
+
+    const lang = Layout.currentLang || 'ru';
+    let html = '';
+    const sortedDates = Object.keys(byDate).sort();
+
+    sortedDates.forEach(dateStr => {
+        const d = DateUtils.parseDate(dateStr);
+        const dayNum = d.getDate();
+        const dayOfWeek = DateUtils.dayNamesShort[lang]?.[d.getDay()] || DateUtils.dayNamesShort.ru[d.getDay()];
+        const monthShort = DateUtils.monthNamesShort[lang]?.[d.getMonth()] || DateUtils.monthNamesShort.ru[d.getMonth()];
+
+        const meals = byDate[dateStr].sort((a, b) =>
+            (mealTypeOrder[a.meal.meal_type] || 99) - (mealTypeOrder[b.meal.meal_type] || 99)
+        );
+        const maxPortions = Math.max(...meals.map(m =>
+            m.meal.portions || EatingUtils.getTotal(menuDishesEatingCounts, dateStr, m.meal.meal_type)
+        ));
+
+        html += `<div class="bg-base-100 rounded-lg p-3 border border-base-300">`;
+        html += `<div class="flex items-center gap-2 mb-2">`;
+        html += `<svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 opacity-40 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>`;
+        html += `<span class="font-medium">${dayNum} ${monthShort}, ${dayOfWeek}</span>`;
+        html += `<span class="text-sm opacity-50">&middot; ${maxPortions} ${tr('portions_short', 'порц.')}</span>`;
+        html += `</div>`;
+
+        meals.forEach(({ meal, mealIdx }) => {
+            const dishes = meal.dishes || [];
+            if (dishes.length === 0) return;
+
+            const portions = meal.portions || EatingUtils.getTotal(menuDishesEatingCounts, dateStr, meal.meal_type);
+
+            html += `<div class="ml-6 mb-2">`;
+            html += `<div class="text-sm font-medium opacity-60 mb-1">${mealTypeLabels[meal.meal_type] || meal.meal_type} <span class="font-normal">(${portions})</span></div>`;
+            html += `<div class="flex flex-wrap gap-1.5">`;
+
+            dishes.forEach((dish, dishIdx) => {
+                const recipe = recipes.find(r => r.id === dish.recipe_id);
+                if (!recipe) return;
+
+                const catColor = recipe.category?.color || '#999';
+                const recipeName = Layout.getName(recipe);
+
+                html += `
+                    <label class="flex items-center gap-1 px-2 py-1 rounded-full text-sm cursor-pointer border transition-colors hover:opacity-80"
+                           style="border-color: ${catColor}40; background-color: ${catColor}10;">
+                        <input type="checkbox" class="checkbox checkbox-xs menu-dish-cb"
+                               data-meal-idx="${mealIdx}" data-dish-idx="${dishIdx}"
+                               data-action="toggle-menu-dish">
+                        <span style="color: ${catColor}">${recipeName}</span>
+                    </label>
+                `;
+            });
+
+            html += `</div></div>`;
+        });
+
+        html += `</div>`;
+    });
+
+    container.innerHTML = html;
+    updateMenuDishesCount();
+}
+
+function updateMenuDishesCount() {
+    const checked = document.querySelectorAll('.menu-dish-cb:checked').length;
+    Layout.$('#menuDishesCount').textContent = checked;
+    Layout.$('#addDishesBtn').disabled = checked === 0;
+}
+
+function addSelectedDishes() {
+    const checkboxes = document.querySelectorAll('.menu-dish-cb:checked');
+    if (checkboxes.length === 0) return;
+
+    // Группируем выбранные блюда по meal
+    const selectedByMeal = {};
+    checkboxes.forEach(cb => {
+        const mealIdx = Number(cb.dataset.mealIdx);
+        const dishIdx = Number(cb.dataset.dishIdx);
+        if (!selectedByMeal[mealIdx]) selectedByMeal[mealIdx] = [];
+        selectedByMeal[mealIdx].push(dishIdx);
+    });
+
+    // Строим виртуальные meal-объекты только с выбранными блюдами
+    const virtualMeals = [];
+    Object.entries(selectedByMeal).forEach(([mealIdx, dishIndices]) => {
+        const meal = menuDishesData[Number(mealIdx)];
+        if (!meal) return;
+        virtualMeals.push({
+            ...meal,
+            dishes: dishIndices.map(idx => meal.dishes[idx]).filter(Boolean)
+        });
+    });
+
+    // Расчёт ингредиентов
+    const { ingredientTotals } = calculateIngredients(virtualMeals, menuDishesEatingCounts);
+
+    // Мёрж в requestItems
+    mergeIngredientsIntoItems(ingredientTotals);
+
+    // Сортировка
+    requestItems.sort((a, b) => {
+        const aZero = a.to_purchase <= 0 ? 1 : 0;
+        const bZero = b.to_purchase <= 0 ? 1 : 0;
+        if (aZero !== bZero) return aZero - bZero;
+        const catA = a.product?.product_categories?.name_ru || '';
+        const catB = b.product?.product_categories?.name_ru || '';
+        return catA.localeCompare(catB);
+    });
+
+    menuDishesModal.close();
+    renderResults();
 }
 
 // ==================== RENDERING ====================
@@ -1513,6 +1699,12 @@ async function init() {
     const productCatBtns = Layout.$('#productCategoryButtons');
     setupRequestDelegation(productCatBtns, {
         'filter-products-by-category': btn => filterProductsByCategory(btn.dataset.category)
+    });
+
+    // Делегирование для модалки выбора блюд из меню
+    const menuDishesList = Layout.$('#menuDishesList');
+    setupChangeDelegation(menuDishesList, {
+        'toggle-menu-dish': () => updateMenuDishesCount()
     });
 
     // Realtime: автообновление при изменениях
