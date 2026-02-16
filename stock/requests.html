@@ -125,12 +125,20 @@
             </div>
 
             <div class="mt-4 flex flex-wrap justify-between items-center gap-4">
-                <button class="btn btn-ghost btn-sm gap-1" onclick="openProductModal()">
-                    <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" />
-                    </svg>
-                    <span data-i18n="add_product">Добавить продукт</span>
-                </button>
+                <div class="flex flex-wrap gap-2">
+                    <button class="btn btn-ghost btn-sm gap-1" onclick="openProductModal()">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" />
+                        </svg>
+                        <span data-i18n="add_product">Добавить продукт</span>
+                    </button>
+                    <button class="btn btn-ghost btn-sm gap-1" onclick="openMenuDishesModal()">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                        </svg>
+                        <span data-i18n="add_from_menu">Добавить из меню</span>
+                    </button>
+                </div>
                 <div class="flex items-center gap-6">
                     <div>
                         <span class="text-sm opacity-60" data-i18n="total_items">Всего позиций: </span>
@@ -255,6 +263,38 @@
         <form method="dialog" class="modal-backdrop"><button>close</button></form>
     </dialog>
 
+    <!-- Menu Dishes Modal -->
+    <dialog id="menuDishesModal" class="modal">
+        <div class="modal-box max-w-2xl relative">
+            <button type="button" class="btn btn-sm btn-circle btn-ghost absolute right-2 top-2" onclick="menuDishesModal.close()">✕</button>
+            <h3 class="font-bold text-lg mb-4" data-i18n="add_from_menu">Добавить из меню</h3>
+
+            <!-- Период -->
+            <div class="flex flex-wrap items-center gap-2 mb-4">
+                <span class="text-sm opacity-60" data-i18n="from">с</span>
+                <input type="date" id="menuDishesFrom" class="input input-bordered input-sm w-36" />
+                <span class="text-sm opacity-60" data-i18n="to">по</span>
+                <input type="date" id="menuDishesTo" class="input input-bordered input-sm w-36" />
+                <button class="btn btn-sm btn-primary" onclick="loadMenuDishes()" data-i18n="load">Загрузить</button>
+            </div>
+
+            <!-- Список дней с блюдами -->
+            <div id="menuDishesList" class="space-y-3 max-h-96 overflow-y-auto">
+                <div class="text-center py-8 opacity-50" data-i18n="select_period_and_load">Выберите период и нажмите «Загрузить»</div>
+            </div>
+
+            <!-- Подвал -->
+            <div class="modal-action">
+                <div class="flex-1 text-sm opacity-60">
+                    <span data-i18n="selected">Выбрано</span>: <span id="menuDishesCount" class="font-bold">0</span> <span data-i18n="dishes_count">блюд</span>
+                </div>
+                <button type="button" class="btn btn-ghost" onclick="menuDishesModal.close()" data-i18n="cancel">Отмена</button>
+                <button type="button" class="btn btn-primary" id="addDishesBtn" onclick="addSelectedDishes()" disabled data-i18n="add_ingredients">Добавить ингредиенты</button>
+            </div>
+        </div>
+        <form method="dialog" class="modal-backdrop"><button>close</button></form>
+    </dialog>
+
     <!-- View/Edit Request Modal -->
     <dialog id="viewRequestModal" class="modal">
         <div class="modal-box max-w-4xl relative">
@@ -346,7 +386,7 @@
     <script src="../js/date-utils.js"></script>
     <script src="../js/layout.js?v=5"></script>
     <script src="../js/eating-utils.js"></script>
-    <script src="../js/pages/stock-requests.js?v=2"></script>
+    <script src="../js/pages/stock-requests.js?v=3"></script>
 
     <style>
         /* Убираем стрелки у числовых полей */

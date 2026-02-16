@@ -180,29 +180,23 @@
                             </div>
                             <div>
                                 <label class="label">
-                                    <span class="label-text font-medium" data-i18n="field_output">Выход</span>
+                                    <span class="label-text font-medium" data-i18n="field_output">Выход *</span>
                                 </label>
-                                <div class="flex gap-2">
-                                    <input type="number" name="output_amount" min="0.1" step="0.1" class="input input-bordered w-full" />
-                                    <select name="output_unit" class="select select-bordered w-20">
-                                        <option value="kg" data-i18n="unit_kg">кг</option>
-                                        <option value="l" data-i18n="unit_l">л</option>
-                                        <option value="pcs" data-i18n="unit_pcs">шт</option>
-                                    </select>
-                                </div>
+                                <label class="input input-bordered flex items-center gap-2 w-full">
+                                    <input type="number" name="output_amount" min="0.1" step="0.1" class="grow w-full" required />
+                                    <span class="opacity-50" data-i18n="unit_kg">кг</span>
+                                </label>
+                                <input type="hidden" name="output_unit" value="kg" />
                             </div>
                             <div>
                                 <label class="label">
                                     <span class="label-text font-medium" data-i18n="field_portion">Порция</span>
                                 </label>
-                                <div class="flex gap-2">
-                                    <input type="number" name="portion_amount" min="1" class="input input-bordered w-full" />
-                                    <select name="portion_unit" class="select select-bordered w-20">
-                                        <option value="g" data-i18n="unit_g">г</option>
-                                        <option value="ml" data-i18n="unit_ml">мл</option>
-                                        <option value="pcs" data-i18n="unit_pcs">шт</option>
-                                    </select>
-                                </div>
+                                <label class="input input-bordered flex items-center gap-2 w-full">
+                                    <input type="number" name="portion_amount" min="1" class="grow w-full" />
+                                    <span class="opacity-50" data-i18n="unit_g">г</span>
+                                </label>
+                                <input type="hidden" name="portion_unit" value="g" />
                             </div>
                         </div>
 
@@ -1028,6 +1022,15 @@
             document.querySelectorAll('[onclick="saveRecipe()"], #recipeForm [type="submit"]').forEach(btn => btn.disabled = true);
 
             const f = form();
+
+            // Валидация обязательного поля "Выход"
+            if (!f.output_amount.value || parseFloat(f.output_amount.value) <= 0) {
+                Layout.showNotification(t('output_required') || 'Укажите выход рецепта', 'error');
+                f.output_amount.focus();
+                saving = false;
+                document.querySelectorAll('[onclick="saveRecipe()"], #recipeForm [type="submit"]').forEach(btn => btn.disabled = false);
+                return;
+            }
 
             // Build instructions text
             const instructionsRu = instructions.map(s => s.ru).filter(s => s.trim()).join('\n');

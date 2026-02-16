@@ -139,26 +139,35 @@ async function loadRegistrations() {
     // Загружаем размещения и занятость комнат параллельно
     const vaishnavIds = registrations.map(r => r.vaishnava_id).filter(Boolean);
 
+    // Ищем размещения: для текущего ретрита ИЛИ с перекрывающимися датами
     const [residentsResult] = await Promise.all([
         vaishnavIds.length > 0
             ? Layout.db
                 .from('residents')
                 .select('*, rooms(id, number, building_id, buildings(id, name_ru, name_en, name_hi))')
-                .eq('retreat_id', retreatId)
                 .in('vaishnava_id', vaishnavIds)
                 .eq('status', 'confirmed')
+                .or(`retreat_id.eq.${retreatId},and(check_in.lte.${retreat.end_date},or(check_out.gte.${retreat.start_date},check_out.is.null))`)
             : Promise.resolve({ data: [] }),
         loadRoomOccupancy()
     ]);
 
     // Привязываем residents к регистрациям
-    const residentsByVaishnava = (residentsResult.data || []).reduce((acc, res) => {
-        acc[res.vaishnava_id] = res;
-        return acc;
-    }, {});
+    // Приоритет: размещение текущего ретрита > перекрывающееся из другого ретрита
+    const residentsByVaishnava = {};
+    (residentsResult.data || []).forEach(res => {
+        const existing = residentsByVaishnava[res.vaishnava_id];
+        if (!existing || (res.retreat_id === retreatId && existing.retreat_id !== retreatId)) {
+            residentsByVaishnava[res.vaishnava_id] = res;
+        }
+    });
 
     registrations.forEach(reg => {
-        reg.resident = residentsByVaishnava[reg.vaishnava_id] || null;
+        const res = residentsByVaishnava[reg.vaishnava_id] || null;
+        if (res && res.retreat_id !== retreatId) {
+            res._fromOtherRetreat = true;
+        }
+        reg.resident = res;
     });
 
     renderTable();
@@ -301,6 +310,42 @@ function filterRegistrations() {
             const fullName = `${v.first_name || ''} ${v.last_name || ''}`.toLowerCase();
             const spiritualName = (v.spiritual_name || '').toLowerCase();
             return fullName.includes(searchQuery) || spiritualName.includes(searchQuery);
+        });
+    }
+
+    // Расширенные фильтры
+    if (advFilters.buildings) {
+        filtered = filtered.filter(r => {
+            const res = r.resident;
+            if (!res) return advFilters.buildings.has('none');
+            if (!res.room_id) return advFilters.buildings.has('self');
+            return advFilters.buildings.has(res.rooms?.building_id);
+        });
+    }
+    if (advFilters.genders) {
+        filtered = filtered.filter(r => advFilters.genders.has(r.vaishnavas?.gender || ''));
+    }
+    if (advFilters.meals) {
+        filtered = filtered.filter(r => advFilters.meals.has(r.meal_type || ''));
+    }
+    if (advFilters.companions) {
+        filtered = filtered.filter(r => {
+            const has = r.companions && r.companions.trim() && r.companions.trim() !== '—';
+            return advFilters.companions.has(has ? 'has' : 'empty');
+        });
+    }
+    if (advFilters.travels) {
+        filtered = filtered.filter(r => {
+            const transfers = r.guest_transfers || [];
+            const has = transfers.some(tr => tr.flight_datetime);
+            return advFilters.travels.has(has ? 'has' : 'empty');
+        });
+    }
+    if (advFilters.notes) {
+        filtered = filtered.filter(r => {
+            const n = getLocalNotes(r.id);
+            const has = n && n.trim();
+            return advFilters.notes.has(has ? 'has' : 'empty');
         });
     }
 
@@ -600,13 +645,11 @@ function renderTable() {
                 <td class="text-sm">${e(v?.india_experience || '—')}</td>
                 <td class="text-sm">${e(reg.companions || '—')}</td>
                 <td class="text-sm">${e(reg.accommodation_wishes || '—')}</td>
-                <td class="text-center text-sm whitespace-nowrap ${arrivalProblem ? 'bg-warning/30' : ''}" data-stop-propagation>
+                <td class="text-center text-sm whitespace-nowrap ${arrivalProblem ? 'bg-warning/30' : ''} ${canEdit ? 'cursor-pointer hover:bg-base-200/50' : ''}" ${canEdit ? `data-action="open-transfer-modal" data-id="${reg.id}"` : 'data-stop-propagation'}>
                     ${arrivalLines.map(l => `<div>${l}</div>`).join('')}
-                    ${canEdit ? `<a class="text-xs link opacity-60 hover:opacity-100 cursor-pointer" data-action="open-transfer-modal" data-id="${reg.id}">${t('preliminary_edit_short')}</a>` : ''}
                 </td>
-                <td class="text-center text-sm whitespace-nowrap ${departureProblem ? 'bg-warning/30' : ''}" data-stop-propagation>
+                <td class="text-center text-sm whitespace-nowrap ${departureProblem ? 'bg-warning/30' : ''} ${canEdit ? 'cursor-pointer hover:bg-base-200/50' : ''}" ${canEdit ? `data-action="open-transfer-modal" data-id="${reg.id}"` : 'data-stop-propagation'}>
                     ${departureLines.map(l => `<div>${l}</div>`).join('')}
-                    ${canEdit ? `<a class="text-xs link opacity-60 hover:opacity-100 cursor-pointer" data-action="open-transfer-modal" data-id="${reg.id}">${t('preliminary_edit_short')}</a>` : ''}
                 </td>
                 <td class="text-sm">${e(reg.extended_stay || '—')}</td>
                 <td class="text-sm">${e(reg.guest_questions || '—')}</td>
@@ -1021,8 +1064,8 @@ async function onBuildingChange(registrationId, buildingId) {
         // Сбросить CSS классы ячеек
         roomCell?.classList.remove('bg-error/20', 'bg-success/20');
         buildingCell?.classList.remove('bg-error/20', 'bg-success/20');
-        // Удалить размещение, если было
-        if (reg?.resident?.id) {
+        // Удалить размещение, если было (только для текущего ретрита)
+        if (reg?.resident?.id && !reg.resident._fromOtherRetreat) {
             await deleteResident(reg.resident.id);
         }
         return;
@@ -1076,15 +1119,15 @@ async function onRoomChange(registrationId, roomId) {
     };
 
     try {
-        if (reg.resident?.id) {
-            // Обновить существующее размещение
+        if (reg.resident?.id && !reg.resident._fromOtherRetreat) {
+            // Обновить существующее размещение (того же ретрита)
             const { error } = await Layout.db
                 .from('residents')
                 .update(data)
                 .eq('id', reg.resident.id);
             if (error) throw error;
         } else {
-            // Создать новое размещение
+            // Создать новое размещение (нет существующего, или оно от другого ретрита)
             const { error } = await Layout.db
                 .from('residents')
                 .insert(data);
@@ -1136,15 +1179,15 @@ async function saveSelfAccommodation(registrationId) {
     };
 
     try {
-        if (reg.resident?.id) {
-            // Обновить существующее размещение
+        if (reg.resident?.id && !reg.resident._fromOtherRetreat) {
+            // Обновить существующее размещение (того же ретрита)
             const { error } = await Layout.db
                 .from('residents')
                 .update(data)
                 .eq('id', reg.resident.id);
             if (error) throw error;
         } else {
-            // Создать новое размещение
+            // Создать новое размещение (нет существующего, или оно от другого ретрита)
             const { error } = await Layout.db
                 .from('residents')
                 .insert(data);
@@ -1175,6 +1218,164 @@ function setupFilters() {
             renderTable();
         });
     });
+}
+
+// ==================== РАСШИРЕННЫЕ ФИЛЬТРЫ ====================
+
+// Состояние: null = показывать все, Set = только выбранные значения
+let advFilters = {
+    buildings: null,    // Set<building_id|'self'|'none'>
+    genders: null,      // Set<'male'|'female'>
+    meals: null,        // Set<'prasad'|'self'|'child'|''>
+    companions: null,   // Set<'has'|'empty'>
+    notes: null,        // Set<'has'|'empty'>
+    travels: null,      // Set<'has'|'empty'>
+};
+
+function getAdvFullSets() {
+    return {
+        buildings: new Set([...buildings.map(b => b.id), 'self', 'none']),
+        genders: new Set(['male', 'female']),
+        meals: new Set(['prasad', 'self', 'child', '']),
+        companions: new Set(['has', 'empty']),
+        notes: new Set(['has', 'empty']),
+        travels: new Set(['has', 'empty']),
+    };
+}
+
+function isAdvFilterActive() {
+    return Object.values(advFilters).some(v => v !== null);
+}
+
+function toggleFilterPanel() {
+    const panel = document.getElementById('advFilterPanel');
+    panel.classList.toggle('hidden');
+    if (!panel.classList.contains('hidden')) {
+        renderFilterPanel();
+    }
+}
+
+// Закрытие по клику снаружи
+document.addEventListener('click', e => {
+    const panel = document.getElementById('advFilterPanel');
+    if (!panel || panel.classList.contains('hidden')) return;
+    if (!e.target.closest('#advFilterPanel') && !e.target.closest('#advFilterBtn')) {
+        panel.classList.add('hidden');
+    }
+});
+
+function toggleAdvFilter(category, value) {
+    const fullSets = getAdvFullSets();
+
+    if (!advFilters[category]) {
+        // Было "все" → создаём полный Set и убираем одно значение
+        advFilters[category] = new Set(fullSets[category]);
+        advFilters[category].delete(value);
+    } else if (advFilters[category].has(value)) {
+        advFilters[category].delete(value);
+    } else {
+        advFilters[category].add(value);
+    }
+
+    // Если Set совпал с полным → сбросить в null
+    const full = fullSets[category];
+    if (advFilters[category] && advFilters[category].size === full.size) {
+        advFilters[category] = null;
+    }
+
+    renderFilterPanel();
+    updateAdvFilterBadge();
+    renderTable();
+}
+
+function resetAdvFilters() {
+    advFilters.buildings = null;
+    advFilters.genders = null;
+    advFilters.meals = null;
+    advFilters.companions = null;
+    advFilters.notes = null;
+    advFilters.travels = null;
+    renderFilterPanel();
+    updateAdvFilterBadge();
+    renderTable();
+}
+
+function updateAdvFilterBadge() {
+    const badge = document.getElementById('advFilterBadge');
+    if (!badge) return;
+    const count = Object.values(advFilters).filter(v => v !== null).length;
+    if (count > 0) {
+        badge.textContent = count;
+        badge.classList.remove('hidden');
+    } else {
+        badge.classList.add('hidden');
+    }
+}
+
+function renderFilterPanel() {
+    const panel = document.getElementById('advFilterPanel');
+    if (!panel) return;
+
+    const section = (title, items) => {
+        let html = `<div class="text-xs font-semibold uppercase opacity-50 mb-1.5">${title}</div><div class="flex flex-wrap gap-x-4 gap-y-1 mb-3">`;
+        items.forEach(([cat, val, label]) => {
+            const checked = !advFilters[cat] || advFilters[cat].has(val);
+            html += `<label class="flex items-center gap-1.5 cursor-pointer">
+                <input type="checkbox" class="checkbox checkbox-xs" ${checked ? 'checked' : ''}
+                    onchange="toggleAdvFilter('${cat}', '${val}')" />
+                <span class="text-sm">${label}</span>
+            </label>`;
+        });
+        html += '</div>';
+        return html;
+    };
+
+    let html = '';
+
+    // Гостиница
+    const bItems = buildings.map(b => ['buildings', b.id, Layout.getName(b)]);
+    bItems.push(['buildings', 'self', t('self_accommodation')]);
+    bItems.push(['buildings', 'none', t('not_accommodated')]);
+    html += section(t('preliminary_building'), bItems);
+
+    // Пол
+    html += section(t('gender'), [
+        ['genders', 'male', t('male')],
+        ['genders', 'female', t('female')],
+    ]);
+
+    // Питание
+    html += section(t('meal_type'), [
+        ['meals', 'prasad', t('meal_type_prasad')],
+        ['meals', 'self', t('meal_type_self')],
+        ['meals', 'child', t('meal_type_child')],
+        ['meals', '', t('not_specified')],
+    ]);
+
+    // С кем едет
+    html += section(t('companions'), [
+        ['companions', 'has', t('filter_has')],
+        ['companions', 'empty', t('filter_empty')],
+    ]);
+
+    // Перелёт
+    html += section(t('arrival_flight'), [
+        ['travels', 'has', t('filter_has')],
+        ['travels', 'empty', t('filter_empty')],
+    ]);
+
+    // Заметки
+    html += section(t('preliminary_notes'), [
+        ['notes', 'has', t('filter_has')],
+        ['notes', 'empty', t('filter_empty')],
+    ]);
+
+    // Кнопка сброса
+    if (isAdvFilterActive()) {
+        html += `<button class="btn btn-xs btn-ghost w-full opacity-60" onclick="resetAdvFilters()">${t('reset')}</button>`;
+    }
+
+    panel.innerHTML = html;
 }
 
 // ==================== GUEST MODAL ====================
@@ -2948,6 +3149,7 @@ function handleRealtimeChange(payload) {
 window.onLanguageChange = () => {
     Layout.updateAllTranslations();
     renderTable();
+    renderFilterPanel();
 };
 
 // Handle browser back/forward cache (bfcache)

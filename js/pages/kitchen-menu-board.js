@@ -2,7 +2,8 @@
 // Столбцы = дни, строки = завтрак/обед, блюда — цветные плашки с drag&drop
 
 // ==================== CONFIG ====================
-const DAYS_TO_SHOW = 35;
+const CHUNK_SIZE = 14;          // подгружать по 14 дней
+const SCROLL_THRESHOLD = 3;    // порог: 3 колонки от края
 const COL_WIDTH = 190;
 
 const e = str => Layout.escapeHtml(str);
@@ -21,8 +22,11 @@ function parseLocalDate(val) {
 }
 
 // ==================== STATE ====================
-let baseDate = new Date();
-baseDate.setDate(baseDate.getDate() - 3); // начинаем за 3 дня до сегодня
+let startDate = new Date();
+startDate.setDate(startDate.getDate() - 14); // 14 дней назад
+let endDate = new Date();
+endDate.setDate(endDate.getDate() + 35);     // 35 дней вперёд
+let extending = false;                        // блокировка параллельных подгрузок
 
 let recipes = [];
 let categories = [];
@@ -157,10 +161,7 @@ async function loadMenuData() {
         return;
     }
 
-    const endDate = new Date(baseDate);
-    endDate.setDate(endDate.getDate() + DAYS_TO_SHOW - 1);
-
-    const startStr = formatDate(baseDate);
+    const startStr = formatDate(startDate);
     const endStr = formatDate(endDate);
 
     const { data: mealsData } = await Layout.db
@@ -199,6 +200,46 @@ async function loadMenuData() {
     updateMonthLabel();
 }
 
+// Инкрементальная загрузка данных для нового диапазона дат
+async function loadMenuDataForRange(from, to) {
+    const locationId = getCurrentLocation()?.id;
+    if (!locationId) return;
+
+    const fromStr = formatDate(from);
+    const toStr = formatDate(to);
+
+    const { data: mealsData } = await Layout.db
+        .from('menu_meals')
+        .select(`
+            *,
+            cook:vaishnavas(*),
+            dishes:menu_dishes(*, recipe:recipes(*, category:recipe_categories(*)))
+        `)
+        .eq('location_id', locationId)
+        .gte('date', fromStr)
+        .lte('date', toStr);
+
+    (mealsData || []).forEach(meal => {
+        if (!menuData[meal.date]) menuData[meal.date] = {};
+        menuData[meal.date][meal.meal_type] = {
+            id: meal.id,
+            portions: meal.portions,
+            cook_id: meal.cook_id,
+            cook: meal.cook,
+            dishes: (meal.dishes || []).map(d => ({
+                id: d.id,
+                recipe_id: d.recipe_id,
+                recipe: d.recipe,
+                portion_size: d.portion_size,
+                portion_unit: d.portion_unit
+            }))
+        };
+    });
+
+    const newCounts = await EatingUtils.loadCounts(fromStr, toStr);
+    Object.assign(eatingCounts, newCounts);
+}
+
 // ==================== RENDERING ====================
 function renderBoard() {
     const table = document.getElementById('boardTable');
@@ -210,12 +251,12 @@ function renderBoard() {
     const types = getMealTypes();
     const canEdit = canEditMenu();
 
-    // Генерируем массив дней
+    // Генерируем массив дней из startDate..endDate
     const days = [];
-    for (let i = 0; i < DAYS_TO_SHOW; i++) {
-        const d = new Date(baseDate);
-        d.setDate(d.getDate() + i);
-        days.push(d);
+    const cur = new Date(startDate);
+    while (cur <= endDate) {
+        days.push(new Date(cur));
+        cur.setDate(cur.getDate() + 1);
     }
 
     // thead: одна строка — число + день недели
@@ -311,28 +352,28 @@ function renderRetreats() {
     const container = document.getElementById('retreatsScroll');
     if (!container) return;
 
+    // Количество дней в текущем диапазоне
+    const totalDays = Math.round((endDate - startDate) / (1000 * 60 * 60 * 24)) + 1;
+
     let html = '';
 
     // Фоновые слоты по дням
-    for (let i = 0; i < DAYS_TO_SHOW; i++) {
+    for (let i = 0; i < totalDays; i++) {
         html += `<div class="retreat-slot"></div>`;
     }
 
     // Плашки ретритов
-    for (const r of retreats) {
-        // Вычислить пересечение с видимым диапазоном
-        const endDate = new Date(baseDate);
-        endDate.setDate(endDate.getDate() + DAYS_TO_SHOW - 1);
-        const rangeStart = formatDate(baseDate);
-        const rangeEnd = formatDate(endDate);
+    const rangeStart = formatDate(startDate);
+    const rangeEnd = formatDate(endDate);
 
+    for (const r of retreats) {
         if (r.end_date < rangeStart || r.start_date > rangeEnd) continue;
 
         const rStart = parseLocalDate(r.start_date < rangeStart ? rangeStart : r.start_date);
         const rEnd = parseLocalDate(r.end_date > rangeEnd ? rangeEnd : r.end_date);
 
-        const startDay = Math.round((rStart - baseDate) / (1000 * 60 * 60 * 24));
-        const endDay = Math.round((rEnd - baseDate) / (1000 * 60 * 60 * 24));
+        const startDay = Math.round((rStart - startDate) / (1000 * 60 * 60 * 24));
+        const endDay = Math.round((rEnd - startDate) / (1000 * 60 * 60 * 24));
 
         const left = startDay * COL_WIDTH;
         const width = (endDay - startDay + 1) * COL_WIDTH;
@@ -343,8 +384,8 @@ function renderRetreats() {
 
     // Названия месяцев
     const monthNamesUpper = getMonthNames().map(n => n.toUpperCase());
-    for (let i = 0; i < DAYS_TO_SHOW; i++) {
-        const d = new Date(baseDate);
+    for (let i = 0; i < totalDays; i++) {
+        const d = new Date(startDate);
         d.setDate(d.getDate() + i);
         if (d.getDate() === 1) {
             const left = i * COL_WIDTH;
@@ -361,8 +402,61 @@ function syncScroll() {
     if (!boardContainer || !retreatsScroll) return;
 
     boardContainer.addEventListener('scroll', () => {
+        // Синхронизация retreats bar
         retreatsScroll.style.transform = `translateX(-${boardContainer.scrollLeft}px)`;
+
+        // Обновление метки месяца по видимой области
+        updateMonthLabel();
+
+        // Детекция краёв для подгрузки
+        const threshold = SCROLL_THRESHOLD * COL_WIDTH;
+        if (boardContainer.scrollLeft < threshold) {
+            extendRange('left');
+        }
+        const rightEdge = boardContainer.scrollWidth - boardContainer.scrollLeft - boardContainer.clientWidth;
+        if (rightEdge < threshold) {
+            extendRange('right');
+        }
     });
+}
+
+async function extendRange(direction) {
+    if (extending) return;
+    extending = true;
+
+    const boardContainer = document.getElementById('boardContainer');
+
+    try {
+        if (direction === 'left') {
+            const newStart = new Date(startDate);
+            newStart.setDate(newStart.getDate() - CHUNK_SIZE);
+            const oldStart = new Date(startDate);
+
+            await loadMenuDataForRange(newStart, new Date(oldStart.getTime() - 86400000));
+            startDate = newStart;
+
+            const prevScrollLeft = boardContainer.scrollLeft;
+            renderBoard();
+            renderRetreats();
+            updateMonthLabel();
+
+            // Компенсация скролла: добавленные колонки сдвигают контент
+            boardContainer.scrollLeft = prevScrollLeft + CHUNK_SIZE * COL_WIDTH;
+        } else {
+            const oldEnd = new Date(endDate);
+            const newEnd = new Date(endDate);
+            newEnd.setDate(newEnd.getDate() + CHUNK_SIZE);
+
+            await loadMenuDataForRange(new Date(oldEnd.getTime() + 86400000), newEnd);
+            endDate = newEnd;
+
+            renderBoard();
+            renderRetreats();
+            updateMonthLabel();
+        }
+    } finally {
+        extending = false;
+    }
 }
 
 function renderLegend() {
@@ -381,38 +475,62 @@ function updateMonthLabel() {
     const label = document.getElementById('monthLabel');
     if (!label) return;
 
+    // Показываем месяц по видимой области скролла
+    const boardContainer = document.getElementById('boardContainer');
     const monthNames = getMonthNames();
-    const startMonth = baseDate.getMonth();
-    const startYear = baseDate.getFullYear();
 
-    const endDateObj = new Date(baseDate);
-    endDateObj.setDate(endDateObj.getDate() + DAYS_TO_SHOW - 1);
-    const endMonth = endDateObj.getMonth();
-    const endYear = endDateObj.getFullYear();
-
-    if (startMonth === endMonth && startYear === endYear) {
-        label.textContent = `${monthNames[startMonth]} ${startYear}`;
-    } else if (startYear === endYear) {
-        label.textContent = `${monthNames[startMonth]} \u2014 ${monthNames[endMonth]} ${startYear}`;
+    if (boardContainer) {
+        const centerX = boardContainer.scrollLeft + boardContainer.clientWidth / 2;
+        const dayIndex = Math.floor(centerX / COL_WIDTH);
+        const centerDate = new Date(startDate);
+        centerDate.setDate(centerDate.getDate() + dayIndex);
+        label.textContent = `${monthNames[centerDate.getMonth()]} ${centerDate.getFullYear()}`;
     } else {
-        label.textContent = `${monthNames[startMonth]} ${startYear} \u2014 ${monthNames[endMonth]} ${endYear}`;
+        const startMonth = startDate.getMonth();
+        const startYear = startDate.getFullYear();
+        label.textContent = `${monthNames[startMonth]} ${startYear}`;
     }
 }
 
 // ==================== NAVIGATION ====================
 function shiftMonth(dir) {
-    baseDate.setMonth(baseDate.getMonth() + parseInt(dir));
+    // Сдвигаем центр диапазона на месяц, сбрасываем диапазон
+    const center = new Date(startDate);
+    const totalDays = Math.round((endDate - startDate) / (1000 * 60 * 60 * 24));
+    center.setDate(center.getDate() + Math.floor(totalDays / 2));
+    center.setMonth(center.getMonth() + parseInt(dir));
+
+    startDate = new Date(center);
+    startDate.setDate(startDate.getDate() - 14);
+    endDate = new Date(center);
+    endDate.setDate(endDate.getDate() + 35);
     reload();
 }
 
 function goToToday() {
-    baseDate = new Date();
-    baseDate.setDate(baseDate.getDate() - 3);
-    reload();
+    startDate = new Date();
+    startDate.setDate(startDate.getDate() - 14);
+    endDate = new Date();
+    endDate.setDate(endDate.getDate() + 35);
+    reload(true);
 }
 
-function reload() {
-    loadMenuData();
+function reload(scrollToToday) {
+    loadMenuData().then(() => {
+        if (scrollToToday) scrollToTodayColumn();
+    });
+}
+
+function scrollToTodayColumn() {
+    const boardContainer = document.getElementById('boardContainer');
+    if (!boardContainer) return;
+
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const todayCopy = new Date(startDate);
+    todayCopy.setHours(0, 0, 0, 0);
+    const offsetDays = Math.round((today - todayCopy) / (1000 * 60 * 60 * 24));
+    boardContainer.scrollLeft = offsetDays * COL_WIDTH - boardContainer.clientWidth / 3;
 }
 
 // ==================== DRAG & DROP ====================
@@ -1136,6 +1254,9 @@ async function init() {
     syncScroll();
     setupDelegation();
     subscribeToRealtime();
+
+    // Автоскролл к сегодню при загрузке
+    scrollToTodayColumn();
 }
 
 window.onLanguageChange = () => {

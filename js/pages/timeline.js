@@ -1618,6 +1618,109 @@ async function convertToCheckin() {
     document.getElementById('actionModal').showModal();
 }
 
+// ==================== ПОИСК ПО ШАХМАТКЕ ====================
+
+// Текущий запрос поиска
+let _searchQuery = '';
+
+function onTimelineSearch(query) {
+    _searchQuery = query.trim().toLowerCase();
+    if (_searchQuery.length < 2) {
+        clearTimelineSearch();
+        return;
+    }
+
+    // Собираем ID совпавших гостей
+    const matchedIds = new Set();
+    for (const [id, guest] of guestsMap) {
+        if (guest.name.toLowerCase().includes(_searchQuery)) {
+            matchedIds.add(id);
+        }
+    }
+
+    // Разворачиваем свёрнутые здания/комнаты, если в них есть совпадения
+    let needRerender = false;
+    for (const id of matchedIds) {
+        const guest = guestsMap.get(id);
+        if (!guest?.rawData?.room_id) continue;
+        const roomId = guest.rawData.room_id;
+
+        // Ищем building по room_id
+        for (const building of timelineData.buildings) {
+            const room = building.rooms.find(r => r.id === roomId);
+            if (room) {
+                if (collapsedBuildings.has(building.id)) {
+                    collapsedBuildings.delete(building.id);
+                    needRerender = true;
+                }
+                if (collapsedRooms.has(room.id)) {
+                    collapsedRooms.delete(room.id);
+                    needRerender = true;
+                }
+                break;
+            }
+        }
+    }
+
+    if (needRerender) {
+        renderTable(); // applySearchHighlight вызовется внутри
+    } else {
+        applySearchHighlight();
+    }
+}
+
+function applySearchHighlight() {
+    if (!_searchQuery || _searchQuery.length < 2) return;
+
+    const matchedIds = new Set();
+    for (const [id, guest] of guestsMap) {
+        if (guest.name.toLowerCase().includes(_searchQuery)) {
+            matchedIds.add(id);
+        }
+    }
+
+    const bars = document.querySelectorAll('.guest-bar');
+    let firstMatch = null;
+
+    bars.forEach(bar => {
+        const id = bar.dataset.id;
+        if (matchedIds.has(id)) {
+            bar.classList.add('search-highlight');
+            bar.classList.remove('search-dim');
+            if (!firstMatch) firstMatch = bar;
+        } else {
+            bar.classList.add('search-dim');
+            bar.classList.remove('search-highlight');
+        }
+    });
+
+    // Счётчик
+    const countEl = document.getElementById('searchCount');
+    if (countEl) {
+        if (matchedIds.size > 0) {
+            countEl.textContent = matchedIds.size;
+            countEl.classList.remove('hidden');
+        } else {
+            countEl.textContent = '0';
+            countEl.classList.remove('hidden');
+        }
+    }
+
+    // Прокрутка к первому совпадению
+    if (firstMatch) {
+        firstMatch.scrollIntoView({ block: 'center', inline: 'center', behavior: 'smooth' });
+    }
+}
+
+function clearTimelineSearch() {
+    _searchQuery = '';
+    document.querySelectorAll('.guest-bar.search-highlight, .guest-bar.search-dim').forEach(bar => {
+        bar.classList.remove('search-highlight', 'search-dim');
+    });
+    const countEl = document.getElementById('searchCount');
+    if (countEl) countEl.classList.add('hidden');
+}
+
 // Рендер таблицы
 // Рендер полосы ретритов (отдельно от таблицы)
 function renderRetreats() {
@@ -1931,6 +2034,9 @@ function renderTable() {
 
     html += '</tbody>';
     table.innerHTML = html;
+
+    // Повторно применить подсветку поиска после перерисовки
+    if (_searchQuery) applySearchHighlight();
 }
 
 // Перезагрузка данных и рендеринг

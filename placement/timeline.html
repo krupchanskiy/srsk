@@ -382,6 +382,16 @@
             background: #dbeafe !important;
         }
 
+        /* Подсветка поиска */
+        .guest-bar.search-highlight {
+            outline: 3px solid #f59e0b;
+            outline-offset: 1px;
+            z-index: 8 !important;
+        }
+        .guest-bar.search-dim {
+            opacity: 0.3;
+        }
+
         /* Скрытые строки (свёрнутые) */
         .collapsed {
             display: none;
@@ -454,6 +464,17 @@
                     </button>
                 </div>
             </div>
+            <!-- Поиск -->
+            <div class="relative">
+                <input type="text" id="timelineSearch" class="input input-bordered input-sm w-48 pl-8"
+                       placeholder="Поиск..." data-i18n-placeholder="search"
+                       oninput="onTimelineSearch(this.value)" />
+                <svg class="absolute left-2.5 top-1/2 -translate-y-1/2 w-4 h-4 opacity-40" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                </svg>
+                <span id="searchCount" class="absolute right-2 top-1/2 -translate-y-1/2 text-xs opacity-50 hidden"></span>
+            </div>
+
             <!-- Легенда -->
             <div class="flex items-center gap-4">
                 <div class="flex items-center gap-4" id="legend"></div>
@@ -915,7 +936,7 @@
         if (btn) { btn.classList.toggle('btn-active', isFS); btn.title = isFS ? 'Обычный вид' : 'На весь экран'; }
     }
     </script>
-    <script src="../js/pages/timeline.js?v=3"></script>
+    <script src="../js/pages/timeline.js?v=4"></script>
 
 </body>
 </html>

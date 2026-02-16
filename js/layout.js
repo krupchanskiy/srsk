@@ -57,6 +57,7 @@ const modules = {
             ]},
             { id: 'placement', items: [
                 { id: 'retreat_guests', href: 'vaishnavas/retreat-guests.html' },
+                { id: 'retreat_prasad', href: 'vaishnavas/retreat-prasad.html' },
                 { id: 'preliminary', href: 'vaishnavas/preliminary.html' },
                 { id: 'groups', href: 'vaishnavas/groups.html' },
                 { id: 'arrivals', href: 'placement/arrivals.html' },
@@ -178,6 +179,7 @@ const pagePermissions = {
     'placement/timeline.html': 'view_timeline',
     'placement/bookings.html': 'view_bookings',
     'vaishnavas/retreat-guests.html': 'view_retreat_guests',
+    'vaishnavas/retreat-prasad.html': 'view_retreat_guests',
     'vaishnavas/preliminary.html': 'view_preliminary',
     'vaishnavas/groups.html': 'view_preliminary',
     'placement/arrivals.html': 'view_arrivals',
@@ -461,7 +463,7 @@ async function loadTranslations(retried = false) {
 
     // Проверка на наличие новых переводов (для автоинвалидации устаревшего кэша)
     // Добавляйте сюда ключи новых обязательных переводов
-    const requiredKeys = ['self_accommodation', 'nav_user_management'];
+    const requiredKeys = ['self_accommodation', 'nav_user_management', 'nav_retreat_prasad'];
     const hasAllKeys = requiredKeys.every(key => data.some(row => row.key === key));
 
     if (!hasAllKeys && !retried) {

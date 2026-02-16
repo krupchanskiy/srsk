@@ -1,0 +1,124 @@
+<!DOCTYPE html>
+<html lang="ru" data-theme="light">
+<head>
+    <meta charset="UTF-8">
+    <script src="../js/color-init.js"></script>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Прасад — ШРСК</title>
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg">
+    <link href="https://cdn.jsdelivr.net/npm/daisyui@4.12.14/dist/full.min.css" rel="stylesheet" />
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script>tailwind.config = { theme: { extend: { screens: { 'desktop': '1200px' } } } }</script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans:wght@400;500;600;700&family=Noto+Sans+Devanagari:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="../css/common.css">
+    <style>
+        .meal-prasad { background: #d1fae5; color: #065f46; border-color: #6ee7b7; }
+        .meal-child { background: #fef3c7; color: #92400e; border-color: #fcd34d; }
+        .meal-self { background: #dbeafe; color: #1e40af; border-color: #93c5fd; }
+        .meal-none { background: #f3f4f6; color: #6b7280; border-color: #d1d5db; }
+
+        select.meal-prasad, select.meal-child, select.meal-self, select.meal-none {
+            font-weight: 500;
+            font-size: 0.75rem;
+            height: 1.75rem;
+            min-height: 1.75rem;
+            padding-top: 0;
+            padding-bottom: 0;
+            padding-left: 0.5rem;
+        }
+
+        .table td { padding: 0.5rem 0.75rem; }
+        .table th { padding: 0.5rem 0.75rem; }
+
+        .filter-btn.active {
+            background: var(--current-color);
+            color: white;
+            border-color: var(--current-color);
+        }
+        .filter-btn.active:hover {
+            background: var(--current-color);
+            opacity: 0.9;
+        }
+    </style>
+</head>
+<body class="bg-base-200 min-h-screen flex flex-col">
+
+    <div id="header-placeholder"></div>
+
+    <main class="px-4 py-6">
+
+        <!-- Title + Retreat Selector -->
+        <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6">
+            <div>
+                <h1 class="text-2xl font-bold mb-2" data-i18n="retreat_prasad">Прасад</h1>
+                <div class="flex items-center gap-2">
+                    <select id="retreatSelect" class="select select-bordered select-sm" onchange="onRetreatChange(this.value)">
+                        <option value="" data-i18n="select_retreat">Выберите ретрит...</option>
+                    </select>
+                    <span id="retreatDates" class="text-sm opacity-60"></span>
+                </div>
+            </div>
+            <!-- Счётчики -->
+            <div id="mealStats" class="flex flex-wrap gap-2 text-sm"></div>
+        </div>
+
+        <!-- Search and Filter -->
+        <div class="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2 mb-2">
+            <div class="relative w-full sm:w-56">
+                <input type="text" id="searchInput" class="input input-bordered input-sm w-full pl-8 pr-7" data-i18n-placeholder="search" placeholder="Поиск..." oninput="onSearchInput(this.value)" />
+                <svg class="absolute left-2.5 top-1/2 -translate-y-1/2 w-4 h-4 opacity-40" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                </svg>
+                <button type="button" id="searchClear" class="absolute right-2 top-1/2 -translate-y-1/2 w-4 h-4 opacity-40 hover:opacity-70 hidden" onclick="clearSearch()">
+                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+                    </svg>
+                </button>
+            </div>
+            <div class="flex flex-wrap items-center gap-1">
+                <button class="btn btn-xs filter-btn active" data-filter="all" data-i18n="all">Все</button>
+                <button class="btn btn-xs btn-ghost filter-btn" data-filter="prasad" data-i18n="meal_prasad">С нами</button>
+                <button class="btn btn-xs btn-ghost filter-btn" data-filter="child" data-i18n="meal_child">Детское</button>
+                <button class="btn btn-xs btn-ghost filter-btn" data-filter="self" data-i18n="meal_self">Самостоятельно</button>
+                <button class="btn btn-xs btn-ghost filter-btn" data-filter="none" data-i18n="meal_none">Не указан</button>
+            </div>
+        </div>
+
+        <!-- Guests Table -->
+        <div class="overflow-x-auto">
+            <table class="table table-zebra">
+                <thead>
+                    <tr>
+                        <th data-i18n="name">Имя</th>
+                        <th data-i18n="accommodation">Проживание</th>
+                        <th data-i18n="meal_type">Питание</th>
+                    </tr>
+                </thead>
+                <tbody id="prasadTable">
+                    <!-- Will be populated by JS -->
+                </tbody>
+            </table>
+            <div id="noGuests" class="hidden text-center py-12 opacity-50">
+                <div class="text-4xl mb-2">🍽</div>
+                <p data-i18n="no_guests">Нет гостей</p>
+            </div>
+        </div>
+
+    </main>
+
+    <div id="footer-placeholder"></div>
+
+    <script src="../js/config.js"></script>
+    <script src="../js/auth-check.js?v=3"></script>
+    <script src="../js/cache.js"></script>
+    <script src="../js/utils.js?v=2"></script>
+    <script src="../js/translit.js"></script>
+    <script src="../js/auto-translate.js"></script>
+    <script src="../js/layout.js?v=6"></script>
+    <script src="../js/date-utils.js"></script>
+    <script src="../js/pages/retreat-prasad.js?v=1"></script>
+</body>
+</html>
