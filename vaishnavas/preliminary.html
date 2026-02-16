@@ -245,6 +245,19 @@
                     <div class="border-l border-base-300 h-6 mx-1"></div>
                     <button class="btn btn-xs btn-ghost filter-btn" data-filter="accommodated" data-i18n="accommodated">Заселены</button>
                     <button class="btn btn-xs btn-ghost filter-btn" data-filter="not_accommodated" data-i18n="not_accommodated">Не заселены</button>
+                    <div class="border-l border-base-300 h-6 mx-1"></div>
+                    <div class="relative">
+                        <button class="btn btn-xs btn-outline gap-1" id="advFilterBtn" onclick="toggleFilterPanel()">
+                            <svg xmlns="http://www.w3.org/2000/svg" class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                                <path stroke-linecap="round" stroke-linejoin="round" d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2.586a1 1 0 01-.293.707l-6.414 6.414a1 1 0 00-.293.707V17l-4 4v-6.586a1 1 0 00-.293-.707L3.293 7.293A1 1 0 013 6.586V4z" />
+                            </svg>
+                            <span data-i18n="filters">Фильтры</span>
+                            <span id="advFilterBadge" class="badge badge-xs badge-warning hidden"></span>
+                        </button>
+                        <div id="advFilterPanel" class="hidden absolute right-0 top-full mt-1 z-50 bg-base-100 shadow-xl rounded-lg p-4 w-72 border max-h-[70vh] overflow-y-auto">
+                            <!-- Генерируется через JS -->
+                        </div>
+                    </div>
                 </div>
         </div>
 
@@ -900,7 +913,7 @@
         if (btn) { btn.classList.toggle('btn-active', isFS); btn.title = isFS ? 'Обычный вид' : 'На весь экран'; }
     }
     </script>
-    <script src="../js/pages/preliminary.js?v=15"></script>
+    <script src="../js/pages/preliminary.js?v=16"></script>
 
 </body>
 </html>
