@@ -521,7 +521,7 @@ function renderResults() {
 
 // ==================== ACTIONS ====================
 async function saveRequest() {
-    if (!window.hasPermission?.('manage_stock_requests')) return;
+    if (!window.hasPermission?.('create_request')) return;
     if (requestItems.length === 0) {
         showAlert(tr('add_at_least_one', 'Нет продуктов для сохранения'));
         return;
@@ -840,7 +840,7 @@ async function toggleInProgress(id) {
 }
 
 async function archiveRequest(id) {
-    if (!window.hasPermission?.('manage_stock_requests')) return;
+    if (!window.hasPermission?.('edit_request')) return;
     if (!await showConfirm(tr('archive_confirm', 'Переместить в архив?'))) return;
 
     const { error } = await Layout.db
@@ -858,7 +858,7 @@ async function archiveRequest(id) {
 }
 
 async function restoreRequest(id) {
-    if (!window.hasPermission?.('manage_stock_requests')) return;
+    if (!window.hasPermission?.('edit_request')) return;
     const { error } = await Layout.db
         .from('purchase_requests')
         .update({ status: 'pending' })
@@ -874,7 +874,7 @@ async function restoreRequest(id) {
 }
 
 async function deleteRequest(id) {
-    if (!window.hasPermission?.('manage_stock_requests')) return;
+    if (!window.hasPermission?.('delete_request')) return;
     if (!await showConfirm(tr('permanent_delete_confirm', 'Удалить заявку навсегда? Это действие нельзя отменить!'))) return;
 
     // Удаляем items
