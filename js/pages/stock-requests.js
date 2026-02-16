@@ -492,8 +492,11 @@ function renderMenuDishes() {
             const portions = meal.portions || EatingUtils.getTotal(menuDishesEatingCounts, dateStr, meal.meal_type);
 
             html += `<div class="ml-6 mb-2">`;
-            html += `<div class="text-sm font-medium opacity-60 mb-1">${mealTypeLabels[meal.meal_type] || meal.meal_type} <span class="font-normal">(${portions})</span></div>`;
-            html += `<div class="flex flex-wrap gap-1.5">`;
+            html += `<div class="flex items-center gap-1.5 mb-1">`;
+            html += `<input type="checkbox" class="checkbox checkbox-xs meal-toggle-cb" data-meal-idx="${mealIdx}" data-action="toggle-meal">`;
+            html += `<span class="text-sm font-medium opacity-60">${mealTypeLabels[meal.meal_type] || meal.meal_type} <span class="font-normal">(${portions})</span></span>`;
+            html += `</div>`;
+            html += `<div class="flex flex-wrap gap-1.5 ml-5">`;
 
             dishes.forEach((dish, dishIdx) => {
                 const recipe = recipes.find(r => r.id === dish.recipe_id);
@@ -523,10 +526,27 @@ function renderMenuDishes() {
     updateMenuDishesCount();
 }
 
+function toggleMeal(mealIdx) {
+    const mealCb = document.querySelector(`.meal-toggle-cb[data-meal-idx="${mealIdx}"]`);
+    const dishCbs = document.querySelectorAll(`.menu-dish-cb[data-meal-idx="${mealIdx}"]`);
+    const checked = mealCb.checked;
+    dishCbs.forEach(cb => cb.checked = checked);
+    updateMenuDishesCount();
+}
+
 function updateMenuDishesCount() {
     const checked = document.querySelectorAll('.menu-dish-cb:checked').length;
     Layout.$('#menuDishesCount').textContent = checked;
     Layout.$('#addDishesBtn').disabled = checked === 0;
+
+    // Синхронизируем галочки приёмов пищи
+    document.querySelectorAll('.meal-toggle-cb').forEach(mealCb => {
+        const idx = mealCb.dataset.mealIdx;
+        const all = document.querySelectorAll(`.menu-dish-cb[data-meal-idx="${idx}"]`);
+        const allChecked = document.querySelectorAll(`.menu-dish-cb[data-meal-idx="${idx}"]:checked`);
+        mealCb.checked = all.length > 0 && all.length === allChecked.length;
+        mealCb.indeterminate = allChecked.length > 0 && allChecked.length < all.length;
+    });
 }
 
 function addSelectedDishes() {
@@ -1704,7 +1724,8 @@ async function init() {
     // Делегирование для модалки выбора блюд из меню
     const menuDishesList = Layout.$('#menuDishesList');
     setupChangeDelegation(menuDishesList, {
-        'toggle-menu-dish': () => updateMenuDishesCount()
+        'toggle-menu-dish': () => updateMenuDishesCount(),
+        'toggle-meal': el => toggleMeal(el.dataset.mealIdx)
     });
 
     // Realtime: автообновление при изменениях
