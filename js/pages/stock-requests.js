@@ -822,6 +822,26 @@ function switchTab(tab) {
     }
 }
 
+// Автоархивация заявок старше 2 дней
+async function autoArchiveOldRequests() {
+    const twoDaysAgo = new Date();
+    twoDaysAgo.setDate(twoDaysAgo.getDate() - 2);
+
+    const toArchive = savedRequests.filter(r =>
+        r.status !== 'archived' && new Date(r.created_at) < twoDaysAgo
+    );
+    if (toArchive.length === 0) return;
+
+    const ids = toArchive.map(r => r.id);
+    await Layout.db
+        .from('purchase_requests')
+        .update({ status: 'archived' })
+        .in('id', ids);
+
+    // Обновляем локально
+    toArchive.forEach(r => r.status = 'archived');
+}
+
 // ==================== SAVED REQUESTS ====================
 async function loadSavedRequests() {
     const { data, error } = await Layout.db
@@ -840,6 +860,10 @@ async function loadSavedRequests() {
         ...req,
         buyer: req.buyer_id ? buyers.find(b => b.id === req.buyer_id) : null
     }));
+
+    // Автоархивация заявок старше 2 дней
+    await autoArchiveOldRequests();
+
     renderSavedRequests();
     renderArchivedRequests();
 }
