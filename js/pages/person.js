@@ -2087,7 +2087,6 @@ async function saveChild(event) {
     if (childId) {
         result = await Layout.db.from('vaishnavas').update(childData).eq('id', childId);
     } else {
-        childData.is_guest = true;
         result = await Layout.db.from('vaishnavas').insert(childData);
     }
 
