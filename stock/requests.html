@@ -469,10 +469,15 @@
             color: white !important;
         }
 
-        /* Модалка просмотра: две колонки */
+        /* Модалка просмотра: две колонки на десктопе, одна на мобилке */
         .view-columns {
-            column-count: 2;
+            column-count: 1;
             column-gap: 1.5rem;
+        }
+        @media (min-width: 768px) {
+            .view-columns {
+                column-count: 2;
+            }
         }
         .view-category {
             break-inside: avoid;
