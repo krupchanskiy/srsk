@@ -44,15 +44,15 @@ async function init(options = {}) {
  * Загрузка переводов из БД
  */
 async function loadTranslations() {
-    const CACHE_KEY = 'portal_translations_v3';
-    const CACHE_TIME_KEY = 'portal_translations_v3_time';
+    const CACHE_KEY = 'portal_translations_v4';
+    const CACHE_TIME_KEY = 'portal_translations_v4_time';
 
     try {
         // Удаляем устаревшие кэши
-        localStorage.removeItem('portal_translations');
-        localStorage.removeItem('portal_translations_time');
-        localStorage.removeItem('portal_translations_v2');
-        localStorage.removeItem('portal_translations_v2_time');
+        ['portal_translations', 'portal_translations_v2', 'portal_translations_v3'].forEach(k => {
+            localStorage.removeItem(k);
+            localStorage.removeItem(k + '_time');
+        });
 
         // Пробуем из localStorage кэша
         const cached = localStorage.getItem(CACHE_KEY);
@@ -101,9 +101,16 @@ async function loadTranslations() {
             };
         }
 
-        // Сохраняем в кэш
-        localStorage.setItem(CACHE_KEY, JSON.stringify(translations));
-        localStorage.setItem(CACHE_TIME_KEY, Date.now().toString());
+        // Сохраняем в кэш только если загрузили данные
+        if (allData.length > 0) {
+            localStorage.setItem(CACHE_KEY, JSON.stringify(translations));
+            localStorage.setItem(CACHE_TIME_KEY, Date.now().toString());
+        } else {
+            console.warn('[Translations] Получено 0 записей — кэш не сохраняем');
+            // Удаляем битый кэш если есть
+            localStorage.removeItem(CACHE_KEY);
+            localStorage.removeItem(CACHE_TIME_KEY);
+        }
 
     } catch (error) {
         console.error('[Translations] Исключение:', error);
