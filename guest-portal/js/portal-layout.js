@@ -66,6 +66,7 @@ async function loadTranslations() {
         let allData = [];
         const pageSize = 1000;
         let from = 0;
+        console.log('[Translations] Загрузка из БД, db =', !!db);
         while (true) {
             const { data, error } = await db
                 .from('translations')
@@ -75,10 +76,12 @@ async function loadTranslations() {
                 console.error('Ошибка загрузки переводов:', error);
                 break;
             }
+            console.log('[Translations] Загружено', data.length, 'записей (offset', from + ')');
             allData = allData.concat(data);
             if (data.length < pageSize) break;
             from += pageSize;
         }
+        console.log('[Translations] Итого:', allData.length, 'записей');
 
         // Преобразуем в объект
         translations = {};
