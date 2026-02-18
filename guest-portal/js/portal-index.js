@@ -668,17 +668,7 @@ function renderMenu(meals) {
 
     block.classList.remove('hidden');
 
-    // Сворачивание/разворачивание меню
-    const toggle = document.getElementById('menu-toggle');
     const mealsContainer = document.getElementById('menu-meals');
-    const chevron = document.getElementById('menu-chevron');
-    if (toggle && !toggle._bound) {
-        toggle._bound = true;
-        toggle.addEventListener('click', () => {
-            const collapsed = mealsContainer.classList.toggle('hidden');
-            chevron.style.transform = collapsed ? 'rotate(-90deg)' : '';
-        });
-    }
 
     const mealTypeNames = {
         'breakfast': PortalLayout.t('portal_breakfast'),
@@ -1630,15 +1620,7 @@ async function checkTelegramStatus() {
     const miniDisconnectBtn = document.getElementById('telegram-mini-disconnect-btn');
     const miniStatus = document.getElementById('telegram-mini-status');
 
-    if (miniConnected) {
-        if (connected) {
-            miniConnected.classList.remove('hidden');
-            miniConnected.classList.add('flex');
-        } else {
-            miniConnected.classList.add('hidden');
-            miniConnected.classList.remove('flex');
-        }
-    }
+    if (miniConnected) miniConnected.classList.add('hidden');
     if (miniConnectBtn) miniConnectBtn.classList.toggle('hidden', connected);
     if (miniDisconnectBtn) miniDisconnectBtn.classList.toggle('hidden', !connected);
     if (miniStatus) miniStatus.textContent = connected ? 'Уведомления подключены' : 'Уведомления';

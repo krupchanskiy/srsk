@@ -534,8 +534,8 @@
 
                 <!-- Меню на сегодня -->
                 <div id="menu-block" class="hidden card" style="background: #FFF8E1;">
-                    <div class="flex items-center justify-between cursor-pointer" id="menu-toggle">
-                        <div class="card-label" style="color: #997A00;" data-i18n="portal_menu_today">Меню на сегодня</div>
+                    <div class="flex items-center justify-between cursor-pointer select-none" onclick="const m=document.getElementById('menu-meals'),c=document.getElementById('menu-chevron');m.classList.toggle('hidden');c.style.transform=m.classList.contains('hidden')?'rotate(-90deg)':''">
+                        <div style="font-size: 18px; font-weight: 700; text-transform: uppercase; letter-spacing: 1.5px; color: #997A00;" data-i18n="portal_menu_today">Меню на сегодня</div>
                         <svg id="menu-chevron" class="w-5 h-5 text-amber-600 transition-transform duration-200" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
                             <path stroke-linecap="round" stroke-linejoin="round" d="M19.5 8.25l-7.5 7.5-7.5-7.5" />
                         </svg>
@@ -1002,6 +1002,6 @@
     <script src="js/portal-layout.js?v=10"></script>
     <script src="../js/date-utils.js"></script>
     <script src="js/portal-data.js"></script>
-    <script src="js/portal-index.js?v=2"></script>
+    <script src="js/portal-index.js?v=3"></script>
 </body>
 </html>
