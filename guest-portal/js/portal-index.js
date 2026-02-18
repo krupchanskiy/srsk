@@ -668,6 +668,18 @@ function renderMenu(meals) {
 
     block.classList.remove('hidden');
 
+    // Сворачивание/разворачивание меню
+    const toggle = document.getElementById('menu-toggle');
+    const mealsContainer = document.getElementById('menu-meals');
+    const chevron = document.getElementById('menu-chevron');
+    if (toggle && !toggle._bound) {
+        toggle._bound = true;
+        toggle.addEventListener('click', () => {
+            const collapsed = mealsContainer.classList.toggle('hidden');
+            chevron.style.transform = collapsed ? 'rotate(-90deg)' : '';
+        });
+    }
+
     const mealTypeNames = {
         'breakfast': PortalLayout.t('portal_breakfast'),
         'lunch': PortalLayout.t('portal_lunch'),
@@ -678,8 +690,7 @@ function renderMenu(meals) {
     const sorted = mealsWithDishes.sort((a, b) => (mealTypeOrder[a.meal_type] ?? 9) - (mealTypeOrder[b.meal_type] ?? 9));
 
     const lang = localStorage.getItem('srsk_lang') || 'ru';
-    const container = document.getElementById('menu-meals');
-    container.innerHTML = sorted.map(meal => {
+    mealsContainer.innerHTML = sorted.map(meal => {
         const dishes = (meal.menu_dishes || [])
             .sort((a, b) => (a.sort_order || 0) - (b.sort_order || 0));
 
@@ -776,11 +787,7 @@ async function loadActiveRetreat(guestId) {
         document.getElementById('retreat-dates').textContent = formatRetreatDates(retreat.start_date, retreat.end_date);
         document.getElementById('retreat-description').textContent = retreat.description_ru || '';
 
-        // Картинка
-        const imageEl = document.getElementById('retreat-image');
-        if (retreat.image_url) {
-            imageEl.innerHTML = `<img src="${retreat.image_url}" alt="" class="w-full h-full object-cover">`;
-        }
+        // Картинка ретрита убрана
 
         // Размещение
         if (data.accommodation) {
