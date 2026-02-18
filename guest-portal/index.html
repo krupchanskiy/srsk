@@ -516,15 +516,20 @@
                 </div>
 
                 <!-- Расписание на сегодня -->
-                <div id="schedule-block" class="hidden card" style="background: #E8F5E9;">
-                    <div class="card-label" style="color: #147D30;" data-i18n="portal_schedule_today">Расписание на сегодня</div>
-                    <div id="schedule-theme" class="hidden text-sm font-medium text-srsk-green mb-3"></div>
-                    <div id="schedule-items" class="relative pl-6">
+                <details id="schedule-block" class="hidden card" style="background: #E8F5E9;">
+                    <summary class="flex items-center justify-between cursor-pointer select-none list-none [&::-webkit-details-marker]:hidden">
+                        <div style="font-size: 18px; font-weight: 700; text-transform: uppercase; letter-spacing: 1.5px; color: #147D30;" data-i18n="portal_schedule_today">Расписание на сегодня</div>
+                        <svg class="w-5 h-5 text-green-700 transition-transform duration-200 details-chevron" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M19.5 8.25l-7.5 7.5-7.5-7.5" />
+                        </svg>
+                    </summary>
+                    <div id="schedule-theme" class="hidden text-sm font-medium text-srsk-green mt-4 mb-3"></div>
+                    <div id="schedule-items" class="relative pl-6 mt-4">
                         <!-- Timeline line -->
                         <div class="absolute left-[7px] top-2 bottom-2 w-0.5 bg-srsk-green/20"></div>
                         <!-- Items rendered by JS -->
                     </div>
-                </div>
+                </details>
 
                 <!-- Меню на сегодня -->
                 <details id="menu-block" class="hidden card" style="background: #FFF8E1;">
