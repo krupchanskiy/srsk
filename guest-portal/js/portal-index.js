@@ -1456,7 +1456,12 @@ function renderPhotoPreview(photos, totalCount, myPhotoIds = []) {
 
     // Update title with count
     if (titleEl) {
-        const text = totalCount === 1 ? '1 фотография' : `${totalCount} фотографий`;
+        const n = totalCount;
+        const mod10 = n % 10, mod100 = n % 100;
+        const form = (mod10 === 1 && mod100 !== 11) ? 'фотография'
+            : (mod10 >= 2 && mod10 <= 4 && (mod100 < 10 || mod100 >= 20)) ? 'фотографии'
+            : 'фотографий';
+        const text = `${n} ${form}`;
         titleEl.textContent = text;
     }
 
