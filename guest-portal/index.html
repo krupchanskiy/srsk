@@ -102,67 +102,20 @@
                     </svg>
                 </a>
 
-                <!-- Меню (десктоп) -->
-                <nav class="hidden md:flex items-center gap-6">
-                    <a href="index.html" class="text-white/90 hover:text-srsk-orange transition-colors text-base font-medium uppercase tracking-wide" data-i18n="nav_profile">Профиль</a>
-                    <a href="retreats.html" class="text-white/90 hover:text-srsk-orange transition-colors text-base font-medium uppercase tracking-wide" data-i18n="nav_retreats">Ретриты</a>
-                    <a href="materials.html" class="text-white/90 hover:text-srsk-orange transition-colors text-base font-medium uppercase tracking-wide" data-i18n="nav_materials">Материалы</a>
-                    <a href="photos.html" class="text-white/90 hover:text-srsk-orange transition-colors text-base font-medium uppercase tracking-wide" data-i18n="nav_gallery">Галерея</a>
-                    <a href="contacts.html" class="text-white/90 hover:text-srsk-orange transition-colors text-base font-medium uppercase tracking-wide" data-i18n="nav_contacts">Контакты</a>
-
-                    <!-- Разделитель -->
-                    <div class="w-px h-6 bg-white/20"></div>
-
-                    <!-- Аватар + Имя -->
-                    <a href="index.html" class="flex items-center gap-2 hover:opacity-80 transition-opacity">
-                        <div id="header-photo" class="w-8 h-8 bg-white/20 rounded-full flex items-center justify-center overflow-hidden">
-                            <svg class="w-4 h-4 text-white/70" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24">
-                                <path stroke-linecap="round" stroke-linejoin="round" d="M15.75 6a3.75 3.75 0 11-7.5 0 3.75 3.75 0 017.5 0zM4.501 20.118a7.5 7.5 0 0114.998 0A17.933 17.933 0 0112 21.75c-2.676 0-5.216-.584-7.499-1.632z" />
-                            </svg>
-                        </div>
-                        <span id="header-name" class="text-white/90 text-sm"></span>
-                    </a>
-
-                    <!-- Выход -->
+                <!-- Имя + фото + выход -->
+                <div class="flex items-center gap-3">
+                    <span id="header-name" class="text-white/90 text-sm font-medium"></span>
+                    <div id="header-photo" class="w-8 h-8 bg-white/20 rounded-full flex items-center justify-center overflow-hidden">
+                        <svg class="w-4 h-4 text-white/70" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M15.75 6a3.75 3.75 0 11-7.5 0 3.75 3.75 0 017.5 0zM4.501 20.118a7.5 7.5 0 0114.998 0A17.933 17.933 0 0112 21.75c-2.676 0-5.216-.584-7.499-1.632z" />
+                        </svg>
+                    </div>
                     <button onclick="PortalAuth.logout()" class="text-white/60 hover:text-white transition-colors" data-i18n-title="logout" title="Выйти">
                         <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24">
                             <path stroke-linecap="round" stroke-linejoin="round" d="M15.75 9V5.25A2.25 2.25 0 0013.5 3h-6a2.25 2.25 0 00-2.25 2.25v13.5A2.25 2.25 0 007.5 21h6a2.25 2.25 0 002.25-2.25V15M12 9l-3 3m0 0l3 3m-3-3h12.75" />
                         </svg>
                     </button>
-                </nav>
-
-                <!-- Мобайл: аватар + бургер -->
-                <div class="md:hidden flex items-center gap-3">
-                    <div class="w-8 h-8 bg-white/20 rounded-full flex items-center justify-center">
-                        <svg class="w-4 h-4 text-white/70" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" d="M15.75 6a3.75 3.75 0 11-7.5 0 3.75 3.75 0 017.5 0zM4.501 20.118a7.5 7.5 0 0114.998 0A17.933 17.933 0 0112 21.75c-2.676 0-5.216-.584-7.499-1.632z" />
-                        </svg>
-                    </div>
-                    <button class="text-white p-2" onclick="document.getElementById('mobile-menu').classList.toggle('hidden')">
-                        <svg class="w-6 h-6" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" d="M3.75 6.75h16.5M3.75 12h16.5m-16.5 5.25h16.5" />
-                        </svg>
-                    </button>
                 </div>
-            </div>
-
-            <!-- Мобильное меню -->
-            <nav id="mobile-menu" class="hidden md:hidden pb-4">
-                <div class="flex flex-col gap-4">
-                    <div id="mobile-name" class="text-white/90 text-sm font-medium py-2 border-b border-white/10 mb-1"></div>
-                    <a href="index.html" class="text-white/90 hover:text-srsk-orange transition-colors text-base font-medium py-2 uppercase tracking-wide" data-i18n="nav_profile">Профиль</a>
-                    <a href="retreats.html" class="text-white/90 hover:text-srsk-orange transition-colors text-base font-medium py-2 uppercase tracking-wide" data-i18n="nav_retreats">Ретриты</a>
-                    <a href="materials.html" class="text-white/90 hover:text-srsk-orange transition-colors text-base font-medium py-2 uppercase tracking-wide" data-i18n="nav_materials">Материалы</a>
-                    <a href="photos.html" class="text-white/90 hover:text-srsk-orange transition-colors text-base font-medium py-2 uppercase tracking-wide" data-i18n="nav_gallery">Галерея</a>
-                    <a href="contacts.html" class="text-white/90 hover:text-srsk-orange transition-colors text-base font-medium py-2 uppercase tracking-wide" data-i18n="nav_contacts">Контакты</a>
-                    <button onclick="PortalAuth.logout()" class="text-white/60 hover:text-white transition-colors text-base font-medium py-2 mt-2 border-t border-white/10 pt-4 flex items-center gap-2 uppercase tracking-wide w-full">
-                        <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" d="M15.75 9V5.25A2.25 2.25 0 0013.5 3h-6a2.25 2.25 0 00-2.25 2.25v13.5A2.25 2.25 0 007.5 21h6a2.25 2.25 0 002.25-2.25V15M12 9l-3 3m0 0l3 3m-3-3h12.75" />
-                        </svg>
-                        <span data-i18n="logout">Выйти</span>
-                    </button>
-                </div>
-            </nav>
         </div>
     </header>
 
@@ -1025,6 +978,6 @@
     <script src="js/portal-layout.js?v=10"></script>
     <script src="../js/date-utils.js"></script>
     <script src="js/portal-data.js"></script>
-    <script src="js/portal-index.js?v=4"></script>
+    <script src="js/portal-index.js?v=5"></script>
 </body>
 </html>

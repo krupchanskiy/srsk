@@ -311,7 +311,8 @@ function populateProfile(guest) {
     // Имя и фото в шапке — только если это свой профиль (не публичный просмотр)
     if (!isPublicView) {
         document.getElementById('header-name').textContent = getDisplayName(guest);
-        document.getElementById('mobile-name').textContent = getDisplayName(guest);
+        const mobileNameEl = document.getElementById('mobile-name');
+        if (mobileNameEl) mobileNameEl.textContent = getDisplayName(guest);
 
         if (guest.photoUrl) {
             document.getElementById('header-photo').innerHTML =
@@ -1176,7 +1177,8 @@ async function init() {
         // Заполняем хедер данными залогиненного пользователя
         if (loggedInUser) {
             document.getElementById('header-name').textContent = getDisplayName(loggedInUser);
-            document.getElementById('mobile-name').textContent = getDisplayName(loggedInUser);
+            const mobileNameEl2 = document.getElementById('mobile-name');
+            if (mobileNameEl2) mobileNameEl2.textContent = getDisplayName(loggedInUser);
             if (loggedInUser.photoUrl) {
                 document.getElementById('header-photo').innerHTML =
                     `<img src="${loggedInUser.photoUrl}" alt="" class="w-full h-full object-cover">`;
