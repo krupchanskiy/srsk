@@ -1,0 +1,212 @@
+<!DOCTYPE html>
+<html lang="ru" data-theme="light">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Поиск человека | Rupa Seva</title>
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg">
+
+    <!-- Color Init (ПЕРВЫМ для предотвращения FOUC) -->
+    <script src="../photos/js/color-init.js"></script>
+
+    <!-- DaisyUI + Tailwind CSS -->
+    <link href="https://cdn.jsdelivr.net/npm/daisyui@4.12.14/dist/full.min.css" rel="stylesheet" />
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>tailwind.config = { theme: { extend: { screens: { 'desktop': '1200px' } } } }</script>
+
+    <!-- Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans:wght@400;500;600;700&family=Noto+Sans+Devanagari:wght@400;500;600;700&display=swap" rel="stylesheet">
+
+    <!-- Common Styles -->
+    <link rel="stylesheet" href="../css/common.css">
+
+    <!-- Supabase -->
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+
+    <style>
+        .photo-card {
+            position: relative;
+            aspect-ratio: 1;
+            border-radius: 0.5rem;
+            overflow: hidden;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        .photo-card:hover {
+            transform: scale(1.05);
+            box-shadow: 0 10px 25px rgba(0,0,0,0.15);
+        }
+        .photo-card img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+        }
+        /* Lightbox */
+        .lightbox {
+            display: none;
+            position: fixed;
+            z-index: 1000;
+            top: 0; left: 0;
+            width: 100%; height: 100%;
+            background: rgba(0,0,0,0.95);
+            align-items: center;
+            justify-content: center;
+        }
+        .lightbox.active { display: flex; }
+        .lightbox img { max-width: 90%; max-height: 90vh; object-fit: contain; }
+        .lightbox-close {
+            position: absolute; top: 20px; right: 20px;
+            color: white; font-size: 40px; cursor: pointer; z-index: 1001;
+            width: 50px; height: 50px;
+            display: flex; align-items: center; justify-content: center;
+            background: rgba(255,255,255,0.1); border-radius: 50%; transition: all 0.2s;
+        }
+        .lightbox-close:hover { background: rgba(255,255,255,0.2); }
+        .lightbox-nav {
+            position: absolute; top: 50%; transform: translateY(-50%);
+            color: white; cursor: pointer; z-index: 1001;
+            width: 60px; height: 60px;
+            display: flex; align-items: center; justify-content: center;
+            background: rgba(255,255,255,0.1); border-radius: 50%;
+            transition: all 0.2s; user-select: none;
+        }
+        .lightbox-nav:hover { background: rgba(255,255,255,0.2); }
+        .lightbox-prev { left: 20px; }
+        .lightbox-next { right: 20px; }
+    </style>
+</head>
+<body class="bg-base-200 min-h-screen flex flex-col">
+
+    <div id="header-placeholder"></div>
+
+    <main class="container mx-auto px-4 py-6 flex-1">
+
+        <!-- Page Header -->
+        <div class="mb-6">
+            <h1 class="text-2xl font-bold" data-i18n="search_person_title">Поиск человека на фото</h1>
+        </div>
+
+        <!-- Ретрит -->
+        <div class="bg-base-100 rounded-xl p-6 mb-6 shadow-sm">
+            <label class="label">
+                <span class="label-text font-medium" data-i18n="select_retreat">Выберите ретрит</span>
+            </label>
+            <select id="retreatSelect" class="select select-bordered w-full max-w-md">
+                <option value="" data-i18n="loading">Загрузка...</option>
+            </select>
+        </div>
+
+        <!-- Вайшнав -->
+        <div class="bg-base-100 rounded-xl p-6 mb-6 shadow-sm">
+            <label class="label">
+                <span class="label-text font-medium">Вайшнав</span>
+            </label>
+            <div class="relative max-w-md">
+                <input id="vaishnavasSearchInput" type="text"
+                    class="input input-bordered w-full"
+                    placeholder="Введите имя для поиска..."
+                    autocomplete="off">
+                <div id="vaishnavasDropdown"
+                    class="hidden absolute z-50 w-full bg-base-100 border border-base-300 rounded-xl shadow-lg max-h-60 overflow-y-auto mt-1">
+                </div>
+            </div>
+
+            <!-- Превью фото из профиля -->
+            <div id="searchPersonPhotoBlock" class="hidden mt-4 flex items-center gap-3">
+                <img id="searchPersonPhoto" class="w-16 h-16 rounded-full object-cover border-2 border-base-300" src="" alt="">
+                <span id="searchPersonName" class="font-medium"></span>
+            </div>
+
+            <!-- Загрузка фото если нет в профиле -->
+            <div id="searchSelfieBlock" class="hidden mt-4">
+                <p class="text-sm opacity-60 mb-2">У вайшнава нет фото в профиле. Загрузите фото для поиска:</p>
+                <input id="searchSelfieInput" type="file" class="file-input file-input-bordered w-full max-w-md" accept="image/*">
+                <div id="searchSelfiePreview" class="hidden mt-2">
+                    <img id="searchSelfieImg" class="w-16 h-16 rounded-full object-cover border-2 border-base-300" src="" alt="">
+                </div>
+            </div>
+        </div>
+
+        <!-- Кнопка поиска -->
+        <button id="findPersonBtn" class="btn btn-primary mb-6" disabled>
+            <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+            </svg>
+            Найти на фото
+        </button>
+
+        <!-- Статус поиска -->
+        <div id="searchStatus" class="hidden mt-2 mb-6 p-4 rounded-xl bg-blue-50 border border-blue-200">
+            <div class="flex items-center gap-3">
+                <div id="searchStatusSpinner" class="w-6 h-6 border-2 border-blue-500 border-t-transparent rounded-full animate-spin"></div>
+                <div id="searchStatusCheck" class="hidden w-6 h-6 text-green-600">
+                    <svg class="w-6 h-6" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7" />
+                    </svg>
+                </div>
+                <span class="text-sm text-blue-800" id="searchStatusText">Поиск...</span>
+            </div>
+        </div>
+
+        <!-- Результаты -->
+        <div id="searchResultsBlock" class="hidden">
+            <h3 class="text-lg font-semibold mb-4">
+                Найдено: <span id="searchResultsCount">0</span> фото
+            </h3>
+            <div id="searchResultsGrid" class="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-6 gap-4"></div>
+        </div>
+
+        <!-- Пустое состояние -->
+        <div id="searchEmptyState" class="text-center py-12 opacity-50">
+            <svg xmlns="http://www.w3.org/2000/svg" class="h-12 w-12 mx-auto mb-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+            </svg>
+            <p>Выберите ретрит и вайшнава для поиска</p>
+        </div>
+
+    </main>
+
+    <div id="footer-placeholder"></div>
+
+    <!-- Lightbox -->
+    <div id="lightbox" class="lightbox">
+        <span class="lightbox-close" onclick="closeLightbox()">&times;</span>
+        <span class="lightbox-prev lightbox-nav" onclick="navigateLightbox(-1)">
+            <svg class="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7" />
+            </svg>
+        </span>
+        <img id="lightboxImg" src="" alt="">
+        <span class="lightbox-next lightbox-nav" onclick="navigateLightbox(1)">
+            <svg class="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" />
+            </svg>
+        </span>
+        <div class="absolute bottom-8 left-1/2 transform -translate-x-1/2">
+            <button id="downloadBtn" type="button" class="px-6 py-3 bg-white text-gray-800 rounded-xl font-medium hover:bg-gray-100 transition-colors flex items-center gap-2">
+                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                </svg>
+                Скачать
+            </button>
+        </div>
+    </div>
+
+    <!-- Core Dependencies -->
+    <script src="../js/config.js"></script>
+    <script src="../js/auth-check.js?v=3"></script>
+    <script src="../js/permissions-ui.js?v=2"></script>
+    <script src="../js/cache.js"></script>
+    <script src="../js/utils.js?v=2"></script>
+    <script src="../js/layout.js?v=6"></script>
+
+    <!-- Page Logic -->
+    <script src="../photos/js/search.js"></script>
+    <script>
+        Layout.init({ module: 'photos', menuId: 'photos', itemId: 'search_person' });
+    </script>
+
+</body>
+</html>

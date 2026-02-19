@@ -13,6 +13,7 @@ let edgeFunctionErrorCounter = 0;
 let realtimeChannel = null;
 let reindexMode = 'all'; // 'all' или 'pending'
 
+
 // ==================== INIT ====================
 async function waitForAuth(maxWait = 5000) {
     let attempts = 0;

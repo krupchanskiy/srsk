@@ -54,27 +54,76 @@ supabase secrets set AWS_REGION=ap-south-1
 
 ### Миграции (в порядке выполнения):
 
-```bash
-# 1. Создание таблиц для фото и распознавания лиц
-supabase db push --project-ref llttmftapmwebidgevmg --file supabase/108_face_recognition_tables.sql
+Миграции применяются через MCP или Supabase Dashboard → SQL Editor:
 
-# 2. Политики Storage для retreat-photos bucket
-supabase db push --project-ref llttmftapmwebidgevmg --file supabase/109_retreat_photos_storage_policies.sql
+```sql
+-- 1. Создание таблиц для фото и распознавания лиц
+\i supabase/108_face_recognition_tables.sql
 
-# 3. Переводы для интерфейса
-supabase db push --project-ref llttmftapmwebidgevmg --file supabase/110_photos_translations.sql
+-- 2. Политики Storage для retreat-photos bucket
+\i supabase/109_retreat_photos_storage_policies.sql
 
-# 4. Патч для полей updated_at, uploaded_by (если нужно)
-supabase db push --project-ref llttmftapmwebidgevmg --file supabase/111_retreat_photos_add_fields_and_fix_policies.sql
+-- 3. Переводы для интерфейса
+\i supabase/110_photos_translations.sql
 
-# 5. Исправление триггера updated_at
-supabase db push --project-ref llttmftapmwebidgevmg --file supabase/112_fix_retreat_photos_trigger.sql
+-- 4. Патч для полей updated_at, uploaded_by
+\i supabase/111_retreat_photos_add_fields_and_fix_policies.sql
 
-# 6. Добавление поля updated_at
-supabase db push --project-ref llttmftapmwebidgevmg --file supabase/113_add_updated_at_to_retreat_photos.sql
+-- 5. Исправление триггера updated_at
+\i supabase/112_fix_retreat_photos_trigger.sql
 
-# 7. Добавление поля faces_count
-supabase db push --project-ref llttmftapmwebidgevmg --file supabase/114_add_faces_count_to_retreat_photos.sql
+-- 6. Добавление поля updated_at
+\i supabase/113_add_updated_at_to_retreat_photos.sql
+
+-- 7. Добавление поля faces_count
+\i supabase/114_add_faces_count_to_retreat_photos.sql
+
+-- 8. Переводы для прогресса индексации
+\i supabase/115_photos_indexing_translations.sql
+
+-- 9. UPDATE policy для retreat_photos
+\i supabase/116_retreat_photos_update_policy.sql
+
+-- 10. Включить Realtime для retreat_photos
+\i supabase/117_enable_realtime_retreat_photos.sql
+
+-- 11. Поле thumb_path (путь к превью) в retreat_photos
+\i supabase/118_add_thumb_path_to_retreat_photos.sql
+
+-- 12. Поле telegram_chat_id в vaishnavas (для Telegram-уведомлений)
+\i supabase/119_add_telegram_chat_id_to_vaishnavas.sql
+
+-- 13. Таблица telegram_link_tokens (одноразовые токены привязки бота)
+\i supabase/120_telegram_link_tokens.sql
+
+-- 14. Каскадное удаление photo_faces и face_tags при удалении фото
+\i supabase/121_fix_photo_cascade_delete.sql
+
+-- 15. Исправление RLS для retreat_photos (права суперпользователя)
+\i supabase/122_fix_retreat_photos_rls_for_superusers.sql
+
+-- 16. Разрешить пользователям обновлять свой telegram_chat_id
+\i supabase/123_allow_users_update_telegram_chat_id.sql
+
+-- 17. Дополнительные переводы для управления фото
+\i supabase/124_add_missing_photo_translations.sql
+
+-- 18. Исправление удаления фото ретритов (каскад через Edge Function)
+\i supabase/127_fix_retreat_photos_deletion.sql
+
+-- 19. Поле rejected в face_tags (мягкое удаление отметки гостем)
+\i supabase/128_face_tags_rejected.sql
+```
+
+Через MCP (рекомендуется):
+```javascript
+// Пример для миграции 128
+mcp__supabase__apply_migration({
+  project_id: 'llttmftapmwebidgevmg',  // прод
+  // или: 'vzuiwpeovnzfokekdetq'       // дев
+  name: '128_face_tags_rejected',
+  query: '<содержимое supabase/128_face_tags_rejected.sql>'
+})
 ```
 
 ### Проверка применения миграций:
@@ -234,7 +283,7 @@ ON CONFLICT DO NOTHING;
 
 **Модель данных:**
 - 1 Collection = 1 Ретрит
-- Collection ID: `retreat-{retreat_id}`
+- Collection ID: `retreat_{retreat_id}` (подчёркивание, не дефис)
 - ExternalImageId: `photo_id` (UUID из таблицы `retreat_photos`)
 
 **Жизненный цикл:**
@@ -264,6 +313,7 @@ ON CONFLICT DO NOTHING;
 - `photo_id` (UUID) — связь с фото
 - `vaishnava_id` (UUID) — связь с вайшнавом
 - `confidence` (FLOAT) — уверенность совпадения (Similarity из SearchFaces)
+- `rejected` (BOOLEAN, default false) — гость снял отметку «Вы»; запись не удаляется, а помечается rejected=true, чтобы повторный поиск не добавлял её снова (upsert с ignoreDuplicates)
 
 ### 3. Edge Functions
 
@@ -300,28 +350,36 @@ ON CONFLICT DO NOTHING;
 ```json
 {
   "retreat_id": "uuid",
-  "selfie_url": "https://...",
   "vaishnava_id": "uuid",
-  "similarity_threshold": 80
+  "photo_url": "https://...",
+  "threshold": 80,
+  "max_faces": 100
 }
 ```
+
+> `photo_url` — опциональное селфи. Если не передано, берётся `vaishnavas.photo_url`.
 
 **Выход:**
 ```json
 {
-  "message": "Поиск завершён",
-  "photo_ids": ["uuid1", "uuid2"],
-  "match_count": 2,
-  "photos": [...]
+  "ok": true,
+  "retreat_id": "uuid",
+  "vaishnava_id": "uuid",
+  "used_photo_url": "https://...",
+  "matched_photo_ids": ["uuid1", "uuid2"],
+  "total": 2,
+  "threshold": 80
 }
 ```
 
 **Логика:**
-1. Скачать селфи по URL
-2. Вызвать `SearchFacesByImage` в Collection
-3. Получить `FaceMatches` с Similarity >= threshold
-4. Сохранить результаты в `face_tags` (upsert)
-5. Вернуть список photo_id
+1. Если `photo_url` не передан — загрузить из `vaishnavas.photo_url`
+2. Скачать изображение, проверить размер (≤ 10 МБ)
+3. Вызвать `SearchFacesByImage` в Collection `retreat_{retreat_id}`
+4. Сопоставить FaceId → photo_id через `photo_faces`
+5. Upsert в `face_tags` с `ignoreDuplicates: true` (не перезаписывает `rejected=true`)
+6. Отправить Telegram-уведомление с реальным кол-вом найденных фото (запрос в БД с `rejected=false`)
+7. Вернуть список `matched_photo_ids`
 
 #### `delete-photos`
 **Вход:**
@@ -462,15 +520,40 @@ aws rekognition delete-collection --collection-id retreat-<retreat_id> --region 
 
 ## Контрольный чеклист развёртывания
 
+**БД и инфраструктура:**
 - [ ] AWS IAM user создан с правами на Rekognition
-- [ ] AWS credentials добавлены в Supabase Secrets
+- [ ] AWS credentials добавлены в Supabase Secrets (`AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`, `AWS_REGION`)
 - [ ] Storage bucket `retreat-photos` создан и настроен как public
-- [ ] Миграции 108-114 применены
-- [ ] Edge Functions задеплоены (index-faces, search-face, delete-photos)
+- [ ] Миграции 108–124 применены
+- [ ] Миграция 127 применена (исправление удаления фото)
+- [ ] Миграция 128 применена (`face_tags.rejected`)
+
+**Edge Functions:**
+- [ ] `index-faces` задеплоена
+- [ ] `search-face` задеплоена
+- [ ] `delete-photos` задеплоена
+
+```bash
+# Деплой на прод:
+supabase functions deploy index-faces --project-ref llttmftapmwebidgevmg --no-verify-jwt
+supabase functions deploy search-face --project-ref llttmftapmwebidgevmg --no-verify-jwt
+supabase functions deploy delete-photos --project-ref llttmftapmwebidgevmg --no-verify-jwt
+
+# Деплой на дев:
+supabase functions deploy index-faces --project-ref vzuiwpeovnzfokekdetq --no-verify-jwt
+supabase functions deploy search-face --project-ref vzuiwpeovnzfokekdetq --no-verify-jwt
+supabase functions deploy delete-photos --project-ref vzuiwpeovnzfokekdetq --no-verify-jwt
+```
+
+**Права доступа:**
 - [ ] Разрешение `upload_photos` создано
 - [ ] Роль "Фотограф" назначена пользователям
+
+**Тестирование:**
 - [ ] Тестовая загрузка фото прошла успешно
 - [ ] Индексация лиц работает (статус `indexed`)
 - [ ] Поиск "Найти себя" возвращает результаты
+- [ ] Снятие отметки "Вы" работает (поле `rejected=true`, повторный поиск не добавляет снова)
+- [ ] Telegram-уведомление отправляется с корректным кол-вом фото
 - [ ] Скачивание ZIP работает
 - [ ] Каскадное удаление работает (Storage + БД + Rekognition)
