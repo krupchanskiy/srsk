@@ -17,6 +17,7 @@
         startTime: null
     };
     let fileStatuses = []; // Статусы: 'pending', 'uploading', 'success', 'error'
+    let currentUploadBatch = []; // Файлы текущей загрузки (для retry)
 
     // Сжатие изображения если больше 5 МБ
     async function compressImageIfNeeded(file) {
@@ -70,6 +71,44 @@
                         'image/jpeg',
                         0.85
                     );
+                };
+                img.src = e.target.result;
+            };
+            reader.readAsDataURL(file);
+        });
+    }
+
+    // Нанесение вотермарки логотипа ШРСК в правый нижний угол
+    async function applyWatermark(file) {
+        return new Promise((resolve) => {
+            const reader = new FileReader();
+            reader.onload = (e) => {
+                const img = new Image();
+                img.onload = () => {
+                    const canvas = document.createElement('canvas');
+                    const ctx = canvas.getContext('2d');
+                    canvas.width = img.width;
+                    canvas.height = img.height;
+                    ctx.drawImage(img, 0, 0);
+
+                    const logo = new Image();
+                    logo.onload = () => {
+                        const logoW = Math.round(img.width * 0.08);
+                        const logoH = Math.round(logo.height * (logoW / logo.width));
+                        const margin = Math.round(img.width * 0.015);
+                        const x = img.width - logoW - margin;
+                        const y = img.height - logoH - margin;
+
+                        ctx.globalAlpha = 0.35;
+                        ctx.drawImage(logo, x, y, logoW, logoH);
+                        ctx.globalAlpha = 1.0;
+
+                        canvas.toBlob((blob) => {
+                            resolve(new File([blob], file.name, { type: 'image/jpeg' }));
+                        }, 'image/jpeg', 0.92);
+                    };
+                    logo.onerror = () => resolve(file); // fallback: без вотермарки
+                    logo.src = '/images/logo-watermark.svg';
                 };
                 img.src = e.target.result;
             };
@@ -330,6 +369,15 @@
             return;
         }
 
+        // ВАЖНО: Сохранить копию файлов для загрузки и сразу очистить selectedFiles
+        // Это позволяет добавлять новые фото, пока старые грузятся
+        currentUploadBatch = [...selectedFiles];
+        selectedFiles = [];
+        fileInput.value = '';
+
+        // Обновить превью (скроется, так как selectedFiles пуст)
+        updatePreview();
+
         // Скрыть превью, показать прогресс
         previewContainer.classList.add('hidden');
         progressContainer.classList.remove('hidden');
@@ -345,19 +393,19 @@
         };
 
         // Инициализация статусов файлов
-        fileStatuses = selectedFiles.map(() => 'pending');
+        fileStatuses = currentUploadBatch.map(() => 'pending');
 
-        document.getElementById('totalCount').textContent = selectedFiles.length;
+        document.getElementById('totalCount').textContent = currentUploadBatch.length;
         document.getElementById('uploadedCount').textContent = '0';
         document.getElementById('errorCount').textContent = '0';
         document.getElementById('uploadPercent').textContent = '0%';
         document.getElementById('progressBar').style.width = '0%';
 
         // Отрисовать список файлов
-        renderFileList();
+        renderFileList(currentUploadBatch);
 
         // Последовательная загрузка
-        for (let i = 0; i < selectedFiles.length; i++) {
+        for (let i = 0; i < currentUploadBatch.length; i++) {
             if (uploadState.isCancelled) {
                 break;
             }
@@ -367,7 +415,7 @@
                 await new Promise(resolve => setTimeout(resolve, 100));
             }
 
-            const file = selectedFiles[i];
+            const file = currentUploadBatch[i];
 
             // Обновить статус на "uploading"
             fileStatuses[i] = 'uploading';
@@ -387,14 +435,14 @@
             updateFileStatus(i);
 
             // Обновление прогресса
-            const percent = Math.round(((uploadState.uploaded + uploadState.failed) / selectedFiles.length) * 100);
+            const percent = Math.round(((uploadState.uploaded + uploadState.failed) / currentUploadBatch.length) * 100);
             document.getElementById('uploadedCount').textContent = uploadState.uploaded;
             document.getElementById('uploadPercent').textContent = percent + '%';
             document.getElementById('progressBar').style.width = percent + '%';
 
             // Скорость (МБ/сек по загруженным файлам)
             const elapsed = (Date.now() - uploadState.startTime) / 1000;
-            const uploadedBytes = selectedFiles
+            const uploadedBytes = currentUploadBatch
                 .slice(0, uploadState.uploaded + uploadState.failed)
                 .reduce((sum, f) => sum + (f.size || 0), 0);
             const speedMbps = elapsed > 0 ? (uploadedBytes / 1024 / 1024 / elapsed) : 0;
@@ -408,9 +456,9 @@
     }
 
     // Отрисовка списка файлов
-    function renderFileList() {
+    function renderFileList(files) {
         const fileList = document.getElementById('fileList');
-        fileList.innerHTML = selectedFiles.map((file, index) => {
+        fileList.innerHTML = files.map((file, index) => {
             const status = fileStatuses[index] || 'pending';
             const statusText = {
                 'pending': 'Ожидание',
@@ -461,7 +509,7 @@
 
     // Повтор загрузки упавшего файла
     window.retryFile = async function(index) {
-        const file = selectedFiles[index];
+        const file = currentUploadBatch[index];
         fileStatuses[index] = 'uploading';
         updateFileStatus(index);
 
@@ -479,12 +527,12 @@
         document.getElementById('uploadedCount').textContent = uploadState.uploaded;
         document.getElementById('errorCount').textContent = uploadState.failed;
 
-        const percent = Math.round(((uploadState.uploaded + uploadState.failed) / selectedFiles.length) * 100);
+        const percent = Math.round(((uploadState.uploaded + uploadState.failed) / currentUploadBatch.length) * 100);
         document.getElementById('uploadPercent').textContent = percent + '%';
         document.getElementById('progressBar').style.width = percent + '%';
 
         const elapsed = (Date.now() - uploadState.startTime) / 1000;
-        const uploadedBytes = selectedFiles
+        const uploadedBytes = currentUploadBatch
             .slice(0, uploadState.uploaded + uploadState.failed)
             .reduce((sum, f) => sum + (f.size || 0), 0);
         const speedMbps = elapsed > 0 ? (uploadedBytes / 1024 / 1024 / elapsed) : 0;
@@ -493,11 +541,12 @@
 
     // Загрузка одного файла с retry
     async function uploadSingleFile(file, retries = 3) {
-        // Сжать если больше 5 МБ
+        // Сжать если больше 5 МБ, затем нанести вотермарку
         const processedFile = await compressImageIfNeeded(file);
-        const thumbFile = await createThumbnail(processedFile, 400, 0.8);
+        const watermarkedFile = await applyWatermark(processedFile);
+        const thumbFile = await createThumbnail(processedFile, 400, 0.8); // thumbnail без вотермарки
 
-        const fileName = `${currentRetreatId}/${crypto.randomUUID()}.${processedFile.name.split('.').pop()}`;
+        const fileName = `${currentRetreatId}/${crypto.randomUUID()}.${watermarkedFile.name.split('.').pop()}`;
         const thumbName = `${currentRetreatId}/thumbs/${crypto.randomUUID()}.jpg`;
 
         for (let attempt = 0; attempt < retries; attempt++) {
@@ -505,9 +554,9 @@
                 // 1. Загрузка в Storage
                 const { error: uploadError } = await db.storage
                     .from('retreat-photos')
-                    .upload(fileName, processedFile, {
+                    .upload(fileName, watermarkedFile, {
                         cacheControl: '31536000', // 1 год кеш
-                        contentType: processedFile.type
+                        contentType: watermarkedFile.type
                     });
 
                 if (uploadError) throw uploadError;
@@ -528,8 +577,8 @@
                         retreat_id: currentRetreatId,
                         storage_path: fileName,
                         thumb_path: thumbName,
-                        mime_type: processedFile.type,
-                        file_size: processedFile.size,
+                        mime_type: watermarkedFile.type,
+                        file_size: watermarkedFile.size,
                         uploaded_by: (await db.auth.getUser()).data.user?.id,
                         day_number: dayNumber.value ? parseInt(dayNumber.value) : null,
                         index_status: 'pending'
@@ -615,7 +664,6 @@
     let lastProcessingCount = 0;
     let stuckCounter = 0;
     let edgeFunctionErrorCounter = 0;
-    let notificationSent = false; // Флаг: уведомление уже отправлено
 
     // Polling для отслеживания прогресса индексации
     async function startIndexingPolling(retreatId) {
@@ -633,7 +681,6 @@
         lastProcessingCount = 0;
         stuckCounter = 0;
         edgeFunctionErrorCounter = 0;
-        notificationSent = false; // Сброс флага при новом polling
 
         // Обновление каждые 3 секунды
         pollingInterval = setInterval(async () => {
@@ -753,11 +800,8 @@
                 completeDiv.classList.remove('hidden');
                 completeDiv.classList.add('flex');
 
-                // Отправить Telegram уведомление участникам ретрита (один раз)
-                if (indexed > 0 && !notificationSent) {
-                    notificationSent = true;
-                    await sendNewPhotosNotification(retreatId, indexed);
-                }
+                // Telegram уведомление отправляется из Edge Function index-faces
+                // (checkAndNotifyIfIndexingComplete), не дублируем здесь
             }
 
         } catch (err) {
@@ -765,80 +809,11 @@
         }
     }
 
-    // Отправить Telegram уведомление о новых фото
-    async function sendNewPhotosNotification(retreatId, photosCount) {
-        try {
-            console.log('📱 Отправка Telegram уведомлений для ретрита:', retreatId, 'фото:', photosCount);
-
-            const { data: retreat } = await db
-                .from('retreats')
-                .select('name_ru, name_en')
-                .eq('id', retreatId)
-                .single();
-
-            if (!retreat) {
-                console.warn('Ретрит не найден для уведомления');
-                return;
-            }
-
-            const retreatName = Layout.getName(retreat);
-
-            // Определяем URL в зависимости от окружения
-            const isDev = window.location.hostname.includes('localhost') ||
-                         window.location.hostname.includes('dev') ||
-                         window.location.hostname.includes('vercel.app');
-
-            const baseUrl = isDev ? 'https://dev.rupaseva.com' : 'https://in.rupaseva.com';
-            const photoUrl = `${baseUrl}/guest-portal/photos.html`;
-
-            const message = `📸 *Новые фото с ретрита!*\n\n${retreatName}\n\nЗагружено ${photosCount} ${pluralizePhotos(photosCount)}.\n\n[Посмотреть фотографии](${photoUrl})`;
-
-            console.log('📤 Вызов send-notification:', { retreatId, message });
-
-            // Вызов Edge Function send-notification
-            const { data, error } = await db.functions.invoke('send-notification', {
-                body: {
-                    type: 'broadcast',
-                    retreatId: retreatId,
-                    message: message,
-                    parseMode: 'Markdown'
-                }
-            });
-
-            if (error) {
-                console.error('❌ Ошибка отправки Telegram уведомления:', error);
-            } else {
-                console.log('✅ Telegram уведомления отправлены:', data);
-                if (data) {
-                    console.log(`   → Отправлено: ${data.sent || 0}, Ошибок: ${data.failed || 0}, Заблокировано: ${data.blocked || 0}, Всего подписчиков: ${data.total || 0}`);
-                }
-            }
-
-        } catch (err) {
-            console.error('❌ Ошибка отправки уведомлений:', err);
-        }
-    }
-
-    function pluralizePhotos(count) {
-        const lastDigit = count % 10;
-        const lastTwoDigits = count % 100;
-
-        if (lastTwoDigits >= 11 && lastTwoDigits <= 14) {
-            return 'фотографий';
-        }
-
-        if (lastDigit === 1) {
-            return 'фотография';
-        } else if (lastDigit >= 2 && lastDigit <= 4) {
-            return 'фотографии';
-        } else {
-            return 'фотографий';
-        }
-    }
 
     // Сброс формы
     function resetForm() {
         selectedFiles = [];
+        currentUploadBatch = [];
         fileInput.value = '';
         uploadState = {
             isPaused: false,

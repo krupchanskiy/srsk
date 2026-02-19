@@ -276,9 +276,8 @@ serve(async (req) => {
   const indexed = results.filter((r) => r.status === "indexed").length;
   const failed = results.filter((r) => r.status === "failed").length;
 
-  // Проверить: завершена ли индексация всех фото ретрита?
-  // Если да — отправить Telegram уведомление участникам
-  await checkAndNotifyIfIndexingComplete(supabase, retreat_id);
+  // Telegram уведомления отправляются ежедневно в 19:00 через daily-photo-notifications
+  // (не отправляем мгновенно после индексации)
 
   return json({
     ok: true,
@@ -290,99 +289,3 @@ serve(async (req) => {
     results,
   });
 });
-
-// Проверка завершения индексации и отправка уведомления
-async function checkAndNotifyIfIndexingComplete(supabase: any, retreatId: string) {
-  try {
-    // Получить статистику индексации для ретрита
-    const { data: photos, error } = await supabase
-      .from('retreat_photos')
-      .select('index_status')
-      .eq('retreat_id', retreatId);
-
-    if (error || !photos || photos.length === 0) {
-      return; // Нет фото или ошибка
-    }
-
-    const total = photos.length;
-    const indexed = photos.filter((p: any) => p.index_status === 'indexed').length;
-    const failed = photos.filter((p: any) => p.index_status === 'failed').length;
-    const pending = photos.filter((p: any) => p.index_status === 'pending').length;
-    const processing = photos.filter((p: any) => p.index_status === 'processing').length;
-
-    // Если индексация завершена (все фото indexed или failed, нет pending/processing)
-    if (indexed + failed === total && pending === 0 && processing === 0 && indexed > 0) {
-      console.log(`✅ Индексация ретрита ${retreatId} завершена: ${indexed} indexed, ${failed} failed`);
-
-      // Получить название ретрита
-      const { data: retreat } = await supabase
-        .from('retreats')
-        .select('name_ru, name_en, name_hi')
-        .eq('id', retreatId)
-        .single();
-
-      if (!retreat) {
-        console.warn('Retreat not found for notification');
-        return;
-      }
-
-      const retreatName = retreat.name_ru || retreat.name_en || retreat.name_hi || 'Ретрит';
-
-      // Определяем URL (production vs dev)
-      const baseUrl = SUPABASE_URL.includes('vzuiwpeovnzfokekdetq')
-        ? 'https://dev.rupaseva.com' // Dev environment (Vercel)
-        : 'https://in.rupaseva.com'; // Production
-
-      const photoUrl = `${baseUrl}/guest-portal/photos.html`;
-
-      const message = `📸 *Новые фото с ретрита!*\n\n${retreatName}\n\nЗагружено ${indexed} ${pluralizePhotos(indexed)}.\n\n[Посмотреть фотографии](${photoUrl})`;
-
-      console.log('📤 Sending Telegram notification for retreat:', retreatId);
-
-      // Вызвать Edge Function send-notification (service role, без проверки прав)
-      const notificationResp = await fetch(`${SUPABASE_URL}/functions/v1/send-notification`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${SUPABASE_SERVICE_ROLE_KEY}`,
-        },
-        body: JSON.stringify({
-          type: 'broadcast',
-          retreatId: retreatId,
-          message: message,
-          parseMode: 'Markdown'
-        })
-      });
-
-      if (!notificationResp.ok) {
-        const errorText = await notificationResp.text();
-        console.error('❌ Failed to send notification:', notificationResp.status, errorText);
-      } else {
-        const result = await notificationResp.json();
-        console.log('✅ Telegram notifications sent:', result);
-      }
-    } else {
-      console.log(`⏳ Индексация ретрита ${retreatId} не завершена: ${indexed}/${total} indexed, ${pending} pending, ${processing} processing`);
-    }
-  } catch (err) {
-    console.error('Error checking indexing completion:', err);
-  }
-}
-
-// Плюрализация для русского языка
-function pluralizePhotos(count: number): string {
-  const lastDigit = count % 10;
-  const lastTwoDigits = count % 100;
-
-  if (lastTwoDigits >= 11 && lastTwoDigits <= 14) {
-    return 'фотографий';
-  }
-
-  if (lastDigit === 1) {
-    return 'фотография';
-  } else if (lastDigit >= 2 && lastDigit <= 4) {
-    return 'фотографии';
-  } else {
-    return 'фотографий';
-  }
-}

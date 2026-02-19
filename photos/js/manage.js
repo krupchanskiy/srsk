@@ -13,6 +13,7 @@ let edgeFunctionErrorCounter = 0;
 let realtimeChannel = null;
 let reindexMode = 'all'; // 'all' или 'pending'
 
+
 // ==================== INIT ====================
 async function waitForAuth(maxWait = 5000) {
     let attempts = 0;
@@ -279,20 +280,38 @@ function renderPhotos() {
     // Store filtered photos for lightbox navigation
     filteredForLightbox = filtered;
 
-    grid.innerHTML = filtered.map((photo, index) => {
-        const url = getPhotoUrl(photo.storage_path);
-        const thumbnailUrl = getPhotoUrl(photo.thumb_path || photo.storage_path);
-        const isSelected = selectedPhotoIds.has(photo.id);
-        const statusClass = `status-${photo.index_status || 'pending'}`;
-        const statusText = Layout.t(photo.index_status || 'pending');
+    // Группировка по day_number
+    const photosByDay = {};
+    filtered.forEach(photo => {
+        const day = photo.day_number || 0;
+        if (!photosByDay[day]) photosByDay[day] = [];
+        photosByDay[day].push(photo);
+    });
+
+    const days = Object.keys(photosByDay).sort((a, b) => b - a); // новые дни сверху
+
+    grid.innerHTML = days.map(day => {
+        const dayPhotos = photosByDay[day];
+        const label = day == 0 ? 'Без дня' : `День ${day}`;
 
         return `
-            <div class="photo-card ${isSelected ? 'selected' : ''}" data-photo-id="${photo.id}">
-                <input type="checkbox" class="photo-checkbox"
-                       data-photo-id="${photo.id}" ${isSelected ? 'checked' : ''}>
-                <img src="${thumbnailUrl}" alt="Photo" loading="lazy" onclick="openLightbox(${index})">
-                <div class="status-badge ${statusClass}">${statusText}</div>
-            </div>
+            <div class="col-span-full text-sm font-semibold text-base-content/60 pt-2 pb-1 border-b border-base-200">${label} <span class="font-normal">(${dayPhotos.length})</span></div>
+            ${dayPhotos.map(photo => {
+                const globalIdx = filteredForLightbox.indexOf(photo);
+                const thumbnailUrl = getPhotoUrl(photo.thumb_path || photo.storage_path);
+                const isSelected = selectedPhotoIds.has(photo.id);
+                const statusClass = `status-${photo.index_status || 'pending'}`;
+                const statusText = Layout.t(photo.index_status || 'pending');
+
+                return `
+                    <div class="photo-card ${isSelected ? 'selected' : ''}" data-photo-id="${photo.id}">
+                        <input type="checkbox" class="photo-checkbox"
+                               data-photo-id="${photo.id}" ${isSelected ? 'checked' : ''}>
+                        <img src="${thumbnailUrl}" alt="Photo" loading="lazy" onclick="openLightbox(${globalIdx})">
+                        <div class="status-badge ${statusClass}">${statusText}</div>
+                    </div>
+                `;
+            }).join('')}
         `;
     }).join('');
 

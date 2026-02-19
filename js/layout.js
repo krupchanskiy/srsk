@@ -119,11 +119,13 @@ const modules = {
         nameKey: 'module_photos',
         icon: '📸',
         hasLocations: false,
-        defaultPage: '/photos/upload.html',
+        centeredSubmenu: true,
+        defaultPage: 'photos/upload.html',
         menuConfig: [
             { id: 'photos', items: [
-                { id: 'upload_photos', href: '/photos/upload.html' },
-                { id: 'manage_photos', href: '/photos/manage.html' }
+                { id: 'upload_photos', href: 'photos/upload.html' },
+                { id: 'manage_photos', href: 'photos/manage.html' },
+                { id: 'search_person', href: 'photos/search.html' }
             ]}
         ]
     },
@@ -201,6 +203,7 @@ const pagePermissions = {
     // Photos
     'photos/upload.html': 'upload_photos',
     'photos/manage.html': 'upload_photos',
+    'photos/search.html': 'upload_photos',
 
     // Settings
     'settings/translations.html': 'view_translations',
@@ -820,11 +823,12 @@ function buildSubmenuBar() {
     if (!bar) return;
     const menuConfig = getMenuConfig();
 
+    const centered = modules[currentModule]?.centeredSubmenu;
     bar.innerHTML = menuConfig.map(({ id, items }) => {
         // Don't render submenu for single-item menus
         if (items.length === 1) return '';
         return `
-            <nav class="container mx-auto px-4 flex items-center submenu-group ${id !== currentPage.menuId ? 'hidden' : ''}" data-group="${id}">
+            <nav class="container mx-auto ${centered ? 'justify-center' : 'px-4'} flex items-center submenu-group ${id !== currentPage.menuId ? 'hidden' : ''}" data-group="${id}">
                 ${items.map(item => `<a href="${adjustHref(item.href)}" class="submenu-link px-5 py-2 text-base font-semibold tracking-wide uppercase ${item.id === currentPage.itemId ? 'active' : 'text-white/70 hover:text-white'}">${t('nav_' + item.id)}</a>`).join('')}
             </nav>
         `;
