@@ -527,17 +527,21 @@
                 }
 
                 // Определяем куда перенаправлять по правам пользователя
+                const hasOperationalPerms = await checkHasOperationalPermissions(data.user.id, vaishnava.is_superuser);
                 const redirect = new URLSearchParams(window.location.search).get('redirect');
-                if (redirect && redirect.startsWith('/') && !redirect.startsWith('//')) {
-                    window.location.href = redirect;
-                } else {
-                    // Проверяем есть ли у пользователя права сверх базовых гостевых
-                    const hasOperationalPerms = await checkHasOperationalPermissions(data.user.id, vaishnava.is_superuser);
-                    if (hasOperationalPerms) {
-                        // Есть права — полное приложение
-                        window.location.href = '/';
+
+                if (hasOperationalPerms) {
+                    // Есть операционные права — полное приложение
+                    if (redirect && redirect.startsWith('/') && !redirect.startsWith('//')) {
+                        window.location.href = redirect;
                     } else {
-                        // Только базовые права — гостевой портал
+                        window.location.href = '/';
+                    }
+                } else {
+                    // Только базовые права — гостевой портал (игнорируем redirect на основное приложение)
+                    if (redirect && redirect.startsWith('/guest-portal/')) {
+                        window.location.href = redirect;
+                    } else {
                         window.location.href = '/guest-portal/';
                     }
                 }
