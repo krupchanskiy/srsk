@@ -45,6 +45,9 @@
             color: #999;
             margin-bottom: 12px;
         }
+        details:not([open]) .details-chevron {
+            transform: rotate(-90deg);
+        }
         .hide-scrollbar {
             -ms-overflow-style: none;
             scrollbar-width: none;
@@ -99,67 +102,20 @@
                     </svg>
                 </a>
 
-                <!-- Меню (десктоп) -->
-                <nav class="hidden md:flex items-center gap-6">
-                    <a href="index.html" class="text-white/90 hover:text-srsk-orange transition-colors text-base font-medium uppercase tracking-wide" data-i18n="nav_profile">Профиль</a>
-                    <a href="retreats.html" class="text-white/90 hover:text-srsk-orange transition-colors text-base font-medium uppercase tracking-wide" data-i18n="nav_retreats">Ретриты</a>
-                    <a href="materials.html" class="text-white/90 hover:text-srsk-orange transition-colors text-base font-medium uppercase tracking-wide" data-i18n="nav_materials">Материалы</a>
-                    <a href="photos.html" class="text-white/90 hover:text-srsk-orange transition-colors text-base font-medium uppercase tracking-wide" data-i18n="nav_gallery">Галерея</a>
-                    <a href="contacts.html" class="text-white/90 hover:text-srsk-orange transition-colors text-base font-medium uppercase tracking-wide" data-i18n="nav_contacts">Контакты</a>
-
-                    <!-- Разделитель -->
-                    <div class="w-px h-6 bg-white/20"></div>
-
-                    <!-- Аватар + Имя -->
-                    <a href="index.html" class="flex items-center gap-2 hover:opacity-80 transition-opacity">
-                        <div id="header-photo" class="w-8 h-8 bg-white/20 rounded-full flex items-center justify-center overflow-hidden">
-                            <svg class="w-4 h-4 text-white/70" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24">
-                                <path stroke-linecap="round" stroke-linejoin="round" d="M15.75 6a3.75 3.75 0 11-7.5 0 3.75 3.75 0 017.5 0zM4.501 20.118a7.5 7.5 0 0114.998 0A17.933 17.933 0 0112 21.75c-2.676 0-5.216-.584-7.499-1.632z" />
-                            </svg>
-                        </div>
-                        <span id="header-name" class="text-white/90 text-sm"></span>
-                    </a>
-
-                    <!-- Выход -->
+                <!-- Имя + фото + выход -->
+                <div class="flex items-center gap-3">
+                    <span id="header-name" class="text-white/90 text-sm font-medium"></span>
+                    <div id="header-photo" class="w-8 h-8 bg-white/20 rounded-full flex items-center justify-center overflow-hidden">
+                        <svg class="w-4 h-4 text-white/70" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M15.75 6a3.75 3.75 0 11-7.5 0 3.75 3.75 0 017.5 0zM4.501 20.118a7.5 7.5 0 0114.998 0A17.933 17.933 0 0112 21.75c-2.676 0-5.216-.584-7.499-1.632z" />
+                        </svg>
+                    </div>
                     <button onclick="PortalAuth.logout()" class="text-white/60 hover:text-white transition-colors" data-i18n-title="logout" title="Выйти">
                         <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24">
                             <path stroke-linecap="round" stroke-linejoin="round" d="M15.75 9V5.25A2.25 2.25 0 0013.5 3h-6a2.25 2.25 0 00-2.25 2.25v13.5A2.25 2.25 0 007.5 21h6a2.25 2.25 0 002.25-2.25V15M12 9l-3 3m0 0l3 3m-3-3h12.75" />
                         </svg>
                     </button>
-                </nav>
-
-                <!-- Мобайл: аватар + бургер -->
-                <div class="md:hidden flex items-center gap-3">
-                    <div class="w-8 h-8 bg-white/20 rounded-full flex items-center justify-center">
-                        <svg class="w-4 h-4 text-white/70" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" d="M15.75 6a3.75 3.75 0 11-7.5 0 3.75 3.75 0 017.5 0zM4.501 20.118a7.5 7.5 0 0114.998 0A17.933 17.933 0 0112 21.75c-2.676 0-5.216-.584-7.499-1.632z" />
-                        </svg>
-                    </div>
-                    <button class="text-white p-2" onclick="document.getElementById('mobile-menu').classList.toggle('hidden')">
-                        <svg class="w-6 h-6" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" d="M3.75 6.75h16.5M3.75 12h16.5m-16.5 5.25h16.5" />
-                        </svg>
-                    </button>
                 </div>
-            </div>
-
-            <!-- Мобильное меню -->
-            <nav id="mobile-menu" class="hidden md:hidden pb-4">
-                <div class="flex flex-col gap-4">
-                    <div id="mobile-name" class="text-white/90 text-sm font-medium py-2 border-b border-white/10 mb-1"></div>
-                    <a href="index.html" class="text-white/90 hover:text-srsk-orange transition-colors text-base font-medium py-2 uppercase tracking-wide" data-i18n="nav_profile">Профиль</a>
-                    <a href="retreats.html" class="text-white/90 hover:text-srsk-orange transition-colors text-base font-medium py-2 uppercase tracking-wide" data-i18n="nav_retreats">Ретриты</a>
-                    <a href="materials.html" class="text-white/90 hover:text-srsk-orange transition-colors text-base font-medium py-2 uppercase tracking-wide" data-i18n="nav_materials">Материалы</a>
-                    <a href="photos.html" class="text-white/90 hover:text-srsk-orange transition-colors text-base font-medium py-2 uppercase tracking-wide" data-i18n="nav_gallery">Галерея</a>
-                    <a href="contacts.html" class="text-white/90 hover:text-srsk-orange transition-colors text-base font-medium py-2 uppercase tracking-wide" data-i18n="nav_contacts">Контакты</a>
-                    <button onclick="PortalAuth.logout()" class="text-white/60 hover:text-white transition-colors text-base font-medium py-2 mt-2 border-t border-white/10 pt-4 flex items-center gap-2 uppercase tracking-wide w-full">
-                        <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" d="M15.75 9V5.25A2.25 2.25 0 0013.5 3h-6a2.25 2.25 0 00-2.25 2.25v13.5A2.25 2.25 0 007.5 21h6a2.25 2.25 0 002.25-2.25V15M12 9l-3 3m0 0l3 3m-3-3h12.75" />
-                        </svg>
-                        <span data-i18n="logout">Выйти</span>
-                    </button>
-                </div>
-            </nav>
         </div>
     </header>
 
@@ -469,53 +425,39 @@
                 </div>
 
                 <!-- Текущий/предстоящий ретрит -->
-                <div id="retreat-block" class="hidden card cursor-pointer transition-all flex-1 p-0 overflow-hidden border-2 border-transparent hover:border-srsk-green" style="background: #E8F5E9;">
-                    <div class="flex flex-col sm:flex-row h-full">
-                        <!-- Картинка ретрита -->
-                        <div id="retreat-image" class="w-full sm:w-56 h-48 sm:h-auto bg-gray-200 flex-shrink-0 flex items-center justify-center overflow-hidden">
-                            <img src="images/tilak-placeholder.svg" alt="" class="w-16 h-16 opacity-30">
-                        </div>
+                <details id="retreat-block" class="hidden card" style="background: #E8F5E9;">
+                    <summary class="flex items-center justify-between cursor-pointer select-none list-none [&::-webkit-details-marker]:hidden">
+                        <div id="retreat-summary-name" style="font-size: 18px; font-weight: 700; text-transform: uppercase; letter-spacing: 1.5px; color: #147D30;"></div>
+                        <svg class="w-5 h-5 text-green-700 transition-transform duration-200 details-chevron" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M19.5 8.25l-7.5 7.5-7.5-7.5" />
+                        </svg>
+                    </summary>
+                    <div class="mt-4">
+                        <div id="retreat-dates" class="text-sm text-gray-500"></div>
+                        <p id="retreat-description" class="text-sm text-gray-600 mt-2 line-clamp-2"></p>
 
-                        <!-- Инфо -->
-                        <div class="flex-1 p-5 flex flex-col">
-                            <div id="retreat-label" class="card-label" style="color: #147D30;">Ваш ретрит</div>
+                        <div id="retreat-accommodation" class="pt-4 grid grid-cols-2 gap-4 hidden">
+                            <!-- Размещение -->
+                            <div>
+                                <div class="text-xs text-gray-400 uppercase tracking-wide">Размещение</div>
+                                <div id="retreat-room" class="font-medium text-gray-800 mt-1"></div>
+                            </div>
 
-                            <div id="retreat-name" class="text-2xl font-semibold text-gray-800"></div>
-                            <div id="retreat-dates" class="text-sm text-gray-500 mt-1"></div>
-
-                            <!-- Краткое описание -->
-                            <p id="retreat-description" class="text-sm text-gray-600 mt-2 line-clamp-2"></p>
-
-                            <div id="retreat-accommodation" class="mt-auto pt-4 grid grid-cols-2 gap-4 hidden">
-                                <!-- Размещение -->
-                                <div>
-                                    <div class="text-xs text-gray-400 uppercase tracking-wide">Размещение</div>
-                                    <div id="retreat-room" class="font-medium text-gray-800 mt-1"></div>
-                                </div>
-
-                                <!-- Сосед -->
-                                <div id="retreat-roommate-block" class="hidden">
-                                    <div class="text-xs text-gray-400 uppercase tracking-wide">Сосед</div>
-                                    <a id="retreat-roommate" href="#" class="flex items-center gap-3 mt-1 hover:text-srsk-orange transition-colors">
-                                        <div id="retreat-roommate-photo" class="w-10 h-10 bg-white rounded-full flex-shrink-0 flex items-center justify-center overflow-hidden">
-                                            <svg class="w-5 h-5 text-gray-400" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24">
-                                                <path stroke-linecap="round" stroke-linejoin="round" d="M15.75 6a3.75 3.75 0 11-7.5 0 3.75 3.75 0 017.5 0zM4.501 20.118a7.5 7.5 0 0114.998 0A17.933 17.933 0 0112 21.75c-2.676 0-5.216-.584-7.499-1.632z" />
-                                            </svg>
-                                        </div>
-                                        <div id="retreat-roommate-name" class="text-sm text-gray-700"></div>
-                                    </a>
-                                </div>
+                            <!-- Сосед -->
+                            <div id="retreat-roommate-block" class="hidden">
+                                <div class="text-xs text-gray-400 uppercase tracking-wide">Сосед</div>
+                                <a id="retreat-roommate" href="#" class="flex items-center gap-3 mt-1 hover:text-srsk-orange transition-colors">
+                                    <div id="retreat-roommate-photo" class="w-10 h-10 bg-white rounded-full flex-shrink-0 flex items-center justify-center overflow-hidden">
+                                        <svg class="w-5 h-5 text-gray-400" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24">
+                                            <path stroke-linecap="round" stroke-linejoin="round" d="M15.75 6a3.75 3.75 0 11-7.5 0 3.75 3.75 0 017.5 0zM4.501 20.118a7.5 7.5 0 0114.998 0A17.933 17.933 0 0112 21.75c-2.676 0-5.216-.584-7.499-1.632z" />
+                                        </svg>
+                                    </div>
+                                    <div id="retreat-roommate-name" class="text-sm text-gray-700"></div>
+                                </a>
                             </div>
                         </div>
-
-                        <!-- Стрелка -->
-                        <div class="hidden sm:flex items-center pr-4">
-                            <svg class="w-5 h-5 text-srsk-green" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24">
-                                <path stroke-linecap="round" stroke-linejoin="round" d="M8.25 4.5l7.5 7.5-7.5 7.5" />
-                            </svg>
-                        </div>
                     </div>
-                </div>
+                </details>
 
                 <!-- Заглушка если нет ретрита -->
                 <div id="no-retreat-block" class="hidden card flex-1 flex flex-col items-center justify-center text-center py-8" style="background: #F5F5F5;">
@@ -526,11 +468,45 @@
                     <a href="#upcoming-retreats" class="text-srsk-orange hover:underline text-sm">Посмотреть ближайшие →</a>
                 </div>
 
-                <!-- Трансфер -->
-                <div id="transfer-block" class="hidden card" style="background: #FFF3CD;">
-                    <div class="card-label" style="color: #997A00;">Трансфер</div>
+                <!-- Расписание на сегодня -->
+                <details id="schedule-block" class="hidden card" style="background: #E8F5E9;">
+                    <summary class="flex items-center justify-between cursor-pointer select-none list-none [&::-webkit-details-marker]:hidden">
+                        <div style="font-size: 18px; font-weight: 700; text-transform: uppercase; letter-spacing: 1.5px; color: #147D30;" data-i18n="portal_schedule_today">Расписание на сегодня</div>
+                        <svg class="w-5 h-5 text-green-700 transition-transform duration-200 details-chevron" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M19.5 8.25l-7.5 7.5-7.5-7.5" />
+                        </svg>
+                    </summary>
+                    <div id="schedule-theme" class="hidden text-sm font-medium text-srsk-green mt-4 mb-3"></div>
+                    <div id="schedule-items" class="relative pl-6 mt-4">
+                        <!-- Timeline line -->
+                        <div class="absolute left-[7px] top-2 bottom-2 w-0.5 bg-srsk-green/20"></div>
+                        <!-- Items rendered by JS -->
+                    </div>
+                </details>
 
-                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <!-- Меню на сегодня -->
+                <details id="menu-block" class="hidden card" style="background: #FFF8E1;">
+                    <summary class="flex items-center justify-between cursor-pointer select-none list-none [&::-webkit-details-marker]:hidden">
+                        <div style="font-size: 18px; font-weight: 700; text-transform: uppercase; letter-spacing: 1.5px; color: #997A00;" data-i18n="portal_menu_today">Меню на сегодня</div>
+                        <svg class="w-5 h-5 text-amber-600 transition-transform duration-200 details-chevron" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M19.5 8.25l-7.5 7.5-7.5-7.5" />
+                        </svg>
+                    </summary>
+                    <div id="menu-meals" class="sm:grid sm:grid-cols-2 sm:gap-x-6 sm:gap-y-4 space-y-4 sm:space-y-0 mt-4">
+                        <!-- Meals rendered by JS -->
+                    </div>
+                </details>
+
+                <!-- Трансфер -->
+                <details id="transfer-block" class="hidden card" style="background: #FFF3CD;">
+                    <summary class="flex items-center justify-between cursor-pointer select-none list-none [&::-webkit-details-marker]:hidden">
+                        <div style="font-size: 18px; font-weight: 700; text-transform: uppercase; letter-spacing: 1.5px; color: #997A00;">Трансфер</div>
+                        <svg class="w-5 h-5 text-amber-600 transition-transform duration-200 details-chevron" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M19.5 8.25l-7.5 7.5-7.5-7.5" />
+                        </svg>
+                    </summary>
+
+                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 mt-4">
                         <!-- Прилёт -->
                         <div id="arrival-block" class="hidden p-4 bg-white/60 rounded-xl border-2 border-transparent">
                             <div class="flex items-center justify-between mb-3">
@@ -619,24 +595,26 @@
                             </div>
                         </div>
                     </div>
-                </div>
+                </details>
 
-            </div>
-        </div>
-
-        <!-- Мои дети -->
-        <div id="children-section" class="card mb-4 hidden">
-            <div class="flex items-center justify-between mb-4">
-                <div class="card-label mb-0" data-i18n="my_children">Мои дети</div>
-                <button onclick="openAddChildPortal()" class="flex items-center gap-1 text-sm font-medium text-srsk-green hover:underline">
-                    <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" d="M12 4v16m8-8H4" />
-                    </svg>
-                    <span data-i18n="add_child">Добавить ребёнка</span>
-                </button>
-            </div>
-            <div id="children-list" class="space-y-3"></div>
-        </div>
+                <!-- Мои дети -->
+                <details id="children-section" class="card hidden">
+                    <summary class="flex items-center justify-between cursor-pointer select-none list-none [&::-webkit-details-marker]:hidden">
+                        <div style="font-size: 18px; font-weight: 700; text-transform: uppercase; letter-spacing: 1.5px; color: #374151;" data-i18n="my_children">Мои дети</div>
+                        <div class="flex items-center gap-3">
+                            <button onclick="event.stopPropagation(); openAddChildPortal()" class="flex items-center gap-1 text-sm font-medium text-srsk-green hover:underline">
+                                <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" d="M12 4v16m8-8H4" />
+                                </svg>
+                                <span data-i18n="add_child">Добавить ребёнка</span>
+                            </button>
+                            <svg class="w-5 h-5 text-gray-400 transition-transform duration-200 details-chevron" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" d="M19.5 8.25l-7.5 7.5-7.5-7.5" />
+                            </svg>
+                        </div>
+                    </summary>
+                    <div id="children-list" class="space-y-3 mt-4"></div>
+                </details>
 
         <!-- Модалка добавления/редактирования ребёнка -->
         <div id="childModal" class="fixed inset-0 z-50 hidden" style="background: rgba(0,0,0,0.5);">
@@ -688,100 +666,117 @@
             </div>
         </div>
 
-        <!-- Ближайшие ретриты -->
-        <div id="upcoming-retreats-section" class="card mb-4" style="background: #E8E0F0;">
-            <div class="flex items-center justify-between mb-4">
-                <div class="card-label mb-0" style="color: #6B5B95;">Ближайшие ретриты</div>
-                <a href="retreats.html" class="text-sm font-medium hover:underline flex items-center gap-1" style="color: #E8900C;">
-                    Все ретриты
-                    <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" d="M13.5 4.5L21 12m0 0l-7.5 7.5M21 12H3" />
-                    </svg>
-                </a>
-            </div>
+                <!-- Ближайшие ретриты -->
+                <details id="upcoming-retreats-section" class="card" style="background: #E8E0F0;" open>
+                    <summary class="flex items-center justify-between cursor-pointer select-none list-none [&::-webkit-details-marker]:hidden">
+                        <div style="font-size: 18px; font-weight: 700; text-transform: uppercase; letter-spacing: 1.5px; color: #6B5B95;">Ближайшие ретриты</div>
+                        <div class="flex items-center gap-3">
+                            <a href="retreats.html" class="text-sm font-medium hover:underline flex items-center gap-1" style="color: #E8900C;" onclick="event.stopPropagation()">
+                                Все ретриты
+                                <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" d="M13.5 4.5L21 12m0 0l-7.5 7.5M21 12H3" />
+                                </svg>
+                            </a>
+                            <svg class="w-5 h-5 text-[#6B5B95] transition-transform duration-200 details-chevron" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" d="M19.5 8.25l-7.5 7.5-7.5-7.5" />
+                            </svg>
+                        </div>
+                    </summary>
 
-            <div id="upcoming-retreats" class="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                <!-- Спиннер загрузки -->
-                <div class="col-span-3 flex justify-center py-8">
-                    <svg class="w-8 h-8 animate-spin text-[#6B5B95]" fill="none" viewBox="0 0 24 24">
-                        <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
-                        <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                    </svg>
-                </div>
-            </div>
-        </div>
+                    <div id="upcoming-retreats" class="grid grid-cols-1 gap-4 mt-4">
+                        <!-- Спиннер загрузки -->
+                        <div class="col-span-3 flex justify-center py-8">
+                            <svg class="w-8 h-8 animate-spin text-[#6B5B95]" fill="none" viewBox="0 0 24 24">
+                                <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                                <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                            </svg>
+                        </div>
+                    </div>
+                </details>
 
-        <!-- Материалы -->
-        <div class="card mb-4" style="background: #FFF3CD;">
-            <div class="flex items-center justify-between mb-4">
-                <div class="card-label mb-0" style="color: #997A00;">Материалы</div>
-                <a href="materials.html" class="text-sm font-medium hover:underline flex items-center gap-1" style="color: #E8900C;">
-                    Все материалы
-                    <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" d="M13.5 4.5L21 12m0 0l-7.5 7.5M21 12H3" />
-                    </svg>
-                </a>
-            </div>
+                <!-- Материалы (скрыто до готовности) -->
+                <details class="card hidden" style="background: #FFF3CD;">
+                    <summary class="flex items-center justify-between cursor-pointer select-none list-none [&::-webkit-details-marker]:hidden">
+                        <div style="font-size: 18px; font-weight: 700; text-transform: uppercase; letter-spacing: 1.5px; color: #997A00;">Материалы</div>
+                        <div class="flex items-center gap-3">
+                            <a href="materials.html" class="text-sm font-medium hover:underline flex items-center gap-1" style="color: #E8900C;" onclick="event.stopPropagation()">
+                                Все материалы
+                                <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" d="M13.5 4.5L21 12m0 0l-7.5 7.5M21 12H3" />
+                                </svg>
+                            </a>
+                            <svg class="w-5 h-5 text-amber-600 transition-transform duration-200 details-chevron" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" d="M19.5 8.25l-7.5 7.5-7.5-7.5" />
+                            </svg>
+                        </div>
+                    </summary>
 
-            <div id="materials-cards" class="flex gap-3 overflow-x-auto hide-scrollbar pb-2">
-                <!-- Карточки загружаются динамически -->
-                <div class="flex-shrink-0 w-[172px] bg-gray-50/50 rounded-xl p-4 animate-pulse">
-                    <div class="w-8 h-8 bg-gray-200 rounded mb-3"></div>
-                    <div class="h-4 bg-gray-200 rounded w-3/4 mb-2"></div>
-                    <div class="h-3 bg-gray-200 rounded w-1/2"></div>
-                </div>
-            </div>
-        </div>
+                    <div id="materials-cards" class="flex gap-3 overflow-x-auto hide-scrollbar pb-2 mt-4">
+                        <!-- Карточки загружаются динамически -->
+                        <div class="flex-shrink-0 w-[172px] bg-gray-50/50 rounded-xl p-4 animate-pulse">
+                            <div class="w-8 h-8 bg-gray-200 rounded mb-3"></div>
+                            <div class="h-4 bg-gray-200 rounded w-3/4 mb-2"></div>
+                            <div class="h-3 bg-gray-200 rounded w-1/2"></div>
+                        </div>
+                    </div>
+                </details>
 
-        <!-- Фото со мной -->
-        <div id="my-photos-section" class="card mb-4 hidden border-2 border-transparent hover:border-orange-300 transition-all cursor-pointer" style="background: #FFF7ED;" onclick="window.location.href='photos.html?filter=me'">
-            <div class="flex items-center justify-between mb-4">
-                <div>
-                    <div class="card-label mb-1" style="color: #EA7B2E;">Фото ретрита</div>
-                    <div class="text-xl font-semibold text-gray-800">Фото со мной</div>
-                </div>
-                <a href="photos.html?filter=me" class="text-sm font-medium hover:underline flex items-center gap-1" style="color: #EA7B2E;" onclick="event.stopPropagation()">
-                    Все мои фото
-                    <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" d="M13.5 4.5L21 12m0 0l-7.5 7.5M21 12H3" />
-                    </svg>
-                </a>
-            </div>
-            <div id="myPhotosPreview" class="relative">
-                <div id="myPhotosContainer" class="flex gap-3 overflow-x-auto hide-scrollbar pb-2 snap-x snap-mandatory"></div>
-            </div>
-        </div>
+                <!-- Фото со мной -->
+                <details id="my-photos-section" class="card hidden" style="background: #FFF7ED;">
+                    <summary class="flex items-center justify-between cursor-pointer select-none list-none [&::-webkit-details-marker]:hidden">
+                        <div style="font-size: 18px; font-weight: 700; text-transform: uppercase; letter-spacing: 1.5px; color: #EA7B2E;">Фото со мной</div>
+                        <div class="flex items-center gap-3">
+                            <a href="photos.html?filter=me" class="text-sm font-medium hover:underline flex items-center gap-1" style="color: #EA7B2E;" onclick="event.stopPropagation()">
+                                Все мои фото
+                                <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" d="M13.5 4.5L21 12m0 0l-7.5 7.5M21 12H3" />
+                                </svg>
+                            </a>
+                            <svg class="w-5 h-5 text-orange-500 transition-transform duration-200 details-chevron" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" d="M19.5 8.25l-7.5 7.5-7.5-7.5" />
+                            </svg>
+                        </div>
+                    </summary>
+                    <div id="myPhotosPreview" class="relative mt-4">
+                        <div id="myPhotosContainer" class="flex gap-3 overflow-x-auto hide-scrollbar pb-2 snap-x snap-mandatory"></div>
+                    </div>
+                </details>
 
-        <!-- Галерея (большой блок) -->
-        <div class="card mb-4 border-2 border-transparent hover:border-blue-300 transition-all cursor-pointer" style="background: #F0F7FF;" onclick="window.location.href='photos.html'">
-            <div class="flex items-center justify-between mb-4">
-                <div>
-                    <div class="card-label mb-1" style="color: #4A90D9;">Галерея</div>
-                    <div class="text-xl font-semibold text-gray-800" id="galleryTitle">Фотографии ретрита</div>
-                </div>
-                <a href="photos.html" class="text-sm font-medium hover:underline flex items-center gap-1" style="color: #4A90D9;" onclick="event.stopPropagation()">
-                    <span data-i18n="view_all">Смотреть все</span>
-                    <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" d="M13.5 4.5L21 12m0 0l-7.5 7.5M21 12H3" />
-                    </svg>
-                </a>
-            </div>
+                <!-- Галерея -->
+                <details class="card" style="background: #F0F7FF;">
+                    <summary class="flex items-center justify-between cursor-pointer select-none list-none [&::-webkit-details-marker]:hidden">
+                        <div style="font-size: 18px; font-weight: 700; text-transform: uppercase; letter-spacing: 1.5px; color: #4A90D9;" id="galleryTitle">Галерея</div>
+                        <div class="flex items-center gap-3">
+                            <a href="photos.html" class="text-sm font-medium hover:underline flex items-center gap-1" style="color: #4A90D9;" onclick="event.stopPropagation()">
+                                <span data-i18n="view_all">Смотреть все</span>
+                                <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" d="M13.5 4.5L21 12m0 0l-7.5 7.5M21 12H3" />
+                                </svg>
+                            </a>
+                            <svg class="w-5 h-5 text-blue-500 transition-transform duration-200 details-chevron" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" d="M19.5 8.25l-7.5 7.5-7.5-7.5" />
+                            </svg>
+                        </div>
+                    </summary>
 
-            <!-- Прокрутка фото -->
-            <div id="galleryPreview" class="relative">
-                <button id="photoPreviewPrev" class="gallery-scroll-btn hidden md:flex absolute left-2 top-1/2 -translate-y-1/2 z-10" onclick="event.stopPropagation()" aria-label="Прокрутить влево">
-                    <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" d="M15 19l-7-7 7-7" />
-                    </svg>
-                </button>
-                <div class="flex gap-3 overflow-x-auto hide-scrollbar pb-2 snap-x snap-mandatory" id="photoPreviewContainer">
-                    <!-- Будет заполнено JS -->
-                </div>
-                <button id="photoPreviewNext" class="gallery-scroll-btn hidden md:flex absolute right-2 top-1/2 -translate-y-1/2 z-10" onclick="event.stopPropagation()" aria-label="Прокрутить вправо">
-                    <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" d="M9 5l7 7-7 7" />
-                    </svg>
-                </button>
+                    <!-- Прокрутка фото -->
+                    <div id="galleryPreview" class="relative mt-4">
+                        <button id="photoPreviewPrev" class="gallery-scroll-btn hidden md:flex absolute left-2 top-1/2 -translate-y-1/2 z-10" aria-label="Прокрутить влево">
+                            <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" d="M15 19l-7-7 7-7" />
+                            </svg>
+                        </button>
+                        <div class="flex gap-3 overflow-x-auto hide-scrollbar pb-2 snap-x snap-mandatory" id="photoPreviewContainer">
+                            <!-- Будет заполнено JS -->
+                        </div>
+                        <button id="photoPreviewNext" class="gallery-scroll-btn hidden md:flex absolute right-2 top-1/2 -translate-y-1/2 z-10" aria-label="Прокрутить вправо">
+                            <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" d="M9 5l7 7-7 7" />
+                            </svg>
+                        </button>
+                    </div>
+                </details>
+
             </div>
         </div>
 
@@ -980,9 +975,9 @@
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <script src="js/portal-config.js"></script>
     <script src="js/portal-auth.js"></script>
-    <script src="js/portal-layout.js?v=5"></script>
+    <script src="js/portal-layout.js?v=10"></script>
     <script src="../js/date-utils.js"></script>
     <script src="js/portal-data.js"></script>
-    <script src="js/portal-index.js"></script>
+    <script src="js/portal-index.js?v=5"></script>
 </body>
 </html>

@@ -1,0 +1,533 @@
+<!DOCTYPE html>
+<html lang="ru" data-theme="light">
+<head>
+    <meta charset="UTF-8">
+    <script src="../js/color-init.js"></script>
+
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title data-i18n="schedule">Расписание — ШРСК</title>
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg">
+    <link href="https://cdn.jsdelivr.net/npm/daisyui@4.12.14/dist/full.min.css" rel="stylesheet" />
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script>tailwind.config = { theme: { extend: { screens: { 'desktop': '1200px' } } } }</script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans:wght@400;500;600;700&family=Noto+Sans+Devanagari:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="../css/common.css">
+    <style>
+        .day-btn {
+            min-width: 48px;
+            padding: 6px 10px;
+            border-radius: 8px;
+            text-align: center;
+            cursor: pointer;
+            transition: all 0.15s;
+            border: 2px solid transparent;
+            font-size: 13px;
+        }
+        .day-btn:hover {
+            background-color: rgba(var(--p), 0.1);
+        }
+        .day-btn.active {
+            background-color: var(--current-color);
+            color: white;
+            border-color: var(--current-color);
+        }
+        .day-btn.has-schedule {
+            border-color: var(--current-color);
+        }
+        .day-btn .day-name {
+            font-size: 10px;
+            text-transform: uppercase;
+            opacity: 0.6;
+        }
+        .day-btn.active .day-name {
+            opacity: 0.8;
+        }
+        .event-row {
+            display: grid;
+            grid-template-columns: 100px 100px 1fr 1fr auto;
+            gap: 8px;
+            align-items: start;
+            padding: 8px 0;
+            border-bottom: 1px solid #f0f0f0;
+        }
+        .event-row:last-child {
+            border-bottom: none;
+        }
+        .event-row input, .event-row textarea {
+            font-size: 14px;
+        }
+        @media (max-width: 640px) {
+            .event-row {
+                grid-template-columns: 1fr 1fr;
+                gap: 6px;
+            }
+            .event-row .col-span-full {
+                grid-column: 1 / -1;
+            }
+        }
+    </style>
+</head>
+<body class="bg-base-200 min-h-screen flex flex-col">
+
+    <div id="header-placeholder"></div>
+
+    <main class="container mx-auto px-4 py-6 flex-1">
+
+        <!-- Хлебные крошки и заголовок -->
+        <div class="mb-6">
+            <div class="text-sm breadcrumbs mb-2">
+                <ul>
+                    <li><a href="retreats.html" data-i18n="retreats_title">Ретриты</a></li>
+                    <li id="breadcrumb-retreat"></li>
+                </ul>
+            </div>
+            <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+                <div>
+                    <h1 class="text-2xl font-bold" id="pageTitle" data-i18n="schedule_manage">Управление расписанием</h1>
+                    <p class="text-sm opacity-60" id="retreatDates"></p>
+                </div>
+                <a href="retreats.html" class="btn btn-ghost btn-sm gap-1">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18" />
+                    </svg>
+                    <span data-i18n="back">Назад</span>
+                </a>
+            </div>
+        </div>
+
+        <!-- Навигация по дням -->
+        <div class="bg-base-100 rounded-xl p-4 mb-6 overflow-x-auto">
+            <div id="daysNav" class="flex gap-2 min-w-max">
+                <!-- Генерируется JS -->
+            </div>
+        </div>
+
+        <!-- Редактор дня -->
+        <div id="dayEditor" class="bg-base-100 rounded-xl p-6">
+            <!-- Тема и описание -->
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-6">
+                <div>
+                    <label class="label"><span class="label-text font-medium" data-i18n="schedule_day_theme">Тема дня</span></label>
+                    <input type="text" id="dayTheme" class="input input-bordered w-full" placeholder="Школа Бхакти" />
+                </div>
+                <div>
+                    <label class="label"><span class="label-text font-medium" data-i18n="schedule_day_description">Описание дня</span></label>
+                    <input type="text" id="dayDescription" class="input input-bordered w-full" />
+                </div>
+            </div>
+
+            <div class="divider text-sm opacity-50" data-i18n="schedule">Расписание</div>
+
+            <!-- Заголовки таблицы (desktop) -->
+            <div class="hidden sm:grid grid-cols-[100px_100px_1fr_1fr_auto] gap-2 mb-2 text-xs font-medium text-gray-400 uppercase">
+                <div data-i18n="schedule_time">Время</div>
+                <div>До</div>
+                <div data-i18n="schedule_title">Название</div>
+                <div data-i18n="schedule_location">Место</div>
+                <div></div>
+            </div>
+
+            <!-- Список событий -->
+            <div id="eventsList" class="mb-4">
+                <!-- Генерируется JS -->
+            </div>
+
+            <!-- Кнопка добавления -->
+            <button class="btn btn-outline btn-sm gap-1" onclick="addEvent()">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" />
+                </svg>
+                <span data-i18n="schedule_add_event">Добавить событие</span>
+            </button>
+
+            <!-- Статус сохранения -->
+            <div id="saveStatus" class="text-right text-sm mt-4 opacity-60"></div>
+        </div>
+
+    </main>
+
+    <div id="footer-placeholder"></div>
+
+    <script src="../js/config.js"></script>
+    <script src="../js/auth-check.js?v=3"></script>
+    <script src="../js/permissions-ui.js?v=2"></script>
+    <script src="../js/cache.js"></script>
+    <script src="../js/utils.js?v=2"></script>
+    <script src="../js/date-utils.js"></script>
+    <script src="../js/layout.js?v=5"></script>
+    <script>
+        // ==================== STATE ====================
+        let retreat = null;
+        let retreatDays = []; // все дни ретрита (Date[])
+        let scheduleDays = {}; // { 'YYYY-MM-DD': { id, theme, description } }
+        let currentDate = null; // выбранная дата (string YYYY-MM-DD)
+        let currentDayId = null;
+        let events = []; // текущие события
+        let saveTimer = null;
+
+        const t = key => Layout.t(key);
+
+        // ==================== DATA ====================
+
+        async function loadRetreat(retreatId) {
+            const { data, error } = await Layout.db
+                .from('retreats')
+                .select('id, name_ru, name_en, name_hi, start_date, end_date, color')
+                .eq('id', retreatId)
+                .single();
+
+            if (error) {
+                console.error('Ошибка загрузки ретрита:', error);
+                return null;
+            }
+            return data;
+        }
+
+        async function loadScheduleDays(retreatId) {
+            const { data, error } = await Layout.db
+                .from('retreat_schedule_days')
+                .select('id, date, theme, description')
+                .eq('retreat_id', retreatId);
+
+            if (error) {
+                console.error('Ошибка загрузки дней расписания:', error);
+                return {};
+            }
+
+            const map = {};
+            (data || []).forEach(d => { map[d.date] = d; });
+            return map;
+        }
+
+        async function loadDayEvents(dayId) {
+            const { data, error } = await Layout.db
+                .from('retreat_schedule_items')
+                .select('id, time_start, time_end, title, location, description, sort_order')
+                .eq('day_id', dayId)
+                .order('time_start')
+                .order('sort_order');
+
+            if (error) {
+                console.error('Ошибка загрузки событий:', error);
+                return [];
+            }
+            return data || [];
+        }
+
+        // ==================== SAVE ====================
+
+        function scheduleSave() {
+            clearTimeout(saveTimer);
+            document.getElementById('saveStatus').textContent = 'Сохранение...';
+            saveTimer = setTimeout(saveCurrentDay, 800);
+        }
+
+        async function saveCurrentDay() {
+            if (!currentDate || !retreat) return;
+
+            const theme = document.getElementById('dayTheme').value.trim() || null;
+            const description = document.getElementById('dayDescription').value.trim() || null;
+
+            try {
+                // Upsert день
+                if (!currentDayId) {
+                    const { data, error } = await Layout.db
+                        .from('retreat_schedule_days')
+                        .insert({
+                            retreat_id: retreat.id,
+                            date: currentDate,
+                            theme,
+                            description
+                        })
+                        .select('id')
+                        .single();
+
+                    if (error) throw error;
+                    currentDayId = data.id;
+                    scheduleDays[currentDate] = { id: data.id, date: currentDate, theme, description };
+                    renderDaysNav(); // обновить точку наличия
+                } else {
+                    const { error } = await Layout.db
+                        .from('retreat_schedule_days')
+                        .update({ theme, description, updated_at: new Date().toISOString() })
+                        .eq('id', currentDayId);
+
+                    if (error) throw error;
+                    scheduleDays[currentDate] = { ...scheduleDays[currentDate], theme, description };
+                }
+
+                document.getElementById('saveStatus').textContent = t('schedule_save_success');
+                setTimeout(() => {
+                    document.getElementById('saveStatus').textContent = '';
+                }, 2000);
+
+            } catch (err) {
+                console.error('Ошибка сохранения дня:', err);
+                document.getElementById('saveStatus').textContent = 'Ошибка сохранения';
+                Layout.showNotification('Ошибка сохранения: ' + err.message, 'error');
+            }
+        }
+
+        async function saveEvent(eventEl) {
+            if (!currentDayId) {
+                // Сначала создаём день
+                await saveCurrentDay();
+                if (!currentDayId) return;
+            }
+
+            const eventId = eventEl.dataset.eventId;
+            const timeStart = eventEl.querySelector('.event-time-start').value;
+            const timeEnd = eventEl.querySelector('.event-time-end').value || null;
+            const title = eventEl.querySelector('.event-title').value.trim();
+            const location = eventEl.querySelector('.event-location').value.trim() || null;
+
+            if (!timeStart || !title) return;
+
+            try {
+                if (eventId) {
+                    // Обновляем
+                    const { error } = await Layout.db
+                        .from('retreat_schedule_items')
+                        .update({ time_start: timeStart, time_end: timeEnd, title, location })
+                        .eq('id', eventId);
+
+                    if (error) throw error;
+                } else {
+                    // Создаём
+                    const { data, error } = await Layout.db
+                        .from('retreat_schedule_items')
+                        .insert({
+                            day_id: currentDayId,
+                            time_start: timeStart,
+                            time_end: timeEnd,
+                            title,
+                            location,
+                            sort_order: events.length
+                        })
+                        .select('id')
+                        .single();
+
+                    if (error) throw error;
+                    eventEl.dataset.eventId = data.id;
+                }
+
+                document.getElementById('saveStatus').textContent = t('schedule_save_success');
+                setTimeout(() => {
+                    document.getElementById('saveStatus').textContent = '';
+                }, 2000);
+
+            } catch (err) {
+                console.error('Ошибка сохранения события:', err);
+                Layout.showNotification('Ошибка сохранения: ' + err.message, 'error');
+            }
+        }
+
+        async function deleteEvent(eventEl) {
+            const eventId = eventEl.dataset.eventId;
+
+            if (eventId) {
+                if (!confirm(t('schedule_delete_confirm'))) return;
+
+                try {
+                    const { error } = await Layout.db
+                        .from('retreat_schedule_items')
+                        .delete()
+                        .eq('id', eventId);
+
+                    if (error) throw error;
+                } catch (err) {
+                    console.error('Ошибка удаления:', err);
+                    Layout.showNotification('Ошибка удаления: ' + err.message, 'error');
+                    return;
+                }
+            }
+
+            eventEl.remove();
+        }
+
+        // ==================== RENDER ====================
+
+        function generateDays(startDate, endDate) {
+            const days = [];
+            const start = DateUtils.parseDate(startDate);
+            const end = DateUtils.parseDate(endDate);
+
+            const current = new Date(start);
+            while (current <= end) {
+                days.push(DateUtils.toISO(current));
+                current.setDate(current.getDate() + 1);
+            }
+            return days;
+        }
+
+        function renderDaysNav() {
+            const container = document.getElementById('daysNav');
+            const today = DateUtils.toISO(new Date());
+            const weekdays = ['Вс', 'Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб'];
+
+            container.innerHTML = retreatDays.map(dateStr => {
+                const d = DateUtils.parseDate(dateStr);
+                const dayNum = d.getDate();
+                const weekday = weekdays[d.getDay()];
+                const isActive = dateStr === currentDate;
+                const isToday = dateStr === today;
+                const hasSchedule = !!scheduleDays[dateStr];
+
+                let classes = 'day-btn';
+                if (isActive) classes += ' active';
+                if (hasSchedule && !isActive) classes += ' has-schedule';
+
+                return `
+                    <button class="${classes}" onclick="selectDate('${dateStr}')">
+                        <div class="day-name">${weekday}</div>
+                        <div class="font-bold">${dayNum}</div>
+                        ${isToday ? '<div class="w-1.5 h-1.5 rounded-full bg-current mx-auto mt-0.5"></div>' : ''}
+                    </button>
+                `;
+            }).join('');
+        }
+
+        function renderEventRow(event = {}) {
+            const id = event.id || '';
+            const timeStart = event.time_start ? event.time_start.slice(0, 5) : '';
+            const timeEnd = event.time_end ? event.time_end.slice(0, 5) : '';
+            const title = event.title || '';
+            const location = event.location || '';
+
+            const div = document.createElement('div');
+            div.className = 'event-row';
+            div.dataset.eventId = id;
+
+            div.innerHTML = `
+                <input type="time" class="event-time-start input input-bordered input-sm" value="${timeStart}" placeholder="07:00">
+                <input type="time" class="event-time-end input input-bordered input-sm" value="${timeEnd}" placeholder="08:30">
+                <input type="text" class="event-title input input-bordered input-sm col-span-full sm:col-auto" value="${Layout.escapeHtml(title)}" placeholder="${t('schedule_title')}">
+                <input type="text" class="event-location input input-bordered input-sm col-span-full sm:col-auto" value="${Layout.escapeHtml(location)}" placeholder="${t('schedule_location')}">
+                <button class="btn btn-ghost btn-sm btn-square text-error" onclick="deleteEvent(this.closest('.event-row'))">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+                    </svg>
+                </button>
+            `;
+
+            // Автосохранение при blur
+            div.querySelectorAll('input').forEach(input => {
+                input.addEventListener('blur', () => saveEvent(div));
+            });
+
+            return div;
+        }
+
+        function renderEvents(items) {
+            const container = document.getElementById('eventsList');
+            container.innerHTML = '';
+
+            items.forEach(item => {
+                container.appendChild(renderEventRow(item));
+            });
+        }
+
+        function addEvent() {
+            const container = document.getElementById('eventsList');
+            const row = renderEventRow();
+            container.appendChild(row);
+            row.querySelector('.event-time-start').focus();
+        }
+
+        // ==================== NAVIGATION ====================
+
+        async function selectDate(dateStr) {
+            currentDate = dateStr;
+            renderDaysNav();
+
+            const dayData = scheduleDays[dateStr];
+            currentDayId = dayData?.id || null;
+
+            // Заполняем тему и описание
+            document.getElementById('dayTheme').value = dayData?.theme || '';
+            document.getElementById('dayDescription').value = dayData?.description || '';
+
+            // Загружаем события если день существует
+            if (currentDayId) {
+                const items = await loadDayEvents(currentDayId);
+                renderEvents(items);
+            } else {
+                renderEvents([]);
+            }
+        }
+
+        // ==================== INIT ====================
+
+        function waitForAuth(maxWait = 3000) {
+            return new Promise(resolve => {
+                if (window.currentUser) { resolve(); return; }
+                const handler = () => resolve();
+                window.addEventListener('authReady', handler, { once: true });
+                setTimeout(() => {
+                    window.removeEventListener('authReady', handler);
+                    resolve();
+                }, maxWait);
+            });
+        }
+
+        async function init() {
+            await Layout.init({ module: 'admin', menuId: 'ashram', itemId: 'retreats' });
+            await waitForAuth();
+
+            // Только суперпользователи
+            if (!window.currentUser?.is_superuser && !window.hasPermission?.('manage_retreats')) {
+                window.location.href = '../index.html';
+                return;
+            }
+
+            // Получаем ID ретрита из URL
+            const params = new URLSearchParams(window.location.search);
+            const retreatId = params.get('id');
+
+            if (!retreatId) {
+                window.location.href = 'retreats.html';
+                return;
+            }
+
+            Layout.showLoader();
+
+            // Загружаем данные
+            retreat = await loadRetreat(retreatId);
+
+            if (!retreat) {
+                Layout.showNotification('Ретрит не найден', 'error');
+                window.location.href = 'retreats.html';
+                return;
+            }
+
+            // Заголовок
+            const retreatName = Layout.getName(retreat);
+            document.getElementById('breadcrumb-retreat').textContent = retreatName;
+            document.getElementById('retreatDates').textContent =
+                `${retreatName} · ${DateUtils.formatRange(retreat.start_date, retreat.end_date)}`;
+
+            // Генерируем дни
+            retreatDays = generateDays(retreat.start_date, retreat.end_date);
+
+            // Загружаем существующее расписание
+            scheduleDays = await loadScheduleDays(retreatId);
+
+            // Автосохранение темы/описания
+            document.getElementById('dayTheme').addEventListener('input', scheduleSave);
+            document.getElementById('dayDescription').addEventListener('input', scheduleSave);
+
+            // Выбираем текущий день (или первый)
+            const today = DateUtils.toISO(new Date());
+            const initialDate = retreatDays.includes(today) ? today : retreatDays[0];
+            await selectDate(initialDate);
+
+            Layout.hideLoader();
+        }
+
+        init();
+    </script>
+</body>
+</html>

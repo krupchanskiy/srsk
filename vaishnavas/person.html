@@ -312,6 +312,36 @@
                                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
                                 </svg>
                             </button>
+                            <!-- Кнопка приглашения (dropdown) -->
+                            <div id="inviteDropdown" class="dropdown dropdown-end view-only" style="display: none;">
+                                <label tabindex="0" class="btn btn-sm gap-2" style="background: #3b82f6; border-color: #3b82f6; color: white;">
+                                    <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
+                                    </svg>
+                                    <span data-i18n="invite">Пригласить</span>
+                                    <svg xmlns="http://www.w3.org/2000/svg" class="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" />
+                                    </svg>
+                                </label>
+                                <ul tabindex="0" class="dropdown-content z-[1] menu p-2 shadow bg-base-100 rounded-box w-56">
+                                    <li id="inviteEmailOption">
+                                        <a onclick="sendInviteEmail()">
+                                            <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
+                                            </svg>
+                                            <span data-i18n="send_invite_email">Отправить email</span>
+                                        </a>
+                                    </li>
+                                    <li id="inviteLinkOption">
+                                        <a onclick="copyInviteLink()">
+                                            <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1" />
+                                            </svg>
+                                            <span data-i18n="copy_invite_link">Скопировать ссылку</span>
+                                        </a>
+                                    </li>
+                                </ul>
+                            </div>
                             <button id="editPersonBtn" class="btn btn-outline btn-sm gap-2 view-only" onclick="enterEditMode()">
                                 <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
@@ -991,6 +1021,6 @@
     <script src="../js/modal-utils.js"></script>
     <script src="../js/date-utils.js"></script>
     <script src="../js/layout.js?v=5"></script>
-    <script src="../js/pages/person.js?v=8"></script>
+    <script src="../js/pages/person.js?v=10"></script>
 </body>
 </html>

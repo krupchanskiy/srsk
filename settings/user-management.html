@@ -902,6 +902,14 @@
                 return;
             }
 
+            // Найти кнопку и показать загрузку
+            const btn = document.querySelector(`button[onclick*="sendInvite('${vaishnavId}'"]`);
+            const btnOriginal = btn ? btn.innerHTML : '';
+            if (btn) {
+                btn.disabled = true;
+                btn.innerHTML = '<span class="loading loading-spinner loading-xs"></span>';
+            }
+
             try {
                 const { data: { session } } = await db.auth.getSession();
                 if (!session) {
@@ -934,10 +942,17 @@
                 }
 
                 Layout.showNotification(`Приглашение отправлено на ${email}`, 'success');
+                // Заменить кнопку на галочку
+                if (btn) {
+                    btn.innerHTML = '<svg xmlns="http://www.w3.org/2000/svg" class="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" /></svg> Отправлено';
+                    btn.classList.remove('btn-outline', 'btn-secondary');
+                    btn.classList.add('btn-success', 'btn-disabled');
+                }
 
             } catch (err) {
                 console.error('Send invite error:', err);
                 Layout.showNotification('Ошибка отправки приглашения: ' + err.message, 'error');
+                if (btn) { btn.disabled = false; btn.innerHTML = btnOriginal; }
             }
         }
 

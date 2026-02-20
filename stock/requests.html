@@ -187,8 +187,9 @@
             </div>
         </div>
         <div id="printContainerItems" class="print-columns"></div>
-        <div style="margin-top: 1rem; font-size: 12px;">
-            <span data-i18n="total_items_short">Позиций</span>: <span id="printContainerCount"></span>
+        <div style="margin-top: 1rem; display: flex; justify-content: space-between; font-size: 13px;">
+            <span><span data-i18n="total_items_short">Позиций</span>: <span id="printContainerCount"></span></span>
+            <span><span data-i18n="total">Итого</span>: ______________ ₹</span>
         </div>
     </div>
 
@@ -313,20 +314,8 @@
                 </button>
             </div>
 
-            <!-- Экранная версия (таблица) -->
-            <div class="overflow-x-auto no-print">
-                <table class="table table-sm">
-                    <thead class="bg-base-200">
-                        <tr>
-                            <th colspan="2" data-i18n="product">Продукт</th>
-                            <th class="text-right w-48" data-i18n="to_purchase">Закупить</th>
-                            <th class="text-right" data-i18n="est_price">≈ Сумма</th>
-                            <th class="w-10"></th>
-                        </tr>
-                    </thead>
-                    <tbody id="viewRequestItems"></tbody>
-                </table>
-            </div>
+            <!-- Экранная версия (две колонки) -->
+            <div id="viewRequestItems" class="no-print view-columns"></div>
 
             
             <div class="mt-4 flex flex-wrap justify-between items-center gap-4 border-t pt-4">
@@ -386,7 +375,7 @@
     <script src="../js/date-utils.js"></script>
     <script src="../js/layout.js?v=5"></script>
     <script src="../js/eating-utils.js"></script>
-    <script src="../js/pages/stock-requests.js?v=3"></script>
+    <script src="../js/pages/stock-requests.js?v=8"></script>
 
     <style>
         /* Убираем стрелки у числовых полей */
@@ -416,6 +405,7 @@
                 width: 100% !important;
                 padding: 0 !important;
                 margin: 0 !important;
+                font-size: 14px;
             }
             .no-print {
                 display: none !important;
@@ -423,26 +413,27 @@
             .print-columns {
                 column-count: 2;
                 column-gap: 1.5rem;
-                font-size: 11px;
+                font-size: 13px;
             }
             .print-category {
                 break-inside: avoid;
                 margin-bottom: 0.5rem;
             }
             .print-category-title {
-                font-weight: 600;
-                font-size: 12px;
-                padding: 2px 4px;
+                font-weight: 700;
+                font-size: 13px;
+                padding: 3px 6px;
                 margin-bottom: 2px;
-                background-color: #f0f0f0 !important;
+                background-color: #e8e8e8 !important;
                 -webkit-print-color-adjust: exact;
                 print-color-adjust: exact;
             }
             .print-item {
                 display: flex;
-                justify-content: space-between;
-                padding: 1px 4px;
-                border-bottom: 1px dotted #ddd;
+                align-items: baseline;
+                padding: 3px 6px;
+                border-bottom: 1px dotted #ccc;
+                gap: 4px;
             }
             .print-item-name {
                 flex: 1;
@@ -450,7 +441,11 @@
             .print-item-qty {
                 font-weight: 600;
                 white-space: nowrap;
-                margin-left: 8px;
+            }
+            .print-item-blank {
+                width: 50px;
+                border-bottom: 1px solid #aaa;
+                display: inline-block;
             }
         }
 
@@ -472,6 +467,33 @@
         .tabs-boxed .tab.tab-active {
             background-color: var(--current-color) !important;
             color: white !important;
+        }
+
+        /* Модалка просмотра: две колонки на десктопе, одна на мобилке */
+        .view-columns {
+            column-count: 1;
+            column-gap: 1.5rem;
+        }
+        @media (min-width: 768px) {
+            .view-columns {
+                column-count: 2;
+            }
+        }
+        .view-category {
+            break-inside: avoid;
+            margin-bottom: 0.75rem;
+        }
+        .view-item {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            padding: 4px 0;
+            border-bottom: 1px solid oklch(var(--b3));
+            break-inside: avoid;
+        }
+        .view-item-name {
+            flex: 1;
+            min-width: 0;
         }
 
         /* Line clamp for items list */

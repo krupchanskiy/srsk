@@ -105,6 +105,9 @@ function applyEditPermissions() {
     // Удаление доступно только с правом edit_vaishnava (не своего профиля)
     const canDelete = window.hasPermission && window.hasPermission('edit_vaishnava');
     if (deleteBtn) deleteBtn.style.display = canDelete ? '' : 'none';
+
+    // Кнопка приглашения: показать если нет аккаунта и есть права manage_users
+    updateInviteButton();
 }
 
 async function loadDepartments() {
@@ -488,6 +491,149 @@ function openGuestPortal() {
     if (person?.id) {
         // Используем относительный путь от vaishnavas/
         window.open(`../guest-portal/index.html?view=${person.id}`, '_blank');
+    }
+}
+
+// ==================== INVITE ====================
+
+function updateInviteButton() {
+    const dropdown = document.getElementById('inviteDropdown');
+    if (!dropdown) return;
+
+    const canInvite = person && !person.user_id &&
+        window.hasPermission && window.hasPermission('manage_users');
+    dropdown.style.display = canInvite ? '' : 'none';
+
+    if (!canInvite) return;
+
+    const hasEmail = !!person.email;
+    const emailOption = document.getElementById('inviteEmailOption');
+    const linkOption = document.getElementById('inviteLinkOption');
+
+    if (emailOption) {
+        const anchor = emailOption.querySelector('a');
+        if (hasEmail) {
+            anchor.classList.remove('opacity-40', 'pointer-events-none');
+            anchor.removeAttribute('title');
+        } else {
+            anchor.classList.add('opacity-40', 'pointer-events-none');
+            anchor.title = t('email_required_for_invite');
+        }
+    }
+    if (linkOption) {
+        const anchor = linkOption.querySelector('a');
+        if (hasEmail) {
+            anchor.classList.remove('opacity-40', 'pointer-events-none');
+            anchor.removeAttribute('title');
+        } else {
+            anchor.classList.add('opacity-40', 'pointer-events-none');
+            anchor.title = t('email_required_for_invite');
+        }
+    }
+}
+
+function setInviteLoading(loading) {
+    const label = document.querySelector('#inviteDropdown > label');
+    if (!label) return;
+    if (loading) {
+        label._originalHtml = label.innerHTML;
+        label.innerHTML = '<span class="loading loading-spinner loading-sm"></span>';
+        label.classList.add('btn-disabled');
+    } else {
+        label.innerHTML = label._originalHtml || '';
+        label.classList.remove('btn-disabled');
+    }
+    document.activeElement?.blur();
+}
+
+async function sendInviteEmail() {
+    if (!person?.email || !person?.id) return;
+
+    setInviteLoading(true);
+    try {
+        const { data: { session } } = await Layout.db.auth.getSession();
+        if (!session) {
+            Layout.showNotification(t('session_expired'), 'error');
+            return;
+        }
+
+        const response = await fetch(
+            `${window.CONFIG.SUPABASE_URL}/functions/v1/send-invite`,
+            {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${session.access_token}`
+                },
+                body: JSON.stringify({ email: person.email, vaishnavId: person.id, mode: 'email' })
+            }
+        );
+
+        const result = await response.json();
+
+        if (!response.ok) {
+            if (result.alreadyHasAccount) {
+                Layout.showNotification(t('already_has_account'), 'info');
+                await loadPerson(person.id);
+            } else {
+                throw new Error(result.error || 'Ошибка отправки');
+            }
+            return;
+        }
+
+        Layout.showNotification(t('invite_sent') + ' ' + e(person.email), 'success');
+    } catch (err) {
+        console.error('Send invite error:', err);
+        Layout.showNotification(err.message, 'error');
+    } finally {
+        setInviteLoading(false);
+    }
+}
+
+async function copyInviteLink() {
+    if (!person?.email || !person?.id) return;
+
+    setInviteLoading(true);
+    try {
+        const { data: { session } } = await Layout.db.auth.getSession();
+        if (!session) {
+            Layout.showNotification(t('session_expired'), 'error');
+            return;
+        }
+
+        const response = await fetch(
+            `${window.CONFIG.SUPABASE_URL}/functions/v1/send-invite`,
+            {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${session.access_token}`
+                },
+                body: JSON.stringify({ email: person.email, vaishnavId: person.id, mode: 'link' })
+            }
+        );
+
+        const result = await response.json();
+
+        if (!response.ok) {
+            if (result.alreadyHasAccount) {
+                Layout.showNotification(t('already_has_account'), 'info');
+                await loadPerson(person.id);
+            } else {
+                throw new Error(result.error || 'Ошибка');
+            }
+            return;
+        }
+
+        if (result.url) {
+            await navigator.clipboard.writeText(result.url);
+            Layout.showNotification(t('invite_link_copied'), 'success');
+        }
+    } catch (err) {
+        console.error('Copy invite link error:', err);
+        Layout.showNotification(err.message, 'error');
+    } finally {
+        setInviteLoading(false);
     }
 }
 
