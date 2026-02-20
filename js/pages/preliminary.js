@@ -598,8 +598,8 @@ function renderTable() {
             ? !reg.departure_datetime
             : (!departure || (departure?.notes && !departure?.flight_datetime));
 
-        // Получить локальные заметки
-        const localNotes = getLocalNotes(reg.id);
+        // Заметки из БД
+        const localNotes = reg.notes;
 
         // Получить размещение
         const resident = reg.resident;
@@ -670,7 +670,7 @@ function renderTable() {
                         rows="1"
                         placeholder="${t('preliminary_notes_placeholder')}"
                         oninput="autoResizeTextarea(this)"
-                        data-action="save-local-notes" data-id="${reg.id}"
+                        data-action="save-notes" data-id="${reg.id}"
                         ${disabledAttr}>${e(localNotes || '')}</textarea>
                 </td>
                 <td class="text-sm ${buildingId === 'self' ? 'bg-error/20' : buildingId ? 'bg-success/20' : ''}">
@@ -725,30 +725,41 @@ if (guestsTableEl && !guestsTableEl._delegated) {
         switch (target.dataset.action) {
             case 'status-change': updateStatus(id, target.value, target); break;
             case 'meal-type-change': onMealTypeChange(id, target.value, target); break;
-            case 'save-local-notes': saveLocalNotes(id, target.value); break;
+            case 'save-notes': saveLocalNotes(id, target.value); break;
             case 'building-change': onBuildingChange(id, target.value); break;
             case 'room-change': onRoomChange(id, target.value); break;
         }
     });
 }
 
-// ==================== NOTES (LOCAL STORAGE) ====================
+// ==================== NOTES (DATABASE) ====================
 function getLocalNotes(registrationId) {
-    const key = `preliminary_notes_${registrationId}`;
-    try { return localStorage.getItem(key); } catch { return null; }
+    const reg = registrations.find(r => r.id === registrationId);
+    return reg?.notes || null;
 }
 
+const _notesSaveTimers = {};
 function saveLocalNotes(registrationId, value) {
     if (!window.hasPermission || !window.hasPermission('edit_preliminary')) {
         Layout.showNotification(t('preliminary_no_permission'), 'error');
         return;
     }
-    const key = `preliminary_notes_${registrationId}`;
-    if (value && value.trim()) {
-        localStorage.setItem(key, value.trim());
-    } else {
-        localStorage.removeItem(key);
-    }
+    // Обновляем локально сразу
+    const reg = registrations.find(r => r.id === registrationId);
+    if (reg) reg.notes = value?.trim() || null;
+
+    // Debounce сохранения в БД (500мс)
+    clearTimeout(_notesSaveTimers[registrationId]);
+    _notesSaveTimers[registrationId] = setTimeout(async () => {
+        const { error } = await Layout.db
+            .from('retreat_registrations')
+            .update({ notes: value?.trim() || null })
+            .eq('id', registrationId);
+        if (error) {
+            console.error('Ошибка сохранения заметки:', error);
+            Layout.showNotification(t('error_saving'), 'error');
+        }
+    }, 500);
 }
 
 // Автоматическая подстройка высоты textarea
