@@ -933,15 +933,11 @@ function updateFooterLanguage() {
 const submenuMargins = {};
 
 function calcSubmenuMargin(groupId) {
-    // Берём пункт меню для выравнивания submenu (по groupId)
-    // Ищем nav-link с data-submenu или data-menu-id
-    let navLink = $(`.nav-link[data-submenu="${groupId}"]`);
-    if (!navLink) {
-        navLink = $(`.nav-link[data-menu-id="${groupId}"]`);
-    }
+    // Выравниваем подменю по левому краю первого пункта основного меню
+    const firstNavLink = $('#mainNav .nav-link');
     const submenuBar = $('#submenuBar');
     const group = $(`.submenu-group[data-group="${groupId}"]`);
-    if (!navLink || !submenuBar || !group) return 0;
+    if (!firstNavLink || !submenuBar || !group) return 0;
 
     const firstLink = group.querySelector('.submenu-link');
     if (!firstLink) return 0;
@@ -953,13 +949,9 @@ function calcSubmenuMargin(groupId) {
     // Force reflow — нужно чтобы браузер применил стили до измерения позиции
     void firstLink.offsetWidth;
 
-    const navRect = navLink.getBoundingClientRect();
-    const barRect = submenuBar.getBoundingClientRect();
-    const linkRect = firstLink.getBoundingClientRect();
-
-    const menuCenterX = navRect.left + navRect.width / 2 - barRect.left;
-    const linkLeftRelative = linkRect.left - barRect.left;
-    const margin = menuCenterX - linkLeftRelative - linkRect.width / 2;
+    const navLeftX = firstNavLink.getBoundingClientRect().left;
+    const linkLeftX = firstLink.getBoundingClientRect().left;
+    const margin = navLeftX - linkLeftX;
 
     firstLink.style.marginLeft = margin + 'px';
     firstLink.style.transition = '';
