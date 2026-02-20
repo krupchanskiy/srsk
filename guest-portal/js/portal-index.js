@@ -311,7 +311,8 @@ function populateProfile(guest) {
     // Имя и фото в шапке — только если это свой профиль (не публичный просмотр)
     if (!isPublicView) {
         document.getElementById('header-name').textContent = getDisplayName(guest);
-        document.getElementById('mobile-name').textContent = getDisplayName(guest);
+        const mobileNameEl = document.getElementById('mobile-name');
+        if (mobileNameEl) mobileNameEl.textContent = getDisplayName(guest);
 
         if (guest.photoUrl) {
             document.getElementById('header-photo').innerHTML =
@@ -596,6 +597,136 @@ function renderTaxiStatus(transfer) {
     `;
 }
 
+// ==================== SCHEDULE & MENU ====================
+
+// Форматировать время (07:00:00 → 07:00)
+function formatTime(timeStr) {
+    if (!timeStr) return '';
+    return timeStr.slice(0, 5);
+}
+
+// Отобразить расписание на сегодня
+function renderSchedule(scheduleData) {
+    const block = document.getElementById('schedule-block');
+    if (!block) return;
+
+    if (!scheduleData || !scheduleData.items || scheduleData.items.length === 0) {
+        block.classList.add('hidden');
+        return;
+    }
+
+    block.classList.remove('hidden');
+
+    // Тема дня
+    const themeEl = document.getElementById('schedule-theme');
+    if (scheduleData.day.theme) {
+        themeEl.textContent = scheduleData.day.theme;
+        themeEl.classList.remove('hidden');
+    } else {
+        themeEl.classList.add('hidden');
+    }
+
+    // Элементы расписания (timeline)
+    const container = document.getElementById('schedule-items');
+    container.innerHTML = `
+        <div class="absolute left-[7px] top-2 bottom-2 w-0.5 bg-srsk-green/20"></div>
+        ${scheduleData.items.map(item => {
+            const timeEnd = item.time_end ? `–${formatTime(item.time_end)}` : '';
+            return `
+                <div class="relative flex gap-3 pb-4 last:pb-0">
+                    <div class="absolute left-[-17px] top-1.5 w-2.5 h-2.5 rounded-full bg-srsk-green border-2 border-white"></div>
+                    <div class="flex-shrink-0 w-16 text-right">
+                        <div class="text-sm font-medium text-gray-800">${formatTime(item.time_start)}</div>
+                        ${timeEnd ? `<div class="text-xs text-gray-400">${timeEnd}</div>` : ''}
+                    </div>
+                    <div class="flex-1 min-w-0">
+                        <div class="text-sm font-medium text-gray-800">${escapeHtml(item.title)}</div>
+                        ${item.location ? `<div class="text-xs text-gray-400 mt-0.5">${escapeHtml(item.location)}</div>` : ''}
+                        ${item.description ? `<div class="text-xs text-gray-500 mt-1">${escapeHtml(item.description)}</div>` : ''}
+                    </div>
+                </div>
+            `;
+        }).join('')}
+    `;
+}
+
+// Отобразить меню на сегодня
+function renderMenu(meals) {
+    const block = document.getElementById('menu-block');
+    if (!block) return;
+
+    if (!meals || meals.length === 0) {
+        block.classList.add('hidden');
+        return;
+    }
+
+    // Фильтруем приёмы пищи с блюдами
+    const mealsWithDishes = meals.filter(m => m.menu_dishes && m.menu_dishes.length > 0);
+    if (mealsWithDishes.length === 0) {
+        block.classList.add('hidden');
+        return;
+    }
+
+    block.classList.remove('hidden');
+
+    const mealsContainer = document.getElementById('menu-meals');
+
+    const mealTypeNames = {
+        'breakfast': PortalLayout.t('portal_breakfast'),
+        'lunch': PortalLayout.t('portal_lunch'),
+        'dinner': PortalLayout.t('portal_dinner')
+    };
+
+    const mealTypeOrder = { 'breakfast': 0, 'lunch': 1, 'dinner': 2 };
+    const sorted = mealsWithDishes.sort((a, b) => (mealTypeOrder[a.meal_type] ?? 9) - (mealTypeOrder[b.meal_type] ?? 9));
+
+    const lang = localStorage.getItem('srsk_lang') || 'ru';
+    mealsContainer.innerHTML = sorted.map(meal => {
+        const dishes = (meal.menu_dishes || [])
+            .sort((a, b) => (a.sort_order || 0) - (b.sort_order || 0));
+
+        return `
+            <div>
+                <div class="text-sm font-medium text-gray-700 mb-2 flex items-center gap-2">
+                    <svg class="w-4 h-4 text-srsk-orange" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M12 8.25v-1.5m0 1.5c-1.355 0-2.697.056-4.024.166C6.845 8.51 6 9.473 6 10.608v2.513m6-4.871c1.355 0 2.697.056 4.024.166C17.155 8.51 18 9.473 18 10.608v2.513M15 8.25v-1.5m-6 1.5v-1.5m12 9.75l-1.5.75a3.354 3.354 0 01-3 0 3.354 3.354 0 00-3 0 3.354 3.354 0 01-3 0 3.354 3.354 0 00-3 0 3.354 3.354 0 01-3 0L3 16.5m15-3.379a48.474 48.474 0 00-6-.371c-2.032 0-4.034.126-6 .371m12 0c.39.049.777.102 1.163.16 1.07.16 1.837 1.094 1.837 2.175v5.169c0 .621-.504 1.125-1.125 1.125H4.125A1.125 1.125 0 013 20.625v-5.17c0-1.08.768-2.014 1.837-2.174A47.78 47.78 0 016 13.12M16.5 8.25V4.125a2.625 2.625 0 00-5.25 0v.003c0 .067.01.13.027.193a2.616 2.616 0 00-.027.193V8.25" />
+                    </svg>
+                    ${mealTypeNames[meal.meal_type] || meal.meal_type}
+                </div>
+                <div class="space-y-1 pl-6">
+                    ${dishes.map(d => {
+                        const name = d.recipe
+                            ? (d.recipe[`name_${lang}`] || d.recipe.name_ru || d.recipe.name_en || '')
+                            : '';
+                        return name ? `<div class="text-sm text-gray-600 flex items-start gap-2">
+                            <span class="text-srsk-orange mt-1">&#8226;</span>
+                            <span>${escapeHtml(name)}</span>
+                        </div>` : '';
+                    }).join('')}
+                </div>
+            </div>
+        `;
+    }).join('');
+}
+
+// Загрузить расписание и меню на сегодня
+async function loadScheduleAndMenu(retreatId, isCurrentRetreat) {
+    // Расписание загружаем только если ретрит текущий (не предстоящий)
+    if (!isCurrentRetreat) {
+        document.getElementById('schedule-block')?.classList.add('hidden');
+        document.getElementById('menu-block')?.classList.add('hidden');
+        return;
+    }
+
+    const [scheduleData, menuData] = await Promise.all([
+        PortalData.getTodaySchedule(retreatId),
+        PortalData.getTodayMenu()
+    ]);
+
+    renderSchedule(scheduleData);
+    renderMenu(menuData);
+}
+
 // Загрузить активный/предстоящий ретрит
 async function loadActiveRetreat(guestId) {
     try {
@@ -636,22 +767,10 @@ async function loadActiveRetreat(guestId) {
         retreatBlock.classList.remove('hidden');
         noRetreatBlock.classList.add('hidden');
 
-        // Добавляем переход на страницу ретрита по клику
-        retreatBlock.onclick = () => {
-            window.location.href = `/retreat.html?id=${retreat.id}`;
-        };
-
         // Заполняем данные ретрита
-        document.getElementById('retreat-label').textContent = data.isCurrentRetreat ? 'Ваш ретрит' : 'Предстоящий ретрит';
-        document.getElementById('retreat-name').textContent = retreat.name_ru;
+        document.getElementById('retreat-summary-name').textContent = retreat.name_ru || '';
         document.getElementById('retreat-dates').textContent = formatRetreatDates(retreat.start_date, retreat.end_date);
         document.getElementById('retreat-description').textContent = retreat.description_ru || '';
-
-        // Картинка
-        const imageEl = document.getElementById('retreat-image');
-        if (retreat.image_url) {
-            imageEl.innerHTML = `<img src="${retreat.image_url}" alt="" class="w-full h-full object-cover">`;
-        }
 
         // Размещение
         if (data.accommodation) {
@@ -727,6 +846,9 @@ async function loadActiveRetreat(guestId) {
         // Дети
         renderPortalChildren(data.children || []);
 
+        // Расписание и меню на сегодня
+        loadScheduleAndMenu(retreat.id, data.isCurrentRetreat);
+
     } catch (e) {
         console.error('Ошибка загрузки ретрита:', e);
         // Скрываем скелетон даже при ошибке
@@ -746,23 +868,13 @@ function renderPortalChildren(childrenData) {
 
     if (!section || !list) return;
 
-    // Показываем секцию всегда (даже без детей — чтобы можно было добавить)
-    // Но в публичном режиме — только если есть дети
-    if (isPublicView && childrenData.length === 0) {
+    // Скрываем секцию если детей нет
+    if (childrenData.length === 0) {
         section.classList.add('hidden');
         return;
     }
 
     section.classList.remove('hidden');
-
-    if (childrenData.length === 0) {
-        list.innerHTML = `
-            <div class="text-center py-4 text-gray-400 text-sm">
-                Нет привязанных детей
-            </div>
-        `;
-        return;
-    }
 
     list.innerHTML = childrenData.map(child => {
         const name = child.spiritual_name || `${child.first_name || ''} ${child.last_name || ''}`.trim() || '—';
@@ -1051,6 +1163,9 @@ async function init() {
     // Всегда проверяем авторизацию — для отображения в хедере
     const loggedInUser = await PortalAuth.checkGuestAuth();
 
+    // Загружаем переводы (нужно до рендера профиля для бейджей и т.д.)
+    await PortalLayout.init({ activeNav: 'dashboard' });
+
     if (viewId && loggedInUser && viewId === loggedInUser.id) {
         // Свой профиль через ?view= — редирект на обычный режим
         window.location.replace('index.html');
@@ -1062,7 +1177,8 @@ async function init() {
         // Заполняем хедер данными залогиненного пользователя
         if (loggedInUser) {
             document.getElementById('header-name').textContent = getDisplayName(loggedInUser);
-            document.getElementById('mobile-name').textContent = getDisplayName(loggedInUser);
+            const mobileNameEl2 = document.getElementById('mobile-name');
+            if (mobileNameEl2) mobileNameEl2.textContent = getDisplayName(loggedInUser);
             if (loggedInUser.photoUrl) {
                 document.getElementById('header-photo').innerHTML =
                     `<img src="${loggedInUser.photoUrl}" alt="" class="w-full h-full object-cover">`;
@@ -1342,7 +1458,12 @@ function renderPhotoPreview(photos, totalCount, myPhotoIds = []) {
 
     // Update title with count
     if (titleEl) {
-        const text = totalCount === 1 ? '1 фотография' : `${totalCount} фотографий`;
+        const n = totalCount;
+        const mod10 = n % 10, mod100 = n % 100;
+        const form = (mod10 === 1 && mod100 !== 11) ? 'фотография'
+            : (mod10 >= 2 && mod10 <= 4 && (mod100 < 10 || mod100 >= 20)) ? 'фотографии'
+            : 'фотографий';
+        const text = `${n} ${form}`;
         titleEl.textContent = text;
     }
 
@@ -1498,15 +1619,7 @@ async function checkTelegramStatus() {
     const miniDisconnectBtn = document.getElementById('telegram-mini-disconnect-btn');
     const miniStatus = document.getElementById('telegram-mini-status');
 
-    if (miniConnected) {
-        if (connected) {
-            miniConnected.classList.remove('hidden');
-            miniConnected.classList.add('flex');
-        } else {
-            miniConnected.classList.add('hidden');
-            miniConnected.classList.remove('flex');
-        }
-    }
+    if (miniConnected) miniConnected.classList.add('hidden');
     if (miniConnectBtn) miniConnectBtn.classList.toggle('hidden', connected);
     if (miniDisconnectBtn) miniDisconnectBtn.classList.toggle('hidden', !connected);
     if (miniStatus) miniStatus.textContent = connected ? 'Уведомления подключены' : 'Уведомления';

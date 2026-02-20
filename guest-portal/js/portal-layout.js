@@ -44,30 +44,46 @@ async function init(options = {}) {
  * Загрузка переводов из БД
  */
 async function loadTranslations() {
-    try {
-        // Пробуем из localStorage кэша
-        const cached = localStorage.getItem('portal_translations');
-        const cacheTime = localStorage.getItem('portal_translations_time');
+    const CACHE_KEY = 'portal_translations_v4';
+    const CACHE_TIME_KEY = 'portal_translations_v4_time';
 
-        // Кэш валиден 1 час
+    try {
+        // Удаляем устаревшие кэши
+        ['portal_translations', 'portal_translations_v2', 'portal_translations_v3'].forEach(k => {
+            localStorage.removeItem(k);
+            localStorage.removeItem(k + '_time');
+        });
+
+        // Пробуем из localStorage кэша
+        const cached = localStorage.getItem(CACHE_KEY);
+        const cacheTime = localStorage.getItem(CACHE_TIME_KEY);
+
         if (cached && cacheTime && (Date.now() - parseInt(cacheTime)) < 3600000) {
             translations = JSON.parse(cached);
             return;
         }
 
-        // Загружаем из БД
-        const { data, error } = await db
-            .from('translations')
-            .select('key, ru, en, hi');
+        // Загружаем из БД с пагинацией (Supabase отдаёт макс. 1000 строк за раз)
+        const supabase = db || window.portalSupabase;
+        if (!supabase) return;
 
-        if (error) {
-            console.error('Ошибка загрузки переводов:', error);
-            return;
+        let allData = [];
+        const pageSize = 1000;
+        let from = 0;
+        while (true) {
+            const { data, error } = await supabase
+                .from('translations')
+                .select('key, ru, en, hi')
+                .range(from, from + pageSize - 1);
+            if (error) break;
+            allData = allData.concat(data);
+            if (data.length < pageSize) break;
+            from += pageSize;
         }
 
         // Преобразуем в объект
         translations = {};
-        for (const row of data) {
+        for (const row of allData) {
             translations[row.key] = {
                 ru: row.ru,
                 en: row.en,
@@ -75,12 +91,17 @@ async function loadTranslations() {
             };
         }
 
-        // Сохраняем в кэш
-        localStorage.setItem('portal_translations', JSON.stringify(translations));
-        localStorage.setItem('portal_translations_time', Date.now().toString());
+        // Сохраняем в кэш только если загрузили данные
+        if (allData.length > 0) {
+            localStorage.setItem(CACHE_KEY, JSON.stringify(translations));
+            localStorage.setItem(CACHE_TIME_KEY, Date.now().toString());
+        } else {
+            localStorage.removeItem(CACHE_KEY);
+            localStorage.removeItem(CACHE_TIME_KEY);
+        }
 
     } catch (error) {
-        console.error('Ошибка загрузки переводов:', error);
+        console.error('[Translations] Исключение:', error);
     }
 }
 

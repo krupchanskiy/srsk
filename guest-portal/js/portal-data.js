@@ -758,6 +758,105 @@ async function deleteChild(childId, parentId) {
     }
 }
 
+// ==================== SCHEDULE & MENU ====================
+
+/**
+ * Загрузить расписание на сегодня для ретрита
+ * @param {string} retreatId
+ * @returns {Promise<{day: object, items: array}|null>}
+ */
+async function getTodaySchedule(retreatId) {
+    try {
+        const today = DateUtils.toISO(new Date());
+
+        const { data: day, error: dayError } = await db
+            .from('retreat_schedule_days')
+            .select('id, date, theme, description')
+            .eq('retreat_id', retreatId)
+            .eq('date', today)
+            .maybeSingle();
+
+        if (dayError) {
+            console.error('Ошибка загрузки расписания дня:', dayError);
+            return null;
+        }
+
+        if (!day) return null;
+
+        const { data: items, error: itemsError } = await db
+            .from('retreat_schedule_items')
+            .select('id, time_start, time_end, title, location, description, sort_order')
+            .eq('day_id', day.id)
+            .order('time_start')
+            .order('sort_order');
+
+        if (itemsError) {
+            console.error('Ошибка загрузки событий расписания:', itemsError);
+            return { day, items: [] };
+        }
+
+        return { day, items: items || [] };
+
+    } catch (error) {
+        console.error('Ошибка загрузки расписания:', error);
+        return null;
+    }
+}
+
+/**
+ * Загрузить меню на сегодня (основная кухня)
+ * @returns {Promise<array>} массив приёмов пищи с блюдами
+ */
+async function getTodayMenu() {
+    try {
+        const today = DateUtils.toISO(new Date());
+
+        // Сначала находим location_id основной кухни
+        const { data: location, error: locError } = await db
+            .from('locations')
+            .select('id')
+            .eq('slug', 'main')
+            .maybeSingle();
+
+        if (locError || !location) {
+            console.error('Ошибка загрузки локации кухни:', locError);
+            return [];
+        }
+
+        // Загружаем приёмы пищи на сегодня
+        const { data: meals, error: mealsError } = await db
+            .from('menu_meals')
+            .select(`
+                id,
+                meal_type,
+                menu_dishes (
+                    id,
+                    sort_order,
+                    recipe:recipes (
+                        id,
+                        name_ru,
+                        name_en,
+                        name_hi
+                    )
+                )
+            `)
+            .eq('location_id', location.id)
+            .eq('date', today)
+            .order('meal_type');
+
+        if (mealsError) {
+            console.error('Ошибка загрузки меню:', mealsError);
+            return [];
+        }
+
+        return meals || [];
+
+    } catch (error) {
+        console.error('Ошибка загрузки меню:', error);
+        return [];
+    }
+}
+
 // ==================== ADMIN: MATERIALS CRUD ====================
 
 /**
@@ -996,6 +1095,9 @@ window.PortalData = {
     createChild,
     updateChild,
     deleteChild,
+    // Schedule & Menu
+    getTodaySchedule,
+    getTodayMenu,
     // Admin: Materials
     getAllMaterials,
     getMaterialById,

@@ -299,6 +299,20 @@
                     <input type="hidden" name="image_url" />
                 </div>
 
+                <!-- Расписание (только при редактировании) -->
+                <div id="scheduleSection" class="hidden">
+                    <div class="divider text-sm opacity-50" data-i18n="schedule">Расписание</div>
+                    <a id="scheduleLink" href="#" class="btn btn-outline btn-sm gap-1">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                        </svg>
+                        <span data-i18n="schedule_manage">Управление расписанием</span>
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13.5 4.5L21 12m0 0l-7.5 7.5M21 12H3" />
+                        </svg>
+                    </a>
+                </div>
+
                 <!-- Actions -->
                 <div class="modal-action">
                     <button type="button" class="btn btn-ghost" onclick="closeModal()" data-i18n="cancel">Отмена</button>
@@ -660,6 +674,8 @@
             form.reset();
             resetImagePreview();
 
+            const scheduleSection = document.getElementById('scheduleSection');
+
             if (id) {
                 const retreat = retreats.find(r => r.id === id);
                 if (retreat) {
@@ -692,6 +708,10 @@
                         showImagePreview(retreat.image_url);
                         form.image_url.value = retreat.image_url;
                     }
+
+                    // Schedule link
+                    scheduleSection.classList.remove('hidden');
+                    document.getElementById('scheduleLink').href = `retreat-schedule.html?id=${retreat.id}`;
                 }
             } else {
                 title.textContent = t('add_retreat');
@@ -699,6 +719,7 @@
                 renderColorPicker(COLORS[Math.floor(Math.random() * COLORS.length)]);
                 deleteSection.classList.add('hidden');
                 publicLinkSection.classList.add('hidden');
+                scheduleSection.classList.add('hidden');
             }
 
             Layout.setupAutoTranslate('#retreatForm', ['name', 'description']);

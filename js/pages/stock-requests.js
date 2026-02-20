@@ -163,6 +163,7 @@ async function loadBuyers() {
 }
 
 async function loadStock() {
+    if (!locationId) return;
     const { data } = await Layout.db
         .from('stock')
         .select('*')
@@ -844,6 +845,11 @@ async function autoArchiveOldRequests() {
 
 // ==================== SAVED REQUESTS ====================
 async function loadSavedRequests() {
+    if (!locationId) {
+        await loadLocationId();
+        if (!locationId) return;
+    }
+
     const { data, error } = await Layout.db
         .from('purchase_requests')
         .select('*, items:purchase_request_items(*, products(*, product_categories(*)))')
@@ -1182,7 +1188,7 @@ function viewSavedRequest(id) {
 }
 
 function renderViewedRequest() {
-    const tbody = Layout.$('#viewRequestItems');
+    const container = Layout.$('#viewRequestItems');
 
     let totalSum = 0;
     let hasAllPrices = true;
@@ -1206,14 +1212,18 @@ function renderViewedRequest() {
     let html = '';
     sortedGroups.forEach(group => {
         const cat = group.cat;
+        html += `<div class="view-category">`;
         // Заголовок категории
-        html += `<tr class="print-category-header"><td colspan="4" class="font-semibold" style="background-color: ${cat?.color || '#999'}15;">${cat?.emoji || ''} ${Layout.getName(cat) || tr('uncategorized', 'Без категории')}</td></tr>`;
+        html += `<div class="py-1 mb-1">
+            <span class="inline-flex items-center gap-1 px-3 py-1 rounded-full text-sm font-semibold text-white" style="background-color: ${cat?.color || '#999'}">
+                ${cat?.emoji || ''} ${Layout.getName(cat) || tr('uncategorized', 'Без категории')}
+            </span>
+        </div>`;
 
         group.items.forEach(item => {
             const index = item.originalIndex;
             const product = item.product;
             const unit = localizeUnit(item.unit);
-            const estSum = item.est_sum !== null ? '₹' + Math.round(item.est_sum).toLocaleString() : '—';
 
             if (item.est_sum !== null) {
                 totalSum += item.est_sum;
@@ -1221,44 +1231,35 @@ function renderViewedRequest() {
                 hasAllPrices = false;
             }
 
-            const translit = product?.translit || Layout.transliterateHindi(product?.name_hi);
-
             html += `
-                <tr>
-                    <td colspan="2">
+                <div class="view-item">
+                    <div class="view-item-name">
                         <div class="font-medium">${Layout.getName(product)}</div>
-                        ${translit ? `<div class="text-xs opacity-50 italic">${translit}</div>` : ''}
-                    </td>
-                    <td class="text-right">
-                        <div class="join no-print">
-                            <input type="number"
-                                class="input input-bordered input-sm join-item w-20 text-right font-bold"
-                                style="color: var(--current-color)"
-                                value="${formatQty(item.quantity, item.unit)}"
-                                min="0"
-                                step="1"
-                                data-action="update-viewed-item-qty" data-index="${index}"
-                            />
-                            <span class="btn btn-sm join-item no-animation pointer-events-none bg-base-200">${unit}</span>
-                        </div>
-                        <span class="hidden print:inline font-bold" style="color: var(--current-color)">${formatQty(item.quantity, item.unit)} ${unit}</span>
-                    </td>
-                    <td class="text-right opacity-70 no-print">${estSum}</td>
-                    <td class="no-print">
-                        <button class="btn btn-ghost btn-sm btn-square text-error/60 hover:text-error hover:bg-error/10" data-action="remove-viewed-item" data-index="${index}">
-                            <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
-                            </svg>
-                        </button>
-                    </td>
-                </tr>
+                    </div>
+                    <div class="join flex-shrink-0">
+                        <input type="number"
+                            class="input input-bordered input-sm join-item w-20 text-right font-bold"
+                            style="color: var(--current-color)"
+                            value="${formatQty(item.quantity, item.unit)}"
+                            min="0" step="1"
+                            data-action="update-viewed-item-qty" data-index="${index}"
+                        />
+                        <span class="btn btn-sm join-item no-animation pointer-events-none bg-base-200">${unit}</span>
+                    </div>
+                    <button class="btn btn-ghost btn-sm btn-square text-error/60 hover:text-error flex-shrink-0" data-action="remove-viewed-item" data-index="${index}">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+                        </svg>
+                    </button>
+                </div>
             `;
         });
+        html += `</div>`;
     });
 
-    tbody.innerHTML = html;
+    container.innerHTML = html;
 
-    // Печатная версия (две колонки) - в отдельном контейнере
+    // Печатная версия (две колонки с полями для заполнения)
     let printHtml = '';
     sortedGroups.forEach(group => {
         const cat = group.cat;
@@ -1270,6 +1271,8 @@ function renderViewedRequest() {
             printHtml += `<div class="print-item">
                 <span class="print-item-name">${Layout.getName(product)}</span>
                 <span class="print-item-qty">${formatQty(item.quantity, item.unit)} ${unit}</span>
+                <span class="print-item-blank"></span>
+                <span class="print-item-blank"></span>
             </div>`;
         });
         printHtml += `</div>`;
