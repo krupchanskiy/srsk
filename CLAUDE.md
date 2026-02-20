@@ -158,6 +158,18 @@ Layout.t('save')      // "Сохранить" (i18n)
 
 Цвет модуля задаётся CSS-переменной `--current-color` через `color-init.js`.
 
+### Guest Portal (`guest-portal/`)
+
+Отдельное приложение для гостей ашрама — **не** использует `Layout`, `auth-check.js` и другие глобальные объекты основного приложения. Своя инфраструктура:
+
+- `portal-layout.js` — вместо `Layout` (свой `PortalLayout.t()`, `PortalLayout.showNotification()`)
+- `portal-auth.js` — авторизация гостей (`PortalAuth.logout()`)
+- `portal-data.js` — загрузка данных (ретриты, меню, трансферы, фото)
+- `portal-index.js` — основная страница дашборда (`guest-portal/index.html`)
+- Кэш JS: `<script src="js/portal-index.js?v=N">` — **обновлять `?v=N`** при изменениях
+- Сворачиваемые блоки — через нативный `<details>`/`<summary>`, CSS: `details:not([open]) .details-chevron { transform: rotate(-90deg); }`
+- Стиль заголовков блоков: `font-size: 18px; font-weight: 700; text-transform: uppercase; letter-spacing: 1.5px;`
+
 ---
 
 ## Ключевые правила
@@ -323,7 +335,7 @@ crm_deals: lead → contacted → invoice_sent → prepaid → tickets →
 
 ## Миграции
 
-SQL-миграции в `supabase/` нумеруются `001_` — `109_`. Новые миграции через MCP:
+SQL-миграции в `supabase/` нумеруются `001_` — `128_`. Новые миграции через MCP:
 
 ```javascript
 mcp__supabase__apply_migration({ project_id: 'llttmftapmwebidgevmg', name: '110_description', query: 'SQL...' })

@@ -109,18 +109,12 @@
         if (isGuestOnly) {
             const path = window.location.pathname;
 
-            // Гость без доп. прав — только свой профиль и гостевой портал
+            // Гость без доп. прав — только гостевой портал
             if (path.startsWith('/guest-portal/')) {
                 // Гостевой портал — разрешаем
-            } else if (path.endsWith('/vaishnavas/person.html')) {
-                const urlParams = new URLSearchParams(window.location.search);
-                const personId = urlParams.get('id');
-                if (!personId || personId !== vaishnava.id) {
-                    window.location.href = `/vaishnavas/person.html?id=${vaishnava.id}`;
-                    return;
-                }
             } else {
-                window.location.href = `/vaishnavas/person.html?id=${vaishnava.id}`;
+                // Любая страница основного приложения — редирект в гостевой портал
+                window.location.href = '/guest-portal/';
                 return;
             }
         }
