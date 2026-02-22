@@ -272,8 +272,8 @@
                 45deg,
                 var(--bar-color),
                 var(--bar-color) 4px,
-                rgba(255,255,255,0.5) 4px,
-                rgba(255,255,255,0.5) 8px
+                color-mix(in srgb, var(--bar-color) 35%, white) 4px,
+                color-mix(in srgb, var(--bar-color) 35%, white) 8px
             );
             border-style: dashed;
         }
@@ -352,8 +352,8 @@
                 45deg,
                 var(--bar-color),
                 var(--bar-color) 4px,
-                rgba(255,255,255,0.5) 4px,
-                rgba(255,255,255,0.5) 8px
+                color-mix(in srgb, var(--bar-color) 35%, white) 4px,
+                color-mix(in srgb, var(--bar-color) 35%, white) 8px
             );
             border-style: dashed;
         }
@@ -380,6 +380,14 @@
         /* Сегодня */
         .today {
             background: #dbeafe !important;
+        }
+
+        /* Экадаши */
+        .ekadashi {
+            background: #fff7ed !important;
+        }
+        .timeline-table thead th.ekadashi {
+            background: #fed7aa !important;
         }
 
         /* Подсветка поиска */
@@ -936,7 +944,7 @@
         if (btn) { btn.classList.toggle('btn-active', isFS); btn.title = isFS ? 'Обычный вид' : 'На весь экран'; }
     }
     </script>
-    <script src="../js/pages/timeline.js?v=4"></script>
+    <script src="../js/pages/timeline.js?v=6"></script>
 
 </body>
 </html>

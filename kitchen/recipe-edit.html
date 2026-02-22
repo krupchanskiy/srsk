@@ -184,9 +184,11 @@
                                 </label>
                                 <label class="input input-bordered flex items-center gap-2 w-full">
                                     <input type="number" name="output_amount" min="0.1" step="0.1" class="grow w-full" required />
-                                    <span class="opacity-50" data-i18n="unit_kg">кг</span>
+                                    <select name="output_unit" onchange="onOutputUnitChange()" class="select select-ghost select-xs bg-transparent border-0 focus:outline-none opacity-50 px-0 min-h-0 h-auto w-auto">
+                                        <option value="kg">кг</option>
+                                        <option value="pcs">шт</option>
+                                    </select>
                                 </label>
-                                <input type="hidden" name="output_unit" value="kg" />
                             </div>
                             <div>
                                 <label class="label">
@@ -194,7 +196,7 @@
                                 </label>
                                 <label class="input input-bordered flex items-center gap-2 w-full">
                                     <input type="number" name="portion_amount" min="1" class="grow w-full" />
-                                    <span class="opacity-50" data-i18n="unit_g">г</span>
+                                    <span id="portionUnitLabel" class="opacity-50">г</span>
                                 </label>
                                 <input type="hidden" name="portion_unit" value="g" />
                             </div>
@@ -525,6 +527,29 @@
             document.getElementById('translitInput').value = transliterate(hi);
         }
 
+        // ==================== OUTPUT UNIT TOGGLE ====================
+        function onOutputUnitChange() {
+            const unit = form().output_unit.value;
+            const outputInput = form().output_amount;
+            const portionInput = form().portion_amount;
+
+            if (unit === 'pcs') {
+                outputInput.min = '1';
+                outputInput.step = '1';
+                form().portion_unit.value = 'pcs';
+                document.getElementById('portionUnitLabel').textContent = getUnitShort('pcs');
+                portionInput.min = '1';
+                portionInput.step = '1';
+            } else {
+                outputInput.min = '0.1';
+                outputInput.step = '0.1';
+                form().portion_unit.value = 'g';
+                document.getElementById('portionUnitLabel').textContent = getUnitShort('g');
+                portionInput.min = '1';
+                portionInput.step = '1';
+            }
+        }
+
         // ==================== DATA LOADING ====================
         async function loadLocationId() {
             const { data } = await Layout.db
@@ -644,6 +669,7 @@
             form().output_unit.value = recipe.output_unit || 'kg';
             form().portion_amount.value = recipe.portion_amount || '';
             form().portion_unit.value = recipe.portion_unit || 'g';
+            onOutputUnitChange();
             form().description_ru.value = recipe.description_ru || '';
             form().description_en.value = recipe.description_en || '';
             form().description_hi.value = recipe.description_hi || '';

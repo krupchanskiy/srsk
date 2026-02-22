@@ -27,6 +27,9 @@ let guestsMap = new Map();
 // Хранилище уборок для кликов
 let cleaningsMap = new Map();
 
+// Даты Экадаши (загружаются из holidays)
+let ekadashiDays = new Set();
+
 // Флаг права на редактирование таймлайна
 const canEditTimeline = () => window.hasPermission?.('edit_timeline') ?? false;
 
@@ -54,7 +57,7 @@ async function loadTimelineData() {
     const endDateStr = formatDateYMD(endDate);
 
     // Загружаем параллельно
-    const [buildingsData, roomsRes, residentsRes, retreatsRes, cleaningsRes] = await Promise.all([
+    const [buildingsData, roomsRes, residentsRes, retreatsRes, cleaningsRes, holidaysRes] = await Promise.all([
         Cache.getOrLoad('buildings', async () => {
             const { data, error } = await Layout.db.from('buildings')
                 .select('*, building_types(id, slug, color, name_ru, name_en, name_hi)')
@@ -74,7 +77,7 @@ async function loadTimelineData() {
                 resident_categories(id, name_ru, name_en, name_hi, color),
                 vaishnavas(id, first_name, last_name, spiritual_name),
                 bookings(id, name, contact_name)`)
-            .in('status', ['confirmed', 'checked_out'])
+            .in('status', ['confirmed', 'checked_out', 'booked'])
             .lte('check_in', endDateStr)
             .or(`check_out.is.null,check_out.gte.${startDateStr}`),
         Layout.db.from('retreats')
@@ -85,19 +88,30 @@ async function loadTimelineData() {
         Layout.db.from('room_cleanings')
             .select('id, room_id, start_date, end_date, type, completed, completed_at')
             .lte('start_date', endDateStr)
-            .gte('end_date', startDateStr)
+            .gte('end_date', startDateStr),
+        Layout.db.from('holidays')
+            .select('date')
+            .eq('type', 'ekadashi')
+            .gte('date', startDateStr)
+            .lte('date', endDateStr)
     ]);
 
     if (roomsRes.error) console.error('Error loading rooms:', roomsRes.error);
     if (residentsRes.error) console.error('Error loading residents:', residentsRes.error);
     if (retreatsRes.error) console.error('Error loading retreats:', retreatsRes.error);
     if (cleaningsRes.error) console.error('Error loading cleanings:', cleaningsRes.error);
+    if (holidaysRes.error) console.error('Error loading holidays:', holidaysRes.error);
 
     let buildings = buildingsData || [];
     const rooms = roomsRes.data || [];
     const residents = residentsRes.data || [];
     const retreats = retreatsRes.data || [];
     const cleanings = cleaningsRes.data || [];
+
+    // Строим Set dayIndex-ов для Экадаши
+    ekadashiDays = new Set(
+        (holidaysRes.data || []).map(h => dateToDayIndex(h.date))
+    );
 
     // Фильтруем временные здания по датам шахматки
     buildings = buildings.filter(b => {
@@ -218,8 +232,8 @@ async function loadTimelineData() {
                     }
 
                     // Определяем, это бронирование или заселение
-                    // Бронирование = есть booking_id, но нет реального гостя (vaishnava или guest_name)
-                    const isBooking = res.booking_id && !res.vaishnava_id && !res.guest_name;
+                    // Бронирование = есть booking_id без реального гостя, ИЛИ статус 'booked'
+                    const isBooking = (res.booking_id && !res.vaishnava_id && !res.guest_name) || res.status === 'booked';
 
                     // Получаем цвет категории
                     const category = res.resident_categories;
@@ -434,6 +448,11 @@ function isWeekend(dayIndex) {
     const date = getDateForDay(dayIndex);
     const day = date.getDay();
     return day === 0 || day === 6;
+}
+
+// Проверка Экадаши
+function isEkadashi(dayIndex) {
+    return ekadashiDays.has(dayIndex);
 }
 
 // Получить день недели
@@ -1209,23 +1228,36 @@ async function cancelBooking() {
 
     const res = currentResident.rawData;
 
-    // Удаляем резидента
-    const { error: resError } = await Layout.db
-        .from('residents')
-        .delete()
-        .eq('id', currentResident.id);
-
-    if (resError) {
-        alert(Layout.t('error') + ': ' + resError.message);
-        return;
-    }
-
-    // Если это было связано с бронированием, обновляем статус брони
-    if (res.booking_id) {
-        await Layout.db
-            .from('bookings')
+    if (res.status === 'booked') {
+        // Бронирование с привязанным человеком — меняем статус на cancelled
+        const { error } = await Layout.db
+            .from('residents')
             .update({ status: 'cancelled' })
-            .eq('id', res.booking_id);
+            .eq('id', currentResident.id);
+
+        if (error) {
+            alert(Layout.t('error') + ': ' + error.message);
+            return;
+        }
+    } else {
+        // Групповое бронирование без человека — удаляем резидента
+        const { error: resError } = await Layout.db
+            .from('residents')
+            .delete()
+            .eq('id', currentResident.id);
+
+        if (resError) {
+            alert(Layout.t('error') + ': ' + resError.message);
+            return;
+        }
+
+        // Если это было связано с бронированием, обновляем статус брони
+        if (res.booking_id) {
+            await Layout.db
+                .from('bookings')
+                .update({ status: 'cancelled' })
+                .eq('id', res.booking_id);
+        }
     }
 
     document.getElementById('residentModal').close();
@@ -1322,7 +1354,7 @@ async function showMoveScreen() {
         Layout.db
             .from('residents')
             .select('room_id, check_in, check_out')
-            .eq('status', 'confirmed')
+            .in('status', ['confirmed', 'booked'])
             .neq('id', currentResident.id) // исключаем текущего резидента
             .lte('check_in', checkOut)
             .or(`check_out.is.null,check_out.gte.${checkIn}`)
@@ -1579,12 +1611,31 @@ async function convertToCheckin() {
     if (!currentResident) return;
     if (!canEditTimeline()) return;
 
+    const res = currentResident.rawData;
+
+    // Если это бронирование с уже привязанным человеком (status='booked') —
+    // просто меняем статус на confirmed без открытия формы
+    if (res.status === 'booked' && (res.vaishnava_id || res.guest_name)) {
+        const { error } = await Layout.db
+            .from('residents')
+            .update({ status: 'confirmed' })
+            .eq('id', currentResident.id);
+
+        if (error) {
+            alert(Layout.t('error') + ': ' + error.message);
+            return;
+        }
+
+        document.getElementById('residentModal').close();
+        await loadTimelineData();
+        renderTable();
+        return;
+    }
+
     // Закрываем модалку резидента
     document.getElementById('residentModal').close();
 
     // Открываем модалку заселения с предзаполненными данными
-    const res = currentResident.rawData;
-
     modalContext = {
         roomId: res.room_id,
         residentId: currentResident.id,
@@ -1792,7 +1843,8 @@ function renderTable() {
         const date = getDateForDay(day);
         const weekend = isWeekend(day) ? 'weekend' : '';
         const today = day === TODAY_INDEX ? 'today' : '';
-        html += `<th colspan="2" class="day-start ${weekend} ${today}">${date.getDate()}</th>`;
+        const ekadashi = isEkadashi(day) ? 'ekadashi' : '';
+        html += `<th colspan="2" class="day-start ${weekend} ${today} ${ekadashi}">${date.getDate()}</th>`;
     }
     html += '</tr>';
 
@@ -1801,7 +1853,8 @@ function renderTable() {
     for (let day = 0; day < DAYS_TO_SHOW; day++) {
         const weekend = isWeekend(day) ? 'weekend' : '';
         const today = day === TODAY_INDEX ? 'today' : '';
-        html += `<th colspan="2" class="day-start ${weekend} ${today}">${getWeekdayName(day)}</th>`;
+        const ekadashi = isEkadashi(day) ? 'ekadashi' : '';
+        html += `<th colspan="2" class="day-start ${weekend} ${today} ${ekadashi}">${getWeekdayName(day)}</th>`;
     }
     html += '</tr>';
 
@@ -1981,6 +2034,7 @@ function renderTable() {
                     const dayStart = isFirstHalf ? 'day-start' : '';
                     const weekend = isWeekend(dayIndex) ? 'weekend' : '';
                     const today = dayIndex === TODAY_INDEX ? 'today' : '';
+                    const ekadashi = isEkadashi(dayIndex) ? 'ekadashi' : '';
 
                     // Проверка: для временных зданий закрашиваем ячейки вне периода аренды
                     const isOutsideRental = building.isTemporary &&
@@ -2001,7 +2055,7 @@ function renderTable() {
                     const rName = room.name.replace(/'/g, "\\'");
                     const bedName = bed.name.replace(/'/g, "\\'");
 
-                    html += `<td class="half-day clickable ${dayStart} ${weekend} ${today}" data-action="open-action-modal" data-day-index="${dayIndex}" data-room-id="${room.id}" data-building-name="${bName}" data-room-name="${rName}" data-bed-name="${bedName}" data-half-index="${halfIndex}">`;
+                    html += `<td class="half-day clickable ${dayStart} ${weekend} ${today} ${ekadashi}" data-action="open-action-modal" data-day-index="${dayIndex}" data-room-id="${room.id}" data-building-name="${bName}" data-room-name="${rName}" data-bed-name="${bedName}" data-half-index="${halfIndex}">`;
 
                     // Если здесь начинается гость — добавляем плашку
                     // (уборки теперь рендерятся на строке номера, не на строке места)

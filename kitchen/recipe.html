@@ -447,6 +447,19 @@
             Layout.$('#printPortionsInfo').textContent = getPrintPortionsInfo();
         }
 
+        function updateOutputAmount() {
+            // Пересчитываем выход: порции × размер порции
+            const total = portions * portionSize;
+            if (recipe.output_unit === 'pcs' || recipe.portion_unit === 'pcs') {
+                // Для штучных рецептов — просто общее количество штук
+                Layout.$('#outputAmount').textContent = `${Math.round(total)} ${getUnitShort('pcs')}`;
+            } else {
+                const outputUnit = recipe.portion_unit || 'g';
+                const smart = formatSmart(total, outputUnit === 'ml' || outputUnit === 'l' ? 'ml' : 'g');
+                Layout.$('#outputAmount').textContent = `${Layout.formatQuantity(smart.amount, smart.unit)} ${getUnitShort(smart.unit)}`;
+            }
+        }
+
         function calculateAmount(baseAmount) {
             // Base recipe output in grams
             const baseOutputGrams = (recipe.output_amount || 1) * (recipe.output_unit === 'kg' ? 1000 : recipe.output_unit === 'l' ? 1000 : 1);
@@ -547,12 +560,14 @@
             Layout.$('#portionsInput')?.addEventListener('input', e => {
                 portions = parseInt(e.target.value) || 1;
                 renderIngredients();
+                updateOutputAmount();
                 updatePrintPortionsInfo();
             });
 
             Layout.$('#portionSizeInput')?.addEventListener('input', e => {
                 portionSize = parseInt(e.target.value) || 1;
                 renderIngredients();
+                updateOutputAmount();
                 updatePrintPortionsInfo();
             });
 

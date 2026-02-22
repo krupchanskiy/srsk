@@ -208,41 +208,24 @@
         let approvalAction = null;
         let countsLoaded = false;
         let isLoading = false;
-        let volunteerIds = new Set(); // vaishnava_id волонтёров (для фильтрации табов)
-
-        // Загрузить ID волонтёров из residents
-        async function loadVolunteerIds() {
-            const { data } = await db
-                .from('residents')
-                .select('vaishnava_id, resident_categories!inner(name_ru)')
-                .eq('resident_categories.name_ru', 'Волонтёр');
-            volunteerIds = new Set(data?.map(r => r.vaishnava_id).filter(Boolean) || []);
-        }
+        // volunteerIds больше не нужен — волонтёры определяются через user_type = 'volunteer'
 
         // Загрузка только счётчиков (параллельные count-запросы, без лимита 1000)
         async function loadCounts() {
             try {
-                const base = db.from('vaishnavas').select('id', { count: 'exact', head: true }).eq('is_deleted', false);
-                const [allRes, pendingRes, staffRes, guestRes, blockedRes, noAccountRes] = await Promise.all([
+                const [allRes, pendingRes, teamRes, guestRes, blockedRes, noAccountRes] = await Promise.all([
                     db.from('vaishnavas').select('id', { count: 'exact', head: true }).eq('is_deleted', false),
                     db.from('vaishnavas').select('id', { count: 'exact', head: true }).eq('is_deleted', false).eq('approval_status', 'pending'),
-                    db.from('vaishnavas').select('id', { count: 'exact', head: true }).eq('is_deleted', false).eq('user_type', 'staff'),
+                    db.from('vaishnavas').select('id', { count: 'exact', head: true }).eq('is_deleted', false).in('user_type', ['staff', 'volunteer']),
                     db.from('vaishnavas').select('id', { count: 'exact', head: true }).eq('is_deleted', false).eq('user_type', 'guest'),
                     db.from('vaishnavas').select('id', { count: 'exact', head: true }).eq('is_deleted', false).or('approval_status.eq.blocked,is_active.eq.false'),
                     db.from('vaishnavas').select('id', { count: 'exact', head: true }).eq('is_deleted', false).is('user_id', null).not('email', 'is', null)
                 ]);
 
-                // Волонтёры-гости = пересечение volunteerIds с guest user_type
-                const guestVolCount = volunteerIds.size > 0
-                    ? (await db.from('vaishnavas').select('id', { count: 'exact', head: true })
-                        .eq('is_deleted', false).eq('user_type', 'guest')
-                        .in('id', [...volunteerIds])).count || 0
-                    : 0;
-
                 document.getElementById('countAll').textContent = allRes.count || 0;
                 document.getElementById('countPending').textContent = pendingRes.count || 0;
-                document.getElementById('countTeam').textContent = (staffRes.count || 0) + guestVolCount;
-                document.getElementById('countGuest').textContent = (guestRes.count || 0) - guestVolCount;
+                document.getElementById('countTeam').textContent = teamRes.count || 0;
+                document.getElementById('countGuest').textContent = guestRes.count || 0;
                 document.getElementById('countBlocked').textContent = blockedRes.count || 0;
                 document.getElementById('countNoAccount').textContent = noAccountRes.count || 0;
                 countsLoaded = true;
@@ -282,13 +265,7 @@
                 if (filter.tab === 'pending') {
                     query = query.eq('approval_status', 'pending');
                 } else if (filter.tab === 'team') {
-                    // Команда + волонтёры-гости
-                    const volIds = [...volunteerIds];
-                    if (volIds.length > 0) {
-                        query = query.or(`user_type.eq.staff,id.in.(${volIds.join(',')})`);
-                    } else {
-                        query = query.eq('user_type', 'staff');
-                    }
+                    query = query.in('user_type', ['staff', 'volunteer']);
                 } else if (filter.tab === 'guest') {
                     query = query.eq('user_type', 'guest');
                 } else if (filter.tab === 'blocked') {
@@ -355,11 +332,6 @@
                     u.roles = rolesMap[u.user_id] || [];
                     u.category = categoryMap[u.id] || null;
                 });
-
-                // На вкладке «Гости» исключаем волонтёров (они на вкладке «Команда и волонтёры»)
-                if (filter.tab === 'guest') {
-                    users = users.filter(u => !volunteerIds.has(u.id));
-                }
 
                 allUsers = users;
                 renderUsers();
@@ -503,9 +475,13 @@
                 const color = Utils.isValidColor(user.category.color) ? user.category.color : '#6b7280';
                 return `<span class="badge text-white border-0" style="background-color: ${escapeHtml(color)}">${escapeHtml(user.category.name_ru)}</span>`;
             }
-            return `<span class="badge ${user.user_type === 'staff' ? 'badge-primary' : 'badge-secondary'}">
-                ${user.user_type === 'staff' ? 'Команда' : 'Гость'}
-            </span>`;
+            const typeMap = {
+                staff: { cls: 'badge-primary', label: 'Команда' },
+                volunteer: { cls: 'badge-warning', label: 'Волонтёр' },
+                guest: { cls: 'badge-secondary', label: 'Гость' }
+            };
+            const t = typeMap[user.user_type] || typeMap.guest;
+            return `<span class="badge ${t.cls}">${t.label}</span>`;
         }
 
         // Получить badge статуса
@@ -605,7 +581,8 @@
 
             document.getElementById('modalUserName').textContent = user.spiritual_name || user.first_name;
             document.getElementById('modalUserEmail').textContent = user.email;
-            document.getElementById('modalUserType').textContent = user.user_type === 'staff' ? 'Команда' : 'Гость';
+            const typeLabels = { staff: 'Команда', volunteer: 'Волонтёр', guest: 'Гость' };
+            document.getElementById('modalUserType').textContent = typeLabels[user.user_type] || 'Гость';
             document.getElementById('modalIsActive').checked = user.is_active;
             document.getElementById('modalIsSuperuser').checked = user.is_superuser;
 
@@ -1065,8 +1042,7 @@
                 return;
             }
 
-            // Загрузить ID волонтёров, затем счётчики + placeholder
-            await loadVolunteerIds();
+            // Загрузить счётчики + placeholder
             loadCounts();
             showPlaceholder();
         });
