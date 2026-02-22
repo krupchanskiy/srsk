@@ -462,16 +462,13 @@ async function checkEatingCountChanges() {
         const tomorrow = formatDate(new Date(Date.now() + 86400000));
         const datesToCheck = [today, tomorrow];
 
-        // Загружаем данные за today/tomorrow если их нет (вид может быть на другом периоде)
-        if (!eatingCounts[today] && !eatingCounts[tomorrow]) {
-            const saved = { ...eatingCounts };
-            await loadEatingCounts(today, tomorrow);
-            // Восстанавливаем старые данные, добавляя today/tomorrow
-            const todayCounts = eatingCounts[today];
-            const tomorrowCounts = eatingCounts[tomorrow];
-            eatingCounts = saved;
-            if (todayCounts) eatingCounts[today] = todayCounts;
-            if (tomorrowCounts) eatingCounts[tomorrow] = tomorrowCounts;
+        // Загружаем данные за today/tomorrow если хотя бы одной даты нет
+        const missingToday = !eatingCounts[today];
+        const missingTomorrow = !eatingCounts[tomorrow];
+        if (missingToday || missingTomorrow) {
+            const tempCounts = await EatingUtils.loadCounts(today, tomorrow);
+            if (missingToday && tempCounts[today]) eatingCounts[today] = tempCounts[today];
+            if (missingTomorrow && tempCounts[tomorrow]) eatingCounts[tomorrow] = tempCounts[tomorrow];
         }
 
         const savedRaw = localStorage.getItem('menu_eating_counts');
