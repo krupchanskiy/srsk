@@ -167,12 +167,20 @@
                             </table>
                         </div>
 
-                        <button type="button" class="btn btn-sm gap-1 mt-2" style="background-color: var(--current-color); border-color: var(--current-color); color: white;" onclick="openProductModal()">
-                            <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" />
-                            </svg>
-                            <span data-i18n="add_product">Добавить продукт</span>
-                        </button>
+                        <div class="flex flex-wrap gap-2 mt-2">
+                            <button type="button" class="btn btn-sm gap-1" style="background-color: var(--current-color); border-color: var(--current-color); color: white;" onclick="openProductModal()">
+                                <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" />
+                                </svg>
+                                <span data-i18n="add_product">Добавить продукт</span>
+                            </button>
+                            <button type="button" class="btn btn-sm gap-1 btn-ghost" onclick="openMenuDishesModal()">
+                                <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                                </svg>
+                                <span data-i18n="add_from_menu">Из меню</span>
+                            </button>
+                        </div>
                     </div>
 
                     <div class="mb-6">
@@ -344,6 +352,38 @@
         <form method="dialog" class="modal-backdrop"><button>close</button></form>
     </dialog>
 
+    <!-- Menu Dishes Modal -->
+    <dialog id="menuDishesModal" class="modal">
+        <div class="modal-box max-w-2xl relative">
+            <button type="button" class="btn btn-sm btn-circle btn-ghost absolute right-2 top-2" onclick="menuDishesModal.close()">✕</button>
+            <h3 class="font-bold text-lg mb-4" data-i18n="add_from_menu">Добавить из меню</h3>
+
+            <!-- Период -->
+            <div class="flex flex-wrap items-center gap-2 mb-4">
+                <span class="text-sm opacity-60" data-i18n="from">с</span>
+                <input type="date" id="menuDishesFrom" class="input input-bordered input-sm w-36" />
+                <span class="text-sm opacity-60" data-i18n="to">по</span>
+                <input type="date" id="menuDishesTo" class="input input-bordered input-sm w-36" />
+                <button class="btn btn-sm btn-primary" onclick="loadMenuDishes()" data-i18n="load">Загрузить</button>
+            </div>
+
+            <!-- Список дней с блюдами -->
+            <div id="menuDishesList" class="space-y-3 max-h-96 overflow-y-auto">
+                <div class="text-center py-8 opacity-50" data-i18n="select_period_and_load">Выберите период и нажмите «Загрузить»</div>
+            </div>
+
+            <!-- Подвал -->
+            <div class="modal-action">
+                <div class="flex-1 text-sm opacity-60">
+                    <span data-i18n="selected">Выбрано</span>: <span id="menuDishesCount" class="font-bold">0</span> <span data-i18n="dishes_count">блюд</span>
+                </div>
+                <button type="button" class="btn btn-ghost" onclick="menuDishesModal.close()" data-i18n="cancel">Отмена</button>
+                <button type="button" class="btn btn-primary" id="addDishesBtn" onclick="addSelectedDishes()" disabled data-i18n="add_ingredients">Добавить ингредиенты</button>
+            </div>
+        </div>
+        <form method="dialog" class="modal-backdrop"><button>close</button></form>
+    </dialog>
+
     <!-- Alert Modal -->
     <dialog id="alertModal" class="modal">
         <div class="modal-box max-w-sm">
@@ -390,6 +430,9 @@
         let selectedProduct = null;
         let currentProductCategory = 'all';
         let cooks = []; // Список поваров из команды
+        let menuRecipes = [];
+        let menuDishesData = [];
+        let menuDishesEatingCounts = {};
 
         const t = key => Layout.t(key);
 
@@ -869,6 +912,249 @@
         // Callback for product modal
         function onProductAdded(product, quantity) {
             addIssuanceItem(product.id, quantity, product.unit);
+        }
+
+        // ==================== МЕНЮ: ЗАГРУЗКА И МОДАЛКА ====================
+        async function loadMenuRecipes() {
+            const { data, error } = await Layout.db
+                .from('recipes')
+                .select('*, recipe_ingredients(*), category:recipe_categories(*)');
+            if (error) { console.error('Error loading recipes:', error); return; }
+            menuRecipes = data || [];
+        }
+
+        async function loadMenuForPeriod(fromDate, toDate) {
+            const locId = Layout.locations?.find(l => l.slug === Layout.currentLocation)?.id;
+            if (!locId) return [];
+            const { data } = await Layout.db
+                .from('menu_meals')
+                .select('*, dishes:menu_dishes(*, recipe:recipes(*))')
+                .eq('location_id', locId)
+                .gte('date', fromDate)
+                .lte('date', toDate);
+            return data || [];
+        }
+
+        function openMenuDishesModal() {
+            const today = new Date();
+            const weekLater = new Date(today);
+            weekLater.setDate(weekLater.getDate() + 6);
+
+            Layout.$('#menuDishesFrom').value = DateUtils.toISO(today);
+            Layout.$('#menuDishesTo').value = DateUtils.toISO(weekLater);
+
+            menuDishesData = [];
+            menuDishesEatingCounts = {};
+            Layout.$('#menuDishesList').innerHTML = `<div class="text-center py-8"><span class="loading loading-spinner"></span></div>`;
+            Layout.$('#menuDishesCount').textContent = '0';
+            Layout.$('#addDishesBtn').disabled = true;
+
+            menuDishesModal.showModal();
+            loadMenuDishes();
+        }
+
+        async function loadMenuDishes() {
+            const fromDate = Layout.$('#menuDishesFrom').value;
+            const toDate = Layout.$('#menuDishesTo').value;
+            if (!fromDate || !toDate) return;
+
+            Layout.$('#menuDishesList').innerHTML = `<div class="text-center py-8"><span class="loading loading-spinner"></span></div>`;
+
+            const [menuData, eatingCounts] = await Promise.all([
+                loadMenuForPeriod(fromDate, toDate),
+                EatingUtils.loadCounts(fromDate, toDate)
+            ]);
+
+            menuDishesData = menuData;
+            menuDishesEatingCounts = eatingCounts;
+            renderMenuDishes();
+        }
+
+        function renderMenuDishes() {
+            const container = Layout.$('#menuDishesList');
+
+            if (menuDishesData.length === 0) {
+                container.innerHTML = `<div class="text-center py-8 opacity-50">${tr('menu_not_found', 'Меню на выбранный период не найдено')}</div>`;
+                return;
+            }
+
+            // Группировка по дате
+            const byDate = {};
+            menuDishesData.forEach((meal, mealIdx) => {
+                if (!byDate[meal.date]) byDate[meal.date] = [];
+                byDate[meal.date].push({ meal, mealIdx });
+            });
+
+            const mealTypeOrder = { breakfast: 0, lunch: 1, dinner: 2, menu: 3 };
+            const mealTypeLabels = {
+                breakfast: tr('breakfast', 'Завтрак'),
+                lunch: tr('lunch', 'Обед'),
+                dinner: tr('dinner', 'Ужин'),
+                menu: tr('menu_day', 'Меню')
+            };
+
+            const lang = Layout.currentLang || 'ru';
+            let html = '';
+            const sortedDates = Object.keys(byDate).sort();
+
+            sortedDates.forEach(dateStr => {
+                const d = DateUtils.parseDate(dateStr);
+                const dayNum = d.getDate();
+                const dayOfWeek = DateUtils.dayNamesShort[lang]?.[d.getDay()] || DateUtils.dayNamesShort.ru[d.getDay()];
+                const monthShort = DateUtils.monthNamesShort[lang]?.[d.getMonth()] || DateUtils.monthNamesShort.ru[d.getMonth()];
+
+                const meals = byDate[dateStr].sort((a, b) =>
+                    (mealTypeOrder[a.meal.meal_type] || 99) - (mealTypeOrder[b.meal.meal_type] || 99)
+                );
+                const maxPortions = Math.max(...meals.map(m =>
+                    m.meal.portions || EatingUtils.getTotal(menuDishesEatingCounts, dateStr, m.meal.meal_type)
+                ));
+
+                html += `<div class="bg-base-100 rounded-lg p-3 border border-base-300">`;
+                html += `<div class="flex items-center gap-2 mb-2">`;
+                html += `<svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 opacity-40 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>`;
+                html += `<span class="font-medium">${dayNum} ${monthShort}, ${dayOfWeek}</span>`;
+                html += `<span class="text-sm opacity-50">&middot; ${maxPortions} ${tr('portions_short', 'порц.')}</span>`;
+                html += `</div>`;
+
+                meals.forEach(({ meal, mealIdx }) => {
+                    const dishes = meal.dishes || [];
+                    if (dishes.length === 0) return;
+
+                    const portions = meal.portions || EatingUtils.getTotal(menuDishesEatingCounts, dateStr, meal.meal_type);
+
+                    html += `<div class="ml-6 mb-2">`;
+                    html += `<div class="flex items-center gap-1.5 mb-1">`;
+                    html += `<input type="checkbox" class="checkbox checkbox-xs meal-toggle-cb" data-meal-idx="${mealIdx}" data-action="toggle-meal">`;
+                    html += `<span class="text-sm font-medium opacity-60">${mealTypeLabels[meal.meal_type] || meal.meal_type} <span class="font-normal">(${portions})</span></span>`;
+                    html += `</div>`;
+                    html += `<div class="flex flex-wrap gap-1.5 ml-5">`;
+
+                    dishes.forEach((dish, dishIdx) => {
+                        const recipe = menuRecipes.find(r => r.id === dish.recipe_id);
+                        if (!recipe) return;
+
+                        const catColor = recipe.category?.color || '#999';
+                        const recipeName = Layout.getName(recipe);
+
+                        html += `
+                            <label class="flex items-center gap-1 px-2 py-1 rounded-full text-sm cursor-pointer border transition-colors hover:opacity-80"
+                                   style="border-color: ${catColor}40; background-color: ${catColor}10;">
+                                <input type="checkbox" class="checkbox checkbox-xs menu-dish-cb"
+                                       data-meal-idx="${mealIdx}" data-dish-idx="${dishIdx}"
+                                       data-action="toggle-menu-dish">
+                                <span style="color: ${catColor}">${recipeName}</span>
+                            </label>
+                        `;
+                    });
+
+                    html += `</div></div>`;
+                });
+
+                html += `</div>`;
+            });
+
+            container.innerHTML = html;
+            updateMenuDishesCount();
+        }
+
+        function toggleMeal(mealIdx) {
+            const mealCb = document.querySelector(`.meal-toggle-cb[data-meal-idx="${mealIdx}"]`);
+            const dishCbs = document.querySelectorAll(`.menu-dish-cb[data-meal-idx="${mealIdx}"]`);
+            const checked = mealCb.checked;
+            dishCbs.forEach(cb => cb.checked = checked);
+            updateMenuDishesCount();
+        }
+
+        function updateMenuDishesCount() {
+            const checked = document.querySelectorAll('.menu-dish-cb:checked').length;
+            Layout.$('#menuDishesCount').textContent = checked;
+            Layout.$('#addDishesBtn').disabled = checked === 0;
+
+            // Синхронизируем галочки приёмов пищи
+            document.querySelectorAll('.meal-toggle-cb').forEach(mealCb => {
+                const idx = mealCb.dataset.mealIdx;
+                const all = document.querySelectorAll(`.menu-dish-cb[data-meal-idx="${idx}"]`);
+                const allChecked = document.querySelectorAll(`.menu-dish-cb[data-meal-idx="${idx}"]:checked`);
+                mealCb.checked = all.length > 0 && all.length === allChecked.length;
+                mealCb.indeterminate = allChecked.length > 0 && allChecked.length < all.length;
+            });
+        }
+
+        function calculateIngredientsFromMenu(menuData, eatingCounts) {
+            const ingredientTotals = {};
+            menuData.forEach(meal => {
+                const mealPortions = meal.portions || EatingUtils.getTotal(eatingCounts, meal.date, meal.meal_type);
+                (meal.dishes || []).forEach(dish => {
+                    const recipe = menuRecipes.find(r => r.id === dish.recipe_id);
+                    if (!recipe?.recipe_ingredients) return;
+
+                    const baseOutputGrams = toBaseUnit(recipe.output_amount || 1, recipe.output_unit || 'kg');
+                    const targetGrams = mealPortions * (recipe.portion_amount || 150);
+                    const multiplier = targetGrams / baseOutputGrams;
+
+                    recipe.recipe_ingredients.forEach(ing => {
+                        if (!ing.product_id) return;
+                        const qtyGrams = toBaseUnit(ing.amount || 0, ing.unit || 'g') * multiplier;
+                        ingredientTotals[ing.product_id] = (ingredientTotals[ing.product_id] || 0) + qtyGrams;
+                    });
+                });
+            });
+            return ingredientTotals;
+        }
+
+        function addSelectedDishes() {
+            const checkboxes = document.querySelectorAll('.menu-dish-cb:checked');
+            if (checkboxes.length === 0) return;
+
+            // Группируем выбранные блюда по meal
+            const selectedByMeal = {};
+            checkboxes.forEach(cb => {
+                const mealIdx = Number(cb.dataset.mealIdx);
+                const dishIdx = Number(cb.dataset.dishIdx);
+                if (!selectedByMeal[mealIdx]) selectedByMeal[mealIdx] = [];
+                selectedByMeal[mealIdx].push(dishIdx);
+            });
+
+            // Строим виртуальные meal-объекты только с выбранными блюдами
+            const virtualMeals = [];
+            Object.entries(selectedByMeal).forEach(([mealIdx, dishIndices]) => {
+                const meal = menuDishesData[Number(mealIdx)];
+                if (!meal) return;
+                virtualMeals.push({
+                    ...meal,
+                    dishes: dishIndices.map(idx => meal.dishes[idx]).filter(Boolean)
+                });
+            });
+
+            // Расчёт ингредиентов (в базовых единицах — г/мл)
+            const ingredientTotals = calculateIngredientsFromMenu(virtualMeals, menuDishesEatingCounts);
+
+            // Добавляем в список выдачи
+            Object.entries(ingredientTotals).forEach(([productId, amountInBaseUnit]) => {
+                const product = products.find(p => p.id === productId);
+                if (!product) return;
+
+                // Конвертируем в удобные единицы отображения (кг/г, л/мл)
+                const display = toSmartDisplay(amountInBaseUnit, product.unit);
+
+                // Если продукт уже есть — увеличиваем количество (в базовых единицах)
+                const existing = issuanceItemsList.find(i => i.product_id === productId);
+                if (existing) {
+                    // Конвертируем существующее количество в базовые, складываем, обратно
+                    const existingBase = toBaseUnit(existing.quantity, existing.display_unit);
+                    const totalBase = existingBase + amountInBaseUnit;
+                    const newDisplay = toSmartDisplay(totalBase, product.unit);
+                    existing.quantity = newDisplay.amount;
+                    existing.display_unit = newDisplay.unit;
+                } else {
+                    // addIssuanceItem учитывает waste_percent — используем его
+                    addIssuanceItem(productId, display.amount, display.unit);
+                }
+            });
+
+            menuDishesModal.close();
+            renderIssuanceItems();
         }
 
         // ==================== SAVE ISSUANCE ====================
@@ -1479,6 +1765,7 @@
             await loadStock();
             await loadCooks();
             await loadIssuances();
+            await loadMenuRecipes();
 
             renderIssuanceItems();
             renderSavedIssuances();
@@ -1507,6 +1794,14 @@
                 case 'view-issuance': viewIssuance(id); break;
                 case 'remove-viewed-item': removeViewedItem(parseInt(index)); break;
             }
+        });
+
+        // Делегирование change-событий для модалки меню
+        document.addEventListener('change', e => {
+            const el = e.target.closest('[data-action]');
+            if (!el) return;
+            if (el.dataset.action === 'toggle-menu-dish') updateMenuDishesCount();
+            if (el.dataset.action === 'toggle-meal') toggleMeal(el.dataset.mealIdx);
         });
 
         init();
