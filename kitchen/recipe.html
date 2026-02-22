@@ -449,10 +449,15 @@
 
         function updateOutputAmount() {
             // Пересчитываем выход: порции × размер порции
-            const totalGrams = portions * portionSize;
-            const outputUnit = recipe.portion_unit || 'g';
-            const smart = formatSmart(totalGrams, outputUnit === 'ml' || outputUnit === 'l' ? 'ml' : 'g');
-            Layout.$('#outputAmount').textContent = `${Layout.formatQuantity(smart.amount, smart.unit)} ${getUnitShort(smart.unit)}`;
+            const total = portions * portionSize;
+            if (recipe.output_unit === 'pcs' || recipe.portion_unit === 'pcs') {
+                // Для штучных рецептов — просто общее количество штук
+                Layout.$('#outputAmount').textContent = `${Math.round(total)} ${getUnitShort('pcs')}`;
+            } else {
+                const outputUnit = recipe.portion_unit || 'g';
+                const smart = formatSmart(total, outputUnit === 'ml' || outputUnit === 'l' ? 'ml' : 'g');
+                Layout.$('#outputAmount').textContent = `${Layout.formatQuantity(smart.amount, smart.unit)} ${getUnitShort(smart.unit)}`;
+            }
         }
 
         function calculateAmount(baseAmount) {
