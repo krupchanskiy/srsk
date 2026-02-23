@@ -37,7 +37,8 @@ const ENVIRONMENTS = {
     }
 };
 
-const env = isDev ? ENVIRONMENTS.development : ENVIRONMENTS.production;
+// DEV тоже использует prod БД (в dev-БД нет данных)
+const env = ENVIRONMENTS.production;
 
 window.PORTAL_CONFIG = {
     ...env,
