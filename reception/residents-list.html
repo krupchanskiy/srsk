@@ -15,6 +15,11 @@
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Noto+Sans:wght@400;500;600;700&family=Noto+Sans+Devanagari:wght@400;500;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="../css/common.css">
+    <style>
+        .sort-icon { opacity: 0.3; font-size: 0.75rem; transition: opacity 0.2s; }
+        .sort-icon.active { opacity: 1; }
+        th:hover .sort-icon { opacity: 0.6; }
+    </style>
 </head>
 <body class="bg-base-200 min-h-screen flex flex-col">
 
@@ -57,11 +62,36 @@
             <table class="table table-sm w-full" id="residentsTable">
                 <thead>
                     <tr>
-                        <th data-i18n="col_name">Имя</th>
-                        <th data-i18n="col_building">Здание</th>
-                        <th data-i18n="col_room">Комн.</th>
-                        <th data-i18n="col_category">Категория</th>
-                        <th data-i18n="col_meal">Питание</th>
+                        <th class="cursor-pointer hover:bg-base-200 select-none" onclick="toggleSort('name')">
+                            <div class="flex items-center gap-1">
+                                <span data-i18n="col_name">Имя</span>
+                                <span class="sort-icon" data-sort="name">↕</span>
+                            </div>
+                        </th>
+                        <th class="cursor-pointer hover:bg-base-200 select-none" onclick="toggleSort('building')">
+                            <div class="flex items-center gap-1">
+                                <span data-i18n="col_building">Здание</span>
+                                <span class="sort-icon active" data-sort="building">↑</span>
+                            </div>
+                        </th>
+                        <th class="cursor-pointer hover:bg-base-200 select-none" onclick="toggleSort('room')">
+                            <div class="flex items-center gap-1">
+                                <span data-i18n="col_room">Комн.</span>
+                                <span class="sort-icon" data-sort="room">↕</span>
+                            </div>
+                        </th>
+                        <th class="cursor-pointer hover:bg-base-200 select-none" onclick="toggleSort('category')">
+                            <div class="flex items-center gap-1">
+                                <span data-i18n="col_category">Категория</span>
+                                <span class="sort-icon" data-sort="category">↕</span>
+                            </div>
+                        </th>
+                        <th class="cursor-pointer hover:bg-base-200 select-none" onclick="toggleSort('meal')">
+                            <div class="flex items-center gap-1">
+                                <span data-i18n="col_meal">Питание</span>
+                                <span class="sort-icon" data-sort="meal">↕</span>
+                            </div>
+                        </th>
                     </tr>
                 </thead>
                 <tbody id="residentsBody">
@@ -95,11 +125,12 @@
         const t = key => Layout.t(key);
         const e = str => Layout.escapeHtml(str);
 
+        // Сортировка
+        let sortField = 'building';
+        let sortDirection = 'asc';
+
         // Порядок отображения категорий в stat-карточках
         const CATEGORY_ORDER = ['guest', 'volunteer', 'team', 'vip'];
-
-        // Переводы meal_type
-        const MEAL_LABELS = { prasad: 'prasad', self: 'self', child: 'child' };
 
         // ==================== DATA ====================
         async function loadResidents() {
@@ -131,17 +162,7 @@
             }
 
             residents = (data || []);
-
-            // Сортировка: здание → номер комнаты
-            residents.sort((a, b) => {
-                const buildA = a.rooms?.buildings?.name_ru || '';
-                const buildB = b.rooms?.buildings?.name_ru || '';
-                if (buildA !== buildB) return buildA.localeCompare(buildB, 'ru');
-                const numA = parseInt(a.rooms?.number) || 0;
-                const numB = parseInt(b.rooms?.number) || 0;
-                return numA - numB;
-            });
-
+            sortResidents();
             renderStats();
             renderTable();
         }
@@ -197,6 +218,65 @@
             `);
 
             container.innerHTML = cards.join('');
+        }
+
+        // ==================== SORT ====================
+        function toggleSort(field) {
+            if (sortField === field) {
+                sortDirection = sortDirection === 'asc' ? 'desc' : 'asc';
+            } else {
+                sortField = field;
+                sortDirection = 'asc';
+            }
+            updateSortIcons();
+            sortResidents();
+            renderTable(document.getElementById('searchInput').value.trim());
+        }
+
+        function updateSortIcons() {
+            document.querySelectorAll('.sort-icon').forEach(icon => {
+                const field = icon.dataset.sort;
+                if (field === sortField) {
+                    icon.classList.add('active');
+                    icon.textContent = sortDirection === 'asc' ? '↑' : '↓';
+                } else {
+                    icon.classList.remove('active');
+                    icon.textContent = '↕';
+                }
+            });
+        }
+
+        function sortResidents() {
+            const dir = sortDirection === 'asc' ? 1 : -1;
+            residents.sort((a, b) => {
+                let valA, valB;
+                switch (sortField) {
+                    case 'name':
+                        valA = getDisplayName(a).toLowerCase();
+                        valB = getDisplayName(b).toLowerCase();
+                        return dir * valA.localeCompare(valB, 'ru');
+                    case 'building':
+                        valA = a.rooms?.buildings?.name_ru || '';
+                        valB = b.rooms?.buildings?.name_ru || '';
+                        if (valA !== valB) return dir * valA.localeCompare(valB, 'ru');
+                        // Вторичная сортировка по номеру комнаты
+                        return dir * ((parseInt(a.rooms?.number) || 0) - (parseInt(b.rooms?.number) || 0));
+                    case 'room':
+                        valA = parseInt(a.rooms?.number) || 0;
+                        valB = parseInt(b.rooms?.number) || 0;
+                        return dir * (valA - valB);
+                    case 'category':
+                        valA = a.resident_categories?.slug || '';
+                        valB = b.resident_categories?.slug || '';
+                        return dir * valA.localeCompare(valB);
+                    case 'meal':
+                        valA = a.meal_type || 'prasad';
+                        valB = b.meal_type || 'prasad';
+                        return dir * valA.localeCompare(valB);
+                    default:
+                        return 0;
+                }
+            });
         }
 
         // ==================== TABLE ====================
