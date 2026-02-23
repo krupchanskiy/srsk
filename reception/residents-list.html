@@ -104,15 +104,21 @@
                                 <span class="sort-icon" data-sort="meal">↕</span>
                             </div>
                         </th>
+                        <th class="cursor-pointer hover:bg-base-200 select-none" onclick="toggleSort('checkout')">
+                            <div class="flex items-center gap-1">
+                                <span data-i18n="col_checkout">С нами до</span>
+                                <span class="sort-icon" data-sort="checkout">↕</span>
+                            </div>
+                        </th>
                     </tr>
                 </thead>
                 <tbody id="residentsBody">
                     <!-- Скелетоны -->
-                    <tr><td colspan="5"><div class="skeleton h-6 w-full my-1"></div></td></tr>
-                    <tr><td colspan="5"><div class="skeleton h-6 w-full my-1"></div></td></tr>
-                    <tr><td colspan="5"><div class="skeleton h-6 w-full my-1"></div></td></tr>
-                    <tr><td colspan="5"><div class="skeleton h-6 w-full my-1"></div></td></tr>
-                    <tr><td colspan="5"><div class="skeleton h-6 w-full my-1"></div></td></tr>
+                    <tr><td colspan="6"><div class="skeleton h-6 w-full my-1"></div></td></tr>
+                    <tr><td colspan="6"><div class="skeleton h-6 w-full my-1"></div></td></tr>
+                    <tr><td colspan="6"><div class="skeleton h-6 w-full my-1"></div></td></tr>
+                    <tr><td colspan="6"><div class="skeleton h-6 w-full my-1"></div></td></tr>
+                    <tr><td colspan="6"><div class="skeleton h-6 w-full my-1"></div></td></tr>
                 </tbody>
             </table>
         </div>
@@ -314,6 +320,10 @@
                         valA = a.meal_type || 'prasad';
                         valB = b.meal_type || 'prasad';
                         return dir * valA.localeCompare(valB);
+                    case 'checkout':
+                        valA = a.check_out || '';
+                        valB = b.check_out || '';
+                        return dir * valA.localeCompare(valB);
                     default:
                         return 0;
                 }
@@ -333,7 +343,7 @@
                 : residents;
 
             if (filtered.length === 0) {
-                tbody.innerHTML = `<tr><td colspan="5" class="text-center py-6 opacity-50">${t('no_results') || 'Ничего не найдено'}</td></tr>`;
+                tbody.innerHTML = `<tr><td colspan="6" class="text-center py-6 opacity-50">${t('no_results') || 'Ничего не найдено'}</td></tr>`;
                 return;
             }
 
@@ -367,12 +377,18 @@
                     </select>`
                     : `<span>${t('meal_' + meal)}</span>`;
 
+                // Дата выезда
+                const checkoutDate = r.check_out ? DateUtils.parseDate(r.check_out).toLocaleDateString(
+                    Layout.currentLang === 'en' ? 'en-US' : 'ru-RU', { day: 'numeric', month: 'short' }
+                ) : '—';
+
                 return `<tr>
                     <td>${nameCell}</td>
                     <td class="whitespace-nowrap">${e(building)}</td>
                     <td>${e(room)}</td>
                     <td>${catBadge}</td>
                     <td>${mealCell}</td>
+                    <td class="whitespace-nowrap text-sm opacity-70">${checkoutDate}</td>
                 </tr>`;
             }).join('');
         }
