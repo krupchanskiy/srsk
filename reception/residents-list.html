@@ -27,8 +27,20 @@
 
     <main class="container mx-auto px-4 py-6 flex-1">
 
-        <!-- Заголовок -->
-        <h1 class="text-2xl font-bold mb-6" data-i18n="residents_list_title">Проживающие</h1>
+        <!-- Заголовок с навигацией по датам -->
+        <div class="flex items-center gap-3 mb-6">
+            <button class="btn btn-ghost btn-sm btn-square" onclick="changeDate(-1)">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M15 19l-7-7 7-7" />
+                </svg>
+            </button>
+            <h1 class="text-2xl font-bold cursor-pointer hover:opacity-70 transition-opacity" id="pageTitle" onclick="goToday()">Проживающие</h1>
+            <button class="btn btn-ghost btn-sm btn-square" onclick="changeDate(1)">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M9 5l7 7-7 7" />
+                </svg>
+            </button>
+        </div>
 
         <!-- Stat-карточки: Проживает -->
         <div class="mb-2 text-sm font-semibold uppercase tracking-wide opacity-60" data-i18n="residents_living">Проживает</div>
@@ -121,6 +133,7 @@
         // ==================== STATE ====================
         let residents = [];
         let categories = [];
+        let currentDate = new Date();
 
         const t = key => Layout.t(key);
         const e = str => Layout.escapeHtml(str);
@@ -132,9 +145,37 @@
         // Порядок отображения категорий в stat-карточках
         const CATEGORY_ORDER = ['guest', 'volunteer', 'team', 'vip'];
 
+        // ==================== DATE NAVIGATION ====================
+        function formatTitleDate(date) {
+            const locale = Layout.currentLang === 'en' ? 'en-US' : Layout.currentLang === 'hi' ? 'hi-IN' : 'ru-RU';
+            return date.toLocaleDateString(locale, { day: 'numeric', month: 'long', year: 'numeric' });
+        }
+
+        function updateTitle() {
+            const title = document.getElementById('pageTitle');
+            const label = t('residents_list_title');
+            title.textContent = `${label} ${formatTitleDate(currentDate)}`;
+
+            // Подсказка «кликните чтобы вернуться на сегодня» если не сегодня
+            const isToday = DateUtils.toISO(currentDate) === DateUtils.toISO(new Date());
+            title.title = isToday ? '' : (t('go_today') || 'Вернуться на сегодня');
+        }
+
+        function changeDate(delta) {
+            currentDate = new Date(currentDate.getTime() + delta * 86400000);
+            updateTitle();
+            loadResidents();
+        }
+
+        function goToday() {
+            currentDate = new Date();
+            updateTitle();
+            loadResidents();
+        }
+
         // ==================== DATA ====================
         async function loadResidents() {
-            const today = DateUtils.toISO(new Date());
+            const today = DateUtils.toISO(currentDate);
 
             // Загрузка категорий
             const { data: catData } = await Layout.db
@@ -399,16 +440,29 @@
         // ==================== LANGUAGE ====================
         window.onLanguageChange = () => {
             Layout.updateAllTranslations();
+            updateTitle();
             renderStats();
             renderTable(document.getElementById('searchInput').value.trim());
         };
+
+        // ==================== KEYBOARD ====================
+        function initKeyboard() {
+            document.addEventListener('keydown', (ev) => {
+                // Не перехватываем когда фокус в инпуте/select
+                if (ev.target.tagName === 'INPUT' || ev.target.tagName === 'SELECT' || ev.target.tagName === 'TEXTAREA') return;
+                if (ev.key === 'ArrowLeft') { ev.preventDefault(); changeDate(-1); }
+                if (ev.key === 'ArrowRight') { ev.preventDefault(); changeDate(1); }
+            });
+        }
 
         // ==================== INIT ====================
         async function init() {
             await Layout.init({ module: 'housing', menuId: 'reception', itemId: 'residents_list' });
             Layout.showLoader();
+            updateTitle();
             await loadResidents();
             initSearch();
+            initKeyboard();
             Layout.hideLoader();
         }
 
