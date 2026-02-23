@@ -19,6 +19,9 @@
         .sort-icon { opacity: 0.3; font-size: 0.75rem; transition: opacity 0.2s; }
         .sort-icon.active { opacity: 1; }
         th:hover .sort-icon { opacity: 0.6; }
+        .stat-card { cursor: pointer; transition: box-shadow 0.2s, transform 0.1s; }
+        .stat-card:hover { transform: translateY(-1px); }
+        .stat-card.active { box-shadow: 0 0 0 2px oklch(var(--p)); }
     </style>
 </head>
 <body class="bg-base-200 min-h-screen flex flex-col">
@@ -69,8 +72,11 @@
                    data-i18n-placeholder="search_placeholder" placeholder="Поиск по имени..." />
         </div>
 
+        <!-- Мобильные карточки -->
+        <div id="residentsCards" class="space-y-2 md:hidden"></div>
+
         <!-- Таблица -->
-        <div class="bg-base-100 rounded-lg shadow-sm overflow-x-auto">
+        <div class="bg-base-100 rounded-lg shadow-sm overflow-x-auto hidden md:block">
             <table class="table table-sm w-full" id="residentsTable">
                 <thead>
                     <tr>
@@ -78,6 +84,12 @@
                             <div class="flex items-center gap-1">
                                 <span data-i18n="col_name">Имя</span>
                                 <span class="sort-icon" data-sort="name">↕</span>
+                            </div>
+                        </th>
+                        <th class="cursor-pointer hover:bg-base-200 select-none" onclick="toggleSort('checkin')">
+                            <div class="flex items-center gap-1">
+                                <span data-i18n="col_checkin">Заехал</span>
+                                <span class="sort-icon" data-sort="checkin">↕</span>
                             </div>
                         </th>
                         <th class="cursor-pointer hover:bg-base-200 select-none" onclick="toggleSort('building')">
@@ -114,11 +126,11 @@
                 </thead>
                 <tbody id="residentsBody">
                     <!-- Скелетоны -->
-                    <tr><td colspan="6"><div class="skeleton h-6 w-full my-1"></div></td></tr>
-                    <tr><td colspan="6"><div class="skeleton h-6 w-full my-1"></div></td></tr>
-                    <tr><td colspan="6"><div class="skeleton h-6 w-full my-1"></div></td></tr>
-                    <tr><td colspan="6"><div class="skeleton h-6 w-full my-1"></div></td></tr>
-                    <tr><td colspan="6"><div class="skeleton h-6 w-full my-1"></div></td></tr>
+                    <tr><td colspan="7"><div class="skeleton h-6 w-full my-1"></div></td></tr>
+                    <tr><td colspan="7"><div class="skeleton h-6 w-full my-1"></div></td></tr>
+                    <tr><td colspan="7"><div class="skeleton h-6 w-full my-1"></div></td></tr>
+                    <tr><td colspan="7"><div class="skeleton h-6 w-full my-1"></div></td></tr>
+                    <tr><td colspan="7"><div class="skeleton h-6 w-full my-1"></div></td></tr>
                 </tbody>
             </table>
         </div>
@@ -140,6 +152,7 @@
         let residents = [];
         let categories = [];
         let currentDate = new Date();
+        let activeFilter = null; // slug категории или null
 
         const t = key => Layout.t(key);
         const e = str => Layout.escapeHtml(str);
@@ -151,6 +164,10 @@
         // Порядок отображения категорий в stat-карточках
         const CATEGORY_ORDER = ['guest', 'volunteer', 'team', 'vip'];
 
+        // Реальная сегодняшняя дата (для подсветки выезда)
+        const realToday = DateUtils.toISO(new Date());
+        const realTomorrow = DateUtils.toISO(new Date(Date.now() + 86400000));
+
         // ==================== DATE NAVIGATION ====================
         function formatTitleDate(date) {
             const locale = Layout.currentLang === 'en' ? 'en-US' : Layout.currentLang === 'hi' ? 'hi-IN' : 'ru-RU';
@@ -160,7 +177,8 @@
         function updateTitle() {
             const title = document.getElementById('pageTitle');
             const label = t('residents_list_title');
-            title.textContent = `${label} ${formatTitleDate(currentDate)}`;
+            const count = residents.length;
+            title.textContent = `${label} ${formatTitleDate(currentDate)}${count ? ` (${count})` : ''}`;
 
             // Подсказка «кликните чтобы вернуться на сегодня» если не сегодня
             const isToday = DateUtils.toISO(currentDate) === DateUtils.toISO(new Date());
@@ -177,6 +195,30 @@
             currentDate = new Date();
             updateTitle();
             loadResidents();
+        }
+
+        // ==================== FILTER BY CATEGORY ====================
+        function filterByCategory(slug) {
+            if (activeFilter === slug) {
+                activeFilter = null;
+            } else {
+                activeFilter = slug;
+            }
+            updateStatCardStyles();
+            renderTable(document.getElementById('searchInput').value.trim());
+            renderCards(document.getElementById('searchInput').value.trim());
+        }
+
+        function updateStatCardStyles() {
+            document.querySelectorAll('.stat-card[data-slug]').forEach(card => {
+                if (activeFilter && card.dataset.slug !== activeFilter) {
+                    card.classList.remove('active');
+                } else if (activeFilter && card.dataset.slug === activeFilter) {
+                    card.classList.add('active');
+                } else {
+                    card.classList.remove('active');
+                }
+            });
         }
 
         // ==================== DATA ====================
@@ -212,6 +254,8 @@
             sortResidents();
             renderStats();
             renderTable();
+            renderCards();
+            updateTitle();
         }
 
         // ==================== STATS ====================
@@ -248,17 +292,22 @@
                 const name = cat ? Layout.getName(cat) : slug;
                 const color = cat?.color || '#6366f1';
                 const count = bySlug[slug] || 0;
+                const isActive = activeFilter === slug;
                 return `
-                    <div class="bg-base-100 rounded-lg px-3 py-2 border-l-4" style="border-color: ${e(color)}">
+                    <div class="bg-base-100 rounded-lg px-3 py-2 border-l-4 stat-card${isActive ? ' active' : ''}"
+                         style="border-color: ${e(color)}"
+                         data-slug="${e(slug)}"
+                         onclick="filterByCategory('${e(slug)}')">
                         <div class="text-xl font-bold">${count}</div>
                         <div class="text-xs opacity-60">${e(name)}</div>
                     </div>
                 `;
             });
 
-            // Итого
+            // Итого — клик сбрасывает фильтр
             cards.push(`
-                <div class="bg-base-100 rounded-lg px-3 py-2 border-l-4 border-base-300">
+                <div class="bg-base-100 rounded-lg px-3 py-2 border-l-4 border-base-300 stat-card"
+                     onclick="filterByCategory(null); activeFilter = null; updateStatCardStyles(); renderTable(document.getElementById('searchInput').value.trim()); renderCards(document.getElementById('searchInput').value.trim());">
                     <div class="text-xl font-bold">${total}</div>
                     <div class="text-xs opacity-60" data-i18n="residents_total">${t('residents_total')}</div>
                 </div>
@@ -278,6 +327,7 @@
             updateSortIcons();
             sortResidents();
             renderTable(document.getElementById('searchInput').value.trim());
+            renderCards(document.getElementById('searchInput').value.trim());
         }
 
         function updateSortIcons() {
@@ -302,6 +352,10 @@
                         valA = getDisplayName(a).toLowerCase();
                         valB = getDisplayName(b).toLowerCase();
                         return dir * valA.localeCompare(valB, 'ru');
+                    case 'checkin':
+                        valA = a.check_in || '';
+                        valB = b.check_in || '';
+                        return dir * valA.localeCompare(valB);
                     case 'building':
                         valA = a.rooms?.buildings?.name_ru || '';
                         valB = b.rooms?.buildings?.name_ru || '';
@@ -330,20 +384,52 @@
             });
         }
 
+        // ==================== HELPERS ====================
+        function getFilteredResidents(filter = '') {
+            const lowerFilter = filter.toLowerCase();
+            let list = residents;
+
+            // Фильтр по категории
+            if (activeFilter) {
+                list = list.filter(r => {
+                    const slug = r.resident_categories?.slug || 'guest';
+                    const key = CATEGORY_ORDER.includes(slug) ? slug : 'guest';
+                    return key === activeFilter;
+                });
+            }
+
+            // Фильтр по поиску
+            if (filter) {
+                list = list.filter(r => {
+                    const name = getDisplayName(r).toLowerCase();
+                    return name.includes(lowerFilter);
+                });
+            }
+
+            return list;
+        }
+
+        function formatShortDate(dateStr) {
+            if (!dateStr) return '—';
+            return DateUtils.parseDate(dateStr).toLocaleDateString(
+                Layout.currentLang === 'en' ? 'en-US' : 'ru-RU', { day: 'numeric', month: 'short' }
+            );
+        }
+
+        function getCheckoutClasses(checkOut) {
+            if (!checkOut) return '';
+            if (checkOut === realToday) return 'text-error font-semibold';
+            if (checkOut === realTomorrow) return 'text-warning font-semibold';
+            return '';
+        }
+
         // ==================== TABLE ====================
         function renderTable(filter = '') {
             const tbody = document.getElementById('residentsBody');
-            const lowerFilter = filter.toLowerCase();
-
-            const filtered = filter
-                ? residents.filter(r => {
-                    const name = getDisplayName(r).toLowerCase();
-                    return name.includes(lowerFilter);
-                })
-                : residents;
+            const filtered = getFilteredResidents(filter);
 
             if (filtered.length === 0) {
-                tbody.innerHTML = `<tr><td colspan="6" class="text-center py-6 opacity-50">${t('no_results') || 'Ничего не найдено'}</td></tr>`;
+                tbody.innerHTML = `<tr><td colspan="7" class="text-center py-6 opacity-50">${t('no_results') || 'Ничего не найдено'}</td></tr>`;
                 return;
             }
 
@@ -365,6 +451,9 @@
                     ? `<a href="${adjustHref('vaishnavas/person.html?id=' + personId)}" class="link link-hover font-medium">${e(name)}</a>`
                     : `<span class="font-medium">${e(name)}</span>`;
 
+                // Дата заезда
+                const checkinDate = formatShortDate(r.check_in);
+
                 // Категория с цветным бейджем
                 const catBadge = `<span class="badge badge-sm text-white" style="background: ${e(catColor)}">${e(catName)}</span>`;
 
@@ -377,10 +466,9 @@
                     </select>`
                     : `<span>${t('meal_' + meal)}</span>`;
 
-                // Дата выезда
-                const checkoutDate = r.check_out ? DateUtils.parseDate(r.check_out).toLocaleDateString(
-                    Layout.currentLang === 'en' ? 'en-US' : 'ru-RU', { day: 'numeric', month: 'short' }
-                ) : '—';
+                // Дата выезда с подсветкой
+                const checkoutDate = formatShortDate(r.check_out);
+                const checkoutClasses = getCheckoutClasses(r.check_out);
 
                 // Цвет строки: категория с прозрачностью, серый если нет здания
                 const hasRoom = !!r.rooms?.buildings;
@@ -388,12 +476,70 @@
 
                 return `<tr style="background: ${e(rowColor)}15">
                     <td>${nameCell}</td>
+                    <td class="whitespace-nowrap text-sm opacity-70">${checkinDate}</td>
                     <td class="whitespace-nowrap">${e(building)}</td>
                     <td>${e(room)}</td>
                     <td>${catBadge}</td>
                     <td>${mealCell}</td>
-                    <td class="whitespace-nowrap text-sm opacity-70">${checkoutDate}</td>
+                    <td class="whitespace-nowrap text-sm ${checkoutClasses}">${checkoutDate}</td>
                 </tr>`;
+            }).join('');
+        }
+
+        // ==================== CARDS (MOBILE) ====================
+        function renderCards(filter = '') {
+            const container = document.getElementById('residentsCards');
+            const filtered = getFilteredResidents(filter);
+
+            if (filtered.length === 0) {
+                container.innerHTML = `<div class="text-center py-6 opacity-50">${t('no_results') || 'Ничего не найдено'}</div>`;
+                return;
+            }
+
+            const canEditMeal = window.hasPermission && window.hasPermission('view_timeline');
+
+            container.innerHTML = filtered.map(r => {
+                const name = getDisplayName(r);
+                const building = r.rooms?.buildings ? Layout.getName(r.rooms.buildings) : '—';
+                const room = r.rooms?.number || '—';
+                const cat = r.resident_categories;
+                const catName = cat ? Layout.getName(cat) : '—';
+                const catColor = cat?.color || '#6366f1';
+                const meal = r.meal_type || 'prasad';
+                const personId = r.vaishnava_id;
+
+                const nameHtml = personId
+                    ? `<a href="${adjustHref('vaishnavas/person.html?id=' + personId)}" class="link link-hover font-semibold text-base">${e(name)}</a>`
+                    : `<span class="font-semibold text-base">${e(name)}</span>`;
+
+                const catBadge = `<span class="badge badge-sm text-white" style="background: ${e(catColor)}">${e(catName)}</span>`;
+
+                const mealText = canEditMeal
+                    ? `<select class="select select-xs select-bordered" data-resident-id="${r.id}" onchange="updateMealType(this)">
+                        <option value="prasad" ${meal === 'prasad' ? 'selected' : ''}>${t('meal_prasad')}</option>
+                        <option value="self" ${meal === 'self' ? 'selected' : ''}>${t('meal_self')}</option>
+                        <option value="child" ${meal === 'child' ? 'selected' : ''}>${t('meal_child')}</option>
+                    </select>`
+                    : `<span class="text-sm">${t('meal_' + meal)}</span>`;
+
+                const checkinDate = formatShortDate(r.check_in);
+                const checkoutDate = formatShortDate(r.check_out);
+                const checkoutClasses = getCheckoutClasses(r.check_out);
+
+                return `<div class="bg-base-100 rounded-lg p-3 border-l-4" style="border-color: ${e(catColor)}">
+                    <div class="flex items-center justify-between mb-1">
+                        ${nameHtml}
+                        ${catBadge}
+                    </div>
+                    <div class="flex flex-wrap items-center gap-x-4 gap-y-1 text-sm opacity-70">
+                        <span>${e(building)}, ${e(room)}</span>
+                        <span>${mealText}</span>
+                    </div>
+                    <div class="flex gap-4 text-xs opacity-50 mt-1">
+                        <span>${t('col_checkin')}: ${checkinDate}</span>
+                        <span class="${checkoutClasses}">${t('col_checkout')}: ${checkoutDate}</span>
+                    </div>
+                </div>`;
             }).join('');
         }
 
@@ -453,7 +599,9 @@
         function initSearch() {
             const input = document.getElementById('searchInput');
             input.addEventListener('input', Layout.debounce(() => {
-                renderTable(input.value.trim());
+                const val = input.value.trim();
+                renderTable(val);
+                renderCards(val);
             }, 200));
         }
 
@@ -462,7 +610,9 @@
             Layout.updateAllTranslations();
             updateTitle();
             renderStats();
-            renderTable(document.getElementById('searchInput').value.trim());
+            const val = document.getElementById('searchInput').value.trim();
+            renderTable(val);
+            renderCards(val);
         };
 
         // ==================== KEYBOARD ====================
