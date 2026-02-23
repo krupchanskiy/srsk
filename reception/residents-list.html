@@ -382,7 +382,11 @@
                     Layout.currentLang === 'en' ? 'en-US' : 'ru-RU', { day: 'numeric', month: 'short' }
                 ) : '—';
 
-                return `<tr>
+                // Цвет строки: категория с прозрачностью, серый если нет здания
+                const hasRoom = !!r.rooms?.buildings;
+                const rowColor = hasRoom ? catColor : '#9ca3af';
+
+                return `<tr style="background: ${e(rowColor)}15">
                     <td>${nameCell}</td>
                     <td class="whitespace-nowrap">${e(building)}</td>
                     <td>${e(room)}</td>
