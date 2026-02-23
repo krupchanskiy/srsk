@@ -361,11 +361,11 @@
                 // Питание — select или текст
                 const mealCell = canEditMeal
                     ? `<select class="select select-xs select-bordered" data-resident-id="${r.id}" onchange="updateMealType(this)">
-                        <option value="prasad" ${meal === 'prasad' ? 'selected' : ''}>prasad</option>
-                        <option value="self" ${meal === 'self' ? 'selected' : ''}>self</option>
-                        <option value="child" ${meal === 'child' ? 'selected' : ''}>child</option>
+                        <option value="prasad" ${meal === 'prasad' ? 'selected' : ''}>${t('meal_prasad')}</option>
+                        <option value="self" ${meal === 'self' ? 'selected' : ''}>${t('meal_self')}</option>
+                        <option value="child" ${meal === 'child' ? 'selected' : ''}>${t('meal_child')}</option>
                     </select>`
-                    : `<span>${e(meal)}</span>`;
+                    : `<span>${t('meal_' + meal)}</span>`;
 
                 return `<tr>
                     <td>${nameCell}</td>
