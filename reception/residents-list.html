@@ -1,0 +1,338 @@
+<!DOCTYPE html>
+<html lang="ru" data-theme="light">
+<head>
+    <meta charset="UTF-8">
+    <script src="../js/color-init.js"></script>
+
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title data-i18n="residents_list_page_title">Проживающие — ШРСК</title>
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg">
+    <link href="https://cdn.jsdelivr.net/npm/daisyui@4.12.14/dist/full.min.css" rel="stylesheet" />
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script>tailwind.config = { theme: { extend: { screens: { 'desktop': '1200px' } } } }</script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans:wght@400;500;600;700&family=Noto+Sans+Devanagari:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="../css/common.css">
+</head>
+<body class="bg-base-200 min-h-screen flex flex-col">
+
+    <div id="header-placeholder"></div>
+
+    <main class="container mx-auto px-4 py-6 flex-1">
+
+        <!-- Заголовок -->
+        <h1 class="text-2xl font-bold mb-6" data-i18n="residents_list_title">Проживающие</h1>
+
+        <!-- Stat-карточки: Проживает -->
+        <div class="mb-2 text-sm font-semibold uppercase tracking-wide opacity-60" data-i18n="residents_living">Проживает</div>
+        <div class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-3 mb-6" id="statsLiving">
+            <!-- Скелетоны -->
+            <div class="bg-base-100 rounded-lg p-4"><div class="skeleton h-8 w-12 mb-1"></div><div class="skeleton h-4 w-20"></div></div>
+            <div class="bg-base-100 rounded-lg p-4"><div class="skeleton h-8 w-12 mb-1"></div><div class="skeleton h-4 w-20"></div></div>
+            <div class="bg-base-100 rounded-lg p-4"><div class="skeleton h-8 w-12 mb-1"></div><div class="skeleton h-4 w-20"></div></div>
+            <div class="bg-base-100 rounded-lg p-4"><div class="skeleton h-8 w-12 mb-1"></div><div class="skeleton h-4 w-20"></div></div>
+            <div class="bg-base-100 rounded-lg p-4"><div class="skeleton h-8 w-12 mb-1"></div><div class="skeleton h-4 w-20"></div></div>
+        </div>
+
+        <!-- Stat-карточки: Питается -->
+        <div class="mb-2 text-sm font-semibold uppercase tracking-wide opacity-60" data-i18n="residents_eating">Питается</div>
+        <div class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-3 mb-6" id="statsEating">
+            <div class="bg-base-100 rounded-lg p-4"><div class="skeleton h-8 w-12 mb-1"></div><div class="skeleton h-4 w-20"></div></div>
+            <div class="bg-base-100 rounded-lg p-4"><div class="skeleton h-8 w-12 mb-1"></div><div class="skeleton h-4 w-20"></div></div>
+            <div class="bg-base-100 rounded-lg p-4"><div class="skeleton h-8 w-12 mb-1"></div><div class="skeleton h-4 w-20"></div></div>
+            <div class="bg-base-100 rounded-lg p-4"><div class="skeleton h-8 w-12 mb-1"></div><div class="skeleton h-4 w-20"></div></div>
+            <div class="bg-base-100 rounded-lg p-4"><div class="skeleton h-8 w-12 mb-1"></div><div class="skeleton h-4 w-20"></div></div>
+        </div>
+
+        <!-- Поиск -->
+        <div class="mb-4">
+            <input type="text" id="searchInput" class="input input-bordered w-full max-w-md"
+                   data-i18n-placeholder="search_placeholder" placeholder="Поиск по имени..." />
+        </div>
+
+        <!-- Таблица -->
+        <div class="bg-base-100 rounded-lg shadow-sm overflow-x-auto">
+            <table class="table table-sm w-full" id="residentsTable">
+                <thead>
+                    <tr>
+                        <th data-i18n="col_name">Имя</th>
+                        <th data-i18n="col_building">Здание</th>
+                        <th data-i18n="col_room">Комн.</th>
+                        <th data-i18n="col_category">Категория</th>
+                        <th data-i18n="col_meal">Питание</th>
+                    </tr>
+                </thead>
+                <tbody id="residentsBody">
+                    <!-- Скелетоны -->
+                    <tr><td colspan="5"><div class="skeleton h-6 w-full my-1"></div></td></tr>
+                    <tr><td colspan="5"><div class="skeleton h-6 w-full my-1"></div></td></tr>
+                    <tr><td colspan="5"><div class="skeleton h-6 w-full my-1"></div></td></tr>
+                    <tr><td colspan="5"><div class="skeleton h-6 w-full my-1"></div></td></tr>
+                    <tr><td colspan="5"><div class="skeleton h-6 w-full my-1"></div></td></tr>
+                </tbody>
+            </table>
+        </div>
+
+    </main>
+
+    <div id="footer-placeholder"></div>
+
+    <script src="../js/config.js"></script>
+    <script src="../js/auth-check.js?v=4"></script>
+    <script src="../js/cache.js"></script>
+    <script src="../js/utils.js?v=2"></script>
+    <script src="../js/translit.js"></script>
+    <script src="../js/auto-translate.js"></script>
+    <script src="../js/date-utils.js"></script>
+    <script src="../js/layout.js?v=5"></script>
+    <script>
+        // ==================== STATE ====================
+        let residents = [];
+        let categories = [];
+
+        const t = key => Layout.t(key);
+        const e = str => Layout.escapeHtml(str);
+
+        // Порядок отображения категорий в stat-карточках
+        const CATEGORY_ORDER = ['guest', 'volunteer', 'team', 'vip'];
+
+        // Переводы meal_type
+        const MEAL_LABELS = { prasad: 'prasad', self: 'self', child: 'child' };
+
+        // ==================== DATA ====================
+        async function loadResidents() {
+            const today = DateUtils.toISO(new Date());
+
+            // Загрузка категорий
+            const { data: catData } = await Layout.db
+                .from('resident_categories')
+                .select('id, slug, name_ru, name_en, name_hi, color, sort_order')
+                .order('sort_order');
+            categories = catData || [];
+
+            // Загрузка проживающих
+            const { data, error } = await Layout.db
+                .from('residents')
+                .select(`
+                    id, check_in, check_out, meal_type, status, category_id, vaishnava_id, guest_name,
+                    vaishnavas(id, spiritual_name, first_name, last_name),
+                    rooms(id, number, floor, building_id, buildings(id, name_ru, name_en, name_hi)),
+                    resident_categories(id, slug, name_ru, name_en, name_hi, color)
+                `)
+                .lte('check_in', today)
+                .gte('check_out', today)
+                .in('status', ['active', 'confirmed']);
+
+            if (error) {
+                Layout.handleError(error, 'Загрузка проживающих');
+                return;
+            }
+
+            residents = (data || []);
+
+            // Сортировка: здание → номер комнаты
+            residents.sort((a, b) => {
+                const buildA = a.rooms?.buildings?.name_ru || '';
+                const buildB = b.rooms?.buildings?.name_ru || '';
+                if (buildA !== buildB) return buildA.localeCompare(buildB, 'ru');
+                const numA = parseInt(a.rooms?.number) || 0;
+                const numB = parseInt(b.rooms?.number) || 0;
+                return numA - numB;
+            });
+
+            renderStats();
+            renderTable();
+        }
+
+        // ==================== STATS ====================
+        function renderStats() {
+            const livingBySlug = {};
+            const eatingBySlug = {};
+
+            CATEGORY_ORDER.forEach(slug => {
+                livingBySlug[slug] = 0;
+                eatingBySlug[slug] = 0;
+            });
+
+            residents.forEach(r => {
+                const slug = r.resident_categories?.slug || 'guest';
+                const key = CATEGORY_ORDER.includes(slug) ? slug : 'guest';
+                livingBySlug[key]++;
+                if (r.meal_type && r.meal_type !== 'self') {
+                    eatingBySlug[key]++;
+                }
+            });
+
+            const totalLiving = Object.values(livingBySlug).reduce((s, v) => s + v, 0);
+            const totalEating = Object.values(eatingBySlug).reduce((s, v) => s + v, 0);
+
+            renderStatCards('statsLiving', livingBySlug, totalLiving);
+            renderStatCards('statsEating', eatingBySlug, totalEating);
+        }
+
+        function renderStatCards(containerId, bySlug, total) {
+            const container = document.getElementById(containerId);
+
+            const cards = CATEGORY_ORDER.map(slug => {
+                const cat = categories.find(c => c.slug === slug);
+                const name = cat ? Layout.getName(cat) : slug;
+                const color = cat?.color || '#6366f1';
+                const count = bySlug[slug] || 0;
+                return `
+                    <div class="bg-base-100 rounded-lg p-4 border-l-4" style="border-color: ${e(color)}">
+                        <div class="text-2xl font-bold">${count}</div>
+                        <div class="text-sm opacity-60">${e(name)}</div>
+                    </div>
+                `;
+            });
+
+            // Итого
+            cards.push(`
+                <div class="bg-base-100 rounded-lg p-4 border-l-4 border-base-300">
+                    <div class="text-2xl font-bold">${total}</div>
+                    <div class="text-sm opacity-60" data-i18n="residents_total">${t('residents_total')}</div>
+                </div>
+            `);
+
+            container.innerHTML = cards.join('');
+        }
+
+        // ==================== TABLE ====================
+        function renderTable(filter = '') {
+            const tbody = document.getElementById('residentsBody');
+            const lowerFilter = filter.toLowerCase();
+
+            const filtered = filter
+                ? residents.filter(r => {
+                    const name = getDisplayName(r).toLowerCase();
+                    return name.includes(lowerFilter);
+                })
+                : residents;
+
+            if (filtered.length === 0) {
+                tbody.innerHTML = `<tr><td colspan="5" class="text-center py-6 opacity-50">${t('no_results') || 'Ничего не найдено'}</td></tr>`;
+                return;
+            }
+
+            const canEditMeal = window.hasPermission && window.hasPermission('view_timeline');
+
+            tbody.innerHTML = filtered.map(r => {
+                const v = r.vaishnavas;
+                const name = getDisplayName(r);
+                const building = r.rooms?.buildings ? Layout.getName(r.rooms.buildings) : '—';
+                const room = r.rooms?.number || '—';
+                const cat = r.resident_categories;
+                const catName = cat ? Layout.getName(cat) : '—';
+                const catColor = cat?.color || '#6366f1';
+                const meal = r.meal_type || 'prasad';
+                const personId = r.vaishnava_id;
+
+                // Ссылка на профиль
+                const nameCell = personId
+                    ? `<a href="${adjustHref('vaishnavas/person.html?id=' + personId)}" class="link link-hover font-medium">${e(name)}</a>`
+                    : `<span class="font-medium">${e(name)}</span>`;
+
+                // Категория с цветным бейджем
+                const catBadge = `<span class="badge badge-sm text-white" style="background: ${e(catColor)}">${e(catName)}</span>`;
+
+                // Питание — select или текст
+                const mealCell = canEditMeal
+                    ? `<select class="select select-xs select-bordered" data-resident-id="${r.id}" onchange="updateMealType(this)">
+                        <option value="prasad" ${meal === 'prasad' ? 'selected' : ''}>prasad</option>
+                        <option value="self" ${meal === 'self' ? 'selected' : ''}>self</option>
+                        <option value="child" ${meal === 'child' ? 'selected' : ''}>child</option>
+                    </select>`
+                    : `<span>${e(meal)}</span>`;
+
+                return `<tr>
+                    <td>${nameCell}</td>
+                    <td class="whitespace-nowrap">${e(building)}</td>
+                    <td>${e(room)}</td>
+                    <td>${catBadge}</td>
+                    <td>${mealCell}</td>
+                </tr>`;
+            }).join('');
+        }
+
+        function getDisplayName(r) {
+            if (r.vaishnavas) {
+                const v = r.vaishnavas;
+                const name = v.spiritual_name || `${v.first_name || ''} ${v.last_name || ''}`.trim();
+                return Layout.currentLang === 'ru' ? name : Layout.transliterate(name);
+            }
+            return r.guest_name || '—';
+        }
+
+        function adjustHref(href) {
+            // Вспомогательная — делегируем Layout
+            const MODULE_FOLDERS = ['kitchen', 'stock', 'ashram', 'vaishnavas', 'placement', 'reception', 'settings', 'crm', 'guest-portal', 'photos'];
+            const path = window.location.pathname;
+            let currentFolder = null;
+            for (const folder of MODULE_FOLDERS) {
+                if (path.includes('/' + folder + '/')) { currentFolder = folder; break; }
+            }
+            if (!currentFolder) return href;
+            const targetFolder = MODULE_FOLDERS.find(f => href.startsWith(f + '/'));
+            if (targetFolder === currentFolder) return href.replace(targetFolder + '/', '');
+            if (!href.startsWith('../') && !href.startsWith('http')) return '../' + href;
+            return href;
+        }
+
+        // ==================== MEAL TYPE UPDATE ====================
+        async function updateMealType(select) {
+            const residentId = select.dataset.residentId;
+            const newMeal = select.value;
+
+            const { error } = await Layout.db
+                .from('residents')
+                .update({ meal_type: newMeal })
+                .eq('id', residentId);
+
+            if (error) {
+                Layout.handleError(error, 'Обновление питания');
+                // Откатить значение
+                const r = residents.find(r => r.id === residentId);
+                if (r) select.value = r.meal_type || 'prasad';
+                return;
+            }
+
+            // Обновить локальные данные
+            const r = residents.find(r => r.id === residentId);
+            if (r) r.meal_type = newMeal;
+
+            // Пересчитать статистику
+            renderStats();
+
+            Layout.showNotification(t('saved') || 'Сохранено', 'success');
+        }
+
+        // ==================== SEARCH ====================
+        function initSearch() {
+            const input = document.getElementById('searchInput');
+            input.addEventListener('input', Layout.debounce(() => {
+                renderTable(input.value.trim());
+            }, 200));
+        }
+
+        // ==================== LANGUAGE ====================
+        window.onLanguageChange = () => {
+            Layout.updateAllTranslations();
+            renderStats();
+            renderTable(document.getElementById('searchInput').value.trim());
+        };
+
+        // ==================== INIT ====================
+        async function init() {
+            await Layout.init({ module: 'housing', menuId: 'reception', itemId: 'residents_list' });
+            Layout.showLoader();
+            await loadResidents();
+            initSearch();
+            Layout.hideLoader();
+        }
+
+        init();
+    </script>
+</body>
+</html>
