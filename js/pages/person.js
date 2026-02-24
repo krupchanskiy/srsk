@@ -1207,10 +1207,11 @@ async function changeResidentDate(residentId, field, value) {
             .eq('id', residentId);
         if (error) throw error;
 
-        // Обновить локальные данные без полной перезагрузки
+        // Обновить локальные данные и синхронизировать обратно в регистрацию
         for (const reg of registrations) {
             if (reg.resident?.id === residentId) {
                 reg.resident[field] = value;
+                await syncResidentDateToRegistration(reg, field, value);
                 break;
             }
         }
@@ -1218,6 +1219,66 @@ async function changeResidentDate(residentId, field, value) {
         console.error('Error saving date:', err);
         Layout.showNotification(t('error_saving') + ': ' + err.message, 'error');
     }
+}
+
+// Синхронизация дат размещения обратно в регистрацию и трансферы
+async function syncResidentDateToRegistration(reg, field, newDateValue) {
+    const transfers = reg.guest_transfers || [];
+
+    if (field === 'check_in') {
+        const oldArrivalDate = reg.arrival_datetime?.slice(0, 10);
+        // Обновить arrival_datetime (сохраняем время, меняем дату)
+        if (reg.arrival_datetime && oldArrivalDate !== newDateValue) {
+            const timePart = reg.arrival_datetime.slice(10, 16); // T03:50
+            const newDt = newDateValue + timePart;
+            await Layout.db.from('retreat_registrations')
+                .update({ arrival_datetime: newDt })
+                .eq('id', reg.id);
+            reg.arrival_datetime = newDt;
+        }
+        // Обновить рейс прилёта (сдвиг на ту же дельту дней)
+        const arrival = transfers.find(t => t.direction === 'arrival');
+        if (arrival?.flight_datetime && oldArrivalDate && oldArrivalDate !== newDateValue) {
+            const daysDelta = (DateUtils.parseDate(newDateValue) - DateUtils.parseDate(oldArrivalDate)) / 86400000;
+            const oldFlightDt = DateUtils.parseDate(arrival.flight_datetime.slice(0, 10));
+            const newFlightDate = DateUtils.toISO(new Date(oldFlightDt.getTime() + daysDelta * 86400000));
+            const flightTime = arrival.flight_datetime.slice(10, 16);
+            const newFlightDt = newFlightDate + flightTime;
+            await Layout.db.from('guest_transfers')
+                .update({ flight_datetime: newFlightDt })
+                .eq('id', arrival.id);
+            arrival.flight_datetime = newFlightDt;
+        }
+    }
+
+    if (field === 'check_out') {
+        const oldDepartureDate = reg.departure_datetime?.slice(0, 10);
+        // Обновить departure_datetime (сохраняем время, меняем дату)
+        if (reg.departure_datetime && oldDepartureDate !== newDateValue) {
+            const timePart = reg.departure_datetime.slice(10, 16);
+            const newDt = newDateValue + timePart;
+            await Layout.db.from('retreat_registrations')
+                .update({ departure_datetime: newDt })
+                .eq('id', reg.id);
+            reg.departure_datetime = newDt;
+        }
+        // Обновить рейс вылета (сдвиг на ту же дельту дней)
+        const departure = transfers.find(t => t.direction === 'departure');
+        if (departure?.flight_datetime && oldDepartureDate && oldDepartureDate !== newDateValue) {
+            const daysDelta = (DateUtils.parseDate(newDateValue) - DateUtils.parseDate(oldDepartureDate)) / 86400000;
+            const oldFlightDt = DateUtils.parseDate(departure.flight_datetime.slice(0, 10));
+            const newFlightDate = DateUtils.toISO(new Date(oldFlightDt.getTime() + daysDelta * 86400000));
+            const flightTime = departure.flight_datetime.slice(10, 16);
+            const newFlightDt = newFlightDate + flightTime;
+            await Layout.db.from('guest_transfers')
+                .update({ flight_datetime: newFlightDt })
+                .eq('id', departure.id);
+            departure.flight_datetime = newFlightDt;
+        }
+    }
+
+    // Перерисовать секцию регистраций чтобы отобразить новые даты
+    renderRegistrations();
 }
 
 async function changeResidentCategory(residentId, categoryId) {
@@ -1293,18 +1354,26 @@ function formatDatetimeShort(datetimeStr) {
     return `${d.getDate()} ${months[d.getMonth()]}, ${pad(d.getHours())}:${pad(d.getMinutes())}`;
 }
 
-// Пересчитать расчётное время приезда (рейс + 4ч)
+// Пересчитать расчётное время приезда (рейс + 4ч) и синхронизировать
 function updateCalcArrival() {
     const flightVal = document.getElementById('editArrivalDatetime').value;
     const calc = addHoursToDatetime(flightVal, 4);
     document.getElementById('calcArrivalTime').textContent = formatDatetimeShort(calc);
+    // Синхронизируем «Время приезда в ШРСК» при изменении рейса
+    if (calc) {
+        document.getElementById('editArrivalAtAshram').value = calc;
+    }
 }
 
-// Пересчитать расчётное время отъезда (рейс − 7ч)
+// Пересчитать расчётное время отъезда (рейс − 7ч) и синхронизировать
 function updateCalcDeparture() {
     const flightVal = document.getElementById('editDepartureDatetime').value;
     const calc = addHoursToDatetime(flightVal, -7);
     document.getElementById('calcDepartureTime').textContent = formatDatetimeShort(calc);
+    // Синхронизируем «Время отъезда из ШРСК» при изменении рейса
+    if (calc) {
+        document.getElementById('editDepartureFromAshram').value = calc;
+    }
 }
 
 let currentEditRegId = null;
@@ -1416,11 +1485,19 @@ async function saveRegistration() {
 
         if (regError) throw regError;
 
-        // Синхронизируем residents.check_in/check_out (по оригинальным датам — физический выезд не меняется)
+        // Синхронизируем residents.check_in/check_out (fallback: arrival_datetime → flight → ретрит)
         if (reg.resident?.id) {
+            const arrivalFlightDt = document.getElementById('editArrivalDatetime').value;
+            const departureFlightDt = document.getElementById('editDepartureDatetime').value;
+            const computedCheckIn = origArrival?.slice(0, 10)
+                || arrivalFlightDt?.slice(0, 10)
+                || retreat?.start_date;
+            const computedCheckOut = origDeparture?.slice(0, 10)
+                || departureFlightDt?.slice(0, 10)
+                || retreat?.end_date;
             const resUpdate = {};
-            if (origArrival) resUpdate.check_in = origArrival.slice(0, 10);
-            if (origDeparture) resUpdate.check_out = origDeparture.slice(0, 10);
+            if (computedCheckIn) resUpdate.check_in = computedCheckIn;
+            if (computedCheckOut) resUpdate.check_out = computedCheckOut;
             if (Object.keys(resUpdate).length > 0) {
                 await Layout.db.from('residents').update(resUpdate).eq('id', reg.resident.id);
             }
