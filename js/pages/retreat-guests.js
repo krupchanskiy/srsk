@@ -552,13 +552,22 @@ document.getElementById('guestForm').addEventListener('submit', async (e) => {
             return;
         }
 
-        // Синхронизируем residents.check_in/check_out (по оригинальным датам)
+        // Синхронизируем residents.check_in/check_out (fallback: arrival → flight → ретрит)
         const reg = registrations.find(r => r.id === registrationId);
         const residentId = reg?.placement?.[0]?.id;
         if (residentId) {
+            const transfers = reg?.transfers || [];
+            const arrivalFlight = transfers.find(t => t.direction === 'arrival');
+            const departureFlight = transfers.find(t => t.direction === 'departure');
+            const computedCheckIn = actualArrival?.slice(0, 10)
+                || arrivalFlight?.flight_datetime?.slice(0, 10)
+                || retreat?.start_date;
+            const computedCheckOut = actualDeparture?.slice(0, 10)
+                || departureFlight?.flight_datetime?.slice(0, 10)
+                || retreat?.end_date;
             const resUpdate = {};
-            if (arrivalDatetime) resUpdate.check_in = arrivalDatetime.slice(0, 10);
-            if (departureDatetime) resUpdate.check_out = departureDatetime.slice(0, 10);
+            if (computedCheckIn) resUpdate.check_in = computedCheckIn;
+            if (computedCheckOut) resUpdate.check_out = computedCheckOut;
             if (Object.keys(resUpdate).length > 0) {
                 await Layout.db.from('residents').update(resUpdate).eq('id', residentId);
             }
