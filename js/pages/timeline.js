@@ -1178,12 +1178,6 @@ async function checkoutResident() {
         checkoutDate = res.check_out || res.check_in;
     }
 
-    // Если дата выезда в прошлом — используем сегодня (реальный день выселения)
-    const today = formatDateYMD(new Date());
-    if (checkoutDate < today) {
-        checkoutDate = today;
-    }
-
     const { error } = await Layout.db
         .from('residents')
         .update({ check_out: checkoutDate, status: 'checked_out' })
