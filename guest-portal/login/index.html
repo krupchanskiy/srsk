@@ -576,55 +576,40 @@
 
         // Проверка сессии при загрузке
         async function checkExistingSession() {
-            const { data: { session } } = await db.auth.getSession();
+            try {
+                const { data: { session } } = await db.auth.getSession();
 
-            if (session) {
-                // Проверяем есть ли пользователь в vaishnavas
-                const { data: vaishnava } = await db
-                    .from('vaishnavas')
-                    .select('user_type, is_active, is_superuser, approval_status')
-                    .eq('user_id', session.user.id)
-                    .single();
+                if (session) {
+                    // Проверяем есть ли пользователь в vaishnavas
+                    const { data: vaishnava } = await db
+                        .from('vaishnavas')
+                        .select('user_type, is_active, is_superuser, approval_status')
+                        .eq('user_id', session.user.id)
+                        .single();
 
-                if (vaishnava && vaishnava.is_active !== false && vaishnava.approval_status === 'approved') {
-                    // Уже залогинен и одобрен — редирект по правам
-                    const hasOperationalPerms = await checkHasOperationalPermissions(session.user.id, vaishnava.is_superuser);
-                    if (hasOperationalPerms) {
-                        window.location.href = '/';
-                    } else {
-                        window.location.href = '/guest-portal/';
+                    if (vaishnava && vaishnava.is_active !== false && vaishnava.approval_status === 'approved') {
+                        // Уже залогинен и одобрен — редирект по правам
+                        const hasOperationalPerms = await checkHasOperationalPermissions(session.user.id, vaishnava.is_superuser);
+                        if (hasOperationalPerms) {
+                            window.location.href = '/';
+                        } else {
+                            window.location.href = '/guest-portal/';
+                        }
+                        return;
                     }
-                    return;
+                    if (vaishnava && vaishnava.approval_status === 'pending') {
+                        window.location.href = '/pending-approval.html';
+                        return;
+                    }
                 }
-                if (vaishnava && vaishnava.approval_status === 'pending') {
-                    window.location.href = '/pending-approval.html';
-                    return;
-                }
+            } catch (e) {
+                console.error('[Login] Session check failed:', e);
             }
         }
 
         // Инициализация
         async function init() {
-            await loadTranslations();
-            updateTranslations();
-
-            // Показать причину редиректа если есть
-            const reason = new URLSearchParams(window.location.search).get('reason');
-            if (reason) {
-                const reasonMap = {
-                    'no_session': 'error_invalid_credentials',
-                    'user_not_found': 'error_user_not_found',
-                    'account_disabled': 'error_account_disabled'
-                };
-                if (reasonMap[reason]) {
-                    showError(reasonMap[reason]);
-                }
-            }
-
-            // Проверяем существующую сессию
-            await checkExistingSession();
-
-            // Обработчики событий
+            // Обработчики событий — привязываем СРАЗУ, до сетевых запросов
             document.getElementById('login-form').addEventListener('submit', handleLogin);
             document.getElementById('magic-form').addEventListener('submit', handleMagicLink);
             document.getElementById('forgot-form').addEventListener('submit', handleForgotPassword);
@@ -638,6 +623,26 @@
                     updateTranslations();
                 });
             });
+
+            // Показать причину редиректа если есть (используем fallback переводы)
+            const reason = new URLSearchParams(window.location.search).get('reason');
+            if (reason) {
+                const reasonMap = {
+                    'no_session': 'error_invalid_credentials',
+                    'user_not_found': 'error_user_not_found',
+                    'account_disabled': 'error_account_disabled'
+                };
+                if (reasonMap[reason]) {
+                    showError(reasonMap[reason]);
+                }
+            }
+
+            // Сетевые запросы — после привязки обработчиков
+            await loadTranslations();
+            updateTranslations();
+
+            // Проверяем существующую сессию
+            await checkExistingSession();
         }
 
         init();
