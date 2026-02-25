@@ -279,10 +279,17 @@
             });
         }
 
-        // Показать ошибку
+        // Показать ошибку по ключу перевода
         function showError(messageKey) {
             const alert = document.getElementById('error-alert');
             alert.textContent = t(messageKey);
+            alert.classList.remove('hidden');
+        }
+
+        // Показать ошибку произвольным текстом
+        function showErrorText(text) {
+            const alert = document.getElementById('error-alert');
+            alert.textContent = text;
             alert.classList.remove('hidden');
         }
 
@@ -484,7 +491,17 @@
                 });
 
                 if (error) {
-                    showError('error_invalid_credentials');
+                    console.error('[Login] Auth error:', error.message, error.status);
+                    // Различаем ошибки: неверные данные vs сеть/таймаут
+                    if (error.message?.includes('Invalid login credentials')) {
+                        showError('error_invalid_credentials');
+                    } else if (error.message?.includes('rate') || error.status === 429) {
+                        showErrorText('Слишком много попыток. Подождите минуту.');
+                    } else if (error.message?.includes('fetch') || error.message?.includes('network') || error.message?.includes('Failed')) {
+                        showErrorText('Ошибка сети. Проверьте интернет и попробуйте снова.');
+                    } else {
+                        showErrorText(error.message || 'Неизвестная ошибка');
+                    }
                     return;
                 }
 
@@ -548,7 +565,11 @@
 
             } catch (error) {
                 console.error('Ошибка входа:', error);
-                showError('error_unknown');
+                if (error.message?.includes('fetch') || error.name === 'TypeError') {
+                    showErrorText('Ошибка сети. Проверьте интернет и попробуйте снова.');
+                } else {
+                    showErrorText(error.message || 'Неизвестная ошибка');
+                }
             } finally {
                 submitBtn.disabled = false;
                 spinner.classList.add('hidden');
