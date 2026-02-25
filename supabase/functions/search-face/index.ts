@@ -233,6 +233,13 @@ serve(async (req) => {
     }));
 
     if (rows.length > 0) {
+      // Считаем количество тегов ДО upsert (чтобы определить, есть ли новые)
+      const { count: countBefore } = await supabase
+        .from("face_tags")
+        .select("*", { count: "exact", head: true })
+        .eq("vaishnava_id", vaishnava_id)
+        .eq("rejected", false);
+
       const { error: upErr } = await supabase
         .from("face_tags")
         .upsert(rows, { onConflict: "photo_id,vaishnava_id", ignoreDuplicates: true });
@@ -241,15 +248,17 @@ serve(async (req) => {
         return json({ error: "Upsert face_tags failed", details: upErr.message }, 500);
       }
 
-      // Считаем актуальное количество тегов (без rejected)
-      const { count } = await supabase
+      // Считаем количество тегов ПОСЛЕ upsert
+      const { count: countAfter } = await supabase
         .from("face_tags")
         .select("*", { count: "exact", head: true })
         .eq("vaishnava_id", vaishnava_id)
         .eq("rejected", false);
 
-      if (count && count > 0) {
-        await sendFoundPhotosNotification(supabase, vaishnava_id, count);
+      // Отправляем уведомление только если появились НОВЫЕ фото
+      const newPhotosCount = (countAfter || 0) - (countBefore || 0);
+      if (newPhotosCount > 0) {
+        await sendFoundPhotosNotification(supabase, vaishnava_id, newPhotosCount);
       }
     }
 
