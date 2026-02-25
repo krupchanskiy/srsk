@@ -1578,7 +1578,7 @@ function getPhotoStorageUrl(storagePath) {
 
 // ==================== PAST RETREATS PHOTOS ====================
 
-function formatRetreatDates(retreat) {
+function formatRetreatMonth(retreat) {
     const d = DateUtils.parseDate(retreat.start_date);
     const months = ['Январь','Февраль','Март','Апрель','Май','Июнь',
                     'Июль','Август','Сентябрь','Октябрь','Ноябрь','Декабрь'];
@@ -1625,7 +1625,7 @@ async function renderPastRetreatsPhotos(otherRetreatIds, retreatsMap) {
     container.innerHTML = retreatCards.map(card => {
         const retreat = retreatsMap[card.retreatId];
         const name = retreat[`name_${lang}`] || retreat.name_ru;
-        const dates = formatRetreatDates(retreat);
+        const dates = formatRetreatMonth(retreat);
 
         // Мозаика 2x2 из превью
         const previewCount = card.previews.length;
