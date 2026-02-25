@@ -45,12 +45,6 @@ const EatingUtils = {
         const guestRegistrations = guestRegResult.data || [];
         const mealGroups = mealGroupsResult.data || [];
 
-        // Множество vaishnava_id из residents для дедупликации с retreat_registrations
-        const residentVaishnavaIds = new Set(residentsData.filter(r => r.vaishnava_id).map(r => r.vaishnava_id));
-
-        // Незаселённые гости ретрита (есть в retreat_registrations но НЕТ в residents)
-        const unhoustedGuests = guestRegistrations.filter(r => !residentVaishnavaIds.has(r.vaishnava_id));
-
         // Хелпер форматирования даты
         const fmt = d => {
             const y = d.getFullYear();
@@ -74,9 +68,12 @@ const EatingUtils = {
             let bfVip = 0, lnVip = 0;
             let bfGuest = 0, lnGuest = 0;
 
-            // Residents — считаем по категориям
+            // Residents — считаем по категориям + собираем vaishnava_id для дедупликации на эту дату
+            const residentIdsForDate = new Set();
             for (const r of residentsData) {
                 if (r.check_in <= dateStr && (!r.check_out || r.check_out >= dateStr)) {
+                    if (r.vaishnava_id) residentIdsForDate.add(r.vaishnava_id);
+
                     const isFirstDay = (dateStr === r.check_in);
                     const isLastDay = (r.check_out && dateStr === r.check_out);
 
@@ -100,10 +97,10 @@ const EatingUtils = {
                 }
             }
 
-            // Незаселённые гости ретрита → считаем как guests
+            // Незаселённые гости ретрита → считаем как guests (дедупликация по дате)
             for (const retreat of retreatsInPeriod) {
                 if (dateStr < retreat.start_date || dateStr > retreat.end_date) continue;
-                const regs = unhoustedGuests.filter(r => r.retreat_id === retreat.id);
+                const regs = guestRegistrations.filter(r => r.retreat_id === retreat.id && !residentIdsForDate.has(r.vaishnava_id));
                 for (const reg of regs) {
                     const transfers = reg.guest_transfers || [];
                     const arrivalFlight = transfers.find(t => t.direction === 'arrival')?.flight_datetime;
