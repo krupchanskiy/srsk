@@ -1270,6 +1270,9 @@ async function loadPublicProfile(vaishnavId) {
         // Загружаем ближайшие ретриты (исключая те, на которые уже зарегистрирован)
         loadUpcomingRetreats(vaishnava.id);
 
+        // Загружаем фотогалерею
+        loadPhotoGalleryPreview(vaishnava.id);
+
         // Загружаем материалы
         loadMaterialsCards();
 
@@ -1306,24 +1309,10 @@ async function loadPhotoGalleryPreview(vaishnavId) {
 
         const retreatIds = registrations.map(r => r.retreat_id);
 
-        // TODO Фаза 2: Load photos with user's face first
-        // const { data: myPhotoIds } = await supabase
-        //     .from('face_tags')
-        //     .select('photo_id')
-        //     .eq('vaishnava_id', vaishnavId);
-        // const myPhotos = myPhotoIds?.map(t => t.photo_id) || [];
-
-        // Get total count
-        const { count: totalCount } = await supabase
-            .from('retreat_photos')
-            .select('id', { count: 'exact', head: true })
-            .in('retreat_id', retreatIds)
-            .eq('index_status', 'indexed');
-
-        // Load retreat details
+        // Load retreat details с датами для определения основного ретрита
         const { data: retreatsData, error: retreatsError } = await supabase
             .from('retreats')
-            .select('id, name_ru, name_en, name_hi')
+            .select('id, name_ru, name_en, name_hi, start_date, end_date')
             .in('id', retreatIds);
 
         if (retreatsError) {
@@ -1335,6 +1324,20 @@ async function loadPhotoGalleryPreview(vaishnavId) {
         (retreatsData || []).forEach(r => {
             retreatsMap[r.id] = r;
         });
+
+        // Определяем основной ретрит: текущий (start_date ≤ today ≤ end_date) или самый свежий
+        const today = DateUtils.toISO(new Date());
+        const sortedRetreats = (retreatsData || []).sort((a, b) => b.start_date.localeCompare(a.start_date));
+        const currentRetreat = sortedRetreats.find(r => r.start_date <= today && r.end_date >= today);
+        const primaryRetreat = currentRetreat || sortedRetreats[0];
+        const otherRetreatIds = sortedRetreats.filter(r => r.id !== primaryRetreat.id).map(r => r.id);
+
+        // Get total count для основного ретрита
+        const { count: totalCount } = await supabase
+            .from('retreat_photos')
+            .select('id', { count: 'exact', head: true })
+            .eq('retreat_id', primaryRetreat.id)
+            .eq('index_status', 'indexed');
 
         // Load my photos (with face tags) first if any, then fill with other photos
         let myPhotoIds = [];
@@ -1351,14 +1354,15 @@ async function loadPhotoGalleryPreview(vaishnavId) {
             console.debug('[gallery] currentGuest missing, skipping myPhotoIds');
         }
 
+        // Загружаем фото только из основного ретрита
         let photos = [];
         if (myPhotoIds.length > 0) {
-            // First, load photos with user's face, limited to user's retreats
+            // Сначала фото с лицом пользователя из основного ретрита
             const { data: myPhotos, error: myPhotosError } = await supabase
                 .from('retreat_photos')
                 .select('id, storage_path, thumb_path, retreat_id, uploaded_at')
                 .in('id', myPhotoIds)
-                .in('retreat_id', retreatIds)
+                .eq('retreat_id', primaryRetreat.id)
                 .eq('index_status', 'indexed')
                 .order('uploaded_at', { ascending: false })
                 .limit(10);
@@ -1375,7 +1379,7 @@ async function loadPhotoGalleryPreview(vaishnavId) {
                 const { data: otherPhotos, error: otherError } = await supabase
                     .from('retreat_photos')
                     .select('id, storage_path, thumb_path, retreat_id, uploaded_at')
-                    .in('retreat_id', retreatIds)
+                    .eq('retreat_id', primaryRetreat.id)
                     .eq('index_status', 'indexed')
                     .not('id', 'in', `(${notInIds})`)
                     .order('uploaded_at', { ascending: false })
@@ -1388,11 +1392,11 @@ async function loadPhotoGalleryPreview(vaishnavId) {
                 }
             }
         } else {
-            // No face tags: just show recent photos from user's retreats
+            // Без face tags: недавние фото из основного ретрита
             const { data: recentPhotos, error: photosError } = await supabase
                 .from('retreat_photos')
                 .select('id, storage_path, thumb_path, retreat_id, uploaded_at')
-                .in('retreat_id', retreatIds)
+                .eq('retreat_id', primaryRetreat.id)
                 .eq('index_status', 'indexed')
                 .order('uploaded_at', { ascending: false })
                 .limit(10);
@@ -1421,6 +1425,11 @@ async function loadPhotoGalleryPreview(vaishnavId) {
 
         renderPhotoPreview(photosWithRetreats, totalCount || photosWithRetreats.length, myPhotoIds);
         renderMyPhotosPreview(myPhotosWithRetreats, retreatsMap);
+
+        // Рендерим карточки прошлых ретритов
+        if (otherRetreatIds.length > 0) {
+            renderPastRetreatsPhotos(otherRetreatIds, retreatsMap);
+        }
     } catch (e) {
         console.error('Error loading photo gallery preview:', e);
     }
@@ -1565,6 +1574,86 @@ function getPhotoStorageUrl(storagePath) {
         .from('retreat-photos')
         .getPublicUrl(storagePath);
     return data.publicUrl;
+}
+
+// ==================== PAST RETREATS PHOTOS ====================
+
+function formatRetreatDates(retreat) {
+    const d = DateUtils.parseDate(retreat.start_date);
+    const months = ['Январь','Февраль','Март','Апрель','Май','Июнь',
+                    'Июль','Август','Сентябрь','Октябрь','Ноябрь','Декабрь'];
+    return `${months[d.getMonth()]} ${d.getFullYear()}`;
+}
+
+async function renderPastRetreatsPhotos(otherRetreatIds, retreatsMap) {
+    const section = document.getElementById('past-retreats-photos');
+    const container = document.getElementById('pastRetreatsContainer');
+    if (!section || !container || otherRetreatIds.length === 0) return;
+
+    const supabase = window.portalSupabase;
+    if (!supabase) return;
+
+    const lang = localStorage.getItem('language') || 'ru';
+
+    // Загружаем количество и превью для каждого ретрита
+    const retreatCards = [];
+    for (const retreatId of otherRetreatIds) {
+        const { count } = await supabase
+            .from('retreat_photos')
+            .select('id', { count: 'exact', head: true })
+            .eq('retreat_id', retreatId)
+            .eq('index_status', 'indexed');
+
+        if (!count || count === 0) continue;
+
+        const { data: previews } = await supabase
+            .from('retreat_photos')
+            .select('id, thumb_path, storage_path')
+            .eq('retreat_id', retreatId)
+            .eq('index_status', 'indexed')
+            .order('uploaded_at', { ascending: false })
+            .limit(4);
+
+        retreatCards.push({ retreatId, count, previews: previews || [] });
+    }
+
+    if (retreatCards.length === 0) return;
+
+    section.classList.remove('hidden');
+
+    // Рендер карточек (горизонтальный скролл)
+    container.innerHTML = retreatCards.map(card => {
+        const retreat = retreatsMap[card.retreatId];
+        const name = retreat[`name_${lang}`] || retreat.name_ru;
+        const dates = formatRetreatDates(retreat);
+
+        // Мозаика 2x2 из превью
+        const previewCount = card.previews.length;
+        const mosaic = card.previews.slice(0, 4).map(p =>
+            `<img src="${getPhotoStorageUrl(p.thumb_path || p.storage_path)}" class="w-full h-full object-cover" alt="">`
+        ).join('');
+
+        // Если < 4 фото — заполняем пустыми ячейками
+        const emptySlots = Math.max(0, 4 - previewCount);
+        const emptyHtml = Array(emptySlots).fill('<div class="w-full h-full bg-gray-200"></div>').join('');
+
+        // Склонение слова "фото" (неизменяемое в русском)
+        const photoLabel = lang === 'en' ? `${card.count} photos` : `${card.count} фото`;
+
+        return `
+            <a href="photos.html?retreat=${card.retreatId}"
+               class="flex-shrink-0 w-52 rounded-xl overflow-hidden bg-white shadow-sm hover:shadow-md transition-shadow snap-start block">
+                <div class="grid grid-cols-2 grid-rows-2 w-full aspect-square gap-0.5">
+                    ${mosaic}${emptyHtml}
+                </div>
+                <div class="p-3">
+                    <div class="font-semibold text-sm text-gray-800 truncate">${escapeHtml(name)}</div>
+                    <div class="text-xs text-gray-500 mt-0.5">${escapeHtml(dates)}</div>
+                    <div class="text-xs text-violet-600 font-medium mt-1">${photoLabel}</div>
+                </div>
+            </a>
+        `;
+    }).join('');
 }
 
 /**

@@ -458,6 +458,18 @@
             }
 
             renderFilters();
+
+            // Предустановить фильтр ретрита из URL-параметра
+            const urlParams = new URLSearchParams(window.location.search);
+            const preselectedRetreat = urlParams.get('retreat');
+            if (preselectedRetreat) {
+                const retreatFilter = document.getElementById('retreatFilter');
+                if (retreatFilter) {
+                    retreatFilter.value = preselectedRetreat;
+                    currentRetreatFilter = preselectedRetreat;
+                }
+            }
+
             applyFilters();
         }
 
