@@ -28,7 +28,7 @@ const EatingUtils = {
             retreatIds.length > 0
                 ? Layout.db
                     .from('retreat_registrations')
-                    .select('id, retreat_id, vaishnava_id, arrival_datetime, departure_datetime, guest_transfers(direction, flight_datetime)')
+                    .select('id, retreat_id, vaishnava_id, status, arrival_datetime, departure_datetime, guest_transfers(direction, flight_datetime)')
                     .in('retreat_id', retreatIds)
                     .eq('is_deleted', false)
                     .not('status', 'in', '("cancelled","rejected")')
@@ -97,7 +97,7 @@ const EatingUtils = {
                 }
             }
 
-            // Незаселённые гости ретрита → считаем как guests (дедупликация по дате)
+            // Незаселённые регистрации ретрита → считаем по реальному статусу (дедупликация по дате)
             for (const retreat of retreatsInPeriod) {
                 if (dateStr < retreat.start_date || dateStr > retreat.end_date) continue;
                 const regs = guestRegistrations.filter(r => r.retreat_id === retreat.id && !residentIdsForDate.has(r.vaishnava_id));
@@ -139,8 +139,18 @@ const EatingUtils = {
                         }
                     }
 
-                    if (getsBreakfast) bfGuest++;
-                    if (getsLunch) lnGuest++;
+                    if (getsBreakfast) {
+                        if (reg.status === 'team') bfTeam++;
+                        else if (reg.status === 'volunteer') bfVol++;
+                        else if (reg.status === 'vip') bfVip++;
+                        else bfGuest++;
+                    }
+                    if (getsLunch) {
+                        if (reg.status === 'team') lnTeam++;
+                        else if (reg.status === 'volunteer') lnVol++;
+                        else if (reg.status === 'vip') lnVip++;
+                        else lnGuest++;
+                    }
                 }
             }
 
