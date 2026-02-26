@@ -236,7 +236,7 @@
             const { data, error } = await Layout.db
                 .from('residents')
                 .select(`
-                    id, check_in, check_out, meal_type, status, category_id, vaishnava_id, guest_name,
+                    id, check_in, check_out, meal_type, has_meals, status, category_id, vaishnava_id, guest_name,
                     vaishnavas(id, spiritual_name, first_name, last_name),
                     rooms(id, number, floor, building_id, buildings(id, name_ru, name_en, name_hi)),
                     resident_categories(id, slug, name_ru, name_en, name_hi, color)
@@ -272,7 +272,7 @@
                 const slug = r.resident_categories?.slug || 'guest';
                 const key = CATEGORY_ORDER.includes(slug) ? slug : 'guest';
                 livingBySlug[key]++;
-                if (r.meal_type && r.meal_type !== 'self') {
+                if (r.has_meals) {
                     eatingBySlug[key]++;
                 }
             });

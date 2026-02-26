@@ -368,7 +368,7 @@
                 Layout.db
                     .from('residents')
                     .select(`
-                        id, check_in, check_out, meal_type, breakfast, lunch,
+                        id, check_in, check_out, meal_type, has_meals, breakfast, lunch,
                         group_name, group_count, group_breakfast, group_lunch,
                         status, category_id, vaishnava_id, guest_name, notes, has_housing,
                         vaishnavas(id, spiritual_name, first_name, last_name),
@@ -450,7 +450,7 @@
             // Без питания — из таблицы (кто здесь, но не ест)
             let noMeals = 0;
             residents.forEach(r => {
-                if (!r.meal_type || r.meal_type === 'self') noMeals++;
+                if (!r.has_meals) noMeals++;
             });
 
             container.innerHTML = `

@@ -93,7 +93,7 @@ async function loadRegistrations() {
         `)
         .eq('retreat_id', retreatId)
         .eq('is_deleted', false)
-        .in('status', ['guest', 'team']);
+        .in('status', ['guest', 'team', 'volunteer', 'vip']);
 
     if (regResult.error) {
         Layout.hideLoader();
