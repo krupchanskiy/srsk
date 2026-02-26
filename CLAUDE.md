@@ -335,10 +335,10 @@ crm_deals: lead → contacted → invoice_sent → prepaid → tickets →
 
 ## Миграции
 
-SQL-миграции в `supabase/` нумеруются `001_` — `128_`. Новые миграции через MCP:
+SQL-миграции в `supabase/` нумеруются `001_` — `139_`. Новые миграции через MCP:
 
 ```javascript
-mcp__supabase__apply_migration({ project_id: 'llttmftapmwebidgevmg', name: '110_description', query: 'SQL...' })
+mcp__supabase__apply_migration({ project_id: 'mymrijdfqeevoaocbzfy', name: '140_description', query: 'SQL...' })
 ```
 
 Другие MCP-операции:
