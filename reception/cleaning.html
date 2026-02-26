@@ -557,8 +557,8 @@
                     rooms(id, number, floor, buildings(id, name_ru, name_en))
                 `)
                 .eq('completed', false)
-                .gte('start_date', overdueStart)
                 .lte('start_date', endDate)
+                .gte('end_date', overdueStart)
                 .order('start_date');
 
             if (error) {
