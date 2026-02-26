@@ -8,7 +8,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 - **Stack**: Vanilla JS + DaisyUI 4.x + Tailwind CSS + Supabase (без сборки, CDN)
 - **Production**: https://in.rupaseva.com
-- **Supabase Project ID (prod)**: `llttmftapmwebidgevmg`
+- **Supabase Project ID (prod)**: `mymrijdfqeevoaocbzfy`
 - **Supabase Project ID (dev)**: `vzuiwpeovnzfokekdetq`
 - **Языки интерфейса**: русский, английский, хинди
 - **Деплой**: GitHub Pages из main (~1-2 мин), нет шага сборки
@@ -24,7 +24,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 - **Version**: 2.75.0
 - **Access token**: сохранён в `.env.local` (в `.gitignore`)
-- **Деплой Edge Functions**: `supabase functions deploy <name> --project-ref llttmftapmwebidgevmg --no-verify-jwt`
+- **Деплой Edge Functions**: `supabase functions deploy <name> --project-ref mymrijdfqeevoaocbzfy --no-verify-jwt`
 
 ---
 

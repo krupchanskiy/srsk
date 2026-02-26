@@ -28,8 +28,8 @@ const isDev =
 // Конфигурации для разных окружений
 const ENVIRONMENTS = {
     production: {
-        SUPABASE_URL: 'https://llttmftapmwebidgevmg.supabase.co',
-        SUPABASE_ANON_KEY: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImxsdHRtZnRhcG13ZWJpZGdldm1nIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Njg4NzQ3MTksImV4cCI6MjA4NDQ1MDcxOX0.V0J4_5AFDxHH6GsD-eh4N7fTBMjexSxAkVp2LSfgHh0'
+        SUPABASE_URL: 'https://mymrijdfqeevoaocbzfy.supabase.co',
+        SUPABASE_ANON_KEY: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im15bXJpamRmcWVldm9hb2NiemZ5Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzIwNzI3MzAsImV4cCI6MjA4NzY0ODczMH0.CWTCnvY8osSO5Hb43NmtlugahPuE3nUaSE0Iy3gQtvs'
     },
     development: {
         SUPABASE_URL: 'https://vzuiwpeovnzfokekdetq.supabase.co',

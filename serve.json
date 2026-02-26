@@ -1,7 +1,4 @@
 {
   "cleanUrls": false,
-  "trailingSlash": false,
-  "rewrites": [],
-  "redirects": [],
-  "headers": []
+  "trailingSlash": false
 }
