@@ -510,6 +510,7 @@
                     bookings(id, name, contact_name)
                 `)
                 .in('status', ['confirmed', 'checked_out'])
+                .not('room_id', 'is', null)
                 .gte('check_out', overdueStart)
                 .lte('check_out', endDate)
                 .neq('cleaning_done', true)
@@ -624,6 +625,7 @@
                     bookings(id, name, contact_name)
                 `)
                 .eq('cleaning_done', true)
+                .not('room_id', 'is', null)
                 .gte('check_out', startDate)
                 .order('check_out', { ascending: false });
 
@@ -867,7 +869,7 @@
                 <div class="flex items-center justify-between p-4 hover:bg-base-200/50 transition-colors">
                     <div class="flex-1 min-w-0">
                         <div class="flex items-center gap-2 mb-1">
-                            <span class="font-medium">${building ? Layout.getName(building) : ''} / ${room?.number || '—'}</span>
+                            <span class="font-medium">${room ? `${building ? Layout.getName(building) : ''} / ${room.number}` : `<span class="opacity-40">${t('no_room') || 'Без комнаты'}</span>`}</span>
                             ${badge}
                         </div>
                         <div class="text-sm opacity-60">
@@ -1055,7 +1057,7 @@
                             <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 text-success" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
                                 <path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7" />
                             </svg>
-                            <span class="font-medium">${building ? Layout.getName(building) : ''} / ${room?.number || '—'}</span>
+                            <span class="font-medium">${room ? `${building ? Layout.getName(building) : ''} / ${room.number}` : `<span class="opacity-40">${t('no_room') || 'Без комнаты'}</span>`}</span>
                             ${badge}
                         </div>
                         <div class="text-sm opacity-60">
