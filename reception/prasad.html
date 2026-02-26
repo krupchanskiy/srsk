@@ -458,7 +458,8 @@
                 });
             }
 
-            const total = Math.max(breakfastCount, lunchCount);
+            // Всего = из локальных данных (резиденты + группы), чтобы совпадало с суммой категорий
+            const total = filtered.length + mealGroups.reduce((s, g) => s + (g.people_count || 0), 0);
 
             // Без питания — из локальной таблицы
             let noMeals = 0;
