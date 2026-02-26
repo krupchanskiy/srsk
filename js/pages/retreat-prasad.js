@@ -80,43 +80,65 @@ async function loadRegistrations() {
 
     Layout.showLoader();
 
+    // Загружаем регистрации
     const { data, error } = await Layout.db
         .from('retreat_registrations')
         .select(`
             id,
             status,
             meal_type,
+            vaishnava_id,
             vaishnava:vaishnavas (
                 id,
                 first_name,
                 last_name,
                 spiritual_name,
                 photo_url
-            ),
-            placement:room_residents (
-                room:rooms (
-                    number,
-                    building:buildings (
-                        name_ru,
-                        name_en,
-                        name_hi
-                    )
-                )
             )
         `)
         .eq('retreat_id', retreatId)
         .neq('status', 'cancelled');
 
-    Layout.hideLoader();
-
     if (error) {
+        Layout.hideLoader();
         console.error('Error loading registrations:', error);
         return;
     }
 
+    // Загружаем размещения для этого ретрита
+    const vaishIds = (data || []).map(r => r.vaishnava_id).filter(Boolean);
+    let placementMap = {};
+
+    if (vaishIds.length > 0) {
+        const { data: resData } = await Layout.db
+            .from('residents')
+            .select(`
+                vaishnava_id,
+                rooms(number, buildings(name_ru, name_en, name_hi))
+            `)
+            .eq('retreat_id', retreatId)
+            .in('vaishnava_id', vaishIds)
+            .not('room_id', 'is', null);
+
+        if (resData) {
+            resData.forEach(r => {
+                if (r.vaishnava_id && r.rooms) {
+                    placementMap[r.vaishnava_id] = {
+                        room: {
+                            number: r.rooms.number,
+                            building: r.rooms.buildings
+                        }
+                    };
+                }
+            });
+        }
+    }
+
+    Layout.hideLoader();
+
     registrations = (data || []).map(r => ({
         ...r,
-        placement: r.placement || []
+        placement: placementMap[r.vaishnava_id] ? [placementMap[r.vaishnava_id]] : []
     }));
 
     renderTable();
