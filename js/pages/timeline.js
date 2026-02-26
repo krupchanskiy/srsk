@@ -377,10 +377,10 @@ async function loadTimelineData() {
                     if (startDay > DAYS_TO_SHOW - 1 || endDay < 0) return;
 
                     // Определяем половины дня:
-                    // - bedding: только первая половина дня (0-0)
+                    // - linen: только первая половина дня (0-0)
                     // - cleaning с start_date === end_date: обе половины одного дня (0-1)
                     // - cleaning с end_date = start_date + 1: вторая половина первого + первая второго (1-0)
-                    const isBedding = c.type === 'bedding';
+                    const isBedding = c.type === 'linen';
                     const sameDay = c.start_date === c.end_date;
                     let startHalf, endHalf;
                     if (isBedding) {
@@ -860,9 +860,9 @@ async function handleAction(action) {
     const startDate = document.getElementById('modalCheckIn').value;
     const endDate = document.getElementById('modalCheckOut').value;
 
-    if (action === 'cleaning' || action === 'bedding') {
+    if (action === 'cleaning' || action === 'linen') {
         // Для белья: только половина ячейки (end_date = start_date)
-        const finalEndDate = action === 'bedding' ? startDate : endDate;
+        const finalEndDate = action === 'linen' ? startDate : endDate;
 
         const { error } = await Layout.db.from('room_cleanings').insert({
             room_id: modalContext.roomId,
@@ -2005,7 +2005,7 @@ function renderTable() {
                     const spanCells = Math.max(1, endCol - startCol + 1);
                     const width = spanCells * CELL_WIDTH - 2;
                     const completedClass = cleaning.isCompleted ? ' completed' : '';
-                    const typeClass = cleaning.type === 'bedding' ? ' bedding' : '';
+                    const typeClass = cleaning.type === 'linen' ? ' linen' : '';
                     html += `<div class="cleaning-bar clickable${completedClass}${typeClass}" style="width: ${width}px;" data-action="open-cleaning-modal" data-id="${cleaning.cleaningId}">${cleaning.name}</div>`;
                 }
 

@@ -203,6 +203,7 @@
     <script>
         // ==================== STATE ====================
         let residents = [];
+        let mealGroups = []; // из таблицы meal_groups
         let categories = [];
         let buildings = [];
         let currentDate = new Date();
@@ -381,6 +382,15 @@
             }
 
             residents = data || [];
+
+            // Загрузка meal_groups (активных на выбранную дату)
+            const { data: mgData } = await Layout.db
+                .from('meal_groups')
+                .select('*')
+                .lte('start_date', today)
+                .gte('end_date', today);
+            mealGroups = mgData || [];
+
             populateFilterOptions();
             sortResidents();
             renderStats();
@@ -420,23 +430,23 @@
 
         function renderMealStats(filtered) {
             const container = document.getElementById('statsMeals');
-            const total = filtered.length;
+            const total = filtered.length + mealGroups.reduce((s, g) => s + (g.people_count || 0), 0);
 
-            // Завтрак: обычные (breakfast !== false) + групповые (group_breakfast)
+            // Завтрак/обед: обычные резиденты + meal_groups
             let breakfastCount = 0;
             let lunchCount = 0;
             let noMeals = 0;
 
             filtered.forEach(r => {
-                const isGroup = r.resident_categories?.slug === 'group';
-                if (isGroup) {
-                    breakfastCount += (r.group_breakfast || 0);
-                    lunchCount += (r.group_lunch || 0);
-                } else {
-                    if (r.breakfast !== false && r.meal_type && r.meal_type !== 'self') breakfastCount++;
-                    if (r.lunch !== false && r.meal_type && r.meal_type !== 'self') lunchCount++;
-                }
+                if (r.breakfast !== false && r.meal_type && r.meal_type !== 'self') breakfastCount++;
+                if (r.lunch !== false && r.meal_type && r.meal_type !== 'self') lunchCount++;
                 if (!r.meal_type || r.meal_type === 'self') noMeals++;
+            });
+
+            // Добавляем meal_groups
+            mealGroups.forEach(g => {
+                if (g.breakfast) breakfastCount += (g.people_count || 0);
+                if (g.lunch) lunchCount += (g.people_count || 0);
             });
 
             container.innerHTML = `
@@ -470,13 +480,8 @@
                 bySlug[key]++;
             });
 
-            // Группы — отдельный подсчёт людей в группах
-            let inGroups = 0;
-            filtered.forEach(r => {
-                if (r.resident_categories?.slug === 'group') {
-                    inGroups += (r.group_count || 0);
-                }
-            });
+            // Группы — из meal_groups
+            let inGroups = mealGroups.reduce((s, g) => s + (g.people_count || 0), 0);
 
             const cards = CATEGORY_ORDER.map(slug => {
                 const cat = categories.find(c => c.slug === slug);
@@ -628,14 +633,15 @@
             const tbody = document.getElementById('prasadBody');
             const filtered = getFilteredResidents();
 
-            if (filtered.length === 0) {
+            if (filtered.length === 0 && mealGroups.length === 0) {
                 tbody.innerHTML = `<tr><td colspan="13" class="text-center py-6 opacity-50">${t('no_results') || 'Ничего не найдено'}</td></tr>`;
                 return;
             }
 
             const canEdit = window.hasPermission && window.hasPermission('view_timeline');
 
-            tbody.innerHTML = filtered.map(r => {
+            // Строки резидентов
+            const residentRows = filtered.map(r => {
                 const name = getDisplayName(r);
                 const personId = r.vaishnava_id;
                 const building = r.rooms?.buildings ? Layout.getName(r.rooms.buildings) : '—';
@@ -643,26 +649,19 @@
                 const cat = r.resident_categories;
                 const catName = cat ? Layout.getName(cat) : '—';
                 const catColor = cat?.color || '#6366f1';
-                const catSlug = cat?.slug || 'guest';
-                const isGroup = catSlug === 'group';
                 const meal = r.meal_type || '';
                 const hasRoom = !!r.rooms?.buildings;
                 const rowColor = hasRoom ? catColor : '#9ca3af';
 
-                // Имя — ссылка на профиль
                 const nameCell = personId
                     ? `<a href="${adjustHref('vaishnavas/person.html?id=' + personId)}" class="link link-hover font-medium">${e(name)}</a>`
                     : `<span class="font-medium">${e(name)}</span>`;
 
-                // Даты
                 const checkinDate = formatShortDate(r.check_in);
                 const checkoutDate = formatShortDate(r.check_out);
                 const checkoutClasses = getCheckoutClasses(r.check_out);
-
-                // Категория
                 const catBadge = `<span class="badge badge-sm text-white" style="background: ${e(catColor)}">${e(catName)}</span>`;
 
-                // Питание — select
                 const mealCell = canEdit
                     ? `<select class="select select-xs select-bordered" data-id="${r.id}" data-field="meal_type" onchange="updateField(this)">
                         <option value="" ${!meal ? 'selected' : ''}>${t('meal_not_set') || '—'}</option>
@@ -672,33 +671,16 @@
                     </select>`
                     : `<span>${meal ? t('meal_' + meal) : '—'}</span>`;
 
-                // Завтрак — чекбокс
                 const brkfChecked = r.breakfast !== false;
                 const brkfCell = canEdit
                     ? `<input type="checkbox" class="checkbox checkbox-xs checkbox-warning" ${brkfChecked ? 'checked' : ''} data-id="${r.id}" data-field="breakfast" onchange="updateCheckbox(this)">`
                     : `<span>${brkfChecked ? '&#10003;' : ''}</span>`;
 
-                // Обед — чекбокс
                 const lunchChecked = r.lunch !== false;
                 const lunchCell = canEdit
                     ? `<input type="checkbox" class="checkbox checkbox-xs checkbox-info" ${lunchChecked ? 'checked' : ''} data-id="${r.id}" data-field="lunch" onchange="updateCheckbox(this)">`
                     : `<span>${lunchChecked ? '&#10003;' : ''}</span>`;
 
-                // Группа
-                const groupCell = isGroup
-                    ? `<span class="text-sm font-medium" style="color: #f97316">${e(r.group_name || '')}</span>`
-                    : `<span class="text-sm opacity-50">${e(r.group_name || '')}</span>`;
-
-                // Завтрак/обед группы — editable числа только для группы
-                const grBrkfCell = isGroup && canEdit
-                    ? `<input type="number" class="input input-xs input-bordered group-input" value="${r.group_breakfast || 0}" min="0" data-id="${r.id}" data-field="group_breakfast" onchange="updateNumber(this)">`
-                    : (isGroup ? `<span class="text-sm">${r.group_breakfast || 0}</span>` : '');
-
-                const grLunchCell = isGroup && canEdit
-                    ? `<input type="number" class="input input-xs input-bordered group-input" value="${r.group_lunch || 0}" min="0" data-id="${r.id}" data-field="group_lunch" onchange="updateNumber(this)">`
-                    : (isGroup ? `<span class="text-sm">${r.group_lunch || 0}</span>` : '');
-
-                // Примечания
                 const notesCell = r.notes ? `<span class="text-xs italic opacity-50">${e(r.notes)}</span>` : '';
 
                 return `<tr style="background: ${e(rowColor)}15">
@@ -711,12 +693,35 @@
                     <td>${mealCell}</td>
                     <td class="text-center">${brkfCell}</td>
                     <td class="text-center">${lunchCell}</td>
-                    <td>${groupCell}</td>
-                    <td class="text-center">${grBrkfCell}</td>
-                    <td class="text-center">${grLunchCell}</td>
+                    <td></td>
+                    <td></td>
+                    <td></td>
                     <td>${notesCell}</td>
                 </tr>`;
-            }).join('');
+            });
+
+            // Строки meal_groups
+            const groupRows = mealGroups.map(g => {
+                const brkf = g.breakfast ? g.people_count : 0;
+                const lnch = g.lunch ? g.people_count : 0;
+                return `<tr style="background: #f9731615">
+                    <td><span class="font-medium" style="color: #f97316">${e(g.name)}</span></td>
+                    <td class="whitespace-nowrap text-sm opacity-70">${formatShortDate(g.start_date)}</td>
+                    <td class="whitespace-nowrap text-sm">${formatShortDate(g.end_date)}</td>
+                    <td></td>
+                    <td></td>
+                    <td><span class="badge badge-sm text-white" style="background: #f97316">${t('col_group') || 'Группа'}</span></td>
+                    <td><span class="text-sm">${t('meal_prasad')}</span></td>
+                    <td class="text-center">${g.breakfast ? '&#10003;' : ''}</td>
+                    <td class="text-center">${g.lunch ? '&#10003;' : ''}</td>
+                    <td class="text-center font-semibold" style="color: #f97316">${g.people_count}</td>
+                    <td class="text-center">${brkf}</td>
+                    <td class="text-center">${lnch}</td>
+                    <td>${g.notes ? `<span class="text-xs italic opacity-50">${e(g.notes)}</span>` : ''}</td>
+                </tr>`;
+            });
+
+            tbody.innerHTML = residentRows.concat(groupRows).join('');
         }
 
         // ==================== CARDS (MOBILE) ====================
@@ -724,14 +729,15 @@
             const container = document.getElementById('prasadCards');
             const filtered = getFilteredResidents();
 
-            if (filtered.length === 0) {
+            if (filtered.length === 0 && mealGroups.length === 0) {
                 container.innerHTML = `<div class="text-center py-6 opacity-50">${t('no_results') || 'Ничего не найдено'}</div>`;
                 return;
             }
 
             const canEdit = window.hasPermission && window.hasPermission('view_timeline');
 
-            container.innerHTML = filtered.map(r => {
+            // Карточки резидентов
+            const residentCards = filtered.map(r => {
                 const name = getDisplayName(r);
                 const personId = r.vaishnava_id;
                 const building = r.rooms?.buildings ? Layout.getName(r.rooms.buildings) : '—';
@@ -739,8 +745,6 @@
                 const cat = r.resident_categories;
                 const catName = cat ? Layout.getName(cat) : '—';
                 const catColor = cat?.color || '#6366f1';
-                const catSlug = cat?.slug || 'guest';
-                const isGroup = catSlug === 'group';
                 const meal = r.meal_type || '';
 
                 const nameHtml = personId
@@ -772,19 +776,6 @@
                 const checkinDate = formatShortDate(r.check_in);
                 const checkoutDate = formatShortDate(r.check_out);
                 const checkoutClasses = getCheckoutClasses(r.check_out);
-
-                let groupHtml = '';
-                if (isGroup && r.group_name) {
-                    groupHtml = `<div class="text-sm mt-1" style="color: #f97316">${e(r.group_name)}`;
-                    if (canEdit) {
-                        groupHtml += ` — &#9728;&#65039; <input type="number" class="input input-xs input-bordered group-input" value="${r.group_breakfast || 0}" min="0" data-id="${r.id}" data-field="group_breakfast" onchange="updateNumber(this)">`;
-                        groupHtml += ` &#127869;&#65039; <input type="number" class="input input-xs input-bordered group-input" value="${r.group_lunch || 0}" min="0" data-id="${r.id}" data-field="group_lunch" onchange="updateNumber(this)">`;
-                    } else {
-                        groupHtml += ` — &#9728;&#65039; ${r.group_breakfast || 0} &#127869;&#65039; ${r.group_lunch || 0}`;
-                    }
-                    groupHtml += `</div>`;
-                }
-
                 const notesHtml = r.notes ? `<div class="text-xs italic opacity-50 mt-1">${e(r.notes)}</div>` : '';
 
                 return `<div class="bg-base-100 rounded-lg p-3 border-l-4" style="border-color: ${e(catColor)}">
@@ -802,10 +793,32 @@
                         <span>${t('col_checkin')}: ${checkinDate}</span>
                         <span class="${checkoutClasses}">${t('col_checkout')}: ${checkoutDate}</span>
                     </div>
-                    ${groupHtml}
                     ${notesHtml}
                 </div>`;
-            }).join('');
+            });
+
+            // Карточки meal_groups
+            const groupCards = mealGroups.map(g => {
+                const brkf = g.breakfast ? g.people_count : 0;
+                const lnch = g.lunch ? g.people_count : 0;
+                return `<div class="bg-base-100 rounded-lg p-3 border-l-4" style="border-color: #f97316">
+                    <div class="flex items-center justify-between mb-1">
+                        <span class="font-semibold text-base" style="color: #f97316">${e(g.name)}</span>
+                        <span class="badge badge-sm text-white" style="background: #f97316">${t('col_group') || 'Группа'}</span>
+                    </div>
+                    <div class="flex flex-wrap items-center gap-x-4 gap-y-1 text-sm opacity-70">
+                        <span>${g.people_count} чел.</span>
+                        <span>&#9728;&#65039; ${brkf}</span>
+                        <span>&#127869;&#65039; ${lnch}</span>
+                    </div>
+                    <div class="flex gap-4 text-xs opacity-50 mt-1">
+                        <span>${formatShortDate(g.start_date)} — ${formatShortDate(g.end_date)}</span>
+                    </div>
+                    ${g.notes ? `<div class="text-xs italic opacity-50 mt-1">${e(g.notes)}</div>` : ''}
+                </div>`;
+            });
+
+            container.innerHTML = residentCards.concat(groupCards).join('');
         }
 
         // ==================== INLINE UPDATES ====================

@@ -509,7 +509,7 @@
                     vaishnavas(id, first_name, spiritual_name),
                     bookings(id, name, contact_name)
                 `)
-                .eq('status', 'active')
+                .in('status', ['confirmed', 'checked_out'])
                 .gte('check_out', overdueStart)
                 .lte('check_out', endDate)
                 .neq('cleaning_done', true)
