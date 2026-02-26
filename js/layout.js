@@ -67,6 +67,7 @@ const modules = {
             { id: 'reception', items: [
                 { id: 'timeline', href: 'placement/timeline.html' },
                 { id: 'residents_list', href: 'reception/residents-list.html' },
+                { id: 'prasad', href: 'reception/prasad.html' },
                 { id: 'floor_plans', href: 'reception/floor-plan.html' },
                 { id: 'bookings', href: 'placement/bookings.html' },
                 { id: 'cleaning', href: 'reception/cleaning.html' }
@@ -191,6 +192,7 @@ const pagePermissions = {
 
     // Reception
     'reception/residents-list.html': 'view_timeline',
+    'reception/prasad.html': 'view_timeline',
     'reception/floor-plan.html': 'view_floor_plan',
     'reception/cleaning.html': 'view_cleaning',
     'reception/rooms.html': 'view_rooms',

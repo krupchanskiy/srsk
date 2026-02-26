@@ -1,0 +1,921 @@
+<!DOCTYPE html>
+<html lang="ru" data-theme="light">
+<head>
+    <meta charset="UTF-8">
+    <script src="../js/color-init.js"></script>
+
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title data-i18n="prasad_page_title">Прасад — ШРСК</title>
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg">
+    <link href="https://cdn.jsdelivr.net/npm/daisyui@4.12.14/dist/full.min.css" rel="stylesheet" />
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script>tailwind.config = { theme: { extend: { screens: { 'desktop': '1200px' } } } }</script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans:wght@400;500;600;700&family=Noto+Sans+Devanagari:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="../css/common.css">
+    <style>
+        .sort-icon { opacity: 0.3; font-size: 0.75rem; transition: opacity 0.2s; }
+        .sort-icon.active { opacity: 1; }
+        th:hover .sort-icon { opacity: 0.6; }
+        .stat-card { cursor: default; transition: box-shadow 0.2s; }
+        .filter-row { display: flex; flex-wrap: wrap; gap: 0.5rem; align-items: center; }
+        .group-input { width: 3.5rem; text-align: center; }
+    </style>
+</head>
+<body class="bg-base-200 min-h-screen flex flex-col">
+
+    <div id="header-placeholder"></div>
+
+    <main class="container mx-auto px-4 py-6 flex-1">
+
+        <!-- Заголовок с навигацией по датам -->
+        <div class="flex items-center gap-3 mb-4">
+            <button class="btn btn-ghost btn-sm btn-square" onclick="changeDate(-1)">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M15 19l-7-7 7-7" />
+                </svg>
+            </button>
+            <h1 class="text-2xl font-bold cursor-pointer hover:opacity-70 transition-opacity" id="pageTitle" onclick="goToday()">Прасад</h1>
+            <button class="btn btn-ghost btn-sm btn-square" onclick="changeDate(1)">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M9 5l7 7-7 7" />
+                </svg>
+            </button>
+        </div>
+
+        <!-- Фильтры -->
+        <div class="filter-row mb-4">
+            <select id="filterCategory" class="select select-bordered select-sm" onchange="applyFilters()">
+                <option value="" data-i18n="filter_all">Все категории</option>
+            </select>
+            <select id="filterBuilding" class="select select-bordered select-sm" onchange="applyFilters()">
+                <option value="" data-i18n="filter_all">Все здания</option>
+            </select>
+            <select id="filterMeal" class="select select-bordered select-sm" onchange="applyFilters()">
+                <option value="" data-i18n="filter_all">Все</option>
+                <option value="prasad" data-i18n="meal_prasad">Прасад</option>
+                <option value="child" data-i18n="meal_child">Детское</option>
+                <option value="self" data-i18n="meal_self">Самостоятельно</option>
+                <option value="not_set" data-i18n="meal_not_set">Не указано</option>
+            </select>
+            <select id="filterBreakfast" class="select select-bordered select-sm" onchange="applyFilters()">
+                <option value="" data-i18n="filter_all">Все</option>
+                <option value="yes" data-i18n="filter_with_breakfast">С завтраком</option>
+                <option value="no" data-i18n="filter_without_breakfast">Без завтрака</option>
+            </select>
+            <select id="filterLunch" class="select select-bordered select-sm" onchange="applyFilters()">
+                <option value="" data-i18n="filter_all">Все</option>
+                <option value="yes" data-i18n="filter_with_lunch">С обедом</option>
+                <option value="no" data-i18n="filter_without_lunch">Без обеда</option>
+            </select>
+            <button class="btn btn-sm btn-outline" onclick="setQuickFilter('arrives')" id="btnArrives" data-i18n="arrives_today">Заезжают сегодня</button>
+            <button class="btn btn-sm btn-outline" onclick="setQuickFilter('departs')" id="btnDeparts" data-i18n="departs_today">Выезжают сегодня</button>
+            <button class="btn btn-sm btn-ghost" onclick="resetFilters()" data-i18n="reset_filters">Сбросить</button>
+        </div>
+
+        <!-- Счётчики: Питание -->
+        <div class="mb-2 text-sm font-semibold uppercase tracking-wide opacity-60" data-i18n="col_meal">Питание</div>
+        <div class="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-4" id="statsMeals">
+            <div class="bg-base-100 rounded-lg px-3 py-2"><div class="skeleton h-6 w-10 mb-1"></div><div class="skeleton h-3 w-16"></div></div>
+            <div class="bg-base-100 rounded-lg px-3 py-2"><div class="skeleton h-6 w-10 mb-1"></div><div class="skeleton h-3 w-16"></div></div>
+            <div class="bg-base-100 rounded-lg px-3 py-2"><div class="skeleton h-6 w-10 mb-1"></div><div class="skeleton h-3 w-16"></div></div>
+            <div class="bg-base-100 rounded-lg px-3 py-2"><div class="skeleton h-6 w-10 mb-1"></div><div class="skeleton h-3 w-16"></div></div>
+        </div>
+
+        <!-- Счётчики: Категории -->
+        <div class="mb-2 text-sm font-semibold uppercase tracking-wide opacity-60" data-i18n="col_category">Категории</div>
+        <div class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-6 gap-3 mb-4" id="statsCategories">
+            <div class="bg-base-100 rounded-lg px-3 py-2"><div class="skeleton h-6 w-10 mb-1"></div><div class="skeleton h-3 w-16"></div></div>
+            <div class="bg-base-100 rounded-lg px-3 py-2"><div class="skeleton h-6 w-10 mb-1"></div><div class="skeleton h-3 w-16"></div></div>
+            <div class="bg-base-100 rounded-lg px-3 py-2"><div class="skeleton h-6 w-10 mb-1"></div><div class="skeleton h-3 w-16"></div></div>
+            <div class="bg-base-100 rounded-lg px-3 py-2"><div class="skeleton h-6 w-10 mb-1"></div><div class="skeleton h-3 w-16"></div></div>
+            <div class="bg-base-100 rounded-lg px-3 py-2"><div class="skeleton h-6 w-10 mb-1"></div><div class="skeleton h-3 w-16"></div></div>
+        </div>
+
+        <!-- Поиск -->
+        <div class="mb-4">
+            <input type="text" id="searchInput" class="input input-bordered w-full max-w-md"
+                   data-i18n-placeholder="search_placeholder" placeholder="Поиск по имени..." />
+        </div>
+
+        <!-- Мобильные карточки -->
+        <div id="prasadCards" class="space-y-2 md:hidden"></div>
+
+        <!-- Таблица -->
+        <div class="bg-base-100 rounded-lg shadow-sm overflow-x-auto hidden md:block">
+            <table class="table table-sm w-full" id="prasadTable">
+                <thead>
+                    <tr>
+                        <th class="cursor-pointer hover:bg-base-200 select-none" onclick="toggleSort('name')">
+                            <div class="flex items-center gap-1">
+                                <span data-i18n="col_name">Имя</span>
+                                <span class="sort-icon" data-sort="name">↕</span>
+                            </div>
+                        </th>
+                        <th class="cursor-pointer hover:bg-base-200 select-none" onclick="toggleSort('checkin')">
+                            <div class="flex items-center gap-1">
+                                <span data-i18n="col_checkin">Заехал</span>
+                                <span class="sort-icon" data-sort="checkin">↕</span>
+                            </div>
+                        </th>
+                        <th class="cursor-pointer hover:bg-base-200 select-none" onclick="toggleSort('checkout')">
+                            <div class="flex items-center gap-1">
+                                <span data-i18n="col_checkout">С нами до</span>
+                                <span class="sort-icon" data-sort="checkout">↕</span>
+                            </div>
+                        </th>
+                        <th class="cursor-pointer hover:bg-base-200 select-none" onclick="toggleSort('building')">
+                            <div class="flex items-center gap-1">
+                                <span data-i18n="col_accommodation">Проживание</span>
+                                <span class="sort-icon active" data-sort="building">↑</span>
+                            </div>
+                        </th>
+                        <th class="cursor-pointer hover:bg-base-200 select-none" onclick="toggleSort('room')">
+                            <div class="flex items-center gap-1">
+                                <span data-i18n="col_room">Комн.</span>
+                                <span class="sort-icon" data-sort="room">↕</span>
+                            </div>
+                        </th>
+                        <th class="cursor-pointer hover:bg-base-200 select-none" onclick="toggleSort('category')">
+                            <div class="flex items-center gap-1">
+                                <span data-i18n="col_category">Категория</span>
+                                <span class="sort-icon" data-sort="category">↕</span>
+                            </div>
+                        </th>
+                        <th class="cursor-pointer hover:bg-base-200 select-none" onclick="toggleSort('meal')">
+                            <div class="flex items-center gap-1">
+                                <span data-i18n="col_meal">Питание</span>
+                                <span class="sort-icon" data-sort="meal">↕</span>
+                            </div>
+                        </th>
+                        <th class="cursor-pointer hover:bg-base-200 select-none" onclick="toggleSort('breakfast')">
+                            <div class="flex items-center gap-1">
+                                <span>&#9728;&#65039;</span>
+                                <span class="sort-icon" data-sort="breakfast">↕</span>
+                            </div>
+                        </th>
+                        <th class="cursor-pointer hover:bg-base-200 select-none" onclick="toggleSort('lunch')">
+                            <div class="flex items-center gap-1">
+                                <span>&#127869;&#65039;</span>
+                                <span class="sort-icon" data-sort="lunch">↕</span>
+                            </div>
+                        </th>
+                        <th class="cursor-pointer hover:bg-base-200 select-none" onclick="toggleSort('group')">
+                            <div class="flex items-center gap-1">
+                                <span data-i18n="col_group">Группа</span>
+                                <span class="sort-icon" data-sort="group">↕</span>
+                            </div>
+                        </th>
+                        <th data-i18n="col_group_breakfast">Завт. (гр.)</th>
+                        <th data-i18n="col_group_lunch">Обед (гр.)</th>
+                        <th class="cursor-pointer hover:bg-base-200 select-none" onclick="toggleSort('notes')">
+                            <div class="flex items-center gap-1">
+                                <span data-i18n="col_notes">Примечания</span>
+                                <span class="sort-icon" data-sort="notes">↕</span>
+                            </div>
+                        </th>
+                    </tr>
+                </thead>
+                <tbody id="prasadBody">
+                    <tr><td colspan="13"><div class="skeleton h-6 w-full my-1"></div></td></tr>
+                    <tr><td colspan="13"><div class="skeleton h-6 w-full my-1"></div></td></tr>
+                    <tr><td colspan="13"><div class="skeleton h-6 w-full my-1"></div></td></tr>
+                    <tr><td colspan="13"><div class="skeleton h-6 w-full my-1"></div></td></tr>
+                    <tr><td colspan="13"><div class="skeleton h-6 w-full my-1"></div></td></tr>
+                </tbody>
+            </table>
+        </div>
+
+    </main>
+
+    <div id="footer-placeholder"></div>
+
+    <script src="../js/config.js"></script>
+    <script src="../js/auth-check.js?v=4"></script>
+    <script src="../js/cache.js"></script>
+    <script src="../js/utils.js?v=2"></script>
+    <script src="../js/translit.js"></script>
+    <script src="../js/auto-translate.js"></script>
+    <script src="../js/date-utils.js"></script>
+    <script src="../js/layout.js?v=5"></script>
+    <script>
+        // ==================== STATE ====================
+        let residents = [];
+        let categories = [];
+        let buildings = [];
+        let currentDate = new Date();
+        let quickFilter = null; // 'arrives' | 'departs' | null
+
+        const t = key => Layout.t(key);
+        const e = str => Layout.escapeHtml(str);
+
+        // Сортировка
+        let sortField = 'building';
+        let sortDirection = 'asc';
+
+        // Порядок категорий
+        const CATEGORY_ORDER = ['guest', 'team', 'volunteer', 'vip', 'group'];
+
+        // Реальная сегодняшняя дата
+        const realToday = DateUtils.toISO(new Date());
+        const realTomorrow = DateUtils.toISO(new Date(Date.now() + 86400000));
+
+        // ==================== DATE NAVIGATION ====================
+        function formatTitleDate(date) {
+            const locale = Layout.currentLang === 'en' ? 'en-US' : Layout.currentLang === 'hi' ? 'hi-IN' : 'ru-RU';
+            return date.toLocaleDateString(locale, { day: 'numeric', month: 'long', year: 'numeric' });
+        }
+
+        function updateTitle() {
+            const title = document.getElementById('pageTitle');
+            const label = t('prasad_title') || 'Прасад';
+            const count = residents.length;
+            title.textContent = `${label} ${formatTitleDate(currentDate)}${count ? ` (${count})` : ''}`;
+            const isToday = DateUtils.toISO(currentDate) === DateUtils.toISO(new Date());
+            title.title = isToday ? '' : (t('go_today') || 'Вернуться на сегодня');
+        }
+
+        function changeDate(delta) {
+            currentDate = new Date(currentDate.getTime() + delta * 86400000);
+            updateTitle();
+            loadResidents();
+        }
+
+        function goToday() {
+            currentDate = new Date();
+            updateTitle();
+            loadResidents();
+        }
+
+        // ==================== FILTERS ====================
+        function setQuickFilter(type) {
+            if (quickFilter === type) {
+                quickFilter = null;
+            } else {
+                quickFilter = type;
+            }
+            document.getElementById('btnArrives').classList.toggle('btn-active', quickFilter === 'arrives');
+            document.getElementById('btnDeparts').classList.toggle('btn-active', quickFilter === 'departs');
+            applyFilters();
+        }
+
+        function resetFilters() {
+            document.getElementById('filterCategory').value = '';
+            document.getElementById('filterBuilding').value = '';
+            document.getElementById('filterMeal').value = '';
+            document.getElementById('filterBreakfast').value = '';
+            document.getElementById('filterLunch').value = '';
+            document.getElementById('searchInput').value = '';
+            quickFilter = null;
+            document.getElementById('btnArrives').classList.remove('btn-active');
+            document.getElementById('btnDeparts').classList.remove('btn-active');
+            applyFilters();
+        }
+
+        function applyFilters() {
+            renderTable();
+            renderCards();
+            renderStats();
+        }
+
+        function getFilteredResidents() {
+            let list = residents;
+            const search = document.getElementById('searchInput').value.trim().toLowerCase();
+            const catFilter = document.getElementById('filterCategory').value;
+            const buildFilter = document.getElementById('filterBuilding').value;
+            const mealFilter = document.getElementById('filterMeal').value;
+            const brkfFilter = document.getElementById('filterBreakfast').value;
+            const lunchFilter = document.getElementById('filterLunch').value;
+            const today = DateUtils.toISO(currentDate);
+
+            // Быстрый фильтр
+            if (quickFilter === 'arrives') {
+                list = list.filter(r => r.check_in === today);
+            } else if (quickFilter === 'departs') {
+                list = list.filter(r => r.check_out === today);
+            }
+
+            // Категория
+            if (catFilter) {
+                list = list.filter(r => {
+                    const slug = r.resident_categories?.slug || 'guest';
+                    return slug === catFilter;
+                });
+            }
+
+            // Здание
+            if (buildFilter === '_self') {
+                list = list.filter(r => !r.rooms);
+            } else if (buildFilter === '_none') {
+                list = list.filter(r => !r.rooms && !r.has_housing);
+            } else if (buildFilter) {
+                list = list.filter(r => r.rooms?.buildings?.id === buildFilter);
+            }
+
+            // Питание
+            if (mealFilter === 'not_set') {
+                list = list.filter(r => !r.meal_type);
+            } else if (mealFilter) {
+                list = list.filter(r => r.meal_type === mealFilter);
+            }
+
+            // Завтрак
+            if (brkfFilter === 'yes') {
+                list = list.filter(r => r.breakfast !== false);
+            } else if (brkfFilter === 'no') {
+                list = list.filter(r => r.breakfast === false);
+            }
+
+            // Обед
+            if (lunchFilter === 'yes') {
+                list = list.filter(r => r.lunch !== false);
+            } else if (lunchFilter === 'no') {
+                list = list.filter(r => r.lunch === false);
+            }
+
+            // Поиск
+            if (search) {
+                list = list.filter(r => getDisplayName(r).toLowerCase().includes(search));
+            }
+
+            return list;
+        }
+
+        // ==================== DATA ====================
+        async function loadResidents() {
+            const today = DateUtils.toISO(currentDate);
+
+            // Категории и здания — из кэша
+            const { data: catData } = await Layout.db
+                .from('resident_categories')
+                .select('id, slug, name_ru, name_en, name_hi, color, sort_order')
+                .order('sort_order');
+            categories = (catData || []).filter(c => c.slug !== 'retreat');
+
+            const buildingsData = await Cache.getOrLoad('buildings_names', async () => {
+                const { data } = await Layout.db.from('buildings').select('id, name_ru, name_en, name_hi').order('name_ru');
+                return data || [];
+            }, 60000);
+            buildings = buildingsData;
+
+            // Загрузка проживающих
+            const { data, error } = await Layout.db
+                .from('residents')
+                .select(`
+                    id, check_in, check_out, meal_type, breakfast, lunch,
+                    group_name, group_count, group_breakfast, group_lunch,
+                    status, category_id, vaishnava_id, guest_name, notes, has_housing,
+                    vaishnavas(id, spiritual_name, first_name, last_name),
+                    rooms(id, number, floor, building_id, buildings(id, name_ru, name_en, name_hi)),
+                    resident_categories(id, slug, name_ru, name_en, name_hi, color)
+                `)
+                .lte('check_in', today)
+                .gte('check_out', today)
+                .in('status', ['active', 'confirmed']);
+
+            if (error) {
+                Layout.handleError(error, 'Загрузка проживающих');
+                return;
+            }
+
+            residents = data || [];
+            populateFilterOptions();
+            sortResidents();
+            renderStats();
+            renderTable();
+            renderCards();
+            updateTitle();
+        }
+
+        function populateFilterOptions() {
+            // Категории
+            const catSelect = document.getElementById('filterCategory');
+            const catVal = catSelect.value;
+            catSelect.innerHTML = `<option value="">${t('filter_all') || 'Все'}</option>`;
+            categories.forEach(c => {
+                catSelect.innerHTML += `<option value="${e(c.slug)}">${e(Layout.getName(c))}</option>`;
+            });
+            catSelect.value = catVal;
+
+            // Здания
+            const buildSelect = document.getElementById('filterBuilding');
+            const buildVal = buildSelect.value;
+            buildSelect.innerHTML = `<option value="">${t('filter_all') || 'Все'}</option>`;
+            buildings.forEach(b => {
+                buildSelect.innerHTML += `<option value="${e(b.id)}">${e(Layout.getName(b))}</option>`;
+            });
+            buildSelect.innerHTML += `<option value="_self">${t('self_accommodation') || 'Самостоятельно'}</option>`;
+            buildSelect.innerHTML += `<option value="_none">${t('not_assigned') || 'Не распределён'}</option>`;
+            buildSelect.value = buildVal;
+        }
+
+        // ==================== STATS ====================
+        function renderStats() {
+            const filtered = getFilteredResidents();
+            renderMealStats(filtered);
+            renderCategoryStats(filtered);
+        }
+
+        function renderMealStats(filtered) {
+            const container = document.getElementById('statsMeals');
+            const total = filtered.length;
+
+            // Завтрак: обычные (breakfast !== false) + групповые (group_breakfast)
+            let breakfastCount = 0;
+            let lunchCount = 0;
+            let noMeals = 0;
+
+            filtered.forEach(r => {
+                const isGroup = r.resident_categories?.slug === 'group';
+                if (isGroup) {
+                    breakfastCount += (r.group_breakfast || 0);
+                    lunchCount += (r.group_lunch || 0);
+                } else {
+                    if (r.breakfast !== false && r.meal_type && r.meal_type !== 'self') breakfastCount++;
+                    if (r.lunch !== false && r.meal_type && r.meal_type !== 'self') lunchCount++;
+                }
+                if (!r.meal_type || r.meal_type === 'self') noMeals++;
+            });
+
+            container.innerHTML = `
+                <div class="bg-base-100 rounded-lg px-3 py-2 border-l-4 border-base-300 stat-card">
+                    <div class="text-xl font-bold">${total}</div>
+                    <div class="text-xs opacity-60">${t('total_people') || 'Всего'}</div>
+                </div>
+                <div class="bg-base-100 rounded-lg px-3 py-2 border-l-4 stat-card" style="border-color: #f59e0b">
+                    <div class="text-xl font-bold">${breakfastCount}</div>
+                    <div class="text-xs opacity-60">&#9728;&#65039; ${t('breakfast') || 'Завтрак'}</div>
+                </div>
+                <div class="bg-base-100 rounded-lg px-3 py-2 border-l-4 stat-card" style="border-color: #3b82f6">
+                    <div class="text-xl font-bold">${lunchCount}</div>
+                    <div class="text-xs opacity-60">&#127869;&#65039; ${t('lunch') || 'Обед'}</div>
+                </div>
+                <div class="bg-base-100 rounded-lg px-3 py-2 border-l-4 stat-card" style="border-color: #9ca3af">
+                    <div class="text-xl font-bold">${noMeals}</div>
+                    <div class="text-xs opacity-60">&#9888;&#65039; ${t('without_meals') || 'Без питания'}</div>
+                </div>
+            `;
+        }
+
+        function renderCategoryStats(filtered) {
+            const container = document.getElementById('statsCategories');
+            const bySlug = {};
+            CATEGORY_ORDER.forEach(s => { bySlug[s] = 0; });
+
+            filtered.forEach(r => {
+                const slug = r.resident_categories?.slug || 'guest';
+                const key = CATEGORY_ORDER.includes(slug) ? slug : 'guest';
+                bySlug[key]++;
+            });
+
+            // Группы — отдельный подсчёт людей в группах
+            let inGroups = 0;
+            filtered.forEach(r => {
+                if (r.resident_categories?.slug === 'group') {
+                    inGroups += (r.group_count || 0);
+                }
+            });
+
+            const cards = CATEGORY_ORDER.map(slug => {
+                const cat = categories.find(c => c.slug === slug);
+                const name = cat ? Layout.getName(cat) : slug;
+                const color = cat?.color || '#6366f1';
+                const count = bySlug[slug] || 0;
+                return `
+                    <div class="bg-base-100 rounded-lg px-3 py-2 border-l-4 stat-card" style="border-color: ${e(color)}">
+                        <div class="text-xl font-bold">${count}</div>
+                        <div class="text-xs opacity-60">${e(name)}</div>
+                    </div>
+                `;
+            });
+
+            // В группах
+            cards.push(`
+                <div class="bg-base-100 rounded-lg px-3 py-2 border-l-4 border-base-300 stat-card">
+                    <div class="text-xl font-bold">${inGroups}</div>
+                    <div class="text-xs opacity-60">${t('in_groups') || 'В группах'}</div>
+                </div>
+            `);
+
+            container.innerHTML = cards.join('');
+        }
+
+        // ==================== SORT ====================
+        function toggleSort(field) {
+            if (sortField === field) {
+                sortDirection = sortDirection === 'asc' ? 'desc' : 'asc';
+            } else {
+                sortField = field;
+                sortDirection = 'asc';
+            }
+            updateSortIcons();
+            sortResidents();
+            renderTable();
+            renderCards();
+        }
+
+        function updateSortIcons() {
+            document.querySelectorAll('.sort-icon').forEach(icon => {
+                const field = icon.dataset.sort;
+                if (field === sortField) {
+                    icon.classList.add('active');
+                    icon.textContent = sortDirection === 'asc' ? '↑' : '↓';
+                } else {
+                    icon.classList.remove('active');
+                    icon.textContent = '↕';
+                }
+            });
+        }
+
+        function sortResidents() {
+            const dir = sortDirection === 'asc' ? 1 : -1;
+            residents.sort((a, b) => {
+                let valA, valB;
+                switch (sortField) {
+                    case 'name':
+                        valA = getDisplayName(a).toLowerCase();
+                        valB = getDisplayName(b).toLowerCase();
+                        return dir * valA.localeCompare(valB, 'ru');
+                    case 'checkin':
+                        valA = a.check_in || '';
+                        valB = b.check_in || '';
+                        return dir * valA.localeCompare(valB);
+                    case 'checkout':
+                        valA = a.check_out || '';
+                        valB = b.check_out || '';
+                        return dir * valA.localeCompare(valB);
+                    case 'building':
+                        valA = a.rooms?.buildings?.name_ru || '';
+                        valB = b.rooms?.buildings?.name_ru || '';
+                        if (valA !== valB) return dir * valA.localeCompare(valB, 'ru');
+                        return dir * ((parseInt(a.rooms?.number) || 0) - (parseInt(b.rooms?.number) || 0));
+                    case 'room':
+                        valA = parseInt(a.rooms?.number) || 0;
+                        valB = parseInt(b.rooms?.number) || 0;
+                        return dir * (valA - valB);
+                    case 'category':
+                        valA = a.resident_categories?.slug || '';
+                        valB = b.resident_categories?.slug || '';
+                        return dir * valA.localeCompare(valB);
+                    case 'meal':
+                        valA = a.meal_type || '';
+                        valB = b.meal_type || '';
+                        return dir * valA.localeCompare(valB);
+                    case 'breakfast':
+                        valA = a.breakfast === false ? 0 : 1;
+                        valB = b.breakfast === false ? 0 : 1;
+                        return dir * (valA - valB);
+                    case 'lunch':
+                        valA = a.lunch === false ? 0 : 1;
+                        valB = b.lunch === false ? 0 : 1;
+                        return dir * (valA - valB);
+                    case 'group':
+                        valA = a.group_name || '';
+                        valB = b.group_name || '';
+                        return dir * valA.localeCompare(valB, 'ru');
+                    case 'notes':
+                        valA = a.notes || '';
+                        valB = b.notes || '';
+                        return dir * valA.localeCompare(valB, 'ru');
+                    default:
+                        return 0;
+                }
+            });
+        }
+
+        // ==================== HELPERS ====================
+        function getDisplayName(r) {
+            if (r.vaishnavas) {
+                const v = r.vaishnavas;
+                const name = v.spiritual_name || `${v.first_name || ''} ${v.last_name || ''}`.trim();
+                return Layout.currentLang === 'ru' ? name : Layout.transliterate(name);
+            }
+            return r.guest_name || '—';
+        }
+
+        function formatShortDate(dateStr) {
+            if (!dateStr) return '—';
+            return DateUtils.parseDate(dateStr).toLocaleDateString(
+                Layout.currentLang === 'en' ? 'en-US' : 'ru-RU', { day: 'numeric', month: 'short' }
+            );
+        }
+
+        function getCheckoutClasses(checkOut) {
+            if (!checkOut) return '';
+            if (checkOut === realToday) return 'text-error font-semibold';
+            if (checkOut === realTomorrow) return 'text-warning font-semibold';
+            return '';
+        }
+
+        function adjustHref(href) {
+            const MODULE_FOLDERS = ['kitchen', 'stock', 'ashram', 'vaishnavas', 'placement', 'reception', 'settings', 'crm', 'guest-portal', 'photos'];
+            const path = window.location.pathname;
+            let currentFolder = null;
+            for (const folder of MODULE_FOLDERS) {
+                if (path.includes('/' + folder + '/')) { currentFolder = folder; break; }
+            }
+            if (!currentFolder) return href;
+            const targetFolder = MODULE_FOLDERS.find(f => href.startsWith(f + '/'));
+            if (targetFolder === currentFolder) return href.replace(targetFolder + '/', '');
+            if (!href.startsWith('../') && !href.startsWith('http')) return '../' + href;
+            return href;
+        }
+
+        // ==================== TABLE ====================
+        function renderTable() {
+            const tbody = document.getElementById('prasadBody');
+            const filtered = getFilteredResidents();
+
+            if (filtered.length === 0) {
+                tbody.innerHTML = `<tr><td colspan="13" class="text-center py-6 opacity-50">${t('no_results') || 'Ничего не найдено'}</td></tr>`;
+                return;
+            }
+
+            const canEdit = window.hasPermission && window.hasPermission('view_timeline');
+
+            tbody.innerHTML = filtered.map(r => {
+                const name = getDisplayName(r);
+                const personId = r.vaishnava_id;
+                const building = r.rooms?.buildings ? Layout.getName(r.rooms.buildings) : '—';
+                const room = r.rooms?.number || '—';
+                const cat = r.resident_categories;
+                const catName = cat ? Layout.getName(cat) : '—';
+                const catColor = cat?.color || '#6366f1';
+                const catSlug = cat?.slug || 'guest';
+                const isGroup = catSlug === 'group';
+                const meal = r.meal_type || '';
+                const hasRoom = !!r.rooms?.buildings;
+                const rowColor = hasRoom ? catColor : '#9ca3af';
+
+                // Имя — ссылка на профиль
+                const nameCell = personId
+                    ? `<a href="${adjustHref('vaishnavas/person.html?id=' + personId)}" class="link link-hover font-medium">${e(name)}</a>`
+                    : `<span class="font-medium">${e(name)}</span>`;
+
+                // Даты
+                const checkinDate = formatShortDate(r.check_in);
+                const checkoutDate = formatShortDate(r.check_out);
+                const checkoutClasses = getCheckoutClasses(r.check_out);
+
+                // Категория
+                const catBadge = `<span class="badge badge-sm text-white" style="background: ${e(catColor)}">${e(catName)}</span>`;
+
+                // Питание — select
+                const mealCell = canEdit
+                    ? `<select class="select select-xs select-bordered" data-id="${r.id}" data-field="meal_type" onchange="updateField(this)">
+                        <option value="" ${!meal ? 'selected' : ''}>${t('meal_not_set') || '—'}</option>
+                        <option value="prasad" ${meal === 'prasad' ? 'selected' : ''}>${t('meal_prasad')}</option>
+                        <option value="self" ${meal === 'self' ? 'selected' : ''}>${t('meal_self')}</option>
+                        <option value="child" ${meal === 'child' ? 'selected' : ''}>${t('meal_child')}</option>
+                    </select>`
+                    : `<span>${meal ? t('meal_' + meal) : '—'}</span>`;
+
+                // Завтрак — чекбокс
+                const brkfChecked = r.breakfast !== false;
+                const brkfCell = canEdit
+                    ? `<input type="checkbox" class="checkbox checkbox-xs checkbox-warning" ${brkfChecked ? 'checked' : ''} data-id="${r.id}" data-field="breakfast" onchange="updateCheckbox(this)">`
+                    : `<span>${brkfChecked ? '&#10003;' : ''}</span>`;
+
+                // Обед — чекбокс
+                const lunchChecked = r.lunch !== false;
+                const lunchCell = canEdit
+                    ? `<input type="checkbox" class="checkbox checkbox-xs checkbox-info" ${lunchChecked ? 'checked' : ''} data-id="${r.id}" data-field="lunch" onchange="updateCheckbox(this)">`
+                    : `<span>${lunchChecked ? '&#10003;' : ''}</span>`;
+
+                // Группа
+                const groupCell = isGroup
+                    ? `<span class="text-sm font-medium" style="color: #f97316">${e(r.group_name || '')}</span>`
+                    : `<span class="text-sm opacity-50">${e(r.group_name || '')}</span>`;
+
+                // Завтрак/обед группы — editable числа только для группы
+                const grBrkfCell = isGroup && canEdit
+                    ? `<input type="number" class="input input-xs input-bordered group-input" value="${r.group_breakfast || 0}" min="0" data-id="${r.id}" data-field="group_breakfast" onchange="updateNumber(this)">`
+                    : (isGroup ? `<span class="text-sm">${r.group_breakfast || 0}</span>` : '');
+
+                const grLunchCell = isGroup && canEdit
+                    ? `<input type="number" class="input input-xs input-bordered group-input" value="${r.group_lunch || 0}" min="0" data-id="${r.id}" data-field="group_lunch" onchange="updateNumber(this)">`
+                    : (isGroup ? `<span class="text-sm">${r.group_lunch || 0}</span>` : '');
+
+                // Примечания
+                const notesCell = r.notes ? `<span class="text-xs italic opacity-50">${e(r.notes)}</span>` : '';
+
+                return `<tr style="background: ${e(rowColor)}15">
+                    <td>${nameCell}</td>
+                    <td class="whitespace-nowrap text-sm opacity-70">${checkinDate}</td>
+                    <td class="whitespace-nowrap text-sm ${checkoutClasses}">${checkoutDate}</td>
+                    <td class="whitespace-nowrap">${e(building)}</td>
+                    <td>${e(room)}</td>
+                    <td>${catBadge}</td>
+                    <td>${mealCell}</td>
+                    <td class="text-center">${brkfCell}</td>
+                    <td class="text-center">${lunchCell}</td>
+                    <td>${groupCell}</td>
+                    <td class="text-center">${grBrkfCell}</td>
+                    <td class="text-center">${grLunchCell}</td>
+                    <td>${notesCell}</td>
+                </tr>`;
+            }).join('');
+        }
+
+        // ==================== CARDS (MOBILE) ====================
+        function renderCards() {
+            const container = document.getElementById('prasadCards');
+            const filtered = getFilteredResidents();
+
+            if (filtered.length === 0) {
+                container.innerHTML = `<div class="text-center py-6 opacity-50">${t('no_results') || 'Ничего не найдено'}</div>`;
+                return;
+            }
+
+            const canEdit = window.hasPermission && window.hasPermission('view_timeline');
+
+            container.innerHTML = filtered.map(r => {
+                const name = getDisplayName(r);
+                const personId = r.vaishnava_id;
+                const building = r.rooms?.buildings ? Layout.getName(r.rooms.buildings) : '—';
+                const room = r.rooms?.number || '—';
+                const cat = r.resident_categories;
+                const catName = cat ? Layout.getName(cat) : '—';
+                const catColor = cat?.color || '#6366f1';
+                const catSlug = cat?.slug || 'guest';
+                const isGroup = catSlug === 'group';
+                const meal = r.meal_type || '';
+
+                const nameHtml = personId
+                    ? `<a href="${adjustHref('vaishnavas/person.html?id=' + personId)}" class="link link-hover font-semibold text-base">${e(name)}</a>`
+                    : `<span class="font-semibold text-base">${e(name)}</span>`;
+
+                const catBadge = `<span class="badge badge-sm text-white" style="background: ${e(catColor)}">${e(catName)}</span>`;
+
+                const mealHtml = canEdit
+                    ? `<select class="select select-xs select-bordered" data-id="${r.id}" data-field="meal_type" onchange="updateField(this)">
+                        <option value="" ${!meal ? 'selected' : ''}>${t('meal_not_set') || '—'}</option>
+                        <option value="prasad" ${meal === 'prasad' ? 'selected' : ''}>${t('meal_prasad')}</option>
+                        <option value="self" ${meal === 'self' ? 'selected' : ''}>${t('meal_self')}</option>
+                        <option value="child" ${meal === 'child' ? 'selected' : ''}>${t('meal_child')}</option>
+                    </select>`
+                    : `<span class="text-sm">${meal ? t('meal_' + meal) : '—'}</span>`;
+
+                const brkfChecked = r.breakfast !== false;
+                const lunchChecked = r.lunch !== false;
+
+                const brkfHtml = canEdit
+                    ? `<label class="flex items-center gap-1 text-sm"><input type="checkbox" class="checkbox checkbox-xs checkbox-warning" ${brkfChecked ? 'checked' : ''} data-id="${r.id}" data-field="breakfast" onchange="updateCheckbox(this)"> &#9728;&#65039;</label>`
+                    : `<span class="text-sm">${brkfChecked ? '&#9728;&#65039;' : ''}</span>`;
+
+                const lunchHtml = canEdit
+                    ? `<label class="flex items-center gap-1 text-sm"><input type="checkbox" class="checkbox checkbox-xs checkbox-info" ${lunchChecked ? 'checked' : ''} data-id="${r.id}" data-field="lunch" onchange="updateCheckbox(this)"> &#127869;&#65039;</label>`
+                    : `<span class="text-sm">${lunchChecked ? '&#127869;&#65039;' : ''}</span>`;
+
+                const checkinDate = formatShortDate(r.check_in);
+                const checkoutDate = formatShortDate(r.check_out);
+                const checkoutClasses = getCheckoutClasses(r.check_out);
+
+                let groupHtml = '';
+                if (isGroup && r.group_name) {
+                    groupHtml = `<div class="text-sm mt-1" style="color: #f97316">${e(r.group_name)}`;
+                    if (canEdit) {
+                        groupHtml += ` — &#9728;&#65039; <input type="number" class="input input-xs input-bordered group-input" value="${r.group_breakfast || 0}" min="0" data-id="${r.id}" data-field="group_breakfast" onchange="updateNumber(this)">`;
+                        groupHtml += ` &#127869;&#65039; <input type="number" class="input input-xs input-bordered group-input" value="${r.group_lunch || 0}" min="0" data-id="${r.id}" data-field="group_lunch" onchange="updateNumber(this)">`;
+                    } else {
+                        groupHtml += ` — &#9728;&#65039; ${r.group_breakfast || 0} &#127869;&#65039; ${r.group_lunch || 0}`;
+                    }
+                    groupHtml += `</div>`;
+                }
+
+                const notesHtml = r.notes ? `<div class="text-xs italic opacity-50 mt-1">${e(r.notes)}</div>` : '';
+
+                return `<div class="bg-base-100 rounded-lg p-3 border-l-4" style="border-color: ${e(catColor)}">
+                    <div class="flex items-center justify-between mb-1">
+                        ${nameHtml}
+                        ${catBadge}
+                    </div>
+                    <div class="flex flex-wrap items-center gap-x-4 gap-y-1 text-sm opacity-70">
+                        <span>${e(building)}, ${e(room)}</span>
+                        <span>${mealHtml}</span>
+                        ${brkfHtml}
+                        ${lunchHtml}
+                    </div>
+                    <div class="flex gap-4 text-xs opacity-50 mt-1">
+                        <span>${t('col_checkin')}: ${checkinDate}</span>
+                        <span class="${checkoutClasses}">${t('col_checkout')}: ${checkoutDate}</span>
+                    </div>
+                    ${groupHtml}
+                    ${notesHtml}
+                </div>`;
+            }).join('');
+        }
+
+        // ==================== INLINE UPDATES ====================
+        async function updateField(select) {
+            const id = select.dataset.id;
+            const field = select.dataset.field;
+            const value = select.value || null;
+
+            const { error } = await Layout.db
+                .from('residents')
+                .update({ [field]: value })
+                .eq('id', id);
+
+            if (error) {
+                Layout.handleError(error, 'Обновление');
+                const r = residents.find(r => r.id === id);
+                if (r) select.value = r[field] || '';
+                return;
+            }
+
+            const r = residents.find(r => r.id === id);
+            if (r) r[field] = value;
+            renderStats();
+            Layout.showNotification(t('saved') || 'Сохранено', 'success');
+        }
+
+        async function updateCheckbox(checkbox) {
+            const id = checkbox.dataset.id;
+            const field = checkbox.dataset.field;
+            const value = checkbox.checked;
+
+            const { error } = await Layout.db
+                .from('residents')
+                .update({ [field]: value })
+                .eq('id', id);
+
+            if (error) {
+                Layout.handleError(error, 'Обновление');
+                checkbox.checked = !value;
+                return;
+            }
+
+            const r = residents.find(r => r.id === id);
+            if (r) r[field] = value;
+            renderStats();
+            Layout.showNotification(t('saved') || 'Сохранено', 'success');
+        }
+
+        async function updateNumber(input) {
+            const id = input.dataset.id;
+            const field = input.dataset.field;
+            const value = parseInt(input.value) || 0;
+
+            const { error } = await Layout.db
+                .from('residents')
+                .update({ [field]: value })
+                .eq('id', id);
+
+            if (error) {
+                Layout.handleError(error, 'Обновление');
+                const r = residents.find(r => r.id === id);
+                if (r) input.value = r[field] || 0;
+                return;
+            }
+
+            const r = residents.find(r => r.id === id);
+            if (r) r[field] = value;
+            renderStats();
+            Layout.showNotification(t('saved') || 'Сохранено', 'success');
+        }
+
+        // ==================== SEARCH ====================
+        function initSearch() {
+            const input = document.getElementById('searchInput');
+            input.addEventListener('input', Layout.debounce(() => {
+                applyFilters();
+            }, 200));
+        }
+
+        // ==================== LANGUAGE ====================
+        window.onLanguageChange = () => {
+            Layout.updateAllTranslations();
+            updateTitle();
+            populateFilterOptions();
+            renderStats();
+            renderTable();
+            renderCards();
+        };
+
+        // ==================== KEYBOARD ====================
+        function initKeyboard() {
+            document.addEventListener('keydown', (ev) => {
+                if (ev.target.tagName === 'INPUT' || ev.target.tagName === 'SELECT' || ev.target.tagName === 'TEXTAREA') return;
+                if (ev.key === 'ArrowLeft') { ev.preventDefault(); changeDate(-1); }
+                if (ev.key === 'ArrowRight') { ev.preventDefault(); changeDate(1); }
+            });
+        }
+
+        // ==================== INIT ====================
+        async function init() {
+            await Layout.init({ module: 'housing', menuId: 'reception', itemId: 'prasad' });
+            Layout.showLoader();
+            updateTitle();
+            await loadResidents();
+            initSearch();
+            initKeyboard();
+            Layout.hideLoader();
+        }
+
+        init();
+    </script>
+</body>
+</html>
