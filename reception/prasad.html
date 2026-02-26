@@ -200,7 +200,6 @@
     <script src="../js/auto-translate.js"></script>
     <script src="../js/date-utils.js"></script>
     <script src="../js/layout.js?v=5"></script>
-    <script src="../js/eating-utils.js"></script>
     <script>
         // ==================== STATE ====================
         let residents = [];
@@ -209,7 +208,6 @@
         let buildings = [];
         let currentDate = new Date();
         let quickFilter = null; // 'arrives' | 'departs' | null
-        let eatingCounts = null; // данные из EatingUtils (как в кухне)
 
         const t = key => Layout.t(key);
         const e = str => Layout.escapeHtml(str);
@@ -363,8 +361,8 @@
             }, 60000);
             buildings = buildingsData;
 
-            // Загрузка проживающих + EatingUtils параллельно
-            const [residentsResult, mgResult, eatingResult] = await Promise.all([
+            // Загрузка проживающих + meal_groups параллельно
+            const [residentsResult, mgResult] = await Promise.all([
                 Layout.db
                     .from('residents')
                     .select(`
@@ -382,8 +380,7 @@
                     .from('meal_groups')
                     .select('*')
                     .lte('start_date', today)
-                    .gte('end_date', today),
-                EatingUtils.loadCounts(today, today)
+                    .gte('end_date', today)
             ]);
 
             if (residentsResult.error) {
@@ -393,7 +390,6 @@
 
             residents = residentsResult.data || [];
             mealGroups = mgResult.data || [];
-            eatingCounts = eatingResult;
 
             populateFilterOptions();
             sortResidents();
@@ -434,37 +430,24 @@
 
         function renderMealStats(filtered) {
             const container = document.getElementById('statsMeals');
-            const today = DateUtils.toISO(currentDate);
 
-            // Счётчики из EatingUtils (как в кухне) — единый источник правды
-            const dayData = eatingCounts?.[today];
-            let breakfastCount, lunchCount;
-            if (dayData) {
-                const bf = dayData.breakfast;
-                const ln = dayData.lunch;
-                breakfastCount = bf.team + bf.volunteers + bf.vips + bf.guests + bf.groups;
-                lunchCount = ln.team + ln.volunteers + ln.vips + ln.guests + ln.groups;
-            } else {
-                // Fallback если EatingUtils не загрузился
-                breakfastCount = 0;
-                lunchCount = 0;
-                filtered.forEach(r => {
-                    if (r.breakfast !== false && r.meal_type && r.meal_type !== 'self') breakfastCount++;
-                    if (r.lunch !== false && r.meal_type && r.meal_type !== 'self') lunchCount++;
-                });
-                mealGroups.forEach(g => {
-                    if (g.breakfast) breakfastCount += (g.people_count || 0);
-                    if (g.lunch) lunchCount += (g.people_count || 0);
-                });
-            }
-
-            // Всего = из локальных данных (резиденты + группы), чтобы совпадало с суммой категорий
+            // Все счётчики — из локальных данных (residents + meal_groups)
             const total = filtered.length + mealGroups.reduce((s, g) => s + (g.people_count || 0), 0);
 
-            // Без питания — из локальной таблицы
+            let breakfastCount = 0;
+            let lunchCount = 0;
             let noMeals = 0;
+
             filtered.forEach(r => {
+                if (r.breakfast !== false && r.meal_type && r.meal_type !== 'self') breakfastCount++;
+                if (r.lunch !== false && r.meal_type && r.meal_type !== 'self') lunchCount++;
                 if (!r.meal_type || r.meal_type === 'self') noMeals++;
+            });
+
+            // Добавляем meal_groups
+            mealGroups.forEach(g => {
+                if (g.breakfast) breakfastCount += (g.people_count || 0);
+                if (g.lunch) lunchCount += (g.people_count || 0);
             });
 
             container.innerHTML = `
