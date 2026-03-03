@@ -52,15 +52,49 @@
         .table th { padding: 0.5rem 0.75rem; border-right: 1px solid white; }
         .table tbody tr { border-bottom: 1px solid white; }
 
-        .filter-btn.active {
+        .view-preset-btn.active {
             background: var(--current-color);
             color: white;
             border-color: var(--current-color);
         }
-        .filter-btn.active:hover {
+        .view-preset-btn.active:hover {
             background: var(--current-color);
             opacity: 0.9;
         }
+
+        /* Скрытие колонок пресетом «Итог» */
+        .preset-summary .col-gender,
+        .preset-summary .col-status,
+        .preset-summary .col-experience,
+        .preset-summary .col-companions,
+        .preset-summary .col-arrival,
+        .preset-summary .col-departure,
+        .preset-summary .col-days,
+        .preset-summary .col-plans,
+        .preset-summary .col-questions,
+        .preset-summary .col-org-notes,
+        .preset-summary .col-meal,
+        .preset-summary .col-notes { display: none; }
+
+        /* Скрытие колонок настраиваемым пресетом */
+        .col-hidden { display: none; }
+
+        /* Боковая панель: дропдаун фильтра */
+        .side-filter-dropdown { position: relative; }
+        .side-filter-dropdown .dropdown-menu {
+            position: absolute; left: 0; right: 0; top: 100%; margin-top: 2px;
+            z-index: 20; background: var(--fallback-b1,oklch(var(--b1))); border: 1px solid var(--fallback-bc,oklch(var(--bc)/0.2));
+            border-radius: 0.5rem; box-shadow: 0 4px 12px rgba(0,0,0,.12);
+            max-height: 280px; overflow-y: auto;
+        }
+        .side-filter-dropdown .dropdown-item {
+            padding: 6px 10px; cursor: pointer; display: flex; align-items: center; gap: 6px;
+            font-size: 0.8125rem; transition: background 0.1s;
+        }
+        .side-filter-dropdown .dropdown-item:hover { background: var(--fallback-b2,oklch(var(--b2))); }
+        .side-filter-dropdown .dropdown-item.active { background: #8b5cf620; color: #7c3aed; font-weight: 500; }
+        .side-filter-dropdown .dropdown-divider { border-top: 1px solid var(--fallback-bc,oklch(var(--bc)/0.1)); margin: 2px 0; }
+        .side-filter-trigger.filter-active { border-color: #8b5cf6; color: #7c3aed; background: #8b5cf610; }
 
         .import-log {
             max-height: 300px;
@@ -223,7 +257,7 @@
         </div>
 
         <!-- Search and Filter -->
-        <div class="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2 mb-2">
+        <div class="flex flex-wrap items-center gap-2 mb-2">
                 <div class="relative w-full sm:w-56">
                     <input type="text" id="searchInput" class="input input-bordered input-sm w-full pl-8 pr-7" data-i18n-placeholder="search" placeholder="Поиск..." oninput="onSearchInput(this.value)" />
                     <svg class="absolute left-2.5 top-1/2 -translate-y-1/2 w-4 h-4 opacity-40" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -235,122 +269,144 @@
                         </svg>
                     </button>
                 </div>
-                <div class="flex flex-wrap items-center gap-1">
-                    <button class="btn btn-xs filter-btn active" data-filter="all" data-i18n="all">Все</button>
-                    <button class="btn btn-xs btn-ghost filter-btn" data-filter="guest" data-i18n="status_guest">Гость</button>
-                    <button class="btn btn-xs btn-ghost filter-btn" data-filter="team" data-i18n="status_team">Команда</button>
-                    <button class="btn btn-xs btn-ghost filter-btn" data-filter="volunteer" data-i18n="status_volunteer">Волонтёр</button>
-                    <button class="btn btn-xs btn-ghost filter-btn" data-filter="vip" data-i18n="status_vip">ВИП</button>
-                    <button class="btn btn-xs btn-ghost filter-btn" data-filter="cancelled" data-i18n="status_cancelled">Отказ</button>
-                    <div class="border-l border-base-300 h-6 mx-1"></div>
-                    <button class="btn btn-xs btn-ghost filter-btn" data-filter="accommodated" data-i18n="accommodated">Заселены</button>
-                    <button class="btn btn-xs btn-ghost filter-btn" data-filter="not_accommodated" data-i18n="not_accommodated">Не заселены</button>
-                    <div class="border-l border-base-300 h-6 mx-1"></div>
-                    <div class="relative">
-                        <button class="btn btn-xs btn-outline gap-1" id="advFilterBtn" onclick="toggleFilterPanel()">
-                            <svg xmlns="http://www.w3.org/2000/svg" class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-                                <path stroke-linecap="round" stroke-linejoin="round" d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2.586a1 1 0 01-.293.707l-6.414 6.414a1 1 0 00-.293.707V17l-4 4v-6.586a1 1 0 00-.293-.707L3.293 7.293A1 1 0 013 6.586V4z" />
-                            </svg>
-                            <span data-i18n="filters">Фильтры</span>
-                            <span id="advFilterBadge" class="badge badge-xs badge-warning hidden"></span>
-                        </button>
-                        <div id="advFilterPanel" class="hidden absolute right-0 top-full mt-1 z-50 bg-base-100 shadow-xl rounded-lg p-4 w-72 border max-h-[70vh] overflow-y-auto">
-                            <!-- Генерируется через JS -->
-                        </div>
-                    </div>
+                <!-- Датапикер Заезд -->
+                <div class="flex items-center gap-1">
+                    <span class="text-xs opacity-60 whitespace-nowrap" data-i18n="preliminary_checkin_date">Заезд:</span>
+                    <input type="date" id="filterCheckin" class="input input-bordered input-sm input-xs w-32" onchange="onDateFilterChange()" />
+                    <button type="button" class="btn btn-ghost btn-xs btn-square opacity-40 hover:opacity-70 hidden" id="filterCheckinClear" onclick="clearDateFilter('checkin')">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" /></svg>
+                    </button>
                 </div>
+                <!-- Датапикер Выезд -->
+                <div class="flex items-center gap-1">
+                    <span class="text-xs opacity-60 whitespace-nowrap" data-i18n="preliminary_checkout_date">Выезд:</span>
+                    <input type="date" id="filterCheckout" class="input input-bordered input-sm input-xs w-32" onchange="onDateFilterChange()" />
+                    <button type="button" class="btn btn-ghost btn-xs btn-square opacity-40 hover:opacity-70 hidden" id="filterCheckoutClear" onclick="clearDateFilter('checkout')">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" /></svg>
+                    </button>
+                </div>
+                <!-- Кнопка Фильтры -->
+                <button class="btn btn-xs btn-outline gap-1" id="advFilterBtn" onclick="toggleSideFilter()">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2.586a1 1 0 01-.293.707l-6.414 6.414a1 1 0 00-.293.707V17l-4 4v-6.586a1 1 0 00-.293-.707L3.293 7.293A1 1 0 013 6.586V4z" />
+                    </svg>
+                    <span data-i18n="filters">Фильтры</span>
+                    <span id="advFilterBadge" class="badge badge-xs badge-warning hidden"></span>
+                </button>
         </div>
 
-        <!-- Guests Table -->
-        <div class="overflow-x-auto">
-            <table class="table table-zebra">
+        <!-- Переключение видов -->
+        <div class="flex items-center gap-2 mb-2">
+            <span class="text-xs opacity-60" data-i18n="preliminary_view">Вид:</span>
+            <div class="btn-group" id="viewPresetBtns">
+                <button class="btn btn-xs view-preset-btn active" data-preset="full" onclick="setViewPreset('full')" data-i18n="preliminary_preset_full">Полный</button>
+                <div class="relative">
+                    <button class="btn btn-xs btn-ghost view-preset-btn" data-preset="custom" onclick="toggleColumnPicker()" data-i18n="preliminary_preset_custom">Настраиваемый</button>
+                    <div id="columnPicker" class="hidden absolute left-0 top-full mt-1 z-50 bg-base-100 shadow-xl rounded-lg p-3 w-56 border max-h-[60vh] overflow-y-auto">
+                        <!-- Генерируется JS -->
+                    </div>
+                </div>
+                <button class="btn btn-xs btn-ghost view-preset-btn" data-preset="summary" onclick="setViewPreset('summary')" data-i18n="preliminary_preset_summary">Итог</button>
+            </div>
+        </div>
+
+        <!-- Таблица + боковая панель -->
+        <div class="flex gap-4">
+        <div class="flex-1 overflow-x-auto min-w-0">
+            <table class="table table-zebra" id="mainTable">
                 <thead>
                     <tr>
-                        <th class="cursor-pointer hover:bg-base-200 select-none" onclick="toggleSort('name')">
+                        <th class="col-name cursor-pointer hover:bg-base-200 select-none" onclick="toggleSort('name')">
                             <div class="flex items-center gap-1">
                                 <span data-i18n="name">Имя</span>
                                 <span class="sort-icon" data-sort="name">↕</span>
                             </div>
                         </th>
-                        <th class="cursor-pointer hover:bg-base-200 select-none whitespace-nowrap" onclick="toggleSort('gender_age')">
+                        <th class="col-gender cursor-pointer hover:bg-base-200 select-none whitespace-nowrap" onclick="toggleSort('gender_age')">
                             <div class="flex items-center gap-1">
                                 <span data-i18n="gender_age">Пол / Возраст</span>
                                 <span class="sort-icon" data-sort="gender_age">↕</span>
                             </div>
                         </th>
-                        <th class="cursor-pointer hover:bg-base-200 select-none" onclick="toggleSort('status')">
+                        <th class="col-status cursor-pointer hover:bg-base-200 select-none" onclick="toggleSort('status')">
                             <div class="flex items-center gap-1">
                                 <span data-i18n="status">Статус</span>
                                 <span class="sort-icon" data-sort="status">↕</span>
                             </div>
                         </th>
-                        <th class="cursor-pointer hover:bg-base-200 select-none whitespace-nowrap" onclick="toggleSort('india_experience')">
+                        <th class="col-experience cursor-pointer hover:bg-base-200 select-none whitespace-nowrap" onclick="toggleSort('india_experience')">
                             <div class="flex items-center gap-1">
                                 <span data-i18n="india_experience">Опыт в Индии</span>
                                 <span class="sort-icon" data-sort="india_experience">↕</span>
                             </div>
                         </th>
-                        <th class="cursor-pointer hover:bg-base-200 select-none" onclick="toggleSort('companions')">
+                        <th class="col-companions cursor-pointer hover:bg-base-200 select-none" onclick="toggleSort('companions')">
                             <div class="flex items-center gap-1">
                                 <span data-i18n="companions">С кем едет</span>
                                 <span class="sort-icon" data-sort="companions">↕</span>
                             </div>
                         </th>
-                        <th class="cursor-pointer hover:bg-base-200 select-none" onclick="toggleSort('accommodation_wishes')">
+                        <th class="col-wishes cursor-pointer hover:bg-base-200 select-none" onclick="toggleSort('accommodation_wishes')">
                             <div class="flex items-center gap-1">
                                 <span data-i18n="accommodation_wishes">Где хотят жить</span>
                                 <span class="sort-icon" data-sort="accommodation_wishes">↕</span>
                             </div>
                         </th>
-                        <th class="cursor-pointer hover:bg-base-200 select-none text-center whitespace-nowrap" onclick="toggleSort('arrival')">
+                        <th class="col-arrival cursor-pointer hover:bg-base-200 select-none text-center whitespace-nowrap" onclick="toggleSort('arrival')">
                             <div class="flex items-center gap-1 justify-center">
                                 <span data-i18n="check_in">Заезд</span>
                                 <span class="sort-icon" data-sort="arrival">↕</span>
                             </div>
                         </th>
-                        <th class="cursor-pointer hover:bg-base-200 select-none text-center whitespace-nowrap" onclick="toggleSort('departure')">
+                        <th class="col-departure cursor-pointer hover:bg-base-200 select-none text-center whitespace-nowrap" onclick="toggleSort('departure')">
                             <div class="flex items-center gap-1 justify-center">
                                 <span data-i18n="check_out">Выезд</span>
                                 <span class="sort-icon" data-sort="departure">↕</span>
                             </div>
                         </th>
-                        <th class="cursor-pointer hover:bg-base-200 select-none" onclick="toggleSort('extended_stay')">
+                        <th class="col-days cursor-pointer hover:bg-base-200 select-none text-center whitespace-nowrap" onclick="toggleSort('days')">
+                            <div class="flex items-center gap-1 justify-center">
+                                <span data-i18n="preliminary_days">Дней</span>
+                                <span class="sort-icon" data-sort="days">↕</span>
+                            </div>
+                        </th>
+                        <th class="col-plans cursor-pointer hover:bg-base-200 select-none" onclick="toggleSort('extended_stay')">
                             <div class="flex items-center gap-1">
                                 <span data-i18n="extended_stay">Планы до/после</span>
                                 <span class="sort-icon" data-sort="extended_stay">↕</span>
                             </div>
                         </th>
-                        <th class="cursor-pointer hover:bg-base-200 select-none" onclick="toggleSort('guest_questions')">
+                        <th class="col-questions cursor-pointer hover:bg-base-200 select-none" onclick="toggleSort('guest_questions')">
                             <div class="flex items-center gap-1">
                                 <span data-i18n="guest_questions">Пожелания</span>
                                 <span class="sort-icon" data-sort="guest_questions">↕</span>
                             </div>
                         </th>
-                        <th class="cursor-pointer hover:bg-base-200 select-none" onclick="toggleSort('org_notes')">
+                        <th class="col-org-notes cursor-pointer hover:bg-base-200 select-none" onclick="toggleSort('org_notes')">
                             <div class="flex items-center gap-1">
                                 <span data-i18n="org_notes_short">Заметки ОП</span>
                                 <span class="sort-icon" data-sort="org_notes">↕</span>
                             </div>
                         </th>
-                        <th class="cursor-pointer hover:bg-base-200 select-none" onclick="toggleSort('meal_type')">
+                        <th class="col-meal cursor-pointer hover:bg-base-200 select-none" onclick="toggleSort('meal_type')">
                             <div class="flex items-center gap-1">
                                 <span data-i18n="meal_type">Питание</span>
                                 <span class="sort-icon" data-sort="meal_type">↕</span>
                             </div>
                         </th>
-                        <th class="cursor-pointer hover:bg-base-200 select-none" onclick="toggleSort('notes')">
+                        <th class="col-notes cursor-pointer hover:bg-base-200 select-none" onclick="toggleSort('notes')">
                             <div class="flex items-center gap-1">
                                 <span data-i18n="preliminary_notes">Заметки</span>
                                 <span class="sort-icon" data-sort="notes">↕</span>
                             </div>
                         </th>
-                        <th class="cursor-pointer hover:bg-base-200 select-none" onclick="toggleSort('building')">
+                        <th class="col-building cursor-pointer hover:bg-base-200 select-none" onclick="toggleSort('building')">
                             <div class="flex items-center gap-1">
                                 <span data-i18n="preliminary_building">Гостиница</span>
                                 <span class="sort-icon" data-sort="building">↕</span>
                             </div>
                         </th>
-                        <th class="cursor-pointer hover:bg-base-200 select-none" onclick="toggleSort('room')">
+                        <th class="col-room cursor-pointer hover:bg-base-200 select-none" onclick="toggleSort('room')">
                             <div class="flex items-center gap-1">
                                 <span data-i18n="preliminary_room">Номер</span>
                                 <span class="sort-icon" data-sort="room">↕</span>
@@ -366,6 +422,11 @@
                 <div class="text-4xl mb-2">👥</div>
                 <p data-i18n="no_guests">Нет гостей</p>
             </div>
+        </div>
+        <!-- Боковая панель фильтров -->
+        <div id="sideFilterPanel" class="hidden w-64 shrink-0 bg-base-100 border rounded-lg p-4 sticky top-4 self-start max-h-[calc(100vh-6rem)] overflow-y-auto">
+            <!-- Генерируется JS: renderSideFilterPanel() -->
+        </div>
         </div>
 
     </main>
@@ -913,7 +974,7 @@
         if (btn) { btn.classList.toggle('btn-active', isFS); btn.title = isFS ? 'Обычный вид' : 'На весь экран'; }
     }
     </script>
-    <script src="../js/pages/preliminary.js?v=20"></script>
+    <script src="../js/pages/preliminary.js?v=21"></script>
 
 </body>
 </html>

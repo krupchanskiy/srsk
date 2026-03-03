@@ -3,10 +3,42 @@ let retreatId = null;
 let retreat = null;
 let registrations = [];
 let vaishnavas = [];
-let currentFilter = 'all';
 let searchQuery = '';
 let sortField = 'name';
 let sortDirection = 'asc';
+
+// Фильтры-дропдауны боковой панели
+let dropdownFilters = {
+    category: 'all',   // 'all' | 'all_guests' | 'all_team' | 'guest' | 'vip' | 'team' | 'volunteer' | 'cancelled'
+    building: 'all',   // 'all' | 'accommodated' | 'no_self' | 'self' | 'none' | building_id
+    meal: 'all',       // 'all' | 'prasad' | 'self' | 'child' | 'none'
+};
+
+// Датапикеры
+let dateFilters = { checkin: null, checkout: null };
+
+// Пресеты видов
+let currentViewPreset = 'full'; // 'full' | 'custom' | 'summary'
+let customHiddenColumns = new Set(); // колонки, скрытые в «Настраиваемый»
+
+const ALL_COLUMNS = [
+    { id: 'name', locked: true },
+    { id: 'gender' },
+    { id: 'status' },
+    { id: 'experience' },
+    { id: 'companions' },
+    { id: 'wishes' },
+    { id: 'arrival' },
+    { id: 'departure' },
+    { id: 'days' },
+    { id: 'plans' },
+    { id: 'questions' },
+    { id: 'org-notes' },
+    { id: 'meal' },
+    { id: 'notes' },
+    { id: 'building' },
+    { id: 'room' },
+];
 
 // Import state
 let csvData = [];
@@ -287,22 +319,50 @@ function clearSearch() {
 }
 
 function filterRegistrations() {
-    let filtered;
+    let filtered = [...registrations];
 
-    if (currentFilter === 'all') {
-        filtered = [...registrations];
-    } else if (currentFilter === 'accommodated') {
-        // Показать только заселённых (есть размещение с гостиницей и комнатой)
-        filtered = registrations.filter(r => r.resident && r.resident.room_id);
-    } else if (currentFilter === 'not_accommodated') {
-        // Показать только не заселённых (нет размещения или нет комнаты)
-        filtered = registrations.filter(r => !r.resident || !r.resident.room_id);
-    } else {
-        // Фильтр по статусу (guest, team, cancelled)
-        filtered = registrations.filter(r => r.status === currentFilter);
+    // Дропдаун «Категория»
+    const cat = dropdownFilters.category;
+    if (cat === 'all_guests') {
+        filtered = filtered.filter(r => r.status === 'guest' || r.status === 'vip');
+    } else if (cat === 'all_team') {
+        filtered = filtered.filter(r => r.status === 'team' || r.status === 'volunteer');
+    } else if (cat !== 'all') {
+        filtered = filtered.filter(r => r.status === cat);
     }
 
-    // Apply search filter
+    // Дропдаун «Гостиница»
+    const bld = dropdownFilters.building;
+    if (bld === 'accommodated') {
+        filtered = filtered.filter(r => r.resident && r.resident.room_id);
+    } else if (bld === 'no_self') {
+        filtered = filtered.filter(r => !r.resident || r.resident.room_id);
+    } else if (bld === 'self') {
+        filtered = filtered.filter(r => r.resident && !r.resident.room_id);
+    } else if (bld === 'none') {
+        filtered = filtered.filter(r => !r.resident);
+    } else if (bld !== 'all') {
+        // Конкретный building_id
+        filtered = filtered.filter(r => r.resident?.rooms?.building_id === bld);
+    }
+
+    // Дропдаун «Питание»
+    const ml = dropdownFilters.meal;
+    if (ml === 'prasad' || ml === 'self' || ml === 'child') {
+        filtered = filtered.filter(r => r.meal_type === ml);
+    } else if (ml === 'none') {
+        filtered = filtered.filter(r => !r.meal_type);
+    }
+
+    // Датапикеры
+    if (dateFilters.checkin) {
+        filtered = filtered.filter(r => getRegCheckIn(r) === dateFilters.checkin);
+    }
+    if (dateFilters.checkout) {
+        filtered = filtered.filter(r => getRegCheckOut(r) === dateFilters.checkout);
+    }
+
+    // Поиск
     if (searchQuery) {
         filtered = filtered.filter(r => {
             const v = r.vaishnavas;
@@ -313,20 +373,9 @@ function filterRegistrations() {
         });
     }
 
-    // Расширенные фильтры
-    if (advFilters.buildings) {
-        filtered = filtered.filter(r => {
-            const res = r.resident;
-            if (!res) return advFilters.buildings.has('none');
-            if (!res.room_id) return advFilters.buildings.has('self');
-            return advFilters.buildings.has(res.rooms?.building_id);
-        });
-    }
+    // Расширенные чекбокс-фильтры
     if (advFilters.genders) {
         filtered = filtered.filter(r => advFilters.genders.has(r.vaishnavas?.gender || ''));
-    }
-    if (advFilters.meals) {
-        filtered = filtered.filter(r => advFilters.meals.has(r.meal_type || ''));
     }
     if (advFilters.companions) {
         filtered = filtered.filter(r => {
@@ -396,6 +445,13 @@ function filterRegistrations() {
             // Оба не пустые - сортируем нормально
             aVal = aNotes.toLowerCase();
             bVal = bNotes.toLowerCase();
+        } else if (sortField === 'days') {
+            const aIn = getRegCheckIn(a);
+            const aOut = getRegCheckOut(a);
+            const bIn = getRegCheckIn(b);
+            const bOut = getRegCheckOut(b);
+            aVal = aIn && aOut ? Math.round((DateUtils.parseDate(aOut) - DateUtils.parseDate(aIn)) / 86400000) : 9999;
+            bVal = bIn && bOut ? Math.round((DateUtils.parseDate(bOut) - DateUtils.parseDate(bIn)) / 86400000) : 9999;
         } else if (sortField === 'building') {
             // Сортировка по названию здания
             const aBuilding = buildings.find(bldg => bldg.id === a.resident?.rooms?.building_id);
@@ -475,6 +531,8 @@ const IC = {
     plane: `<svg class="w-4 h-4 inline -mt-0.5" viewBox="0 0 24 24" fill="currentColor"><path d="M21 16v-2l-8-5V3.5a1.5 1.5 0 00-3 0V9l-8 5v2l8-2.5V19l-2 1.5V22l3.5-1 3.5 1v-1.5L13 19v-5.5l8 2.5z"/></svg>`,
     pin: `<svg class="w-4 h-4 inline -mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M15 10.5a3 3 0 11-6 0 3 3 0 016 0z"/><path stroke-linecap="round" stroke-linejoin="round" d="M19.5 10.5c0 7.142-7.5 11.25-7.5 11.25S4.5 17.642 4.5 10.5a7.5 7.5 0 1115 0z"/></svg>`,
     taxi: `<svg class="w-7 h-7 inline -mt-0.5" viewBox="0 0 103.07 59.75"><path fill="#fbbf24" d="M5.75,53.47c-1.68-1.71-2.63-4.23-2.68-6.64,2.97-10.49,6.26-20.89,9.36-31.35,1.71-5.78,1.81-10.95,9.24-12.11h58.86c3.74.23,7.15,2.76,8.35,6.35.33,1,.31,1.98.58,2.89,3.38,11.42,6.9,22.8,10.18,34.25-.11,4.72-3.5,8.64-8.16,9.3H11.55c-2.09-.16-4.35-1.22-5.8-2.7ZM21.72,9.78c-2.2.69-1.86,2.64-2.36,4.28-3.3,10.95-6.61,21.9-9.85,32.87-.47,2.23,1.92,3.11,3.77,3.19h76.19c1.99-.17,3.63-.69,3.83-2.97-3.25-10.64-6.4-21.3-9.61-31.95-.48-1.59-.56-4.58-2.24-5.26l-59.73-.16Z"/><polygon fill="#1f2937" points="60.75 20.68 63.64 26.16 67.25 20.68 72.58 20.68 66.57 29.82 72.29 38.86 66.96 38.86 63.64 33.67 61.04 38.86 55.27 38.86 60.98 29.81 55.27 20.68 60.75 20.68"/><path fill="#1f2937" d="M37.96,38.86l6.09-18.15,4.45-.05,6.48,18.2h-4.76l-1.27-3.29-4.91-.14-.89,3.43h-5.19ZM48.06,31.93c-.5-1.5-.78-3.12-1.3-4.61-.1-.28-.03-.66-.42-.58l-1.45,5.19h3.17Z"/><polygon fill="#1f2937" points="39.12 20.68 39.12 25.01 33.92 25.01 33.92 38.86 28.73 38.86 28.73 25.01 23.54 25.01 23.54 20.68 39.12 20.68"/><rect fill="#1f2937" x="74.03" y="20.68" width="5.19" height="18.18"/></svg>`,
+    companions: `<svg class="w-4 h-4 inline -mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5"><path stroke-linecap="round" stroke-linejoin="round" d="M15 19.128a9.38 9.38 0 002.625.372 9.337 9.337 0 004.121-.952 4.125 4.125 0 00-7.533-2.493M15 19.128v-.003c0-1.113-.285-2.16-.786-3.07M15 19.128v.106A12.318 12.318 0 018.624 21c-2.331 0-4.512-.645-6.374-1.766l-.001-.109a6.375 6.375 0 0111.964-3.07M12 6.375a3.375 3.375 0 11-6.75 0 3.375 3.375 0 016.75 0zm8.25 2.25a2.625 2.625 0 11-5.25 0 2.625 2.625 0 015.25 0z"/></svg>`,
+    check: `<svg class="w-3.5 h-3.5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M4.5 12.75l6 6 9-13.5"/></svg>`,
 };
 
 function renderTable() {
@@ -616,9 +674,23 @@ function renderTable() {
 
         const childBadge = isChild ? ` <span class="badge badge-xs badge-warning">${t('preliminary_child')}</span>` : '';
 
+        // Колонка «Дней»
+        const regCheckIn = getRegCheckIn(reg);
+        const regCheckOut = getRegCheckOut(reg);
+        let daysCount = '';
+        if (regCheckIn && regCheckOut) {
+            const diff = Math.round((DateUtils.parseDate(regCheckOut) - DateUtils.parseDate(regCheckIn)) / 86400000);
+            if (diff >= 0) daysCount = diff;
+        }
+
+        // «С кем едет» — SVG-иконка + имя
+        const companionsHtml = reg.companions && reg.companions.trim() && reg.companions.trim() !== '—'
+            ? `<span class="inline-flex items-center gap-1">${IC.companions} ${e(reg.companions)}</span>`
+            : '—';
+
         return `
             <tr class="hover align-top${reg.status === 'cancelled' ? ' row-cancelled' : ''}${isChild ? ' opacity-80' : ''}">
-                <td class="cursor-pointer ${buildingId === 'self' ? 'bg-error/20' : (buildingId && roomId) ? 'bg-success/20' : ''}" data-action="navigate-person" data-id="${v?.id}">
+                <td class="col-name cursor-pointer ${buildingId === 'self' ? 'bg-error/20' : (buildingId && roomId) ? 'bg-success/20' : ''}" data-action="navigate-person" data-id="${v?.id}">
                     <div class="flex gap-3 items-center${isChild ? ' pl-4' : ''}">
                         ${photoUrl
                             ? `<img src="${e(photoUrl)}" class="guest-photo avatar-photo" alt="" data-initials="${initialsUpper}" data-photo-url="${e(photoUrl)}" onerror="replaceWithPlaceholder(this)">`
@@ -630,8 +702,8 @@ function renderTable() {
                         </div>
                     </div>
                 </td>
-                <td class="text-sm whitespace-nowrap ${v?.gender === 'male' ? 'bg-blue-500/10' : v?.gender === 'female' ? 'bg-pink-500/10' : ''}">${genderAge}</td>
-                <td class="text-sm" data-stop-propagation>
+                <td class="col-gender text-sm whitespace-nowrap ${v?.gender === 'male' ? 'bg-blue-500/10' : v?.gender === 'female' ? 'bg-pink-500/10' : ''}">${genderAge}</td>
+                <td class="col-status text-sm" data-stop-propagation>
                     <select class="select select-xs select-bordered w-full ${reg.status === 'guest' ? 'status-guest' : reg.status === 'team' ? 'status-team' : reg.status === 'volunteer' ? 'status-volunteer' : reg.status === 'vip' ? 'status-vip' : reg.status === 'cancelled' ? 'status-cancelled' : ''}"
                         data-action="status-change" data-id="${reg.id}"
                         ${disabledAttr}>
@@ -642,19 +714,20 @@ function renderTable() {
                         <option value="cancelled" ${reg.status === 'cancelled' ? 'selected' : ''}>${statusCancelled}</option>
                     </select>
                 </td>
-                <td class="text-sm">${e(v?.india_experience || '—')}</td>
-                <td class="text-sm">${e(reg.companions || '—')}</td>
-                <td class="text-sm">${e(reg.accommodation_wishes || '—')}</td>
-                <td class="text-center text-sm whitespace-nowrap ${arrivalProblem ? 'bg-warning/30' : ''} ${canEdit ? 'cursor-pointer hover:bg-base-200/50' : ''}" ${canEdit ? `data-action="open-transfer-modal" data-id="${reg.id}"` : 'data-stop-propagation'}>
+                <td class="col-experience text-sm">${e(v?.india_experience || '—')}</td>
+                <td class="col-companions text-sm">${companionsHtml}</td>
+                <td class="col-wishes text-sm">${e(reg.accommodation_wishes || '—')}</td>
+                <td class="col-arrival text-center text-sm whitespace-nowrap ${arrivalProblem ? 'bg-warning/30' : ''} ${canEdit ? 'cursor-pointer hover:bg-base-200/50' : ''}" ${canEdit ? `data-action="open-transfer-modal" data-id="${reg.id}"` : 'data-stop-propagation'}>
                     ${arrivalLines.map(l => `<div>${l}</div>`).join('')}
                 </td>
-                <td class="text-center text-sm whitespace-nowrap ${departureProblem ? 'bg-warning/30' : ''} ${canEdit ? 'cursor-pointer hover:bg-base-200/50' : ''}" ${canEdit ? `data-action="open-transfer-modal" data-id="${reg.id}"` : 'data-stop-propagation'}>
+                <td class="col-departure text-center text-sm whitespace-nowrap ${departureProblem ? 'bg-warning/30' : ''} ${canEdit ? 'cursor-pointer hover:bg-base-200/50' : ''}" ${canEdit ? `data-action="open-transfer-modal" data-id="${reg.id}"` : 'data-stop-propagation'}>
                     ${departureLines.map(l => `<div>${l}</div>`).join('')}
                 </td>
-                <td class="text-sm">${e(reg.extended_stay || '—')}</td>
-                <td class="text-sm">${e(reg.guest_questions || '—')}</td>
-                <td class="text-sm">${e(reg.org_notes || '—')}</td>
-                <td class="text-sm">
+                <td class="col-days text-center text-sm whitespace-nowrap">${daysCount !== '' ? `<span class="badge badge-sm">${daysCount} ${t('preliminary_days_short')}</span>` : '—'}</td>
+                <td class="col-plans text-sm">${e(reg.extended_stay || '—')}</td>
+                <td class="col-questions text-sm">${e(reg.guest_questions || '—')}</td>
+                <td class="col-org-notes text-sm">${e(reg.org_notes || '—')}</td>
+                <td class="col-meal text-sm">
                     <select class="select select-xs select-bordered w-full ${reg.meal_type === 'prasad' ? 'meal-prasad' : reg.meal_type === 'self' ? 'meal-self' : reg.meal_type === 'child' ? 'meal-child' : ''}"
                         data-action="meal-type-change" data-id="${reg.id}"
                         ${disabledAttr}>
@@ -664,7 +737,7 @@ function renderTable() {
                         <option value="child" ${reg.meal_type === 'child' ? 'selected' : ''}>${mealTypeChild}</option>
                     </select>
                 </td>
-                <td class="text-sm">
+                <td class="col-notes text-sm">
                     <textarea
                         class="textarea textarea-xs textarea-bordered w-full auto-resize-textarea"
                         rows="1"
@@ -673,7 +746,7 @@ function renderTable() {
                         data-action="save-notes" data-id="${reg.id}"
                         ${disabledAttr}>${e(localNotes || '')}</textarea>
                 </td>
-                <td class="text-sm ${buildingId === 'self' ? 'bg-error/20' : buildingId ? 'bg-success/20' : ''}">
+                <td class="col-building text-sm ${buildingId === 'self' ? 'bg-error/20' : buildingId ? 'bg-success/20' : ''}">
                     <select class="select select-xs select-bordered w-full"
                         data-action="building-change" data-id="${reg.id}"
                         ${disabledAttr}>
@@ -682,7 +755,7 @@ function renderTable() {
                         <option value="self" ${buildingId === 'self' ? 'selected' : ''}>${t('self_accommodation')}</option>
                     </select>
                 </td>
-                <td class="text-sm ${buildingId === 'self' ? 'bg-error/20' : roomId ? 'bg-success/20' : ''}">
+                <td class="col-room text-sm ${buildingId === 'self' ? 'bg-error/20' : roomId ? 'bg-success/20' : ''}">
                     <select class="select select-xs select-bordered w-full ${buildingId === 'self' ? 'hidden' : ''}"
                         id="room_select_${reg.id}"
                         data-action="room-change" data-id="${reg.id}"
@@ -701,6 +774,11 @@ function renderTable() {
             autoResizeTextarea(textarea);
         });
     }, 0);
+
+    // Применить текущий пресет видимости колонок
+    if (currentViewPreset === 'custom' && customHiddenColumns.size > 0) {
+        applyCustomColumns();
+    }
 }
 
 // Делегирование кликов в таблице гостей
@@ -1215,29 +1293,10 @@ async function saveSelfAccommodation(registrationId) {
     }
 }
 
-// ==================== FILTERS ====================
-function setupFilters() {
-    document.querySelectorAll('.filter-btn').forEach(btn => {
-        btn.addEventListener('click', () => {
-            document.querySelectorAll('.filter-btn').forEach(b => {
-                b.classList.remove('active');
-                b.classList.add('btn-ghost');
-            });
-            btn.classList.add('active');
-            btn.classList.remove('btn-ghost');
-            currentFilter = btn.dataset.filter;
-            renderTable();
-        });
-    });
-}
+// ==================== РАСШИРЕННЫЕ ЧЕКБОКС-ФИЛЬТРЫ ====================
 
-// ==================== РАСШИРЕННЫЕ ФИЛЬТРЫ ====================
-
-// Состояние: null = показывать все, Set = только выбранные значения
 let advFilters = {
-    buildings: null,    // Set<building_id|'self'|'none'>
     genders: null,      // Set<'male'|'female'>
-    meals: null,        // Set<'prasad'|'self'|'child'|''>
     companions: null,   // Set<'has'|'empty'>
     notes: null,        // Set<'has'|'empty'>
     travels: null,      // Set<'has'|'empty'>
@@ -1245,41 +1304,17 @@ let advFilters = {
 
 function getAdvFullSets() {
     return {
-        buildings: new Set([...buildings.map(b => b.id), 'self', 'none']),
         genders: new Set(['male', 'female']),
-        meals: new Set(['prasad', 'self', 'child', '']),
         companions: new Set(['has', 'empty']),
         notes: new Set(['has', 'empty']),
         travels: new Set(['has', 'empty']),
     };
 }
 
-function isAdvFilterActive() {
-    return Object.values(advFilters).some(v => v !== null);
-}
-
-function toggleFilterPanel() {
-    const panel = document.getElementById('advFilterPanel');
-    panel.classList.toggle('hidden');
-    if (!panel.classList.contains('hidden')) {
-        renderFilterPanel();
-    }
-}
-
-// Закрытие по клику снаружи
-document.addEventListener('click', e => {
-    const panel = document.getElementById('advFilterPanel');
-    if (!panel || panel.classList.contains('hidden')) return;
-    if (!e.target.closest('#advFilterPanel') && !e.target.closest('#advFilterBtn')) {
-        panel.classList.add('hidden');
-    }
-});
-
 function toggleAdvFilter(category, value) {
     const fullSets = getAdvFullSets();
 
     if (!advFilters[category]) {
-        // Было "все" → создаём полный Set и убираем одно значение
         advFilters[category] = new Set(fullSets[category]);
         advFilters[category].delete(value);
     } else if (advFilters[category].has(value)) {
@@ -1288,33 +1323,161 @@ function toggleAdvFilter(category, value) {
         advFilters[category].add(value);
     }
 
-    // Если Set совпал с полным → сбросить в null
     const full = fullSets[category];
     if (advFilters[category] && advFilters[category].size === full.size) {
         advFilters[category] = null;
     }
 
-    renderFilterPanel();
-    updateAdvFilterBadge();
+    renderSideFilterPanel();
+    updateFilterBadge();
     renderTable();
 }
 
-function resetAdvFilters() {
-    advFilters.buildings = null;
-    advFilters.genders = null;
-    advFilters.meals = null;
-    advFilters.companions = null;
-    advFilters.notes = null;
-    advFilters.travels = null;
-    renderFilterPanel();
-    updateAdvFilterBadge();
+// ==================== ДАТАПИКЕРЫ ====================
+
+function onDateFilterChange() {
+    const ci = document.getElementById('filterCheckin').value;
+    const co = document.getElementById('filterCheckout').value;
+    dateFilters.checkin = ci || null;
+    dateFilters.checkout = co || null;
+    document.getElementById('filterCheckinClear').classList.toggle('hidden', !ci);
+    document.getElementById('filterCheckoutClear').classList.toggle('hidden', !co);
+    updateFilterBadge();
     renderTable();
 }
 
-function updateAdvFilterBadge() {
+function clearDateFilter(which) {
+    if (which === 'checkin') {
+        document.getElementById('filterCheckin').value = '';
+        dateFilters.checkin = null;
+        document.getElementById('filterCheckinClear').classList.add('hidden');
+    } else {
+        document.getElementById('filterCheckout').value = '';
+        dateFilters.checkout = null;
+        document.getElementById('filterCheckoutClear').classList.add('hidden');
+    }
+    updateFilterBadge();
+    renderTable();
+}
+
+// ==================== ПРЕСЕТЫ ВИДОВ ====================
+
+function setViewPreset(preset) {
+    currentViewPreset = preset;
+    const table = document.getElementById('mainTable');
+    table.classList.remove('preset-summary');
+
+    // Убрать col-hidden со всех ячеек
+    table.querySelectorAll('.col-hidden').forEach(el => el.classList.remove('col-hidden'));
+
+    if (preset === 'summary') {
+        table.classList.add('preset-summary');
+    } else if (preset === 'custom') {
+        applyCustomColumns();
+    }
+
+    // Обновить активную кнопку
+    document.querySelectorAll('.view-preset-btn').forEach(btn => {
+        btn.classList.toggle('active', btn.dataset.preset === preset);
+        btn.classList.toggle('btn-ghost', btn.dataset.preset !== preset);
+    });
+
+    // Закрыть пикер если не custom
+    if (preset !== 'custom') {
+        document.getElementById('columnPicker').classList.add('hidden');
+    }
+}
+
+function toggleColumnPicker() {
+    const picker = document.getElementById('columnPicker');
+    if (picker.classList.contains('hidden')) {
+        currentViewPreset = 'custom';
+        setViewPreset('custom');
+        renderColumnPicker();
+        picker.classList.remove('hidden');
+    } else {
+        picker.classList.add('hidden');
+    }
+}
+
+function renderColumnPicker() {
+    const picker = document.getElementById('columnPicker');
+    // Маппинг id → i18n ключ
+    const colLabels = {
+        'name': 'name', 'gender': 'gender_age', 'status': 'status',
+        'experience': 'india_experience', 'companions': 'companions',
+        'wishes': 'accommodation_wishes', 'arrival': 'check_in',
+        'departure': 'check_out', 'days': 'preliminary_days',
+        'plans': 'extended_stay', 'questions': 'guest_questions',
+        'org-notes': 'org_notes_short', 'meal': 'meal_type',
+        'notes': 'preliminary_notes', 'building': 'preliminary_building',
+        'room': 'preliminary_room',
+    };
+    picker.innerHTML = ALL_COLUMNS.map(col => {
+        const checked = col.locked || !customHiddenColumns.has(col.id);
+        return `<label class="flex items-center gap-2 py-1 cursor-pointer ${col.locked ? 'opacity-50' : ''}">
+            <input type="checkbox" class="checkbox checkbox-xs" ${checked ? 'checked' : ''} ${col.locked ? 'disabled' : ''}
+                onchange="toggleCustomColumn('${col.id}', this.checked)" />
+            <span class="text-sm">${t(colLabels[col.id] || col.id)}</span>
+        </label>`;
+    }).join('');
+}
+
+function toggleCustomColumn(colId, visible) {
+    if (visible) {
+        customHiddenColumns.delete(colId);
+    } else {
+        customHiddenColumns.add(colId);
+    }
+    applyCustomColumns();
+}
+
+function applyCustomColumns() {
+    const table = document.getElementById('mainTable');
+    table.classList.remove('preset-summary');
+    // Снять все col-hidden
+    table.querySelectorAll('.col-hidden').forEach(el => el.classList.remove('col-hidden'));
+    // Применить скрытие
+    customHiddenColumns.forEach(colId => {
+        table.querySelectorAll(`.col-${colId}`).forEach(el => el.classList.add('col-hidden'));
+    });
+}
+
+// Закрытие пикера колонок по клику снаружи
+document.addEventListener('click', ev => {
+    const picker = document.getElementById('columnPicker');
+    if (!picker || picker.classList.contains('hidden')) return;
+    if (!ev.target.closest('#columnPicker') && !ev.target.closest('[data-preset="custom"]')) {
+        picker.classList.add('hidden');
+    }
+});
+
+// ==================== БОКОВАЯ ПАНЕЛЬ ФИЛЬТРОВ ====================
+
+function toggleSideFilter() {
+    const panel = document.getElementById('sideFilterPanel');
+    panel.classList.toggle('hidden');
+    if (!panel.classList.contains('hidden')) {
+        renderSideFilterPanel();
+    }
+}
+
+// Подсчёт активных фильтров (дропдауны + чекбоксы + даты)
+function countActiveFilters() {
+    let count = 0;
+    if (dropdownFilters.category !== 'all') count++;
+    if (dropdownFilters.building !== 'all') count++;
+    if (dropdownFilters.meal !== 'all') count++;
+    if (dateFilters.checkin) count++;
+    if (dateFilters.checkout) count++;
+    Object.values(advFilters).forEach(v => { if (v !== null) count++; });
+    return count;
+}
+
+function updateFilterBadge() {
     const badge = document.getElementById('advFilterBadge');
     if (!badge) return;
-    const count = Object.values(advFilters).filter(v => v !== null).length;
+    const count = countActiveFilters();
     if (count > 0) {
         badge.textContent = count;
         badge.classList.remove('hidden');
@@ -1323,9 +1486,156 @@ function updateAdvFilterBadge() {
     }
 }
 
-function renderFilterPanel() {
-    const panel = document.getElementById('advFilterPanel');
+function resetAllFilters() {
+    dropdownFilters.category = 'all';
+    dropdownFilters.building = 'all';
+    dropdownFilters.meal = 'all';
+    advFilters.genders = null;
+    advFilters.companions = null;
+    advFilters.notes = null;
+    advFilters.travels = null;
+    dateFilters.checkin = null;
+    dateFilters.checkout = null;
+    document.getElementById('filterCheckin').value = '';
+    document.getElementById('filterCheckout').value = '';
+    document.getElementById('filterCheckinClear').classList.add('hidden');
+    document.getElementById('filterCheckoutClear').classList.add('hidden');
+    renderSideFilterPanel();
+    updateFilterBadge();
+    renderTable();
+}
+
+// Установить дропдаун-фильтр
+function setDropdownFilter(type, value) {
+    dropdownFilters[type] = value;
+    // Закрыть все открытые дропдауны
+    document.querySelectorAll('.side-filter-dropdown .dropdown-menu').forEach(m => m.remove());
+    renderSideFilterPanel();
+    updateFilterBadge();
+    renderTable();
+}
+
+// Переключение дропдауна в боковой панели
+function toggleSideDropdown(triggerId) {
+    const trigger = document.getElementById(triggerId);
+    const parent = trigger.closest('.side-filter-dropdown');
+    const existing = parent.querySelector('.dropdown-menu');
+    // Закрыть все другие
+    document.querySelectorAll('.side-filter-dropdown .dropdown-menu').forEach(m => {
+        if (m !== existing) m.remove();
+    });
+    if (existing) {
+        existing.remove();
+        return;
+    }
+    // Создать меню
+    const menu = document.createElement('div');
+    menu.className = 'dropdown-menu';
+
+    let items = [];
+    if (triggerId === 'sfCategory') {
+        items = [
+            { value: 'all', label: t('all') },
+            { value: 'all_guests', label: t('preliminary_all_guests') },
+            { value: 'all_team', label: t('preliminary_all_team') },
+            { divider: true },
+            { value: 'guest', label: t('status_guest') },
+            { value: 'vip', label: t('status_vip') },
+            { value: 'team', label: t('status_team') },
+            { value: 'volunteer', label: t('status_volunteer') },
+            { value: 'cancelled', label: t('status_cancelled') },
+        ];
+        const active = dropdownFilters.category;
+        menu.innerHTML = items.map(it => {
+            if (it.divider) return '<div class="dropdown-divider"></div>';
+            const isActive = it.value === active;
+            return `<div class="dropdown-item ${isActive ? 'active' : ''}" onclick="setDropdownFilter('category','${it.value}')">
+                ${isActive ? IC.check : '<span class="w-3.5 h-3.5 shrink-0"></span>'} ${e(it.label)}
+            </div>`;
+        }).join('');
+    } else if (triggerId === 'sfBuilding') {
+        items = [
+            { value: 'all', label: t('preliminary_all_buildings') },
+            { value: 'accommodated', label: t('preliminary_accommodated') },
+            { value: 'no_self', label: t('preliminary_no_self') },
+            { value: 'self', label: t('preliminary_self_only') },
+            { value: 'none', label: t('preliminary_not_accommodated') },
+            { divider: true },
+        ];
+        buildings.forEach(b => items.push({ value: b.id, label: Layout.getName(b) }));
+        const active = dropdownFilters.building;
+        menu.innerHTML = items.map(it => {
+            if (it.divider) return '<div class="dropdown-divider"></div>';
+            const isActive = it.value === active;
+            return `<div class="dropdown-item ${isActive ? 'active' : ''}" onclick="setDropdownFilter('building','${it.value}')">
+                ${isActive ? IC.check : '<span class="w-3.5 h-3.5 shrink-0"></span>'} ${e(it.label)}
+            </div>`;
+        }).join('');
+    } else if (triggerId === 'sfMeal') {
+        items = [
+            { value: 'all', label: t('all') },
+            { value: 'prasad', label: t('meal_type_prasad') },
+            { value: 'self', label: t('meal_type_self') },
+            { value: 'child', label: t('meal_type_child') },
+            { value: 'none', label: t('preliminary_meal_not_specified') },
+        ];
+        const active = dropdownFilters.meal;
+        menu.innerHTML = items.map(it => {
+            const isActive = it.value === active;
+            return `<div class="dropdown-item ${isActive ? 'active' : ''}" onclick="setDropdownFilter('meal','${it.value}')">
+                ${isActive ? IC.check : '<span class="w-3.5 h-3.5 shrink-0"></span>'} ${e(it.label)}
+            </div>`;
+        }).join('');
+    }
+
+    parent.appendChild(menu);
+}
+
+// Закрытие дропдаунов при клике снаружи
+document.addEventListener('click', ev => {
+    if (!ev.target.closest('.side-filter-dropdown')) {
+        document.querySelectorAll('.side-filter-dropdown .dropdown-menu').forEach(m => m.remove());
+    }
+});
+
+function getDropdownLabel(type) {
+    const val = dropdownFilters[type];
+    if (type === 'category') {
+        const map = { all: t('all'), all_guests: t('preliminary_all_guests'), all_team: t('preliminary_all_team'),
+            guest: t('status_guest'), vip: t('status_vip'), team: t('status_team'),
+            volunteer: t('status_volunteer'), cancelled: t('status_cancelled') };
+        return map[val] || t('all');
+    } else if (type === 'building') {
+        if (val === 'all') return t('preliminary_all_buildings');
+        if (val === 'accommodated') return t('preliminary_accommodated');
+        if (val === 'no_self') return t('preliminary_no_self');
+        if (val === 'self') return t('preliminary_self_only');
+        if (val === 'none') return t('preliminary_not_accommodated');
+        const b = buildings.find(b => b.id === val);
+        return b ? Layout.getName(b) : t('preliminary_all_buildings');
+    } else if (type === 'meal') {
+        const map = { all: t('all'), prasad: t('meal_type_prasad'), self: t('meal_type_self'),
+            child: t('meal_type_child'), none: t('preliminary_meal_not_specified') };
+        return map[val] || t('all');
+    }
+    return '';
+}
+
+function renderSideFilterPanel() {
+    const panel = document.getElementById('sideFilterPanel');
     if (!panel) return;
+
+    const dropdownBtn = (id, label, type) => {
+        const isActive = dropdownFilters[type] !== 'all';
+        return `<div class="side-filter-dropdown mb-3">
+            <div class="text-xs font-semibold uppercase opacity-50 mb-1">${label}</div>
+            <button id="${id}" class="btn btn-sm btn-outline w-full justify-between side-filter-trigger ${isActive ? 'filter-active' : ''}"
+                onclick="toggleSideDropdown('${id}')">
+                <span class="truncate">${e(getDropdownLabel(type))}</span>
+                <svg class="w-3.5 h-3.5 shrink-0 opacity-50" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7"/></svg>
+            </button>
+        </div>`;
+    };
 
     const section = (title, items) => {
         let html = `<div class="text-xs font-semibold uppercase opacity-50 mb-1.5">${title}</div><div class="flex flex-wrap gap-x-4 gap-y-1 mb-3">`;
@@ -1341,50 +1651,33 @@ function renderFilterPanel() {
         return html;
     };
 
-    let html = '';
+    let html = `<div class="flex justify-between items-center mb-3">
+        <span class="font-semibold text-sm">${t('filters')}</span>
+        <button class="btn btn-xs btn-ghost opacity-60" onclick="resetAllFilters()">${t('preliminary_reset_all')}</button>
+    </div>`;
 
-    // Гостиница
-    const bItems = buildings.map(b => ['buildings', b.id, Layout.getName(b)]);
-    bItems.push(['buildings', 'self', t('self_accommodation')]);
-    bItems.push(['buildings', 'none', t('not_accommodated')]);
-    html += section(t('preliminary_building'), bItems);
+    // Дропдауны
+    html += dropdownBtn('sfCategory', t('preliminary_category'), 'category');
+    html += dropdownBtn('sfBuilding', t('preliminary_building'), 'building');
+    html += dropdownBtn('sfMeal', t('meal_type'), 'meal');
 
-    // Пол
+    // Чекбоксы
     html += section(t('gender'), [
         ['genders', 'male', t('male')],
         ['genders', 'female', t('female')],
     ]);
-
-    // Питание
-    html += section(t('meal_type'), [
-        ['meals', 'prasad', t('meal_type_prasad')],
-        ['meals', 'self', t('meal_type_self')],
-        ['meals', 'child', t('meal_type_child')],
-        ['meals', '', t('not_specified')],
-    ]);
-
-    // С кем едет
-    html += section(t('companions'), [
-        ['companions', 'has', t('filter_has')],
-        ['companions', 'empty', t('filter_empty')],
-    ]);
-
-    // Перелёт
     html += section(t('arrival_flight'), [
         ['travels', 'has', t('filter_has')],
         ['travels', 'empty', t('filter_empty')],
     ]);
-
-    // Заметки
+    html += section(t('companions'), [
+        ['companions', 'has', t('filter_has')],
+        ['companions', 'empty', t('filter_empty')],
+    ]);
     html += section(t('preliminary_notes'), [
         ['notes', 'has', t('filter_has')],
         ['notes', 'empty', t('filter_empty')],
     ]);
-
-    // Кнопка сброса
-    if (isAdvFilterActive()) {
-        html += `<button class="btn btn-xs btn-ghost w-full opacity-60" onclick="resetAdvFilters()">${t('reset')}</button>`;
-    }
 
     panel.innerHTML = html;
 }
@@ -1697,8 +1990,8 @@ async function updateStatus(registrationId, newStatus, selectElement) {
             selectElement.className = selectElement.className.replace(/status-\w+/, `status-${newStatus}`);
         }
 
-        // Re-render if filter is active (row might need to hide)
-        if (currentFilter !== 'all') {
+        // Re-render if category filter is active (row might need to hide)
+        if (dropdownFilters.category !== 'all') {
             renderTable();
         }
     } catch (err) {
@@ -3117,7 +3410,6 @@ async function init() {
 
     await Promise.all([loadAllRetreats(), loadVaishnavas(), loadBuildingsAndRooms(), loadResidentCategories()]);
 
-    setupFilters();
     updateSortIcons();
     subscribeToRealtime();
 
@@ -3160,7 +3452,9 @@ function handleRealtimeChange(payload) {
 window.onLanguageChange = () => {
     Layout.updateAllTranslations();
     renderTable();
-    renderFilterPanel();
+    if (!document.getElementById('sideFilterPanel').classList.contains('hidden')) {
+        renderSideFilterPanel();
+    }
 };
 
 // Handle browser back/forward cache (bfcache)
