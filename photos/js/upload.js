@@ -347,7 +347,28 @@
     // Удаление файла из списка
     function removeFile(index) {
         selectedFiles.splice(index, 1);
-        updatePreview();
+
+        // Удаляем только конкретный элемент превью (без перерисовки всех)
+        const previews = previewGrid.querySelectorAll('.photo-preview');
+        if (previews[index]) {
+            previews[index].remove();
+        }
+
+        // Обновляем индексы на оставшихся кнопках удаления
+        previewGrid.querySelectorAll('.photo-preview').forEach((el, i) => {
+            const removeBtn = el.querySelector('.remove-btn');
+            if (removeBtn) {
+                removeBtn.onclick = () => removeFile(i);
+            }
+        });
+
+        // Обновляем счётчик
+        photoCount.textContent = selectedFiles.length;
+
+        // Скрываем контейнер если файлов не осталось
+        if (selectedFiles.length === 0) {
+            previewContainer.classList.add('hidden');
+        }
     }
 
     // Очистка выбора
