@@ -798,7 +798,7 @@ function renderRoomOptions(buildingId, selectedRoomId, registrationId) {
         const capacity = room.capacity || 1;
         const isFull = occupied >= capacity;
 
-        const label = isFull ? `${room.number} (${t('preliminary_room_occupied')})` : room.number;
+        const label = `${room.number} (${occupied}/${capacity})`;
         const disabled = isFull ? 'disabled' : '';
         const selected = selectedRoomId === room.id ? 'selected' : '';
 
