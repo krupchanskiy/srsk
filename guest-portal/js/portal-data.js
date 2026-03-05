@@ -611,7 +611,7 @@ async function getCrmDeals(guestId) {
                 total_paid,
                 currency,
                 created_at,
-                retreat:retreats (
+                retreat:retreats!crm_deals_retreat_id_fkey (
                     id,
                     name_ru,
                     name_en,
