@@ -92,7 +92,7 @@ async function getCurrentRetreat(guestId) {
                 id,
                 status,
                 created_at,
-                retreat:retreats (
+                retreat:retreats!inner (
                     id,
                     name_ru,
                     name_en,
@@ -253,7 +253,7 @@ async function getUpcomingRetreats(guestId) {
                 id,
                 status,
                 created_at,
-                retreat:retreats (
+                retreat:retreats!inner (
                     id,
                     name_ru,
                     name_en,
@@ -295,7 +295,7 @@ async function getPastRetreats(guestId) {
                 id,
                 status,
                 created_at,
-                retreat:retreats (
+                retreat:retreats!inner (
                     id,
                     name_ru,
                     name_en,
