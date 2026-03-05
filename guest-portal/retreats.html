@@ -313,11 +313,11 @@
                                             ` : ''}
                                         </div>
                                     </div>
-                                    ${deal.total_services > 0 && deal.total_services !== deal.total_paid ? `
+                                    ${deal.total_charged > 0 && deal.total_charged !== deal.total_paid ? `
                                         <div class="mt-3 pt-3 border-t">
                                             <div class="flex justify-between text-sm">
                                                 <span class="text-gray-500">${lang === 'ru' ? 'К оплате' : 'To pay'}:</span>
-                                                <span class="font-medium">₹${(deal.total_services - deal.total_paid).toLocaleString()}</span>
+                                                <span class="font-medium">₹${(deal.total_charged - deal.total_paid).toLocaleString()}</span>
                                             </div>
                                         </div>
                                     ` : ''}

@@ -607,7 +607,7 @@ async function getCrmDeals(guestId) {
             .select(`
                 id,
                 status,
-                total_services,
+                total_charged,
                 total_paid,
                 currency,
                 created_at,
