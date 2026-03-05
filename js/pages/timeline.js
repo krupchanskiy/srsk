@@ -1362,14 +1362,28 @@ async function showMoveScreen() {
         return;
     }
 
-    // Считаем занятость по комнатам на период перемещаемого резидента
-    const roomOccupancy = {};
+    // Считаем пиковую одновременную занятость через sweep line
+    const roomResidents = {};
     residents.forEach(r => {
-        if (!roomOccupancy[r.room_id]) {
-            roomOccupancy[r.room_id] = 0;
-        }
-        roomOccupancy[r.room_id]++;
+        if (!roomResidents[r.room_id]) roomResidents[r.room_id] = [];
+        roomResidents[r.room_id].push(r);
     });
+    const roomOccupancy = {};
+    for (const [roomId, resList] of Object.entries(roomResidents)) {
+        const events = [];
+        resList.forEach(r => {
+            events.push({ date: r.check_in, delta: 1 });
+            events.push({ date: r.check_out || '2099-12-31', delta: -1 });
+        });
+        // По дате, при равенстве сначала выезды (-1) потом заезды (+1)
+        events.sort((a, b) => a.date.localeCompare(b.date) || a.delta - b.delta);
+        let cur = 0, peak = 0;
+        for (const e of events) {
+            cur += e.delta;
+            if (cur > peak) peak = cur;
+        }
+        roomOccupancy[roomId] = peak;
+    }
 
     const currentRoomId = res.room_id;
 
