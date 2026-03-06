@@ -1200,19 +1200,15 @@ async function checkoutResident() {
     if (!canEditTimeline()) return;
 
     const res = currentResident.rawData;
-    let checkoutDate;
 
-    // Если кликнули на конкретный день — используем его
-    if (clickedDayIndex !== null && clickedDayIndex >= currentResident.startDay) {
-        checkoutDate = formatDateYMD(getDateForDay(clickedDayIndex));
-    } else {
-        // Если день не определён или некорректный — используем оригинальную дату выезда
-        checkoutDate = res.check_out;
-    }
+    // Выселяем на сегодня (не на день клика по плашке)
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    let checkoutDate = formatDateYMD(today);
 
-    // Финальная проверка: дата не раньше заезда
-    if (!checkoutDate || checkoutDate < res.check_in) {
-        checkoutDate = res.check_out || res.check_in;
+    // Дата не раньше заезда
+    if (checkoutDate < res.check_in) {
+        checkoutDate = res.check_in;
     }
 
     const { error } = await Layout.db
