@@ -1194,26 +1194,28 @@ function formatDateYMD(date) {
     return `${year}-${month}-${day}`;
 }
 
-// Выселить резидента (установить дату выезда = кликнутый день)
+// Выселить резидента — читает дату и поздний выезд из формы checkoutScreen
 async function checkoutResident() {
     if (!currentResident) return;
     if (!canEditTimeline()) return;
 
     const res = currentResident.rawData;
+    const checkoutDate = document.getElementById('checkoutDate').value;
+    const lateCheckout = document.getElementById('checkoutLate').checked;
 
-    // Выселяем на сегодня (не на день клика по плашке)
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-    let checkoutDate = formatDateYMD(today);
+    if (!checkoutDate) {
+        alert(Layout.t('specify_checkout_date') || 'Укажите дату выезда');
+        return;
+    }
 
-    // Дата не раньше заезда
     if (checkoutDate < res.check_in) {
-        checkoutDate = res.check_in;
+        alert(Layout.t('checkout_before_checkin') || 'Дата выезда не может быть раньше заезда');
+        return;
     }
 
     const { error } = await Layout.db
         .from('residents')
-        .update({ check_out: checkoutDate, status: 'checked_out' })
+        .update({ check_out: checkoutDate, late_checkout: lateCheckout, status: 'checked_out' })
         .eq('id', currentResident.id);
 
     if (error) {
@@ -1297,6 +1299,28 @@ function showResidentInfoScreen() {
     document.getElementById('residentInfoScreen').classList.remove('hidden');
     document.getElementById('moveScreen').classList.add('hidden');
     document.getElementById('editDatesScreen').classList.add('hidden');
+    document.getElementById('checkoutScreen').classList.add('hidden');
+}
+
+// Показать экран выселения
+function showCheckoutScreen() {
+    if (!currentResident) return;
+
+    document.getElementById('residentInfoScreen').classList.add('hidden');
+    document.getElementById('moveScreen').classList.add('hidden');
+    document.getElementById('editDatesScreen').classList.add('hidden');
+    document.getElementById('checkoutScreen').classList.remove('hidden');
+
+    document.getElementById('checkoutGuestName').textContent = currentResident.name;
+
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    let defaultDate = formatDateYMD(today);
+    const res = currentResident.rawData;
+    if (defaultDate < res.check_in) defaultDate = res.check_in;
+
+    document.getElementById('checkoutDate').value = defaultDate;
+    document.getElementById('checkoutLate').checked = res.late_checkout || false;
 }
 
 // Показать экран редактирования дат
@@ -1306,6 +1330,7 @@ function showEditDatesScreen() {
     document.getElementById('residentInfoScreen').classList.add('hidden');
     document.getElementById('moveScreen').classList.add('hidden');
     document.getElementById('editDatesScreen').classList.remove('hidden');
+    document.getElementById('checkoutScreen').classList.add('hidden');
 
     document.getElementById('editDatesGuestName').textContent = currentResident.name;
 
@@ -1358,6 +1383,7 @@ async function showMoveScreen() {
     document.getElementById('residentInfoScreen').classList.add('hidden');
     document.getElementById('moveScreen').classList.remove('hidden');
     document.getElementById('editDatesScreen').classList.add('hidden');
+    document.getElementById('checkoutScreen').classList.add('hidden');
     document.getElementById('moveGuestName').textContent = currentResident.name;
 
     // Загружаем список номеров
@@ -2215,7 +2241,7 @@ function setupTimelineDelegation() {
                 case 'convert-to-checkin': convertToCheckin(); break;
                 case 'show-move-screen': showMoveScreen(); break;
                 case 'cancel-booking': cancelBooking(); break;
-                case 'checkout-resident': checkoutResident(); break;
+                case 'checkout-resident': showCheckoutScreen(); break;
                 case 'show-edit-dates-screen': showEditDatesScreen(); break;
                 case 'delete-resident': deleteResident(); break;
             }

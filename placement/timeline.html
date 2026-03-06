@@ -928,6 +928,34 @@
                     <button class="btn btn-primary" onclick="saveDates()" data-i18n="save">Сохранить</button>
                 </div>
             </div>
+
+            <!-- Экран выселения -->
+            <div id="checkoutScreen" class="hidden">
+                <div class="flex items-center gap-2 mb-4">
+                    <button class="btn btn-ghost btn-sm btn-circle" onclick="showResidentInfoScreen()">←</button>
+                    <h3 class="font-bold text-lg" data-i18n="timeline_checkout_title">Выселение</h3>
+                </div>
+
+                <div class="text-sm text-gray-500 mb-4">
+                    <span id="checkoutGuestName" class="font-medium"></span>
+                </div>
+
+                <div class="space-y-4 mb-4">
+                    <div class="form-control">
+                        <label class="label"><span class="label-text" data-i18n="timeline_checkout_date">Дата выезда</span></label>
+                        <input type="date" id="checkoutDate" class="input input-bordered">
+                    </div>
+                    <label class="label cursor-pointer justify-start gap-2">
+                        <input type="checkbox" id="checkoutLate" class="checkbox checkbox-warning">
+                        <span class="label-text" data-i18n="timeline_late_checkout">Поздний выезд</span>
+                    </label>
+                </div>
+
+                <div class="modal-action">
+                    <button class="btn btn-ghost" onclick="showResidentInfoScreen()" data-i18n="cancel">Отмена</button>
+                    <button class="btn btn-warning" onclick="checkoutResident()" data-i18n="timeline_checkout_action">Выселить</button>
+                </div>
+            </div>
         </div>
         <form method="dialog" class="modal-backdrop">
             <button>close</button>
@@ -948,7 +976,7 @@
         if (btn) { btn.classList.toggle('btn-active', isFS); btn.title = isFS ? 'Обычный вид' : 'На весь экран'; }
     }
     </script>
-    <script src="../js/pages/timeline.js?v=7"></script>
+    <script src="../js/pages/timeline.js?v=8"></script>
 
 </body>
 </html>
