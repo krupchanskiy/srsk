@@ -30,6 +30,9 @@ let cleaningsMap = new Map();
 // Даты Экадаши (загружаются из holidays)
 let ekadashiDays = new Set();
 
+// Фактическое время прибытия/отъезда из retreat_registrations
+let retreatTimesMap = new Map();
+
 // Флаг права на редактирование таймлайна
 const canEditTimeline = () => window.hasPermission?.('edit_timeline') ?? false;
 
@@ -112,6 +115,25 @@ async function loadTimelineData() {
     ekadashiDays = new Set(
         (holidaysRes.data || []).map(h => dateToDayIndex(h.date))
     );
+
+    // Загружаем фактическое время прибытия/отъезда из регистраций
+    const residentRetreatIds = [...new Set(residents.filter(r => r.retreat_id).map(r => r.retreat_id))];
+    retreatTimesMap = new Map();
+    if (residentRetreatIds.length > 0) {
+        const { data: regTimes } = await Layout.db
+            .from('retreat_registrations')
+            .select('vaishnava_id, retreat_id, arrival_datetime, departure_datetime')
+            .in('retreat_id', residentRetreatIds)
+            .eq('is_deleted', false);
+        for (const reg of (regTimes || [])) {
+            if (reg.vaishnava_id) {
+                retreatTimesMap.set(`${reg.vaishnava_id}_${reg.retreat_id}`, {
+                    arrival: reg.arrival_datetime,
+                    departure: reg.departure_datetime
+                });
+            }
+        }
+    }
 
     // Фильтруем временные здания по датам шахматки
     buildings = buildings.filter(b => {
@@ -247,6 +269,21 @@ async function loadTimelineData() {
                     // Обычный выезд = только первая половина (endHalf = 0)
                     let startHalf = res.early_checkin === true ? 0 : 1;
                     let endHalf = res.late_checkout === true ? 1 : 0;
+
+                    // Уточняем по фактическому времени из регистрации на ретрит
+                    if (res.vaishnava_id && res.retreat_id) {
+                        const regTimes = retreatTimesMap.get(`${res.vaishnava_id}_${res.retreat_id}`);
+                        if (regTimes) {
+                            if (!res.early_checkin && regTimes.arrival) {
+                                const hour = new Date(regTimes.arrival.slice(0, 16)).getHours();
+                                if (hour < 10) startHalf = 0;
+                            }
+                            if (!res.late_checkout && regTimes.departure) {
+                                const hour = new Date(regTimes.departure.slice(0, 16)).getHours();
+                                if (hour >= 13) endHalf = 1;
+                            }
+                        }
+                    }
 
                     // Если заезд и выезд в один день, корректируем чтобы span был минимум 1
                     if (startDay === endDay && startHalf > endHalf) {

@@ -20,7 +20,7 @@ const EatingUtils = {
         const [residentsResult, guestRegResult, mealGroupsResult] = await Promise.all([
             Layout.db
                 .from('residents')
-                .select('id, vaishnava_id, check_in, check_out, early_checkin, late_checkout, resident_categories!inner(slug)')
+                .select('id, vaishnava_id, retreat_id, check_in, check_out, early_checkin, late_checkout, resident_categories!inner(slug)')
                 .eq('status', 'confirmed')
                 .eq('has_meals', true)
                 .lte('check_in', endDate)
@@ -56,6 +56,18 @@ const EatingUtils = {
         const BREAKFAST_CUTOFF = 10;
         const LUNCH_CUTOFF = 13;
 
+        // Маппинг (vaishnava_id + retreat_id) → времена из регистрации
+        const regTimesMap = new Map();
+        for (const reg of guestRegistrations) {
+            if (reg.vaishnava_id) {
+                const key = `${reg.vaishnava_id}_${reg.retreat_id}`;
+                regTimesMap.set(key, {
+                    arrival: reg.arrival_datetime,
+                    departure: reg.departure_datetime
+                });
+            }
+        }
+
         const counts = {};
         const firstDay = new Date(startDate + 'T00:00:00');
         const lastDay = new Date(endDate + 'T00:00:00');
@@ -77,8 +89,23 @@ const EatingUtils = {
                     const isFirstDay = (dateStr === r.check_in);
                     const isLastDay = (r.check_out && dateStr === r.check_out);
 
-                    const getsBreakfast = !isFirstDay || r.early_checkin;
-                    const getsLunch = !isLastDay || r.late_checkout;
+                    let getsBreakfast = !isFirstDay || r.early_checkin;
+                    let getsLunch = !isLastDay || r.late_checkout;
+
+                    // Уточняем по фактическому времени из регистрации на ретрит
+                    if (r.vaishnava_id && r.retreat_id) {
+                        const regTimes = regTimesMap.get(`${r.vaishnava_id}_${r.retreat_id}`);
+                        if (regTimes) {
+                            if (isFirstDay && !r.early_checkin && regTimes.arrival) {
+                                const hour = new Date(regTimes.arrival.slice(0, 16)).getHours();
+                                getsBreakfast = hour < BREAKFAST_CUTOFF;
+                            }
+                            if (isLastDay && !r.late_checkout && regTimes.departure) {
+                                const hour = new Date(regTimes.departure.slice(0, 16)).getHours();
+                                getsLunch = hour >= LUNCH_CUTOFF;
+                            }
+                        }
+                    }
 
                     const slug = r.resident_categories?.slug;
 
