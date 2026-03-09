@@ -865,16 +865,16 @@ function renderRoomOptions(buildingId, selectedRoomId, registrationId) {
 
     let html = '<option value="">—</option>';
     rooms.forEach(room => {
-        // Проверяем занятость (исключая текущую комнату при переселении)
-        let occupied = placementState.occupancy[room.id] || 0;
-
-        // Если это текущая комната резидента, уменьшаем занятость на 1
-        if (currentRoomId === room.id && existingResidentId) {
-            occupied = Math.max(0, occupied - 1);
-        }
-
+        // Реальная занятость комнаты
+        const occupied = placementState.occupancy[room.id] || 0;
         const capacity = room.capacity || 1;
-        const isFull = occupied >= capacity;
+
+        // Для проверки «полная» — вычитаем текущего резидента (он уже в этой комнате)
+        let occupiedForCheck = occupied;
+        if (currentRoomId === room.id && existingResidentId) {
+            occupiedForCheck = Math.max(0, occupied - 1);
+        }
+        const isFull = occupiedForCheck >= capacity;
 
         const label = `${room.number} (${occupied}/${capacity})`;
         const disabled = isFull ? 'disabled' : '';
