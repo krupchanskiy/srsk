@@ -459,9 +459,11 @@ function filterRegistrations() {
             aVal = aBuilding ? Layout.getName(aBuilding).toLowerCase() : 'zzz';
             bVal = bBuilding ? Layout.getName(bBuilding).toLowerCase() : 'zzz';
         } else if (sortField === 'room') {
-            // Сортировка по номеру комнаты
-            aVal = (a.resident?.rooms?.number || 'zzz').toLowerCase();
-            bVal = (b.resident?.rooms?.number || 'zzz').toLowerCase();
+            // Сортировка по номеру комнаты (натуральная — 1, 2, 10, а не 1, 10, 2)
+            aVal = a.resident?.rooms?.number || 'zzz';
+            bVal = b.resident?.rooms?.number || 'zzz';
+            const cmp = aVal.localeCompare(bVal, undefined, { numeric: true });
+            return sortDirection === 'asc' ? cmp : -cmp;
         } else if (sortField === 'status') {
             const statusOrder = { team: 1, volunteer: 2, guest: 3, vip: 4, cancelled: 5 };
             aVal = statusOrder[a.status] || 99;
