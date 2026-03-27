@@ -343,7 +343,7 @@ async function loadServices() {
         .from('crm_services')
         .select('*')
         .eq('is_active', true)
-        .order('type', { ascending: true })
+        .order('category', { ascending: true })
         .order('sort_order', { ascending: true });
 
     if (error) {
@@ -354,7 +354,7 @@ async function loadServices() {
     services = data || [];
 
     // Типы размещения
-    const roomTypes = services.filter(s => s.type === 'room');
+    const roomTypes = services.filter(s => s.category === 'room');
     const roomSelect = document.getElementById('roomTypeSelect');
     roomSelect.innerHTML = '<option value="">Без размещения</option>';
     roomTypes.forEach(s => {
@@ -364,7 +364,7 @@ async function loadServices() {
     });
 
     // Дополнительные услуги
-    const extras = services.filter(s => s.type === 'extra' || s.type === 'transport');
+    const extras = services.filter(s => s.category === 'extra' || s.category === 'transport');
     const container = document.getElementById('servicesContainer');
 
     if (extras.length === 0) {
