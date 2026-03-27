@@ -24,6 +24,7 @@
     <div class="text-center mb-8">
         <img src="../img/logo.png" alt="ШРСК" class="h-16 mx-auto mb-4" onerror="this.style.display='none'">
         <h1 class="text-2xl font-bold text-gray-800" id="pageTitle" data-i18n="crm_form_title">Заявка на ретрит</h1>
+        <p id="retreatName" class="text-lg text-gray-600 mt-2 hidden"></p>
     </div>
 
     <!-- Индикатор шагов -->
@@ -281,7 +282,7 @@ async function loadRetreats() {
     const { data, error } = await db
         .from('retreats')
         .select('id, name_ru, name_en, slug, start_date, end_date, location_id, color')
-        .gte('end_date', DateUtils.toISO(new Date()))
+        .gte('end_date', typeof DateUtils !== 'undefined' ? DateUtils.toISO(new Date()) : new Date().toISOString().split('T')[0])
         .order('start_date', { ascending: true });
 
     if (error) {
@@ -301,11 +302,18 @@ async function loadRetreats() {
         );
     });
 
-    // Выбираем ретрит из URL
+    // Выбираем ретрит из URL и показываем название
     if (urlParams.retreat) {
         const retreat = retreats.find(r => r.slug === urlParams.retreat || r.id === urlParams.retreat);
         if (retreat) {
             select.value = retreat.id;
+            // Показываем название ретрита в заголовке
+            const nameEl = document.getElementById('retreatName');
+            if (nameEl) {
+                const dates = formatDateRange(retreat.start_date, retreat.end_date);
+                nameEl.textContent = `${retreat.name_ru} (${dates})`;
+                nameEl.classList.remove('hidden');
+            }
             loadServices();
         }
     }
@@ -326,7 +334,7 @@ async function loadServices() {
     if (retreat) {
         document.getElementById('retreatName').textContent = retreat.name_ru;
         document.getElementById('retreatDates').textContent =
-            `${formatDateRange(retreat.start_date, retreat.end_date)} • ${retreat.location || ''}`;
+            formatDateRange(retreat.start_date, retreat.end_date);
         document.getElementById('retreatInfo').classList.remove('hidden');
     }
 
@@ -713,11 +721,21 @@ function getChildrenFromForm() {
 }
 
 // ==================== HELPERS ====================
+function parseLocalDate(str) {
+    if (typeof DateUtils !== 'undefined') return DateUtils.parseDate(str);
+    const p = str.split('-');
+    return new Date(parseInt(p[0]), parseInt(p[1]) - 1, parseInt(p[2]));
+}
+
+const MONTHS_RU_SHORT = ['янв', 'фев', 'мар', 'апр', 'май', 'июн', 'июл', 'авг', 'сен', 'окт', 'ноя', 'дек'];
+
 function formatDateRange(start, end) {
     if (!start) return '';
-    const s = DateUtils.parseDate(start);
-    const e = end ? DateUtils.parseDate(end) : null;
-    const months = DateUtils.monthNamesShort[DateUtils.getLang()] || DateUtils.monthNamesShort.ru;
+    const s = parseLocalDate(start);
+    const e = end ? parseLocalDate(end) : null;
+    const months = (typeof DateUtils !== 'undefined' && DateUtils.monthNamesShort)
+        ? (DateUtils.monthNamesShort[DateUtils.getLang()] || DateUtils.monthNamesShort.ru)
+        : MONTHS_RU_SHORT;
 
     if (e && s.getMonth() === e.getMonth()) {
         return `${s.getDate()}–${e.getDate()} ${months[s.getMonth()]}`;
