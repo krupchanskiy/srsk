@@ -262,7 +262,7 @@ async function findOrCreateVaishnava(data) {
         .from('vaishnavas')
         .select('id')
         .eq('phone', data.phone)
-        .single();
+        .maybeSingle();
 
     if (existing) {
         // Обновляем данные
@@ -282,7 +282,6 @@ async function findOrCreateVaishnava(data) {
         .from('vaishnavas')
         .insert({
             ...data,
-            is_guest: true,
             is_deleted: false
         })
         .select('id')
