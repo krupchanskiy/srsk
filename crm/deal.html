@@ -728,8 +728,8 @@ function renderInfoTab() {
     const location = [guest.city, guest.country].filter(Boolean).join(', ');
     const retreatDates = retreat ? `${CrmUtils.formatDate(retreat.start_date)} — ${CrmUtils.formatDate(retreat.end_date)}` : '—';
     const source = t('crm_source_' + deal.source) || deal.source || '—';
-    const accommodation = t('crm_accommodation_' + (deal.accommodation_preference || 'in_ashram')) || deal.accommodation_preference || '—';
-    const meals = t('crm_meals_' + (deal.meals_preference || 'ashram')) || deal.meals_preference || '—';
+    const accommodation = deal.accommodation_preference ? (t('crm_accommodation_' + deal.accommodation_preference) || deal.accommodation_preference) : '—';
+    const meals = deal.meals_preference ? (t('crm_meals_' + deal.meals_preference) || deal.meals_preference) : '—';
 
     return `
         <div class="grid grid-cols-1 lg:grid-cols-2 gap-8">
