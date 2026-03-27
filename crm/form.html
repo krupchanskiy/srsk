@@ -211,15 +211,7 @@ async function submitForm(e) {
 
         // 3. Получаем менеджера через round-robin
         const retreatId = formData.get('retreat_id');
-        const managerId = await getNextManager(retreatId);
-
-        // UTM данные
-        const utmData = {};
-        if (urlParams.utm_source) utmData.utm_source = urlParams.utm_source;
-        if (urlParams.utm_medium) utmData.utm_medium = urlParams.utm_medium;
-        if (urlParams.utm_campaign) utmData.utm_campaign = urlParams.utm_campaign;
-        if (urlParams.utm_content) utmData.utm_content = urlParams.utm_content;
-        if (urlParams.ref) utmData.ref = urlParams.ref;
+        const managerId = await getNextManager();
 
         const notes = formData.get('notes') || '';
 
@@ -228,10 +220,12 @@ async function submitForm(e) {
             retreat_id: retreatId,
             manager_id: managerId,
             status: 'lead',
-            source: urlParams.utm_source ? `utm:${urlParams.utm_source}` : 'website',
+            source: urlParams.utm_source || 'website',
             notes: notes.trim() || null,
-            utm_data: Object.keys(utmData).length > 0 ? utmData : null,
-            work_mode: 'active'
+            utm_source: urlParams.utm_source || null,
+            utm_medium: urlParams.utm_medium || null,
+            utm_campaign: urlParams.utm_campaign || null,
+            utm_content: urlParams.utm_content || null
         };
 
         // 4. Создаём сделку
@@ -291,28 +285,23 @@ async function findOrCreateVaishnava(data) {
     return created.id;
 }
 
-async function getNextManager(retreatId) {
+async function getNextManager() {
+    // Round-robin: берём менеджера с самой старой last_assigned_at
     const { data: queue } = await db
         .from('crm_manager_queue')
-        .select('manager_id, current_position')
-        .or(`retreat_id.eq.${retreatId},retreat_id.is.null`)
+        .select('manager_id, last_assigned_at')
         .eq('is_active', true)
-        .order('current_position', { ascending: true })
+        .order('last_assigned_at', { ascending: true, nullsFirst: true })
         .limit(1);
 
-    if (!queue || queue.length === 0) {
-        const { data: managers } = await db
-            .from('crm_manager_queue')
-            .select('manager_id')
-            .eq('is_active', true)
-            .limit(1);
-        return managers?.[0]?.manager_id || null;
-    }
+    if (!queue || queue.length === 0) return null;
 
     const manager = queue[0];
+
+    // Обновляем время последнего назначения
     await db
         .from('crm_manager_queue')
-        .update({ current_position: manager.current_position + 1 })
+        .update({ last_assigned_at: new Date().toISOString() })
         .eq('manager_id', manager.manager_id);
 
     return manager.manager_id;
