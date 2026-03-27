@@ -151,6 +151,25 @@
                 </div>
             </div>
 
+            <!-- Превью выбранного гостя -->
+            <div id="selectedGuestPreview" class="hidden bg-base-200/70 rounded-lg p-3 mb-3 flex items-center justify-between">
+                <div class="flex items-center gap-3">
+                    <div class="avatar placeholder">
+                        <div class="bg-primary/10 text-primary rounded-full w-10 h-10">
+                            <span id="previewInitials" class="text-sm font-bold"></span>
+                        </div>
+                    </div>
+                    <div>
+                        <div class="font-medium text-sm" id="previewName"></div>
+                        <div class="text-xs text-base-content/50 flex gap-3">
+                            <span id="previewPhone"></span>
+                            <span id="previewEmail"></span>
+                        </div>
+                    </div>
+                </div>
+                <button type="button" class="btn btn-ghost btn-xs" onclick="clearSelectedGuest()">✕</button>
+            </div>
+
             <!-- Форма нового гостя (скрыта по умолчанию) -->
             <div id="newGuestForm" class="hidden bg-base-200 p-3 rounded-lg mb-3 space-y-2">
                 <div class="grid grid-cols-2 gap-2">
@@ -364,8 +383,31 @@ function filterGuestList(query) {
 
 function selectGuest(id, name) {
     document.getElementById('newDealGuest').value = id;
-    document.getElementById('newDealGuestSearch').value = name;
+    document.getElementById('newDealGuestSearch').value = '';
+    document.getElementById('newDealGuestSearch').classList.add('hidden');
+    document.getElementById('newGuestToggleBtn').classList.add('hidden');
     document.getElementById('guestDropdown').classList.add('hidden');
+
+    // Показываем превью
+    const guest = guests.find(g => g.id === id);
+    if (guest) {
+        const fullName = [guest.spiritual_name, guest.first_name, guest.last_name].filter(Boolean).join(' ');
+        const initials = ((guest.first_name || '')[0] || '') + ((guest.last_name || '')[0] || '');
+        document.getElementById('previewName').textContent = fullName;
+        document.getElementById('previewInitials').textContent = initials.toUpperCase() || '?';
+        document.getElementById('previewPhone').textContent = guest.phone || '';
+        document.getElementById('previewEmail').textContent = guest.email || '';
+        document.getElementById('selectedGuestPreview').classList.remove('hidden');
+    }
+}
+
+function clearSelectedGuest() {
+    document.getElementById('newDealGuest').value = '';
+    document.getElementById('newDealGuestSearch').value = '';
+    document.getElementById('newDealGuestSearch').classList.remove('hidden');
+    document.getElementById('newGuestToggleBtn').classList.remove('hidden');
+    document.getElementById('selectedGuestPreview').classList.add('hidden');
+    document.getElementById('newDealGuestSearch').focus();
 }
 
 // Закрытие дропдауна при клике вне
