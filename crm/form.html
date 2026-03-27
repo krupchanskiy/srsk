@@ -280,7 +280,7 @@ function parseUrlParams() {
 async function loadRetreats() {
     const { data, error } = await db
         .from('retreats')
-        .select('id, name_ru, name_en, slug, start_date, end_date, location, color')
+        .select('id, name_ru, name_en, slug, start_date, end_date, location_id, color')
         .gte('end_date', DateUtils.toISO(new Date()))
         .order('start_date', { ascending: true });
 
