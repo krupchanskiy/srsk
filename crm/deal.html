@@ -370,6 +370,7 @@ let dealTags = [];
 let managers = [];
 let currencies = [];
 let templates = [];
+let guestHistory = [];
 let currentTab = 'info';
 let counts = { services: 0, payments: 0, tasks: 0 };
 
@@ -403,7 +404,7 @@ async function loadDeal() {
 
     renderHeader();
     renderSidebar();
-    await loadCounts();
+    await Promise.all([loadCounts(), loadGuestHistory()]);
     loadTabData();
 }
 
@@ -419,6 +420,19 @@ async function loadCounts() {
     counts.tasks = tasksRes.count || 0;
 
     updateTabCounts();
+}
+
+async function loadGuestHistory() {
+    if (!guest?.id) return;
+
+    const { data } = await Layout.db
+        .from('crm_deals')
+        .select('id, status, source, notes, created_at, retreats:retreat_id(name_ru, name_en, name_hi, start_date, end_date, color)')
+        .eq('vaishnava_id', guest.id)
+        .neq('id', dealId)
+        .order('created_at', { ascending: false });
+
+    guestHistory = data || [];
 }
 
 function updateTabCounts() {
@@ -765,6 +779,57 @@ function renderInfoTab() {
             </svg>
             <span>Групповая заявка ${deal.is_group_main ? '(главный контакт)' : ''}</span>
         </div>` : ''}
+
+        ${renderGuestHistory()}
+    `;
+}
+
+function renderGuestHistory() {
+    if (!guestHistory || guestHistory.length === 0) return '';
+
+    const statusIcon = (s) => {
+        if (s === 'completed' || s === 'fully_paid') return '<span class="text-success">●</span>';
+        if (s === 'cancelled') return '<span class="text-error">●</span>';
+        if (s === 'lead') return '<span class="text-warning">●</span>';
+        return '<span class="text-info">●</span>';
+    };
+
+    const rows = guestHistory.map(d => {
+        const r = d.retreats;
+        const rName = r ? e(Layout.getName(r)) : '—';
+        const dates = r ? CrmUtils.formatDate(r.start_date) + ' — ' + CrmUtils.formatDate(r.end_date) : '';
+        const statusText = t('crm_status_' + d.status) || d.status;
+        const color = r?.color || '#6366f1';
+
+        return `<div class="flex items-center gap-3 py-2.5 border-b border-base-200 last:border-0">
+            ${statusIcon(d.status)}
+            <span class="badge badge-sm whitespace-nowrap" style="background-color: ${color}; color: white; border: none;">${rName}</span>
+            <span class="text-xs text-base-content/50">${dates}</span>
+            <span class="text-xs ml-auto">${statusText}</span>
+            <a href="deal.html?id=${d.id}" class="btn btn-ghost btn-xs text-primary">→</a>
+        </div>`;
+    }).join('');
+
+    const completed = guestHistory.filter(d => d.status === 'completed' || d.status === 'fully_paid').length;
+    const subtitle = completed > 0
+        ? `Был(а) ${completed} ${completed === 1 ? 'раз' : completed < 5 ? 'раза' : 'раз'}`
+        : '';
+
+    return `
+        <div class="mt-6">
+            <div class="flex items-center gap-3 mb-3">
+                <h3 class="text-lg font-bold flex items-center gap-2">
+                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-5 h-5 text-primary">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M12 6v6h4.5m4.5 0a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" />
+                    </svg>
+                    История гостя
+                </h3>
+                ${subtitle ? `<span class="badge badge-ghost badge-sm">${subtitle}</span>` : ''}
+            </div>
+            <div class="bg-base-200/50 rounded-xl p-4">
+                ${rows}
+            </div>
+        </div>
     `;
 }
 

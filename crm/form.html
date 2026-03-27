@@ -251,27 +251,37 @@ async function submitForm(e) {
 }
 
 async function findOrCreateVaishnava(data) {
-    // Ищем по телефону
-    const { data: existing } = await db
-        .from('vaishnavas')
-        .select('id')
-        .eq('phone', data.phone)
-        .maybeSingle();
+    // 1. Ищем по телефону
+    if (data.phone) {
+        const { data: byPhone } = await db
+            .from('vaishnavas')
+            .select('id')
+            .eq('phone', data.phone)
+            .eq('is_deleted', false)
+            .maybeSingle();
 
-    if (existing) {
-        // Обновляем данные
-        await db.from('vaishnavas')
-            .update({
-                spiritual_name: data.spiritual_name || undefined,
-                last_name: data.last_name || undefined,
-                email: data.email || undefined,
-                telegram: data.telegram || undefined
-            })
-            .eq('id', existing.id);
-        return existing.id;
+        if (byPhone) {
+            await updateVaishnava(byPhone.id, data);
+            return byPhone.id;
+        }
     }
 
-    // Создаём нового
+    // 2. Ищем по email
+    if (data.email) {
+        const { data: byEmail } = await db
+            .from('vaishnavas')
+            .select('id')
+            .eq('email', data.email)
+            .eq('is_deleted', false)
+            .maybeSingle();
+
+        if (byEmail) {
+            await updateVaishnava(byEmail.id, data);
+            return byEmail.id;
+        }
+    }
+
+    // 3. Создаём нового
     const { data: created, error } = await db
         .from('vaishnavas')
         .insert({
@@ -283,6 +293,18 @@ async function findOrCreateVaishnava(data) {
 
     if (error) throw error;
     return created.id;
+}
+
+async function updateVaishnava(id, data) {
+    const updates = {};
+    if (data.spiritual_name) updates.spiritual_name = data.spiritual_name;
+    if (data.last_name) updates.last_name = data.last_name;
+    if (data.email) updates.email = data.email;
+    if (data.phone) updates.phone = data.phone;
+    if (data.telegram) updates.telegram = data.telegram;
+    if (Object.keys(updates).length > 0) {
+        await db.from('vaishnavas').update(updates).eq('id', id);
+    }
 }
 
 async function getNextManager() {
