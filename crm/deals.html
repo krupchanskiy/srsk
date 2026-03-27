@@ -142,10 +142,12 @@
             <div class="form-control mb-3">
                 <label class="label"><span class="label-text" data-i18n="crm_guest_required">Гость *</span></label>
                 <div class="flex gap-2">
-                    <select id="newDealGuest" class="select select-bordered flex-1">
-                        <option value="" data-i18n="crm_select_or_create_guest">Выберите или создайте нового...</option>
-                    </select>
-                    <button type="button" class="btn btn-ghost" onclick="toggleNewGuestForm()" data-i18n="crm_new_guest_btn">+ Новый</button>
+                    <div class="flex-1 relative">
+                        <input type="text" id="newDealGuestSearch" class="input input-bordered w-full" placeholder="Поиск по имени или телефону..." autocomplete="off" oninput="filterGuestList(this.value)">
+                        <input type="hidden" id="newDealGuest" value="">
+                        <div id="guestDropdown" class="absolute z-50 w-full bg-base-100 shadow-lg rounded-box mt-1 max-h-48 overflow-y-auto hidden border border-base-300"></div>
+                    </div>
+                    <button type="button" class="btn btn-outline btn-primary btn-sm self-center" onclick="toggleNewGuestForm()" id="newGuestToggleBtn">+ Новый</button>
                 </div>
             </div>
 
@@ -324,10 +326,56 @@ async function loadGuests() {
 
     guests = data || [];
 
-    const select = document.getElementById('newDealGuest');
-    select.innerHTML = '<option value="">Выберите или создайте нового...</option>' +
-        guests.map(g => `<option value="${g.id}">${e(CrmUtils.getGuestName(g))} ${g.phone ? '(' + g.phone + ')' : ''}</option>`).join('');
+    // Гостевой поиск готов, данные в переменной guests
 }
+
+function filterGuestList(query) {
+    const dropdown = document.getElementById('guestDropdown');
+    const hiddenInput = document.getElementById('newDealGuest');
+    const q = query.toLowerCase().trim();
+
+    if (q.length < 2) {
+        dropdown.classList.add('hidden');
+        hiddenInput.value = '';
+        return;
+    }
+
+    const matches = guests.filter(g => {
+        const name = CrmUtils.getGuestName(g).toLowerCase();
+        const phone = (g.phone || '').toLowerCase();
+        const email = (g.email || '').toLowerCase();
+        return name.includes(q) || phone.includes(q) || email.includes(q);
+    }).slice(0, 15);
+
+    if (matches.length === 0) {
+        dropdown.innerHTML = '<div class="px-4 py-3 text-sm text-base-content/50">Не найден. Нажмите «+ Новый»</div>';
+    } else {
+        dropdown.innerHTML = matches.map(g => {
+            const name = e(CrmUtils.getGuestName(g));
+            const detail = g.phone || g.email || '';
+            return `<div class="px-4 py-2 hover:bg-base-200 cursor-pointer flex justify-between items-center" onclick="selectGuest('${g.id}', '${e(CrmUtils.getGuestName(g))}')">
+                <span class="font-medium">${name}</span>
+                <span class="text-xs text-base-content/50">${e(detail)}</span>
+            </div>`;
+        }).join('');
+    }
+    dropdown.classList.remove('hidden');
+}
+
+function selectGuest(id, name) {
+    document.getElementById('newDealGuest').value = id;
+    document.getElementById('newDealGuestSearch').value = name;
+    document.getElementById('guestDropdown').classList.add('hidden');
+}
+
+// Закрытие дропдауна при клике вне
+document.addEventListener('click', (ev) => {
+    const dropdown = document.getElementById('guestDropdown');
+    const search = document.getElementById('newDealGuestSearch');
+    if (dropdown && !dropdown.contains(ev.target) && ev.target !== search) {
+        dropdown.classList.add('hidden');
+    }
+});
 
 // ==================== FILTERS ====================
 function applyFilters() {
@@ -490,15 +538,26 @@ function closeNewDealModal() {
 
 function toggleNewGuestForm() {
     const form = document.getElementById('newGuestForm');
-    const select = document.getElementById('newDealGuest');
+    const searchInput = document.getElementById('newDealGuestSearch');
+    const hiddenInput = document.getElementById('newDealGuest');
+    const btn = document.getElementById('newGuestToggleBtn');
 
     if (form.classList.contains('hidden')) {
         form.classList.remove('hidden');
-        select.disabled = true;
-        select.value = '';
+        searchInput.disabled = true;
+        searchInput.value = '';
+        hiddenInput.value = 'new';
+        btn.textContent = '← Выбрать';
+        btn.classList.remove('btn-primary');
+        btn.classList.add('btn-ghost');
+        document.getElementById('guestDropdown').classList.add('hidden');
     } else {
         form.classList.add('hidden');
-        select.disabled = false;
+        searchInput.disabled = false;
+        hiddenInput.value = '';
+        btn.textContent = '+ Новый';
+        btn.classList.add('btn-primary');
+        btn.classList.remove('btn-ghost');
     }
 }
 
@@ -514,7 +573,7 @@ async function createDeal(event) {
     }
 
     // Создаём нового гостя если нужно
-    if (!guestId) {
+    if (!guestId || guestId === 'new') {
         const firstName = document.getElementById('newGuestFirstName').value.trim();
         const lastName = document.getElementById('newGuestLastName').value.trim();
         const spiritualName = document.getElementById('newGuestSpiritualName').value.trim();
