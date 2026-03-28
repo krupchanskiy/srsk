@@ -1936,6 +1936,8 @@ async function updateChecklist(field, value) {
     await Layout.db.from('crm_deals').update({ [field]: value }).eq('id', dealId);
     deal[field] = value;
     renderChecklist();
+    // Обновить зависимые блоки
+    if (field === 'checklist_accommodation') renderPlacement();
 }
 
 // ==================== ДАННЫЕ РЕЙСОВ ====================
