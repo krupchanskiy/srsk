@@ -1,0 +1,234 @@
+<!DOCTYPE html>
+<html lang="ru" data-theme="light">
+<head>
+    <script src="../js/color-init.js"></script>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>UTM-ссылки — CRM — ШРСК</title>
+    <link href="https://cdn.jsdelivr.net/npm/daisyui@4.12.14/dist/full.min.css" rel="stylesheet" />
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script>tailwind.config = { theme: { extend: { screens: { 'desktop': '1200px' } } } }</script>
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="../css/common.css">
+    <style>
+        .link-row { transition: background 0.15s; }
+        .link-row:hover { background: oklch(var(--b2)); }
+        .copied { animation: copiedFlash 0.6s ease; }
+        @keyframes copiedFlash { 0% { background: #d1fae5; } 100% { background: transparent; } }
+    </style>
+</head>
+<body class="bg-base-200 min-h-screen flex flex-col">
+
+<div id="header-placeholder"></div>
+
+<main class="container mx-auto px-4 py-6 flex-1 max-w-4xl">
+    <h1 class="text-2xl font-bold mb-6">UTM-ссылки</h1>
+
+    <!-- Выбор ретрита -->
+    <div class="card bg-base-100 shadow-sm mb-6">
+        <div class="card-body p-4">
+            <div class="form-control">
+                <label class="label"><span class="label-text font-medium">Ретрит</span></label>
+                <select id="retreatSelect" class="select select-bordered" onchange="generateLinks()">
+                    <option value="">Загрузка...</option>
+                </select>
+            </div>
+        </div>
+    </div>
+
+    <!-- Готовые ссылки -->
+    <div id="linksContainer" class="space-y-3 mb-8 hidden">
+        <h2 class="text-lg font-bold mb-3">Готовые ссылки</h2>
+        <div id="presetLinks" class="space-y-2"></div>
+    </div>
+
+    <!-- Своя ссылка -->
+    <div class="card bg-base-100 shadow-sm mb-6">
+        <div class="card-body p-4">
+            <h2 class="text-lg font-bold mb-4">Своя ссылка</h2>
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-3">
+                <div class="form-control">
+                    <label class="label py-1"><span class="label-text text-xs">utm_source</span></label>
+                    <input type="text" id="customSource" class="input input-bordered input-sm" placeholder="telegram" oninput="updateCustomLink()">
+                </div>
+                <div class="form-control">
+                    <label class="label py-1"><span class="label-text text-xs">utm_medium</span></label>
+                    <input type="text" id="customMedium" class="input input-bordered input-sm" placeholder="post" oninput="updateCustomLink()">
+                </div>
+                <div class="form-control">
+                    <label class="label py-1"><span class="label-text text-xs">utm_campaign</span></label>
+                    <input type="text" id="customCampaign" class="input input-bordered input-sm" placeholder="" oninput="updateCustomLink()">
+                </div>
+            </div>
+            <div class="mt-3">
+                <label class="label py-1"><span class="label-text text-xs">Результат</span></label>
+                <div class="flex gap-2">
+                    <input type="text" id="customResult" class="input input-bordered input-sm flex-1 font-mono text-xs" readonly>
+                    <button class="btn btn-sm btn-primary" onclick="copyLink(document.getElementById('customResult').value, this)">
+                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-4 h-4"><path stroke-linecap="round" stroke-linejoin="round" d="M15.666 3.888A2.25 2.25 0 0 0 13.5 2.25h-3c-1.03 0-1.9.693-2.166 1.638m7.332 0c.055.194.084.4.084.612v0a.75.75 0 0 1-.75.75H9.75a.75.75 0 0 1-.75-.75v0c0-.212.03-.418.084-.612m7.332 0c.646.049 1.288.11 1.927.184 1.1.128 1.907 1.077 1.907 2.185V19.5a2.25 2.25 0 0 1-2.25 2.25H6.75A2.25 2.25 0 0 1 4.5 19.5V6.257c0-1.108.806-2.057 1.907-2.185a48.208 48.208 0 0 1 1.927-.184" /></svg>
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Язык -->
+    <div class="card bg-base-100 shadow-sm">
+        <div class="card-body p-4">
+            <h2 class="text-lg font-bold mb-3">Английская версия</h2>
+            <p class="text-sm text-base-content/60 mb-2">Добавьте <code class="badge badge-sm">&lang=en</code> к любой ссылке для англоязычной формы.</p>
+            <div id="enLink" class="flex gap-2">
+                <input type="text" id="enLinkResult" class="input input-bordered input-sm flex-1 font-mono text-xs" readonly>
+                <button class="btn btn-sm btn-outline" onclick="copyLink(document.getElementById('enLinkResult').value, this)">
+                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-4 h-4"><path stroke-linecap="round" stroke-linejoin="round" d="M15.666 3.888A2.25 2.25 0 0 0 13.5 2.25h-3c-1.03 0-1.9.693-2.166 1.638m7.332 0c.055.194.084.4.084.612v0a.75.75 0 0 1-.75.75H9.75a.75.75 0 0 1-.75-.75v0c0-.212.03-.418.084-.612m7.332 0c.646.049 1.288.11 1.927.184 1.1.128 1.907 1.077 1.907 2.185V19.5a2.25 2.25 0 0 1-2.25 2.25H6.75A2.25 2.25 0 0 1 4.5 19.5V6.257c0-1.108.806-2.057 1.907-2.185a48.208 48.208 0 0 1 1.927-.184" /></svg>
+                </button>
+            </div>
+        </div>
+    </div>
+</main>
+
+<div id="footer-placeholder"></div>
+
+<script src="../js/config.js"></script>
+<script src="../js/cache.js"></script>
+<script src="../js/utils.js"></script>
+<script src="../js/layout.js"></script>
+<script src="../js/date-utils.js"></script>
+<script src="../js/auth-check.js"></script>
+
+<script>
+const BASE_URL = 'https://in.rupaseva.com/crm/form.html';
+
+const PRESETS = [
+    { name: 'Telegram-канал', icon: '✈️', source: 'telegram', medium: 'post' },
+    { name: 'Instagram пост', icon: '📷', source: 'instagram', medium: 'post' },
+    { name: 'Instagram сторис', icon: '📷', source: 'instagram', medium: 'story' },
+    { name: 'YouTube описание', icon: '▶️', source: 'youtube', medium: 'description' },
+    { name: 'Сайт rupaseva.com', icon: '🌐', source: 'website', medium: 'banner' },
+    { name: 'WhatsApp рассылка', icon: '💬', source: 'whatsapp', medium: 'broadcast' },
+    { name: 'Email рассылка', icon: '📧', source: 'email', medium: 'newsletter' },
+    { name: 'Личное сообщение', icon: '👤', source: 'personal', medium: 'message' },
+];
+
+let retreats = [];
+
+function buildUrl(retreatSlug, source, medium, campaign) {
+    const params = new URLSearchParams();
+    params.set('retreat', retreatSlug);
+    if (source) params.set('utm_source', source);
+    if (medium) params.set('utm_medium', medium);
+    if (campaign) params.set('utm_campaign', campaign);
+    return BASE_URL + '?' + params.toString();
+}
+
+function generateLinks() {
+    const select = document.getElementById('retreatSelect');
+    const retreatId = select.value;
+    if (!retreatId) {
+        document.getElementById('linksContainer').classList.add('hidden');
+        return;
+    }
+
+    const retreat = retreats.find(r => r.id === retreatId);
+    const slug = retreat?.slug || retreatId;
+    const campaign = slug;
+
+    // Пресеты
+    const container = document.getElementById('presetLinks');
+    container.innerHTML = PRESETS.map(p => {
+        const url = buildUrl(slug, p.source, p.medium, campaign);
+        return `
+            <div class="link-row flex items-center gap-3 p-3 bg-base-100 rounded-lg border border-base-200">
+                <span class="text-lg">${p.icon}</span>
+                <div class="flex-1 min-w-0">
+                    <div class="text-sm font-medium">${p.name}</div>
+                    <div class="text-xs text-base-content/50 font-mono truncate">${Layout.escapeHtml(url)}</div>
+                </div>
+                <button class="btn btn-sm btn-ghost" onclick="copyLink('${url.replace(/'/g, "\\'")}', this)" title="Копировать">
+                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-4 h-4"><path stroke-linecap="round" stroke-linejoin="round" d="M15.666 3.888A2.25 2.25 0 0 0 13.5 2.25h-3c-1.03 0-1.9.693-2.166 1.638m7.332 0c.055.194.084.4.084.612v0a.75.75 0 0 1-.75.75H9.75a.75.75 0 0 1-.75-.75v0c0-.212.03-.418.084-.612m7.332 0c.646.049 1.288.11 1.927.184 1.1.128 1.907 1.077 1.907 2.185V19.5a2.25 2.25 0 0 1-2.25 2.25H6.75A2.25 2.25 0 0 1 4.5 19.5V6.257c0-1.108.806-2.057 1.907-2.185a48.208 48.208 0 0 1 1.927-.184" /></svg>
+                </button>
+            </div>
+        `;
+    }).join('');
+
+    document.getElementById('linksContainer').classList.remove('hidden');
+
+    // Обновляем кастомную ссылку
+    document.getElementById('customCampaign').value = campaign;
+    updateCustomLink();
+
+    // EN ссылка
+    document.getElementById('enLinkResult').value = buildUrl(slug, 'website', 'banner', campaign) + '&lang=en';
+}
+
+function updateCustomLink() {
+    const select = document.getElementById('retreatSelect');
+    const retreat = retreats.find(r => r.id === select.value);
+    const slug = retreat?.slug || select.value;
+
+    if (!slug) return;
+
+    const source = document.getElementById('customSource').value.trim();
+    const medium = document.getElementById('customMedium').value.trim();
+    const campaign = document.getElementById('customCampaign').value.trim();
+
+    document.getElementById('customResult').value = buildUrl(slug, source, medium, campaign);
+}
+
+async function copyLink(url, btn) {
+    try {
+        await navigator.clipboard.writeText(url);
+        const origHtml = btn.innerHTML;
+        btn.innerHTML = '<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-4 h-4 text-success"><path stroke-linecap="round" stroke-linejoin="round" d="m4.5 12.75 6 6 9-13.5" /></svg>';
+        btn.closest('.link-row, .flex')?.classList.add('copied');
+        setTimeout(() => {
+            btn.innerHTML = origHtml;
+            btn.closest('.link-row, .flex')?.classList.remove('copied');
+        }, 1500);
+    } catch (e) {
+        // Fallback
+        const input = document.createElement('input');
+        input.value = url;
+        document.body.appendChild(input);
+        input.select();
+        document.execCommand('copy');
+        document.body.removeChild(input);
+        Layout.showNotification('Скопировано', 'success');
+    }
+}
+
+async function init() {
+    await Layout.init({ module: 'crm', menuId: 'crm_settings', itemId: 'crm_utm_links' });
+
+    const today = new Date().toISOString().split('T')[0];
+    const { data } = await Layout.db
+        .from('retreats')
+        .select('id, name_ru, name_en, slug, start_date, end_date')
+        .gte('end_date', today)
+        .order('start_date');
+
+    retreats = data || [];
+
+    const select = document.getElementById('retreatSelect');
+    select.innerHTML = '<option value="">Выберите ретрит</option>';
+    retreats.forEach(r => {
+        const name = Layout.getName(r);
+        const dates = DateUtils.formatDateRange(r.start_date, r.end_date);
+        select.insertAdjacentHTML('beforeend',
+            `<option value="${r.id}">${Layout.escapeHtml(name)} (${dates})</option>`
+        );
+    });
+
+    // Если один ретрит — выбрать автоматически
+    if (retreats.length === 1) {
+        select.value = retreats[0].id;
+        generateLinks();
+    }
+}
+
+init();
+</script>
+
+</body>
+</html>
