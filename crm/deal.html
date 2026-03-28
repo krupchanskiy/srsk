@@ -464,6 +464,18 @@
     <form method="dialog" class="modal-backdrop"><button>close</button></form>
 </dialog>
 
+<!-- Модалка выбора менеджера по расселению -->
+<dialog id="placementModal" class="modal">
+    <div class="modal-box max-w-sm">
+        <h3 class="font-bold text-lg mb-4">Назначить расселение</h3>
+        <div id="placementModalBody" class="space-y-2"></div>
+        <div class="modal-action">
+            <button class="btn btn-sm" onclick="document.getElementById('placementModal').close()">Отмена</button>
+        </div>
+    </div>
+    <form method="dialog" class="modal-backdrop"><button>close</button></form>
+</dialog>
+
 <script src="../js/config.js"></script>
 <script src="../js/auth-check.js?v=4"></script>
 <script src="../js/cache.js"></script>
@@ -1782,28 +1794,57 @@ function renderPlacement() {
 }
 
 async function requestPlacement() {
-    // Получаем список пользователей-суперюзеров для назначения
-    const { data: users } = await Layout.db
-        .from('vaishnavas')
-        .select('id, spiritual_name, first_name')
-        .eq('is_superuser', true)
-        .order('spiritual_name');
+    // Получаем менеджеров по расселению (роль placement_manager)
+    const { data: managers } = await Layout.db
+        .from('user_roles')
+        .select('user_id, roles!inner(code), vaishnavas:user_id(id, spiritual_name, first_name)')
+        .eq('roles.code', 'placement_manager')
+        .eq('is_active', true);
 
-    // Формируем список для выбора
-    let assigneeId = null;
-    if (users && users.length > 0) {
-        const options = users.map((u, i) => {
-            const name = u.spiritual_name || u.first_name;
-            return `${i + 1}. ${name}`;
-        }).join('\n');
-        const choice = prompt(`Кому назначить расселение?\n\n${options}\n\nВведите номер:`);
-        if (!choice) return;
-        const idx = parseInt(choice) - 1;
-        if (idx >= 0 && idx < users.length) {
-            assigneeId = users[idx].id;
-        }
+    // Если join не сработал — попробуем через vaishnavas.user_id
+    let placementManagers = [];
+    if (managers && managers.length > 0) {
+        // Получим vaishnavas для этих user_id
+        const authIds = managers.map(m => m.user_id);
+        const { data: vUsers } = await Layout.db
+            .from('vaishnavas')
+            .select('id, spiritual_name, first_name, user_id')
+            .in('user_id', authIds);
+        placementManagers = vUsers || [];
     }
 
+    if (placementManagers.length === 0) {
+        Layout.showNotification('Нет менеджеров по расселению. Назначьте роль в настройках.', 'error');
+        return;
+    }
+
+    // Если один менеджер — назначаем сразу, если несколько — показываем модалку
+    let assigneeId;
+    if (placementManagers.length === 1) {
+        assigneeId = placementManagers[0].id;
+    } else {
+        // Модалка выбора
+        const html = placementManagers.map(m => {
+            const name = m.spiritual_name || m.first_name;
+            return `<button class="btn btn-sm btn-outline w-full justify-start gap-2" onclick="confirmPlacement('${m.id}')">
+                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-4 h-4"><path stroke-linecap="round" stroke-linejoin="round" d="M15.75 6a3.75 3.75 0 1 1-7.5 0 3.75 3.75 0 0 1 7.5 0ZM4.501 20.118a7.5 7.5 0 0 1 14.998 0A17.933 17.933 0 0 1 12 21.75c-2.676 0-5.216-.584-7.499-1.632Z" /></svg>
+                ${Layout.escapeHtml(name)}
+            </button>`;
+        }).join('');
+        document.getElementById('placementModalBody').innerHTML = html;
+        document.getElementById('placementModal').showModal();
+        return; // confirmPlacement() продолжит
+    }
+
+    await createPlacementTask(assigneeId);
+}
+
+async function confirmPlacement(assigneeId) {
+    document.getElementById('placementModal').close();
+    await createPlacementTask(assigneeId);
+}
+
+async function createPlacementTask(assigneeId) {
     const guestName = CrmUtils.getGuestName(guest);
     const retreatName = Layout.getName(retreat);
     const title = `Расселить ${guestName} на ${retreatName}`;
@@ -1812,9 +1853,7 @@ async function requestPlacement() {
     if (deal.roommate_preference) parts.push(`Хочет жить рядом с: ${deal.roommate_preference}`);
     if (deal.special_needs) parts.push(`Особые потребности: ${deal.special_needs}`);
     if (dealMembers.length > 0) parts.push(`Состав группы: ${dealMembers.map(m => m.name).join(', ')}`);
-    const description = parts.join('\n');
 
-    // Приоритет — high если ретрит начинается через <7 дней
     let priority = 'normal';
     if (retreat?.start_date) {
         const start = new Date(retreat.start_date + 'T00:00:00');
@@ -1825,15 +1864,14 @@ async function requestPlacement() {
     await Layout.db.from('crm_tasks').insert({
         deal_id: dealId,
         title,
-        description: description || null,
+        description: parts.join('\n') || null,
         priority,
         assignee_id: assigneeId,
         created_by: window.currentUser?.id
     });
 
     Layout.showNotification('Запрос на расселение создан', 'success');
-    // Обновить счётчик задач и вкладку
-    const counts = await loadCounts();
+    await loadCounts();
     updateTabCounts();
 }
 
