@@ -29,28 +29,35 @@
         <!-- Основной контент -->
         <div class="flex-1">
             <!-- Заголовок — плашка с именем, статусом, режимом, менеджером -->
+            <style>
+                #dealStatusBanner select { background-color: transparent; border: 1px solid rgba(255,255,255,0.25); color: white; }
+                #dealStatusBanner select:focus { outline: none; border-color: rgba(255,255,255,0.5); }
+                #dealStatusBanner select option { color: #1f2937; background: white; }
+            </style>
             <div id="dealStatusBanner" class="rounded-xl px-5 py-4 mb-4">
-                <div class="flex items-start justify-between gap-4">
-                    <div>
-                        <div class="flex items-center gap-2">
-                            <h1 class="text-2xl font-bold text-white" id="guestName">—</h1>
-                            <span id="repeatGuestBadge" class="badge badge-sm badge-warning hidden">повторный</span>
-                        </div>
-                        <div class="text-white/70" id="guestContact">—</div>
-                        <div class="flex gap-1 mt-2" id="quickContactButtons"></div>
+                <!-- Верхняя строка: имя + статус -->
+                <div class="flex items-center justify-between gap-4 mb-2">
+                    <div class="flex items-center gap-3">
+                        <h1 class="text-2xl font-bold text-white" id="guestName">—</h1>
+                        <span id="repeatGuestBadge" class="badge badge-sm badge-warning hidden">повторный</span>
                     </div>
-                    <div class="flex flex-col items-end gap-1">
-                        <select id="statusSelect" class="select select-sm bg-white/20 text-white border-white/30 font-semibold min-w-[160px]" onchange="changeStatus(this.value)">
+                    <select id="statusSelect" class="select select-sm font-bold text-sm min-w-[150px]" onchange="changeStatus(this.value)">
+                    </select>
+                </div>
+                <!-- Нижняя строка: контакты + режим/менеджер -->
+                <div class="flex items-center justify-between gap-4">
+                    <div class="flex items-center gap-3">
+                        <span class="text-white/60 text-sm" id="guestContact">—</span>
+                        <div class="flex gap-1" id="quickContactButtons"></div>
+                    </div>
+                    <div class="flex items-center gap-2">
+                        <select id="workModeSelect" class="select select-xs text-xs min-w-[100px]" onchange="changeWorkMode(this.value)">
+                            <option value="active">Активная</option>
+                            <option value="long_term">Долгий дожим</option>
+                            <option value="paused">Пауза</option>
                         </select>
-                        <div class="flex items-center gap-2">
-                            <select id="workModeSelect" class="select select-xs bg-white/10 text-white/80 border-white/20 min-w-[120px]" onchange="changeWorkMode(this.value)">
-                                <option value="active">Активная</option>
-                                <option value="long_term">Долгий дожим</option>
-                                <option value="paused">Пауза</option>
-                            </select>
-                            <select id="managerSelect" class="select select-xs bg-white/10 text-white/80 border-white/20 min-w-[140px]" onchange="changeManager(this.value)">
-                            </select>
-                        </div>
+                        <select id="managerSelect" class="select select-xs text-xs min-w-[120px]" onchange="changeManager(this.value)">
+                        </select>
                     </div>
                 </div>
             </div>
