@@ -817,7 +817,11 @@ function renderTab() {
     switch (currentTab) {
         case 'info':
             html = renderInfoTab();
-            setTimeout(() => loadManagerNotes(), 0);
+            setTimeout(() => {
+                loadManagerNotes();
+                renderPlacement();
+                renderDealMembers();
+            }, 0);
             break;
         case 'services':
             html = renderServicesTab();
