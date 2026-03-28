@@ -119,6 +119,8 @@
                     <button type="button" class="btn btn-sm btn-primary w-full mt-2" onclick="quickAddComm()">
                         Записать
                     </button>
+                    <!-- Последние контакты -->
+                    <div id="recentComms" class="mt-3 border-t border-base-200 pt-2 hidden"></div>
                 </div>
             </div>
 
@@ -554,7 +556,7 @@ async function loadDeal() {
     renderSidebar();
     renderChecklist();
     renderFlightData();
-    await Promise.all([loadCounts(), loadGuestHistory(), loadDealMembers(), loadPlacement()]);
+    await Promise.all([loadCounts(), loadGuestHistory(), loadDealMembers(), loadPlacement(), loadRecentComms()]);
     renderHeader(); // повторно — теперь с бейджем «повторный гость»
     loadTabData();
 }
@@ -1558,12 +1560,48 @@ async function quickAddComm() {
 
     document.getElementById('quickCommText').value = '';
     Layout.showNotification('Записано', 'success');
+    loadRecentComms();
 
     // Если на вкладке «История» — обновляем
     if (currentTab === 'history') {
         await loadHistory();
         renderTab();
     }
+}
+
+// ==================== ПОСЛЕДНИЕ КОНТАКТЫ ====================
+async function loadRecentComms() {
+    const { data } = await Layout.db
+        .from('crm_communications')
+        .select('type, summary, created_at')
+        .eq('deal_id', dealId)
+        .order('created_at', { ascending: false })
+        .limit(3);
+
+    const container = document.getElementById('recentComms');
+    if (!container) return;
+
+    if (!data || data.length === 0) {
+        container.classList.add('hidden');
+        return;
+    }
+
+    const typeIcons = { call: '📞', whatsapp: '💬', telegram: '✈', email: '📧', note: '📝' };
+
+    container.classList.remove('hidden');
+    container.innerHTML = `<div class="text-xs opacity-50 mb-1">Последние контакты (${data.length})</div>` +
+        data.map(c => {
+            const icon = typeIcons[c.type] || '📝';
+            const time = CrmUtils.formatDateTime ? CrmUtils.formatDateTime(c.created_at) : '';
+            const text = (c.summary || '').length > 50 ? c.summary.substring(0, 50) + '...' : (c.summary || '—');
+            return `<div class="flex items-start gap-2 py-1 text-xs">
+                <span>${icon}</span>
+                <div class="flex-1 min-w-0">
+                    <div class="truncate">${Layout.escapeHtml(text)}</div>
+                    <div class="opacity-40">${time}</div>
+                </div>
+            </div>`;
+        }).join('');
 }
 
 // ==================== TEMPLATES ====================

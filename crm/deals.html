@@ -101,6 +101,7 @@
                             <th class="cursor-pointer hover:bg-base-200" onclick="setSort('manager')">
                                 <span class="inline-flex items-center gap-1" data-i18n="crm_manager">Менеджер <span id="sort-manager" class="text-xs opacity-50"></span></span>
                             </th>
+                            <th class="w-24 text-center"><span class="text-xs opacity-60">Чеклист</span></th>
                             <th class="cursor-pointer hover:bg-base-200 text-right" onclick="setSort('paid')">
                                 <span class="inline-flex items-center gap-1 justify-end" data-i18n="crm_paid">Оплачено <span id="sort-paid" class="text-xs opacity-50"></span></span>
                             </th>
@@ -110,7 +111,7 @@
                         </tr>
                     </thead>
                     <tbody id="dealsTable">
-                        <tr><td colspan="7" class="text-center py-8">
+                        <tr><td colspan="8" class="text-center py-8">
                             <span class="loading loading-spinner loading-md"></span>
                         </td></tr>
                     </tbody>
@@ -485,7 +486,7 @@ function renderTable() {
     const pageDeals = filteredDeals.slice(start, start + pageSize);
 
     if (pageDeals.length === 0) {
-        tbody.innerHTML = `<tr><td colspan="7" class="text-center py-8 text-base-content/50">
+        tbody.innerHTML = `<tr><td colspan="8" class="text-center py-8 text-base-content/50">
             ${t('crm_no_deals') || 'Нет сделок'}
         </td></tr>`;
         return;
@@ -514,6 +515,7 @@ function renderTable() {
                 </td>
                 <td>${CrmUtils.getStatusBadge(d.status)}</td>
                 <td class="text-sm">${manager ? e(CrmUtils.getGuestShortName(manager)) : '<span class="text-base-content/30">—</span>'}</td>
+                <td class="text-center text-xs">${renderChecklistDots(d)}</td>
                 <td class="text-right font-mono text-sm">
                     ${d.total_paid > 0 ? CrmUtils.formatMoney(d.total_paid) : '<span class="text-base-content/30">—</span>'}
                 </td>
@@ -521,6 +523,17 @@ function renderTable() {
             </tr>
         `;
     }).join('');
+}
+
+function renderChecklistDots(d) {
+    const fields = ['checklist_accommodation', 'checklist_meals', 'checklist_transfer_arrival', 'checklist_transfer_departure', 'checklist_visa', 'checklist_tickets'];
+    const dots = fields.map(f => {
+        const v = d[f] || 'unknown';
+        return v === 'unknown'
+            ? '<span class="inline-block w-2 h-2 rounded-full bg-base-300" title="Не выяснено"></span>'
+            : '<span class="inline-block w-2 h-2 rounded-full bg-success" title="Заполнено"></span>';
+    });
+    return dots.join(' ');
 }
 
 function renderStats() {

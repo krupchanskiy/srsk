@@ -244,11 +244,14 @@ function renderKanban() {
         const label = CrmUtils.getStatusLabel(status);
         const isCancelled = status === 'cancelled';
 
+        const totalPaid = deals.reduce((sum, d) => sum + (d.total_paid || 0), 0);
+        const sumText = totalPaid > 0 ? ` · ₹${CrmUtils.formatMoney ? CrmUtils.formatMoney(totalPaid, 'INR').replace('₹','').trim() : totalPaid.toLocaleString('ru-RU')}` : '';
+
         return `
             <div class="kanban-column ${isCancelled ? 'column-cancelled' : ''}" data-status="${status}">
                 <div class="kanban-header" style="border-top: 3px solid ${color};">
                     <span class="flex items-center gap-2" style="color: ${color}">${svgIcon} <span class="text-base-content">${label}</span></span>
-                    <span class="badge badge-sm">${deals.length}</span>
+                    <span class="badge badge-sm">${deals.length}${sumText}</span>
                 </div>
                 <div class="kanban-cards" id="column-${status}">
                     ${deals.map(d => renderCard(d)).join('')}
