@@ -36,27 +36,27 @@
             </style>
             <div id="dealStatusBanner" class="rounded-xl px-5 py-4 mb-4">
                 <!-- Верхняя строка: имя + статус -->
-                <div class="flex items-center justify-between gap-4 mb-2">
-                    <div class="flex items-center gap-3">
-                        <h1 class="text-2xl font-bold text-white" id="guestName">—</h1>
-                        <span id="repeatGuestBadge" class="badge badge-sm badge-warning hidden">повторный</span>
+                <div class="flex flex-wrap items-center justify-between gap-2 mb-2">
+                    <div class="flex items-center gap-2 min-w-0">
+                        <h1 class="text-xl sm:text-2xl font-bold text-white truncate" id="guestName">—</h1>
+                        <span id="repeatGuestBadge" class="badge badge-sm badge-warning hidden shrink-0">повторный</span>
                     </div>
-                    <select id="statusSelect" class="select select-sm font-bold text-sm min-w-[150px]" onchange="changeStatus(this.value)">
+                    <select id="statusSelect" class="select select-sm font-bold text-sm min-w-[140px] shrink-0" onchange="changeStatus(this.value)">
                     </select>
                 </div>
                 <!-- Нижняя строка: контакты + режим/менеджер -->
-                <div class="flex items-center justify-between gap-4">
-                    <div class="flex items-center gap-3">
-                        <span class="text-white/60 text-sm" id="guestContact">—</span>
-                        <div class="flex gap-1" id="quickContactButtons"></div>
+                <div class="flex flex-wrap items-center justify-between gap-2">
+                    <div class="flex items-center gap-2 min-w-0">
+                        <span class="text-white/60 text-xs sm:text-sm truncate" id="guestContact">—</span>
+                        <div class="flex gap-1 shrink-0" id="quickContactButtons"></div>
                     </div>
-                    <div class="flex items-center gap-2">
-                        <select id="workModeSelect" class="select select-xs text-xs min-w-[100px]" onchange="changeWorkMode(this.value)">
+                    <div class="flex flex-wrap items-center gap-2 shrink-0">
+                        <select id="workModeSelect" class="select select-xs text-xs min-w-[90px]" onchange="changeWorkMode(this.value)">
                             <option value="active">Активная</option>
                             <option value="long_term">Долгий дожим</option>
                             <option value="paused">Пауза</option>
                         </select>
-                        <select id="managerSelect" class="select select-xs text-xs min-w-[120px]" onchange="changeManager(this.value)">
+                        <select id="managerSelect" class="select select-xs text-xs min-w-[110px]" onchange="changeManager(this.value)">
                         </select>
                     </div>
                 </div>
@@ -844,15 +844,15 @@ function renderInfoTab() {
     const locationIcon = '<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-4 h-4"><path stroke-linecap="round" stroke-linejoin="round" d="M15 10.5a3 3 0 1 1-6 0 3 3 0 0 1 6 0Z" /><path stroke-linecap="round" stroke-linejoin="round" d="M19.5 10.5c0 7.142-7.5 11.25-7.5 11.25S4.5 17.642 4.5 10.5a7.5 7.5 0 1 1 15 0Z" /></svg>';
     const calendarIcon = '<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-4 h-4"><path stroke-linecap="round" stroke-linejoin="round" d="M6.75 3v2.25M17.25 3v2.25M3 18.75V7.5a2.25 2.25 0 0 1 2.25-2.25h13.5A2.25 2.25 0 0 1 21 7.5v11.25m-18 0A2.25 2.25 0 0 0 5.25 21h13.5A2.25 2.25 0 0 0 21 18.75m-18 0v-7.5A2.25 2.25 0 0 1 5.25 9h13.5A2.25 2.25 0 0 1 21 9v9.75" /></svg>';
 
-    // Контакт-строка с иконкой
+    // Контакт-строка с иконкой (компактная)
     function contactRow(icon, label, value, href) {
         if (!value || value === '—') return '';
         const val = href
-            ? `<a href="${href}" class="link link-hover text-primary">${e(value)}</a>`
-            : `<span class="font-medium">${e(value)}</span>`;
-        return `<div class="flex items-center gap-3 py-2.5 border-b border-base-200 last:border-0">
-            <span class="text-base-content/40">${icon}</span>
-            <span class="text-sm text-base-content/50 w-20 shrink-0">${label}</span>
+            ? `<a href="${href}" class="link link-hover text-primary text-sm">${e(value)}</a>`
+            : `<span class="font-medium text-sm">${e(value)}</span>`;
+        return `<div class="flex items-center gap-2 py-1.5 border-b border-base-200/50 last:border-0">
+            <span class="text-base-content/30">${icon}</span>
+            <span class="text-xs text-base-content/40 w-16 shrink-0">${label}</span>
             ${val}
         </div>`;
     }
@@ -864,54 +864,41 @@ function renderInfoTab() {
     const meals = deal.meals_preference ? (t('crm_meals_' + deal.meals_preference) || deal.meals_preference) : '—';
 
     return `
-        <div class="grid grid-cols-1 lg:grid-cols-2 gap-8">
+        <div class="grid grid-cols-1 lg:grid-cols-2 gap-4">
             <!-- Контактные данные -->
             <div>
-                <div class="flex items-center justify-between mb-4">
-                    <h3 class="text-lg font-bold flex items-center gap-2">
-                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-5 h-5 text-primary">
+                <div class="flex items-center justify-between mb-2">
+                    <h3 class="font-bold flex items-center gap-1.5 text-sm text-base-content/60">
+                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-4 h-4">
                             <path stroke-linecap="round" stroke-linejoin="round" d="M15.75 6a3.75 3.75 0 1 1-7.5 0 3.75 3.75 0 0 1 7.5 0ZM4.501 20.118a7.5 7.5 0 0 1 14.998 0A17.933 17.933 0 0 1 12 21.75c-2.676 0-5.216-.584-7.499-1.632Z" />
                         </svg>
                         Контакт
                     </h3>
-                    <a href="../vaishnavas/profile.html?id=${guest.id}" class="btn btn-xs btn-ghost text-primary">
-                        Профиль →
-                    </a>
+                    <a href="../vaishnavas/profile.html?id=${guest.id}" class="text-xs link link-primary">Профиль →</a>
                 </div>
-                <div class="bg-base-200/50 rounded-xl p-4">
+                <div class="bg-base-200/30 rounded-lg px-3 py-1">
                     ${contactRow(phoneIcon, 'Телефон', guest.phone, guest.phone ? 'tel:' + guest.phone : null)}
                     ${contactRow(emailIcon, 'Email', guest.email, guest.email ? 'mailto:' + guest.email : null)}
                     ${contactRow(tgIcon, 'Telegram', guest.telegram, guest.telegram ? 'https://t.me/' + guest.telegram.replace('@','') : null)}
-                    ${contactRow(locationIcon, 'Откуда', location || '—')}
+                    ${contactRow(locationIcon, 'Откуда', location || null)}
                 </div>
             </div>
 
             <!-- Ретрит -->
             <div>
-                <h3 class="text-lg font-bold flex items-center gap-2 mb-4">
-                    ${calendarIcon.replace('w-4 h-4', 'w-5 h-5 text-primary')}
-                    Ретрит
+                <h3 class="font-bold flex items-center gap-1.5 text-sm text-base-content/60 mb-2">
+                    ${calendarIcon} Ретрит
                 </h3>
-                <div class="bg-base-200/50 rounded-xl p-4 space-y-3">
-                    <div class="flex items-center gap-3">
-                        <span class="badge badge-lg font-semibold whitespace-nowrap" style="background-color: ${retreat?.color || '#6366f1'}; color: white; border: none;">
+                <div class="bg-base-200/30 rounded-lg px-3 py-2 space-y-2">
+                    <div class="flex items-center justify-between">
+                        <span class="badge badge-sm font-semibold whitespace-nowrap" style="background-color: ${retreat?.color || '#6366f1'}; color: white; border: none;">
                             ${e(Layout.getName(retreat))}
                         </span>
+                        <span class="text-sm">${retreatDates}</span>
                     </div>
-                    <div class="flex items-center gap-3 text-sm">
-                        <span class="text-base-content/40">${calendarIcon}</span>
-                        <span class="font-medium">${retreatDates}</span>
-                    </div>
-                    <div class="divider my-1"></div>
-                    <div class="grid grid-cols-2 gap-3">
-                        <div>
-                            <div class="text-xs text-base-content/50 mb-0.5">Источник</div>
-                            <div class="text-sm font-medium">${source}</div>
-                        </div>
-                        <div>
-                            <div class="text-xs text-base-content/50 mb-0.5">Создана</div>
-                            <div class="text-sm font-medium">${CrmUtils.formatDateTime ? CrmUtils.formatDateTime(deal.created_at) : '—'}</div>
-                        </div>
+                    <div class="flex items-center gap-4 text-xs text-base-content/50">
+                        <span>Источник: <span class="font-medium text-base-content/70">${source}</span></span>
+                        <span>Создана: <span class="font-medium text-base-content/70">${CrmUtils.formatDateTime ? CrmUtils.formatDateTime(deal.created_at) : '—'}</span></span>
                     </div>
                 </div>
             </div>
@@ -1951,6 +1938,11 @@ async function saveArrivalDatetime(value) {
         const earlyCheckin = arrivalAtAshram.getHours() < 10;
         document.getElementById('arrivalEarlyCheckin').checked = earlyCheckin;
         await saveFlightField('arrival_early_checkin', earlyCheckin);
+
+        // Автосвязь: рейс заполнен → чеклист трансфер прибытие = «нужен»
+        if (deal.checklist_transfer_arrival === 'unknown') {
+            await updateChecklist('checklist_transfer_arrival', 'needed');
+        }
     }
 }
 
@@ -1970,6 +1962,11 @@ async function saveDepartureDatetime(value) {
         const lateCheckout = departureFromAshram.getHours() >= 13;
         document.getElementById('departureLateCheckout').checked = lateCheckout;
         await saveFlightField('departure_late_checkout', lateCheckout);
+
+        // Автосвязь: рейс заполнен → чеклист трансфер отъезд = «нужен»
+        if (deal.checklist_transfer_departure === 'unknown') {
+            await updateChecklist('checklist_transfer_departure', 'needed');
+        }
     }
 }
 
