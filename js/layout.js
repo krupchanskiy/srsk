@@ -92,7 +92,6 @@ const modules = {
                 { id: 'crm_tasks', href: 'crm/tasks.html' }
             ]},
             { id: 'crm_analytics', items: [
-                { id: 'crm_analytics', href: 'crm/analytics.html' },
                 { id: 'crm_dashboard', href: 'crm/dashboard.html' },
                 { id: 'crm_activity_log', href: 'crm/activity-log.html' }
             ]},

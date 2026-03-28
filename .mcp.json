@@ -1,8 +1,15 @@
 {
   "mcpServers": {
     "supabase": {
-      "type": "http",
-      "url": "https://mcp.supabase.com/mcp?project_ref=mymrijdfqeevoaocbzfy"
+      "command": "npx",
+      "args": [
+        "-y",
+        "@anthropic-ai/supabase-mcp-server@latest",
+        "--access-token",
+        "sbp_95c844246099849b45e82ee3e395b9c334487cb8",
+        "--project-ref",
+        "mymrijdfqeevoaocbzfy"
+      ]
     }
   }
 }

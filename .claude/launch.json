@@ -1,0 +1,17 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "srsk",
+      "runtimeExecutable": "npx",
+      "runtimeArgs": ["serve", ".", "-l", "3000"],
+      "port": 3000
+    },
+    {
+      "name": "rupaseva",
+      "runtimeExecutable": "npx",
+      "runtimeArgs": ["serve", "/Users/adrian/Library/CloudStorage/OneDrive-Personal/Рабочий стол/проекты/ИИ/rupaseva-site", "-l", "3001"],
+      "port": 3001
+    }
+  ]
+}

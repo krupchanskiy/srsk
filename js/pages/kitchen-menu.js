@@ -644,8 +644,8 @@ function renderMealSection(dateStr, mealType, index, mealData, isEkadashiDay) {
         const sb = b.recipe?.category?.sort_order ?? 999;
         return sa - sb;
     });
-    // Если порции = 50 (дефолт), используем рассчитанное значение
-    const portions = (mealData?.portions && mealData.portions !== 50) ? mealData.portions : getEatingTotal(dateStr, mealType);
+    // Если повар задал порции — используем их, иначе расчётное значение
+    const portions = mealData?.portions || getEatingTotal(dateStr, mealType);
     const cook = mealData?.cook;
     const isCafe = Layout.currentLocation === 'cafe';
 
@@ -1944,7 +1944,7 @@ async function openMealDetailsModal(dateStr, mealType) {
     const date = DateUtils.parseDate(dateStr);
     const m = getMonthNames();
     const d = getDayNames();
-    const portions = (mealData.portions && mealData.portions !== 50) ? mealData.portions : getEatingTotal(dateStr, mealType);
+    const portions = mealData.portions || getEatingTotal(dateStr, mealType);
     const cook = mealData.cook;
 
     // Заголовки
