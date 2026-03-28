@@ -966,9 +966,15 @@ function renderInfoTab() {
                 <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
                     <div>
                         <label class="label py-0"><span class="label-text text-xs opacity-60">Духовный учитель</span></label>
-                        <select class="select select-bordered select-sm w-full" id="guruName" onchange="saveGuruName(this.value)">
-                            <option value="">—</option>
-                        </select>
+                        <div class="relative">
+                            <input type="text" class="input input-bordered input-sm w-full" id="guruName" placeholder="—"
+                                   value="${e(guest.spiritual_teacher || guest.guru_name || '')}"
+                                   autocomplete="off"
+                                   oninput="searchGuruSuggestions(this.value)"
+                                   onfocus="searchGuruSuggestions(this.value)"
+                                   onchange="saveGuruName(this.value)">
+                            <div id="guruSuggestions" class="hidden absolute z-50 w-full bg-base-100 shadow-lg rounded-lg mt-1 max-h-32 overflow-y-auto border text-sm"></div>
+                        </div>
                     </div>
                     <div>
                         <label class="label py-0"><span class="label-text text-xs opacity-60">Хочет жить рядом с</span></label>
@@ -1840,65 +1846,60 @@ async function saveGuruName(value) {
     guest.guru_name = value;
 }
 
-async function loadSpiritualTeachers() {
-    const select = document.getElementById('guruName');
-    if (!select) return;
+let spiritualTeachersList = [];
 
+async function loadSpiritualTeachers() {
+    if (spiritualTeachersList.length > 0) return;
     const { data } = await Layout.db
         .from('spiritual_teachers')
         .select('name_ru, name_en')
         .order('sort_order');
+    if (data) {
+        spiritualTeachersList = data.map(t => t.name_ru);
+    }
+}
 
-    if (!data) return;
+function searchGuruSuggestions(query) {
+    const suggestionsEl = document.getElementById('guruSuggestions');
+    if (!suggestionsEl) return;
 
-    const lang = Layout.currentLang || 'ru';
-    data.forEach(t => {
-        const name = lang === 'en' ? (t.name_en || t.name_ru) : t.name_ru;
-        const opt = document.createElement('option');
-        opt.value = t.name_ru; // Сохраняем всегда name_ru
-        opt.textContent = name;
-        select.appendChild(opt);
-    });
-
-    // Также добавить опцию «Другой» для ввода вручную
-    const otherOpt = document.createElement('option');
-    otherOpt.value = '__other__';
-    otherOpt.textContent = '— Другой (ввести вручную) —';
-    select.appendChild(otherOpt);
-
-    // Выбрать текущее значение
-    const current = guest.spiritual_teacher || guest.guru_name || '';
-    if (current) {
-        const found = Array.from(select.options).find(o => o.value === current);
-        if (found) {
-            select.value = current;
-        } else if (current) {
-            // Значение не из списка — добавляем как кастомную опцию
-            const customOpt = document.createElement('option');
-            customOpt.value = current;
-            customOpt.textContent = current;
-            select.insertBefore(customOpt, select.lastChild);
-            select.value = current;
+    if (!query || query.length < 1) {
+        // Показать все при фокусе
+        if (spiritualTeachersList.length > 0) {
+            suggestionsEl.innerHTML = spiritualTeachersList.map(t =>
+                `<div class="px-3 py-1.5 hover:bg-base-200 cursor-pointer" onclick="selectGuru('${Layout.escapeHtml(t)}')">${Layout.escapeHtml(t)}</div>`
+            ).join('');
+            suggestionsEl.classList.remove('hidden');
         }
+        return;
     }
 
-    // Обработка «Другой»
-    select.addEventListener('change', function() {
-        if (this.value === '__other__') {
-            const name = prompt('Введите имя духовного учителя:');
-            if (name) {
-                const opt = document.createElement('option');
-                opt.value = name;
-                opt.textContent = name;
-                this.insertBefore(opt, this.lastChild);
-                this.value = name;
-                saveGuruName(name);
-            } else {
-                this.value = '';
-            }
-        }
-    });
+    const q = query.toLowerCase();
+    const matches = spiritualTeachersList.filter(t => t.toLowerCase().includes(q)).slice(0, 8);
+    if (matches.length === 0) {
+        suggestionsEl.classList.add('hidden');
+        return;
+    }
+    suggestionsEl.innerHTML = matches.map(t =>
+        `<div class="px-3 py-1.5 hover:bg-base-200 cursor-pointer" onclick="selectGuru('${Layout.escapeHtml(t)}')">${Layout.escapeHtml(t)}</div>`
+    ).join('');
+    suggestionsEl.classList.remove('hidden');
 }
+
+function selectGuru(name) {
+    document.getElementById('guruName').value = name;
+    document.getElementById('guruSuggestions').classList.add('hidden');
+    saveGuruName(name);
+}
+
+// Закрытие подсказок при клике вне
+document.addEventListener('click', (e) => {
+    const suggestions = document.getElementById('guruSuggestions');
+    const input = document.getElementById('guruName');
+    if (suggestions && !suggestions.contains(e.target) && e.target !== input) {
+        suggestions.classList.add('hidden');
+    }
+});
 
 async function saveDealField(field, value) {
     await Layout.db.from('crm_deals').update({ [field]: value || null }).eq('id', dealId);
