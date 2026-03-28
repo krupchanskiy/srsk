@@ -51,10 +51,10 @@
                         <div class="flex gap-1 shrink-0" id="quickContactButtons"></div>
                     </div>
                     <div class="flex flex-wrap items-center gap-2 shrink-0">
-                        <select id="workModeSelect" class="select select-xs text-xs min-w-[90px]" onchange="changeWorkMode(this.value)">
-                            <option value="active">Активная</option>
-                            <option value="long_term">Долгий дожим</option>
-                            <option value="paused">Пауза</option>
+                        <select id="workModeSelect" class="select select-xs text-xs min-w-[90px]" onchange="changeWorkMode(this.value)" title="Температура — насколько активно работаем с гостем">
+                            <option value="active">🔥 Горячий</option>
+                            <option value="long_term">🌡 Тёплый</option>
+                            <option value="paused">❄️ Холодный</option>
                         </select>
                         <select id="managerSelect" class="select select-xs text-xs min-w-[110px]" onchange="changeManager(this.value)">
                         </select>
