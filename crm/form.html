@@ -115,6 +115,86 @@
 
 <script src="../js/config.js"></script>
 <script>
+// ==================== I18N ====================
+const LANG = new URLSearchParams(window.location.search).get('lang') === 'en' ? 'en' : 'ru';
+const I18N = {
+    ru: {
+        page_title: 'Заявка на ретрит',
+        personal_data: 'Личные данные',
+        first_name: 'Имя', last_name: 'Фамилия', spiritual_name: 'Духовное имя',
+        email: 'Email', phone: 'Телефон', telegram: 'Telegram',
+        message: 'Сообщение для менеджеров', message_placeholder: 'Особые пожелания, вопросы...',
+        sp_placeholder: 'Если есть',
+        retreat: 'Ретрит', select_retreat: 'Выберите ретрит', loading: 'Загрузка...',
+        submit: 'Отправить заявку', submitting: 'Отправка...',
+        success_title: 'Заявка отправлена!',
+        success_text: 'Мы свяжемся с вами в ближайшее время для подтверждения участия.',
+        success_hint: 'Проверьте свой телефон — мы напишем в WhatsApp или Telegram',
+        error_load: 'Не удалось загрузить список ретритов',
+        error_submit: 'Произошла ошибка при отправке заявки. Попробуйте ещё раз.',
+        error_duplicate: 'Вы уже подали заявку на этот ретрит. Если у вас есть вопросы, свяжитесь с нами.',
+        required: '*'
+    },
+    en: {
+        page_title: 'Retreat Registration',
+        personal_data: 'Personal Information',
+        first_name: 'First Name', last_name: 'Last Name', spiritual_name: 'Spiritual Name',
+        email: 'Email', phone: 'Phone', telegram: 'Telegram',
+        message: 'Message for managers', message_placeholder: 'Special requests, questions...',
+        sp_placeholder: 'If applicable',
+        retreat: 'Retreat', select_retreat: 'Select retreat', loading: 'Loading...',
+        submit: 'Submit Application', submitting: 'Submitting...',
+        success_title: 'Application Submitted!',
+        success_text: 'We will contact you shortly to confirm your participation.',
+        success_hint: 'Check your phone — we will write via WhatsApp or Telegram',
+        error_load: 'Failed to load retreat list',
+        error_submit: 'An error occurred while submitting. Please try again.',
+        error_duplicate: 'You have already applied for this retreat. Please contact us if you have questions.',
+        required: '*'
+    }
+};
+const T = I18N[LANG];
+
+// Применяем переводы к статическим элементам
+document.addEventListener('DOMContentLoaded', () => {
+    document.documentElement.lang = LANG;
+    document.title = T.page_title + ' — ШРСК';
+    document.getElementById('pageTitle').textContent = T.page_title;
+
+    // Лейблы форм
+    const labels = {
+        first_name: T.first_name, last_name: T.last_name, spiritual_name: T.spiritual_name,
+        email: T.email, phone: T.phone, telegram: T.telegram
+    };
+    document.querySelectorAll('input[name], textarea[name]').forEach(el => {
+        const name = el.getAttribute('name');
+        const label = el.closest('.form-control')?.querySelector('.label-text');
+        if (label && labels[name]) {
+            const required = el.hasAttribute('required') ? ` <span class="text-error">${T.required}</span>` : '';
+            label.innerHTML = `<span>${labels[name]}</span>${required}`;
+        }
+        if (name === 'spiritual_name') el.placeholder = T.sp_placeholder;
+        if (name === 'notes') {
+            el.placeholder = T.message_placeholder;
+            const noteLabel = el.closest('.form-control')?.querySelector('.label-text');
+            if (noteLabel) noteLabel.textContent = T.message;
+        }
+    });
+
+    // Кнопка отправки
+    document.getElementById('submitBtn').querySelector('svg').insertAdjacentHTML('afterend', ' ' + T.submit);
+
+    // Ретрит лейбл
+    const retreatLabel = document.getElementById('retreatSelectBlock')?.querySelector('.label-text');
+    if (retreatLabel) retreatLabel.innerHTML = `<span>${T.retreat}</span> <span class="text-error">${T.required}</span>`;
+
+    // Успех
+    document.querySelector('#successMessage h2').textContent = T.success_title;
+    document.querySelector('#successMessage p').textContent = T.success_text;
+    document.querySelector('#successMessage .alert span').textContent = T.success_hint;
+});
+</script>
+<script>
 // ==================== SUPABASE ====================
 const db = window.supabaseClient || supabase.createClient(
     window.CONFIG.SUPABASE_URL,
@@ -152,19 +232,20 @@ async function loadRetreats() {
         .order('start_date', { ascending: true });
 
     if (error) {
-        showError('Не удалось загрузить список ретритов');
+        showError(T.error_load);
         return;
     }
 
     retreats = data || [];
 
     const select = document.getElementById('retreatSelect');
-    select.innerHTML = '<option value="">Выберите ретрит</option>';
+    select.innerHTML = `<option value="">${T.select_retreat}</option>`;
 
     retreats.forEach(r => {
         const dates = formatDateRange(r.start_date, r.end_date);
+        const name = LANG === 'en' ? (r.name_en || r.name_ru) : r.name_ru;
         select.insertAdjacentHTML('beforeend',
-            `<option value="${r.id}">${escapeHtml(r.name_ru)} (${dates})</option>`
+            `<option value="${r.id}">${escapeHtml(name)} (${dates})</option>`
         );
     });
 
@@ -225,7 +306,7 @@ async function submitForm(e) {
             .maybeSingle();
 
         if (existingDeal) {
-            showError('Вы уже подали заявку на этот ретрит. Если у вас есть вопросы, свяжитесь с нами.');
+            showError(T.error_duplicate);
             btn.disabled = false;
             btn.innerHTML = '<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-5 h-5"><path stroke-linecap="round" stroke-linejoin="round" d="m4.5 12.75 6 6 9-13.5" /></svg> Отправить заявку';
             return;
@@ -260,7 +341,7 @@ async function submitForm(e) {
 
     } catch (error) {
         console.error('Submit error:', error);
-        showError('Произошла ошибка при отправке заявки. Попробуйте ещё раз.');
+        showError(T.error_submit);
         btn.disabled = false;
         btn.innerHTML = '<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-5 h-5"><path stroke-linecap="round" stroke-linejoin="round" d="m4.5 12.75 6 6 9-13.5" /></svg> Отправить заявку';
     }

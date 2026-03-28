@@ -514,5 +514,41 @@ const CrmUtils = {
     }
 };
 
+    /**
+     * Загрузить и показать бейдж с количеством активных задач в навигации
+     */
+    async loadTaskBadge() {
+        try {
+            const userId = window.currentUser?.vaishnava_id;
+            if (!userId || !Layout.db) return;
+
+            const { count } = await Layout.db
+                .from('crm_tasks')
+                .select('*', { count: 'exact', head: true })
+                .eq('assignee_id', userId)
+                .eq('is_completed', false);
+
+            if (!count || count <= 0) return;
+
+            // Ищем ссылку на задачи в меню
+            const taskLink = document.querySelector('a[href*="tasks.html"]');
+            if (taskLink) {
+                const badge = document.createElement('span');
+                badge.className = 'badge badge-sm badge-error ml-1';
+                badge.textContent = count;
+                taskLink.appendChild(badge);
+            }
+        } catch (e) {
+            // Не критично — просто не показываем бейдж
+        }
+    }
+};
+
 // Экспорт в глобальную область
 window.CrmUtils = CrmUtils;
+
+// Автозагрузка бейджа задач при загрузке страницы CRM
+document.addEventListener('DOMContentLoaded', () => {
+    // Ждём авторизацию, потом грузим бейдж
+    setTimeout(() => CrmUtils.loadTaskBadge(), 1500);
+});
