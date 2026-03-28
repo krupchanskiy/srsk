@@ -214,7 +214,7 @@ async function init() {
     select.innerHTML = '<option value="">Выберите ретрит</option>';
     retreats.forEach(r => {
         const name = Layout.getName(r);
-        const dates = DateUtils.formatDateRange(r.start_date, r.end_date);
+        const dates = DateUtils.formatRange(r.start_date, r.end_date);
         select.insertAdjacentHTML('beforeend',
             `<option value="${r.id}">${Layout.escapeHtml(name)} (${dates})</option>`
         );
