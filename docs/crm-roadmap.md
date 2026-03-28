@@ -139,20 +139,34 @@
 ```
 
 **Поля:**
-- `arrival_flight` — номер рейса прилёта (текст)
-- `arrival_datetime` — дата/время прилёта (TIMESTAMPTZ)
-- `arrival_airport` — аэропорт (DEL / AGR / LKO / другой)
+- `arrival_type` — тип прибытия: `flight` (самолёт) / `self` (самостоятельно, уже в Индии) / `other` (поезд, автобус и т.д.)
+- `arrival_flight` — номер рейса прилёта (текст, только если type=flight)
+- `arrival_datetime` — дата/время прибытия (TIMESTAMPTZ) — прилёта ИЛИ приезда
+- `arrival_airport` — аэропорт (DEL / AGR / LKO / другой, только если type=flight)
 - `arrival_needs_transfer` — берётся из чеклиста
-- `arrival_early_checkin` — ранний заезд (bool, auto: прилёт до 10:00)
-- `departure_flight` — номер рейса вылета
-- `departure_datetime` — дата/время вылета
-- `departure_airport` — аэропорт
+- `arrival_early_checkin` — ранний заезд (bool)
+- `departure_type` — тип отъезда: `flight` / `self` / `other`
+- `departure_flight` — номер рейса вылета (только если type=flight)
+- `departure_datetime` — дата/время отъезда
+- `departure_airport` — аэропорт (только если type=flight)
 - `departure_needs_transfer` — из чеклиста
-- `departure_late_checkout` — поздний выезд (bool, auto: вылет после 20:00)
+- `departure_late_checkout` — поздний выезд (bool)
 
-**Автоматика:**
-- **Ранний заезд:** время прилёта + 4 часа (дорога из аэропорта) = время приезда в ШРСК. Если приезд **до 10:00** → `early_checkin = true`. Пример: рейс в 04:30 → приезд ~08:30 → ранний заезд
-- **Поздний выезд:** время вылета − 6 часов (дорога в аэропорт + запас) = время выезда из ШРСК. Если выезд **после 13:00** → `late_checkout = true`. Пример: рейс в 23:10 → выезд ~17:10 → поздний выезд
+**Варианты прибытия:**
+1. **Самолёт** (`flight`) → показываем поля: рейс, аэропорт, время. Авто-расчёт: приезд в ШРСК = прилёт + 4ч
+2. **Самостоятельно** (`self`) → только дата/время приезда в ШРСК (гость сообщает напрямую)
+3. **Другой транспорт** (`other`) → дата/время + текстовое поле «откуда» (поезд из Дели, автобус и т.д.)
+
+Аналогично для отъезда:
+1. **Самолёт** → рейс, аэропорт, время. Авто-расчёт: выезд из ШРСК = вылет − 6ч
+2. **Самостоятельно** → дата/время выезда из ШРСК
+3. **Другой транспорт** → дата/время + «куда»
+
+**Автоматика раннего заезда / позднего выезда:**
+- Если `arrival_type = flight`: приезд в ШРСК = прилёт + 4 часа. Если **до 10:00** → ранний заезд
+- Если `arrival_type = self/other`: берём `arrival_datetime` как есть. Если **до 10:00** → ранний заезд
+- Если `departure_type = flight`: выезд из ШРСК = вылет − 6 часов. Если **после 13:00** → поздний выезд
+- Если `departure_type = self/other`: берём `departure_datetime` как есть. Если **после 13:00** → поздний выезд
 - Менеджер может переключить вручную
 
 **Важно:** эти данные нужны для формирования трансферного листа (`guest_transfers`) — при передаче на расселение данные рейсов автоматически попадают в систему трансферов.
@@ -585,15 +599,19 @@ ALTER TABLE crm_deals
   ADD COLUMN IF NOT EXISTS checklist_visa TEXT DEFAULT 'unknown',
   ADD COLUMN IF NOT EXISTS checklist_tickets TEXT DEFAULT 'unknown';
 
--- Данные рейсов
+-- Данные прибытия/отъезда
 ALTER TABLE crm_deals
+  ADD COLUMN IF NOT EXISTS arrival_type TEXT DEFAULT 'flight',  -- flight/self/other
   ADD COLUMN IF NOT EXISTS arrival_flight TEXT,
   ADD COLUMN IF NOT EXISTS arrival_datetime TIMESTAMPTZ,
   ADD COLUMN IF NOT EXISTS arrival_airport TEXT,
+  ADD COLUMN IF NOT EXISTS arrival_details TEXT,  -- откуда (для type=other)
   ADD COLUMN IF NOT EXISTS arrival_early_checkin BOOLEAN DEFAULT false,
+  ADD COLUMN IF NOT EXISTS departure_type TEXT DEFAULT 'flight',  -- flight/self/other
   ADD COLUMN IF NOT EXISTS departure_flight TEXT,
   ADD COLUMN IF NOT EXISTS departure_datetime TIMESTAMPTZ,
   ADD COLUMN IF NOT EXISTS departure_airport TEXT,
+  ADD COLUMN IF NOT EXISTS departure_details TEXT,  -- куда (для type=other)
   ADD COLUMN IF NOT EXISTS departure_late_checkout BOOLEAN DEFAULT false;
 
 -- Предпочтения по расселению
