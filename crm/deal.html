@@ -1782,25 +1782,59 @@ function renderPlacement() {
 }
 
 async function requestPlacement() {
+    // Получаем список пользователей-суперюзеров для назначения
+    const { data: users } = await Layout.db
+        .from('vaishnavas')
+        .select('id, spiritual_name, first_name')
+        .eq('is_superuser', true)
+        .order('spiritual_name');
+
+    // Формируем список для выбора
+    let assigneeId = null;
+    if (users && users.length > 0) {
+        const options = users.map((u, i) => {
+            const name = u.spiritual_name || u.first_name;
+            return `${i + 1}. ${name}`;
+        }).join('\n');
+        const choice = prompt(`Кому назначить расселение?\n\n${options}\n\nВведите номер:`);
+        if (!choice) return;
+        const idx = parseInt(choice) - 1;
+        if (idx >= 0 && idx < users.length) {
+            assigneeId = users[idx].id;
+        }
+    }
+
     const guestName = CrmUtils.getGuestName(guest);
     const retreatName = Layout.getName(retreat);
     const title = `Расселить ${guestName} на ${retreatName}`;
-    const description = [
-        deal.roommate_preference ? `Хочет жить рядом с: ${deal.roommate_preference}` : '',
-        deal.special_needs ? `Особые потребности: ${deal.special_needs}` : '',
-        dealMembers.length > 0 ? `Состав группы: ${dealMembers.map(m => m.name).join(', ')}` : ''
-    ].filter(Boolean).join('\n');
+    const parts = [];
+    if (deal.checklist_accommodation === 'in_ashram') parts.push('Проживание: в ШРСК');
+    if (deal.roommate_preference) parts.push(`Хочет жить рядом с: ${deal.roommate_preference}`);
+    if (deal.special_needs) parts.push(`Особые потребности: ${deal.special_needs}`);
+    if (dealMembers.length > 0) parts.push(`Состав группы: ${dealMembers.map(m => m.name).join(', ')}`);
+    const description = parts.join('\n');
 
-    // Создаём задачу
+    // Приоритет — high если ретрит начинается через <7 дней
+    let priority = 'normal';
+    if (retreat?.start_date) {
+        const start = new Date(retreat.start_date + 'T00:00:00');
+        const daysLeft = (start - new Date()) / (1000 * 60 * 60 * 24);
+        if (daysLeft < 7) priority = 'high';
+    }
+
     await Layout.db.from('crm_tasks').insert({
         deal_id: dealId,
         title,
         description: description || null,
-        priority: 'normal',
-        assignee_id: null // менеджер по расселению назначит себе
+        priority,
+        assignee_id: assigneeId,
+        created_by: window.currentUser?.id
     });
+
     Layout.showNotification('Запрос на расселение создан', 'success');
-    loadTabData();
+    // Обновить счётчик задач и вкладку
+    const counts = await loadCounts();
+    updateTabCounts();
 }
 
 // ==================== ДОППОЛЯ ====================
