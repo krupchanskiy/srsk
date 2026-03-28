@@ -8,3 +8,4 @@ tests/
 task.md
 .env*
 supabase/.temp/
+.claude/worktrees/
