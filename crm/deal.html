@@ -157,6 +157,33 @@
                                 <option value="not_needed">Не нужен</option>
                             </select>
                         </div>
+                    </div>
+                    <!-- Рейсы (раскрываются при Трансфер = Нужен) -->
+                    <div id="arrivalFields" class="hidden mt-2 pl-2 border-l-2 border-emerald-300">
+                        <div class="text-xs font-semibold opacity-50 mb-1">Прибытие</div>
+                        <div class="grid grid-cols-2 gap-1">
+                            <input type="text" class="input input-bordered input-xs" id="arrivalFlight" placeholder="Рейс" onchange="saveFlightField('arrival_flight', this.value)">
+                            <input type="text" class="input input-bordered input-xs" id="arrivalAirport" placeholder="Аэропорт" onchange="saveFlightField('arrival_airport', this.value)">
+                        </div>
+                        <input type="datetime-local" class="input input-bordered input-xs w-full mt-1" id="arrivalDatetime" onchange="saveArrivalDatetime(this.value)">
+                        <label class="flex items-center gap-1.5 mt-1 cursor-pointer">
+                            <input type="checkbox" class="checkbox checkbox-xs checkbox-primary" id="arrivalEarlyCheckin" onchange="saveFlightField('arrival_early_checkin', this.checked)">
+                            <span class="text-xs opacity-60">Ранний заезд</span>
+                        </label>
+                    </div>
+                    <div id="departureFields" class="hidden mt-2 pl-2 border-l-2 border-emerald-300">
+                        <div class="text-xs font-semibold opacity-50 mb-1">Отъезд</div>
+                        <div class="grid grid-cols-2 gap-1">
+                            <input type="text" class="input input-bordered input-xs" id="departureFlight" placeholder="Рейс" onchange="saveFlightField('departure_flight', this.value)">
+                            <input type="text" class="input input-bordered input-xs" id="departureAirport" placeholder="Аэропорт" onchange="saveFlightField('departure_airport', this.value)">
+                        </div>
+                        <input type="datetime-local" class="input input-bordered input-xs w-full mt-1" id="departureDatetime" onchange="saveDepartureDatetime(this.value)">
+                        <label class="flex items-center gap-1.5 mt-1 cursor-pointer">
+                            <input type="checkbox" class="checkbox checkbox-xs checkbox-primary" id="departureLateCheckout" onchange="saveFlightField('departure_late_checkout', this.checked)">
+                            <span class="text-xs opacity-60">Поздний выезд</span>
+                        </label>
+                    </div>
+                    <div class="hidden"><!-- закрываем grid -->
                         <div class="form-control">
                             <label class="label"><span class="label-text opacity-50">Виза</span></label>
                             <select class="select select-xs w-full" onchange="updateChecklist('checklist_visa', this.value)" id="cl_visa">
@@ -179,56 +206,7 @@
                 </div>
             </div>
 
-            <!-- Данные рейсов -->
-            <div class="card bg-base-100 shadow-sm" id="flightDataCard">
-                <div class="card-body p-4">
-                    <h3 class="font-bold mb-3">Прибытие / Отъезд</h3>
-
-                    <!-- Прибытие -->
-                    <div class="mb-3">
-                        <label class="label py-0"><span class="label-text text-xs font-semibold opacity-60">Прибытие</span></label>
-                        <select class="select select-bordered select-xs w-full mb-1" id="arrivalType" onchange="updateArrivalType(this.value)">
-                            <option value="flight">Самолёт</option>
-                            <option value="self">Уже в Индии</option>
-                            <option value="other">Другой транспорт</option>
-                        </select>
-                        <div id="arrivalFlightFields" class="grid grid-cols-2 gap-1">
-                            <input type="text" class="input input-bordered input-xs" id="arrivalFlight" placeholder="Рейс" onchange="saveFlightField('arrival_flight', this.value)">
-                            <input type="text" class="input input-bordered input-xs" id="arrivalAirport" placeholder="Аэропорт" onchange="saveFlightField('arrival_airport', this.value)">
-                        </div>
-                        <div id="arrivalOtherField" class="hidden">
-                            <input type="text" class="input input-bordered input-xs w-full" id="arrivalDetails" placeholder="Откуда (поезд, автобус...)" onchange="saveFlightField('arrival_details', this.value)">
-                        </div>
-                        <input type="datetime-local" class="input input-bordered input-xs w-full mt-1" id="arrivalDatetime" onchange="saveArrivalDatetime(this.value)">
-                        <label class="label cursor-pointer justify-start gap-2 py-1" id="earlyCheckinLabel">
-                            <input type="checkbox" class="checkbox checkbox-xs checkbox-primary" id="arrivalEarlyCheckin" onchange="saveFlightField('arrival_early_checkin', this.checked)">
-                            <span class="label-text text-xs">Ранний заезд</span>
-                        </label>
-                    </div>
-
-                    <!-- Отъезд -->
-                    <div>
-                        <label class="label py-0"><span class="label-text text-xs font-semibold opacity-60">Отъезд</span></label>
-                        <select class="select select-bordered select-xs w-full mb-1" id="departureType" onchange="updateDepartureType(this.value)">
-                            <option value="flight">Самолёт</option>
-                            <option value="self">Остаётся в Индии</option>
-                            <option value="other">Другой транспорт</option>
-                        </select>
-                        <div id="departureFlightFields" class="grid grid-cols-2 gap-1">
-                            <input type="text" class="input input-bordered input-xs" id="departureFlight" placeholder="Рейс" onchange="saveFlightField('departure_flight', this.value)">
-                            <input type="text" class="input input-bordered input-xs" id="departureAirport" placeholder="Аэропорт" onchange="saveFlightField('departure_airport', this.value)">
-                        </div>
-                        <div id="departureOtherField" class="hidden">
-                            <input type="text" class="input input-bordered input-xs w-full" id="departureDetails" placeholder="Куда (поезд, автобус...)" onchange="saveFlightField('departure_details', this.value)">
-                        </div>
-                        <input type="datetime-local" class="input input-bordered input-xs w-full mt-1" id="departureDatetime" onchange="saveDepartureDatetime(this.value)">
-                        <label class="label cursor-pointer justify-start gap-2 py-1" id="lateCheckoutLabel">
-                            <input type="checkbox" class="checkbox checkbox-xs checkbox-primary" id="departureLateCheckout" onchange="saveFlightField('departure_late_checkout', this.checked)">
-                            <span class="label-text text-xs">Поздний выезд</span>
-                        </label>
-                    </div>
-                </div>
-            </div>
+            <!-- Старый блок рейсов убран — теперь внутри чеклиста -->
 
             <!-- Финансы -->
             <div class="card bg-base-100 shadow-sm">
@@ -1942,6 +1920,9 @@ function renderChecklist() {
         }
     }
 
+    // Показать/скрыть поля рейсов
+    renderFlightData();
+
     // Индикатор готовности
     const readiness = document.getElementById('checklistReadiness');
     if (readiness) {
@@ -1961,42 +1942,32 @@ async function updateChecklist(field, value) {
 // ==================== ДАННЫЕ РЕЙСОВ ====================
 function renderFlightData() {
     if (!deal) return;
-    // Прибытие
-    const arrType = deal.arrival_type || 'flight';
-    document.getElementById('arrivalType').value = arrType;
-    updateArrivalType(arrType, false);
-    document.getElementById('arrivalFlight').value = deal.arrival_flight || '';
-    document.getElementById('arrivalAirport').value = deal.arrival_airport || '';
-    document.getElementById('arrivalDetails').value = deal.arrival_details || '';
-    if (deal.arrival_datetime) {
-        document.getElementById('arrivalDatetime').value = deal.arrival_datetime.slice(0, 16);
-    }
-    document.getElementById('arrivalEarlyCheckin').checked = deal.arrival_early_checkin || false;
 
-    // Отъезд
-    const depType = deal.departure_type || 'flight';
-    document.getElementById('departureType').value = depType;
-    updateDepartureType(depType, false);
-    document.getElementById('departureFlight').value = deal.departure_flight || '';
-    document.getElementById('departureAirport').value = deal.departure_airport || '';
-    document.getElementById('departureDetails').value = deal.departure_details || '';
-    if (deal.departure_datetime) {
-        document.getElementById('departureDatetime').value = deal.departure_datetime.slice(0, 16);
-    }
-    document.getElementById('departureLateCheckout').checked = deal.departure_late_checkout || false;
+    // Показать/скрыть блоки рейсов по чеклисту
+    const arrNeeded = deal.checklist_transfer_arrival === 'needed';
+    const depNeeded = deal.checklist_transfer_departure === 'needed';
+
+    const arrFields = document.getElementById('arrivalFields');
+    const depFields = document.getElementById('departureFields');
+    if (arrFields) arrFields.classList.toggle('hidden', !arrNeeded);
+    if (depFields) depFields.classList.toggle('hidden', !depNeeded);
+
+    // Заполнить значения
+    const setVal = (id, val) => { const el = document.getElementById(id); if (el) el.value = val; };
+    const setChecked = (id, val) => { const el = document.getElementById(id); if (el) el.checked = val; };
+
+    setVal('arrivalFlight', deal.arrival_flight || '');
+    setVal('arrivalAirport', deal.arrival_airport || '');
+    if (deal.arrival_datetime) setVal('arrivalDatetime', deal.arrival_datetime.slice(0, 16));
+    setChecked('arrivalEarlyCheckin', deal.arrival_early_checkin || false);
+
+    setVal('departureFlight', deal.departure_flight || '');
+    setVal('departureAirport', deal.departure_airport || '');
+    if (deal.departure_datetime) setVal('departureDatetime', deal.departure_datetime.slice(0, 16));
+    setChecked('departureLateCheckout', deal.departure_late_checkout || false);
 }
 
-function updateArrivalType(type, save = true) {
-    document.getElementById('arrivalFlightFields').classList.toggle('hidden', type !== 'flight');
-    document.getElementById('arrivalOtherField').classList.toggle('hidden', type !== 'other');
-    if (save) saveFlightField('arrival_type', type);
-}
-
-function updateDepartureType(type, save = true) {
-    document.getElementById('departureFlightFields').classList.toggle('hidden', type !== 'flight');
-    document.getElementById('departureOtherField').classList.toggle('hidden', type !== 'other');
-    if (save) saveFlightField('departure_type', type);
-}
+// updateArrivalType и updateDepartureType убраны — рейсы управляются через чеклист
 
 async function saveFlightField(field, value) {
     await Layout.db.from('crm_deals').update({ [field]: value }).eq('id', dealId);
