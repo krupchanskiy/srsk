@@ -821,6 +821,7 @@ function renderTab() {
                 loadManagerNotes();
                 renderPlacement();
                 renderDealMembers();
+                loadSpiritualTeachers();
             }, 0);
             break;
         case 'services':
@@ -965,9 +966,9 @@ function renderInfoTab() {
                 <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
                     <div>
                         <label class="label py-0"><span class="label-text text-xs opacity-60">Духовный учитель</span></label>
-                        <input type="text" class="input input-bordered input-sm w-full" id="guruName" placeholder="—"
-                               value="${e(guest.guru_name || '')}"
-                               onchange="saveGuruName(this.value)">
+                        <select class="select select-bordered select-sm w-full" id="guruName" onchange="saveGuruName(this.value)">
+                            <option value="">—</option>
+                        </select>
                     </div>
                     <div>
                         <label class="label py-0"><span class="label-text text-xs opacity-60">Хочет жить рядом с</span></label>
@@ -1831,8 +1832,72 @@ async function requestPlacement() {
 
 // ==================== ДОППОЛЯ ====================
 async function saveGuruName(value) {
-    await Layout.db.from('vaishnavas').update({ guru_name: value || null }).eq('id', guest.id);
+    await Layout.db.from('vaishnavas').update({
+        spiritual_teacher: value || null,
+        guru_name: value || null
+    }).eq('id', guest.id);
+    guest.spiritual_teacher = value;
     guest.guru_name = value;
+}
+
+async function loadSpiritualTeachers() {
+    const select = document.getElementById('guruName');
+    if (!select) return;
+
+    const { data } = await Layout.db
+        .from('spiritual_teachers')
+        .select('name_ru, name_en')
+        .order('sort_order');
+
+    if (!data) return;
+
+    const lang = Layout.currentLang || 'ru';
+    data.forEach(t => {
+        const name = lang === 'en' ? (t.name_en || t.name_ru) : t.name_ru;
+        const opt = document.createElement('option');
+        opt.value = t.name_ru; // Сохраняем всегда name_ru
+        opt.textContent = name;
+        select.appendChild(opt);
+    });
+
+    // Также добавить опцию «Другой» для ввода вручную
+    const otherOpt = document.createElement('option');
+    otherOpt.value = '__other__';
+    otherOpt.textContent = '— Другой (ввести вручную) —';
+    select.appendChild(otherOpt);
+
+    // Выбрать текущее значение
+    const current = guest.spiritual_teacher || guest.guru_name || '';
+    if (current) {
+        const found = Array.from(select.options).find(o => o.value === current);
+        if (found) {
+            select.value = current;
+        } else if (current) {
+            // Значение не из списка — добавляем как кастомную опцию
+            const customOpt = document.createElement('option');
+            customOpt.value = current;
+            customOpt.textContent = current;
+            select.insertBefore(customOpt, select.lastChild);
+            select.value = current;
+        }
+    }
+
+    // Обработка «Другой»
+    select.addEventListener('change', function() {
+        if (this.value === '__other__') {
+            const name = prompt('Введите имя духовного учителя:');
+            if (name) {
+                const opt = document.createElement('option');
+                opt.value = name;
+                opt.textContent = name;
+                this.insertBefore(opt, this.lastChild);
+                this.value = name;
+                saveGuruName(name);
+            } else {
+                this.value = '';
+            }
+        }
+    });
 }
 
 async function saveDealField(field, value) {
