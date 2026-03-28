@@ -2053,7 +2053,18 @@ async function updateChecklist(field, value) {
     deal[field] = value;
     renderChecklist();
     // Обновить зависимые блоки
-    if (field === 'checklist_accommodation') renderPlacement();
+    if (field === 'checklist_accommodation') {
+        // Если сняли «В ШРСК» — удалить незавершённую задачу на расселение
+        if (value !== 'in_ashram') {
+            await Layout.db
+                .from('crm_tasks')
+                .delete()
+                .eq('deal_id', dealId)
+                .like('title', 'Расселить%')
+                .is('completed_at', null);
+        }
+        renderPlacement();
+    }
 }
 
 // ==================== ДАННЫЕ РЕЙСОВ ====================
