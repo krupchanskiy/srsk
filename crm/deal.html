@@ -142,49 +142,6 @@
                             </select>
                         </div>
                         <div class="form-control">
-                            <label class="label"><span class="label-text opacity-50">Трансфер →</span></label>
-                            <select class="select select-xs w-full" onchange="updateChecklist('checklist_transfer_arrival', this.value)" id="cl_transfer_arrival">
-                                <option value="unknown">—</option>
-                                <option value="needed">Нужен</option>
-                                <option value="not_needed">Не нужен</option>
-                            </select>
-                        </div>
-                        <div class="form-control">
-                            <label class="label"><span class="label-text opacity-50">Трансфер ←</span></label>
-                            <select class="select select-xs w-full" onchange="updateChecklist('checklist_transfer_departure', this.value)" id="cl_transfer_departure">
-                                <option value="unknown">—</option>
-                                <option value="needed">Нужен</option>
-                                <option value="not_needed">Не нужен</option>
-                            </select>
-                        </div>
-                    </div>
-                    <!-- Рейсы (раскрываются при Трансфер = Нужен) -->
-                    <div id="arrivalFields" class="hidden mt-2 pl-2 border-l-2 border-emerald-300">
-                        <div class="text-xs font-semibold opacity-50 mb-1">Прибытие</div>
-                        <div class="grid grid-cols-2 gap-1">
-                            <input type="text" class="input input-bordered input-xs" id="arrivalFlight" placeholder="Рейс" onchange="saveFlightField('arrival_flight', this.value)">
-                            <input type="text" class="input input-bordered input-xs" id="arrivalAirport" placeholder="Аэропорт" onchange="saveFlightField('arrival_airport', this.value)">
-                        </div>
-                        <input type="datetime-local" class="input input-bordered input-xs w-full mt-1" id="arrivalDatetime" onchange="saveArrivalDatetime(this.value)">
-                        <label class="flex items-center gap-1.5 mt-1 cursor-pointer">
-                            <input type="checkbox" class="checkbox checkbox-xs checkbox-primary" id="arrivalEarlyCheckin" onchange="saveFlightField('arrival_early_checkin', this.checked)">
-                            <span class="text-xs opacity-60">Ранний заезд</span>
-                        </label>
-                    </div>
-                    <div id="departureFields" class="hidden mt-2 pl-2 border-l-2 border-emerald-300">
-                        <div class="text-xs font-semibold opacity-50 mb-1">Отъезд</div>
-                        <div class="grid grid-cols-2 gap-1">
-                            <input type="text" class="input input-bordered input-xs" id="departureFlight" placeholder="Рейс" onchange="saveFlightField('departure_flight', this.value)">
-                            <input type="text" class="input input-bordered input-xs" id="departureAirport" placeholder="Аэропорт" onchange="saveFlightField('departure_airport', this.value)">
-                        </div>
-                        <input type="datetime-local" class="input input-bordered input-xs w-full mt-1" id="departureDatetime" onchange="saveDepartureDatetime(this.value)">
-                        <label class="flex items-center gap-1.5 mt-1 cursor-pointer">
-                            <input type="checkbox" class="checkbox checkbox-xs checkbox-primary" id="departureLateCheckout" onchange="saveFlightField('departure_late_checkout', this.checked)">
-                            <span class="text-xs opacity-60">Поздний выезд</span>
-                        </label>
-                    </div>
-                    <div class="hidden"><!-- закрываем grid -->
-                        <div class="form-control">
                             <label class="label"><span class="label-text opacity-50">Виза</span></label>
                             <select class="select select-xs w-full" onchange="updateChecklist('checklist_visa', this.value)" id="cl_visa">
                                 <option value="unknown">—</option>
@@ -200,6 +157,48 @@
                                 <option value="not_bought">Не куплены</option>
                                 <option value="not_needed">Не нужны</option>
                             </select>
+                        </div>
+                    </div>
+
+                    <!-- Рейсы (раскрываются при Билеты = Куплены) -->
+                    <div id="flightFieldsBlock" class="hidden mt-3 space-y-3">
+                        <!-- Прибытие -->
+                        <div class="pl-2 border-l-2 border-primary/30">
+                            <div class="text-xs font-semibold opacity-50 mb-1">Прибытие</div>
+                            <div class="grid grid-cols-2 gap-1">
+                                <input type="text" class="input input-bordered input-xs" id="arrivalFlight" placeholder="Рейс" onchange="saveFlightField('arrival_flight', this.value)">
+                                <input type="text" class="input input-bordered input-xs" id="arrivalAirport" placeholder="Аэропорт" onchange="saveFlightField('arrival_airport', this.value)">
+                            </div>
+                            <input type="datetime-local" class="input input-bordered input-xs w-full mt-1" id="arrivalDatetime" onchange="saveArrivalDatetime(this.value)">
+                            <div class="flex flex-wrap gap-x-4 gap-y-0 mt-1">
+                                <label class="flex items-center gap-1.5 cursor-pointer">
+                                    <input type="checkbox" class="checkbox checkbox-xs checkbox-primary" id="arrivalNeedsTransfer" onchange="updateChecklist('checklist_transfer_arrival', this.checked ? 'needed' : 'not_needed')">
+                                    <span class="text-xs opacity-60">Трансфер</span>
+                                </label>
+                                <label class="flex items-center gap-1.5 cursor-pointer">
+                                    <input type="checkbox" class="checkbox checkbox-xs checkbox-warning" id="arrivalEarlyCheckin" onchange="saveFlightField('arrival_early_checkin', this.checked)">
+                                    <span class="text-xs opacity-60">Ранний заезд</span>
+                                </label>
+                            </div>
+                        </div>
+                        <!-- Отъезд -->
+                        <div class="pl-2 border-l-2 border-primary/30">
+                            <div class="text-xs font-semibold opacity-50 mb-1">Отъезд</div>
+                            <div class="grid grid-cols-2 gap-1">
+                                <input type="text" class="input input-bordered input-xs" id="departureFlight" placeholder="Рейс" onchange="saveFlightField('departure_flight', this.value)">
+                                <input type="text" class="input input-bordered input-xs" id="departureAirport" placeholder="Аэропорт" onchange="saveFlightField('departure_airport', this.value)">
+                            </div>
+                            <input type="datetime-local" class="input input-bordered input-xs w-full mt-1" id="departureDatetime" onchange="saveDepartureDatetime(this.value)">
+                            <div class="flex flex-wrap gap-x-4 gap-y-0 mt-1">
+                                <label class="flex items-center gap-1.5 cursor-pointer">
+                                    <input type="checkbox" class="checkbox checkbox-xs checkbox-primary" id="departureNeedsTransfer" onchange="updateChecklist('checklist_transfer_departure', this.checked ? 'needed' : 'not_needed')">
+                                    <span class="text-xs opacity-60">Трансфер</span>
+                                </label>
+                                <label class="flex items-center gap-1.5 cursor-pointer">
+                                    <input type="checkbox" class="checkbox checkbox-xs checkbox-warning" id="departureLateCheckout" onchange="saveFlightField('departure_late_checkout', this.checked)">
+                                    <span class="text-xs opacity-60">Поздний выезд</span>
+                                </label>
+                            </div>
                         </div>
                     </div>
                     <div id="checklistReadiness" class="mt-2 text-xs text-center"></div>
@@ -1877,7 +1876,7 @@ async function saveDealField(field, value) {
 // ==================== ЧЕКЛИСТ ГОСТЯ ====================
 function renderChecklist() {
     if (!deal) return;
-    const fields = ['accommodation', 'meals', 'transfer_arrival', 'transfer_departure', 'visa', 'tickets'];
+    const fields = ['accommodation', 'meals', 'visa', 'tickets'];
     let filled = 0;
     fields.forEach(f => {
         const el = document.getElementById('cl_' + f);
@@ -1943,28 +1942,26 @@ async function updateChecklist(field, value) {
 function renderFlightData() {
     if (!deal) return;
 
-    // Показать/скрыть блоки рейсов по чеклисту
-    const arrNeeded = deal.checklist_transfer_arrival === 'needed';
-    const depNeeded = deal.checklist_transfer_departure === 'needed';
-
-    const arrFields = document.getElementById('arrivalFields');
-    const depFields = document.getElementById('departureFields');
-    if (arrFields) arrFields.classList.toggle('hidden', !arrNeeded);
-    if (depFields) depFields.classList.toggle('hidden', !depNeeded);
-
-    // Заполнить значения
     const setVal = (id, val) => { const el = document.getElementById(id); if (el) el.value = val; };
     const setChecked = (id, val) => { const el = document.getElementById(id); if (el) el.checked = val; };
 
+    // Показать/скрыть блок рейсов по «Билеты = Куплены»
+    const ticketsBought = deal.checklist_tickets === 'bought';
+    const block = document.getElementById('flightFieldsBlock');
+    if (block) block.classList.toggle('hidden', !ticketsBought);
+
+    // Заполнить значения
     setVal('arrivalFlight', deal.arrival_flight || '');
     setVal('arrivalAirport', deal.arrival_airport || '');
     if (deal.arrival_datetime) setVal('arrivalDatetime', deal.arrival_datetime.slice(0, 16));
     setChecked('arrivalEarlyCheckin', deal.arrival_early_checkin || false);
+    setChecked('arrivalNeedsTransfer', deal.checklist_transfer_arrival === 'needed');
 
     setVal('departureFlight', deal.departure_flight || '');
     setVal('departureAirport', deal.departure_airport || '');
     if (deal.departure_datetime) setVal('departureDatetime', deal.departure_datetime.slice(0, 16));
     setChecked('departureLateCheckout', deal.departure_late_checkout || false);
+    setChecked('departureNeedsTransfer', deal.checklist_transfer_departure === 'needed');
 }
 
 // updateArrivalType и updateDepartureType убраны — рейсы управляются через чеклист
