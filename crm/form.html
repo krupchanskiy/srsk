@@ -215,6 +215,22 @@ async function submitForm(e) {
 
         const notes = formData.get('notes') || '';
 
+        // Проверка на дубль (тот же гость + тот же ретрит)
+        const { data: existingDeal } = await db
+            .from('crm_deals')
+            .select('id, status')
+            .eq('vaishnava_id', vaishnavaId)
+            .eq('retreat_id', retreatId)
+            .neq('status', 'cancelled')
+            .maybeSingle();
+
+        if (existingDeal) {
+            showError('Вы уже подали заявку на этот ретрит. Если у вас есть вопросы, свяжитесь с нами.');
+            btn.disabled = false;
+            btn.innerHTML = '<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-5 h-5"><path stroke-linecap="round" stroke-linejoin="round" d="m4.5 12.75 6 6 9-13.5" /></svg> Отправить заявку';
+            return;
+        }
+
         const dealData = {
             vaishnava_id: vaishnavaId,
             retreat_id: retreatId,

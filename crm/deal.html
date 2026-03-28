@@ -554,7 +554,7 @@ async function loadDeal() {
     renderSidebar();
     renderChecklist();
     renderFlightData();
-    await Promise.all([loadCounts(), loadGuestHistory()]);
+    await Promise.all([loadCounts(), loadGuestHistory(), loadDealMembers(), loadPlacement()]);
     renderHeader(); // повторно — теперь с бейджем «повторный гость»
     loadTabData();
 }
@@ -913,14 +913,6 @@ function renderInfoTab() {
                     <div class="divider my-1"></div>
                     <div class="grid grid-cols-2 gap-3">
                         <div>
-                            <div class="text-xs text-base-content/50 mb-0.5">Проживание</div>
-                            <div class="text-sm font-medium">${accommodation}</div>
-                        </div>
-                        <div>
-                            <div class="text-xs text-base-content/50 mb-0.5">Питание</div>
-                            <div class="text-sm font-medium">${meals}</div>
-                        </div>
-                        <div>
                             <div class="text-xs text-base-content/50 mb-0.5">Источник</div>
                             <div class="text-sm font-medium">${source}</div>
                         </div>
@@ -945,14 +937,56 @@ function renderInfoTab() {
             <div class="bg-amber-50 border border-amber-200 rounded-xl p-4 text-sm whitespace-pre-wrap">${e(deal.notes)}</div>
         </div>` : ''}
 
-        <!-- Групповая заявка -->
-        ${deal.group_id ? `
-        <div class="alert alert-info mt-6">
-            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-5 h-5">
-                <path stroke-linecap="round" stroke-linejoin="round" d="M18 18.72a9.094 9.094 0 0 0 3.741-.479 3 3 0 0 0-4.682-2.72m.94 3.198.001.031c0 .225-.012.447-.037.666A11.944 11.944 0 0 1 12 21c-2.17 0-4.207-.576-5.963-1.584A6.062 6.062 0 0 1 6 18.719m12 0a5.971 5.971 0 0 0-.941-3.197m0 0A5.995 5.995 0 0 0 12 12.75a5.995 5.995 0 0 0-5.058 2.772m0 0a3 3 0 0 0-4.681 2.72 8.986 8.986 0 0 0 3.74.477m.94-3.197a5.971 5.971 0 0 0-.94 3.197M15 6.75a3 3 0 1 1-6 0 3 3 0 0 1 6 0Zm6 3a2.25 2.25 0 1 1-4.5 0 2.25 2.25 0 0 1 4.5 0Zm-13.5 0a2.25 2.25 0 1 1-4.5 0 2.25 2.25 0 0 1 4.5 0Z" />
-            </svg>
-            <span>Групповая заявка ${deal.is_group_main ? '(главный контакт)' : ''}</span>
-        </div>` : ''}
+        <!-- Состав группы -->
+        <div class="mt-6">
+            <div class="flex items-center justify-between mb-3">
+                <h3 class="text-lg font-bold flex items-center gap-2">
+                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-5 h-5 text-primary"><path stroke-linecap="round" stroke-linejoin="round" d="M18 18.72a9.094 9.094 0 0 0 3.741-.479 3 3 0 0 0-4.682-2.72m.94 3.198.001.031c0 .225-.012.447-.037.666A11.944 11.944 0 0 1 12 21c-2.17 0-4.207-.576-5.963-1.584A6.062 6.062 0 0 1 6 18.719m12 0a5.971 5.971 0 0 0-.941-3.197m0 0A5.995 5.995 0 0 0 12 12.75a5.995 5.995 0 0 0-5.058 2.772m0 0a3 3 0 0 0-4.681 2.72 8.986 8.986 0 0 0 3.74.477m.94-3.197a5.971 5.971 0 0 0-.94 3.197M15 6.75a3 3 0 1 1-6 0 3 3 0 0 1 6 0Zm6 3a2.25 2.25 0 1 1-4.5 0 2.25 2.25 0 0 1 4.5 0Zm-13.5 0a2.25 2.25 0 1 1-4.5 0 2.25 2.25 0 0 1 4.5 0Z" /></svg>
+                    Состав группы
+                </h3>
+                <button type="button" class="btn btn-xs btn-outline btn-primary gap-1" onclick="addMember()">+ Добавить</button>
+            </div>
+            <div id="dealMembersList"></div>
+        </div>
+
+        <!-- Размещение -->
+        <div class="mt-6">
+            <h3 class="text-lg font-bold flex items-center gap-2 mb-3">
+                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-5 h-5 text-primary"><path stroke-linecap="round" stroke-linejoin="round" d="m2.25 12 8.954-8.955c.44-.439 1.152-.439 1.591 0L21.75 12M4.5 9.75v10.125c0 .621.504 1.125 1.125 1.125H9.75v-4.875c0-.621.504-1.125 1.125-1.125h2.25c.621 0 1.125.504 1.125 1.125V21h4.125c.621 0 1.125-.504 1.125-1.125V9.75M8.25 21h8.25" /></svg>
+                Размещение
+            </h3>
+            <div id="placementBlock" class="bg-base-200/50 rounded-xl p-4"></div>
+        </div>
+
+        <!-- Дополнительно -->
+        <div class="mt-6">
+            <h3 class="text-lg font-bold flex items-center gap-2 mb-3">
+                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-5 h-5 text-primary"><path stroke-linecap="round" stroke-linejoin="round" d="M9.879 7.519c1.171-1.025 3.071-1.025 4.242 0 1.172 1.025 1.172 2.687 0 3.712-.203.179-.43.326-.67.442-.745.361-1.45.999-1.45 1.827v.75M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Zm-9 5.25h.008v.008H12v-.008Z" /></svg>
+                Дополнительно
+            </h3>
+            <div class="bg-base-200/50 rounded-xl p-4 space-y-3">
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+                    <div>
+                        <label class="label py-0"><span class="label-text text-xs opacity-60">Духовный учитель</span></label>
+                        <input type="text" class="input input-bordered input-sm w-full" id="guruName" placeholder="—"
+                               value="${e(guest.guru_name || '')}"
+                               onchange="saveGuruName(this.value)">
+                    </div>
+                    <div>
+                        <label class="label py-0"><span class="label-text text-xs opacity-60">Хочет жить рядом с</span></label>
+                        <input type="text" class="input input-bordered input-sm w-full" id="roommatePreference" placeholder="—"
+                               value="${e(deal.roommate_preference || '')}"
+                               onchange="saveDealField('roommate_preference', this.value)">
+                    </div>
+                </div>
+                <div>
+                    <label class="label py-0"><span class="label-text text-xs opacity-60">Особые потребности</span></label>
+                    <input type="text" class="input input-bordered input-sm w-full" id="specialNeeds" placeholder="Диета, здоровье, мобильность..."
+                           value="${e(deal.special_needs || '')}"
+                           onchange="saveDealField('special_needs', this.value)">
+                </div>
+            </div>
+        </div>
 
         ${renderGuestHistory()}
     `;
@@ -1220,7 +1254,27 @@ async function removeTag(tagId) {
 }
 
 async function cancelDeal() {
-    if (!confirm('Отменить эту сделку?')) return;
+    const reasons = {
+        changed_mind: 'Передумал',
+        financial: 'Финансовые причины',
+        visa: 'Проблемы с визой',
+        health: 'Здоровье',
+        rescheduled: 'Перенёс на другой ретрит',
+        no_response: 'Не отвечает',
+        other: 'Другое'
+    };
+    const reason = prompt(
+        'Причина отмены:\n\n' +
+        Object.entries(reasons).map(([k, v], i) => `${i+1}. ${v}`).join('\n') +
+        '\n\nВведите номер (1-7):'
+    );
+    if (!reason) return;
+    const keys = Object.keys(reasons);
+    const idx = parseInt(reason) - 1;
+    const reasonKey = (idx >= 0 && idx < keys.length) ? keys[idx] : 'other';
+
+    await Layout.db.from('crm_deals').update({ cancellation_reason: reasonKey }).eq('id', dealId);
+    deal.cancellation_reason = reasonKey;
     await changeStatus('cancelled');
     document.getElementById('cancelBtn').classList.add('hidden');
     document.getElementById('deleteBtn').classList.remove('hidden');
@@ -1237,6 +1291,7 @@ async function deleteDeal() {
             Layout.db.from('crm_communications').delete().eq('deal_id', dealId),
             Layout.db.from('crm_tasks').delete().eq('deal_id', dealId),
             Layout.db.from('crm_deal_history').delete().eq('deal_id', dealId),
+            Layout.db.from('crm_deal_members').delete().eq('deal_id', dealId),
         ]);
 
         // Удаляем теги сделки
@@ -1557,6 +1612,148 @@ async function refreshDeal() {
         deal.deposit_balance = data.deposit_balance;
         renderSidebar();
     }
+}
+
+// ==================== СОСТАВ ГРУППЫ ====================
+let dealMembers = [];
+
+async function loadDealMembers() {
+    const { data } = await Layout.db.from('crm_deal_members')
+        .select('*')
+        .eq('deal_id', dealId)
+        .order('created_at');
+    dealMembers = data || [];
+    renderDealMembers();
+}
+
+function renderDealMembers() {
+    const container = document.getElementById('dealMembersList');
+    if (!container) return;
+
+    if (dealMembers.length === 0) {
+        container.innerHTML = '<div class="text-sm opacity-50 py-2">Едет один</div>';
+        return;
+    }
+
+    const relationLabels = { wife: 'Жена', husband: 'Муж', child: 'Ребёнок', friend: 'Друг', colleague: 'Коллега', other: 'Другое' };
+
+    container.innerHTML = dealMembers.map(m => `
+        <div class="flex items-center justify-between py-2 border-b border-base-200 last:border-0">
+            <div>
+                <span class="font-medium">${e(m.name)}</span>
+                ${m.relation ? `<span class="badge badge-sm badge-ghost ml-2">${relationLabels[m.relation] || m.relation}</span>` : ''}
+                ${m.age ? `<span class="text-xs opacity-50 ml-1">${m.age} лет</span>` : ''}
+                ${m.notes ? `<span class="text-xs opacity-50 ml-2">${e(m.notes)}</span>` : ''}
+            </div>
+            <button type="button" class="btn btn-xs btn-ghost text-error" onclick="removeMember('${m.id}')">✕</button>
+        </div>
+    `).join('');
+}
+
+async function addMember() {
+    const name = prompt('Имя участника:');
+    if (!name) return;
+    const relation = prompt('Связь (wife/husband/child/friend/colleague):') || null;
+    const age = relation === 'child' ? parseInt(prompt('Возраст:') || '0') || null : null;
+
+    await Layout.db.from('crm_deal_members').insert({
+        deal_id: dealId, name, relation, age
+    });
+    loadDealMembers();
+}
+
+async function removeMember(id) {
+    if (!confirm('Удалить участника?')) return;
+    await Layout.db.from('crm_deal_members').delete().eq('id', id);
+    loadDealMembers();
+}
+
+// ==================== РАЗМЕЩЕНИЕ ====================
+let placementData = null;
+
+async function loadPlacement() {
+    if (!guest || !retreat) return;
+    const { data } = await Layout.db
+        .from('residents')
+        .select('check_in, check_out, status, rooms(number, floor, buildings(name_ru, name_en, name_hi))')
+        .eq('vaishnava_id', guest.id)
+        .eq('retreat_id', retreat.id)
+        .limit(1)
+        .maybeSingle();
+    placementData = data;
+    renderPlacement();
+}
+
+function renderPlacement() {
+    const block = document.getElementById('placementBlock');
+    if (!block) return;
+
+    const accom = deal.checklist_accommodation;
+
+    if (!placementData) {
+        if (accom === 'in_ashram') {
+            block.innerHTML = `
+                <div class="text-sm opacity-60 mb-2">Проживание в ШРСК — комната не назначена</div>
+                <button type="button" class="btn btn-xs btn-outline btn-primary" onclick="requestPlacement()">Запросить расселение</button>
+            `;
+        } else if (accom === 'unknown') {
+            block.innerHTML = '<div class="text-sm opacity-50">Проживание не определено</div>';
+        } else {
+            const labels = { partner_hotel: 'Партнёрская гостиница', self: 'Самостоятельно' };
+            block.innerHTML = `<div class="text-sm">${labels[accom] || accom}</div>`;
+        }
+        return;
+    }
+
+    const room = placementData.rooms;
+    const building = room?.buildings;
+    const buildingName = building ? Layout.getName(building) : '';
+    const roomNum = room?.number || '';
+    const dates = `${CrmUtils.formatDate(placementData.check_in)} — ${CrmUtils.formatDate(placementData.check_out)}`;
+
+    block.innerHTML = `
+        <div class="flex items-center gap-3">
+            <div class="text-2xl">🏠</div>
+            <div>
+                <div class="font-bold">${e(buildingName)}, комната ${e(roomNum)}</div>
+                <div class="text-sm opacity-60">${dates}</div>
+            </div>
+        </div>
+        <a href="../placement/timeline.html" class="btn btn-xs btn-ghost btn-primary mt-2">Открыть в шахматке →</a>
+    `;
+}
+
+async function requestPlacement() {
+    const guestName = CrmUtils.getGuestName(guest);
+    const retreatName = Layout.getName(retreat);
+    const title = `Расселить ${guestName} на ${retreatName}`;
+    const description = [
+        deal.roommate_preference ? `Хочет жить рядом с: ${deal.roommate_preference}` : '',
+        deal.special_needs ? `Особые потребности: ${deal.special_needs}` : '',
+        dealMembers.length > 0 ? `Состав группы: ${dealMembers.map(m => m.name).join(', ')}` : ''
+    ].filter(Boolean).join('\n');
+
+    // Создаём задачу
+    await Layout.db.from('crm_tasks').insert({
+        deal_id: dealId,
+        title,
+        description: description || null,
+        priority: 'normal',
+        assignee_id: null // менеджер по расселению назначит себе
+    });
+    Layout.showNotification('Запрос на расселение создан', 'success');
+    loadTabData();
+}
+
+// ==================== ДОППОЛЯ ====================
+async function saveGuruName(value) {
+    await Layout.db.from('vaishnavas').update({ guru_name: value || null }).eq('id', guest.id);
+    guest.guru_name = value;
+}
+
+async function saveDealField(field, value) {
+    await Layout.db.from('crm_deals').update({ [field]: value || null }).eq('id', dealId);
+    deal[field] = value;
 }
 
 // ==================== ЧЕКЛИСТ ГОСТЯ ====================
