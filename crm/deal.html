@@ -1754,7 +1754,7 @@ async function loadPlacement() {
     renderPlacement();
 }
 
-function renderPlacement() {
+async function renderPlacement() {
     const block = document.getElementById('placementBlock');
     if (!block) return;
 
@@ -1762,10 +1762,26 @@ function renderPlacement() {
 
     if (!placementData) {
         if (accom === 'in_ashram') {
-            block.innerHTML = `
-                <div class="text-sm opacity-60 mb-2">Проживание в ШРСК — комната не назначена</div>
-                <button type="button" class="btn btn-xs btn-outline btn-primary" onclick="requestPlacement()">Запросить расселение</button>
-            `;
+            // Проверяем есть ли уже задача на расселение
+            const { data: existingTask } = await Layout.db
+                .from('crm_tasks')
+                .select('id, assignee_id')
+                .eq('deal_id', dealId)
+                .like('title', 'Расселить%')
+                .is('completed_at', null)
+                .maybeSingle();
+
+            if (existingTask) {
+                block.innerHTML = `
+                    <div class="text-sm text-warning mb-1">Проживание в ШРСК — комната не назначена</div>
+                    <div class="text-xs opacity-50">Запрос на расселение отправлен</div>
+                `;
+            } else {
+                block.innerHTML = `
+                    <div class="text-sm opacity-60 mb-2">Проживание в ШРСК — комната не назначена</div>
+                    <button type="button" class="btn btn-xs btn-outline btn-primary" onclick="requestPlacement()">Запросить расселение</button>
+                `;
+            }
         } else if (accom === 'unknown') {
             block.innerHTML = '<div class="text-sm text-gray-400">Не определено — уточните у гостя в чеклисте «Проживание»</div>';
         } else {
@@ -1870,7 +1886,21 @@ async function createPlacementTask(assigneeId) {
         if (daysLeft < 7) priority = 'high';
     }
 
-    await Layout.db.from('crm_tasks').insert({
+    // Проверяем нет ли уже такой задачи
+    const { data: existing } = await Layout.db
+        .from('crm_tasks')
+        .select('id')
+        .eq('deal_id', dealId)
+        .like('title', 'Расселить%')
+        .is('completed_at', null)
+        .maybeSingle();
+
+    if (existing) {
+        Layout.showNotification('Запрос на расселение уже создан', 'warning');
+        return;
+    }
+
+    const { error } = await Layout.db.from('crm_tasks').insert({
         deal_id: dealId,
         title,
         description: parts.join('\n') || null,
@@ -1878,6 +1908,11 @@ async function createPlacementTask(assigneeId) {
         assignee_id: assigneeId,
         created_by: window.currentUser?.id
     });
+
+    if (error) {
+        Layout.showNotification('Ошибка создания запроса', 'error');
+        return;
+    }
 
     Layout.showNotification('Запрос на расселение создан', 'success');
     await loadCounts();
