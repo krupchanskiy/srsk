@@ -699,11 +699,11 @@ function renderHeader() {
     if (phone) {
         const cleanPhone = phone.replace(/[^\d+]/g, '');
         btns.push(`<a href="tel:${Layout.escapeHtml(cleanPhone)}" class="btn btn-xs btn-ghost text-white/80 gap-1" title="Позвонить"><svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-3.5 h-3.5"><path stroke-linecap="round" stroke-linejoin="round" d="M2.25 6.75c0 8.284 6.716 15 15 15h2.25a2.25 2.25 0 0 0 2.25-2.25v-1.372c0-.516-.351-.966-.852-1.091l-4.423-1.106c-.44-.11-.902.055-1.173.417l-.97 1.293c-.282.376-.769.542-1.21.38a12.035 12.035 0 0 1-7.143-7.143c-.162-.441.004-.928.38-1.21l1.293-.97c.363-.271.527-.734.417-1.173L6.963 3.102a1.125 1.125 0 0 0-1.091-.852H4.5A2.25 2.25 0 0 0 2.25 4.5v2.25Z"/></svg></a>`);
-        btns.push(`<a href="https://wa.me/${cleanPhone.replace('+','')}" target="_blank" rel="noopener noreferrer" class="btn btn-xs btn-ghost text-white/80 gap-1" title="WhatsApp">WA</a>`);
+        btns.push(`<a href="https://wa.me/${cleanPhone.replace('+','')}" target="_blank" rel="noopener noreferrer" class="btn btn-xs btn-ghost text-white/80 gap-1" title="WhatsApp"><svg viewBox="0 0 24 24" fill="currentColor" class="w-4 h-4"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347zM12.05 21.785c-1.826 0-3.616-.491-5.18-1.42l-.372-.22-3.858.964.98-3.765-.244-.388A9.82 9.82 0 0 1 2.17 12.06c0-5.456 4.438-9.894 9.9-9.894 2.645 0 5.13 1.03 6.998 2.9a9.825 9.825 0 0 1 2.893 7.002c-.003 5.456-4.44 9.894-9.9 9.894l-.01-.001zM12.05.18C5.547.18.17 5.555.17 12.06c0 2.095.546 4.142 1.588 5.945L.06 24l6.168-1.617a11.86 11.86 0 0 0 5.82 1.524c6.5 0 11.88-5.375 11.88-11.88C23.93 5.527 18.55.18 12.05.18z"/></svg></a>`);
     }
     if (guest.telegram) {
         const tg = guest.telegram.replace('@', '');
-        btns.push(`<a href="https://t.me/${Layout.escapeHtml(tg)}" target="_blank" rel="noopener noreferrer" class="btn btn-xs btn-ghost text-white/80 gap-1" title="Telegram">TG</a>`);
+        btns.push(`<a href="https://t.me/${Layout.escapeHtml(tg)}" target="_blank" rel="noopener noreferrer" class="btn btn-xs btn-ghost text-white/80 gap-1" title="Telegram"><svg viewBox="0 0 24 24" fill="currentColor" class="w-4 h-4"><path d="M11.944 0A12 12 0 0 0 0 12a12 12 0 0 0 12 12 12 12 0 0 0 12-12A12 12 0 0 0 12 0h-.056zm4.962 7.224c.1-.002.321.023.465.14a.506.506 0 0 1 .171.325c.016.093.036.306.02.472-.18 1.898-.962 6.502-1.36 8.627-.168.9-.499 1.201-.82 1.23-.696.065-1.225-.46-1.9-.902-1.056-.693-1.653-1.124-2.678-1.8-1.185-.78-.417-1.21.258-1.91.177-.184 3.247-2.977 3.307-3.23.007-.032.014-.15-.056-.212s-.174-.041-.249-.024c-.106.024-1.793 1.14-5.061 3.345-.48.33-.913.49-1.302.48-.428-.008-1.252-.241-1.865-.44-.752-.245-1.349-.374-1.297-.789.027-.216.325-.437.893-.663 3.498-1.524 5.83-2.529 6.998-3.014 3.332-1.386 4.025-1.627 4.476-1.635z"/></svg></a>`);
     }
     if (guest.email) {
         btns.push(`<a href="mailto:${Layout.escapeHtml(guest.email)}" class="btn btn-xs btn-ghost text-white/80 gap-1" title="Email"><svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-3.5 h-3.5"><path stroke-linecap="round" stroke-linejoin="round" d="M21.75 6.75v10.5a2.25 2.25 0 0 1-2.25 2.25h-15a2.25 2.25 0 0 1-2.25-2.25V6.75m19.5 0A2.25 2.25 0 0 0 19.5 4.5h-15a2.25 2.25 0 0 0-2.25 2.25m19.5 0v.243a2.25 2.25 0 0 1-1.07 1.916l-7.5 4.615a2.25 2.25 0 0 1-2.36 0L3.32 8.91a2.25 2.25 0 0 1-1.07-1.916V6.75"/></svg></a>`);
@@ -817,6 +817,7 @@ function renderTab() {
     switch (currentTab) {
         case 'info':
             html = renderInfoTab();
+            setTimeout(() => loadManagerNotes(), 0);
             break;
         case 'services':
             html = renderServicesTab();
@@ -917,7 +918,6 @@ function renderInfoTab() {
         </div>
 
         <!-- Заметки -->
-        ${deal.notes ? `
         <div class="mt-6">
             <h3 class="text-lg font-bold flex items-center gap-2 mb-3">
                 <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-5 h-5 text-primary">
@@ -925,8 +925,23 @@ function renderInfoTab() {
                 </svg>
                 Заметки
             </h3>
-            <div class="bg-amber-50 border border-amber-200 rounded-xl p-4 text-sm whitespace-pre-wrap">${e(deal.notes)}</div>
-        </div>` : ''}
+
+            ${deal.notes ? `
+            <div class="mb-3">
+                <div class="text-xs text-gray-400 mb-1 flex items-center gap-1">
+                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-3 h-3"><path stroke-linecap="round" stroke-linejoin="round" d="M15.75 6a3.75 3.75 0 1 1-7.5 0 3.75 3.75 0 0 1 7.5 0ZM4.501 20.118a7.5 7.5 0 0 1 14.998 0A17.933 17.933 0 0 1 12 21.75c-2.676 0-5.216-.584-7.499-1.632Z" /></svg>
+                    Сообщение гостя при регистрации
+                </div>
+                <div class="bg-amber-50 border border-amber-200 rounded-lg p-3 text-sm whitespace-pre-wrap">${e(deal.notes)}</div>
+            </div>` : ''}
+
+            <div id="managerNotesList" class="space-y-2 mb-3"></div>
+
+            <div class="flex gap-2">
+                <input type="text" id="newNoteInput" class="input input-bordered input-sm flex-1" placeholder="Добавить заметку..." onkeydown="if(event.key==='Enter')addNote()">
+                <button type="button" class="btn btn-sm btn-outline btn-primary" onclick="addNote()">Добавить</button>
+            </div>
+        </div>
 
         <!-- Состав группы -->
         <div class="mt-6">
@@ -1676,6 +1691,58 @@ function renderDealMembers() {
     `).join('');
 }
 
+async function loadManagerNotes() {
+    const container = document.getElementById('managerNotesList');
+    if (!container) return;
+
+    const { data: notes } = await Layout.db
+        .from('crm_communications')
+        .select('id, summary, created_at, type, profiles:created_by(spiritual_name, first_name)')
+        .eq('deal_id', deal.id)
+        .eq('type', 'note')
+        .order('created_at', { ascending: false });
+
+    if (!notes || notes.length === 0) {
+        container.innerHTML = '';
+        return;
+    }
+
+    container.innerHTML = notes.map(n => {
+        const author = n.profiles?.spiritual_name || n.profiles?.first_name || 'Менеджер';
+        const date = DateUtils.formatDate(n.created_at.slice(0, 10));
+        const time = n.created_at.slice(11, 16);
+        return `<div class="bg-blue-50 border border-blue-200 rounded-lg p-3 text-sm">
+            <div class="flex justify-between items-center mb-1">
+                <span class="text-xs text-blue-400">${Layout.escapeHtml(author)} · ${date} ${time}</span>
+            </div>
+            <div class="whitespace-pre-wrap">${Layout.escapeHtml(n.summary)}</div>
+        </div>`;
+    }).join('');
+}
+
+async function addNote() {
+    const input = document.getElementById('newNoteInput');
+    const text = input.value.trim();
+    if (!text) return;
+
+    const { error } = await Layout.db
+        .from('crm_communications')
+        .insert({
+            deal_id: deal.id,
+            type: 'note',
+            summary: text,
+            created_by: window.currentUser?.id
+        });
+
+    if (error) {
+        Layout.handleError(error, 'Добавление заметки');
+        return;
+    }
+
+    input.value = '';
+    await loadManagerNotes();
+}
+
 async function addMember() {
     const name = prompt('Имя участника:');
     if (!name) return;
@@ -1723,7 +1790,7 @@ function renderPlacement() {
                 <button type="button" class="btn btn-xs btn-outline btn-primary" onclick="requestPlacement()">Запросить расселение</button>
             `;
         } else if (accom === 'unknown') {
-            block.innerHTML = '<div class="text-sm opacity-50">Проживание не определено</div>';
+            block.innerHTML = '<div class="text-sm text-gray-400">Не определено — уточните у гостя в чеклисте «Проживание»</div>';
         } else {
             const labels = { partner_hotel: 'Партнёрская гостиница', self: 'Самостоятельно' };
             block.innerHTML = `<div class="text-sm">${labels[accom] || accom}</div>`;
@@ -1792,8 +1859,19 @@ function renderChecklist() {
         if (el) {
             const val = deal['checklist_' + f] || 'unknown';
             el.value = val;
-            el.style.color = val === 'unknown' ? '#9ca3af' : '';
             if (val !== 'unknown') filled++;
+
+            // Цветная точка рядом с лейблом
+            const label = el.closest('.form-control')?.querySelector('.label-text');
+            if (label) {
+                const dot = label.querySelector('.cl-dot') || (() => {
+                    const d = document.createElement('span');
+                    d.className = 'cl-dot inline-block w-2 h-2 rounded-full ml-1';
+                    label.appendChild(d);
+                    return d;
+                })();
+                dot.style.backgroundColor = val === 'unknown' ? '#d1d5db' : '#10b981';
+            }
         }
     });
     // Индикатор готовности

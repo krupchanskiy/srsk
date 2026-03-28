@@ -25,17 +25,17 @@ const CrmUtils = {
 
     // Цвета статусов
     STATUS_COLORS: {
-        lead: '#ef4444',        // красный
-        contacted: '#f97316',   // оранжевый
-        invoice_sent: '#eab308', // жёлтый
+        lead: '#3b82f6',        // синий — новая заявка
+        contacted: '#8b5cf6',   // фиолетовый
+        invoice_sent: '#f59e0b', // янтарный
         prepaid: '#84cc16',     // лайм
         tickets: '#22c55e',     // зелёный
         room_booked: '#14b8a6', // бирюзовый
         checked_in: '#06b6d4',  // циан
-        fully_paid: '#3b82f6',  // синий
-        completed: '#8b5cf6',   // фиолетовый
+        fully_paid: '#10b981',  // изумрудный
+        completed: '#6366f1',   // индиго
         upsell: '#a855f7',      // пурпурный
-        cancelled: '#6b7280'    // серый
+        cancelled: '#ef4444'    // красный — только для отменённых
     },
 
     // Иконки статусов (emoji)
