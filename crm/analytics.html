@@ -106,7 +106,7 @@ async function loadData() {
 
     const select = document.getElementById('retreatFilter');
     retreats.forEach(r => {
-        const dates = `${DateUtils.formatDate(r.start_date)} — ${DateUtils.formatDate(r.end_date)}`;
+        const dates = `${CrmUtils.formatDate(r.start_date)} — ${CrmUtils.formatDate(r.end_date)}`;
         select.insertAdjacentHTML('beforeend',
             `<option value="${r.id}">${e(Layout.getName(r))} (${dates})</option>`
         );
