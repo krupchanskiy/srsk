@@ -172,9 +172,7 @@ purchase_url
 
 **crm_deals — статусы воронки:**
 ```
-lead → contacted → invoice_sent → prepaid → tickets →
-room_booked → checked_in → fully_paid → completed
-(+ upsell, cancelled)
+lead → contacted → paid → ready → completed (+ cancelled)
 ```
 
 ---

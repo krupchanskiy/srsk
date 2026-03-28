@@ -705,7 +705,7 @@ function renderAttention() {
 function renderFunnel() {
     const container = document.getElementById('funnelChart');
 
-    const statuses = CrmUtils.STATUSES.filter(s => s !== 'cancelled' && s !== 'upsell');
+    const statuses = CrmUtils.STATUSES.filter(s => s !== 'cancelled');
     const counts = {};
     statuses.forEach(s => counts[s] = 0);
     deals.forEach(d => {
@@ -865,7 +865,7 @@ function renderSources() {
             bySource[source] = { count: 0, converted: 0 };
         }
         bySource[source].count++;
-        if (deal.status === 'completed' || deal.status === 'checked_in' || deal.status === 'fully_paid') {
+        if (deal.status === 'completed' || deal.status === 'ready') {
             bySource[source].converted++;
         }
     });

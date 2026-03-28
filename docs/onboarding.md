@@ -510,8 +510,7 @@ retreat_registrations.meal_type: 'prasad' | 'self' | 'child'
 ### Воронка CRM
 
 ```
-lead → contacted → invoice_sent → prepaid → tickets →
-room_booked → checked_in → fully_paid → completed (+ upsell, cancelled)
+lead → contacted → paid → ready → completed (+ cancelled)
 ```
 
 ### Трансферы (4 направления)

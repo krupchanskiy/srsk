@@ -327,8 +327,7 @@ vaishnavas (spiritual_name, first_name, last_name, gender, phone, email, ...)
 
 ### CRM воронка
 ```
-crm_deals: lead → contacted → invoice_sent → prepaid → tickets →
-           room_booked → checked_in → fully_paid → completed (+ upsell, cancelled)
+crm_deals: lead → contacted → paid → ready → completed (+ cancelled)
 ```
 
 ---

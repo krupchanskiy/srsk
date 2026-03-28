@@ -195,7 +195,7 @@ Cache.clear();
 
 ```javascript
 // Статусы воронки (порядок важен!)
-CrmUtils.STATUSES  // ['lead', 'contacted', 'invoice_sent', ...]
+CrmUtils.STATUSES  // ['lead', 'contacted', 'paid', 'ready', 'completed', 'cancelled']
 
 // Цвета статусов
 CrmUtils.STATUS_COLORS  // { lead: '#ef4444', contacted: '#f97316', ... }
@@ -259,10 +259,10 @@ CrmUtils.getProfileCompleteness(vaishnava)  // → 67 (процент)
 CrmUtils.getStatusIndex('contacted')  // → 1
 
 // Следующий статус
-CrmUtils.getNextStatus('contacted')   // → 'invoice_sent'
+CrmUtils.getNextStatus('contacted')   // → 'paid'
 
 // Допустимые переходы
-CrmUtils.getAllowedTransitions('contacted')  // → ['invoice_sent', 'prepaid', ...]
+CrmUtils.getAllowedTransitions('contacted')  // → ['paid', 'ready', ...]
 
 // Локализованное название
 CrmUtils.getStatusLabel('lead')  // → "Новая заявка"

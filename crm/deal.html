@@ -994,7 +994,7 @@ function renderGuestHistory() {
     if (!guestHistory || guestHistory.length === 0) return '';
 
     const statusIcon = (s) => {
-        if (s === 'completed' || s === 'fully_paid') return '<span class="text-success">●</span>';
+        if (s === 'completed') return '<span class="text-success">●</span>';
         if (s === 'cancelled') return '<span class="text-error">●</span>';
         if (s === 'lead') return '<span class="text-warning">●</span>';
         return '<span class="text-info">●</span>';
@@ -1016,7 +1016,7 @@ function renderGuestHistory() {
         </div>`;
     }).join('');
 
-    const completed = guestHistory.filter(d => d.status === 'completed' || d.status === 'fully_paid').length;
+    const completed = guestHistory.filter(d => d.status === 'completed').length;
     const subtitle = completed > 0
         ? `Был(а) ${completed} ${completed === 1 ? 'раз' : completed < 5 ? 'раза' : 'раз'}`
         : '';

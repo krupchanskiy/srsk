@@ -283,8 +283,8 @@ CREATE TABLE crm_deal_members (
   🟢 Лила-киртан 2025 (фев 2025) — Завершена, ₹15 000
   🟡 Бхагаватам 2024 (авг 2024) — Счёт отправлен (не оплатил)
 ```
-- Зелёный = completed/fully_paid/checked_in
-- Жёлтый = lead/contacted/invoice_sent/prepaid (не дошёл)
+- Зелёный = completed/ready
+- Жёлтый = lead/contacted/paid (не дошёл)
 - Серый = cancelled
 - Клик → открывает ту сделку
 

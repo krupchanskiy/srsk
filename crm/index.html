@@ -136,11 +136,8 @@ let retreats = [];
 let filteredDeals = [];
 let sortableInstances = [];
 
-// Статусы для канбана (исключаем upsell для простоты)
-const KANBAN_STATUSES = [
-    'lead', 'contacted', 'invoice_sent', 'prepaid', 'tickets',
-    'room_booked', 'checked_in', 'fully_paid', 'completed', 'cancelled'
-];
+// Статусы для канбана
+const KANBAN_STATUSES = ['lead', 'contacted', 'paid', 'ready', 'completed', 'cancelled'];
 
 // ==================== DATA ====================
 async function loadRetreats() {
