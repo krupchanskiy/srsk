@@ -927,12 +927,7 @@ function renderInfoTab() {
                 <div class="bg-amber-50 border border-amber-200 rounded-lg p-3 text-sm whitespace-pre-wrap">${e(deal.notes)}</div>
             </div>` : ''}
 
-            <div id="managerNotesList" class="space-y-2 mb-3"></div>
-
-            <div class="flex gap-2">
-                <input type="text" id="newNoteInput" class="input input-bordered input-sm flex-1" placeholder="Добавить заметку..." onkeydown="if(event.key==='Enter')addNote()">
-                <button type="button" class="btn btn-sm btn-outline btn-primary" onclick="addNote()">Добавить</button>
-            </div>
+            <div id="managerNotesList" class="space-y-2"></div>
         </div>
 
         <!-- Состав группы -->
