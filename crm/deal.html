@@ -31,8 +31,12 @@
             <!-- Заголовок — плашка с именем и статусом -->
             <div id="dealStatusBanner" class="rounded-xl px-5 py-4 mb-4 flex items-center justify-between gap-4">
                 <div>
-                    <h1 class="text-2xl font-bold text-white" id="guestName">—</h1>
+                    <div class="flex items-center gap-2">
+                        <h1 class="text-2xl font-bold text-white" id="guestName">—</h1>
+                        <span id="repeatGuestBadge" class="badge badge-sm badge-warning hidden">повторный</span>
+                    </div>
                     <div class="text-white/70" id="guestContact">—</div>
+                    <div class="flex gap-1 mt-2" id="quickContactButtons"></div>
                 </div>
                 <div class="flex items-center gap-2 text-white/90">
                     <span id="dealStatusIcon" class="w-6 h-6"></span>
@@ -115,6 +119,117 @@
                     <button type="button" class="btn btn-sm btn-primary w-full mt-2" onclick="quickAddComm()">
                         Записать
                     </button>
+                </div>
+            </div>
+
+            <!-- Чеклист гостя -->
+            <div class="card bg-base-100 shadow-sm">
+                <div class="card-body p-4">
+                    <h3 class="font-bold mb-3">Чеклист</h3>
+                    <div class="grid grid-cols-2 gap-2" id="checklistGrid">
+                        <div class="form-control">
+                            <label class="label py-0"><span class="label-text text-xs opacity-60">Проживание</span></label>
+                            <select class="select select-bordered select-xs" onchange="updateChecklist('checklist_accommodation', this.value)" id="cl_accommodation">
+                                <option value="unknown" class="text-base-content/40">Не выяснено</option>
+                                <option value="in_ashram">В ШРСК</option>
+                                <option value="partner_hotel">Партнёрская гостиница</option>
+                                <option value="self">Самостоятельно</option>
+                            </select>
+                        </div>
+                        <div class="form-control">
+                            <label class="label py-0"><span class="label-text text-xs opacity-60">Питание</span></label>
+                            <select class="select select-bordered select-xs" onchange="updateChecklist('checklist_meals', this.value)" id="cl_meals">
+                                <option value="unknown" class="text-base-content/40">Не выяснено</option>
+                                <option value="in_ashram">В ШРСК</option>
+                                <option value="self">Самостоятельно</option>
+                            </select>
+                        </div>
+                        <div class="form-control">
+                            <label class="label py-0"><span class="label-text text-xs opacity-60">Трансфер прибытие</span></label>
+                            <select class="select select-bordered select-xs" onchange="updateChecklist('checklist_transfer_arrival', this.value)" id="cl_transfer_arrival">
+                                <option value="unknown" class="text-base-content/40">Не выяснено</option>
+                                <option value="needed">Нужен</option>
+                                <option value="not_needed">Не нужен</option>
+                            </select>
+                        </div>
+                        <div class="form-control">
+                            <label class="label py-0"><span class="label-text text-xs opacity-60">Трансфер отъезд</span></label>
+                            <select class="select select-bordered select-xs" onchange="updateChecklist('checklist_transfer_departure', this.value)" id="cl_transfer_departure">
+                                <option value="unknown" class="text-base-content/40">Не выяснено</option>
+                                <option value="needed">Нужен</option>
+                                <option value="not_needed">Не нужен</option>
+                            </select>
+                        </div>
+                        <div class="form-control">
+                            <label class="label py-0"><span class="label-text text-xs opacity-60">Виза</span></label>
+                            <select class="select select-bordered select-xs" onchange="updateChecklist('checklist_visa', this.value)" id="cl_visa">
+                                <option value="unknown" class="text-base-content/40">Не выяснено</option>
+                                <option value="needs_help">Нужна помощь</option>
+                                <option value="not_needed">Не нужна</option>
+                            </select>
+                        </div>
+                        <div class="form-control">
+                            <label class="label py-0"><span class="label-text text-xs opacity-60">Билеты</span></label>
+                            <select class="select select-bordered select-xs" onchange="updateChecklist('checklist_tickets', this.value)" id="cl_tickets">
+                                <option value="unknown" class="text-base-content/40">Не выяснено</option>
+                                <option value="bought">Куплены</option>
+                                <option value="not_bought">Не куплены</option>
+                                <option value="not_needed">Не нужны</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div id="checklistReadiness" class="mt-2 text-xs text-center opacity-60"></div>
+                </div>
+            </div>
+
+            <!-- Данные рейсов -->
+            <div class="card bg-base-100 shadow-sm" id="flightDataCard">
+                <div class="card-body p-4">
+                    <h3 class="font-bold mb-3">Прибытие / Отъезд</h3>
+
+                    <!-- Прибытие -->
+                    <div class="mb-3">
+                        <label class="label py-0"><span class="label-text text-xs font-semibold opacity-60">Прибытие</span></label>
+                        <select class="select select-bordered select-xs w-full mb-1" id="arrivalType" onchange="updateArrivalType(this.value)">
+                            <option value="flight">Самолёт</option>
+                            <option value="self">Уже в Индии</option>
+                            <option value="other">Другой транспорт</option>
+                        </select>
+                        <div id="arrivalFlightFields" class="grid grid-cols-2 gap-1">
+                            <input type="text" class="input input-bordered input-xs" id="arrivalFlight" placeholder="Рейс" onchange="saveFlightField('arrival_flight', this.value)">
+                            <input type="text" class="input input-bordered input-xs" id="arrivalAirport" placeholder="Аэропорт" onchange="saveFlightField('arrival_airport', this.value)">
+                        </div>
+                        <div id="arrivalOtherField" class="hidden">
+                            <input type="text" class="input input-bordered input-xs w-full" id="arrivalDetails" placeholder="Откуда (поезд, автобус...)" onchange="saveFlightField('arrival_details', this.value)">
+                        </div>
+                        <input type="datetime-local" class="input input-bordered input-xs w-full mt-1" id="arrivalDatetime" onchange="saveArrivalDatetime(this.value)">
+                        <label class="label cursor-pointer justify-start gap-2 py-1" id="earlyCheckinLabel">
+                            <input type="checkbox" class="checkbox checkbox-xs checkbox-primary" id="arrivalEarlyCheckin" onchange="saveFlightField('arrival_early_checkin', this.checked)">
+                            <span class="label-text text-xs">Ранний заезд</span>
+                        </label>
+                    </div>
+
+                    <!-- Отъезд -->
+                    <div>
+                        <label class="label py-0"><span class="label-text text-xs font-semibold opacity-60">Отъезд</span></label>
+                        <select class="select select-bordered select-xs w-full mb-1" id="departureType" onchange="updateDepartureType(this.value)">
+                            <option value="flight">Самолёт</option>
+                            <option value="self">Остаётся в Индии</option>
+                            <option value="other">Другой транспорт</option>
+                        </select>
+                        <div id="departureFlightFields" class="grid grid-cols-2 gap-1">
+                            <input type="text" class="input input-bordered input-xs" id="departureFlight" placeholder="Рейс" onchange="saveFlightField('departure_flight', this.value)">
+                            <input type="text" class="input input-bordered input-xs" id="departureAirport" placeholder="Аэропорт" onchange="saveFlightField('departure_airport', this.value)">
+                        </div>
+                        <div id="departureOtherField" class="hidden">
+                            <input type="text" class="input input-bordered input-xs w-full" id="departureDetails" placeholder="Куда (поезд, автобус...)" onchange="saveFlightField('departure_details', this.value)">
+                        </div>
+                        <input type="datetime-local" class="input input-bordered input-xs w-full mt-1" id="departureDatetime" onchange="saveDepartureDatetime(this.value)">
+                        <label class="label cursor-pointer justify-start gap-2 py-1" id="lateCheckoutLabel">
+                            <input type="checkbox" class="checkbox checkbox-xs checkbox-primary" id="departureLateCheckout" onchange="saveFlightField('departure_late_checkout', this.checked)">
+                            <span class="label-text text-xs">Поздний выезд</span>
+                        </label>
+                    </div>
                 </div>
             </div>
 
@@ -437,7 +552,10 @@ async function loadDeal() {
 
     renderHeader();
     renderSidebar();
+    renderChecklist();
+    renderFlightData();
     await Promise.all([loadCounts(), loadGuestHistory()]);
+    renderHeader(); // повторно — теперь с бейджем «повторный гость»
     loadTabData();
 }
 
@@ -583,6 +701,28 @@ function renderHeader() {
     document.getElementById('dealStatusBanner').style.backgroundColor = statusColor;
     document.getElementById('dealStatusIcon').innerHTML = statusSvg;
     document.getElementById('dealStatusName').textContent = statusName;
+
+    // Быстрые контакты
+    const btns = [];
+    const phone = guest.phone;
+    if (phone) {
+        const cleanPhone = phone.replace(/[^\d+]/g, '');
+        btns.push(`<a href="tel:${Layout.escapeHtml(cleanPhone)}" class="btn btn-xs btn-ghost text-white/80 gap-1" title="Позвонить"><svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-3.5 h-3.5"><path stroke-linecap="round" stroke-linejoin="round" d="M2.25 6.75c0 8.284 6.716 15 15 15h2.25a2.25 2.25 0 0 0 2.25-2.25v-1.372c0-.516-.351-.966-.852-1.091l-4.423-1.106c-.44-.11-.902.055-1.173.417l-.97 1.293c-.282.376-.769.542-1.21.38a12.035 12.035 0 0 1-7.143-7.143c-.162-.441.004-.928.38-1.21l1.293-.97c.363-.271.527-.734.417-1.173L6.963 3.102a1.125 1.125 0 0 0-1.091-.852H4.5A2.25 2.25 0 0 0 2.25 4.5v2.25Z"/></svg></a>`);
+        btns.push(`<a href="https://wa.me/${cleanPhone.replace('+','')}" target="_blank" rel="noopener noreferrer" class="btn btn-xs btn-ghost text-white/80 gap-1" title="WhatsApp">WA</a>`);
+    }
+    if (guest.telegram) {
+        const tg = guest.telegram.replace('@', '');
+        btns.push(`<a href="https://t.me/${Layout.escapeHtml(tg)}" target="_blank" rel="noopener noreferrer" class="btn btn-xs btn-ghost text-white/80 gap-1" title="Telegram">TG</a>`);
+    }
+    if (guest.email) {
+        btns.push(`<a href="mailto:${Layout.escapeHtml(guest.email)}" class="btn btn-xs btn-ghost text-white/80 gap-1" title="Email"><svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-3.5 h-3.5"><path stroke-linecap="round" stroke-linejoin="round" d="M21.75 6.75v10.5a2.25 2.25 0 0 1-2.25 2.25h-15a2.25 2.25 0 0 1-2.25-2.25V6.75m19.5 0A2.25 2.25 0 0 0 19.5 4.5h-15a2.25 2.25 0 0 0-2.25 2.25m19.5 0v.243a2.25 2.25 0 0 1-1.07 1.916l-7.5 4.615a2.25 2.25 0 0 1-2.36 0L3.32 8.91a2.25 2.25 0 0 1-1.07-1.916V6.75"/></svg></a>`);
+    }
+    document.getElementById('quickContactButtons').innerHTML = btns.join('');
+
+    // Бейдж «повторный гость»
+    if (guestHistory && guestHistory.length > 0) {
+        document.getElementById('repeatGuestBadge').classList.remove('hidden');
+    }
 
     document.title = `${CrmUtils.getGuestShortName(guest)} — CRM — ШРСК`;
 }
@@ -1416,6 +1556,119 @@ async function refreshDeal() {
         deal.total_paid = data.total_paid;
         deal.deposit_balance = data.deposit_balance;
         renderSidebar();
+    }
+}
+
+// ==================== ЧЕКЛИСТ ГОСТЯ ====================
+function renderChecklist() {
+    if (!deal) return;
+    const fields = ['accommodation', 'meals', 'transfer_arrival', 'transfer_departure', 'visa', 'tickets'];
+    let filled = 0;
+    fields.forEach(f => {
+        const el = document.getElementById('cl_' + f);
+        if (el) {
+            const val = deal['checklist_' + f] || 'unknown';
+            el.value = val;
+            el.style.color = val === 'unknown' ? '#9ca3af' : '';
+            if (val !== 'unknown') filled++;
+        }
+    });
+    // Индикатор готовности
+    const readiness = document.getElementById('checklistReadiness');
+    if (readiness) {
+        readiness.textContent = `Заполнено ${filled} из ${fields.length}`;
+        readiness.className = filled === fields.length
+            ? 'mt-2 text-xs text-center text-success font-semibold'
+            : 'mt-2 text-xs text-center opacity-60';
+    }
+}
+
+async function updateChecklist(field, value) {
+    await Layout.db.from('crm_deals').update({ [field]: value }).eq('id', dealId);
+    deal[field] = value;
+    renderChecklist();
+}
+
+// ==================== ДАННЫЕ РЕЙСОВ ====================
+function renderFlightData() {
+    if (!deal) return;
+    // Прибытие
+    const arrType = deal.arrival_type || 'flight';
+    document.getElementById('arrivalType').value = arrType;
+    updateArrivalType(arrType, false);
+    document.getElementById('arrivalFlight').value = deal.arrival_flight || '';
+    document.getElementById('arrivalAirport').value = deal.arrival_airport || '';
+    document.getElementById('arrivalDetails').value = deal.arrival_details || '';
+    if (deal.arrival_datetime) {
+        document.getElementById('arrivalDatetime').value = deal.arrival_datetime.slice(0, 16);
+    }
+    document.getElementById('arrivalEarlyCheckin').checked = deal.arrival_early_checkin || false;
+
+    // Отъезд
+    const depType = deal.departure_type || 'flight';
+    document.getElementById('departureType').value = depType;
+    updateDepartureType(depType, false);
+    document.getElementById('departureFlight').value = deal.departure_flight || '';
+    document.getElementById('departureAirport').value = deal.departure_airport || '';
+    document.getElementById('departureDetails').value = deal.departure_details || '';
+    if (deal.departure_datetime) {
+        document.getElementById('departureDatetime').value = deal.departure_datetime.slice(0, 16);
+    }
+    document.getElementById('departureLateCheckout').checked = deal.departure_late_checkout || false;
+}
+
+function updateArrivalType(type, save = true) {
+    document.getElementById('arrivalFlightFields').classList.toggle('hidden', type !== 'flight');
+    document.getElementById('arrivalOtherField').classList.toggle('hidden', type !== 'other');
+    if (save) saveFlightField('arrival_type', type);
+}
+
+function updateDepartureType(type, save = true) {
+    document.getElementById('departureFlightFields').classList.toggle('hidden', type !== 'flight');
+    document.getElementById('departureOtherField').classList.toggle('hidden', type !== 'other');
+    if (save) saveFlightField('departure_type', type);
+}
+
+async function saveFlightField(field, value) {
+    await Layout.db.from('crm_deals').update({ [field]: value }).eq('id', dealId);
+    deal[field] = value;
+}
+
+async function saveArrivalDatetime(value) {
+    await Layout.db.from('crm_deals').update({ arrival_datetime: value || null }).eq('id', dealId);
+    deal.arrival_datetime = value;
+    // Авто-расчёт раннего заезда
+    if (value) {
+        const dt = new Date(value);
+        const arrType = deal.arrival_type || 'flight';
+        let arrivalAtAshram;
+        if (arrType === 'flight') {
+            arrivalAtAshram = new Date(dt.getTime() + 4 * 60 * 60 * 1000); // +4 часа
+        } else {
+            arrivalAtAshram = dt;
+        }
+        const earlyCheckin = arrivalAtAshram.getHours() < 10;
+        document.getElementById('arrivalEarlyCheckin').checked = earlyCheckin;
+        await saveFlightField('arrival_early_checkin', earlyCheckin);
+    }
+}
+
+async function saveDepartureDatetime(value) {
+    await Layout.db.from('crm_deals').update({ departure_datetime: value || null }).eq('id', dealId);
+    deal.departure_datetime = value;
+    // Авто-расчёт позднего выезда
+    if (value) {
+        const dt = new Date(value);
+        const depType = deal.departure_type || 'flight';
+        let departureFromAshram;
+        if (depType === 'flight') {
+            departureFromAshram = new Date(dt.getTime() - 6 * 60 * 60 * 1000); // -6 часов
+        } else {
+            departureFromAshram = dt;
+        }
+        const lateCheckout = departureFromAshram.getHours() >= 13;
+        document.getElementById('departureLateCheckout').checked = lateCheckout;
+        await saveFlightField('departure_late_checkout', lateCheckout);
     }
 }
 
