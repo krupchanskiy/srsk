@@ -248,6 +248,10 @@
                 <div class="card-body p-4">
                     <h3 class="font-bold mb-3" data-i18n="crm_actions">Действия</h3>
                     <div class="space-y-2">
+                        <button class="btn btn-sm btn-block btn-outline gap-2" onclick="createGuestAccess()" id="createAccessBtn">
+                            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-4 h-4"><path stroke-linecap="round" stroke-linejoin="round" d="M15.75 5.25a3 3 0 0 1 3 3m3 0a6 6 0 0 1-7.029 5.912c-.563-.097-1.159.026-1.563.43L10.5 17.25H8.25v2.25H6v2.25H2.25v-2.818c0-.597.237-1.17.659-1.591l6.499-6.499c.404-.404.527-1 .43-1.563A6 6 0 1 1 21.75 8.25Z" /></svg>
+                            Создать доступ к порталу
+                        </button>
                         <button class="btn btn-sm btn-block btn-outline gap-2" onclick="openTemplatesModal()" id="templatesBtn" data-i18n="crm_message_templates">
                             Шаблоны сообщений
                         </button>
@@ -761,6 +765,17 @@ function renderSidebar() {
     // Скрыть кнопку отмены если уже отменено, показать удаление
     document.getElementById('cancelBtn').classList.toggle('hidden', deal.status === 'cancelled');
     document.getElementById('deleteBtn').classList.toggle('hidden', deal.status !== 'cancelled');
+
+    // Кнопка доступа к порталу
+    const accessBtn = document.getElementById('createAccessBtn');
+    if (guest.user_id) {
+        accessBtn.disabled = true;
+        accessBtn.classList.add('btn-success', 'btn-disabled');
+        accessBtn.innerHTML = '<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-4 h-4"><path stroke-linecap="round" stroke-linejoin="round" d="M9 12.75 11.25 15 15 9.75M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" /></svg> Доступ создан';
+    } else if (!guest.email) {
+        accessBtn.disabled = true;
+        accessBtn.title = 'Укажите email гостя';
+    }
 }
 
 function renderTags() {
@@ -1233,6 +1248,99 @@ async function removeTag(tagId) {
         dealTags = dealTags.filter(id => id !== tagId);
         renderTags();
     }
+}
+
+// ==================== ДОСТУП К ПОРТАЛУ ====================
+async function createGuestAccess() {
+    if (!deal || !guest) return;
+
+    // Проверяем, есть ли уже доступ
+    if (guest.user_id) {
+        Layout.showNotification('Доступ уже создан. Логин: ' + (guest.email || ''), 'warning');
+        return;
+    }
+
+    if (!guest.email) {
+        Layout.showNotification('У гостя не указан email — невозможно создать доступ', 'error');
+        return;
+    }
+
+    if (!confirm('Создать доступ к гостевому порталу для ' + (guest.spiritual_name || guest.first_name) + '?\n\nEmail: ' + guest.email)) return;
+
+    const btn = document.getElementById('createAccessBtn');
+    btn.disabled = true;
+    btn.innerHTML = '<span class="loading loading-spinner loading-xs"></span> Создание...';
+
+    try {
+        const response = await fetch(window.CONFIG.SUPABASE_URL + '/functions/v1/create-guest-access', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': 'Bearer ' + (await Layout.db.auth.getSession()).data.session.access_token,
+                'apikey': window.CONFIG.SUPABASE_ANON_KEY,
+            },
+            body: JSON.stringify({ vaishnava_id: guest.id })
+        });
+
+        const result = await response.json();
+
+        if (!response.ok) {
+            throw new Error(result.error || 'Ошибка сервера');
+        }
+
+        // Показываем модалку с логином и паролем
+        const modal = document.createElement('dialog');
+        modal.className = 'modal modal-open';
+        modal.innerHTML = `
+            <div class="modal-box">
+                <h3 class="font-bold text-lg mb-4 flex items-center gap-2">
+                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-6 h-6 text-success"><path stroke-linecap="round" stroke-linejoin="round" d="M9 12.75 11.25 15 15 9.75M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" /></svg>
+                    Доступ создан!
+                </h3>
+                <p class="text-sm text-base-content/60 mb-4">Отправьте эти данные гостю через WhatsApp или Telegram:</p>
+                <div class="bg-base-200 rounded-lg p-4 font-mono text-sm space-y-2">
+                    <div><span class="text-base-content/50">Портал:</span> <strong>in.rupaseva.com/guest-portal/</strong></div>
+                    <div><span class="text-base-content/50">Логин:</span> <strong id="accessEmail">${Layout.escapeHtml(result.email)}</strong></div>
+                    <div><span class="text-base-content/50">Пароль:</span> <strong id="accessPassword">${Layout.escapeHtml(result.password)}</strong></div>
+                </div>
+                <div class="modal-action">
+                    <button class="btn btn-sm btn-outline gap-2" onclick="copyAccessData(this)">
+                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-4 h-4"><path stroke-linecap="round" stroke-linejoin="round" d="M15.666 3.888A2.25 2.25 0 0 0 13.5 2.25h-3c-1.03 0-1.9.693-2.166 1.638m7.332 0c.055.194.084.4.084.612v0a.75.75 0 0 1-.75.75H9.75a.75.75 0 0 1-.75-.75v0c0-.212.03-.418.084-.612m7.332 0c.646.049 1.288.11 1.927.184 1.1.128 1.907 1.077 1.907 2.185V19.5a2.25 2.25 0 0 1-2.25 2.25H6.75A2.25 2.25 0 0 1 4.5 19.5V6.257c0-1.108.806-2.057 1.907-2.185a48.208 48.208 0 0 1 1.927-.184" /></svg>
+                        Копировать
+                    </button>
+                    <button class="btn btn-sm btn-primary" onclick="this.closest('dialog').remove()">Готово</button>
+                </div>
+            </div>
+            <form method="dialog" class="modal-backdrop"><button>close</button></form>
+        `;
+        document.body.appendChild(modal);
+
+        // Обновляем кнопку
+        btn.disabled = true;
+        btn.innerHTML = '<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-4 h-4"><path stroke-linecap="round" stroke-linejoin="round" d="M9 12.75 11.25 15 15 9.75M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" /></svg> Доступ создан';
+        btn.classList.add('btn-success', 'btn-disabled');
+
+        // Обновляем данные гостя
+        guest.user_id = result.user_id;
+
+    } catch (error) {
+        console.error('Create access error:', error);
+        Layout.showNotification(error.message || 'Ошибка создания доступа', 'error');
+        btn.disabled = false;
+        btn.innerHTML = '<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-4 h-4"><path stroke-linecap="round" stroke-linejoin="round" d="M15.75 5.25a3 3 0 0 1 3 3m3 0a6 6 0 0 1-7.029 5.912c-.563-.097-1.159.026-1.563.43L10.5 17.25H8.25v2.25H6v2.25H2.25v-2.818c0-.597.237-1.17.659-1.591l6.499-6.499c.404-.404.527-1 .43-1.563A6 6 0 1 1 21.75 8.25Z" /></svg> Создать доступ к порталу';
+    }
+}
+
+function copyAccessData(btn) {
+    const email = document.getElementById('accessEmail').textContent;
+    const password = document.getElementById('accessPassword').textContent;
+    const text = 'Ваш личный кабинет готов!\n\nПортал: in.rupaseva.com/guest-portal/\nЛогин: ' + email + '\nПароль: ' + password;
+    navigator.clipboard.writeText(text).then(() => {
+        btn.innerHTML = '<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-4 h-4"><path stroke-linecap="round" stroke-linejoin="round" d="M4.5 12.75l6 6 9-13.5" /></svg> Скопировано!';
+        setTimeout(() => {
+            btn.innerHTML = '<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-4 h-4"><path stroke-linecap="round" stroke-linejoin="round" d="M15.666 3.888A2.25 2.25 0 0 0 13.5 2.25h-3c-1.03 0-1.9.693-2.166 1.638m7.332 0c.055.194.084.4.084.612v0a.75.75 0 0 1-.75.75H9.75a.75.75 0 0 1-.75-.75v0c0-.212.03-.418.084-.612m7.332 0c.646.049 1.288.11 1.927.184 1.1.128 1.907 1.077 1.907 2.185V19.5a2.25 2.25 0 0 1-2.25 2.25H6.75A2.25 2.25 0 0 1 4.5 19.5V6.257c0-1.108.806-2.057 1.907-2.185a48.208 48.208 0 0 1 1.927-.184" /></svg> Копировать';
+        }, 2000);
+    });
 }
 
 async function cancelDeal() {
