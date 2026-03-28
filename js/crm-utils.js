@@ -356,7 +356,9 @@ const CrmUtils = {
      * Получить локализованное название статуса
      */
     getStatusLabel(status) {
-        return Layout.t(`crm_status_${status}`) || status;
+        const fallback = { lead: 'Заявка', contacted: 'Связались', paid: 'Оплачено', ready: 'Готов', completed: 'Завершена', cancelled: 'Отменена' };
+        const translated = Layout.t(`crm_status_${status}`);
+        return (translated && !translated.startsWith('crm_status_')) ? translated : (fallback[status] || status);
     },
 
     /**
