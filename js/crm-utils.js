@@ -511,13 +511,12 @@ const CrmUtils = {
             prev = count;
         }
         return result;
-    }
-};
+    },
 
     /**
      * Загрузить и показать бейдж с количеством активных задач в навигации
      */
-    async loadTaskBadge() {
+    loadTaskBadge: async function() {
         try {
             const userId = window.currentUser?.vaishnava_id;
             if (!userId || !Layout.db) return;
@@ -548,7 +547,6 @@ const CrmUtils = {
 window.CrmUtils = CrmUtils;
 
 // Автозагрузка бейджа задач при загрузке страницы CRM
-document.addEventListener('DOMContentLoaded', () => {
-    // Ждём авторизацию, потом грузим бейдж
-    setTimeout(() => CrmUtils.loadTaskBadge(), 1500);
+document.addEventListener('DOMContentLoaded', function() {
+    setTimeout(function() { CrmUtils.loadTaskBadge(); }, 1500);
 });
