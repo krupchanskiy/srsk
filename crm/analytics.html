@@ -1,0 +1,246 @@
+<!DOCTYPE html>
+<html lang="ru" data-theme="light">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Аналитика — CRM — ШРСК</title>
+    <script src="../js/color-init.js"></script>
+    <link href="https://cdn.jsdelivr.net/npm/daisyui@4.12.14/dist/full.min.css" rel="stylesheet" />
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <link rel="stylesheet" href="../css/common.css">
+</head>
+<body>
+<div id="header-placeholder"></div>
+<main class="p-6 max-w-7xl mx-auto">
+
+    <!-- Заголовок + фильтр ретрита -->
+    <div class="flex flex-wrap items-center justify-between gap-4 mb-6">
+        <h1 class="text-2xl font-bold">Аналитика</h1>
+        <select id="retreatFilter" class="select select-bordered" onchange="loadAnalytics()">
+            <option value="">Все ретриты</option>
+        </select>
+    </div>
+
+    <!-- Сводка -->
+    <div class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8" id="summaryCards">
+        <div class="stat bg-base-100 shadow-sm rounded-xl p-4">
+            <div class="stat-title text-xs">Заявок</div>
+            <div class="stat-value text-2xl" id="statTotal">—</div>
+        </div>
+        <div class="stat bg-base-100 shadow-sm rounded-xl p-4">
+            <div class="stat-title text-xs">Оплатили</div>
+            <div class="stat-value text-2xl text-success" id="statPaid">—</div>
+        </div>
+        <div class="stat bg-base-100 shadow-sm rounded-xl p-4">
+            <div class="stat-title text-xs">Конверсия</div>
+            <div class="stat-value text-2xl" id="statConversion">—</div>
+        </div>
+        <div class="stat bg-base-100 shadow-sm rounded-xl p-4">
+            <div class="stat-title text-xs">Выручка (₹)</div>
+            <div class="stat-value text-2xl text-primary" id="statRevenue">—</div>
+        </div>
+    </div>
+
+    <!-- Воронка -->
+    <div class="card bg-base-100 shadow-sm mb-8">
+        <div class="card-body">
+            <h2 class="text-lg font-bold mb-4">Воронка</h2>
+            <div id="funnelChart" class="space-y-2"></div>
+        </div>
+    </div>
+
+    <!-- По менеджерам -->
+    <div class="card bg-base-100 shadow-sm mb-8">
+        <div class="card-body p-0">
+            <h2 class="text-lg font-bold p-4 pb-2">По менеджерам</h2>
+            <div class="overflow-x-auto">
+                <table class="table">
+                    <thead>
+                        <tr>
+                            <th>Менеджер</th>
+                            <th class="text-center">Сделок</th>
+                            <th class="text-center">Оплативших</th>
+                            <th class="text-right">Выручка</th>
+                            <th class="text-center">Конверсия</th>
+                        </tr>
+                    </thead>
+                    <tbody id="managersTable"></tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <!-- Источники -->
+    <div class="card bg-base-100 shadow-sm">
+        <div class="card-body">
+            <h2 class="text-lg font-bold mb-4">По источникам</h2>
+            <div id="sourcesChart" class="space-y-2"></div>
+        </div>
+    </div>
+
+</main>
+<div id="footer-placeholder"></div>
+
+<script src="../js/config.js"></script>
+<script src="../js/auth-check.js?v=4"></script>
+<script src="../js/cache.js"></script>
+<script src="../js/utils.js?v=2"></script>
+<script src="../js/layout.js"></script>
+<script src="../js/date-utils.js"></script>
+<script src="../js/crm-utils.js"></script>
+
+<script>
+const e = Layout.escapeHtml;
+const t = (k) => Layout.t(k) || k;
+let allDeals = [];
+let retreats = [];
+
+async function loadData() {
+    // Загрузка ретритов
+    const { data: retreatData } = await Layout.db
+        .from('retreats')
+        .select('id, name_ru, name_en, start_date, end_date, color')
+        .order('start_date', { ascending: false });
+    retreats = retreatData || [];
+
+    const select = document.getElementById('retreatFilter');
+    retreats.forEach(r => {
+        const dates = `${DateUtils.formatDate(r.start_date)} — ${DateUtils.formatDate(r.end_date)}`;
+        select.insertAdjacentHTML('beforeend',
+            `<option value="${r.id}">${e(Layout.getName(r))} (${dates})</option>`
+        );
+    });
+
+    // Загрузка всех сделок
+    const { data: dealsData } = await Layout.db
+        .from('crm_deals')
+        .select('id, status, total_paid, total_charged, source, retreat_id, manager_id, created_at, manager:manager_id(id, spiritual_name, first_name, last_name)')
+        .neq('status', 'cancelled');
+    allDeals = dealsData || [];
+
+    loadAnalytics();
+}
+
+function loadAnalytics() {
+    const retreatId = document.getElementById('retreatFilter').value;
+    const deals = retreatId ? allDeals.filter(d => d.retreat_id === retreatId) : allDeals;
+
+    renderSummary(deals);
+    renderFunnel(deals);
+    renderManagers(deals);
+    renderSources(deals);
+}
+
+function renderSummary(deals) {
+    const total = deals.length;
+    const paidStatuses = ['prepaid', 'fully_paid', 'checked_in', 'completed'];
+    const paid = deals.filter(d => paidStatuses.includes(d.status) || d.total_paid > 0).length;
+    const revenue = deals.reduce((sum, d) => sum + (d.total_paid || 0), 0);
+    const conversion = total > 0 ? Math.round(paid / total * 100) : 0;
+
+    document.getElementById('statTotal').textContent = total;
+    document.getElementById('statPaid').textContent = paid;
+    document.getElementById('statConversion').textContent = conversion + '%';
+    document.getElementById('statRevenue').textContent = '₹' + revenue.toLocaleString('en-IN');
+}
+
+function renderFunnel(deals) {
+    const statuses = CrmUtils.STATUSES.filter(s => s !== 'cancelled');
+    const byStatus = {};
+    statuses.forEach(s => byStatus[s] = 0);
+    deals.forEach(d => { if (byStatus[d.status] !== undefined) byStatus[d.status]++; });
+
+    const max = Math.max(...Object.values(byStatus), 1);
+    const container = document.getElementById('funnelChart');
+
+    container.innerHTML = statuses.map(s => {
+        const count = byStatus[s];
+        const pct = Math.round(count / max * 100);
+        const color = CrmUtils.STATUS_COLORS[s] || '#6b7280';
+        const label = CrmUtils.getStatusLabel(s);
+        return `
+            <div class="flex items-center gap-3">
+                <div class="w-40 text-sm text-right truncate">${label}</div>
+                <div class="flex-1 bg-base-200 rounded-full h-6 relative">
+                    <div class="h-6 rounded-full transition-all" style="width: ${Math.max(pct, 2)}%; background-color: ${color};"></div>
+                </div>
+                <div class="w-10 text-sm font-mono text-right">${count}</div>
+            </div>
+        `;
+    }).join('');
+}
+
+function renderManagers(deals) {
+    const byManager = {};
+    deals.forEach(d => {
+        const mId = d.manager_id || 'none';
+        if (!byManager[mId]) {
+            byManager[mId] = {
+                name: d.manager ? CrmUtils.getGuestShortName(d.manager) : 'Не назначен',
+                total: 0, paid: 0, revenue: 0
+            };
+        }
+        byManager[mId].total++;
+        if (d.total_paid > 0) byManager[mId].paid++;
+        byManager[mId].revenue += d.total_paid || 0;
+    });
+
+    const sorted = Object.values(byManager).sort((a, b) => b.revenue - a.revenue);
+    const tbody = document.getElementById('managersTable');
+
+    tbody.innerHTML = sorted.map(m => {
+        const conv = m.total > 0 ? Math.round(m.paid / m.total * 100) : 0;
+        return `
+            <tr>
+                <td class="font-medium">${e(m.name)}</td>
+                <td class="text-center">${m.total}</td>
+                <td class="text-center">${m.paid}</td>
+                <td class="text-right font-mono">₹${m.revenue.toLocaleString('en-IN')}</td>
+                <td class="text-center">${conv}%</td>
+            </tr>
+        `;
+    }).join('');
+}
+
+function renderSources(deals) {
+    const bySource = {};
+    deals.forEach(d => {
+        const src = d.source || 'unknown';
+        bySource[src] = (bySource[src] || 0) + 1;
+    });
+
+    const sorted = Object.entries(bySource).sort((a, b) => b[1] - a[1]);
+    const max = sorted.length > 0 ? sorted[0][1] : 1;
+    const container = document.getElementById('sourcesChart');
+
+    const labels = { website: 'Сайт', instagram: 'Instagram', telegram: 'Telegram', youtube: 'YouTube', facebook: 'Facebook', friend: 'От друзей', repeat: 'Был раньше', form: 'Форма', unknown: 'Неизвестно' };
+
+    container.innerHTML = sorted.map(([src, count]) => {
+        const pct = Math.round(count / max * 100);
+        const label = labels[src] || src;
+        return `
+            <div class="flex items-center gap-3">
+                <div class="w-32 text-sm text-right truncate">${e(label)}</div>
+                <div class="flex-1 bg-base-200 rounded-full h-5 relative">
+                    <div class="h-5 rounded-full bg-primary transition-all" style="width: ${Math.max(pct, 3)}%;"></div>
+                </div>
+                <div class="w-8 text-sm font-mono text-right">${count}</div>
+            </div>
+        `;
+    }).join('');
+}
+
+async function init() {
+    await Layout.init({
+        module: 'crm',
+        menuId: 'crm_analytics',
+        itemId: 'crm_analytics'
+    });
+    await loadData();
+}
+
+init();
+</script>
+</body>
+</html>

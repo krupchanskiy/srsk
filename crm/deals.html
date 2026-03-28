@@ -75,10 +75,32 @@
         </div>
     </div>
 
-    <!-- Статистика -->
-    <div class="flex gap-4 mb-4 text-sm">
-        <span id="statsTotal" class="text-base-content/70">—</span>
-        <span id="statsOverdue" class="text-error hidden">—</span>
+    <!-- Статистика + экспорт -->
+    <div class="flex items-center justify-between mb-4">
+        <div class="flex gap-4 text-sm">
+            <span id="statsTotal" class="text-base-content/70">—</span>
+            <span id="statsOverdue" class="text-error hidden">—</span>
+        </div>
+        <button class="btn btn-sm btn-outline gap-1" onclick="exportXlsx()">
+            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-4 h-4"><path stroke-linecap="round" stroke-linejoin="round" d="M3 16.5v2.25A2.25 2.25 0 0 0 5.25 21h13.5A2.25 2.25 0 0 0 21 18.75V16.5M16.5 12 12 16.5m0 0L7.5 12m4.5 4.5V3" /></svg>
+            Скачать .xlsx
+        </button>
+    </div>
+
+    <!-- Панель массовых действий -->
+    <div id="bulkActions" class="alert bg-primary/10 mb-4 hidden">
+        <span id="bulkCount" class="font-bold">0 выбрано</span>
+        <div class="flex gap-2">
+            <select id="bulkManager" class="select select-bordered select-sm">
+                <option value="">Менеджер...</option>
+            </select>
+            <button class="btn btn-sm btn-primary" onclick="bulkAssignManager()">Назначить</button>
+            <select id="bulkStatus" class="select select-bordered select-sm">
+                <option value="">Статус...</option>
+            </select>
+            <button class="btn btn-sm btn-primary" onclick="bulkChangeStatus()">Сменить</button>
+            <button class="btn btn-sm btn-error btn-outline" onclick="bulkDelete()">Удалить</button>
+        </div>
     </div>
 
     <!-- Таблица -->
@@ -88,6 +110,7 @@
                 <table class="table">
                     <thead>
                         <tr>
+                            <th class="w-8"><input type="checkbox" class="checkbox checkbox-xs" onchange="toggleAllCheckboxes(this.checked)"></th>
                             <th class="w-8"></th>
                             <th class="cursor-pointer hover:bg-base-200" onclick="setSort('guest')">
                                 <span class="inline-flex items-center gap-1" data-i18n="crm_guest">Гость <span id="sort-guest" class="text-xs opacity-50"></span></span>
@@ -111,7 +134,7 @@
                         </tr>
                     </thead>
                     <tbody id="dealsTable">
-                        <tr><td colspan="8" class="text-center py-8">
+                        <tr><td colspan="9" class="text-center py-8">
                             <span class="loading loading-spinner loading-md"></span>
                         </td></tr>
                     </tbody>
@@ -486,7 +509,7 @@ function renderTable() {
     const pageDeals = filteredDeals.slice(start, start + pageSize);
 
     if (pageDeals.length === 0) {
-        tbody.innerHTML = `<tr><td colspan="8" class="text-center py-8 text-base-content/50">
+        tbody.innerHTML = `<tr><td colspan="9" class="text-center py-8 text-base-content/50">
             ${t('crm_no_deals') || 'Нет сделок'}
         </td></tr>`;
         return;
@@ -500,7 +523,8 @@ function renderTable() {
 
         return `
             <tr class="deal-row ${isOverdue ? 'overdue' : ''}" onclick="openDeal('${d.id}')">
-                <td>
+                <td onclick="event.stopPropagation()"><input type="checkbox" class="checkbox checkbox-xs deal-checkbox" data-id="${d.id}" onchange="updateBulkPanel()"></td>
+                <td
                     ${isOverdue ? `<span title="Без контакта > 24ч" class="text-error">${CrmUtils.UI_ICONS.exclamationCircle}</span>` : ''}
                     ${d.is_group_main ? `<span title="Главный в группе">${CrmUtils.UI_ICONS.user}</span>` : ''}
                 </td>
@@ -694,6 +718,134 @@ async function createDeal(event) {
     window.location.href = `deal.html?id=${newDeal.id}`;
 }
 
+// ==================== МАССОВЫЕ ДЕЙСТВИЯ ====================
+function getSelectedIds() {
+    return [...document.querySelectorAll('.deal-checkbox:checked')].map(cb => cb.dataset.id);
+}
+
+function toggleAllCheckboxes(checked) {
+    document.querySelectorAll('.deal-checkbox').forEach(cb => cb.checked = checked);
+    updateBulkPanel();
+}
+
+function updateBulkPanel() {
+    const ids = getSelectedIds();
+    const panel = document.getElementById('bulkActions');
+    if (ids.length > 0) {
+        panel.classList.remove('hidden');
+        document.getElementById('bulkCount').textContent = `${ids.length} выбрано`;
+    } else {
+        panel.classList.add('hidden');
+    }
+}
+
+async function bulkAssignManager() {
+    const ids = getSelectedIds();
+    const managerId = document.getElementById('bulkManager').value;
+    if (!managerId || ids.length === 0) return;
+    for (const id of ids) {
+        await Layout.db.from('crm_deals').update({ manager_id: managerId }).eq('id', id);
+    }
+    Layout.showNotification(`Менеджер назначен для ${ids.length} сделок`, 'success');
+    await loadDeals();
+}
+
+async function bulkChangeStatus() {
+    const ids = getSelectedIds();
+    const status = document.getElementById('bulkStatus').value;
+    if (!status || ids.length === 0) return;
+    for (const id of ids) {
+        await Layout.db.from('crm_deals').update({ status }).eq('id', id);
+    }
+    Layout.showNotification(`Статус изменён для ${ids.length} сделок`, 'success');
+    await loadDeals();
+}
+
+async function bulkDelete() {
+    const ids = getSelectedIds();
+    const cancelledIds = ids.filter(id => {
+        const d = allDeals.find(dd => dd.id === id);
+        return d && d.status === 'cancelled';
+    });
+    if (cancelledIds.length === 0) {
+        Layout.showNotification('Удалять можно только отменённые сделки', 'error');
+        return;
+    }
+    if (!confirm(`Удалить ${cancelledIds.length} отменённых сделок?`)) return;
+    for (const id of cancelledIds) {
+        await Layout.db.from('crm_deal_services').delete().eq('deal_id', id);
+        await Layout.db.from('crm_payments').delete().eq('deal_id', id);
+        await Layout.db.from('crm_communications').delete().eq('deal_id', id);
+        await Layout.db.from('crm_tasks').delete().eq('deal_id', id);
+        await Layout.db.from('crm_deal_history').delete().eq('deal_id', id);
+        await Layout.db.from('crm_deal_members').delete().eq('deal_id', id);
+        await Layout.db.from('crm_deals').delete().eq('id', id);
+    }
+    Layout.showNotification(`Удалено ${cancelledIds.length} сделок`, 'success');
+    await loadDeals();
+}
+
+// ==================== ЭКСПОРТ ====================
+function exportXlsx() {
+    const deals = filteredDeals;
+    if (deals.length === 0) { Layout.showNotification('Нет данных для экспорта', 'error'); return; }
+
+    // CSV с BOM для Excel
+    const BOM = '\uFEFF';
+    const headers = ['Имя', 'Телефон', 'Email', 'Telegram', 'Ретрит', 'Статус', 'Менеджер', 'Оплачено (₹)', 'Создано', 'Проживание', 'Питание', 'Виза', 'Билеты'];
+    const rows = deals.map(d => {
+        const g = d.vaishnavas;
+        const r = d.retreats;
+        const m = d.manager;
+        const cl = (f) => { const v = d[f]; return v === 'unknown' ? '' : (v || ''); };
+        return [
+            CrmUtils.getGuestName(g),
+            g?.phone || '',
+            g?.email || '',
+            g?.telegram || '',
+            Layout.getName(r) || '',
+            CrmUtils.getStatusLabel(d.status),
+            m ? CrmUtils.getGuestShortName(m) : '',
+            d.total_paid || 0,
+            CrmUtils.formatDate(d.created_at),
+            cl('checklist_accommodation'),
+            cl('checklist_meals'),
+            cl('checklist_visa'),
+            cl('checklist_tickets')
+        ];
+    });
+
+    const csv = BOM + [headers, ...rows].map(r => r.map(c => `"${String(c).replace(/"/g, '""')}"`).join(',')).join('\n');
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `crm-deals-${new Date().toISOString().slice(0,10)}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+}
+
+function populateBulkSelects() {
+    // Менеджеры
+    const managerSelect = document.getElementById('bulkManager');
+    if (managerSelect && managers) {
+        managers.forEach(m => {
+            managerSelect.insertAdjacentHTML('beforeend',
+                `<option value="${m.id}">${e(CrmUtils.getGuestShortName(m))}</option>`
+            );
+        });
+    }
+    // Статусы
+    const statusSelect = document.getElementById('bulkStatus');
+    if (statusSelect) {
+        CrmUtils.STATUSES.forEach(s => {
+            statusSelect.insertAdjacentHTML('beforeend',
+                `<option value="${s}">${CrmUtils.getStatusLabel(s)}</option>`
+            );
+        });
+    }
+}
+
 // ==================== INIT ====================
 async function init() {
     await Layout.init({
@@ -703,6 +855,7 @@ async function init() {
     });
 
     await loadData();
+    populateBulkSelects();
 }
 
 init();
