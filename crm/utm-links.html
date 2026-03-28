@@ -179,11 +179,6 @@ async function loadLinks() {
 
     renderLinks();
 
-    // Заполняем campaign из slug
-    const retreat = retreats.find(r => r.id === retreatId);
-    document.getElementById('newCampaign').value = retreat?.slug || '';
-
-    document.getElementById('createBlock').classList.remove('hidden');
     document.getElementById('enHint').classList.remove('hidden');
 }
 
