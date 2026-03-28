@@ -16,7 +16,7 @@ Deno.serve(async (req) => {
   try {
     const supabaseUrl = Deno.env.get('SUPABASE_URL')!
     const serviceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
-    const telegramBotToken = Deno.env.get('TELEGRAM_BOT_TOKEN')
+    const telegramBotToken = Deno.env.get('CRM_TELEGRAM_BOT_TOKEN') || Deno.env.get('TELEGRAM_BOT_TOKEN')
     const telegramChatId = Deno.env.get('CRM_TELEGRAM_CHAT_ID')
 
     if (!telegramBotToken || !telegramChatId) {
