@@ -23,7 +23,13 @@
 <div id="header-placeholder"></div>
 
 <main class="container mx-auto px-4 py-6 flex-1 max-w-4xl">
-    <h1 class="text-2xl font-bold mb-6">UTM-ссылки</h1>
+    <!-- Заголовок + кнопка -->
+    <div class="flex flex-wrap justify-between items-center gap-4 mb-6">
+        <h1 class="text-2xl font-bold">UTM-ссылки</h1>
+        <button class="btn btn-primary" onclick="openCreateModal()" id="createBtn" style="display:none">
+            + Создать ссылку
+        </button>
+    </div>
 
     <!-- Выбор ретрита -->
     <div class="card bg-base-100 shadow-sm mb-6">
@@ -39,49 +45,7 @@
 
     <!-- Сохранённые ссылки -->
     <div id="savedLinksContainer" class="mb-6 hidden">
-        <h2 class="text-lg font-bold mb-3">Ссылки</h2>
         <div id="savedLinks" class="space-y-2"></div>
-    </div>
-
-    <!-- Создать новую -->
-    <div id="createBlock" class="card bg-base-100 shadow-sm mb-6 hidden">
-        <div class="card-body p-4">
-            <h2 class="text-lg font-bold mb-4">+ Создать ссылку</h2>
-            <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
-                <div class="form-control">
-                    <label class="label py-1"><span class="label-text text-xs">Название <span class="text-error">*</span></span></label>
-                    <input type="text" id="newName" class="input input-bordered input-sm" placeholder="Telegram-канал">
-                </div>
-                <div class="form-control">
-                    <label class="label py-1"><span class="label-text text-xs">utm_source <span class="text-error">*</span></span></label>
-                    <input type="text" id="newSource" class="input input-bordered input-sm" placeholder="telegram">
-                </div>
-                <div class="form-control">
-                    <label class="label py-1"><span class="label-text text-xs">utm_medium</span></label>
-                    <input type="text" id="newMedium" class="input input-bordered input-sm" placeholder="post">
-                </div>
-                <div class="form-control">
-                    <label class="label py-1"><span class="label-text text-xs">utm_campaign</span></label>
-                    <input type="text" id="newCampaign" class="input input-bordered input-sm" placeholder="">
-                </div>
-            </div>
-
-            <!-- Пресеты для быстрого заполнения -->
-            <div class="flex flex-wrap gap-1 mt-3">
-                <span class="text-xs text-base-content/50 self-center mr-1">Быстро:</span>
-                <button class="btn btn-xs btn-ghost" onclick="fillPreset('Telegram-канал','telegram','post')">Telegram</button>
-                <button class="btn btn-xs btn-ghost" onclick="fillPreset('Instagram','instagram','post')">Instagram</button>
-                <button class="btn btn-xs btn-ghost" onclick="fillPreset('YouTube','youtube','description')">YouTube</button>
-                <button class="btn btn-xs btn-ghost" onclick="fillPreset('WhatsApp рассылка','whatsapp','broadcast')">WhatsApp</button>
-                <button class="btn btn-xs btn-ghost" onclick="fillPreset('Email рассылка','email','newsletter')">Email</button>
-                <button class="btn btn-xs btn-ghost" onclick="fillPreset('Сайт rupaseva.com','website','banner')">Сайт</button>
-                <button class="btn btn-xs btn-ghost" onclick="fillPreset('Личное сообщение','personal','message')">Личное</button>
-            </div>
-
-            <div class="flex justify-end mt-4">
-                <button class="btn btn-sm btn-primary" onclick="createLink()">Создать</button>
-            </div>
-        </div>
     </div>
 
     <!-- EN hint -->
@@ -91,6 +55,50 @@
         </div>
     </div>
 </main>
+
+<!-- Модалка создания ссылки -->
+<dialog id="createModal" class="modal">
+    <div class="modal-box">
+        <h3 class="font-bold text-lg mb-4">Новая UTM-ссылка</h3>
+
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+            <div class="form-control">
+                <label class="label py-1"><span class="label-text text-xs">Название <span class="text-error">*</span></span></label>
+                <input type="text" id="newName" class="input input-bordered input-sm" placeholder="Telegram-канал">
+            </div>
+            <div class="form-control">
+                <label class="label py-1"><span class="label-text text-xs">utm_source <span class="text-error">*</span></span></label>
+                <input type="text" id="newSource" class="input input-bordered input-sm" placeholder="telegram">
+            </div>
+            <div class="form-control">
+                <label class="label py-1"><span class="label-text text-xs">utm_medium</span></label>
+                <input type="text" id="newMedium" class="input input-bordered input-sm" placeholder="post">
+            </div>
+            <div class="form-control">
+                <label class="label py-1"><span class="label-text text-xs">utm_campaign</span></label>
+                <input type="text" id="newCampaign" class="input input-bordered input-sm" placeholder="">
+            </div>
+        </div>
+
+        <!-- Пресеты -->
+        <div class="flex flex-wrap gap-1 mt-3">
+            <span class="text-xs text-base-content/50 self-center mr-1">Быстро:</span>
+            <button class="btn btn-xs btn-ghost" onclick="fillPreset('Telegram-канал','telegram','post')">Telegram</button>
+            <button class="btn btn-xs btn-ghost" onclick="fillPreset('Instagram','instagram','post')">Instagram</button>
+            <button class="btn btn-xs btn-ghost" onclick="fillPreset('YouTube','youtube','description')">YouTube</button>
+            <button class="btn btn-xs btn-ghost" onclick="fillPreset('WhatsApp рассылка','whatsapp','broadcast')">WhatsApp</button>
+            <button class="btn btn-xs btn-ghost" onclick="fillPreset('Email рассылка','email','newsletter')">Email</button>
+            <button class="btn btn-xs btn-ghost" onclick="fillPreset('Сайт rupaseva.com','website','banner')">Сайт</button>
+            <button class="btn btn-xs btn-ghost" onclick="fillPreset('Личное сообщение','personal','message')">Личное</button>
+        </div>
+
+        <div class="modal-action">
+            <form method="dialog"><button class="btn btn-ghost">Отмена</button></form>
+            <button class="btn btn-primary" onclick="createLink()">Создать</button>
+        </div>
+    </div>
+    <form method="dialog" class="modal-backdrop"><button>close</button></form>
+</dialog>
 
 <div id="footer-placeholder"></div>
 
@@ -127,14 +135,25 @@ function fillPreset(name, source, medium) {
     document.getElementById('newCampaign').value = retreat?.slug || '';
 }
 
+function openCreateModal() {
+    const retreat = retreats.find(r => r.id === document.getElementById('retreatSelect').value);
+    document.getElementById('newName').value = '';
+    document.getElementById('newSource').value = '';
+    document.getElementById('newMedium').value = '';
+    document.getElementById('newCampaign').value = retreat?.slug || '';
+    document.getElementById('createModal').showModal();
+}
+
 async function loadLinks() {
     const retreatId = document.getElementById('retreatSelect').value;
     if (!retreatId) {
         document.getElementById('savedLinksContainer').classList.add('hidden');
-        document.getElementById('createBlock').classList.add('hidden');
+        document.getElementById('createBtn').style.display = 'none';
         document.getElementById('enHint').classList.add('hidden');
         return;
     }
+
+    document.getElementById('createBtn').style.display = '';
 
     // Загружаем сохранённые ссылки
     const { data } = await Layout.db
@@ -233,7 +252,8 @@ async function createLink() {
 
     if (error) { Layout.handleError(error, 'Создание ссылки'); return; }
 
-    // Очищаем форму
+    // Закрываем модалку и очищаем форму
+    document.getElementById('createModal').close();
     document.getElementById('newName').value = '';
     document.getElementById('newSource').value = '';
     document.getElementById('newMedium').value = '';
