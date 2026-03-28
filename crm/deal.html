@@ -37,8 +37,11 @@
             <div id="dealStatusBanner" class="rounded-xl px-5 py-4 mb-4">
                 <!-- Верхняя строка: имя + статус -->
                 <div class="flex flex-wrap items-center justify-between gap-2 mb-2">
-                    <div class="flex items-center gap-2 min-w-0">
+                    <div class="group flex items-center gap-2 min-w-0">
                         <h1 class="text-xl sm:text-2xl font-bold text-white truncate" id="guestName">—</h1>
+                        <button class="btn btn-ghost btn-xs opacity-0 group-hover:opacity-100 p-0 h-5 w-5 min-h-0 text-white/60 hover:text-white" onclick="startEditName()">
+                            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-3.5 h-3.5"><path stroke-linecap="round" stroke-linejoin="round" d="m16.862 4.487 1.687-1.688a1.875 1.875 0 1 1 2.652 2.652L6.832 19.82a4.5 4.5 0 0 1-1.897 1.13l-2.685.8.8-2.685a4.5 4.5 0 0 1 1.13-1.897L16.863 4.487Z" /></svg>
+                        </button>
                         <span id="repeatGuestBadge" class="badge badge-sm badge-warning hidden shrink-0">повторный</span>
                     </div>
                     <select id="statusSelect" class="select select-sm font-bold text-sm min-w-[140px] shrink-0" onchange="changeStatus(this.value)">
@@ -858,16 +861,21 @@ function renderInfoTab() {
     const locationIcon = '<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-4 h-4"><path stroke-linecap="round" stroke-linejoin="round" d="M15 10.5a3 3 0 1 1-6 0 3 3 0 0 1 6 0Z" /><path stroke-linecap="round" stroke-linejoin="round" d="M19.5 10.5c0 7.142-7.5 11.25-7.5 11.25S4.5 17.642 4.5 10.5a7.5 7.5 0 1 1 15 0Z" /></svg>';
     const calendarIcon = '<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-4 h-4"><path stroke-linecap="round" stroke-linejoin="round" d="M6.75 3v2.25M17.25 3v2.25M3 18.75V7.5a2.25 2.25 0 0 1 2.25-2.25h13.5A2.25 2.25 0 0 1 21 7.5v11.25m-18 0A2.25 2.25 0 0 0 5.25 21h13.5A2.25 2.25 0 0 0 21 18.75m-18 0v-7.5A2.25 2.25 0 0 1 5.25 9h13.5A2.25 2.25 0 0 1 21 9v9.75" /></svg>';
 
-    // Контакт-строка с иконкой (компактная)
-    function contactRow(icon, label, value, href) {
-        if (!value || value === '—') return '';
-        const val = href
-            ? `<a href="${href}" class="link link-hover text-primary text-sm">${e(value)}</a>`
-            : `<span class="font-medium text-sm">${e(value)}</span>`;
-        return `<div class="flex items-center gap-2 py-1.5 border-b border-base-200/50 last:border-0">
+    // Контакт-строка с иконкой (компактная, inline-редактируемая)
+    function contactRow(icon, label, value, href, field) {
+        const displayVal = value || '—';
+        const isEmpty = !value || value === '—';
+        const val = href && !isEmpty
+            ? `<a href="${href}" class="link link-hover text-primary text-sm">${e(displayVal)}</a>`
+            : `<span class="font-medium text-sm ${isEmpty ? 'text-base-content/30 italic' : ''}">${e(displayVal)}</span>`;
+        const editBtn = field ? `<button class="btn btn-ghost btn-xs opacity-0 group-hover:opacity-100 p-0 h-5 w-5 min-h-0" onclick="startEditContact('${field}', '${e(value || '')}')">
+            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-3 h-3"><path stroke-linecap="round" stroke-linejoin="round" d="m16.862 4.487 1.687-1.688a1.875 1.875 0 1 1 2.652 2.652L6.832 19.82a4.5 4.5 0 0 1-1.897 1.13l-2.685.8.8-2.685a4.5 4.5 0 0 1 1.13-1.897L16.863 4.487Z" /></svg>
+        </button>` : '';
+        return `<div class="group flex items-center gap-2 py-1.5 border-b border-base-200/50 last:border-0" id="contact-row-${field || label}">
             <span class="text-base-content/30">${icon}</span>
             <span class="text-xs text-base-content/40 w-16 shrink-0">${label}</span>
-            ${val}
+            <span class="flex-1" id="contact-val-${field || ''}">${val}</span>
+            ${editBtn}
         </div>`;
     }
 
@@ -891,10 +899,10 @@ function renderInfoTab() {
                     <a href="../vaishnavas/profile.html?id=${guest.id}" class="text-xs link link-primary">Профиль →</a>
                 </div>
                 <div class="bg-base-200/30 rounded-lg px-3 py-1">
-                    ${contactRow(phoneIcon, 'Телефон', guest.phone, guest.phone ? 'tel:' + guest.phone : null)}
-                    ${contactRow(emailIcon, 'Email', guest.email, guest.email ? 'mailto:' + guest.email : null)}
-                    ${contactRow(tgIcon, 'Telegram', guest.telegram, guest.telegram ? 'https://t.me/' + guest.telegram.replace('@','') : null)}
-                    ${contactRow(locationIcon, 'Откуда', location || null)}
+                    ${contactRow(phoneIcon, 'Телефон', guest.phone, guest.phone ? 'tel:' + guest.phone : null, 'phone')}
+                    ${contactRow(emailIcon, 'Email', guest.email, guest.email ? 'mailto:' + guest.email : null, 'email')}
+                    ${contactRow(tgIcon, 'Telegram', guest.telegram, guest.telegram ? 'https://t.me/' + guest.telegram.replace('@','') : null, 'telegram')}
+                    ${contactRow(locationIcon, 'Откуда', location || null, null, null)}
                 </div>
             </div>
 
@@ -1727,6 +1735,90 @@ function closeTemplatesModal() { document.getElementById('templatesModal').close
 
 async function copyTemplateText(text) {
     await CrmUtils.copyToClipboard(text);
+}
+
+// ==================== INLINE EDIT CONTACTS ====================
+function startEditContact(field, currentValue) {
+    const container = document.getElementById('contact-val-' + field);
+    if (!container) return;
+    const input = document.createElement('input');
+    input.type = field === 'email' ? 'email' : 'text';
+    input.value = currentValue;
+    input.className = 'input input-xs input-bordered w-full max-w-[200px]';
+    input.placeholder = field === 'phone' ? '+7...' : field === 'email' ? 'email@...' : '@username';
+
+    input.addEventListener('keydown', async (ev) => {
+        if (ev.key === 'Enter') { ev.preventDefault(); await saveContact(field, input.value); }
+        if (ev.key === 'Escape') { loadTabData('info'); }
+    });
+    input.addEventListener('blur', async () => { await saveContact(field, input.value); });
+
+    container.innerHTML = '';
+    container.appendChild(input);
+    input.focus();
+    input.select();
+}
+
+async function saveContact(field, value) {
+    const trimmed = value.trim();
+    const update = {};
+    update[field] = trimmed || null;
+
+    const { error } = await Layout.db.from('vaishnavas').update(update).eq('id', guest.id);
+    if (error) {
+        Layout.showNotification('Ошибка сохранения', 'error');
+        console.error(error);
+    } else {
+        guest[field] = trimmed || null;
+        Layout.showNotification('Сохранено', 'success');
+        renderHeader();
+    }
+    loadTabData('info');
+}
+
+function startEditName() {
+    const nameEl = document.getElementById('guestName');
+    if (!nameEl) return;
+
+    const sn = guest.spiritual_name || '';
+    const fn = guest.first_name || '';
+    const ln = guest.last_name || '';
+
+    nameEl.innerHTML = `
+        <div class="flex items-center gap-1">
+            <input id="editSpiritualName" class="input input-xs input-bordered w-28 bg-white/20 text-white placeholder:text-white/40" value="${e(sn)}" placeholder="Дух. имя">
+            <input id="editFirstName" class="input input-xs input-bordered w-24 bg-white/20 text-white placeholder:text-white/40" value="${e(fn)}" placeholder="Имя">
+            <input id="editLastName" class="input input-xs input-bordered w-24 bg-white/20 text-white placeholder:text-white/40" value="${e(ln)}" placeholder="Фамилия">
+            <button class="btn btn-xs btn-success" onclick="saveNameEdit()">✓</button>
+            <button class="btn btn-xs btn-ghost text-white" onclick="renderHeader()">✕</button>
+        </div>
+    `;
+    document.getElementById('editFirstName').focus();
+}
+
+async function saveNameEdit() {
+    const sn = document.getElementById('editSpiritualName').value.trim();
+    const fn = document.getElementById('editFirstName').value.trim();
+    const ln = document.getElementById('editLastName').value.trim();
+
+    if (!fn) { Layout.showNotification('Имя обязательно', 'error'); return; }
+
+    const { error } = await Layout.db.from('vaishnavas').update({
+        spiritual_name: sn || null,
+        first_name: fn,
+        last_name: ln || null
+    }).eq('id', guest.id);
+
+    if (error) {
+        Layout.showNotification('Ошибка сохранения', 'error');
+    } else {
+        guest.spiritual_name = sn || null;
+        guest.first_name = fn;
+        guest.last_name = ln || null;
+        Layout.showNotification('Имя обновлено', 'success');
+    }
+    renderHeader();
+    loadTabData('info');
 }
 
 // ==================== HELPERS ====================
