@@ -752,7 +752,7 @@ function renderManagersLoad() {
     const container = document.getElementById('managersLoad');
 
     const byManager = {};
-    deals.filter(d => CrmUtils.isActive(d)).forEach(deal => {
+    deals.forEach(deal => {
         const managerId = deal.manager_id || 'unassigned';
         const manager = deal.manager;
         const key = managerId;
@@ -761,37 +761,58 @@ function renderManagersLoad() {
             byManager[key] = {
                 name: manager ? CrmUtils.getGuestName(manager) : 'Не назначен',
                 initials: manager ? getInitials(manager) : '?',
-                count: 0
+                total: 0,
+                active: 0,
+                paid: 0,
+                completed: 0,
+                revenue: 0
             };
         }
-        byManager[key].count++;
+        byManager[key].total++;
+        if (CrmUtils.isActive(deal)) byManager[key].active++;
+        if (deal.status === 'paid' || deal.status === 'ready' || deal.status === 'completed') {
+            byManager[key].paid++;
+            byManager[key].revenue += Number(deal.total_paid || 0);
+        }
+        if (deal.status === 'completed') byManager[key].completed++;
     });
 
-    const managers = Object.values(byManager).sort((a, b) => b.count - a.count);
+    const managers = Object.values(byManager).sort((a, b) => b.active - a.active);
 
     if (managers.length === 0) {
         container.innerHTML = `
             <div class="text-center py-4 px-4 bg-white/40 rounded-xl text-violet-700/60">
-                Нет активных сделок
+                Нет сделок
             </div>
         `;
         return;
     }
 
-    const maxCount = Math.max(...managers.map(m => m.count), 1);
-
     container.innerHTML = managers.map(m => {
-        const width = m.count / maxCount * 100;
+        const conversion = m.total > 0 ? Math.round(m.paid / m.total * 100) : 0;
         return `
-            <div class="flex items-center gap-3 p-2 bg-white/40 rounded-xl">
-                <div class="w-9 h-9 rounded-full flex items-center justify-center text-white text-sm font-medium" style="background: #7C3AED;">${m.initials}</div>
-                <div class="flex-1">
-                    <div class="text-sm font-medium text-violet-900 mb-1">${e(m.name)}</div>
-                    <div class="h-2 bg-violet-200 rounded-full overflow-hidden">
-                        <div class="h-full rounded-full" style="width: ${width}%; background: #7C3AED;"></div>
+            <div class="p-3 bg-white/40 rounded-xl">
+                <div class="flex items-center gap-3 mb-2">
+                    <div class="w-9 h-9 rounded-full flex items-center justify-center text-white text-sm font-medium" style="background: #7C3AED;">${m.initials}</div>
+                    <div class="flex-1">
+                        <div class="text-sm font-medium text-violet-900">${e(m.name)}</div>
+                        <div class="text-xs text-violet-700/60">активных: ${m.active}</div>
                     </div>
                 </div>
-                <div class="text-lg font-bold text-violet-700">${m.count}</div>
+                <div class="flex gap-3 text-xs">
+                    <div class="flex-1 bg-white/50 rounded-lg p-2 text-center">
+                        <div class="font-bold text-violet-800 text-base">${m.total}</div>
+                        <div class="text-violet-600/60">всего</div>
+                    </div>
+                    <div class="flex-1 bg-white/50 rounded-lg p-2 text-center">
+                        <div class="font-bold text-base ${conversion >= 50 ? 'text-green-600' : conversion >= 25 ? 'text-amber-600' : 'text-red-500'}">${conversion}%</div>
+                        <div class="text-violet-600/60">конверсия</div>
+                    </div>
+                    <div class="flex-1 bg-white/50 rounded-lg p-2 text-center">
+                        <div class="font-bold text-violet-800 text-base">${CrmUtils.formatMoney(m.revenue)}</div>
+                        <div class="text-violet-600/60">выручка</div>
+                    </div>
+                </div>
             </div>
         `;
     }).join('');
