@@ -1795,22 +1795,31 @@ function renderPlacement() {
 
 async function requestPlacement() {
     // Получаем менеджеров по расселению (роль placement_manager)
-    const { data: managers } = await Layout.db
-        .from('user_roles')
-        .select('user_id, roles!inner(code), vaishnavas:user_id(id, spiritual_name, first_name)')
-        .eq('roles.code', 'placement_manager')
-        .eq('is_active', true);
+    // 1. Находим role_id
+    const { data: roleData } = await Layout.db
+        .from('roles')
+        .select('id')
+        .eq('code', 'placement_manager')
+        .maybeSingle();
 
-    // Если join не сработал — попробуем через vaishnavas.user_id
     let placementManagers = [];
-    if (managers && managers.length > 0) {
-        // Получим vaishnavas для этих user_id
-        const authIds = managers.map(m => m.user_id);
-        const { data: vUsers } = await Layout.db
-            .from('vaishnavas')
-            .select('id, spiritual_name, first_name, user_id')
-            .in('user_id', authIds);
-        placementManagers = vUsers || [];
+    if (roleData) {
+        // 2. Находим auth user_id с этой ролью
+        const { data: roleUsers } = await Layout.db
+            .from('user_roles')
+            .select('user_id')
+            .eq('role_id', roleData.id)
+            .eq('is_active', true);
+
+        if (roleUsers && roleUsers.length > 0) {
+            const authIds = roleUsers.map(r => r.user_id);
+            // 3. Находим vaishnavas по user_id (auth)
+            const { data: vUsers } = await Layout.db
+                .from('vaishnavas')
+                .select('id, spiritual_name, first_name, user_id')
+                .in('user_id', authIds);
+            placementManagers = vUsers || [];
+        }
     }
 
     if (placementManagers.length === 0) {
