@@ -202,7 +202,8 @@ const CrmUtils = {
      */
     getGuestName(vaishnava) {
         if (!vaishnava) return '';
-        return vaishnava.spiritual_name ||
+        const sn = vaishnava.spiritual_name && vaishnava.spiritual_name !== '-' && vaishnava.spiritual_name !== '—' ? vaishnava.spiritual_name : '';
+        return sn ||
                `${vaishnava.first_name || ''} ${vaishnava.last_name || ''}`.trim() ||
                vaishnava.email ||
                'Без имени';
@@ -213,7 +214,8 @@ const CrmUtils = {
      */
     getGuestShortName(vaishnava) {
         if (!vaishnava) return '';
-        if (vaishnava.spiritual_name) return vaishnava.spiritual_name;
+        const sn = vaishnava.spiritual_name && vaishnava.spiritual_name !== '-' && vaishnava.spiritual_name !== '—' ? vaishnava.spiritual_name : '';
+        if (sn) return sn;
         if (vaishnava.first_name) {
             const lastName = vaishnava.last_name ? ` ${vaishnava.last_name[0]}.` : '';
             return vaishnava.first_name + lastName;
