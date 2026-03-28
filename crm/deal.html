@@ -115,62 +115,62 @@
             </div>
 
             <!-- Чеклист гостя -->
-            <div class="card bg-base-100 shadow-sm">
+            <div class="card shadow-sm transition-colors duration-500" id="checklistCard">
                 <div class="card-body p-4">
-                    <h3 class="font-bold mb-3">Чеклист</h3>
-                    <div class="grid grid-cols-2 gap-2" id="checklistGrid">
+                    <h3 class="font-bold mb-3" id="checklistTitle">Чеклист</h3>
+                    <div class="grid grid-cols-2 gap-x-3 gap-y-1" id="checklistGrid">
                         <div class="form-control">
                             <label class="label py-0"><span class="label-text text-xs opacity-60">Проживание</span></label>
-                            <select class="select select-bordered select-xs" onchange="updateChecklist('checklist_accommodation', this.value)" id="cl_accommodation">
-                                <option value="unknown" class="text-base-content/40">Не выяснено</option>
+                            <select class="select select-xs w-full" onchange="updateChecklist('checklist_accommodation', this.value)" id="cl_accommodation">
+                                <option value="unknown">—</option>
                                 <option value="in_ashram">В ШРСК</option>
-                                <option value="partner_hotel">Партнёрская гостиница</option>
-                                <option value="self">Самостоятельно</option>
+                                <option value="partner_hotel">Гостиница</option>
+                                <option value="self">Сам</option>
                             </select>
                         </div>
                         <div class="form-control">
                             <label class="label py-0"><span class="label-text text-xs opacity-60">Питание</span></label>
-                            <select class="select select-bordered select-xs" onchange="updateChecklist('checklist_meals', this.value)" id="cl_meals">
-                                <option value="unknown" class="text-base-content/40">Не выяснено</option>
+                            <select class="select select-xs w-full" onchange="updateChecklist('checklist_meals', this.value)" id="cl_meals">
+                                <option value="unknown">—</option>
                                 <option value="in_ashram">В ШРСК</option>
-                                <option value="self">Самостоятельно</option>
+                                <option value="self">Сам</option>
                             </select>
                         </div>
                         <div class="form-control">
-                            <label class="label py-0"><span class="label-text text-xs opacity-60">Трансфер прибытие</span></label>
-                            <select class="select select-bordered select-xs" onchange="updateChecklist('checklist_transfer_arrival', this.value)" id="cl_transfer_arrival">
-                                <option value="unknown" class="text-base-content/40">Не выяснено</option>
+                            <label class="label py-0"><span class="label-text text-xs opacity-60">Трансфер туда</span></label>
+                            <select class="select select-xs w-full" onchange="updateChecklist('checklist_transfer_arrival', this.value)" id="cl_transfer_arrival">
+                                <option value="unknown">—</option>
                                 <option value="needed">Нужен</option>
                                 <option value="not_needed">Не нужен</option>
                             </select>
                         </div>
                         <div class="form-control">
-                            <label class="label py-0"><span class="label-text text-xs opacity-60">Трансфер отъезд</span></label>
-                            <select class="select select-bordered select-xs" onchange="updateChecklist('checklist_transfer_departure', this.value)" id="cl_transfer_departure">
-                                <option value="unknown" class="text-base-content/40">Не выяснено</option>
+                            <label class="label py-0"><span class="label-text text-xs opacity-60">Трансфер обратно</span></label>
+                            <select class="select select-xs w-full" onchange="updateChecklist('checklist_transfer_departure', this.value)" id="cl_transfer_departure">
+                                <option value="unknown">—</option>
                                 <option value="needed">Нужен</option>
                                 <option value="not_needed">Не нужен</option>
                             </select>
                         </div>
                         <div class="form-control">
                             <label class="label py-0"><span class="label-text text-xs opacity-60">Виза</span></label>
-                            <select class="select select-bordered select-xs" onchange="updateChecklist('checklist_visa', this.value)" id="cl_visa">
-                                <option value="unknown" class="text-base-content/40">Не выяснено</option>
-                                <option value="needs_help">Нужна помощь</option>
+                            <select class="select select-xs w-full" onchange="updateChecklist('checklist_visa', this.value)" id="cl_visa">
+                                <option value="unknown">—</option>
+                                <option value="needs_help">Помощь</option>
                                 <option value="not_needed">Не нужна</option>
                             </select>
                         </div>
                         <div class="form-control">
                             <label class="label py-0"><span class="label-text text-xs opacity-60">Билеты</span></label>
-                            <select class="select select-bordered select-xs" onchange="updateChecklist('checklist_tickets', this.value)" id="cl_tickets">
-                                <option value="unknown" class="text-base-content/40">Не выяснено</option>
+                            <select class="select select-xs w-full" onchange="updateChecklist('checklist_tickets', this.value)" id="cl_tickets">
+                                <option value="unknown">—</option>
                                 <option value="bought">Куплены</option>
                                 <option value="not_bought">Не куплены</option>
                                 <option value="not_needed">Не нужны</option>
                             </select>
                         </div>
                     </div>
-                    <div id="checklistReadiness" class="mt-2 text-xs text-center opacity-60"></div>
+                    <div id="checklistReadiness" class="mt-2 text-xs text-center"></div>
                 </div>
             </div>
 
@@ -1916,12 +1916,33 @@ function renderChecklist() {
             }
         }
     });
+
+    // Фон карточки: красный → жёлтый → зелёный
+    const card = document.getElementById('checklistCard');
+    const title = document.getElementById('checklistTitle');
+    if (card) {
+        const ratio = filled / fields.length;
+        if (ratio === 0) {
+            card.style.backgroundColor = '#fef2f2'; // red-50
+            if (title) title.style.color = '#991b1b'; // red-800
+        } else if (ratio < 0.5) {
+            card.style.backgroundColor = '#fef3c7'; // amber-100
+            if (title) title.style.color = '#92400e'; // amber-800
+        } else if (ratio < 1) {
+            card.style.backgroundColor = '#ecfdf5'; // emerald-50
+            if (title) title.style.color = '#065f46'; // emerald-800
+        } else {
+            card.style.backgroundColor = '#d1fae5'; // emerald-100
+            if (title) title.style.color = '#065f46';
+        }
+    }
+
     // Индикатор готовности
     const readiness = document.getElementById('checklistReadiness');
     if (readiness) {
-        readiness.textContent = `Заполнено ${filled} из ${fields.length}`;
+        readiness.textContent = `${filled} из ${fields.length}`;
         readiness.className = filled === fields.length
-            ? 'mt-2 text-xs text-center text-success font-semibold'
+            ? 'mt-2 text-xs text-center font-semibold'
             : 'mt-2 text-xs text-center opacity-60';
     }
 }
