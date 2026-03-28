@@ -826,13 +826,17 @@ function exportXlsx() {
 }
 
 function populateBulkSelects() {
-    // Менеджеры
+    // Менеджеры — собираем из загруженных сделок (уникальные)
     const managerSelect = document.getElementById('bulkManager');
-    if (managerSelect && managers) {
-        managers.forEach(m => {
-            managerSelect.insertAdjacentHTML('beforeend',
-                `<option value="${m.id}">${e(CrmUtils.getGuestShortName(m))}</option>`
-            );
+    if (managerSelect) {
+        const seen = new Set();
+        deals.forEach(d => {
+            if (d.manager && !seen.has(d.manager.id)) {
+                seen.add(d.manager.id);
+                managerSelect.insertAdjacentHTML('beforeend',
+                    `<option value="${d.manager.id}">${e(CrmUtils.getGuestShortName(d.manager))}</option>`
+                );
+            }
         });
     }
     // Статусы
