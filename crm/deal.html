@@ -684,8 +684,7 @@ function renderHeader() {
     const statusName = t('crm_status_' + deal.status) || deal.status;
 
     document.getElementById('dealStatusBanner').style.backgroundColor = statusColor;
-    document.getElementById('dealStatusIcon').innerHTML = statusSvg;
-    document.getElementById('dealStatusName').textContent = statusName;
+    // statusIcon и statusName теперь в select баннера
 
     // Быстрые контакты
     const btns = [];
@@ -1194,8 +1193,7 @@ async function changeStatus(newStatus) {
     const statusSvg = CrmUtils.STATUS_SVG_ICONS[newStatus] || '';
     const statusName = t('crm_status_' + newStatus) || newStatus;
     document.getElementById('dealStatusBanner').style.backgroundColor = statusColor;
-    document.getElementById('dealStatusIcon').innerHTML = statusSvg;
-    document.getElementById('dealStatusName').textContent = statusName;
+    // statusIcon и statusName теперь в select баннера
 
     Layout.showNotification('Статус изменён', 'success');
 }

@@ -525,7 +525,7 @@ const CrmUtils = {
                 .from('crm_tasks')
                 .select('*', { count: 'exact', head: true })
                 .eq('assignee_id', userId)
-                .eq('is_completed', false);
+                .is('completed_at', null);
 
             if (!count || count <= 0) return;
 
