@@ -1107,20 +1107,33 @@ async function init() {
         // Заполняем поля из URL-параметров
         const form = document.getElementById('newBookingForm');
         if (form) {
-            const checkIn    = urlParams.get('check_in')       || '';
-            const checkOut   = urlParams.get('check_out')      || '';
-            const retreatId  = urlParams.get('retreat_id')     || '';
-            const cName      = urlParams.get('contact_name')   || '';
-            const cPhone     = urlParams.get('contact_phone')  || '';
-            const cEmail     = urlParams.get('contact_email')  || '';
+            const checkIn     = urlParams.get('check_in')       || '';
+            const checkOut    = urlParams.get('check_out')      || '';
+            const retreatId   = urlParams.get('retreat_id')     || '';
+            const cName       = urlParams.get('contact_name')   || '';
+            const cPhone      = urlParams.get('contact_phone')  || '';
+            const cEmail      = urlParams.get('contact_email')  || '';
+            const bedsCount   = parseInt(urlParams.get('beds_count') || '1') || 1;
+            const memberNames = urlParams.get('member_names')   || '';
 
             form.check_in.value      = checkIn;
             form.check_out.value     = checkOut;
             form.contact_name.value  = cName;
             form.contact_phone.value = cPhone;
             form.contact_email.value = cEmail;
-            form.beds_count.value    = 1;
+            form.beds_count.value    = bedsCount;
             form.crm_deal_id.value   = crmDealId;
+
+            // Показываем подсказку о составе группы
+            if (memberNames) {
+                const bedsInput = form.querySelector('[name="beds_count"]');
+                if (bedsInput) {
+                    const hint = document.createElement('div');
+                    hint.className = 'text-xs text-base-content/60 mt-1';
+                    hint.textContent = `Состав: ${cName}${memberNames ? ', ' + memberNames : ''}`;
+                    bedsInput.parentNode.appendChild(hint);
+                }
+            }
 
             // Устанавливаем ретрит
             if (retreatId) {
