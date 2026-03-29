@@ -788,7 +788,7 @@ function renderManagersLoad() {
         }
         byManager[key].total++;
         if (CrmUtils.isActive(deal)) byManager[key].active++;
-        if (deal.status === 'paid' || deal.status === 'ready' || deal.status === 'completed') {
+        if (deal.status === 'booked' || deal.status === 'checklist' || deal.status === 'ready' || deal.status === 'completed') {
             byManager[key].paid++;
             byManager[key].revenue += Number(deal.total_paid || 0);
         }
@@ -904,7 +904,7 @@ function renderSources() {
             bySource[source] = { count: 0, converted: 0 };
         }
         bySource[source].count++;
-        if (deal.status === 'completed' || deal.status === 'ready') {
+        if (['booked', 'checklist', 'ready', 'completed'].includes(deal.status)) {
             bySource[source].converted++;
         }
     });

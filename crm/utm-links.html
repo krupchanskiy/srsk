@@ -174,7 +174,7 @@ async function loadLinks() {
         const key = [d.utm_source, d.utm_medium, d.utm_campaign].filter(Boolean).join('|');
         if (!dealsBySource[key]) dealsBySource[key] = { total: 0, paid: 0 };
         dealsBySource[key].total++;
-        if (['paid', 'ready', 'completed'].includes(d.status)) dealsBySource[key].paid++;
+        if (['booked', 'checklist', 'ready', 'completed'].includes(d.status)) dealsBySource[key].paid++;
     });
 
     renderLinks();
