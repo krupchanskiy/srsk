@@ -1071,20 +1071,22 @@ function renderPaymentsTab() {
         ${payments.length === 0
             ? '<p class="text-base-content/50 text-center py-4">Нет оплат</p>'
             : `<table class="table">
-                <thead><tr><th>Дата</th><th>Тип</th><th class="text-right">Сумма</th><th class="text-right">В ₹</th><th>Принял</th><th></th></tr></thead>
+                <thead><tr><th>Дата</th><th>Тип</th><th>Способ</th><th class="text-right">Сумма</th><th class="text-right">В ₹</th><th>Принял</th><th>Заметка</th><th></th></tr></thead>
                 <tbody>
                     ${payments.map(p => `
                         <tr>
                             <td class="text-sm">${CrmUtils.formatDateTime(p.received_at)}</td>
                             <td><span class="badge badge-ghost badge-sm">${t('crm_payment_type_' + p.payment_type) || p.payment_type}</span></td>
+                            <td class="text-sm text-base-content/60">${t('crm_method_' + p.payment_method) || p.payment_method || '—'}</td>
                             <td class="text-right font-mono">${CrmUtils.formatMoney(p.amount, p.currency)}</td>
                             <td class="text-right font-mono font-bold">${CrmUtils.formatMoney(p.amount_inr)}</td>
                             <td class="text-sm">${p.received_by ? e(CrmUtils.getGuestShortName(p.received_by)) : '—'}</td>
+                            <td class="text-sm text-base-content/60 max-w-xs truncate">${p.notes ? e(p.notes) : '—'}</td>
                             <td><button class="btn btn-ghost btn-xs text-error" onclick="deletePayment('${p.id}')">${CrmUtils.UI_ICONS.trash}</button></td>
                         </tr>
                     `).join('')}
                 </tbody>
-                <tfoot><tr><td colspan="3"></td><td class="text-right font-mono font-bold text-lg">${CrmUtils.formatMoney(total)}</td><td colspan="2"></td></tr></tfoot>
+                <tfoot><tr><td colspan="4"></td><td class="text-right font-mono font-bold text-lg">${CrmUtils.formatMoney(total)}</td><td colspan="3"></td></tr></tfoot>
             </table>`
         }
     `;
@@ -1105,13 +1107,16 @@ function renderFinanceBlock() {
                 : '—';
             const typeLabel = t('crm_payment_type_' + p.payment_type) || p.payment_type || '';
             return `
-                <div class="flex items-center gap-1.5 text-xs py-0.5 group">
-                    <span class="text-base-content/50 w-14 shrink-0">${e(dateStr)}</span>
-                    <span class="text-base-content/60 flex-1 truncate">${e(typeLabel)}</span>
-                    <span class="font-mono">${CrmUtils.formatMoney(p.amount, p.currency)}</span>
-                    <span class="text-base-content/30">→</span>
-                    <span class="font-mono font-semibold">${CrmUtils.formatMoney(p.amount_inr)}</span>
-                    <button class="btn btn-ghost btn-xs text-error h-5 min-h-5 px-1 opacity-0 group-hover:opacity-100" onclick="deletePayment('${p.id}')">×</button>
+                <div class="group py-0.5">
+                    <div class="flex items-center gap-1.5 text-xs">
+                        <span class="text-base-content/50 w-14 shrink-0">${e(dateStr)}</span>
+                        <span class="text-base-content/60 flex-1 truncate">${e(typeLabel)}</span>
+                        <span class="font-mono">${CrmUtils.formatMoney(p.amount, p.currency)}</span>
+                        <span class="text-base-content/30">→</span>
+                        <span class="font-mono font-semibold">${CrmUtils.formatMoney(p.amount_inr)}</span>
+                        <button class="btn btn-ghost btn-xs text-error h-5 min-h-5 px-1 opacity-0 group-hover:opacity-100" onclick="deletePayment('${p.id}')">×</button>
+                    </div>
+                    ${p.notes ? `<div class="text-xs text-base-content/40 pl-14 truncate">${e(p.notes)}</div>` : ''}
                 </div>
             `;
         }).join('');
