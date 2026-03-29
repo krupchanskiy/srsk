@@ -889,6 +889,22 @@ function renderInfoTab() {
         </div>`;
     }
 
+    // Строка пола — select с авто-сохранением
+    function genderRow() {
+        const g = guest.gender;
+        const genderIcon = '<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-4 h-4"><path stroke-linecap="round" stroke-linejoin="round" d="M15.75 6a3.75 3.75 0 1 1-7.5 0 3.75 3.75 0 0 1 7.5 0ZM4.501 20.118a7.5 7.5 0 0 1 14.998 0A17.933 17.933 0 0 1 12 21.75c-2.676 0-5.216-.584-7.499-1.632Z" /></svg>';
+        const color = g === 'male' ? '#3b82f6' : g === 'female' ? '#ec4899' : '';
+        return `<div class="flex items-center gap-2 py-1.5 border-b border-base-200/50">
+            <span class="text-base-content/30">${genderIcon}</span>
+            <span class="text-xs text-base-content/40 w-16 shrink-0">Пол</span>
+            <select onchange="saveGender(this.value)" class="select select-xs select-ghost h-6 min-h-0 px-1 font-medium" style="color: ${color || 'inherit'}">
+                <option value="" ${!g ? 'selected' : ''}>Не указан</option>
+                <option value="male" ${g === 'male' ? 'selected' : ''} style="color:#3b82f6">Мужчина</option>
+                <option value="female" ${g === 'female' ? 'selected' : ''} style="color:#ec4899">Женщина</option>
+            </select>
+        </div>`;
+    }
+
     const location = [guest.city, guest.country].filter(Boolean).join(', ');
     const retreatDates = retreat ? `${CrmUtils.formatDate(retreat.start_date)} — ${CrmUtils.formatDate(retreat.end_date)}` : '—';
     const source = t('crm_source_' + deal.source) || deal.source || '—';
@@ -909,6 +925,7 @@ function renderInfoTab() {
                     <a href="../vaishnavas/profile.html?id=${guest.id}" class="text-xs link link-primary">Профиль →</a>
                 </div>
                 <div class="bg-base-200/30 rounded-lg px-3 py-1">
+                    ${genderRow()}
                     ${contactRow(phoneIcon, 'Телефон', guest.phone, guest.phone ? 'tel:' + guest.phone : null, 'phone')}
                     ${contactRow(emailIcon, 'Email', guest.email, guest.email ? 'mailto:' + guest.email : null, 'email')}
                     ${contactRow(tgIcon, 'Telegram', guest.telegram, guest.telegram ? 'https://t.me/' + guest.telegram.replace('@','') : null, 'telegram')}
@@ -1883,6 +1900,19 @@ function startEditContact(field, currentValue) {
     container.appendChild(input);
     input.focus();
     input.select();
+}
+
+async function saveGender(value) {
+    const { error } = await Layout.db.from('vaishnavas')
+        .update({ gender: value || null })
+        .eq('id', guest.id);
+    if (error) {
+        Layout.showNotification('Ошибка сохранения', 'error');
+    } else {
+        guest.gender = value || null;
+        Layout.showNotification('Пол сохранён', 'success');
+        renderTab(); // обновить цвет в select
+    }
 }
 
 async function saveContact(field, value) {
