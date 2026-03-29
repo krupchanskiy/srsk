@@ -158,7 +158,7 @@
         <form id="newDealForm" onsubmit="createDeal(event)">
             <div class="form-control mb-3">
                 <label class="label"><span class="label-text" data-i18n="crm_retreat_required">Ретрит *</span></label>
-                <select id="newDealRetreat" class="select select-bordered" required>
+                <select id="newDealRetreat" class="select select-bordered" required onchange="loadNewDealManagers()">
                     <option value="" data-i18n="crm_select_retreat">Выберите ретрит...</option>
                 </select>
             </div>
@@ -205,6 +205,13 @@
                     <input type="tel" id="newGuestPhone" class="input input-bordered input-sm" placeholder="Телефон" data-i18n-placeholder="crm_phone">
                     <input type="email" id="newGuestEmail" class="input input-bordered input-sm" placeholder="Email">
                 </div>
+            </div>
+
+            <div class="form-control mb-3">
+                <label class="label"><span class="label-text" data-i18n="crm_manager">Менеджер</span></label>
+                <select id="newDealManager" class="select select-bordered">
+                    <option value="">Не выбирать</option>
+                </select>
             </div>
 
             <div class="form-control mb-3">
@@ -601,9 +608,31 @@ function openDeal(id) {
     window.location.href = `deal.html?id=${id}`;
 }
 
+async function loadNewDealManagers() {
+    const retreatId = document.getElementById('newDealRetreat').value;
+    const select = document.getElementById('newDealManager');
+    select.innerHTML = '<option value="">Не выбирать</option>';
+    if (!retreatId) return;
+
+    const { data } = await Layout.db
+        .from('crm_retreat_managers')
+        .select('manager_id, vaishnavas!inner(id, spiritual_name, first_name, last_name)')
+        .eq('retreat_id', retreatId)
+        .eq('is_active', true);
+
+    (data || []).forEach(m => {
+        const v = m.vaishnavas;
+        const name = v.spiritual_name || `${v.first_name || ''} ${v.last_name || ''}`.trim();
+        select.insertAdjacentHTML('beforeend',
+            `<option value="${m.manager_id}">${e(name)}</option>`
+        );
+    });
+}
+
 function openNewDealModal() {
     document.getElementById('newDealForm').reset();
     document.getElementById('newGuestForm').classList.add('hidden');
+    document.getElementById('newDealManager').innerHTML = '<option value="">Не выбирать</option>';
     loadGuests();
     document.getElementById('newDealModal').showModal();
 }
@@ -682,20 +711,15 @@ async function createDeal(event) {
     }
 
     // Создаём сделку
+    const selectedManagerId = document.getElementById('newDealManager').value || null;
     const dealData = {
         retreat_id: retreatId,
         vaishnava_id: guestId,
         source: document.getElementById('newDealSource').value,
         notes: document.getElementById('newDealNotes').value.trim() || null,
-        status: 'lead'
+        status: 'lead',
+        manager_id: selectedManagerId || null,
     };
-
-    // Назначаем менеджера из очереди
-    const nextManager = await CrmUtils.getNextManager(retreatId);
-    if (nextManager) {
-        dealData.manager_id = nextManager.manager_id;
-        await CrmUtils.updateManagerLastAssigned(nextManager.manager_id);
-    }
 
     const { data: newDeal, error: dealError } = await Layout.db
         .from('crm_deals')
