@@ -1221,7 +1221,23 @@ function renderHistoryTab() {
             ? '<p class="text-base-content/50 text-center py-4">Нет записей</p>'
             : `<div class="space-y-3">
                 ${allItems.map(item => {
-                    if (item.itemType === 'comm') {
+                    if (item.itemType === 'comm' && item.type === 'placement') {
+                        const isBooked = item.summary?.startsWith('Номер забронирован');
+                        const color = isBooked ? 'text-success' : 'text-warning';
+                        const houseSvg = '<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-5 h-5"><path stroke-linecap="round" stroke-linejoin="round" d="m2.25 12 8.954-8.955c.44-.439 1.152-.439 1.591 0L21.75 12M4.5 9.75v10.125c0 .621.504 1.125 1.125 1.125H9.75v-4.875c0-.621.504-1.125 1.125-1.125h2.25c.621 0 1.125.504 1.125 1.125V21h4.125c.621 0 1.125-.504 1.125-1.125V9.75M8.25 21h8.25" /></svg>';
+                        return `
+                            <div class="flex gap-3 p-3 border-l-4 ${isBooked ? 'border-success/40' : 'border-warning/40'} bg-base-200/40 rounded-r-lg">
+                                <div class="w-8 h-8 flex items-center justify-center ${color}">${houseSvg}</div>
+                                <div class="flex-1">
+                                    <div class="font-medium text-sm ${color}">${e(item.summary)}</div>
+                                    <div class="text-xs text-base-content/50 mt-1">
+                                        ${CrmUtils.formatDateTime(item.created_at)}
+                                        ${item.created_by ? ` • ${e(CrmUtils.getGuestShortName(item.created_by))}` : ''}
+                                    </div>
+                                </div>
+                            </div>
+                        `;
+                    } else if (item.itemType === 'comm') {
                         const svgIcon = CrmUtils.COMM_SVG_ICONS[item.type] || CrmUtils.COMM_SVG_ICONS.note;
                         return `
                             <div class="flex gap-3 p-3 bg-base-200 rounded-lg">
@@ -2319,6 +2335,8 @@ window.addEventListener('message', async (event) => {
     deal.room_id    = event.data.room_id;
     Layout.showNotification('Номер успешно забронирован', 'success');
     await loadPlacement();
+    // Обновить историю если вкладка открыта
+    if (currentTab === 'history') { await loadHistory(); renderTab(); }
 });
 
 function openRoomBookingModal() {
@@ -2365,6 +2383,7 @@ async function cancelRoomBooking() {
 
         Layout.showNotification('Бронирование отменено', 'success');
         await loadPlacement();
+        if (currentTab === 'history') { await loadHistory(); renderTab(); }
     } catch (err) {
         Layout.handleError(err, 'Отмена брони');
     }
