@@ -823,7 +823,7 @@ async function saveNewBooking() {
 
     try {
         const bookingData = {
-            name: form.name.value.trim() || null,
+            name: form.contact_name?.value?.trim() || null,
             contact_name: form.contact_name.value.trim(),
             contact_phone: form.contact_phone.value.trim() || null,
             contact_email: form.contact_email.value.trim() || null,
