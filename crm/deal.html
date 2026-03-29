@@ -2348,6 +2348,12 @@ function openRoomBookingModal() {
         buildingIds = BUILDING_STAFF_IDS.join(',');
     }
 
+    // Количество мест: основной гость + участники группы
+    const bedsCount = 1 + dealMembers.length;
+
+    // Имена участников (для отображения в форме)
+    const memberNames = dealMembers.map(m => m.name).join(', ');
+
     const params = new URLSearchParams({
         crm_deal_id:   dealId,
         check_in:      retreat?.start_date || '',
@@ -2357,6 +2363,8 @@ function openRoomBookingModal() {
         contact_phone: guest?.phone || deal?.phone        || '',
         contact_email: guest?.email || deal?.email        || '',
         building_ids:  buildingIds,
+        beds_count:    bedsCount,
+        member_names:  memberNames,
     });
 
     const iframe = document.getElementById('roomBookingIframe');
