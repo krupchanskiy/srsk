@@ -620,13 +620,30 @@ async function loadNewDealManagers() {
         .eq('retreat_id', retreatId)
         .eq('is_active', true);
 
-    (data || []).forEach(m => {
-        const v = m.vaishnavas;
-        const name = v.spiritual_name || `${v.first_name || ''} ${v.last_name || ''}`.trim();
-        select.insertAdjacentHTML('beforeend',
-            `<option value="${m.manager_id}">${e(name)}</option>`
-        );
-    });
+    if (data && data.length > 0) {
+        // Есть назначенные менеджеры для этого ретрита
+        data.forEach(m => {
+            const v = m.vaishnavas;
+            const name = v.spiritual_name || `${v.first_name || ''} ${v.last_name || ''}`.trim();
+            select.insertAdjacentHTML('beforeend',
+                `<option value="${m.manager_id}">${e(name)}</option>`
+            );
+        });
+    } else {
+        // Фоллбэк: показываем всех вайшнавов с аккаунтом
+        const { data: allManagers } = await Layout.db
+            .from('vaishnavas')
+            .select('id, spiritual_name, first_name, last_name')
+            .not('user_id', 'is', null)
+            .order('spiritual_name');
+
+        (allManagers || []).forEach(v => {
+            const name = v.spiritual_name || `${v.first_name || ''} ${v.last_name || ''}`.trim();
+            select.insertAdjacentHTML('beforeend',
+                `<option value="${v.id}">${e(name)}</option>`
+            );
+        });
+    }
 }
 
 function openNewDealModal() {
