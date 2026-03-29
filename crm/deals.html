@@ -364,7 +364,32 @@ async function loadDeals() {
     }
 
     deals = data || [];
+    populateManagerFilter();
     applyFilters();
+}
+
+function populateManagerFilter() {
+    const select = document.getElementById('filterManager');
+    // Оставляем первые 3 фиксированные опции (Все / Мои / Не назначен)
+    while (select.options.length > 3) select.remove(3);
+
+    const seen = new Set();
+    const managers = [];
+    deals.forEach(d => {
+        if (d.manager && !seen.has(d.manager.id)) {
+            seen.add(d.manager.id);
+            managers.push(d.manager);
+        }
+    });
+    managers.sort((a, b) => {
+        const na = a.spiritual_name || `${a.first_name || ''} ${a.last_name || ''}`.trim();
+        const nb = b.spiritual_name || `${b.first_name || ''} ${b.last_name || ''}`.trim();
+        return na.localeCompare(nb, 'ru');
+    });
+    managers.forEach(v => {
+        const name = v.spiritual_name || `${v.first_name || ''} ${v.last_name || ''}`.trim();
+        select.insertAdjacentHTML('beforeend', `<option value="${v.id}">${e(name)}</option>`);
+    });
 }
 
 async function loadGuests() {
@@ -471,6 +496,7 @@ function applyFilters() {
         // Менеджер
         if (manager === 'my' && d.manager_id !== currentUserId) return false;
         if (manager === 'unassigned' && d.manager_id) return false;
+        if (manager && manager !== 'my' && manager !== 'unassigned' && d.manager_id !== manager) return false;
 
         // Поиск
         if (search) {
