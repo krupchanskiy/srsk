@@ -303,7 +303,7 @@ async function fetchAutoRates() {
                 if (Math.abs(newRate - (c.rate_to_inr || 0)) > 0.01) {
                     await Layout.db.from('crm_currencies')
                         .update({ rate_to_inr: newRate, updated_at: new Date().toISOString() })
-                        .eq('id', c.id);
+                        .eq('code', c.code);
                     updated++;
                 }
             }
