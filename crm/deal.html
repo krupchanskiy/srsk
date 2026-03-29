@@ -213,23 +213,27 @@
             <!-- Финансы -->
             <div class="card bg-base-100 shadow-sm">
                 <div class="card-body p-4">
-                    <h3 class="font-bold mb-3" data-i18n="crm_finances">Финансы</h3>
-                    <div class="grid grid-cols-2 gap-3">
-                        <div class="py-2 pl-4 pr-3 rounded-r-lg bg-slate-100 border-l-4 border-slate-400">
-                            <div class="text-xs text-base-content/60" data-i18n="crm_charged">Начислено</div>
-                            <div class="text-lg font-bold font-mono text-slate-700" id="financeCharged">₹ 0</div>
+                    <div class="flex justify-between items-center mb-3">
+                        <h3 class="font-bold" data-i18n="crm_finances">Финансы</h3>
+                        <button class="btn btn-xs btn-primary" onclick="openPaymentModal()">+ Платёж</button>
+                    </div>
+                    <!-- Список платежей -->
+                    <div id="financePaymentsList" class="space-y-1 mb-2">
+                        <p class="text-base-content/40 text-xs text-center py-2">Нет платежей</p>
+                    </div>
+                    <!-- Итого -->
+                    <div class="border-t border-base-200 pt-2 space-y-1">
+                        <div class="flex justify-between text-sm">
+                            <span class="text-base-content/60" data-i18n="crm_charged">Начислено</span>
+                            <span class="font-mono font-bold text-slate-700" id="financeCharged">—</span>
                         </div>
-                        <div class="py-2 pl-4 pr-3 rounded-r-lg bg-emerald-50 border-l-4 border-emerald-400">
-                            <div class="text-xs text-base-content/60" data-i18n="crm_paid">Оплачено</div>
-                            <div class="text-lg font-bold font-mono text-emerald-600" id="financePaid">₹ 0</div>
+                        <div class="flex justify-between text-sm">
+                            <span class="text-base-content/60" data-i18n="crm_paid">Оплачено (₹)</span>
+                            <span class="font-mono font-bold text-emerald-600" id="financePaid">—</span>
                         </div>
-                        <div class="py-2 pl-4 pr-3 rounded-r-lg border-l-4" id="financeBalanceCard">
-                            <div class="text-xs text-base-content/60" data-i18n="crm_balance">Баланс</div>
-                            <div class="text-lg font-bold font-mono" id="financeBalance">₹ 0</div>
-                        </div>
-                        <div class="py-2 pl-4 pr-3 rounded-r-lg bg-violet-50 border-l-4 border-violet-400">
-                            <div class="text-xs text-base-content/60" data-i18n="crm_deposit">Депозит</div>
-                            <div class="text-lg font-bold font-mono text-violet-600" id="financeDeposit">₹ 0</div>
+                        <div class="flex justify-between text-sm font-bold pt-1 border-t border-base-200">
+                            <span class="text-base-content/60" data-i18n="crm_balance">Баланс</span>
+                            <span class="font-mono" id="financeBalance">—</span>
                         </div>
                     </div>
                 </div>
@@ -323,10 +327,14 @@
     <div class="modal-box">
         <h3 class="font-bold text-lg mb-4" data-i18n="crm_add_payment">Добавить оплату</h3>
         <form onsubmit="savePayment(event)">
+            <div class="form-control mb-3">
+                <label class="label"><span class="label-text">Дата платежа</span></label>
+                <input type="date" id="paymentDate" class="input input-bordered" required>
+            </div>
             <div class="grid grid-cols-2 gap-3 mb-3">
                 <div class="form-control">
                     <label class="label"><span class="label-text" data-i18n="crm_amount">Сумма</span></label>
-                    <input type="number" id="paymentAmount" class="input input-bordered" required min="0.01" step="0.01">
+                    <input type="number" id="paymentAmount" class="input input-bordered" required min="0.01" step="0.01" oninput="updatePaymentRate()">
                 </div>
                 <div class="form-control">
                     <label class="label"><span class="label-text" data-i18n="crm_currency">Валюта</span></label>
@@ -654,6 +662,7 @@ async function loadPayments() {
         .eq('deal_id', dealId)
         .order('received_at', { ascending: false });
     payments = data || [];
+    renderFinanceBlock();
 }
 
 async function loadTasks() {
@@ -735,32 +744,7 @@ function renderSidebar() {
         managers.map(m => `<option value="${m.id}" ${m.id === deal.manager_id ? 'selected' : ''}>
             ${e(CrmUtils.getGuestName(m))}</option>`).join('');
 
-    // Финансы
-    document.getElementById('financeCharged').textContent = CrmUtils.formatMoney(deal.total_charged, deal.currency || 'INR');
-    document.getElementById('financePaid').textContent = CrmUtils.formatMoney(deal.total_paid, deal.currency || 'INR');
-    document.getElementById('financeDeposit').textContent = CrmUtils.formatMoney(deal.deposit_balance, deal.currency || 'INR');
-
-    // Баланс с динамической стилизацией
-    const balance = (deal.total_charged || 0) - (deal.total_paid || 0);
-    const balanceCard = document.getElementById('financeBalanceCard');
-    const balanceValue = document.getElementById('financeBalance');
-
-    if (balance > 0) {
-        // Должен (красный)
-        balanceCard.className = 'py-2 pl-4 pr-3 rounded-r-lg bg-rose-50 border-l-4 border-rose-400';
-        balanceValue.className = 'text-lg font-bold font-mono text-rose-600';
-        balanceValue.textContent = '−' + CrmUtils.formatMoney(balance, deal.currency || 'INR');
-    } else if (balance < 0) {
-        // Переплата (синий)
-        balanceCard.className = 'py-2 pl-4 pr-3 rounded-r-lg bg-sky-50 border-l-4 border-sky-400';
-        balanceValue.className = 'text-lg font-bold font-mono text-sky-600';
-        balanceValue.textContent = '+' + CrmUtils.formatMoney(Math.abs(balance), deal.currency || 'INR');
-    } else {
-        // Ноль (зелёный)
-        balanceCard.className = 'py-2 pl-4 pr-3 rounded-r-lg bg-emerald-50 border-l-4 border-emerald-400';
-        balanceValue.className = 'text-lg font-bold font-mono text-emerald-600';
-        balanceValue.textContent = CrmUtils.formatMoney(0, deal.currency || 'INR');
-    }
+    // Финансы — рендерятся отдельно через renderFinanceBlock() после загрузки платежей
 
     // Теги
     renderTags();
@@ -1104,6 +1088,60 @@ function renderPaymentsTab() {
             </table>`
         }
     `;
+}
+
+function renderFinanceBlock() {
+    const list = document.getElementById('financePaymentsList');
+    if (!list) return;
+
+    const totalInr = payments.reduce((sum, p) => sum + Number(p.amount_inr || 0), 0);
+
+    if (payments.length === 0) {
+        list.innerHTML = '<p class="text-base-content/40 text-xs text-center py-2">Нет платежей</p>';
+    } else {
+        list.innerHTML = payments.map(p => {
+            const dateStr = p.received_at
+                ? DateUtils.parseDate(p.received_at.slice(0, 10)).toLocaleDateString('ru-RU', { day: 'numeric', month: 'short' })
+                : '—';
+            const typeLabel = t('crm_payment_type_' + p.payment_type) || p.payment_type || '';
+            return `
+                <div class="flex items-center gap-1.5 text-xs py-0.5 group">
+                    <span class="text-base-content/50 w-14 shrink-0">${e(dateStr)}</span>
+                    <span class="text-base-content/60 flex-1 truncate">${e(typeLabel)}</span>
+                    <span class="font-mono">${CrmUtils.formatMoney(p.amount, p.currency)}</span>
+                    <span class="text-base-content/30">→</span>
+                    <span class="font-mono font-semibold">${CrmUtils.formatMoney(p.amount_inr)}</span>
+                    <button class="btn btn-ghost btn-xs text-error h-5 min-h-5 px-1 opacity-0 group-hover:opacity-100" onclick="deletePayment('${p.id}')">×</button>
+                </div>
+            `;
+        }).join('');
+    }
+
+    // Итого оплачено (в рупиях)
+    document.getElementById('financePaid').textContent = CrmUtils.formatMoney(totalInr);
+
+    // Начислено и баланс
+    const charged = deal ? (deal.total_charged || 0) : 0;
+    const dealCurrency = deal?.currency || 'INR';
+    document.getElementById('financeCharged').textContent = charged > 0 ? CrmUtils.formatMoney(charged, dealCurrency) : '—';
+
+    const balanceEl = document.getElementById('financeBalance');
+    if (charged > 0) {
+        const balance = charged - totalInr;
+        if (balance > 0) {
+            balanceEl.textContent = '−' + CrmUtils.formatMoney(balance);
+            balanceEl.className = 'font-mono text-rose-600';
+        } else if (balance < 0) {
+            balanceEl.textContent = '+' + CrmUtils.formatMoney(Math.abs(balance));
+            balanceEl.className = 'font-mono text-sky-600';
+        } else {
+            balanceEl.textContent = CrmUtils.formatMoney(0);
+            balanceEl.className = 'font-mono text-emerald-600';
+        }
+    } else {
+        balanceEl.textContent = '—';
+        balanceEl.className = 'font-mono text-base-content/40';
+    }
 }
 
 function renderTasksTab() {
@@ -1477,6 +1515,7 @@ async function deleteService(id) {
 
 // ==================== PAYMENTS ====================
 function openPaymentModal() {
+    document.getElementById('paymentDate').value = DateUtils.toISO(new Date());
     document.getElementById('paymentAmount').value = '';
     document.getElementById('paymentCurrency').value = 'INR';
     document.getElementById('paymentType').value = 'org_fee';
@@ -1502,6 +1541,7 @@ async function savePayment(event) {
     const rate = parseFloat(document.getElementById('paymentCurrency').selectedOptions[0]?.dataset.rate) || 1;
     const amount = parseFloat(document.getElementById('paymentAmount').value);
 
+    const paymentDate = document.getElementById('paymentDate').value;
     const data = {
         deal_id: dealId,
         amount: amount,
@@ -1511,7 +1551,8 @@ async function savePayment(event) {
         payment_type: document.getElementById('paymentType').value,
         payment_method: document.getElementById('paymentMethod').value,
         notes: document.getElementById('paymentNotes').value.trim() || null,
-        received_by: window.currentUser?.vaishnava_id || null
+        received_by: window.currentUser?.vaishnava_id || null,
+        received_at: paymentDate ? paymentDate + 'T12:00:00' : new Date().toISOString()
     };
 
     const { error } = await Layout.db.from('crm_payments').insert(data);
@@ -1519,7 +1560,7 @@ async function savePayment(event) {
 
     Layout.showNotification('Оплата добавлена', 'success');
     closePaymentModal();
-    await loadPayments();
+    await loadPayments(); // renderFinanceBlock() вызывается внутри
     counts.payments++;
     updateTabCounts();
     renderTab();
