@@ -47,6 +47,14 @@
 
     <main class="container mx-auto px-4 py-6 flex-1">
 
+        <!-- CRM back link (скрыт, показывается только при crm_deal_id) -->
+        <div id="crmBackBar" class="hidden mb-4">
+            <a id="crmBackLink" href="#" class="btn btn-ghost btn-sm gap-2">
+                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-4 h-4"><path stroke-linecap="round" stroke-linejoin="round" d="M10.5 19.5 3 12m0 0 7.5-7.5M3 12h18" /></svg>
+                Вернуться к сделке
+            </a>
+        </div>
+
         <!-- Page Header -->
         <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6">
             <div class="flex items-center gap-4">
@@ -164,6 +172,7 @@
             <!-- Step 1: Booking Data -->
             <div id="bookingStep1">
                 <form id="newBookingForm" class="space-y-4">
+                    <input type="hidden" name="crm_deal_id" id="crmDealIdField" value="">
                     <!-- Booking Name (optional) -->
                     <div>
                         <label class="label"><span class="label-text font-medium" data-i18n="booking_name">Название брони</span></label>
@@ -211,7 +220,7 @@
                         </div>
                     </div>
 
-                    <div class="grid grid-cols-2 gap-4">
+                    <div class="grid grid-cols-2 gap-4" id="buildingScopeRow">
                         <div>
                             <label class="label"><span class="label-text font-medium" data-i18n="booking_buildings">Где размещаем</span><span class="text-error ml-1">*</span></label>
                             <select name="building_scope" id="newBookingBuildingScope" class="select select-bordered w-full" required>
