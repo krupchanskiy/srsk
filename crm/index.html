@@ -83,6 +83,14 @@
         <h1 class="text-2xl font-bold" data-i18n="nav_crm_kanban">Канбан</h1>
 
         <div class="flex flex-wrap gap-3 items-center">
+            <!-- Поиск -->
+            <div class="relative">
+                <svg xmlns="http://www.w3.org/2000/svg" class="absolute left-2.5 top-1/2 -translate-y-1/2 w-4 h-4 text-base-content/40 pointer-events-none" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="m21 21-5.197-5.197m0 0A7.5 7.5 0 1 0 5.196 5.196a7.5 7.5 0 0 0 10.607 10.607Z" />
+                </svg>
+                <input id="filterSearch" type="text" placeholder="Имя или телефон..." class="input input-bordered input-sm pl-8 w-48" oninput="applyFilters()">
+            </div>
+
             <!-- Ретрит -->
             <select id="filterRetreat" class="select select-bordered select-sm" onchange="loadDeals()">
                 <option value="" data-i18n="crm_all_retreats">Все ретриты</option>
@@ -194,12 +202,25 @@ async function loadDeals() {
 function applyFilters() {
     const manager = document.getElementById('filterManager').value;
     const mode = document.getElementById('filterMode').value;
+    const search = document.getElementById('filterSearch').value.trim().toLowerCase();
     const currentUserId = window.currentUser?.vaishnava_id;
 
     filteredDeals = deals.filter(d => {
         if (manager === 'my' && d.manager_id !== currentUserId) return false;
         if (manager === 'unassigned' && d.manager_id) return false;
         if (mode && d.work_mode !== mode) return false;
+        if (search) {
+            const g = d.vaishnavas;
+            const haystack = [
+                g?.spiritual_name,
+                g?.first_name,
+                g?.last_name,
+                g?.phone,
+                d.phone,
+                d.guest_name,
+            ].filter(Boolean).join(' ').toLowerCase();
+            if (!haystack.includes(search)) return false;
+        }
         return true;
     });
 
