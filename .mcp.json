@@ -1,14 +1,12 @@
 {
   "mcpServers": {
-    "supabase": {
+    "supabase-local": {
       "command": "npx",
       "args": [
         "-y",
-        "@anthropic-ai/supabase-mcp-server@latest",
+        "@supabase/mcp-server-supabase@latest",
         "--access-token",
-        "sbp_95c844246099849b45e82ee3e395b9c334487cb8",
-        "--project-ref",
-        "mymrijdfqeevoaocbzfy"
+        "sbp_95c844246099849b45e82ee3e395b9c334487cb8"
       ]
     }
   }
