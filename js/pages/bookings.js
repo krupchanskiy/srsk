@@ -865,9 +865,8 @@ async function saveNewBooking() {
 
         if (residentsError) throw residentsError;
 
-        // Если открыто из CRM — линкуем бронь к сделке и возвращаемся
+        // Если открыто из CRM — линкуем бронь к сделке и закрываем iframe
         if (crmDealId) {
-            // Определяем room_id из первого выбранного места
             const firstBedKey = [...bookingSelectedBeds][0];
             const firstRoomId = firstBedKey ? firstBedKey.split('_')[0] : null;
 
@@ -875,10 +874,17 @@ async function saveNewBooking() {
                 .update({ booking_id: booking.id, room_id: firstRoomId })
                 .eq('id', crmDealId);
 
-            Layout.showNotification('Номер забронирован!', 'success');
-            setTimeout(() => {
+            // Если открыты в iframe — сообщаем родителю
+            if (window.parent !== window) {
+                window.parent.postMessage({
+                    type:       'crm_booking_saved',
+                    booking_id: booking.id,
+                    room_id:    firstRoomId,
+                }, '*');
+            } else {
+                // Открыты как отдельная страница — редирект
                 window.location.href = `../crm/deal.html?id=${crmDealId}`;
-            }, 800);
+            }
             return;
         }
 
@@ -1083,11 +1089,13 @@ async function init() {
     crmDealId = urlParams.get('crm_deal_id') || null;
 
     if (crmDealId) {
-        // Показываем кнопку «Вернуться к сделке»
-        const backBar = document.getElementById('crmBackBar');
-        const backLink = document.getElementById('crmBackLink');
-        if (backBar) backBar.classList.remove('hidden');
-        if (backLink) backLink.href = `../crm/deal.html?id=${crmDealId}`;
+        // Показываем кнопку «Вернуться к сделке» только если НЕ в iframe
+        if (window.parent === window) {
+            const backBar = document.getElementById('crmBackBar');
+            const backLink = document.getElementById('crmBackLink');
+            if (backBar) backBar.classList.remove('hidden');
+            if (backLink) backLink.href = `../crm/deal.html?id=${crmDealId}`;
+        }
 
         // Читаем building_ids для фильтрации плана
         const buildingIdsParam = urlParams.get('building_ids') || '';

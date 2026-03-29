@@ -496,6 +496,14 @@
     <form method="dialog" class="modal-backdrop"><button>close</button></form>
 </dialog>
 
+<!-- Модалка бронирования номера (iframe с планом этажей) -->
+<dialog id="roomBookingIframeModal" class="modal">
+    <div class="modal-box w-11/12 max-w-5xl h-[90vh] p-0 overflow-hidden flex flex-col">
+        <iframe id="roomBookingIframe" src="" class="w-full flex-1 border-0"></iframe>
+    </div>
+    <form method="dialog" class="modal-backdrop"><button>close</button></form>
+</dialog>
+
 <!-- Модалка выбора менеджера по расселению -->
 <dialog id="placementModal" class="modal">
     <div class="modal-box max-w-sm">
@@ -2292,9 +2300,19 @@ const BUILDING_STAFF_IDS   = [
     '6192fee7-677f-4d65-ad52-30217a92d908', // Вайрагья-ашрам
 ];
 
+// Слушаем сообщение от iframe после успешного бронирования
+window.addEventListener('message', async (event) => {
+    if (event.data?.type !== 'crm_booking_saved') return;
+    document.getElementById('roomBookingIframeModal').close();
+    document.getElementById('roomBookingIframe').src = '';
+    deal.booking_id = event.data.booking_id;
+    deal.room_id    = event.data.room_id;
+    Layout.showNotification('Номер успешно забронирован', 'success');
+    await loadPlacement();
+});
+
 function openRoomBookingModal() {
     const accom = deal.checklist_accommodation;
-    // Определяем building_ids для фильтра на плане
     let buildingIds = '';
     if (accom === 'guest_house') {
         buildingIds = BUILDING_GUEST_HOUSE;
@@ -2312,7 +2330,10 @@ function openRoomBookingModal() {
         contact_email: guest?.email || deal?.email        || '',
         building_ids:  buildingIds,
     });
-    window.location.href = `../placement/bookings.html?${params.toString()}`;
+
+    const iframe = document.getElementById('roomBookingIframe');
+    iframe.src = `../placement/bookings.html?${params.toString()}`;
+    document.getElementById('roomBookingIframeModal').showModal();
 }
 
 async function cancelRoomBooking() {
