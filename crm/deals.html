@@ -524,10 +524,7 @@ function renderTable() {
         return `
             <tr class="deal-row ${isOverdue ? 'overdue' : ''}" onclick="openDeal('${d.id}')">
                 <td onclick="event.stopPropagation()"><input type="checkbox" class="checkbox checkbox-xs deal-checkbox" data-id="${d.id}" onchange="updateBulkPanel()"></td>
-                <td
-                    ${isOverdue ? `<span title="Без контакта > 24ч" class="text-error">${CrmUtils.UI_ICONS.exclamationCircle}</span>` : ''}
-                    ${d.is_group_main ? `<span title="Главный в группе">${CrmUtils.UI_ICONS.user}</span>` : ''}
-                </td>
+                <td class="w-8">${isOverdue ? `<span title="Без контакта > 24ч" class="text-error">${CrmUtils.UI_ICONS.exclamationCircle}</span>` : ''}${d.is_group_main ? `<span title="Главный в группе">${CrmUtils.UI_ICONS.user}</span>` : ''}</td>
                 <td>
                     <div class="font-medium">${e(CrmUtils.getGuestName(guest))}</div>
                     <div class="text-xs text-base-content/50">${e(guest?.phone || guest?.email || '')}</div>
@@ -764,7 +761,7 @@ async function bulkChangeStatus() {
 async function bulkDelete() {
     const ids = getSelectedIds();
     const cancelledIds = ids.filter(id => {
-        const d = allDeals.find(dd => dd.id === id);
+        const d = deals.find(dd => dd.id === id);
         return d && d.status === 'cancelled';
     });
     if (cancelledIds.length === 0) {

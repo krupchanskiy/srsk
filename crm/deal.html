@@ -1129,7 +1129,7 @@ function renderFinanceBlock() {
     } else {
         list.innerHTML = payments.map(p => {
             const dateStr = p.received_at
-                ? DateUtils.parseDate(p.received_at.slice(0, 10)).toLocaleDateString('ru-RU', { day: 'numeric', month: 'short' })
+                ? new Date(p.received_at).toLocaleDateString('ru-RU', { day: 'numeric', month: 'short' })
                 : '—';
             const typeLabel = t('crm_payment_type_' + p.payment_type) || p.payment_type || '';
             return `
@@ -1766,7 +1766,7 @@ async function quickAddComm() {
     const data = {
         deal_id: dealId,
         type: quickCommType,
-        direction: 'outgoing',
+        direction: 'outbound',
         summary: text,
         created_by: window.currentUser?.vaishnava_id || null
     };
@@ -2034,7 +2034,7 @@ async function addNote() {
             deal_id: deal.id,
             type: 'note',
             summary: text,
-            created_by: window.currentUser?.id
+            created_by: window.currentUser?.vaishnava_id || null
         });
 
     if (error) {
@@ -2304,7 +2304,7 @@ async function createPlacementTask(assigneeId) {
         description: parts.join('\n') || null,
         priority,
         assignee_id: assigneeId,
-        created_by: window.currentUser?.id
+        created_by: window.currentUser?.vaishnava_id || null
     });
 
     if (error) {
