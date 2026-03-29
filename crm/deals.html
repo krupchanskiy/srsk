@@ -541,7 +541,7 @@ function renderTable() {
                 <td class="text-sm">${manager ? e(CrmUtils.getGuestShortName(manager)) : '<span class="text-base-content/30">—</span>'}</td>
                 <td class="text-center text-xs">${renderChecklistDots(d)}</td>
                 <td class="text-right font-mono text-sm">
-                    ${d.total_paid > 0 ? CrmUtils.formatMoney(d.total_paid, d.currency || 'INR') : '<span class="text-base-content/30">—</span>'}
+                    ${d.total_paid > 0 ? CrmUtils.formatMoney(d.total_paid) : '<span class="text-base-content/30">—</span>'}
                 </td>
                 <td class="text-sm text-base-content/50">${CrmUtils.formatDate(d.created_at)}</td>
             </tr>
