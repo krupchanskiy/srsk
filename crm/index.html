@@ -151,7 +151,7 @@ let filteredDeals = [];
 let sortableInstances = [];
 
 // Статусы для канбана
-const KANBAN_STATUSES = ['lead', 'contacted', 'paid', 'ready', 'completed', 'cancelled'];
+const KANBAN_STATUSES = ['lead', 'working', 'invoiced', 'booked', 'checklist', 'ready', 'completed', 'cancelled'];
 
 // ==================== DATA ====================
 async function loadRetreats() {
@@ -378,7 +378,7 @@ function initSortable() {
                     .from('crm_deals')
                     .update({
                         status: newStatus,
-                        first_contacted_at: deal?.first_contacted_at || (newStatus === 'contacted' ? new Date().toISOString() : null),
+                        first_contacted_at: deal?.first_contacted_at || (newStatus === 'working' ? new Date().toISOString() : null),
                         last_contacted_at: new Date().toISOString()
                     })
                     .eq('id', dealId);

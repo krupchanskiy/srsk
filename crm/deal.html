@@ -1283,7 +1283,7 @@ async function changeStatus(newStatus) {
         .from('crm_deals')
         .update({
             status: newStatus,
-            first_contacted_at: deal.first_contacted_at || (newStatus === 'contacted' ? new Date().toISOString() : null),
+            first_contacted_at: deal.first_contacted_at || (newStatus === 'working' ? new Date().toISOString() : null),
             last_contacted_at: new Date().toISOString()
         })
         .eq('id', dealId);
