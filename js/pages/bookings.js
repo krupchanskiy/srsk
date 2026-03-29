@@ -570,6 +570,23 @@ async function renderBookingPlan() {
     // Load occupancy for the booking dates
     const { data: bookingOccupancy } = await Layout.db.rpc('get_room_occupancy_with_bookings', { target_date: checkIn });
 
+    // Load gender data: кто именно занимает каждую кровать (по индексу)
+    const { data: resGender } = await Layout.db
+        .from('residents')
+        .select('room_id, vaishnavas(gender)')
+        .eq('status', 'confirmed')
+        .lte('check_in', checkIn)
+        .or(`check_out.is.null,check_out.gt.${checkIn}`)
+        .order('check_in')
+        .order('created_at');
+
+    // Строим карту: room_id → [gender_bed0, gender_bed1, ...]
+    const bedGenderMap = {};
+    (resGender || []).forEach(r => {
+        if (!bedGenderMap[r.room_id]) bedGenderMap[r.room_id] = [];
+        bedGenderMap[r.room_id].push(r.vaishnavas?.gender || null);
+    });
+
     // Get floor plans for selected building
     const buildingPlans = floorPlans.filter(p => p.building_id === bookingBuildingId).sort((a, b) => a.floor - b.floor);
     const buildingRooms = rooms.filter(r => r.building_id === bookingBuildingId);
@@ -590,11 +607,22 @@ async function renderBookingPlan() {
     `).join('');
 
     buildingPlans.forEach(plan => {
-        renderBookingPlanMarkers(plan.floor, buildingRooms, bookingOccupancy || []);
+        renderBookingPlanMarkers(plan.floor, buildingRooms, bookingOccupancy || [], bedGenderMap);
     });
 }
 
-function renderBookingPlanMarkers(floor, buildingRooms, bookingOccupancy) {
+// Цвет кровати с учётом пола жильца
+function getBedFill(isSelected, isOccupied, isBooked, bedGenderMap, roomId, bedIndex) {
+    if (isSelected) return statusColors.selected;
+    if (isOccupied) {
+        const g = (bedGenderMap[roomId] || [])[bedIndex];
+        return g === 'male' ? '#3b82f6' : g === 'female' ? '#ec4899' : statusColors.occupied;
+    }
+    if (isBooked) return statusColors.booked;
+    return statusColors.available;
+}
+
+function renderBookingPlanMarkers(floor, buildingRooms, bookingOccupancy, bedGenderMap = {}) {
     const svg = Layout.$(`#bookingPlanSvg_${floor}`);
     if (!svg) return;
 
@@ -636,16 +664,7 @@ function renderBookingPlanMarkers(floor, buildingRooms, bookingOccupancy) {
                 rect.setAttribute('y', y);
                 rect.setAttribute('width', halfW);
                 rect.setAttribute('height', h);
-
-                if (isSelected) {
-                    rect.setAttribute('fill', statusColors.selected);
-                } else if (isOccupied) {
-                    rect.setAttribute('fill', statusColors.occupied);
-                } else if (isBooked) {
-                    rect.setAttribute('fill', statusColors.booked);
-                } else {
-                    rect.setAttribute('fill', statusColors.available);
-                }
+                rect.setAttribute('fill', getBedFill(isSelected, isOccupied, isBooked, bedGenderMap, room.id, i));
 
                 if (isAvailable || isSelected) {
                     rect.style.cursor = 'pointer';
@@ -668,16 +687,7 @@ function renderBookingPlanMarkers(floor, buildingRooms, bookingOccupancy) {
                 rect.setAttribute('y', y);
                 rect.setAttribute('width', thirdW);
                 rect.setAttribute('height', h);
-
-                if (isSelected) {
-                    rect.setAttribute('fill', statusColors.selected);
-                } else if (isOccupied) {
-                    rect.setAttribute('fill', statusColors.occupied);
-                } else if (isBooked) {
-                    rect.setAttribute('fill', statusColors.booked);
-                } else {
-                    rect.setAttribute('fill', statusColors.available);
-                }
+                rect.setAttribute('fill', getBedFill(isSelected, isOccupied, isBooked, bedGenderMap, room.id, i));
 
                 if (isAvailable || isSelected) {
                     rect.style.cursor = 'pointer';
@@ -703,16 +713,7 @@ function renderBookingPlanMarkers(floor, buildingRooms, bookingOccupancy) {
                 rect.setAttribute('y', y + py * halfH);
                 rect.setAttribute('width', halfW);
                 rect.setAttribute('height', halfH);
-
-                if (isSelected) {
-                    rect.setAttribute('fill', statusColors.selected);
-                } else if (isOccupied) {
-                    rect.setAttribute('fill', statusColors.occupied);
-                } else if (isBooked) {
-                    rect.setAttribute('fill', statusColors.booked);
-                } else {
-                    rect.setAttribute('fill', statusColors.available);
-                }
+                rect.setAttribute('fill', getBedFill(isSelected, isOccupied, isBooked, bedGenderMap, room.id, i));
 
                 if (isAvailable || isSelected) {
                     rect.style.cursor = 'pointer';
@@ -733,16 +734,7 @@ function renderBookingPlanMarkers(floor, buildingRooms, bookingOccupancy) {
             rect.setAttribute('y', y);
             rect.setAttribute('width', w);
             rect.setAttribute('height', h);
-
-            if (isSelected) {
-                rect.setAttribute('fill', statusColors.selected);
-            } else if (isOccupied) {
-                rect.setAttribute('fill', statusColors.occupied);
-            } else if (isBooked) {
-                rect.setAttribute('fill', statusColors.booked);
-            } else {
-                rect.setAttribute('fill', statusColors.available);
-            }
+            rect.setAttribute('fill', getBedFill(isSelected, isOccupied, isBooked, bedGenderMap, room.id, 0));
 
             if (isAvailable || isSelected) {
                 rect.style.cursor = 'pointer';
