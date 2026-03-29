@@ -131,9 +131,10 @@
                             <label class="label"><span class="label-text opacity-50">Проживание</span></label>
                             <select class="select select-xs w-full" onchange="updateChecklist('checklist_accommodation', this.value)" id="cl_accommodation">
                                 <option value="unknown">—</option>
-                                <option value="in_ashram">В ШРСК</option>
-                                <option value="partner_hotel">Гостиница</option>
-                                <option value="self">Сам</option>
+                                <option value="guest_house">Гостевой дом ШРСК</option>
+                                <option value="staff_house">Служебные дома ШРСК</option>
+                                <option value="partner_hotel">Другие гостиницы</option>
+                                <option value="self">Самостоятельно</option>
                             </select>
                         </div>
                         <div class="form-control">
@@ -2088,6 +2089,7 @@ async function renderPlacement() {
 
     const accom = deal.checklist_accommodation;
     const canBook = window.hasPermission?.('create_booking');
+    const isShrsк = accom === 'guest_house' || accom === 'staff_house';
 
     // Если есть resident-запись с комнатой — показываем её
     if (placementData && placementData.rooms) {
@@ -2125,7 +2127,7 @@ async function renderPlacement() {
         return;
     }
 
-    if (accom === 'in_ashram') {
+    if (isShrsк) {
         // Проверяем есть ли уже задача на расселение
         const { data: existingTask } = await Layout.db
             .from('crm_tasks')
@@ -2135,6 +2137,9 @@ async function renderPlacement() {
             .is('completed_at', null)
             .maybeSingle();
 
+        const label = accom === 'guest_house' ? 'Гостевой дом — комната не назначена'
+                                               : 'Служебные дома — комната не назначена';
+
         const buttons = [];
         if (canBook) {
             buttons.push(`<button type="button" class="btn btn-xs btn-primary gap-1" onclick="openRoomBookingModal()">
@@ -2143,26 +2148,27 @@ async function renderPlacement() {
             </button>`);
         }
         if (!existingTask) {
-            buttons.push(`<button type="button" class="btn btn-xs btn-outline btn-primary" onclick="requestPlacement()">Запросить расселение</button>`);
+            buttons.push(`<button type="button" class="btn btn-xs btn-outline" onclick="requestPlacement()">Запросить расселение</button>`);
         }
 
         if (existingTask && !canBook) {
             block.innerHTML = `
-                <div class="text-sm text-warning mb-1">Проживание в ШРСК — комната не назначена</div>
+                <div class="text-sm text-warning mb-1">${label}</div>
                 <div class="text-xs opacity-50">Запрос на расселение отправлен</div>
             `;
         } else {
             block.innerHTML = `
-                <div class="text-sm opacity-60 mb-2">Проживание в ШРСК — комната не назначена</div>
+                <div class="text-sm opacity-60 mb-2">${label}</div>
                 <div class="flex flex-wrap gap-2">${buttons.join('')}</div>
                 ${existingTask ? '<div class="text-xs opacity-50 mt-1">Запрос на расселение уже отправлен</div>' : ''}
             `;
         }
-    } else if (accom === 'unknown') {
-        block.innerHTML = '<div class="text-sm text-gray-400">Не определено — уточните у гостя в чеклисте «Проживание»</div>';
+    } else if (accom === 'partner_hotel') {
+        block.innerHTML = `<div class="text-sm opacity-70">Другие гостиницы — уточните детали в заметках</div>`;
+    } else if (accom === 'self') {
+        block.innerHTML = `<div class="text-sm opacity-70">Самостоятельно</div>`;
     } else {
-        const labels = { partner_hotel: 'Партнёрская гостиница', self: 'Самостоятельно' };
-        block.innerHTML = `<div class="text-sm">${labels[accom] || accom}</div>`;
+        block.innerHTML = '<div class="text-sm text-gray-400">Не определено — уточните у гостя в чеклисте «Проживание»</div>';
     }
 }
 
@@ -2231,7 +2237,8 @@ async function createPlacementTask(assigneeId) {
     const retreatName = Layout.getName(retreat);
     const title = `Расселить ${guestName} на ${retreatName}`;
     const parts = [];
-    if (deal.checklist_accommodation === 'in_ashram') parts.push('Проживание: в ШРСК');
+    if (deal.checklist_accommodation === 'guest_house') parts.push('Проживание: Гостевой дом ШРСК');
+    else if (deal.checklist_accommodation === 'staff_house') parts.push('Проживание: Служебные дома ШРСК');
     if (deal.roommate_preference) parts.push(`Хочет жить рядом с: ${deal.roommate_preference}`);
     if (deal.special_needs) parts.push(`Особые потребности: ${deal.special_needs}`);
     if (dealMembers.length > 0) parts.push(`Состав группы: ${dealMembers.map(m => m.name).join(', ')}`);
@@ -2277,16 +2284,33 @@ async function createPlacementTask(assigneeId) {
 }
 
 // ==================== БРОНИРОВАНИЕ НОМЕРА ====================
+// ID зданий ШРСК (из БД)
+const BUILDING_GUEST_HOUSE = '5fd72663-f118-4be4-80d7-155fb6264af7';
+const BUILDING_STAFF_IDS   = [
+    'fac425f5-7a4f-41df-961c-912c1063cac1', // Коттедж 1
+    'efcddb15-f64f-4481-8570-f166b6823367', // Коттедж 2
+    '6192fee7-677f-4d65-ad52-30217a92d908', // Вайрагья-ашрам
+];
+
 function openRoomBookingModal() {
-    // Переходим на страницу бронирований с параметрами из сделки
+    const accom = deal.checklist_accommodation;
+    // Определяем building_ids для фильтра на плане
+    let buildingIds = '';
+    if (accom === 'guest_house') {
+        buildingIds = BUILDING_GUEST_HOUSE;
+    } else if (accom === 'staff_house') {
+        buildingIds = BUILDING_STAFF_IDS.join(',');
+    }
+
     const params = new URLSearchParams({
-        crm_deal_id: dealId,
-        check_in:    retreat?.start_date || '',
-        check_out:   retreat?.end_date   || '',
-        retreat_id:  retreat?.id         || '',
-        contact_name:  CrmUtils.getGuestName(guest)       || '',
-        contact_phone: guest?.phone || deal?.phone         || '',
-        contact_email: guest?.email || deal?.email         || '',
+        crm_deal_id:   dealId,
+        check_in:      retreat?.start_date || '',
+        check_out:     retreat?.end_date   || '',
+        retreat_id:    retreat?.id         || '',
+        contact_name:  CrmUtils.getGuestName(guest)      || '',
+        contact_phone: guest?.phone || deal?.phone        || '',
+        contact_email: guest?.email || deal?.email        || '',
+        building_ids:  buildingIds,
     });
     window.location.href = `../placement/bookings.html?${params.toString()}`;
 }
@@ -2450,8 +2474,8 @@ async function updateChecklist(field, value) {
     renderChecklist();
     // Обновить зависимые блоки
     if (field === 'checklist_accommodation') {
-        // Если сняли «В ШРСК» — удалить незавершённую задачу на расселение
-        if (value !== 'in_ashram') {
+        // Если убрали проживание в ШРСК — удалить незавершённую задачу на расселение
+        if (value !== 'guest_house' && value !== 'staff_house') {
             await Layout.db
                 .from('crm_tasks')
                 .delete()

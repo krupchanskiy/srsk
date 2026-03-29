@@ -18,6 +18,7 @@ let bookingBuildingId = null;
 
 // CRM mode: crm_deal_id из URL
 let crmDealId = null;
+let crmBuildingIds = []; // фильтр зданий при бронировании из CRM
 
 const statusColors = {
     available: '#10b981',
@@ -463,13 +464,18 @@ async function goToBookingStep2() {
     const checkIn = form.check_in.value;
     const checkOut = form.check_out.value;
 
-    // В CRM-режиме building_scope скрыт — используем все здания
+    // В CRM-режиме building_scope скрыт — используем crmBuildingIds или все здания
     const buildingScopeEl = document.getElementById('buildingScopeRow');
     const isCrmHidden = buildingScopeEl?.classList.contains('hidden');
     const buildingScope = isCrmHidden ? 'all' : form.building_scope.value;
 
-    // Определяем building_ids для проверки
-    const buildingIds = buildingScope === 'all' ? null : [buildingScope];
+    // Определяем building_ids для проверки доступности
+    let buildingIds = null;
+    if (isCrmHidden && crmBuildingIds.length > 0) {
+        buildingIds = crmBuildingIds;
+    } else if (!isCrmHidden && buildingScope !== 'all') {
+        buildingIds = [buildingScope];
+    }
 
     // Проверяем доступность на весь период
     const { data: problemDates, error } = await Layout.db.rpc('check_booking_availability', {
@@ -1083,6 +1089,10 @@ async function init() {
         if (backBar) backBar.classList.remove('hidden');
         if (backLink) backLink.href = `../crm/deal.html?id=${crmDealId}`;
 
+        // Читаем building_ids для фильтрации плана
+        const buildingIdsParam = urlParams.get('building_ids') || '';
+        crmBuildingIds = buildingIdsParam ? buildingIdsParam.split(',').filter(Boolean) : [];
+
         // Открываем форму бронирования сразу, предзаполненную данными из URL
         openNewBookingModal();
 
@@ -1110,13 +1120,23 @@ async function init() {
                 if (retreatSelect) retreatSelect.value = retreatId;
             }
 
-            // Скрываем выбор здания — для CRM бронирования в ШРСК
-            // Гостевой дом pre-selected по умолчанию (первый в списке)
+            // Скрываем выбор здания — конкретное место уже задано типом проживания в CRM
             const buildingScopeRow = document.getElementById('buildingScopeRow');
             if (buildingScopeRow) buildingScopeRow.classList.add('hidden');
-            // Устанавливаем required=false на скрытый select
             const bScope = document.getElementById('newBookingBuildingScope');
             if (bScope) bScope.removeAttribute('required');
+
+            // Фильтруем шаг 2: building selector — только нужные здания
+            if (crmBuildingIds.length > 0) {
+                const buildingSelect = document.getElementById('newBookingBuildingSelect');
+                if (buildingSelect) {
+                    const filtered = buildings.filter(b => crmBuildingIds.includes(b.id));
+                    buildingSelect.innerHTML = filtered.map(b =>
+                        `<option value="${b.id}">${Layout.getName(b)}</option>`
+                    ).join('');
+                    bookingBuildingId = filtered[0]?.id || bookingBuildingId;
+                }
+            }
         }
 
         Layout.hideLoader();
