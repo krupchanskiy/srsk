@@ -382,6 +382,22 @@
     <form method="dialog" class="modal-backdrop"><button>close</button></form>
 </dialog>
 
+<!-- Модалка деталей платежа -->
+<dialog id="paymentDetailsModal" class="modal">
+    <div class="modal-box max-w-sm">
+        <div class="flex justify-between items-start mb-4">
+            <h3 class="font-bold text-lg">Платёж</h3>
+            <form method="dialog"><button class="btn btn-sm btn-circle btn-ghost">✕</button></form>
+        </div>
+        <div id="paymentDetailsContent" class="space-y-3"></div>
+        <div class="modal-action mt-4">
+            <button class="btn btn-sm btn-error btn-outline" id="paymentDetailsDeleteBtn">Удалить платёж</button>
+            <form method="dialog"><button class="btn btn-sm">Закрыть</button></form>
+        </div>
+    </div>
+    <form method="dialog" class="modal-backdrop"><button>close</button></form>
+</dialog>
+
 <!-- Модалка добавления коммуникации -->
 <dialog id="addCommModal" class="modal">
     <div class="modal-box">
@@ -1107,14 +1123,14 @@ function renderFinanceBlock() {
                 : '—';
             const typeLabel = t('crm_payment_type_' + p.payment_type) || p.payment_type || '';
             return `
-                <div class="group py-0.5">
+                <div class="group py-0.5 cursor-pointer hover:bg-base-200 rounded px-1 -mx-1" onclick="showPaymentDetails('${p.id}')">
                     <div class="flex items-center gap-1.5 text-xs">
                         <span class="text-base-content/50 w-14 shrink-0">${e(dateStr)}</span>
                         <span class="text-base-content/60 flex-1 truncate">${e(typeLabel)}</span>
                         <span class="font-mono">${CrmUtils.formatMoney(p.amount, p.currency)}</span>
                         <span class="text-base-content/30">→</span>
                         <span class="font-mono font-semibold">${CrmUtils.formatMoney(p.amount_inr)}</span>
-                        <button class="btn btn-ghost btn-xs text-error h-5 min-h-5 px-1 opacity-0 group-hover:opacity-100" onclick="deletePayment('${p.id}')">×</button>
+                        <button class="btn btn-ghost btn-xs text-error h-5 min-h-5 px-1 opacity-0 group-hover:opacity-100" onclick="event.stopPropagation(); deletePayment('${p.id}')">×</button>
                     </div>
                     ${p.notes ? `<div class="text-xs text-base-content/40 pl-14 truncate">${e(p.notes)}</div>` : ''}
                 </div>
@@ -1531,6 +1547,44 @@ function openPaymentModal() {
 }
 
 function closePaymentModal() { document.getElementById('addPaymentModal').close(); }
+
+function showPaymentDetails(id) {
+    const p = payments.find(x => x.id === id);
+    if (!p) return;
+
+    const dateStr = p.received_at
+        ? DateUtils.parseDate(p.received_at.slice(0, 10)).toLocaleDateString('ru-RU', { day: 'numeric', month: 'long', year: 'numeric' })
+        : '—';
+    const typeLabel = t('crm_payment_type_' + p.payment_type) || p.payment_type || '—';
+    const methodLabel = t('crm_method_' + p.payment_method) || p.payment_method || '—';
+    const receivedBy = p.received_by ? e(CrmUtils.getGuestShortName(p.received_by)) : '—';
+
+    const rows = [
+        ['Дата',          e(dateStr)],
+        ['Сумма',         CrmUtils.formatMoney(p.amount, p.currency)],
+        ['Курс',          `1 ${p.currency} = ${p.rate_to_inr} ₹`],
+        ['В рупиях',      `<span class="font-bold">${CrmUtils.formatMoney(p.amount_inr)}</span>`],
+        ['Тип',           e(typeLabel)],
+        ['Способ',        e(methodLabel)],
+        ['Принял',        receivedBy],
+        ['Заметка',       p.notes ? `<span class="text-base-content/70">${e(p.notes)}</span>` : '<span class="text-base-content/30">—</span>'],
+    ];
+
+    document.getElementById('paymentDetailsContent').innerHTML = rows.map(([label, value]) => `
+        <div class="flex justify-between items-start gap-3">
+            <span class="text-sm text-base-content/50 shrink-0">${label}</span>
+            <span class="text-sm text-right">${value}</span>
+        </div>
+    `).join('');
+
+    const deleteBtn = document.getElementById('paymentDetailsDeleteBtn');
+    deleteBtn.onclick = () => {
+        document.getElementById('paymentDetailsModal').close();
+        deletePayment(id);
+    };
+
+    document.getElementById('paymentDetailsModal').showModal();
+}
 
 function updatePaymentRate() {
     const select = document.getElementById('paymentCurrency');
