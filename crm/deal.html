@@ -736,9 +736,9 @@ function renderSidebar() {
             ${e(CrmUtils.getGuestName(m))}</option>`).join('');
 
     // Финансы
-    document.getElementById('financeCharged').textContent = CrmUtils.formatMoney(deal.total_charged);
-    document.getElementById('financePaid').textContent = CrmUtils.formatMoney(deal.total_paid);
-    document.getElementById('financeDeposit').textContent = CrmUtils.formatMoney(deal.deposit_balance);
+    document.getElementById('financeCharged').textContent = CrmUtils.formatMoney(deal.total_charged, deal.currency || 'INR');
+    document.getElementById('financePaid').textContent = CrmUtils.formatMoney(deal.total_paid, deal.currency || 'INR');
+    document.getElementById('financeDeposit').textContent = CrmUtils.formatMoney(deal.deposit_balance, deal.currency || 'INR');
 
     // Баланс с динамической стилизацией
     const balance = (deal.total_charged || 0) - (deal.total_paid || 0);
@@ -749,17 +749,17 @@ function renderSidebar() {
         // Должен (красный)
         balanceCard.className = 'py-2 pl-4 pr-3 rounded-r-lg bg-rose-50 border-l-4 border-rose-400';
         balanceValue.className = 'text-lg font-bold font-mono text-rose-600';
-        balanceValue.textContent = '−' + CrmUtils.formatMoney(balance);
+        balanceValue.textContent = '−' + CrmUtils.formatMoney(balance, deal.currency || 'INR');
     } else if (balance < 0) {
         // Переплата (синий)
         balanceCard.className = 'py-2 pl-4 pr-3 rounded-r-lg bg-sky-50 border-l-4 border-sky-400';
         balanceValue.className = 'text-lg font-bold font-mono text-sky-600';
-        balanceValue.textContent = '+' + CrmUtils.formatMoney(Math.abs(balance));
+        balanceValue.textContent = '+' + CrmUtils.formatMoney(Math.abs(balance), deal.currency || 'INR');
     } else {
         // Ноль (зелёный)
         balanceCard.className = 'py-2 pl-4 pr-3 rounded-r-lg bg-emerald-50 border-l-4 border-emerald-400';
         balanceValue.className = 'text-lg font-bold font-mono text-emerald-600';
-        balanceValue.textContent = CrmUtils.formatMoney(0);
+        balanceValue.textContent = CrmUtils.formatMoney(0, deal.currency || 'INR');
     }
 
     // Теги

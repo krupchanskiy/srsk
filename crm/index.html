@@ -248,7 +248,7 @@ function renderKanban() {
         const isCancelled = status === 'cancelled';
 
         const totalPaid = deals.reduce((sum, d) => sum + (d.total_paid || 0), 0);
-        const sumText = totalPaid > 0 ? ` · ₹${CrmUtils.formatMoney ? CrmUtils.formatMoney(totalPaid, 'INR').replace('₹','').trim() : totalPaid.toLocaleString('ru-RU')}` : '';
+        const sumText = totalPaid > 0 ? ` · ${totalPaid.toLocaleString('ru-RU')}` : '';
 
         return `
             <div class="kanban-column ${isCancelled ? 'column-cancelled' : ''}" data-status="${status}">
@@ -321,7 +321,7 @@ function renderCard(deal) {
                     ${lastContactText ? `<span>${lastContactText}</span>` : ''}
                 </div>
                 <div class="flex items-center gap-1">
-                    ${deal.total_paid > 0 ? `<span class="text-xs font-mono text-success">${CrmUtils.formatMoney(deal.total_paid)}</span>` : ''}
+                    ${deal.total_paid > 0 ? `<span class="text-xs font-mono text-success">${CrmUtils.formatMoney(deal.total_paid, deal.currency || 'INR')}</span>` : ''}
                     ${deal.status !== 'completed' && deal.status !== 'cancelled' ? `<button class="btn btn-xs btn-ghost btn-circle opacity-0 group-hover:opacity-100" onclick="event.stopPropagation(); quickAdvance('${deal.id}', '${deal.status}')" title="Следующий статус">→</button>` : ''}
                 </div>
             </div>
