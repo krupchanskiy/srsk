@@ -2079,13 +2079,23 @@ async function loadPlacement() {
             .maybeSingle();
         placementData = data;
 
-        // Также грузим саму бронь для отображения деталей
-        const { data: bData } = await Layout.db
-            .from('bookings')
-            .select('id, check_in, check_out, beds_count, notes, status')
-            .eq('id', deal.booking_id)
-            .maybeSingle();
-        bookingData = bData;
+        if (placementData) {
+            // Resident есть — грузим бронь для отображения деталей
+            const { data: bData } = await Layout.db
+                .from('bookings')
+                .select('id, check_in, check_out, beds_count, notes, status')
+                .eq('id', deal.booking_id)
+                .maybeSingle();
+            bookingData = bData;
+        } else {
+            // Resident удалён (например через шахматку) — чистим висячую бронь
+            await Layout.db.from('bookings').delete().eq('id', deal.booking_id);
+            await Layout.db.from('crm_deals')
+                .update({ booking_id: null, room_id: null })
+                .eq('id', dealId);
+            deal.booking_id = null;
+            deal.room_id    = null;
+        }
     }
 
     renderPlacement();
