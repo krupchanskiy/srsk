@@ -390,7 +390,7 @@ async function quickAdvance(dealId, currentStatus) {
     await Layout.db.from('crm_deals').update({ status: nextStatus }).eq('id', dealId);
 
     // Обновляем локально
-    const deal = allDeals.find(d => d.id === dealId);
+    const deal = deals.find(d => d.id === dealId);
     if (deal) deal.status = nextStatus;
     renderKanban();
     Layout.showNotification(`${CrmUtils.getStatusLabel(currentStatus)} → ${CrmUtils.getStatusLabel(nextStatus)}`, 'success');
