@@ -555,7 +555,7 @@ async function loadDeal() {
     renderSidebar();
     renderChecklist();
     renderFlightData();
-    await Promise.all([loadCounts(), loadGuestHistory(), loadDealMembers(), loadPlacement(), loadRecentComms()]);
+    await Promise.all([loadCounts(), loadPayments(), loadGuestHistory(), loadDealMembers(), loadPlacement(), loadRecentComms()]);
     renderHeader(); // повторно — теперь с бейджем «повторный гость»
     loadTabData();
 }
