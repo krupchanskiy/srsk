@@ -16,6 +16,9 @@ let bookingStep = 1;
 let bookingSelectedBeds = new Set();
 let bookingBuildingId = null;
 
+// CRM mode: crm_deal_id из URL
+let crmDealId = null;
+
 const statusColors = {
     available: '#10b981',
     occupied: '#8b5cf6',
@@ -459,7 +462,11 @@ async function goToBookingStep2() {
     const bedsCount = parseInt(form.beds_count.value) || 1;
     const checkIn = form.check_in.value;
     const checkOut = form.check_out.value;
-    const buildingScope = form.building_scope.value;
+
+    // В CRM-режиме building_scope скрыт — используем все здания
+    const buildingScopeEl = document.getElementById('buildingScopeRow');
+    const isCrmHidden = buildingScopeEl?.classList.contains('hidden');
+    const buildingScope = isCrmHidden ? 'all' : form.building_scope.value;
 
     // Определяем building_ids для проверки
     const buildingIds = buildingScope === 'all' ? null : [buildingScope];
@@ -852,6 +859,23 @@ async function saveNewBooking() {
 
         if (residentsError) throw residentsError;
 
+        // Если открыто из CRM — линкуем бронь к сделке и возвращаемся
+        if (crmDealId) {
+            // Определяем room_id из первого выбранного места
+            const firstBedKey = [...bookingSelectedBeds][0];
+            const firstRoomId = firstBedKey ? firstBedKey.split('_')[0] : null;
+
+            await Layout.db.from('crm_deals')
+                .update({ booking_id: booking.id, room_id: firstRoomId })
+                .eq('id', crmDealId);
+
+            Layout.showNotification('Номер забронирован!', 'success');
+            setTimeout(() => {
+                window.location.href = `../crm/deal.html?id=${crmDealId}`;
+            }, 800);
+            return;
+        }
+
         closeNewBookingModal();
         await loadBookings();
         await loadAllBookings();
@@ -1047,6 +1071,58 @@ async function init() {
     Layout.showLoader();
     updateUI();
     await loadInitialData();
+
+    // Проверяем CRM-режим (переход с карточки сделки)
+    const urlParams = new URLSearchParams(window.location.search);
+    crmDealId = urlParams.get('crm_deal_id') || null;
+
+    if (crmDealId) {
+        // Показываем кнопку «Вернуться к сделке»
+        const backBar = document.getElementById('crmBackBar');
+        const backLink = document.getElementById('crmBackLink');
+        if (backBar) backBar.classList.remove('hidden');
+        if (backLink) backLink.href = `../crm/deal.html?id=${crmDealId}`;
+
+        // Открываем форму бронирования сразу, предзаполненную данными из URL
+        openNewBookingModal();
+
+        // Заполняем поля из URL-параметров
+        const form = document.getElementById('newBookingForm');
+        if (form) {
+            const checkIn    = urlParams.get('check_in')       || '';
+            const checkOut   = urlParams.get('check_out')      || '';
+            const retreatId  = urlParams.get('retreat_id')     || '';
+            const cName      = urlParams.get('contact_name')   || '';
+            const cPhone     = urlParams.get('contact_phone')  || '';
+            const cEmail     = urlParams.get('contact_email')  || '';
+
+            form.check_in.value      = checkIn;
+            form.check_out.value     = checkOut;
+            form.contact_name.value  = cName;
+            form.contact_phone.value = cPhone;
+            form.contact_email.value = cEmail;
+            form.beds_count.value    = 1;
+            form.crm_deal_id.value   = crmDealId;
+
+            // Устанавливаем ретрит
+            if (retreatId) {
+                const retreatSelect = document.getElementById('newBookingRetreatSelect');
+                if (retreatSelect) retreatSelect.value = retreatId;
+            }
+
+            // Скрываем выбор здания — для CRM бронирования в ШРСК
+            // Гостевой дом pre-selected по умолчанию (первый в списке)
+            const buildingScopeRow = document.getElementById('buildingScopeRow');
+            if (buildingScopeRow) buildingScopeRow.classList.add('hidden');
+            // Устанавливаем required=false на скрытый select
+            const bScope = document.getElementById('newBookingBuildingScope');
+            if (bScope) bScope.removeAttribute('required');
+        }
+
+        Layout.hideLoader();
+        return;
+    }
+
     await loadBookings();
     await loadAllBookings();
     Layout.hideLoader();

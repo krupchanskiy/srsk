@@ -507,48 +507,6 @@
     <form method="dialog" class="modal-backdrop"><button>close</button></form>
 </dialog>
 
-<!-- Модалка бронирования номера -->
-<dialog id="roomBookingModal" class="modal">
-    <div class="modal-box max-w-2xl">
-        <h3 class="font-bold text-lg mb-4">Забронировать номер</h3>
-
-        <!-- Даты и места -->
-        <div class="grid grid-cols-3 gap-3 mb-4">
-            <div class="form-control">
-                <label class="label"><span class="label-text text-xs">Заезд</span></label>
-                <input type="date" id="rbCheckIn" class="input input-bordered input-sm">
-            </div>
-            <div class="form-control">
-                <label class="label"><span class="label-text text-xs">Выезд</span></label>
-                <input type="date" id="rbCheckOut" class="input input-bordered input-sm">
-            </div>
-            <div class="form-control">
-                <label class="label"><span class="label-text text-xs">Мест</span></label>
-                <input type="number" id="rbBeds" class="input input-bordered input-sm" value="1" min="1" max="10">
-            </div>
-        </div>
-
-        <div class="form-control mb-4">
-            <label class="label"><span class="label-text text-xs">Заметка к брони</span></label>
-            <input type="text" id="rbNotes" class="input input-bordered input-sm" placeholder="Особые пожелания...">
-        </div>
-
-        <!-- Кнопка проверить доступность -->
-        <button type="button" class="btn btn-sm btn-outline mb-4 gap-2" onclick="loadAvailableRooms()">
-            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-4 h-4"><path stroke-linecap="round" stroke-linejoin="round" d="m21 21-5.197-5.197m0 0A7.5 7.5 0 1 0 5.196 15.803a7.5 7.5 0 0 0 10.607 0Z" /></svg>
-            Показать свободные номера
-        </button>
-
-        <!-- Список номеров -->
-        <div id="roomsList" class="space-y-3 max-h-80 overflow-y-auto"></div>
-
-        <div class="modal-action">
-            <button class="btn btn-sm" onclick="document.getElementById('roomBookingModal').close()">Отмена</button>
-            <button class="btn btn-sm btn-primary" id="rbSaveBtn" onclick="saveRoomBooking()" disabled>Забронировать</button>
-        </div>
-    </div>
-    <form method="dialog" class="modal-backdrop"><button>close</button></form>
-</dialog>
 
 <script src="../js/config.js"></script>
 <script src="../js/auth-check.js?v=4"></script>
@@ -2319,176 +2277,18 @@ async function createPlacementTask(assigneeId) {
 }
 
 // ==================== БРОНИРОВАНИЕ НОМЕРА ====================
-let selectedRoomId = null;
-let availableRoomsData = [];
-
 function openRoomBookingModal() {
-    selectedRoomId = null;
-    availableRoomsData = [];
-
-    // Заполняем даты из ретрита
-    const checkIn = retreat?.start_date || '';
-    const checkOut = retreat?.end_date || '';
-    document.getElementById('rbCheckIn').value = checkIn;
-    document.getElementById('rbCheckOut').value = checkOut;
-    document.getElementById('rbBeds').value = 1;
-    document.getElementById('rbNotes').value = '';
-    document.getElementById('roomsList').innerHTML = '<div class="text-sm opacity-60 text-center py-4">Нажмите «Показать свободные номера»</div>';
-    document.getElementById('rbSaveBtn').disabled = true;
-
-    document.getElementById('roomBookingModal').showModal();
-}
-
-async function loadAvailableRooms() {
-    const checkIn = document.getElementById('rbCheckIn').value;
-    const checkOut = document.getElementById('rbCheckOut').value;
-    if (!checkIn || !checkOut) {
-        Layout.showNotification('Укажите даты заезда и выезда', 'error');
-        return;
-    }
-
-    const listEl = document.getElementById('roomsList');
-    listEl.innerHTML = '<div class="text-center py-4"><span class="loading loading-spinner loading-sm"></span></div>';
-    selectedRoomId = null;
-    document.getElementById('rbSaveBtn').disabled = true;
-
-    try {
-        // Вызываем RPC для дня заезда
-        const { data: occ, error } = await Layout.db
-            .rpc('get_room_occupancy_with_bookings', { target_date: checkIn });
-
-        if (error) throw error;
-
-        // Фильтруем комнаты с доступными местами
-        availableRoomsData = (occ || []).filter(r => {
-            const free = r.capacity - r.occupied - r.booked;
-            return free > 0 && r.room_status !== 'inactive';
-        });
-
-        if (availableRoomsData.length === 0) {
-            listEl.innerHTML = '<div class="text-sm text-warning text-center py-4">Свободных номеров на эту дату не найдено</div>';
-            return;
-        }
-
-        // Группируем по зданию
-        const byBuilding = {};
-        availableRoomsData.forEach(r => {
-            const bid = r.building_id;
-            if (!byBuilding[bid]) byBuilding[bid] = { name: r.building_name_ru || r.building_name_en, rooms: [] };
-            byBuilding[bid].rooms.push(r);
-        });
-
-        let html = '';
-        for (const bid of Object.keys(byBuilding)) {
-            const b = byBuilding[bid];
-            html += `<div class="mb-2">
-                <div class="text-xs font-bold opacity-50 uppercase tracking-wide mb-1">${e(b.name)}</div>
-                <div class="space-y-1">`;
-            for (const room of b.rooms) {
-                const free = room.capacity - room.occupied - room.booked;
-                const typeName = room.room_type_name_ru || room.room_type_name_en || '';
-                html += `
-                <label class="flex items-center gap-3 p-2 rounded-lg cursor-pointer hover:bg-base-200 border border-transparent has-[:checked]:border-primary has-[:checked]:bg-primary/5 transition-colors">
-                    <input type="radio" name="roomSelect" class="radio radio-primary radio-sm"
-                           value="${room.room_id}" onchange="selectRoom('${room.room_id}')">
-                    <div class="flex-1">
-                        <div class="font-medium text-sm">Комната ${e(room.room_number)}</div>
-                        <div class="text-xs opacity-60">${typeName ? e(typeName) + ' · ' : ''}Этаж ${room.floor} · Вместимость ${room.capacity}</div>
-                    </div>
-                    <div class="text-right">
-                        <div class="badge badge-success badge-sm">свободно: ${free}</div>
-                    </div>
-                </label>`;
-            }
-            html += `</div></div>`;
-        }
-        listEl.innerHTML = html;
-    } catch (err) {
-        Layout.handleError(err, 'Загрузка номеров');
-        listEl.innerHTML = '<div class="text-sm text-error text-center py-4">Ошибка загрузки</div>';
-    }
-}
-
-function selectRoom(roomId) {
-    selectedRoomId = roomId;
-    document.getElementById('rbSaveBtn').disabled = false;
-}
-
-async function saveRoomBooking() {
-    if (!selectedRoomId) return;
-
-    const checkIn = document.getElementById('rbCheckIn').value;
-    const checkOut = document.getElementById('rbCheckOut').value;
-    const beds = parseInt(document.getElementById('rbBeds').value) || 1;
-    const notes = document.getElementById('rbNotes').value.trim();
-
-    const btn = document.getElementById('rbSaveBtn');
-    btn.disabled = true;
-    btn.innerHTML = '<span class="loading loading-spinner loading-xs"></span> Бронирование...';
-
-    try {
-        const guestName = CrmUtils.getGuestName(guest);
-        const guestPhone = guest?.phone || deal?.phone || null;
-        const guestEmail = guest?.email || deal?.email || null;
-
-        // 1. Создаём бронь
-        const { data: booking, error: bookingErr } = await Layout.db
-            .from('bookings')
-            .insert({
-                name: guestName,
-                contact_name: guestName,
-                contact_phone: guestPhone,
-                contact_email: guestEmail,
-                beds_count: beds,
-                check_in: checkIn,
-                check_out: checkOut,
-                retreat_id: retreat?.id || null,
-                status: 'confirmed',
-                notes: notes || null
-            })
-            .select('id')
-            .single();
-
-        if (bookingErr) throw bookingErr;
-
-        // 2. Создаём resident-заглушку
-        const { error: residentErr } = await Layout.db
-            .from('residents')
-            .insert({
-                room_id: selectedRoomId,
-                booking_id: booking.id,
-                retreat_id: retreat?.id || null,
-                vaishnava_id: guest?.id || null,
-                guest_name: guestName,
-                guest_phone: guestPhone,
-                guest_email: guestEmail,
-                check_in: checkIn,
-                check_out: checkOut,
-                status: 'booked',
-                has_housing: true
-            });
-
-        if (residentErr) throw residentErr;
-
-        // 3. Обновляем сделку
-        const { error: dealErr } = await Layout.db
-            .from('crm_deals')
-            .update({ booking_id: booking.id, room_id: selectedRoomId })
-            .eq('id', dealId);
-
-        if (dealErr) throw dealErr;
-
-        deal.booking_id = booking.id;
-        deal.room_id = selectedRoomId;
-
-        document.getElementById('roomBookingModal').close();
-        Layout.showNotification('Номер успешно забронирован', 'success');
-        await loadPlacement();
-    } catch (err) {
-        Layout.handleError(err, 'Бронирование номера');
-        btn.disabled = false;
-        btn.innerHTML = 'Забронировать';
-    }
+    // Переходим на страницу бронирований с параметрами из сделки
+    const params = new URLSearchParams({
+        crm_deal_id: dealId,
+        check_in:    retreat?.start_date || '',
+        check_out:   retreat?.end_date   || '',
+        retreat_id:  retreat?.id         || '',
+        contact_name:  CrmUtils.getGuestName(guest)       || '',
+        contact_phone: guest?.phone || deal?.phone         || '',
+        contact_email: guest?.email || deal?.email         || '',
+    });
+    window.location.href = `../placement/bookings.html?${params.toString()}`;
 }
 
 async function cancelRoomBooking() {
@@ -2496,12 +2296,10 @@ async function cancelRoomBooking() {
     if (!confirm('Отменить бронирование номера? Запись будет удалена.')) return;
 
     try {
-        // Удаляем resident-заглушку
+        // Удаляем resident-заглушки
         await Layout.db.from('residents').delete().eq('booking_id', deal.booking_id);
-
         // Удаляем бронь
         await Layout.db.from('bookings').delete().eq('id', deal.booking_id);
-
         // Очищаем поля в сделке
         await Layout.db.from('crm_deals')
             .update({ booking_id: null, room_id: null })
