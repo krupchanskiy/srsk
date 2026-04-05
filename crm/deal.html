@@ -129,12 +129,8 @@
                     <div class="grid grid-cols-2 gap-x-3 gap-y-0.5" id="checklistGrid">
                         <div class="form-control">
                             <label class="label"><span class="label-text opacity-50">Проживание</span></label>
-                            <select class="select select-xs w-full" onchange="updateChecklist('checklist_accommodation', this.value)" id="cl_accommodation">
+                            <select class="select select-xs w-full" onchange="handleAccommodationChange(this.value)" id="cl_accommodation">
                                 <option value="unknown">—</option>
-                                <option value="guest_house">Гостевой дом ШРСК</option>
-                                <option value="staff_house">Служебные дома ШРСК</option>
-                                <option value="partner_hotel">Другие гостиницы</option>
-                                <option value="self">Самостоятельно</option>
                             </select>
                         </div>
                         <div class="form-control">
@@ -545,6 +541,7 @@ let dealTags = [];
 let managers = [];
 let currencies = [];
 let templates = [];
+let partnerBuildings = [];
 let guestHistory = [];
 let currentTab = 'info';
 let counts = { services: 0, payments: 0, tasks: 0 };
@@ -638,7 +635,7 @@ async function loadReferenceData() {
 
     const managerUserIds = [...new Set((userRolesRes.data || []).map(r => r.user_id))];
 
-    const [servicesRes, tagsRes, managersRes, currenciesRes, templatesRes, dealTagsRes] = await Promise.all([
+    const [servicesRes, tagsRes, managersRes, currenciesRes, templatesRes, dealTagsRes, buildingsRes] = await Promise.all([
         Layout.db.from('crm_services').select('*').eq('is_active', true).order('sort_order'),
         Layout.db.from('crm_tags').select('*').order('sort_order'),
         // Загружаем менеджеров напрямую по user_id (не все team members, а именно с CRM-ролями)
@@ -650,7 +647,13 @@ async function loadReferenceData() {
             : Promise.resolve({ data: [] }),
         Layout.db.from('crm_currencies').select('*').order('sort_order'),
         Layout.db.from('crm_message_templates').select('*').order('sort_order'),
-        Layout.db.from('crm_deal_tags').select('tag_id').eq('deal_id', dealId)
+        Layout.db.from('crm_deal_tags').select('tag_id').eq('deal_id', dealId),
+        // Временные здания (внешние гостиницы)
+        Layout.db.from('buildings')
+            .select('id, name_ru, name_en, name_hi')
+            .eq('is_temporary', true)
+            .eq('is_active', true)
+            .order('sort_order')
     ]);
 
     services = servicesRes.data || [];
@@ -658,10 +661,12 @@ async function loadReferenceData() {
     currencies = currenciesRes.data || [];
     templates = templatesRes.data || [];
     dealTags = (dealTagsRes.data || []).map(dt => dt.tag_id);
+    partnerBuildings = buildingsRes.data || [];
 
     managers = managersRes.data || [];
 
     populateSelects();
+    populateAccommodationSelect();
 }
 
 async function loadTabData() {
@@ -2238,7 +2243,9 @@ async function renderPlacement() {
             `;
         }
     } else if (accom === 'partner_hotel') {
-        block.innerHTML = `<div class="text-sm opacity-70">Другие гостиницы — уточните детали в заметках</div>`;
+        const building = partnerBuildings.find(b => b.id === deal.checklist_accommodation_building_id);
+        const name = building ? Layout.getName(building) : 'Другие гостиницы';
+        block.innerHTML = `<div class="text-sm opacity-70">${e(name)}</div>`;
     } else if (accom === 'self') {
         block.innerHTML = `<div class="text-sm opacity-70">Самостоятельно</div>`;
     } else {
@@ -2508,6 +2515,46 @@ async function saveDealField(field, value) {
 }
 
 // ==================== ЧЕКЛИСТ ГОСТЯ ====================
+function populateAccommodationSelect() {
+    const sel = document.getElementById('cl_accommodation');
+    if (!sel) return;
+    sel.innerHTML = `
+        <option value="unknown">—</option>
+        <option value="guest_house">Гостевой дом ШРСК</option>
+        <option value="staff_house">Служебные дома ШРСК</option>
+        ${partnerBuildings.length ? '<optgroup label="Другие гостиницы">' +
+            partnerBuildings.map(b => `<option value="partner_hotel:${b.id}">${e(Layout.getName(b))}</option>`).join('') +
+            '</optgroup>' : '<option value="partner_hotel">Другие гостиницы</option>'}
+        <option value="self">Самостоятельно</option>
+    `;
+}
+
+async function handleAccommodationChange(value) {
+    if (value.startsWith('partner_hotel:')) {
+        const buildingId = value.split(':')[1];
+        await Layout.db.from('crm_deals').update({
+            checklist_accommodation: 'partner_hotel',
+            checklist_accommodation_building_id: buildingId
+        }).eq('id', dealId);
+        deal.checklist_accommodation = 'partner_hotel';
+        deal.checklist_accommodation_building_id = buildingId;
+    } else {
+        await Layout.db.from('crm_deals').update({
+            checklist_accommodation: value,
+            checklist_accommodation_building_id: null
+        }).eq('id', dealId);
+        deal.checklist_accommodation = value;
+        deal.checklist_accommodation_building_id = null;
+    }
+    // Если убрали проживание в ШРСК — удалить незавершённую задачу на расселение
+    if (value !== 'guest_house' && value !== 'staff_house' && !value.startsWith('partner_hotel:')) {
+        await Layout.db.from('crm_tasks').delete()
+            .eq('deal_id', dealId).like('title', 'Расселить%').is('completed_at', null);
+    }
+    renderChecklist();
+    renderPlacement();
+}
+
 function renderChecklist() {
     if (!deal) return;
     const fields = ['accommodation', 'meals', 'visa', 'tickets'];
@@ -2515,7 +2562,11 @@ function renderChecklist() {
     fields.forEach(f => {
         const el = document.getElementById('cl_' + f);
         if (el) {
-            const val = deal['checklist_' + f] || 'unknown';
+            let val = deal['checklist_' + f] || 'unknown';
+            // Для проживания: восстанавливаем составное значение partner_hotel:<uuid>
+            if (f === 'accommodation' && val === 'partner_hotel' && deal.checklist_accommodation_building_id) {
+                val = 'partner_hotel:' + deal.checklist_accommodation_building_id;
+            }
             el.value = val;
             if (val !== 'unknown') filled++;
 
