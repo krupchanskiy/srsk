@@ -622,18 +622,32 @@ function updateTabCounts() {
 }
 
 async function loadReferenceData() {
-    const [servicesRes, tagsRes, managersRes, crmRolesRes, currenciesRes, templatesRes, dealTagsRes] = await Promise.all([
+    // Получаем role_id для CRM-ролей (sales_manager, sales_head)
+    const rolesRes = await Layout.db.from('roles')
+        .select('id')
+        .in('code', ['sales_manager', 'sales_head']);
+    const roleIds = (rolesRes.data || []).map(r => r.id);
+
+    // Получаем user_id с этими ролями
+    const userRolesRes = roleIds.length > 0
+        ? await Layout.db.from('user_roles')
+            .select('user_id')
+            .in('role_id', roleIds)
+            .eq('is_active', true)
+        : { data: [] };
+
+    const managerUserIds = [...new Set((userRolesRes.data || []).map(r => r.user_id))];
+
+    const [servicesRes, tagsRes, managersRes, currenciesRes, templatesRes, dealTagsRes] = await Promise.all([
         Layout.db.from('crm_services').select('*').eq('is_active', true).order('sort_order'),
         Layout.db.from('crm_tags').select('*').order('sort_order'),
-        Layout.db.from('vaishnavas')
-            .select('id, spiritual_name, first_name, last_name, is_superuser, user_id')
-            .eq('is_team_member', true)
-            .eq('is_deleted', false),
-        // Получаем user_id тех, у кого есть CRM роли
-        Layout.db.from('user_roles')
-            .select('user_id, roles!inner(code)')
-            .eq('is_active', true)
-            .like('roles.code', 'crm_%'),
+        // Загружаем менеджеров напрямую по user_id (не все team members, а именно с CRM-ролями)
+        managerUserIds.length > 0
+            ? Layout.db.from('vaishnavas')
+                .select('id, spiritual_name, first_name, last_name, user_id')
+                .in('user_id', managerUserIds)
+                .eq('is_deleted', false)
+            : Promise.resolve({ data: [] }),
         Layout.db.from('crm_currencies').select('*').order('sort_order'),
         Layout.db.from('crm_message_templates').select('*').order('sort_order'),
         Layout.db.from('crm_deal_tags').select('tag_id').eq('deal_id', dealId)
@@ -645,11 +659,7 @@ async function loadReferenceData() {
     templates = templatesRes.data || [];
     dealTags = (dealTagsRes.data || []).map(dt => dt.tag_id);
 
-    // Фильтруем менеджеров: только суперпользователи или с CRM ролями
-    const crmUserIds = new Set((crmRolesRes.data || []).map(r => r.user_id));
-    managers = (managersRes.data || []).filter(m =>
-        m.is_superuser || crmUserIds.has(m.user_id)
-    );
+    managers = managersRes.data || [];
 
     populateSelects();
 }
