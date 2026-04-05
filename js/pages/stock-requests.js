@@ -577,6 +577,20 @@ function addSelectedDishes() {
     // Расчёт ингредиентов
     const { ingredientTotals } = calculateIngredients(virtualMeals, menuDishesEatingCounts);
 
+    // Фильтр: исключить специи и воду
+    const excludeSpicesWater = Layout.$('#menuDishesExcludeSpicesWater')?.checked;
+    if (excludeSpicesWater) {
+        const WATER_ID = '43768148-c6a2-4da1-bd20-cbeaa8d26835';
+        Object.keys(ingredientTotals).forEach(productId => {
+            const product = products.find(p => p.id === productId);
+            if (!product) return;
+            const slug = product.product_categories?.slug;
+            if (slug === 'spices' || productId === WATER_ID) {
+                delete ingredientTotals[productId];
+            }
+        });
+    }
+
     // Мёрж в requestItems
     mergeIngredientsIntoItems(ingredientTotals);
 

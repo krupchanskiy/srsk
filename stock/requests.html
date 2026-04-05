@@ -279,6 +279,12 @@
                 <button class="btn btn-sm btn-primary" onclick="loadMenuDishes()" data-i18n="load">Загрузить</button>
             </div>
 
+            <!-- Фильтр -->
+            <label class="flex items-center gap-2 mb-3 cursor-pointer">
+                <input type="checkbox" id="menuDishesExcludeSpicesWater" class="checkbox checkbox-sm checkbox-warning" checked />
+                <span class="text-sm">Без специй и воды</span>
+            </label>
+
             <!-- Список дней с блюдами -->
             <div id="menuDishesList" class="space-y-3 max-h-96 overflow-y-auto">
                 <div class="text-center py-8 opacity-50" data-i18n="select_period_and_load">Выберите период и нажмите «Загрузить»</div>
