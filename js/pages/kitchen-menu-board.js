@@ -268,7 +268,7 @@ function renderBoard() {
         const isWeekend = dow === 0 || dow === 6;
         const cls = isToday ? 'day-today-header' : '';
         const color = isWeekend ? 'color: #ef4444;' : '';
-        headHtml += `<th class="${cls}" style="min-width: ${COL_WIDTH}px; width: ${COL_WIDTH}px; ${color}">${d.getDate()} ${dayNames[dow]}</th>`;
+        headHtml += `<th class="${cls}" style="min-width: ${COL_WIDTH}px; width: ${COL_WIDTH}px; ${color} cursor: pointer;" onclick="window.location='/kitchen/menu.html#day/${dateStr}'">${d.getDate()} ${dayNames[dow]}</th>`;
     }
     headHtml += '</tr></thead>';
 
