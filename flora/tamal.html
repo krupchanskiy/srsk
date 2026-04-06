@@ -1,0 +1,1176 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Тамала — Энциклопедия растений Враджа</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;0,600;0,700;1,400;1,600&family=Inter:wght@300;400;500;600&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --color-dark-green: #1a3a2a;
+            --color-deep-green: #2d5a3f;
+            --color-green: #3d7a56;
+            --color-light-green: #e8f0eb;
+            --color-gold: #c8982c;
+            --color-light-gold: #f5e6c4;
+            --color-warm-cream: #faf6ef;
+            --color-cream: #f9f5ed;
+            --color-text: #2c2c2c;
+            --color-text-muted: #6b6b6b;
+            --color-border: #e0d8cc;
+            --color-quote-bg: #fdfbf7;
+            --font-heading: 'Cormorant Garamond', Georgia, serif;
+            --font-body: 'Inter', -apple-system, sans-serif;
+            --max-width: 820px;
+            --sidebar-width: 260px;
+        }
+
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+
+        html { scroll-behavior: smooth; scroll-padding-top: 80px; }
+
+        body {
+            font-family: var(--font-body);
+            font-size: 16px;
+            line-height: 1.75;
+            color: var(--color-text);
+            background: var(--color-warm-cream);
+        }
+
+        /* ═══════════════ PAGE HEADER ═══════════════ */
+        .page-header {
+            background: var(--color-dark-green);
+        }
+        .page-header__inner {
+            max-width: calc(var(--max-width) + var(--sidebar-width) + 3rem);
+            margin: 0 auto;
+            padding: 1.2rem 1.5rem;
+            display: grid;
+            grid-template-columns: 1fr;
+            align-items: baseline;
+        }
+        .page-header__content {
+            display: flex;
+            align-items: baseline;
+            gap: 1rem;
+            flex-wrap: wrap;
+        }
+        @media (min-width: 1100px) {
+            .page-header__inner {
+                grid-template-columns: var(--sidebar-width) 1fr;
+                gap: 2.5rem;
+            }
+            .page-header__content {
+                grid-column: 2;
+            }
+        }
+        .page-header__title {
+            font-family: var(--font-heading);
+            font-size: 2rem;
+            font-weight: 700;
+            color: #fff;
+            line-height: 1;
+        }
+        .page-header__latin {
+            font-family: var(--font-heading);
+            font-size: 1.1rem;
+            font-style: italic;
+            color: var(--color-light-gold);
+            opacity: 0.85;
+        }
+        .page-header__badge {
+            margin-left: auto;
+            font-size: 0.68rem;
+            font-weight: 500;
+            color: rgba(255,255,255,0.5);
+            letter-spacing: 1.5px;
+            text-transform: uppercase;
+        }
+
+        /* ═══════════════ LAYOUT ═══════════════ */
+        .page-wrapper {
+            display: grid;
+            grid-template-columns: 1fr;
+            max-width: calc(var(--max-width) + var(--sidebar-width) + 3rem);
+            margin: 0 auto;
+            padding: 0 1.5rem;
+        }
+
+        @media (min-width: 1100px) {
+            .page-wrapper {
+                grid-template-columns: var(--sidebar-width) 1fr;
+                gap: 2.5rem;
+            }
+        }
+
+        /* ═══════════════ SIDEBAR NAV ═══════════════ */
+        .sidebar {
+            display: none;
+        }
+        @media (min-width: 1100px) {
+            .sidebar {
+                display: block;
+                padding-top: 3rem;
+            }
+            .sidebar__inner {
+                position: sticky;
+                top: 2rem;
+            }
+        }
+        .sidebar__label {
+            font-family: var(--font-heading);
+            font-size: 0.8rem;
+            font-weight: 600;
+            letter-spacing: 2px;
+            text-transform: uppercase;
+            color: var(--color-text-muted);
+            margin-bottom: 1rem;
+        }
+        .sidebar__nav a {
+            display: block;
+            padding: 0.4rem 0 0.4rem 1rem;
+            font-size: 0.85rem;
+            font-weight: 400;
+            color: var(--color-text-muted);
+            text-decoration: none;
+            border-left: 2px solid var(--color-border);
+            transition: all 0.2s;
+        }
+        .sidebar__nav a:hover,
+        .sidebar__nav a.active {
+            color: var(--color-dark-green);
+            border-left-color: var(--color-gold);
+            font-weight: 500;
+        }
+
+        /* ═══════════════ MAIN CONTENT ═══════════════ */
+        .content {
+            max-width: var(--max-width);
+            padding: 2rem 0 4rem;
+        }
+
+        /* ═══════════════ INTRO GRID ═══════════════ */
+        .intro-grid {
+            display: grid;
+            grid-template-columns: 1fr 260px;
+            gap: 1.5rem;
+            align-items: start;
+        }
+        @media (max-width: 768px) {
+            .intro-grid {
+                grid-template-columns: 1fr;
+            }
+            .intro-grid .infobox { order: -1; }
+        }
+
+        /* ═══════════════ INFOBOX ═══════════════ */
+        .infobox {
+            width: 100%;
+            background: #fff;
+            border: 1px solid var(--color-border);
+            border-radius: 8px;
+            overflow: hidden;
+            font-size: 0.88rem;
+        }
+        .infobox__header {
+            background: var(--color-dark-green);
+            color: #fff;
+            padding: 0.8rem 1rem;
+            font-family: var(--font-heading);
+            font-size: 1.3rem;
+            font-weight: 600;
+            text-align: center;
+        }
+        .infobox__img {
+            width: 100%;
+            height: 200px;
+            object-fit: cover;
+        }
+        .infobox__caption {
+            padding: 0.4rem 0.8rem;
+            font-size: 0.75rem;
+            color: var(--color-text-muted);
+            text-align: center;
+            font-style: italic;
+            background: #fafafa;
+            border-bottom: 1px solid var(--color-border);
+        }
+        .infobox__row {
+            display: flex;
+            border-bottom: 1px solid #f0ece4;
+        }
+        .infobox__row:last-child { border-bottom: none; }
+        .infobox__label {
+            flex: 0 0 100px;
+            padding: 0.5rem 0.7rem;
+            font-weight: 500;
+            color: var(--color-text-muted);
+            background: #fdfcfa;
+            font-size: 0.82rem;
+        }
+        .infobox__value {
+            flex: 1;
+            padding: 0.5rem 0.7rem;
+            font-size: 0.85rem;
+        }
+        .infobox__value em { color: var(--color-text-muted); }
+
+
+        /* ═══════════════ TYPOGRAPHY ═══════════════ */
+        .section { margin-bottom: 3rem; }
+
+        .section__divider {
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+            margin-bottom: 1.5rem;
+        }
+        .section__divider::before,
+        .section__divider::after {
+            content: '';
+            flex: 1;
+            height: 1px;
+            background: linear-gradient(to right, transparent, var(--color-border), transparent);
+        }
+        .section__icon {
+            width: 28px; height: 28px;
+            fill: var(--color-gold);
+            opacity: 0.6;
+        }
+
+        h2 {
+            font-family: var(--font-heading);
+            font-size: 2rem;
+            font-weight: 700;
+            color: var(--color-dark-green);
+            margin-bottom: 0.3rem;
+            line-height: 1.2;
+        }
+        h3 {
+            font-family: var(--font-heading);
+            font-size: 1.45rem;
+            font-weight: 600;
+            color: var(--color-deep-green);
+            margin: 2rem 0 0.8rem;
+            line-height: 1.3;
+        }
+
+        p {
+            margin-bottom: 1.2rem;
+        }
+
+        .lead {
+            font-size: 1.1rem;
+            line-height: 1.8;
+            color: var(--color-text);
+        }
+
+        a {
+            color: var(--color-deep-green);
+            text-decoration: underline;
+            text-decoration-color: rgba(45,90,63,0.3);
+            text-underline-offset: 3px;
+            transition: text-decoration-color 0.2s;
+        }
+        a:hover { text-decoration-color: var(--color-gold); }
+
+        /* ═══════════════ VERSE BLOCKS ═══════════════ */
+        .verse {
+            position: relative;
+            margin: 1.5rem 0;
+            padding: 1.2rem 1.5rem;
+            background: var(--color-quote-bg);
+            border-left: 3px solid var(--color-gold);
+            border-radius: 0 6px 6px 0;
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 0 1.5rem;
+        }
+        .verse::before {
+            content: '';
+            position: absolute;
+            top: 0; right: 0;
+            width: 120px; height: 120px;
+            background: radial-gradient(circle at top right, rgba(200,152,44,0.06) 0%, transparent 70%);
+            pointer-events: none;
+        }
+        .verse__sanskrit {
+            font-family: var(--font-heading);
+            font-style: italic;
+            font-size: 1.1rem;
+            line-height: 1.8;
+            color: var(--color-deep-green);
+            letter-spacing: 0.2px;
+        }
+        .verse__translation {
+            font-size: 0.92rem;
+            line-height: 1.7;
+            color: var(--color-text);
+            padding-left: 1rem;
+            border-left: 2px solid rgba(200,152,44,0.25);
+        }
+        @media (max-width: 768px) {
+            .verse {
+                grid-template-columns: 1fr;
+            }
+            .verse__translation {
+                margin-top: 0.6rem;
+            }
+        }
+        .verse__ref {
+            grid-column: 1 / -1;
+            display: block;
+            margin-top: 0.5rem;
+            font-size: 0.82rem;
+            color: var(--color-text-muted);
+            text-align: right;
+        }
+        .verse__ref a {
+            color: var(--color-gold);
+            font-weight: 500;
+        }
+
+        /* ═══════════════ GALLERY (horizontal strip) ═══════════════ */
+        .gallery-strip {
+            position: relative;
+            margin: 1.5rem 0 2rem;
+        }
+        .gallery-strip__scroll {
+            display: flex;
+            gap: 0.6rem;
+            overflow-x: auto;
+            scroll-snap-type: x mandatory;
+            -webkit-overflow-scrolling: touch;
+            padding-bottom: 0.5rem;
+            scrollbar-width: thin;
+            scrollbar-color: var(--color-border) transparent;
+        }
+        .gallery-strip__scroll::-webkit-scrollbar { height: 6px; }
+        .gallery-strip__scroll::-webkit-scrollbar-track { background: transparent; }
+        .gallery-strip__scroll::-webkit-scrollbar-thumb { background: var(--color-border); border-radius: 3px; }
+        .gallery-item {
+            flex: 0 0 auto;
+            position: relative;
+            width: 220px;
+            height: 165px;
+            border-radius: 6px;
+            overflow: hidden;
+            cursor: pointer;
+            scroll-snap-align: start;
+            background: var(--color-light-green);
+        }
+        .gallery-item img {
+            width: 100%; height: 100%;
+            object-fit: cover;
+            transition: transform 0.4s ease;
+        }
+        .gallery-item:hover img {
+            transform: scale(1.06);
+        }
+        .gallery-item__overlay {
+            position: absolute; inset: 0;
+            background: linear-gradient(to top, rgba(26,58,42,0.7) 0%, transparent 50%);
+            opacity: 0;
+            transition: opacity 0.3s;
+            display: flex;
+            align-items: flex-end;
+            padding: 0.6rem;
+        }
+        .gallery-item:hover .gallery-item__overlay { opacity: 1; }
+        .gallery-item__caption {
+            font-size: 0.72rem;
+            color: #fff;
+            font-weight: 400;
+        }
+        .gallery-strip__arrow {
+            position: absolute;
+            top: 50%;
+            transform: translateY(-50%);
+            width: 32px; height: 32px;
+            border: none;
+            background: rgba(255,255,255,0.85);
+            border-radius: 50%;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            box-shadow: 0 1px 4px rgba(0,0,0,0.15);
+            z-index: 2;
+            transition: background 0.2s;
+        }
+        .gallery-strip__arrow:hover { background: #fff; }
+        .gallery-strip__arrow svg { width: 16px; height: 16px; stroke: var(--color-dark-green); stroke-width: 2.5; fill: none; }
+        .gallery-strip__arrow--left { left: -8px; }
+        .gallery-strip__arrow--right { right: -8px; }
+
+        /* Lightbox */
+        .lightbox {
+            display: none;
+            position: fixed; inset: 0;
+            z-index: 1000;
+            background: rgba(0,0,0,0.92);
+            justify-content: center;
+            align-items: center;
+            padding: 2rem;
+        }
+        .lightbox.active { display: flex; }
+        .lightbox__img {
+            max-width: 90vw;
+            max-height: 85vh;
+            object-fit: contain;
+            border-radius: 4px;
+            box-shadow: 0 8px 40px rgba(0,0,0,0.5);
+        }
+        .lightbox__close {
+            position: absolute;
+            top: 1.5rem; right: 1.5rem;
+            width: 40px; height: 40px;
+            border: none; background: rgba(255,255,255,0.1);
+            border-radius: 50%;
+            cursor: pointer;
+            display: flex; align-items: center; justify-content: center;
+            transition: background 0.2s;
+        }
+        .lightbox__close:hover { background: rgba(255,255,255,0.25); }
+        .lightbox__close svg { width: 20px; height: 20px; stroke: #fff; }
+        .lightbox__caption {
+            position: absolute;
+            bottom: 1.5rem;
+            left: 50%; transform: translateX(-50%);
+            color: rgba(255,255,255,0.8);
+            font-size: 0.85rem;
+            text-align: center;
+            max-width: 600px;
+        }
+        .lightbox__nav {
+            position: absolute;
+            top: 50%; transform: translateY(-50%);
+            width: 44px; height: 44px;
+            border: none;
+            background: rgba(255,255,255,0.08);
+            border-radius: 50%;
+            cursor: pointer;
+            display: flex; align-items: center; justify-content: center;
+            transition: background 0.2s;
+        }
+        .lightbox__nav:hover { background: rgba(255,255,255,0.2); }
+        .lightbox__nav svg { width: 22px; height: 22px; stroke: #fff; stroke-width: 2; fill: none; }
+        .lightbox__prev { left: 1.5rem; }
+        .lightbox__next { right: 1.5rem; }
+
+        /* ═══════════════ FOOTNOTES ═══════════════ */
+        .footnotes {
+            margin-top: 3rem;
+            padding-top: 2rem;
+            border-top: 1px solid var(--color-border);
+        }
+        .footnotes__title {
+            font-family: var(--font-heading);
+            font-size: 1.4rem;
+            font-weight: 600;
+            color: var(--color-dark-green);
+            margin-bottom: 1rem;
+        }
+        .footnote {
+            display: flex;
+            gap: 0.6rem;
+            margin-bottom: 0.6rem;
+            font-size: 0.85rem;
+            line-height: 1.6;
+            color: var(--color-text-muted);
+        }
+        .footnote__num {
+            flex-shrink: 0;
+            font-weight: 600;
+            color: var(--color-gold);
+            min-width: 1.5rem;
+        }
+        .footnote a { color: var(--color-deep-green); }
+
+        sup a {
+            color: var(--color-gold);
+            font-weight: 600;
+            text-decoration: none;
+            font-size: 0.75rem;
+        }
+        sup a:hover { text-decoration: underline; }
+
+        /* ═══════════════ FOOTER ═══════════════ */
+        .page-footer {
+            margin-top: 2rem;
+            padding: 2rem 1.5rem;
+            background: var(--color-dark-green);
+            color: rgba(255,255,255,0.6);
+            font-size: 0.78rem;
+            line-height: 1.7;
+            text-align: center;
+        }
+        .page-footer a { color: var(--color-light-gold); }
+        .page-footer__credits {
+            max-width: 700px;
+            margin: 0 auto;
+        }
+
+        /* ═══════════════ MOBILE NAV ═══════════════ */
+        .mobile-nav {
+            display: none;
+            position: sticky;
+            top: 0;
+            z-index: 100;
+            background: rgba(250,246,239,0.95);
+            backdrop-filter: blur(8px);
+            border-bottom: 1px solid var(--color-border);
+            padding: 0.6rem 1rem;
+            overflow-x: auto;
+            white-space: nowrap;
+            -webkit-overflow-scrolling: touch;
+        }
+        .mobile-nav::-webkit-scrollbar { display: none; }
+        .mobile-nav a {
+            display: inline-block;
+            padding: 0.35rem 0.8rem;
+            font-size: 0.78rem;
+            font-weight: 500;
+            color: var(--color-text-muted);
+            text-decoration: none;
+            border-radius: 100px;
+            transition: all 0.2s;
+        }
+        .mobile-nav a:hover,
+        .mobile-nav a.active {
+            background: var(--color-dark-green);
+            color: #fff;
+        }
+
+        @media (max-width: 1099px) {
+            .mobile-nav { display: block; }
+        }
+
+        /* ═══════════════ AYURVEDA TABLE ═══════════════ */
+        .ayur-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+            gap: 0.8rem;
+            margin: 1.2rem 0;
+        }
+        .ayur-card {
+            background: #fff;
+            border: 1px solid var(--color-border);
+            border-radius: 6px;
+            padding: 0.8rem 1rem;
+            text-align: center;
+        }
+        .ayur-card__label {
+            font-size: 0.72rem;
+            text-transform: uppercase;
+            letter-spacing: 1.2px;
+            color: var(--color-text-muted);
+            margin-bottom: 0.3rem;
+        }
+        .ayur-card__value {
+            font-family: var(--font-heading);
+            font-size: 1.15rem;
+            font-weight: 600;
+            color: var(--color-dark-green);
+        }
+        .ayur-card__note {
+            font-size: 0.78rem;
+            color: var(--color-text-muted);
+            font-style: italic;
+        }
+
+        /* ═══════════════ REGIONAL NAMES ═══════════════ */
+        .names-grid {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 0.5rem;
+            margin: 1rem 0;
+        }
+        .name-tag {
+            padding: 0.3rem 0.8rem;
+            background: var(--color-light-green);
+            border-radius: 100px;
+            font-size: 0.82rem;
+        }
+        .name-tag strong {
+            color: var(--color-deep-green);
+            font-weight: 600;
+        }
+
+        /* ═══════════════ CLEARFIX ═══════════════ */
+        .clearfix::after {
+            content: '';
+            display: table;
+            clear: both;
+        }
+    </style>
+</head>
+<body>
+
+<!-- ═══════════════ HEADER ═══════════════ -->
+<header class="page-header">
+    <div class="page-header__inner">
+        <div class="page-header__content">
+            <h1 class="page-header__title">Тамала</h1>
+            <span class="page-header__latin">Garcinia xanthochymus</span>
+            <span class="page-header__badge">Энциклопедия растений Враджа</span>
+        </div>
+    </div>
+</header>
+
+<!-- ═══════════════ MOBILE NAV ═══════════════ -->
+<nav class="mobile-nav" aria-label="Навигация по разделам">
+    <a href="#vrindavan">Вриндаван</a>
+    <a href="#worship">Поклонение</a>
+    <a href="#poetics">Поэтика</a>
+    <a href="#chaitanya">Чайтанья</a>
+    <a href="#sources">Источники</a>
+    <a href="#ayurveda">Аюрведа</a>
+    <a href="#botany">Ботаника</a>
+</nav>
+
+<!-- ═══════════════ MAIN LAYOUT ═══════════════ -->
+<div class="page-wrapper">
+
+    <!-- Sidebar -->
+    <aside class="sidebar">
+        <div class="sidebar__inner">
+            <div class="sidebar__label">Содержание</div>
+            <nav class="sidebar__nav">
+                <a href="#vrindavan">Дерево во Вриндаване</a>
+                <a href="#worship">Поклонение</a>
+                <a href="#poetics">Кришна-бхакти и поэтика</a>
+                <a href="#chaitanya">Чайтанья Махапрабху</a>
+                <a href="#sources">Ведические источники</a>
+                <a href="#ayurveda">Аюрведа</a>
+                <a href="#botany">Ботаника</a>
+            </nav>
+        </div>
+    </aside>
+
+    <!-- Content -->
+    <main class="content">
+
+        <!-- ═══ INTRO + INFOBOX ═══ -->
+        <div class="section intro-grid" id="intro">
+            <div class="intro-text">
+            <p class="lead"><strong>Тамала</strong> (санскр. <em>tamāla</em>, хинди <em>тамал</em>, бенг. <em>тамал</em>) — тёмное вечнозелёное дерево, ставшее в вайшнавской поэзии вторым именем Кришны. Когда <em>гопи</em> видят тамал — они видят Кришну. Обнимают его ствол, срывают листья для украшения волос, пишут на них любовные послания.</p>
+
+            <p>Тёмная кора этого дерева дала санскритской поэзии целое семейство имён для цвета тела Кришны: <em>тамала-шьяма</em> — «тёмный как тамал», <em>нава-тамала-нила-дьюти</em> — «сияние молодого тамала».</p>
+            </div>
+            <div class="infobox">
+                <div class="infobox__row">
+                    <div class="infobox__label">Семейство</div>
+                    <div class="infobox__value">Clusiaceae</div>
+                </div>
+                <div class="infobox__row">
+                    <div class="infobox__label">Род</div>
+                    <div class="infobox__value"><em>Garcinia</em></div>
+                </div>
+                <div class="infobox__row">
+                    <div class="infobox__label">Вид</div>
+                    <div class="infobox__value"><em>G. xanthochymus</em></div>
+                </div>
+                <div class="infobox__row">
+                    <div class="infobox__label">Санскрит</div>
+                    <div class="infobox__value">तमाल <em>tamāla</em></div>
+                </div>
+                <div class="infobox__row">
+                    <div class="infobox__label">Синонимы</div>
+                    <div class="infobox__value"><em>tāpiñcha, kālaskandha</em></div>
+                </div>
+                <div class="infobox__row">
+                    <div class="infobox__label">Англ.</div>
+                    <div class="infobox__value">Mysore Gamboge, Sour Mangosteen</div>
+                </div>
+                <div class="infobox__row">
+                    <div class="infobox__label">Высота</div>
+                    <div class="infobox__value">до 15–20 м</div>
+                </div>
+            </div>
+
+        </div>
+
+        <!-- ═══════════ ФОТОГАЛЕРЕЯ (горизонтальная лента) ═══════════ -->
+        <div class="gallery-strip" id="gallery">
+            <button class="gallery-strip__arrow gallery-strip__arrow--left" onclick="scrollGallery(-1)" aria-label="Назад">
+                <svg viewBox="0 0 24 24"><polyline points="15 18 9 12 15 6"/></svg>
+            </button>
+            <div class="gallery-strip__scroll" id="gallery-scroll">
+                <div class="gallery-item" onclick="openLightbox(0)">
+                    <img src="https://commons.wikimedia.org/w/index.php?title=Special:Redirect/file/Garcinia_xanthochymus_-_Gora_Park_-_Hakone,_Kanagawa,_Japan_-_DSC08588.jpg&width=600" alt="Дерево тамала в парке Гора, Хаконе" loading="lazy">
+                    <div class="gallery-item__overlay"><span class="gallery-item__caption">Дерево. Хаконе</span></div>
+                </div>
+                <div class="gallery-item" onclick="openLightbox(1)">
+                    <img src="https://commons.wikimedia.org/w/index.php?title=Special:Redirect/file/Garcinia_xanthochymus_(Andaman).jpg&width=600" alt="Тамала на Андаманских островах" loading="lazy">
+                    <div class="gallery-item__overlay"><span class="gallery-item__caption">Андаманские о-ва</span></div>
+                </div>
+                <div class="gallery-item" onclick="openLightbox(2)">
+                    <img src="https://commons.wikimedia.org/w/index.php?title=Special:Redirect/file/Garcinia_xanthochymus_(Andaman)_leaves.jpg&width=600" alt="Листья тамалы" loading="lazy">
+                    <div class="gallery-item__overlay"><span class="gallery-item__caption">Листья</span></div>
+                </div>
+                <div class="gallery-item" onclick="openLightbox(3)">
+                    <img src="https://commons.wikimedia.org/w/index.php?title=Special:Redirect/file/Garcinia_xanthochymus_(Andaman)_fruits.jpg&width=600" alt="Плоды тамалы" loading="lazy">
+                    <div class="gallery-item__overlay"><span class="gallery-item__caption">Плоды</span></div>
+                </div>
+                <div class="gallery-item" onclick="openLightbox(4)">
+                    <img src="https://commons.wikimedia.org/w/index.php?title=Special:Redirect/file/Garcinia_xanthochymus_kz1.jpg&width=600" alt="Ветка с листьями" loading="lazy">
+                    <div class="gallery-item__overlay"><span class="gallery-item__caption">Ветка</span></div>
+                </div>
+                <div class="gallery-item" onclick="openLightbox(5)">
+                    <img src="https://commons.wikimedia.org/w/index.php?title=Special:Redirect/file/Garcinia_xanthochymus_02.jpg&width=600" alt="Дерево тамала в Камеруне" loading="lazy">
+                    <div class="gallery-item__overlay"><span class="gallery-item__caption">Камерун</span></div>
+                </div>
+                <div class="gallery-item" onclick="openLightbox(6)">
+                    <img src="https://commons.wikimedia.org/w/index.php?title=Special:Redirect/file/Garcinia_xanthochymus_(4630897937).jpg&width=600" alt="Цветы и ветка тамалы" loading="lazy">
+                    <div class="gallery-item__overlay"><span class="gallery-item__caption">Цветение</span></div>
+                </div>
+                <div class="gallery-item" onclick="openLightbox(7)">
+                    <img src="https://commons.wikimedia.org/w/index.php?title=Special:Redirect/file/Garcinia_xanthochymus_fruit,_3_to_7_cm_long.jpg&width=600" alt="Плод тамалы крупным планом" loading="lazy">
+                    <div class="gallery-item__overlay"><span class="gallery-item__caption">Плод крупным планом</span></div>
+                </div>
+            </div>
+            <button class="gallery-strip__arrow gallery-strip__arrow--right" onclick="scrollGallery(1)" aria-label="Вперёд">
+                <svg viewBox="0 0 24 24"><polyline points="9 18 15 12 9 6"/></svg>
+            </button>
+        </div>
+
+        <!-- ═══════════ ДЕРЕВО ВО ВРИНДАВАНЕ ═══════════ -->
+        <section class="section" id="vrindavan">
+            <div class="section__divider">
+                <svg class="section__icon" viewBox="0 0 24 24"><path d="M12 2C8 2 5 5 5 9c0 3 2 5 4 7l3 4 3-4c2-2 4-4 4-7 0-4-3-7-7-7z"/></svg>
+            </div>
+            <h2>Дерево во Вриндаване</h2>
+
+            <p>Ни одно дерево не связано с обликом Кришны так тесно, как тамал. Когда вайшнавские поэты хотят передать цвет Его тела, они снова и снова обращаются к этому образу. Рупа Госвами рисует Его облик так:</p>
+
+            <div class="verse">
+                <div class="verse__sanskrit">
+                    ayaṁ kambu-grīvaḥ kamala-kamanīyākṣi-paṭimā<br>
+                    tamāla-śyāmāṅga-dyutir atitarāṁ chatrita-śirāḥ<br>
+                    dara-śrī-vatsāṅkaḥ sphurad-ari-darādy-aṅkita-karaḥ
+                </div>
+                <div class="verse__translation">«Его шея подобна раковине, глаза прекрасны, как лепестки лотоса, тёмный свет Его тела напоминает дерево тамала, над головой — зонт, грудь украшена завитком <em>шриватса</em>».</div>
+                <span class="verse__ref">— <a href="https://vedarama.ru/en/books/rupa-brs1/2.1.21?reading=1" target="_blank">Бхакти-расамрита-синдху, 2.1.22</a></span>
+            </div>
+
+            <p>Яшода не могла налюбоваться сыном:</p>
+
+            <div class="verse">
+                <div class="verse__sanskrit">
+                    tarakṣu-nakha-maṇḍalaṁ nava-tamāla-patra-dyutiś<br>
+                    śyuṁ rucira-rocanā-kṛta-tamāla-patra-śriyam<br>
+                    dhṛta-pratisaraṁ kaṭi-sphurita-paṭṭa-sūtra-srajaṁ<br>
+                    vrajeśa-gṛhiṇī sutaṁ na kila vīkṣya tṛptim yayau
+                </div>
+                <div class="verse__translation">«Глядя на своего сына, цветом тела походящего на молодой лист дерева тамала, шею которого украшает тигриная лапа, лоб — жёлтая <em>тилака горочана</em>, запястье — верёвочка, а живот — шёлковый шнур, Яшода никак не могла на Него налюбоваться».</div>
+                <span class="verse__ref">— <a href="https://vedarama.ru/ru/books/rupa-brs1/zapadnaya-chast.4-vatsala-bkhakti-rasa.3424?reading=1" target="_blank">Бхакти-расамрита-синдху, 3.4.24</a></span>
+            </div>
+
+            <p>Тамал стал не просто сравнением, а поэтическим именем Кришны: <em>тамала-шьяма</em>, <em>тапиньчха-шьямала</em>, <em>нава-тамала-нила-дьюти</em>. Шридама, увидев Кришну, замирает: «Облако Дамодара, излучающее сияние чёрного дерева тамала, утоляет жажду глаз».<sup><a href="#fn1" id="fnref1">1</a></sup></p>
+
+            <p>В Бхакти-расамрита-синдху есть стих, где <em>гопи</em> пытается понять, что за тёмный силуэт она видит на вершине Говардхана. Её мысль перебирает варианты один за другим:</p>
+
+            <div class="verse">
+                <div class="verse__sanskrit">
+                    asau kim tāpiñcho na hi tad-amala-śrīr iha gatiḥ<br>
+                    payodaḥ kiṁ vāmaṁ na yad iha niraṅgo himakaraḥ<br>
+                    jagan-mohārambhoddhra-madhura-vaṁśī-dhvanir ito<br>
+                    dhruvaṁ mūrdhny adrer vidhur-mukhi mukundo viharati
+                </div>
+                <div class="verse__translation">«Быть может, это дерево тамала? Нет, невозможно — как оно может двигаться столь безупречно? Или это туча? Нет — ведь в ней покоится луна без единого пятнышка. О луноликая! Думается мне, что это очаровывающий всю вселенную звуками флейты Мукунда бродит на вершине Говардхана».</div>
+                <span class="verse__ref">— <a href="https://vedarama.ru/ru/books/rupa-brs1/yuzhnaya-chast-sostavlyayushchie-rasy.4-vyabkhichari-bkhava.24134?reading=1" target="_blank">Бхакти-расамрита-синдху, 2.4.134</a></span>
+            </div>
+
+            <p>Потому <em>гопи</em> и обнимают тамал, принимая за Кришну. Когда появился демон Вришасура в образе быка, перепуганные <em>гопи</em> бросились к ближайшему тамалу:</p>
+
+            <div class="verse">
+                <div class="verse__sanskrit">
+                    ādram āseduṣi vallavāṅganā<br>
+                    svaṁ puṅgavīkṛtya surāri-puṅgave<br>
+                    kṛṣṇa-bhrameṇāśu taraṅgad-aṅgikā<br>
+                    tamālam āliṅgya babhūva niścalā
+                </div>
+                <div class="verse__translation">«Бросившись обнимать дерево тамала, по ошибке приняв его за Кришну, они не могли пошевелиться».</div>
+                <span class="verse__ref">— <a href="https://vedarama.ru/ru/books/rupa-brs1/yuzhnaya-chast-sostavlyayushchie-rasy.4-vyabkhichari-bkhava.2456?reading=1" target="_blank">Бхакти-расамрита-синдху, 2.4.56</a></span>
+            </div>
+
+            <p>Сам Кришна говорит об этом:</p>
+
+            <div class="verse">
+                <div class="verse__sanskrit">
+                    tamisra-puñjādi yad eva kiñcin madīya-varṇopamam īkṣyate taiḥ<br>
+                    sa-cumbanaṁ tat parirabhyate mad-dhiyā paraṁ tat kva nu varṇanīyam
+                </div>
+                <div class="verse__translation">«Увидев тёмную тучу или дерево тамала — всё, что напоминает Мой цвет шьяма, — враджаваси обнимают и целуют это, считая Моим обликом. Кому Я могу рассказать об этом?»</div>
+                <span class="verse__ref">— <a href="https://vedarama.ru/en/books/wisdomlib-bbc/1.7.98?reading=1" target="_blank">Брихад-бхагаватамрита, 1.7.98</a></span>
+            </div>
+
+            <p>Привязанность столь глубока, что <em>гопи</em> влюблены даже в листья тамала. Билвамангала Тхакур описывает сапфирное сияние тела Кришны:</p>
+
+            <div class="verse">
+                <div class="verse__sanskrit">
+                    yam dṛṣṭvā yamunāṁ pipāsuḥ aniśaṁ vyūhaḥ gavāṁ gāhate<br>
+                    vidyutvān iti nīlakaṇṭha-nivahāḥ yaṁ draṣṭum utkaṇṭhate<br>
+                    uttaṁsāya tamāla-pallavam iti cchindanti yaṁ gopikāḥ<br>
+                    kāntiḥ kāliya-śāsanasya vapuṣaḥ sā pāvanī pātu naḥ
+                </div>
+                <div class="verse__translation">«Увидев это сияние, стада коров бросаются в Ямуну, приняв его за воду реки. Павлины рвутся к нему, приняв за тучу. А <em>гопи</em> срывают листья тамалы для украшения волос, думая, что этот тёмный блеск — листва тамала. Пусть это очищающее сияние тела укротителя Калии защитит нас».</div>
+                <span class="verse__ref">— <a href="https://vedarama.ru/en/books/krishna-karanamrita-3sat/2.2?reading=1" target="_blank">Кришна-карнамрита, 2.2</a></span>
+            </div>
+
+            <p>Но тамал во Вриндаване — не только метафора цвета. Это одна половина устойчивой поэтической пары: тамал и лиана. Тамал — это Кришна, а золотая лиана, обвивающая его ствол, — Радха или <em>гопи</em>. Радха пишет Кришне на лепестке чампаки: «Во Вриндаване Ты — древо тамала, а Я — лиана чампака. Только Вринда устроит Нам встречу и спасёт Нас от жара разлуки».<sup><a href="#fn2" id="fnref2">2</a></sup></p>
+
+            <p>Во время <em>раса-лилы</em> <em>йогамайя</em> скрывает Кришну и <em>гопи</em> от посторонних глаз: всякий, кто видит их вместе, принимает Кришну за тамал, а <em>гопи</em> — за золотую лиану.<sup><a href="#fn3" id="fnref3">3</a></sup> Во время Холи кто-то восклицает: «Смотрите, царь деревьев тамала, обвитый золотой лианой — Гопала!»<sup><a href="#fn4" id="fnref4">4</a></sup> А небесная богиня речи описывает союз Радхи и Кришны: «Дерево тамала в самом центре, а золотые лианы вокруг него. Омой это дерево нектаром».<sup><a href="#fn5" id="fnref5">5</a></sup></p>
+
+            <p>Тамал — не просто фон лил. Вринда-деви, устроительница всех встреч, специально сажает деревья тамала около Враджа, создавая благоухающие рощи для игр Кришны с <em>гопи</em>.<sup><a href="#fn6" id="fnref6">6</a></sup> На Голоке «на золотой земле растут деревья тамала, а на сапфирной земле — золотые цветы»<sup><a href="#fn7" id="fnref7">7</a></sup> — дерево присутствует и в вечной обители.</p>
+
+            <p>Тамал — это ещё и живая история Вриндавана. Во дворе храма Кришны-Баларамы росло священное дерево тамала, под которым сидел Шрила Прабхупада. Позже рядом с ним совершал свой легендарный <em>киртан</em> Аиндра Прабху. Когда дерево засохло и было срублено, Аиндра сохранил его ствол и установил в центре своего <em>бхаджан-кутира</em> — на глиняном постаменте.<sup><a href="#fn8" id="fnref8">8</a></sup></p>
+        </section>
+
+        <!-- ═══════════ ПОКЛОНЕНИЕ ═══════════ -->
+        <section class="section" id="worship">
+            <div class="section__divider">
+                <svg class="section__icon" viewBox="0 0 24 24"><path d="M12 2l2.4 7.4H22l-6.2 4.5 2.4 7.3L12 16.7l-6.2 4.5 2.4-7.3L2 9.4h7.6z"/></svg>
+            </div>
+            <h2>Поклонение</h2>
+
+            <p>Листья тамала входят в число лучших подношений для <em>пуджи</em> Кешавы. В Хари-бхакти-виласе Санатана Госвами приводит целую иерархию листьев из трёх пуран.</p>
+
+            <p>Нрисимха-пурана выстраивает лестницу, где каждое следующее подношение ценнее предыдущего: листья апамарга → бхрнгараджа → тамала → шами → дурва → куша → амалака → билва → туласи. Тамала занимает здесь достойное место — выше бхрнгараджа, хотя и ниже билвы и туласи.<sup><a href="#fn9" id="fnref9">9</a></sup></p>
+
+            <p>Вамана-пурана называет пять листьев, лучших для поклонения Кешаве: билва, шами, бхрнгараджа, тамала и амалака. Она же добавляет: тот, кто не может найти подходящие цветы, может подносить эти листья — и результат будет тем же.<sup><a href="#fn10" id="fnref10">10</a></sup></p>
+
+            <p>А Агни-пурана говорит прямо: «Господь Хари становится сразу же удовлетворён, когда Ему предлагают листья билва, шами, бхрнгараджа и тамала».<sup><a href="#fn11" id="fnref11">11</a></sup></p>
+        </section>
+
+        <!-- ═══════════ КРИШНА-БХАКТИ И ПОЭТИКА ═══════════ -->
+        <section class="section" id="poetics">
+            <div class="section__divider">
+                <svg class="section__icon" viewBox="0 0 24 24"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg>
+            </div>
+            <h2>Кришна-бхакти и поэтика</h2>
+
+            <p>Тамал в вайшнавской литературе — ещё и тонкий инструмент поэтики, через который ачарьи передают оттенки <em>бхавы</em>.</p>
+
+            <p>Мудрецы, познавшие Брахман, признаются Мукунде:</p>
+
+            <div class="verse">
+                <div class="verse__sanskrit">
+                    na yāvad iyam adbhutā nava-tamāla-nīla-dyuter<br>
+                    mukunda sukha-cid-ghanā tava babhūva sākṣāt-kṛtiḥ
+                </div>
+                <div class="verse__translation">«До тех пор, пока мы не постигли Твой поразительный облик, исполненный знания и блаженства, своим оттенком напоминающий молодое дерево тамала, мы были погружены в безличный Брахман».</div>
+                <span class="verse__ref">— <a href="https://vedarama.ru/en/books/rupa-brs1/3.1.15?reading=1" target="_blank">Бхакти-расамрита-синдху, 3.1.14</a></span>
+            </div>
+
+            <p>Здесь тамал работает не как украшение, а как богословский аргумент. Облик Кришны <em>тамала-нила-дьюти</em> — это то, что «вытягивает» мудрецов из безличного Брахмана. Тёмное сияние личностной формы оказывается убедительнее безграничного света.</p>
+
+            <p>А в «Лалита-мадхаве» Рупа Госвами использует тамал для острого контраста. Гопи в ужасе от демона Шанкхачуды:</p>
+
+            <div class="verse">
+                <div class="verse__sanskrit">
+                    sthūlas tāla-bhujān natir giritaṭī-vakṣāḥ kva yakṣādhamaḥ<br>
+                    kvāyaṁ bāla-tamāla-kandala-mṛduḥ kandarpa-kāntaḥ śiśuḥ
+                </div>
+                <div class="verse__translation">«Вот — низший из якшей, грузный, с руками как стволы тала и грудью широкой как горный склон. А вот — дитя, прекрасное как Купидон, нежное как побег молодого деревца тамала».</div>
+                <span class="verse__ref">— <a href="https://vedarama.ru/en/books/rupa-brs1/2.4.76?reading=1" target="_blank">Бхакти-расамрита-синдху, 2.4.76 / Лалита-мадхава, 2.29</a></span>
+            </div>
+
+            <p><em>Бала-тамала-кандала-мридух</em> — «нежный как побег молодого тамала». Нежность побега — и грубая сила демона. <em>Гопи</em> видят не мощь Кришны, а Его хрупкость — и от этого их страх становится невыносимым.</p>
+
+            <p>Ещё один неожиданный образ — из Ананда-вриндавана-чампу. Гопи, разыскивая Кришну в лесу после того, как Он исчез с <em>раса-лилы</em>, обращаются к дереву тамала: «О дерево тамала! Имея тот же цвет, что и ты, Кришна — твой друг. Из привязанности, кажется, твой уважаемый друг обнял тебя…»<sup><a href="#fn12" id="fnref12">12</a></sup> <em>Гопи</em> разговаривают с деревом, и это не безумие — это <em>уджвала-раса</em>: любовь ищет Кришну повсюду и находит Его отражение в каждом тёмном силуэте.</p>
+
+            <p>В другом стихе <em>гопи</em> предостерегает подругу: «Не ходи к Ямуне! Там стоит некто тамала-синий, лукавый, с рукой на бедре — Он похитит и ум, и сердце».<sup><a href="#fn13" id="fnref13">13</a></sup> А первый стих Гита-говинды помещает тамал в саму атмосферу встречи Радхи и Кришны: «Облаками — густое небо, тамала-деревьями — тёмная лесная земля, ночь — о Радха, веди его домой».<sup><a href="#fn14" id="fnref14">14</a></sup></p>
+        </section>
+
+        <!-- ═══════════ ЧАЙТАНЬЯ ═══════════ -->
+        <section class="section" id="chaitanya">
+            <h3>Чайтанья Махапрабху обнимает тамалы</h3>
+
+            <p>Образ тамала как «тела Кришны» проживается буквально в лилах Чайтаньи Махапрабху. Чайтанья-чарита-махакавья описывает: «Он долго рыдал там, где растут семь деревьев тамала, и обнимал их».<sup><a href="#fn15" id="fnref15">15</a></sup></p>
+
+            <p>А в другом эпизоде, на пути к Джаганнатхе: «Господь встретил несколько старых деревьев тамала. Увидев их, с радостью обнял их стволы и одним касанием рук даровал им освобождение».<sup><a href="#fn16" id="fnref16">16</a></sup></p>
+        </section>
+
+        <!-- ═══════════ ДРУГИЕ ВЕДИЧЕСКИЕ ИСТОЧНИКИ ═══════════ -->
+        <section class="section" id="sources">
+            <div class="section__divider">
+                <svg class="section__icon" viewBox="0 0 24 24"><path d="M12 6.5a.5.5 0 1 1 0-1 .5.5 0 0 1 0 1zm0 0V3m0 18v-8m-7-3h14"/></svg>
+            </div>
+            <h2>Другие ведические источники</h2>
+
+            <p>Тамал встречается не только в вайшнавской поэзии. В эпосах и пуранах он украшает священные рощи и горные склоны.</p>
+
+            <p>В Гарга-самхите тамал задаёт колорит самого Вриндавана: «Его берег Ямуны очень чист и свят, рощи украшены многими тёмными тамала-деревьями и прекрасными нипа, нимба, кадамба…»<sup><a href="#fn17" id="fnref17">17</a></sup> И ещё: «В садах Калинди, среди тёмных тамала-деревьев, в кадамбовых кунджах, гуляли Кришна и Баларама».<sup><a href="#fn18" id="fnref18">18</a></sup></p>
+
+            <p>Падма-пурана описывает гору Малайю как «благоуханную тамала-зарослями», а среди деревьев собрания Нарасимхи перечисляет тамалу рядом с манго, нимбой, кадамбой, бакулой и чампакой.<sup><a href="#fn19" id="fnref19">19</a></sup> Тамал упоминается и в парке Шатругхны: «Конь вошёл в парк, украшенный тамалой, талой и другими деревьями».<sup><a href="#fn20" id="fnref20">20</a></sup></p>
+
+            <p>Чайтанья-чарита-махакавья рисует рощу на берегу Ямуны: «Посреди рощи, под сенью деревьев тамала, шала, арджуна, ашока и манго со спелыми плодами, в зарослях молодого цветущего жасмина, скрывался чудесный домик…»<sup><a href="#fn21" id="fnref21">21</a></sup></p>
+        </section>
+
+        <!-- ═══════════ АЮРВЕДА ═══════════ -->
+        <section class="section" id="ayurveda">
+            <div class="section__divider">
+                <svg class="section__icon" viewBox="0 0 24 24"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+            </div>
+            <h2>Аюрведа</h2>
+
+            <div class="ayur-grid">
+                <div class="ayur-card">
+                    <div class="ayur-card__label">Раса (вкус)</div>
+                    <div class="ayur-card__value">Амла</div>
+                    <div class="ayur-card__note">кислый</div>
+                </div>
+                <div class="ayur-card">
+                    <div class="ayur-card__label">Гуна</div>
+                    <div class="ayur-card__value">Лагху, Рукша</div>
+                    <div class="ayur-card__note">лёгкий, сухой</div>
+                </div>
+                <div class="ayur-card">
+                    <div class="ayur-card__label">Вирья</div>
+                    <div class="ayur-card__value">Ушна</div>
+                    <div class="ayur-card__note">горячая</div>
+                </div>
+                <div class="ayur-card">
+                    <div class="ayur-card__label">Випака</div>
+                    <div class="ayur-card__value">Кату</div>
+                    <div class="ayur-card__note">острое</div>
+                </div>
+                <div class="ayur-card">
+                    <div class="ayur-card__label">Доши</div>
+                    <div class="ayur-card__value">↓ Капха, Питта</div>
+                    <div class="ayur-card__note">уравновешивает</div>
+                </div>
+            </div>
+
+            <p>Плоды очень кислые, но съедобные при созревании. Из мякоти готовят <em>шарбат</em> — прохладительный напиток. Интересно, что плоды содержат гидроксицитриковую кислоту (HCA), которая в современной медицине изучается как средство, подавляющее аппетит и предотвращающее накопление жира.</p>
+
+            <p>Кору измельчают в пасту и наносят на мелкие порезы для ускорения заживления — эта практика жива среди племенных целителей Ассама и Чхаттисгарха. Жёлтая смола (<em>гамбога</em>) используется и как краситель, и в медицине — при дизентерии и как слабительное. В Керале и Тамил-Наду тамала входит в рецептуры для женского репродуктивного здоровья.</p>
+        </section>
+
+        <!-- ═══════════ БОТАНИКА ═══════════ -->
+        <section class="section" id="botany">
+            <div class="section__divider">
+                <svg class="section__icon" viewBox="0 0 24 24"><path d="M7 20h10M12 20V10m0 0c-3 0-6-3-6-7h12c0 4-3 7-6 7z"/></svg>
+            </div>
+            <h2>Ботаника</h2>
+
+            <p>Тамала — это <em>Garcinia xanthochymus</em> (синонимы: <em>G. pictoria</em>, <em>G. tinctoria</em>, <em>Xanthochymus pictorius</em>), семейство Clusiaceae (Guttiferae). Английские имена: Mysore Gamboge, Sour Mangosteen, False Mangosteen, Egg Tree. Идентификацию подтвердил аюрведачарья Шибкали Бхаттачарья, а ботаник Субрата Махапатра исследовал дерево в Индийском ботаническом саду в Хауре (Калькутта).</p>
+
+            <p>Это вечнозелёное дерево высотой до 15–20 м с густой пирамидальной кроной и тёмной корой — та самая тёмная кора, которая сделала его метафорой тела Кришны. Ветви почти горизонтальные, листья крупные (до 30 см), тёмно-зелёные, глянцевые, кожистые. Плоды ярко-жёлтые, размером с небольшое яблоко, очень кислые, содержат до пяти семян в жёлтой мякоти. Произрастает в восточных Гималаях, Сиккиме, Западной Бенгалии, в вечнозелёных лесах Ассама и в Западных Гхатах.</p>
+
+            <p>Свежецветущее дерево тамала привлекает стаи пчёл, и эта деталь не ускользнула от поэтов: Шанкарачарья в «Канакадхара-стотре» сравнивает это с тёмным телом Господа Вишну, привлекающим пчелоподобные тёмные глаза Его супруги Лакшми.</p>
+
+            <h3>Региональные имена</h3>
+            <div class="names-grid">
+                <span class="name-tag"><strong>Хинди:</strong> तमाल Тамал</span>
+                <span class="name-tag"><strong>Санскрит:</strong> तमाल Тамала</span>
+                <span class="name-tag"><strong>Бенгальский:</strong> Тамал</span>
+                <span class="name-tag"><strong>Ассамский:</strong> Тепол-тенга</span>
+                <span class="name-tag"><strong>Малаялам:</strong> Мадурам</span>
+                <span class="name-tag"><strong>Маратхи:</strong> Тамал</span>
+                <span class="name-tag"><strong>Каннада:</strong> Тамала</span>
+            </div>
+        </section>
+
+        <!-- gallery moved to after intro -->
+
+        <!-- ═══════════ СНОСКИ ═══════════ -->
+        <div class="footnotes">
+            <div class="footnotes__title">Примечания</div>
+
+            <div class="footnote" id="fn1">
+                <span class="footnote__num"><a href="#fnref1">1</a></span>
+                <span><em>paśyotsikta-bali-trayī-vara-late vāsas tadin-mañjule / pronmillad-vana-mālikā-parimala-stome tamāla-tviṣi / ukṣaty ambaka-cāṭakān smita-rasair dāmodarāmbhodhare</em> — <a href="https://vedarama.ru/ru/books/rupa-brs1/zapadnaya-chast.3-preyo-bkhakti-rasa.3379?reading=1" target="_blank">Бхакти-расамрита-синдху, 3.3.79</a></span>
+            </div>
+            <div class="footnote" id="fn2">
+                <span class="footnote__num"><a href="#fnref2">2</a></span>
+                <span><a href="https://vedarama.ru/ru/books/jg-gc/purva-champu.iii-kayshora-vilasa.21-krishna-pokhishchaet-odezhdy-gopi?reading=1" target="_blank">Гопала-чампу, глава 21 (Джива Госвами). Письмо Радхи Кришне</a></span>
+            </div>
+            <div class="footnote" id="fn3">
+                <span class="footnote__num"><a href="#fnref3">3</a></span>
+                <span><a href="https://vedarama.ru/ru/books/jg-gc/purva-champu.iii-kayshora-vilasa.27-igry-v-yamune?reading=1" target="_blank">Гопала-чампу, глава 27 (Джива Госвами). Раса-лила</a></span>
+            </div>
+            <div class="footnote" id="fn4">
+                <span class="footnote__num"><a href="#fnref4">4</a></span>
+                <span><a href="https://vedarama.ru/ru/books/jg-gc/purva-champu.iii-kayshora-vilasa.30-igry-kholi?reading=1" target="_blank">Гопала-чампу, глава 30 (Джива Госвами). Праздник Холи</a></span>
+            </div>
+            <div class="footnote" id="fn5">
+                <span class="footnote__num"><a href="#fnref5">5</a></span>
+                <span><a href="https://vedarama.ru/ru/books/jg-gc/uttara-champu.iii-krishna-vozvrashchaetsya-vo-vradzh.36-soyuz-radkhi-i-krishny?reading=1" target="_blank">Гопала-чампу, глава 36 (Джива Госвами). Союз Радхи и Кришны</a></span>
+            </div>
+            <div class="footnote" id="fn6">
+                <span class="footnote__num"><a href="#fnref6">6</a></span>
+                <span><a href="https://vedarama.ru/ru/books/jg-gc/purva-champu.iii-kayshora-vilasa.29-dalneyshie-igry-s-gopi?reading=1" target="_blank">Гопала-чампу, глава 29 (Джива Госвами). Вринда сажает деревья</a></span>
+            </div>
+            <div class="footnote" id="fn7">
+                <span class="footnote__num"><a href="#fnref7">7</a></span>
+                <span><a href="https://vedarama.ru/ru/books/jg-gc/uttara-champu.iii-krishna-vozvrashchaetsya-vo-vradzh.37-vkhozhdenie-v-goloku?reading=1" target="_blank">Гопала-чампу, глава 37 (Джива Госвами). Описание Голоки</a></span>
+            </div>
+            <div class="footnote" id="fn8">
+                <span class="footnote__num"><a href="#fnref8">8</a></span>
+                <span><a href="https://vedarama.ru/ru/books/kmd-sadhu2/1-aindra-das-golos-iz-serdtsa-vrindavana.v-peshere-otshelnika?reading=1" target="_blank">Святые ИСККОН, т. 2. Об Аиндре Прабху и дереве тамала в храме Кришны-Баларамы</a></span>
+            </div>
+            <div class="footnote" id="fn9">
+                <span class="footnote__num"><a href="#fnref9">9</a></span>
+                <span><a href="https://vedarama.ru/en/books/hbv/2.2.237?reading=1" target="_blank">Хари-бхакти-виласа, 7-я виласа, тексты 237–240. Цитата из Нрисимха-пураны</a></span>
+            </div>
+            <div class="footnote" id="fn10">
+                <span class="footnote__num"><a href="#fnref10">10</a></span>
+                <span><a href="https://vedarama.ru/en/books/hbv/2.2.241?reading=1" target="_blank">Хари-бхакти-виласа, 7-я виласа, тексты 241–242. Цитата из Вамана-пураны</a></span>
+            </div>
+            <div class="footnote" id="fn11">
+                <span class="footnote__num"><a href="#fnref11">11</a></span>
+                <span><a href="https://vedarama.ru/en/books/hbv/2.2.243?reading=1" target="_blank">Хари-бхакти-виласа, 7-я виласа, тексты 243–244. Цитата из Агни-пураны</a></span>
+            </div>
+            <div class="footnote" id="fn12">
+                <span class="footnote__num"><a href="#fnref12">12</a></span>
+                <span><a href="https://vedarama.ru/en/books/kk-avc/18-krsna-disappears-from-the-gopis.searching-the-forest?reading=1" target="_blank">Ананда-вриндавана-чампу (Кави Карнапура), «Searching the Forest»</a></span>
+            </div>
+            <div class="footnote" id="fn13">
+                <span class="footnote__num"><a href="#fnref13">13</a></span>
+                <span><a href="https://vedarama.ru/en/books/krishna-karanamrita-adb/42?reading=1" target="_blank">Кришна-карнамрита, стих 42 (Билвамангала Тхакур)</a></span>
+            </div>
+            <div class="footnote" id="fn14">
+                <span class="footnote__num"><a href="#fnref14">14</a></span>
+                <span><a href="https://vedarama.ru/en/books/gg-pd/1.text-1?reading=1" target="_blank">Гита-Говинда, 1.1 (Джаядева)</a></span>
+            </div>
+            <div class="footnote" id="fn15">
+                <span class="footnote__num"><a href="#fnref15">15</a></span>
+                <span><a href="https://vedarama.ru/ru/books/carita/prakrama-pervaya.116-vozvrashchenie-iz-gayi.tekst-16?reading=1" target="_blank">Чайтанья-чарита-махакавья, 1.16 (Мурари Гупта)</a></span>
+            </div>
+            <div class="footnote" id="fn16">
+                <span class="footnote__num"><a href="#fnref16">16</a></span>
+                <span><a href="https://vedarama.ru/ru/books/carita/prakrama-tretya.316-sozertsanie-gospoda-dzhagannatkhi.tekst-1?reading=1" target="_blank">Чайтанья-чарита-махакавья, 3.16 (Мурари Гупта)</a></span>
+            </div>
+            <div class="footnote" id="fn17">
+                <span class="footnote__num"><a href="#fnref17">17</a></span>
+                <span><a href="https://vedarama.ru/en/books/garga-samhita/2.10.11?reading=1" target="_blank">Гарга-самхита, 2.10.11–13</a></span>
+            </div>
+            <div class="footnote" id="fn18">
+                <span class="footnote__num"><a href="#fnref18">18</a></span>
+                <span><a href="https://vedarama.ru/en/books/garga-samhita/1.17.16?reading=1" target="_blank">Гарга-самхита, 1.17.16</a></span>
+            </div>
+            <div class="footnote" id="fn19">
+                <span class="footnote__num"><a href="#fnref19">19</a></span>
+                <span><a href="https://vedarama.ru/en/books/pp/1.45?reading=1" target="_blank">Падма-пурана, 1.45</a></span>
+            </div>
+            <div class="footnote" id="fn20">
+                <span class="footnote__num"><a href="#fnref20">20</a></span>
+                <span><a href="https://vedarama.ru/en/books/pp/4.12?reading=1" target="_blank">Падма-пурана, 4.12</a></span>
+            </div>
+            <div class="footnote" id="fn21">
+                <span class="footnote__num"><a href="#fnref21">21</a></span>
+                <span><a href="https://vedarama.ru/ru/books/carita/prakrama-chetvertaya.410-poseshchenie-roshchi-na-beregu-yamuny.tekst-21?reading=1" target="_blank">Чайтанья-чарита-махакавья, 4.10, текст 21 (Мурари Гупта)</a></span>
+            </div>
+        </div>
+
+    </main>
+</div>
+
+<!-- ═══════════════ FOOTER ═══════════════ -->
+<footer class="page-footer">
+    <div class="page-footer__credits">
+        <p><strong>Энциклопедия растений Враджа</strong></p>
+        <p style="margin-top: 0.5rem;">Фотографии: Daderot (CC0), Akshaysurendra1 (CC BY-SA 4.0), Krzysztof Ziarnek (CC BY-SA 4.0), Hiobson (CC BY-SA 4.0), Dinesh Valke (CC BY-SA 2.0), Florimagix (CC BY-SA 4.0) — <a href="https://commons.wikimedia.org/wiki/Category:Garcinia_xanthochymus" target="_blank">Wikimedia Commons</a></p>
+        <p style="margin-top: 0.3rem;">Источники текстов: <a href="https://vedarama.ru" target="_blank">vedarama.ru</a></p>
+    </div>
+</footer>
+
+<!-- ═══════════════ LIGHTBOX ═══════════════ -->
+<div class="lightbox" id="lightbox">
+    <button class="lightbox__close" onclick="closeLightbox()" aria-label="Закрыть">
+        <svg viewBox="0 0 24 24" fill="none" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+    </button>
+    <button class="lightbox__nav lightbox__prev" onclick="navigateLightbox(-1)" aria-label="Предыдущее">
+        <svg viewBox="0 0 24 24"><polyline points="15 18 9 12 15 6"/></svg>
+    </button>
+    <img class="lightbox__img" id="lightbox-img" src="" alt="">
+    <button class="lightbox__nav lightbox__next" onclick="navigateLightbox(1)" aria-label="Следующее">
+        <svg viewBox="0 0 24 24"><polyline points="9 18 15 12 9 6"/></svg>
+    </button>
+    <div class="lightbox__caption" id="lightbox-caption"></div>
+</div>
+
+<script>
+    // Gallery scroll
+    function scrollGallery(dir) {
+        const el = document.getElementById('gallery-scroll');
+        el.scrollBy({ left: dir * 240, behavior: 'smooth' });
+    }
+
+    // Gallery data
+    const galleryImages = [
+        { src: 'https://commons.wikimedia.org/w/index.php?title=Special:Redirect/file/Garcinia_xanthochymus_-_Gora_Park_-_Hakone,_Kanagawa,_Japan_-_DSC08588.jpg&width=1400', caption: 'Garcinia xanthochymus. Парк Гора, Хаконе, Япония. Фото: Daderot (CC0)' },
+        { src: 'https://commons.wikimedia.org/w/index.php?title=Special:Redirect/file/Garcinia_xanthochymus_(Andaman).jpg&width=1400', caption: 'Тамала на Андаманских островах. Фото: Akshaysurendra1 (CC BY-SA 4.0)' },
+        { src: 'https://commons.wikimedia.org/w/index.php?title=Special:Redirect/file/Garcinia_xanthochymus_(Andaman)_leaves.jpg&width=1400', caption: 'Тёмно-зелёные глянцевые листья тамалы. Фото: Akshaysurendra1 (CC BY-SA 4.0)' },
+        { src: 'https://commons.wikimedia.org/w/index.php?title=Special:Redirect/file/Garcinia_xanthochymus_(Andaman)_fruits.jpg&width=1400', caption: 'Ярко-жёлтые кислые плоды. Фото: Akshaysurendra1 (CC BY-SA 4.0)' },
+        { src: 'https://commons.wikimedia.org/w/index.php?title=Special:Redirect/file/Garcinia_xanthochymus_kz1.jpg&width=1400', caption: 'Ветка с листьями. Оранжерея Болтц. Фото: Krzysztof Ziarnek (CC BY-SA 4.0)' },
+        { src: 'https://commons.wikimedia.org/w/index.php?title=Special:Redirect/file/Garcinia_xanthochymus_02.jpg&width=1400', caption: 'Дерево в ботаническом саду Лимбе, Камерун. Фото: Hiobson (CC BY-SA 4.0)' },
+        { src: 'https://commons.wikimedia.org/w/index.php?title=Special:Redirect/file/Garcinia_xanthochymus_(4630897937).jpg&width=1400', caption: 'Цветение Garcinia xanthochymus. Фото: Dinesh Valke (CC BY-SA 2.0)' },
+        { src: 'https://commons.wikimedia.org/w/index.php?title=Special:Redirect/file/Garcinia_xanthochymus_fruit,_3_to_7_cm_long.jpg&width=1400', caption: 'Плод крупным планом, 3–7 см. Фото: Florimagix (CC BY-SA 4.0)' }
+    ];
+
+    let currentIndex = 0;
+
+    function openLightbox(index) {
+        currentIndex = index;
+        const lb = document.getElementById('lightbox');
+        const img = document.getElementById('lightbox-img');
+        const caption = document.getElementById('lightbox-caption');
+        img.src = galleryImages[index].src;
+        caption.textContent = galleryImages[index].caption;
+        lb.classList.add('active');
+        document.body.style.overflow = 'hidden';
+    }
+
+    function closeLightbox() {
+        document.getElementById('lightbox').classList.remove('active');
+        document.body.style.overflow = '';
+    }
+
+    function navigateLightbox(dir) {
+        currentIndex = (currentIndex + dir + galleryImages.length) % galleryImages.length;
+        const img = document.getElementById('lightbox-img');
+        const caption = document.getElementById('lightbox-caption');
+        img.src = galleryImages[currentIndex].src;
+        caption.textContent = galleryImages[currentIndex].caption;
+    }
+
+    // Keyboard navigation
+    document.addEventListener('keydown', (e) => {
+        const lb = document.getElementById('lightbox');
+        if (!lb.classList.contains('active')) return;
+        if (e.key === 'Escape') closeLightbox();
+        if (e.key === 'ArrowLeft') navigateLightbox(-1);
+        if (e.key === 'ArrowRight') navigateLightbox(1);
+    });
+
+    // Close on backdrop click
+    document.getElementById('lightbox').addEventListener('click', (e) => {
+        if (e.target === e.currentTarget) closeLightbox();
+    });
+
+    // Active sidebar link on scroll
+    const sections = document.querySelectorAll('.section[id], section[id]');
+    const sidebarLinks = document.querySelectorAll('.sidebar__nav a');
+    const mobileLinks = document.querySelectorAll('.mobile-nav a');
+
+    const observer = new IntersectionObserver((entries) => {
+        entries.forEach(entry => {
+            if (entry.isIntersecting) {
+                const id = entry.target.id;
+                sidebarLinks.forEach(l => l.classList.toggle('active', l.getAttribute('href') === '#' + id));
+                mobileLinks.forEach(l => l.classList.toggle('active', l.getAttribute('href') === '#' + id));
+            }
+        });
+    }, { rootMargin: '-20% 0px -70% 0px' });
+
+    sections.forEach(s => observer.observe(s));
+</script>
+
+</body>
+</html>
