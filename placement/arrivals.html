@@ -479,7 +479,7 @@
                 const count = hourCounts[h];
                 const heightPx = count > 0 ? Math.max(Math.round((count / maxCount) * maxBarHeight), 10) : 5;
                 const barBg = count > 0 ? '#570df8' : '#e5e7eb';
-                const title = `${h.toString().padStart(2, '0')}:00 — ${count} чел.`;
+                const title = `${h.toString().padStart(2, '0')}:00 — ${count} ${t('persons_short')}`;
 
                 return `<div style="flex: 1; display: flex; flex-direction: column; justify-content: flex-end; align-items: center; min-width: 8px;" title="${title}">
                     ${count > 0 ? `<div style="font-size: 11px; font-weight: 500; margin-bottom: 2px;">${count}</div>` : ''}
@@ -531,7 +531,7 @@
             const date = new Date(dateStr + 'T12:00:00');
             const day = date.getDate().toString().padStart(2, '0');
             const month = (date.getMonth() + 1).toString().padStart(2, '0');
-            const weekDays = ['Вс', 'Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб'];
+            const weekDays = t('weekdays_short').split(',');
             return `${day}.${month}, ${weekDays[date.getDay()]}`;
         }
 
@@ -706,8 +706,8 @@
             const infoParts = [];
             if (genderAge) infoParts.push(genderAge);
             if (arrivalTime) {
-                infoParts.push(`<span title="Время прилёта">✈ ${formatDateTime(arrivalTime)}</span>`);
-                infoParts.push(`<span class="font-semibold text-base-content" title="Приедет в ШРСК">→ ${formatTime(estimatedArrival)}</span>`);
+                infoParts.push(`<span title="${t('flight_time')}">✈ ${formatDateTime(arrivalTime)}</span>`);
+                infoParts.push(`<span class="font-semibold text-base-content" title="${t('arrives_at_srsk')}">→ ${formatTime(estimatedArrival)}</span>`);
             }
             if (arrival?.needs_transfer === 'yes') {
                 if (arrival.taxi_status === 'ordered') {
@@ -718,9 +718,9 @@
             }
             if (accommodation) {
                 if (accommodation.isSelfAccommodation) {
-                    infoParts.push(`<span class="font-semibold text-error bg-error/20 px-2 py-1 rounded" title="Размещение">🏠 ${Layout.t('self_accommodation')}</span>`);
+                    infoParts.push(`<span class="font-semibold text-error bg-error/20 px-2 py-1 rounded" title="${t('accommodation')}">🏠 ${Layout.t('self_accommodation')}</span>`);
                 } else {
-                    infoParts.push(`<span class="font-semibold bg-success/20 px-2 py-1 rounded" title="Размещение">🏠 ${accommodation.buildingName}, ${accommodation.roomNumber}</span>`);
+                    infoParts.push(`<span class="font-semibold bg-success/20 px-2 py-1 rounded" title="${t('accommodation')}">🏠 ${accommodation.buildingName}, ${accommodation.roomNumber}</span>`);
                 }
             }
 
@@ -901,7 +901,7 @@
                 .eq('id', transferId);
 
             if (error) {
-                Layout.handleError(error, 'Сохранение заказа такси');
+                Layout.handleError(error, t('error_saving_taxi'));
                 return;
             }
 
@@ -952,7 +952,7 @@
                 .eq('id', transferId);
 
             if (error) {
-                Layout.handleError(error, 'Обновление информации о такси');
+                Layout.handleError(error, t('error_updating_taxi'));
                 return;
             }
 
@@ -986,7 +986,7 @@
                 .eq('id', transferId);
 
             if (error) {
-                Layout.handleError(error, 'Отмена такси');
+                Layout.handleError(error, t('error_cancelling_taxi'));
                 return;
             }
 
@@ -1034,7 +1034,7 @@
             realtimeTimeout = setTimeout(async () => {
                 await loadRegistrations();
                 renderTable();
-                Layout.showNotification('Данные обновлены', 'info');
+                Layout.showNotification(t('data_updated'), 'info');
             }, 500);
         }
 

@@ -973,7 +973,7 @@
     <script>
     function toggleFullscreen(btn) {
         const isFS = document.body.classList.toggle('board-fullscreen');
-        if (btn) { btn.classList.toggle('btn-active', isFS); btn.title = isFS ? 'Обычный вид' : 'На весь экран'; }
+        if (btn) { btn.classList.toggle('btn-active', isFS); btn.title = isFS ? Layout.t('normal_view') : Layout.t('fullscreen'); }
     }
     </script>
     <script src="../js/pages/timeline.js?v=8"></script>

@@ -1533,7 +1533,7 @@
             realtimeTimeout = setTimeout(async () => {
                 await loadCleaningSchedule();
                 render();
-                Layout.showNotification('Данные обновлены', 'info');
+                Layout.showNotification(t('data_updated'), 'info');
             }, 500);
         }
 

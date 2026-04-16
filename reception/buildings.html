@@ -235,7 +235,7 @@
                                     <h3 class="font-semibold text-lg">${Layout.getName(building)}</h3>
                                     <div class="flex flex-wrap gap-1 mt-1">
                                         ${type ? `<span class="badge badge-sm" style="background-color: ${type.color}20; color: ${type.color}; border-color: ${type.color}">${Layout.getName(type)}</span>` : ''}
-                                        ${building.is_temporary ? `<span class="badge badge-warning badge-sm">${t('temporary') || 'Временное'}</span>` : ''}
+                                        ${building.is_temporary ? `<span class="badge badge-warning badge-sm">${t('temporary')}</span>` : ''}
                                     </div>
                                 </div>
                                 <button class="btn btn-ghost btn-sm btn-square" onclick="openBuildingModal('${building.id}')">
@@ -278,7 +278,7 @@
                                     </svg>
                                 </a>
                                 <a href="floor-plan.html?building=${building.id}" class="btn btn-ghost btn-sm gap-1">
-                                    ${t('btn_view_plan') || 'План'}
+                                    ${t('btn_view_plan')}
                                     <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 20l-5.447-2.724A1 1 0 013 16.382V5.618a1 1 0 011.447-.894L9 7m0 13l6-3m-6 3V7m6 10l4.553 2.276A1 1 0 0021 18.382V7.618a1 1 0 00-.553-.894L15 4m0 13V4m0 0L9 7" />
                                     </svg>

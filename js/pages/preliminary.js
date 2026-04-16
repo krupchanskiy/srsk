@@ -915,7 +915,7 @@ async function onMealTypeChange(registrationId, mealType, selectElement) {
             else if (mealType === 'child') selectElement.classList.add('meal-child');
         }
     } catch (err) {
-        Layout.handleError(err, 'Сохранение типа питания');
+        Layout.handleError(err, Layout.t('error_saving_meal_type'));
     }
 }
 
@@ -1128,7 +1128,7 @@ async function saveTransfers() {
         Layout.showNotification(t('preliminary_transfers_saved'), 'success');
     } catch (err) {
         console.error('Error saving transfers:', err);
-        Layout.handleError(err, 'Сохранение трансферов');
+        Layout.handleError(err, Layout.t('error_saving_transfers'));
     }
 }
 
@@ -1289,7 +1289,7 @@ async function saveSelfAccommodation(registrationId) {
         await loadRegistrations();
         Layout.showNotification(t('self_accommodation') + ' ' + t('saved'), 'success');
     } catch (err) {
-        Layout.handleError(err, 'Сохранение размещения');
+        Layout.handleError(err, Layout.t('error_saving_accommodation'));
         // Перезагрузить данные для отката изменений в UI
         await loadRegistrations();
     }
@@ -1828,7 +1828,7 @@ document.addEventListener('DOMContentLoaded', () => {
             await Promise.all([loadVaishnavas(), loadRegistrations()]);
             Layout.showNotification(t('preliminary_guest_added'), 'success');
         } catch (err) {
-            Layout.handleError(err, 'Создание гостя');
+            Layout.handleError(err, Layout.t('error_creating_guest'));
         }
     });
 });

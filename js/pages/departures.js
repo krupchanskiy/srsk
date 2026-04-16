@@ -733,7 +733,7 @@ async function saveTaxiOrder() {
         .eq('id', transferId);
 
     if (error) {
-        Layout.handleError(error, 'Сохранение заказа такси');
+        Layout.handleError(error, Layout.t('error_saving_taxi'));
         return;
     }
 
@@ -784,7 +784,7 @@ async function saveEditedTaxiDetails() {
         .eq('id', transferId);
 
     if (error) {
-        Layout.handleError(error, 'Обновление информации о такси');
+        Layout.handleError(error, Layout.t('error_updating_taxi'));
         return;
     }
 
@@ -818,7 +818,7 @@ async function cancelTaxi(transferId) {
         .eq('id', transferId);
 
     if (error) {
-        Layout.handleError(error, 'Отмена такси');
+        Layout.handleError(error, Layout.t('error_cancelling_taxi'));
         return;
     }
 

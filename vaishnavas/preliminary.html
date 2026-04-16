@@ -971,7 +971,7 @@
     <script>
     function toggleFullscreen(btn) {
         const isFS = document.body.classList.toggle('board-fullscreen');
-        if (btn) { btn.classList.toggle('btn-active', isFS); btn.title = isFS ? 'Обычный вид' : 'На весь экран'; }
+        if (btn) { btn.classList.toggle('btn-active', isFS); btn.title = isFS ? t('normal_view') : t('fullscreen'); }
     }
     </script>
     <script src="../js/pages/preliminary.js?v=21"></script>

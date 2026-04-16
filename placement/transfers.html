@@ -364,14 +364,14 @@
             const isToday = date.toDateString() === today.toDateString();
             const isTomorrow = date.toDateString() === tomorrow.toDateString();
 
-            const weekdays = ['воскресенье', 'понедельник', 'вторник', 'среда', 'четверг', 'пятница', 'суббота'];
-            const months = ['января', 'февраля', 'марта', 'апреля', 'мая', 'июня', 'июля', 'августа', 'сентября', 'октября', 'ноября', 'декабря'];
+            const weekdays = t('weekdays_full').split(',');
+            const months = t('months_genitive').split(',');
 
             const dayName = weekdays[date.getDay()];
             const formatted = `${date.getDate()} ${months[date.getMonth()]}`;
 
-            if (isToday) return `Сегодня, ${formatted}`;
-            if (isTomorrow) return `Завтра, ${formatted}`;
+            if (isToday) return `${t('today')}, ${formatted}`;
+            if (isTomorrow) return `${t('tomorrow')}, ${formatted}`;
             return `${dayName.charAt(0).toUpperCase() + dayName.slice(1)}, ${formatted}`;
         }
 
@@ -449,7 +449,7 @@
                     const needsTransfer = t.needs_transfer === 'yes';
                     const urgencyClass = getUrgencyClass(t.flight_datetime);
                     const directionIcon = t.direction === 'arrival' ? '✈️ →' : '← ✈️';
-                    const directionLabel = t.direction === 'arrival' ? 'Заезд' : 'Выезд';
+                    const directionLabel = t.direction === 'arrival' ? Layout.t('check_in') : Layout.t('check_out');
                     const accommodation = v ? residentsMap.get(v.id) : null;
                     const accommodationStr = accommodation?.isSelfAccommodation ? `<span class="text-error bg-error/20 px-2 py-1 rounded font-medium">${Layout.t('self_accommodation')}</span>` : (accommodation ? `${accommodation.buildingName}, ${accommodation.roomNumber}` : '');
 
@@ -480,14 +480,14 @@
                             ${isDeparture ? `
                             <div class="text-right">
                                 <div class="text-lg font-mono font-semibold text-error">${checkoutTime}</div>
-                                <div class="text-xs opacity-60">Выезд</div>
+                                <div class="text-xs opacity-60">${Layout.t('check_out')}</div>
                             </div>
                             ` : ''}
                             <div class="text-right">
                                 <div class="text-lg font-mono font-semibold">${formatTime(t.flight_datetime)}</div>
-                                <div class="text-xs opacity-60">${flightNumber || (isDeparture ? 'Вылет' : 'Прилёт')}</div>
+                                <div class="text-xs opacity-60">${flightNumber || (isDeparture ? Layout.t('departure_flight') : Layout.t('arrival_flight'))}</div>
                             </div>
-                            ${needsTransfer ? '<div class="badge badge-primary gap-1"><svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16V6a1 1 0 00-1-1H4a1 1 0 00-1 1v10a1 1 0 001 1h1m8-1a1 1 0 01-1 1H9m4-1V8a1 1 0 011-1h2.586a1 1 0 01.707.293l3.414 3.414a1 1 0 01.293.707V16a1 1 0 01-1 1h-1m-6-1a1 1 0 001 1h1M5 17a2 2 0 104 0m-4 0a2 2 0 114 0m6 0a2 2 0 104 0m-4 0a2 2 0 114 0" /></svg>Нужен трансфер</div>' : ''}
+                            ${needsTransfer ? `<div class="badge badge-primary gap-1"><svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16V6a1 1 0 00-1-1H4a1 1 0 00-1 1v10a1 1 0 001 1h1m8-1a1 1 0 01-1 1H9m4-1V8a1 1 0 011-1h2.586a1 1 0 01.707.293l3.414 3.414a1 1 0 01.293.707V16a1 1 0 01-1 1h-1m-6-1a1 1 0 001 1h1M5 17a2 2 0 104 0m-4 0a2 2 0 114 0m6 0a2 2 0 104 0m-4 0a2 2 0 114 0" /></svg>${Layout.t('needs_transfer')}</div>` : ''}
                             ${renderTaxiBadge(t)}
                         </div>
                     `;
@@ -503,11 +503,11 @@
             const canManage = window.hasPermission && window.hasPermission('manage_transfers');
             if (transfer.taxi_status === 'ordered') {
                 return canManage
-                    ? `<div class="badge badge-success gap-1 cursor-pointer" onclick="event.stopPropagation(); showTaxiDetails('${transfer.id}')">${taxiIcon}Такси заказано</div>`
-                    : `<div class="badge badge-success gap-1">${taxiIcon}Такси заказано</div>`;
+                    ? `<div class="badge badge-success gap-1 cursor-pointer" onclick="event.stopPropagation(); showTaxiDetails('${transfer.id}')">${taxiIcon}${Layout.t('taxi_ordered')}</div>`
+                    : `<div class="badge badge-success gap-1">${taxiIcon}${Layout.t('taxi_ordered')}</div>`;
             }
             return canManage
-                ? `<button class="btn btn-xs btn-outline gap-1" onclick="event.stopPropagation(); openTaxiModal('${transfer.id}')">${taxiIcon}Заказать такси</button>`
+                ? `<button class="btn btn-xs btn-outline gap-1" onclick="event.stopPropagation(); openTaxiModal('${transfer.id}')">${taxiIcon}${Layout.t('order_taxi')}</button>`
                 : '';
         }
 
@@ -615,7 +615,7 @@
             const retreatName = Layout.getName(retreat) || '';
             const flightNumber = transfer.flight_number || '';
             const isDeparture = transfer.direction === 'departure';
-            const directionLabel = isDeparture ? 'Выезд' : 'Заезд';
+            const directionLabel = isDeparture ? Layout.t('check_out') : Layout.t('check_in');
             const directionIcon = '✈️';
             const accommodation = v ? residentsMap.get(v.id) : null;
             const accommodationStr = accommodation?.isSelfAccommodation ? `<span class="text-xs text-error bg-error/20 px-1.5 py-0.5 rounded font-medium">${Layout.t('self_accommodation')}</span>` : (accommodation ? `<span class="text-xs opacity-60">${accommodation.buildingName}, ${accommodation.roomNumber}</span>` : '');
@@ -646,7 +646,7 @@
 
             // Информация о такси
             const taxiInfo = transfer.taxi_driver_info ? `<p class="text-xs mt-2 opacity-70">${e(transfer.taxi_driver_info)}</p>` : '';
-            const orderedByInfo = transfer.taxi_ordered_by ? `<p class="text-xs mt-1 opacity-50">Заказал: ${e(transfer.taxi_ordered_by)}</p>` : '';
+            const orderedByInfo = transfer.taxi_ordered_by ? `<p class="text-xs mt-1 opacity-50">${Layout.t('ordered_by')}: ${e(transfer.taxi_ordered_by)}</p>` : '';
 
             return `
                 <div class="card bg-base-100 shadow-sm border-l-4 ${borderColor}">
@@ -675,18 +675,18 @@
                             <div>
                                 <div class="text-sm opacity-60">${checkoutDateStr}</div>
                                 <div class="text-lg font-mono font-semibold text-error">${checkoutTime}</div>
-                                <div class="text-xs opacity-60">Выезд</div>
+                                <div class="text-xs opacity-60">${Layout.t('check_out')}</div>
                             </div>
                             <div class="text-right">
                                 <div class="text-sm opacity-60">${flightDateStr}</div>
                                 <div class="text-lg font-mono font-semibold">${timeStr}</div>
-                                <div class="text-xs opacity-60">${flightNumber || 'Вылет'}</div>
+                                <div class="text-xs opacity-60">${flightNumber || Layout.t('departure_flight')}</div>
                             </div>
                             ` : `
                             <div>
                                 <div class="text-sm opacity-60">${dateStr}</div>
                                 <div class="text-lg font-mono font-semibold">${timeStr}</div>
-                                <div class="text-xs opacity-60">${flightNumber || 'Прилёт'}</div>
+                                <div class="text-xs opacity-60">${flightNumber || Layout.t('arrival_flight')}</div>
                             </div>
                             `}
                         </div>
@@ -716,13 +716,13 @@
                                     <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
                                     </svg>
-                                    Редактировать
+                                    ${Layout.t('edit')}
                                   </button>
                                   <button class="btn btn-sm btn-success flex-1 gap-1" onclick="event.stopPropagation(); completeTaxi('${transfer.id}')">
                                     <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
                                     </svg>
-                                    Завершено
+                                    ${Layout.t('completed')}
                                   </button>`
                                 : `<button class="btn btn-sm btn-warning w-full gap-1" onclick="event.stopPropagation(); openTaxiModal('${transfer.id}')">
                                     <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4" viewBox="0 0 103.07 59.75" fill="currentColor">
@@ -732,7 +732,7 @@
                                         <polygon points="39.12 20.68 39.12 25.01 33.92 25.01 33.92 38.86 28.73 38.86 28.73 25.01 23.54 25.01 23.54 20.68 39.12 20.68"/>
                                         <rect x="74.03" y="20.68" width="5.19" height="18.18"/>
                                     </svg>
-                                    Заказать такси
+                                    ${Layout.t('order_taxi')}
                                   </button>`
                             }
                         </div>
@@ -911,7 +911,7 @@
                 renderTransfers();
             }
 
-            Layout.showNotification('Такси завершено', 'success');
+            Layout.showNotification(Layout.t('taxi_completed'), 'success');
         }
 
         async function init() {

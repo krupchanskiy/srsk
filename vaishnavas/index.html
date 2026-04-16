@@ -346,7 +346,7 @@
             // Проверяем присутствие сейчас
             const currentStay = personStays.find(s => s.start_date <= today && s.end_date >= today);
             if (currentStay) {
-                return '<span class="text-success font-medium">Находится в ШРСК</span>';
+                return `<span class="text-success font-medium">${t('currently_in_srsk')}</span>`;
             }
 
             // Проверяем будущие записи
@@ -354,16 +354,16 @@
             if (futureStays.length > 0) {
                 const nextStay = futureStays[0];
                 const date = DateUtils.parseDate(nextStay.start_date);
-                const formatted = date.toLocaleDateString('ru-RU', { day: 'numeric', month: 'short' });
+                const formatted = date.toLocaleDateString(Layout.currentLang === 'hi' ? 'hi-IN' : Layout.currentLang === 'en' ? 'en-US' : 'ru-RU', { day: 'numeric', month: 'short' });
 
                 // Если есть информация о ретрите (для гостей)
                 if (nextStay.retreat) {
                     const retreatName = Layout.getName(nextStay.retreat);
-                    return `Приедет на ретрит ${retreatName} ${formatted}`;
+                    return `${t('coming_for_retreat')} ${retreatName} ${formatted}`;
                 }
 
-                // Для команды просто "Планирует приехать"
-                return `Планирует приехать ${formatted}`;
+                // Для команды
+                return `${t('plans_to_come')} ${formatted}`;
             }
 
             return '';

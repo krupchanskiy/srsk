@@ -629,7 +629,7 @@
                 populateFilters();
                 renderRooms();
             } catch (err) {
-                Layout.handleError(err, 'Массовое добавление комнат');
+                Layout.handleError(err, t('error_adding_rooms'));
             } finally {
                 Layout.hideLoader();
             }

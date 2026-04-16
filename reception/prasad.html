@@ -233,11 +233,11 @@
 
         function updateTitle() {
             const title = document.getElementById('pageTitle');
-            const label = t('prasad_title') || 'Прасад';
+            const label = t('prasad_title');
             const count = residents.length;
             title.textContent = `${label} ${formatTitleDate(currentDate)}${count ? ` (${count})` : ''}`;
             const isToday = DateUtils.toISO(currentDate) === DateUtils.toISO(new Date());
-            title.title = isToday ? '' : (t('go_today') || 'Вернуться на сегодня');
+            title.title = isToday ? '' : t('go_today');
         }
 
         function changeDate(delta) {
@@ -387,7 +387,7 @@
             ]);
 
             if (residentsResult.error) {
-                Layout.handleError(residentsResult.error, 'Загрузка проживающих');
+                Layout.handleError(residentsResult.error, t('error_loading_residents'));
                 return;
             }
 
@@ -645,7 +645,7 @@
             const filtered = getFilteredResidents();
 
             if (filtered.length === 0 && mealGroups.length === 0) {
-                tbody.innerHTML = `<tr><td colspan="13" class="text-center py-6 opacity-50">${t('no_results') || 'Ничего не найдено'}</td></tr>`;
+                tbody.innerHTML = `<tr><td colspan="13" class="text-center py-6 opacity-50">${t('no_results')}</td></tr>`;
                 return;
             }
 
@@ -741,7 +741,7 @@
             const filtered = getFilteredResidents();
 
             if (filtered.length === 0 && mealGroups.length === 0) {
-                container.innerHTML = `<div class="text-center py-6 opacity-50">${t('no_results') || 'Ничего не найдено'}</div>`;
+                container.innerHTML = `<div class="text-center py-6 opacity-50">${t('no_results')}</div>`;
                 return;
             }
 
@@ -818,7 +818,7 @@
                         <span class="badge badge-sm text-white" style="background: #f97316">${t('col_group') || 'Группа'}</span>
                     </div>
                     <div class="flex flex-wrap items-center gap-x-4 gap-y-1 text-sm opacity-70">
-                        <span>${g.people_count} чел.</span>
+                        <span>${g.people_count} ${t('persons_short')}</span>
                         <span>&#9728;&#65039; ${brkf}</span>
                         <span>&#127869;&#65039; ${lnch}</span>
                     </div>
@@ -844,7 +844,7 @@
                 .eq('id', id);
 
             if (error) {
-                Layout.handleError(error, 'Обновление');
+                Layout.handleError(error, t('error_updating'));
                 const r = residents.find(r => r.id === id);
                 if (r) select.value = r[field] || '';
                 return;
@@ -853,7 +853,7 @@
             const r = residents.find(r => r.id === id);
             if (r) r[field] = value;
             renderStats();
-            Layout.showNotification(t('saved') || 'Сохранено', 'success');
+            Layout.showNotification(t('saved'), 'success');
         }
 
         async function updateCheckbox(checkbox) {
@@ -867,7 +867,7 @@
                 .eq('id', id);
 
             if (error) {
-                Layout.handleError(error, 'Обновление');
+                Layout.handleError(error, t('error_updating'));
                 checkbox.checked = !value;
                 return;
             }
@@ -875,7 +875,7 @@
             const r = residents.find(r => r.id === id);
             if (r) r[field] = value;
             renderStats();
-            Layout.showNotification(t('saved') || 'Сохранено', 'success');
+            Layout.showNotification(t('saved'), 'success');
         }
 
         async function updateNumber(input) {
@@ -889,7 +889,7 @@
                 .eq('id', id);
 
             if (error) {
-                Layout.handleError(error, 'Обновление');
+                Layout.handleError(error, t('error_updating'));
                 const r = residents.find(r => r.id === id);
                 if (r) input.value = r[field] || 0;
                 return;
@@ -898,7 +898,7 @@
             const r = residents.find(r => r.id === id);
             if (r) r[field] = value;
             renderStats();
-            Layout.showNotification(t('saved') || 'Сохранено', 'success');
+            Layout.showNotification(t('saved'), 'success');
         }
 
         // ==================== SEARCH ====================

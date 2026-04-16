@@ -37,7 +37,7 @@
                     <path stroke-linecap="round" stroke-linejoin="round" d="M15 19l-7-7 7-7" />
                 </svg>
             </button>
-            <h1 class="text-2xl font-bold cursor-pointer hover:opacity-70 transition-opacity" id="pageTitle" onclick="goToday()">Проживающие</h1>
+            <h1 class="text-2xl font-bold cursor-pointer hover:opacity-70 transition-opacity" id="pageTitle" onclick="goToday()" data-i18n="residents">Проживающие</h1>
             <button class="btn btn-ghost btn-sm btn-square" onclick="changeDate(1)">
                 <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
                     <path stroke-linecap="round" stroke-linejoin="round" d="M9 5l7 7-7 7" />
@@ -246,7 +246,7 @@
                 .in('status', ['active', 'confirmed']);
 
             if (error) {
-                Layout.handleError(error, 'Загрузка проживающих');
+                Layout.handleError(error, t('error_loading_residents'));
                 return;
             }
 
@@ -429,7 +429,7 @@
             const filtered = getFilteredResidents(filter);
 
             if (filtered.length === 0) {
-                tbody.innerHTML = `<tr><td colspan="7" class="text-center py-6 opacity-50">${t('no_results') || 'Ничего не найдено'}</td></tr>`;
+                tbody.innerHTML = `<tr><td colspan="7" class="text-center py-6 opacity-50">${t('no_results')}</td></tr>`;
                 return;
             }
 
@@ -492,7 +492,7 @@
             const filtered = getFilteredResidents(filter);
 
             if (filtered.length === 0) {
-                container.innerHTML = `<div class="text-center py-6 opacity-50">${t('no_results') || 'Ничего не найдено'}</div>`;
+                container.innerHTML = `<div class="text-center py-6 opacity-50">${t('no_results')}</div>`;
                 return;
             }
 
@@ -578,7 +578,7 @@
                 .eq('id', residentId);
 
             if (error) {
-                Layout.handleError(error, 'Обновление питания');
+                Layout.handleError(error, t('error_updating_meal'));
                 // Откатить значение
                 const r = residents.find(r => r.id === residentId);
                 if (r) select.value = r.meal_type || 'prasad';
@@ -592,7 +592,7 @@
             // Пересчитать статистику
             renderStats();
 
-            Layout.showNotification(t('saved') || 'Сохранено', 'success');
+            Layout.showNotification(t('saved'), 'success');
         }
 
         // ==================== SEARCH ====================
