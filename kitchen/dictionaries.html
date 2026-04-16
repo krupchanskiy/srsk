@@ -74,7 +74,7 @@
     <dialog id="editModal" class="modal">
         <div class="modal-box relative">
             <button type="button" class="btn btn-sm btn-circle btn-ghost absolute right-2 top-2" onclick="editModal.close()">✕</button>
-            <h3 class="font-bold text-lg mb-4" id="modalTitle">Добавить</h3>
+            <h3 class="font-bold text-lg mb-4" id="modalTitle" data-i18n="add">Добавить</h3>
             <form id="editForm" class="space-y-4">
                 <input type="hidden" name="id" />
                 <input type="hidden" name="table" />
@@ -124,7 +124,7 @@
                     { key: 'slug', label: 'col_code', editable: true }
                 ],
                 fields: [
-                    { name: 'slug', label: 'col_code', type: 'text', required: true, placeholder: 'например: main' },
+                    { name: 'slug', label: 'col_code', type: 'text', required: true, placeholder: 'placeholder_slug_example' },
                     { name: 'name_ru', label: 'col_russian', type: 'text', required: true },
                     { name: 'name_en', label: 'col_english', type: 'text', required: true },
                     { name: 'name_hi', label: 'col_hindi', type: 'text', required: true },
@@ -143,7 +143,7 @@
                     { key: 'slug', label: 'col_code', editable: true }
                 ],
                 fields: [
-                    { name: 'slug', label: 'col_code', type: 'text', required: true, placeholder: 'например: vegetables' },
+                    { name: 'slug', label: 'col_code', type: 'text', required: true, placeholder: 'placeholder_category_slug' },
                     { name: 'name_ru', label: 'col_russian', type: 'text', required: true },
                     { name: 'name_en', label: 'col_english', type: 'text', required: true },
                     { name: 'name_hi', label: 'col_hindi', type: 'text', required: true }
@@ -163,10 +163,10 @@
                 ],
                 fields: [
                     { name: 'code', label: 'col_code', type: 'text', required: true, placeholder: 'kg, g, l, ml, pcs' },
-                    { name: 'name_ru', label: 'name_full_ru', type: 'text', required: true, placeholder: 'Килограмм' },
+                    { name: 'name_ru', label: 'name_full_ru', type: 'text', required: true, placeholder: 'placeholder_unit_name' },
                     { name: 'name_en', label: 'name_full_en', type: 'text', required: true, placeholder: 'Kilogram' },
                     { name: 'name_hi', label: 'name_full_hi', type: 'text', required: true, placeholder: 'किलोग्राम' },
-                    { name: 'short_ru', label: 'short_ru', type: 'text', required: true, placeholder: 'кг' },
+                    { name: 'short_ru', label: 'short_ru', type: 'text', required: true, placeholder: 'placeholder_unit_short' },
                     { name: 'short_en', label: 'short_en', type: 'text', required: true, placeholder: 'kg' },
                     { name: 'short_hi', label: 'short_hi', type: 'text', required: true, placeholder: 'किग्रा' },
                     { name: 'type', label: 'type', type: 'select', required: true, options: [
@@ -394,7 +394,7 @@
                     return `
                         <div>
                             <label class="label"><span class="label-text font-medium">${label}</span></label>
-                            <input type="number" name="${field.name}" class="input input-bordered w-full" value="${value}" placeholder="${field.placeholder || ''}" step="${field.step || '1'}" min="0" ${required} />
+                            <input type="number" name="${field.name}" class="input input-bordered w-full" value="${value}" placeholder="${field.placeholder ? t(field.placeholder) : ''}" step="${field.step || '1'}" min="0" ${required} />
                         </div>
                     `;
                 }
@@ -402,7 +402,7 @@
                 return `
                     <div>
                         <label class="label"><span class="label-text font-medium">${label}</span></label>
-                        <input type="text" name="${field.name}" class="input input-bordered w-full" value="${value}" placeholder="${field.placeholder || ''}" ${required} />
+                        <input type="text" name="${field.name}" class="input input-bordered w-full" value="${value}" placeholder="${field.placeholder ? t(field.placeholder) : ''}" ${required} />
                     </div>
                 `;
             }).join('');

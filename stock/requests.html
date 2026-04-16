@@ -97,7 +97,7 @@
         <!-- Results -->
         <div id="resultsSection" class="hidden">
             <div class="flex justify-between items-center mb-4">
-                <h2 id="requestTitle" class="text-lg font-semibold">Новая заявка</h2>
+                <h2 id="requestTitle" class="text-lg font-semibold" data-i18n="new_request">Новая заявка</h2>
                 <button id="saveBtn" class="btn btn-primary btn-sm gap-1" onclick="saveRequest()" data-permission="create_request">
                     <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-3m-1 4l-3 3m0 0l-3-3m3 3V4" />
@@ -282,7 +282,7 @@
             <!-- Фильтр -->
             <label class="flex items-center gap-2 mb-3 cursor-pointer">
                 <input type="checkbox" id="menuDishesExcludeSpicesWater" class="checkbox checkbox-sm checkbox-warning" checked />
-                <span class="text-sm">Без специй и воды</span>
+                <span class="text-sm" data-i18n="exclude_spices_water">Без специй и воды</span>
             </label>
 
             <!-- Список дней с блюдами -->

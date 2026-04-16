@@ -185,8 +185,8 @@
                                 <label class="input input-bordered flex items-center gap-2 w-full">
                                     <input type="number" name="output_amount" min="0.1" step="0.1" class="grow w-full" required />
                                     <select name="output_unit" onchange="onOutputUnitChange()" class="select select-ghost select-xs bg-transparent border-0 focus:outline-none opacity-50 px-0 min-h-0 h-auto w-auto">
-                                        <option value="kg">кг</option>
-                                        <option value="pcs">шт</option>
+                                        <option value="kg" data-i18n="unit_kg">кг</option>
+                                        <option value="pcs" data-i18n="unit_pcs">шт</option>
                                     </select>
                                 </label>
                             </div>
@@ -196,7 +196,7 @@
                                 </label>
                                 <label class="input input-bordered flex items-center gap-2 w-full">
                                     <input type="number" name="portion_amount" min="1" class="grow w-full" />
-                                    <span id="portionUnitLabel" class="opacity-50">г</span>
+                                    <span id="portionUnitLabel" class="opacity-50" data-i18n="unit_g">г</span>
                                 </label>
                                 <input type="hidden" name="portion_unit" value="g" />
                             </div>

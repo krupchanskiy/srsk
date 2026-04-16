@@ -1507,7 +1507,7 @@ async function saveDish() {
     // Check if already added
     const mealData = menuData[selectedDate]?.[selectedMealType];
     if (mealData?.dishes?.some(d => d.recipe_id === selectedRecipe.id)) {
-        alert(t('already_added'));
+        Layout.showNotification(t('already_added'), 'warning');
         return;
     }
 
@@ -1527,7 +1527,7 @@ async function saveDish() {
             .single();
 
         if (!newMeal) {
-            alert(t('error'));
+            Layout.showNotification(t('error'), 'error');
             return;
         }
         mealId = newMeal.id;
@@ -1547,7 +1547,7 @@ async function saveDish() {
 
     if (error) {
         console.error('Error adding dish:', error);
-        alert(t('error'));
+        Layout.showNotification(t('error'), 'error');
         return;
     }
 
@@ -1648,12 +1648,12 @@ async function saveAsTemplate() {
     const toDate = Layout.$('#templateToDate').value;
 
     if (!name) {
-        alert(t('enter_template_name'));
+        Layout.showNotification(t('enter_template_name'), 'warning');
         return;
     }
 
     if (!fromDate || !toDate) {
-        alert(t('select_dates'));
+        Layout.showNotification(t('select_dates'), 'warning');
         return;
     }
 
@@ -1662,7 +1662,7 @@ async function saveAsTemplate() {
     const dayCount = Math.ceil((to - from) / (1000 * 60 * 60 * 24)) + 1;
 
     if (dayCount < 1) {
-        alert(t('invalid_date_range'));
+        Layout.showNotification(t('invalid_date_range'), 'warning');
         return;
     }
 
@@ -1736,7 +1736,7 @@ async function saveAsTemplate() {
         await loadTemplates();
     } catch (error) {
         console.error('Error saving template:', error);
-        alert(t('template_save_error'));
+        Layout.showNotification(t('template_save_error'), 'error');
     } finally {
         saveBtn.disabled = false;
         saveBtn.textContent = t('save');
@@ -1912,7 +1912,7 @@ async function applySelectedTemplate() {
         await loadMenuData();
     } catch (error) {
         console.error('Error applying template:', error);
-        alert(t('template_apply_error'));
+        Layout.showNotification(t('template_apply_error'), 'error');
     } finally {
         applyBtn.disabled = false;
         applyBtn.textContent = t('apply_template');

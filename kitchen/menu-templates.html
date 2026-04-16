@@ -174,7 +174,7 @@
             <div class="space-y-4">
                 <div>
                     <label class="label"><span class="label-text font-medium" data-i18n="template_name">Название шаблона</span></label>
-                    <input type="text" id="importTemplateName" class="input input-bordered w-full" placeholder="Недельное меню" />
+                    <input type="text" id="importTemplateName" class="input input-bordered w-full" placeholder="Недельное меню" data-i18n-placeholder="template_name_placeholder" />
                 </div>
 
                 <div class="grid grid-cols-2 gap-4">
@@ -272,7 +272,7 @@
                     <label class="label"><span class="label-text font-medium" data-i18n="portion_size">Размер порции</span></label>
                     <div class="join w-full">
                         <input type="number" id="portionSize" class="input input-bordered join-item w-full" value="200" min="1" />
-                        <span id="portionUnit" class="btn join-item no-animation pointer-events-none bg-base-200">г</span>
+                        <span id="portionUnit" class="btn join-item no-animation pointer-events-none bg-base-200" data-i18n="unit_g">г</span>
                     </div>
                 </div>
             </div>
@@ -921,7 +921,7 @@
             Layout.$('#recipeDropdown').classList.add('hidden');
             Layout.$('#selectedRecipeDisplay').classList.add('hidden');
             Layout.$('#portionSize').value = 200;
-            Layout.$('#portionUnit').textContent = 'г';
+            Layout.$('#portionUnit').textContent = t('unit_g');
             Layout.$('#saveDishBtn').disabled = true;
 
             Layout.$('#tabSearch').classList.add('tab-active');
