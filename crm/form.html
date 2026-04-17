@@ -292,7 +292,7 @@ async function submitForm(e) {
 
         // 3. Получаем менеджера через round-robin
         const retreatId = formData.get('retreat_id');
-        const managerId = await getNextManager();
+        const managerId = await getNextManager(retreatId);
 
         const notes = formData.get('notes') || '';
 
@@ -404,26 +404,20 @@ async function updateVaishnava(id, data) {
     }
 }
 
-async function getNextManager() {
-    // Round-robin: берём менеджера с самой старой last_assigned_at
-    const { data: queue } = await db
-        .from('crm_manager_queue')
-        .select('manager_id, last_assigned_at')
-        .eq('is_active', true)
-        .order('last_assigned_at', { ascending: true, nullsFirst: true })
-        .limit(1);
-
-    if (!queue || queue.length === 0) return null;
-
-    const manager = queue[0];
-
-    // Обновляем время последнего назначения
-    await db
-        .from('crm_manager_queue')
-        .update({ last_assigned_at: new Date().toISOString() })
-        .eq('manager_id', manager.manager_id);
-
-    return manager.manager_id;
+async function getNextManager(retreatId) {
+    // Round-robin через SECURITY DEFINER функцию:
+    // - атомарно (FOR UPDATE SKIP LOCKED) — нет race condition между формами
+    // - учитывает retreat_id (очередь менеджеров в БД раздельная для каждого ретрита)
+    // - анон больше не имеет UPDATE на crm_manager_queue — дыра закрыта
+    if (!retreatId) return null;
+    const { data, error } = await db.rpc('assign_next_manager_for_retreat', {
+        p_retreat_id: retreatId
+    });
+    if (error) {
+        console.error('assign_next_manager_for_retreat error:', error);
+        return null;
+    }
+    return data || null;
 }
 
 // ==================== HELPERS ====================
