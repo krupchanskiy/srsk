@@ -1963,7 +1963,13 @@ function showImportDone() {
         console.error(`Несовпадение количества! CSV: ${csvCount}, обработано: ${totalProcessed}`);
     }
 
-    document.getElementById('importSummary').innerHTML = summary.replace('\n', '<br>');
+    // XSS-safe: собираем через textContent + <br> вместо innerHTML
+    const summaryEl = document.getElementById('importSummary');
+    summaryEl.replaceChildren();
+    summary.split('\n').forEach((line, i) => {
+        if (i > 0) summaryEl.appendChild(document.createElement('br'));
+        summaryEl.appendChild(document.createTextNode(line));
+    });
 
     // Reload data
     loadRegistrations();
