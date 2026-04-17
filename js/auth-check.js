@@ -119,9 +119,9 @@
             }
         }
 
-        console.log('✅ User authenticated');
-        console.log('📋 Permissions loaded:', permissions.length);
-        console.log('👤 User type:', vaishnava.user_type);
+        debug('✅ User authenticated');
+        debug('📋 Permissions loaded:', permissions.length);
+        debug('👤 User type:', vaishnava.user_type);
 
         // Добавить класс роли на body для CSS-контроля
         document.body.classList.add(`user-type-${vaishnava.user_type}`);
@@ -178,7 +178,7 @@
         // Применить повторно через 500мс для динамического контента
         setTimeout(window.applyPermissions, 500);
 
-        console.log('✅ Permissions system ready');
+        debug('✅ Permissions system ready');
 
         // Отправить событие о готовности авторизации
         window.dispatchEvent(new CustomEvent('authReady', { detail: window.currentUser }));

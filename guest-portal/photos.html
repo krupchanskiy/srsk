@@ -454,7 +454,7 @@
 
                 myPhotos = myPhotoData?.map(t => t.photo_id) || [];
 
-                console.log('My photos loaded:', myPhotos.length);
+                debug('My photos loaded:', myPhotos.length);
             }
 
             renderFilters();
@@ -908,11 +908,11 @@
 
             // Проверяем есть ли фото профиля
             if (currentUser?.photoUrl) {
-                console.log('Используем фото профиля:', currentUser.photoUrl);
+                debug('Используем фото профиля:', currentUser.photoUrl);
                 await searchFaceByUrl(currentUser.photoUrl);
             } else {
                 // Нет фото профиля - просим загрузить селфи
-                console.log('Фото профиля отсутствует, запрос селфи');
+                debug('Фото профиля отсутствует, запрос селфи');
                 document.getElementById('selfieInput').click();
             }
         }

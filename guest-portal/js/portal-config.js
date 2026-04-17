@@ -60,7 +60,7 @@ window.PORTAL_CONFIG = {
 };
 
 // Лог для отладки
-console.log('[ENV]', window.PORTAL_CONFIG.ENV + ':', location.hostname || 'file://', '→', window.PORTAL_CONFIG.SUPABASE_URL);
+debug('[ENV]', window.PORTAL_CONFIG.ENV + ':', location.hostname || 'file://', '→', window.PORTAL_CONFIG.SUPABASE_URL);
 
 // Создаём ЕДИНСТВЕННЫЙ экземпляр Supabase клиента
 if (typeof window.supabase !== 'undefined') {

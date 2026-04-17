@@ -1786,14 +1786,14 @@ function subscribeToRealtime() {
         )
         .subscribe((status) => {
             if (status === 'SUBSCRIBED') {
-                console.log('Realtime: подключено к заявкам');
+                debug('Realtime: подключено к заявкам');
             }
         });
 }
 
 let realtimeTimeout = null;
 function handleRealtimeChange(payload) {
-    console.log('Realtime изменение заявок:', payload.eventType);
+    debug('Realtime изменение заявок:', payload.eventType);
     if (realtimeTimeout) clearTimeout(realtimeTimeout);
     realtimeTimeout = setTimeout(async () => {
         await loadSavedRequests();
@@ -1802,7 +1802,7 @@ function handleRealtimeChange(payload) {
 }
 
 function handleStockChange(payload) {
-    console.log('Realtime изменение склада:', payload.eventType);
+    debug('Realtime изменение склада:', payload.eventType);
     if (realtimeTimeout) clearTimeout(realtimeTimeout);
     realtimeTimeout = setTimeout(async () => {
         await loadStock();

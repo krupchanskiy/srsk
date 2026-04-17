@@ -38,7 +38,7 @@
             }
         });
 
-        console.log('✅ Permissions UI applied');
+        debug('✅ Permissions UI applied');
     }
 
     // Применить права при загрузке DOM

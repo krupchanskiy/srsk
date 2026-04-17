@@ -2300,7 +2300,7 @@ function subscribeToRealtime() {
 
     channel.subscribe((status) => {
         if (status === 'SUBSCRIBED') {
-            console.log('Realtime: подключено к шахматке');
+            debug('Realtime: подключено к шахматке');
         }
     });
 }
@@ -2308,7 +2308,7 @@ function subscribeToRealtime() {
 // Обработка изменений — перезагрузка данных с debounce
 let realtimeTimeout = null;
 function handleRealtimeChange(payload) {
-    console.log('Realtime изменение:', payload.table, payload.eventType);
+    debug('Realtime изменение:', payload.table, payload.eventType);
 
     // Debounce: если несколько изменений подряд — ждём 500мс
     if (realtimeTimeout) clearTimeout(realtimeTimeout);

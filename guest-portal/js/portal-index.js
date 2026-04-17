@@ -1361,9 +1361,9 @@ async function loadPhotoGalleryPreview(vaishnavId) {
                 .eq('rejected', false);
 
             myPhotoIds = myPhotoData?.map(t => t.photo_id) || [];
-            console.debug('[gallery] myPhotoIds loaded:', myPhotoIds.length);
+            debug('[gallery] myPhotoIds loaded:', myPhotoIds.length);
         } else {
-            console.debug('[gallery] currentGuest missing, skipping myPhotoIds');
+            debug('[gallery] currentGuest missing, skipping myPhotoIds');
         }
 
         // Загружаем фото только из основного ретрита
@@ -1429,7 +1429,7 @@ async function loadPhotoGalleryPreview(vaishnavId) {
             }))
             : [];
 
-        console.debug('[gallery] photos final count:', photosWithRetreats.length);
+        debug('[gallery] photos final count:', photosWithRetreats.length);
 
         // Собираем полные объекты "моих" фото для отдельной секции
         const myPhotoIdSet = new Set(myPhotoIds.map(id => String(id)));
@@ -1692,7 +1692,7 @@ async function loadGuestProfile() {
         // Обновляем статус Telegram после перезагрузки профиля
         await checkTelegramStatus();
 
-        console.log('Profile reloaded, telegram_chat_id:', loggedInUser.telegram_chat_id);
+        debug('Profile reloaded, telegram_chat_id:', loggedInUser.telegram_chat_id);
     } catch (err) {
         console.error('Error reloading profile:', err);
     }
@@ -1806,10 +1806,10 @@ function showTelegramLinkModal(deepLink, token) {
             return;
         }
 
-        console.log('Polling token status:', data);
+        debug('Polling token status:', data);
 
         if (data && data.used) {
-            console.log('Token used! Updating profile...');
+            debug('Token used! Updating profile...');
             clearInterval(pollInterval);
             closeTelegramLinkModal();
 
