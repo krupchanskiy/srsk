@@ -230,6 +230,30 @@ Deno.serve(async (req: Request) => {
         { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     } else if (type === 'single' && vaishnavId) {
+      // Проверка прав для single: можно либо себе, либо если есть право upload_photos.
+      // Без этой проверки любой авторизованный мог отправить Telegram-уведомление любому.
+      if (!isServiceRole && currentUserId) {
+        const { data: ownVaishnava } = await supabaseAdmin
+          .from('vaishnavas')
+          .select('id')
+          .eq('user_id', currentUserId)
+          .eq('id', vaishnavId)
+          .maybeSingle();
+
+        if (!ownVaishnava) {
+          const { data: hasPermission } = await supabaseAdmin.rpc('has_permission', {
+            user_uuid: currentUserId,
+            perm_code: 'upload_photos'
+          });
+          if (!hasPermission) {
+            return new Response(
+              JSON.stringify({ error: 'Insufficient permissions to send notification to another user' }),
+              { status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+            );
+          }
+        }
+      }
+
       // Отправка одному пользователю
       const { data: vaishnava, error: vaishError } = await supabaseAdmin
         .from('vaishnavas')

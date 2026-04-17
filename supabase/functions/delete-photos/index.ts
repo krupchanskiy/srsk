@@ -90,7 +90,10 @@ serve(async (req) => {
       },
     });
 
-    const collectionId = `retreat-${retreat_id}`;
+    // ВНИМАНИЕ: единый формат `retreat_${id}` — совпадает с index-faces и search-face.
+    // Раньше здесь было `retreat-${id}` (с дефисом) → Rekognition не находил коллекцию
+    // и удаление лиц из AWS молча игнорировалось (ошибка ловилась и логировалась).
+    const collectionId = `retreat_${retreat_id}`;
 
     console.log(`Удаление ${photo_ids.length} фотографий`);
 
