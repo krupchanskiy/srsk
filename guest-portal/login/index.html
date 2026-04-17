@@ -232,7 +232,9 @@
             portal_back_to_login: { ru: 'Вернуться к входу', en: 'Back to login', hi: 'लॉगिन पर वापस' },
             portal_reset_link_sent: { ru: 'Ссылка отправлена!', en: 'Link sent!', hi: 'लिंक भेज दिया गया!' },
             portal_check_email_reset: { ru: 'Проверьте почту и перейдите по ссылке для сброса пароля', en: 'Check your email and click the link to reset password', hi: 'अपना ईमेल जांचें और पासवर्ड रीसेट करने के लिए लिंक पर क्लिक करें' },
-            error_cooldown: { ru: 'Подождите минуту перед повторной отправкой', en: 'Please wait a minute before sending again', hi: 'कृपया दोबारा भेजने से पहले एक मिनट प्रतीक्षा करें' }
+            error_cooldown: { ru: 'Подождите минуту перед повторной отправкой', en: 'Please wait a minute before sending again', hi: 'कृपया दोबारा भेजने से पहले एक मिनट प्रतीक्षा करें' },
+            error_too_many_attempts: { ru: 'Слишком много попыток. Подождите минуту.', en: 'Too many attempts. Please wait a minute.', hi: 'बहुत अधिक प्रयास। कृपया एक मिनट प्रतीक्षा करें।' },
+            error_network: { ru: 'Ошибка сети. Проверьте интернет и попробуйте снова.', en: 'Network error. Check your internet and try again.', hi: 'नेटवर्क त्रुटि। अपना इंटरनेट जांचें और पुनः प्रयास करें।' }
         };
 
         // Загрузка переводов
@@ -496,11 +498,11 @@
                     if (error.message?.includes('Invalid login credentials')) {
                         showError('error_invalid_credentials');
                     } else if (error.message?.includes('rate') || error.status === 429) {
-                        showErrorText('Слишком много попыток. Подождите минуту.');
+                        showError('error_too_many_attempts');
                     } else if (error.message?.includes('fetch') || error.message?.includes('network') || error.message?.includes('Failed')) {
-                        showErrorText('Ошибка сети. Проверьте интернет и попробуйте снова.');
+                        showError('error_network');
                     } else {
-                        showErrorText(error.message || 'Неизвестная ошибка');
+                        showError('error_unknown');
                     }
                     return;
                 }
@@ -566,9 +568,9 @@
             } catch (error) {
                 console.error('Ошибка входа:', error);
                 if (error.message?.includes('fetch') || error.name === 'TypeError') {
-                    showErrorText('Ошибка сети. Проверьте интернет и попробуйте снова.');
+                    showError('error_network');
                 } else {
-                    showErrorText(error.message || 'Неизвестная ошибка');
+                    showError('error_unknown');
                 }
             } finally {
                 submitBtn.disabled = false;

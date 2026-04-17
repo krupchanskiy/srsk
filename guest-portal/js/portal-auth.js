@@ -276,7 +276,7 @@ function getGuestDisplayName() {
 
     return window.currentGuest.spiritualName ||
            `${window.currentGuest.firstName || ''} ${window.currentGuest.lastName || ''}`.trim() ||
-           'Гость';
+           (window.PortalLayout ? window.PortalLayout.t('portal_guest') : 'Гость');
 }
 
 /**

@@ -126,10 +126,10 @@ async function saveTransferEdit(direction) {
         // Обновляем отображение
         if (datetime) {
             document.getElementById(`${direction}-datetime`).textContent = formatTransferDateTime(new Date(datetime).toISOString());
-            document.getElementById(`${direction}-flight`).textContent = flightNumber ? `Рейс ${flightNumber}` : '—';
+            document.getElementById(`${direction}-flight`).textContent = flightNumber ? `${PortalLayout.t('portal_flight')} ${flightNumber}` : '—';
             document.getElementById(`${direction}-taxi`).innerHTML = renderTaxiStatus(currentTransfers[direction]);
         } else {
-            document.getElementById(`${direction}-datetime`).innerHTML = '<span class="text-base text-yellow-700">Пожалуйста, добавьте информацию</span>';
+            document.getElementById(`${direction}-datetime`).innerHTML = `<span class="text-base text-yellow-700">${PortalLayout.t('portal_please_add_info')}</span>`;
             document.getElementById(`${direction}-flight`).textContent = '';
             document.getElementById(`${direction}-taxi`).innerHTML = '';
         }
@@ -140,7 +140,7 @@ async function saveTransferEdit(direction) {
         cancelTransferEdit(direction);
     } catch (err) {
         console.error('Ошибка сохранения трансфера:', err);
-        alert('Ошибка сохранения');
+        PortalLayout.showNotification(PortalLayout.t('portal_error_saving'), 'error');
     }
 }
 
@@ -398,13 +398,13 @@ function initPhotoUpload() {
 
         // Проверка размера (макс 5MB)
         if (file.size > 5 * 1024 * 1024) {
-            alert('Файл слишком большой (максимум 5MB)');
+            PortalLayout.showNotification(PortalLayout.t('portal_file_too_large'), 'error');
             return;
         }
 
         // Проверка типа
         if (!file.type.startsWith('image/')) {
-            alert('Выберите изображение');
+            PortalLayout.showNotification(PortalLayout.t('portal_select_image'), 'error');
             return;
         }
 
@@ -514,7 +514,7 @@ async function handleProfileSave(e) {
             if (uploadResult.success) {
                 photoUrl = uploadResult.url;
             } else {
-                alert('Ошибка загрузки фото');
+                PortalLayout.showNotification(PortalLayout.t('portal_photo_upload_error'), 'error');
             }
         }
 
@@ -546,12 +546,12 @@ async function handleProfileSave(e) {
             populateProfile(window.currentGuest);
             toggleProfileEdit(false);
         } else {
-            alert('Ошибка сохранения: ' + (result.error || 'Неизвестная ошибка'));
+            PortalLayout.showNotification(PortalLayout.t('portal_error_saving') + ': ' + (result.error || ''), 'error');
         }
 
     } catch (error) {
         console.error('Ошибка сохранения:', error);
-        alert('Ошибка сохранения профиля');
+        PortalLayout.showNotification(PortalLayout.t('portal_error_saving'), 'error');
     } finally {
         saveBtn.disabled = false;
         spinner.classList.add('hidden');
@@ -576,14 +576,14 @@ function formatTransferDateTime(datetime) {
 // Отобразить статус такси
 function renderTaxiStatus(transfer) {
     if (!transfer.needs_transfer || transfer.needs_transfer === 'no') {
-        return '<div class="text-xs text-gray-500">Трансфер не нужен</div>';
+        return `<div class="text-xs text-gray-500">${PortalLayout.t('portal_transfer_not_needed')}</div>`;
     }
 
     if (transfer.taxi_status === 'booked' || transfer.taxi_driver_info) {
         return `
             <div class="flex items-center gap-2">
                 <span class="w-2 h-2 bg-srsk-green rounded-full"></span>
-                <span class="text-sm text-srsk-green font-medium">Такси заказано</span>
+                <span class="text-sm text-srsk-green font-medium">${PortalLayout.t('portal_taxi_booked')}</span>
             </div>
             ${transfer.taxi_driver_info ? `<div class="text-xs text-gray-500 mt-1">${escapeHtml(transfer.taxi_driver_info)}</div>` : ''}
         `;
@@ -592,7 +592,7 @@ function renderTaxiStatus(transfer) {
     return `
         <div class="flex items-center gap-2">
             <span class="w-2 h-2 bg-srsk-orange rounded-full"></span>
-            <span class="text-sm text-yellow-700 font-medium">Такси требуется</span>
+            <span class="text-sm text-yellow-700 font-medium">${PortalLayout.t('portal_taxi_needed')}</span>
         </div>
     `;
 }
@@ -798,7 +798,7 @@ async function loadActiveRetreat(guestId) {
                 }
             } else {
                 // Самостоятельное проживание (room_id = NULL)
-                document.getElementById('retreat-room').textContent = 'Самостоятельное';
+                document.getElementById('retreat-room').textContent = PortalLayout.t('portal_self_accommodation');
             }
         }
 
@@ -812,10 +812,10 @@ async function loadActiveRetreat(guestId) {
         document.getElementById('arrival-block').classList.remove('hidden');
         if (arrival?.flight_datetime) {
             document.getElementById('arrival-datetime').textContent = formatTransferDateTime(arrival.flight_datetime);
-            document.getElementById('arrival-flight').textContent = `Рейс ${arrival.flight_number || '—'}`;
+            document.getElementById('arrival-flight').textContent = `${PortalLayout.t('portal_flight')} ${arrival.flight_number || '—'}`;
             document.getElementById('arrival-taxi').innerHTML = renderTaxiStatus(arrival);
         } else {
-            const noInfoText = isPublicView ? 'Нет информации' : 'Пожалуйста, добавьте информацию';
+            const noInfoText = isPublicView ? PortalLayout.t('portal_no_info') : PortalLayout.t('portal_please_add_info');
             document.getElementById('arrival-datetime').innerHTML = `<span class="text-base text-gray-400">${noInfoText}</span>`;
             document.getElementById('arrival-flight').textContent = '';
             document.getElementById('arrival-taxi').innerHTML = '';
@@ -830,10 +830,10 @@ async function loadActiveRetreat(guestId) {
         document.getElementById('departure-block').classList.remove('hidden');
         if (departure?.flight_datetime) {
             document.getElementById('departure-datetime').textContent = formatTransferDateTime(departure.flight_datetime);
-            document.getElementById('departure-flight').textContent = `Рейс ${departure.flight_number || '—'}`;
+            document.getElementById('departure-flight').textContent = `${PortalLayout.t('portal_flight')} ${departure.flight_number || '—'}`;
             document.getElementById('departure-taxi').innerHTML = renderTaxiStatus(departure);
         } else {
-            const noInfoText = isPublicView ? 'Нет информации' : 'Пожалуйста, добавьте информацию';
+            const noInfoText = isPublicView ? PortalLayout.t('portal_no_info') : PortalLayout.t('portal_please_add_info');
             document.getElementById('departure-datetime').innerHTML = `<span class="text-base text-gray-400">${noInfoText}</span>`;
             document.getElementById('departure-flight').textContent = '';
             document.getElementById('departure-taxi').innerHTML = '';
@@ -880,7 +880,7 @@ function renderPortalChildren(childrenData) {
         const name = child.spiritual_name || `${child.first_name || ''} ${child.last_name || ''}`.trim() || '—';
         const age = child.birth_date ? DateUtils.calculateAge(child.birth_date) : null;
         const genderIcon = child.gender === 'male' ? '👦' : child.gender === 'female' ? '👧' : '👶';
-        const ageStr = age !== null ? `, ${age} лет` : '';
+        const ageStr = age !== null ? `, ${age} ${PortalLayout.t('portal_years_old')}` : '';
         const initials = (child.first_name?.[0] || '') + (child.last_name?.[0] || '');
 
         return `
@@ -908,7 +908,7 @@ function renderPortalChildren(childrenData) {
 function openAddChildPortal() {
     document.getElementById('childPortalForm').reset();
     document.getElementById('portalChildId').value = '';
-    document.getElementById('childModalPortalTitle').textContent = 'Добавить ребёнка';
+    document.getElementById('childModalPortalTitle').textContent = PortalLayout.t('add_child');
     document.getElementById('deleteChildBtn').classList.add('hidden');
     document.getElementById('childModal').classList.remove('hidden');
     document.body.style.overflow = 'hidden';
@@ -923,7 +923,7 @@ function editChildPortal(childId) {
     document.getElementById('portalChildLastName').value = child.last_name || '';
     document.getElementById('portalChildGender').value = child.gender || '';
     document.getElementById('portalChildBirthDate').value = child.birth_date || '';
-    document.getElementById('childModalPortalTitle').textContent = 'Редактировать ребёнка';
+    document.getElementById('childModalPortalTitle').textContent = PortalLayout.t('portal_edit_child');
     document.getElementById('deleteChildBtn').classList.remove('hidden');
     document.getElementById('childModal').classList.remove('hidden');
     document.body.style.overflow = 'hidden';
@@ -946,7 +946,7 @@ async function saveChildPortal(event) {
     };
 
     if (!childData.firstName) {
-        alert('Укажите имя ребёнка');
+        PortalLayout.showNotification(PortalLayout.t('portal_enter_child_name'), 'warning');
         return;
     }
 
@@ -961,7 +961,7 @@ async function saveChildPortal(event) {
     }
 
     if (!result.success) {
-        alert('Ошибка сохранения: ' + (result.error || ''));
+        PortalLayout.showNotification(PortalLayout.t('portal_error_saving') + ': ' + (result.error || ''), 'error');
         return;
     }
 
@@ -976,13 +976,13 @@ async function deleteChildPortal() {
     const childId = document.getElementById('portalChildId').value;
     if (!childId) return;
 
-    if (!confirm('Удалить ребёнка из вашего профиля?')) return;
+    if (!confirm(PortalLayout.t('portal_confirm_delete_child'))) return;
 
     const guest = window.currentGuest;
     if (!guest?.id) return;
     const result = await PortalData.deleteChild(childId, guest.id);
     if (!result.success) {
-        alert('Ошибка удаления: ' + (result.error || ''));
+        PortalLayout.showNotification(PortalLayout.t('portal_error_deleting') + ': ' + (result.error || ''), 'error');
         return;
     }
 
@@ -1038,7 +1038,7 @@ async function loadUpcomingRetreats(guestId = null) {
 
         const container = document.getElementById('upcoming-retreats');
         if (filteredData.length === 0) {
-            container.innerHTML = '<div class="col-span-3 text-center text-gray-500 py-8">Нет запланированных ретритов</div>';
+            container.innerHTML = `<div class="col-span-3 text-center text-gray-500 py-8">${PortalLayout.t('portal_no_planned_retreats')}</div>`;
             return;
         }
 
@@ -1055,7 +1055,7 @@ async function loadUpcomingRetreats(guestId = null) {
                     <div class="font-medium text-gray-800 text-sm mt-1">${escapeHtml(retreat.name_ru || '')}</div>
                     <div class="text-xs text-gray-500 mt-1 line-clamp-2">${escapeHtml(retreat.description_ru || '')}</div>
                     <div class="text-xs text-srsk-orange font-medium mt-auto pt-2 flex items-center gap-1 group-hover:underline">
-                        Подать заявку
+                        ${PortalLayout.t('portal_apply')}
                         <svg class="w-3 h-3" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M13.5 4.5L21 12m0 0l-7.5 7.5M21 12H3"/></svg>
                     </div>
                 </div>
@@ -1076,7 +1076,7 @@ async function loadMaterialsCards() {
         if (!container) return;
 
         if (materials.length === 0) {
-            container.innerHTML = '<div class="text-gray-500 text-sm py-4">Материалов пока нет</div>';
+            container.innerHTML = `<div class="text-gray-500 text-sm py-4">${PortalLayout.t('portal_no_materials')}</div>`;
             return;
         }
 
@@ -1227,13 +1227,13 @@ async function loadPublicProfile(vaishnavId) {
 
         if (error || !vaishnava) {
             console.error('Ошибка загрузки профиля:', error);
-            document.body.innerHTML = '<div class="flex items-center justify-center min-h-screen text-gray-500">Профиль не найден</div>';
+            document.body.innerHTML = `<div class="flex items-center justify-center min-h-screen text-gray-500">${PortalLayout.t('portal_profile_not_found')}</div>`;
             return;
         }
 
         // Проверяем публичность профиля
         if (vaishnava.is_profile_public === false) {
-            document.body.innerHTML = '<div class="flex items-center justify-center min-h-screen text-gray-500">Профиль скрыт пользователем</div>';
+            document.body.innerHTML = `<div class="flex items-center justify-center min-h-screen text-gray-500">${PortalLayout.t('portal_profile_hidden')}</div>`;
             return;
         }
 
@@ -1278,7 +1278,7 @@ async function loadPublicProfile(vaishnavId) {
 
     } catch (e) {
         console.error('Ошибка:', e);
-        document.body.innerHTML = '<div class="flex items-center justify-center min-h-screen text-gray-500">Ошибка загрузки</div>';
+        document.body.innerHTML = `<div class="flex items-center justify-center min-h-screen text-gray-500">${PortalLayout.t('portal_loading_error')}</div>`;
     }
 }
 
@@ -1446,7 +1446,7 @@ function renderPhotoPreview(photos, totalCount, myPhotoIds = []) {
     // Заглушка, если нет фото
     if (!photos || photos.length === 0) {
         if (titleEl) {
-            titleEl.textContent = 'Фотографии ретрита';
+            titleEl.textContent = PortalLayout.t('portal_retreat_photos');
         }
 
         // Скрыть кнопки навигации
@@ -1458,8 +1458,8 @@ function renderPhotoPreview(photos, totalCount, myPhotoIds = []) {
                 <svg class="w-20 h-20 text-blue-200 mb-4" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24">
                     <path stroke-linecap="round" stroke-linejoin="round" d="M2.25 15.75l5.159-5.159a2.25 2.25 0 013.182 0l5.159 5.159m-1.5-1.5l1.409-1.409a2.25 2.25 0 013.182 0l2.909 2.909m-18 3.75h16.5a1.5 1.5 0 001.5-1.5V6a1.5 1.5 0 00-1.5-1.5H3.75A1.5 1.5 0 002.25 6v12a1.5 1.5 0 001.5 1.5zm10.5-11.25h.008v.008h-.008V8.25zm.375 0a.375.375 0 11-.75 0 .375.375 0 01.75 0z" />
                 </svg>
-                <div class="text-gray-400 text-center mb-2 font-medium">Пока нет фотографий</div>
-                <div class="text-gray-400 text-sm text-center">Фотографии появятся после вашего ретрита</div>
+                <div class="text-gray-400 text-center mb-2 font-medium">${PortalLayout.t('portal_no_photos_yet')}</div>
+                <div class="text-gray-400 text-sm text-center">${PortalLayout.t('portal_photos_after_retreat')}</div>
             </div>
         `;
         return;
@@ -1468,11 +1468,19 @@ function renderPhotoPreview(photos, totalCount, myPhotoIds = []) {
     // Update title with count
     if (titleEl) {
         const n = totalCount;
-        const mod10 = n % 10, mod100 = n % 100;
-        const form = (mod10 === 1 && mod100 !== 11) ? 'фотография'
-            : (mod10 >= 2 && mod10 <= 4 && (mod100 < 10 || mod100 >= 20)) ? 'фотографии'
-            : 'фотографий';
-        const text = `${n} ${form}`;
+        const lang = PortalLayout.getLang();
+        let text;
+        if (lang === 'en') {
+            text = `${n} ${n === 1 ? 'photo' : 'photos'}`;
+        } else if (lang === 'hi') {
+            text = `${n} ${n === 1 ? 'फ़ोटो' : 'फ़ोटो'}`;
+        } else {
+            const mod10 = n % 10, mod100 = n % 100;
+            const form = (mod10 === 1 && mod100 !== 11) ? 'фотография'
+                : (mod10 >= 2 && mod10 <= 4 && (mod100 < 10 || mod100 >= 20)) ? 'фотографии'
+                : 'фотографий';
+            text = `${n} ${form}`;
+        }
         titleEl.textContent = text;
     }
 
@@ -1484,7 +1492,7 @@ function renderPhotoPreview(photos, totalCount, myPhotoIds = []) {
         return `
             <div class="flex-shrink-0 w-64 h-44 rounded-xl overflow-hidden cursor-pointer hover:scale-[1.02] transition-transform snap-start relative group">
                 <img src="${url}" alt="Photo" class="w-full h-full object-cover">
-                ${isMine ? '<div class="absolute top-2 right-2 bg-srsk-orange text-white text-xs px-2 py-1 rounded-full font-medium">Вы</div>' : ''}
+                ${isMine ? `<div class="absolute top-2 right-2 bg-srsk-orange text-white text-xs px-2 py-1 rounded-full font-medium">${PortalLayout.t('portal_you')}</div>` : ''}
                 <div class="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/60 to-transparent p-3 opacity-0 group-hover:opacity-100 transition-opacity">
                     <div class="text-white text-sm truncate">${escapeHtml(retreatName)}</div>
                 </div>
@@ -1555,7 +1563,7 @@ function renderMyPhotosPreview(myPhotos) {
         return `
             <div class="flex-shrink-0 w-64 h-44 rounded-xl overflow-hidden cursor-pointer hover:scale-[1.02] transition-transform snap-start relative group">
                 <img src="${url}" alt="Фото" class="w-full h-full object-cover">
-                <div class="absolute top-2 right-2 bg-srsk-orange text-white text-xs px-2 py-1 rounded-full font-medium">Вы</div>
+                <div class="absolute top-2 right-2 bg-srsk-orange text-white text-xs px-2 py-1 rounded-full font-medium">${PortalLayout.t('portal_you')}</div>
                 <div class="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/60 to-transparent p-3 opacity-0 group-hover:opacity-100 transition-opacity">
                     <div class="text-white text-sm truncate">${escapeHtml(retreatName)}</div>
                 </div>
@@ -1580,8 +1588,8 @@ function getPhotoStorageUrl(storagePath) {
 
 function formatRetreatMonth(retreat) {
     const d = DateUtils.parseDate(retreat.start_date);
-    const months = ['Январь','Февраль','Март','Апрель','Май','Июнь',
-                    'Июль','Август','Сентябрь','Октябрь','Ноябрь','Декабрь'];
+    const lang = PortalLayout.getLang();
+    const months = DateUtils.monthNames[lang] || DateUtils.monthNames.ru;
     return `${months[d.getMonth()]} ${d.getFullYear()}`;
 }
 
@@ -1638,7 +1646,7 @@ async function renderPastRetreatsPhotos(otherRetreatIds, retreatsMap) {
         const emptyHtml = Array(emptySlots).fill('<div class="w-full h-full bg-gray-200"></div>').join('');
 
         // Склонение слова "фото" (неизменяемое в русском)
-        const photoLabel = lang === 'en' ? `${card.count} photos` : `${card.count} фото`;
+        const photoLabel = lang === 'en' ? `${card.count} photo${card.count !== 1 ? 's' : ''}` : `${card.count} ${PortalLayout.t('portal_photo_label')}`;
 
         return `
             <a href="photos.html?retreat=${card.retreatId}"
@@ -1711,14 +1719,14 @@ async function checkTelegramStatus() {
     if (miniConnected) miniConnected.classList.add('hidden');
     if (miniConnectBtn) miniConnectBtn.classList.toggle('hidden', connected);
     if (miniDisconnectBtn) miniDisconnectBtn.classList.toggle('hidden', !connected);
-    if (miniStatus) miniStatus.textContent = connected ? 'Уведомления подключены' : 'Уведомления';
+    if (miniStatus) miniStatus.textContent = connected ? PortalLayout.t('portal_notifications_connected') : PortalLayout.t('portal_notifications');
 }
 
 // Подключить Telegram уведомления
 async function connectTelegram() {
     const guest = window.currentGuest;
     if (!guest?.id) {
-        PortalLayout.showNotification('Ошибка загрузки профиля', 'error');
+        PortalLayout.showNotification(PortalLayout.t('portal_error_loading_profile'), 'error');
         return;
     }
 
@@ -1740,7 +1748,7 @@ async function connectTelegram() {
 
         if (error) {
             console.error('Error creating telegram token:', error);
-            PortalLayout.showNotification('Ошибка создания ссылки', 'error');
+            PortalLayout.showNotification(PortalLayout.t('portal_error_creating_link'), 'error');
             return;
         }
 
@@ -1753,7 +1761,7 @@ async function connectTelegram() {
 
     } catch (err) {
         console.error('Error connecting telegram:', err);
-        PortalLayout.showNotification('Ошибка подключения', 'error');
+        PortalLayout.showNotification(PortalLayout.t('portal_error_connecting'), 'error');
     }
 }
 
@@ -1796,7 +1804,7 @@ function showTelegramLinkModal(deepLink, token) {
             // Обновляем профиль
             await loadGuestProfile();
 
-            PortalLayout.showNotification('Telegram успешно подключён!', 'success');
+            PortalLayout.showNotification(PortalLayout.t('portal_telegram_connected_success'), 'success');
         }
     }, 3000); // Проверяем каждые 3 секунды
 
@@ -1816,11 +1824,11 @@ function closeTelegramLinkModal() {
 async function disconnectTelegram() {
     const guest = window.currentGuest;
     if (!guest?.id) {
-        PortalLayout.showNotification('Ошибка загрузки профиля', 'error');
+        PortalLayout.showNotification(PortalLayout.t('portal_error_loading_profile'), 'error');
         return;
     }
 
-    if (!confirm('Отключить Telegram уведомления?')) {
+    if (!confirm(PortalLayout.t('portal_confirm_disconnect_telegram'))) {
         return;
     }
 
@@ -1832,7 +1840,7 @@ async function disconnectTelegram() {
 
         if (error) {
             console.error('Error disconnecting telegram:', error);
-            PortalLayout.showNotification('Ошибка отключения', 'error');
+            PortalLayout.showNotification(PortalLayout.t('portal_error_disconnecting'), 'error');
             return;
         }
 
@@ -1842,11 +1850,11 @@ async function disconnectTelegram() {
         // Обновляем UI
         await checkTelegramStatus();
 
-        PortalLayout.showNotification('Telegram уведомления отключены', 'success');
+        PortalLayout.showNotification(PortalLayout.t('portal_telegram_disconnected'), 'success');
 
     } catch (err) {
         console.error('Error disconnecting telegram:', err);
-        PortalLayout.showNotification('Ошибка отключения', 'error');
+        PortalLayout.showNotification(PortalLayout.t('portal_error_disconnecting'), 'error');
     }
 }
 

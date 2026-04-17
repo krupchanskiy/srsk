@@ -81,6 +81,32 @@
     <script src="../js/portal-auth.js"></script>
     <script>
         const db = window.portalSupabase;
+        const currentLang = localStorage.getItem('srsk_lang') || 'ru';
+
+        // Переводы для callback-страницы
+        const callbackTranslations = {
+            cb_checking_auth: { ru: 'Проверка авторизации...', en: 'Checking authorization...', hi: 'प्राधिकरण की जाँच...' },
+            cb_linking_account: { ru: 'Связывание аккаунта...', en: 'Linking account...', hi: 'खाता लिंक हो रहा है...' },
+            cb_auth_error: { ru: 'Ошибка авторизации', en: 'Authorization error', hi: 'प्राधिकरण त्रुटि' },
+            cb_session_data_error: { ru: 'Не удалось получить данные сессии', en: 'Could not get session data', hi: 'सत्र डेटा प्राप्त नहीं हो सका' },
+            cb_session_not_found: { ru: 'Сессия не найдена', en: 'Session not found', hi: 'सत्र नहीं मिला' },
+            cb_link_expired: { ru: 'Ссылка устарела или недействительна. Попробуйте запросить новую.', en: 'Link expired or invalid. Try requesting a new one.', hi: 'लिंक समाप्त या अमान्य। एक नया अनुरोध करने का प्रयास करें।' },
+            cb_profile_not_found: { ru: 'Профиль не найден', en: 'Profile not found', hi: 'प्रोफ़ाइल नहीं मिला' },
+            cb_not_registered: { ru: 'Ваш email не зарегистрирован в системе. Пожалуйста, зарегистрируйтесь.', en: 'Your email is not registered. Please sign up.', hi: 'आपका ईमेल पंजीकृत नहीं है। कृपया साइन अप करें।' },
+            cb_register: { ru: 'Зарегистрироваться', en: 'Register', hi: 'पंजीकरण करें' },
+            cb_conflict: { ru: 'Конфликт аккаунтов', en: 'Account conflict', hi: 'खाता विरोध' },
+            cb_conflict_text: { ru: 'Этот email уже связан с другим аккаунтом. Обратитесь в поддержку.', en: 'This email is linked to another account. Contact support.', hi: 'यह ईमेल किसी अन्य खाते से जुड़ा है। सहायता से संपर्क करें।' },
+            cb_error: { ru: 'Ошибка', en: 'Error', hi: 'त्रुटि' },
+            cb_link_failed: { ru: 'Не удалось связать аккаунт. Попробуйте позже.', en: 'Could not link account. Try again later.', hi: 'खाता लिंक नहीं हो सका। बाद में पुनः प्रयास करें।' },
+            cb_general_error: { ru: 'Произошла ошибка', en: 'An error occurred', hi: 'एक त्रुटि हुई' },
+            cb_request_new_link: { ru: 'Попробуйте запросить новую ссылку для входа.', en: 'Try requesting a new login link.', hi: 'नया लॉगिन लिंक अनुरोध करने का प्रयास करें।' }
+        };
+
+        function tCb(key) {
+            const trans = callbackTranslations[key];
+            if (!trans) return key;
+            return trans[currentLang] || trans['en'] || trans['ru'] || key;
+        }
 
         // Показать ошибку
         function showError(title, message) {
@@ -108,7 +134,7 @@
             try {
                 // Supabase автоматически обрабатывает hash из URL
                 // и устанавливает сессию
-                updateStatus('Проверка авторизации...');
+                updateStatus(tCb('cb_checking_auth'));
 
                 // Даём время Supabase обработать токены из URL
                 await new Promise(resolve => setTimeout(resolve, 500));
@@ -118,16 +144,16 @@
 
                 if (sessionError) {
                     console.error('Session error:', sessionError);
-                    showError('Ошибка авторизации', 'Не удалось получить данные сессии');
+                    showError(tCb('cb_auth_error'), tCb('cb_session_data_error'));
                     return;
                 }
 
                 if (!session) {
-                    showError('Сессия не найдена', 'Ссылка устарела или недействительна. Попробуйте запросить новую.');
+                    showError(tCb('cb_session_not_found'), tCb('cb_link_expired'));
                     return;
                 }
 
-                updateStatus('Связывание аккаунта...');
+                updateStatus(tCb('cb_linking_account'));
 
                 // Связываем auth user с vaishnava
                 const linkResult = await window.PortalAuth.linkAuthUserToVaishnava();
@@ -140,28 +166,28 @@
                         // Выходим и отправляем на регистрацию
                         await db.auth.signOut();
                         showError(
-                            'Профиль не найден',
-                            'Ваш email не зарегистрирован в системе. Пожалуйста, зарегистрируйтесь.'
+                            tCb('cb_profile_not_found'),
+                            tCb('cb_not_registered')
                         );
                         // Добавляем ссылку на регистрацию
                         setTimeout(() => {
                             const errorState = document.getElementById('error-state');
                             const link = errorState.querySelector('a');
                             link.href = '/guest-signup.html';
-                            link.textContent = 'Зарегистрироваться';
+                            link.textContent = tCb('cb_register');
                         }, 100);
                         return;
                     }
 
                     if (linkResult.error === 'conflict') {
                         showError(
-                            'Конфликт аккаунтов',
-                            'Этот email уже связан с другим аккаунтом. Обратитесь в поддержку.'
+                            tCb('cb_conflict'),
+                            tCb('cb_conflict_text')
                         );
                         return;
                     }
 
-                    showError('Ошибка', 'Не удалось связать аккаунт. Попробуйте позже.');
+                    showError(tCb('cb_error'), tCb('cb_link_failed'));
                     return;
                 }
 
@@ -186,7 +212,7 @@
 
             } catch (error) {
                 console.error('Callback error:', error);
-                showError('Произошла ошибка', 'Попробуйте запросить новую ссылку для входа.');
+                showError(tCb('cb_general_error'), tCb('cb_request_new_link'));
             }
         }
 

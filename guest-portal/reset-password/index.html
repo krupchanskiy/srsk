@@ -124,6 +124,20 @@
     <script src="../js/portal-config.js"></script>
     <script>
         const db = window.portalSupabase;
+        const currentLang = localStorage.getItem('srsk_lang') || 'ru';
+
+        const resetTranslations = {
+            rp_passwords_mismatch: { ru: 'Пароли не совпадают', en: 'Passwords do not match', hi: 'पासवर्ड मेल नहीं खाते' },
+            rp_password_too_short: { ru: 'Пароль должен быть не менее 6 символов', en: 'Password must be at least 6 characters', hi: 'पासवर्ड कम से कम 6 अक्षर का होना चाहिए' },
+            rp_update_failed: { ru: 'Не удалось изменить пароль. Попробуйте ещё раз.', en: 'Could not change password. Try again.', hi: 'पासवर्ड बदला नहीं जा सका। पुनः प्रयास करें।' },
+            rp_general_error: { ru: 'Произошла ошибка. Попробуйте позже.', en: 'An error occurred. Try again later.', hi: 'एक त्रुटि हुई। बाद में पुनः प्रयास करें।' }
+        };
+
+        function tRp(key) {
+            const trans = resetTranslations[key];
+            if (!trans) return key;
+            return trans[currentLang] || trans['en'] || trans['ru'] || key;
+        }
 
         function showState(state) {
             ['loading-state', 'form-state', 'success-state', 'error-state'].forEach(id => {
@@ -173,12 +187,12 @@
 
             // Проверка совпадения паролей
             if (password !== passwordConfirm) {
-                showError('Пароли не совпадают');
+                showError(tRp('rp_passwords_mismatch'));
                 return;
             }
 
             if (password.length < 6) {
-                showError('Пароль должен быть не менее 6 символов');
+                showError(tRp('rp_password_too_short'));
                 return;
             }
 
@@ -190,7 +204,7 @@
 
                 if (error) {
                     console.error('Update password error:', error);
-                    showError('Не удалось изменить пароль. Попробуйте ещё раз.');
+                    showError(tRp('rp_update_failed'));
                     return;
                 }
 
@@ -221,7 +235,7 @@
 
             } catch (error) {
                 console.error('Password reset error:', error);
-                showError('Произошла ошибка. Попробуйте позже.');
+                showError(tRp('rp_general_error'));
             } finally {
                 submitBtn.disabled = false;
                 spinner.classList.add('hidden');
