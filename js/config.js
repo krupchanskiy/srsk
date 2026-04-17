@@ -49,7 +49,10 @@ window.CONFIG = {
     SUPABASE_SERVICE_ROLE_KEY: null // TODO: Вставить service role key если нужен
 };
 
-debug('[ENV]', window.CONFIG.ENV + ':', location.hostname || 'file://', '→', window.CONFIG.SUPABASE_URL);
+// NB: debug() определён в utils.js, который грузится ПОСЛЕ config.js.
+// На этом этапе его ещё нет — используем console.log напрямую.
+// [ENV] лог всегда виден в консоли — намеренно, помогает диагностировать окружение.
+console.log('[ENV]', window.CONFIG.ENV + ':', location.hostname || 'file://', '→', window.CONFIG.SUPABASE_URL);
 
 
 // Создаём ЕДИНСТВЕННЫЙ экземпляр Supabase клиента
