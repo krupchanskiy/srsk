@@ -56,9 +56,10 @@ function toggleTransferEdit(direction) {
     document.getElementById(`${direction}-edit-id`).value = transfer?.id || '';
 
     if (transfer?.flight_datetime) {
-        const dt = new Date(transfer.flight_datetime);
-        const localDt = new Date(dt.getTime() - dt.getTimezoneOffset() * 60000);
-        document.getElementById(`${direction}-edit-datetime`).value = localDt.toISOString().slice(0, 16);
+        // flight_datetime в БД хранится как datetime-local с ложным +00 суффиксом
+        // (см. preliminary.js и CLAUDE.md → правило о датах). Берём первые 16 символов:
+        // "2026-03-20T14:30:00+00" → "2026-03-20T14:30" для <input type="datetime-local">.
+        document.getElementById(`${direction}-edit-datetime`).value = transfer.flight_datetime.slice(0, 16);
     } else {
         document.getElementById(`${direction}-edit-datetime`).value = '';
     }
@@ -87,45 +88,48 @@ async function saveTransferEdit(direction) {
     try {
         let savedTransfer;
 
+        // Передаём datetime-local строку "YYYY-MM-DDTHH:MM" как есть — Postgres
+        // сохранит в TIMESTAMPTZ с суффиксом +00. Тот же формат использует preliminary.js.
+        // Раньше здесь было new Date(datetime).toISOString() — оно сдвигало время
+        // на локальную TZ гостя (в IST на +5:30 часов), что расходилось с преlim-формой.
         if (transferId) {
-            // Обновляем существующую запись
             const { data, error } = await window.portalSupabase
                 .from('guest_transfers')
                 .update({
-                    flight_datetime: datetime ? new Date(datetime).toISOString() : null,
+                    flight_datetime: datetime || null,
                     flight_number: flightNumber || null,
                     needs_transfer: needsTransfer ? 'yes' : 'no'
                 })
                 .eq('id', transferId)
                 .select()
-                .single();
+                .maybeSingle();
 
-            if (error) throw error;
+            if (error || !data) throw error || new Error('Не удалось обновить трансфер (RLS?)');
             savedTransfer = data;
         } else {
-            // Создаём новую запись
             const { data, error } = await window.portalSupabase
                 .from('guest_transfers')
                 .insert({
                     registration_id: currentRegistrationId,
                     direction: direction,
-                    flight_datetime: datetime ? new Date(datetime).toISOString() : null,
+                    flight_datetime: datetime || null,
                     flight_number: flightNumber || null,
                     needs_transfer: needsTransfer ? 'yes' : 'no'
                 })
                 .select()
-                .single();
+                .maybeSingle();
 
-            if (error) throw error;
+            if (error || !data) throw error || new Error('Не удалось создать трансфер (RLS?)');
             savedTransfer = data;
         }
 
         // Обновляем локальные данные
         currentTransfers[direction] = savedTransfer;
 
-        // Обновляем отображение
+        // Обновляем отображение — передаём datetime-local как есть (formatTransferDateTime
+        // делает new Date() что корректно парсит "YYYY-MM-DDTHH:MM" как локальное время).
         if (datetime) {
-            document.getElementById(`${direction}-datetime`).textContent = formatTransferDateTime(new Date(datetime).toISOString());
+            document.getElementById(`${direction}-datetime`).textContent = formatTransferDateTime(datetime);
             document.getElementById(`${direction}-flight`).textContent = flightNumber ? `${PortalLayout.t('portal_flight')} ${flightNumber}` : '—';
             document.getElementById(`${direction}-taxi`).innerHTML = renderTaxiStatus(currentTransfers[direction]);
         } else {
