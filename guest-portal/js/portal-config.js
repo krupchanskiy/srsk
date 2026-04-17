@@ -59,8 +59,9 @@ window.PORTAL_CONFIG = {
     TELEGRAM_BOT_NAME: 'rupaseva_bot'
 };
 
-// Лог для отладки
-debug('[ENV]', window.PORTAL_CONFIG.ENV + ':', location.hostname || 'file://', '→', window.PORTAL_CONFIG.SUPABASE_URL);
+// NB: debug() определён в utils.js, но portal-config грузится отдельным стеком.
+// [ENV] лог всегда виден — намеренно, помогает диагностировать окружение.
+console.log('[ENV]', window.PORTAL_CONFIG.ENV + ':', location.hostname || 'file://', '→', window.PORTAL_CONFIG.SUPABASE_URL);
 
 // Создаём ЕДИНСТВЕННЫЙ экземпляр Supabase клиента
 if (typeof window.supabase !== 'undefined') {
