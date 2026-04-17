@@ -67,7 +67,7 @@ async function loadPerson(personId) {
         .from('vaishnavas')
         .select('*, departments(id, name_ru, name_en, name_hi, color), senior:vaishnavas!senior_id(id, spiritual_name, first_name, last_name), parent:vaishnavas!parent_id(id, spiritual_name, first_name, last_name)')
         .eq('id', personId)
-        .single();
+        .maybeSingle();
 
     if (error || !data) {
         console.error('Error loading person:', error);
@@ -700,11 +700,11 @@ async function savePerson() {
         .update(updateData)
         .eq('id', person.id)
         .select('*, departments(id, name_ru, name_en, name_hi, color), senior:vaishnavas!senior_id(id, spiritual_name, first_name, last_name), parent:vaishnavas!parent_id(id, spiritual_name, first_name, last_name)')
-        .single();
+        .maybeSingle();
 
     if (saveBtn) saveBtn.classList.remove('loading');
 
-    if (error) {
+    if (error || !data) {
         console.error('Error saving:', error);
         Layout.showNotification(t('error_saving'), 'error');
         return;

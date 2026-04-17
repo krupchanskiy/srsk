@@ -247,7 +247,7 @@ async function login(email, password) {
             .from('vaishnavas')
             .select('user_type, is_active')
             .eq('user_id', data.user.id)
-            .single();
+            .maybeSingle();
 
         if (userError || !vaishnava) {
             await db.auth.signOut();

@@ -1231,7 +1231,7 @@ async function loadPublicProfile(vaishnavId) {
                 is_profile_public
             `)
             .eq('id', vaishnavId)
-            .single();
+            .maybeSingle();
 
         if (error || !vaishnava) {
             console.error('Ошибка загрузки профиля:', error);

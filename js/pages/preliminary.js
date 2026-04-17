@@ -1739,8 +1739,8 @@ document.addEventListener('DOMContentLoaded', () => {
                     india_experience: f.india_experience.value.trim() || null
                 })
                 .select('id')
-                .single();
-            if (vErr) throw vErr;
+                .maybeSingle();
+            if (vErr || !vData) throw vErr || new Error('Не удалось создать вайшнаву (RLS?)');
 
             // 2. Создать регистрацию на ретрит
             const directArrival = f.direct_arrival.checked;
@@ -3180,9 +3180,9 @@ async function createVaishnava(parsed) {
             is_team_member: false
         })
         .select('id')
-        .single();
+        .maybeSingle();
 
-    if (error) throw error;
+    if (error || !data) throw error || new Error('Не удалось создать вайшнаву (RLS?)');
 
     // Add to local cache
     vaishnavas.push({ id: data.id, ...parsed });

@@ -1725,9 +1725,9 @@ async function createVaishnava(parsed) {
             is_team_member: false
         })
         .select('id')
-        .single();
+        .maybeSingle();
 
-    if (error) throw error;
+    if (error || !data) throw error || new Error('Не удалось создать вайшнаву (RLS?)');
 
     // Add to local cache (snake_case для совместимости с findMatchingVaishnava)
     vaishnavas.push({
