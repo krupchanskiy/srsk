@@ -39,11 +39,11 @@
             .select('id, spiritual_name, first_name, last_name, photo_url, user_type, approval_status, is_superuser, is_active')
             .eq('user_id', session.user.id)
             .eq('is_deleted', false)
-            .single();
+            .maybeSingle();
 
-        if (vError) {
+        if (vError || !vaishnava) {
             console.error('Failed to load vaishnava:', vError);
-            // Если пользователя нет в vaishnavas - выход
+            // Пользователя нет в vaishnavas или RLS скрыла — выход
             await db.auth.signOut();
             const returnUrl = encodeURIComponent(window.location.pathname + window.location.search);
             window.location.href = '/login.html?redirect=' + returnUrl;

@@ -77,8 +77,8 @@ async function selectRetreat(id) {
     const endDate = DateUtils.parseDate(retreat.end_date);
     document.getElementById('retreatDates').textContent = `${DateUtils.formatRangeShort(startDate, endDate)} ${endDate.getFullYear()}`;
 
-    // Set CSS variable for theme color
-    if (retreat.color) {
+    // Set CSS variable for theme color (CSS-injection safe)
+    if (Utils.isValidColor(retreat.color)) {
         document.documentElement.style.setProperty('--current-color', retreat.color);
     }
 
@@ -211,7 +211,8 @@ function renderTable() {
 
     const formatTransfer = (transfer) => {
         if (!transfer) return '<span class="opacity-30">—</span>';
-        const dt = transfer.flight_datetime ? new Date(transfer.flight_datetime) : null;
+        // flight_datetime хранится как datetime-local (см. preliminary.js) — убираем ложный TZ suffix перед new Date()
+        const dt = transfer.flight_datetime ? new Date(transfer.flight_datetime.slice(0, 16)) : null;
         const dateStr = dt ? `${dt.getDate()}.${(dt.getMonth()+1).toString().padStart(2,'0')}` : '';
         const timeStr = dt ? `${dt.getHours().toString().padStart(2,'0')}:${dt.getMinutes().toString().padStart(2,'0')}` : '';
         const flight = transfer.flight_number || '';
@@ -614,7 +615,8 @@ function openInfoModal(registrationId) {
 
     const formatTransferDetails = (transfer, label) => {
         if (!transfer) return '';
-        const dt = transfer.flight_datetime ? new Date(transfer.flight_datetime) : null;
+        // flight_datetime хранится как datetime-local — убираем ложный TZ suffix перед new Date()
+        const dt = transfer.flight_datetime ? new Date(transfer.flight_datetime.slice(0, 16)) : null;
         const dateStr = dt ? dt.toLocaleDateString('ru-RU') : '—';
         const timeStr = dt ? dt.toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' }) : '';
         const needsTransfer = transfer.needs_transfer === 'yes' ? `🚕 ${t('retreat_guests_needs_transfer')}` : '';
@@ -1723,9 +1725,9 @@ async function createVaishnava(parsed) {
             is_team_member: false
         })
         .select('id')
-        .single();
+        .maybeSingle();
 
-    if (error) throw error;
+    if (error || !data) throw error || new Error('Не удалось создать вайшнаву (RLS?)');
 
     // Add to local cache (snake_case для совместимости с findMatchingVaishnava)
     vaishnavas.push({
@@ -1963,7 +1965,13 @@ function showImportDone() {
         console.error(`Несовпадение количества! CSV: ${csvCount}, обработано: ${totalProcessed}`);
     }
 
-    document.getElementById('importSummary').innerHTML = summary.replace('\n', '<br>');
+    // XSS-safe: собираем через textContent + <br> вместо innerHTML
+    const summaryEl = document.getElementById('importSummary');
+    summaryEl.replaceChildren();
+    summary.split('\n').forEach((line, i) => {
+        if (i > 0) summaryEl.appendChild(document.createElement('br'));
+        summaryEl.appendChild(document.createTextNode(line));
+    });
 
     // Reload data
     loadRegistrations();

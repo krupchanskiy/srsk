@@ -67,7 +67,7 @@ async function loadPerson(personId) {
         .from('vaishnavas')
         .select('*, departments(id, name_ru, name_en, name_hi, color), senior:vaishnavas!senior_id(id, spiritual_name, first_name, last_name), parent:vaishnavas!parent_id(id, spiritual_name, first_name, last_name)')
         .eq('id', personId)
-        .single();
+        .maybeSingle();
 
     if (error || !data) {
         console.error('Error loading person:', error);
@@ -241,7 +241,7 @@ function renderPerson() {
     if (person.is_team_member) {
         const dept = person.departments;
         if (dept) {
-            badges.push(`<span class="badge" style="background-color: ${dept.color}20; color: ${dept.color}; border-color: ${dept.color}">${Layout.getName(dept)}</span>`);
+            { const c = Utils.safeColor(dept.color); badges.push(`<span class="badge" style="background-color: ${c}20; color: ${c}; border-color: ${c}">${Layout.getName(dept)}</span>`); }
         } else {
             badges.push(`<span class="badge badge-primary">${t('team_member')}</span>`);
         }
@@ -700,11 +700,11 @@ async function savePerson() {
         .update(updateData)
         .eq('id', person.id)
         .select('*, departments(id, name_ru, name_en, name_hi, color), senior:vaishnavas!senior_id(id, spiritual_name, first_name, last_name), parent:vaishnavas!parent_id(id, spiritual_name, first_name, last_name)')
-        .single();
+        .maybeSingle();
 
     if (saveBtn) saveBtn.classList.remove('loading');
 
-    if (error) {
+    if (error || !data) {
         console.error('Error saving:', error);
         Layout.showNotification(t('error_saving'), 'error');
         return;
@@ -1078,7 +1078,7 @@ function renderPermanentResident() {
             </div>
             <div class="flex items-center gap-2">
                 <span class="opacity-60 text-sm" data-i18n="category">${t('category')}</span>
-                ${cat ? `<span class="badge badge-sm" style="background-color: ${cat.color}20; color: ${cat.color}; border-color: ${cat.color}">${Layout.getName(cat)}</span>` : ''}
+                ${cat ? (() => { const c = Utils.safeColor(cat.color); return `<span class="badge badge-sm" style="background-color: ${c}20; color: ${c}; border-color: ${c}">${Layout.getName(cat)}</span>`; })() : ''}
                 <select class="select select-xs select-bordered" id="permanentResidentCategory" onchange="changePermanentResidentCategory(this.value)">
                     ${catOptionsHtml}
                 </select>
@@ -2065,7 +2065,7 @@ function renderRegistrations() {
                 <div class="detail-section">
                     <div class="detail-label" data-i18n="category">${t('category')}</div>
                     <div class="flex items-center gap-2">
-                        ${cat ? `<span class="badge badge-sm" style="background-color: ${cat.color}20; color: ${cat.color}; border-color: ${cat.color}">${Layout.getName(cat)}</span>` : ''}
+                        ${cat ? (() => { const c = Utils.safeColor(cat.color); return `<span class="badge badge-sm" style="background-color: ${c}20; color: ${c}; border-color: ${c}">${Layout.getName(cat)}</span>`; })() : ''}
                         <select class="select select-xs select-bordered" data-action="change-category" data-resident-id="${resident.id}">
                             ${catOptionsHtml}
                         </select>

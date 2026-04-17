@@ -218,7 +218,11 @@ function populateProfile(guest) {
     // Фото
     const photoContainer = document.getElementById('profile-photo');
     if (guest.photoUrl) {
-        photoContainer.innerHTML = `<img src="${guest.photoUrl}" alt="Фото" class="w-full h-full object-cover">`;
+        const img = document.createElement('img');
+        img.src = guest.photoUrl;
+        img.alt = PortalLayout.t('portal_photo') || 'Фото';
+        img.className = 'w-full h-full object-cover';
+        photoContainer.replaceChildren(img);
     }
 
     // Имена
@@ -792,8 +796,12 @@ async function loadActiveRetreat(guestId) {
                     document.getElementById('retreat-roommate').href = `index.html?view=${roommate.id}`;
 
                     if (roommate.photo_url) {
-                        document.getElementById('retreat-roommate-photo').innerHTML =
-                            `<img src="${roommate.photo_url}" alt="" class="w-full h-full object-cover">`;
+                        const roommatePhoto = document.getElementById('retreat-roommate-photo');
+                        const img = document.createElement('img');
+                        img.src = roommate.photo_url;
+                        img.alt = '';
+                        img.className = 'w-full h-full object-cover';
+                        roommatePhoto.replaceChildren(img);
                     }
                 }
             } else {
@@ -1223,7 +1231,7 @@ async function loadPublicProfile(vaishnavId) {
                 is_profile_public
             `)
             .eq('id', vaishnavId)
-            .single();
+            .maybeSingle();
 
         if (error || !vaishnava) {
             console.error('Ошибка загрузки профиля:', error);

@@ -68,7 +68,7 @@ async function selectRetreat(id) {
     const endDate = DateUtils.parseDate(retreat.end_date);
     document.getElementById('retreatDates').textContent = `${DateUtils.formatRangeShort(startDate, endDate)} ${endDate.getFullYear()}`;
 
-    if (retreat.color) {
+    if (Utils.isValidColor(retreat.color)) {
         document.documentElement.style.setProperty('--current-color', retreat.color);
     }
 
