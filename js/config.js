@@ -49,7 +49,7 @@ window.CONFIG = {
     SUPABASE_SERVICE_ROLE_KEY: null // TODO: Вставить service role key если нужен
 };
 
-console.log('[ENV]', window.CONFIG.ENV + ':', location.hostname || 'file://', '→', window.CONFIG.SUPABASE_URL);
+debug('[ENV]', window.CONFIG.ENV + ':', location.hostname || 'file://', '→', window.CONFIG.SUPABASE_URL);
 
 
 // Создаём ЕДИНСТВЕННЫЙ экземпляр Supabase клиента

@@ -222,9 +222,9 @@ async function loadStays() {
         });
     }
 
-    console.log('Загружено периодов команды:', teamStaysRes.data?.length || 0);
-    console.log('Загружено регистраций гостей:', guestRegsRes.data?.length || 0);
-    console.log('Всего уникальных людей:', Object.keys(stays).length);
+    debug('Загружено периодов команды:', teamStaysRes.data?.length || 0);
+    debug('Загружено регистраций гостей:', guestRegsRes.data?.length || 0);
+    debug('Всего уникальных людей:', Object.keys(stays).length);
 
     return stays;
 }

@@ -153,7 +153,7 @@ function subscribeToRealtime(retreatId) {
     // Отписаться от предыдущего канала
     unsubscribeRealtime();
 
-    console.log(`Подписка на realtime обновления для retreat ${retreatId}`);
+    debug(`Подписка на realtime обновления для retreat ${retreatId}`);
 
     // Создать новый канал для текущего ретрита
     realtimeChannel = Layout.db
@@ -167,18 +167,18 @@ function subscribeToRealtime(retreatId) {
                 filter: `retreat_id=eq.${retreatId}`
             },
             (payload) => {
-                console.log('Realtime изменение:', payload);
+                debug('Realtime изменение:', payload);
                 handleRealtimeChange(payload);
             }
         )
         .subscribe((status) => {
-            console.log('Realtime статус:', status);
+            debug('Realtime статус:', status);
         });
 }
 
 function unsubscribeRealtime() {
     if (realtimeChannel) {
-        console.log('Отписка от realtime');
+        debug('Отписка от realtime');
         Layout.db.removeChannel(realtimeChannel);
         realtimeChannel = null;
     }
@@ -193,7 +193,7 @@ function handleRealtimeChange(payload) {
             photos.unshift(newRecord);
             renderPhotos();
             updateStats();
-            console.log('Добавлено новое фото:', newRecord.id);
+            debug('Добавлено новое фото:', newRecord.id);
             break;
 
         case 'UPDATE':
@@ -206,7 +206,7 @@ function handleRealtimeChange(payload) {
                 updatePhotoCard(newRecord);
                 updateStats();
 
-                console.log('Обновлено фото:', newRecord.id, 'статус:', newRecord.index_status);
+                debug('Обновлено фото:', newRecord.id, 'статус:', newRecord.index_status);
             }
             break;
 
@@ -217,7 +217,7 @@ function handleRealtimeChange(payload) {
                 photos.splice(deleteIndex, 1);
                 renderPhotos();
                 updateStats();
-                console.log('Удалено фото:', oldRecord.id);
+                debug('Удалено фото:', oldRecord.id);
             }
             break;
     }
@@ -230,7 +230,7 @@ function updatePhotoCard(photo) {
     // Найти карточку по photo.id (не по индексу, т.к. может быть фильтр)
     const card = grid.querySelector(`[data-photo-id="${photo.id}"]`);
     if (!card) {
-        console.log(`Карточка для фото ${photo.id} не найдена (возможно, скрыта фильтром)`);
+        debug(`Карточка для фото ${photo.id} не найдена (возможно, скрыта фильтром)`);
         return;
     }
 
@@ -483,7 +483,7 @@ async function confirmDelete() {
     try {
         const photoIds = Array.from(selectedPhotoIds);
 
-        console.log('Deleting photos via Edge Function:', photoIds.length);
+        debug('Deleting photos via Edge Function:', photoIds.length);
 
         // Получить текущую сессию для передачи JWT токена
         const { data: { session } } = await Layout.db.auth.getSession();
@@ -508,7 +508,7 @@ async function confirmDelete() {
             throw new Error(error.message || Layout.t('delete_photos_error') || 'Ошибка при удалении фото');
         }
 
-        console.log('Delete result:', data);
+        debug('Delete result:', data);
 
         const deletedText = Layout.t('successfully_deleted') || 'Успешно удалено';
         const photosText = Layout.t('photos') || 'фото';
@@ -591,7 +591,7 @@ async function confirmReindex() {
             if (error) {
                 console.error('Ошибка вызова index-faces:', error);
             } else {
-                console.log('Первый батч проиндексирован:', data);
+                debug('Первый батч проиндексирован:', data);
             }
         });
 
@@ -669,7 +669,7 @@ async function updateIndexingProgress(retreatId) {
 
         // Если есть pending фото — продолжаем индексацию
         if (pending > 0 || processing > 0) {
-            console.log(`Индексация: ${indexed}/${total}, pending: ${pending}, processing: ${processing}`);
+            debug(`Индексация: ${indexed}/${total}, pending: ${pending}, processing: ${processing}`);
 
             // Детект зависших фото (если processing не меняется > 20 секунд)
             if (processing === lastProcessingCount && processing > 0) {
@@ -694,7 +694,7 @@ async function updateIndexingProgress(retreatId) {
                             'warning'
                         );
                     } else {
-                        console.log(`✅ Сброшено ${resetData?.length || 0} фото в pending`);
+                        debug(`✅ Сброшено ${resetData?.length || 0} фото в pending`);
                     }
 
                     stuckCounter = 0;
@@ -712,7 +712,7 @@ async function updateIndexingProgress(retreatId) {
             // Запускаем следующий батч, если есть pending фото И нет активной обработки
             // ИЛИ если processing зависли (stuckCounter > 3)
             if (pending > 0 && (processing === 0 || stuckCounter > 3)) {
-                console.log('🚀 Запуск следующего батча индексации...');
+                debug('🚀 Запуск следующего батча индексации...');
                 Layout.db.functions.invoke('index-faces', {
                     body: {
                         retreat_id: retreatId,
@@ -739,7 +739,7 @@ async function updateIndexingProgress(retreatId) {
                         }
                     } else {
                         edgeFunctionErrorCounter = 0; // Сброс счётчика при успехе
-                        console.log('✅ Батч проиндексирован:', data);
+                        debug('✅ Батч проиндексирован:', data);
                     }
                 });
             }
@@ -753,7 +753,7 @@ async function updateIndexingProgress(retreatId) {
             // Скрыть прогресс-бар
             document.getElementById('indexingProgressContainer').classList.add('hidden');
 
-            console.log(`Индексация завершена: ${indexed} проиндексировано, ${failed} с ошибками, ${totalFaces} лиц найдено`);
+            debug(`Индексация завершена: ${indexed} проиндексировано, ${failed} с ошибками, ${totalFaces} лиц найдено`);
 
             Layout.showNotification(
                 `${Layout.t('indexing_complete_title') || 'Индексация завершена!'} ${totalFaces} ${Layout.t('faces_found_count') || 'лиц найдено'}`,

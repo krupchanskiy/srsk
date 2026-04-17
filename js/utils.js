@@ -37,6 +37,26 @@ function pluralize(n, forms, lang) {
     return `${n} ${langForms[2]}`;
 }
 
+/**
+ * Централизованный debug-логгер.
+ *
+ * Включается, только если:
+ *   - window.__SRSK_DEBUG === true (в prod выключено)
+ *   - hostname === 'localhost' (dev сам включает)
+ *   - в localStorage есть ключ srsk_debug='1' (для прод-диагностики у админа)
+ *
+ * Пишет в console.log с префиксом [DEBUG]. Для ошибок — console.error напрямую,
+ * а не через debug().
+ */
+function debug(...args) {
+    const on = typeof window !== 'undefined' && (
+        window.__SRSK_DEBUG === true ||
+        (window.location && window.location.hostname === 'localhost') ||
+        (() => { try { return localStorage.getItem('srsk_debug') === '1'; } catch { return false; } })()
+    );
+    if (on) console.log('[DEBUG]', ...args);
+}
+
 /** Debounce функция для оптимизации частых вызовов */
 function debounce(fn, delay = 300) {
     let timer;
@@ -194,6 +214,8 @@ function getVaishnavFullName(v, fallback) {
 window.getVaishnavName = getVaishnavName;
 window.getVaishnavFullName = getVaishnavFullName;
 
-window.Utils = { pluralize, debounce, escapeHtml, isValidColor, safeColor, checkAndMoveDatesAcrossRetreats, fetchAll, getVaishnavName, getVaishnavFullName };
+// Глобальный debug-логгер доступен без префикса — используется часто, как console.log.
+window.debug = debug;
+window.Utils = { pluralize, debounce, debug, escapeHtml, isValidColor, safeColor, checkAndMoveDatesAcrossRetreats, fetchAll, getVaishnavName, getVaishnavFullName };
 
 })();

@@ -65,7 +65,7 @@
                                 file.name,
                                 { type: 'image/jpeg', lastModified: Date.now() }
                             );
-                            console.log(`Сжато: ${file.name} ${(file.size / 1024 / 1024).toFixed(2)}MB → ${(compressedFile.size / 1024 / 1024).toFixed(2)}MB`);
+                            debug(`Сжато: ${file.name} ${(file.size / 1024 / 1024).toFixed(2)}MB → ${(compressedFile.size / 1024 / 1024).toFixed(2)}MB`);
                             resolve(compressedFile);
                         },
                         'image/jpeg',
@@ -656,7 +656,7 @@
     // Запуск индексации лиц (асинхронно, без ожидания)
     async function triggerIndexing(retreatId) {
         try {
-            console.log('Запуск индексации лиц для ретрита:', retreatId);
+            debug('Запуск индексации лиц для ретрита:', retreatId);
 
             // Вызов Edge Function (не ждём завершения)
             db.functions.invoke('index-faces', {
@@ -668,7 +668,7 @@
                 if (error) {
                     console.error('Ошибка вызова index-faces:', error);
                 } else {
-                    console.log('Первый батч проиндексирован:', data);
+                    debug('Первый батч проиндексирован:', data);
                 }
             });
 
@@ -744,7 +744,7 @@
 
             // Если есть pending фото — продолжаем индексацию
             if (pending > 0 || processing > 0) {
-                console.log(`Индексация: ${indexed}/${total}, pending: ${pending}, processing: ${processing}`);
+                debug(`Индексация: ${indexed}/${total}, pending: ${pending}, processing: ${processing}`);
 
                 // Детект зависших фото (если processing не меняется > 20 секунд)
                 if (processing === lastProcessingCount && processing > 0) {
@@ -772,7 +772,7 @@
                 // Запускаем следующий батч, если есть pending фото И нет активной обработки
                 // ИЛИ если processing зависли (stuckCounter > 3)
                 if (pending > 0 && (processing === 0 || stuckCounter > 3)) {
-                    console.log('🚀 Запуск следующего батча индексации...');
+                    debug('🚀 Запуск следующего батча индексации...');
                     db.functions.invoke('index-faces', {
                         body: {
                             retreat_id: retreatId,
@@ -802,7 +802,7 @@
                             }
                         } else {
                             edgeFunctionErrorCounter = 0; // Сброс счётчика при успехе
-                            console.log('✅ Батч проиндексирован:', data);
+                            debug('✅ Батч проиндексирован:', data);
                         }
                     });
                 }
@@ -810,7 +810,7 @@
 
             // Если всё проиндексировано — остановить polling
             if (indexed + failed === total && processing === 0 && pending === 0) {
-                console.log(`✅ Индексация завершена: ${indexed} проиндексировано, ${failed} с ошибками, ${totalFaces} лиц найдено`);
+                debug(`✅ Индексация завершена: ${indexed} проиндексировано, ${failed} с ошибками, ${totalFaces} лиц найдено`);
 
                 clearInterval(pollingInterval);
                 pollingInterval = null;

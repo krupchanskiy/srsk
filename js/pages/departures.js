@@ -859,14 +859,14 @@ function subscribeToRealtime() {
         )
         .subscribe((status) => {
             if (status === 'SUBSCRIBED') {
-                console.log('Realtime: подключено к выездам');
+                debug('Realtime: подключено к выездам');
             }
         });
 }
 
 let realtimeTimeout = null;
 function handleRealtimeChange(payload) {
-    console.log('Realtime изменение:', payload.table, payload.eventType);
+    debug('Realtime изменение:', payload.table, payload.eventType);
     if (realtimeTimeout) clearTimeout(realtimeTimeout);
     realtimeTimeout = setTimeout(async () => {
         await loadRegistrations();

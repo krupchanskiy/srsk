@@ -1791,7 +1791,7 @@ async function createOrUpdateRegistration(vaishnavId, parsed) {
         guest_questions: parsed.guestQuestions
     };
 
-    console.log('💾 Saving registration with status:', regData.status, 'Full data:', regData);
+    debug('💾 Saving registration with status:', regData.status, 'Full data:', regData);
 
     let registrationId;
 
@@ -1996,5 +1996,5 @@ window.onLanguageChange = () => {
     renderTable();
 };
 
-console.log('🚀 retreat-guests.js VERSION 2.0 - Status fixed to GUEST');
+debug('🚀 retreat-guests.js VERSION 2.0 - Status fixed to GUEST');
 init();
