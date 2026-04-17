@@ -270,7 +270,7 @@ async function submitForm(e) {
 
     const btn = document.getElementById('submitBtn');
     btn.disabled = true;
-    btn.innerHTML = '<span class="loading loading-spinner loading-sm"></span> Отправка...';
+    btn.innerHTML = `<span class="loading loading-spinner loading-sm"></span> ${T.submitting}`;
     hideError();
 
     try {
@@ -308,7 +308,7 @@ async function submitForm(e) {
         if (existingDeal) {
             showError(T.error_duplicate);
             btn.disabled = false;
-            btn.innerHTML = '<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-5 h-5"><path stroke-linecap="round" stroke-linejoin="round" d="m4.5 12.75 6 6 9-13.5" /></svg> Отправить заявку';
+            btn.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-5 h-5"><path stroke-linecap="round" stroke-linejoin="round" d="m4.5 12.75 6 6 9-13.5" /></svg> ${T.submit}`;
             return;
         }
 

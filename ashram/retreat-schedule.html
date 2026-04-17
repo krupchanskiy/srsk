@@ -124,7 +124,7 @@
             <!-- Заголовки таблицы (desktop) -->
             <div class="hidden sm:grid grid-cols-[100px_100px_1fr_1fr_auto] gap-2 mb-2 text-xs font-medium text-gray-400 uppercase">
                 <div data-i18n="schedule_time">Время</div>
-                <div>До</div>
+                <div data-i18n="schedule_time_end">До</div>
                 <div data-i18n="schedule_title">Название</div>
                 <div data-i18n="schedule_location">Место</div>
                 <div></div>
@@ -221,7 +221,7 @@
 
         function scheduleSave() {
             clearTimeout(saveTimer);
-            document.getElementById('saveStatus').textContent = 'Сохранение...';
+            document.getElementById('saveStatus').textContent = t('saving');
             saveTimer = setTimeout(saveCurrentDay, 800);
         }
 
@@ -266,8 +266,8 @@
 
             } catch (err) {
                 console.error('Ошибка сохранения дня:', err);
-                document.getElementById('saveStatus').textContent = 'Ошибка сохранения';
-                Layout.showNotification('Ошибка сохранения: ' + err.message, 'error');
+                document.getElementById('saveStatus').textContent = t('error_saving');
+                Layout.showNotification(t('error_saving') + ': ' + err.message, 'error');
             }
         }
 
@@ -321,7 +321,7 @@
 
             } catch (err) {
                 console.error('Ошибка сохранения события:', err);
-                Layout.showNotification('Ошибка сохранения: ' + err.message, 'error');
+                Layout.showNotification(t('error_saving') + ': ' + err.message, 'error');
             }
         }
 
@@ -340,7 +340,7 @@
                     if (error) throw error;
                 } catch (err) {
                     console.error('Ошибка удаления:', err);
-                    Layout.showNotification('Ошибка удаления: ' + err.message, 'error');
+                    Layout.showNotification(t('error_deleting') + ': ' + err.message, 'error');
                     return;
                 }
             }
@@ -366,7 +366,7 @@
         function renderDaysNav() {
             const container = document.getElementById('daysNav');
             const today = DateUtils.toISO(new Date());
-            const weekdays = ['Вс', 'Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб'];
+            const weekdays = [t('weekday_sun_short'), t('weekday_mon_short'), t('weekday_tue_short'), t('weekday_wed_short'), t('weekday_thu_short'), t('weekday_fri_short'), t('weekday_sat_short')];
 
             container.innerHTML = retreatDays.map(dateStr => {
                 const d = DateUtils.parseDate(dateStr);
@@ -498,7 +498,7 @@
             retreat = await loadRetreat(retreatId);
 
             if (!retreat) {
-                Layout.showNotification('Ретрит не найден', 'error');
+                Layout.showNotification(t('retreat_not_found'), 'error');
                 window.location.href = 'retreats.html';
                 return;
             }

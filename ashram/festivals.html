@@ -273,7 +273,7 @@
             });
 
             const lang = Layout.currentLang;
-            let html = `<button class="btn btn-sm ${currentType === 'all' ? '' : 'btn-ghost'}" data-type="all" style="${currentType === 'all' ? 'background-color: var(--current-color); border-color: var(--current-color); color: white;' : ''}">Все<sup class="ml-1 opacity-60">${counts.all || 0}</sup></button>`;
+            let html = `<button class="btn btn-sm ${currentType === 'all' ? '' : 'btn-ghost'}" data-type="all" style="${currentType === 'all' ? 'background-color: var(--current-color); border-color: var(--current-color); color: white;' : ''}">${t('all')}<sup class="ml-1 opacity-60">${counts.all || 0}</sup></button>`;
 
             Object.entries(HOLIDAY_TYPES).forEach(([type, info]) => {
                 const isActive = currentType === type;
@@ -312,7 +312,7 @@
             Layout.$('#holidaysCount').textContent = Layout.pluralize(filtered.length, ITEM_FORMS);
 
             if (filtered.length === 0) {
-                tbody.innerHTML = '<tr><td colspan="4" class="text-center py-8 opacity-50">Нет праздников</td></tr>';
+                tbody.innerHTML = `<tr><td colspan="4" class="text-center py-8 opacity-50">${t('no_holidays')}</td></tr>`;
                 return;
             }
 
@@ -341,7 +341,7 @@
                         </td>
                         <td>
                             ${canEdit ? `<div class="flex gap-1">
-                                <button class="btn btn-ghost btn-sm btn-square" onclick="editHoliday('${h.id}')" title="Редактировать">
+                                <button class="btn btn-ghost btn-sm btn-square" onclick="editHoliday('${h.id}')" title="${t('edit')}">
                                     <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
                                     </svg>

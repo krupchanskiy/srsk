@@ -159,9 +159,9 @@ const CrmUtils = {
         const days = Math.floor(diff / 86400000);
 
         if (minutes < 1) return Layout.t('just_now');
-        if (minutes < 60) return `${minutes} мин назад`;
-        if (hours < 24) return `${hours} ч назад`;
-        if (days < 7) return `${days} дн назад`;
+        if (minutes < 60) return `${minutes} ${Layout.t('crm_min_ago')}`;
+        if (hours < 24) return `${hours} ${Layout.t('crm_hours_ago')}`;
+        if (days < 7) return `${days} ${Layout.t('crm_days_ago')}`;
         return this.formatDate(dateStr);
     },
 
@@ -212,7 +212,7 @@ const CrmUtils = {
         return sn ||
                `${vaishnava.first_name || ''} ${vaishnava.last_name || ''}`.trim() ||
                vaishnava.email ||
-               'Без имени';
+               Layout.t('crm_no_name');
     },
 
     /**
@@ -226,7 +226,7 @@ const CrmUtils = {
             const lastName = vaishnava.last_name ? ` ${vaishnava.last_name[0]}.` : '';
             return vaishnava.first_name + lastName;
         }
-        return vaishnava.email || 'Без имени';
+        return vaishnava.email || Layout.t('crm_no_name');
     },
 
     /**

@@ -83,23 +83,23 @@
         </div>
         <button class="btn btn-sm btn-outline gap-1" onclick="exportXlsx()">
             <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-4 h-4"><path stroke-linecap="round" stroke-linejoin="round" d="M3 16.5v2.25A2.25 2.25 0 0 0 5.25 21h13.5A2.25 2.25 0 0 0 21 18.75V16.5M16.5 12 12 16.5m0 0L7.5 12m4.5 4.5V3" /></svg>
-            Скачать .xlsx
+            <span data-i18n="crm_download_xlsx">Скачать .xlsx</span>
         </button>
     </div>
 
     <!-- Панель массовых действий -->
     <div id="bulkActions" class="alert bg-primary/10 mb-4 hidden">
-        <span id="bulkCount" class="font-bold">0 выбрано</span>
+        <span id="bulkCount" class="font-bold"></span>
         <div class="flex gap-2">
             <select id="bulkManager" class="select select-bordered select-sm">
-                <option value="">Менеджер...</option>
+                <option value="" data-i18n="crm_manager_placeholder">Менеджер...</option>
             </select>
-            <button class="btn btn-sm btn-primary" onclick="bulkAssignManager()">Назначить</button>
+            <button class="btn btn-sm btn-primary" onclick="bulkAssignManager()" data-i18n="crm_assign">Назначить</button>
             <select id="bulkStatus" class="select select-bordered select-sm">
-                <option value="">Статус...</option>
+                <option value="" data-i18n="crm_status_placeholder">Статус...</option>
             </select>
-            <button class="btn btn-sm btn-primary" onclick="bulkChangeStatus()">Сменить</button>
-            <button class="btn btn-sm btn-error btn-outline" onclick="bulkDelete()">Удалить</button>
+            <button class="btn btn-sm btn-primary" onclick="bulkChangeStatus()" data-i18n="crm_change">Сменить</button>
+            <button class="btn btn-sm btn-error btn-outline" onclick="bulkDelete()" data-i18n="delete">Удалить</button>
         </div>
     </div>
 
@@ -124,7 +124,7 @@
                             <th class="cursor-pointer hover:bg-base-200" onclick="setSort('manager')">
                                 <span class="inline-flex items-center gap-1" data-i18n="crm_manager">Менеджер <span id="sort-manager" class="text-xs opacity-50"></span></span>
                             </th>
-                            <th class="w-24 text-center"><span class="text-xs opacity-60">Чеклист</span></th>
+                            <th class="w-24 text-center"><span class="text-xs opacity-60" data-i18n="crm_checklist">Чеклист</span></th>
                             <th class="cursor-pointer hover:bg-base-200 text-right" onclick="setSort('paid')">
                                 <span class="inline-flex items-center gap-1 justify-end" data-i18n="crm_paid">Оплачено <span id="sort-paid" class="text-xs opacity-50"></span></span>
                             </th>
@@ -167,11 +167,11 @@
                 <label class="label"><span class="label-text" data-i18n="crm_guest_required">Гость *</span></label>
                 <div class="flex gap-2">
                     <div class="flex-1 relative">
-                        <input type="text" id="newDealGuestSearch" class="input input-bordered w-full" placeholder="Поиск по имени или телефону..." autocomplete="off" oninput="filterGuestList(this.value)">
+                        <input type="text" id="newDealGuestSearch" class="input input-bordered w-full" placeholder="Поиск по имени или телефону..." data-i18n-placeholder="crm_guest_search_placeholder" autocomplete="off" oninput="filterGuestList(this.value)">
                         <input type="hidden" id="newDealGuest" value="">
                         <div id="guestDropdown" class="absolute z-50 w-full bg-base-100 shadow-lg rounded-box mt-1 max-h-48 overflow-y-auto hidden border border-base-300"></div>
                     </div>
-                    <button type="button" class="btn btn-outline btn-primary btn-sm self-center" onclick="toggleNewGuestForm()" id="newGuestToggleBtn">+ Новый</button>
+                    <button type="button" class="btn btn-outline btn-primary btn-sm self-center" onclick="toggleNewGuestForm()" id="newGuestToggleBtn">+ <span data-i18n="crm_new">Новый</span></button>
                 </div>
             </div>
 
@@ -210,7 +210,7 @@
             <div class="form-control mb-3">
                 <label class="label"><span class="label-text" data-i18n="crm_manager">Менеджер</span></label>
                 <select id="newDealManager" class="select select-bordered">
-                    <option value="">Не выбирать</option>
+                    <option value="" data-i18n="crm_no_select">Не выбирать</option>
                 </select>
             </div>
 
@@ -398,7 +398,7 @@ function filterGuestList(query) {
     }).slice(0, 15);
 
     if (matches.length === 0) {
-        dropdown.innerHTML = '<div class="px-4 py-3 text-sm text-base-content/50">Не найден. Нажмите «+ Новый»</div>';
+        dropdown.innerHTML = `<div class="px-4 py-3 text-sm text-base-content/50">${t('crm_guest_not_found')}</div>`;
     } else {
         dropdown.innerHTML = matches.map(g => {
             const name = e(CrmUtils.getGuestName(g));
@@ -517,7 +517,7 @@ function renderTable() {
 
     if (pageDeals.length === 0) {
         tbody.innerHTML = `<tr><td colspan="9" class="text-center py-8 text-base-content/50">
-            ${t('crm_no_deals') || 'Нет сделок'}
+            ${t('crm_no_deals')}
         </td></tr>`;
         return;
     }
@@ -531,7 +531,7 @@ function renderTable() {
         return `
             <tr class="deal-row ${isOverdue ? 'overdue' : ''}" onclick="openDeal('${d.id}')">
                 <td onclick="event.stopPropagation()"><input type="checkbox" class="checkbox checkbox-xs deal-checkbox" data-id="${d.id}" onchange="updateBulkPanel()"></td>
-                <td class="w-8">${isOverdue ? `<span title="Без контакта > 24ч" class="text-error">${CrmUtils.UI_ICONS.exclamationCircle}</span>` : ''}${d.is_group_main ? `<span title="Главный в группе">${CrmUtils.UI_ICONS.user}</span>` : ''}</td>
+                <td class="w-8">${isOverdue ? `<span title="${t('crm_no_contact_24h')}" class="text-error">${CrmUtils.UI_ICONS.exclamationCircle}</span>` : ''}${d.is_group_main ? `<span title="${t('crm_group_main')}">${CrmUtils.UI_ICONS.user}</span>` : ''}</td>
                 <td>
                     <div class="font-medium">${e(CrmUtils.getGuestName(guest))}</div>
                     <div class="text-xs text-base-content/50">${e(guest?.phone || guest?.email || '')}</div>
@@ -558,8 +558,8 @@ function renderChecklistDots(d) {
     const dots = fields.map(f => {
         const v = d[f] || 'unknown';
         return v === 'unknown'
-            ? '<span class="inline-block w-2 h-2 rounded-full bg-base-300" title="Не выяснено"></span>'
-            : '<span class="inline-block w-2 h-2 rounded-full bg-success" title="Заполнено"></span>';
+            ? `<span class="inline-block w-2 h-2 rounded-full bg-base-300" title="${t('crm_unknown')}"></span>`
+            : `<span class="inline-block w-2 h-2 rounded-full bg-success" title="${t('crm_filled')}"></span>`;
     });
     return dots.join(' ');
 }
@@ -568,11 +568,11 @@ function renderStats() {
     const total = filteredDeals.length;
     const overdue = filteredDeals.filter(d => CrmUtils.isOverdue(d)).length;
 
-    document.getElementById('statsTotal').textContent = `Найдено: ${total}`;
+    document.getElementById('statsTotal').textContent = `${t('crm_found')}: ${total}`;
 
     const overdueEl = document.getElementById('statsOverdue');
     if (overdue > 0) {
-        overdueEl.innerHTML = `<span class="inline-flex items-center gap-1"><span class="text-error">${CrmUtils.UI_ICONS.exclamationCircle}</span> Без контакта: ${overdue}</span>`;
+        overdueEl.innerHTML = `<span class="inline-flex items-center gap-1"><span class="text-error">${CrmUtils.UI_ICONS.exclamationCircle}</span> ${t('crm_no_contact')}: ${overdue}</span>`;
         overdueEl.classList.remove('hidden');
     } else {
         overdueEl.classList.add('hidden');
@@ -611,7 +611,7 @@ function openDeal(id) {
 async function loadNewDealManagers() {
     const retreatId = document.getElementById('newDealRetreat').value;
     const select = document.getElementById('newDealManager');
-    select.innerHTML = '<option value="">Не выбирать</option>';
+    select.innerHTML = `<option value="">${t('crm_no_select')}</option>`;
     if (!retreatId) return;
 
     const { data } = await Layout.db
@@ -632,7 +632,7 @@ async function loadNewDealManagers() {
 function openNewDealModal() {
     document.getElementById('newDealForm').reset();
     document.getElementById('newGuestForm').classList.add('hidden');
-    document.getElementById('newDealManager').innerHTML = '<option value="">Не выбирать</option>';
+    document.getElementById('newDealManager').innerHTML = `<option value="">${t('crm_no_select')}</option>`;
     loadGuests();
     document.getElementById('newDealModal').showModal();
 }
@@ -652,7 +652,7 @@ function toggleNewGuestForm() {
         searchInput.disabled = true;
         searchInput.value = '';
         hiddenInput.value = 'new';
-        btn.textContent = '← Выбрать';
+        btn.textContent = `← ${t('crm_select')}`;
         btn.classList.remove('btn-primary');
         btn.classList.add('btn-ghost');
         document.getElementById('guestDropdown').classList.add('hidden');
@@ -660,7 +660,7 @@ function toggleNewGuestForm() {
         form.classList.add('hidden');
         searchInput.disabled = false;
         hiddenInput.value = '';
-        btn.textContent = '+ Новый';
+        btn.textContent = `+ ${t('crm_new')}`;
         btn.classList.add('btn-primary');
         btn.classList.remove('btn-ghost');
     }
@@ -673,7 +673,7 @@ async function createDeal(event) {
     let guestId = document.getElementById('newDealGuest').value;
 
     if (!retreatId) {
-        Layout.showNotification('Выберите ретрит', 'error');
+        Layout.showNotification(t('crm_select_retreat_error'), 'error');
         return;
     }
 
@@ -686,7 +686,7 @@ async function createDeal(event) {
         const email = document.getElementById('newGuestEmail').value.trim();
 
         if (!firstName && !spiritualName) {
-            Layout.showNotification('Укажите имя или духовное имя гостя', 'error');
+            Layout.showNotification(t('crm_guest_name_required'), 'error');
             return;
         }
 
@@ -732,7 +732,7 @@ async function createDeal(event) {
         return;
     }
 
-    Layout.showNotification('Сделка создана', 'success');
+    Layout.showNotification(t('crm_deal_created'), 'success');
     closeNewDealModal();
 
     // Открываем карточку сделки
@@ -754,7 +754,7 @@ function updateBulkPanel() {
     const panel = document.getElementById('bulkActions');
     if (ids.length > 0) {
         panel.classList.remove('hidden');
-        document.getElementById('bulkCount').textContent = `${ids.length} выбрано`;
+        document.getElementById('bulkCount').textContent = `${ids.length} ${t('crm_selected')}`;
     } else {
         panel.classList.add('hidden');
     }
@@ -767,7 +767,7 @@ async function bulkAssignManager() {
     for (const id of ids) {
         await Layout.db.from('crm_deals').update({ manager_id: managerId }).eq('id', id);
     }
-    Layout.showNotification(`Менеджер назначен для ${ids.length} сделок`, 'success');
+    Layout.showNotification(`${t('crm_manager_assigned_for')} ${ids.length}`, 'success');
     await loadDeals();
 }
 
@@ -778,7 +778,7 @@ async function bulkChangeStatus() {
     for (const id of ids) {
         await Layout.db.from('crm_deals').update({ status }).eq('id', id);
     }
-    Layout.showNotification(`Статус изменён для ${ids.length} сделок`, 'success');
+    Layout.showNotification(`${t('crm_status_changed_for')} ${ids.length}`, 'success');
     await loadDeals();
 }
 
@@ -789,10 +789,10 @@ async function bulkDelete() {
         return d && d.status === 'cancelled';
     });
     if (cancelledIds.length === 0) {
-        Layout.showNotification('Удалять можно только отменённые сделки', 'error');
+        Layout.showNotification(t('crm_delete_cancelled_only'), 'error');
         return;
     }
-    if (!confirm(`Удалить ${cancelledIds.length} отменённых сделок?`)) return;
+    if (!confirm(`${t('crm_confirm_delete_deals')} (${cancelledIds.length})?`)) return;
     for (const id of cancelledIds) {
         await Layout.db.from('crm_deal_services').delete().eq('deal_id', id);
         await Layout.db.from('crm_payments').delete().eq('deal_id', id);
@@ -802,18 +802,18 @@ async function bulkDelete() {
         await Layout.db.from('crm_deal_members').delete().eq('deal_id', id);
         await Layout.db.from('crm_deals').delete().eq('id', id);
     }
-    Layout.showNotification(`Удалено ${cancelledIds.length} сделок`, 'success');
+    Layout.showNotification(`${t('deleted')}: ${cancelledIds.length}`, 'success');
     await loadDeals();
 }
 
 // ==================== ЭКСПОРТ ====================
 function exportXlsx() {
     const deals = filteredDeals;
-    if (deals.length === 0) { Layout.showNotification('Нет данных для экспорта', 'error'); return; }
+    if (deals.length === 0) { Layout.showNotification(t('crm_no_data_export'), 'error'); return; }
 
     // CSV с BOM для Excel
     const BOM = '\uFEFF';
-    const headers = ['Имя', 'Телефон', 'Email', 'Telegram', 'Ретрит', 'Статус', 'Менеджер', 'Оплачено (₹)', 'Создано', 'Проживание', 'Питание', 'Виза', 'Билеты'];
+    const headers = [t('col_name'), t('crm_phone'), 'Email', 'Telegram', t('crm_retreat'), t('col_status'), t('crm_manager'), `${t('crm_paid')} (₹)`, t('crm_created'), t('crm_accommodation'), t('crm_meals'), t('crm_visa'), t('crm_tickets')];
     const rows = deals.map(d => {
         const g = d.vaishnavas;
         const r = d.retreats;

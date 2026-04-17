@@ -42,7 +42,7 @@
                         <button class="btn btn-ghost btn-xs opacity-0 group-hover:opacity-100 p-0 h-5 w-5 min-h-0 text-white/60 hover:text-white" onclick="startEditName()">
                             <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-3.5 h-3.5"><path stroke-linecap="round" stroke-linejoin="round" d="m16.862 4.487 1.687-1.688a1.875 1.875 0 1 1 2.652 2.652L6.832 19.82a4.5 4.5 0 0 1-1.897 1.13l-2.685.8.8-2.685a4.5 4.5 0 0 1 1.13-1.897L16.863 4.487Z" /></svg>
                         </button>
-                        <span id="repeatGuestBadge" class="badge badge-sm badge-warning hidden shrink-0">повторный</span>
+                        <span id="repeatGuestBadge" class="badge badge-sm badge-warning hidden shrink-0" data-i18n="crm_repeat_guest">повторный</span>
                     </div>
                     <select id="statusSelect" class="select select-sm font-bold text-sm min-w-[140px] shrink-0" onchange="changeStatus(this.value)">
                     </select>
@@ -54,10 +54,10 @@
                         <div class="flex gap-1 shrink-0" id="quickContactButtons"></div>
                     </div>
                     <div class="flex flex-wrap items-center gap-2 shrink-0">
-                        <select id="workModeSelect" class="select select-xs text-xs min-w-[90px]" onchange="changeWorkMode(this.value)" title="Температура — насколько активно работаем с гостем">
-                            <option value="active">🔥 Горячий</option>
-                            <option value="long_term">🌡 Тёплый</option>
-                            <option value="paused">❄️ Холодный</option>
+                        <select id="workModeSelect" class="select select-xs text-xs min-w-[90px]" onchange="changeWorkMode(this.value)" data-i18n-title="crm_work_mode_hint" title="Температура — насколько активно работаем с гостем">
+                            <option value="active" data-i18n="crm_mode_hot">🔥 Горячий</option>
+                            <option value="long_term" data-i18n="crm_mode_warm">🌡 Тёплый</option>
+                            <option value="paused" data-i18n="crm_mode_cold">❄️ Холодный</option>
                         </select>
                         <select id="managerSelect" class="select select-xs text-xs min-w-[110px]" onchange="changeManager(this.value)">
                         </select>
@@ -89,10 +89,10 @@
             <!-- Заметки -->
             <div class="card bg-base-100 shadow-sm">
                 <div class="card-body p-4">
-                    <h3 class="font-bold mb-3">Заметки</h3>
+                    <h3 class="font-bold mb-3" data-i18n="crm_notes">Заметки</h3>
                     <!-- Тип контакта — иконки -->
                     <div class="flex gap-1 mb-3" id="commTypeButtons">
-                        <button type="button" class="btn btn-sm btn-primary flex-1 comm-type-btn" data-type="call" onclick="selectCommType('call')" title="Звонок">
+                        <button type="button" class="btn btn-sm btn-primary flex-1 comm-type-btn" data-type="call" onclick="selectCommType('call')" data-i18n-title="crm_comm_call" title="Звонок">
                             <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-4 h-4"><path stroke-linecap="round" stroke-linejoin="round" d="M2.25 6.75c0 8.284 6.716 15 15 15h2.25a2.25 2.25 0 0 0 2.25-2.25v-1.372c0-.516-.351-.966-.852-1.091l-4.423-1.106c-.44-.11-.902.055-1.173.417l-.97 1.293c-.282.376-.769.542-1.21.38a12.035 12.035 0 0 1-7.143-7.143c-.162-.441.004-.928.38-1.21l1.293-.97c.363-.271.527-.734.417-1.173L6.963 3.102a1.125 1.125 0 0 0-1.091-.852H4.5A2.25 2.25 0 0 0 2.25 4.5v2.25Z" /></svg>
                         </button>
                         <button type="button" class="btn btn-sm btn-ghost flex-1 comm-type-btn" data-type="whatsapp" onclick="selectCommType('whatsapp')" title="WhatsApp">
@@ -104,12 +104,12 @@
                         <button type="button" class="btn btn-sm btn-ghost flex-1 comm-type-btn" data-type="email" onclick="selectCommType('email')" title="Email">
                             <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-4 h-4"><path stroke-linecap="round" stroke-linejoin="round" d="M21.75 6.75v10.5a2.25 2.25 0 0 1-2.25 2.25h-15a2.25 2.25 0 0 1-2.25-2.25V6.75m19.5 0A2.25 2.25 0 0 0 19.5 4.5h-15a2.25 2.25 0 0 0-2.25 2.25m19.5 0v.243a2.25 2.25 0 0 1-1.07 1.916l-7.5 4.615a2.25 2.25 0 0 1-2.36 0L3.32 8.91a2.25 2.25 0 0 1-1.07-1.916V6.75" /></svg>
                         </button>
-                        <button type="button" class="btn btn-sm btn-ghost flex-1 comm-type-btn" data-type="note" onclick="selectCommType('note')" title="Заметка">
+                        <button type="button" class="btn btn-sm btn-ghost flex-1 comm-type-btn" data-type="note" onclick="selectCommType('note')" data-i18n-title="crm_note" title="Заметка">
                             <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-4 h-4"><path stroke-linecap="round" stroke-linejoin="round" d="m16.862 4.487 1.687-1.688a1.875 1.875 0 1 1 2.652 2.652L10.582 16.07a4.5 4.5 0 0 1-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 0 1 1.13-1.897l8.932-8.931Zm0 0L19.5 7.125M18 14v4.75A2.25 2.25 0 0 1 15.75 21H5.25A2.25 2.25 0 0 1 3 18.75V8.25A2.25 2.25 0 0 1 5.25 6H10" /></svg>
                         </button>
                     </div>
-                    <textarea id="quickCommText" class="textarea textarea-bordered textarea-sm w-full" rows="2" placeholder="Что произошло..."></textarea>
-                    <button type="button" class="btn btn-sm btn-primary w-full mt-2" onclick="quickAddComm()">
+                    <textarea id="quickCommText" class="textarea textarea-bordered textarea-sm w-full" rows="2" data-i18n-placeholder="crm_what_happened" placeholder="Что произошло..."></textarea>
+                    <button type="button" class="btn btn-sm btn-primary w-full mt-2" onclick="quickAddComm()" data-i18n="crm_record">
                         Записать
                     </button>
                     <!-- Последние контакты -->
@@ -120,7 +120,7 @@
             <!-- Чеклист гостя -->
             <div class="card shadow-sm transition-colors duration-500" id="checklistCard">
                 <div class="card-body p-4">
-                    <h3 class="font-bold mb-3" id="checklistTitle">Чеклист</h3>
+                    <h3 class="font-bold mb-3" id="checklistTitle" data-i18n="crm_checklist">Чеклист</h3>
                     <style>
                         #checklistGrid .label { padding: 2px 0 0; }
                         #checklistGrid .label-text { white-space: nowrap; font-size: 11px; }
@@ -128,34 +128,34 @@
                     </style>
                     <div class="grid grid-cols-2 gap-x-3 gap-y-0.5" id="checklistGrid">
                         <div class="form-control">
-                            <label class="label"><span class="label-text opacity-50">Проживание</span></label>
+                            <label class="label"><span class="label-text opacity-50" data-i18n="crm_cl_accommodation">Проживание</span></label>
                             <select class="select select-xs w-full" onchange="handleAccommodationChange(this.value)" id="cl_accommodation">
                                 <option value="unknown">—</option>
                             </select>
                         </div>
                         <div class="form-control">
-                            <label class="label"><span class="label-text opacity-50">Питание</span></label>
+                            <label class="label"><span class="label-text opacity-50" data-i18n="crm_cl_meals">Питание</span></label>
                             <select class="select select-xs w-full" onchange="updateChecklist('checklist_meals', this.value)" id="cl_meals">
                                 <option value="unknown">—</option>
-                                <option value="in_ashram">В ШРСК</option>
-                                <option value="self">Сам</option>
+                                <option value="in_ashram" data-i18n="crm_cl_in_ashram">В ШРСК</option>
+                                <option value="self" data-i18n="crm_cl_self">Сам</option>
                             </select>
                         </div>
                         <div class="form-control">
-                            <label class="label"><span class="label-text opacity-50">Виза</span></label>
+                            <label class="label"><span class="label-text opacity-50" data-i18n="crm_cl_visa">Виза</span></label>
                             <select class="select select-xs w-full" onchange="updateChecklist('checklist_visa', this.value)" id="cl_visa">
                                 <option value="unknown">—</option>
-                                <option value="needs_help">Помощь</option>
-                                <option value="not_needed">Не нужна</option>
+                                <option value="needs_help" data-i18n="crm_cl_needs_help">Помощь</option>
+                                <option value="not_needed" data-i18n="crm_cl_not_needed">Не нужна</option>
                             </select>
                         </div>
                         <div class="form-control">
-                            <label class="label"><span class="label-text opacity-50">Билеты</span></label>
+                            <label class="label"><span class="label-text opacity-50" data-i18n="crm_cl_tickets">Билеты</span></label>
                             <select class="select select-xs w-full" onchange="updateChecklist('checklist_tickets', this.value)" id="cl_tickets">
                                 <option value="unknown">—</option>
-                                <option value="bought">Куплены</option>
-                                <option value="not_bought">Не куплены</option>
-                                <option value="not_needed">Не нужны</option>
+                                <option value="bought" data-i18n="crm_cl_bought">Куплены</option>
+                                <option value="not_bought" data-i18n="crm_cl_not_bought">Не куплены</option>
+                                <option value="not_needed" data-i18n="crm_cl_tickets_not_needed">Не нужны</option>
                             </select>
                         </div>
                     </div>
@@ -164,39 +164,39 @@
                     <div id="flightFieldsBlock" class="hidden mt-3 space-y-3">
                         <!-- Прибытие -->
                         <div class="pl-2 border-l-2 border-primary/30">
-                            <div class="text-xs font-semibold opacity-50 mb-1">Прибытие</div>
+                            <div class="text-xs font-semibold opacity-50 mb-1" data-i18n="crm_cl_arrival">Прибытие</div>
                             <div class="grid grid-cols-2 gap-1">
-                                <input type="text" class="input input-bordered input-xs" id="arrivalFlight" placeholder="Рейс" onchange="saveFlightField('arrival_flight', this.value)">
-                                <input type="text" class="input input-bordered input-xs" id="arrivalAirport" placeholder="Аэропорт" onchange="saveFlightField('arrival_airport', this.value)">
+                                <input type="text" class="input input-bordered input-xs" id="arrivalFlight" data-i18n-placeholder="crm_cl_flight" placeholder="Рейс" onchange="saveFlightField('arrival_flight', this.value)">
+                                <input type="text" class="input input-bordered input-xs" id="arrivalAirport" data-i18n-placeholder="crm_cl_airport" placeholder="Аэропорт" onchange="saveFlightField('arrival_airport', this.value)">
                             </div>
                             <input type="datetime-local" class="input input-bordered input-xs w-full mt-1" id="arrivalDatetime" onchange="saveArrivalDatetime(this.value)">
                             <div class="flex flex-wrap gap-x-4 gap-y-0 mt-1">
                                 <label class="flex items-center gap-1.5 cursor-pointer">
                                     <input type="checkbox" class="checkbox checkbox-xs checkbox-primary" id="arrivalNeedsTransfer" onchange="updateChecklist('checklist_transfer_arrival', this.checked ? 'needed' : 'not_needed')">
-                                    <span class="text-xs opacity-60">Трансфер</span>
+                                    <span class="text-xs opacity-60" data-i18n="crm_cl_transfer">Трансфер</span>
                                 </label>
                                 <label class="flex items-center gap-1.5 cursor-pointer">
                                     <input type="checkbox" class="checkbox checkbox-xs checkbox-warning" id="arrivalEarlyCheckin" onchange="saveFlightField('arrival_early_checkin', this.checked)">
-                                    <span class="text-xs opacity-60">Ранний заезд</span>
+                                    <span class="text-xs opacity-60" data-i18n="crm_cl_early_checkin">Ранний заезд</span>
                                 </label>
                             </div>
                         </div>
                         <!-- Отъезд -->
                         <div class="pl-2 border-l-2 border-primary/30">
-                            <div class="text-xs font-semibold opacity-50 mb-1">Отъезд</div>
+                            <div class="text-xs font-semibold opacity-50 mb-1" data-i18n="crm_cl_departure">Отъезд</div>
                             <div class="grid grid-cols-2 gap-1">
-                                <input type="text" class="input input-bordered input-xs" id="departureFlight" placeholder="Рейс" onchange="saveFlightField('departure_flight', this.value)">
-                                <input type="text" class="input input-bordered input-xs" id="departureAirport" placeholder="Аэропорт" onchange="saveFlightField('departure_airport', this.value)">
+                                <input type="text" class="input input-bordered input-xs" id="departureFlight" data-i18n-placeholder="crm_cl_flight" placeholder="Рейс" onchange="saveFlightField('departure_flight', this.value)">
+                                <input type="text" class="input input-bordered input-xs" id="departureAirport" data-i18n-placeholder="crm_cl_airport" placeholder="Аэропорт" onchange="saveFlightField('departure_airport', this.value)">
                             </div>
                             <input type="datetime-local" class="input input-bordered input-xs w-full mt-1" id="departureDatetime" onchange="saveDepartureDatetime(this.value)">
                             <div class="flex flex-wrap gap-x-4 gap-y-0 mt-1">
                                 <label class="flex items-center gap-1.5 cursor-pointer">
                                     <input type="checkbox" class="checkbox checkbox-xs checkbox-primary" id="departureNeedsTransfer" onchange="updateChecklist('checklist_transfer_departure', this.checked ? 'needed' : 'not_needed')">
-                                    <span class="text-xs opacity-60">Трансфер</span>
+                                    <span class="text-xs opacity-60" data-i18n="crm_cl_transfer">Трансфер</span>
                                 </label>
                                 <label class="flex items-center gap-1.5 cursor-pointer">
                                     <input type="checkbox" class="checkbox checkbox-xs checkbox-warning" id="departureLateCheckout" onchange="saveFlightField('departure_late_checkout', this.checked)">
-                                    <span class="text-xs opacity-60">Поздний выезд</span>
+                                    <span class="text-xs opacity-60" data-i18n="crm_cl_late_checkout">Поздний выезд</span>
                                 </label>
                             </div>
                         </div>
@@ -212,11 +212,11 @@
                 <div class="card-body p-4">
                     <div class="flex justify-between items-center mb-3">
                         <h3 class="font-bold" data-i18n="crm_finances">Финансы</h3>
-                        <button class="btn btn-xs btn-primary" onclick="openPaymentModal()">+ Платёж</button>
+                        <button class="btn btn-xs btn-primary" onclick="openPaymentModal()" data-i18n="crm_add_payment_short">+ Платёж</button>
                     </div>
                     <!-- Список платежей -->
                     <div id="financePaymentsList" class="space-y-1 mb-2">
-                        <p class="text-base-content/40 text-xs text-center py-2">Нет платежей</p>
+                        <p class="text-base-content/40 text-xs text-center py-2" data-i18n="crm_no_payments">Нет платежей</p>
                     </div>
                     <!-- Итого -->
                     <div class="border-t border-base-200 pt-2 space-y-1">
@@ -254,7 +254,7 @@
                     <div class="space-y-2">
                         <button class="btn btn-sm btn-block btn-outline gap-2" onclick="createGuestAccess()" id="createAccessBtn">
                             <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-4 h-4"><path stroke-linecap="round" stroke-linejoin="round" d="M15.75 5.25a3 3 0 0 1 3 3m3 0a6 6 0 0 1-7.029 5.912c-.563-.097-1.159.026-1.563.43L10.5 17.25H8.25v2.25H6v2.25H2.25v-2.818c0-.597.237-1.17.659-1.591l6.499-6.499c.404-.404.527-1 .43-1.563A6 6 0 1 1 21.75 8.25Z" /></svg>
-                            Создать доступ к порталу
+                            <span data-i18n="crm_create_portal_access">Создать доступ к порталу</span>
                         </button>
                         <button class="btn btn-sm btn-block btn-outline gap-2" onclick="openTemplatesModal()" id="templatesBtn" data-i18n="crm_message_templates">
                             Шаблоны сообщений
@@ -264,7 +264,7 @@
                         </button>
                         <button class="btn btn-sm btn-block btn-error gap-2 hidden" onclick="deleteDeal()" id="deleteBtn">
                             <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-4 h-4"><path stroke-linecap="round" stroke-linejoin="round" d="m14.74 9-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 0 1-2.244 2.077H8.084a2.25 2.25 0 0 1-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 0 0-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 0 1 3.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 0 0-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 0 0-7.5 0" /></svg>
-                            Удалить сделку
+                            <span data-i18n="crm_delete_deal">Удалить сделку</span>
                         </button>
                     </div>
                 </div>
@@ -325,7 +325,7 @@
         <h3 class="font-bold text-lg mb-4" data-i18n="crm_add_payment">Добавить оплату</h3>
         <form onsubmit="savePayment(event)">
             <div class="form-control mb-3">
-                <label class="label"><span class="label-text">Дата платежа</span></label>
+                <label class="label"><span class="label-text" data-i18n="crm_payment_date">Дата платежа</span></label>
                 <input type="date" id="paymentDate" class="input input-bordered" required>
             </div>
             <div class="grid grid-cols-2 gap-3 mb-3">
@@ -341,7 +341,7 @@
             </div>
 
             <div class="bg-base-200 p-3 rounded-lg mb-3">
-                <div class="text-sm">Курс: <span id="paymentRate">1</span> → <span id="paymentInr">—</span></div>
+                <div class="text-sm"><span data-i18n="crm_rate">Курс</span>: <span id="paymentRate">1</span> → <span id="paymentInr">—</span></div>
             </div>
 
             <div class="grid grid-cols-2 gap-3 mb-3">
@@ -383,13 +383,13 @@
 <dialog id="paymentDetailsModal" class="modal">
     <div class="modal-box max-w-sm">
         <div class="flex justify-between items-start mb-4">
-            <h3 class="font-bold text-lg">Платёж</h3>
+            <h3 class="font-bold text-lg" data-i18n="crm_payment">Платёж</h3>
             <form method="dialog"><button class="btn btn-sm btn-circle btn-ghost">✕</button></form>
         </div>
         <div id="paymentDetailsContent" class="space-y-3"></div>
         <div class="modal-action mt-4">
-            <button class="btn btn-sm btn-error btn-outline" id="paymentDetailsDeleteBtn">Удалить платёж</button>
-            <form method="dialog"><button class="btn btn-sm">Закрыть</button></form>
+            <button class="btn btn-sm btn-error btn-outline" id="paymentDetailsDeleteBtn" data-i18n="crm_delete_payment">Удалить платёж</button>
+            <form method="dialog"><button class="btn btn-sm" data-i18n="close">Закрыть</button></form>
         </div>
     </div>
     <form method="dialog" class="modal-backdrop"><button>close</button></form>
@@ -503,10 +503,10 @@
 <!-- Модалка выбора менеджера по расселению -->
 <dialog id="placementModal" class="modal">
     <div class="modal-box max-w-sm">
-        <h3 class="font-bold text-lg mb-4">Назначить расселение</h3>
+        <h3 class="font-bold text-lg mb-4" data-i18n="crm_assign_placement">Назначить расселение</h3>
         <div id="placementModalBody" class="space-y-2"></div>
         <div class="modal-action">
-            <button class="btn btn-sm" onclick="document.getElementById('placementModal').close()">Отмена</button>
+            <button class="btn btn-sm" onclick="document.getElementById('placementModal').close()" data-i18n="cancel">Отмена</button>
         </div>
     </div>
     <form method="dialog" class="modal-backdrop"><button>close</button></form>
@@ -549,7 +549,7 @@ let counts = { services: 0, payments: 0, tasks: 0 };
 // ==================== DATA ====================
 async function loadDeal() {
     if (!dealId) {
-        Layout.showNotification('ID сделки не указан', 'error');
+        Layout.showNotification(t('crm_deal_id_missing'), 'error');
         return;
     }
 
@@ -566,7 +566,7 @@ async function loadDeal() {
         .single();
 
     if (error || !data) {
-        Layout.handleError(error, 'Загрузка сделки');
+        Layout.handleError(error, t('crm_loading_deal'));
         return;
     }
 
@@ -613,9 +613,9 @@ async function loadGuestHistory() {
 function updateTabCounts() {
     const badge = (n) => n > 0 ? `<sup class="ml-1 text-xs opacity-70">${n}</sup>` : '';
 
-    document.getElementById('tabServices').innerHTML = 'Услуги' + badge(counts.services);
-    document.getElementById('tabPayments').innerHTML = 'Оплаты' + badge(counts.payments);
-    document.getElementById('tabTasks').innerHTML = 'Задачи' + badge(counts.tasks);
+    document.getElementById('tabServices').innerHTML = t('crm_tab_services') + badge(counts.services);
+    document.getElementById('tabPayments').innerHTML = t('crm_tab_payments') + badge(counts.payments);
+    document.getElementById('tabTasks').innerHTML = t('crm_tab_tasks') + badge(counts.tasks);
 }
 
 async function loadReferenceData() {
@@ -781,7 +781,7 @@ function renderSidebar() {
 
     // Менеджер
     const managerSelect = document.getElementById('managerSelect');
-    managerSelect.innerHTML = '<option value="">Не назначен</option>' +
+    managerSelect.innerHTML = `<option value="">${t('crm_not_assigned')}</option>` +
         managers.map(m => `<option value="${m.id}" ${m.id === deal.manager_id ? 'selected' : ''}>
             ${e(CrmUtils.getGuestName(m))}</option>`).join('');
 
@@ -799,10 +799,10 @@ function renderSidebar() {
     if (guest.user_id) {
         accessBtn.disabled = true;
         accessBtn.classList.add('btn-success', 'btn-disabled');
-        accessBtn.innerHTML = '<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-4 h-4"><path stroke-linecap="round" stroke-linejoin="round" d="M9 12.75 11.25 15 15 9.75M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" /></svg> Доступ создан';
+        accessBtn.innerHTML = '<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-4 h-4"><path stroke-linecap="round" stroke-linejoin="round" d="M9 12.75 11.25 15 15 9.75M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" /></svg> ' + t('crm_access_created');
     } else if (!guest.email) {
         accessBtn.disabled = true;
-        accessBtn.title = 'Укажите email гостя';
+        accessBtn.title = t('crm_specify_email');
     }
 }
 
@@ -811,7 +811,7 @@ function renderTags() {
     const activeTags = tags.filter(t => dealTags.includes(t.id));
 
     container.innerHTML = activeTags.length === 0
-        ? '<span class="text-base-content/30 text-sm">Нет тегов</span>'
+        ? `<span class="text-base-content/30 text-sm">${t('crm_no_tags')}</span>`
         : activeTags.map(tag => `
             <span class="badge gap-1" style="background-color: ${tag.color}; color: white;">
                 ${e(Layout.getName(tag))}
@@ -821,15 +821,15 @@ function renderTags() {
 
     // Обновляем селект добавления
     const availableTags = tags.filter(t => !dealTags.includes(t.id));
-    document.getElementById('addTagSelect').innerHTML = '<option value="">+ Добавить тег...</option>' +
+    document.getElementById('addTagSelect').innerHTML = `<option value="">${t('crm_add_tag')}</option>` +
         availableTags.map(t => `<option value="${t.id}">${e(Layout.getName(t))}</option>`).join('');
 }
 
 function populateSelects() {
     // Услуги
     const serviceSelect = document.getElementById('serviceSelect');
-    serviceSelect.innerHTML = '<option value="">Выберите услугу...</option>' +
-        '<option value="custom">— Другое (ввести вручную) —</option>' +
+    serviceSelect.innerHTML = `<option value="">${t('crm_select_service')}</option>` +
+        `<option value="custom">${t('crm_custom_service')}</option>` +
         services.map(s => `<option value="${s.id}" data-price="${s.default_price}">${e(Layout.getName(s))}</option>`).join('');
 
     // Валюты
@@ -911,11 +911,11 @@ function renderInfoTab() {
         const color = g === 'male' ? '#3b82f6' : g === 'female' ? '#ec4899' : '';
         return `<div class="flex items-center gap-2 py-1.5 border-b border-base-200/50">
             <span class="text-base-content/30">${genderIcon}</span>
-            <span class="text-xs text-base-content/40 w-16 shrink-0">Пол</span>
+            <span class="text-xs text-base-content/40 w-16 shrink-0">${t('crm_gender')}</span>
             <select onchange="saveGender(this.value)" class="select select-xs select-ghost h-6 min-h-0 px-1 font-medium" style="color: ${color || 'inherit'}">
-                <option value="" ${!g ? 'selected' : ''}>Не указан</option>
-                <option value="male" ${g === 'male' ? 'selected' : ''} style="color:#3b82f6">Мужчина</option>
-                <option value="female" ${g === 'female' ? 'selected' : ''} style="color:#ec4899">Женщина</option>
+                <option value="" ${!g ? 'selected' : ''}>${t('crm_gender_not_set')}</option>
+                <option value="male" ${g === 'male' ? 'selected' : ''} style="color:#3b82f6">${t('crm_gender_male')}</option>
+                <option value="female" ${g === 'female' ? 'selected' : ''} style="color:#ec4899">${t('crm_gender_female')}</option>
             </select>
         </div>`;
     }
@@ -935,23 +935,23 @@ function renderInfoTab() {
                         <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-4 h-4">
                             <path stroke-linecap="round" stroke-linejoin="round" d="M15.75 6a3.75 3.75 0 1 1-7.5 0 3.75 3.75 0 0 1 7.5 0ZM4.501 20.118a7.5 7.5 0 0 1 14.998 0A17.933 17.933 0 0 1 12 21.75c-2.676 0-5.216-.584-7.499-1.632Z" />
                         </svg>
-                        Контакт
+                        ${t('crm_contact')}
                     </h3>
-                    <a href="../vaishnavas/profile.html?id=${guest.id}" class="text-xs link link-primary">Профиль →</a>
+                    <a href="../vaishnavas/profile.html?id=${guest.id}" class="text-xs link link-primary">${t('crm_profile_link')} →</a>
                 </div>
                 <div class="bg-base-200/30 rounded-lg px-3 py-1">
                     ${genderRow()}
-                    ${contactRow(phoneIcon, 'Телефон', guest.phone, guest.phone ? 'tel:' + guest.phone : null, 'phone')}
+                    ${contactRow(phoneIcon, t('crm_phone'), guest.phone, guest.phone ? 'tel:' + guest.phone : null, 'phone')}
                     ${contactRow(emailIcon, 'Email', guest.email, guest.email ? 'mailto:' + guest.email : null, 'email')}
                     ${contactRow(tgIcon, 'Telegram', guest.telegram, guest.telegram ? 'https://t.me/' + guest.telegram.replace('@','') : null, 'telegram')}
-                    ${contactRow(locationIcon, 'Откуда', location || null, null, null)}
+                    ${contactRow(locationIcon, t('crm_location'), location || null, null, null)}
                 </div>
             </div>
 
             <!-- Ретрит -->
             <div>
                 <h3 class="font-bold flex items-center gap-1.5 text-sm text-base-content/60 mb-2">
-                    ${calendarIcon} Ретрит
+                    ${calendarIcon} ${t('crm_retreat')}
                 </h3>
                 <div class="bg-base-200/30 rounded-lg px-3 py-2 space-y-2">
                     <div class="flex items-center justify-between">
@@ -961,8 +961,8 @@ function renderInfoTab() {
                         <span class="text-sm">${retreatDates}</span>
                     </div>
                     <div class="flex items-center gap-4 text-xs text-base-content/50">
-                        <span>Источник: <span class="font-medium text-base-content/70">${source}</span></span>
-                        <span>Создана: <span class="font-medium text-base-content/70">${CrmUtils.formatDateTime ? CrmUtils.formatDateTime(deal.created_at) : '—'}</span></span>
+                        <span>${t('crm_source_label')}: <span class="font-medium text-base-content/70">${source}</span></span>
+                        <span>${t('crm_created_at')}: <span class="font-medium text-base-content/70">${CrmUtils.formatDateTime ? CrmUtils.formatDateTime(deal.created_at) : '—'}</span></span>
                     </div>
                 </div>
             </div>
@@ -972,7 +972,7 @@ function renderInfoTab() {
         <div class="mt-6">
             <div class="text-xs text-gray-400 mb-1 flex items-center gap-1">
                 <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-3 h-3"><path stroke-linecap="round" stroke-linejoin="round" d="M15.75 6a3.75 3.75 0 1 1-7.5 0 3.75 3.75 0 0 1 7.5 0ZM4.501 20.118a7.5 7.5 0 0 1 14.998 0A17.933 17.933 0 0 1 12 21.75c-2.676 0-5.216-.584-7.499-1.632Z" /></svg>
-                Сообщение гостя при регистрации
+                ${t('crm_guest_message')}
             </div>
             <div class="bg-base-200/50 rounded-lg p-3 text-sm whitespace-pre-wrap">${e(deal.notes)}</div>
         </div>` : ''}
@@ -984,9 +984,9 @@ function renderInfoTab() {
             <div class="flex items-center justify-between mb-3">
                 <h3 class="text-lg font-bold flex items-center gap-2">
                     <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-5 h-5 text-primary"><path stroke-linecap="round" stroke-linejoin="round" d="M18 18.72a9.094 9.094 0 0 0 3.741-.479 3 3 0 0 0-4.682-2.72m.94 3.198.001.031c0 .225-.012.447-.037.666A11.944 11.944 0 0 1 12 21c-2.17 0-4.207-.576-5.963-1.584A6.062 6.062 0 0 1 6 18.719m12 0a5.971 5.971 0 0 0-.941-3.197m0 0A5.995 5.995 0 0 0 12 12.75a5.995 5.995 0 0 0-5.058 2.772m0 0a3 3 0 0 0-4.681 2.72 8.986 8.986 0 0 0 3.74.477m.94-3.197a5.971 5.971 0 0 0-.94 3.197M15 6.75a3 3 0 1 1-6 0 3 3 0 0 1 6 0Zm6 3a2.25 2.25 0 1 1-4.5 0 2.25 2.25 0 0 1 4.5 0Zm-13.5 0a2.25 2.25 0 1 1-4.5 0 2.25 2.25 0 0 1 4.5 0Z" /></svg>
-                    Состав группы
+                    ${t('crm_group_members')}
                 </h3>
-                <button type="button" class="btn btn-xs btn-outline btn-primary gap-1" onclick="addMember()">+ Добавить</button>
+                <button type="button" class="btn btn-xs btn-outline btn-primary gap-1" onclick="addMember()">+ ${t('add')}</button>
             </div>
             <div id="dealMembersList"></div>
         </div>
@@ -995,7 +995,7 @@ function renderInfoTab() {
         <div class="mt-6">
             <h3 class="text-lg font-bold flex items-center gap-2 mb-3">
                 <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-5 h-5 text-primary"><path stroke-linecap="round" stroke-linejoin="round" d="m2.25 12 8.954-8.955c.44-.439 1.152-.439 1.591 0L21.75 12M4.5 9.75v10.125c0 .621.504 1.125 1.125 1.125H9.75v-4.875c0-.621.504-1.125 1.125-1.125h2.25c.621 0 1.125.504 1.125 1.125V21h4.125c.621 0 1.125-.504 1.125-1.125V9.75M8.25 21h8.25" /></svg>
-                Размещение
+                ${t('crm_placement')}
             </h3>
             <div id="placementBlock" class="bg-base-200/50 rounded-xl p-4"></div>
         </div>
@@ -1004,12 +1004,12 @@ function renderInfoTab() {
         <div class="mt-6">
             <h3 class="text-lg font-bold flex items-center gap-2 mb-3">
                 <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-5 h-5 text-primary"><path stroke-linecap="round" stroke-linejoin="round" d="M9.879 7.519c1.171-1.025 3.071-1.025 4.242 0 1.172 1.025 1.172 2.687 0 3.712-.203.179-.43.326-.67.442-.745.361-1.45.999-1.45 1.827v.75M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Zm-9 5.25h.008v.008H12v-.008Z" /></svg>
-                Дополнительно
+                ${t('crm_additional')}
             </h3>
             <div class="bg-base-200/30 rounded-xl p-4">
                 <div class="grid grid-cols-1 md:grid-cols-3 gap-3">
                     <div>
-                        <label class="label py-0"><span class="label-text text-xs opacity-50">Духовный учитель</span></label>
+                        <label class="label py-0"><span class="label-text text-xs opacity-50">${t('crm_spiritual_teacher')}</span></label>
                         <div class="relative">
                             <input type="text" class="input input-bordered input-sm w-full" id="guruName" placeholder="—"
                                    value="${e(guest.spiritual_teacher || guest.guru_name || '')}"
@@ -1021,13 +1021,13 @@ function renderInfoTab() {
                         </div>
                     </div>
                     <div>
-                        <label class="label py-0"><span class="label-text text-xs opacity-50">Хочет жить рядом с</span></label>
+                        <label class="label py-0"><span class="label-text text-xs opacity-50">${t('crm_roommate_pref')}</span></label>
                         <input type="text" class="input input-bordered input-sm w-full" id="roommatePreference" placeholder="—"
                                value="${e(deal.roommate_preference || '')}"
                                onchange="saveDealField('roommate_preference', this.value)">
                     </div>
                     <div>
-                        <label class="label py-0"><span class="label-text text-xs opacity-50">Особые потребности</span></label>
+                        <label class="label py-0"><span class="label-text text-xs opacity-50">${t('crm_special_needs')}</span></label>
                         <input type="text" class="input input-bordered input-sm w-full" id="specialNeeds" placeholder="—"
                                value="${e(deal.special_needs || '')}"
                                onchange="saveDealField('special_needs', this.value)">
@@ -1068,7 +1068,7 @@ function renderGuestHistory() {
 
     const completed = guestHistory.filter(d => d.status === 'completed').length;
     const subtitle = completed > 0
-        ? `Был(а) ${completed} ${completed === 1 ? 'раз' : completed < 5 ? 'раза' : 'раз'}`
+        ? `${t('crm_visited')} ${completed} ${Layout.pluralize ? Layout.pluralize(completed, t('crm_time_one'), t('crm_time_few'), t('crm_time_many')) : completed}`
         : '';
 
     return `
@@ -1078,7 +1078,7 @@ function renderGuestHistory() {
                     <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-5 h-5 text-primary">
                         <path stroke-linecap="round" stroke-linejoin="round" d="M12 6v6h4.5m4.5 0a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" />
                     </svg>
-                    История гостя
+                    ${t('crm_guest_history')}
                 </h3>
                 ${subtitle ? `<span class="badge badge-ghost badge-sm">${subtitle}</span>` : ''}
             </div>
@@ -1094,13 +1094,13 @@ function renderServicesTab() {
 
     return `
         <div class="flex justify-between items-center mb-4">
-            <h3 class="font-bold">Услуги</h3>
-            <button class="btn btn-sm btn-primary" onclick="openServiceModal()">+ Добавить</button>
+            <h3 class="font-bold">${t('crm_tab_services')}</h3>
+            <button class="btn btn-sm btn-primary" onclick="openServiceModal()">+ ${t('add')}</button>
         </div>
         ${dealServices.length === 0
-            ? '<p class="text-base-content/50 text-center py-4">Нет добавленных услуг</p>'
+            ? `<p class="text-base-content/50 text-center py-4">${t('crm_no_services')}</p>`
             : `<table class="table">
-                <thead><tr><th>Услуга</th><th class="text-right">Кол-во</th><th class="text-right">Цена</th><th class="text-right">Итого</th><th></th></tr></thead>
+                <thead><tr><th>${t('crm_service')}</th><th class="text-right">${t('crm_quantity')}</th><th class="text-right">${t('crm_price')}</th><th class="text-right">${t('crm_total')}</th><th></th></tr></thead>
                 <tbody>
                     ${dealServices.map(s => `
                         <tr>
@@ -1112,7 +1112,7 @@ function renderServicesTab() {
                         </tr>
                     `).join('')}
                 </tbody>
-                <tfoot><tr><td colspan="3" class="text-right font-bold">Итого:</td><td class="text-right font-mono font-bold text-lg">${CrmUtils.formatMoney(total)}</td><td></td></tr></tfoot>
+                <tfoot><tr><td colspan="3" class="text-right font-bold">${t('crm_total')}:</td><td class="text-right font-mono font-bold text-lg">${CrmUtils.formatMoney(total)}</td><td></td></tr></tfoot>
             </table>`
         }
     `;
@@ -1123,13 +1123,13 @@ function renderPaymentsTab() {
 
     return `
         <div class="flex justify-between items-center mb-4">
-            <h3 class="font-bold">Оплаты</h3>
-            <button class="btn btn-sm btn-primary" onclick="openPaymentModal()">+ Добавить</button>
+            <h3 class="font-bold">${t('crm_tab_payments')}</h3>
+            <button class="btn btn-sm btn-primary" onclick="openPaymentModal()">+ ${t('add')}</button>
         </div>
         ${payments.length === 0
-            ? '<p class="text-base-content/50 text-center py-4">Нет оплат</p>'
+            ? `<p class="text-base-content/50 text-center py-4">${t('crm_no_payments')}</p>`
             : `<table class="table">
-                <thead><tr><th>Дата</th><th>Тип</th><th>Способ</th><th class="text-right">Сумма</th><th class="text-right">В ₹</th><th>Принял</th><th>Заметка</th><th></th></tr></thead>
+                <thead><tr><th>${t('crm_date')}</th><th>${t('crm_payment_type')}</th><th>${t('crm_payment_method')}</th><th class="text-right">${t('crm_amount')}</th><th class="text-right">${t('crm_in_inr')}</th><th>${t('crm_received_by')}</th><th>${t('crm_note')}</th><th></th></tr></thead>
                 <tbody>
                     ${payments.map(p => `
                         <tr>
@@ -1157,7 +1157,7 @@ function renderFinanceBlock() {
     const totalInr = payments.reduce((sum, p) => sum + Number(p.amount_inr || 0), 0);
 
     if (payments.length === 0) {
-        list.innerHTML = '<p class="text-base-content/40 text-xs text-center py-2">Нет платежей</p>';
+        list.innerHTML = `<p class="text-base-content/40 text-xs text-center py-2">${t('crm_no_payments')}</p>`;
     } else {
         list.innerHTML = payments.map(p => {
             const dateStr = p.received_at
@@ -1210,11 +1210,11 @@ function renderFinanceBlock() {
 function renderTasksTab() {
     return `
         <div class="flex justify-between items-center mb-4">
-            <h3 class="font-bold">Задачи</h3>
-            <button class="btn btn-sm btn-primary" onclick="openTaskModal()">+ Добавить</button>
+            <h3 class="font-bold">${t('crm_tab_tasks')}</h3>
+            <button class="btn btn-sm btn-primary" onclick="openTaskModal()">+ ${t('add')}</button>
         </div>
         ${tasks.length === 0
-            ? '<p class="text-base-content/50 text-center py-4">Нет задач</p>'
+            ? `<p class="text-base-content/50 text-center py-4">${t('crm_no_tasks')}</p>`
             : `<div class="space-y-2">
                 ${tasks.map(task => {
                     const isOverdue = CrmUtils.isTaskOverdue(task);
@@ -1246,11 +1246,11 @@ function renderHistoryTab() {
 
     return `
         <div class="flex justify-between items-center mb-4">
-            <h3 class="font-bold">История</h3>
-            <button class="btn btn-sm btn-primary" onclick="openCommModal()">+ Заметки</button>
+            <h3 class="font-bold">${t('crm_tab_history')}</h3>
+            <button class="btn btn-sm btn-primary" onclick="openCommModal()">+ ${t('crm_notes')}</button>
         </div>
         ${allItems.length === 0
-            ? '<p class="text-base-content/50 text-center py-4">Нет записей</p>'
+            ? `<p class="text-base-content/50 text-center py-4">${t('crm_no_records')}</p>`
             : `<div class="space-y-3">
                 ${allItems.map(item => {
                     if (item.itemType === 'comm' && item.type === 'placement') {
@@ -1291,7 +1291,7 @@ function renderHistoryTab() {
                                 <div class="w-8 h-8 flex items-center justify-center text-primary">${arrowSvg}</div>
                                 <div>
                                     <div class="text-sm">
-                                        Статус изменён: ${CrmUtils.getStatusBadge(item.old_status, 'sm')} → ${CrmUtils.getStatusBadge(item.new_status, 'sm')}
+                                        ${t('crm_status_changed')}: ${CrmUtils.getStatusBadge(item.old_status, 'sm')} → ${CrmUtils.getStatusBadge(item.new_status, 'sm')}
                                     </div>
                                     <div class="text-xs text-base-content/50 mt-1">
                                         ${CrmUtils.formatDateTime(item.created_at)}
@@ -1321,7 +1321,7 @@ async function changeStatus(newStatus) {
         .eq('id', dealId);
 
     if (error) {
-        Layout.handleError(error, 'Изменение статуса');
+        Layout.handleError(error, t('crm_changing_status'));
         return;
     }
 
@@ -1334,31 +1334,31 @@ async function changeStatus(newStatus) {
     document.getElementById('dealStatusBanner').style.backgroundColor = statusColor;
     // statusIcon и statusName теперь в select баннера
 
-    Layout.showNotification('Статус изменён', 'success');
+    Layout.showNotification(t('crm_status_changed'), 'success');
 }
 
 async function changeWorkMode(mode) {
     const { error } = await Layout.db.from('crm_deals').update({ work_mode: mode }).eq('id', dealId);
-    if (error) Layout.handleError(error, 'Сохранение');
+    if (error) Layout.handleError(error, t('saving'));
     else {
         deal.work_mode = mode;
-        Layout.showNotification('Сохранено', 'success');
+        Layout.showNotification(t('saved'), 'success');
     }
 }
 
 async function changeManager(managerId) {
     const { error } = await Layout.db.from('crm_deals').update({ manager_id: managerId || null }).eq('id', dealId);
-    if (error) Layout.handleError(error, 'Назначение менеджера');
+    if (error) Layout.handleError(error, t('crm_assigning_manager'));
     else {
         deal.manager_id = managerId;
-        Layout.showNotification('Менеджер назначен', 'success');
+        Layout.showNotification(t('crm_manager_assigned'), 'success');
     }
 }
 
 async function addTag(tagId) {
     if (!tagId) return;
     const { error } = await Layout.db.from('crm_deal_tags').insert({ deal_id: dealId, tag_id: tagId });
-    if (error) Layout.handleError(error, 'Добавление тега');
+    if (error) Layout.handleError(error, t('crm_adding_tag'));
     else {
         dealTags.push(tagId);
         renderTags();
@@ -1368,7 +1368,7 @@ async function addTag(tagId) {
 
 async function removeTag(tagId) {
     const { error } = await Layout.db.from('crm_deal_tags').delete().eq('deal_id', dealId).eq('tag_id', tagId);
-    if (error) Layout.handleError(error, 'Удаление тега');
+    if (error) Layout.handleError(error, t('crm_removing_tag'));
     else {
         dealTags = dealTags.filter(id => id !== tagId);
         renderTags();
@@ -1381,20 +1381,20 @@ async function createGuestAccess() {
 
     // Проверяем, есть ли уже доступ
     if (guest.user_id) {
-        Layout.showNotification('Доступ уже создан. Логин: ' + (guest.email || ''), 'warning');
+        Layout.showNotification(t('crm_access_already_created') + ': ' + (guest.email || ''), 'warning');
         return;
     }
 
     if (!guest.email) {
-        Layout.showNotification('У гостя не указан email — невозможно создать доступ', 'error');
+        Layout.showNotification(t('crm_no_email_for_access'), 'error');
         return;
     }
 
-    if (!confirm('Создать доступ к гостевому порталу для ' + (guest.spiritual_name || guest.first_name) + '?\n\nEmail: ' + guest.email)) return;
+    if (!confirm(t('crm_confirm_create_access') + ' ' + (guest.spiritual_name || guest.first_name) + '?\n\nEmail: ' + guest.email)) return;
 
     const btn = document.getElementById('createAccessBtn');
     btn.disabled = true;
-    btn.innerHTML = '<span class="loading loading-spinner loading-xs"></span> Создание...';
+    btn.innerHTML = `<span class="loading loading-spinner loading-xs"></span> ${t('crm_creating')}...`;
 
     try {
         const response = await fetch(window.CONFIG.SUPABASE_URL + '/functions/v1/create-guest-access', {
@@ -1420,20 +1420,20 @@ async function createGuestAccess() {
             <div class="modal-box">
                 <h3 class="font-bold text-lg mb-4 flex items-center gap-2">
                     <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-6 h-6 text-success"><path stroke-linecap="round" stroke-linejoin="round" d="M9 12.75 11.25 15 15 9.75M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" /></svg>
-                    Доступ создан!
+                    ${t('crm_access_created')}!
                 </h3>
-                <p class="text-sm text-base-content/60 mb-4">Отправьте эти данные гостю через WhatsApp или Telegram:</p>
+                <p class="text-sm text-base-content/60 mb-4">${t('crm_send_credentials')}</p>
                 <div class="bg-base-200 rounded-lg p-4 font-mono text-sm space-y-2">
-                    <div><span class="text-base-content/50">Портал:</span> <strong>in.rupaseva.com/guest-portal/</strong></div>
-                    <div><span class="text-base-content/50">Логин:</span> <strong id="accessEmail">${Layout.escapeHtml(result.email)}</strong></div>
-                    <div><span class="text-base-content/50">Пароль:</span> <strong id="accessPassword">${Layout.escapeHtml(result.password)}</strong></div>
+                    <div><span class="text-base-content/50">${t('crm_portal')}:</span> <strong>in.rupaseva.com/guest-portal/</strong></div>
+                    <div><span class="text-base-content/50">${t('crm_login')}:</span> <strong id="accessEmail">${Layout.escapeHtml(result.email)}</strong></div>
+                    <div><span class="text-base-content/50">${t('crm_password')}:</span> <strong id="accessPassword">${Layout.escapeHtml(result.password)}</strong></div>
                 </div>
                 <div class="modal-action">
                     <button class="btn btn-sm btn-outline gap-2" onclick="copyAccessData(this)">
                         <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-4 h-4"><path stroke-linecap="round" stroke-linejoin="round" d="M15.666 3.888A2.25 2.25 0 0 0 13.5 2.25h-3c-1.03 0-1.9.693-2.166 1.638m7.332 0c.055.194.084.4.084.612v0a.75.75 0 0 1-.75.75H9.75a.75.75 0 0 1-.75-.75v0c0-.212.03-.418.084-.612m7.332 0c.646.049 1.288.11 1.927.184 1.1.128 1.907 1.077 1.907 2.185V19.5a2.25 2.25 0 0 1-2.25 2.25H6.75A2.25 2.25 0 0 1 4.5 19.5V6.257c0-1.108.806-2.057 1.907-2.185a48.208 48.208 0 0 1 1.927-.184" /></svg>
-                        Копировать
+                        ${t('copy')}
                     </button>
-                    <button class="btn btn-sm btn-primary" onclick="this.closest('dialog').remove()">Готово</button>
+                    <button class="btn btn-sm btn-primary" onclick="this.closest('dialog').remove()">${t('crm_done')}</button>
                 </div>
             </div>
             <form method="dialog" class="modal-backdrop"><button>close</button></form>
@@ -1442,7 +1442,7 @@ async function createGuestAccess() {
 
         // Обновляем кнопку
         btn.disabled = true;
-        btn.innerHTML = '<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-4 h-4"><path stroke-linecap="round" stroke-linejoin="round" d="M9 12.75 11.25 15 15 9.75M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" /></svg> Доступ создан';
+        btn.innerHTML = '<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-4 h-4"><path stroke-linecap="round" stroke-linejoin="round" d="M9 12.75 11.25 15 15 9.75M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" /></svg> ' + t('crm_access_created');
         btn.classList.add('btn-success', 'btn-disabled');
 
         // Обновляем данные гостя
@@ -1450,38 +1450,38 @@ async function createGuestAccess() {
 
     } catch (error) {
         console.error('Create access error:', error);
-        Layout.showNotification(error.message || 'Ошибка создания доступа', 'error');
+        Layout.showNotification(error.message || t('crm_access_error'), 'error');
         btn.disabled = false;
-        btn.innerHTML = '<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-4 h-4"><path stroke-linecap="round" stroke-linejoin="round" d="M15.75 5.25a3 3 0 0 1 3 3m3 0a6 6 0 0 1-7.029 5.912c-.563-.097-1.159.026-1.563.43L10.5 17.25H8.25v2.25H6v2.25H2.25v-2.818c0-.597.237-1.17.659-1.591l6.499-6.499c.404-.404.527-1 .43-1.563A6 6 0 1 1 21.75 8.25Z" /></svg> Создать доступ к порталу';
+        btn.innerHTML = '<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-4 h-4"><path stroke-linecap="round" stroke-linejoin="round" d="M15.75 5.25a3 3 0 0 1 3 3m3 0a6 6 0 0 1-7.029 5.912c-.563-.097-1.159.026-1.563.43L10.5 17.25H8.25v2.25H6v2.25H2.25v-2.818c0-.597.237-1.17.659-1.591l6.499-6.499c.404-.404.527-1 .43-1.563A6 6 0 1 1 21.75 8.25Z" /></svg> ' + t('crm_create_portal_access');
     }
 }
 
 function copyAccessData(btn) {
     const email = document.getElementById('accessEmail').textContent;
     const password = document.getElementById('accessPassword').textContent;
-    const text = 'Ваш личный кабинет готов!\n\nПортал: in.rupaseva.com/guest-portal/\nЛогин: ' + email + '\nПароль: ' + password;
+    const text = t('crm_portal_ready_msg') + '\n\n' + t('crm_portal') + ': in.rupaseva.com/guest-portal/\n' + t('crm_login') + ': ' + email + '\n' + t('crm_password') + ': ' + password;
     navigator.clipboard.writeText(text).then(() => {
-        btn.innerHTML = '<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-4 h-4"><path stroke-linecap="round" stroke-linejoin="round" d="M4.5 12.75l6 6 9-13.5" /></svg> Скопировано!';
+        btn.innerHTML = '<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-4 h-4"><path stroke-linecap="round" stroke-linejoin="round" d="M4.5 12.75l6 6 9-13.5" /></svg> ' + t('copied');
         setTimeout(() => {
-            btn.innerHTML = '<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-4 h-4"><path stroke-linecap="round" stroke-linejoin="round" d="M15.666 3.888A2.25 2.25 0 0 0 13.5 2.25h-3c-1.03 0-1.9.693-2.166 1.638m7.332 0c.055.194.084.4.084.612v0a.75.75 0 0 1-.75.75H9.75a.75.75 0 0 1-.75-.75v0c0-.212.03-.418.084-.612m7.332 0c.646.049 1.288.11 1.927.184 1.1.128 1.907 1.077 1.907 2.185V19.5a2.25 2.25 0 0 1-2.25 2.25H6.75A2.25 2.25 0 0 1 4.5 19.5V6.257c0-1.108.806-2.057 1.907-2.185a48.208 48.208 0 0 1 1.927-.184" /></svg> Копировать';
+            btn.innerHTML = '<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-4 h-4"><path stroke-linecap="round" stroke-linejoin="round" d="M15.666 3.888A2.25 2.25 0 0 0 13.5 2.25h-3c-1.03 0-1.9.693-2.166 1.638m7.332 0c.055.194.084.4.084.612v0a.75.75 0 0 1-.75.75H9.75a.75.75 0 0 1-.75-.75v0c0-.212.03-.418.084-.612m7.332 0c.646.049 1.288.11 1.927.184 1.1.128 1.907 1.077 1.907 2.185V19.5a2.25 2.25 0 0 1-2.25 2.25H6.75A2.25 2.25 0 0 1 4.5 19.5V6.257c0-1.108.806-2.057 1.907-2.185a48.208 48.208 0 0 1 1.927-.184" /></svg> ' + t('copy');
         }, 2000);
     });
 }
 
 async function cancelDeal() {
     const reasons = {
-        changed_mind: 'Передумал',
-        financial: 'Финансовые причины',
-        visa: 'Проблемы с визой',
-        health: 'Здоровье',
-        rescheduled: 'Перенёс на другой ретрит',
-        no_response: 'Не отвечает',
-        other: 'Другое'
+        changed_mind: t('crm_reason_changed_mind'),
+        financial: t('crm_reason_financial'),
+        visa: t('crm_reason_visa'),
+        health: t('crm_reason_health'),
+        rescheduled: t('crm_reason_rescheduled'),
+        no_response: t('crm_reason_no_response'),
+        other: t('crm_cat_other')
     };
     const reason = prompt(
-        'Причина отмены:\n\n' +
+        t('crm_cancel_reason') + ':\n\n' +
         Object.entries(reasons).map(([k, v], i) => `${i+1}. ${v}`).join('\n') +
-        '\n\nВведите номер (1-7):'
+        '\n\n' + t('crm_enter_number') + ' (1-7):'
     );
     if (!reason) return;
     const keys = Object.keys(reasons);
@@ -1496,7 +1496,7 @@ async function cancelDeal() {
 }
 
 async function deleteDeal() {
-    if (!confirm('Удалить сделку безвозвратно? Это действие нельзя отменить.')) return;
+    if (!confirm(t('crm_confirm_delete_deal'))) return;
 
     try {
         // Удаляем связанные записи
@@ -1516,10 +1516,10 @@ async function deleteDeal() {
         const { error } = await Layout.db.from('crm_deals').delete().eq('id', dealId);
         if (error) throw error;
 
-        Layout.showNotification('Сделка удалена', 'success');
+        Layout.showNotification(t('crm_deal_deleted'), 'success');
         window.location.href = 'deals.html';
     } catch (err) {
-        Layout.handleError(err, 'Удаление сделки');
+        Layout.handleError(err, t('crm_deleting_deal'));
     }
 }
 
@@ -1570,9 +1570,9 @@ async function saveService(event) {
     };
 
     const { error } = await Layout.db.from('crm_deal_services').insert(data);
-    if (error) { Layout.handleError(error, 'Добавление услуги'); return; }
+    if (error) { Layout.handleError(error, t('crm_adding_service')); return; }
 
-    Layout.showNotification('Услуга добавлена', 'success');
+    Layout.showNotification(t('crm_service_added'), 'success');
     closeServiceModal();
     await loadDealServices();
     counts.services++;
@@ -1582,9 +1582,9 @@ async function saveService(event) {
 }
 
 async function deleteService(id) {
-    if (!confirm('Удалить услугу?')) return;
+    if (!confirm(t('crm_confirm_delete_service'))) return;
     const { error } = await Layout.db.from('crm_deal_services').delete().eq('id', id);
-    if (error) { Layout.handleError(error, 'Удаление'); return; }
+    if (error) { Layout.handleError(error, t('deleting')); return; }
     await loadDealServices();
     counts.services = Math.max(0, counts.services - 1);
     updateTabCounts();
@@ -1618,14 +1618,14 @@ function showPaymentDetails(id) {
     const receivedBy = p.received_by ? e(CrmUtils.getGuestShortName(p.received_by)) : '—';
 
     const rows = [
-        ['Дата',          e(dateStr)],
-        ['Сумма',         CrmUtils.formatMoney(p.amount, p.currency)],
-        ['Курс',          `1 ${p.currency} = ${p.rate_to_inr} ₹`],
-        ['В рупиях',      `<span class="font-bold">${CrmUtils.formatMoney(p.amount_inr)}</span>`],
-        ['Тип',           e(typeLabel)],
-        ['Способ',        e(methodLabel)],
-        ['Принял',        receivedBy],
-        ['Заметка',       p.notes ? `<span class="text-base-content/70">${e(p.notes)}</span>` : '<span class="text-base-content/30">—</span>'],
+        [t('crm_date'),           e(dateStr)],
+        [t('crm_amount'),         CrmUtils.formatMoney(p.amount, p.currency)],
+        [t('crm_rate'),           `1 ${p.currency} = ${p.rate_to_inr} ₹`],
+        [t('crm_in_inr'),         `<span class="font-bold">${CrmUtils.formatMoney(p.amount_inr)}</span>`],
+        [t('crm_payment_type'),   e(typeLabel)],
+        [t('crm_payment_method'), e(methodLabel)],
+        [t('crm_received_by'),    receivedBy],
+        [t('crm_note'),           p.notes ? `<span class="text-base-content/70">${e(p.notes)}</span>` : '<span class="text-base-content/30">—</span>'],
     ];
 
     document.getElementById('paymentDetailsContent').innerHTML = rows.map(([label, value]) => `
@@ -1673,9 +1673,9 @@ async function savePayment(event) {
     };
 
     const { error } = await Layout.db.from('crm_payments').insert(data);
-    if (error) { Layout.handleError(error, 'Добавление оплаты'); return; }
+    if (error) { Layout.handleError(error, t('crm_adding_payment')); return; }
 
-    Layout.showNotification('Оплата добавлена', 'success');
+    Layout.showNotification(t('crm_payment_added'), 'success');
     closePaymentModal();
     await loadPayments(); // renderFinanceBlock() вызывается внутри
     counts.payments++;
@@ -1685,9 +1685,9 @@ async function savePayment(event) {
 }
 
 async function deletePayment(id) {
-    if (!confirm('Удалить оплату?')) return;
+    if (!confirm(t('crm_confirm_delete_payment'))) return;
     const { error } = await Layout.db.from('crm_payments').delete().eq('id', id);
-    if (error) { Layout.handleError(error, 'Удаление'); return; }
+    if (error) { Layout.handleError(error, t('deleting')); return; }
     await loadPayments();
     counts.payments = Math.max(0, counts.payments - 1);
     updateTabCounts();
@@ -1719,9 +1719,9 @@ async function saveTask(event) {
     };
 
     const { error } = await Layout.db.from('crm_tasks').insert(data);
-    if (error) { Layout.handleError(error, 'Создание задачи'); return; }
+    if (error) { Layout.handleError(error, t('crm_creating_task')); return; }
 
-    Layout.showNotification('Задача создана', 'success');
+    Layout.showNotification(t('crm_task_created'), 'success');
     closeTaskModal();
     await loadTasks();
     counts.tasks++;
@@ -1733,7 +1733,7 @@ async function toggleTask(id, completed) {
     const { error } = await Layout.db.from('crm_tasks')
         .update({ completed_at: completed ? new Date().toISOString() : null })
         .eq('id', id);
-    if (error) { Layout.handleError(error, 'Обновление задачи'); return; }
+    if (error) { Layout.handleError(error, t('crm_updating_task')); return; }
     await loadTasks();
     counts.tasks = completed ? Math.max(0, counts.tasks - 1) : counts.tasks + 1;
     updateTabCounts();
@@ -1763,7 +1763,7 @@ async function saveComm(event) {
     };
 
     const { error } = await Layout.db.from('crm_communications').insert(data);
-    if (error) { Layout.handleError(error, 'Сохранение'); return; }
+    if (error) { Layout.handleError(error, t('saving')); return; }
 
     // Обновляем время последнего контакта
     await Layout.db.from('crm_deals').update({
@@ -1771,7 +1771,7 @@ async function saveComm(event) {
         first_contacted_at: deal.first_contacted_at || new Date().toISOString()
     }).eq('id', dealId);
 
-    Layout.showNotification('Контакт записан', 'success');
+    Layout.showNotification(t('crm_contact_recorded'), 'success');
     closeCommModal();
     await loadHistory();
     renderTab();
@@ -1804,7 +1804,7 @@ async function quickAddComm() {
     };
 
     const { error } = await Layout.db.from('crm_communications').insert(data);
-    if (error) { Layout.handleError(error, 'Сохранение'); return; }
+    if (error) { Layout.handleError(error, t('saving')); return; }
 
     // Обновляем время последнего контакта
     await Layout.db.from('crm_deals').update({
@@ -1813,7 +1813,7 @@ async function quickAddComm() {
     }).eq('id', dealId);
 
     document.getElementById('quickCommText').value = '';
-    Layout.showNotification('Записано', 'success');
+    Layout.showNotification(t('crm_recorded'), 'success');
     loadRecentComms();
 
     // Если на вкладке «История» — обновляем
@@ -1843,7 +1843,7 @@ async function loadRecentComms() {
     const typeIcons = { call: '📞', whatsapp: '💬', telegram: '✈', email: '📧', note: '📝' };
 
     container.classList.remove('hidden');
-    container.innerHTML = `<div class="text-xs opacity-50 mb-1">Последние контакты (${data.length})</div>` +
+    container.innerHTML = `<div class="text-xs opacity-50 mb-1">${t('crm_recent_contacts')} (${data.length})</div>` +
         data.map(c => {
             const icon = typeIcons[c.type] || '📝';
             const time = CrmUtils.formatDateTime ? CrmUtils.formatDateTime(c.created_at) : '';
@@ -1922,10 +1922,10 @@ async function saveGender(value) {
         .update({ gender: value || null })
         .eq('id', guest.id);
     if (error) {
-        Layout.showNotification('Ошибка сохранения', 'error');
+        Layout.showNotification(t('crm_save_error'), 'error');
     } else {
         guest.gender = value || null;
-        Layout.showNotification('Пол сохранён', 'success');
+        Layout.showNotification(t('saved'), 'success');
         renderTab(); // обновить цвет в select
     }
 }
@@ -1937,11 +1937,11 @@ async function saveContact(field, value) {
 
     const { error } = await Layout.db.from('vaishnavas').update(update).eq('id', guest.id);
     if (error) {
-        Layout.showNotification('Ошибка сохранения', 'error');
+        Layout.showNotification(t('crm_save_error'), 'error');
         console.error(error);
     } else {
         guest[field] = trimmed || null;
-        Layout.showNotification('Сохранено', 'success');
+        Layout.showNotification(t('saved'), 'success');
         renderHeader();
     }
     loadTabData('info');
@@ -1957,9 +1957,9 @@ function startEditName() {
 
     nameEl.innerHTML = `
         <div class="flex items-center gap-1">
-            <input id="editSpiritualName" class="input input-xs input-bordered w-28 bg-white/20 text-white placeholder:text-white/40" value="${e(sn)}" placeholder="Дух. имя">
-            <input id="editFirstName" class="input input-xs input-bordered w-24 bg-white/20 text-white placeholder:text-white/40" value="${e(fn)}" placeholder="Имя">
-            <input id="editLastName" class="input input-xs input-bordered w-24 bg-white/20 text-white placeholder:text-white/40" value="${e(ln)}" placeholder="Фамилия">
+            <input id="editSpiritualName" class="input input-xs input-bordered w-28 bg-white/20 text-white placeholder:text-white/40" value="${e(sn)}" placeholder="${t('crm_spiritual_name')}">
+            <input id="editFirstName" class="input input-xs input-bordered w-24 bg-white/20 text-white placeholder:text-white/40" value="${e(fn)}" placeholder="${t('crm_first_name')}">
+            <input id="editLastName" class="input input-xs input-bordered w-24 bg-white/20 text-white placeholder:text-white/40" value="${e(ln)}" placeholder="${t('crm_last_name')}">
             <button class="btn btn-xs btn-success" onclick="saveNameEdit()">✓</button>
             <button class="btn btn-xs btn-ghost text-white" onclick="renderHeader()">✕</button>
         </div>
@@ -1972,7 +1972,7 @@ async function saveNameEdit() {
     const fn = document.getElementById('editFirstName').value.trim();
     const ln = document.getElementById('editLastName').value.trim();
 
-    if (!fn) { Layout.showNotification('Имя обязательно', 'error'); return; }
+    if (!fn) { Layout.showNotification(t('crm_name_required'), 'error'); return; }
 
     const { error } = await Layout.db.from('vaishnavas').update({
         spiritual_name: sn || null,
@@ -1981,12 +1981,12 @@ async function saveNameEdit() {
     }).eq('id', guest.id);
 
     if (error) {
-        Layout.showNotification('Ошибка сохранения', 'error');
+        Layout.showNotification(t('crm_save_error'), 'error');
     } else {
         guest.spiritual_name = sn || null;
         guest.first_name = fn;
         guest.last_name = ln || null;
-        Layout.showNotification('Имя обновлено', 'success');
+        Layout.showNotification(t('crm_name_updated'), 'success');
     }
     renderHeader();
     loadTabData('info');
@@ -2020,18 +2020,18 @@ function renderDealMembers() {
     if (!container) return;
 
     if (dealMembers.length === 0) {
-        container.innerHTML = '<div class="text-sm opacity-50 py-2">Едет один</div>';
+        container.innerHTML = `<div class="text-sm opacity-50 py-2">${t('crm_travels_alone')}</div>`;
         return;
     }
 
-    const relationLabels = { wife: 'Жена', husband: 'Муж', child: 'Ребёнок', friend: 'Друг', colleague: 'Коллега', other: 'Другое' };
+    const relationLabels = { wife: t('crm_rel_wife'), husband: t('crm_rel_husband'), child: t('crm_rel_child'), friend: t('crm_rel_friend'), colleague: t('crm_rel_colleague'), other: t('crm_cat_other') };
 
     container.innerHTML = dealMembers.map(m => `
         <div class="flex items-center justify-between py-2 border-b border-base-200 last:border-0">
             <div>
                 <span class="font-medium">${e(m.name)}</span>
                 ${m.relation ? `<span class="badge badge-sm badge-ghost ml-2">${relationLabels[m.relation] || m.relation}</span>` : ''}
-                ${m.age ? `<span class="text-xs opacity-50 ml-1">${m.age} лет</span>` : ''}
+                ${m.age ? `<span class="text-xs opacity-50 ml-1">${m.age} ${t('crm_years_old')}</span>` : ''}
                 ${m.notes ? `<span class="text-xs opacity-50 ml-2">${e(m.notes)}</span>` : ''}
             </div>
             <button type="button" class="btn btn-xs btn-ghost text-error" onclick="removeMember('${m.id}')">✕</button>
@@ -2056,7 +2056,7 @@ async function loadManagerNotes() {
     }
 
     container.innerHTML = notes.map(n => {
-        const author = n.profiles?.spiritual_name || n.profiles?.first_name || 'Менеджер';
+        const author = n.profiles?.spiritual_name || n.profiles?.first_name || t('crm_manager');
         const date = DateUtils.formatDate(n.created_at.slice(0, 10));
         const time = n.created_at.slice(11, 16);
         return `<div class="bg-blue-50 border border-blue-200 rounded-lg p-3 text-sm">
@@ -2083,7 +2083,7 @@ async function addNote() {
         });
 
     if (error) {
-        Layout.handleError(error, 'Добавление заметки');
+        Layout.handleError(error, t('crm_adding_note'));
         return;
     }
 
@@ -2092,10 +2092,10 @@ async function addNote() {
 }
 
 async function addMember() {
-    const name = prompt('Имя участника:');
+    const name = prompt(t('crm_member_name') + ':');
     if (!name) return;
-    const relation = prompt('Связь (wife/husband/child/friend/colleague):') || null;
-    const age = relation === 'child' ? parseInt(prompt('Возраст:') || '0') || null : null;
+    const relation = prompt(t('crm_member_relation') + ' (wife/husband/child/friend/colleague):') || null;
+    const age = relation === 'child' ? parseInt(prompt(t('crm_member_age') + ':') || '0') || null : null;
 
     await Layout.db.from('crm_deal_members').insert({
         deal_id: dealId, name, relation, age
@@ -2104,7 +2104,7 @@ async function addMember() {
 }
 
 async function removeMember(id) {
-    if (!confirm('Удалить участника?')) return;
+    if (!confirm(t('crm_confirm_remove_member'))) return;
     await Layout.db.from('crm_deal_members').delete().eq('id', id);
     loadDealMembers();
 }
@@ -2183,14 +2183,14 @@ async function renderPlacement() {
             <div class="flex items-center gap-3">
                 <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-8 h-8 text-success shrink-0"><path stroke-linecap="round" stroke-linejoin="round" d="m2.25 12 8.954-8.955c.44-.439 1.152-.439 1.591 0L21.75 12M4.5 9.75v10.125c0 .621.504 1.125 1.125 1.125H9.75v-4.875c0-.621.504-1.125 1.125-1.125h2.25c.621 0 1.125.504 1.125 1.125V21h4.125c.621 0 1.125-.504 1.125-1.125V9.75M8.25 21h8.25" /></svg>
                 <div>
-                    <div class="font-bold">${e(buildingName)}, комната ${e(roomNum)}</div>
+                    <div class="font-bold">${e(buildingName)}, ${t('crm_room')} ${e(roomNum)}</div>
                     <div class="text-sm opacity-60">${dates}</div>
-                    ${isCrmBooking ? '<div class="text-xs text-info mt-0.5">Забронировано из CRM</div>' : ''}
+                    ${isCrmBooking ? `<div class="text-xs text-info mt-0.5">${t('crm_booked_from_crm')}</div>` : ''}
                 </div>
             </div>
             <div class="flex gap-2 mt-2">
-                <a href="../placement/timeline.html" class="btn btn-xs btn-ghost btn-primary">Открыть в шахматке →</a>
-                ${isCrmBooking && canBook ? `<button type="button" class="btn btn-xs btn-ghost btn-error" onclick="cancelRoomBooking()">Отменить бронь</button>` : ''}
+                <a href="../placement/timeline.html" class="btn btn-xs btn-ghost btn-primary">${t('crm_open_timeline')} →</a>
+                ${isCrmBooking && canBook ? `<button type="button" class="btn btn-xs btn-ghost btn-error" onclick="cancelRoomBooking()">${t('crm_cancel_booking')}</button>` : ''}
             </div>
         `;
         return;
@@ -2200,8 +2200,8 @@ async function renderPlacement() {
     if (bookingData) {
         const dates = `${CrmUtils.formatDate(bookingData.check_in)} — ${CrmUtils.formatDate(bookingData.check_out)}`;
         block.innerHTML = `
-            <div class="text-sm text-warning mb-1">Бронь создана — комната не назначена</div>
-            <div class="text-xs opacity-60">${dates} · ${bookingData.beds_count} мест</div>
+            <div class="text-sm text-warning mb-1">${t('crm_booking_no_room')}</div>
+            <div class="text-xs opacity-60">${dates} · ${bookingData.beds_count} ${t('crm_beds')}</div>
         `;
         return;
     }
@@ -2216,40 +2216,40 @@ async function renderPlacement() {
             .is('completed_at', null)
             .maybeSingle();
 
-        const label = accom === 'guest_house' ? 'Гостевой дом — комната не назначена'
-                                               : 'Служебные дома — комната не назначена';
+        const label = accom === 'guest_house' ? t('crm_guest_house_no_room')
+                                               : t('crm_staff_house_no_room');
 
         const buttons = [];
         if (canBook) {
             buttons.push(`<button type="button" class="btn btn-xs btn-primary gap-1" onclick="openRoomBookingModal()">
                 <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-3.5 h-3.5"><path stroke-linecap="round" stroke-linejoin="round" d="M12 9v6m3-3H9m12 0a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" /></svg>
-                Забронировать номер
+                ${t('crm_book_room')}
             </button>`);
         }
         if (!existingTask) {
-            buttons.push(`<button type="button" class="btn btn-xs btn-outline" onclick="requestPlacement()">Запросить расселение</button>`);
+            buttons.push(`<button type="button" class="btn btn-xs btn-outline" onclick="requestPlacement()">${t('crm_request_placement')}</button>`);
         }
 
         if (existingTask && !canBook) {
             block.innerHTML = `
                 <div class="text-sm text-warning mb-1">${label}</div>
-                <div class="text-xs opacity-50">Запрос на расселение отправлен</div>
+                <div class="text-xs opacity-50">${t('crm_placement_request_sent')}</div>
             `;
         } else {
             block.innerHTML = `
                 <div class="text-sm opacity-60 mb-2">${label}</div>
                 <div class="flex flex-wrap gap-2">${buttons.join('')}</div>
-                ${existingTask ? '<div class="text-xs opacity-50 mt-1">Запрос на расселение уже отправлен</div>' : ''}
+                ${existingTask ? `<div class="text-xs opacity-50 mt-1">${t('crm_placement_request_sent')}</div>` : ''}
             `;
         }
     } else if (accom === 'partner_hotel') {
         const building = partnerBuildings.find(b => b.id === deal.checklist_accommodation_building_id);
-        const name = building ? Layout.getName(building) : 'Другие гостиницы';
+        const name = building ? Layout.getName(building) : t('crm_other_hotels');
         block.innerHTML = `<div class="text-sm opacity-70">${e(name)}</div>`;
     } else if (accom === 'self') {
-        block.innerHTML = `<div class="text-sm opacity-70">Самостоятельно</div>`;
+        block.innerHTML = `<div class="text-sm opacity-70">${t('crm_self_arrangement')}</div>`;
     } else {
-        block.innerHTML = '<div class="text-sm text-gray-400">Не определено — уточните у гостя в чеклисте «Проживание»</div>';
+        block.innerHTML = `<div class="text-sm text-gray-400">${t('crm_placement_not_set')}</div>`;
     }
 }
 
@@ -2283,7 +2283,7 @@ async function requestPlacement() {
     }
 
     if (placementManagers.length === 0) {
-        Layout.showNotification('Нет менеджеров по расселению. Назначьте роль в настройках.', 'error');
+        Layout.showNotification(t('crm_no_placement_managers'), 'error');
         return;
     }
 
@@ -2341,7 +2341,7 @@ async function createPlacementTask(assigneeId) {
         .maybeSingle();
 
     if (existing) {
-        Layout.showNotification('Запрос на расселение уже создан', 'warning');
+        Layout.showNotification(t('crm_placement_request_exists'), 'warning');
         return;
     }
 
@@ -2355,11 +2355,11 @@ async function createPlacementTask(assigneeId) {
     });
 
     if (error) {
-        Layout.showNotification('Ошибка создания запроса', 'error');
+        Layout.showNotification(t('crm_placement_request_error'), 'error');
         return;
     }
 
-    Layout.showNotification('Запрос на расселение создан', 'success');
+    Layout.showNotification(t('crm_placement_request_created'), 'success');
     await loadCounts();
     updateTabCounts();
 }
@@ -2380,7 +2380,7 @@ window.addEventListener('message', async (event) => {
     document.getElementById('roomBookingIframe').src = '';
     deal.booking_id = event.data.booking_id;
     deal.room_id    = event.data.room_id;
-    Layout.showNotification('Номер успешно забронирован', 'success');
+    Layout.showNotification(t('crm_room_booked'), 'success');
     await loadPlacement();
     // Обновить историю если вкладка открыта
     if (currentTab === 'history') { await loadHistory(); renderTab(); }
@@ -2421,7 +2421,7 @@ function openRoomBookingModal() {
 
 async function cancelRoomBooking() {
     if (!deal.booking_id) return;
-    if (!confirm('Отменить бронирование номера? Запись будет удалена.')) return;
+    if (!confirm(t('crm_confirm_cancel_booking'))) return;
 
     try {
         // Удаляем resident-заглушки
@@ -2436,11 +2436,11 @@ async function cancelRoomBooking() {
         deal.booking_id = null;
         deal.room_id = null;
 
-        Layout.showNotification('Бронирование отменено', 'success');
+        Layout.showNotification(t('crm_booking_cancelled'), 'success');
         await loadPlacement();
         if (currentTab === 'history') { await loadHistory(); renderTab(); }
     } catch (err) {
-        Layout.handleError(err, 'Отмена брони');
+        Layout.handleError(err, t('crm_cancelling_booking'));
     }
 }
 
@@ -2520,12 +2520,12 @@ function populateAccommodationSelect() {
     if (!sel) return;
     sel.innerHTML = `
         <option value="unknown">—</option>
-        <option value="guest_house">Гостевой дом ШРСК</option>
-        <option value="staff_house">Служебные дома ШРСК</option>
-        ${partnerBuildings.length ? '<optgroup label="Другие гостиницы">' +
+        <option value="guest_house">${t('crm_accom_guest_house')}</option>
+        <option value="staff_house">${t('crm_accom_staff_house')}</option>
+        ${partnerBuildings.length ? `<optgroup label="${t('crm_other_hotels')}">` +
             partnerBuildings.map(b => `<option value="partner_hotel:${b.id}">${e(Layout.getName(b))}</option>`).join('') +
-            '</optgroup>' : '<option value="partner_hotel">Другие гостиницы</option>'}
-        <option value="self">Самостоятельно</option>
+            '</optgroup>' : `<option value="partner_hotel">${t('crm_other_hotels')}</option>`}
+        <option value="self">${t('crm_self_arrangement')}</option>
     `;
 }
 
@@ -2721,8 +2721,8 @@ async function saveDepartureDatetime(value) {
 function initIcons() {
     const docIcon = CrmUtils.UI_ICONS.document;
     const xIcon = CrmUtils.STATUS_SVG_ICONS.cancelled;
-    document.getElementById('templatesBtn').innerHTML = docIcon + ' Шаблоны сообщений';
-    document.getElementById('cancelBtn').innerHTML = xIcon + ' Отменить сделку';
+    document.getElementById('templatesBtn').innerHTML = docIcon + ' ' + t('crm_message_templates');
+    document.getElementById('cancelBtn').innerHTML = xIcon + ' ' + t('crm_cancel_deal');
 }
 
 async function init() {

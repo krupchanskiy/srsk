@@ -4,7 +4,7 @@
     <script src="../js/color-init.js"></script>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>UTM-ссылки — CRM — ШРСК</title>
+    <title data-i18n-title="crm_utm_links_page_title">UTM-ссылки — CRM — ШРСК</title>
     <link href="https://cdn.jsdelivr.net/npm/daisyui@4.12.14/dist/full.min.css" rel="stylesheet" />
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
@@ -25,9 +25,9 @@
 <main class="container mx-auto px-4 py-6 flex-1 max-w-4xl">
     <!-- Заголовок + кнопка -->
     <div class="flex flex-wrap justify-between items-center gap-4 mb-6">
-        <h1 class="text-2xl font-bold">UTM-ссылки</h1>
+        <h1 class="text-2xl font-bold" data-i18n="nav_crm_utm_links">UTM-ссылки</h1>
         <button class="btn btn-primary" onclick="openCreateModal()" id="createBtn" style="display:none">
-            + Создать ссылку
+            + <span data-i18n="crm_create_link">Создать ссылку</span>
         </button>
     </div>
 
@@ -35,9 +35,9 @@
     <div class="card bg-base-100 shadow-sm mb-6">
         <div class="card-body p-4">
             <div class="form-control">
-                <label class="label"><span class="label-text font-medium">Ретрит</span></label>
+                <label class="label"><span class="label-text font-medium" data-i18n="crm_retreat">Ретрит</span></label>
                 <select id="retreatSelect" class="select select-bordered" onchange="loadLinks()">
-                    <option value="">Загрузка...</option>
+                    <option value="" data-i18n="loading">Загрузка...</option>
                 </select>
             </div>
         </div>
@@ -59,11 +59,11 @@
 <!-- Модалка создания ссылки -->
 <dialog id="createModal" class="modal">
     <div class="modal-box">
-        <h3 class="font-bold text-lg mb-4">Новая UTM-ссылка</h3>
+        <h3 class="font-bold text-lg mb-4" data-i18n="crm_new_utm_link">Новая UTM-ссылка</h3>
 
         <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
             <div class="form-control">
-                <label class="label py-1"><span class="label-text text-xs">Название <span class="text-error">*</span></span></label>
+                <label class="label py-1"><span class="label-text text-xs"><span data-i18n="col_name">Название</span> <span class="text-error">*</span></span></label>
                 <input type="text" id="newName" class="input input-bordered input-sm" placeholder="Telegram-канал">
             </div>
             <div class="form-control">
@@ -82,7 +82,7 @@
 
         <!-- Пресеты -->
         <div class="flex flex-wrap gap-1 mt-3">
-            <span class="text-xs text-base-content/50 self-center mr-1">Быстро:</span>
+            <span class="text-xs text-base-content/50 self-center mr-1" data-i18n="crm_quick_presets">Быстро:</span>
             <button class="btn btn-xs btn-ghost" onclick="fillPreset('Telegram-канал','telegram','post')">Telegram</button>
             <button class="btn btn-xs btn-ghost" onclick="fillPreset('Instagram','instagram','post')">Instagram</button>
             <button class="btn btn-xs btn-ghost" onclick="fillPreset('YouTube','youtube','description')">YouTube</button>
@@ -93,8 +93,8 @@
         </div>
 
         <div class="modal-action">
-            <form method="dialog"><button class="btn btn-ghost">Отмена</button></form>
-            <button class="btn btn-primary" onclick="createLink()">Создать</button>
+            <form method="dialog"><button class="btn btn-ghost" data-i18n="cancel">Отмена</button></form>
+            <button class="btn btn-primary" onclick="createLink()" data-i18n="create">Создать</button>
         </div>
     </div>
     <form method="dialog" class="modal-backdrop"><button>close</button></form>
@@ -111,6 +111,7 @@
 
 <script>
 const BASE_URL = 'https://in.rupaseva.com/crm/form.html';
+const t = key => Layout.t(key);
 const e = Layout.escapeHtml;
 
 let retreats = [];
@@ -186,7 +187,7 @@ function renderLinks() {
     const container = document.getElementById('savedLinks');
 
     if (links.length === 0) {
-        container.innerHTML = '<div class="text-center py-6 text-base-content/50">Нет сохранённых ссылок. Создайте первую!</div>';
+        container.innerHTML = `<div class="text-center py-6 text-base-content/50">${t('crm_no_saved_links')}</div>`;
         document.getElementById('savedLinksContainer').classList.remove('hidden');
         return;
     }
@@ -205,9 +206,9 @@ function renderLinks() {
                     <div class="flex items-center gap-2 mb-1">
                         <span class="font-medium text-sm">${e(link.name)}</span>
                         ${stats.total > 0 ? `
-                            <span class="badge badge-sm badge-ghost">${stats.total} заявок</span>
-                            ${stats.paid > 0 ? `<span class="badge badge-sm badge-success">${stats.paid} оплат</span>` : ''}
-                        ` : '<span class="badge badge-sm badge-ghost">0 заявок</span>'}
+                            <span class="badge badge-sm badge-ghost">${stats.total} ${t('crm_applications')}</span>
+                            ${stats.paid > 0 ? `<span class="badge badge-sm badge-success">${stats.paid} ${t('crm_payments')}</span>` : ''}
+                        ` : `<span class="badge badge-sm badge-ghost">0 ${t('crm_applications')}</span>`}
                     </div>
                     <div class="text-xs text-base-content/40 font-mono truncate">${e(url)}</div>
                 </div>
@@ -232,7 +233,7 @@ async function createLink() {
     const campaign = document.getElementById('newCampaign').value.trim();
 
     if (!name || !source) {
-        Layout.showNotification('Укажите название и utm_source', 'error');
+        Layout.showNotification(t('crm_name_source_required'), 'error');
         return;
     }
 
@@ -253,14 +254,14 @@ async function createLink() {
     document.getElementById('newSource').value = '';
     document.getElementById('newMedium').value = '';
 
-    Layout.showNotification('Ссылка создана', 'success');
+    Layout.showNotification(t('crm_link_created'), 'success');
     await loadLinks();
 }
 
 async function deleteLink(id) {
-    if (!confirm('Удалить ссылку?')) return;
+    if (!confirm(t('crm_confirm_delete_link'))) return;
     await Layout.db.from('crm_utm_links').delete().eq('id', id);
-    Layout.showNotification('Удалено', 'success');
+    Layout.showNotification(t('deleted'), 'success');
     await loadLinks();
 }
 
@@ -275,7 +276,7 @@ async function copyLink(url, btn) {
             btn.closest('.link-row')?.classList.remove('copied');
         }, 1500);
     } catch (err) {
-        Layout.showNotification('Скопировано', 'success');
+        Layout.showNotification(t('copied'), 'success');
     }
 }
 
@@ -292,7 +293,7 @@ async function init() {
     retreats = data || [];
 
     const select = document.getElementById('retreatSelect');
-    select.innerHTML = '<option value="">Выберите ретрит</option>';
+    select.innerHTML = `<option value="">${t('crm_select_retreat')}</option>`;
     retreats.forEach(r => {
         const name = Layout.getName(r);
         const dates = DateUtils.formatRange(r.start_date, r.end_date);

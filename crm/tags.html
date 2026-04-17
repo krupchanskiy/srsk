@@ -75,7 +75,7 @@
             <div class="form-control mb-4">
                 <label class="label"><span class="label-text" data-i18n="crm_preview">Предпросмотр</span></label>
                 <div id="tagPreview" class="flex gap-2">
-                    <span class="badge" style="background-color: #6b7280; color: white;">Пример</span>
+                    <span class="badge" style="background-color: #6b7280; color: white;" data-i18n="crm_preview_example">Пример</span>
                 </div>
             </div>
 
@@ -123,7 +123,7 @@ function renderGrid() {
 
     if (tags.length === 0) {
         grid.innerHTML = `<div class="col-span-full text-center py-8 text-base-content/50">
-            Нет тегов
+            ${t('crm_no_tags')}
         </div>`;
         return;
     }
@@ -152,7 +152,7 @@ function renderGrid() {
 
 // ==================== MODAL ====================
 function openAddModal() {
-    document.getElementById('modalTitle').textContent = 'Новый тег';
+    document.getElementById('modalTitle').textContent = t('crm_new_tag');
     document.getElementById('tagForm').reset();
     document.getElementById('tagId').value = '';
     document.getElementById('tagColor').value = '#6b7280';
@@ -165,7 +165,7 @@ function editTag(id) {
     const tag = tags.find(t => t.id === id);
     if (!tag) return;
 
-    document.getElementById('modalTitle').textContent = 'Редактирование тега';
+    document.getElementById('modalTitle').textContent = t('crm_edit_tag');
     document.getElementById('tagId').value = tag.id;
     document.getElementById('tagCode').value = tag.code;
     document.getElementById('tagNameRu').value = tag.name_ru || '';
@@ -184,7 +184,7 @@ function closeModal() {
 
 function updatePreview() {
     const color = document.getElementById('tagColor').value;
-    const name = document.getElementById('tagNameRu').value || 'Пример';
+    const name = document.getElementById('tagNameRu').value || t('crm_preview_example');
     document.getElementById('tagPreview').innerHTML = `
         <span class="badge badge-lg" style="background-color: ${color}; color: white;">${e(name)}</span>
     `;
@@ -227,7 +227,7 @@ async function saveTag(event) {
         return;
     }
 
-    Layout.showNotification(t('saved') || 'Сохранено', 'success');
+    Layout.showNotification(t('saved'), 'success');
     closeModal();
     await loadTags();
 }
@@ -237,7 +237,7 @@ async function deleteTag(id) {
     const tag = tags.find(t => t.id === id);
     if (!tag) return;
 
-    if (!confirm(`Удалить тег "${Layout.getName(tag)}"?`)) return;
+    if (!confirm(`${t('crm_confirm_delete_tag')} "${Layout.getName(tag)}"?`)) return;
 
     const { error } = await Layout.db.from('crm_tags').delete().eq('id', id);
 
@@ -246,7 +246,7 @@ async function deleteTag(id) {
         return;
     }
 
-    Layout.showNotification(t('deleted') || 'Удалено', 'success');
+    Layout.showNotification(t('deleted'), 'success');
     await loadTags();
 }
 

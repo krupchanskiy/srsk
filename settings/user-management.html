@@ -202,6 +202,8 @@
                 .replace(/'/g, '&#039;');
         }
 
+        const t = key => Layout.t(key);
+
         let allUsers = [];
         let currentTab = 'all';
         let currentUserId = null;
@@ -337,7 +339,7 @@
                 renderUsers();
             } catch (err) {
                 console.error('Load users error:', err);
-                tbody.innerHTML = '<tr><td colspan="7" class="text-center py-8 text-error">Ошибка загрузки</td></tr>';
+                tbody.innerHTML = `<tr><td colspan="7" class="text-center py-8 text-error">${t('error_loading')}</td></tr>`;
             } finally {
                 isLoading = false;
             }
@@ -369,8 +371,8 @@
                             <svg xmlns="http://www.w3.org/2000/svg" class="h-12 w-12 mx-auto mb-3 opacity-30" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
                             </svg>
-                            <p class="text-lg font-medium mb-1">Введите имя для поиска</p>
-                            <p class="text-sm">или выберите категорию выше</p>
+                            <p class="text-lg font-medium mb-1">${t('enter_name_to_search')}</p>
+                            <p class="text-sm">${t('or_select_category')}</p>
                         </div>
                     </td>
                 </tr>
@@ -404,7 +406,7 @@
             const tbody = document.getElementById('usersTableBody');
 
             if (allUsers.length === 0) {
-                tbody.innerHTML = '<tr><td colspan="7" class="text-center py-8">Пользователи не найдены</td></tr>';
+                tbody.innerHTML = `<tr><td colspan="7" class="text-center py-8">${t('users_not_found')}</td></tr>`;
                 return;
             }
 
@@ -440,7 +442,7 @@
                         <div class="flex flex-wrap gap-1">
                         ${user.roles.length > 0
                             ? user.roles.map(r => `<span class="badge badge-sm badge-outline">${r.roles.name_ru}</span>`).join('')
-                            : '<span class="text-xs opacity-50">Нет ролей</span>'
+                            : `<span class="text-xs opacity-50">${t('no_roles')}</span>`
                         }
                         </div>
                     </td>
@@ -448,17 +450,17 @@
                         <div class="flex gap-1 flex-wrap">
                             ${user.approval_status === 'pending'
                                 ? `
-                                    <button class="btn btn-xs btn-success" onclick="approveUser('${user.id}')">Одобрить</button>
-                                    <button class="btn btn-xs btn-error" onclick="rejectUser('${user.id}')">Отклонить</button>
+                                    <button class="btn btn-xs btn-success" onclick="approveUser('${user.id}')">${t('approve')}</button>
+                                    <button class="btn btn-xs btn-error" onclick="rejectUser('${user.id}')">${t('reject')}</button>
                                 `
-                                : `<button class="btn btn-xs btn-primary" onclick="openManageModal('${user.id}')">Управление</button>`
+                                : `<button class="btn btn-xs btn-primary" onclick="openManageModal('${user.id}')">${t('manage')}</button>`
                             }
                             ${!user.user_id && user.email
                                 ? `<button class="btn btn-xs btn-outline btn-secondary" onclick="sendInvite('${user.id}', '${safeEmail.replace(/'/g, "\\'")}')">
                                     <svg xmlns="http://www.w3.org/2000/svg" class="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
                                     </svg>
-                                    Пригласить
+                                    ${t('invite')}
                                    </button>`
                                 : ''
                             }
@@ -476,22 +478,22 @@
                 return `<span class="badge text-white border-0" style="background-color: ${escapeHtml(color)}">${escapeHtml(user.category.name_ru)}</span>`;
             }
             const typeMap = {
-                staff: { cls: 'badge-primary', label: 'Команда' },
-                volunteer: { cls: 'badge-warning', label: 'Волонтёр' },
-                guest: { cls: 'badge-secondary', label: 'Гость' }
+                staff: { cls: 'badge-primary', key: 'type_staff' },
+                volunteer: { cls: 'badge-warning', key: 'type_volunteer' },
+                guest: { cls: 'badge-secondary', key: 'type_guest' }
             };
-            const t = typeMap[user.user_type] || typeMap.guest;
-            return `<span class="badge ${t.cls}">${t.label}</span>`;
+            const tm = typeMap[user.user_type] || typeMap.guest;
+            return `<span class="badge ${tm.cls}">${t(tm.key)}</span>`;
         }
 
         // Получить badge статуса
         function getStatusBadge(user) {
-            if (!user.is_active) return '<span class="badge badge-error">Неактивен</span>';
-            if (user.approval_status === 'pending') return '<span class="badge badge-warning">Ожидает</span>';
-            if (user.approval_status === 'approved') return '<span class="badge badge-success">Одобрен</span>';
-            if (user.approval_status === 'rejected') return '<span class="badge badge-error">Отклонён</span>';
-            if (user.approval_status === 'blocked') return '<span class="badge badge-error">Заблокирован</span>';
-            return '<span class="badge">Неизвестно</span>';
+            if (!user.is_active) return `<span class="badge badge-error">${t('status_inactive')}</span>`;
+            if (user.approval_status === 'pending') return `<span class="badge badge-warning">${t('status_pending')}</span>`;
+            if (user.approval_status === 'approved') return `<span class="badge badge-success">${t('status_approved')}</span>`;
+            if (user.approval_status === 'rejected') return `<span class="badge badge-error">${t('status_rejected')}</span>`;
+            if (user.approval_status === 'blocked') return `<span class="badge badge-error">${t('status_blocked')}</span>`;
+            return `<span class="badge">${t('status_unknown')}</span>`;
         }
 
         // Одобрить пользователя
@@ -499,8 +501,8 @@
             currentUserId = userId;
             approvalAction = 'approve';
             const user = allUsers.find(u => u.id === userId);
-            document.getElementById('approvalTitle').textContent = 'Одобрить заявку?';
-            document.getElementById('approvalText').textContent = `Вы уверены что хотите одобрить заявку пользователя ${user.spiritual_name || user.first_name}?`;
+            document.getElementById('approvalTitle').textContent = t('approve_request_title');
+            document.getElementById('approvalText').textContent = `${t('confirm_approve_user')} ${user.spiritual_name || user.first_name}?`;
             document.getElementById('approvalConfirmBtn').className = 'btn btn-success';
             document.getElementById('approvalModal').showModal();
         }
@@ -510,8 +512,8 @@
             currentUserId = userId;
             approvalAction = 'reject';
             const user = allUsers.find(u => u.id === userId);
-            document.getElementById('approvalTitle').textContent = 'Отклонить заявку?';
-            document.getElementById('approvalText').textContent = `Вы уверены что хотите отклонить заявку пользователя ${user.spiritual_name || user.first_name}?`;
+            document.getElementById('approvalTitle').textContent = t('reject_request_title');
+            document.getElementById('approvalText').textContent = `${t('confirm_reject_user')} ${user.spiritual_name || user.first_name}?`;
             document.getElementById('approvalConfirmBtn').className = 'btn btn-error';
             document.getElementById('approvalModal').showModal();
         }
@@ -556,10 +558,10 @@
                 closeApprovalModal();
                 loadCounts(); // Обновить счётчики в табах
                 loadUsers({ tab: currentTab !== 'all' ? currentTab : null });
-                Layout.showNotification(approvalAction === 'approve' ? 'Заявка одобрена' : 'Заявка отклонена', 'success');
+                Layout.showNotification(approvalAction === 'approve' ? t('request_approved') : t('request_rejected'), 'success');
             } catch (err) {
                 console.error('Approval error:', err);
-                Layout.showNotification('Ошибка: ' + err.message, 'error');
+                Layout.showNotification(t('error') + ': ' + err.message, 'error');
             }
         }
 
@@ -573,7 +575,7 @@
 
             // Проверить что у пользователя есть user_id (привязан к auth.users)
             if (!user.user_id) {
-                Layout.showNotification('У этого пользователя нет аккаунта в системе. Управление ролями и правами недоступно.', 'warning');
+                Layout.showNotification(t('user_no_account_warning'), 'warning');
                 return;
             }
 
@@ -581,8 +583,7 @@
 
             document.getElementById('modalUserName').textContent = user.spiritual_name || user.first_name;
             document.getElementById('modalUserEmail').textContent = user.email;
-            const typeLabels = { staff: 'Команда', volunteer: 'Волонтёр', guest: 'Гость' };
-            document.getElementById('modalUserType').textContent = typeLabels[user.user_type] || 'Гость';
+            document.getElementById('modalUserType').textContent = t('type_' + (user.user_type || 'guest'));
             document.getElementById('modalIsActive').checked = user.is_active;
             document.getElementById('modalIsSuperuser').checked = user.is_superuser;
 
@@ -639,7 +640,7 @@
                     </div>
                 `).join('') + '</div>';
             } else {
-                customPermsContainer.innerHTML = '<p class="text-sm opacity-50">Нет индивидуальных прав</p>';
+                customPermsContainer.innerHTML = `<p class="text-sm opacity-50">${t('no_custom_permissions')}</p>`;
             }
 
             document.getElementById('manageUserModal').showModal();
@@ -654,7 +655,7 @@
             try {
                 const user = allUsers.find(u => u.user_id === currentUserId);
                 if (!user) {
-                    Layout.showNotification('Пользователь не найден', 'error');
+                    Layout.showNotification(t('user_not_found'), 'error');
                     return;
                 }
 
@@ -691,26 +692,26 @@
                 closeManageModal();
                 loadCounts(); // Обновить счётчики в табах
                 loadUsers({ tab: currentTab !== 'all' ? currentTab : null });
-                Layout.showNotification('Изменения сохранены', 'success');
+                Layout.showNotification(t('changes_saved'), 'success');
             } catch (err) {
                 console.error('Save error:', err);
-                Layout.showNotification('Ошибка сохранения: ' + err.message, 'error');
+                Layout.showNotification(t('error_saving') + ': ' + err.message, 'error');
             }
         }
 
         // Заблокировать пользователя (с optimistic update)
         async function blockUser() {
-            if (!confirm('Вы уверены что хотите заблокировать этого пользователя?')) return;
+            if (!confirm(t('confirm_block_user'))) return;
 
             const user = allUsers.find(u => u.user_id === currentUserId);
             if (!user) {
-                Layout.showNotification('Пользователь не найден', 'error');
+                Layout.showNotification(t('user_not_found'), 'error');
                 return;
             }
 
             // Optimistic update: сразу закрываем модалку и показываем уведомление
             closeManageModal();
-            Layout.showNotification('Пользователь заблокирован', 'success');
+            Layout.showNotification(t('user_blocked'), 'success');
 
             try {
                 await db
@@ -725,7 +726,7 @@
                 loadUsers({ tab: currentTab !== 'all' ? currentTab : null });
             } catch (err) {
                 console.error('Block error:', err);
-                Layout.showNotification('Ошибка блокировки: ' + err.message, 'error');
+                Layout.showNotification(t('error_blocking') + ': ' + err.message, 'error');
                 // Перезагружаем список чтобы откатить UI
                 loadUsers({ tab: currentTab !== 'all' ? currentTab : null });
             }
@@ -743,7 +744,7 @@
 
             if (permsError || !allPerms || allPerms.length === 0) {
                 console.error('Permissions error:', permsError);
-                Layout.showNotification('Нет доступных прав', 'warning');
+                Layout.showNotification(t('no_available_permissions'), 'warning');
                 return;
             }
 
@@ -808,7 +809,7 @@
                                        onchange="togglePermission(this)">
                                 <div class="flex-1">
                                     <div class="font-medium">${p.name_ru}</div>
-                                    <div class="text-xs opacity-60">${p.code}${hasFromRole && !isCustomOverride ? ' (из роли)' : ''}${isCustomOverride ? ' (индивидуальное)' : ''}</div>
+                                    <div class="text-xs opacity-60">${p.code}${hasFromRole && !isCustomOverride ? ` (${t('from_role')})` : ''}${isCustomOverride ? ` (${t('custom_permission')})` : ''}</div>
                                 </div>
                             </label>`;
                         }).join('')}
@@ -859,14 +860,14 @@
                 checkbox.classList.toggle('checkbox-primary', true);
 
                 Layout.showNotification(
-                    `Право "${permName}" ${isGranted ? 'добавлено' : 'убрано'}`,
+                    `${t('permission')} "${permName}" ${isGranted ? t('added') : t('removed')}`,
                     'success'
                 );
 
             } catch (err) {
                 // Откатить чекбокс при ошибке
                 checkbox.checked = !isGranted;
-                Layout.showNotification('Ошибка: ' + err.message, 'error');
+                Layout.showNotification(t('error') + ': ' + err.message, 'error');
             }
         }
 
@@ -875,7 +876,7 @@
             const user = allUsers.find(u => u.id === vaishnavId);
             const userName = user?.spiritual_name || user?.first_name || email;
 
-            if (!confirm(`Отправить приглашение пользователю ${userName} (${email})?`)) {
+            if (!confirm(`${t('confirm_send_invite')} ${userName} (${email})?`)) {
                 return;
             }
 
@@ -890,7 +891,7 @@
             try {
                 const { data: { session } } = await db.auth.getSession();
                 if (!session) {
-                    Layout.showNotification('Сессия истекла. Перезагрузите страницу.', 'error');
+                    Layout.showNotification(t('session_expired'), 'error');
                     return;
                 }
 
@@ -910,7 +911,7 @@
 
                 if (!response.ok) {
                     if (result.alreadyHasAccount) {
-                        Layout.showNotification('У пользователя уже есть аккаунт', 'info');
+                        Layout.showNotification(t('user_already_has_account'), 'info');
                         loadUsers({ tab: currentTab !== 'all' ? currentTab : null });
                     } else {
                         throw new Error(result.error || 'Ошибка отправки');
@@ -918,17 +919,17 @@
                     return;
                 }
 
-                Layout.showNotification(`Приглашение отправлено на ${email}`, 'success');
+                Layout.showNotification(`${t('invite_sent_to')} ${email}`, 'success');
                 // Заменить кнопку на галочку
                 if (btn) {
-                    btn.innerHTML = '<svg xmlns="http://www.w3.org/2000/svg" class="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" /></svg> Отправлено';
+                    btn.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" class="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" /></svg> ${t('sent')}`;
                     btn.classList.remove('btn-outline', 'btn-secondary');
                     btn.classList.add('btn-success', 'btn-disabled');
                 }
 
             } catch (err) {
                 console.error('Send invite error:', err);
-                Layout.showNotification('Ошибка отправки приглашения: ' + err.message, 'error');
+                Layout.showNotification(t('error_sending_invite') + ': ' + err.message, 'error');
                 if (btn) { btn.disabled = false; btn.innerHTML = btnOriginal; }
             }
         }
@@ -938,18 +939,18 @@
             const usersWithoutAccount = allUsers.filter(u => !u.user_id && u.email);
 
             if (usersWithoutAccount.length === 0) {
-                Layout.showNotification('Нет пользователей без аккаунта', 'info');
+                Layout.showNotification(t('no_users_without_account'), 'info');
                 return;
             }
 
-            if (!confirm(`Отправить приглашения ${usersWithoutAccount.length} пользователям?\n\nЭто может занять некоторое время.`)) {
+            if (!confirm(`${t('confirm_bulk_invite')} ${usersWithoutAccount.length}?`)) {
                 return;
             }
 
             try {
                 const { data: { session } } = await db.auth.getSession();
                 if (!session) {
-                    Layout.showNotification('Сессия истекла. Перезагрузите страницу.', 'error');
+                    Layout.showNotification(t('session_expired'), 'error');
                     return;
                 }
 
@@ -991,14 +992,14 @@
 
                 if (errors > 0) {
                     console.error('Bulk invite errors:', errorList);
-                    Layout.showNotification(`Отправлено: ${sent}, ошибок: ${errors}`, 'warning');
+                    Layout.showNotification(`${t('sent')}: ${sent}, ${t('errors')}: ${errors}`, 'warning');
                 } else {
-                    Layout.showNotification(`Приглашения отправлены: ${sent}`, 'success');
+                    Layout.showNotification(`${t('invites_sent')}: ${sent}`, 'success');
                 }
 
             } catch (err) {
                 console.error('Bulk invite error:', err);
-                Layout.showNotification('Ошибка массовой отправки: ' + err.message, 'error');
+                Layout.showNotification(t('error_bulk_invite') + ': ' + err.message, 'error');
             }
         }
 
@@ -1037,7 +1038,7 @@
 
             // Проверка прав доступа
             if (!window.hasPermission('manage_users') && !window.currentUser?.is_superuser) {
-                Layout.showNotification('У вас нет прав для доступа к этой странице', 'error');
+                Layout.showNotification(t('no_page_access'), 'error');
                 window.location.href = '/';
                 return;
             }

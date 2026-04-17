@@ -203,13 +203,13 @@ const ACTION_ICONS = {
     deal_assigned: `<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-5 h-5 inline-block"><path stroke-linecap="round" stroke-linejoin="round" d="M15.75 6a3.75 3.75 0 1 1-7.5 0 3.75 3.75 0 0 1 7.5 0ZM4.501 20.118a7.5 7.5 0 0 1 14.998 0A17.933 17.933 0 0 1 12 21.75c-2.676 0-5.216-.584-7.499-1.632Z" /></svg>`
 };
 
-const ACTION_LABELS = {
-    status_change: 'Смена статуса',
-    payment_added: 'Добавление оплаты',
-    task_created: 'Создание задачи',
-    communication_added: 'Запись контакта',
-    deal_assigned: 'Назначение сделки'
-};
+function getActionLabel(type) {
+    const key = `crm_action_${type}`;
+    const translated = t(key);
+    if (translated && !translated.startsWith('crm_action_')) return translated;
+    const fallback = { status_change: 'Смена статуса', payment_added: 'Добавление оплаты', task_created: 'Создание задачи', communication_added: 'Запись контакта', deal_assigned: 'Назначение сделки' };
+    return fallback[type] || type;
+}
 
 // ==================== DATA ====================
 async function loadReferenceData() {
@@ -330,7 +330,7 @@ function resetFilters() {
 
 // ==================== RENDER ====================
 function renderStats() {
-    document.getElementById('statsTotal').textContent = `Найдено: ${filteredLogs.length}`;
+    document.getElementById('statsTotal').textContent = `${t('crm_found')}: ${filteredLogs.length}`;
 }
 
 function renderTable() {
@@ -340,7 +340,7 @@ function renderTable() {
 
     if (pageLogs.length === 0) {
         tbody.innerHTML = `<tr><td colspan="5" class="text-center py-8 text-base-content/50">
-            Нет записей
+            ${t('crm_no_records')}
         </td></tr>`;
         return;
     }
@@ -349,7 +349,7 @@ function renderTable() {
         const manager = log.manager;
         const guest = log.deal?.vaishnavas;
         const icon = ACTION_ICONS[log.action_type] || ACTION_ICONS.communication_added;
-        const label = ACTION_LABELS[log.action_type] || log.action_type;
+        const label = getActionLabel(log.action_type);
         const details = formatDetails(log);
 
         return `

@@ -486,7 +486,7 @@
                         <div class="flex-1 min-w-0">
                             <div class="flex items-center gap-2 mb-1">
                                 <h3 class="font-bold text-lg">${name}</h3>
-                                ${isActive ? `<span class="badge badge-sm" style="background-color: ${r.color}; color: white;">Сейчас</span>` : ''}
+                                ${isActive ? `<span class="badge badge-sm" style="background-color: ${r.color}; color: white;">${t('now')}</span>` : ''}
                                 ${r.registration_open ? `<span class="badge badge-sm badge-success">Регистрация</span>` : ''}
                             </div>
                             ${desc ? `<p class="text-sm opacity-60 mb-2 line-clamp-2">${desc}</p>` : ''}
@@ -514,11 +514,11 @@
                             </div>
                         </div>
                         <div class="flex flex-col gap-2">
-                            <a href="../retreat.html?id=${r.id}" target="_blank" class="btn btn-ghost btn-sm gap-1" onclick="event.stopPropagation()" title="Открыть публичную страницу">
+                            <a href="../retreat.html?id=${r.id}" target="_blank" class="btn btn-ghost btn-sm gap-1" onclick="event.stopPropagation()" title="${t('open_public_page')}">
                                 <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
                                 </svg>
-                                <span>Страница</span>
+                                <span>${t('page')}</span>
                             </a>
                             <a href="../vaishnavas/retreat-guests.html?id=${r.id}" class="btn btn-ghost btn-sm gap-1" onclick="event.stopPropagation()">
                                 <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -729,7 +729,7 @@
         function copyPublicLink() {
             const input = document.getElementById('publicLinkInput');
             navigator.clipboard.writeText(input.value).then(() => {
-                Layout.showNotification('Ссылка скопирована', 'success');
+                Layout.showNotification(t('link_copied'), 'success');
             });
         }
 

@@ -42,7 +42,7 @@ async function init() {
     // Wait for auth
     const authReady = await waitForAuth();
     if (!authReady) {
-        alert('Ошибка загрузки данных пользователя');
+        alert(Layout.t('user_data_load_error') || 'Ошибка загрузки данных пользователя');
         window.location.href = '../index.html';
         return;
     }
@@ -84,7 +84,7 @@ async function loadRetreats() {
         .order('start_date', { ascending: false });
 
     if (error) {
-        Layout.handleError(error, 'Загрузка списка ретритов');
+        Layout.handleError(error, Layout.t('loading_retreats') || 'Загрузка списка ретритов');
         return;
     }
 
@@ -97,13 +97,13 @@ function renderRetreatSelect() {
     const lang = Layout.currentLang || 'ru';
 
     if (retreats.length === 0) {
-        select.innerHTML = '<option value="">Нет ретритов</option>';
+        select.innerHTML = `<option value="">${Layout.t('no_retreats') || 'Нет ретритов'}</option>`;
         return;
     }
 
-    select.innerHTML = '<option value="">Выберите ретрит</option>' +
+    select.innerHTML = `<option value="">${Layout.t('select_retreat') || 'Выберите ретрит'}</option>` +
         retreats.map(r => {
-            const name = r[`name_${lang}`] || r.name_ru || 'Без названия';
+            const name = r[`name_${lang}`] || r.name_ru || Layout.t('no_name') || 'Без названия';
             return `<option value="${r.id}">${name}</option>`;
         }).join('');
 }
@@ -128,7 +128,7 @@ async function loadPhotos(retreatId) {
     Layout.hideLoader();
 
     if (error) {
-        Layout.handleError(error, 'Загрузка фотографий');
+        Layout.handleError(error, Layout.t('loading_photos') || 'Загрузка фотографий');
         return;
     }
 
@@ -292,7 +292,7 @@ function renderPhotos() {
 
     grid.innerHTML = days.map(day => {
         const dayPhotos = photosByDay[day];
-        const label = day == 0 ? 'Без дня' : `День ${day}`;
+        const label = day == 0 ? (Layout.t('no_day') || 'Без дня') : `${Layout.t('day') || 'День'} ${day}`;
 
         return `
             <div class="col-span-full text-sm font-semibold text-base-content/60 pt-2 pb-1 border-b border-base-200">${label} <span class="font-normal">(${dayPhotos.length})</span></div>
@@ -389,7 +389,7 @@ async function downloadPhotoFile(url, filename) {
         URL.revokeObjectURL(blobUrl);
     } catch (error) {
         console.error('Ошибка скачивания фото:', error);
-        alert('Не удалось скачать фото. Попробуйте ещё раз.');
+        alert(Layout.t('download_photo_error') || 'Не удалось скачать фото. Попробуйте ещё раз.');
     }
 }
 
@@ -488,7 +488,7 @@ async function confirmDelete() {
         // Получить текущую сессию для передачи JWT токена
         const { data: { session } } = await Layout.db.auth.getSession();
         if (!session) {
-            throw new Error('Сессия не найдена. Пожалуйста, войдите в систему снова.');
+            throw new Error(Layout.t('session_not_found') || 'Сессия не найдена. Пожалуйста, войдите в систему снова.');
         }
 
         // Вызываем Edge Function для каскадного удаления
@@ -505,7 +505,7 @@ async function confirmDelete() {
 
         if (error) {
             console.error('Edge Function error:', error);
-            throw new Error(error.message || 'Ошибка при удалении фото');
+            throw new Error(error.message || Layout.t('delete_photos_error') || 'Ошибка при удалении фото');
         }
 
         console.log('Delete result:', data);
@@ -525,7 +525,7 @@ async function confirmDelete() {
 
     } catch (err) {
         console.error('Delete error:', err);
-        Layout.handleError(err, 'Удаление фотографий');
+        Layout.handleError(err, Layout.t('deleting_photos') || 'Удаление фотографий');
     } finally {
         btn.disabled = false;
         btn.textContent = Layout.t('delete') || 'Удалить';
@@ -535,7 +535,7 @@ async function confirmDelete() {
 
 function onReindex(resetAll = true) {
     if (!currentRetreatId) {
-        alert('Выберите ретрит');
+        alert(Layout.t('select_retreat') || 'Выберите ретрит');
         return;
     }
 
@@ -604,7 +604,7 @@ async function confirmReindex() {
         );
 
     } catch (err) {
-        Layout.handleError(err, 'Индексация');
+        Layout.handleError(err, Layout.t('indexing') || 'Индексация');
         btn.disabled = false;
         btn.textContent = Layout.t('start') || 'Начать';
         modal.close();
@@ -690,7 +690,7 @@ async function updateIndexingProgress(retreatId) {
                         console.error('Ошибка сброса статуса:', resetError);
                         // Если ошибка прав доступа — показать уведомление
                         Layout.showNotification(
-                            'Не удалось сбросить зависшие фото. Проверьте права доступа.',
+                            Layout.t('reset_stuck_photos_error') || 'Не удалось сбросить зависшие фото. Проверьте права доступа.',
                             'warning'
                         );
                     } else {
@@ -733,7 +733,7 @@ async function updateIndexingProgress(retreatId) {
                             pollingInterval = null;
                             document.getElementById('indexingProgressContainer').classList.add('hidden');
                             Layout.showNotification(
-                                'Индексация остановлена из-за повторяющихся ошибок. Проверьте настройки AWS.',
+                                Layout.t('indexing_stopped_errors') || 'Индексация остановлена из-за повторяющихся ошибок. Проверьте настройки AWS.',
                                 'error'
                             );
                         }
@@ -756,7 +756,7 @@ async function updateIndexingProgress(retreatId) {
             console.log(`Индексация завершена: ${indexed} проиндексировано, ${failed} с ошибками, ${totalFaces} лиц найдено`);
 
             Layout.showNotification(
-                `${Layout.t('indexing_complete_title') || 'Индексация завершена!'} ${totalFaces} лиц найдено`,
+                `${Layout.t('indexing_complete_title') || 'Индексация завершена!'} ${totalFaces} ${Layout.t('faces_found_count') || 'лиц найдено'}`,
                 'success'
             );
 

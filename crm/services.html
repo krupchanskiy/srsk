@@ -235,22 +235,22 @@ function renderTable() {
 
     if (services.length === 0) {
         tbody.innerHTML = `<tr><td colspan="6" class="text-center py-8 text-base-content/50">
-            ${t('crm_no_services') || 'Нет услуг'}
+            ${t('crm_no_services')}
         </td></tr>`;
         return;
     }
 
     const categoryLabels = {
-        accommodation: t('crm_cat_accommodation') || 'Проживание',
-        meals: t('crm_cat_meals') || 'Питание',
-        transport: t('crm_cat_transport') || 'Транспорт',
-        other: t('crm_cat_other') || 'Другое'
+        accommodation: t('crm_cat_accommodation'),
+        meals: t('crm_cat_meals'),
+        transport: t('crm_cat_transport'),
+        other: t('crm_cat_other')
     };
 
     const unitLabels = {
-        day: t('crm_unit_day') || 'день',
-        piece: t('crm_unit_piece') || 'шт',
-        person: t('crm_unit_person') || 'чел'
+        day: t('crm_unit_day'),
+        piece: t('crm_unit_piece'),
+        person: t('crm_unit_person')
     };
 
     tbody.innerHTML = services.map(s => `
@@ -264,15 +264,15 @@ function renderTable() {
             <td class="font-mono">${CrmUtils.formatMoney(s.default_price)}</td>
             <td>
                 ${s.is_active
-                    ? '<span class="badge badge-success badge-sm">Активна</span>'
-                    : '<span class="badge badge-ghost badge-sm">Неактивна</span>'}
+                    ? `<span class="badge badge-success badge-sm">${t('crm_active_f')}</span>`
+                    : `<span class="badge badge-ghost badge-sm">${t('crm_inactive_f')}</span>`}
             </td>
             <td>
                 <div class="flex gap-1">
                     <button class="btn btn-ghost btn-xs" onclick="editService('${s.id}')"
-                            data-permission="edit_crm_settings" title="Редактировать">${CrmUtils.UI_ICONS.edit}</button>
+                            data-permission="edit_crm_settings" title="${t('edit')}">${CrmUtils.UI_ICONS.edit}</button>
                     <button class="btn btn-ghost btn-xs text-error" onclick="deleteService('${s.id}')"
-                            data-permission="edit_crm_settings" title="Удалить">${CrmUtils.UI_ICONS.trash}</button>
+                            data-permission="edit_crm_settings" title="${t('delete')}">${CrmUtils.UI_ICONS.trash}</button>
                 </div>
             </td>
         </tr>
@@ -281,7 +281,7 @@ function renderTable() {
 
 // ==================== MODAL ====================
 function openAddModal() {
-    document.getElementById('modalTitle').textContent = 'Новая услуга';
+    document.getElementById('modalTitle').textContent = t('crm_new_service');
     document.getElementById('serviceForm').reset();
     document.getElementById('serviceId').value = '';
     document.getElementById('serviceActive').checked = true;
@@ -292,7 +292,7 @@ function editService(id) {
     const service = services.find(s => s.id === id);
     if (!service) return;
 
-    document.getElementById('modalTitle').textContent = 'Редактирование услуги';
+    document.getElementById('modalTitle').textContent = t('crm_edit_service');
     document.getElementById('serviceId').value = service.id;
     document.getElementById('serviceCode').value = service.code;
     document.getElementById('serviceNameRu').value = service.name_ru || '';
@@ -340,7 +340,7 @@ async function saveService(event) {
         return;
     }
 
-    Layout.showNotification(t('saved') || 'Сохранено', 'success');
+    Layout.showNotification(t('saved'), 'success');
     closeModal();
     await loadServices();
 }
@@ -350,7 +350,7 @@ async function deleteService(id) {
     const service = services.find(s => s.id === id);
     if (!service) return;
 
-    if (!confirm(`Удалить услугу "${Layout.getName(service)}"?`)) return;
+    if (!confirm(`${t('crm_confirm_delete_service')} "${Layout.getName(service)}"?`)) return;
 
     const { error } = await Layout.db.from('crm_services').delete().eq('id', id);
 
@@ -359,7 +359,7 @@ async function deleteService(id) {
         return;
     }
 
-    Layout.showNotification(t('deleted') || 'Удалено', 'success');
+    Layout.showNotification(t('deleted'), 'success');
     await loadServices();
 }
 

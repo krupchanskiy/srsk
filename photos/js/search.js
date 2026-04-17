@@ -32,7 +32,7 @@ async function init() {
 
     const authReady = await waitForAuth();
     if (!authReady) {
-        alert('Ошибка загрузки данных пользователя');
+        alert(Layout.t('user_data_load_error') || 'Ошибка загрузки данных пользователя');
         window.location.href = '../index.html';
         return;
     }
@@ -79,7 +79,7 @@ async function loadRetreats() {
         .select('id, name_ru, name_en, name_hi, start_date, end_date')
         .order('start_date', { ascending: false });
 
-    if (error) { Layout.handleError(error, 'Загрузка ретритов'); return; }
+    if (error) { Layout.handleError(error, Layout.t('loading_retreats') || 'Загрузка ретритов'); return; }
 
     retreats = data || [];
     renderRetreatSelect();
@@ -90,13 +90,13 @@ function renderRetreatSelect() {
     const lang = Layout.currentLang || 'ru';
 
     if (retreats.length === 0) {
-        select.innerHTML = '<option value="">Нет ретритов</option>';
+        select.innerHTML = `<option value="">${Layout.t('no_retreats') || 'Нет ретритов'}</option>`;
         return;
     }
 
-    select.innerHTML = '<option value="">Выберите ретрит</option>' +
+    select.innerHTML = `<option value="">${Layout.t('select_retreat') || 'Выберите ретрит'}</option>` +
         retreats.map(r => {
-            const name = r[`name_${lang}`] || r.name_ru || 'Без названия';
+            const name = r[`name_${lang}`] || r.name_ru || Layout.t('no_name') || 'Без названия';
             return `<option value="${r.id}">${name}</option>`;
         }).join('');
 }
@@ -113,7 +113,7 @@ async function loadVaishnavas() {
 }
 
 function getVaishnavasName(v) {
-    return v.spiritual_name || `${v.first_name || ''} ${v.last_name || ''}`.trim() || 'Без имени';
+    return v.spiritual_name || `${v.first_name || ''} ${v.last_name || ''}`.trim() || (Layout.t('no_name') || 'Без имени');
 }
 
 // ==================== АВТОКОМПЛИТ ВАЙШНАВОВ ====================
@@ -131,7 +131,7 @@ function onVaishnavasSearch(e) {
     ).slice(0, 20);
 
     if (filtered.length === 0) {
-        dropdown.innerHTML = '<div class="p-3 text-sm opacity-60">Ничего не найдено</div>';
+        dropdown.innerHTML = `<div class="p-3 text-sm opacity-60">${Layout.t('nothing_found') || 'Ничего не найдено'}</div>`;
     } else {
         dropdown.innerHTML = filtered.map(v => {
             const name = Layout.escapeHtml(getVaishnavasName(v));
@@ -214,7 +214,7 @@ async function findPersonInRetreat() {
     statusSpinner.classList.remove('hidden');
     statusCheck.classList.add('hidden');
     statusText.className = 'text-sm text-blue-800';
-    statusText.textContent = 'Выполняется поиск...';
+    statusText.textContent = Layout.t('search_in_progress') || 'Выполняется поиск...';
 
     document.getElementById('searchResultsBlock').classList.add('hidden');
     document.getElementById('searchEmptyState').classList.add('hidden');
@@ -226,7 +226,7 @@ async function findPersonInRetreat() {
         // Загрузить селфи во временное хранилище, если нет photo_url
         if (!photoUrl && searchSelfieFile) {
             const uid = (await Layout.db.auth.getUser()).data.user?.id;
-            if (!uid) throw new Error('Пользователь не авторизован');
+            if (!uid) throw new Error(Layout.t('user_not_authorized') || 'Пользователь не авторизован');
             const ext = searchSelfieFile.name.split('.').pop();
             tempPath = `selfies/${uid}/${Date.now()}.${ext}`;
 
@@ -242,9 +242,9 @@ async function findPersonInRetreat() {
             photoUrl = urlData.publicUrl;
         }
 
-        if (!photoUrl) throw new Error('Нет фото для поиска');
+        if (!photoUrl) throw new Error(Layout.t('no_photo_for_search') || 'Нет фото для поиска');
 
-        statusText.textContent = `Ищем ${getVaishnavasName(selectedVaishnava)} в ретрите...`;
+        statusText.textContent = `${Layout.t('searching_person_in_retreat') || 'Ищем'} ${getVaishnavasName(selectedVaishnava)}...`;
 
         const { data: result, error: fnErr } = await Layout.db.functions.invoke('search-face', {
             body: {
@@ -266,14 +266,14 @@ async function findPersonInRetreat() {
             // Жёлтый — ничего не найдено
             statusDiv.className = 'mt-2 mb-6 p-4 rounded-xl bg-yellow-50 border border-yellow-200';
             statusText.className = 'text-sm text-yellow-800';
-            statusText.textContent = 'Фото не найдены. Попробуйте другое фото или ретрит.';
+            statusText.textContent = Layout.t('photos_not_found') || 'Фото не найдены. Попробуйте другое фото или ретрит.';
             setTimeout(() => statusDiv.classList.add('hidden'), 5000);
         } else {
             // Зелёный — найдено
             statusDiv.className = 'mt-2 mb-6 p-4 rounded-xl bg-green-50 border border-green-200';
             statusCheck.classList.remove('hidden');
             statusText.className = 'text-sm text-green-800';
-            statusText.textContent = `Найдено ${matchedIds.length} фото!`;
+            statusText.textContent = `${Layout.t('found') || 'Найдено'} ${matchedIds.length} ${Layout.t('photos') || 'фото'}!`;
             setTimeout(() => statusDiv.classList.add('hidden'), 3000);
         }
 
@@ -282,7 +282,7 @@ async function findPersonInRetreat() {
         statusSpinner.classList.add('hidden');
         statusDiv.className = 'mt-2 mb-6 p-4 rounded-xl bg-red-50 border border-red-200';
         statusText.className = 'text-sm text-red-800';
-        statusText.textContent = `Ошибка: ${err.message || 'Не удалось выполнить поиск'}`;
+        statusText.textContent = `${Layout.t('error') || 'Ошибка'}: ${err.message || Layout.t('search_failed') || 'Не удалось выполнить поиск'}`;
         document.getElementById('searchEmptyState').classList.remove('hidden');
     } finally {
         btn.disabled = false;
@@ -311,7 +311,7 @@ async function renderSearchResults(photoIds) {
     if (!photoIds || photoIds.length === 0) {
         block.classList.add('hidden');
         emptyState.classList.remove('hidden');
-        emptyState.querySelector('p').textContent = 'Совпадений не найдено';
+        emptyState.querySelector('p').textContent = Layout.t('no_matches_found') || 'Совпадений не найдено';
         searchResults = [];
         return;
     }
@@ -324,7 +324,7 @@ async function renderSearchResults(photoIds) {
     if (error || !foundPhotos?.length) {
         block.classList.add('hidden');
         emptyState.classList.remove('hidden');
-        emptyState.querySelector('p').textContent = 'Совпадений не найдено';
+        emptyState.querySelector('p').textContent = Layout.t('no_matches_found') || 'Совпадений не найдено';
         searchResults = [];
         return;
     }

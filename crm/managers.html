@@ -158,14 +158,14 @@ async function loadData() {
 // ==================== RENDER ====================
 function getManagerName(v) {
     if (!v) return '';
-    return v.spiritual_name || `${v.first_name || ''} ${v.last_name || ''}`.trim() || 'Без имени';
+    return v.spiritual_name || `${v.first_name || ''} ${v.last_name || ''}`.trim() || t('crm_no_name');
 }
 
 function renderRetreatManagers() {
     const container = document.getElementById('retreatManagersList');
 
     if (retreats.length === 0) {
-        container.innerHTML = '<div class="text-center text-base-content/50">Нет активных ретритов</div>';
+        container.innerHTML = `<div class="text-center text-base-content/50">${t('crm_no_active_retreats')}</div>`;
         return;
     }
 
@@ -209,7 +209,7 @@ function renderRetreatManagers() {
                     ${CrmUtils.formatDate(retreat.start_date)} — ${CrmUtils.formatDate(retreat.end_date)}
                 </div>
                 <div class="flex flex-wrap gap-3 items-center">
-                    ${managers.length > 0 ? selectAllCheckbox + checkboxes : '<span class="text-sm text-base-content/50">Нет менеджеров</span>'}
+                    ${managers.length > 0 ? selectAllCheckbox + checkboxes : `<span class="text-sm text-base-content/50">${t('crm_no_managers')}</span>`}
                 </div>
             </div>
         `;
@@ -220,7 +220,7 @@ function renderQueue() {
     const container = document.getElementById('queueList');
 
     if (queue.length === 0) {
-        container.innerHTML = '<div class="text-center text-base-content/50 py-4">Очередь пуста</div>';
+        container.innerHTML = `<div class="text-center text-base-content/50 py-4">${t('crm_queue_empty')}</div>`;
         return;
     }
 
@@ -228,17 +228,17 @@ function renderQueue() {
         const name = getManagerName(q.vaishnavas);
         const lastAssigned = q.last_assigned_at
             ? CrmUtils.formatRelativeTime(q.last_assigned_at)
-            : 'никогда';
+            : t('crm_never');
 
         return `
             <div class="flex items-center gap-3 p-2 bg-base-200 rounded-lg ${!q.is_active ? 'opacity-50' : ''}">
                 <span class="badge badge-ghost">${idx + 1}</span>
                 <div class="flex-1">
                     <div class="font-medium">${e(name)}</div>
-                    <div class="text-xs text-base-content/50">Последнее назначение: ${lastAssigned}</div>
+                    <div class="text-xs text-base-content/50">${t('crm_last_assignment')}: ${lastAssigned}</div>
                 </div>
                 <div class="flex gap-1">
-                    <label class="swap" title="${q.is_active ? 'Активен' : 'На паузе'}">
+                    <label class="swap" title="${q.is_active ? t('crm_active_status') : t('crm_paused_status')}">
                         <input type="checkbox" ${q.is_active ? 'checked' : ''}
                                onchange="toggleQueueActive('${q.id}', this.checked)"
                                data-permission="edit_crm_settings">
@@ -246,7 +246,7 @@ function renderQueue() {
                         <span class="swap-off text-base-content/30">${CrmUtils.UI_ICONS.checkCircle}</span>
                     </label>
                     <button class="btn btn-ghost btn-xs text-error" onclick="removeFromQueue('${q.id}')"
-                            data-permission="edit_crm_settings" title="Удалить">${CrmUtils.UI_ICONS.trash}</button>
+                            data-permission="edit_crm_settings" title="${t('delete')}">${CrmUtils.UI_ICONS.trash}</button>
                 </div>
             </div>
         `;
@@ -258,7 +258,7 @@ function updateAddToQueueSelect() {
     const inQueue = queue.map(q => q.manager_id);
     const available = managers.filter(m => !inQueue.includes(m.id));
 
-    select.innerHTML = '<option value="">Выберите менеджера...</option>' +
+    select.innerHTML = `<option value="">${t('crm_select_manager')}</option>` +
         available.map(m => `<option value="${m.id}">${e(getManagerName(m))}</option>`).join('');
 }
 
@@ -274,7 +274,7 @@ async function toggleAllManagers(retreatId, isActive) {
         await toggleRetreatManager(retreatId, m.id, isActive, true);
     }
 
-    Layout.showNotification(isActive ? 'Все менеджеры назначены' : 'Все менеджеры сняты', 'success');
+    Layout.showNotification(isActive ? t('crm_all_managers_assigned') : t('crm_all_managers_removed'), 'success');
 }
 
 async function toggleRetreatManager(retreatId, managerId, isActive, silent = false) {
@@ -309,7 +309,7 @@ async function toggleRetreatManager(retreatId, managerId, isActive, silent = fal
     }
 
     if (!silent) {
-        Layout.showNotification(t('saved') || 'Сохранено', 'success');
+        Layout.showNotification(t('saved'), 'success');
     }
 }
 
@@ -327,7 +327,7 @@ async function toggleQueueActive(queueId, isActive) {
     const item = queue.find(q => q.id === queueId);
     if (item) item.is_active = isActive;
 
-    Layout.showNotification(isActive ? 'Менеджер активирован' : 'Менеджер на паузе', 'success');
+    Layout.showNotification(isActive ? t('crm_manager_activated') : t('crm_manager_paused'), 'success');
     renderQueue();
 }
 
@@ -345,12 +345,12 @@ async function addToQueue() {
         return;
     }
 
-    Layout.showNotification('Менеджер добавлен в очередь', 'success');
+    Layout.showNotification(t('crm_manager_added_to_queue'), 'success');
     await loadData();
 }
 
 async function removeFromQueue(queueId) {
-    if (!confirm('Удалить менеджера из очереди?')) return;
+    if (!confirm(t('crm_confirm_remove_from_queue'))) return;
 
     const { error } = await Layout.db
         .from('crm_manager_queue')
@@ -362,7 +362,7 @@ async function removeFromQueue(queueId) {
         return;
     }
 
-    Layout.showNotification('Удалено из очереди', 'success');
+    Layout.showNotification(t('crm_removed_from_queue'), 'success');
     await loadData();
 }
 

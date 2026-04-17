@@ -339,10 +339,10 @@ const groupedData = {};
 const sortState = {};
 
 const SORT_COLUMNS = [
-    { key: 'name',  label: () => t('col_name')  || 'Имя' },
-    { key: 'dates', label: () => t('col_dates') || 'Даты' },
-    { key: 'room',  label: () => t('col_room')  || 'Комната' },
-    { key: 'meals', label: () => t('col_meals') || 'Питание' }
+    { key: 'name',  label: () => t('col_name') },
+    { key: 'dates', label: () => t('col_dates') },
+    { key: 'room',  label: () => t('col_room') },
+    { key: 'meals', label: () => t('col_meals') }
 ];
 
 function getSortValue(r, key) {
@@ -382,7 +382,7 @@ function rerenderTable(slug) {
 
 function buildTable(residents, slug) {
     if (!residents.length) {
-        return `<div class="text-center py-4 opacity-50">${t('no_data') || 'Нет данных'}</div>`;
+        return `<div class="text-center py-4 opacity-50">${t('no_data')}</div>`;
     }
 
     const st = sortState[slug];
@@ -398,8 +398,8 @@ function buildTable(residents, slug) {
         const dates = formatDateRange(r);
         const room = getRoomText(r);
         const mealBadge = r.has_meals
-            ? `<span class="meal-badge yes">${t('dashboard_eating') || 'Питаются'}</span>`
-            : `<span class="meal-badge no">${t('dashboard_not_eating') || 'Нет'}</span>`;
+            ? `<span class="meal-badge yes">${t('dashboard_eating')}</span>`
+            : `<span class="meal-badge no">${t('dashboard_not_eating')}</span>`;
 
         return `<tr>
             <td>${nameHtml}</td>
@@ -420,7 +420,7 @@ function renderCategorySection(slug, catName, residents) {
     const icon = CATEGORY_ICONS[slug] || CATEGORY_ICONS.guest;
     const housing = residents.filter(r => r.rooms).length;
     const eating = residents.filter(r => r.has_meals).length;
-    const subtitle = `${residents.length} всего / ${housing} живут / ${eating} едят`;
+    const subtitle = `${residents.length} ${t('dashboard_total_short')} / ${housing} ${t('dashboard_housed_short')} / ${eating} ${t('dashboard_eating_short')}`;
 
     groupedData[slug] = residents;
 
@@ -492,23 +492,23 @@ async function loadKitchenTotals() {
     const fmtParts = (mc) => {
         if (!mc) return '';
         const items = [];
-        if (mc.team) items.push(`${t('status_team') || 'команда'} ${mc.team}`);
-        if (mc.volunteers) items.push(`${t('category_volunteer') || 'волонтёры'} ${mc.volunteers}`);
-        if (mc.vips) items.push(`${t('category_vip') || 'ВИП'} ${mc.vips}`);
-        if (mc.guests) items.push(`${t('status_guest') || 'гости'} ${mc.guests}`);
-        if (mc.groups) items.push(`${t('nav_groups') || 'группы'} ${mc.groups}`);
+        if (mc.team) items.push(`${t('status_team')} ${mc.team}`);
+        if (mc.volunteers) items.push(`${t('category_volunteer')} ${mc.volunteers}`);
+        if (mc.vips) items.push(`${t('category_vip')} ${mc.vips}`);
+        if (mc.guests) items.push(`${t('status_guest')} ${mc.guests}`);
+        if (mc.groups) items.push(`${t('nav_groups')} ${mc.groups}`);
         return items.join(', ');
     };
 
     const cookIcon = `<svg class="w-4 h-4 inline -mt-0.5 mr-1 opacity-60" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5"><path stroke-linecap="round" stroke-linejoin="round" d="M15.362 5.214A8.252 8.252 0 0112 21 8.25 8.25 0 016.038 7.048 8.287 8.287 0 009 9.6a8.983 8.983 0 013.361-6.867 8.21 8.21 0 003 2.48z" /><path stroke-linecap="round" stroke-linejoin="round" d="M12 18a3.75 3.75 0 00.495-7.467 5.99 5.99 0 00-1.925 3.546 5.974 5.974 0 01-2.133-1A3.75 3.75 0 0012 18z" /></svg>`;
 
     let html = cookIcon;
-    html += `${t('kitchen_total') || 'Кухня на сегодня'}: `;
+    html += `${t('kitchen_total')}: `;
 
     if (bfTotal === lnTotal) {
         html += `<b>${bfTotal}</b> (${fmtParts(bf)})`;
     } else {
-        html += `${t('breakfast') || 'завтрак'} <b>${bfTotal}</b>, ${t('lunch') || 'обед'} <b>${lnTotal}</b>`;
+        html += `${t('breakfast')} <b>${bfTotal}</b>, ${t('lunch')} <b>${lnTotal}</b>`;
         html += ` <span class="opacity-60">(${fmtParts(bf || ln)})</span>`;
     }
 
@@ -554,7 +554,7 @@ function renderDashboard(present) {
         const eating = arr.filter(r => r.has_meals).length;
         const housing = arr.filter(r => r.rooms).length;
         document.getElementById(idPrefix).textContent = `${total} / ${housing} / ${eating}`;
-        document.getElementById(idPrefix + 'Sub').textContent = 'всего / живут / едят';
+        document.getElementById(idPrefix + 'Sub').textContent = `${t('dashboard_total_short')} / ${t('dashboard_housed_short')} / ${t('dashboard_eating_short')}`;
     }
 
     setMetric('metricTotal', allPresent);
@@ -583,7 +583,7 @@ function renderDashboard(present) {
         });
 
     if (sections.length === 0) {
-        container.innerHTML = `<div class="text-center py-8 opacity-50">${t('no_data') || 'Нет данных'}</div>`;
+        container.innerHTML = `<div class="text-center py-8 opacity-50">${t('no_data')}</div>`;
     } else {
         container.innerHTML = sections.join('');
     }

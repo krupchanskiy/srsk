@@ -30,7 +30,7 @@
         </div>
         <button class="btn btn-primary gap-2" onclick="fetchAutoRates()" id="autoRateBtn">
             <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-5 h-5"><path stroke-linecap="round" stroke-linejoin="round" d="M16.023 9.348h4.992v-.001M2.985 19.644v-4.992m0 0h4.992m-4.993 0 3.181 3.183a8.25 8.25 0 0 0 13.803-3.7M4.031 9.865a8.25 8.25 0 0 1 13.803-3.7l3.181 3.182" /></svg>
-            Обновить курсы
+            <span data-i18n="crm_update_rates">Обновить курсы</span>
         </button>
     </div>
 
@@ -211,9 +211,9 @@ function renderTable() {
                 <td class="text-sm text-base-content/50">${updated}</td>
                 <td>
                     ${c.is_default
-                        ? '<span class="badge badge-ghost badge-sm">Базовая</span>'
+                        ? `<span class="badge badge-ghost badge-sm">${t('crm_base_currency')}</span>`
                         : `<button class="btn btn-ghost btn-xs" onclick="editCurrency('${c.code}')"
-                                data-permission="edit_crm_settings" title="Изменить курс">${CrmUtils.UI_ICONS.edit}</button>`}
+                                data-permission="edit_crm_settings" title="${t('crm_change_rate')}">${CrmUtils.UI_ICONS.edit}</button>`}
                 </td>
             </tr>
         `;
@@ -255,7 +255,7 @@ async function saveCurrency(event) {
     const rate = parseFloat(document.getElementById('currencyRate').value);
 
     if (!rate || rate <= 0) {
-        Layout.showNotification('Укажите корректный курс', 'error');
+        Layout.showNotification(t('crm_invalid_rate'), 'error');
         return;
     }
 
@@ -272,7 +272,7 @@ async function saveCurrency(event) {
         return;
     }
 
-    Layout.showNotification(t('saved') || 'Курс обновлён', 'success');
+    Layout.showNotification(t('saved'), 'success');
     closeModal();
     await loadCurrencies();
 }
@@ -281,7 +281,7 @@ async function saveCurrency(event) {
 async function fetchAutoRates() {
     const btn = document.getElementById('autoRateBtn');
     btn.disabled = true;
-    btn.innerHTML = '<span class="loading loading-spinner loading-sm"></span> Загрузка...';
+    btn.innerHTML = `<span class="loading loading-spinner loading-sm"></span> ${t('loading')}...`;
 
     try {
         // Бесплатный API курсов: base=INR
@@ -309,14 +309,14 @@ async function fetchAutoRates() {
             }
         }
 
-        Layout.showNotification(`Курсы обновлены: ${updated} валют`, 'success');
+        Layout.showNotification(`${t('crm_rates_updated')}: ${updated}`, 'success');
         await loadCurrencies();
     } catch (err) {
         console.error('Auto rate error:', err);
-        Layout.showNotification('Ошибка загрузки курсов: ' + err.message, 'error');
+        Layout.showNotification(`${t('crm_rates_load_error')}: ${err.message}`, 'error');
     } finally {
         btn.disabled = false;
-        btn.innerHTML = '<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-5 h-5"><path stroke-linecap="round" stroke-linejoin="round" d="M16.023 9.348h4.992v-.001M2.985 19.644v-4.992m0 0h4.992m-4.993 0 3.181 3.183a8.25 8.25 0 0 0 13.803-3.7M4.031 9.865a8.25 8.25 0 0 1 13.803-3.7l3.181 3.182" /></svg> Обновить курсы';
+        btn.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-5 h-5"><path stroke-linecap="round" stroke-linejoin="round" d="M16.023 9.348h4.992v-.001M2.985 19.644v-4.992m0 0h4.992m-4.993 0 3.181 3.183a8.25 8.25 0 0 0 13.803-3.7M4.031 9.865a8.25 8.25 0 0 1 13.803-3.7l3.181 3.182" /></svg> ${t('crm_update_rates')}`;
     }
 }
 

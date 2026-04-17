@@ -234,11 +234,11 @@ function renderStats() {
     const overdue = filteredDeals.filter(d => CrmUtils.isOverdue(d)).length;
     const active = filteredDeals.filter(d => CrmUtils.isActive(d)).length;
 
-    document.getElementById('statsTotal').textContent = `Всего: ${total} | Активных: ${active}`;
+    document.getElementById('statsTotal').textContent = `${t('crm_total')}: ${total} | ${t('crm_active')}: ${active}`;
 
     const overdueEl = document.getElementById('statsOverdue');
     if (overdue > 0) {
-        overdueEl.innerHTML = `<span class="inline-flex items-center gap-1"><span class="text-error">${CrmUtils.UI_ICONS.exclamationCircle}</span> Без контакта >24ч: ${overdue}</span>`;
+        overdueEl.innerHTML = `<span class="inline-flex items-center gap-1"><span class="text-error">${CrmUtils.UI_ICONS.exclamationCircle}</span> ${t('crm_no_contact_24h')}: ${overdue}</span>`;
         overdueEl.classList.remove('hidden');
     } else {
         overdueEl.classList.add('hidden');
@@ -312,10 +312,10 @@ function renderCard(deal) {
     if (deal.last_contacted_at) {
         const diff = Date.now() - new Date(deal.last_contacted_at).getTime();
         const days = Math.floor(diff / (1000 * 60 * 60 * 24));
-        if (days === 0) lastContactText = 'сегодня';
-        else if (days === 1) lastContactText = 'вчера';
-        else if (days < 7) lastContactText = `${days}д`;
-        else lastContactText = `<span class="text-error">${days}д</span>`;
+        if (days === 0) lastContactText = t('crm_today');
+        else if (days === 1) lastContactText = t('crm_yesterday');
+        else if (days < 7) lastContactText = `${days}${t('crm_days_short')}`;
+        else lastContactText = `<span class="text-error">${days}${t('crm_days_short')}</span>`;
     }
 
     return `
@@ -326,7 +326,7 @@ function renderCard(deal) {
                 <div class="font-medium text-sm leading-tight">${e(CrmUtils.getGuestShortName(guest))}</div>
                 <div class="flex items-center gap-1 shrink-0">
                     ${tempBadge}
-                    ${isOverdue ? `<span title="Без контакта >24ч" class="text-error text-xs">⚠</span>` : ''}
+                    ${isOverdue ? `<span title="${t('crm_no_contact_24h')}" class="text-error text-xs">⚠</span>` : ''}
                 </div>
             </div>
             <div class="text-xs text-base-content/50 mb-1">${e(guest?.phone || '')}</div>

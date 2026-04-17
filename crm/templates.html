@@ -135,7 +135,7 @@ function renderList() {
 
     if (templates.length === 0) {
         list.innerHTML = `<div class="text-center py-8 text-base-content/50">
-            Нет шаблонов
+            ${t('crm_no_templates')}
         </div>`;
         return;
     }
@@ -155,11 +155,11 @@ function renderList() {
                     </div>
                     <div class="flex gap-1 shrink-0">
                         <button class="btn btn-ghost btn-sm" onclick="copyTemplate('${tpl.id}')"
-                                title="Копировать">${CrmUtils.UI_ICONS.copy}</button>
+                                title="${t('copy')}">${CrmUtils.UI_ICONS.copy}</button>
                         <button class="btn btn-ghost btn-sm" onclick="editTemplate('${tpl.id}')"
-                                data-permission="edit_crm_settings" title="Редактировать">${CrmUtils.UI_ICONS.edit}</button>
+                                data-permission="edit_crm_settings" title="${t('edit')}">${CrmUtils.UI_ICONS.edit}</button>
                         <button class="btn btn-ghost btn-sm text-error" onclick="deleteTemplate('${tpl.id}')"
-                                data-permission="edit_crm_settings" title="Удалить">${CrmUtils.UI_ICONS.trash}</button>
+                                data-permission="edit_crm_settings" title="${t('delete')}">${CrmUtils.UI_ICONS.trash}</button>
                     </div>
                 </div>
             </div>
@@ -180,7 +180,7 @@ async function copyTemplate(id) {
 
 // ==================== MODAL ====================
 function openAddModal() {
-    document.getElementById('modalTitle').textContent = 'Новый шаблон';
+    document.getElementById('modalTitle').textContent = t('crm_new_template');
     document.getElementById('templateForm').reset();
     document.getElementById('templateId').value = '';
     document.getElementById('templateModal').showModal();
@@ -190,7 +190,7 @@ function editTemplate(id) {
     const tpl = templates.find(t => t.id === id);
     if (!tpl) return;
 
-    document.getElementById('modalTitle').textContent = 'Редактирование шаблона';
+    document.getElementById('modalTitle').textContent = t('crm_edit_template');
     document.getElementById('templateId').value = tpl.id;
     document.getElementById('templateCode').value = tpl.code;
     document.getElementById('templateSortOrder').value = tpl.sort_order || 0;
@@ -234,7 +234,7 @@ async function saveTemplate(event) {
         return;
     }
 
-    Layout.showNotification(t('saved') || 'Сохранено', 'success');
+    Layout.showNotification(t('saved'), 'success');
     closeModal();
     await loadTemplates();
 }
@@ -244,7 +244,7 @@ async function deleteTemplate(id) {
     const tpl = templates.find(t => t.id === id);
     if (!tpl) return;
 
-    if (!confirm(`Удалить шаблон "${Layout.getName(tpl)}"?`)) return;
+    if (!confirm(`${t('crm_confirm_delete_template')} "${Layout.getName(tpl)}"?`)) return;
 
     const { error } = await Layout.db.from('crm_message_templates').delete().eq('id', id);
 
@@ -253,7 +253,7 @@ async function deleteTemplate(id) {
         return;
     }
 
-    Layout.showNotification(t('deleted') || 'Удалено', 'success');
+    Layout.showNotification(t('deleted'), 'success');
     await loadTemplates();
 }
 

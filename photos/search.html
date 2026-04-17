@@ -101,12 +101,12 @@
         <!-- Вайшнав -->
         <div class="bg-base-100 rounded-xl p-6 mb-6 shadow-sm">
             <label class="label">
-                <span class="label-text font-medium">Вайшнав</span>
+                <span class="label-text font-medium" data-i18n="vaishnava">Вайшнав</span>
             </label>
             <div class="relative max-w-md">
                 <input id="vaishnavasSearchInput" type="text"
                     class="input input-bordered w-full"
-                    placeholder="Введите имя для поиска..."
+                    placeholder="Введите имя для поиска..." data-i18n-placeholder="search_name_placeholder"
                     autocomplete="off">
                 <div id="vaishnavasDropdown"
                     class="hidden absolute z-50 w-full bg-base-100 border border-base-300 rounded-xl shadow-lg max-h-60 overflow-y-auto mt-1">
@@ -121,7 +121,7 @@
 
             <!-- Загрузка фото если нет в профиле -->
             <div id="searchSelfieBlock" class="hidden mt-4">
-                <p class="text-sm opacity-60 mb-2">У вайшнава нет фото в профиле. Загрузите фото для поиска:</p>
+                <p class="text-sm opacity-60 mb-2" data-i18n="no_profile_photo_upload">У вайшнава нет фото в профиле. Загрузите фото для поиска:</p>
                 <input id="searchSelfieInput" type="file" class="file-input file-input-bordered w-full max-w-md" accept="image/*">
                 <div id="searchSelfiePreview" class="hidden mt-2">
                     <img id="searchSelfieImg" class="w-16 h-16 rounded-full object-cover border-2 border-base-300" src="" alt="">
@@ -134,7 +134,7 @@
             <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
             </svg>
-            Найти на фото
+            <span data-i18n="find_on_photo">Найти на фото</span>
         </button>
 
         <!-- Статус поиска -->
@@ -146,14 +146,14 @@
                         <path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7" />
                     </svg>
                 </div>
-                <span class="text-sm text-blue-800" id="searchStatusText">Поиск...</span>
+                <span class="text-sm text-blue-800" id="searchStatusText" data-i18n="searching">Поиск...</span>
             </div>
         </div>
 
         <!-- Результаты -->
         <div id="searchResultsBlock" class="hidden">
             <h3 class="text-lg font-semibold mb-4">
-                Найдено: <span id="searchResultsCount">0</span> фото
+                <span data-i18n="found">Найдено</span>: <span id="searchResultsCount">0</span> <span data-i18n="photos">фото</span>
             </h3>
             <div id="searchResultsGrid" class="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-6 gap-4"></div>
         </div>
@@ -163,7 +163,7 @@
             <svg xmlns="http://www.w3.org/2000/svg" class="h-12 w-12 mx-auto mb-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
             </svg>
-            <p>Выберите ретрит и вайшнава для поиска</p>
+            <p data-i18n="select_retreat_and_vaishnava">Выберите ретрит и вайшнава для поиска</p>
         </div>
 
     </main>
@@ -189,7 +189,7 @@
                 <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
                 </svg>
-                Скачать
+                <span data-i18n="download">Скачать</span>
             </button>
         </div>
     </div>

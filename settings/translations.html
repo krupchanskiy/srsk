@@ -393,7 +393,7 @@
 
         async function saveField(input) {
             if (!window.hasPermission || !window.hasPermission('edit_translations')) {
-                Layout.showNotification('Недостаточно прав', 'error');
+                Layout.showNotification(t('insufficient_permissions'), 'error');
                 return;
             }
             const id = input.dataset.id;
@@ -426,7 +426,7 @@
 
         async function deleteTranslation(id) {
             if (!window.hasPermission || !window.hasPermission('edit_translations')) {
-                Layout.showNotification('Недостаточно прав', 'error');
+                Layout.showNotification(t('insufficient_permissions'), 'error');
                 return;
             }
             if (!confirm(t('confirm_delete'))) return;
@@ -446,7 +446,7 @@
 
         function openAddModal() {
             if (!window.hasPermission || !window.hasPermission('edit_translations')) {
-                Layout.showNotification('Недостаточно прав', 'error');
+                Layout.showNotification(t('insufficient_permissions'), 'error');
                 return;
             }
             Layout.$('#addForm').reset();
