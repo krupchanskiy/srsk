@@ -1255,6 +1255,9 @@ async function initLayout(page = { module: null, menuId: 'kitchen', itemId: null
     const submenuBar = $('#submenuBar');
     if (submenuBar) submenuBar.classList.remove('hidden');
 
+    // Применяем переводы ко всем data-i18n элементам на странице
+    updateAllTranslations();
+
     return { db, currentLang, currentLocation, currentModule, locations };
 }
 
