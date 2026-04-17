@@ -211,7 +211,8 @@ function renderTable() {
 
     const formatTransfer = (transfer) => {
         if (!transfer) return '<span class="opacity-30">—</span>';
-        const dt = transfer.flight_datetime ? new Date(transfer.flight_datetime) : null;
+        // flight_datetime хранится как datetime-local (см. preliminary.js) — убираем ложный TZ suffix перед new Date()
+        const dt = transfer.flight_datetime ? new Date(transfer.flight_datetime.slice(0, 16)) : null;
         const dateStr = dt ? `${dt.getDate()}.${(dt.getMonth()+1).toString().padStart(2,'0')}` : '';
         const timeStr = dt ? `${dt.getHours().toString().padStart(2,'0')}:${dt.getMinutes().toString().padStart(2,'0')}` : '';
         const flight = transfer.flight_number || '';
@@ -614,7 +615,8 @@ function openInfoModal(registrationId) {
 
     const formatTransferDetails = (transfer, label) => {
         if (!transfer) return '';
-        const dt = transfer.flight_datetime ? new Date(transfer.flight_datetime) : null;
+        // flight_datetime хранится как datetime-local — убираем ложный TZ suffix перед new Date()
+        const dt = transfer.flight_datetime ? new Date(transfer.flight_datetime.slice(0, 16)) : null;
         const dateStr = dt ? dt.toLocaleDateString('ru-RU') : '—';
         const timeStr = dt ? dt.toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' }) : '';
         const needsTransfer = transfer.needs_transfer === 'yes' ? `🚕 ${t('retreat_guests_needs_transfer')}` : '';
