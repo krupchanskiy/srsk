@@ -64,6 +64,15 @@ function isValidColor(color) {
 }
 
 /**
+ * Безопасный цвет для вставки в style/CSS. Возвращает исходный цвет, если он
+ * проходит isValidColor, иначе fallback (серый по умолчанию).
+ * Используется в template literals: style="color: ${Utils.safeColor(x.color)}"
+ */
+function safeColor(color, fallback = '#6b7280') {
+    return isValidColor(color) ? color : fallback;
+}
+
+/**
  * Проверка и автоперенос departure/arrival в правильный ретрит.
  * Если departure_datetime позже окончания ретрита и у человека есть регистрация
  * на более поздний ретрит — переносит departure_datetime и трансфер вылета туда.
@@ -185,6 +194,6 @@ function getVaishnavFullName(v, fallback) {
 window.getVaishnavName = getVaishnavName;
 window.getVaishnavFullName = getVaishnavFullName;
 
-window.Utils = { pluralize, debounce, escapeHtml, isValidColor, checkAndMoveDatesAcrossRetreats, fetchAll, getVaishnavName, getVaishnavFullName };
+window.Utils = { pluralize, debounce, escapeHtml, isValidColor, safeColor, checkAndMoveDatesAcrossRetreats, fetchAll, getVaishnavName, getVaishnavFullName };
 
 })();

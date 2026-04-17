@@ -98,7 +98,7 @@ function getUnitShort(unitCode) {
 
 // Стили фона для дня (ретрит/праздник/экадаши)
 function getDayStyles(retreat, majorFestival, isEkadashiDay) {
-    if (retreat) return { bg: `background-color: ${retreat.color}20;`, header: `background-color: ${retreat.color}30; border-left: 4px solid ${retreat.color};` };
+    if (retreat) { const c = Utils.safeColor(retreat.color); return { bg: `background-color: ${c}20;`, header: `background-color: ${c}30; border-left: 4px solid ${c};` }; }
     if (majorFestival) return { bg: 'background-color: #FEF9C3;', header: 'background-color: #FDE047; border-left: 4px solid #EAB308;' };
     if (isEkadashiDay) return { bg: 'background-color: #FFFBEB;', header: 'background-color: #FEF3C7;' };
     return { bg: 'background-color: white;', header: '' };
@@ -618,14 +618,14 @@ function renderDay() {
             ${holidayBanner}
             ${acharyaBanner}
 
-            <div class="p-4 border-b border-base-200/50 no-print" style="${retreat ? `border-left: 4px solid ${retreat.color};` : (majorFestival ? 'border-left: 4px solid #EAB308;' : '')}">
+            <div class="p-4 border-b border-base-200/50 no-print" style="${retreat ? `border-left: 4px solid ${Utils.safeColor(retreat.color)};` : (majorFestival ? 'border-left: 4px solid #EAB308;' : '')}">
                 <div class="flex justify-between items-start">
                     <div>
                         <div class="text-lg font-semibold">${currentDate.getDate()} ${m[currentDate.getMonth()]} ${currentDate.getFullYear()}</div>
                         <div class="text-sm opacity-60">${d[currentDate.getDay()]}</div>
                     </div>
                     <div class="text-right">
-                        ${retreat ? `<div class="text-sm font-bold uppercase tracking-wide" style="color: ${retreat.color};">${getName(retreat)}</div>` : `<div class="text-sm opacity-40">${t('no_retreat')}</div>`}
+                        ${retreat ? `<div class="text-sm font-bold uppercase tracking-wide" style="color: ${Utils.safeColor(retreat.color)};">${getName(retreat)}</div>` : `<div class="text-sm opacity-40">${t('no_retreat')}</div>`}
                         ${eatingDetailed}
                     </div>
                 </div>
@@ -863,7 +863,7 @@ function renderWeek() {
                         </button>
                         ` : ''}
                     </div>
-                    ${retreat ? `<div class="mt-1 text-xs font-bold uppercase tracking-wide" style="color: ${retreat.color};">${getName(retreat)}</div>` : ''}
+                    ${retreat ? `<div class="mt-1 text-xs font-bold uppercase tracking-wide" style="color: ${Utils.safeColor(retreat.color)};">${getName(retreat)}</div>` : ''}
                     ${formatEatingLine(dateStr, 'text-xs text-gray-500 font-medium mt-1')}
                     ${acharyaLine}
                 </div>
@@ -973,7 +973,7 @@ function renderPeriod() {
                         </button>
                         ` : ''}
                     </div>
-                    ${retreat ? `<div class="mt-1 text-xs font-bold uppercase tracking-wide" style="color: ${retreat.color};">${getName(retreat)}</div>` : ''}
+                    ${retreat ? `<div class="mt-1 text-xs font-bold uppercase tracking-wide" style="color: ${Utils.safeColor(retreat.color)};">${getName(retreat)}</div>` : ''}
                     ${formatEatingLine(dateStr, 'text-xs text-gray-500 font-medium mt-1')}
                     ${acharyaLine}
                 </div>
@@ -1060,8 +1060,9 @@ function renderMonth() {
         let bgStyle = 'background-color: white;';
         let borderStyle = '';
         if (retreat) {
-            bgStyle = `background-color: ${retreat.color}20;`;
-            borderStyle = `border-left: 3px solid ${retreat.color};`;
+            const c = Utils.safeColor(retreat.color);
+            bgStyle = `background-color: ${c}20;`;
+            borderStyle = `border-left: 3px solid ${c};`;
         } else if (majorFestival) {
             bgStyle = 'background-color: #FEF9C3;';
             borderStyle = 'border-left: 3px solid #EAB308;';
@@ -1105,7 +1106,7 @@ function renderMonth() {
                     ${holidayIndicator}
                 </div>
                 ${eatingLine}
-                ${retreat ? `<div class="text-xs font-bold truncate leading-tight mb-1" style="color: ${retreat.color};">${getName(retreat)}</div>` : ''}
+                ${retreat ? `<div class="text-xs font-bold truncate leading-tight mb-1" style="color: ${Utils.safeColor(retreat.color)};">${getName(retreat)}</div>` : ''}
                 ${holidayName}
                 ${acharyaName}
                 <div class="flex-1 space-y-0.5">${mealLines}</div>
@@ -1338,7 +1339,7 @@ function buildCategoryButtons() {
     container.innerHTML = `
         <button type="button" class="btn btn-sm filter-btn ${currentCategory === 'all' ? 'active' : ''}" data-cat="all" data-action="filter-by-category" data-category="all">${t('filter_all')}</button>
         ${categories.map(cat => `
-            <button type="button" class="btn btn-sm filter-btn ${currentCategory === cat.slug ? 'active' : ''}" data-cat="${cat.slug}" style="--cat-color: ${cat.color};" data-action="filter-by-category" data-category="${cat.slug}">${getName(cat)}</button>
+            <button type="button" class="btn btn-sm filter-btn ${currentCategory === cat.slug ? 'active' : ''}" data-cat="${cat.slug}" style="--cat-color: ${Utils.safeColor(cat.color)};" data-action="filter-by-category" data-category="${cat.slug}">${getName(cat)}</button>
         `).join('')}
     `;
 }
