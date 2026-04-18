@@ -100,6 +100,7 @@ const modules = {
                 { id: 'crm_currencies', href: 'crm/currencies.html' },
                 { id: 'crm_tags', href: 'crm/tags.html' },
                 { id: 'crm_templates', href: 'crm/templates.html' },
+                { id: 'crm_task_templates', href: 'crm/task-templates.html' },
                 { id: 'crm_managers', href: 'crm/managers.html' },
                 { id: 'crm_utm_links', href: 'crm/utm-links.html' }
             ]}
@@ -229,6 +230,7 @@ const pagePermissions = {
     'crm/currencies.html': 'edit_crm_settings',
     'crm/tags.html': 'edit_crm_settings',
     'crm/templates.html': 'edit_crm_settings',
+    'crm/task-templates.html': 'edit_crm_settings',
     'crm/managers.html': 'edit_crm_settings',
     'crm/utm-links.html': 'edit_crm_settings',
 

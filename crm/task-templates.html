@@ -1,0 +1,403 @@
+<!DOCTYPE html>
+<html lang="ru" data-theme="light">
+<head>
+    <script src="../js/color-init.js?v=1"></script>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title data-i18n-title="crm_task_templates_page_title">Шаблоны автозадач — CRM — ШРСК</title>
+    <link href="https://cdn.jsdelivr.net/npm/daisyui@4.12.14/dist/full.min.css" rel="stylesheet" />
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script>tailwind.config = { theme: { extend: { screens: { 'desktop': '1200px' } } } }</script>
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="../css/common.css">
+</head>
+<body class="bg-base-200 min-h-screen flex flex-col">
+
+<div id="header-placeholder"></div>
+
+<main class="container mx-auto px-4 py-6 flex-1">
+    <!-- Заголовок -->
+    <div class="flex flex-wrap justify-between items-center gap-4 mb-4">
+        <h1 class="text-2xl font-bold" data-i18n="nav_crm_task_templates">Шаблоны автозадач</h1>
+        <div class="flex gap-3 items-center flex-wrap">
+            <select id="filterRetreat" class="select select-bordered select-sm" onchange="onRetreatChange()">
+                <option value="" data-i18n="crm_task_templates_default">По умолчанию</option>
+            </select>
+            <button id="btnCopyDefaults" class="btn btn-sm btn-ghost hidden"
+                    onclick="copyDefaults()" data-permission="edit_crm_settings">
+                <span data-i18n="crm_task_templates_copy_defaults">Скопировать «По умолчанию»</span>
+            </button>
+            <button class="btn btn-sm btn-primary" onclick="openAddModal()" data-permission="edit_crm_settings">
+                + <span data-i18n="add">Добавить</span>
+            </button>
+        </div>
+    </div>
+
+    <!-- Подсказка -->
+    <div class="alert alert-info bg-info/10 text-base-content/80 text-sm mb-4">
+        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-5 h-5 shrink-0">
+            <path stroke-linecap="round" stroke-linejoin="round" d="m11.25 11.25.041-.02a.75.75 0 0 1 1.063.852l-.708 2.836a.75.75 0 0 0 1.063.853l.041-.021M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Zm-9-3.75h.008v.008H12V8.25Z" />
+        </svg>
+        <div>
+            <div data-i18n="crm_task_templates_hint">При входе сделки в стадию автоматически создаются задачи по активным шаблонам этой стадии. Используйте <code>{guest}</code> в названии для подстановки имени гостя.</div>
+            <div id="retreatOverrideNotice" class="hidden text-xs mt-1 text-warning" data-i18n="crm_task_templates_override_notice">
+                Если у ретрита есть свои шаблоны для стадии — они полностью заменяют дефолтные для этой стадии.
+            </div>
+        </div>
+    </div>
+
+    <!-- Список -->
+    <div id="templatesContainer" class="space-y-6">
+        <div class="text-center py-8">
+            <span class="loading loading-spinner loading-md"></span>
+        </div>
+    </div>
+</main>
+
+<div id="footer-placeholder"></div>
+
+<!-- Модалка -->
+<dialog id="templateModal" class="modal">
+    <div class="modal-box max-w-md">
+        <button type="button" class="btn btn-sm btn-circle btn-ghost absolute right-2 top-2" onclick="closeModal()">✕</button>
+        <h3 class="font-bold text-lg mb-4" id="modalTitle" data-i18n="crm_task_template">Шаблон задачи</h3>
+        <form id="templateForm" onsubmit="saveTemplate(event)">
+            <input type="hidden" id="tplId">
+
+            <div class="form-control mb-3">
+                <label class="label"><span class="label-text" data-i18n="crm_task_templates_stage">Стадия</span></label>
+                <select id="tplStatus" class="select select-bordered" required>
+                    <!-- опции добавляются динамически -->
+                </select>
+            </div>
+
+            <div class="form-control mb-3">
+                <label class="label">
+                    <span class="label-text" data-i18n="crm_task_templates_title">Название задачи</span>
+                    <span class="label-text-alt text-xs opacity-60"><code>{guest}</code> <span data-i18n="crm_task_templates_guest_hint">— имя гостя</span></span>
+                </label>
+                <input type="text" id="tplTitle" class="input input-bordered" required maxlength="200"
+                       placeholder="Связаться с {guest}">
+            </div>
+
+            <div class="grid grid-cols-2 gap-3 mb-3">
+                <div class="form-control">
+                    <label class="label"><span class="label-text" data-i18n="crm_task_templates_days_offset">Через (дней)</span></label>
+                    <input type="number" id="tplDaysOffset" class="input input-bordered" required
+                           min="0" max="365" value="1">
+                </div>
+
+                <div class="form-control">
+                    <label class="label"><span class="label-text" data-i18n="crm_priority">Приоритет</span></label>
+                    <select id="tplPriority" class="select select-bordered" required>
+                        <option value="low" data-i18n="crm_priority_low">Низкий</option>
+                        <option value="normal" selected data-i18n="crm_priority_normal">Обычный</option>
+                        <option value="high" data-i18n="crm_priority_high">Высокий</option>
+                        <option value="urgent" data-i18n="crm_priority_urgent">Срочный</option>
+                    </select>
+                </div>
+            </div>
+
+            <div class="form-control mb-4">
+                <label class="label cursor-pointer justify-start gap-3">
+                    <input type="checkbox" id="tplIsActive" class="toggle toggle-primary" checked>
+                    <span class="label-text" data-i18n="crm_task_templates_is_active">Активен</span>
+                </label>
+            </div>
+
+            <div class="modal-action">
+                <button type="button" class="btn" onclick="closeModal()" data-i18n="cancel">Отмена</button>
+                <button type="submit" class="btn btn-primary" data-i18n="save">Сохранить</button>
+            </div>
+        </form>
+    </div>
+    <form method="dialog" class="modal-backdrop"><button>close</button></form>
+</dialog>
+
+<script src="../js/config.js?v=4"></script>
+<script src="../js/auth-check.js?v=6"></script>
+<script src="../js/cache.js?v=1"></script>
+<script src="../js/utils.js?v=4"></script>
+<script src="../js/layout.js?v=10"></script>
+<script src="../js/date-utils.js?v=3"></script>
+<script src="../js/crm-utils.js?v=3"></script>
+
+<script>
+const t = key => Layout.t(key);
+const e = str => Layout.escapeHtml(str);
+
+// Порядок стадий — как на Kanban
+const STATUSES = ['lead','working','invoiced','booked','checklist','ready','completed','cancelled'];
+
+let templates = [];
+let retreats = [];
+let currentRetreatId = null; // null = "По умолчанию"
+
+// ==================== DATA ====================
+async function loadRetreats() {
+    const { data } = await Layout.db
+        .from('retreats')
+        .select('id, name_ru, name_en, color, start_date')
+        .order('start_date', { ascending: false });
+
+    retreats = data || [];
+    const sel = document.getElementById('filterRetreat');
+    retreats.forEach(r => {
+        sel.insertAdjacentHTML('beforeend',
+            `<option value="${r.id}">${e(Layout.getName(r))}</option>`
+        );
+    });
+}
+
+async function loadTemplates() {
+    let query = Layout.db
+        .from('crm_task_templates')
+        .select('*')
+        .order('trigger_status')
+        .order('sort_order');
+
+    if (currentRetreatId) {
+        query = query.eq('retreat_id', currentRetreatId);
+    } else {
+        query = query.is('retreat_id', null);
+    }
+
+    const { data, error } = await query;
+    if (error) { Layout.handleError(error, 'Загрузка шаблонов'); return; }
+
+    templates = data || [];
+    render();
+}
+
+// ==================== RENDER ====================
+function render() {
+    const container = document.getElementById('templatesContainer');
+    const notice = document.getElementById('retreatOverrideNotice');
+    const copyBtn = document.getElementById('btnCopyDefaults');
+
+    // Показываем предупреждение про переопределение только для ретрита
+    notice.classList.toggle('hidden', !currentRetreatId);
+
+    // Кнопка «Скопировать "По умолчанию"» — только для ретрита без шаблонов
+    copyBtn.classList.toggle('hidden', !currentRetreatId || templates.length > 0);
+
+    if (templates.length === 0) {
+        container.innerHTML = `<div class="text-center py-12 text-base-content/50">
+            ${e(t('crm_task_templates_empty'))}
+        </div>`;
+        return;
+    }
+
+    // Группируем по стадиям
+    const byStatus = {};
+    STATUSES.forEach(s => byStatus[s] = []);
+    templates.forEach(tpl => {
+        if (byStatus[tpl.trigger_status]) byStatus[tpl.trigger_status].push(tpl);
+    });
+
+    container.innerHTML = STATUSES
+        .filter(s => byStatus[s].length > 0)
+        .map(status => renderStatusGroup(status, byStatus[status]))
+        .join('');
+}
+
+function renderStatusGroup(status, tpls) {
+    const color = CrmUtils.STATUS_COLORS[status];
+    const label = CrmUtils.getStatusLabel(status);
+    const svgIcon = CrmUtils.STATUS_SVG_ICONS[status];
+
+    return `
+        <div class="card bg-base-100 shadow-sm">
+            <div class="card-body p-0">
+                <div class="px-4 py-3 border-b border-base-200 flex items-center gap-2"
+                     style="border-top: 3px solid ${color};">
+                    <span style="color: ${color}">${svgIcon}</span>
+                    <span class="font-bold">${e(label)}</span>
+                    <span class="badge badge-sm ml-auto">${tpls.length}</span>
+                </div>
+                <div class="overflow-x-auto">
+                    <table class="table table-sm">
+                        <thead>
+                            <tr class="text-xs">
+                                <th data-i18n="crm_task_templates_title">Название</th>
+                                <th class="text-center w-24" data-i18n="crm_task_templates_days_short">+дней</th>
+                                <th class="text-center w-28" data-i18n="crm_priority">Приоритет</th>
+                                <th class="text-center w-20" data-i18n="crm_task_templates_is_active">Активен</th>
+                                <th class="w-20"></th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            ${tpls.map(renderRow).join('')}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    `;
+}
+
+function renderRow(tpl) {
+    const priorityColor = CrmUtils.PRIORITY_COLORS[tpl.priority];
+    const priorityLabel = t('crm_priority_' + tpl.priority);
+    const inactiveClass = tpl.is_active ? '' : 'opacity-50';
+
+    return `
+        <tr class="${inactiveClass}">
+            <td class="font-medium">${e(tpl.title)}</td>
+            <td class="text-center font-mono text-sm">+${tpl.days_offset}</td>
+            <td class="text-center">
+                <span class="badge badge-sm" style="background:${priorityColor};color:white;">
+                    ${e(priorityLabel)}
+                </span>
+            </td>
+            <td class="text-center">
+                <input type="checkbox" class="toggle toggle-sm toggle-primary"
+                       ${tpl.is_active ? 'checked' : ''}
+                       onchange="toggleActive('${tpl.id}', this.checked)"
+                       data-permission="edit_crm_settings">
+            </td>
+            <td>
+                <div class="flex gap-1 justify-end">
+                    <button class="btn btn-ghost btn-xs" onclick="editTemplate('${tpl.id}')"
+                            data-permission="edit_crm_settings">${CrmUtils.UI_ICONS.edit}</button>
+                    <button class="btn btn-ghost btn-xs text-error" onclick="deleteTemplate('${tpl.id}')"
+                            data-permission="edit_crm_settings">${CrmUtils.UI_ICONS.trash}</button>
+                </div>
+            </td>
+        </tr>
+    `;
+}
+
+// ==================== FILTERS ====================
+function onRetreatChange() {
+    currentRetreatId = document.getElementById('filterRetreat').value || null;
+    loadTemplates();
+}
+
+// ==================== MODAL ====================
+function populateStatusSelect() {
+    const sel = document.getElementById('tplStatus');
+    sel.innerHTML = STATUSES.map(s =>
+        `<option value="${s}">${e(CrmUtils.getStatusLabel(s))}</option>`
+    ).join('');
+}
+
+function openAddModal() {
+    document.getElementById('modalTitle').textContent = t('crm_task_templates_new');
+    document.getElementById('templateForm').reset();
+    document.getElementById('tplId').value = '';
+    document.getElementById('tplIsActive').checked = true;
+    document.getElementById('tplDaysOffset').value = 1;
+    document.getElementById('tplPriority').value = 'normal';
+    document.getElementById('templateModal').showModal();
+}
+
+function editTemplate(id) {
+    const tpl = templates.find(x => x.id === id);
+    if (!tpl) return;
+
+    document.getElementById('modalTitle').textContent = t('crm_task_templates_edit');
+    document.getElementById('tplId').value = tpl.id;
+    document.getElementById('tplStatus').value = tpl.trigger_status;
+    document.getElementById('tplTitle').value = tpl.title;
+    document.getElementById('tplDaysOffset').value = tpl.days_offset;
+    document.getElementById('tplPriority').value = tpl.priority;
+    document.getElementById('tplIsActive').checked = tpl.is_active;
+    document.getElementById('templateModal').showModal();
+}
+
+function closeModal() {
+    document.getElementById('templateModal').close();
+}
+
+// ==================== SAVE ====================
+async function saveTemplate(event) {
+    event.preventDefault();
+    const id = document.getElementById('tplId').value;
+    const payload = {
+        trigger_status: document.getElementById('tplStatus').value,
+        title: document.getElementById('tplTitle').value.trim(),
+        days_offset: parseInt(document.getElementById('tplDaysOffset').value, 10),
+        priority: document.getElementById('tplPriority').value,
+        is_active: document.getElementById('tplIsActive').checked,
+        retreat_id: currentRetreatId,
+        updated_at: new Date().toISOString()
+    };
+
+    let error;
+    if (id) {
+        ({ error } = await Layout.db.from('crm_task_templates').update(payload).eq('id', id));
+    } else {
+        ({ error } = await Layout.db.from('crm_task_templates').insert(payload));
+    }
+
+    if (error) { Layout.handleError(error, 'Сохранение шаблона'); return; }
+    Layout.showNotification(t('saved'), 'success');
+    closeModal();
+    await loadTemplates();
+}
+
+async function toggleActive(id, isActive) {
+    const { error } = await Layout.db
+        .from('crm_task_templates')
+        .update({ is_active: isActive, updated_at: new Date().toISOString() })
+        .eq('id', id);
+    if (error) { Layout.handleError(error, 'Изменение статуса'); await loadTemplates(); return; }
+    const tpl = templates.find(x => x.id === id);
+    if (tpl) tpl.is_active = isActive;
+    render();
+}
+
+async function deleteTemplate(id) {
+    const tpl = templates.find(x => x.id === id);
+    if (!tpl) return;
+    if (!confirm(`${t('crm_task_templates_confirm_delete')}\n\n"${tpl.title}"`)) return;
+
+    const { error } = await Layout.db.from('crm_task_templates').delete().eq('id', id);
+    if (error) { Layout.handleError(error, 'Удаление шаблона'); return; }
+    Layout.showNotification(t('deleted'), 'success');
+    await loadTemplates();
+}
+
+async function copyDefaults() {
+    if (!currentRetreatId) return;
+    if (!confirm(t('crm_task_templates_confirm_copy'))) return;
+
+    const { data: defaults, error: loadErr } = await Layout.db
+        .from('crm_task_templates')
+        .select('trigger_status, title, days_offset, priority, is_active, sort_order')
+        .is('retreat_id', null);
+    if (loadErr) { Layout.handleError(loadErr, 'Копирование шаблонов'); return; }
+
+    if (!defaults || defaults.length === 0) {
+        Layout.showNotification(t('crm_task_templates_no_defaults'), 'warning');
+        return;
+    }
+
+    const rows = defaults.map(d => ({ ...d, retreat_id: currentRetreatId }));
+    const { error: insErr } = await Layout.db.from('crm_task_templates').insert(rows);
+    if (insErr) { Layout.handleError(insErr, 'Копирование шаблонов'); return; }
+
+    Layout.showNotification(t('saved'), 'success');
+    await loadTemplates();
+}
+
+// ==================== INIT ====================
+async function init() {
+    await Layout.init({
+        module: 'crm',
+        menuId: 'crm_settings',
+        itemId: 'crm_task_templates'
+    });
+
+    populateStatusSelect();
+    await loadRetreats();
+    await loadTemplates();
+}
+
+init();
+</script>
+
+</body>
+</html>
