@@ -71,6 +71,19 @@
             box-shadow: 0 8px 24px rgba(0,0,0,0.2);
         }
         .column-cancelled { opacity: 0.7; }
+        .task-badge {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            min-width: 18px;
+            height: 18px;
+            padding: 0 5px;
+            border-radius: 9px;
+            color: white;
+            font-size: 10px;
+            font-weight: 700;
+            line-height: 1;
+        }
     </style>
 </head>
 <body class="bg-base-200 min-h-screen flex flex-col">
@@ -149,6 +162,7 @@ let deals = [];
 let retreats = [];
 let filteredDeals = [];
 let sortableInstances = [];
+let dealTaskCounts = {}; // { dealId: { overdue, today, planned } }
 
 // Статусы для канбана
 const KANBAN_STATUSES = ['lead', 'working', 'invoiced', 'booked', 'checklist', 'ready', 'completed', 'cancelled'];
@@ -195,7 +209,38 @@ async function loadDeals() {
     }
 
     deals = data || [];
+    await loadDealTaskCounts();
     applyFilters();
+}
+
+async function loadDealTaskCounts() {
+    const dealIds = deals.map(d => d.id);
+    dealTaskCounts = {};
+    if (!dealIds.length) return;
+
+    const { data, error } = await Layout.db
+        .from('crm_tasks')
+        .select('deal_id, due_date')
+        .is('completed_at', null)
+        .in('deal_id', dealIds);
+
+    if (error || !data) return;
+
+    const now = new Date();
+    const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+
+    data.forEach(task => {
+        if (!task.deal_id) return;
+        if (!dealTaskCounts[task.deal_id]) {
+            dealTaskCounts[task.deal_id] = { overdue: 0, today: 0, planned: 0 };
+        }
+        const c = dealTaskCounts[task.deal_id];
+        if (!task.due_date) { c.planned++; return; }
+        const due = DateUtils.parseDate(task.due_date);
+        if (due < today) c.overdue++;
+        else if (due.getTime() === today.getTime()) c.today++;
+        else c.planned++;
+    });
 }
 
 // ==================== FILTERS ====================
@@ -307,6 +352,19 @@ function renderCard(deal) {
         return `<span style="display:inline-block;width:6px;height:6px;border-radius:50%;background:${color}"></span>`;
     }).join('');
 
+    // Бейдж задач (overdue → сегодня → запланированные)
+    const tc = dealTaskCounts[deal.id];
+    let taskBadge = '';
+    if (tc) {
+        if (tc.overdue > 0) {
+            taskBadge = `<span class="task-badge" style="background:#ef4444" title="${t('crm_section_overdue')}: ${tc.overdue}">${tc.overdue}</span>`;
+        } else if (tc.today > 0) {
+            taskBadge = `<span class="task-badge" style="background:#f59e0b" title="${t('crm_section_today')}: ${tc.today}">${tc.today}</span>`;
+        } else if (tc.planned > 0) {
+            taskBadge = `<span class="task-badge" style="background:#10b981" title="${t('crm_stat_total')}: ${tc.planned}">${tc.planned}</span>`;
+        }
+    }
+
     // Время последнего контакта
     let lastContactText = '';
     if (deal.last_contacted_at) {
@@ -327,6 +385,7 @@ function renderCard(deal) {
                 <div class="flex items-center gap-1 shrink-0">
                     ${tempBadge}
                     ${isOverdue ? `<span title="${t('crm_no_contact_24h')}" class="text-error text-xs">⚠</span>` : ''}
+                    ${taskBadge}
                 </div>
             </div>
             <div class="text-xs text-base-content/50 mb-1">${e(guest?.phone || '')}</div>
@@ -419,14 +478,14 @@ async function quickAdvance(dealId, currentStatus) {
 
 // ==================== REALTIME ====================
 function subscribeToChanges() {
-    const channel = Layout.db.channel('crm-deals-changes')
-        .on('postgres_changes', {
-            event: '*',
-            schema: 'public',
-            table: 'crm_deals'
-        }, payload => {
-            // Перезагружаем данные при изменениях
-            loadDeals();
+    Layout.db.channel('crm-deals-changes')
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'crm_deals' }, () => loadDeals())
+        .subscribe();
+
+    Layout.db.channel('crm-tasks-kanban')
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'crm_tasks' }, async () => {
+            await loadDealTaskCounts();
+            renderKanban();
         })
         .subscribe();
 }
