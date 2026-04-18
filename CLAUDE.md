@@ -116,6 +116,12 @@ npx playwright test tests/kitchen.spec.js --grep "название теста"
 | `window.currentUser` | auth-check.js | Профиль, права текущего пользователя |
 | `window.hasPermission(code)` | auth-check.js | Проверка права по коду |
 
+На каждой странице в `<script>` блоке принято определять короткие алиасы:
+```javascript
+const t = key => Layout.t(key);       // перевод
+const e = str => Layout.escapeHtml(str); // XSS-безопасный текст в шаблонах
+```
+
 ### Page-specific JS (`js/pages/`)
 
 Тяжёлая логика страниц вынесена в отдельные файлы:
@@ -304,7 +310,7 @@ const buildings = await Cache.getOrLoad('buildings', () => loadBuildings(), 6000
 Cache.invalidate('buildings');
 ```
 
-Ключи кэша: `buildings`, `buildings_with_rooms`, `buildings_names`, `rooms`, `retreats`, `all_retreats`, `translations`.
+Ключи кэша: `buildings`, `buildings_with_rooms`, `buildings_names`, `rooms`, `retreats`, `all_retreats`, `translations_v5`.
 
 ---
 
@@ -327,14 +333,27 @@ vaishnavas (spiritual_name, first_name, last_name, gender, phone, email, ...)
 
 ### CRM воронка
 ```
-crm_deals: lead → contacted → paid → ready → completed (+ cancelled)
+crm_deals: lead → working → invoiced → booked → checklist → ready → completed (+ cancelled)
 ```
+
+### CRM: автозадачи и шаблоны
+
+`crm_task_templates (retreat_id, trigger_status, title, days_offset, priority, is_active)` —
+шаблоны задач. Триггер `crm_auto_tasks()` на `crm_deals` создаёт задачи в `crm_tasks`
+при **входе сделки в стадию** (INSERT или UPDATE со сменой статуса).
+
+**Переопределение**: если у ретрита есть активные шаблоны для стадии — они **полностью
+перекрывают** дефолтные (`retreat_id IS NULL`) для этой стадии. Плейсхолдер `{guest}`
+в `title` подставляется именем гостя.
+
+**Менеджеры**: `crm_manager_queue` — источник списка активных менеджеров для
+выпадашек и round-robin (`CrmUtils.getNextManager(retreatId)`).
 
 ---
 
 ## Миграции
 
-SQL-миграции в `supabase/` нумеруются `001_` — `139_`. Новые миграции через MCP:
+SQL-миграции в `supabase/` нумеруются `001_` — `161_`. Новые миграции через MCP:
 
 ```javascript
 mcp__supabase__apply_migration({ project_id: 'mymrijdfqeevoaocbzfy', name: '140_description', query: 'SQL...' })
@@ -355,11 +374,12 @@ mcp__supabase__get_advisors({ project_id, type: 'security' })
 | Проблема | Решение |
 |----------|---------|
 | Лимит 1000 записей | Пагинация через `.range()` |
-| Кэш переводов устарел | `Cache.invalidate('translations')` |
+| Кэш переводов устарел | `Cache.invalidate('translations_v5')` |
 | RLS ошибка | Использовать `.select()` вместо `.single()` |
 | N+1 запросы | Загрузить всё через `.in()`, группировать на клиенте |
 | Tailwind desktop | `tailwind.config = { theme: { extend: { screens: { 'desktop': '1200px' } } } }` |
 | Кэш JS после деплоя | Обновить `?v=N` в `<script src="...js?v=N">` |
+| Меню/навигация не обновляется | Бампать `layout.js?v=N` во ВСЕХ HTML (`sed -i '' 's\|v=N\|v=N+1\|g'`), иначе браузеры держат старое меню |
 | `departures.js` formatDateTime | Своя реализация (DD.MM HH:MM), не заменять на DateUtils |
 | `crm-utils.js` formatDateTime | Принимает полные timestamps, не менять на parseDate |
 
