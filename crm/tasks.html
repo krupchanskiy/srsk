@@ -27,7 +27,13 @@
     <div class="flex flex-wrap justify-between items-center gap-4 mb-6">
         <h1 class="text-2xl font-bold" data-i18n="nav_crm_tasks">Мои задачи</h1>
 
-        <div class="flex gap-3">
+        <div class="flex gap-3 flex-wrap">
+            <select id="filterAssignee" class="select select-bordered select-sm" onchange="loadTasks()">
+                <option value="my" data-i18n="crm_my">Мои</option>
+                <option value="all" data-i18n="crm_all_tasks">Все задачи</option>
+                <!-- Менеджеры подгружаются динамически -->
+            </select>
+
             <select id="filterStatus" class="select select-bordered select-sm" onchange="applyFilters()">
                 <option value="active" data-i18n="crm_filter_active">Активные</option>
                 <option value="all" data-i18n="all">Все</option>
@@ -159,7 +165,35 @@ let tasks = [];
 let filteredTasks = [];
 
 // ==================== DATA ====================
+async function loadManagers() {
+    const { data, error } = await Layout.db
+        .from('crm_manager_queue')
+        .select('manager_id, is_active, vaishnavas:manager_id(id, spiritual_name, first_name, last_name)')
+        .eq('is_active', true);
+
+    if (error || !data) return;
+
+    const select = document.getElementById('filterAssignee');
+    const currentUserId = window.currentUser?.vaishnava_id;
+
+    // Собираем менеджеров, исключая текущего (он уже есть как "Мои")
+    const others = data
+        .filter(m => m.vaishnavas && m.manager_id !== currentUserId)
+        .map(m => ({
+            id: m.manager_id,
+            name: CrmUtils.getGuestName(m.vaishnavas)
+        }))
+        .sort((a, b) => a.name.localeCompare(b.name, 'ru'));
+
+    others.forEach(m => {
+        select.insertAdjacentHTML('beforeend',
+            `<option value="${m.id}">${e(m.name)}</option>`
+        );
+    });
+}
+
 async function loadTasks() {
+    const assignee = document.getElementById('filterAssignee')?.value || 'my';
     const currentUserId = window.currentUser?.vaishnava_id;
 
     let query = Layout.db
@@ -176,10 +210,14 @@ async function loadTasks() {
         `)
         .order('due_date', { nullsFirst: false });
 
-    // Фильтр по пользователю только если авторизован
-    if (currentUserId) {
+    if (assignee === 'my' && currentUserId) {
+        // Мои: задачи, где я исполнитель ИЛИ создатель
         query = query.or(`assignee_id.eq.${currentUserId},created_by.eq.${currentUserId}`);
+    } else if (assignee !== 'my' && assignee !== 'all') {
+        // Конкретный менеджер — его задачи
+        query = query.eq('assignee_id', assignee);
     }
+    // 'all' — без фильтра
 
     const { data, error } = await query;
 
@@ -527,6 +565,7 @@ async function init() {
 
     await waitForAuth();
     initIcons();
+    await loadManagers();
     await loadTasks();
     subscribeToChanges();
 }
