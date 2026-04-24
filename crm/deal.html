@@ -383,8 +383,26 @@
             <form method="dialog"><button class="btn btn-sm btn-circle btn-ghost">✕</button></form>
         </div>
         <div id="paymentDetailsContent" class="space-y-3"></div>
-        <div class="modal-action mt-4">
+        <div class="modal-action mt-4 flex-wrap">
+            <button class="btn btn-sm btn-ghost" id="paymentDetailsHistoryBtn" data-i18n="crm_payment_history">История изменений</button>
             <button class="btn btn-sm btn-error btn-outline" id="paymentDetailsDeleteBtn" data-i18n="crm_delete_payment">Удалить платёж</button>
+            <form method="dialog"><button class="btn btn-sm" data-i18n="close">Закрыть</button></form>
+        </div>
+    </div>
+    <form method="dialog" class="modal-backdrop"><button>close</button></form>
+</dialog>
+
+<!-- Модалка истории изменений платежа -->
+<dialog id="paymentHistoryModal" class="modal">
+    <div class="modal-box max-w-md">
+        <div class="flex justify-between items-start mb-4">
+            <h3 class="font-bold text-lg" data-i18n="crm_payment_history">История изменений</h3>
+            <form method="dialog"><button class="btn btn-sm btn-circle btn-ghost">✕</button></form>
+        </div>
+        <div id="paymentHistoryContent" class="space-y-2 max-h-96 overflow-y-auto">
+            <div class="text-center py-4"><span class="loading loading-spinner loading-sm"></span></div>
+        </div>
+        <div class="modal-action mt-4">
             <form method="dialog"><button class="btn btn-sm" data-i18n="close">Закрыть</button></form>
         </div>
     </div>
@@ -513,7 +531,7 @@
 <script src="../js/auth-check.js?v=6"></script>
 <script src="../js/cache.js?v=1"></script>
 <script src="../js/utils.js?v=4"></script>
-<script src="../js/layout.js?v=11"></script>
+<script src="../js/layout.js?v=12"></script>
 <script src="../js/date-utils.js?v=3"></script>
 <script src="../js/crm-utils.js?v=3"></script>
 
@@ -1683,7 +1701,76 @@ function showPaymentDetails(id) {
         deletePayment(id);
     };
 
+    const historyBtn = document.getElementById('paymentDetailsHistoryBtn');
+    historyBtn.onclick = () => {
+        document.getElementById('paymentDetailsModal').close();
+        openPaymentHistoryModal(id);
+    };
+
     document.getElementById('paymentDetailsModal').showModal();
+}
+
+async function openPaymentHistoryModal(paymentId) {
+    const modal = document.getElementById('paymentHistoryModal');
+    const content = document.getElementById('paymentHistoryContent');
+    content.innerHTML = '<div class="text-center py-4"><span class="loading loading-spinner loading-sm"></span></div>';
+    modal.showModal();
+
+    const { data, error } = await Layout.db
+        .from('crm_payment_history')
+        .select('*, changed_by:changed_by(spiritual_name, first_name, last_name)')
+        .eq('payment_id', paymentId)
+        .order('changed_at', { ascending: false });
+
+    if (error) { Layout.handleError(error, t('crm_payment_history')); return; }
+
+    const events = data || [];
+    if (events.length === 0) {
+        content.innerHTML = '<p class="text-base-content/50 text-center py-4">Нет записей</p>';
+        return;
+    }
+
+    const systemById = {};
+    payments.forEach(p => { if (p.payment_system) systemById[p.payment_system.id] = p.payment_system; });
+
+    content.innerHTML = events.map(ev => {
+        const when = new Date(ev.changed_at).toLocaleString('ru-RU', {
+            day: '2-digit', month: '2-digit', year: 'numeric',
+            hour: '2-digit', minute: '2-digit'
+        });
+        const who = ev.changed_by ? e(CrmUtils.getGuestShortName(ev.changed_by)) : '<span class="text-base-content/40">система</span>';
+        const action = formatHistoryAction(ev, systemById);
+        return `
+            <div class="border-l-2 border-base-300 pl-3 py-1">
+                <div class="text-xs text-base-content/50">${e(when)} — ${who}</div>
+                <div class="text-sm">${action}</div>
+            </div>
+        `;
+    }).join('');
+}
+
+function formatHistoryAction(ev, systemById) {
+    if (ev.action === 'created') {
+        return `Создан платёж <span class="font-mono">${e(ev.new_value || '')}</span>`;
+    }
+    if (ev.action === 'confirmed') return '<span class="text-emerald-600 font-medium">✓ Платёж подтверждён</span>';
+    if (ev.action === 'unconfirmed') return '<span class="text-amber-600 font-medium">○ Подтверждение отменено</span>';
+    if (ev.action === 'updated') {
+        if (ev.field === 'payment_system_id') {
+            const oldName = ev.old_value && systemById[ev.old_value] ? Layout.getName(systemById[ev.old_value]) : (ev.old_value || '—');
+            const newName = ev.new_value && systemById[ev.new_value] ? Layout.getName(systemById[ev.new_value]) : (ev.new_value || '—');
+            return `Платёжная система: <span class="line-through text-base-content/40">${e(oldName)}</span> → <span class="font-medium">${e(newName)}</span>`;
+        }
+        if (ev.field === 'amount') {
+            return `Сумма: <span class="line-through text-base-content/40">${e(ev.old_value || '')}</span> → <span class="font-mono font-medium">${e(ev.new_value || '')}</span>`;
+        }
+        if (ev.field === 'received_at') {
+            const fmt = v => v ? new Date(v).toLocaleDateString('ru-RU') : '—';
+            return `Дата платежа: <span class="line-through text-base-content/40">${e(fmt(ev.old_value))}</span> → <span class="font-medium">${e(fmt(ev.new_value))}</span>`;
+        }
+        return `${e(ev.field || 'поле')}: ${e(ev.old_value || '—')} → ${e(ev.new_value || '—')}`;
+    }
+    return e(ev.action);
 }
 
 function updatePaymentRate() {

@@ -1,0 +1,609 @@
+<!DOCTYPE html>
+<html lang="ru" data-theme="light">
+<head>
+    <script src="../js/color-init.js?v=1"></script>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title data-i18n-title="crm_prepayments_page_title">Предоплата — CRM — ШРСК</title>
+    <link href="https://cdn.jsdelivr.net/npm/daisyui@4.12.14/dist/full.min.css" rel="stylesheet" />
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script>tailwind.config = { theme: { extend: { screens: { 'desktop': '1200px' } } } }</script>
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="../css/common.css">
+    <style>
+        .prepayment-row td { vertical-align: middle; }
+        .status-chip {
+            display: inline-flex; align-items: center; gap: 6px;
+            padding: 2px 10px; border-radius: 999px;
+            font-size: 12px; font-weight: 600; white-space: nowrap;
+            cursor: default;
+        }
+        .status-chip.clickable { cursor: pointer; }
+        .status-chip.clickable:hover { filter: brightness(1.05); }
+        .status-chip.confirmed { background: #dcfce7; color: #166534; }
+        .status-chip.not-confirmed { background: #fef3c7; color: #92400e; }
+        .status-dot { width: 8px; height: 8px; border-radius: 50%; }
+        .status-dot.confirmed { background: #22c55e; }
+        .status-dot.not-confirmed { background: #f59e0b; }
+        .inline-edit-cell { cursor: pointer; border-radius: 6px; padding: 4px 6px; }
+        .inline-edit-cell:hover { background: oklch(var(--b2)); }
+        .inline-edit-cell.readonly { cursor: default; }
+        .inline-edit-cell.readonly:hover { background: transparent; }
+        .flash-saved { animation: flash-saved 0.8s ease; }
+        @keyframes flash-saved {
+            0% { background: transparent; }
+            30% { background: #dcfce7; }
+            100% { background: transparent; }
+        }
+    </style>
+</head>
+<body class="bg-base-200 min-h-screen flex flex-col">
+
+<div id="header-placeholder"></div>
+
+<main class="container mx-auto px-4 py-6 flex-1">
+    <div class="flex flex-wrap justify-between items-center gap-4 mb-6">
+        <h1 class="text-2xl font-bold" data-i18n="nav_crm_prepayments">Предоплата</h1>
+    </div>
+
+    <!-- Фильтры -->
+    <div class="card bg-base-100 shadow-sm mb-4">
+        <div class="card-body p-4">
+            <div class="flex flex-wrap gap-3 items-end">
+                <div class="form-control">
+                    <label class="label py-1"><span class="label-text text-xs" data-i18n="crm_retreat">Ретрит</span></label>
+                    <select id="filterRetreat" class="select select-bordered select-sm" onchange="applyFilters()">
+                        <option value="" data-i18n="all">Все</option>
+                    </select>
+                </div>
+
+                <div class="form-control">
+                    <label class="label py-1"><span class="label-text text-xs" data-i18n="crm_prepayment_confirmation_status">Статус подтверждения</span></label>
+                    <select id="filterStatus" class="select select-bordered select-sm" onchange="applyFilters()">
+                        <option value="" data-i18n="crm_all_statuses">Все статусы</option>
+                        <option value="confirmed" data-i18n="crm_prepayment_confirmed">Подтверждена</option>
+                        <option value="not_confirmed" data-i18n="crm_prepayment_not_confirmed">Не подтверждена</option>
+                    </select>
+                </div>
+
+                <div class="form-control">
+                    <label class="label py-1"><span class="label-text text-xs" data-i18n="crm_payment_system">Платёжная система</span></label>
+                    <select id="filterSystem" class="select select-bordered select-sm" onchange="applyFilters()">
+                        <option value="" data-i18n="crm_all_systems">Все системы</option>
+                    </select>
+                </div>
+
+                <div class="form-control flex-1 min-w-[200px]">
+                    <label class="label py-1"><span class="label-text text-xs" data-i18n="search">Поиск</span></label>
+                    <input type="text" id="filterSearch" class="input input-bordered input-sm"
+                           placeholder="Имя, телефон..." oninput="applyFiltersDebounced()">
+                </div>
+
+                <button class="btn btn-ghost btn-sm" onclick="resetFilters()" data-i18n="reset">Сбросить</button>
+            </div>
+        </div>
+    </div>
+
+    <div class="flex items-center justify-between mb-4">
+        <div class="text-sm text-base-content/70">
+            <span id="statsTotal">—</span>
+            <span id="statsUnconfirmed" class="ml-4 text-amber-600 hidden"></span>
+        </div>
+        <button class="btn btn-sm btn-outline gap-1" onclick="exportXlsx()">
+            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-4 h-4"><path stroke-linecap="round" stroke-linejoin="round" d="M3 16.5v2.25A2.25 2.25 0 0 0 5.25 21h13.5A2.25 2.25 0 0 0 21 18.75V16.5M16.5 12 12 16.5m0 0L7.5 12m4.5 4.5V3" /></svg>
+            <span data-i18n="crm_download_xlsx">Скачать .xlsx</span>
+        </button>
+    </div>
+
+    <!-- Таблица -->
+    <div class="card bg-base-100 shadow-sm">
+        <div class="card-body p-0">
+            <div class="overflow-x-auto">
+                <table class="table">
+                    <thead>
+                        <tr>
+                            <th class="cursor-pointer hover:bg-base-200" onclick="setSort('guest')">
+                                <span class="inline-flex items-center gap-1" data-i18n="crm_guest">Гость <span id="sort-guest" class="text-xs opacity-50"></span></span>
+                            </th>
+                            <th class="cursor-pointer hover:bg-base-200" onclick="setSort('retreat')">
+                                <span class="inline-flex items-center gap-1" data-i18n="crm_retreat">Ретрит <span id="sort-retreat" class="text-xs opacity-50"></span></span>
+                            </th>
+                            <th class="cursor-pointer hover:bg-base-200" onclick="setSort('status')">
+                                <span class="inline-flex items-center gap-1" data-i18n="crm_prepayment_confirmation_status">Статус оплаты <span id="sort-status" class="text-xs opacity-50"></span></span>
+                            </th>
+                            <th class="cursor-pointer hover:bg-base-200" onclick="setSort('system')">
+                                <span class="inline-flex items-center gap-1" data-i18n="crm_payment_system">Платёжная система <span id="sort-system" class="text-xs opacity-50"></span></span>
+                            </th>
+                            <th class="cursor-pointer hover:bg-base-200 text-right" onclick="setSort('amount')">
+                                <span class="inline-flex items-center gap-1 justify-end" data-i18n="crm_amount">Сумма <span id="sort-amount" class="text-xs opacity-50"></span></span>
+                            </th>
+                            <th class="cursor-pointer hover:bg-base-200" onclick="setSort('received_at')">
+                                <span class="inline-flex items-center gap-1" data-i18n="crm_payment_date">Дата платежа <span id="sort-received_at" class="text-xs opacity-50"></span></span>
+                            </th>
+                            <th data-i18n="crm_manager">Менеджер</th>
+                            <th class="cursor-pointer hover:bg-base-200" onclick="setSort('created')">
+                                <span class="inline-flex items-center gap-1" data-i18n="crm_created">Создано <span id="sort-created" class="text-xs opacity-50"></span></span>
+                            </th>
+                        </tr>
+                    </thead>
+                    <tbody id="prepaymentsTable">
+                        <tr><td colspan="8" class="text-center py-8">
+                            <span class="loading loading-spinner loading-md"></span>
+                        </td></tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</main>
+
+<div id="footer-placeholder"></div>
+
+<script src="../js/config.js?v=4"></script>
+<script src="../js/auth-check.js?v=6"></script>
+<script src="../js/cache.js?v=1"></script>
+<script src="../js/utils.js?v=4"></script>
+<script src="../js/layout.js?v=12"></script>
+<script src="../js/date-utils.js?v=3"></script>
+<script src="../js/crm-utils.js?v=3"></script>
+
+<script>
+const t = key => Layout.t(key);
+const e = str => Layout.escapeHtml(str);
+
+// ==================== STATE ====================
+const DEAL_STATUSES_ALLOWED = ['invoiced', 'booked', 'checklist', 'ready', 'completed'];
+let prepayments = [];
+let filtered = [];
+let retreats = [];
+let paymentSystems = [];
+let currencies = [];
+let sortField = 'created';
+let sortDir = 'desc';
+let debounceTimer = null;
+
+const canConfirm = () => !!window.hasPermission?.('confirm_prepayment');
+
+// ==================== DATA ====================
+async function loadAll() {
+    const [retreatsRes, systemsRes, currenciesRes, paymentsRes] = await Promise.all([
+        Layout.db.from('retreats').select('id, name_ru, name_en, color, start_date').order('start_date', { ascending: false }),
+        Layout.db.from('crm_payment_systems').select('*').eq('is_archived', false).order('sort_order'),
+        Layout.db.from('crm_currencies').select('*').order('sort_order'),
+        Layout.db.from('crm_payments')
+            .select(`
+                *,
+                payment_system:payment_system_id(id, code, name_ru, name_en),
+                deal:deal_id(
+                    id, status, retreat_id,
+                    retreats:retreat_id(id, name_ru, name_en, color),
+                    vaishnavas:vaishnava_id(id, spiritual_name, first_name, last_name, phone, email),
+                    manager:manager_id(id, spiritual_name, first_name, last_name)
+                )
+            `)
+            .eq('payment_type', 'org_fee')
+            .order('created_at', { ascending: false })
+    ]);
+
+    retreats = retreatsRes.data || [];
+    paymentSystems = systemsRes.data || [];
+    currencies = currenciesRes.data || [];
+
+    // Клиентский фильтр по статусу сделки — embed-уровень фильтрации в Supabase слишком громоздкий
+    prepayments = (paymentsRes.data || []).filter(p => p.deal && DEAL_STATUSES_ALLOWED.includes(p.deal.status));
+
+    populateFilters();
+    applyFilters();
+}
+
+function populateFilters() {
+    const retreatSelect = document.getElementById('filterRetreat');
+    retreats.forEach(r => {
+        retreatSelect.insertAdjacentHTML('beforeend', `<option value="${r.id}">${e(Layout.getName(r))}</option>`);
+    });
+
+    const systemSelect = document.getElementById('filterSystem');
+    paymentSystems.forEach(s => {
+        systemSelect.insertAdjacentHTML('beforeend', `<option value="${s.id}">${e(Layout.getName(s))}</option>`);
+    });
+}
+
+// ==================== FILTERS ====================
+function applyFilters() {
+    const retreatId = document.getElementById('filterRetreat').value;
+    const status = document.getElementById('filterStatus').value;
+    const systemId = document.getElementById('filterSystem').value;
+    const search = document.getElementById('filterSearch').value.toLowerCase().trim();
+
+    filtered = prepayments.filter(p => {
+        if (retreatId && p.deal?.retreat_id !== retreatId) return false;
+        if (status === 'confirmed' && !p.is_confirmed) return false;
+        if (status === 'not_confirmed' && p.is_confirmed) return false;
+        if (systemId && p.payment_system_id !== systemId) return false;
+
+        if (search) {
+            const g = p.deal?.vaishnavas;
+            const str = [g?.spiritual_name, g?.first_name, g?.last_name, g?.phone, g?.email]
+                .filter(Boolean).join(' ').toLowerCase();
+            if (!str.includes(search)) return false;
+        }
+        return true;
+    });
+
+    sortData();
+    renderTable();
+    renderStats();
+}
+
+function applyFiltersDebounced() {
+    clearTimeout(debounceTimer);
+    debounceTimer = setTimeout(applyFilters, 300);
+}
+
+function resetFilters() {
+    document.getElementById('filterRetreat').value = '';
+    document.getElementById('filterStatus').value = '';
+    document.getElementById('filterSystem').value = '';
+    document.getElementById('filterSearch').value = '';
+    applyFilters();
+}
+
+// ==================== SORTING ====================
+function setSort(field) {
+    if (sortField === field) sortDir = sortDir === 'asc' ? 'desc' : 'asc';
+    else { sortField = field; sortDir = 'asc'; }
+    updateSortIndicators();
+    sortData();
+    renderTable();
+}
+
+function updateSortIndicators() {
+    ['guest', 'retreat', 'status', 'system', 'amount', 'received_at', 'created'].forEach(f => {
+        const el = document.getElementById(`sort-${f}`);
+        if (el) el.textContent = sortField === f ? (sortDir === 'asc' ? '↑' : '↓') : '';
+    });
+}
+
+function sortData() {
+    filtered.sort((a, b) => {
+        let av, bv;
+        switch (sortField) {
+            case 'guest':
+                av = CrmUtils.getGuestName(a.deal?.vaishnavas).toLowerCase();
+                bv = CrmUtils.getGuestName(b.deal?.vaishnavas).toLowerCase();
+                break;
+            case 'retreat':
+                av = (Layout.getName(a.deal?.retreats) || '').toLowerCase();
+                bv = (Layout.getName(b.deal?.retreats) || '').toLowerCase();
+                break;
+            case 'status':
+                av = a.is_confirmed ? 1 : 0;
+                bv = b.is_confirmed ? 1 : 0;
+                break;
+            case 'system':
+                av = (Layout.getName(a.payment_system) || '').toLowerCase();
+                bv = (Layout.getName(b.payment_system) || '').toLowerCase();
+                break;
+            case 'amount':
+                av = Number(a.amount_inr || 0);
+                bv = Number(b.amount_inr || 0);
+                break;
+            case 'received_at':
+                av = a.received_at || '';
+                bv = b.received_at || '';
+                break;
+            case 'created':
+            default:
+                av = a.created_at || '';
+                bv = b.created_at || '';
+                break;
+        }
+        if (av < bv) return sortDir === 'asc' ? -1 : 1;
+        if (av > bv) return sortDir === 'asc' ? 1 : -1;
+        return 0;
+    });
+}
+
+// ==================== RENDER ====================
+function renderTable() {
+    const tbody = document.getElementById('prepaymentsTable');
+    if (filtered.length === 0) {
+        tbody.innerHTML = `<tr><td colspan="8" class="text-center py-8 text-base-content/50">${t('crm_no_prepayments')}</td></tr>`;
+        return;
+    }
+
+    tbody.innerHTML = filtered.map(p => {
+        const guest = p.deal?.vaishnavas;
+        const retreat = p.deal?.retreats;
+        const manager = p.deal?.manager;
+        return `
+            <tr class="prepayment-row" data-id="${p.id}">
+                <td>
+                    <a href="deal.html?id=${p.deal?.id}" class="hover:underline">
+                        <div class="font-medium">${e(CrmUtils.getGuestName(guest))}</div>
+                        <div class="text-xs text-base-content/50">${e(guest?.phone || guest?.email || '')}</div>
+                    </a>
+                </td>
+                <td>
+                    <span class="badge badge-sm whitespace-nowrap" style="background-color: ${retreat?.color || '#6b7280'}; color: white;">
+                        ${e(Layout.getName(retreat) || '—')}
+                    </span>
+                </td>
+                <td data-field="status">${renderStatusCell(p)}</td>
+                <td data-field="system">${renderSystemCell(p)}</td>
+                <td data-field="amount" class="text-right">${renderAmountCell(p)}</td>
+                <td data-field="received_at">${renderDateCell(p)}</td>
+                <td class="text-sm">${manager ? e(CrmUtils.getGuestShortName(manager)) : '<span class="text-base-content/30">—</span>'}</td>
+                <td class="text-sm text-base-content/50">${CrmUtils.formatDate(p.created_at)}</td>
+            </tr>
+        `;
+    }).join('');
+}
+
+function renderStatusCell(p) {
+    const confirmed = p.is_confirmed;
+    const clickable = canConfirm();
+    const cls = `status-chip ${confirmed ? 'confirmed' : 'not-confirmed'} ${clickable ? 'clickable' : ''}`;
+    const label = confirmed ? t('crm_prepayment_confirmed') : t('crm_prepayment_not_confirmed');
+    const onclick = clickable ? `onclick="toggleStatus('${p.id}')"` : '';
+    return `<span class="${cls}" ${onclick}>
+        <span class="status-dot ${confirmed ? 'confirmed' : 'not-confirmed'}"></span>
+        ${e(label)}
+    </span>`;
+}
+
+function renderSystemCell(p) {
+    const name = p.payment_system ? Layout.getName(p.payment_system) : '—';
+    return `<div class="inline-edit-cell" onclick="editSystem('${p.id}', this)">${e(name)}</div>`;
+}
+
+function renderAmountCell(p) {
+    const amount = CrmUtils.formatMoney(p.amount, p.currency);
+    const inr = p.currency !== 'INR'
+        ? `<div class="text-xs text-base-content/50">≈ ${CrmUtils.formatMoney(p.amount_inr)} (курс ${p.rate_to_inr})</div>`
+        : '';
+    return `<div class="inline-edit-cell text-right" onclick="editAmount('${p.id}', this)">
+        <div class="font-mono font-bold">${amount}</div>
+        ${inr}
+    </div>`;
+}
+
+function renderDateCell(p) {
+    const d = p.received_at ? DateUtils.parseDate(p.received_at.slice(0, 10)).toLocaleDateString('ru-RU') : '—';
+    return `<div class="inline-edit-cell" onclick="editDate('${p.id}', this)">${e(d)}</div>`;
+}
+
+function renderStats() {
+    const total = filtered.length;
+    document.getElementById('statsTotal').textContent = `${t('crm_found')}: ${total}`;
+
+    const unconfirmed = filtered.filter(p => !p.is_confirmed).length;
+    const unconfirmedEl = document.getElementById('statsUnconfirmed');
+    if (unconfirmed > 0) {
+        unconfirmedEl.textContent = `Не подтверждено: ${unconfirmed}`;
+        unconfirmedEl.classList.remove('hidden');
+    } else {
+        unconfirmedEl.classList.add('hidden');
+    }
+}
+
+// ==================== INLINE EDITORS ====================
+function findPayment(id) { return prepayments.find(x => x.id === id); }
+
+function flashRow(id) {
+    const row = document.querySelector(`tr[data-id="${id}"]`);
+    if (!row) return;
+    row.classList.add('flash-saved');
+    setTimeout(() => row.classList.remove('flash-saved'), 900);
+}
+
+async function savePatch(id, patch) {
+    const { data, error } = await Layout.db
+        .from('crm_payments')
+        .update(patch)
+        .eq('id', id)
+        .select(`
+            *,
+            payment_system:payment_system_id(id, code, name_ru, name_en)
+        `)
+        .single();
+    if (error) { Layout.handleError(error, 'Сохранение'); return null; }
+    // Обновляем локальный кэш (deal/retreat/vaishnavas в data отсутствуют — их не трогаем)
+    const p = findPayment(id);
+    if (p && data) {
+        Object.assign(p, data);
+    }
+    Layout.showNotification(t('crm_saved'), 'success');
+    flashRow(id);
+    return p;
+}
+
+async function toggleStatus(id) {
+    if (!canConfirm()) return;
+    const p = findPayment(id);
+    if (!p) return;
+    const patch = {
+        is_confirmed: !p.is_confirmed,
+        confirmed_at: !p.is_confirmed ? new Date().toISOString() : null,
+        confirmed_by: !p.is_confirmed ? (window.currentUser?.vaishnava_id || null) : null
+    };
+    await savePatch(id, patch);
+    applyFilters();
+    Layout.refreshPrepaymentsBadge?.();
+}
+
+function editSystem(id, cellEl) {
+    if (cellEl.querySelector('select')) return;
+    const p = findPayment(id);
+    const current = p?.payment_system_id || '';
+    const select = document.createElement('select');
+    select.className = 'select select-bordered select-sm w-full';
+    select.innerHTML = paymentSystems.map(s =>
+        `<option value="${s.id}" ${s.id === current ? 'selected' : ''}>${e(Layout.getName(s))}</option>`
+    ).join('');
+    cellEl.innerHTML = '';
+    cellEl.appendChild(select);
+    select.focus();
+
+    const commit = async () => {
+        const newId = select.value;
+        if (newId && newId !== current) {
+            await savePatch(id, { payment_system_id: newId });
+        }
+        applyFilters();
+    };
+    select.addEventListener('change', commit);
+    select.addEventListener('blur', commit);
+}
+
+function editAmount(id, cellEl) {
+    if (cellEl.querySelector('input')) return;
+    const p = findPayment(id);
+    if (!p) return;
+
+    const currentCurrency = p.currency || 'INR';
+    cellEl.innerHTML = `
+        <div class="flex items-center gap-1 justify-end">
+            <input type="number" class="input input-bordered input-sm w-24 text-right" data-role="amount" value="${p.amount}" step="0.01" min="0">
+            <select class="select select-bordered select-sm" data-role="currency">
+                ${currencies.map(c => `<option value="${c.code}" data-rate="${c.rate_to_inr}" ${c.code === currentCurrency ? 'selected' : ''}>${c.code}</option>`).join('')}
+            </select>
+            ${currentCurrency !== 'INR' ? `<input type="number" class="input input-bordered input-sm w-20 text-right" data-role="rate" value="${p.rate_to_inr}" step="0.0001" min="0" title="Курс к ₹">` : ''}
+            <button class="btn btn-xs btn-ghost" data-role="cancel" title="Отмена">✕</button>
+        </div>
+    `;
+    const amountInput = cellEl.querySelector('[data-role="amount"]');
+    const currencySelect = cellEl.querySelector('[data-role="currency"]');
+    const cancelBtn = cellEl.querySelector('[data-role="cancel"]');
+    amountInput.focus();
+    amountInput.select();
+
+    currencySelect.addEventListener('change', () => {
+        // Пересобрать ячейку, если пользователь сменил валюту (чтобы появилось/исчезло поле курса)
+        const newCurrency = currencySelect.value;
+        const newRate = parseFloat(currencySelect.selectedOptions[0]?.dataset.rate) || 1;
+        const newAmount = parseFloat(amountInput.value) || 0;
+        // Применяем временно в модели (без сохранения)
+        p.currency = newCurrency;
+        p.rate_to_inr = newRate;
+        p.amount = newAmount;
+        editAmount(id, cellEl); // перерисовать редактор с/без поля курса
+    });
+
+    const commit = async () => {
+        const amount = parseFloat(amountInput.value);
+        const currency = currencySelect.value;
+        const rateInput = cellEl.querySelector('[data-role="rate"]');
+        const rate = rateInput ? parseFloat(rateInput.value) : (parseFloat(currencySelect.selectedOptions[0]?.dataset.rate) || 1);
+        if (!amount || amount <= 0) { applyFilters(); return; }
+
+        const changed = amount !== Number(p.amount) || currency !== p.currency || rate !== Number(p.rate_to_inr);
+        if (changed) {
+            await savePatch(id, {
+                amount,
+                currency,
+                rate_to_inr: rate,
+                amount_inr: amount * rate
+            });
+        }
+        applyFilters();
+    };
+
+    cancelBtn.addEventListener('click', () => applyFilters());
+    amountInput.addEventListener('keydown', (ev) => {
+        if (ev.key === 'Enter') { ev.preventDefault(); commit(); }
+        if (ev.key === 'Escape') { ev.preventDefault(); applyFilters(); }
+    });
+    amountInput.addEventListener('blur', (ev) => {
+        // Даём время клику по select/cancel
+        setTimeout(() => {
+            if (!cellEl.contains(document.activeElement)) commit();
+        }, 150);
+    });
+}
+
+function editDate(id, cellEl) {
+    if (cellEl.querySelector('input')) return;
+    const p = findPayment(id);
+    if (!p) return;
+    const currentIso = p.received_at ? p.received_at.slice(0, 10) : DateUtils.toISO(new Date());
+    const input = document.createElement('input');
+    input.type = 'date';
+    input.className = 'input input-bordered input-sm';
+    input.value = currentIso;
+    cellEl.innerHTML = '';
+    cellEl.appendChild(input);
+    input.focus();
+
+    const commit = async () => {
+        const newDate = input.value;
+        if (newDate && newDate !== currentIso) {
+            await savePatch(id, { received_at: newDate + 'T12:00:00' });
+        }
+        applyFilters();
+    };
+
+    input.addEventListener('change', commit);
+    input.addEventListener('keydown', (ev) => {
+        if (ev.key === 'Enter') { ev.preventDefault(); commit(); }
+        if (ev.key === 'Escape') { ev.preventDefault(); applyFilters(); }
+    });
+    input.addEventListener('blur', commit);
+}
+
+// ==================== EXPORT ====================
+function exportXlsx() {
+    if (filtered.length === 0) { Layout.showNotification(t('crm_no_data_export'), 'error'); return; }
+    const BOM = '\uFEFF';
+    const headers = [
+        t('crm_guest'), t('crm_phone'), t('crm_retreat'),
+        t('crm_prepayment_confirmation_status'), t('crm_payment_system'),
+        `${t('crm_amount')} (orig)`, t('crm_currency'), `${t('crm_amount')} ₹`, 'Курс',
+        t('crm_payment_date'), t('crm_manager'), t('crm_created')
+    ];
+    const rows = filtered.map(p => {
+        const g = p.deal?.vaishnavas;
+        return [
+            CrmUtils.getGuestName(g),
+            g?.phone || '',
+            Layout.getName(p.deal?.retreats) || '',
+            p.is_confirmed ? t('crm_prepayment_confirmed') : t('crm_prepayment_not_confirmed'),
+            p.payment_system ? Layout.getName(p.payment_system) : '',
+            p.amount,
+            p.currency,
+            p.amount_inr,
+            p.rate_to_inr,
+            p.received_at ? p.received_at.slice(0, 10) : '',
+            p.deal?.manager ? CrmUtils.getGuestShortName(p.deal.manager) : '',
+            CrmUtils.formatDate(p.created_at)
+        ];
+    });
+    const csv = BOM + [headers, ...rows]
+        .map(r => r.map(c => `"${String(c ?? '').replace(/"/g, '""')}"`).join(','))
+        .join('\n');
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `crm-prepayments-${new Date().toISOString().slice(0, 10)}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+}
+
+// ==================== INIT ====================
+async function init() {
+    await Layout.init({
+        module: 'crm',
+        menuId: 'crm_sales',
+        itemId: 'crm_prepayments'
+    });
+
+    await loadAll();
+}
+
+init();
+</script>
+
+</body>
+</html>
