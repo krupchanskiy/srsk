@@ -212,7 +212,7 @@
                 <div class="card-body p-4">
                     <div class="flex justify-between items-center mb-3">
                         <h3 class="font-bold" data-i18n="crm_finances">Финансы</h3>
-                        <button class="btn btn-xs btn-primary" onclick="openPaymentModal()" data-i18n="crm_add_payment_short">+ Платёж</button>
+                        <button class="btn btn-xs btn-primary add-payment-btn" onclick="openPaymentModal()" data-i18n="crm_add_payment_short">+ Платёж</button>
                     </div>
                     <!-- Список платежей -->
                     <div id="financePaymentsList" class="space-y-1 mb-2">
@@ -356,12 +356,8 @@
                     </select>
                 </div>
                 <div class="form-control">
-                    <label class="label"><span class="label-text" data-i18n="crm_payment_method">Способ</span></label>
-                    <select id="paymentMethod" class="select select-bordered">
-                        <option value="cash" data-i18n="crm_method_cash">Наличные</option>
-                        <option value="card" data-i18n="crm_method_card">Карта</option>
-                        <option value="transfer" data-i18n="crm_method_transfer">Перевод</option>
-                    </select>
+                    <label class="label"><span class="label-text" data-i18n="crm_payment_system">Платёжная система</span></label>
+                    <select id="paymentSystem" class="select select-bordered" required></select>
                 </div>
             </div>
 
@@ -540,6 +536,7 @@ let tags = [];
 let dealTags = [];
 let managers = [];
 let currencies = [];
+let paymentSystems = [];
 let templates = [];
 let partnerBuildings = [];
 let guestHistory = [];
@@ -635,7 +632,7 @@ async function loadReferenceData() {
 
     const managerUserIds = [...new Set((userRolesRes.data || []).map(r => r.user_id))];
 
-    const [servicesRes, tagsRes, managersRes, currenciesRes, templatesRes, dealTagsRes, buildingsRes] = await Promise.all([
+    const [servicesRes, tagsRes, managersRes, currenciesRes, templatesRes, dealTagsRes, buildingsRes, paymentSystemsRes] = await Promise.all([
         Layout.db.from('crm_services').select('*').eq('is_active', true).order('sort_order'),
         Layout.db.from('crm_tags').select('*').order('sort_order'),
         // Загружаем менеджеров напрямую по user_id (не все team members, а именно с CRM-ролями)
@@ -653,7 +650,8 @@ async function loadReferenceData() {
             .select('id, name_ru, name_en, name_hi')
             .eq('is_temporary', true)
             .eq('is_active', true)
-            .order('sort_order')
+            .order('sort_order'),
+        Layout.db.from('crm_payment_systems').select('*').eq('is_archived', false).order('sort_order')
     ]);
 
     services = servicesRes.data || [];
@@ -662,6 +660,7 @@ async function loadReferenceData() {
     templates = templatesRes.data || [];
     dealTags = (dealTagsRes.data || []).map(dt => dt.tag_id);
     partnerBuildings = buildingsRes.data || [];
+    paymentSystems = paymentSystemsRes.data || [];
 
     managers = managersRes.data || [];
 
@@ -699,7 +698,7 @@ async function loadDealServices() {
 async function loadPayments() {
     const { data } = await Layout.db
         .from('crm_payments')
-        .select('*, received_by:vaishnavas(spiritual_name, first_name)')
+        .select('*, received_by:vaishnavas(spiritual_name, first_name), payment_system:payment_system_id(id, code, name_ru, name_en)')
         .eq('deal_id', dealId)
         .order('received_at', { ascending: false });
     payments = data || [];
@@ -837,6 +836,28 @@ function populateSelects() {
     currencySelect.innerHTML = currencies.map(c =>
         `<option value="${c.code}" data-rate="${c.rate_to_inr}">${c.code} (${c.symbol})</option>`
     ).join('');
+
+    // Платёжные системы
+    const systemSelect = document.getElementById('paymentSystem');
+    if (systemSelect) {
+        systemSelect.innerHTML = paymentSystems.map(s =>
+            `<option value="${s.id}">${e(Layout.getName(s))}</option>`
+        ).join('');
+    }
+}
+
+const PAYMENT_ALLOWED_STATUSES = ['invoiced', 'booked', 'checklist', 'ready', 'completed'];
+
+function canAddPayment() {
+    return PAYMENT_ALLOWED_STATUSES.includes(deal?.status);
+}
+
+function updatePaymentButtonsState() {
+    const allowed = canAddPayment();
+    document.querySelectorAll('.add-payment-btn').forEach(btn => {
+        btn.disabled = !allowed;
+        btn.title = allowed ? '' : 'Сначала выставьте счёт (стадия «Выставлен счёт»)';
+    });
 }
 
 function switchTab(tab) {
@@ -876,6 +897,7 @@ function renderTab() {
     }
 
     container.innerHTML = `<div class="card-body">${html}</div>`;
+    if (typeof updatePaymentButtonsState === 'function') updatePaymentButtonsState();
 }
 
 function renderInfoTab() {
@@ -1124,27 +1146,32 @@ function renderPaymentsTab() {
     return `
         <div class="flex justify-between items-center mb-4">
             <h3 class="font-bold">${t('crm_tab_payments')}</h3>
-            <button class="btn btn-sm btn-primary" onclick="openPaymentModal()">+ ${t('add')}</button>
+            <button class="btn btn-sm btn-primary add-payment-btn" onclick="openPaymentModal()">+ ${t('add')}</button>
         </div>
         ${payments.length === 0
             ? `<p class="text-base-content/50 text-center py-4">${t('crm_no_payments')}</p>`
             : `<table class="table">
-                <thead><tr><th>${t('crm_date')}</th><th>${t('crm_payment_type')}</th><th>${t('crm_payment_method')}</th><th class="text-right">${t('crm_amount')}</th><th class="text-right">${t('crm_in_inr')}</th><th>${t('crm_received_by')}</th><th>${t('crm_note')}</th><th></th></tr></thead>
+                <thead><tr><th></th><th>${t('crm_date')}</th><th>${t('crm_payment_type')}</th><th>Платёжная система</th><th class="text-right">${t('crm_amount')}</th><th class="text-right">${t('crm_in_inr')}</th><th>${t('crm_received_by')}</th><th>${t('crm_note')}</th><th></th></tr></thead>
                 <tbody>
-                    ${payments.map(p => `
+                    ${payments.map(p => {
+                        const systemLabel = p.payment_system ? Layout.getName(p.payment_system) : (p.payment_method ? (t('crm_method_' + p.payment_method) || p.payment_method) : '—');
+                        const dotColor = p.is_confirmed ? '#22c55e' : '#f59e0b';
+                        const dotTitle = p.is_confirmed ? 'Платёж подтверждён' : 'Платёж не подтверждён';
+                        return `
                         <tr>
+                            <td><span class="inline-block w-2.5 h-2.5 rounded-full" style="background:${dotColor}" title="${dotTitle}"></span></td>
                             <td class="text-sm">${CrmUtils.formatDateTime(p.received_at)}</td>
                             <td><span class="badge badge-ghost badge-sm">${t('crm_payment_type_' + p.payment_type) || p.payment_type}</span></td>
-                            <td class="text-sm text-base-content/60">${t('crm_method_' + p.payment_method) || p.payment_method || '—'}</td>
+                            <td class="text-sm text-base-content/60">${e(systemLabel)}</td>
                             <td class="text-right font-mono">${CrmUtils.formatMoney(p.amount, p.currency)}</td>
                             <td class="text-right font-mono font-bold">${CrmUtils.formatMoney(p.amount_inr)}</td>
                             <td class="text-sm">${p.received_by ? e(CrmUtils.getGuestShortName(p.received_by)) : '—'}</td>
                             <td class="text-sm text-base-content/60 max-w-xs truncate">${p.notes ? e(p.notes) : '—'}</td>
                             <td><button class="btn btn-ghost btn-xs text-error" onclick="deletePayment('${p.id}')">${CrmUtils.UI_ICONS.trash}</button></td>
                         </tr>
-                    `).join('')}
+                    `;}).join('')}
                 </tbody>
-                <tfoot><tr><td colspan="4"></td><td class="text-right font-mono font-bold text-lg">${CrmUtils.formatMoney(total)}</td><td colspan="3"></td></tr></tfoot>
+                <tfoot><tr><td colspan="5"></td><td class="text-right font-mono font-bold text-lg">${CrmUtils.formatMoney(total)}</td><td colspan="3"></td></tr></tfoot>
             </table>`
         }
     `;
@@ -1164,24 +1191,30 @@ function renderFinanceBlock() {
                 ? new Date(p.received_at).toLocaleDateString('ru-RU', { day: 'numeric', month: 'short' })
                 : '—';
             const typeLabel = t('crm_payment_type_' + p.payment_type) || p.payment_type || '';
+            const dotColor = p.is_confirmed ? '#22c55e' : '#f59e0b';
+            const dotTitle = p.is_confirmed ? 'Платёж подтверждён' : 'Платёж не подтверждён';
             return `
                 <div class="group py-0.5 cursor-pointer hover:bg-base-200 rounded px-1 -mx-1" onclick="showPaymentDetails('${p.id}')">
                     <div class="flex items-center gap-1.5 text-xs">
-                        <span class="text-base-content/50 w-14 shrink-0">${e(dateStr)}</span>
+                        <span class="inline-block w-2 h-2 rounded-full shrink-0" style="background:${dotColor}" title="${dotTitle}"></span>
+                        <span class="text-base-content/50 w-12 shrink-0">${e(dateStr)}</span>
                         <span class="text-base-content/60 flex-1 truncate">${e(typeLabel)}</span>
                         <span class="font-mono">${CrmUtils.formatMoney(p.amount, p.currency)}</span>
                         <span class="text-base-content/30">→</span>
                         <span class="font-mono font-semibold">${CrmUtils.formatMoney(p.amount_inr)}</span>
                         <button class="btn btn-ghost btn-xs text-error h-5 min-h-5 px-1 opacity-0 group-hover:opacity-100" onclick="event.stopPropagation(); deletePayment('${p.id}')">×</button>
                     </div>
-                    ${p.notes ? `<div class="text-xs text-base-content/40 pl-14 truncate">${e(p.notes)}</div>` : ''}
+                    ${p.notes ? `<div class="text-xs text-base-content/40 pl-12 truncate">${e(p.notes)}</div>` : ''}
                 </div>
             `;
         }).join('');
     }
 
-    // Итого оплачено (в рупиях)
-    document.getElementById('financePaid').textContent = CrmUtils.formatMoney(totalInr);
+    updatePaymentButtonsState();
+
+    // Итого оплачено (в рупиях) — только подтверждённые для консистентности с total_paid
+    const confirmedInr = payments.filter(p => p.is_confirmed).reduce((sum, p) => sum + Number(p.amount_inr || 0), 0);
+    document.getElementById('financePaid').textContent = CrmUtils.formatMoney(confirmedInr);
 
     // Начислено и баланс
     const charged = deal ? (deal.total_charged || 0) : 0;
@@ -1190,7 +1223,7 @@ function renderFinanceBlock() {
 
     const balanceEl = document.getElementById('financeBalance');
     if (charged > 0) {
-        const balance = charged - totalInr;
+        const balance = charged - confirmedInr;
         if (balance > 0) {
             balanceEl.textContent = '−' + CrmUtils.formatMoney(balance);
             balanceEl.className = 'font-mono text-rose-600';
@@ -1594,11 +1627,16 @@ async function deleteService(id) {
 
 // ==================== PAYMENTS ====================
 function openPaymentModal() {
+    if (!canAddPayment()) {
+        Layout.showNotification('Сначала выставьте счёт (стадия «Выставлен счёт»)', 'error');
+        return;
+    }
     document.getElementById('paymentDate').value = DateUtils.toISO(new Date());
     document.getElementById('paymentAmount').value = '';
     document.getElementById('paymentCurrency').value = 'INR';
     document.getElementById('paymentType').value = 'org_fee';
-    document.getElementById('paymentMethod').value = 'cash';
+    const systemSelect = document.getElementById('paymentSystem');
+    if (systemSelect && paymentSystems.length > 0) systemSelect.value = paymentSystems[0].id;
     document.getElementById('paymentNotes').value = '';
     updatePaymentRate();
     document.getElementById('addPaymentModal').showModal();
@@ -1614,8 +1652,11 @@ function showPaymentDetails(id) {
         ? DateUtils.parseDate(p.received_at.slice(0, 10)).toLocaleDateString('ru-RU', { day: 'numeric', month: 'long', year: 'numeric' })
         : '—';
     const typeLabel = t('crm_payment_type_' + p.payment_type) || p.payment_type || '—';
-    const methodLabel = t('crm_method_' + p.payment_method) || p.payment_method || '—';
+    const systemLabel = p.payment_system ? Layout.getName(p.payment_system) : (p.payment_method ? t('crm_method_' + p.payment_method) || p.payment_method : '—');
     const receivedBy = p.received_by ? e(CrmUtils.getGuestShortName(p.received_by)) : '—';
+    const confirmedHtml = p.is_confirmed
+        ? '<span class="text-emerald-600 font-medium">✓ Подтверждён</span>'
+        : '<span class="text-amber-600 font-medium">○ Не подтверждён</span>';
 
     const rows = [
         [t('crm_date'),           e(dateStr)],
@@ -1623,7 +1664,8 @@ function showPaymentDetails(id) {
         [t('crm_rate'),           `1 ${p.currency} = ${p.rate_to_inr} ₹`],
         [t('crm_in_inr'),         `<span class="font-bold">${CrmUtils.formatMoney(p.amount_inr)}</span>`],
         [t('crm_payment_type'),   e(typeLabel)],
-        [t('crm_payment_method'), e(methodLabel)],
+        ['Платёжная система',     e(systemLabel)],
+        ['Статус',                confirmedHtml],
         [t('crm_received_by'),    receivedBy],
         [t('crm_note'),           p.notes ? `<span class="text-base-content/70">${e(p.notes)}</span>` : '<span class="text-base-content/30">—</span>'],
     ];
@@ -1666,7 +1708,7 @@ async function savePayment(event) {
         rate_to_inr: rate,
         amount_inr: amount * rate,
         payment_type: document.getElementById('paymentType').value,
-        payment_method: document.getElementById('paymentMethod').value,
+        payment_system_id: document.getElementById('paymentSystem')?.value || null,
         notes: document.getElementById('paymentNotes').value.trim() || null,
         received_by: window.currentUser?.vaishnava_id || null,
         received_at: paymentDate ? paymentDate + 'T12:00:00' : new Date().toISOString()
