@@ -89,7 +89,8 @@ const modules = {
             { id: 'crm_sales', items: [
                 { id: 'crm_kanban', href: 'crm/index.html' },
                 { id: 'crm_deals', href: 'crm/deals.html' },
-                { id: 'crm_tasks', href: 'crm/tasks.html' }
+                { id: 'crm_tasks', href: 'crm/tasks.html' },
+                { id: 'crm_prepayments', href: 'crm/prepayments.html', badgeKey: 'crm_unconfirmed_prepayments' }
             ]},
             { id: 'crm_analytics', items: [
                 { id: 'crm_dashboard', href: 'crm/dashboard.html' },
@@ -220,6 +221,7 @@ const pagePermissions = {
     'crm/deals.html': 'view_crm',
     'crm/deal.html': 'view_crm',
     'crm/tasks.html': 'view_crm',
+    'crm/prepayments.html': 'view_crm',
 
     // CRM - Аналитика
     'crm/dashboard.html': 'view_crm_dashboard',
@@ -658,7 +660,7 @@ function getFooterHTML() {
             ${footerLinks.length > 1 ? `
             <nav class="flex flex-wrap justify-center gap-4 sm:gap-6 mb-4" id="footerNav">
                 ${footerLinks.map(item => `
-                    <a href="${adjustHref(item.href)}" class="text-sm font-medium uppercase tracking-wide ${item.id === currentPage.itemId ? 'text-primary' : 'opacity-60 hover:opacity-100'}">${t('nav_' + item.id)}</a>
+                    <a href="${adjustHref(item.href)}" class="text-sm font-medium uppercase tracking-wide ${item.id === currentPage.itemId ? 'text-primary' : 'opacity-60 hover:opacity-100'}">${t('nav_' + item.id)}${item.badgeKey ? renderMenuItemBadge(item.id) : ''}</a>
                 `).join('')}
             </nav>
             ` : '<div id="footerNav"></div>'}
@@ -786,6 +788,32 @@ function buildLocationOptions() {
     });
 }
 
+// Бейдж у пункта меню (например, счётчик неподтверждённых предоплат)
+function renderMenuItemBadge(itemId) {
+    return `<span class="menu-item-badge menu-item-badge-${itemId} inline-flex items-center justify-center ml-1.5 px-1.5 h-4 min-w-[16px] rounded-full bg-red-500 text-white text-[10px] font-bold hidden align-middle"></span>`;
+}
+
+function setMenuBadge(itemId, count) {
+    const n = Number(count) || 0;
+    document.querySelectorAll(`.menu-item-badge-${itemId}`).forEach(el => {
+        el.textContent = n > 0 ? n : '';
+        el.classList.toggle('hidden', n <= 0);
+    });
+}
+
+async function refreshPrepaymentsBadge() {
+    if (!window.hasPermission?.('view_crm')) return;
+    const { data, error } = await supabase
+        .from('crm_payments')
+        .select('id, deal:deal_id(status)')
+        .eq('is_confirmed', false)
+        .eq('payment_type', 'org_fee');
+    if (error) return;
+    const allowed = ['invoiced', 'booked', 'checklist', 'ready', 'completed'];
+    const count = (data || []).filter(p => allowed.includes(p.deal?.status)).length;
+    setMenuBadge('crm_prepayments', count);
+}
+
 function buildMobileMenu() {
     const nav = $('#mobileNav');
     if (!nav) return;
@@ -810,7 +838,7 @@ function buildMobileMenu() {
                     </svg>
                 </button>
                 <div class="submenu pl-4">
-                    ${items.map(item => `<a href="${adjustHref(item.href)}" class="block px-4 py-3 text-base font-medium rounded-lg hover:bg-base-200 ${item.id === currentPage.itemId ? 'text-primary' : ''}">${t('nav_' + item.id)}</a>`).join('')}
+                    ${items.map(item => `<a href="${adjustHref(item.href)}" class="block px-4 py-3 text-base font-medium rounded-lg hover:bg-base-200 ${item.id === currentPage.itemId ? 'text-primary' : ''}">${t('nav_' + item.id)}${item.badgeKey ? renderMenuItemBadge(item.id) : ''}</a>`).join('')}
                 </div>
             </div>
         `;
@@ -837,7 +865,7 @@ function buildSubmenuBar() {
         if (items.length === 1) return '';
         return `
             <nav class="container mx-auto ${centered ? 'justify-center' : 'px-4'} flex items-center submenu-group ${id !== currentPage.menuId ? 'hidden' : ''}" data-group="${id}">
-                ${items.map(item => `<a href="${adjustHref(item.href)}" class="submenu-link px-5 py-2 text-base font-semibold tracking-wide uppercase ${item.id === currentPage.itemId ? 'active' : 'text-white/70 hover:text-white'}">${t('nav_' + item.id)}</a>`).join('')}
+                ${items.map(item => `<a href="${adjustHref(item.href)}" class="submenu-link px-5 py-2 text-base font-semibold tracking-wide uppercase ${item.id === currentPage.itemId ? 'active' : 'text-white/70 hover:text-white'}">${t('nav_' + item.id)}${item.badgeKey ? renderMenuItemBadge(item.id) : ''}</a>`).join('')}
             </nav>
         `;
     }).join('');
@@ -1260,6 +1288,9 @@ async function initLayout(page = { module: null, menuId: 'kitchen', itemId: null
     // Применяем переводы ко всем data-i18n элементам на странице
     updateAllTranslations();
 
+    // Обновляем бейдж неподтверждённых предоплат (в фоне, не блокирует рендер)
+    if (currentModule === 'crm') refreshPrepaymentsBadge();
+
     return { db, currentLang, currentLocation, currentModule, locations };
 }
 
@@ -1367,6 +1398,8 @@ window.Layout = {
     openPhotoModal,
     logout,
     updateUserInfo,
+    setMenuBadge,
+    refreshPrepaymentsBadge,
     get currentLang() { return currentLang; },
     get currentLocation() { return currentLocation; },
     get currentModule() { return currentModule; },
