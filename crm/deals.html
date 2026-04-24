@@ -354,7 +354,8 @@ async function loadDeals() {
             *,
             vaishnavas:vaishnava_id(id, spiritual_name, first_name, last_name, phone, email),
             retreats:retreat_id(id, name_ru, name_en, color),
-            manager:manager_id(id, spiritual_name, first_name, last_name)
+            manager:manager_id(id, spiritual_name, first_name, last_name),
+            crm_payments(is_confirmed)
         `)
         .order('created_at', { ascending: false });
 
@@ -566,13 +567,30 @@ function renderTable() {
                 <td>${CrmUtils.getStatusBadge(d.status)}</td>
                 <td class="text-sm">${manager ? e(CrmUtils.getGuestShortName(manager)) : '<span class="text-base-content/30">—</span>'}</td>
                 <td class="text-center text-xs">${renderChecklistDots(d)}</td>
-                <td class="text-right font-mono text-sm">
-                    ${d.total_paid > 0 ? CrmUtils.formatMoney(d.total_paid) : '<span class="text-base-content/30">—</span>'}
+                <td class="text-right font-mono text-sm whitespace-nowrap">
+                    ${renderPaidCell(d)}
                 </td>
                 <td class="text-sm text-base-content/50">${CrmUtils.formatDate(d.created_at)}</td>
             </tr>
         `;
     }).join('');
+}
+
+function renderPaidCell(d) {
+    const payments = d.crm_payments || [];
+    const amountStr = d.total_paid > 0
+        ? CrmUtils.formatMoney(d.total_paid)
+        : '<span class="text-base-content/30">—</span>';
+
+    if (payments.length === 0) return amountStr;
+
+    const hasUnconfirmed = payments.some(p => !p.is_confirmed);
+    const color = hasUnconfirmed ? '#f59e0b' : '#22c55e';
+    const title = hasUnconfirmed
+        ? 'Есть неподтверждённый платёж'
+        : 'Все платежи подтверждены';
+
+    return `${amountStr}<span class="inline-block w-2.5 h-2.5 rounded-full ml-2 align-middle" style="background:${color}" title="${title}"></span>`;
 }
 
 function renderChecklistDots(d) {
