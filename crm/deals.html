@@ -355,7 +355,7 @@ async function loadDeals() {
             vaishnavas:vaishnava_id(id, spiritual_name, first_name, last_name, phone, email),
             retreats:retreat_id(id, name_ru, name_en, color),
             manager:manager_id(id, spiritual_name, first_name, last_name),
-            crm_payments(is_confirmed)
+            crm_payments(is_confirmed, amount_inr)
         `)
         .order('created_at', { ascending: false });
 
@@ -578,19 +578,22 @@ function renderTable() {
 
 function renderPaidCell(d) {
     const payments = d.crm_payments || [];
-    const amountStr = d.total_paid > 0
-        ? CrmUtils.formatMoney(d.total_paid)
-        : '<span class="text-base-content/30">—</span>';
+    if (payments.length === 0) {
+        return '<span class="text-base-content/30">—</span>';
+    }
 
-    if (payments.length === 0) return amountStr;
+    const confirmed = payments.filter(p => p.is_confirmed).reduce((s, p) => s + Number(p.amount_inr || 0), 0);
+    const unconfirmed = payments.filter(p => !p.is_confirmed).reduce((s, p) => s + Number(p.amount_inr || 0), 0);
+    const total = confirmed + unconfirmed;
 
-    const hasUnconfirmed = payments.some(p => !p.is_confirmed);
-    const color = hasUnconfirmed ? '#f59e0b' : '#22c55e';
-    const title = hasUnconfirmed
-        ? 'Есть неподтверждённый платёж'
-        : 'Все платежи подтверждены';
+    const allConfirmed = unconfirmed === 0;
+    const dotColor = allConfirmed ? '#22c55e' : '#f59e0b';
+    const textClass = allConfirmed ? '' : 'text-amber-700';
+    const title = allConfirmed
+        ? 'Все платежи подтверждены'
+        : `Подтверждено: ${CrmUtils.formatMoney(confirmed)}. Ждёт подтверждения: ${CrmUtils.formatMoney(unconfirmed)}`;
 
-    return `${amountStr}<span class="inline-block w-2.5 h-2.5 rounded-full ml-2 align-middle" style="background:${color}" title="${title}"></span>`;
+    return `<span class="${textClass}">${CrmUtils.formatMoney(total)}</span><span class="inline-block w-2.5 h-2.5 rounded-full ml-2 align-middle" style="background:${dotColor}" title="${title}"></span>`;
 }
 
 function renderChecklistDots(d) {
