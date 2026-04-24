@@ -193,7 +193,8 @@ async function loadDeals() {
             *,
             vaishnavas:vaishnava_id(id, spiritual_name, first_name, last_name, phone),
             retreats:retreat_id(id, name_ru, name_en, color),
-            manager:manager_id(id, spiritual_name, first_name)
+            manager:manager_id(id, spiritual_name, first_name),
+            crm_payments(is_confirmed, amount_inr)
         `)
         .order('created_at', { ascending: false });
 
@@ -423,12 +424,27 @@ function renderCard(deal) {
                     ${lastContactText ? `<span>${lastContactText}</span>` : ''}
                 </div>
                 <div class="flex items-center gap-1">
-                    ${deal.total_paid > 0 ? `<span class="text-xs font-mono text-success">${CrmUtils.formatMoney(deal.total_paid)}</span>` : ''}
+                    ${renderCardAmount(deal)}
                     ${deal.status !== 'completed' && deal.status !== 'cancelled' ? `<button class="btn btn-xs btn-ghost btn-circle opacity-0 group-hover:opacity-100" onclick="event.stopPropagation(); quickAdvance('${deal.id}', '${deal.status}')" title="Следующий статус">→</button>` : ''}
                 </div>
             </div>
         </div>
     `;
+}
+
+function renderCardAmount(deal) {
+    const payments = deal.crm_payments || [];
+    if (payments.length === 0) return '';
+    const confirmed = payments.filter(p => p.is_confirmed).reduce((s, p) => s + Number(p.amount_inr || 0), 0);
+    const unconfirmed = payments.filter(p => !p.is_confirmed).reduce((s, p) => s + Number(p.amount_inr || 0), 0);
+    const total = confirmed + unconfirmed;
+    if (total === 0) return '';
+    const allConfirmed = unconfirmed === 0;
+    const cls = allConfirmed ? 'text-success' : 'text-amber-600';
+    const title = allConfirmed
+        ? 'Все платежи подтверждены'
+        : `Подтверждено: ${CrmUtils.formatMoney(confirmed)}. Ждёт подтверждения: ${CrmUtils.formatMoney(unconfirmed)}`;
+    return `<span class="text-xs font-mono ${cls}" title="${title}">${CrmUtils.formatMoney(total)}</span>`;
 }
 
 // ==================== DRAG & DROP ====================
