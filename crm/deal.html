@@ -720,7 +720,7 @@ async function loadDealServices() {
 async function loadPayments() {
     const { data } = await Layout.db
         .from('crm_payments')
-        .select('*, received_by:vaishnavas(spiritual_name, first_name), payment_system:payment_system_id(id, code, name_ru, name_en)')
+        .select('*, received_by:vaishnavas!crm_payments_received_by_fkey(spiritual_name, first_name), payment_system:payment_system_id(id, code, name_ru, name_en)')
         .eq('deal_id', dealId)
         .order('received_at', { ascending: false });
     payments = data || [];
