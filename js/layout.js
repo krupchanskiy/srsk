@@ -803,7 +803,7 @@ function setMenuBadge(itemId, count) {
 
 async function refreshPrepaymentsBadge() {
     if (!window.hasPermission?.('view_crm')) return;
-    const { data, error } = await supabase
+    const { data, error } = await db
         .from('crm_payments')
         .select('id, deal:deal_id(status)')
         .eq('is_confirmed', false)
