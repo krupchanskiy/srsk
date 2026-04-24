@@ -228,6 +228,10 @@
                             <span class="text-base-content/60" data-i18n="crm_paid">Оплачено (₹)</span>
                             <span class="font-mono font-bold text-emerald-600" id="financePaid">—</span>
                         </div>
+                        <div class="flex justify-between text-sm hidden" id="financePendingRow">
+                            <span class="text-base-content/60">Ждёт подтверждения</span>
+                            <span class="font-mono font-bold text-amber-600" id="financePending">—</span>
+                        </div>
                         <div class="flex justify-between text-sm font-bold pt-1 border-t border-base-200">
                             <span class="text-base-content/60" data-i18n="crm_balance">Баланс</span>
                             <span class="font-mono" id="financeBalance">—</span>
@@ -1232,7 +1236,16 @@ function renderFinanceBlock() {
 
     // Итого оплачено (в рупиях) — только подтверждённые для консистентности с total_paid
     const confirmedInr = payments.filter(p => p.is_confirmed).reduce((sum, p) => sum + Number(p.amount_inr || 0), 0);
+    const unconfirmedInr = payments.filter(p => !p.is_confirmed).reduce((sum, p) => sum + Number(p.amount_inr || 0), 0);
     document.getElementById('financePaid').textContent = CrmUtils.formatMoney(confirmedInr);
+
+    const pendingRow = document.getElementById('financePendingRow');
+    if (unconfirmedInr > 0) {
+        document.getElementById('financePending').textContent = CrmUtils.formatMoney(unconfirmedInr);
+        pendingRow.classList.remove('hidden');
+    } else {
+        pendingRow.classList.add('hidden');
+    }
 
     // Начислено и баланс
     const charged = deal ? (deal.total_charged || 0) : 0;
