@@ -442,13 +442,25 @@
 
             const retreatIds = retreats.map(r => r.id);
 
-            // Load all photos (без вложенного запроса к retreats)
-            const { data, error } = await supabase
-                .from('retreat_photos')
-                .select('*')
-                .in('retreat_id', retreatIds)
-                .eq('index_status', 'indexed')
-                .order('uploaded_at', { ascending: false });
+            // Load all photos с пагинацией (Supabase отдаёт максимум 1000 за запрос)
+            const PAGE_SIZE = 1000;
+            let data = [];
+            let error = null;
+            for (let from = 0; ; from += PAGE_SIZE) {
+                const { data: page, error: pageError } = await supabase
+                    .from('retreat_photos')
+                    .select('*')
+                    .in('retreat_id', retreatIds)
+                    .eq('index_status', 'indexed')
+                    .order('uploaded_at', { ascending: false })
+                    .range(from, from + PAGE_SIZE - 1);
+
+                if (pageError) { error = pageError; break; }
+                if (!page || page.length === 0) break;
+
+                data = data.concat(page);
+                if (page.length < PAGE_SIZE) break;
+            }
 
             document.getElementById('loader').classList.add('hidden');
 
