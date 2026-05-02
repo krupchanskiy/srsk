@@ -161,10 +161,22 @@
     <!-- Шапка -->
     <header class="bg-srsk-green sticky top-0 z-50">
         <div class="max-w-7xl mx-auto px-4 md:px-6 lg:px-8">
-            <div class="flex items-center justify-between h-16">
-                <a href="index.html" class="text-white text-xl font-semibold">← Назад</a>
-                <h1 class="text-white text-lg font-medium" id="pageTitle">Фотогалерея</h1>
-                <div class="w-20"></div> <!-- Spacer for centering -->
+            <div class="flex items-center justify-between h-16 gap-3">
+                <a href="index.html" class="text-white text-xl font-semibold whitespace-nowrap">← Назад</a>
+                <h1 class="text-white text-lg font-medium hidden sm:block" id="pageTitle">Фотогалерея</h1>
+                <div class="flex items-center gap-3">
+                    <span id="header-name" class="text-white/90 text-sm font-medium hidden md:inline"></span>
+                    <div id="header-photo" class="w-8 h-8 bg-white/20 rounded-full flex items-center justify-center overflow-hidden">
+                        <svg class="w-4 h-4 text-white/70" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M15.75 6a3.75 3.75 0 11-7.5 0 3.75 3.75 0 017.5 0zM4.501 20.118a7.5 7.5 0 0114.998 0A17.933 17.933 0 0112 21.75c-2.676 0-5.216-.584-7.499-1.632z" />
+                        </svg>
+                    </div>
+                    <button onclick="PortalAuth.logout()" class="text-white/60 hover:text-white transition-colors" title="Выйти">
+                        <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M15.75 9V5.25A2.25 2.25 0 0013.5 3h-6a2.25 2.25 0 00-2.25 2.25v13.5A2.25 2.25 0 007.5 21h6a2.25 2.25 0 002.25-2.25V15M12 9l-3 3m0 0l3 3m-3-3h12.75" />
+                        </svg>
+                    </button>
+                </div>
             </div>
         </div>
     </header>
@@ -335,8 +347,27 @@
                 return;
             }
 
+            // Заполняем шапку именем/фото пользователя
+            renderHeaderUser(guest);
+
             // Load user's retreats
             await loadRetreats();
+        }
+
+        function renderHeaderUser(guest) {
+            const nameEl = document.getElementById('header-name');
+            const photoEl = document.getElementById('header-photo');
+            if (!nameEl || !photoEl) return;
+
+            const displayName = PortalAuth.getGuestDisplayName?.() ||
+                guest.spiritualName ||
+                `${guest.firstName || ''} ${guest.lastName || ''}`.trim() ||
+                'Гость';
+            nameEl.textContent = displayName;
+
+            if (guest.photoUrl) {
+                photoEl.innerHTML = `<img src="${guest.photoUrl}" alt="" class="w-full h-full object-cover">`;
+            }
         }
 
         async function loadRetreats() {
@@ -454,8 +485,12 @@
 
                 myPhotos = myPhotoData?.map(t => t.photo_id) || [];
 
-                debug('My photos loaded:', myPhotos.length);
+                console.log('My photos loaded:', myPhotos.length);
             }
+
+            // Оставляем в выпадашке только ретриты, где реально есть indexed-фото
+            const retreatsWithPhotos = new Set(allPhotos.map(p => p.retreat_id));
+            retreats = retreats.filter(r => retreatsWithPhotos.has(r.id));
 
             renderFilters();
 
@@ -908,11 +943,11 @@
 
             // Проверяем есть ли фото профиля
             if (currentUser?.photoUrl) {
-                debug('Используем фото профиля:', currentUser.photoUrl);
+                console.log('Используем фото профиля:', currentUser.photoUrl);
                 await searchFaceByUrl(currentUser.photoUrl);
             } else {
                 // Нет фото профиля - просим загрузить селфи
-                debug('Фото профиля отсутствует, запрос селфи');
+                console.log('Фото профиля отсутствует, запрос селфи');
                 document.getElementById('selfieInput').click();
             }
         }
