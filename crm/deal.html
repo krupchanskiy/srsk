@@ -1992,11 +1992,11 @@ async function loadRecentComms() {
         data.map(c => {
             const icon = typeIcons[c.type] || '📝';
             const time = CrmUtils.formatDateTime ? CrmUtils.formatDateTime(c.created_at) : '';
-            const text = (c.summary || '').length > 50 ? c.summary.substring(0, 50) + '...' : (c.summary || '—');
+            const text = c.summary || '—';
             return `<div class="flex items-start gap-2 py-1 text-xs">
                 <span>${icon}</span>
                 <div class="flex-1 min-w-0">
-                    <div class="truncate">${Layout.escapeHtml(text)}</div>
+                    <div class="whitespace-pre-wrap break-words">${Layout.escapeHtml(text)}</div>
                     <div class="opacity-40">${time}</div>
                 </div>
             </div>`;
