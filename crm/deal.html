@@ -207,6 +207,26 @@
 
             <!-- Старый блок рейсов убран — теперь внутри чеклиста -->
 
+            <!-- Баннер: есть нераспределённый баланс участника -->
+            <div id="balanceBanner" class="alert bg-amber-50 border border-amber-300 text-amber-900 hidden">
+                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-5 h-5 shrink-0"><path stroke-linecap="round" stroke-linejoin="round" d="M12 9v3.75m9-.75a9 9 0 1 1-18 0 9 9 0 0 1 18 0Zm-9 3.75h.008v.008H12v-.008Z" /></svg>
+                <div class="flex-1 text-sm">
+                    <div class="font-semibold" data-i18n="crm_balance_available_notice">У участника есть нераспределённый остаток</div>
+                    <div class="text-xs mt-0.5"><span id="balanceBannerAmount"></span></div>
+                </div>
+                <button class="btn btn-xs btn-primary" onclick="openPlaceBalanceForCurrency(participantBalances[0].currency)">
+                    <span data-i18n="crm_apply_to_deal">Применить</span>
+                </button>
+            </div>
+
+            <!-- Баланс участника -->
+            <div id="participantBalanceBlock" class="card bg-base-100 shadow-sm hidden">
+                <div class="card-body p-4">
+                    <h3 class="font-bold mb-3" data-i18n="crm_participant_balance">Баланс участника</h3>
+                    <div id="participantBalanceList" class="space-y-2"></div>
+                </div>
+            </div>
+
             <!-- Финансы -->
             <div class="card bg-base-100 shadow-sm">
                 <div class="card-body p-4">
@@ -538,6 +558,7 @@
 <script src="../js/layout.js?v=13"></script>
 <script src="../js/date-utils.js?v=3"></script>
 <script src="../js/crm-utils.js?v=3"></script>
+<script src="../js/prepayment-ops.js?v=2"></script>
 
 <script>
 const t = key => Layout.t(key);
@@ -564,6 +585,8 @@ let partnerBuildings = [];
 let guestHistory = [];
 let currentTab = 'info';
 let counts = { services: 0, payments: 0, tasks: 0 };
+let prepaymentOperations = []; // все операции этого участника
+let participantBalances = [];  // нераспределённый остаток
 
 // ==================== DATA ====================
 async function loadDeal() {
@@ -724,7 +747,18 @@ async function loadPayments() {
         .eq('deal_id', dealId)
         .order('received_at', { ascending: false });
     payments = data || [];
+    await loadPrepaymentOperations();
     renderFinanceBlock();
+}
+
+async function loadPrepaymentOperations() {
+    if (!guest?.id) return;
+    const [opsAll, balances] = await Promise.all([
+        PrepaymentOps.loadByVaishnava(guest.id),
+        PrepaymentOps.getBalances(guest.id)
+    ]);
+    prepaymentOperations = opsAll;
+    participantBalances = balances;
 }
 
 async function loadTasks() {
@@ -1217,24 +1251,49 @@ function renderFinanceBlock() {
             const dotTitle = p.is_confirmed ? 'Платёж подтверждён' : 'Платёж не подтверждён (ждёт подтверждения)';
             const rowCls = p.is_confirmed ? '' : 'bg-amber-50 ring-1 ring-amber-200';
             const textCls = p.is_confirmed ? '' : 'text-amber-700';
+
+            // Операции по этой предоплате
+            const ops = prepaymentOperations.filter(o => o.payment_id === p.id);
+            const distributed = ops.reduce((s, o) => s + Number(o.amount), 0);
+            const isPrepayment = p.payment_type === 'org_fee' && p.is_confirmed;
+            const remainder = isPrepayment ? Number(p.amount) - distributed : 0;
+            const showDistribute = isPrepayment && remainder > 0;
+
+            const opsHtml = (isPrepayment && ops.length > 0)
+                ? `<details class="pl-[22px] mt-0.5">
+                     <summary class="text-xs text-base-content/50 cursor-pointer hover:text-base-content/80 select-none">
+                       ${ops.length} ${pluralOps(ops.length)} · распределено ${e(CrmUtils.formatMoney(distributed, p.currency))}${remainder > 0 ? ` · остаток ${e(CrmUtils.formatMoney(remainder, p.currency))}` : ''}
+                     </summary>
+                     <div class="mt-1 ml-2 border-l-2 border-base-300 pl-2">
+                       ${PrepaymentOps.renderOperationsList(ops, { withActions: true, compact: true })}
+                     </div>
+                   </details>`
+                : '';
+
             return `
-                <div class="group py-1 cursor-pointer hover:brightness-95 rounded px-1.5 -mx-1 ${rowCls}" onclick="showPaymentDetails('${p.id}')" title="${dotTitle}">
-                    <div class="flex items-center gap-1.5 text-xs ${textCls}">
+                <div class="group py-1 rounded px-1.5 -mx-1 ${rowCls}">
+                    <div class="flex items-center gap-1.5 text-xs ${textCls} cursor-pointer hover:brightness-95" onclick="showPaymentDetails('${p.id}')" title="${dotTitle}">
                         <span class="inline-block w-2.5 h-2.5 rounded-full shrink-0" style="background:${dotColor}"></span>
                         <span class="opacity-70 w-12 shrink-0">${e(dateStr)}</span>
                         <span class="opacity-80 flex-1 truncate">${e(typeLabel)}</span>
                         <span class="font-mono">${CrmUtils.formatMoney(p.amount, p.currency)}</span>
                         <span class="opacity-40">→</span>
                         <span class="font-mono font-semibold">${CrmUtils.formatMoney(p.amount_inr)}</span>
+                        ${showDistribute
+                            ? `<button class="btn btn-ghost btn-xs h-5 min-h-5 px-1 text-primary" onclick="event.stopPropagation(); openDistributeForPayment('${p.id}')" title="${e(t('crm_distribute_prepayment'))}">${e(t('crm_distribute'))}</button>`
+                            : ''}
                         <button class="btn btn-ghost btn-xs text-error h-5 min-h-5 px-1 opacity-0 group-hover:opacity-100" onclick="event.stopPropagation(); deletePayment('${p.id}')">×</button>
                     </div>
                     ${p.notes ? `<div class="text-xs opacity-60 pl-[22px] truncate ${textCls}">${e(p.notes)}</div>` : ''}
+                    ${opsHtml}
                 </div>
             `;
         }).join('');
     }
 
     updatePaymentButtonsState();
+    renderParticipantBalance();
+    renderBalanceBanner();
 
     // Итого оплачено (в рупиях) — только подтверждённые для консистентности с total_paid
     const confirmedInr = payments.filter(p => p.is_confirmed).reduce((sum, p) => sum + Number(p.amount_inr || 0), 0);
@@ -1272,6 +1331,85 @@ function renderFinanceBlock() {
         balanceEl.className = 'font-mono text-base-content/40';
     }
 }
+
+function pluralOps(n) {
+    const mod10 = n % 10, mod100 = n % 100;
+    if (mod10 === 1 && mod100 !== 11) return 'операция';
+    if (mod10 >= 2 && mod10 <= 4 && (mod100 < 10 || mod100 >= 20)) return 'операции';
+    return 'операций';
+}
+
+function openDistributeForPayment(paymentId) {
+    const p = payments.find(x => x.id === paymentId);
+    if (!p) return;
+    // подмешиваем deal/vaishnavas для шапки модалки
+    const paymentForModal = { ...p, deal: { ...deal, vaishnavas: guest, retreats: retreat }, vaishnava_id: guest.id };
+    PrepaymentOps.openDistribute({
+        payment: paymentForModal,
+        dealId: dealId,
+        onSave: async () => { await loadPayments(); renderParticipantBalance(); renderBalanceBanner(); }
+    });
+}
+
+function openPlaceBalanceForCurrency(currency) {
+    const b = participantBalances.find(x => x.currency === currency);
+    if (!b) return;
+    PrepaymentOps.openPlaceBalance({
+        vaishnavaId: guest.id,
+        currency: b.currency,
+        balance: Number(b.amount),
+        dealId: dealId,
+        dealRetreatId: deal.retreat_id || null,
+        onSave: async () => { await loadPayments(); renderParticipantBalance(); renderBalanceBanner(); }
+    });
+}
+
+function renderParticipantBalance() {
+    const el = document.getElementById('participantBalanceBlock');
+    if (!el) return;
+    if (!participantBalances || participantBalances.length === 0) {
+        el.classList.add('hidden');
+        return;
+    }
+    el.classList.remove('hidden');
+    const list = document.getElementById('participantBalanceList');
+    list.innerHTML = participantBalances.map(b => `
+        <div class="flex items-center justify-between gap-2 text-sm">
+            <span class="text-base-content/60">${e(b.currency)}</span>
+            <span class="font-mono font-bold text-amber-700">${e(CrmUtils.formatMoney(b.amount, b.currency))}</span>
+            <button class="btn btn-xs btn-outline btn-primary" onclick="openPlaceBalanceForCurrency('${e(b.currency)}')">
+                ${e(t('crm_place_balance'))}
+            </button>
+        </div>
+    `).join('');
+}
+
+function renderBalanceBanner() {
+    const banner = document.getElementById('balanceBanner');
+    if (!banner) return;
+    // Показываем только если по этой сделке нет ни одного применённого Перенос с этого баланса
+    const hasBalance = participantBalances && participantBalances.length > 0;
+    const alreadyApplied = prepaymentOperations.some(o =>
+        o.operation_type === 'transfer'
+        && o.target_deal_id === dealId
+        && o.payment_id === null  // именно с баланса
+    );
+    if (!hasBalance || alreadyApplied) {
+        banner.classList.add('hidden');
+        return;
+    }
+    banner.classList.remove('hidden');
+    const total = participantBalances.map(b =>
+        `<span class="font-mono font-bold">${e(CrmUtils.formatMoney(b.amount, b.currency))}</span>`
+    ).join(' · ');
+    document.getElementById('balanceBannerAmount').innerHTML = total;
+}
+
+document.addEventListener('prepayment-ops:changed', async () => {
+    await loadPayments();
+    renderParticipantBalance();
+    renderBalanceBanner();
+});
 
 function renderTasksTab() {
     return `

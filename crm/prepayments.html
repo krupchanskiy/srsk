@@ -74,6 +74,17 @@
                     </select>
                 </div>
 
+                <div class="form-control">
+                    <label class="label py-1"><span class="label-text text-xs" data-i18n="crm_filter_operation_type">Тип операции</span></label>
+                    <select id="filterOpType" class="select select-bordered select-sm" onchange="applyFilters()">
+                        <option value="" data-i18n="all">Все</option>
+                        <option value="transfer" data-i18n="crm_operation_transfer">Перенос на ретрит</option>
+                        <option value="refund" data-i18n="crm_operation_refund">Возврат</option>
+                        <option value="donation" data-i18n="crm_operation_donation">Пожертвование</option>
+                        <option value="has_balance" data-i18n="crm_filter_has_balance">Есть остаток на балансе</option>
+                    </select>
+                </div>
+
                 <div class="form-control flex-1 min-w-[200px]">
                     <label class="label py-1"><span class="label-text text-xs" data-i18n="search">Поиск</span></label>
                     <input type="text" id="filterSearch" class="input input-bordered input-sm"
@@ -103,6 +114,7 @@
                 <table class="table">
                     <thead>
                         <tr>
+                            <th class="w-6"></th>
                             <th class="cursor-pointer hover:bg-base-200" onclick="setSort('guest')">
                                 <span class="inline-flex items-center gap-1" data-i18n="crm_guest">Гость <span id="sort-guest" class="text-xs opacity-50"></span></span>
                             </th>
@@ -128,7 +140,7 @@
                         </tr>
                     </thead>
                     <tbody id="prepaymentsTable">
-                        <tr><td colspan="8" class="text-center py-8">
+                        <tr><td colspan="9" class="text-center py-8">
                             <span class="loading loading-spinner loading-md"></span>
                         </td></tr>
                     </tbody>
@@ -147,6 +159,7 @@
 <script src="../js/layout.js?v=13"></script>
 <script src="../js/date-utils.js?v=3"></script>
 <script src="../js/crm-utils.js?v=3"></script>
+<script src="../js/prepayment-ops.js?v=2"></script>
 
 <script>
 const t = key => Layout.t(key);
@@ -164,6 +177,10 @@ let sortDir = 'desc';
 let debounceTimer = null;
 
 const canConfirm = () => !!window.hasPermission?.('confirm_prepayment');
+
+// Кэш операций по payment_id
+let operationsByPayment = {}; // { paymentId: [operations] }
+let expandedRows = new Set();
 
 // ==================== DATA ====================
 async function loadAll() {
@@ -193,8 +210,42 @@ async function loadAll() {
     // Клиентский фильтр по статусу сделки — embed-уровень фильтрации в Supabase слишком громоздкий
     prepayments = (paymentsRes.data || []).filter(p => p.deal && DEAL_STATUSES_ALLOWED.includes(p.deal.status));
 
+    await loadAllOperations();
     populateFilters();
     applyFilters();
+}
+
+async function loadAllOperations() {
+    if (prepayments.length === 0) { operationsByPayment = {}; return; }
+    const paymentIds = prepayments.map(p => p.id);
+    const { data, error } = await Layout.db
+        .from('crm_prepayment_operations')
+        .select(`
+            *,
+            target_retreat:target_retreat_id(id, name_ru, name_en, color),
+            donation_retreat:retreat_id(id, name_ru, name_en, color),
+            refund_system:refund_payment_system_id(id, code, name_ru, name_en)
+        `)
+        .in('payment_id', paymentIds)
+        .order('created_at');
+    if (error) { console.warn('loadAllOperations', error); return; }
+    operationsByPayment = {};
+    (data || []).forEach(op => {
+        if (!operationsByPayment[op.payment_id]) operationsByPayment[op.payment_id] = [];
+        operationsByPayment[op.payment_id].push(op);
+    });
+}
+
+function getOpsForPayment(p) {
+    return operationsByPayment[p.id] || [];
+}
+
+function getDistributedFor(p) {
+    return getOpsForPayment(p).reduce((s, o) => s + Number(o.amount), 0);
+}
+
+function getRemainderFor(p) {
+    return Number(p.amount) - getDistributedFor(p);
 }
 
 function populateFilters() {
@@ -214,6 +265,7 @@ function applyFilters() {
     const retreatId = document.getElementById('filterRetreat').value;
     const status = document.getElementById('filterStatus').value;
     const systemId = document.getElementById('filterSystem').value;
+    const opType = document.getElementById('filterOpType')?.value || '';
     const search = document.getElementById('filterSearch').value.toLowerCase().trim();
 
     filtered = prepayments.filter(p => {
@@ -221,6 +273,15 @@ function applyFilters() {
         if (status === 'confirmed' && !p.is_confirmed) return false;
         if (status === 'not_confirmed' && p.is_confirmed) return false;
         if (systemId && p.payment_system_id !== systemId) return false;
+
+        if (opType) {
+            const ops = getOpsForPayment(p);
+            if (opType === 'has_balance') {
+                if (ops.length === 0 || getRemainderFor(p) <= 0) return false;
+            } else {
+                if (!ops.some(o => o.operation_type === opType)) return false;
+            }
+        }
 
         if (search) {
             const g = p.deal?.vaishnavas;
@@ -245,8 +306,15 @@ function resetFilters() {
     document.getElementById('filterRetreat').value = '';
     document.getElementById('filterStatus').value = '';
     document.getElementById('filterSystem').value = '';
+    const op = document.getElementById('filterOpType'); if (op) op.value = '';
     document.getElementById('filterSearch').value = '';
     applyFilters();
+}
+
+function toggleRowExpand(paymentId) {
+    if (expandedRows.has(paymentId)) expandedRows.delete(paymentId);
+    else expandedRows.add(paymentId);
+    renderTable();
 }
 
 // ==================== SORTING ====================
@@ -309,7 +377,7 @@ function sortData() {
 function renderTable() {
     const tbody = document.getElementById('prepaymentsTable');
     if (filtered.length === 0) {
-        tbody.innerHTML = `<tr><td colspan="8" class="text-center py-8 text-base-content/50">${t('crm_no_prepayments')}</td></tr>`;
+        tbody.innerHTML = `<tr><td colspan="9" class="text-center py-8 text-base-content/50">${t('crm_no_prepayments')}</td></tr>`;
         return;
     }
 
@@ -317,13 +385,40 @@ function renderTable() {
         const guest = p.deal?.vaishnavas;
         const retreat = p.deal?.retreats;
         const manager = p.deal?.manager;
+        const ops = getOpsForPayment(p);
+        const distributed = getDistributedFor(p);
+        const remainder = getRemainderFor(p);
+        const isExpanded = expandedRows.has(p.id);
+        const chevron = ops.length > 0
+            ? `<button class="btn btn-ghost btn-xs px-1" onclick="toggleRowExpand('${p.id}')" title="Операции">
+                 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" class="w-4 h-4 transition-transform ${isExpanded ? 'rotate-90' : ''}"><path fill-rule="evenodd" d="M16.28 11.47a.75.75 0 0 1 0 1.06l-7.5 7.5a.75.75 0 0 1-1.06-1.06L14.69 12 7.72 5.03a.75.75 0 0 1 1.06-1.06l7.5 7.5Z" clip-rule="evenodd"/></svg>
+               </button>`
+            : '';
+
+        const opsSummary = ops.length > 0
+            ? `<div class="text-xs text-base-content/50 mt-0.5">
+                 ${ops.length} ${pluralOps(ops.length)} · распределено <span class="font-mono">${e(CrmUtils.formatMoney(distributed, p.currency))}</span>${remainder > 0 ? ` · остаток <span class="font-mono text-amber-700">${e(CrmUtils.formatMoney(remainder, p.currency))}</span>` : ''}
+               </div>`
+            : '';
+
+        const opsRow = (isExpanded && ops.length > 0)
+            ? `<tr class="bg-base-200/30">
+                 <td></td>
+                 <td colspan="8" class="py-2">
+                   ${PrepaymentOps.renderOperationsList(ops, { withActions: true, compact: true })}
+                 </td>
+               </tr>`
+            : '';
+
         return `
             <tr class="prepayment-row" data-id="${p.id}">
+                <td>${chevron}</td>
                 <td>
                     <a href="deal.html?id=${p.deal?.id}" class="hover:underline">
                         <div class="font-medium">${e(CrmUtils.getGuestName(guest))}</div>
                         <div class="text-xs text-base-content/50">${e(guest?.phone || guest?.email || '')}</div>
                     </a>
+                    ${opsSummary}
                 </td>
                 <td>
                     <span class="badge badge-sm whitespace-nowrap" style="background-color: ${retreat?.color || '#6b7280'}; color: white;">
@@ -337,9 +432,22 @@ function renderTable() {
                 <td class="text-sm">${manager ? e(CrmUtils.getGuestShortName(manager)) : '<span class="text-base-content/30">—</span>'}</td>
                 <td class="text-sm text-base-content/50">${CrmUtils.formatDate(p.created_at)}</td>
             </tr>
+            ${opsRow}
         `;
     }).join('');
 }
+
+function pluralOps(n) {
+    const mod10 = n % 10, mod100 = n % 100;
+    if (mod10 === 1 && mod100 !== 11) return 'операция';
+    if (mod10 >= 2 && mod10 <= 4 && (mod100 < 10 || mod100 >= 20)) return 'операции';
+    return 'операций';
+}
+
+document.addEventListener('prepayment-ops:changed', async () => {
+    await loadAllOperations();
+    applyFilters();
+});
 
 function renderStatusCell(p) {
     const confirmed = p.is_confirmed;
