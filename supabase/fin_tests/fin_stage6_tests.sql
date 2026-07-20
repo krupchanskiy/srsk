@@ -1,0 +1,22 @@
+-- =============================================================
+-- Этап 6: тесты закрытий и отчётов (C-серия), прогнаны 2026-07-20
+-- через MCP execute_sql в BEGIN/ROLLBACK — все 16 зелёные.
+--
+-- C1 pending-операция по объекту блокирует закрытие (closure_has_unresolved)
+-- C2 disputed блокирует так же (сценарий 48); решение спора сторно снимает блок
+-- C3a закрытие ок v1; C3b snapshot сходится с фактом: участники=1,
+--     долг 2000, приход 8000, расход 3000 (сторно погасило 111), net 5000
+-- C4 идемпотентный повтор → existed, вторая строка не создана
+-- C5 повторное закрытие другим request_id → object_already_closed
+-- C6 reissue без dirty → report_not_dirty (защита от двойного нажатия)
+-- C7a post-close платёж ставит report_dirty_at
+-- C7b reissue → v2, dirty обнулён, долг в snapshot v2 = 0, приход 10000
+-- C8 reissue идемпотентен (повтор после обнуления dirty находит свою строку)
+-- C9 finalize с image/png → отказ (только PDF)
+-- C10a finalize ок → finalized; C10b повтор same attachment → noop;
+-- C10c другой PDF → finalize_conflict
+-- C11 один PDF нельзя привязать к двум версиям
+-- C12 fin_get_retreat_report: is_closed=true, 2 версии, свежая сверху
+--
+-- Полные executable-батчи — в истории сессии; файлы storage имитируются
+-- INSERT в storage.objects внутри транзакции.

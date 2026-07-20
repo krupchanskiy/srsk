@@ -1,0 +1,104 @@
+<!DOCTYPE html>
+<html lang="ru" data-theme="light">
+<head>
+    <script src="../js/color-init.js?v=2"></script>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title data-i18n-title="fin_page_title_analytics">Аналитика — Финансы — ШРСК</title>
+    <link href="https://cdn.jsdelivr.net/npm/daisyui@4.12.14/dist/full.min.css" rel="stylesheet" />
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script>tailwind.config = { theme: { extend: { screens: { 'desktop': '1200px' } } } }</script>
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="../css/common.css">
+</head>
+<body class="bg-base-200 min-h-screen flex flex-col">
+
+<div id="header-placeholder"></div>
+
+<main class="container mx-auto px-4 py-6 flex-1">
+    <div class="flex flex-wrap justify-between items-center gap-3 mb-6">
+        <h1 class="text-2xl font-bold" data-i18n="nav_fin_analytics">Аналитика</h1>
+    </div>
+
+    <div role="tablist" class="tabs tabs-boxed w-fit mb-4">
+        <a role="tab" class="tab tab-active" data-tab="retreat" data-i18n="fin_analytics_retreat">По ретриту</a>
+        <a role="tab" class="tab" data-tab="summary" data-i18n="fin_analytics_summary">Общая</a>
+    </div>
+
+    <!-- ===== ПО РЕТРИТУ ===== -->
+    <div id="retreatTab">
+        <div class="flex flex-wrap items-center gap-3 mb-4">
+            <select id="retreatSelect" class="select select-bordered select-sm w-64"></select>
+            <button class="btn btn-ghost btn-sm" id="csvBtn" onclick="FinAnalytics.exportCsv()" data-i18n="fin_export_csv">Выгрузить CSV</button>
+        </div>
+
+        <div id="retreatReport" class="space-y-4">
+            <div class="text-center py-8 opacity-60" data-i18n="fin_select_retreat">Выберите ретрит</div>
+        </div>
+    </div>
+
+    <!-- ===== ОБЩАЯ ===== -->
+    <div id="summaryTab" class="hidden">
+        <div class="flex flex-wrap items-end gap-3 mb-4">
+            <div class="form-control">
+                <label class="label py-0"><span class="label-text text-xs" data-i18n="fin_period_from">С</span></label>
+                <input type="date" id="sumFrom" class="input input-bordered input-sm w-40">
+            </div>
+            <div class="form-control">
+                <label class="label py-0"><span class="label-text text-xs" data-i18n="fin_period_to">По</span></label>
+                <input type="date" id="sumTo" class="input input-bordered input-sm w-40">
+            </div>
+            <button class="btn btn-primary btn-sm" onclick="FinAnalytics.loadSummary()" data-i18n="fin_show">Показать</button>
+        </div>
+        <div id="summaryReport" class="space-y-4"></div>
+    </div>
+</main>
+
+<div id="footer-placeholder"></div>
+
+<!-- Модалка: закрыть ретрит -->
+<dialog id="closeModal" class="modal">
+    <div class="modal-box max-w-md">
+        <h3 class="font-bold text-lg mb-2" data-i18n="fin_close_retreat">Закрыть ретрит</h3>
+        <p class="text-sm opacity-70 mb-3" data-i18n="fin_close_warning">После закрытия новые операции по ретриту возможны только как post-close с обязательной причиной. Убедитесь, что долги отработаны или осознанно зафиксированы.</p>
+        <div id="closeInfo" class="text-sm mb-3"></div>
+        <div class="modal-action">
+            <button type="button" class="btn" onclick="document.getElementById('closeModal').close()" data-i18n="cancel">Отмена</button>
+            <button type="button" class="btn btn-error" onclick="FinAnalytics.submitClose()" data-i18n="fin_close_retreat">Закрыть ретрит</button>
+        </div>
+    </div>
+    <form method="dialog" class="modal-backdrop"><button>close</button></form>
+</dialog>
+
+<!-- Модалка: перевыпуск -->
+<dialog id="reissueModal" class="modal">
+    <div class="modal-box max-w-sm">
+        <h3 class="font-bold text-lg mb-2" data-i18n="fin_reissue">Перевыпустить отчёт</h3>
+        <form id="reissueForm">
+            <div class="form-control mb-2">
+                <label class="label py-0"><span class="label-text" data-i18n="fin_reason">Причина</span></label>
+                <input type="text" id="reissueReason" class="input input-bordered input-sm" required>
+            </div>
+            <div class="modal-action">
+                <button type="button" class="btn" onclick="document.getElementById('reissueModal').close()" data-i18n="cancel">Отмена</button>
+                <button type="submit" class="btn btn-primary" data-i18n="fin_reissue">Перевыпустить отчёт</button>
+            </div>
+        </form>
+    </div>
+    <form method="dialog" class="modal-backdrop"><button>close</button></form>
+</dialog>
+
+<script src="../js/config.js?v=4"></script>
+<script src="../js/auth-check.js?v=6"></script>
+<script src="../js/cache.js?v=1"></script>
+<script src="../js/utils.js?v=4"></script>
+<script src="../js/layout.js?v=19"></script>
+<script src="../js/date-utils.js?v=3"></script>
+<script src="../js/fin-utils.js?v=4"></script>
+<script src="https://cdn.jsdelivr.net/npm/pdf-lib@1.17.1/dist/pdf-lib.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@pdf-lib/fontkit@1.1.1/dist/fontkit.umd.min.js"></script>
+<script src="../js/pages/fin-analytics.js?v=1"></script>
+
+</body>
+</html>

@@ -161,9 +161,10 @@ const FinUtils = {
         return [...new Uint8Array(digest)].map(b => b.toString(16).padStart(2, '0')).join('');
     },
 
-    // Загрузить файл в finance-files и привязать к операции.
+    // Загрузить файл в finance-files и привязать к операции или объекту
+    // учёта (parentType: 'operation' | 'accounting_object').
     // Путь: <uid>/<request_id>/<имя> (политика Storage требует свой префикс)
-    async uploadAndAttach(file, operationId, postingId) {
+    async uploadAndAttach(file, operationId, postingId, parentType) {
         const uid = (await Layout.db.auth.getUser()).data?.user?.id;
         if (!uid) return { ok: false, error: { code: 'forbidden', message: 'Нет сессии' } };
         const requestId = this.newRequestId();
@@ -179,7 +180,7 @@ const FinUtils = {
         return this.rpc('fin_create_attachment', {
             request_id: requestId,
             storage_path: path,
-            parent_type: 'operation',
+            parent_type: parentType || 'operation',
             parent_id: operationId,
             posting_id: postingId || null,
             file_name: file.name,
