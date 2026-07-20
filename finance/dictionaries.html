@@ -25,9 +25,21 @@
 
     <div role="tablist" class="tabs tabs-boxed w-fit mb-4">
         <a role="tab" class="tab tab-active" data-tab="categories" data-i18n="fin_dict_categories">Статьи</a>
-        <a role="tab" class="tab" data-tab="cost_centers" data-i18n="fin_dict_cost_centers">Cost centers</a>
+        <a role="tab" class="tab" data-tab="cost_centers" data-i18n="fin_dict_cost_centers">Центры затрат</a>
         <a role="tab" class="tab" data-tab="contractors" data-i18n="fin_dict_contractors">Контрагенты</a>
         <a role="tab" class="tab" data-tab="rates" data-i18n="fin_dict_rates">Курсы валют</a>
+    </div>
+
+    <!-- Панель: поиск + фильтр направления (для статей) -->
+    <div class="flex flex-wrap items-center gap-3 mb-3">
+        <input type="search" id="dictSearch" class="input input-bordered input-sm w-56"
+               data-i18n-placeholder="fin_dict_search" placeholder="Поиск по названию или коду…">
+        <div class="join" id="dirFilter" style="display:none">
+            <button class="join-item btn btn-sm btn-active" data-dir="" data-i18n="fin_filter_all">Все</button>
+            <button class="join-item btn btn-sm" data-dir="in" data-i18n="fin_dir_in">Приход</button>
+            <button class="join-item btn btn-sm" data-dir="out" data-i18n="fin_dir_out">Расход</button>
+        </div>
+        <span id="dictCount" class="text-sm opacity-60 ml-auto"></span>
     </div>
 
     <div class="card bg-base-100 shadow-sm">
@@ -65,10 +77,10 @@
 <script src="../js/auth-check.js?v=7"></script>
 <script src="../js/cache.js?v=1"></script>
 <script src="../js/utils.js?v=4"></script>
-<script src="../js/layout.js?v=25"></script>
+<script src="../js/layout.js?v=26"></script>
 <script src="../js/date-utils.js?v=3"></script>
 <script src="../js/fin-utils.js?v=6"></script>
-<script src="../js/pages/fin-dictionaries.js?v=4"></script>
+<script src="../js/pages/fin-dictionaries.js?v=5"></script>
 
 </body>
 </html>

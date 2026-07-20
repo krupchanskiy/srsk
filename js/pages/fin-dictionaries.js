@@ -33,13 +33,43 @@ function activeBadge(row) {
     return row.is_active ? '' : ` <span class="badge badge-ghost badge-xs">${t('fin_archived')}</span>`;
 }
 
+let dictQuery = '';
+let dictDir = '';   // '' | 'in' | 'out' (только для статей)
+
+// Отфильтрованный по поиску/направлению срез rows
+function filteredRows() {
+    const q = dictQuery.trim().toLowerCase();
+    return rows.filter(r => {
+        if (currentTab === 'categories' && dictDir && r.direction !== dictDir) return false;
+        if (!q) return true;
+        const hay = [r.name, r.code, r.from_currency, r.object_name, r.contact_info].filter(Boolean).join(' ').toLowerCase();
+        return hay.includes(q);
+    });
+}
+
+// «Действующий сейчас» курс = самый свежий (effective_date ≤ сегодня) для пары валюта|объект
+function computeCurrentRateIds(list) {
+    const today = FinUtils.todayISO();
+    const seen = new Set(), current = new Set();
+    // list уже отсортирован по effective_date desc
+    for (const r of list) {
+        const key = `${r.from_currency}|${r.object_id || ''}`;
+        if (!seen.has(key) && r.effective_date <= today) { current.add(r.id); seen.add(key); }
+    }
+    return current;
+}
+
 function renderTab() {
     const head = document.getElementById('dictHead');
     const body = document.getElementById('dictBody');
+    const view = filteredRows();
+    const countEl = document.getElementById('dictCount');
+    if (countEl) countEl.textContent = rows.length ? `${view.length} / ${rows.length}` : '';
+    document.getElementById('dirFilter').style.display = currentTab === 'categories' ? '' : 'none';
 
     if (currentTab === 'categories') {
         head.innerHTML = `<tr><th>${t('col_code') || 'Код'}</th><th>${t('col_name') || 'Название'}</th><th>${t('fin_direction')}</th><th>${t('fin_visible_departments')}</th><th></th></tr>`;
-        body.innerHTML = rows.map(r => `
+        body.innerHTML = view.map(r => `
             <tr class="${r.is_active ? '' : 'opacity-60'}">
                 <td class="font-mono">${e(r.code)}</td>
                 <td>${e(r.name)}${activeBadge(r)}</td>
@@ -49,7 +79,7 @@ function renderTab() {
             </tr>`).join('');
     } else if (currentTab === 'cost_centers') {
         head.innerHTML = `<tr><th>${t('col_code') || 'Код'}</th><th>${t('col_name') || 'Название'}</th><th></th></tr>`;
-        body.innerHTML = rows.map(r => `
+        body.innerHTML = view.map(r => `
             <tr class="${r.is_active ? '' : 'opacity-60'}">
                 <td class="font-mono">${e(r.code)}</td>
                 <td>${e(r.name)}${activeBadge(r)}</td>
@@ -57,7 +87,7 @@ function renderTab() {
             </tr>`).join('');
     } else if (currentTab === 'contractors') {
         head.innerHTML = `<tr><th>${t('col_name') || 'Название'}</th><th>${t('fin_person_org')}</th><th>${t('fin_comment')}</th><th></th></tr>`;
-        body.innerHTML = rows.map(r => `
+        body.innerHTML = view.map(r => `
             <tr class="${r.is_active ? '' : 'opacity-60'}">
                 <td>${e(r.name)}${activeBadge(r)}</td>
                 <td>${t(r.type === 'person' ? 'fin_person' : 'fin_organization')}</td>
@@ -65,20 +95,22 @@ function renderTab() {
                 <td class="text-right"><button class="btn btn-ghost btn-sm" data-edit="${r.id}" aria-label="${t('edit')}" title="${t('edit')}">${editIcon}</button></td>
             </tr>`).join('');
     } else {
+        const currentIds = computeCurrentRateIds(rows);
         head.innerHTML = `<tr><th>${t('fin_currency')}</th><th>${t('fin_effective_date')}</th><th>${t('fin_rate')}</th><th>${t('fin_retreat_object')}</th></tr>`;
-        body.innerHTML = rows.map(r => `
-            <tr>
+        body.innerHTML = view.map(r => `
+            <tr class="${currentIds.has(r.id) ? 'font-medium' : 'opacity-70'}">
                 <td class="font-mono font-bold">${e(r.from_currency)}</td>
-                <td>${DateUtils.formatShort(DateUtils.parseDate(r.effective_date))}</td>
+                <td>${DateUtils.formatShort(DateUtils.parseDate(r.effective_date))}${currentIds.has(r.id) ? ` <span class="badge badge-success badge-xs">${t('fin_rate_current')}</span>` : ''}</td>
                 <td class="font-mono">${r.rate}</td>
                 <td>${e(r.object_name || t('fin_general_rate'))}</td>
             </tr>`).join('');
     }
-    if (!rows.length) {
+    if (!view.length) {
         const canAdd = currentTab !== 'rates' || window.hasPermission?.('fin_admin');
+        const msg = rows.length ? t('fin_nothing_found') : t('fin_dict_empty');
         body.innerHTML = `<tr><td colspan="6" class="text-center py-10 opacity-60">
-            <div class="mb-2">${t('fin_dict_empty')}</div>
-            ${canAdd ? `<button class="btn btn-primary btn-sm" onclick="FinDicts.openAdd()">${t('fin_add')}</button>` : ''}
+            <div class="mb-2">${msg}</div>
+            ${!rows.length && canAdd ? `<button class="btn btn-primary btn-sm" onclick="FinDicts.openAdd()">${t('fin_add')}</button>` : ''}
         </td></tr>`;
     }
 }
@@ -184,6 +216,15 @@ async function init() {
         tab.classList.add('tab-active');
         currentTab = tab.dataset.tab;
         loadTab();
+    }));
+
+    document.getElementById('dictSearch').addEventListener('input', Layout.debounce(ev => {
+        dictQuery = ev.target.value; renderTab();
+    }, 200));
+    document.querySelectorAll('#dirFilter [data-dir]').forEach(btn => btn.addEventListener('click', () => {
+        dictDir = btn.dataset.dir;
+        document.querySelectorAll('#dirFilter [data-dir]').forEach(b => b.classList.toggle('btn-active', b === btn));
+        renderTab();
     }));
 
     document.getElementById('dictBody').addEventListener('click', ev => {
