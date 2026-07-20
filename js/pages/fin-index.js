@@ -18,8 +18,25 @@ function renderCurrencyMap(map) {
     const entries = Object.entries(map).filter(([, v]) => v !== 0);
     if (!entries.length) return '<span class="opacity-50">—</span>';
     return entries.map(([code, total]) =>
-        `<div class="text-lg font-semibold ${total < 0 ? 'text-error' : ''}">${FinUtils.fmtMoney(total, code)}</div>`
+        `<div class="${total < 0 ? 'text-error' : ''}" data-count="${total}" data-cur="${code}">${FinUtils.fmtMoney(total, code)}</div>`
     ).join('');
+}
+
+// Count-up чисел KPI (~0.7s, ease-out-quart); при reduced-motion — сразу итог
+function animateCounts() {
+    if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+    document.querySelectorAll('#balanceCards [data-count]').forEach(el => {
+        const target = Number(el.dataset.count);
+        const cur = el.dataset.cur;
+        const t0 = performance.now(), dur = 700;
+        const tick = now => {
+            const p = Math.min(1, (now - t0) / dur);
+            const eased = 1 - Math.pow(1 - p, 4);
+            el.textContent = FinUtils.fmtMoney(p < 1 ? Math.round(target * eased) : target, cur);
+            if (p < 1) requestAnimationFrame(tick);
+        };
+        requestAnimationFrame(tick);
+    });
 }
 
 async function loadDashboard() {
@@ -41,6 +58,7 @@ async function loadDashboard() {
         document.getElementById('realBalances').innerHTML = renderCurrencyMap(realMap);
         document.getElementById('custodialBalances').innerHTML = renderCurrencyMap(custMap);
         document.getElementById('totalBalances').innerHTML = renderCurrencyMap(totalMap);
+        animateCounts();
     }
 
     // Минусы

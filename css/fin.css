@@ -1,0 +1,154 @@
+/* ==================== FIN.CSS ==================== */
+/* Дизайн-слой финмодуля: спокойный «банковский» вид поверх DaisyUI.
+   Принципы: волосяные границы + мягкие рассеянные тени (не плоский shadow-sm),
+   табличные цифры, приглушённые статусы, микро-движение с физикой.
+   Подключается только на страницах finance/, скоуп — body.fin-page */
+
+body.fin-page {
+    --fin-ink: #0f172a;
+    --fin-muted: #64748b;
+    --fin-accent: var(--current-color, #0d9488);
+    --fin-border: rgba(15, 23, 42, 0.07);
+    --fin-shadow: 0 1px 2px rgba(16, 24, 40, 0.04), 0 8px 24px -12px rgba(16, 24, 40, 0.10);
+    --fin-shadow-hover: 0 2px 4px rgba(16, 24, 40, 0.05), 0 16px 32px -12px rgba(16, 24, 40, 0.14);
+    --fin-ease: cubic-bezier(0.32, 0.72, 0, 1);
+    background:
+        radial-gradient(1200px 500px at 85% -10%, color-mix(in srgb, var(--fin-accent) 6%, transparent), transparent 60%),
+        #f4f6f8;
+}
+
+/* ---------- Карточки: hairline + мягкая глубина ---------- */
+body.fin-page .card {
+    border: 1px solid var(--fin-border);
+    border-radius: 16px;
+    box-shadow: var(--fin-shadow);
+    transition: box-shadow 0.35s var(--fin-ease), transform 0.35s var(--fin-ease);
+}
+body.fin-page a.card:hover {
+    box-shadow: var(--fin-shadow-hover);
+    transform: translateY(-1px);
+}
+
+/* ---------- Заголовок страницы ---------- */
+body.fin-page main > .flex h1,
+body.fin-page main > h1 {
+    letter-spacing: -0.02em;
+    color: var(--fin-ink);
+}
+
+/* ---------- KPI-карточки дашборда ---------- */
+body.fin-page .fin-kpi .card-body { padding: 1.1rem 1.25rem; }
+body.fin-page .fin-kpi-label {
+    font-size: 0.72rem !important;
+    text-transform: uppercase;
+    letter-spacing: 0.09em;
+    font-weight: 600;
+    color: var(--fin-muted);
+}
+body.fin-page .fin-kpi-value,
+body.fin-page .fin-kpi-value div {
+    font-size: 1.85rem !important;
+    line-height: 1.15;
+    font-weight: 700;
+    letter-spacing: -0.015em;
+    font-variant-numeric: tabular-nums;
+    color: var(--fin-ink);
+}
+body.fin-page .fin-kpi-value .text-error { color: #dc2626; }
+body.fin-page .fin-icon-chip {
+    width: 2.5rem; height: 2.5rem;
+    border-radius: 0.75rem;
+    display: flex; align-items: center; justify-content: center;
+    background: color-mix(in srgb, var(--fin-accent) 11%, transparent);
+    color: var(--fin-accent);
+    flex-shrink: 0;
+}
+body.fin-page .fin-icon-chip.is-error {
+    background: rgba(220, 38, 38, 0.09);
+    color: #dc2626;
+}
+body.fin-page .fin-icon-chip.is-warning {
+    background: rgba(217, 119, 6, 0.10);
+    color: #b45309;
+}
+body.fin-page .fin-icon-chip svg { width: 1.25rem; height: 1.25rem; }
+
+/* ---------- Таблицы: тихая шапка, живые строки, табличные цифры ---------- */
+body.fin-page .table { font-variant-numeric: tabular-nums; }
+body.fin-page .table thead th {
+    font-size: 0.72rem !important;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    font-weight: 600;
+    color: var(--fin-muted);
+    background: transparent;
+    border-bottom: 1px solid var(--fin-border);
+    padding-top: 0.9rem; padding-bottom: 0.6rem;
+}
+body.fin-page .table td { border-color: rgba(15, 23, 42, 0.045); }
+body.fin-page .table tbody tr { transition: background-color 0.18s var(--fin-ease); }
+body.fin-page .table tbody tr.cursor-pointer:hover,
+body.fin-page .table tbody tr[tabindex]:hover {
+    background: color-mix(in srgb, var(--fin-accent) 5%, transparent);
+}
+body.fin-page .table tbody tr[tabindex]:focus-visible {
+    outline: 2px solid var(--fin-accent);
+    outline-offset: -2px;
+}
+
+/* Деньги: единый строгий рендер */
+body.fin-page .font-mono {
+    font-family: 'Noto Sans', sans-serif !important;
+    font-variant-numeric: tabular-nums;
+    font-feature-settings: "tnum";
+    white-space: nowrap;
+}
+body.fin-page .text-success { color: #059669; }
+body.fin-page .text-error { color: #dc2626; }
+
+/* ---------- Статусы: приглушённые чипы вместо плакатных бейджей ---------- */
+body.fin-page .badge-success { background: rgba(5, 150, 105, 0.10); color: #047857; border: none; }
+body.fin-page .badge-warning { background: rgba(217, 119, 6, 0.12); color: #b45309; border: none; }
+body.fin-page .badge-error:not(.badge-outline) { background: rgba(220, 38, 38, 0.10); color: #b91c1c; border: none; }
+body.fin-page .badge-neutral { background: rgba(15, 23, 42, 0.08); color: #334155; border: none; }
+body.fin-page .badge-ghost { background: rgba(15, 23, 42, 0.05); color: var(--fin-muted); border: none; }
+body.fin-page .badge-error.badge-outline { background: rgba(220, 38, 38, 0.07); color: #b91c1c; border-color: rgba(220, 38, 38, 0.25); }
+body.fin-page .badge-success.badge-outline { background: rgba(5, 150, 105, 0.07); color: #047857; border-color: rgba(5, 150, 105, 0.25); }
+
+/* ---------- Кнопки: глубина и «нажатие» ---------- */
+body.fin-page .btn {
+    transition: transform 0.2s var(--fin-ease), box-shadow 0.2s var(--fin-ease),
+                background-color 0.2s var(--fin-ease), border-color 0.2s var(--fin-ease);
+}
+body.fin-page .btn-primary, body.fin-page .btn-success, body.fin-page .btn-error {
+    box-shadow: 0 1px 2px rgba(16, 24, 40, 0.10), inset 0 1px 0 rgba(255, 255, 255, 0.18);
+    border: none;
+}
+body.fin-page .btn:active { transform: scale(0.97); }
+body.fin-page .btn:focus-visible { outline: 2px solid var(--fin-accent); outline-offset: 2px; }
+
+/* ---------- Формы ---------- */
+body.fin-page .input:focus, body.fin-page .select:focus, body.fin-page .input:focus-within {
+    outline: 2px solid color-mix(in srgb, var(--fin-accent) 55%, transparent);
+    outline-offset: 0;
+    border-color: var(--fin-accent);
+}
+body.fin-page .modal-box {
+    border-radius: 20px;
+    border: 1px solid var(--fin-border);
+    box-shadow: 0 24px 64px -16px rgba(16, 24, 40, 0.28);
+}
+
+/* ---------- Появление контента: тихий fade-up ---------- */
+@media (prefers-reduced-motion: no-preference) {
+    body.fin-page main > * {
+        animation: finRise 0.5s var(--fin-ease) backwards;
+    }
+    body.fin-page main > *:nth-child(2) { animation-delay: 0.06s; }
+    body.fin-page main > *:nth-child(3) { animation-delay: 0.12s; }
+    body.fin-page main > *:nth-child(4) { animation-delay: 0.18s; }
+    @keyframes finRise {
+        from { opacity: 0; transform: translateY(10px); }
+        to { opacity: 1; transform: translateY(0); }
+    }
+}

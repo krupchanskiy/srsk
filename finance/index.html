@@ -11,8 +11,9 @@
     <script>tailwind.config = { theme: { extend: { screens: { 'desktop': '1200px' } } } }</script>
     <link href="https://fonts.googleapis.com/css2?family=Noto+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="../css/common.css">
+    <link rel="stylesheet" href="../css/fin.css?v=1">
 </head>
-<body class="bg-base-200 min-h-screen flex flex-col">
+<body class="fin-page bg-base-200 min-h-screen flex flex-col">
 
 <div id="header-placeholder"></div>
 
@@ -21,42 +22,72 @@
 
     <!-- Карточки остатков -->
     <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6" id="balanceCards">
-        <div class="card bg-base-100 shadow-sm"><div class="card-body">
-            <h2 class="card-title text-base" data-i18n="fin_real_accounts">Реальные счета</h2>
-            <div id="realBalances"><span class="loading loading-spinner loading-sm"></span></div>
+        <div class="card bg-base-100 fin-kpi"><div class="card-body">
+            <div class="flex items-start gap-3">
+                <div class="fin-icon-chip">
+                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.7" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M2.25 8.25h19.5M2.25 9h19.5m-16.5 5.25h6m-6 2.25h3m-3.75 3h15a2.25 2.25 0 002.25-2.25V6.75a2.25 2.25 0 00-2.25-2.25h-15a2.25 2.25 0 00-2.25 2.25v10.5a2.25 2.25 0 002.25 2.25z"/></svg>
+                </div>
+                <div class="min-w-0">
+                    <div class="fin-kpi-label" data-i18n="fin_real_accounts">Реальные счета</div>
+                    <div class="fin-kpi-value mt-1" id="realBalances"><span class="loading loading-spinner loading-sm"></span></div>
+                </div>
+            </div>
         </div></div>
-        <div class="card bg-base-100 shadow-sm"><div class="card-body">
-            <h2 class="card-title text-base" data-i18n="fin_given_custody">Выдано под отчёт</h2>
-            <div id="custodialBalances"><span class="loading loading-spinner loading-sm"></span></div>
-            <p class="text-xs opacity-70" data-i18n="fin_custody_hint">Деньги на руках у ответственных (подотчётные счета)</p>
+        <div class="card bg-base-100 fin-kpi"><div class="card-body">
+            <div class="flex items-start gap-3">
+                <div class="fin-icon-chip">
+                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.7" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M15 9h3.75M15 12h3.75M15 15h3.75M4.5 19.5h15a2.25 2.25 0 002.25-2.25V6.75A2.25 2.25 0 0019.5 4.5h-15a2.25 2.25 0 00-2.25 2.25v10.5A2.25 2.25 0 004.5 19.5zm4.125-9.75a1.875 1.875 0 11-3.75 0 1.875 1.875 0 013.75 0zm1.294 6.336a6.721 6.721 0 01-3.17.789 6.721 6.721 0 01-3.168-.789 3.376 3.376 0 016.338 0z"/></svg>
+                </div>
+                <div class="min-w-0">
+                    <div class="fin-kpi-label" data-i18n="fin_given_custody">Выдано под отчёт</div>
+                    <div class="fin-kpi-value mt-1" id="custodialBalances"><span class="loading loading-spinner loading-sm"></span></div>
+                    <p class="text-xs opacity-70 mt-1" data-i18n="fin_custody_hint">Деньги на руках у ответственных (подотчётные счета)</p>
+                </div>
+            </div>
         </div></div>
-        <div class="card bg-base-100 shadow-sm"><div class="card-body">
-            <h2 class="card-title text-base" data-i18n="fin_total_responsibility">Всего под ответственностью</h2>
-            <div id="totalBalances"><span class="loading loading-spinner loading-sm"></span></div>
-            <p class="text-xs opacity-70" data-i18n="fin_total_resp_hint">Реальные счета + выдано под отчёт, без двойного счёта</p>
+        <div class="card bg-base-100 fin-kpi"><div class="card-body">
+            <div class="flex items-start gap-3">
+                <div class="fin-icon-chip">
+                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.7" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M9 12.75L11.25 15 15 9.75m-3-7.036A11.959 11.959 0 013.598 6 11.99 11.99 0 003 9.749c0 5.592 3.824 10.29 9 11.623 5.176-1.332 9-6.03 9-11.622 0-1.31-.21-2.571-.598-3.751h-.152c-3.196 0-6.1-1.248-8.25-3.285z"/></svg>
+                </div>
+                <div class="min-w-0">
+                    <div class="fin-kpi-label" data-i18n="fin_total_responsibility">Всего под ответственностью</div>
+                    <div class="fin-kpi-value mt-1" id="totalBalances"><span class="loading loading-spinner loading-sm"></span></div>
+                    <p class="text-xs opacity-70 mt-1" data-i18n="fin_total_resp_hint">Реальные счета + выдано под отчёт, без двойного счёта</p>
+                </div>
+            </div>
         </div></div>
     </div>
 
     <!-- Счётчики -->
     <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
-        <a href="inbox.html" class="card bg-base-100 shadow-sm hover:shadow-md transition-shadow"><div class="card-body py-4">
-            <div class="flex items-center justify-between">
-                <span data-i18n="fin_pending_ops">Входящие</span>
-                <span class="badge badge-warning" id="pendingCount">0</span>
+        <a href="inbox.html" class="card bg-base-100"><div class="card-body py-4">
+            <div class="flex items-center gap-3">
+                <div class="fin-icon-chip is-warning">
+                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.7" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M2.25 13.5h3.86a2.25 2.25 0 012.012 1.244l.256.512a2.25 2.25 0 002.013 1.244h3.218a2.25 2.25 0 002.013-1.244l.256-.512a2.25 2.25 0 012.013-1.244h3.859m-19.5.338V18a2.25 2.25 0 002.25 2.25h15A2.25 2.25 0 0021.75 18v-4.162c0-.224-.034-.447-.1-.661L19.24 5.338a2.25 2.25 0 00-2.15-1.588H6.911a2.25 2.25 0 00-2.15 1.588L2.35 13.177a2.25 2.25 0 00-.1.661z"/></svg>
+                </div>
+                <span class="flex-1" data-i18n="fin_pending_ops">Входящие</span>
+                <span class="badge badge-warning badge-lg" id="pendingCount">0</span>
             </div>
         </div></a>
-        <a href="inbox.html?tab=disputed" class="card bg-base-100 shadow-sm hover:shadow-md transition-shadow"><div class="card-body py-4">
-            <div class="flex items-center justify-between">
-                <span data-i18n="fin_disputed_ops">Оспоренные</span>
-                <span class="badge badge-error" id="disputedCount">0</span>
+        <a href="inbox.html?tab=disputed" class="card bg-base-100"><div class="card-body py-4">
+            <div class="flex items-center gap-3">
+                <div class="fin-icon-chip is-error">
+                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.7" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126zM12 15.75h.007v.008H12v-.008z"/></svg>
+                </div>
+                <span class="flex-1" data-i18n="fin_disputed_ops">Оспоренные</span>
+                <span class="badge badge-error badge-lg" id="disputedCount">0</span>
             </div>
         </div></a>
-        <div class="card bg-base-100 shadow-sm"><div class="card-body py-4">
-            <div class="flex items-center justify-between">
-                <span data-i18n="fin_negative_accounts">Минусы</span>
-                <span class="badge badge-error" id="negativeCount">0</span>
+        <div class="card bg-base-100"><div class="card-body py-4">
+            <div class="flex items-center gap-3">
+                <div class="fin-icon-chip is-error">
+                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.7" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M2.25 6L9 12.75l4.286-4.286a11.948 11.948 0 014.306 6.43l.776 2.898m0 0l3.182-5.511m-3.182 5.51l-5.511-3.181"/></svg>
+                </div>
+                <span class="flex-1" data-i18n="fin_negative_accounts">Минусы</span>
+                <span class="badge badge-error badge-lg" id="negativeCount">0</span>
             </div>
-            <div id="negativeList" class="text-sm text-error"></div>
+            <div id="negativeList" class="text-sm text-error mt-1"></div>
         </div></div>
     </div>
 
@@ -94,7 +125,7 @@
 <script src="../js/layout.js?v=20"></script>
 <script src="../js/date-utils.js?v=3"></script>
 <script src="../js/fin-utils.js?v=5"></script>
-<script src="../js/pages/fin-index.js?v=4"></script>
+<script src="../js/pages/fin-index.js?v=5"></script>
 
 </body>
 </html>
