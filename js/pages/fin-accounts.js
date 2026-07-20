@@ -34,16 +34,18 @@ function render() {
             <td>${e(a.group_name || '')}</td>
             <td>${e(personNames[a.responsible_person_id] || '')}</td>
             <td class="text-right font-mono ${a.is_negative ? 'text-error font-bold' : ''}">${FinUtils.fmtMoney(a.balance, a.currency_code)}</td>
-            <td class="text-right">
+            <td class="text-right whitespace-nowrap">
                 ${isAdmin ? `
-                <div class="dropdown dropdown-end">
-                    <button class="btn btn-ghost btn-xs">⋯</button>
-                    <ul class="dropdown-content menu bg-base-100 rounded-box shadow-lg z-50 w-52 p-1">
-                        <li><a data-action="edit" data-id="${a.account_id}">${t('fin_edit_account')}</a></li>
-                        ${a.last_ledger_seq === null ? `<li><a data-action="opening" data-id="${a.account_id}">${t('fin_new_opening')}</a></li>` : ''}
-                        <li><a data-action="give" data-id="${a.account_id}">${t('fin_give_out')}</a></li>
-                    </ul>
-                </div>` : ''}
+                <button class="btn btn-ghost btn-xs" data-action="edit" data-id="${a.account_id}" title="${t('fin_edit_account')}">
+                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-4 h-4"><path stroke-linecap="round" stroke-linejoin="round" d="m16.862 4.487 1.687-1.688a1.875 1.875 0 1 1 2.652 2.652L6.832 19.82a4.5 4.5 0 0 1-1.897 1.13l-2.685.8.8-2.685a4.5 4.5 0 0 1 1.13-1.897L16.863 4.487Z"/></svg>
+                </button>
+                ${a.last_ledger_seq === null ? `
+                <button class="btn btn-ghost btn-xs" data-action="opening" data-id="${a.account_id}" title="${t('fin_new_opening')}">
+                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-4 h-4"><path stroke-linecap="round" stroke-linejoin="round" d="M12 9v6m3-3H9m12 0a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z"/></svg>
+                </button>` : ''}
+                <button class="btn btn-ghost btn-xs" data-action="give" data-id="${a.account_id}" title="${t('fin_give_out')}">
+                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-4 h-4"><path stroke-linecap="round" stroke-linejoin="round" d="M7 16l-4-4m0 0l4-4m-4 4h18M17 8l4 4m0 0l-4 4m4-4H3"/></svg>
+                </button>` : ''}
             </td>
         </tr>
     `).join('');
