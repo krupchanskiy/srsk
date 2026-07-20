@@ -41,9 +41,14 @@ JOIN LATERAL (
          max(p.ledger_seq) AS max_ledger_seq,
          (SELECT jsonb_object_agg(x.currency_code, x.total)
           FROM (SELECT pp.currency_code,
-                       SUM(CASE pp.direction WHEN 'in' THEN pp.amount ELSE -pp.amount END) AS total
+                       -- для transfer нетто по валюте = 0, показываем сумму входящей ноги
+                       CASE WHEN o.type = 'transfer'
+                            THEN SUM(pp.amount) FILTER (WHERE pp.direction = 'in')
+                            ELSE SUM(CASE pp.direction WHEN 'in' THEN pp.amount ELSE -pp.amount END)
+                       END AS total
                 FROM fin_postings pp WHERE pp.operation_id = o.id
-                GROUP BY pp.currency_code) x) AS amounts_by_currency
+                GROUP BY pp.currency_code) x
+          WHERE x.total IS NOT NULL) AS amounts_by_currency
   FROM fin_postings p WHERE p.operation_id = o.id
 ) agg ON true
 WHERE fin_can_read_all();
