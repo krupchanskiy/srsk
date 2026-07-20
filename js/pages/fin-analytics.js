@@ -42,7 +42,7 @@ function catTable(rows, titleKey) {
     return `
     <div class="card bg-base-100 shadow-sm"><div class="card-body py-4">
         <h2 class="card-title text-base">${t(titleKey)}</h2>
-        <table class="table table-sm">
+        <div class="overflow-x-auto"><table class="table table-sm">
             <tbody>${rows.map(r => `
                 <tr>
                     <td>${e(r.name)}</td>
@@ -50,7 +50,7 @@ function catTable(rows, titleKey) {
                     <td class="text-right font-mono w-36">${fmtB(r.base_total)}</td>
                 </tr>`).join('')}
             </tbody>
-        </table>
+        </table></div>
     </div></div>`;
 }
 
@@ -70,7 +70,7 @@ function closureBlock(d) {
 
     const versions = (d.versions || []).map(v => `
         <tr>
-            <td>v${v.version}${v.is_initial ? ` <span class="opacity-50 text-xs">${t('fin_initial')}</span>` : ''}</td>
+            <td>v${v.version}${v.is_initial ? ` <span class="opacity-70 text-xs">${t('fin_initial')}</span>` : ''}</td>
             <td>${v.status === 'finalized'
                 ? `<span class="badge badge-success badge-sm">${t('fin_finalized')}</span>`
                 : `<span class="badge badge-warning badge-sm">${t('fin_report_pending')}</span>`}</td>
@@ -89,7 +89,7 @@ function closureBlock(d) {
             <h2 class="card-title text-base mr-2">${t('fin_closure')}</h2>
             ${statusHtml}
         </div>
-        ${versions ? `<table class="table table-sm mt-2"><tbody>${versions}</tbody></table>` : ''}
+        ${versions ? `<div class="overflow-x-auto"><table class="table table-sm mt-2"><tbody>${versions}</tbody></table></div>` : ''}
     </div></div>`;
 }
 
@@ -138,9 +138,9 @@ async function loadReport() {
         <div class="card bg-base-100 shadow-sm"><div class="card-body py-4">
             <h2 class="card-title text-base">${t('fin_debtors')} <span class="badge badge-error badge-sm">${p.debtors.length}</span>
                 <span class="ml-auto font-mono text-error text-base">${fmtB(p.debt_total)}</span></h2>
-            <table class="table table-sm"><tbody>
+            <div class="overflow-x-auto"><table class="table table-sm"><tbody>
                 ${p.debtors.map(x => `<tr><td>${e(x.name || '')}</td><td class="text-right font-mono text-error w-36">${fmtB(x.debt)}</td></tr>`).join('')}
-            </tbody></table>
+            </tbody></table></div>
         </div></div>` : ''}
         ${Number(p.advance_total) > 0 ? `<div class="text-sm opacity-70">${t('fin_advance')}: ${fmtB(p.advance_total)}</div>` : ''}
     `;
@@ -308,9 +308,9 @@ async function loadSummary() {
     const tbl = (title, rows, cols) => rows?.length ? `
         <div class="card bg-base-100 shadow-sm"><div class="card-body py-4">
             <h2 class="card-title text-base">${title}</h2>
-            <table class="table table-sm"><tbody>
+            <div class="overflow-x-auto"><table class="table table-sm"><tbody>
                 ${rows.map(r => `<tr>${cols(r)}</tr>`).join('')}
-            </tbody></table>
+            </tbody></table></div>
         </div></div>` : '';
 
     box.innerHTML =

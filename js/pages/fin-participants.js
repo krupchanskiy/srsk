@@ -48,8 +48,13 @@ async function selectRetreat(retreatId) {
     currentRetreat = retreatId;
     currentObjectId = null;
     if (!retreatId) {
+        // пустое состояние ведёт к действию, а не просто констатирует
         document.getElementById('participantsBody').innerHTML =
-            `<tr><td colspan="7" class="text-center py-8 opacity-60">${t('fin_select_retreat')}</td></tr>`;
+            `<tr><td colspan="7" class="text-center py-8">
+                <button type="button" class="btn btn-ghost" onclick="document.getElementById('retreatSelect').focus()">
+                    ↑ ${e(t('fin_select_retreat_hint'))}
+                </button>
+            </td></tr>`;
         return;
     }
     const url = new URL(window.location);
@@ -74,13 +79,22 @@ async function loadParticipants() {
     }
     body.innerHTML = participants.map(p => {
         const b = p.balance;
-        return `<tr class="cursor-pointer hover:bg-base-200" data-pid="${p.participant_id}">
+        return `<tr class="cursor-pointer hover:bg-base-200" data-pid="${p.participant_id}" tabindex="0">
             <td class="font-medium">${e(p.name || '')}</td>
             ${BLOCKS.map(k => `<td class="text-right">${fmtNet(b.blocks[k].balance)}</td>`).join('')}
             <td class="text-right">${fmtNet(Number(b.general_debt) - Number(b.general_advance))}</td>
-            <td class="text-right font-semibold">${fmtNet(b.net)}</td>
+            <td class="text-right font-semibold">${fmtNetWord(b.net)}</td>
         </tr>`;
     }).join('');
+}
+
+// Итог со словом: «Долг ₹N» / «Аванс ₹N» — знак и цвет не спорят друг с другом
+function fmtNetWord(n) {
+    const v = Number(n) || 0;
+    const s = FinUtils.fmtMoney(Math.abs(v), 'INR');
+    if (v > 0) return `<span class="badge badge-error badge-outline whitespace-nowrap font-mono">${t('fin_debt')} ${s}</span>`;
+    if (v < 0) return `<span class="badge badge-success badge-outline whitespace-nowrap font-mono">${t('fin_advance')} ${s}</span>`;
+    return `<span class="font-mono opacity-40">—</span>`;
 }
 
 // ==================== КАРТОЧКА ====================
@@ -102,13 +116,24 @@ async function openCard(pid) {
 }
 
 function renderCardBlocks(b) {
-    const cell = (title, block) => `
+    const cell = (title, block) => {
+        // Часть долга блока могла быть погашена «Общим» платежом (зачёт по
+        // приоритету блоков, ТЗ 7) — показываем это явно, иначе «Оплачено 0 /
+        // Остаток 0» при активном начислении выглядит как ошибка.
+        const fromGeneral = Math.max(0, (Number(block.charged) - Number(block.paid)) - Number(block.balance));
+        const balance = Number(block.balance);
+        const balanceHtml = balance === 0 && Number(block.charged) > 0
+            ? `<span class="font-mono">${FinUtils.fmtMoney(0, 'INR')}</span>`
+            : fmtNet(balance);
+        return `
         <div class="border border-base-300 rounded-lg p-2">
             <div class="text-xs font-semibold uppercase opacity-60 mb-1">${title}</div>
             <div class="text-xs flex justify-between"><span>${t('fin_charged')}</span><span class="font-mono">${FinUtils.fmtMoney(block.charged, 'INR')}</span></div>
             <div class="text-xs flex justify-between"><span>${t('fin_paid')}</span><span class="font-mono">${FinUtils.fmtMoney(block.paid, 'INR')}</span></div>
-            <div class="text-sm flex justify-between mt-1 pt-1 border-t border-base-200"><span>${t('fin_balance')}</span>${fmtNet(block.balance)}</div>
+            ${fromGeneral > 0 ? `<div class="text-xs flex justify-between text-success"><span>${t('fin_from_general')}</span><span class="font-mono">${FinUtils.fmtMoney(fromGeneral, 'INR')}</span></div>` : ''}
+            <div class="text-sm flex justify-between mt-1 pt-1 border-t border-base-200"><span>${t('fin_balance')}</span>${balanceHtml}</div>
         </div>`;
+    };
     const totalNet = Number(b.net) || 0;
     document.getElementById('cardBlocks').innerHTML =
         BLOCKS.map(k => cell(blockLabel(k), b.blocks[k])).join('') +
@@ -116,7 +141,7 @@ function renderCardBlocks(b) {
             <div class="text-xs font-semibold uppercase opacity-60 mb-1">${t('fin_total')}</div>
             <div class="text-xs flex justify-between"><span>${t('fin_debt')}</span><span class="font-mono">${FinUtils.fmtMoney(b.total_debt, 'INR')}</span></div>
             <div class="text-xs flex justify-between"><span>${t('fin_advance')}</span><span class="font-mono">${FinUtils.fmtMoney(b.total_advance, 'INR')}</span></div>
-            <div class="text-sm flex justify-between mt-1 pt-1 border-t border-base-200"><span>${t('fin_total')}</span>${fmtNet(totalNet)}</div>
+            <div class="text-sm flex justify-between mt-1 pt-1 border-t border-base-200"><span>${t('fin_total')}</span>${fmtNetWord(totalNet)}</div>
         </div>`;
 }
 
@@ -127,9 +152,9 @@ async function loadCardCharges() {
     if (error) { Layout.handleError(error, 'Начисления'); return; }
     const isAdmin = window.hasPermission?.('fin_admin');
     document.getElementById('cardCharges').innerHTML = (data || []).map(c => `
-        <tr class="${c.is_cancelled ? 'opacity-40 line-through' : ''}">
+        <tr class="${c.is_cancelled ? 'opacity-60 line-through' : ''}">
             <td>${e(blockLabel(c.kind))}</td>
-            <td>${e(c.description || '')}${c.quantity != 1 ? ` <span class="opacity-50">(${c.quantity} × ${FinUtils.fmtMoney(c.unit_price, 'INR')})</span>` : ''}${c.is_cancelled ? ` <span class="badge badge-ghost badge-xs no-underline">${t('fin_cancelled')}</span>` : ''}</td>
+            <td>${e(c.description || '')}${c.quantity != 1 ? ` <span class="opacity-70">(${c.quantity} × ${FinUtils.fmtMoney(c.unit_price, 'INR')})</span>` : ''}${c.is_cancelled ? ` <span class="badge badge-ghost badge-xs no-underline">${t('fin_cancelled')}</span>` : ''}</td>
             <td class="text-right font-mono">${FinUtils.fmtMoney(c.amount, 'INR')}</td>
             <td class="text-right font-mono">${Number(c.discount_amount) > 0 ? FinUtils.fmtMoney(c.discount_amount, 'INR') : '—'}</td>
             <td class="text-right font-mono font-semibold">${FinUtils.fmtMoney(c.net_amount, 'INR')}</td>
@@ -151,11 +176,11 @@ async function loadCardPayments() {
         refunded_fully: `<span class="badge badge-neutral badge-xs">${t('fin_refunded_fully')}</span>`
     }[s] || '');
     document.getElementById('cardPayments').innerHTML = card.payments.map(p => `
-        <tr class="${p.is_reversed ? 'opacity-40' : ''}">
+        <tr class="${p.is_reversed ? 'opacity-60' : ''}">
             <td class="whitespace-nowrap">${DateUtils.formatShort(DateUtils.parseDate(p.occurred_on))}</td>
             <td>${e(FinUtils.typeLabel(p.type))}</td>
             <td>${e(blockLabel(p.balance_kind))}</td>
-            <td class="text-right font-mono">${FinUtils.fmtMoney(p.amount, p.currency_code)}${p.currency_code !== 'INR' ? ` <span class="opacity-50">₹ ${Number(p.amount_base).toLocaleString('ru-RU')}</span>` : ''}</td>
+            <td class="text-right font-mono">${FinUtils.fmtMoney(p.amount, p.currency_code)}${p.currency_code !== 'INR' ? ` <span class="opacity-70">₹ ${Number(p.amount_base).toLocaleString('ru-RU')}</span>` : ''}</td>
             <td>${e(FinUtils.channelLabel(p.payment_channel))}</td>
             <td>${statusBadge(p.status)}</td>
             <td class="text-right">${isAdmin && p.type === 'payment' && Number(p.available_to_refund) > 0 ? `<button class="btn btn-ghost btn-xs" data-refund="${p.posting_id}" title="${t('fin_refund')}">
@@ -208,7 +233,7 @@ function chargeRowHtml(idx) {
                 <input type="text" class="input input-bordered input-sm chg-discount-reason">
             </div>
         </div>
-        ${idx > 0 ? `<button type="button" class="btn btn-ghost btn-xs text-error mt-1" onclick="this.closest('.chg-row').remove()">✕</button>` : ''}
+        ${idx > 0 ? `<button type="button" class="btn btn-ghost btn-sm text-error mt-1" aria-label="${t('fin_remove_row')}" onclick="this.closest('.chg-row').remove()">${FinUtils.ICONS.x}</button>` : ''}
     </div>`;
 }
 
@@ -217,6 +242,14 @@ function wireChargeRow(row) {
     row.querySelector('.chg-discount').addEventListener('input', ev => {
         row.querySelector('.chg-discount-reason-wrap').classList.toggle('hidden', !(Number(ev.target.value) > 0));
     });
+    // Описание не заставляет придумывать текст: автоподстановка названия блока,
+    // пока пользователь не начал печатать своё
+    const desc = row.querySelector('.chg-desc');
+    const kindSel = row.querySelector('.chg-kind');
+    const autofill = () => { if (!desc.dataset.touched) desc.value = blockLabel(kindSel.value); };
+    desc.addEventListener('input', () => { desc.dataset.touched = '1'; });
+    kindSel.addEventListener('change', autofill);
+    autofill();
 }
 
 function addChargeRow(presetPerson) {
@@ -260,7 +293,13 @@ async function submitCharge(ev) {
     }
     const res = await FinUtils.rpc('fin_create_charge', { rows });
     if (res?.error?.code === 'post_close_reason_required') {
-        document.getElementById('chargeReasonWrap').classList.remove('hidden');
+        // ретрит закрыт: показываем поле причины и ведём к нему фокус,
+        // чтобы новое поле не осталось незамеченным под тостом ошибки
+        const wrap = document.getElementById('chargeReasonWrap');
+        wrap.classList.remove('hidden');
+        const input = document.getElementById('chargeReason');
+        input.focus();
+        input.scrollIntoView({ block: 'center', behavior: 'smooth' });
     }
     if (FinUtils.handleResult(res)) {
         document.getElementById('chargeModal').close();
@@ -290,7 +329,7 @@ function payRowHtml(idx) {
                 <select class="select select-bordered select-sm pay-channel">${FinUtils.channelOptions('cash')}</select>
             </div>
         </div>
-        ${idx > 0 ? `<button type="button" class="btn btn-ghost btn-xs text-error mt-1" onclick="this.closest('.pay-row').remove()">✕</button>` : ''}
+        ${idx > 0 ? `<button type="button" class="btn btn-ghost btn-sm text-error mt-1" aria-label="${t('fin_remove_row')}" onclick="this.closest('.pay-row').remove()">${FinUtils.ICONS.x}</button>` : ''}
     </div>`;
 }
 
@@ -420,15 +459,28 @@ async function init() {
     await FinUtils.loadRefs();
     await loadRetreats();
 
-    document.getElementById('chargeForm').addEventListener('submit', submitCharge);
-    document.getElementById('paymentForm').addEventListener('submit', submitPayment);
-    document.getElementById('refundForm').addEventListener('submit', submitRefund);
-    document.getElementById('cancelChargeForm').addEventListener('submit', submitCancelCharge);
+    document.getElementById('chargeForm').addEventListener('submit', FinUtils.lockedSubmit(submitCharge));
+    document.getElementById('paymentForm').addEventListener('submit', FinUtils.lockedSubmit(submitPayment));
+    document.getElementById('refundForm').addEventListener('submit', FinUtils.lockedSubmit(submitRefund));
+    document.getElementById('cancelChargeForm').addEventListener('submit', FinUtils.lockedSubmit(submitCancelCharge));
     FinUtils.attachPersonSearch(document.getElementById('payPayerSearch'), document.getElementById('payPayerId'));
 
-    document.getElementById('participantsBody').addEventListener('click', ev => {
+    // Esc не должен молча терять введённые данные
+    const guardDialog = (dlgId, isDirty) => document.getElementById(dlgId).addEventListener('cancel', ev => {
+        if (isDirty() && !confirm(t('fin_confirm_discard'))) ev.preventDefault();
+    });
+    guardDialog('chargeModal', () => [...document.querySelectorAll('#chargeRows .chg-price')].some(i => i.value));
+    guardDialog('paymentModal', () => [...document.querySelectorAll('#payRows .pay-amount')].some(i => i.value));
+
+    const pBody = document.getElementById('participantsBody');
+    pBody.addEventListener('click', ev => {
         const row = ev.target.closest('tr[data-pid]');
         if (row) openCard(row.dataset.pid);
+    });
+    pBody.addEventListener('keydown', ev => {
+        if (ev.key !== 'Enter' && ev.key !== ' ') return;
+        const row = ev.target.closest('tr[data-pid]');
+        if (row) { ev.preventDefault(); openCard(row.dataset.pid); }
     });
     document.getElementById('cardModal').addEventListener('click', ev => {
         const refundBtn = ev.target.closest('[data-refund]');

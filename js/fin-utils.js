@@ -9,11 +9,35 @@ const CURRENCY_SYMBOLS = { INR: '₹', RUB: '₽', USD: '$', EUR: '€' };
 
 const refs = { loaded: false, currencies: [], accounts: [], categories: [], costCenters: [], objects: [], contractors: [] };
 
+// Мелкие SVG-иконки для таблиц (правило проекта: только SVG, не эмодзи)
+const ICONS = {
+    clock: '<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="w-3 h-3 inline"><path stroke-linecap="round" stroke-linejoin="round" d="M12 6v6h4.5m4.5 0a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>',
+    x: '<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="w-3.5 h-3.5"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12"/></svg>',
+    check: '<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="w-3.5 h-3.5 inline"><path stroke-linecap="round" stroke-linejoin="round" d="M4.5 12.75l6 6 9-13.5"/></svg>'
+};
+
 const FinUtils = {
     refs,
+    ICONS,
 
     newRequestId() {
         return crypto.randomUUID();
+    },
+
+    // Обёртка submit-хендлера: блокирует кнопку и показывает спиннер на время RPC
+    lockedSubmit(handler) {
+        return async ev => {
+            ev.preventDefault();
+            const btn = ev.submitter || ev.target.querySelector('button[type="submit"]');
+            if (btn?.disabled) return;
+            const old = btn ? btn.innerHTML : null;
+            if (btn) {
+                btn.disabled = true;
+                btn.innerHTML = `<span class="loading loading-spinner loading-xs"></span> ${old}`;
+            }
+            try { await handler(ev); }
+            finally { if (btn) { btn.disabled = false; btn.innerHTML = old; } }
+        };
     },
 
     // Вызов финансовой RPC: всегда возвращает {ok, result?, warnings?, error?}
@@ -30,7 +54,9 @@ const FinUtils = {
     handleResult(res, successKey) {
         const t = k => Layout.t(k);
         if (!res || !res.ok) {
-            const msg = res?.error?.message || res?.error?.code || 'Ошибка';
+            let msg = res?.error?.message || res?.error?.code || 'Ошибка';
+            // сетевую ошибку переводим с языка backend'а на язык пользователя
+            if (res?.error?.code === 'network_error') msg = t('fin_network_error');
             Layout.showNotification(msg, 'error');
             return false;
         }
@@ -58,6 +84,17 @@ const FinUtils = {
         if (!map) return '—';
         return Object.entries(map)
             .map(([code, total]) => this.fmtMoney(total, code))
+            .join(' · ');
+    },
+
+    // То же, но с цветом по знаку (единая денежная семантика: минус — красный, плюс — зелёный)
+    fmtAmountsByCurrencyColored(map) {
+        if (!map) return '—';
+        return Object.entries(map)
+            .map(([code, total]) => {
+                const cls = Number(total) < 0 ? 'text-error' : Number(total) > 0 ? 'text-success' : '';
+                return `<span class="${cls}">${this.fmtMoney(total, code)}</span>`;
+            })
             .join(' · ');
     },
 
@@ -103,21 +140,28 @@ const FinUtils = {
         return refs.accounts;
     },
 
-    // Опции селектов
+    // Опции селектов. Счета группируются: реальные / подотчётные
     accountOptions(selectedId, filter) {
         const e = s => Layout.escapeHtml(s);
-        return refs.accounts
-            .filter(a => a.is_active && (!filter || filter(a)))
-            .map(a => `<option value="${a.account_id}" data-currency="${e(a.currency_code)}" ${a.account_id === selectedId ? 'selected' : ''}>${e(a.name)} (${this.fmtMoney(a.balance, a.currency_code)})</option>`)
-            .join('');
+        const opt = a => `<option value="${a.account_id}" data-currency="${e(a.currency_code)}" ${a.account_id === selectedId ? 'selected' : ''}>${e(a.name)} (${this.fmtMoney(a.balance, a.currency_code)})</option>`;
+        const active = refs.accounts.filter(a => a.is_active && (!filter || filter(a)));
+        const real = active.filter(a => a.kind === 'real');
+        const custodial = active.filter(a => a.kind === 'custodial');
+        if (!real.length || !custodial.length) return active.map(opt).join('');
+        return `<optgroup label="${Layout.t('fin_real_accounts')}">${real.map(opt).join('')}</optgroup>` +
+               `<optgroup label="${Layout.t('fin_custodial_group')}">${custodial.map(opt).join('')}</optgroup>`;
     },
 
-    categoryOptions(direction, selectedId) {
+    // withPlaceholder: пустая опция «— выберите статью —» первой, чтобы дефолтом
+    // не оказывалась первая статья по алфавиту (защита от ошибочной аналитики)
+    categoryOptions(direction, selectedId, withPlaceholder) {
         const e = s => Layout.escapeHtml(s);
-        return refs.categories
+        const opts = refs.categories
             .filter(c => c.is_active && c.direction === direction)
             .map(c => `<option value="${c.id}" ${c.id === selectedId ? 'selected' : ''}>${e(c.name)}</option>`)
             .join('');
+        return (withPlaceholder && !selectedId
+            ? `<option value="" disabled selected>${Layout.t('fin_select_category')}</option>` : '') + opts;
     },
 
     costCenterOptions(selectedId) {
@@ -225,35 +269,65 @@ const FinUtils = {
         }));
     },
 
-    // Подключить автокомплит к паре input(text) + input(hidden)
+    // Подключить автокомплит к паре input(text) + input(hidden).
+    // Клавиатура: ↑/↓ — по списку, Enter — выбор, Esc — закрыть.
     attachPersonSearch(inputEl, hiddenEl, onlyWithUser) {
         const e = s => Layout.escapeHtml(s);
         let box = document.createElement('div');
         box.className = 'absolute z-50 bg-base-100 shadow-lg rounded-lg w-full hidden max-h-60 overflow-y-auto';
         inputEl.parentElement.style.position = 'relative';
         inputEl.parentElement.appendChild(box);
+        inputEl.setAttribute('role', 'combobox');
+        inputEl.setAttribute('aria-expanded', 'false');
+        let activeIdx = -1;
+
+        const close = () => { box.classList.add('hidden'); inputEl.setAttribute('aria-expanded', 'false'); activeIdx = -1; };
+        const items = () => [...box.querySelectorAll('button[data-id]')];
+        const pick = btn => {
+            inputEl.value = btn.dataset.name;
+            hiddenEl.value = hiddenEl.dataset.useUserId ? btn.dataset.user : btn.dataset.id;
+            close();
+        };
+        const highlight = idx => {
+            const list = items();
+            list.forEach((b, i) => b.classList.toggle('bg-base-200', i === idx));
+            if (list[idx]) list[idx].scrollIntoView({ block: 'nearest' });
+        };
 
         const search = Layout.debounce(async () => {
             hiddenEl.value = '';
-            const items = await FinUtils.searchPersons(inputEl.value.trim(), onlyWithUser);
-            if (!items.length) { box.classList.add('hidden'); return; }
-            box.innerHTML = items.map(p =>
+            const found = await FinUtils.searchPersons(inputEl.value.trim(), onlyWithUser);
+            if (!found.length) { close(); return; }
+            box.innerHTML = found.map(p =>
                 `<button type="button" class="block w-full text-left px-3 py-2 hover:bg-base-200" data-id="${p.id}" data-user="${p.user_id || ''}" data-name="${e(p.name)}">${e(p.name)}</button>`
             ).join('');
             box.classList.remove('hidden');
+            inputEl.setAttribute('aria-expanded', 'true');
+            activeIdx = -1;
         }, 300);
 
         inputEl.addEventListener('input', search);
+        inputEl.addEventListener('keydown', ev => {
+            if (box.classList.contains('hidden')) return;
+            const list = items();
+            if (ev.key === 'ArrowDown') { ev.preventDefault(); activeIdx = Math.min(activeIdx + 1, list.length - 1); highlight(activeIdx); }
+            else if (ev.key === 'ArrowUp') { ev.preventDefault(); activeIdx = Math.max(activeIdx - 1, 0); highlight(activeIdx); }
+            else if (ev.key === 'Enter' && activeIdx >= 0) { ev.preventDefault(); pick(list[activeIdx]); }
+            else if (ev.key === 'Escape') { ev.stopPropagation(); close(); }
+        });
         box.addEventListener('click', ev => {
             const btn = ev.target.closest('button[data-id]');
-            if (!btn) return;
-            inputEl.value = btn.dataset.name;
-            hiddenEl.value = hiddenEl.dataset.useUserId ? btn.dataset.user : btn.dataset.id;
-            box.classList.add('hidden');
+            if (btn) pick(btn);
         });
-        document.addEventListener('click', ev => {
-            if (!inputEl.parentElement.contains(ev.target)) box.classList.add('hidden');
-        });
+        // один общий слушатель на документ для всех автокомплитов страницы
+        FinUtils._personBoxes = FinUtils._personBoxes || [];
+        FinUtils._personBoxes.push({ inputEl, close });
+        if (!FinUtils._personDocListener) {
+            FinUtils._personDocListener = ev => FinUtils._personBoxes.forEach(p => {
+                if (!p.inputEl.parentElement.contains(ev.target)) p.close();
+            });
+            document.addEventListener('click', FinUtils._personDocListener);
+        }
     }
 };
 

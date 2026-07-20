@@ -39,7 +39,7 @@
                             <th class="text-right" data-i18n="fin_block_accommodation">Проживание</th>
                             <th class="text-right" data-i18n="fin_block_meals">Питание</th>
                             <th class="text-right" data-i18n="fin_block_extra">Дополнительно</th>
-                            <th class="text-right" data-i18n="fin_block_general">Общий</th>
+                            <th class="text-right" data-i18n="fin_block_general" data-i18n-title="fin_general_hint" title="Платежи без привязки к блоку: гасят долги по приоритету, излишек — аванс">Общий</th>
                             <th class="text-right" data-i18n="fin_total">Итог</th>
                         </tr>
                     </thead>
@@ -48,6 +48,7 @@
                     </tbody>
                 </table>
             </div>
+            <div class="px-4 py-2 text-xs opacity-70" data-i18n="fin_color_legend">Красным — долг участника · зелёным — аванс (мы должны участнику)</div>
         </div>
     </div>
 </main>
@@ -63,7 +64,7 @@
 
         <div class="flex items-center justify-between mb-1">
             <div class="font-semibold" data-i18n="fin_charges">Начисления</div>
-            <button class="btn btn-ghost btn-xs" data-permission="fin_admin" onclick="FinParticipants.openCharge(true)" data-i18n="fin_new_charge">Начислить</button>
+            <button class="btn btn-ghost btn-sm" data-permission="fin_admin" onclick="FinParticipants.openCharge(true)" data-i18n="fin_new_charge">Начислить</button>
         </div>
         <div class="overflow-x-auto mb-4">
             <table class="table table-xs">
@@ -81,7 +82,7 @@
 
         <div class="flex items-center justify-between mb-1">
             <div class="font-semibold" data-i18n="fin_payments">Платежи</div>
-            <button class="btn btn-ghost btn-xs" data-permission="fin_admin" onclick="FinParticipants.openPayment(true)" data-i18n="fin_new_payment">Платёж</button>
+            <button class="btn btn-ghost btn-sm" data-permission="fin_admin" onclick="FinParticipants.openPayment(true)" data-i18n="fin_new_payment">Платёж</button>
         </div>
         <div class="overflow-x-auto">
             <table class="table table-xs">
@@ -110,9 +111,9 @@
         <h3 class="font-bold text-lg mb-4" data-i18n="fin_new_charge">Начислить</h3>
         <form id="chargeForm">
             <div id="chargeRows"></div>
-            <button type="button" class="btn btn-ghost btn-xs mb-2" onclick="FinParticipants.addChargeRow()">+ <span data-i18n="fin_add">Добавить</span></button>
+            <button type="button" class="btn btn-ghost btn-sm mb-2" onclick="FinParticipants.addChargeRow()">+ <span data-i18n="fin_add">Добавить</span></button>
             <div class="form-control mb-2 hidden" id="chargeReasonWrap">
-                <label class="label py-0"><span class="label-text" data-i18n="fin_post_close_reason">Причина (закрытый ретрит)</span></label>
+                <label class="label py-0" for="chargeReason"><span class="label-text" data-i18n="fin_post_close_reason">Причина (закрытый ретрит)</span></label>
                 <input type="text" id="chargeReason" class="input input-bordered input-sm">
             </div>
             <div class="modal-action">
@@ -131,19 +132,19 @@
         <form id="paymentForm">
             <div class="grid grid-cols-2 gap-3 mb-3">
                 <div class="form-control">
-                    <label class="label py-0"><span class="label-text" data-i18n="fin_payer">Плательщик</span></label>
+                    <label class="label py-0" for="payPayerSearch"><span class="label-text" data-i18n="fin_payer">Плательщик</span></label>
                     <input type="text" id="payPayerSearch" class="input input-bordered input-sm" autocomplete="off" required>
                     <input type="hidden" id="payPayerId">
                 </div>
                 <div class="form-control">
-                    <label class="label py-0"><span class="label-text" data-i18n="fin_occurred_on">Дата</span></label>
+                    <label class="label py-0" for="payDate"><span class="label-text" data-i18n="fin_occurred_on">Дата</span></label>
                     <input type="date" id="payDate" class="input input-bordered input-sm" required>
                 </div>
             </div>
             <div id="payRows"></div>
-            <button type="button" class="btn btn-ghost btn-xs mb-2" onclick="FinParticipants.addPayRow()">+ <span data-i18n="fin_add">Добавить</span></button>
+            <button type="button" class="btn btn-ghost btn-sm mb-2" onclick="FinParticipants.addPayRow()">+ <span data-i18n="fin_add">Добавить</span></button>
             <div class="form-control mb-2">
-                <label class="label py-0"><span class="label-text" data-i18n="fin_comment">Комментарий</span></label>
+                <label class="label py-0" for="payComment"><span class="label-text" data-i18n="fin_comment">Комментарий</span></label>
                 <input type="text" id="payComment" class="input input-bordered input-sm">
             </div>
             <div class="modal-action">
@@ -213,10 +214,10 @@
 <script src="../js/auth-check.js?v=7"></script>
 <script src="../js/cache.js?v=1"></script>
 <script src="../js/utils.js?v=4"></script>
-<script src="../js/layout.js?v=19"></script>
+<script src="../js/layout.js?v=20"></script>
 <script src="../js/date-utils.js?v=3"></script>
-<script src="../js/fin-utils.js?v=4"></script>
-<script src="../js/pages/fin-participants.js?v=2"></script>
+<script src="../js/fin-utils.js?v=5"></script>
+<script src="../js/pages/fin-participants.js?v=3"></script>
 
 </body>
 </html>

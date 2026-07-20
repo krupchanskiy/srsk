@@ -32,11 +32,11 @@ function opCardHtml(op) {
                 ${op.has_attachments ? `<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="w-4 h-4 opacity-60"><path stroke-linecap="round" stroke-linejoin="round" d="M18.375 12.739l-7.693 7.693a4.5 4.5 0 01-6.364-6.364l10.94-10.94A3 3 0 1119.5 7.372L8.552 18.32m.009-.01l-.01.01m5.699-9.941l-7.81 7.81a1.5 1.5 0 002.112 2.13"/></svg>` : ''}
                 <span class="opacity-60 truncate max-w-md">${e([op.payer_name, op.comment].filter(Boolean).join(' · '))}</span>
                 <div class="ml-auto flex gap-2">
-                    <button class="btn btn-success btn-xs" data-action="approve" data-expected="${op.approval}">${t('fin_approve')}</button>
+                    <button class="btn btn-success btn-sm" data-action="approve" data-expected="${op.approval}">${t('fin_approve')}</button>
                     ${isPending
-                        ? `<button class="btn btn-outline btn-error btn-xs" data-action="dispute" data-expected="pending">${t('fin_dispute')}</button>`
-                        : `<button class="btn btn-outline btn-xs" data-action="repending" data-expected="disputed">${t('fin_return_pending')}</button>`}
-                    <button class="btn btn-ghost btn-xs text-error" data-action="reverse">${t('fin_reverse')}</button>
+                        ? `<button class="btn btn-outline btn-error btn-sm" data-action="dispute" data-expected="pending">${t('fin_dispute')}</button>`
+                        : `<button class="btn btn-outline btn-sm" data-action="repending" data-expected="disputed">${t('fin_return_pending')}</button>`}
+                    <button class="btn btn-ghost btn-sm text-error" data-action="reverse">${t('fin_reverse')}</button>
                 </div>
             </div>
             ${op.approval === 'disputed' && op.reason ? `<div class="text-sm text-error mt-1">${t('fin_dispute_reason')}: ${e(op.reason)}</div>` : ''}

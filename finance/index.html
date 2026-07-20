@@ -28,10 +28,12 @@
         <div class="card bg-base-100 shadow-sm"><div class="card-body">
             <h2 class="card-title text-base" data-i18n="fin_given_custody">Выдано под отчёт</h2>
             <div id="custodialBalances"><span class="loading loading-spinner loading-sm"></span></div>
+            <p class="text-xs opacity-70" data-i18n="fin_custody_hint">Деньги на руках у ответственных (подотчётные счета)</p>
         </div></div>
         <div class="card bg-base-100 shadow-sm"><div class="card-body">
             <h2 class="card-title text-base" data-i18n="fin_total_responsibility">Всего под ответственностью</h2>
             <div id="totalBalances"><span class="loading loading-spinner loading-sm"></span></div>
+            <p class="text-xs opacity-70" data-i18n="fin_total_resp_hint">Реальные счета + выдано под отчёт, без двойного счёта</p>
         </div></div>
     </div>
 
@@ -67,8 +69,15 @@
             </div>
             <div class="overflow-x-auto">
                 <table class="table table-sm">
+                    <thead><tr>
+                        <th data-i18n="fin_occurred_on">Дата</th>
+                        <th data-i18n="fin_kind">Тип</th>
+                        <th class="text-right" data-i18n="fin_amount">Сумма</th>
+                        <th data-i18n="fin_status">Статус</th>
+                        <th data-i18n="fin_comment">Комментарий</th>
+                    </tr></thead>
                     <tbody id="recentOps">
-                        <tr><td class="text-center py-8"><span class="loading loading-spinner loading-md"></span></td></tr>
+                        <tr><td colspan="5" class="text-center py-8"><span class="loading loading-spinner loading-md"></span></td></tr>
                     </tbody>
                 </table>
             </div>
@@ -82,10 +91,10 @@
 <script src="../js/auth-check.js?v=7"></script>
 <script src="../js/cache.js?v=1"></script>
 <script src="../js/utils.js?v=4"></script>
-<script src="../js/layout.js?v=19"></script>
+<script src="../js/layout.js?v=20"></script>
 <script src="../js/date-utils.js?v=3"></script>
-<script src="../js/fin-utils.js?v=4"></script>
-<script src="../js/pages/fin-index.js?v=3"></script>
+<script src="../js/fin-utils.js?v=5"></script>
+<script src="../js/pages/fin-index.js?v=4"></script>
 
 </body>
 </html>

@@ -40,29 +40,29 @@ function renderTab() {
     if (currentTab === 'categories') {
         head.innerHTML = `<tr><th>${t('col_code') || 'Код'}</th><th>${t('col_name') || 'Название'}</th><th>${t('fin_direction')}</th><th>${t('fin_visible_departments')}</th><th></th></tr>`;
         body.innerHTML = rows.map(r => `
-            <tr class="${r.is_active ? '' : 'opacity-40'}">
+            <tr class="${r.is_active ? '' : 'opacity-60'}">
                 <td class="font-mono">${e(r.code)}</td>
                 <td>${e(r.name)}${activeBadge(r)}</td>
                 <td><span class="badge badge-sm ${r.direction === 'in' ? 'badge-success' : 'badge-error'}">${t('fin_dir_' + r.direction)}</span></td>
-                <td>${r.visible_to_departments ? '✓' : ''}</td>
-                <td class="text-right"><button class="btn btn-ghost btn-xs" data-edit="${r.id}">${editIcon}</button></td>
+                <td>${r.visible_to_departments ? FinUtils.ICONS.check : ''}</td>
+                <td class="text-right"><button class="btn btn-ghost btn-sm" data-edit="${r.id}">${editIcon}</button></td>
             </tr>`).join('');
     } else if (currentTab === 'cost_centers') {
         head.innerHTML = `<tr><th>${t('col_code') || 'Код'}</th><th>${t('col_name') || 'Название'}</th><th></th></tr>`;
         body.innerHTML = rows.map(r => `
-            <tr class="${r.is_active ? '' : 'opacity-40'}">
+            <tr class="${r.is_active ? '' : 'opacity-60'}">
                 <td class="font-mono">${e(r.code)}</td>
                 <td>${e(r.name)}${activeBadge(r)}</td>
-                <td class="text-right"><button class="btn btn-ghost btn-xs" data-edit="${r.id}">${editIcon}</button></td>
+                <td class="text-right"><button class="btn btn-ghost btn-sm" data-edit="${r.id}">${editIcon}</button></td>
             </tr>`).join('');
     } else if (currentTab === 'contractors') {
         head.innerHTML = `<tr><th>${t('col_name') || 'Название'}</th><th>${t('fin_person_org')}</th><th>${t('fin_comment')}</th><th></th></tr>`;
         body.innerHTML = rows.map(r => `
-            <tr class="${r.is_active ? '' : 'opacity-40'}">
+            <tr class="${r.is_active ? '' : 'opacity-60'}">
                 <td>${e(r.name)}${activeBadge(r)}</td>
                 <td>${t(r.type === 'person' ? 'fin_person' : 'fin_organization')}</td>
                 <td class="opacity-70">${e([r.contact_info, r.note].filter(Boolean).join(' · '))}</td>
-                <td class="text-right"><button class="btn btn-ghost btn-xs" data-edit="${r.id}">${editIcon}</button></td>
+                <td class="text-right"><button class="btn btn-ghost btn-sm" data-edit="${r.id}">${editIcon}</button></td>
             </tr>`).join('');
     } else {
         head.innerHTML = `<tr><th>${t('fin_currency')}</th><th>${t('fin_effective_date')}</th><th>${t('fin_rate')}</th><th>${t('fin_retreat_object')}</th></tr>`;

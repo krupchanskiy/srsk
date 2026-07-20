@@ -489,7 +489,7 @@ function getPersonName(person, lang = currentLang) {
 
 // ==================== TRANSLATIONS ====================
 async function loadTranslations(retried = false) {
-    const data = await Cache.getOrLoad('translations_v10', async () => {
+    const data = await Cache.getOrLoad('translations_v11', async () => {
         // Supabase ограничивает 1000 записей на запрос, используем пагинацию
         const allData = [];
         let from = 0;
@@ -524,7 +524,7 @@ async function loadTranslations(retried = false) {
 
     if (!hasAllKeys && !retried) {
         // Кэш устарел, инвалидируем и перезагружаем (только 1 раз)
-        Cache.invalidate('translations_v10');
+        Cache.invalidate('translations_v11');
         return loadTranslations(true);
     }
 

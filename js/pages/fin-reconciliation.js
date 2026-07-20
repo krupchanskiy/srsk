@@ -84,7 +84,7 @@ function addLocation(name) {
         <div class="flex items-center gap-3 mb-2">
             <input type="text" class="input input-bordered input-sm w-48 loc-name" value="${e(name || '')}" placeholder="${t('fin_recon_location')}">
             <span class="ml-auto font-mono loc-total">0</span>
-            ${locationSeq > 1 ? `<button type="button" class="btn btn-ghost btn-xs text-error" onclick="this.closest('.recon-location').remove(); FinRecon.recalc()">✕</button>` : ''}
+            ${locationSeq > 1 ? `<button type="button" class="btn btn-ghost btn-xs text-error" aria-label="Удалить" onclick="this.closest('.recon-location').remove(); FinRecon.recalc()">${FinUtils.ICONS.x}</button>` : ''}
         </div>
         <div class="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-7 gap-2">
             ${denoms.map(d => `
@@ -202,7 +202,7 @@ async function loadHistory(accountId) {
             <td class="font-mono">№${r.cutoff_ledger_seq}</td>
             <td class="text-right font-mono">${FinUtils.fmtMoney(r.counted_balance, currentAccount.currency_code)}</td>
             <td class="text-right font-mono ${r.original_difference ? 'text-error' : 'text-success'}">
-                ${r.original_difference ? FinUtils.fmtMoney(r.original_difference, currentAccount.currency_code) : '✓'}
+                ${r.original_difference ? FinUtils.fmtMoney(r.original_difference, currentAccount.currency_code) : FinUtils.ICONS.check}
             </td>
             <td class="opacity-70">${e(r.comment || '')}</td>
         </tr>

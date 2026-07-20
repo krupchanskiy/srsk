@@ -72,18 +72,24 @@ async function loadDashboard() {
         tbody.innerHTML = `<tr><td class="text-center py-6 opacity-60">${t('fin_no_operations')}</td></tr>`;
         return;
     }
+    // Строка кликабельна: ведёт в ДДС (клавиатура — тоже)
     tbody.innerHTML = ops.map(op => `
-        <tr class="${op.is_reversed ? 'opacity-50' : ''}">
+        <tr class="cursor-pointer hover:bg-base-200 ${op.is_reversed ? 'opacity-60' : ''}" data-op="${op.operation_id}" tabindex="0">
             <td class="whitespace-nowrap">${DateUtils.formatShort(DateUtils.parseDate(op.occurred_on))}</td>
             <td>${e(FinUtils.typeLabel(op.type))}
                 ${op.is_reversed ? `<span class="badge badge-ghost badge-xs">${t('fin_reversed_badge')}</span>` : ''}
                 ${op.has_post_close ? `<span class="badge badge-neutral badge-xs">${t('fin_post_close_badge')}</span>` : ''}
             </td>
-            <td class="font-mono whitespace-nowrap">${FinUtils.fmtAmountsByCurrency(op.amounts_by_currency)}</td>
+            <td class="text-right font-mono whitespace-nowrap">${FinUtils.fmtAmountsByCurrencyColored(op.amounts_by_currency)}</td>
             <td>${FinUtils.approvalBadge(op.approval)}</td>
             <td class="max-w-xs truncate opacity-70">${e(op.comment || '')}</td>
         </tr>
     `).join('');
+    const goDds = () => { window.location.href = 'dds.html'; };
+    tbody.querySelectorAll('tr[data-op]').forEach(row => {
+        row.addEventListener('click', goDds);
+        row.addEventListener('keydown', ev => { if (ev.key === 'Enter') goDds(); });
+    });
 }
 
 async function init() {
