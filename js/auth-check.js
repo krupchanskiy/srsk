@@ -68,11 +68,14 @@
         let permissions = [];
 
         if (vaishnava.is_superuser) {
-            // Суперпользователь - все права
-            const { data: allPerms } = await db
-                .from('permissions')
-                .select('code');
-            permissions = allPerms ? allPerms.map(p => p.code) : [];
+            // Суперпользователь - все права, КРОМЕ финансов (fin_* — только явно выданные)
+            const [{ data: allPerms }, { data: ownPerms }] = await Promise.all([
+                db.from('permissions').select('code'),
+                db.rpc('get_user_permissions', { p_user_id: session.user.id })
+            ]);
+            const granted = new Set(ownPerms ? ownPerms.map(p => p.permission_code) : []);
+            permissions = (allPerms ? allPerms.map(p => p.code) : [])
+                .filter(code => !code.startsWith('fin_') || granted.has(code));
         } else {
             // Получить права через оптимизированную SQL функцию (1 запрос вместо 3)
             const { data: userPerms, error: permsError } = await db
@@ -97,6 +100,10 @@
 
         // Создать глобальную функцию hasPermission()
         window.hasPermission = function(permCode) {
+            // Финансы отвязаны от superuser: fin_* — только явно выданные права (миграция 201)
+            if (permCode && permCode.startsWith('fin_')) {
+                return !!window.currentUser?.permissions.includes(permCode);
+            }
             return window.currentUser?.is_superuser || window.currentUser?.permissions.includes(permCode);
         };
 
