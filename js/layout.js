@@ -574,10 +574,10 @@ function getHeaderHTML() {
     return `
     <header class="bg-base-100 shadow-sm sticky top-0 z-50">
         <div class="container mx-auto px-4">
-            <div class="flex items-center justify-between h-20">
+            <div class="flex items-center justify-between h-20" id="headerRow">
 
                 <!-- Logo + Location/Module Selector -->
-                <div class="flex items-center gap-3 flex-shrink-0">
+                <div class="flex items-center gap-3 flex-shrink-0 header-brand">
                     <a href="${adjustHref('index.html')}" class="hover:opacity-80 transition-opacity">
                         <svg class="h-14 w-auto logo-svg" viewBox="0 0 122.03 312.54" xmlns="http://www.w3.org/2000/svg">
                             <path fill="var(--current-color)" d="M102,15.99h-15.18v81.89c0,6.21.12,11.58-.88,15.98-1.01,4.45-2.6,7.98-4.77,10.58-2.02,2.81-4.85,4.83-8.51,6.05-2.38,1-5.08,1.62-8.1,1.83-1.01.21-2.02.32-3.02.32h-.64c-3.81-.21-7.23-.83-10.25-1.83-3.81-1.22-7.02-3.13-9.62-5.73-2.65-2.81-4.56-6.44-5.73-10.89-1.22-4.4-1.83-9.83-1.83-16.3V15.99h-15.1v89.12c0,13.68,3.81,23.94,11.45,30.77,3.81,3.44,8.56,5.96,14.23,7.55,1.17.42,2.57.74,4.21.96-13.89,5.03-23.35,11.87-28.38,20.51-7.05,10.65-7.26,24.14-.64,40.46l41.34,100.45,39.91-100.45c6.41-16.32,6.2-29.82-.64-40.46-4.82-8.48-13.97-15.21-27.43-20.2,1.59-.43,3.18-.85,4.77-1.27,5.25-1.59,9.67-4.19,13.27-7.79,3.82-3.66,6.65-8.18,8.51-13.59,2.02-5.62,3.02-12.27,3.02-19.95V15.99M87.45,172.46c4.03,7.26,3.84,16.4-.56,27.43l-26.31,68.13-27.75-68.13c-4.61-11.03-4.8-20.17-.55-27.43,4.61-7.47,13.76-13.01,27.43-16.62,13.67,3.61,22.93,9.15,27.75,16.62"/>
@@ -628,17 +628,17 @@ function getHeaderHTML() {
 
                 <!-- Right: Language, User, Mobile Menu Button -->
                 <div class="flex items-center gap-3 sm:gap-5">
-                    <div class="hidden md:flex join">
+                    <div class="hidden md:flex join nav-desktop-only">
                         <button class="join-item btn btn-sm lang-btn ${currentLang === 'ru' ? 'active' : ''}" data-lang="ru">RU</button>
                         <button class="join-item btn btn-sm lang-btn ${currentLang === 'en' ? 'active' : ''}" data-lang="en">EN</button>
                         <button class="join-item btn btn-sm lang-btn ${currentLang === 'hi' ? 'active' : ''}" data-lang="hi">HI</button>
                     </div>
-                    <div class="hidden desktop:block">
+                    <div class="hidden desktop:block nav-desktop-only">
                         <div class="w-10 h-10 rounded-full overflow-hidden ring-2 ring-base-200 bg-base-300">
                             <img src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ccircle cx='50' cy='50' r='50' fill='%23d1d5db'/%3E%3C/svg%3E" alt="User" class="w-full h-full object-cover" />
                         </div>
                     </div>
-                    <button class="btn btn-ghost btn-sm hidden desktop:flex" onclick="Layout.logout()" title="${t('logout')}">
+                    <button class="btn btn-ghost btn-sm hidden desktop:flex nav-desktop-only" onclick="Layout.logout()" title="${t('logout')}">
                         <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
                             <path stroke-linecap="round" stroke-linejoin="round" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
                         </svg>
@@ -1154,6 +1154,32 @@ function updateUserInfo() {
 }
 
 // ==================== EVENT HANDLERS ====================
+// Сворачивание навигации по фактическому переполнению, а не по фикс. брейкпоинту.
+// Меню меняется от модуля к модулю (у финансов 8 пунктов), и капитель + отступы
+// перестают влезать в строку задолго до какого-либо одного порога.
+function updateNavMode() {
+    const row = $('#headerRow');
+    const nav = $('#mainNav');
+    if (!row || !nav || !nav.children.length) return;
+
+    // Естественная ширина пунктов меню — меряем на клоне (nowrap, без сжатия),
+    // чтобы результат не зависел от текущего состояния nav-compact (нет мигания)
+    const probe = nav.cloneNode(true);
+    probe.removeAttribute('id');
+    probe.style.cssText = 'position:absolute;left:-9999px;top:0;visibility:hidden;display:flex;white-space:nowrap;flex-wrap:nowrap;';
+    document.body.appendChild(probe);
+    const navNeeded = probe.scrollWidth;
+    probe.remove();
+
+    const brand = row.querySelector('.header-brand');
+    const brandWidth = brand ? brand.getBoundingClientRect().width : 0;
+    const RIGHT_RESERVE = 250;  // язык + аватар + выход + отступы
+    const GAP = 56;             // зазоры между блоками + запас
+    const available = row.clientWidth - brandWidth - RIGHT_RESERVE - GAP;
+
+    document.documentElement.classList.toggle('nav-compact', navNeeded > available);
+}
+
 function initHeaderEvents() {
     // Mobile menu toggle
     const mobileMenuBtn = $('#mobileMenuBtn');
@@ -1252,8 +1278,16 @@ function initHeaderEvents() {
 
     // Window resize with debounce
     addEventListener('resize', Utils.debounce(() => {
+        updateNavMode();
         initSubmenuMargins();
-    }, 300));
+    }, 150));
+
+    // Первичная проверка вписываемости меню + пересчёт после подгрузки шрифта
+    updateNavMode();
+    if (document.fonts && document.fonts.ready) {
+        document.fonts.ready.then(updateNavMode);
+    }
+    addEventListener('load', updateNavMode);
 }
 
 // ==================== MODULE SWITCHING ====================

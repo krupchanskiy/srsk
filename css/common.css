@@ -87,6 +87,23 @@ main p, main span, main div { font-size: inherit; }
     }
 }
 
+/* Свёрнутая навигация: включается из JS (updateNavMode), когда горизонтальное
+   меню физически не помещается в строку — независимо от ширины экрана.
+   Переводит хедер в мобильный режим (бургер) даже выше 1200px. */
+html.nav-compact #mainNav,
+html.nav-compact .nav-desktop-only {
+    display: none !important;
+}
+html.nav-compact #mobileMenuBtn {
+    display: flex !important;
+}
+html.nav-compact #mobileMenu {
+    display: block !important;
+}
+html.nav-compact #submenuBar {
+    display: none !important;
+}
+
 .mobile-menu {
     max-height: 0;
     overflow: hidden;
