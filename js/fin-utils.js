@@ -167,8 +167,11 @@ const FinUtils = {
         const uid = (await Layout.db.auth.getUser()).data?.user?.id;
         if (!uid) return { ok: false, error: { code: 'forbidden', message: 'Нет сессии' } };
         const requestId = this.newRequestId();
-        const safeName = file.name.replace(/[^\wа-яА-ЯёЁ.\- ]/g, '_');
-        const path = `${uid}/${requestId}/${safeName}`;
+        // ключ Storage — только ASCII; оригинальное имя хранится в fin_attachments.file_name
+        const ext = (file.name.match(/\.[A-Za-z0-9]{1,8}$/) || [''])[0].toLowerCase();
+        const base = file.name.slice(0, file.name.length - ext.length)
+            .normalize('NFKD').replace(/[^A-Za-z0-9.\-]+/g, '_').replace(/^_+|_+$/g, '').slice(0, 60);
+        const path = `${uid}/${requestId}/${base || 'file'}${ext}`;
         const { error: upErr } = await Layout.db.storage.from('finance-files').upload(path, file, {
             contentType: file.type || 'application/octet-stream'
         });
