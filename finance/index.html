@@ -1,0 +1,91 @@
+<!DOCTYPE html>
+<html lang="ru" data-theme="light">
+<head>
+    <script src="../js/color-init.js?v=2"></script>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title data-i18n-title="fin_page_title_main">Финансы — ШРСК</title>
+    <link href="https://cdn.jsdelivr.net/npm/daisyui@4.12.14/dist/full.min.css" rel="stylesheet" />
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script>tailwind.config = { theme: { extend: { screens: { 'desktop': '1200px' } } } }</script>
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="../css/common.css">
+</head>
+<body class="bg-base-200 min-h-screen flex flex-col">
+
+<div id="header-placeholder"></div>
+
+<main class="container mx-auto px-4 py-6 flex-1">
+    <h1 class="text-2xl font-bold mb-6" data-i18n="module_finance">Финансы</h1>
+
+    <!-- Карточки остатков -->
+    <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6" id="balanceCards">
+        <div class="card bg-base-100 shadow-sm"><div class="card-body">
+            <h2 class="card-title text-base" data-i18n="fin_real_accounts">Реальные счета</h2>
+            <div id="realBalances"><span class="loading loading-spinner loading-sm"></span></div>
+        </div></div>
+        <div class="card bg-base-100 shadow-sm"><div class="card-body">
+            <h2 class="card-title text-base" data-i18n="fin_given_custody">Выдано под отчёт</h2>
+            <div id="custodialBalances"><span class="loading loading-spinner loading-sm"></span></div>
+        </div></div>
+        <div class="card bg-base-100 shadow-sm"><div class="card-body">
+            <h2 class="card-title text-base" data-i18n="fin_total_responsibility">Всего под ответственностью</h2>
+            <div id="totalBalances"><span class="loading loading-spinner loading-sm"></span></div>
+        </div></div>
+    </div>
+
+    <!-- Счётчики -->
+    <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+        <div class="card bg-base-100 shadow-sm"><div class="card-body py-4">
+            <div class="flex items-center justify-between">
+                <span data-i18n="fin_pending_ops">Входящие</span>
+                <span class="badge badge-warning" id="pendingCount">0</span>
+            </div>
+        </div></div>
+        <div class="card bg-base-100 shadow-sm"><div class="card-body py-4">
+            <div class="flex items-center justify-between">
+                <span data-i18n="fin_disputed_ops">Оспоренные</span>
+                <span class="badge badge-error" id="disputedCount">0</span>
+            </div>
+        </div></div>
+        <div class="card bg-base-100 shadow-sm"><div class="card-body py-4">
+            <div class="flex items-center justify-between">
+                <span data-i18n="fin_negative_accounts">Минусы</span>
+                <span class="badge badge-error" id="negativeCount">0</span>
+            </div>
+            <div id="negativeList" class="text-sm text-error"></div>
+        </div></div>
+    </div>
+
+    <!-- Последние операции -->
+    <div class="card bg-base-100 shadow-sm">
+        <div class="card-body p-0">
+            <div class="flex items-center justify-between px-4 pt-4">
+                <h2 class="card-title text-base" data-i18n="fin_recent_operations">Последние операции</h2>
+                <a href="dds.html" class="btn btn-ghost btn-sm" data-i18n="nav_fin_dds">ДДС</a>
+            </div>
+            <div class="overflow-x-auto">
+                <table class="table table-sm">
+                    <tbody id="recentOps">
+                        <tr><td class="text-center py-8"><span class="loading loading-spinner loading-md"></span></td></tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</main>
+
+<div id="footer-placeholder"></div>
+
+<script src="../js/config.js?v=4"></script>
+<script src="../js/auth-check.js?v=6"></script>
+<script src="../js/cache.js?v=1"></script>
+<script src="../js/utils.js?v=4"></script>
+<script src="../js/layout.js?v=14"></script>
+<script src="../js/date-utils.js?v=3"></script>
+<script src="../js/fin-utils.js?v=1"></script>
+<script src="../js/pages/fin-index.js?v=1"></script>
+
+</body>
+</html>

@@ -1,0 +1,172 @@
+<!DOCTYPE html>
+<html lang="ru" data-theme="light">
+<head>
+    <script src="../js/color-init.js?v=2"></script>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title data-i18n-title="fin_page_title_accounts">Счета — Финансы — ШРСК</title>
+    <link href="https://cdn.jsdelivr.net/npm/daisyui@4.12.14/dist/full.min.css" rel="stylesheet" />
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script>tailwind.config = { theme: { extend: { screens: { 'desktop': '1200px' } } } }</script>
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="../css/common.css">
+</head>
+<body class="bg-base-200 min-h-screen flex flex-col">
+
+<div id="header-placeholder"></div>
+
+<main class="container mx-auto px-4 py-6 flex-1">
+    <div class="flex flex-wrap justify-between items-center gap-3 mb-6">
+        <h1 class="text-2xl font-bold" data-i18n="nav_fin_accounts">Счета</h1>
+        <div class="flex gap-2" data-permission="fin_admin">
+            <button class="btn btn-ghost btn-sm" onclick="FinAccounts.openAccess()" data-i18n="fin_access">Доступ</button>
+            <button class="btn btn-primary btn-sm" onclick="FinAccounts.openAccountModal()" data-i18n="fin_new_account">Создать счёт</button>
+        </div>
+    </div>
+
+    <div role="tablist" class="tabs tabs-boxed w-fit mb-4">
+        <a role="tab" class="tab tab-active" data-kind="real" data-i18n="fin_real_accounts">Реальные</a>
+        <a role="tab" class="tab" data-kind="custodial" data-i18n="fin_custodial_accounts">Подотчётные</a>
+    </div>
+
+    <div class="card bg-base-100 shadow-sm">
+        <div class="card-body p-0">
+            <div class="overflow-x-auto">
+                <table class="table">
+                    <thead>
+                        <tr>
+                            <th data-i18n="fin_account_name">Название</th>
+                            <th data-i18n="fin_group">Группа</th>
+                            <th data-i18n="fin_responsible">Ответственный</th>
+                            <th class="text-right" data-i18n="fin_balance">Остаток</th>
+                            <th></th>
+                        </tr>
+                    </thead>
+                    <tbody id="accountsBody">
+                        <tr><td colspan="5" class="text-center py-8"><span class="loading loading-spinner loading-md"></span></td></tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</main>
+
+<div id="footer-placeholder"></div>
+
+<!-- Модалка: счёт (создание/правка) -->
+<dialog id="accountModal" class="modal">
+    <div class="modal-box max-w-lg">
+        <h3 class="font-bold text-lg mb-4" id="accountModalTitle" data-i18n="fin_new_account">Создать счёт</h3>
+        <form id="accountForm">
+            <input type="hidden" id="accId">
+            <div class="grid grid-cols-2 gap-3 mb-2">
+                <div class="form-control col-span-2">
+                    <label class="label py-0"><span class="label-text" data-i18n="fin_account_name">Название</span></label>
+                    <input type="text" id="accName" class="input input-bordered input-sm" required>
+                </div>
+                <div class="form-control">
+                    <label class="label py-0"><span class="label-text" data-i18n="fin_kind">Тип</span></label>
+                    <select id="accKind" class="select select-bordered select-sm"></select>
+                </div>
+                <div class="form-control">
+                    <label class="label py-0"><span class="label-text" data-i18n="fin_recon_mode">Способ сверки</span></label>
+                    <select id="accMode" class="select select-bordered select-sm"></select>
+                </div>
+                <div class="form-control">
+                    <label class="label py-0"><span class="label-text" data-i18n="fin_currency">Валюта</span></label>
+                    <select id="accCurrency" class="select select-bordered select-sm"></select>
+                </div>
+                <div class="form-control">
+                    <label class="label py-0"><span class="label-text" data-i18n="fin_group">Группа</span></label>
+                    <input type="text" id="accGroup" class="input input-bordered input-sm" list="groupList">
+                    <datalist id="groupList"></datalist>
+                </div>
+                <div class="form-control col-span-2">
+                    <label class="label py-0"><span class="label-text" data-i18n="fin_responsible">Ответственный</span></label>
+                    <input type="text" id="accRespSearch" class="input input-bordered input-sm" autocomplete="off">
+                    <input type="hidden" id="accRespId">
+                </div>
+                <div class="form-control col-span-2">
+                    <label class="label py-0"><span class="label-text" data-i18n="fin_default_cost_center">Cost center по умолчанию</span></label>
+                    <select id="accCostCenter" class="select select-bordered select-sm"></select>
+                </div>
+            </div>
+            <div class="modal-action">
+                <button type="button" class="btn btn-error btn-outline btn-sm mr-auto hidden" id="accDeactivateBtn" onclick="FinAccounts.deactivateAccount()" data-i18n="fin_deactivate">Деактивировать</button>
+                <button type="button" class="btn" onclick="document.getElementById('accountModal').close()" data-i18n="cancel">Отмена</button>
+                <button type="submit" class="btn btn-primary" data-i18n="save">Сохранить</button>
+            </div>
+        </form>
+    </div>
+    <form method="dialog" class="modal-backdrop"><button>close</button></form>
+</dialog>
+
+<!-- Модалка: начальный остаток -->
+<dialog id="openingModal" class="modal">
+    <div class="modal-box max-w-sm">
+        <h3 class="font-bold text-lg mb-4" data-i18n="fin_new_opening">Начальный остаток</h3>
+        <form id="openingForm">
+            <input type="hidden" id="opAccountId">
+            <div class="mb-2 font-medium" id="opAccountName"></div>
+            <div class="grid grid-cols-2 gap-3 mb-2">
+                <div class="form-control">
+                    <label class="label py-0"><span class="label-text" data-i18n="fin_amount">Сумма</span></label>
+                    <input type="number" id="opAmount" class="input input-bordered input-sm" min="0.01" step="0.01" required>
+                </div>
+                <div class="form-control">
+                    <label class="label py-0"><span class="label-text" data-i18n="fin_occurred_on">Дата</span></label>
+                    <input type="date" id="opDate" class="input input-bordered input-sm" required>
+                </div>
+                <div class="form-control col-span-2">
+                    <label class="label py-0"><span class="label-text" data-i18n="fin_direction">Направление</span></label>
+                    <select id="opDirection" class="select select-bordered select-sm">
+                        <option value="in">+ (in)</option>
+                        <option value="out">− (out)</option>
+                    </select>
+                </div>
+                <div class="form-control col-span-2">
+                    <label class="label py-0"><span class="label-text" data-i18n="fin_comment">Комментарий</span></label>
+                    <input type="text" id="opComment" class="input input-bordered input-sm">
+                </div>
+            </div>
+            <div class="modal-action">
+                <button type="button" class="btn" onclick="document.getElementById('openingModal').close()" data-i18n="cancel">Отмена</button>
+                <button type="submit" class="btn btn-primary" data-i18n="save">Сохранить</button>
+            </div>
+        </form>
+    </div>
+    <form method="dialog" class="modal-backdrop"><button>close</button></form>
+</dialog>
+
+<!-- Модалка: доступ к счетам -->
+<dialog id="accessModal" class="modal">
+    <div class="modal-box max-w-lg">
+        <h3 class="font-bold text-lg mb-4" data-i18n="fin_access">Доступ</h3>
+        <div class="form-control mb-3">
+            <label class="label py-0"><span class="label-text" data-i18n="fin_select_user">Выберите пользователя</span></label>
+            <input type="text" id="accessUserSearch" class="input input-bordered input-sm" autocomplete="off" data-i18n-placeholder="fin_search_person">
+            <input type="hidden" id="accessUserId" data-use-user-id="1">
+        </div>
+        <div id="accessAccounts" class="space-y-1 mb-3 max-h-64 overflow-y-auto"></div>
+        <div class="text-sm opacity-70 mb-2" data-i18n="fin_users_with_access">Пользователи со своими счетами</div>
+        <div id="accessCurrent" class="text-sm space-y-1 mb-3"></div>
+        <div class="modal-action">
+            <button type="button" class="btn" onclick="document.getElementById('accessModal').close()" data-i18n="cancel">Отмена</button>
+            <button type="button" class="btn btn-primary" onclick="FinAccounts.saveAccess()" data-i18n="save">Сохранить</button>
+        </div>
+    </div>
+    <form method="dialog" class="modal-backdrop"><button>close</button></form>
+</dialog>
+
+<script src="../js/config.js?v=4"></script>
+<script src="../js/auth-check.js?v=6"></script>
+<script src="../js/cache.js?v=1"></script>
+<script src="../js/utils.js?v=4"></script>
+<script src="../js/layout.js?v=14"></script>
+<script src="../js/date-utils.js?v=3"></script>
+<script src="../js/fin-utils.js?v=1"></script>
+<script src="../js/pages/fin-accounts.js?v=1"></script>
+
+</body>
+</html>

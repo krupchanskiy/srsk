@@ -1,0 +1,215 @@
+<!DOCTYPE html>
+<html lang="ru" data-theme="light">
+<head>
+    <script src="../js/color-init.js?v=2"></script>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title data-i18n-title="fin_page_title_dds">ДДС — Финансы — ШРСК</title>
+    <link href="https://cdn.jsdelivr.net/npm/daisyui@4.12.14/dist/full.min.css" rel="stylesheet" />
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script>tailwind.config = { theme: { extend: { screens: { 'desktop': '1200px' } } } }</script>
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="../css/common.css">
+</head>
+<body class="bg-base-200 min-h-screen flex flex-col">
+
+<div id="header-placeholder"></div>
+
+<main class="container mx-auto px-4 py-6 flex-1">
+    <div class="flex flex-wrap justify-between items-center gap-3 mb-6">
+        <h1 class="text-2xl font-bold" data-i18n="nav_fin_dds">ДДС</h1>
+        <div class="flex gap-2">
+            <button class="btn btn-success btn-sm gap-1" onclick="FinDds.openIncome()">
+                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="w-4 h-4"><path stroke-linecap="round" stroke-linejoin="round" d="M12 19V5m0 0l-6 6m6-6l6 6"/></svg>
+                <span data-i18n="fin_new_income">Приход</span>
+            </button>
+            <button class="btn btn-error btn-sm gap-1" onclick="FinDds.openExpense()">
+                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="w-4 h-4"><path stroke-linecap="round" stroke-linejoin="round" d="M12 5v14m0 0l-6-6m6 6l6-6"/></svg>
+                <span data-i18n="fin_new_expense">Расход</span>
+            </button>
+            <button class="btn btn-primary btn-sm gap-1" onclick="FinDds.openTransfer()">
+                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="w-4 h-4"><path stroke-linecap="round" stroke-linejoin="round" d="M7 16l-4-4m0 0l4-4m-4 4h18M17 8l4 4m0 0l-4 4m4-4H3"/></svg>
+                <span data-i18n="fin_new_transfer">Перевод</span>
+            </button>
+        </div>
+    </div>
+
+    <!-- Фильтры -->
+    <div class="card bg-base-100 shadow-sm mb-4">
+        <div class="card-body py-3">
+            <div class="flex flex-wrap gap-3 items-end">
+                <div class="form-control">
+                    <label class="label py-0"><span class="label-text text-xs" data-i18n="fin_account">Счёт</span></label>
+                    <select id="filterAccount" class="select select-bordered select-sm w-52"></select>
+                </div>
+                <div class="form-control">
+                    <label class="label py-0"><span class="label-text text-xs" data-i18n="fin_kind">Тип</span></label>
+                    <select id="filterType" class="select select-bordered select-sm w-44"></select>
+                </div>
+                <div class="form-control">
+                    <label class="label py-0"><span class="label-text text-xs" data-i18n="fin_approval_pending">Статус</span></label>
+                    <select id="filterApproval" class="select select-bordered select-sm w-40"></select>
+                </div>
+                <div class="form-control">
+                    <label class="label py-0"><span class="label-text text-xs" data-i18n="fin_period_from">С</span></label>
+                    <input type="date" id="filterFrom" class="input input-bordered input-sm w-40">
+                </div>
+                <div class="form-control">
+                    <label class="label py-0"><span class="label-text text-xs" data-i18n="fin_period_to">По</span></label>
+                    <input type="date" id="filterTo" class="input input-bordered input-sm w-40">
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Таблица -->
+    <div class="card bg-base-100 shadow-sm">
+        <div class="card-body p-0">
+            <div class="overflow-x-auto">
+                <table class="table table-sm">
+                    <thead id="ddsHead"></thead>
+                    <tbody id="ddsBody">
+                        <tr><td colspan="8" class="text-center py-8"><span class="loading loading-spinner loading-md"></span></td></tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</main>
+
+<div id="footer-placeholder"></div>
+
+<!-- Модалка: Расход -->
+<dialog id="expenseModal" class="modal">
+    <div class="modal-box max-w-2xl">
+        <h3 class="font-bold text-lg mb-4" data-i18n="fin_new_expense">Расход</h3>
+        <form id="expenseForm">
+            <div class="flex gap-3 mb-3">
+                <div class="form-control">
+                    <label class="label py-0"><span class="label-text" data-i18n="fin_occurred_on">Дата события</span></label>
+                    <input type="date" id="expDate" class="input input-bordered input-sm" required>
+                </div>
+                <div class="form-control flex-1">
+                    <label class="label py-0"><span class="label-text" data-i18n="fin_comment">Комментарий</span></label>
+                    <input type="text" id="expComment" class="input input-bordered input-sm w-full">
+                </div>
+            </div>
+            <div id="expRows"></div>
+            <button type="button" class="btn btn-ghost btn-xs mb-3" onclick="FinDds.addExpenseRow()">+ <span data-i18n="fin_add">Добавить</span></button>
+            <div class="modal-action">
+                <button type="button" class="btn" onclick="document.getElementById('expenseModal').close()" data-i18n="cancel">Отмена</button>
+                <button type="submit" class="btn btn-primary" data-i18n="save">Сохранить</button>
+            </div>
+        </form>
+    </div>
+    <form method="dialog" class="modal-backdrop"><button>close</button></form>
+</dialog>
+
+<!-- Модалка: Приход / Пожертвование -->
+<dialog id="incomeModal" class="modal">
+    <div class="modal-box max-w-lg">
+        <h3 class="font-bold text-lg mb-4" data-i18n="fin_new_income">Приход</h3>
+        <form id="incomeForm">
+            <div class="form-control mb-2">
+                <label class="label cursor-pointer justify-start gap-3 py-1">
+                    <input type="checkbox" id="incIsDonation" class="checkbox checkbox-sm">
+                    <span class="label-text" data-i18n="fin_is_donation">Это пожертвование</span>
+                </label>
+            </div>
+            <div class="form-control mb-2 hidden" id="incDonorWrap">
+                <label class="label py-0"><span class="label-text" data-i18n="fin_donor">Жертвователь</span></label>
+                <input type="text" id="incDonorSearch" class="input input-bordered input-sm" autocomplete="off">
+                <input type="hidden" id="incDonorId">
+            </div>
+            <div class="grid grid-cols-2 gap-3 mb-2">
+                <div class="form-control">
+                    <label class="label py-0"><span class="label-text" data-i18n="fin_occurred_on">Дата</span></label>
+                    <input type="date" id="incDate" class="input input-bordered input-sm" required>
+                </div>
+                <div class="form-control">
+                    <label class="label py-0"><span class="label-text" data-i18n="fin_account">Счёт</span></label>
+                    <select id="incAccount" class="select select-bordered select-sm" required></select>
+                </div>
+                <div class="form-control">
+                    <label class="label py-0"><span class="label-text" data-i18n="fin_amount">Сумма</span></label>
+                    <input type="number" id="incAmount" class="input input-bordered input-sm" min="0.01" step="0.01" required>
+                </div>
+                <div class="form-control">
+                    <label class="label py-0"><span class="label-text" data-i18n="fin_category">Статья</span></label>
+                    <select id="incCategory" class="select select-bordered select-sm" required></select>
+                </div>
+                <div class="form-control">
+                    <label class="label py-0"><span class="label-text" data-i18n="fin_retreat_object">Ретрит</span></label>
+                    <select id="incObject" class="select select-bordered select-sm"></select>
+                </div>
+                <div class="form-control">
+                    <label class="label py-0"><span class="label-text" data-i18n="fin_channel">Канал</span></label>
+                    <select id="incChannel" class="select select-bordered select-sm"></select>
+                </div>
+            </div>
+            <div class="form-control mb-2">
+                <label class="label py-0"><span class="label-text" data-i18n="fin_comment">Комментарий</span></label>
+                <input type="text" id="incComment" class="input input-bordered input-sm">
+            </div>
+            <div class="modal-action">
+                <button type="button" class="btn" onclick="document.getElementById('incomeModal').close()" data-i18n="cancel">Отмена</button>
+                <button type="submit" class="btn btn-primary" data-i18n="save">Сохранить</button>
+            </div>
+        </form>
+    </div>
+    <form method="dialog" class="modal-backdrop"><button>close</button></form>
+</dialog>
+
+<!-- Модалка: Перевод -->
+<dialog id="transferModal" class="modal">
+    <div class="modal-box max-w-lg">
+        <h3 class="font-bold text-lg mb-4" data-i18n="fin_new_transfer">Перевод</h3>
+        <form id="transferForm">
+            <div class="grid grid-cols-2 gap-3 mb-2">
+                <div class="form-control">
+                    <label class="label py-0"><span class="label-text" data-i18n="fin_occurred_on">Дата</span></label>
+                    <input type="date" id="trDate" class="input input-bordered input-sm" required>
+                </div>
+                <div></div>
+                <div class="form-control">
+                    <label class="label py-0"><span class="label-text" data-i18n="fin_source_account">Счёт-источник</span></label>
+                    <select id="trSource" class="select select-bordered select-sm" required></select>
+                </div>
+                <div class="form-control">
+                    <label class="label py-0"><span class="label-text" data-i18n="fin_target_account">Счёт-получатель</span></label>
+                    <select id="trTarget" class="select select-bordered select-sm" required></select>
+                </div>
+                <div class="form-control">
+                    <label class="label py-0"><span class="label-text" data-i18n="fin_amount">Сумма</span></label>
+                    <input type="number" id="trAmount" class="input input-bordered input-sm" min="0.01" step="0.01" required>
+                </div>
+                <div class="form-control hidden" id="trTargetAmountWrap">
+                    <label class="label py-0"><span class="label-text" data-i18n="fin_target_amount">Сумма получения</span></label>
+                    <input type="number" id="trTargetAmount" class="input input-bordered input-sm" min="0.01" step="0.01">
+                </div>
+            </div>
+            <div class="form-control mb-2">
+                <label class="label py-0"><span class="label-text" data-i18n="fin_comment">Комментарий</span></label>
+                <input type="text" id="trComment" class="input input-bordered input-sm">
+            </div>
+            <div class="modal-action">
+                <button type="button" class="btn" onclick="document.getElementById('transferModal').close()" data-i18n="cancel">Отмена</button>
+                <button type="submit" class="btn btn-primary" data-i18n="save">Сохранить</button>
+            </div>
+        </form>
+    </div>
+    <form method="dialog" class="modal-backdrop"><button>close</button></form>
+</dialog>
+
+<script src="../js/config.js?v=4"></script>
+<script src="../js/auth-check.js?v=6"></script>
+<script src="../js/cache.js?v=1"></script>
+<script src="../js/utils.js?v=4"></script>
+<script src="../js/layout.js?v=14"></script>
+<script src="../js/date-utils.js?v=3"></script>
+<script src="../js/fin-utils.js?v=1"></script>
+<script src="../js/pages/fin-dds.js?v=1"></script>
+
+</body>
+</html>

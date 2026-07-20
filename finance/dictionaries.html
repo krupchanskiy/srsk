@@ -1,0 +1,73 @@
+<!DOCTYPE html>
+<html lang="ru" data-theme="light">
+<head>
+    <script src="../js/color-init.js?v=2"></script>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title data-i18n-title="fin_page_title_dictionaries">Справочники — Финансы — ШРСК</title>
+    <link href="https://cdn.jsdelivr.net/npm/daisyui@4.12.14/dist/full.min.css" rel="stylesheet" />
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script>tailwind.config = { theme: { extend: { screens: { 'desktop': '1200px' } } } }</script>
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="../css/common.css">
+</head>
+<body class="bg-base-200 min-h-screen flex flex-col">
+
+<div id="header-placeholder"></div>
+
+<main class="container mx-auto px-4 py-6 flex-1">
+    <div class="flex flex-wrap justify-between items-center gap-3 mb-6">
+        <h1 class="text-2xl font-bold" data-i18n="nav_fin_dictionaries">Справочники</h1>
+        <button class="btn btn-primary btn-sm" onclick="FinDicts.openAdd()" data-i18n="fin_add">Добавить</button>
+    </div>
+
+    <div role="tablist" class="tabs tabs-boxed w-fit mb-4">
+        <a role="tab" class="tab tab-active" data-tab="categories" data-i18n="fin_dict_categories">Статьи</a>
+        <a role="tab" class="tab" data-tab="cost_centers" data-i18n="fin_dict_cost_centers">Cost centers</a>
+        <a role="tab" class="tab" data-tab="contractors" data-i18n="fin_dict_contractors">Контрагенты</a>
+        <a role="tab" class="tab" data-tab="rates" data-i18n="fin_dict_rates">Курсы валют</a>
+    </div>
+
+    <div class="card bg-base-100 shadow-sm">
+        <div class="card-body p-0">
+            <div class="overflow-x-auto">
+                <table class="table table-sm">
+                    <thead id="dictHead"></thead>
+                    <tbody id="dictBody">
+                        <tr><td colspan="6" class="text-center py-8"><span class="loading loading-spinner loading-md"></span></td></tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</main>
+
+<div id="footer-placeholder"></div>
+
+<!-- Универсальная модалка справочника (контент строится в JS) -->
+<dialog id="dictModal" class="modal">
+    <div class="modal-box max-w-md">
+        <h3 class="font-bold text-lg mb-4" id="dictModalTitle"></h3>
+        <form id="dictForm">
+            <div id="dictFields"></div>
+            <div class="modal-action">
+                <button type="button" class="btn" onclick="document.getElementById('dictModal').close()" data-i18n="cancel">Отмена</button>
+                <button type="submit" class="btn btn-primary" data-i18n="save">Сохранить</button>
+            </div>
+        </form>
+    </div>
+    <form method="dialog" class="modal-backdrop"><button>close</button></form>
+</dialog>
+
+<script src="../js/config.js?v=4"></script>
+<script src="../js/auth-check.js?v=6"></script>
+<script src="../js/cache.js?v=1"></script>
+<script src="../js/utils.js?v=4"></script>
+<script src="../js/layout.js?v=14"></script>
+<script src="../js/date-utils.js?v=3"></script>
+<script src="../js/fin-utils.js?v=1"></script>
+<script src="../js/pages/fin-dictionaries.js?v=1"></script>
+
+</body>
+</html>

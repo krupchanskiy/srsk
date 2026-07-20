@@ -107,6 +107,27 @@ const modules = {
             ]}
         ]
     },
+    finance: {
+        id: 'finance',
+        nameKey: 'module_finance',
+        icon: '💰',
+        hasLocations: false,
+        defaultPage: 'finance/index.html',
+        menuConfig: [
+            { id: 'fin_main', items: [
+                { id: 'fin_main', href: 'finance/index.html' }
+            ]},
+            { id: 'fin_dds', items: [
+                { id: 'fin_dds', href: 'finance/dds.html' }
+            ]},
+            { id: 'fin_accounts', items: [
+                { id: 'fin_accounts', href: 'finance/accounts.html' }
+            ]},
+            { id: 'fin_dictionaries', items: [
+                { id: 'fin_dictionaries', href: 'finance/dictionaries.html' }
+            ]}
+        ]
+    },
     portal: {
         id: 'portal',
         nameKey: 'module_portal',
@@ -237,8 +258,22 @@ const pagePermissions = {
     'crm/utm-links.html': 'edit_crm_settings',
 
     // Portal (Профиль гостя)
-    'guest-portal/materials-admin.html': 'edit_portal_materials'
+    'guest-portal/materials-admin.html': 'edit_portal_materials',
+
+    // Финансы (массив = достаточно любого из прав)
+    'finance/index.html': ['fin_admin', 'fin_observer'],
+    'finance/dds.html': ['fin_admin', 'fin_observer'],
+    'finance/accounts.html': ['fin_admin', 'fin_observer'],
+    'finance/dictionaries.html': 'fin_admin'
 };
+
+// Проверка права страницы: строка или массив (достаточно любого)
+function hasPagePermission(requiredPerm) {
+    if (!requiredPerm) return true;
+    if (!window.hasPermission) return true;
+    if (Array.isArray(requiredPerm)) return requiredPerm.some(p => window.hasPermission(p));
+    return window.hasPermission(requiredPerm);
+}
 
 // ==================== STATE ====================
 let currentModule, currentLang, currentLocation;
@@ -266,15 +301,7 @@ function filterMenuByPermissions(menuConfig) {
 
     // Фильтровать каждую секцию меню
     return menuConfig.map(section => {
-        const filteredItems = section.items.filter(item => {
-            const requiredPerm = pagePermissions[item.href];
-
-            // Если права не указаны - показывать страницу всем
-            if (!requiredPerm) return true;
-
-            // Проверить наличие права через hasPermission()
-            return window.hasPermission && window.hasPermission(requiredPerm);
-        });
+        const filteredItems = section.items.filter(item => hasPagePermission(pagePermissions[item.href]));
 
         return {
             ...section,
@@ -291,7 +318,7 @@ function checkPageAccess() {
     const requiredPerm = pagePermissions[path];
 
     // Если для страницы указано требуемое право и у пользователя его нет — редирект
-    if (requiredPerm && !window.hasPermission(requiredPerm)) {
+    if (requiredPerm && !hasPagePermission(requiredPerm)) {
         console.warn('⛔ Нет доступа к', path, '— требуется', requiredPerm);
         window.location.href = '/';
     }
@@ -308,7 +335,7 @@ function waitForAuth() {
 
 // Найти первый доступный модуль (для автопереключения)
 function getFirstAccessibleModule() {
-    const order = ['kitchen', 'housing', 'crm', 'photos', 'portal', 'admin'];
+    const order = ['kitchen', 'housing', 'crm', 'finance', 'photos', 'portal', 'admin'];
     for (const id of order) {
         if (id === 'admin' && !window.currentUser?.is_superuser) continue;
         const config = filterMenuByPermissions(modules[id]?.menuConfig || []);
@@ -324,7 +351,7 @@ function getMenuConfig() {
 }
 
 // Список всех подпапок модулей
-const MODULE_FOLDERS = ['kitchen', 'stock', 'ashram', 'vaishnavas', 'placement', 'reception', 'settings', 'crm', 'guest-portal', 'photos'];
+const MODULE_FOLDERS = ['kitchen', 'stock', 'ashram', 'vaishnavas', 'placement', 'reception', 'settings', 'crm', 'guest-portal', 'photos', 'finance'];
 
 // Определить текущую подпапку (если есть)
 function getCurrentFolder() {
@@ -446,7 +473,7 @@ function getPersonName(person, lang = currentLang) {
 
 // ==================== TRANSLATIONS ====================
 async function loadTranslations(retried = false) {
-    const data = await Cache.getOrLoad('translations_v5', async () => {
+    const data = await Cache.getOrLoad('translations_v6', async () => {
         // Supabase ограничивает 1000 записей на запрос, используем пагинацию
         const allData = [];
         let from = 0;
@@ -481,7 +508,7 @@ async function loadTranslations(retried = false) {
 
     if (!hasAllKeys && !retried) {
         // Кэш устарел, инвалидируем и перезагружаем (только 1 раз)
-        Cache.invalidate('translations_v5');
+        Cache.invalidate('translations_v6');
         return loadTranslations(true);
     }
 
@@ -546,7 +573,7 @@ function getHeaderHTML() {
                         <a href="${adjustHref('index.html')}" class="text-xl font-semibold whitespace-nowrap hover:opacity-80 transition-opacity" data-i18n="app_name">Шри Рупа Сева Кунджа</a>
                         <div class="relative location-selector" id="locationDesktop">
                             <button class="flex items-center justify-between gap-2 w-full text-xl opacity-70 hover:opacity-100 transition-opacity" data-toggle="location">
-                                <span class="location-name">${currentModule === 'housing' ? t('module_housing') : currentModule === 'crm' ? t('module_crm') : currentModule === 'portal' ? t('module_portal') : currentModule === 'photos' ? t('module_photos') : currentModule === 'admin' ? t('module_admin') : ''}</span>
+                                <span class="location-name">${currentModule === 'housing' ? t('module_housing') : currentModule === 'crm' ? t('module_crm') : currentModule === 'finance' ? t('module_finance') : currentModule === 'portal' ? t('module_portal') : currentModule === 'photos' ? t('module_photos') : currentModule === 'admin' ? t('module_admin') : ''}</span>
                                 <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 transition-transform location-arrow" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
                                     <path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7" />
                                 </svg>
@@ -561,7 +588,7 @@ function getHeaderHTML() {
                         <span class="text-xl opacity-50">·</span>
                         <div class="relative location-selector" id="locationMobile">
                             <button class="flex items-center gap-1 text-xl opacity-70" data-toggle="location">
-                                <span class="location-name">${currentModule === 'housing' ? t('module_housing') : currentModule === 'crm' ? t('module_crm') : currentModule === 'portal' ? t('module_portal') : currentModule === 'photos' ? t('module_photos') : currentModule === 'admin' ? t('module_admin') : ''}</span>
+                                <span class="location-name">${currentModule === 'housing' ? t('module_housing') : currentModule === 'crm' ? t('module_crm') : currentModule === 'finance' ? t('module_finance') : currentModule === 'portal' ? t('module_portal') : currentModule === 'photos' ? t('module_photos') : currentModule === 'admin' ? t('module_admin') : ''}</span>
                                 <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 transition-transform location-arrow" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
                                     <path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7" />
                                 </svg>
@@ -748,6 +775,18 @@ function buildLocationOptions() {
             crmBtn.dataset.module = 'crm';
             crmBtn.textContent = t('module_crm'); // безопасно
             el.appendChild(crmBtn);
+        }
+
+        // Кнопка "Финансы" — админ или наблюдатель финансов
+        if (!window.hasPermission || window.hasPermission('fin_admin') || window.hasPermission('fin_observer')) {
+            const finBtn = document.createElement('button');
+            finBtn.className = 'w-full text-left px-4 py-2 hover:bg-base-200 text-base-content cursor-pointer';
+            if (currentModule === 'finance') {
+                finBtn.classList.add('font-medium');
+            }
+            finBtn.dataset.module = 'finance';
+            finBtn.textContent = t('module_finance'); // безопасно
+            el.appendChild(finBtn);
         }
 
         // Кнопка "Фото" — только для пользователей с upload_photos
