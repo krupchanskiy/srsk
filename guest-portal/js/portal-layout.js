@@ -44,12 +44,12 @@ async function init(options = {}) {
  * Загрузка переводов из БД
  */
 async function loadTranslations() {
-    const CACHE_KEY = 'portal_translations_v4';
-    const CACHE_TIME_KEY = 'portal_translations_v4_time';
+    const CACHE_KEY = 'portal_translations_v5';
+    const CACHE_TIME_KEY = 'portal_translations_v5_time';
 
     try {
         // Удаляем устаревшие кэши
-        ['portal_translations', 'portal_translations_v2', 'portal_translations_v3'].forEach(k => {
+        ['portal_translations', 'portal_translations_v2', 'portal_translations_v3', 'portal_translations_v4'].forEach(k => {
             localStorage.removeItem(k);
             localStorage.removeItem(k + '_time');
         });

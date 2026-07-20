@@ -597,6 +597,20 @@
                     </div>
                 </details>
 
+                <!-- Финансы -->
+                <details id="finance-block" class="hidden card" style="background: #E3F2FD;">
+                    <summary class="flex items-center justify-between cursor-pointer select-none list-none [&::-webkit-details-marker]:hidden">
+                        <div style="font-size: 18px; font-weight: 700; text-transform: uppercase; letter-spacing: 1.5px; color: #1565C0;" data-i18n="portal_finance">Финансы</div>
+                        <div class="flex items-center gap-3">
+                            <span id="finance-summary" class="text-sm font-semibold"></span>
+                            <svg class="w-5 h-5 text-[#1565C0] transition-transform duration-200 details-chevron" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" d="M19.5 8.25l-7.5 7.5-7.5-7.5" />
+                            </svg>
+                        </div>
+                    </summary>
+                    <div id="finance-content" class="space-y-4 mt-4"></div>
+                </details>
+
                 <!-- Мои дети -->
                 <details id="children-section" class="card hidden">
                     <summary class="flex items-center justify-between cursor-pointer select-none list-none [&::-webkit-details-marker]:hidden">
@@ -986,9 +1000,9 @@
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <script src="js/portal-config.js?v=3"></script>
     <script src="js/portal-auth.js"></script>
-    <script src="js/portal-layout.js?v=17"></script>
+    <script src="js/portal-layout.js?v=18"></script>
     <script src="../js/date-utils.js?v=3"></script>
     <script src="js/portal-data.js?v=3"></script>
-    <script src="js/portal-index.js?v=10"></script>
+    <script src="js/portal-index.js?v=11"></script>
 </body>
 </html>

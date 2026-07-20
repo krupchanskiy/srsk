@@ -1167,6 +1167,93 @@ async function loadTeachersList() {
 }
 
 // Инициализация
+// ==================== ФИНАНСЫ ====================
+// Балансы участника по ретритам (RPC portal_fin_get_my_finances,
+// viewer определяется сервером по auth.uid() — id не передаём)
+
+const FIN_SYMBOLS = { INR: '₹', RUB: '₽', USD: '$', EUR: '€' };
+
+function finMoney(amount, code) {
+    const n = Number(amount) || 0;
+    return `${FIN_SYMBOLS[code || 'INR'] || code} ${n.toLocaleString('ru-RU', { maximumFractionDigits: 2 })}`;
+}
+
+function finStatusHtml(net) {
+    const t = k => PortalLayout.t(k);
+    const v = Number(net) || 0;
+    if (v > 0) return `<span class="text-red-600">${t('fin_debt')}: ${finMoney(v)}</span>`;
+    if (v < 0) return `<span class="text-srsk-green">${t('fin_advance')}: ${finMoney(-v)}</span>`;
+    return `<span class="text-srsk-green">${t('portal_fin_paid_up')}</span>`;
+}
+
+function renderFinanceRetreat(item) {
+    const t = k => PortalLayout.t(k);
+    const b = item.balance || {};
+    const blocks = ['org_fee', 'accommodation', 'meals', 'extra']
+        .map(k => ({ k, ...(b.blocks?.[k] || {}) }))
+        .filter(x => Number(x.charged) > 0 || Number(x.paid) > 0);
+
+    const blocksHtml = blocks.map(x => {
+        const bal = Number(x.balance) || 0;
+        return `<div class="flex justify-between text-sm">
+            <span class="text-gray-600">${t('fin_block_' + x.k)}</span>
+            <span class="${bal > 0 ? 'text-red-600 font-medium' : 'text-gray-700'}">
+                ${finMoney(x.paid)} / ${finMoney(x.charged)}${bal > 0 ? ` · ${t('fin_debt').toLowerCase()} ${finMoney(bal)}` : ''}
+            </span>
+        </div>`;
+    }).join('');
+
+    const charges = (item.charges || []).map(c => `
+        <div class="flex justify-between text-sm ${c.is_cancelled ? 'line-through text-gray-400' : 'text-gray-700'}">
+            <span>${escapeHtml(c.description || t('fin_block_' + c.kind))}</span>
+            <span>${finMoney(c.net_amount)}</span>
+        </div>`).join('');
+
+    const payments = (item.payments || []).map(p => {
+        const badge = p.status === 'reversed' ? ` <span class="text-xs text-gray-400">(${t('fin_reversed_badge')})</span>`
+            : p.status === 'refunded_partially' ? ` <span class="text-xs text-amber-600">(${t('fin_refunded_partially')})</span>`
+            : p.status === 'refunded_fully' ? ` <span class="text-xs text-gray-500">(${t('fin_refunded_fully')})</span>`
+            : '';
+        return `<div class="flex justify-between text-sm ${p.status === 'reversed' ? 'text-gray-400' : 'text-gray-700'}">
+            <span>${escapeHtml(formatPortalDate(p.occurred_on))} · ${t('fin_type_' + p.type)}${badge}</span>
+            <span>${p.type === 'refund' ? '−' : ''}${finMoney(p.amount, p.currency_code)}</span>
+        </div>`;
+    }).join('');
+
+    return `
+    <div class="p-4 bg-white/70 rounded-xl">
+        <div class="flex flex-wrap items-center justify-between gap-2 mb-2">
+            <div class="font-semibold text-gray-800">${escapeHtml(item.retreat_name || '')}</div>
+            <div class="text-sm font-semibold">${finStatusHtml(b.net)}</div>
+        </div>
+        ${blocksHtml ? `<div class="space-y-1 mb-3">${blocksHtml}</div>` : ''}
+        ${charges ? `<div class="text-xs text-gray-400 uppercase tracking-wide mb-1">${t('fin_charges')}</div><div class="space-y-1 mb-3">${charges}</div>` : ''}
+        ${payments ? `<div class="text-xs text-gray-400 uppercase tracking-wide mb-1">${t('fin_payments')}</div><div class="space-y-1">${payments}</div>` : ''}
+    </div>`;
+}
+
+function formatPortalDate(iso) {
+    if (!iso) return '';
+    const d = DateUtils.parseDate(iso.slice(0, 10));
+    return d ? d.toLocaleDateString(PortalLayout.getLang() === 'ru' ? 'ru-RU' : 'en-GB', { day: 'numeric', month: 'short' }) : iso;
+}
+
+async function loadFinances() {
+    try {
+        const { data, error } = await window.portalSupabase.rpc('portal_fin_get_my_finances');
+        if (error || !data?.ok) return;
+        const items = data.result || [];
+        if (!items.length) return;
+        document.getElementById('finance-content').innerHTML = items.map(renderFinanceRetreat).join('');
+        // суммарный статус в шапке блока — по всем ретритам
+        const totalNet = items.reduce((s, it) => s + (Number(it.balance?.net) || 0), 0);
+        document.getElementById('finance-summary').innerHTML = finStatusHtml(totalNet);
+        document.getElementById('finance-block').classList.remove('hidden');
+    } catch (e) {
+        console.error('[Finances] Ошибка загрузки:', e);
+    }
+}
+
 async function init() {
     // Проверяем параметр view для просмотра чужого профиля
     const urlParams = new URLSearchParams(window.location.search);
@@ -1207,6 +1294,7 @@ async function init() {
         loadActiveRetreat(loggedInUser.id);
         loadPhotoGalleryPreview(loggedInUser.id);
         loadMaterialsCards();
+        loadFinances();
         document.getElementById('profile-form').addEventListener('submit', handleProfileSave);
     }
 
