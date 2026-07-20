@@ -18,7 +18,6 @@ let participants = [];           // [{participant_id, name, balance}]
 let card = { id: null, name: '', payments: [] };
 // request_id живёт от открытия формы до успешного сохранения
 const requestIds = { payment: null, refund: null };
-let rowSeq = 0;
 
 function blockLabel(kind) {
     return t('fin_block_' + kind);
@@ -190,7 +189,7 @@ function chargeRowHtml(idx) {
             </div>
             <div class="form-control">
                 <label class="label py-0"><span class="label-text text-xs">${t('fin_description')}</span></label>
-                <input type="text" class="input input-bordered input-sm chg-desc">
+                <input type="text" class="input input-bordered input-sm chg-desc" required>
             </div>
             <div class="form-control">
                 <label class="label py-0"><span class="label-text text-xs">${t('fin_quantity')}</span></label>
@@ -221,9 +220,8 @@ function wireChargeRow(row) {
 }
 
 function addChargeRow(presetPerson) {
-    rowSeq++;
     const wrap = document.getElementById('chargeRows');
-    wrap.insertAdjacentHTML('beforeend', chargeRowHtml(rowSeq));
+    wrap.insertAdjacentHTML('beforeend', chargeRowHtml(wrap.children.length));
     const row = wrap.lastElementChild;
     wireChargeRow(row);
     if (presetPerson) {
@@ -297,8 +295,8 @@ function payRowHtml(idx) {
 }
 
 function addPayRow() {
-    rowSeq++;
-    document.getElementById('payRows').insertAdjacentHTML('beforeend', payRowHtml(rowSeq));
+    const wrap = document.getElementById('payRows');
+    wrap.insertAdjacentHTML('beforeend', payRowHtml(wrap.children.length));
 }
 
 function openPayment(fromCard) {
