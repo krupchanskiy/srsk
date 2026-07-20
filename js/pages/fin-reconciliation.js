@@ -13,6 +13,7 @@ let currentAccount = null;   // строка fin_v_account_balances
 let openedSeq = 0;           // MAX(ledger_seq) на момент выбора счёта
 let requestId = null;
 let locationSeq = 0;
+let streakCount = 0;   // сколько последних чекпоинтов подряд без расхождений (критерий запуска: 3, runbook §4)
 
 // ==================== СЧЁТ ====================
 async function loadDenominations() {
@@ -170,9 +171,11 @@ function collectCounts() {
 async function save() {
     if (!currentAccount) return;
     const isCash = currentAccount.reconciliation_mode === 'cash_count';
+    const hadMismatch = !document.getElementById('mismatchBlock').classList.contains('hidden');
+    const accId = currentAccount.account_id;
     const payload = {
         request_id: requestId,
-        account_id: currentAccount.account_id,
+        account_id: accId,
         opened_seq: openedSeq,
         adjustment_reason: document.getElementById('adjustmentReason').value.trim() || null,
         counts: isCash ? collectCounts() : null,
@@ -181,11 +184,33 @@ async function save() {
     const res = await FinUtils.rpc('fin_perform_reconciliation', payload);
     if (FinUtils.handleResult(res)) {
         requestId = null;
-        await selectAccount(currentAccount.account_id);
+        await selectAccount(accId);
+        showSuccess(!hadMismatch);   // после перезагрузки истории
     } else if (res?.error?.code === 'reconciliation_stale') {
         // форма устарела — перезагружаем данные счёта и просим пересчитать
-        await selectAccount(currentAccount.account_id);
+        await selectAccount(accId);
     }
+}
+
+// Peak-end момент: крупное «сверено ✓» + серия чекпоинтов без расхождений
+function showSuccess(matched) {
+    const box = document.getElementById('reconSuccess');
+    const txt = document.getElementById('reconSuccessText');
+    if (!box || !txt) return;
+    const seq = currentAccount?.last_checkpoint_seq;
+    let msg = matched
+        ? `${t('fin_recon_saved_ok')} №${seq || ''}`
+        : `${t('fin_recon_saved_adj')} №${seq || ''}`;
+    if (streakCount > 0) {
+        msg += ` · ${t('fin_recon_streak').replace('{n}', streakCount)}`;
+    }
+    txt.textContent = msg;
+    box.classList.toggle('alert-success', matched);
+    box.classList.toggle('alert-warning', !matched);
+    box.classList.remove('hidden');
+    box.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+    clearTimeout(showSuccess._t);
+    showSuccess._t = setTimeout(() => box.classList.add('hidden'), 8000);
 }
 
 // ==================== ИСТОРИЯ ====================
@@ -195,8 +220,24 @@ async function loadHistory(accountId) {
         .order('performed_at', { ascending: false })
         .limit(50);
     const body = document.getElementById('historyBody');
+    // серия чекпоинтов подряд без расхождений (сверху вниз)
+    streakCount = 0;
+    for (const r of data || []) {
+        if (Number(r.original_difference || 0) === 0) streakCount++; else break;
+    }
+    const streakEl = document.getElementById('reconStreak');
+    if (streakEl) {
+        if (streakCount > 0) {
+            streakEl.textContent = t('fin_recon_streak').replace('{n}', streakCount);
+            streakEl.classList.remove('hidden');
+            streakEl.classList.toggle('badge-success', streakCount >= 3);
+            streakEl.classList.toggle('badge-warning', streakCount < 3);
+        } else {
+            streakEl.classList.add('hidden');
+        }
+    }
     if (!data || !data.length) {
-        body.innerHTML = `<tr><td class="text-center py-4 opacity-60">${t('fin_no_checkpoint')}</td></tr>`;
+        body.innerHTML = `<tr><td colspan="6" class="text-center py-4 opacity-60">${t('fin_no_checkpoint')}</td></tr>`;
         return;
     }
     body.innerHTML = data.map(r => `
@@ -220,8 +261,34 @@ async function init() {
     buildAccountSelect();
 
     document.getElementById('accountSelect').addEventListener('change', ev => selectAccount(ev.target.value));
-    document.getElementById('locations').addEventListener('input', recalc);
+    const locs = document.getElementById('locations');
+    locs.addEventListener('input', recalc);
     document.getElementById('statementBalance').addEventListener('input', recalc);
+
+    // Клавиатурный поток пересчёта: значение выделяется при фокусе, Enter → следующее поле
+    locs.addEventListener('focusin', ev => {
+        if (ev.target.matches('input[type="number"]')) ev.target.select();
+    });
+    locs.addEventListener('keydown', ev => {
+        if (ev.key !== 'Enter' || !ev.target.matches('input')) return;
+        ev.preventDefault();
+        const inputs = [...locs.querySelectorAll('input')];
+        const i = inputs.indexOf(ev.target);
+        if (i >= 0 && i < inputs.length - 1) inputs[i + 1].focus();
+        else document.getElementById('saveBtn')?.focus();
+    });
+
+    // Deep-link ?account= — вход в ритуал одним кликом с главной/счетов
+    const preset = new URLSearchParams(location.search).get('account');
+    if (preset) {
+        const sel = document.getElementById('accountSelect');
+        if ([...sel.options].some(o => o.value === preset)) {
+            sel.value = preset;
+            await selectAccount(preset);
+            const first = document.querySelector('#cashBlock:not(.hidden) .denom-qty, #statementBlock:not(.hidden) #statementBalance');
+            first?.focus();
+        }
+    }
 }
 
 window.FinRecon = { addLocation: () => { addLocation(''); recalc(); }, recalc, save };

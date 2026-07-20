@@ -602,6 +602,9 @@ async function init() {
     // Переход со страницы «Счета»: ?action=transfer&source=<id>
     const params = new URLSearchParams(window.location.search);
     if (params.get('action') === 'transfer') openTransfer(params.get('source') || undefined);
+    // Быстрые действия с главной: ?new=expense|income|transfer
+    const openForm = { expense: openExpense, income: openIncome, transfer: openTransfer };
+    if (openForm[params.get('new')]) openForm[params.get('new')]();
 }
 
 window.FinDds = { openExpense, openIncome, openTransfer, addExpenseRow, openReversal, openAnalytics, attachFile, updateRecap: updateExpenseRecap };

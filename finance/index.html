@@ -18,7 +18,23 @@
 <div id="header-placeholder"></div>
 
 <main class="container mx-auto px-4 py-6 flex-1">
-    <h1 class="text-2xl font-bold mb-6" data-i18n="module_finance">Финансы</h1>
+    <div class="flex flex-wrap justify-between items-center gap-3 mb-6">
+        <h1 class="text-2xl font-bold" data-i18n="module_finance">Финансы</h1>
+        <div class="flex gap-2" data-permission="fin_admin">
+            <a href="dds.html?new=income" class="btn btn-success btn-sm gap-1">
+                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="w-4 h-4"><path stroke-linecap="round" stroke-linejoin="round" d="M12 19V5m0 0l-6 6m6-6l6 6"/></svg>
+                <span data-i18n="fin_new_income">Приход</span>
+            </a>
+            <a href="dds.html?new=expense" class="btn btn-error btn-sm gap-1">
+                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="w-4 h-4"><path stroke-linecap="round" stroke-linejoin="round" d="M12 5v14m0 0l-6-6m6 6l6-6"/></svg>
+                <span data-i18n="fin_new_expense">Расход</span>
+            </a>
+            <a href="dds.html?new=transfer" class="btn btn-primary btn-sm gap-1">
+                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="w-4 h-4"><path stroke-linecap="round" stroke-linejoin="round" d="M7 16l-4-4m0 0l4-4m-4 4h18M17 8l4 4m0 0l-4 4m4-4H3"/></svg>
+                <span data-i18n="fin_new_transfer">Перевод</span>
+            </a>
+        </div>
+    </div>
 
     <!-- Карточки остатков -->
     <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6" id="balanceCards">
@@ -91,6 +107,14 @@
         </div></div>
     </div>
 
+    <!-- Давность сверки по реальным счетам (ежедневный ритуал) -->
+    <div class="card bg-base-100 shadow-sm mb-6" id="syncAgeCard" style="display:none">
+        <div class="card-body py-4">
+            <h2 class="card-title text-base mb-2" data-i18n="fin_sync_age">Давность сверки</h2>
+            <div id="syncAgeList" class="flex flex-col divide-y divide-base-200/70"></div>
+        </div>
+    </div>
+
     <!-- Последние операции -->
     <div class="card bg-base-100 shadow-sm">
         <div class="card-body p-0">
@@ -122,10 +146,10 @@
 <script src="../js/auth-check.js?v=7"></script>
 <script src="../js/cache.js?v=1"></script>
 <script src="../js/utils.js?v=4"></script>
-<script src="../js/layout.js?v=22"></script>
+<script src="../js/layout.js?v=23"></script>
 <script src="../js/date-utils.js?v=3"></script>
 <script src="../js/fin-utils.js?v=5"></script>
-<script src="../js/pages/fin-index.js?v=5"></script>
+<script src="../js/pages/fin-index.js?v=6"></script>
 
 </body>
 </html>

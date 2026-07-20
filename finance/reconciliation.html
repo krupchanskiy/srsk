@@ -32,6 +32,12 @@
         </div>
     </div>
 
+    <!-- Success-состояние после сохранённой сверки (peak-end) -->
+    <div id="reconSuccess" class="hidden alert alert-success mb-4">
+        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="w-6 h-6"><path stroke-linecap="round" stroke-linejoin="round" d="M9 12.75L11.25 15 15 9.75M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+        <span id="reconSuccessText" class="font-medium"></span>
+    </div>
+
     <!-- Пустое состояние: счёт не выбран -->
     <div id="reconEmpty" class="text-center py-14">
         <div class="fin-icon-chip mx-auto mb-3" style="width:3.5rem;height:3.5rem">
@@ -93,7 +99,10 @@
         <!-- История -->
         <div class="card bg-base-100 shadow-sm">
             <div class="card-body p-0">
-                <h2 class="card-title text-base px-4 pt-4" data-i18n="fin_recon_history">История сверок</h2>
+                <div class="flex items-center gap-2 px-4 pt-4">
+                    <h2 class="card-title text-base" data-i18n="fin_recon_history">История сверок</h2>
+                    <span id="reconStreak" class="badge badge-success badge-sm hidden"></span>
+                </div>
                 <div class="overflow-x-auto">
                     <table class="table table-sm">
                         <thead><tr>
@@ -118,10 +127,10 @@
 <script src="../js/auth-check.js?v=7"></script>
 <script src="../js/cache.js?v=1"></script>
 <script src="../js/utils.js?v=4"></script>
-<script src="../js/layout.js?v=22"></script>
+<script src="../js/layout.js?v=23"></script>
 <script src="../js/date-utils.js?v=3"></script>
 <script src="../js/fin-utils.js?v=5"></script>
-<script src="../js/pages/fin-reconciliation.js?v=3"></script>
+<script src="../js/pages/fin-reconciliation.js?v=4"></script>
 
 </body>
 </html>

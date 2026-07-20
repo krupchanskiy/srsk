@@ -61,12 +61,14 @@ async function loadDashboard() {
         animateCounts();
     }
 
-    // Минусы
+    // Минусы — кликабельны (→ лента счёта в ДДС)
     const negative = accounts.filter(a => a.is_negative);
     document.getElementById('negativeCount').textContent = negative.length;
     document.getElementById('negativeList').innerHTML = negative
-        .map(a => `${e(a.name)}: ${FinUtils.fmtMoney(a.balance, a.currency_code)}`)
-        .join('<br>');
+        .map(a => `<a href="dds.html?account=${a.account_id}" class="block hover:underline">${e(a.name)}: ${FinUtils.fmtMoney(a.balance, a.currency_code)}</a>`)
+        .join('');
+
+    renderSyncAge(accounts);
 
     // Pending / disputed
     const { data: statusOps } = await Layout.db
@@ -108,6 +110,33 @@ async function loadDashboard() {
         row.addEventListener('click', goDds);
         row.addEventListener('keydown', ev => { if (ev.key === 'Enter') goDds(); });
     });
+}
+
+// Давность сверки по реальным счетам: точка-цвет + «сегодня / N дн. назад»,
+// вся строка ведёт в сверку с предвыбранным счётом (ежедневный ритуал, runbook §4)
+function renderSyncAge(accounts) {
+    const card = document.getElementById('syncAgeCard');
+    const list = document.getElementById('syncAgeList');
+    if (!card || !list) return;
+    const real = accounts.filter(a => a.kind === 'real');
+    if (!real.length) { card.style.display = 'none'; return; }
+    const COLORS = { success: '#059669', warning: '#b45309', error: '#dc2626' };
+    const ageInfo = a => {
+        if (!a.last_checkpoint_seq) return { days: Infinity, label: t('fin_never_reconciled'), cls: 'error' };
+        const days = Math.floor((Date.now() - new Date(a.last_checkpoint_at).getTime()) / 86400000);
+        const label = days <= 0 ? t('fin_today') : t('fin_days_ago').replace('{n}', days);
+        return { days, label, cls: days <= 0 ? 'success' : days <= 3 ? 'warning' : 'error' };
+    };
+    real.sort((a, b) => ageInfo(b).days - ageInfo(a).days);   // самые несвежие сверху
+    list.innerHTML = real.map(a => {
+        const info = ageInfo(a);
+        return `<a href="reconciliation.html?account=${a.account_id}" class="flex items-center gap-2 py-2 hover:bg-base-200/50 -mx-2 px-2 rounded">
+            <span class="inline-block w-2 h-2 rounded-full" style="background:${COLORS[info.cls]}"></span>
+            <span class="flex-1">${e(a.name)}</span>
+            <span class="text-sm" style="color:${COLORS[info.cls]}">${info.label}</span>
+        </a>`;
+    }).join('');
+    card.style.display = '';
 }
 
 async function init() {

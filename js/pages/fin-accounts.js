@@ -20,6 +20,22 @@ async function loadResponsibleNames() {
     }
 }
 
+// Ячейка «Последний чекпоинт» с цветом давности: сегодня — зелёный,
+// 1-3 дня — жёлтый, дольше / никогда — красный (ежедневный ритуал, runbook §4)
+const AGE_COLORS = { success: '#059669', warning: '#b45309', error: '#dc2626' };
+function ageClass(days) { return days <= 0 ? 'success' : days <= 3 ? 'warning' : 'error'; }
+
+function checkpointCell(a) {
+    if (!a.last_checkpoint_seq) {
+        return `<span class="badge badge-error badge-sm">${t('fin_never_reconciled')}</span>`;
+    }
+    const days = Math.floor((Date.now() - new Date(a.last_checkpoint_at).getTime()) / 86400000);
+    const c = AGE_COLORS[ageClass(days)];
+    const dot = `<span class="inline-block w-2 h-2 rounded-full mr-1 align-middle" style="background:${c}"></span>`;
+    return `${dot}<span style="color:${c}">№${a.last_checkpoint_seq}, ${DateUtils.formatShort(new Date(a.last_checkpoint_at))}</span>` +
+        (Number(a.unreconciled_count) > 0 ? ` <span class="badge badge-warning badge-xs">+${a.unreconciled_count}</span>` : '');
+}
+
 // Сводка по текущей вкладке: сумма остатков по валютам, число счетов, минусов
 function renderSummary(accounts) {
     const box = document.getElementById('accountsSummary');
@@ -62,18 +78,16 @@ function render() {
         return;
     }
     tbody.innerHTML = accounts.map(a => `
-        <tr class="${a.is_active ? '' : 'opacity-60'}">
+        <tr class="${a.is_active ? '' : 'opacity-60'} cursor-pointer" data-account="${a.account_id}" tabindex="0" title="${t('fin_open_ledger')}">
             <td class="font-medium">${e(a.name)}${a.is_active ? '' : ` <span class="badge badge-ghost badge-xs">${t('fin_archived')}</span>`}</td>
             <td>${e(a.group_name || '')}</td>
             <td>${e(personNames[a.responsible_person_id] || '')}</td>
-            <td class="text-sm whitespace-nowrap">
-                ${a.last_checkpoint_seq
-                    ? `${t('fin_reconciled_by')} №${a.last_checkpoint_seq}, ${DateUtils.formatShort(new Date(a.last_checkpoint_at))}` +
-                      (Number(a.unreconciled_count) > 0 ? ` <span class="badge badge-warning badge-xs">+${a.unreconciled_count}</span>` : '')
-                    : `<span class="opacity-40">—</span>`}
-            </td>
+            <td class="text-sm whitespace-nowrap">${checkpointCell(a)}</td>
             <td class="text-right font-mono ${a.is_negative ? 'text-error font-bold' : ''}">${FinUtils.fmtMoney(a.balance, a.currency_code)}</td>
             <td class="text-right whitespace-nowrap">
+                <button class="btn btn-ghost btn-sm" data-action="reconcile" data-id="${a.account_id}" title="${t('fin_recon_do')}" aria-label="${t('fin_recon_do')}">
+                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-4 h-4"><path stroke-linecap="round" stroke-linejoin="round" d="M9 12.75L11.25 15 15 9.75M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+                </button>
                 ${isAdmin ? `
                 <button class="btn btn-ghost btn-sm" data-action="edit" data-id="${a.account_id}" title="${t('fin_edit_account')}" aria-label="${t('fin_edit_account')}">
                     <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-4 h-4"><path stroke-linecap="round" stroke-linejoin="round" d="m16.862 4.487 1.687-1.688a1.875 1.875 0 1 1 2.652 2.652L6.832 19.82a4.5 4.5 0 0 1-1.897 1.13l-2.685.8.8-2.685a4.5 4.5 0 0 1 1.13-1.897L16.863 4.487Z"/></svg>
@@ -297,15 +311,27 @@ async function init() {
         render();
     }));
 
-    document.getElementById('accountsBody').addEventListener('click', ev => {
+    const accBody = document.getElementById('accountsBody');
+    accBody.addEventListener('click', ev => {
         const link = ev.target.closest('[data-action]');
-        if (!link) return;
-        const id = link.dataset.id;
-        switch (link.dataset.action) {
-            case 'edit': openAccountModal(id); break;
-            case 'opening': openOpening(id); break;
-            case 'give': window.location.href = `dds.html?action=transfer&source=${id}`; break;
+        if (link) {
+            const id = link.dataset.id;
+            switch (link.dataset.action) {
+                case 'edit': openAccountModal(id); break;
+                case 'opening': openOpening(id); break;
+                case 'give': window.location.href = `dds.html?action=transfer&source=${id}`; break;
+                case 'reconcile': window.location.href = `reconciliation.html?account=${id}`; break;
+            }
+            return;
         }
+        // клик по строке (не по кнопке) → лента счёта в ДДС
+        const row = ev.target.closest('tr[data-account]');
+        if (row) window.location.href = `dds.html?account=${row.dataset.account}`;
+    });
+    accBody.addEventListener('keydown', ev => {
+        if (ev.key !== 'Enter') return;
+        const row = ev.target.closest('tr[data-account]');
+        if (row && !ev.target.closest('[data-action]')) window.location.href = `dds.html?account=${row.dataset.account}`;
     });
 
     document.getElementById('accountForm').addEventListener('submit', submitAccount);
