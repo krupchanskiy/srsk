@@ -97,6 +97,10 @@
             </div>
             <div id="expRows"></div>
             <button type="button" class="btn btn-ghost btn-xs mb-3" onclick="FinDds.addExpenseRow()">+ <span data-i18n="fin_add">Добавить</span></button>
+            <div class="form-control mb-3">
+                <label class="label py-0"><span class="label-text" data-i18n="fin_attachments">Вложения</span></label>
+                <input type="file" id="expFiles" class="file-input file-input-bordered file-input-sm" multiple accept="image/jpeg,image/png,image/webp,application/pdf">
+            </div>
             <div class="modal-action">
                 <button type="button" class="btn" onclick="document.getElementById('expenseModal').close()" data-i18n="cancel">Отмена</button>
                 <button type="submit" class="btn btn-primary" data-i18n="save">Сохранить</button>
@@ -154,6 +158,45 @@
             </div>
             <div class="modal-action">
                 <button type="button" class="btn" onclick="document.getElementById('incomeModal').close()" data-i18n="cancel">Отмена</button>
+                <button type="submit" class="btn btn-primary" data-i18n="save">Сохранить</button>
+            </div>
+        </form>
+    </div>
+    <form method="dialog" class="modal-backdrop"><button>close</button></form>
+</dialog>
+
+<!-- Модалка: правка аналитики -->
+<dialog id="analyticsModal" class="modal">
+    <div class="modal-box max-w-md">
+        <h3 class="font-bold text-lg mb-2" data-i18n="fin_edit_analytics">Изменить аналитику</h3>
+        <div class="text-sm opacity-70 mb-3" id="anInfo"></div>
+        <form id="analyticsForm">
+            <input type="hidden" id="anPostingId">
+            <input type="hidden" id="anHash">
+            <div class="grid grid-cols-2 gap-3 mb-2">
+                <div class="form-control">
+                    <label class="label py-0"><span class="label-text" data-i18n="fin_category">Статья</span></label>
+                    <select id="anCategory" class="select select-bordered select-sm" required></select>
+                </div>
+                <div class="form-control">
+                    <label class="label py-0"><span class="label-text" data-i18n="fin_cost_center">Cost center</span></label>
+                    <select id="anCc" class="select select-bordered select-sm"></select>
+                </div>
+                <div class="form-control">
+                    <label class="label py-0"><span class="label-text" data-i18n="fin_retreat_object">Ретрит</span></label>
+                    <select id="anObject" class="select select-bordered select-sm"></select>
+                </div>
+                <div class="form-control">
+                    <label class="label py-0"><span class="label-text" data-i18n="fin_contractor">Контрагент</span></label>
+                    <select id="anContractor" class="select select-bordered select-sm"></select>
+                </div>
+                <div class="form-control col-span-2">
+                    <label class="label py-0"><span class="label-text" data-i18n="fin_reason">Причина</span></label>
+                    <input type="text" id="anReason" class="input input-bordered input-sm">
+                </div>
+            </div>
+            <div class="modal-action">
+                <button type="button" class="btn" onclick="document.getElementById('analyticsModal').close()" data-i18n="cancel">Отмена</button>
                 <button type="submit" class="btn btn-primary" data-i18n="save">Сохранить</button>
             </div>
         </form>
@@ -236,10 +279,10 @@
 <script src="../js/auth-check.js?v=6"></script>
 <script src="../js/cache.js?v=1"></script>
 <script src="../js/utils.js?v=4"></script>
-<script src="../js/layout.js?v=17"></script>
+<script src="../js/layout.js?v=18"></script>
 <script src="../js/date-utils.js?v=3"></script>
-<script src="../js/fin-utils.js?v=1"></script>
-<script src="../js/pages/fin-dds.js?v=2"></script>
+<script src="../js/fin-utils.js?v=2"></script>
+<script src="../js/pages/fin-dds.js?v=3"></script>
 
 </body>
 </html>

@@ -37,18 +37,18 @@
 
     <!-- Счётчики -->
     <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
-        <div class="card bg-base-100 shadow-sm"><div class="card-body py-4">
+        <a href="inbox.html" class="card bg-base-100 shadow-sm hover:shadow-md transition-shadow"><div class="card-body py-4">
             <div class="flex items-center justify-between">
                 <span data-i18n="fin_pending_ops">Входящие</span>
                 <span class="badge badge-warning" id="pendingCount">0</span>
             </div>
-        </div></div>
-        <div class="card bg-base-100 shadow-sm"><div class="card-body py-4">
+        </div></a>
+        <a href="inbox.html?tab=disputed" class="card bg-base-100 shadow-sm hover:shadow-md transition-shadow"><div class="card-body py-4">
             <div class="flex items-center justify-between">
                 <span data-i18n="fin_disputed_ops">Оспоренные</span>
                 <span class="badge badge-error" id="disputedCount">0</span>
             </div>
-        </div></div>
+        </div></a>
         <div class="card bg-base-100 shadow-sm"><div class="card-body py-4">
             <div class="flex items-center justify-between">
                 <span data-i18n="fin_negative_accounts">Минусы</span>
@@ -82,10 +82,10 @@
 <script src="../js/auth-check.js?v=6"></script>
 <script src="../js/cache.js?v=1"></script>
 <script src="../js/utils.js?v=4"></script>
-<script src="../js/layout.js?v=17"></script>
+<script src="../js/layout.js?v=18"></script>
 <script src="../js/date-utils.js?v=3"></script>
-<script src="../js/fin-utils.js?v=1"></script>
-<script src="../js/pages/fin-index.js?v=2"></script>
+<script src="../js/fin-utils.js?v=2"></script>
+<script src="../js/pages/fin-index.js?v=3"></script>
 
 </body>
 </html>

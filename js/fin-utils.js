@@ -154,6 +154,57 @@ const FinUtils = {
         return DateUtils.toISO(new Date());
     },
 
+    // ==================== ВЛОЖЕНИЯ ====================
+    async sha256File(file) {
+        const buf = await file.arrayBuffer();
+        const digest = await crypto.subtle.digest('SHA-256', buf);
+        return [...new Uint8Array(digest)].map(b => b.toString(16).padStart(2, '0')).join('');
+    },
+
+    // Загрузить файл в finance-files и привязать к операции.
+    // Путь: <uid>/<request_id>/<имя> (политика Storage требует свой префикс)
+    async uploadAndAttach(file, operationId, postingId) {
+        const uid = (await Layout.db.auth.getUser()).data?.user?.id;
+        if (!uid) return { ok: false, error: { code: 'forbidden', message: 'Нет сессии' } };
+        const requestId = this.newRequestId();
+        const safeName = file.name.replace(/[^\wа-яА-ЯёЁ.\- ]/g, '_');
+        const path = `${uid}/${requestId}/${safeName}`;
+        const { error: upErr } = await Layout.db.storage.from('finance-files').upload(path, file, {
+            contentType: file.type || 'application/octet-stream'
+        });
+        if (upErr) return { ok: false, error: { code: 'upload_failed', message: upErr.message } };
+        return this.rpc('fin_create_attachment', {
+            request_id: requestId,
+            storage_path: path,
+            parent_type: 'operation',
+            parent_id: operationId,
+            posting_id: postingId || null,
+            file_name: file.name,
+            sha256: await this.sha256File(file)
+        });
+    },
+
+    async openAttachment(path) {
+        const { data, error } = await Layout.db.storage.from('finance-files').createSignedUrl(path, 300);
+        if (error || !data?.signedUrl) {
+            Layout.showNotification(error?.message || 'Не удалось открыть файл', 'error');
+            return;
+        }
+        window.open(data.signedUrl, '_blank');
+    },
+
+    // Список вложений (общий рендер для разворотов). Делегирование клика
+    // вешает страница: [data-attachment-path] → FinUtils.openAttachment
+    attachmentsHtml(atts) {
+        if (!atts || !atts.length) return '';
+        const e = s => Layout.escapeHtml(s);
+        return `<div class="pt-2 flex flex-wrap gap-2">` + atts.map(a => `
+            <button type="button" class="btn btn-ghost btn-xs gap-1" data-attachment-path="${e(a.storage_path)}">
+                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="w-3 h-3"><path stroke-linecap="round" stroke-linejoin="round" d="M18.375 12.739l-7.693 7.693a4.5 4.5 0 01-6.364-6.364l10.94-10.94A3 3 0 1119.5 7.372L8.552 18.32m.009-.01l-.01.01m5.699-9.941l-7.81 7.81a1.5 1.5 0 002.112 2.13"/></svg>
+                ${e(a.file_name)}
+            </button>`).join('') + `</div>`;
+    },
+
     // Поиск людей (vaishnavas) для полей «жертвователь»/«ответственный»
     async searchPersons(query, onlyWithUser) {
         if (!query || query.length < 2) return [];

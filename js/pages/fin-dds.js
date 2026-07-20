@@ -47,6 +47,7 @@ function badges(op) {
     if (op.is_reversed) html += ` <span class="badge badge-ghost badge-xs">${t('fin_reversed_badge')}</span>`;
     if (op.has_post_close || op.is_post_close) html += ` <span class="badge badge-neutral badge-xs">${t('fin_post_close_badge')}</span>`;
     if (op.is_late) html += ` <span class="badge badge-outline badge-xs" title="${t('fin_late_badge')}">🕓</span>`;
+    if (op.has_attachments) html += ` <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="w-3 h-3 inline opacity-60"><path stroke-linecap="round" stroke-linejoin="round" d="M18.375 12.739l-7.693 7.693a4.5 4.5 0 01-6.364-6.364l10.94-10.94A3 3 0 1119.5 7.372L8.552 18.32m.009-.01l-.01.01m5.699-9.941l-7.81 7.81a1.5 1.5 0 002.112 2.13"/></svg>`;
     return html;
 }
 
@@ -138,10 +139,16 @@ async function toggleDetails(opId) {
     row.classList.remove('hidden');
     const cell = row.firstElementChild;
     cell.innerHTML = `<div class="p-3"><span class="loading loading-spinner loading-sm"></span></div>`;
-    const { data } = await Layout.db.from('fin_v_account_ledger').select('*')
-        .eq('operation_id', opId).order('ledger_seq');
+    const [{ data }, { data: atts }] = await Promise.all([
+        Layout.db.from('fin_v_account_ledger').select('*').eq('operation_id', opId).order('ledger_seq'),
+        Layout.db.from('fin_v_attachments').select('*').eq('parent_type', 'operation').eq('parent_id', opId)
+    ]);
+    postingsById = { ...postingsById, ...Object.fromEntries((data || []).map(p => [p.posting_id, p])) };
+    const op = opsById[opId];
+    const canEdit = window.hasPermission?.('fin_admin') && op && !op.is_reversed
+        && !['reversal', 'refund', 'transfer', 'opening', 'reconciliation_adjustment'].includes(op.type);
     cell.innerHTML = `<div class="p-3 text-sm space-y-1">` + (data || []).map(p => `
-        <div class="flex flex-wrap gap-3">
+        <div class="flex flex-wrap gap-3 items-center">
             <span class="font-medium">${e(p.account_name)}</span>
             <span class="font-mono ${Number(p.signed_amount) < 0 ? 'text-error' : 'text-success'}">${FinUtils.fmtMoney(p.signed_amount, p.currency_code)}</span>
             ${p.amount_base !== null && p.currency_code !== 'INR' ? `<span class="opacity-60 font-mono">₹ ${Number(p.amount_base).toLocaleString('ru-RU')}</span>` : ''}
@@ -151,7 +158,71 @@ async function toggleDetails(opId) {
             ${p.participant_name ? `<span class="opacity-70">${e(p.participant_name)}</span>` : ''}
             ${p.contractor_name ? `<span class="opacity-70">${e(p.contractor_name)}</span>` : ''}
             ${p.payment_channel ? `<span class="opacity-50">${e(FinUtils.channelLabel(p.payment_channel))}</span>` : ''}
-        </div>`).join('') + reversalButtonHtml(opId) + `</div>`;
+            ${canEdit ? `<button class="btn btn-ghost btn-xs" onclick="FinDds.openAnalytics('${p.posting_id}')" title="${t('fin_edit_analytics')}">
+                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="w-3 h-3"><path stroke-linecap="round" stroke-linejoin="round" d="M16.862 4.487l1.687-1.688a1.875 1.875 0 112.652 2.652L6.832 19.82a4.5 4.5 0 01-1.897 1.13l-2.685.8.8-2.685a4.5 4.5 0 011.13-1.897L16.863 4.487z"/></svg>
+            </button>` : ''}
+        </div>`).join('')
+        + FinUtils.attachmentsHtml(atts || [])
+        + (window.hasPermission?.('fin_admin') ? `<div class="pt-1"><label class="btn btn-ghost btn-xs gap-1">
+            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="w-3 h-3"><path stroke-linecap="round" stroke-linejoin="round" d="M18.375 12.739l-7.693 7.693a4.5 4.5 0 01-6.364-6.364l10.94-10.94A3 3 0 1119.5 7.372L8.552 18.32m.009-.01l-.01.01m5.699-9.941l-7.81 7.81a1.5 1.5 0 002.112 2.13"/></svg>
+            ${t('fin_attach_file')}<input type="file" class="hidden" accept="image/jpeg,image/png,image/webp,application/pdf" onchange="FinDds.attachFile(this, '${opId}')">
+        </label></div>` : '')
+        + reversalButtonHtml(opId) + `</div>`;
+}
+
+// Прикрепить файл из разворота
+async function attachFile(input, opId) {
+    const file = input.files?.[0];
+    if (!file) return;
+    input.disabled = true;
+    const res = await FinUtils.uploadAndAttach(file, opId);
+    input.disabled = false;
+    input.value = '';
+    if (FinUtils.handleResult(res)) {
+        const row = document.getElementById('det-' + opId);
+        if (row) { row.classList.add('hidden'); toggleDetails(opId); }
+    }
+}
+
+// ==================== ПРАВКА АНАЛИТИКИ ====================
+let postingsById = {};
+
+function openAnalytics(postingId) {
+    const p = postingsById[postingId];
+    if (!p) return;
+    document.getElementById('anPostingId').value = postingId;
+    document.getElementById('anHash').value = p.analytics_hash;
+    document.getElementById('anInfo').textContent =
+        `${p.account_name} · ${FinUtils.fmtMoney(p.signed_amount, p.currency_code)}`;
+    document.getElementById('anCategory').innerHTML = FinUtils.categoryOptions(p.direction, p.category_id);
+    document.getElementById('anCc').innerHTML = FinUtils.costCenterOptions(p.cost_center_id);
+    document.getElementById('anObject').innerHTML = FinUtils.objectOptions(p.object_id);
+    document.getElementById('anContractor').innerHTML = FinUtils.contractorOptions(p.contractor_id);
+    document.getElementById('anReason').value = '';
+    document.getElementById('analyticsModal').showModal();
+}
+
+async function submitAnalytics(ev) {
+    ev.preventDefault();
+    const p = postingsById[document.getElementById('anPostingId').value];
+    const res = await FinUtils.rpc('fin_update_posting_analytics', {
+        posting_id: p.posting_id,
+        expected_analytics_hash: document.getElementById('anHash').value,
+        target: {
+            category_id: document.getElementById('anCategory').value,
+            cost_center_id: document.getElementById('anCc').value || null,
+            object_id: document.getElementById('anObject').value || null,
+            participant_id: p.participant_id || null,
+            participant_balance_kind: p.participant_balance_kind || null,
+            contractor_id: document.getElementById('anContractor').value || null
+        },
+        reason: document.getElementById('anReason').value || null,
+        audit_request_id: FinUtils.newRequestId()
+    });
+    if (FinUtils.handleResult(res)) {
+        document.getElementById('analyticsModal').close();
+        await loadTable();
+    }
 }
 
 // ==================== СТОРНО ====================
@@ -243,6 +314,7 @@ function openExpense() {
     requestIds.expense = requestIds.expense || FinUtils.newRequestId();
     document.getElementById('expDate').value = FinUtils.todayISO();
     document.getElementById('expComment').value = '';
+    document.getElementById('expFiles').value = '';
     document.getElementById('expRows').innerHTML = expenseRowHtml(0);
     document.getElementById('expenseModal').showModal();
 }
@@ -260,14 +332,21 @@ async function submitExpense(ev) {
         payment_channel: row.querySelector('.exp-channel').value || null
     }));
 
+    const opId = requestIds.expense;
     const res = await FinUtils.rpc('fin_create_expense', {
-        request_id: requestIds.expense,
+        request_id: opId,
         occurred_on: document.getElementById('expDate').value,
         comment: document.getElementById('expComment').value || null,
         rows
     });
     if (FinUtils.handleResult(res)) {
         requestIds.expense = null;
+        // чеки: операция уже создана — привязываем файлы (upload-flow ТЗ 4.13)
+        const files = [...document.getElementById('expFiles').files];
+        for (const f of files) {
+            const attRes = await FinUtils.uploadAndAttach(f, opId);
+            if (!attRes?.ok) Layout.showNotification(`${f.name}: ${attRes?.error?.message || 'ошибка загрузки'}`, 'warning');
+        }
         document.getElementById('expenseModal').close();
         await FinUtils.reloadAccounts();
         await loadTable();
@@ -376,8 +455,13 @@ async function init() {
     document.getElementById('incomeForm').addEventListener('submit', submitIncome);
     document.getElementById('transferForm').addEventListener('submit', submitTransfer);
     document.getElementById('reversalForm').addEventListener('submit', submitReversal);
+    document.getElementById('analyticsForm').addEventListener('submit', submitAnalytics);
     document.getElementById('revNewDate').addEventListener('change', ev =>
         document.getElementById('revDateWrap').classList.toggle('hidden', !ev.target.checked));
+    document.addEventListener('click', ev => {
+        const att = ev.target.closest('[data-attachment-path]');
+        if (att) FinUtils.openAttachment(att.dataset.attachmentPath);
+    });
     document.getElementById('incIsDonation').addEventListener('change', updateIncomeCategoryList);
     document.getElementById('trSource').addEventListener('change', updateTransferCurrency);
     document.getElementById('trTarget').addEventListener('change', updateTransferCurrency);
@@ -395,6 +479,6 @@ async function init() {
     if (params.get('action') === 'transfer') openTransfer(params.get('source') || undefined);
 }
 
-window.FinDds = { openExpense, openIncome, openTransfer, addExpenseRow, openReversal };
+window.FinDds = { openExpense, openIncome, openTransfer, addExpenseRow, openReversal, openAnalytics, attachFile };
 init();
 })();

@@ -1,0 +1,28 @@
+-- =============================================================
+-- Этап 5: тесты согласования, правки аналитики, вложений (A/B/C)
+-- Прогонялись через MCP execute_sql в BEGIN/ROLLBACK 2026-07-20,
+-- все зелёные. Роль: set_config('request.jwt.claims', ...admin uid).
+--
+-- A1a approve ok; A1b repeat noop; A2 stale expected -> approval_state_conflict;
+-- A3 disputed без причины -> invalid_payload; A4a disputed ставит reason;
+-- A4b выход из спора чистит reason; A5 not_required -> approval_not_applicable;
+-- A6 после initial closure -> approval_frozen_after_closure.
+--
+-- B1 правка статьи+cc ок; B2 устаревший hash -> analytics_conflict;
+-- B3 refund posting -> posting_immutable; B4 сторнированная -> posting_immutable;
+-- B5a активный возврат блокирует перенос объекта -> analytics_locked_by_refund;
+-- B5b cost center при этом правится; B6a перенос на закрытый объект без
+-- причины -> post_close_reason_required; B6b с причиной -> is_post_close=true
+-- + report_dirty_at; B7 до-закрытийная проводка -> posting_frozen_after_closure;
+-- B8 техническая проводка (transfer) -> invalid_payload; B9 статья не того
+-- направления -> invalid_payload.
+--
+-- C1 файла нет в storage -> attachment_file_missing; C2a привязка ок;
+-- C2b повтор -> existed=true; C3 тот же путь под другим id ->
+-- attachment_path_conflict; C4 чужой файл -> forbidden; C5 text/html ->
+-- invalid_payload; C6 has_attachments=true в fin_v_operations.
+--
+-- Полные executable-батчи — в истории сессии; хитрость для фикстур:
+-- расход админа рождается not_required, для теста цикла согласования
+-- переводится в pending прямым UPDATE (гвард операций разрешает approval).
+-- Файл в storage имитируется INSERT в storage.objects внутри транзакции.
