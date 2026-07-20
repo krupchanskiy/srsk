@@ -413,7 +413,10 @@ EXCEPTION WHEN OTHERS THEN
 END;
 $$;
 
-REVOKE ALL ON FUNCTION fin_private_person_name(uuid) FROM PUBLIC, anon, authenticated;
+-- fin_private_person_name вызывается ИЗ views: функции внутри view
+-- исполняются с правами вызывающего, поэтому authenticated нужен EXECUTE
+REVOKE ALL ON FUNCTION fin_private_person_name(uuid) FROM PUBLIC, anon;
+GRANT EXECUTE ON FUNCTION fin_private_person_name(uuid) TO authenticated;
 REVOKE ALL ON FUNCTION fin_save_category(jsonb)      FROM PUBLIC, anon;
 REVOKE ALL ON FUNCTION fin_save_cost_center(jsonb)   FROM PUBLIC, anon;
 REVOKE ALL ON FUNCTION fin_save_contractor(jsonb)    FROM PUBLIC, anon;

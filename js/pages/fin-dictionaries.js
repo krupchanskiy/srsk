@@ -69,7 +69,7 @@ function renderTab() {
         body.innerHTML = rows.map(r => `
             <tr>
                 <td class="font-mono font-bold">${e(r.from_currency)}</td>
-                <td>${DateUtils.formatDate(DateUtils.parseDate(r.effective_date))}</td>
+                <td>${DateUtils.formatShort(DateUtils.parseDate(r.effective_date))}</td>
                 <td class="font-mono">${r.rate}</td>
                 <td>${e(r.object_name || t('fin_general_rate'))}</td>
             </tr>`).join('');

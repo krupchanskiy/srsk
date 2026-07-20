@@ -74,7 +74,7 @@ async function loadDashboard() {
     }
     tbody.innerHTML = ops.map(op => `
         <tr class="${op.is_reversed ? 'opacity-50' : ''}">
-            <td class="whitespace-nowrap">${DateUtils.formatDate(DateUtils.parseDate(op.occurred_on))}</td>
+            <td class="whitespace-nowrap">${DateUtils.formatShort(DateUtils.parseDate(op.occurred_on))}</td>
             <td>${e(FinUtils.typeLabel(op.type))}
                 ${op.is_reversed ? `<span class="badge badge-ghost badge-xs">${t('fin_reversed_badge')}</span>` : ''}
                 ${op.has_post_close ? `<span class="badge badge-neutral badge-xs">${t('fin_post_close_badge')}</span>` : ''}

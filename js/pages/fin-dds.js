@@ -83,7 +83,7 @@ async function loadTable() {
         }
         body.innerHTML = data.map(p => `
             <tr class="${p.is_reversed ? 'opacity-50' : ''}">
-                <td class="whitespace-nowrap">${DateUtils.formatDate(DateUtils.parseDate(p.occurred_on))}</td>
+                <td class="whitespace-nowrap">${DateUtils.formatShort(DateUtils.parseDate(p.occurred_on))}</td>
                 <td>${e(FinUtils.typeLabel(p.type))}${badges(p)}</td>
                 <td>${e(p.category_name || '—')}</td>
                 <td>${e(p.object_name || '')}</td>
@@ -117,7 +117,7 @@ async function loadTable() {
         }
         body.innerHTML = data.map(op => `
             <tr class="cursor-pointer hover:bg-base-200 ${op.is_reversed ? 'opacity-50' : ''}" data-op="${op.operation_id}">
-                <td class="whitespace-nowrap">${DateUtils.formatDate(DateUtils.parseDate(op.occurred_on))}</td>
+                <td class="whitespace-nowrap">${DateUtils.formatShort(DateUtils.parseDate(op.occurred_on))}</td>
                 <td>${e(FinUtils.typeLabel(op.type))}${badges(op)}</td>
                 <td class="text-right font-mono whitespace-nowrap">${FinUtils.fmtAmountsByCurrency(op.amounts_by_currency)}</td>
                 <td class="max-w-md truncate opacity-70">${e([op.payer_name, op.comment].filter(Boolean).join(' · '))}</td>
