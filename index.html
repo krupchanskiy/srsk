@@ -147,6 +147,29 @@
                     </div>
                 </a>
 
+                <!-- Finance Module (только для fin_admin / fin_observer / fin_account_user) -->
+                <a href="finance/index.html" onclick="selectModule('finance')" id="financeModule" data-color="#0d9488"
+                   class="module-card group rounded-2xl shadow-md hover:shadow-lg transition-all hover:scale-[1.02] hidden"
+                   style="background: linear-gradient(135deg, #0d9488 0%, #0f766e 100%);">
+                    <div class="p-6">
+                        <div class="flex items-center gap-4 mb-3">
+                            <div class="w-12 h-12 rounded-xl bg-white/20 flex items-center justify-center">
+                                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-7 h-7 text-white">
+                                    <path stroke-linecap="round" stroke-linejoin="round" d="M15 8.25H9m6 3H9m3 6.75-3-3h1.5a3 3 0 1 0 0-6M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" />
+                                </svg>
+                            </div>
+                            <h2 class="text-2xl font-bold text-white" data-i18n="module_finance">Финансы</h2>
+                        </div>
+                        <div class="flex flex-wrap gap-2 text-sm text-white/80">
+                            <span data-i18n="nav_fin_dds">ДДС</span>
+                            <span>•</span>
+                            <span data-i18n="nav_fin_participants">Участники</span>
+                            <span>•</span>
+                            <span data-i18n="nav_fin_analytics">Аналитика</span>
+                        </div>
+                    </div>
+                </a>
+
                 <!-- Photos Module (только для пользователей с upload_photos) -->
                 <a href="photos/upload.html" onclick="selectModule('photos')" id="photosModule" data-color="#ec4899"
                    class="module-card group rounded-2xl shadow-md hover:shadow-lg transition-all hover:scale-[1.02] hidden"
@@ -262,6 +285,11 @@
             // Показать модуль "Фото" только пользователям с upload_photos
             if (window.hasPermission && window.hasPermission('upload_photos')) {
                 document.getElementById('photosModule')?.classList.remove('hidden');
+            }
+
+            // Показать модуль "Финансы" пользователям с фин-ролями (суперпользователь проходит через hasPermission)
+            if (window.hasPermission && (window.hasPermission('fin_admin') || window.hasPermission('fin_observer') || window.hasPermission('fin_account_user'))) {
+                document.getElementById('financeModule')?.classList.remove('hidden');
             }
 
             // Показать модуль "Управление" только суперпользователям
