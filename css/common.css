@@ -110,7 +110,21 @@ html.nav-compact #submenuBar {
     transition: max-height 0.3s ease;
 }
 .mobile-menu.open {
-    max-height: 600px;
+    max-height: 85vh;
+    overflow-y: auto;
+}
+
+/* Пункты меню — компактной сеткой, а не длинным столбцом.
+   На широком экране (меню свернулось из-за нехватки места) — 3-4 колонки,
+   на телефоне — одна. Раскрывающиеся пункты занимают всю ширину. */
+#mobileNav {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(190px, 1fr));
+    gap: 0.25rem;
+    padding: 0.5rem;
+}
+#mobileNav .mobile-nav-item[data-has-submenu] {
+    grid-column: 1 / -1;
 }
 
 .mobile-nav-item.open > button {
