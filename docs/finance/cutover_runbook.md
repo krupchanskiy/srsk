@@ -1,0 +1,125 @@
+# Cutover Runbook — запуск финансового модуля (ТЗ раздел 11)
+
+Ответственные: **Ванамали Гопал** (реестр, сверка цифр), **Адриан** (техническая часть).
+Все SQL выполняются в Supabase SQL Editor прод-проекта `mymrijdfqeevoaocbzfy`.
+
+---
+
+## 0. Предзапуск (технические предпосылки)
+
+- [ ] **PITR включён** (Dashboard → Settings → Database → Point in Time Recovery; цель RPO ≤ 1 ч по ТЗ 10.11). Требует Pro-плана; решение по оплате — Адриан.
+- [ ] Ежедневный бэкап активен (входит в план по умолчанию).
+- [ ] Фоновая чистка Storage работает: cron-джоба `fin-cleanup-daily` (03:00 IST), Edge Function `fin-cleanup`. Проверка: `SELECT * FROM cron.job WHERE jobname='fin-cleanup-daily';`
+
+## 1. Подготовка (до shadow-периода) — Ванамали Гопал
+
+1. Составить **реестр**: перечень счетов с остатками, деньги на руках департаментов, долги/авансы участников, подотчёты (Ашиш), незакрытые расхождения Excel.
+2. Незакрытые расхождения — разобрать или явно списать с причиной.
+3. Завести **справочники** через UI (Финансы → Справочники / Счета):
+   - счета: реальные (Касса/₹ …) и подотчётные (Кафе/₹, Кухня/₹, Гестхаус/₹, Зелёные/₹, Магазин/₹, Поклонение-швеи/₹, Поклонение-украшения/₹, Поклонение-пуджари/₹, Ашиш/₹);
+   - статьи прихода/расхода; cost centers (список подтверждает Ванамали Гопал); контрагенты; курсы валют;
+   - доступ пользователей к счетам (Счета → Доступ).
+4. Создать учётные объекты всех активных/ближайших ретритов — открыть «Финансы → Аналитика», выбрать каждый ретрит (объект создастся при первом начислении/платеже) **или** SQL:
+   ```sql
+   SELECT fin_ensure_accounting_object('<retreat_id>');
+   ```
+
+> Всё, что заведено на этом шаге, переживает reset (шаг 3): счета, статьи, валюты, курсы, контрагенты, cost centers, доступ, объекты.
+
+## 2. Shadow-период (2 недели до даты X)
+
+- Excel остаётся рабочим; операции **дублируются** в систему в этой же прод-базе — команда учится на реальном интерфейсе.
+- Ежедневно: сравнение остатков системы с Excel (Главная → карточки; Сверка).
+- Найденные расхождения — разбор в тот же день.
+
+## 3. Дата X — reset и загрузка остатков
+
+**Порядок строгий. Ничего не пропускать.**
+
+1. **Maintenance mode**: предупредить всех, никто не пишет в систему.
+2. **Резервная копия**: Dashboard → Database → Backups → создать/убедиться в свежем бэкапе.
+3. **Reset**: выполнить целиком файл [`supabase/cutover/fin_cutover_reset.sql`](../../supabase/cutover/fin_cutover_reset.sql).
+   Скрипт сам проверяет: очищаемые таблицы пусты, справочники целы, все триггеры включены; `ledger_seq` начинается с 1. Прогнан на проде в dry-run (ROLLBACK) 20.07.2026 — «RESET OK».
+4. **Storage**: Dashboard → Storage → `finance-files` → удалить все файлы (метаданные уже очищены). Контроль:
+   ```sql
+   SELECT count(*) FROM storage.objects WHERE bucket_id='finance-files'; -- 0
+   ```
+5. **Opening-проводки по счетам** — единственные денежные операции на дату запуска. Деньги на руках департамента входят **только** в opening его custodial-счёта (не в кассу одновременно!). Через UI (Счета → значок «Начальный остаток») или SQL-шаблон:
+   ```sql
+   SELECT fin_create_opening(jsonb_build_object(
+     'request_id', gen_random_uuid(),
+     'account_id', '<account_id>',
+     'amount', '347000',
+     'direction', 'in',
+     'occurred_on', '<дата X>',
+     'comment', 'Cutover: остаток по реестру ВГ'
+   ));
+   ```
+6. **Долги и авансы участников** — по правилу ТЗ (одна сумма — только одним способом):
+   - детализированный долг известной природы → начисления через UI («Участники → Начислить») или `fin_create_charge`;
+   - исторический долг без детализации → `fin_load_opening_balances` (kind=debt, balance_kind=general);
+   - долг с известным блоком без цены/количества → kind=debt, balance_kind=блок;
+   - **аванс → kind=credit** (НЕ платёж — деньги аванса уже внутри opening кассы!).
+
+   Шаблон пакетной загрузки (идемпотентна по batch+document+row; конфликт валит всю пачку):
+   ```sql
+   SELECT fin_load_opening_balances(jsonb_build_object(
+     'cutover_batch_id', '<один uuid на всю загрузку>',
+     'source_document', 'Реестр ВГ от <дата>',
+     'rows', jsonb_build_array(
+       jsonb_build_object('source_row_id','1','participant_id','<uuid>','retreat_id','<uuid>',
+                          'amount','10000','kind','debt','balance_kind','general','comment','долг за 2025'),
+       jsonb_build_object('source_row_id','2','participant_id','<uuid>','retreat_id','<uuid>',
+                          'amount','3000','kind','credit','balance_kind','general','comment','аванс')
+     )
+   ));
+   ```
+   Ошибка после даты X исправляется только `fin_create_opening_correction`, не повторной загрузкой.
+7. **Сверка каждой цифры с Excel** — Ванамали Гопал. Гейт: «Всего под ответственностью» на Главной = физическая касса + custodial без двойного счёта.
+8. Боксы не переносятся (вне учёта до выемки).
+
+## 4. После даты X
+
+- Операции — только в системе; Excel — read-only архив.
+- Платежи через CRM дублируются вручную (до интеграции фазы 2).
+- **Критерий успеха: три подряд ежедневных чекпоинта без расхождений по всем реальным счетам** (Сверка → история).
+
+## 5. Rollback (если система не взлетела)
+
+Выгрузка CSV через SQL Editor (Download CSV) — операции периода И вся производная активность:
+
+```sql
+-- операции с проводками
+SELECT o.occurred_on, o.type, o.approval, o.reason, o.comment,
+       l.account_name, l.signed_amount, l.currency_code, l.amount_base,
+       l.category_name, l.cost_center_name, l.object_name, l.participant_name
+FROM fin_v_account_ledger l JOIN fin_operations o ON o.id = l.operation_id
+ORDER BY l.ledger_seq;
+
+-- начисления
+SELECT * FROM fin_v_charges ORDER BY created_at;
+
+-- opening-позиции участников
+SELECT p.*, (SELECT spiritual_name FROM vaishnavas v WHERE v.id=p.participant_id) AS participant
+FROM fin_participant_opening_balances p ORDER BY created_at;
+
+-- сверки
+SELECT * FROM fin_v_reconciliations ORDER BY performed_at;
+```
+
+Затем возврат в Excel и разбор причин.
+
+## 6. Регулярный контроль целостности (раз в квартал, тест восстановления)
+
+Критерии ТЗ 10.11: остатки сходятся; `ledger_seq` цел; аудит-лог доступен; последний чекпоинт воспроизводится; у каждой `fin_attachments` есть файл в Storage; у каждой `finalized`-версии доступен PDF; orphan'ов нет:
+
+```sql
+-- orphan-метаданные (запись есть, файла нет)
+SELECT a.id, a.storage_path FROM fin_attachments a
+WHERE NOT EXISTS (SELECT 1 FROM storage.objects o
+                  WHERE o.bucket_id='finance-files' AND o.name=a.storage_path);
+-- orphan-файлы (файл есть, записи нет) старше суток — их снимает fin-cleanup
+SELECT name FROM fin_private_unbound_files();
+-- finalized без PDF (должно быть пусто — constraint это гарантирует)
+SELECT id FROM fin_object_closures WHERE status='finalized' AND attachment_id IS NULL;
+```
