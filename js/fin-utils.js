@@ -198,6 +198,22 @@ const FinUtils = {
         return DateUtils.toISO(new Date());
     },
 
+    // Копирование текста в буфер (с фолбэком для небезопасного контекста)
+    async copyText(text) {
+        try {
+            if (navigator.clipboard && window.isSecureContext) {
+                await navigator.clipboard.writeText(text);
+                return true;
+            }
+            const ta = document.createElement('textarea');
+            ta.value = text; ta.style.position = 'fixed'; ta.style.opacity = '0';
+            document.body.appendChild(ta); ta.select();
+            const ok = document.execCommand('copy');
+            ta.remove();
+            return ok;
+        } catch { return false; }
+    },
+
     // ==================== ВЛОЖЕНИЯ ====================
     async sha256File(file) {
         const buf = await file.arrayBuffer();

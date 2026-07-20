@@ -141,7 +141,7 @@ async function loadReport() {
             <h2 class="card-title text-base">${t('fin_debtors')} <span class="badge badge-error badge-sm">${p.debtors.length}</span>
                 <span class="ml-auto font-mono text-error text-base">${fmtB(p.debt_total)}</span></h2>
             <div class="overflow-x-auto"><table class="table table-sm"><tbody>
-                ${p.debtors.map(x => `<tr><td>${e(x.name || '')}</td><td class="text-right font-mono text-error w-36">${fmtB(x.debt)}</td></tr>`).join('')}
+                ${p.debtors.map(x => `<tr class="cursor-pointer hover:bg-base-200" onclick="location.href='participants.html?retreat=${currentRetreat}&open=${x.participant_id}'"><td class="hover:underline">${e(x.name || '')}</td><td class="text-right font-mono text-error w-36">${fmtB(x.debt)}</td></tr>`).join('')}
             </tbody></table></div>
         </div></div>` : ''}
         ${Number(p.advance_total) > 0 ? `<div class="text-sm opacity-70">${t('fin_advance')}: ${fmtB(p.advance_total)}</div>` : ''}

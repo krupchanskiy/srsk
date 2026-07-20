@@ -63,6 +63,9 @@ async function selectRetreat(retreatId) {
     await loadParticipants();
 }
 
+let pFilter = 'all';                       // all | debt | advance
+let pSort = { key: 'net', dir: 'desc' };   // сортировка по итогу (крупнейшие долги сверху)
+
 async function loadParticipants() {
     const body = document.getElementById('participantsBody');
     body.innerHTML = `<tr><td colspan="7" class="text-center py-8"><span class="loading loading-spinner loading-md"></span></td></tr>`;
@@ -73,11 +76,32 @@ async function loadParticipants() {
         return;
     }
     participants = data.result || [];
+    const toolbar = document.getElementById('participantsToolbar');
+    if (toolbar) toolbar.style.display = participants.length ? '' : 'none';
+    renderParticipants();
+}
+
+// Рендер с учётом поиска по имени, фильтр-чипов (все/должники/авансы) и сортировки
+function renderParticipants() {
+    const body = document.getElementById('participantsBody');
     if (!participants.length) {
         body.innerHTML = `<tr><td colspan="7" class="text-center py-6 opacity-60">${t('fin_no_participants')}</td></tr>`;
+        renderParticipantsSummary();
         return;
     }
-    body.innerHTML = participants.map(p => {
+    const query = (document.getElementById('pSearch')?.value || '').trim().toLowerCase();
+    let list = participants.filter(p => {
+        const net = Number(p.balance.net) || 0;
+        if (pFilter === 'debt' && net <= 0) return false;
+        if (pFilter === 'advance' && net >= 0) return false;
+        if (query && !(p.name || '').toLowerCase().includes(query)) return false;
+        return true;
+    });
+    list.sort((a, b) => {
+        if (pSort.key === 'name') return (a.name || '').localeCompare(b.name || '') * (pSort.dir === 'asc' ? 1 : -1);
+        return (Number(a.balance.net) - Number(b.balance.net)) * (pSort.dir === 'asc' ? 1 : -1);
+    });
+    body.innerHTML = list.map(p => {
         const b = p.balance;
         return `<tr class="cursor-pointer hover:bg-base-200" data-pid="${p.participant_id}" tabindex="0">
             <td class="font-medium">${e(p.name || '')}</td>
@@ -85,7 +109,23 @@ async function loadParticipants() {
             <td class="text-right">${fmtNet(Number(b.general_debt) - Number(b.general_advance))}</td>
             <td class="text-right font-semibold">${fmtNetWord(b.net)}</td>
         </tr>`;
-    }).join('');
+    }).join('') || `<tr><td colspan="7" class="text-center py-6 opacity-60">${t('fin_nothing_found')}</td></tr>`;
+    renderParticipantsSummary();
+}
+
+// Итог: сколько должников/сумма долгов, сколько с авансом/сумма авансов
+function renderParticipantsSummary() {
+    const el = document.getElementById('pSummary');
+    if (!el) return;
+    let debtCount = 0, debtSum = 0, advCount = 0, advSum = 0;
+    for (const p of participants) {
+        const net = Number(p.balance.net) || 0;
+        if (net > 0) { debtCount++; debtSum += net; }
+        else if (net < 0) { advCount++; advSum += -net; }
+    }
+    el.innerHTML =
+        `<span class="text-error">${t('fin_debtors')}: ${debtCount} · ${FinUtils.fmtMoney(debtSum, 'INR')}</span>` +
+        ` &nbsp;•&nbsp; <span class="text-success">${t('fin_advances')}: ${advCount} · ${FinUtils.fmtMoney(advSum, 'INR')}</span>`;
 }
 
 // Итог со словом: «Долг ₹N» / «Аванс ₹N» — знак и цвет не спорят друг с другом
@@ -105,7 +145,8 @@ async function openCard(pid) {
     card.name = p.name;
     document.getElementById('cardName').textContent = p.name;
     const r = retreats.find(x => x.id === currentRetreat);
-    document.getElementById('cardRetreat').textContent = r ? Layout.getName(r) : '';
+    card.retreatName = r ? Layout.getName(r) : '';
+    document.getElementById('cardRetreat').textContent = card.retreatName;
     renderCardBlocks(p.balance);
     document.getElementById('cardCharges').innerHTML =
         `<tr><td colspan="6" class="text-center py-4"><span class="loading loading-spinner loading-sm"></span></td></tr>`;
@@ -489,15 +530,50 @@ async function init() {
         if (cancelBtn) openCancelCharge(cancelBtn.dataset.cancelCharge, cancelBtn.dataset.desc);
     });
 
-    // ?retreat=<id> — прямая ссылка
+    // Панель: поиск, фильтр-чипы, сортировка
+    document.getElementById('pSearch').addEventListener('input', Layout.debounce(renderParticipants, 200));
+    document.querySelectorAll('[data-pfilter]').forEach(btn => btn.addEventListener('click', () => {
+        pFilter = btn.dataset.pfilter;
+        document.querySelectorAll('[data-pfilter]').forEach(b => b.classList.toggle('btn-active', b === btn));
+        renderParticipants();
+    }));
+    document.querySelectorAll('th[data-sort]').forEach(th => th.addEventListener('click', () => {
+        const key = th.dataset.sort;
+        if (pSort.key === key) pSort.dir = pSort.dir === 'asc' ? 'desc' : 'asc';
+        else pSort = { key, dir: key === 'name' ? 'asc' : 'desc' };
+        renderParticipants();
+    }));
+
+    // ?retreat=<id> — прямая ссылка; ?open=<pid> — сразу открыть карточку (из аналитики)
     const params = new URLSearchParams(window.location.search);
     const preset = params.get('retreat');
     if (preset && retreats.some(r => r.id === preset)) {
         document.getElementById('retreatSelect').value = preset;
         await selectRetreat(preset);
+        const openPid = params.get('open');
+        if (openPid && participants.some(p => p.participant_id === openPid)) openCard(openPid);
     }
 }
 
-window.FinParticipants = { openCharge, openPayment, addChargeRow, addPayRow };
+// Скопировать текстовую сводку по участнику (для отправки гостю в WhatsApp)
+async function copySummary() {
+    const p = participants.find(x => x.participant_id === card.id);
+    if (!p) return;
+    const b = p.balance;
+    const money = n => FinUtils.fmtMoney(n, 'INR');
+    const lines = [`${card.name}${card.retreatName ? ' · ' + card.retreatName : ''}`];
+    for (const k of BLOCKS) {
+        const blk = b.blocks[k];
+        if (Number(blk.charged) > 0 || Number(blk.paid) > 0) {
+            lines.push(`${t('fin_block_' + k)}: ${t('fin_charged')} ${money(blk.charged)}, ${t('fin_paid')} ${money(blk.paid)}`);
+        }
+    }
+    const net = Number(b.net) || 0;
+    lines.push(net > 0 ? `${t('fin_debt')}: ${money(net)}` : net < 0 ? `${t('fin_advance')}: ${money(-net)}` : t('fin_settled'));
+    const ok = await FinUtils.copyText(lines.join('\n'));
+    Layout.showNotification(ok ? t('fin_copied') : t('fin_copy_failed'), ok ? 'success' : 'error');
+}
+
+window.FinParticipants = { openCharge, openPayment, addChargeRow, addPayRow, copySummary };
 init();
 })();
