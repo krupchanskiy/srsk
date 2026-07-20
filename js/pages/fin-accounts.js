@@ -33,6 +33,12 @@ function render() {
             <td class="font-medium">${e(a.name)}${a.is_active ? '' : ` <span class="badge badge-ghost badge-xs">${t('fin_archived')}</span>`}</td>
             <td>${e(a.group_name || '')}</td>
             <td>${e(personNames[a.responsible_person_id] || '')}</td>
+            <td class="text-sm whitespace-nowrap">
+                ${a.last_checkpoint_seq
+                    ? `${t('fin_reconciled_by')} №${a.last_checkpoint_seq}, ${DateUtils.formatShort(new Date(a.last_checkpoint_at))}` +
+                      (Number(a.unreconciled_count) > 0 ? ` <span class="badge badge-warning badge-xs">+${a.unreconciled_count}</span>` : '')
+                    : `<span class="opacity-40">—</span>`}
+            </td>
             <td class="text-right font-mono ${a.is_negative ? 'text-error font-bold' : ''}">${FinUtils.fmtMoney(a.balance, a.currency_code)}</td>
             <td class="text-right whitespace-nowrap">
                 ${isAdmin ? `
@@ -82,6 +88,20 @@ function openAccountModal(accountId) {
     // Тип/валюта/способ сверки после создания не меняются
     ['accKind', 'accMode', 'accCurrency'].forEach(id => document.getElementById(id).disabled = !!acc);
     document.getElementById('accDeactivateBtn').classList.toggle('hidden', !acc || !acc.is_active);
+
+    // Ответственный у счёта с проводками меняется только передачей ответственности
+    const hasActivity = acc && acc.last_ledger_seq !== null;
+    document.getElementById('accRespSearch').disabled = hasActivity;
+    const trBlock = document.getElementById('respTransferBlock');
+    trBlock.classList.toggle('hidden', !hasActivity);
+    if (hasActivity) {
+        const fresh = Number(acc.last_checkpoint_seq || 0) === Number(acc.last_ledger_seq || 0) && acc.last_checkpoint_seq;
+        document.getElementById('respTransferBtn').disabled = !fresh;
+        document.getElementById('respTransferHint').classList.toggle('hidden', !!fresh);
+        document.getElementById('respNewSearch').value = '';
+        document.getElementById('respNewId').value = '';
+        document.getElementById('respReason').value = '';
+    }
     document.getElementById('accountModal').showModal();
 }
 
@@ -118,6 +138,29 @@ async function deactivateAccount() {
     const id = document.getElementById('accId').value;
     if (!id) return;
     const res = await FinUtils.rpc('fin_update_account', { account_id: id, is_active: false });
+    if (FinUtils.handleResult(res)) {
+        document.getElementById('accountModal').close();
+        await refresh();
+    }
+}
+
+// Передача ответственности (только по свежей сверке — сервер проверяет
+// и чекпоинт, и текущий MAX(ledger_seq))
+async function transferResponsibility() {
+    const accId = document.getElementById('accId').value;
+    const acc = FinUtils.refs.accounts.find(a => a.account_id === accId);
+    const newId = document.getElementById('respNewId').value;
+    const reason = document.getElementById('respReason').value.trim();
+    if (!acc || !newId || !reason) {
+        Layout.showNotification(t('fin_new_responsible') + ' + ' + t('fin_reason'), 'error');
+        return;
+    }
+    const res = await FinUtils.rpc('fin_transfer_account_responsibility', {
+        account_id: accId,
+        expected_seq: Number(acc.last_checkpoint_seq),
+        new_responsible_person_id: newId,
+        reason
+    });
     if (FinUtils.handleResult(res)) {
         document.getElementById('accountModal').close();
         await refresh();
@@ -235,6 +278,7 @@ async function init() {
     document.getElementById('accountForm').addEventListener('submit', submitAccount);
     document.getElementById('openingForm').addEventListener('submit', submitOpening);
     FinUtils.attachPersonSearch(document.getElementById('accRespSearch'), document.getElementById('accRespId'));
+    FinUtils.attachPersonSearch(document.getElementById('respNewSearch'), document.getElementById('respNewId'));
     const accessHidden = document.getElementById('accessUserId');
     FinUtils.attachPersonSearch(document.getElementById('accessUserSearch'), accessHidden, true);
     accessHidden.addEventListener('change', onAccessUserPicked);
@@ -244,6 +288,6 @@ async function init() {
     });
 }
 
-window.FinAccounts = { openAccountModal, openOpening, openAccess, saveAccess, deactivateAccount };
+window.FinAccounts = { openAccountModal, openOpening, openAccess, saveAccess, deactivateAccount, transferResponsibility };
 init();
 })();

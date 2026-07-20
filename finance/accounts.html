@@ -39,12 +39,13 @@
                             <th data-i18n="fin_account_name">Название</th>
                             <th data-i18n="fin_group">Группа</th>
                             <th data-i18n="fin_responsible">Ответственный</th>
+                            <th data-i18n="fin_last_checkpoint">Последний чекпоинт</th>
                             <th class="text-right" data-i18n="fin_balance">Остаток</th>
                             <th></th>
                         </tr>
                     </thead>
                     <tbody id="accountsBody">
-                        <tr><td colspan="5" class="text-center py-8"><span class="loading loading-spinner loading-md"></span></td></tr>
+                        <tr><td colspan="6" class="text-center py-8"><span class="loading loading-spinner loading-md"></span></td></tr>
                     </tbody>
                 </table>
             </div>
@@ -91,6 +92,23 @@
                     <label class="label py-0"><span class="label-text" data-i18n="fin_default_cost_center">Cost center по умолчанию</span></label>
                     <select id="accCostCenter" class="select select-bordered select-sm"></select>
                 </div>
+            </div>
+            <!-- Передача ответственности (счёт с проводками) -->
+            <div id="respTransferBlock" class="hidden border-t border-base-300 pt-3 mt-2">
+                <div class="font-medium mb-1" data-i18n="fin_transfer_responsibility">Передать ответственность</div>
+                <div class="text-xs opacity-60 mb-2 hidden" id="respTransferHint" data-i18n="fin_responsibility_hint">Передача возможна только сразу после сверки</div>
+                <div class="grid grid-cols-2 gap-3">
+                    <div class="form-control">
+                        <label class="label py-0"><span class="label-text" data-i18n="fin_new_responsible">Новый ответственный</span></label>
+                        <input type="text" id="respNewSearch" class="input input-bordered input-sm" autocomplete="off">
+                        <input type="hidden" id="respNewId">
+                    </div>
+                    <div class="form-control">
+                        <label class="label py-0"><span class="label-text" data-i18n="fin_reason">Причина</span></label>
+                        <input type="text" id="respReason" class="input input-bordered input-sm">
+                    </div>
+                </div>
+                <button type="button" class="btn btn-outline btn-sm mt-2" id="respTransferBtn" onclick="FinAccounts.transferResponsibility()" data-i18n="fin_transfer_responsibility">Передать ответственность</button>
             </div>
             <div class="modal-action">
                 <button type="button" class="btn btn-error btn-outline btn-sm mr-auto hidden" id="accDeactivateBtn" onclick="FinAccounts.deactivateAccount()" data-i18n="fin_deactivate">Деактивировать</button>
@@ -163,10 +181,10 @@
 <script src="../js/auth-check.js?v=6"></script>
 <script src="../js/cache.js?v=1"></script>
 <script src="../js/utils.js?v=4"></script>
-<script src="../js/layout.js?v=15"></script>
+<script src="../js/layout.js?v=16"></script>
 <script src="../js/date-utils.js?v=3"></script>
 <script src="../js/fin-utils.js?v=1"></script>
-<script src="../js/pages/fin-accounts.js?v=2"></script>
+<script src="../js/pages/fin-accounts.js?v=3"></script>
 
 </body>
 </html>

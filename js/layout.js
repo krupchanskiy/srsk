@@ -123,6 +123,9 @@ const modules = {
             { id: 'fin_accounts', items: [
                 { id: 'fin_accounts', href: 'finance/accounts.html' }
             ]},
+            { id: 'fin_reconciliation', items: [
+                { id: 'fin_reconciliation', href: 'finance/reconciliation.html' }
+            ]},
             { id: 'fin_dictionaries', items: [
                 { id: 'fin_dictionaries', href: 'finance/dictionaries.html' }
             ]}
@@ -264,6 +267,7 @@ const pagePermissions = {
     'finance/index.html': ['fin_admin', 'fin_observer'],
     'finance/dds.html': ['fin_admin', 'fin_observer'],
     'finance/accounts.html': ['fin_admin', 'fin_observer'],
+    'finance/reconciliation.html': ['fin_admin', 'fin_observer'],
     'finance/dictionaries.html': 'fin_admin'
 };
 
@@ -473,7 +477,7 @@ function getPersonName(person, lang = currentLang) {
 
 // ==================== TRANSLATIONS ====================
 async function loadTranslations(retried = false) {
-    const data = await Cache.getOrLoad('translations_v6', async () => {
+    const data = await Cache.getOrLoad('translations_v7', async () => {
         // Supabase ограничивает 1000 записей на запрос, используем пагинацию
         const allData = [];
         let from = 0;
@@ -508,7 +512,7 @@ async function loadTranslations(retried = false) {
 
     if (!hasAllKeys && !retried) {
         // Кэш устарел, инвалидируем и перезагружаем (только 1 раз)
-        Cache.invalidate('translations_v6');
+        Cache.invalidate('translations_v7');
         return loadTranslations(true);
     }
 

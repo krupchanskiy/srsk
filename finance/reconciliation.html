@@ -1,0 +1,104 @@
+<!DOCTYPE html>
+<html lang="ru" data-theme="light">
+<head>
+    <script src="../js/color-init.js?v=2"></script>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title data-i18n-title="fin_page_title_reconciliation">Сверка — Финансы — ШРСК</title>
+    <link href="https://cdn.jsdelivr.net/npm/daisyui@4.12.14/dist/full.min.css" rel="stylesheet" />
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script>tailwind.config = { theme: { extend: { screens: { 'desktop': '1200px' } } } }</script>
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="../css/common.css">
+</head>
+<body class="bg-base-200 min-h-screen flex flex-col">
+
+<div id="header-placeholder"></div>
+
+<main class="container mx-auto px-4 py-6 flex-1">
+    <h1 class="text-2xl font-bold mb-6" data-i18n="nav_fin_reconciliation">Сверка</h1>
+
+    <div class="card bg-base-100 shadow-sm mb-4">
+        <div class="card-body py-4">
+            <div class="flex flex-wrap items-end gap-4">
+                <div class="form-control">
+                    <label class="label py-0"><span class="label-text" data-i18n="fin_recon_select_account">Выберите счёт</span></label>
+                    <select id="accountSelect" class="select select-bordered select-sm w-64"></select>
+                </div>
+                <div id="accountInfo" class="text-sm opacity-70"></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Блок сверки -->
+    <div id="reconBlock" class="hidden">
+        <div class="card bg-base-100 shadow-sm mb-4">
+            <div class="card-body">
+                <!-- Наличный пересчёт -->
+                <div id="cashBlock" class="hidden">
+                    <div id="locations"></div>
+                    <button type="button" class="btn btn-ghost btn-sm" onclick="FinRecon.addLocation()" data-permission="fin_admin">
+                        + <span data-i18n="fin_recon_add_location">Добавить точку</span>
+                    </button>
+                </div>
+
+                <!-- Выписка -->
+                <div id="statementBlock" class="hidden">
+                    <div class="form-control w-64">
+                        <label class="label py-0"><span class="label-text" data-i18n="fin_statement_balance">Остаток по выписке</span></label>
+                        <input type="number" id="statementBalance" class="input input-bordered input-sm" step="0.01">
+                    </div>
+                </div>
+
+                <!-- Итоги -->
+                <div class="flex flex-wrap gap-6 mt-4 items-center">
+                    <div><span class="opacity-60" data-i18n="fin_system_balance">Расчётный остаток</span>:
+                        <span class="font-mono font-bold" id="systemBalance">—</span></div>
+                    <div><span class="opacity-60" data-i18n="fin_counted_balance">Фактический остаток</span>:
+                        <span class="font-mono font-bold" id="countedBalance">—</span></div>
+                    <div><span class="opacity-60" data-i18n="fin_difference">Разница</span>:
+                        <span class="font-mono font-bold" id="differenceValue">—</span></div>
+                </div>
+
+                <!-- Расхождение -->
+                <div id="mismatchBlock" class="hidden mt-3">
+                    <div class="alert alert-warning py-2 mb-2">
+                        <span data-i18n="fin_recon_mismatch_note">Расхождение не устранено. Будет создана корректировка — укажите причину.</span>
+                    </div>
+                    <input type="text" id="adjustmentReason" class="input input-bordered input-sm w-full" data-i18n-placeholder="fin_recon_adjustment_reason">
+                </div>
+
+                <div class="flex justify-end mt-4" data-permission="fin_admin">
+                    <button class="btn btn-primary btn-sm" id="saveBtn" onclick="FinRecon.save()" data-i18n="fin_recon_save">Сохранить сверку</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- История -->
+        <div class="card bg-base-100 shadow-sm">
+            <div class="card-body p-0">
+                <h2 class="card-title text-base px-4 pt-4" data-i18n="fin_recon_history">История сверок</h2>
+                <div class="overflow-x-auto">
+                    <table class="table table-sm">
+                        <tbody id="historyBody"></tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+</main>
+
+<div id="footer-placeholder"></div>
+
+<script src="../js/config.js?v=4"></script>
+<script src="../js/auth-check.js?v=6"></script>
+<script src="../js/cache.js?v=1"></script>
+<script src="../js/utils.js?v=4"></script>
+<script src="../js/layout.js?v=16"></script>
+<script src="../js/date-utils.js?v=3"></script>
+<script src="../js/fin-utils.js?v=1"></script>
+<script src="../js/pages/fin-reconciliation.js?v=1"></script>
+
+</body>
+</html>
