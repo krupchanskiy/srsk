@@ -161,6 +161,36 @@
     <form method="dialog" class="modal-backdrop"><button>close</button></form>
 </dialog>
 
+<!-- Модалка: Сторно -->
+<dialog id="reversalModal" class="modal">
+    <div class="modal-box max-w-sm">
+        <h3 class="font-bold text-lg mb-2" data-i18n="fin_reversal">Сторно</h3>
+        <div class="text-sm opacity-70 mb-3" id="revInfo"></div>
+        <form id="reversalForm">
+            <input type="hidden" id="revOpId">
+            <div class="form-control mb-2">
+                <label class="label py-0"><span class="label-text" data-i18n="fin_reason">Причина</span></label>
+                <input type="text" id="revReason" class="input input-bordered input-sm" required>
+            </div>
+            <div class="form-control mb-2">
+                <label class="label cursor-pointer justify-start gap-3 py-1">
+                    <input type="checkbox" id="revNewDate" class="checkbox checkbox-sm">
+                    <span class="label-text" data-i18n="fin_reversal_new_date">Провести текущей датой (chargeback)</span>
+                </label>
+            </div>
+            <div class="form-control mb-2 hidden" id="revDateWrap">
+                <label class="label py-0"><span class="label-text" data-i18n="fin_occurred_on">Дата</span></label>
+                <input type="date" id="revDate" class="input input-bordered input-sm">
+            </div>
+            <div class="modal-action">
+                <button type="button" class="btn" onclick="document.getElementById('reversalModal').close()" data-i18n="cancel">Отмена</button>
+                <button type="submit" class="btn btn-error" data-i18n="fin_reverse">Сторнировать</button>
+            </div>
+        </form>
+    </div>
+    <form method="dialog" class="modal-backdrop"><button>close</button></form>
+</dialog>
+
 <!-- Модалка: Перевод -->
 <dialog id="transferModal" class="modal">
     <div class="modal-box max-w-lg">
@@ -206,7 +236,7 @@
 <script src="../js/auth-check.js?v=6"></script>
 <script src="../js/cache.js?v=1"></script>
 <script src="../js/utils.js?v=4"></script>
-<script src="../js/layout.js?v=16"></script>
+<script src="../js/layout.js?v=17"></script>
 <script src="../js/date-utils.js?v=3"></script>
 <script src="../js/fin-utils.js?v=1"></script>
 <script src="../js/pages/fin-dds.js?v=2"></script>

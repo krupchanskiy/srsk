@@ -11,8 +11,9 @@ const OP_TYPES = ['payment', 'refund', 'transfer', 'expense', 'income', 'donatio
 
 // request_id живёт от открытия формы до успешного сохранения:
 // повтор после сетевой ошибки уходит с тем же UUID (идемпотентность)
-const requestIds = { expense: null, income: null, transfer: null };
+const requestIds = { expense: null, income: null, transfer: null, reversal: null };
 let expenseRowSeq = 0;
+let opsById = {};   // операции общей ленты (для кнопки сторно в развороте)
 
 // ==================== ФИЛЬТРЫ ====================
 function buildFilters() {
@@ -115,6 +116,7 @@ async function loadTable() {
             body.innerHTML = `<tr><td colspan="5" class="text-center py-6 opacity-60">${t('fin_no_operations')}</td></tr>`;
             return;
         }
+        opsById = Object.fromEntries(data.map(op => [op.operation_id, op]));
         body.innerHTML = data.map(op => `
             <tr class="cursor-pointer hover:bg-base-200 ${op.is_reversed ? 'opacity-50' : ''}" data-op="${op.operation_id}">
                 <td class="whitespace-nowrap">${DateUtils.formatShort(DateUtils.parseDate(op.occurred_on))}</td>
@@ -149,7 +151,49 @@ async function toggleDetails(opId) {
             ${p.participant_name ? `<span class="opacity-70">${e(p.participant_name)}</span>` : ''}
             ${p.contractor_name ? `<span class="opacity-70">${e(p.contractor_name)}</span>` : ''}
             ${p.payment_channel ? `<span class="opacity-50">${e(FinUtils.channelLabel(p.payment_channel))}</span>` : ''}
-        </div>`).join('') + `</div>`;
+        </div>`).join('') + reversalButtonHtml(opId) + `</div>`;
+}
+
+// ==================== СТОРНО ====================
+function reversalButtonHtml(opId) {
+    const op = opsById[opId];
+    if (!op || op.is_reversed || op.type === 'reversal') return '';
+    if (!window.hasPermission?.('fin_admin')) return '';
+    return `<div class="pt-2"><button class="btn btn-outline btn-error btn-xs gap-1" onclick="FinDds.openReversal('${opId}')">
+        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="w-3 h-3"><path stroke-linecap="round" stroke-linejoin="round" d="M9 15L3 9m0 0l6-6M3 9h12a6 6 0 010 12h-3"/></svg>
+        ${t('fin_reverse')}</button></div>`;
+}
+
+function openReversal(opId) {
+    const op = opsById[opId];
+    if (!op) return;
+    requestIds.reversal = requestIds.reversal || FinUtils.newRequestId();
+    document.getElementById('revOpId').value = opId;
+    document.getElementById('revInfo').textContent =
+        `${FinUtils.typeLabel(op.type)} · ${DateUtils.formatShort(DateUtils.parseDate(op.occurred_on))} · ${FinUtils.fmtAmountsByCurrency(op.amounts_by_currency)}`;
+    document.getElementById('revReason').value = '';
+    document.getElementById('revNewDate').checked = false;
+    document.getElementById('revDate').value = FinUtils.todayISO();
+    document.getElementById('revDateWrap').classList.add('hidden');
+    document.getElementById('reversalModal').showModal();
+}
+
+async function submitReversal(ev) {
+    ev.preventDefault();
+    const newDate = document.getElementById('revNewDate').checked;
+    const res = await FinUtils.rpc('fin_create_reversal', {
+        request_id: requestIds.reversal,
+        original_operation_id: document.getElementById('revOpId').value,
+        occurred_on_policy: newDate ? 'actual_reverse_date' : 'same_as_original',
+        occurred_on: newDate ? document.getElementById('revDate').value : null,
+        reason: document.getElementById('revReason').value
+    });
+    if (FinUtils.handleResult(res)) {
+        requestIds.reversal = null;
+        document.getElementById('reversalModal').close();
+        await FinUtils.reloadAccounts();
+        await loadTable();
+    }
 }
 
 // ==================== ФОРМА: РАСХОД ====================
@@ -331,6 +375,9 @@ async function init() {
     document.getElementById('expenseForm').addEventListener('submit', submitExpense);
     document.getElementById('incomeForm').addEventListener('submit', submitIncome);
     document.getElementById('transferForm').addEventListener('submit', submitTransfer);
+    document.getElementById('reversalForm').addEventListener('submit', submitReversal);
+    document.getElementById('revNewDate').addEventListener('change', ev =>
+        document.getElementById('revDateWrap').classList.toggle('hidden', !ev.target.checked));
     document.getElementById('incIsDonation').addEventListener('change', updateIncomeCategoryList);
     document.getElementById('trSource').addEventListener('change', updateTransferCurrency);
     document.getElementById('trTarget').addEventListener('change', updateTransferCurrency);
@@ -348,6 +395,6 @@ async function init() {
     if (params.get('action') === 'transfer') openTransfer(params.get('source') || undefined);
 }
 
-window.FinDds = { openExpense, openIncome, openTransfer, addExpenseRow };
+window.FinDds = { openExpense, openIncome, openTransfer, addExpenseRow, openReversal };
 init();
 })();

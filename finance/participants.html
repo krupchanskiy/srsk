@@ -1,0 +1,222 @@
+<!DOCTYPE html>
+<html lang="ru" data-theme="light">
+<head>
+    <script src="../js/color-init.js?v=2"></script>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title data-i18n-title="fin_page_title_participants">Участники — Финансы — ШРСК</title>
+    <link href="https://cdn.jsdelivr.net/npm/daisyui@4.12.14/dist/full.min.css" rel="stylesheet" />
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script>tailwind.config = { theme: { extend: { screens: { 'desktop': '1200px' } } } }</script>
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="../css/common.css">
+</head>
+<body class="bg-base-200 min-h-screen flex flex-col">
+
+<div id="header-placeholder"></div>
+
+<main class="container mx-auto px-4 py-6 flex-1">
+    <div class="flex flex-wrap justify-between items-center gap-3 mb-6">
+        <h1 class="text-2xl font-bold" data-i18n="nav_fin_participants">Участники</h1>
+        <div class="flex flex-wrap gap-2 items-center">
+            <select id="retreatSelect" class="select select-bordered select-sm w-64"></select>
+            <div class="flex gap-2" data-permission="fin_admin">
+                <button class="btn btn-secondary btn-sm" onclick="FinParticipants.openCharge()" data-i18n="fin_new_charge">Начислить</button>
+                <button class="btn btn-primary btn-sm" onclick="FinParticipants.openPayment()" data-i18n="fin_new_payment">Платёж</button>
+            </div>
+        </div>
+    </div>
+
+    <div class="card bg-base-100 shadow-sm">
+        <div class="card-body p-0">
+            <div class="overflow-x-auto">
+                <table class="table table-sm">
+                    <thead>
+                        <tr>
+                            <th data-i18n="fin_participant">Участник</th>
+                            <th class="text-right" data-i18n="fin_block_org_fee">Оргвзнос</th>
+                            <th class="text-right" data-i18n="fin_block_accommodation">Проживание</th>
+                            <th class="text-right" data-i18n="fin_block_meals">Питание</th>
+                            <th class="text-right" data-i18n="fin_block_extra">Дополнительно</th>
+                            <th class="text-right" data-i18n="fin_block_general">Общий</th>
+                            <th class="text-right" data-i18n="fin_total">Итог</th>
+                        </tr>
+                    </thead>
+                    <tbody id="participantsBody">
+                        <tr><td colspan="7" class="text-center py-8 opacity-60" data-i18n="fin_select_retreat">Выберите ретрит</td></tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</main>
+
+<div id="footer-placeholder"></div>
+
+<!-- Модалка: карточка участника -->
+<dialog id="cardModal" class="modal">
+    <div class="modal-box max-w-4xl">
+        <h3 class="font-bold text-lg mb-1" id="cardName"></h3>
+        <div class="text-sm opacity-60 mb-4" id="cardRetreat"></div>
+        <div id="cardBlocks" class="grid grid-cols-2 md:grid-cols-5 gap-2 mb-4"></div>
+
+        <div class="flex items-center justify-between mb-1">
+            <div class="font-semibold" data-i18n="fin_charges">Начисления</div>
+            <button class="btn btn-ghost btn-xs" data-permission="fin_admin" onclick="FinParticipants.openCharge(true)" data-i18n="fin_new_charge">Начислить</button>
+        </div>
+        <div class="overflow-x-auto mb-4">
+            <table class="table table-xs">
+                <thead><tr>
+                    <th data-i18n="fin_kind">Тип</th>
+                    <th data-i18n="fin_description">Описание</th>
+                    <th class="text-right" data-i18n="fin_amount">Сумма</th>
+                    <th class="text-right" data-i18n="fin_discount">Скидка</th>
+                    <th class="text-right" data-i18n="fin_net_amount">К оплате</th>
+                    <th></th>
+                </tr></thead>
+                <tbody id="cardCharges"></tbody>
+            </table>
+        </div>
+
+        <div class="flex items-center justify-between mb-1">
+            <div class="font-semibold" data-i18n="fin_payments">Платежи</div>
+            <button class="btn btn-ghost btn-xs" data-permission="fin_admin" onclick="FinParticipants.openPayment(true)" data-i18n="fin_new_payment">Платёж</button>
+        </div>
+        <div class="overflow-x-auto">
+            <table class="table table-xs">
+                <thead><tr>
+                    <th data-i18n="fin_occurred_on">Дата</th>
+                    <th data-i18n="fin_kind">Тип</th>
+                    <th data-i18n="fin_block">Блок</th>
+                    <th class="text-right" data-i18n="fin_amount">Сумма</th>
+                    <th data-i18n="fin_channel">Канал</th>
+                    <th data-i18n="fin_status">Статус</th>
+                    <th></th>
+                </tr></thead>
+                <tbody id="cardPayments"></tbody>
+            </table>
+        </div>
+        <div class="modal-action">
+            <button type="button" class="btn" onclick="document.getElementById('cardModal').close()" data-i18n="close">Закрыть</button>
+        </div>
+    </div>
+    <form method="dialog" class="modal-backdrop"><button>close</button></form>
+</dialog>
+
+<!-- Модалка: начисления (батч) -->
+<dialog id="chargeModal" class="modal">
+    <div class="modal-box max-w-3xl">
+        <h3 class="font-bold text-lg mb-4" data-i18n="fin_new_charge">Начислить</h3>
+        <form id="chargeForm">
+            <div id="chargeRows"></div>
+            <button type="button" class="btn btn-ghost btn-xs mb-2" onclick="FinParticipants.addChargeRow()">+ <span data-i18n="fin_add">Добавить</span></button>
+            <div class="form-control mb-2 hidden" id="chargeReasonWrap">
+                <label class="label py-0"><span class="label-text" data-i18n="fin_post_close_reason">Причина (закрытый ретрит)</span></label>
+                <input type="text" id="chargeReason" class="input input-bordered input-sm">
+            </div>
+            <div class="modal-action">
+                <button type="button" class="btn" onclick="document.getElementById('chargeModal').close()" data-i18n="cancel">Отмена</button>
+                <button type="submit" class="btn btn-primary" data-i18n="save">Сохранить</button>
+            </div>
+        </form>
+    </div>
+    <form method="dialog" class="modal-backdrop"><button>close</button></form>
+</dialog>
+
+<!-- Модалка: платёж -->
+<dialog id="paymentModal" class="modal">
+    <div class="modal-box max-w-3xl">
+        <h3 class="font-bold text-lg mb-4" data-i18n="fin_new_payment">Платёж</h3>
+        <form id="paymentForm">
+            <div class="grid grid-cols-2 gap-3 mb-3">
+                <div class="form-control">
+                    <label class="label py-0"><span class="label-text" data-i18n="fin_payer">Плательщик</span></label>
+                    <input type="text" id="payPayerSearch" class="input input-bordered input-sm" autocomplete="off" required>
+                    <input type="hidden" id="payPayerId">
+                </div>
+                <div class="form-control">
+                    <label class="label py-0"><span class="label-text" data-i18n="fin_occurred_on">Дата</span></label>
+                    <input type="date" id="payDate" class="input input-bordered input-sm" required>
+                </div>
+            </div>
+            <div id="payRows"></div>
+            <button type="button" class="btn btn-ghost btn-xs mb-2" onclick="FinParticipants.addPayRow()">+ <span data-i18n="fin_add">Добавить</span></button>
+            <div class="form-control mb-2">
+                <label class="label py-0"><span class="label-text" data-i18n="fin_comment">Комментарий</span></label>
+                <input type="text" id="payComment" class="input input-bordered input-sm">
+            </div>
+            <div class="modal-action">
+                <button type="button" class="btn" onclick="document.getElementById('paymentModal').close()" data-i18n="cancel">Отмена</button>
+                <button type="submit" class="btn btn-primary" data-i18n="save">Сохранить</button>
+            </div>
+        </form>
+    </div>
+    <form method="dialog" class="modal-backdrop"><button>close</button></form>
+</dialog>
+
+<!-- Модалка: возврат -->
+<dialog id="refundModal" class="modal">
+    <div class="modal-box max-w-sm">
+        <h3 class="font-bold text-lg mb-2" data-i18n="fin_refund">Возврат</h3>
+        <div class="text-sm opacity-70 mb-3" id="refundInfo"></div>
+        <form id="refundForm">
+            <input type="hidden" id="refundPostingId">
+            <div class="grid grid-cols-2 gap-3 mb-2">
+                <div class="form-control">
+                    <label class="label py-0"><span class="label-text" data-i18n="fin_amount">Сумма</span></label>
+                    <input type="number" id="refundAmount" class="input input-bordered input-sm" min="0.01" step="0.01" required>
+                </div>
+                <div class="form-control">
+                    <label class="label py-0"><span class="label-text" data-i18n="fin_occurred_on">Дата</span></label>
+                    <input type="date" id="refundDate" class="input input-bordered input-sm" required>
+                </div>
+                <div class="form-control col-span-2">
+                    <label class="label py-0"><span class="label-text" data-i18n="fin_source_account">Счёт-источник</span></label>
+                    <select id="refundAccount" class="select select-bordered select-sm"></select>
+                </div>
+                <div class="form-control col-span-2">
+                    <label class="label py-0"><span class="label-text" data-i18n="fin_reason">Причина</span></label>
+                    <input type="text" id="refundReason" class="input input-bordered input-sm">
+                </div>
+            </div>
+            <div class="modal-action">
+                <button type="button" class="btn" onclick="document.getElementById('refundModal').close()" data-i18n="cancel">Отмена</button>
+                <button type="submit" class="btn btn-primary" data-i18n="save">Сохранить</button>
+            </div>
+        </form>
+    </div>
+    <form method="dialog" class="modal-backdrop"><button>close</button></form>
+</dialog>
+
+<!-- Модалка: отмена начисления -->
+<dialog id="cancelChargeModal" class="modal">
+    <div class="modal-box max-w-sm">
+        <h3 class="font-bold text-lg mb-2" data-i18n="fin_cancel_charge">Отменить начисление</h3>
+        <div class="text-sm opacity-70 mb-3" id="cancelChargeInfo"></div>
+        <form id="cancelChargeForm">
+            <input type="hidden" id="cancelChargeId">
+            <div class="form-control mb-2">
+                <label class="label py-0"><span class="label-text" data-i18n="fin_reason">Причина</span></label>
+                <input type="text" id="cancelChargeReason" class="input input-bordered input-sm" required>
+            </div>
+            <div class="modal-action">
+                <button type="button" class="btn" onclick="document.getElementById('cancelChargeModal').close()" data-i18n="cancel">Отмена</button>
+                <button type="submit" class="btn btn-error" data-i18n="fin_cancel_charge">Отменить начисление</button>
+            </div>
+        </form>
+    </div>
+    <form method="dialog" class="modal-backdrop"><button>close</button></form>
+</dialog>
+
+<script src="../js/config.js?v=4"></script>
+<script src="../js/auth-check.js?v=6"></script>
+<script src="../js/cache.js?v=1"></script>
+<script src="../js/utils.js?v=4"></script>
+<script src="../js/layout.js?v=17"></script>
+<script src="../js/date-utils.js?v=3"></script>
+<script src="../js/fin-utils.js?v=1"></script>
+<script src="../js/pages/fin-participants.js?v=1"></script>
+
+</body>
+</html>
