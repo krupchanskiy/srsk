@@ -950,6 +950,8 @@ function updateHeaderLanguage() {
         $$('.location-name').forEach(el => el.textContent = t('module_housing'));
     } else if (currentModule === 'crm') {
         $$('.location-name').forEach(el => el.textContent = t('module_crm'));
+    } else if (currentModule === 'finance') {
+        $$('.location-name').forEach(el => el.textContent = t('module_finance'));
     } else if (currentModule === 'portal') {
         $$('.location-name').forEach(el => el.textContent = t('module_portal'));
     } else if (currentModule === 'photos') {
@@ -1069,6 +1071,8 @@ function selectLocation(slug, isInitial = false) {
         $$('.location-name').forEach(el => el.textContent = t('module_housing'));
     } else if (currentModule === 'crm') {
         $$('.location-name').forEach(el => el.textContent = t('module_crm'));
+    } else if (currentModule === 'finance') {
+        $$('.location-name').forEach(el => el.textContent = t('module_finance'));
     } else if (currentModule === 'portal') {
         $$('.location-name').forEach(el => el.textContent = t('module_portal'));
     } else if (currentModule === 'photos') {
@@ -1299,6 +1303,9 @@ async function initLayout(page = { module: null, menuId: 'kitchen', itemId: null
     } else if (currentModule === 'crm') {
         setColor('#10b981');
         $$('.location-name').forEach(el => el.textContent = t('module_crm'));
+    } else if (currentModule === 'finance') {
+        setColor('#0d9488');
+        $$('.location-name').forEach(el => el.textContent = t('module_finance'));
     } else if (currentModule === 'portal') {
         setColor('#147D30');
         $$('.location-name').forEach(el => el.textContent = t('module_portal'));
