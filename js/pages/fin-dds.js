@@ -16,7 +16,7 @@ let expenseRowSeq = 0;
 let opsById = {};   // операции общей ленты (для кнопки сторно в развороте)
 
 // ==================== ФИЛЬТРЫ ====================
-const FILTER_IDS = { filterAccount: 'account', filterType: 'type', filterApproval: 'approval', filterFrom: 'from', filterTo: 'to', filterSearch: 'q' };
+const FILTER_IDS = { filterAccount: 'account', filterType: 'type', filterCategory: 'category', filterApproval: 'approval', filterFrom: 'from', filterTo: 'to', filterSearch: 'q' };
 
 function buildFilters() {
     document.getElementById('filterAccount').innerHTML =
@@ -25,6 +25,10 @@ function buildFilters() {
     document.getElementById('filterType').innerHTML =
         `<option value="">${t('fin_filter_all_types')}</option>` +
         OP_TYPES.map(tp => `<option value="${tp}">${e(FinUtils.typeLabel(tp))}</option>`).join('');
+    document.getElementById('filterCategory').innerHTML =
+        `<option value="">${t('fin_filter_all_categories')}</option>` +
+        FinUtils.refs.categories.filter(c => c.is_active)
+            .map(c => `<option value="${c.id}">${e(c.name)}</option>`).join('');
     document.getElementById('filterApproval').innerHTML =
         `<option value="">${t('fin_filter_all_statuses')}</option>` +
         ['pending', 'approved', 'disputed', 'not_required'].map(a => `<option value="${a}">${t('fin_approval_' + a)}</option>`).join('');
@@ -35,20 +39,74 @@ function buildFilters() {
         if (params.get(param)) document.getElementById(id).value = params.get(param);
     });
 
-    ['filterAccount', 'filterType', 'filterApproval', 'filterFrom', 'filterTo'].forEach(id =>
+    ['filterAccount', 'filterType', 'filterCategory', 'filterApproval', 'filterFrom', 'filterTo'].forEach(id =>
         document.getElementById(id).addEventListener('change', () => loadTable()));
     document.getElementById('filterSearch').addEventListener('input', Layout.debounce(() => loadTable(), 400));
+
+    // Пресеты периода
+    document.querySelectorAll('[data-preset]').forEach(btn => btn.addEventListener('click', () => {
+        const today = FinUtils.todayISO();
+        const from = document.getElementById('filterFrom'), to = document.getElementById('filterTo');
+        const d = n => { const x = new Date(); x.setDate(x.getDate() - n); return DateUtils.toISO(x); };
+        const monthStart = () => { const x = new Date(); x.setDate(1); return DateUtils.toISO(x); };
+        switch (btn.dataset.preset) {
+            case 'today': from.value = today; to.value = today; break;
+            case 'week': from.value = d(6); to.value = today; break;
+            case 'month': from.value = monthStart(); to.value = today; break;
+            case 'clear': from.value = ''; to.value = ''; break;
+        }
+        loadTable();
+    }));
+
+    document.getElementById('ddsCsvBtn').addEventListener('click', exportCsv);
 }
 
 function filterValues() {
     return {
         account: document.getElementById('filterAccount').value || null,
         type: document.getElementById('filterType').value || null,
+        category: document.getElementById('filterCategory').value || null,
         approval: document.getElementById('filterApproval').value || null,
         from: document.getElementById('filterFrom').value || null,
         to: document.getElementById('filterTo').value || null,
         q: document.getElementById('filterSearch').value.trim() || null
     };
+}
+
+// Экспорт текущей выборки в CSV (вся выборка, не только показанная страница)
+async function exportCsv() {
+    const f = filterValues();
+    const amt = f.q && /^\d+(\.\d+)?$/.test(f.q) ? Number(f.q) : null;
+    let rows, header;
+    if (f.account || f.category) {
+        let q = Layout.db.from('fin_v_account_ledger').select('*').order('ledger_seq', { ascending: false }).limit(5000);
+        if (f.account) q = q.eq('account_id', f.account);
+        if (f.category) q = q.eq('category_id', f.category);
+        if (f.type) q = q.eq('type', f.type);
+        if (f.approval) q = q.eq('approval', f.approval);
+        if (f.from) q = q.gte('occurred_on', f.from);
+        if (f.to) q = q.lte('occurred_on', f.to);
+        if (amt !== null) q = q.or(`comment.ilike.%${f.q}%,signed_amount.eq.${amt},signed_amount.eq.${-amt}`);
+        else if (f.q) q = q.ilike('comment', `%${f.q}%`);
+        const { data } = await q;
+        header = ['Дата', 'Тип', 'Счёт', 'Статья', 'Центр затрат', 'Объект', 'Участник', 'Комментарий', 'Сумма', 'Валюта'];
+        rows = (data || []).map(p => [p.occurred_on, FinUtils.typeLabel(p.type), p.account_name, p.category_name, p.cost_center_name, p.object_name, p.participant_name, p.comment, p.signed_amount, p.currency_code]);
+    } else {
+        let q = Layout.db.from('fin_v_operations').select('*').order('created_at', { ascending: false }).limit(5000);
+        if (f.type) q = q.eq('type', f.type);
+        if (f.approval) q = q.eq('approval', f.approval);
+        if (f.from) q = q.gte('occurred_on', f.from);
+        if (f.to) q = q.lte('occurred_on', f.to);
+        if (f.q) q = q.or(`comment.ilike.%${f.q}%,payer_name.ilike.%${f.q}%`);
+        const { data } = await q;
+        header = ['Дата', 'Тип', 'Плательщик', 'Комментарий', 'Статус', 'Суммы'];
+        rows = (data || []).map(op => [op.occurred_on, FinUtils.typeLabel(op.type), op.payer_name, op.comment, t('fin_approval_' + op.approval), FinUtils.fmtAmountsByCurrency(op.amounts_by_currency)]);
+    }
+    const csv = '﻿' + [header, ...rows].map(r => r.map(c => `"${String(c ?? '').replace(/"/g, '""')}"`).join(';')).join('\n');
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(new Blob([csv], { type: 'text/csv;charset=utf-8' }));
+    a.download = `dds-${FinUtils.todayISO()}.csv`;
+    a.click();
 }
 
 function syncFiltersToUrl() {
@@ -92,6 +150,18 @@ function applyHighlight() {
     document.querySelector('#ddsBody tr')?.classList.add('fin-new-row');
 }
 
+let totalsAcc = null;   // { INR: {inc, exp}, ... } по загруженной выборке
+
+// Итог по выборке (приход/расход по валютам) — режимы «счёт» и «статья»
+function renderTotals() {
+    const el = document.getElementById('ddsTotals');
+    if (!el) return;
+    if (!totalsAcc || !Object.keys(totalsAcc).length) { el.innerHTML = ''; return; }
+    const parts = Object.entries(totalsAcc).map(([c, v]) =>
+        `<span class="text-success">${t('fin_income')} ${FinUtils.fmtMoney(v.inc, c)}</span> · <span class="text-error">${t('fin_expense')} ${FinUtils.fmtMoney(v.exp, c)}</span>`);
+    el.innerHTML = `<span class="opacity-60">${t('fin_by_selection')}:</span> ` + parts.join(' &nbsp;•&nbsp; ');
+}
+
 async function loadTable(append = false) {
     const f = filterValues();
     syncFiltersToUrl();
@@ -100,46 +170,55 @@ async function loadTable(append = false) {
     if (!append) {
         listOffset = 0;
         shownCount = 0;
+        totalsAcc = {};
         body.innerHTML = `<tr><td colspan="8" class="text-center py-8"><span class="loading loading-spinner loading-md"></span></td></tr>`;
     }
+    const amt = f.q && /^\d+(\.\d+)?$/.test(f.q) ? Number(f.q) : null;
 
-    if (f.account) {
-        // Лента одного счёта: по ledger_seq, с running balance
+    // Режим проводок: выбран счёт ИЛИ статья (проводки — единственный уровень со статьёй)
+    if (f.account || f.category) {
+        const showRunning = !!f.account;   // running balance осмыслен только для одного счёта
         head.innerHTML = `<tr>
-            <th data-i18n="fin_occurred_on">${t('fin_occurred_on')}</th>
+            <th>${t('fin_occurred_on')}</th>
             <th>${t('fin_kind')}</th>
             <th>${t('fin_category')}</th>
-            <th>${t('fin_retreat_object')}</th>
+            <th>${showRunning ? t('fin_retreat_object') : t('fin_account')}</th>
             <th>${t('fin_comment')}</th>
             <th class="text-right">${t('fin_amount')}</th>
-            <th class="text-right">${t('fin_running_balance')}</th>
+            ${showRunning ? `<th class="text-right">${t('fin_running_balance')}</th>` : ''}
             <th>${t('fin_status')}</th></tr>`;
 
         let q = Layout.db.from('fin_v_account_ledger').select('*')
-            .eq('account_id', f.account)
             .order('ledger_seq', { ascending: false })
             .range(listOffset, listOffset + PAGE - 1);
+        if (f.account) q = q.eq('account_id', f.account);
+        if (f.category) q = q.eq('category_id', f.category);
         if (f.type) q = q.eq('type', f.type);
         if (f.approval) q = q.eq('approval', f.approval);
         if (f.from) q = q.gte('occurred_on', f.from);
         if (f.to) q = q.lte('occurred_on', f.to);
-        if (f.q) q = q.ilike('comment', `%${f.q}%`);
+        if (amt !== null) q = q.or(`comment.ilike.%${f.q}%,signed_amount.eq.${amt},signed_amount.eq.${-amt}`);
+        else if (f.q) q = q.ilike('comment', `%${f.q}%`);
         const { data, error } = await q;
         if (error) { Layout.handleError(error, 'ДДС'); return; }
         if (!data.length && !append) {
             body.innerHTML = `<tr><td colspan="8" class="text-center py-6 opacity-60">${t('fin_no_operations')}</td></tr>`;
-            renderPager(false);
-            return;
+            renderPager(false); renderTotals(); return;
+        }
+        for (const p of data) {
+            const c = (totalsAcc[p.currency_code] = totalsAcc[p.currency_code] || { inc: 0, exp: 0 });
+            const v = Number(p.signed_amount);
+            if (v >= 0) c.inc += v; else c.exp += -v;
         }
         const html = data.map(p => `
             <tr class="${p.is_reversed ? 'opacity-60' : ''}">
                 <td class="whitespace-nowrap">${DateUtils.formatShort(DateUtils.parseDate(p.occurred_on))}</td>
                 <td>${e(FinUtils.typeLabel(p.type))}${badges(p)}</td>
                 <td>${e(p.category_name || '—')}</td>
-                <td>${e(p.object_name || '')}</td>
+                <td>${e(showRunning ? (p.object_name || '') : (p.account_name || ''))}</td>
                 <td class="max-w-xs truncate opacity-70">${e(p.comment || '')}</td>
                 <td class="text-right font-mono ${Number(p.signed_amount) < 0 ? 'text-error' : 'text-success'}">${FinUtils.fmtMoney(p.signed_amount, p.currency_code)}</td>
-                <td class="text-right font-mono">${FinUtils.fmtMoney(p.running_balance, p.currency_code)}</td>
+                ${showRunning ? `<td class="text-right font-mono">${FinUtils.fmtMoney(p.running_balance, p.currency_code)}</td>` : ''}
                 <td>${FinUtils.approvalBadge(p.approval)}</td>
             </tr>
         `).join('');
@@ -147,8 +226,9 @@ async function loadTable(append = false) {
         listOffset += data.length;
         shownCount += data.length;
         renderPager(data.length === PAGE);
+        renderTotals();
     } else {
-        // Общая лента: по created_at DESC (ledger_seq разных счетов не сравнимы)
+        // Общая лента: по created_at DESC (ledger_seq разных счетов не сравнимы), без итога (мультивалюта)
         head.innerHTML = `<tr>
             <th>${t('fin_occurred_on')}</th>
             <th>${t('fin_kind')}</th>
@@ -168,8 +248,7 @@ async function loadTable(append = false) {
         if (error) { Layout.handleError(error, 'ДДС'); return; }
         if (!data.length && !append) {
             body.innerHTML = `<tr><td colspan="5" class="text-center py-6 opacity-60">${t('fin_no_operations')}</td></tr>`;
-            renderPager(false);
-            return;
+            renderPager(false); renderTotals(); return;
         }
         opsById = append ? { ...opsById, ...Object.fromEntries(data.map(op => [op.operation_id, op])) }
                          : Object.fromEntries(data.map(op => [op.operation_id, op]));
@@ -187,6 +266,7 @@ async function loadTable(append = false) {
         listOffset += data.length;
         shownCount += data.length;
         renderPager(data.length === PAGE);
+        renderTotals();
         applyHighlight();
     }
 }
@@ -224,12 +304,75 @@ async function toggleDetails(opId) {
             </button>` : ''}
         </div>`).join('')
         + FinUtils.attachmentsHtml(atts || [])
-        + (window.hasPermission?.('fin_admin') ? `<div class="pt-1"><label class="btn btn-ghost btn-xs gap-1">
+        + `<div class="pt-1 opacity-60 text-xs" id="author-${opId}"></div>`
+        + (window.hasPermission?.('fin_admin') ? `<div class="pt-1 flex flex-wrap gap-2 items-center"><label class="btn btn-ghost btn-xs gap-1">
             <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="w-3 h-3"><path stroke-linecap="round" stroke-linejoin="round" d="M18.375 12.739l-7.693 7.693a4.5 4.5 0 01-6.364-6.364l10.94-10.94A3 3 0 1119.5 7.372L8.552 18.32m.009-.01l-.01.01m5.699-9.941l-7.81 7.81a1.5 1.5 0 002.112 2.13"/></svg>
             ${t('fin_attach_file')}<input type="file" class="hidden" accept="image/jpeg,image/png,image/webp,application/pdf" onchange="FinDds.attachFile(this, '${opId}')">
-        </label></div>` : '')
+        </label>${['expense', 'income', 'donation'].includes(op?.type) && !op?.is_reversed ? `<button class="btn btn-ghost btn-xs gap-1" onclick="FinDds.repeatOperation('${opId}')">
+            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="w-3 h-3"><path stroke-linecap="round" stroke-linejoin="round" d="M16.023 9.348h4.992v-.001M2.985 19.644v-4.992m0 0h4.992m-4.993 0l3.181 3.183a8.25 8.25 0 0013.803-3.7M4.031 9.865a8.25 8.25 0 0113.803-3.7l3.181 3.182m0-4.991v4.99"/></svg>
+            ${t('fin_repeat')}</button>` : ''}</div>` : '')
         + reversalButtonHtml(opId) + `</div>`;
+
+    // автор операции (2.8) — резолвим имя по created_by
+    if (op?.created_by) {
+        authorName(op.created_by).then(name => {
+            const el = document.getElementById('author-' + opId);
+            if (el && name) el.textContent = `${t('fin_created_by')}: ${name}`;
+        });
+    }
 }
+
+// Резолвер имени автора по auth user_id (с кэшем)
+const authorCache = {};
+async function authorName(userId) {
+    if (!userId) return '';
+    if (userId in authorCache) return authorCache[userId];
+    const { data } = await Layout.db.from('vaishnavas')
+        .select('spiritual_name, first_name, last_name').eq('user_id', userId).limit(1);
+    const v = data?.[0];
+    authorCache[userId] = v ? (v.spiritual_name || `${v.first_name || ''} ${v.last_name || ''}`.trim()) : '';
+    return authorCache[userId];
+}
+
+// «Повторить» (2.4): открыть форму расхода/прихода, предзаполненную по образцу операции
+async function repeatOperation(opId) {
+    const op = opsById[opId];
+    if (!op) return;
+    const { data } = await Layout.db.from('fin_v_account_ledger').select('*').eq('operation_id', opId).order('ledger_seq');
+    if (op.type === 'expense') {
+        openExpense();
+        document.getElementById('expComment').value = op.comment || '';
+        const rows = (data || []).filter(p => Number(p.signed_amount) < 0);
+        document.getElementById('expRows').innerHTML = rows.map((_, i) => expenseRowHtml(i)).join('') || expenseRowHtml(0);
+        [...document.querySelectorAll('#expRows .exp-row')].forEach((row, i) => {
+            const p = rows[i]; if (!p) return;
+            setSel(row.querySelector('.exp-account'), p.account_id);
+            row.querySelector('.exp-amount').value = Math.abs(Number(p.signed_amount));
+            setSel(row.querySelector('.exp-category'), p.category_id);
+            setSel(row.querySelector('.exp-cc'), p.cost_center_id || '');
+            setSel(row.querySelector('.exp-object'), p.object_id || '');
+            setSel(row.querySelector('.exp-contractor'), p.contractor_id || '');
+            setSel(row.querySelector('.exp-channel'), p.payment_channel || '');
+        });
+        updateExpenseRecap();
+    } else {
+        // приход / пожертвование — одна нога прихода
+        const p = (data || []).find(x => Number(x.signed_amount) > 0) || data?.[0];
+        openIncome();
+        document.getElementById('incIsDonation').checked = op.type === 'donation';
+        updateIncomeCategoryList();
+        document.getElementById('incComment').value = op.comment || '';
+        if (p) {
+            setSel(document.getElementById('incAccount'), p.account_id);
+            document.getElementById('incAmount').value = Math.abs(Number(p.signed_amount));
+            setSel(document.getElementById('incCategory'), p.category_id);
+            setSel(document.getElementById('incObject'), p.object_id || '');
+            setSel(document.getElementById('incChannel'), p.payment_channel || '');
+        }
+    }
+}
+
+function setSel(sel, val) { if (sel && [...sel.options].some(o => o.value === val)) sel.value = val; }
 
 // Прикрепить файл из разворота
 async function attachFile(input, opId) {
@@ -605,8 +748,19 @@ async function init() {
     // Быстрые действия с главной: ?new=expense|income|transfer
     const openForm = { expense: openExpense, income: openIncome, transfer: openTransfer };
     if (openForm[params.get('new')]) openForm[params.get('new')]();
+
+    // Deep-link на операцию: ?op=<id> — разворот + подсветка + автоскролл (общий режим)
+    const opId = params.get('op');
+    if (opId) {
+        const row = document.querySelector(`tr[data-op="${opId}"]`);
+        if (row) {
+            row.scrollIntoView({ block: 'center', behavior: 'smooth' });
+            row.classList.add('fin-new-row');
+            toggleDetails(opId);
+        }
+    }
 }
 
-window.FinDds = { openExpense, openIncome, openTransfer, addExpenseRow, openReversal, openAnalytics, attachFile, updateRecap: updateExpenseRecap };
+window.FinDds = { openExpense, openIncome, openTransfer, addExpenseRow, openReversal, openAnalytics, attachFile, updateRecap: updateExpenseRecap, repeatOperation };
 init();
 })();
