@@ -24,12 +24,20 @@
         <div class="card-body py-4">
             <div class="flex flex-wrap items-end gap-4">
                 <div class="form-control">
-                    <label class="label py-0"><span class="label-text" data-i18n="fin_recon_select_account">Выберите счёт</span></label>
+                    <label class="label py-0" for="accountSelect"><span class="label-text" data-i18n="fin_recon_select_account">Выберите счёт</span></label>
                     <select id="accountSelect" class="select select-bordered select-sm w-64"></select>
                 </div>
                 <div id="accountInfo" class="text-sm opacity-70"></div>
             </div>
         </div>
+    </div>
+
+    <!-- Пустое состояние: счёт не выбран -->
+    <div id="reconEmpty" class="text-center py-14">
+        <div class="fin-icon-chip mx-auto mb-3" style="width:3.5rem;height:3.5rem">
+            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-7 h-7"><path stroke-linecap="round" stroke-linejoin="round" d="M9 14.25l6-6m4.5-3.493V21.75l-3.75-1.5-3.75 1.5-3.75-1.5-3.75 1.5V4.757c0-1.108.806-2.057 1.907-2.185a48.507 48.507 0 0111.186 0c1.1.128 1.907 1.077 1.907 2.185z"/></svg>
+        </div>
+        <div class="opacity-70" data-i18n="fin_recon_select_hint">Выберите счёт сверху, чтобы начать сверку</div>
     </div>
 
     <!-- Блок сверки -->
@@ -52,14 +60,20 @@
                     </div>
                 </div>
 
-                <!-- Итоги -->
-                <div class="flex flex-wrap gap-6 mt-4 items-center">
-                    <div><span class="opacity-60" data-i18n="fin_system_balance">Расчётный остаток</span>:
-                        <span class="font-mono font-bold" id="systemBalance">—</span></div>
-                    <div><span class="opacity-60" data-i18n="fin_counted_balance">Фактический остаток</span>:
-                        <span class="font-mono font-bold" id="countedBalance">—</span></div>
-                    <div><span class="opacity-60" data-i18n="fin_difference">Разница</span>:
-                        <span class="font-mono font-bold" id="differenceValue">—</span></div>
+                <!-- Итоги: расчётный vs фактический, разница крупно -->
+                <div class="grid grid-cols-1 sm:grid-cols-3 gap-3 mt-4">
+                    <div class="rounded-xl border border-base-200 p-3">
+                        <div class="fin-kpi-label" data-i18n="fin_system_balance">Расчётный остаток</div>
+                        <div class="font-mono font-bold text-lg mt-0.5" id="systemBalance">—</div>
+                    </div>
+                    <div class="rounded-xl border border-base-200 p-3">
+                        <div class="fin-kpi-label" data-i18n="fin_counted_balance">Фактический остаток</div>
+                        <div class="font-mono font-bold text-lg mt-0.5" id="countedBalance">—</div>
+                    </div>
+                    <div class="rounded-xl border-2 border-base-200 p-3" id="differenceTile">
+                        <div class="fin-kpi-label" data-i18n="fin_difference">Разница</div>
+                        <div class="font-mono font-bold text-xl mt-0.5" id="differenceValue">—</div>
+                    </div>
                 </div>
 
                 <!-- Расхождение -->
@@ -82,6 +96,14 @@
                 <h2 class="card-title text-base px-4 pt-4" data-i18n="fin_recon_history">История сверок</h2>
                 <div class="overflow-x-auto">
                     <table class="table table-sm">
+                        <thead><tr>
+                            <th data-i18n="fin_occurred_on">Дата</th>
+                            <th data-i18n="fin_performed_by">Кто</th>
+                            <th data-i18n="fin_checkpoint">Чекпоинт</th>
+                            <th class="text-right" data-i18n="fin_counted_balance">Факт</th>
+                            <th class="text-right" data-i18n="fin_difference">Разница</th>
+                            <th data-i18n="fin_comment">Комментарий</th>
+                        </tr></thead>
                         <tbody id="historyBody"></tbody>
                     </table>
                 </div>
@@ -96,10 +118,10 @@
 <script src="../js/auth-check.js?v=7"></script>
 <script src="../js/cache.js?v=1"></script>
 <script src="../js/utils.js?v=4"></script>
-<script src="../js/layout.js?v=21"></script>
+<script src="../js/layout.js?v=22"></script>
 <script src="../js/date-utils.js?v=3"></script>
 <script src="../js/fin-utils.js?v=5"></script>
-<script src="../js/pages/fin-reconciliation.js?v=2"></script>
+<script src="../js/pages/fin-reconciliation.js?v=3"></script>
 
 </body>
 </html>

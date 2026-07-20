@@ -33,9 +33,11 @@ function buildAccountSelect() {
 async function selectAccount(accountId) {
     if (!accountId) {
         document.getElementById('reconBlock').classList.add('hidden');
+        document.getElementById('reconEmpty').classList.remove('hidden');
         currentAccount = null;
         return;
     }
+    document.getElementById('reconEmpty').classList.add('hidden');
     // свежие данные счёта (включая last_ledger_seq на момент открытия формы)
     const accounts = await FinUtils.reloadAccounts();
     currentAccount = accounts.find(a => a.account_id === accountId);
@@ -136,7 +138,9 @@ function recalc() {
     document.getElementById('countedBalance').textContent = FinUtils.fmtMoney(counted, currentAccount.currency_code);
     const diffEl = document.getElementById('differenceValue');
     diffEl.textContent = FinUtils.fmtMoney(diff, currentAccount.currency_code);
-    diffEl.className = 'font-mono font-bold ' + (diff === 0 ? 'text-success' : 'text-error');
+    diffEl.className = 'font-mono font-bold text-xl mt-0.5 ' + (diff === 0 ? 'text-success' : 'text-error');
+    const tile = document.getElementById('differenceTile');
+    if (tile) tile.className = 'rounded-xl border-2 p-3 ' + (diff === 0 ? 'border-success/40' : 'border-error/40');
     document.getElementById('mismatchBlock').classList.toggle('hidden', diff === 0);
 }
 

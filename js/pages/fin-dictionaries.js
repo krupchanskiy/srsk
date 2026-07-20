@@ -45,7 +45,7 @@ function renderTab() {
                 <td>${e(r.name)}${activeBadge(r)}</td>
                 <td><span class="badge badge-sm ${r.direction === 'in' ? 'badge-success' : 'badge-error'}">${t('fin_dir_' + r.direction)}</span></td>
                 <td>${r.visible_to_departments ? FinUtils.ICONS.check : ''}</td>
-                <td class="text-right"><button class="btn btn-ghost btn-sm" data-edit="${r.id}">${editIcon}</button></td>
+                <td class="text-right"><button class="btn btn-ghost btn-sm" data-edit="${r.id}" aria-label="${t('edit')}" title="${t('edit')}">${editIcon}</button></td>
             </tr>`).join('');
     } else if (currentTab === 'cost_centers') {
         head.innerHTML = `<tr><th>${t('col_code') || 'Код'}</th><th>${t('col_name') || 'Название'}</th><th></th></tr>`;
@@ -53,7 +53,7 @@ function renderTab() {
             <tr class="${r.is_active ? '' : 'opacity-60'}">
                 <td class="font-mono">${e(r.code)}</td>
                 <td>${e(r.name)}${activeBadge(r)}</td>
-                <td class="text-right"><button class="btn btn-ghost btn-sm" data-edit="${r.id}">${editIcon}</button></td>
+                <td class="text-right"><button class="btn btn-ghost btn-sm" data-edit="${r.id}" aria-label="${t('edit')}" title="${t('edit')}">${editIcon}</button></td>
             </tr>`).join('');
     } else if (currentTab === 'contractors') {
         head.innerHTML = `<tr><th>${t('col_name') || 'Название'}</th><th>${t('fin_person_org')}</th><th>${t('fin_comment')}</th><th></th></tr>`;
@@ -62,7 +62,7 @@ function renderTab() {
                 <td>${e(r.name)}${activeBadge(r)}</td>
                 <td>${t(r.type === 'person' ? 'fin_person' : 'fin_organization')}</td>
                 <td class="opacity-70">${e([r.contact_info, r.note].filter(Boolean).join(' · '))}</td>
-                <td class="text-right"><button class="btn btn-ghost btn-sm" data-edit="${r.id}">${editIcon}</button></td>
+                <td class="text-right"><button class="btn btn-ghost btn-sm" data-edit="${r.id}" aria-label="${t('edit')}" title="${t('edit')}">${editIcon}</button></td>
             </tr>`).join('');
     } else {
         head.innerHTML = `<tr><th>${t('fin_currency')}</th><th>${t('fin_effective_date')}</th><th>${t('fin_rate')}</th><th>${t('fin_retreat_object')}</th></tr>`;
@@ -75,7 +75,11 @@ function renderTab() {
             </tr>`).join('');
     }
     if (!rows.length) {
-        body.innerHTML = `<tr><td colspan="6" class="text-center py-6 opacity-60">—</td></tr>`;
+        const canAdd = currentTab !== 'rates' || window.hasPermission?.('fin_admin');
+        body.innerHTML = `<tr><td colspan="6" class="text-center py-10 opacity-60">
+            <div class="mb-2">${t('fin_dict_empty')}</div>
+            ${canAdd ? `<button class="btn btn-primary btn-sm" onclick="FinDicts.openAdd()">${t('fin_add')}</button>` : ''}
+        </td></tr>`;
     }
 }
 

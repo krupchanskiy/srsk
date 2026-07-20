@@ -20,12 +20,45 @@ async function loadResponsibleNames() {
     }
 }
 
+// Сводка по текущей вкладке: сумма остатков по валютам, число счетов, минусов
+function renderSummary(accounts) {
+    const box = document.getElementById('accountsSummary');
+    if (!box) return;
+    const byCur = {};
+    for (const a of accounts) byCur[a.currency_code] = (byCur[a.currency_code] || 0) + Number(a.balance);
+    const totalHtml = Object.entries(byCur).filter(([, v]) => v !== 0)
+        .map(([c, v]) => `<div class="fin-kpi-value ${v < 0 ? 'text-error' : ''}">${FinUtils.fmtMoney(v, c)}</div>`).join('')
+        || '<div class="fin-kpi-value opacity-40">—</div>';
+    const negCount = accounts.filter(a => a.is_negative).length;
+    const tile = (chipClass, icon, label, value) => `
+        <div class="card bg-base-100 fin-kpi"><div class="card-body">
+            <div class="flex items-center gap-3">
+                <div class="fin-icon-chip ${chipClass}">${icon}</div>
+                <div class="min-w-0">
+                    <div class="fin-kpi-label">${label}</div>
+                    <div class="mt-0.5">${value}</div>
+                </div>
+            </div>
+        </div></div>`;
+    const walletIcon = '<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.7" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M21 12a2.25 2.25 0 00-2.25-2.25H15a3 3 0 11-6 0H5.25A2.25 2.25 0 003 12m18 0v6a2.25 2.25 0 01-2.25 2.25H5.25A2.25 2.25 0 013 18v-6m18 0V9M3 12V9m18 0a2.25 2.25 0 00-2.25-2.25H5.25A2.25 2.25 0 003 9m18 0V6a2.25 2.25 0 00-2.25-2.25H5.25A2.25 2.25 0 003 6v3"/></svg>';
+    const hashIcon = '<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.7" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M3.75 9.75h16.5m-16.5 4.5h16.5M6.75 3.75l-3 16.5m13.5-16.5l-3 16.5"/></svg>';
+    const warnIcon = '<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.7" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M2.25 6L9 12.75l4.286-4.286a11.948 11.948 0 014.306 6.43l.776 2.898m0 0l3.182-5.511m-3.182 5.51l-5.511-3.181"/></svg>';
+    box.innerHTML =
+        tile('', walletIcon, t('fin_total_balance'), totalHtml) +
+        tile('', hashIcon, t('fin_accounts_count'), `<div class="fin-kpi-value">${accounts.length}</div>`) +
+        (negCount ? tile('is-error', warnIcon, t('fin_negative_accounts'), `<div class="fin-kpi-value text-error">${negCount}</div>`) : '');
+}
+
 function render() {
     const isAdmin = window.hasPermission?.('fin_admin') || window.currentUser?.is_superuser;
     const accounts = FinUtils.refs.accounts.filter(a => a.kind === currentKind);
+    renderSummary(accounts);
     const tbody = document.getElementById('accountsBody');
     if (!accounts.length) {
-        tbody.innerHTML = `<tr><td colspan="5" class="text-center py-6 opacity-60">${t('fin_no_accounts_yet')}</td></tr>`;
+        tbody.innerHTML = `<tr><td colspan="6" class="text-center py-10 opacity-60">
+            <div class="mb-2">${t('fin_no_accounts_yet')}</div>
+            ${isAdmin ? `<button class="btn btn-primary btn-sm" onclick="FinAccounts.openAccountModal()">${t('fin_new_account')}</button>` : ''}
+        </td></tr>`;
         return;
     }
     tbody.innerHTML = accounts.map(a => `
@@ -42,14 +75,14 @@ function render() {
             <td class="text-right font-mono ${a.is_negative ? 'text-error font-bold' : ''}">${FinUtils.fmtMoney(a.balance, a.currency_code)}</td>
             <td class="text-right whitespace-nowrap">
                 ${isAdmin ? `
-                <button class="btn btn-ghost btn-sm" data-action="edit" data-id="${a.account_id}" title="${t('fin_edit_account')}">
+                <button class="btn btn-ghost btn-sm" data-action="edit" data-id="${a.account_id}" title="${t('fin_edit_account')}" aria-label="${t('fin_edit_account')}">
                     <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-4 h-4"><path stroke-linecap="round" stroke-linejoin="round" d="m16.862 4.487 1.687-1.688a1.875 1.875 0 1 1 2.652 2.652L6.832 19.82a4.5 4.5 0 0 1-1.897 1.13l-2.685.8.8-2.685a4.5 4.5 0 0 1 1.13-1.897L16.863 4.487Z"/></svg>
                 </button>
                 ${a.last_ledger_seq === null ? `
-                <button class="btn btn-ghost btn-sm" data-action="opening" data-id="${a.account_id}" title="${t('fin_new_opening')}">
+                <button class="btn btn-ghost btn-sm" data-action="opening" data-id="${a.account_id}" title="${t('fin_new_opening')}" aria-label="${t('fin_new_opening')}">
                     <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-4 h-4"><path stroke-linecap="round" stroke-linejoin="round" d="M12 9v6m3-3H9m12 0a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z"/></svg>
                 </button>` : ''}
-                <button class="btn btn-ghost btn-sm" data-action="give" data-id="${a.account_id}" title="${t('fin_give_out')}">
+                <button class="btn btn-ghost btn-sm" data-action="give" data-id="${a.account_id}" title="${t('fin_give_out')}" aria-label="${t('fin_give_out')}">
                     <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-4 h-4"><path stroke-linecap="round" stroke-linejoin="round" d="M7 16l-4-4m0 0l4-4m-4 4h18M17 8l4 4m0 0l-4 4m4-4H3"/></svg>
                 </button>` : ''}
             </td>

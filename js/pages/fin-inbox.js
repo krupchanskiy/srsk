@@ -23,12 +23,12 @@ async function loadCounts() {
 function opCardHtml(op) {
     const isPending = op.approval === 'pending';
     return `
-    <div class="card bg-base-100 shadow-sm" data-op="${op.operation_id}">
+    <div class="card bg-base-100 shadow-sm cursor-pointer" data-op="${op.operation_id}" tabindex="0" title="${t('fin_expand_details')}">
         <div class="card-body py-4">
             <div class="flex flex-wrap items-center gap-3">
                 <span class="whitespace-nowrap opacity-70">${DateUtils.formatShort(DateUtils.parseDate(op.occurred_on))}</span>
                 <span class="font-medium">${e(FinUtils.typeLabel(op.type))}</span>
-                <span class="font-mono font-semibold">${FinUtils.fmtAmountsByCurrency(op.amounts_by_currency)}</span>
+                <span class="font-mono font-semibold">${FinUtils.fmtAmountsByCurrencyColored(op.amounts_by_currency)}</span>
                 ${op.has_attachments ? `<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="w-4 h-4 opacity-60"><path stroke-linecap="round" stroke-linejoin="round" d="M18.375 12.739l-7.693 7.693a4.5 4.5 0 01-6.364-6.364l10.94-10.94A3 3 0 1119.5 7.372L8.552 18.32m.009-.01l-.01.01m5.699-9.941l-7.81 7.81a1.5 1.5 0 002.112 2.13"/></svg>` : ''}
                 <span class="opacity-60 truncate max-w-md">${e([op.payer_name, op.comment].filter(Boolean).join(' · '))}</span>
                 <div class="ml-auto flex gap-2">
@@ -56,7 +56,13 @@ async function loadList() {
     if (error) { Layout.handleError(error, 'Входящие'); return; }
     opsById = Object.fromEntries((data || []).map(op => [op.operation_id, op]));
     if (!data?.length) {
-        list.innerHTML = `<div class="text-center py-10 opacity-60">${t(currentTab === 'pending' ? 'fin_no_pending' : 'fin_no_disputed')}</div>`;
+        // Пустое «Входящих» — хорошая новость: всё согласовано
+        const icon = '<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-12 h-12 mx-auto"><path stroke-linecap="round" stroke-linejoin="round" d="M9 12.75L11.25 15 15 9.75M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>';
+        list.innerHTML = `<div class="text-center py-14">
+            <div class="fin-icon-chip mx-auto mb-3" style="width:3.5rem;height:3.5rem">${icon}</div>
+            <div class="opacity-70">${t(currentTab === 'pending' ? 'fin_no_pending' : 'fin_no_disputed')}</div>
+        </div>`;
+        await loadCounts();
         return;
     }
     list.innerHTML = data.map(opCardHtml).join('');
@@ -171,6 +177,13 @@ async function init() {
             case 'dispute': openDispute(opId); break;
             case 'reverse': openReversal(opId); break;
         }
+    });
+    // Enter/Space на карточке — разворот (не перехватываем фокус на кнопках)
+    document.getElementById('inboxList').addEventListener('keydown', ev => {
+        if (ev.key !== 'Enter' && ev.key !== ' ') return;
+        if (ev.target.closest('[data-action]')) return;
+        const card = ev.target.closest('[data-op]');
+        if (card) { ev.preventDefault(); toggleDetails(card, card.dataset.op); }
     });
 
     const params = new URLSearchParams(window.location.search);
