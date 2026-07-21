@@ -106,6 +106,12 @@
 </main>
 
 <style>
+    /* Развёрнутая операция: строка + панель проводок читаются как единый блок */
+    #ddsBody tr.fin-expanded > td {
+        background-color: color-mix(in srgb, var(--current-color) 10%, transparent) !important;
+    }
+    #ddsBody tr[data-op].fin-expanded > td { border-bottom-color: transparent; }
+
     /* Подсветка свежесозданной операции */
     .fin-new-row { animation: finNewRow 2.5s ease-out; }
     @keyframes finNewRow {
@@ -331,7 +337,7 @@
 <script src="../js/layout.js?v=27"></script>
 <script src="../js/date-utils.js?v=3"></script>
 <script src="../js/fin-utils.js?v=6"></script>
-<script src="../js/pages/fin-dds.js?v=7"></script>
+<script src="../js/pages/fin-dds.js?v=8"></script>
 
 </body>
 </html>

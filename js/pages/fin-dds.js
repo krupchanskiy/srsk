@@ -279,8 +279,17 @@ async function loadTable(append = false) {
 async function toggleDetails(opId) {
     const row = document.getElementById('det-' + opId);
     if (!row) return;
-    if (!row.classList.contains('hidden')) { row.classList.add('hidden'); return; }
+    // Подсветка: родительская строка + панель читаются как единый блок
+    const parent = document.querySelector(`tr[data-op="${opId}"]`);
+    if (!row.classList.contains('hidden')) {
+        row.classList.add('hidden');
+        row.classList.remove('fin-expanded');
+        parent?.classList.remove('fin-expanded');
+        return;
+    }
     row.classList.remove('hidden');
+    row.classList.add('fin-expanded');
+    parent?.classList.add('fin-expanded');
     const cell = row.firstElementChild;
     cell.innerHTML = `<div class="p-3"><span class="loading loading-spinner loading-sm"></span></div>`;
     const [{ data }, { data: atts }] = await Promise.all([
