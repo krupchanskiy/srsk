@@ -105,6 +105,21 @@
         </div>
     </div>
 
+    <!-- Ретрит из ссылки недоступен (прошёл, снят с публикации или ссылка битая) -->
+    <div id="unavailableMessage" class="card bg-white shadow-xl hidden">
+        <div class="card-body text-center py-12">
+            <div class="text-warning mb-4">
+                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-16 h-16 mx-auto"><path stroke-linecap="round" stroke-linejoin="round" d="M12 9v3.75m9-.75a9 9 0 1 1-18 0 9 9 0 0 1 18 0Zm-9 3.75h.008v.008H12v-.008Z" /></svg>
+            </div>
+            <h2 class="text-2xl font-bold mb-2">Регистрация недоступна</h2>
+            <p class="text-base-content/70 mb-6">Возможно, ретрит уже прошёл или регистрация на него ещё не открыта.</p>
+            <div class="alert alert-info">
+                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" class="stroke-current shrink-0 w-6 h-6"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+                <span>Напишите нам — подскажем ближайшие даты</span>
+            </div>
+        </div>
+    </div>
+
     <!-- Ошибка -->
     <div id="errorMessage" class="alert alert-error mt-4 hidden">
         <svg xmlns="http://www.w3.org/2000/svg" class="stroke-current shrink-0 h-6 w-6" fill="none" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2m7-2a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
@@ -132,6 +147,9 @@ const I18N = {
         error_load: 'Не удалось загрузить список ретритов',
         error_submit: 'Произошла ошибка при отправке заявки. Попробуйте ещё раз.',
         error_duplicate: 'Вы уже подали заявку на этот ретрит. Если у вас есть вопросы, свяжитесь с нами.',
+        unavailable_title: 'Регистрация недоступна',
+        unavailable_text: 'Возможно, ретрит уже прошёл или регистрация на него ещё не открыта.',
+        unavailable_hint: 'Напишите нам — подскажем ближайшие даты',
         required: '*'
     },
     en: {
@@ -149,6 +167,9 @@ const I18N = {
         error_load: 'Failed to load retreat list',
         error_submit: 'An error occurred while submitting. Please try again.',
         error_duplicate: 'You have already applied for this retreat. Please contact us if you have questions.',
+        unavailable_title: 'Registration unavailable',
+        unavailable_text: 'This retreat may have already taken place, or registration is not open yet.',
+        unavailable_hint: 'Write to us — we will suggest the closest dates',
         required: '*'
     }
 };
@@ -251,15 +272,20 @@ async function loadRetreats() {
     // Выбираем ретрит из URL
     if (urlParams.retreat) {
         const retreat = retreats.find(r => r.slug === urlParams.retreat || r.id === urlParams.retreat);
-        if (retreat) {
-            select.value = retreat.id;
-            // Показываем название ретрита и скрываем селект
-            const subtitle = document.getElementById('retreatSubtitle');
-            const dates = formatDateRange(retreat.start_date, retreat.end_date);
-            subtitle.textContent = `${retreat.name_ru} (${dates})`;
-            subtitle.classList.remove('hidden');
-            document.getElementById('retreatSelectBlock').classList.add('hidden');
+        if (!retreat) {
+            // Ссылка ведёт на недоступный ретрит. Молча показать общий список нельзя:
+            // человек зарегистрируется не туда, а рассылающий не узнает, что ссылка битая
+            showRetreatUnavailable();
+            return;
         }
+
+        select.value = retreat.id;
+        // Показываем название ретрита и скрываем селект
+        const subtitle = document.getElementById('retreatSubtitle');
+        const dates = formatDateRange(retreat.start_date, retreat.end_date);
+        subtitle.textContent = `${retreat.name_ru} (${dates})`;
+        subtitle.classList.remove('hidden');
+        document.getElementById('retreatSelectBlock').classList.add('hidden');
     }
 }
 
@@ -449,6 +475,15 @@ function normalizePhone(phone) {
 function escapeHtml(str) {
     if (!str) return '';
     return String(str).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+}
+
+function showRetreatUnavailable() {
+    document.getElementById('applicationForm').classList.add('hidden');
+    const box = document.getElementById('unavailableMessage');
+    box.querySelector('h2').textContent = T.unavailable_title;
+    box.querySelector('p').textContent = T.unavailable_text;
+    box.querySelector('.alert span').textContent = T.unavailable_hint;
+    box.classList.remove('hidden');
 }
 
 function showError(message) {

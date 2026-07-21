@@ -236,6 +236,16 @@
                     </label>
                 </div>
 
+                <!-- Публикация: без is_public RLS не отдаёт ретрит анонимам,
+                     и любая публичная ссылка у гостя не откроется -->
+                <div class="form-control">
+                    <label class="label cursor-pointer justify-start gap-3">
+                        <input type="checkbox" name="is_public" class="toggle toggle-primary" onchange="togglePublicLink()" />
+                        <span class="label-text font-medium">Опубликовать на сайте</span>
+                    </label>
+                    <p class="text-xs opacity-50 mt-1">Пока выключено, ретрит видят только сотрудники — у гостя ссылка не откроется</p>
+                </div>
+
                 <!-- Registration Dates -->
                 <div class="grid grid-cols-2 gap-4">
                     <div>
@@ -695,13 +705,13 @@
                     form.registration_start.value = retreat.registration_start || '';
                     form.registration_end.value = retreat.registration_end || '';
                     form.slug.value = retreat.slug || '';
+                    form.is_public.checked = retreat.is_public || false;
 
-                    // Show public link
-                    publicLinkSection.classList.remove('hidden');
                     const publicUrl = retreat.slug
                         ? `https://in.rupaseva.com/retreat.html?slug=${retreat.slug}`
                         : `https://in.rupaseva.com/retreat.html?id=${retreat.id}`;
                     document.getElementById('publicLinkInput').value = publicUrl;
+                    togglePublicLink();
 
                     // Show existing image
                     if (retreat.image_url) {
@@ -724,6 +734,14 @@
 
             Layout.setupAutoTranslate('#retreatForm', ['name', 'description']);
             modal.showModal();
+        }
+
+        // Ссылку показываем только у опубликованного ретрита: иначе её скопируют,
+        // разошлют, а у гостей она не откроется — RLS не отдаст ретрит анониму
+        function togglePublicLink() {
+            const form = document.getElementById('retreatForm');
+            const show = Boolean(editingId) && form.is_public.checked;
+            document.getElementById('publicLinkSection').classList.toggle('hidden', !show);
         }
 
         function copyPublicLink() {
@@ -828,7 +846,8 @@
                 registration_open: form.registration_open.checked,
                 registration_start: form.registration_start.value || null,
                 registration_end: form.registration_end.value || null,
-                slug: form.slug.value.trim().toLowerCase() || null
+                slug: form.slug.value.trim().toLowerCase() || null,
+                is_public: form.is_public.checked
             };
 
             try {
