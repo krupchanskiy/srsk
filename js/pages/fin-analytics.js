@@ -39,16 +39,19 @@ async function selectRetreat(id) {
 
 function catTable(rows, titleKey) {
     if (!rows?.length) return '';
+    const objId = currentData?.object_id;
     return `
     <div class="card bg-base-100 shadow-sm"><div class="card-body py-4">
         <h2 class="card-title text-base">${t(titleKey)}</h2>
         <div class="overflow-x-auto"><table class="table table-sm">
-            <tbody>${rows.map(r => `
-                <tr>
-                    <td>${e(r.name)}</td>
+            <tbody>${rows.map(r => {
+                const link = r.category_id ? `class="cursor-pointer hover:bg-base-200" onclick="location.href='dds.html?category=${r.category_id}${objId ? '&object=' + objId : ''}'" title="${t('fin_open_in_dds')}"` : '';
+                return `<tr ${link}>
+                    <td class="${r.category_id ? 'hover:underline' : ''}">${e(r.name)}</td>
                     <td class="text-right opacity-60">${Object.entries(r.by_currency || {}).map(([c, v]) => FinUtils.fmtMoney(v, c)).join(' · ')}</td>
                     <td class="text-right font-mono w-36">${fmtB(r.base_total)}</td>
-                </tr>`).join('')}
+                </tr>`;
+            }).join('')}
             </tbody>
         </table></div>
     </div></div>`;
@@ -307,17 +310,18 @@ async function loadSummary() {
     if (!data?.ok) { Layout.showNotification(data?.error?.message || 'Ошибка', 'error'); return; }
     const s = data.result;
 
-    const tbl = (title, rows, cols) => rows?.length ? `
+    const tbl = (title, rows, cols, rowAttr) => rows?.length ? `
         <div class="card bg-base-100 shadow-sm"><div class="card-body py-4">
             <h2 class="card-title text-base">${title}</h2>
             <div class="overflow-x-auto"><table class="table table-sm"><tbody>
-                ${rows.map(r => `<tr>${cols(r)}</tr>`).join('')}
+                ${rows.map(r => `<tr ${rowAttr ? rowAttr(r) : ''}>${cols(r)}</tr>`).join('')}
             </tbody></table></div>
         </div></div>` : '';
 
     box.innerHTML =
         tbl(t('fin_by_category'), s.by_category, r =>
-            `<td>${e(r.name)}</td><td class="opacity-60">${t(r.direction === 'in' ? 'fin_dir_in' : 'fin_dir_out')}</td><td class="text-right font-mono w-36">${fmtB(r.base_total)}</td>`) +
+            `<td class="${r.category_id ? 'hover:underline' : ''}">${e(r.name)}</td><td class="opacity-60">${t(r.direction === 'in' ? 'fin_dir_in' : 'fin_dir_out')}</td><td class="text-right font-mono w-36">${fmtB(r.base_total)}</td>`,
+            r => r.category_id ? `class="cursor-pointer hover:bg-base-200" onclick="location.href='dds.html?category=${r.category_id}&from=${from}&to=${to}'" title="${t('fin_open_in_dds')}"` : '') +
         tbl(t('fin_by_month'), s.by_month, r =>
             `<td>${e(r.month)}</td><td class="text-right font-mono text-success">${fmtB(r.income_base)}</td><td class="text-right font-mono text-error w-36">${fmtB(r.expense_base)}</td>`) +
         tbl(t('fin_by_object'), s.by_object, r =>

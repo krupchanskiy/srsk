@@ -69,7 +69,9 @@ function filterValues() {
         approval: document.getElementById('filterApproval').value || null,
         from: document.getElementById('filterFrom').value || null,
         to: document.getElementById('filterTo').value || null,
-        q: document.getElementById('filterSearch').value.trim() || null
+        q: document.getElementById('filterSearch').value.trim() || null,
+        // объект учёта — только через URL (deep-link из аналитики ретрита), без видимого фильтра
+        object: new URLSearchParams(location.search).get('object') || null
     };
 }
 
@@ -78,10 +80,11 @@ async function exportCsv() {
     const f = filterValues();
     const amt = f.q && /^\d+(\.\d+)?$/.test(f.q) ? Number(f.q) : null;
     let rows, header;
-    if (f.account || f.category) {
+    if (f.account || f.category || f.object) {
         let q = Layout.db.from('fin_v_account_ledger').select('*').order('ledger_seq', { ascending: false }).limit(5000);
         if (f.account) q = q.eq('account_id', f.account);
         if (f.category) q = q.eq('category_id', f.category);
+        if (f.object) q = q.eq('object_id', f.object);
         if (f.type) q = q.eq('type', f.type);
         if (f.approval) q = q.eq('approval', f.approval);
         if (f.from) q = q.gte('occurred_on', f.from);
@@ -175,8 +178,8 @@ async function loadTable(append = false) {
     }
     const amt = f.q && /^\d+(\.\d+)?$/.test(f.q) ? Number(f.q) : null;
 
-    // Режим проводок: выбран счёт ИЛИ статья (проводки — единственный уровень со статьёй)
-    if (f.account || f.category) {
+    // Режим проводок: выбран счёт, статья ИЛИ объект (deep-link из аналитики)
+    if (f.account || f.category || f.object) {
         const showRunning = !!f.account;   // running balance осмыслен только для одного счёта
         head.innerHTML = `<tr>
             <th>${t('fin_occurred_on')}</th>
@@ -193,6 +196,7 @@ async function loadTable(append = false) {
             .range(listOffset, listOffset + PAGE - 1);
         if (f.account) q = q.eq('account_id', f.account);
         if (f.category) q = q.eq('category_id', f.category);
+        if (f.object) q = q.eq('object_id', f.object);
         if (f.type) q = q.eq('type', f.type);
         if (f.approval) q = q.eq('approval', f.approval);
         if (f.from) q = q.gte('occurred_on', f.from);
