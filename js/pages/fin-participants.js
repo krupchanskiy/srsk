@@ -195,7 +195,7 @@ async function loadCardCharges() {
     document.getElementById('cardCharges').innerHTML = (data || []).map(c => `
         <tr class="${c.is_cancelled ? 'opacity-60 line-through' : ''}">
             <td>${e(blockLabel(c.kind))}</td>
-            <td>${e(c.description || '')}${c.quantity != 1 ? ` <span class="opacity-70">(${c.quantity} × ${FinUtils.fmtMoney(c.unit_price, 'INR')})</span>` : ''}${c.is_cancelled ? ` <span class="badge badge-ghost badge-xs no-underline">${t('fin_cancelled')}</span>` : ''}</td>
+            <td>${e(c.description || '')}${c.quantity != 1 ? ` <span class="opacity-70">(${c.quantity} × ${FinUtils.fmtMoney(c.unit_price, 'INR')})</span>` : ''}${c.is_cancelled ? ` <span class="badge badge-ghost badge-xs no-underline">${t('fin_cancelled')}</span>` : ''}${Number(c.discount_amount) > 0 && (c.discount_reason || c.agreed_with) ? `<div class="text-xs opacity-60">${e(c.discount_reason || '')}${c.agreed_with ? ` · ${t('fin_agreed_with').toLowerCase()}: ${e(c.agreed_with)}` : ''}</div>` : ''}</td>
             <td class="text-right font-mono">${FinUtils.fmtMoney(c.amount, 'INR')}</td>
             <td class="text-right font-mono">${Number(c.discount_amount) > 0 ? FinUtils.fmtMoney(c.discount_amount, 'INR') : '—'}</td>
             <td class="text-right font-mono font-semibold">${FinUtils.fmtMoney(c.net_amount, 'INR')}</td>
@@ -258,7 +258,7 @@ function chargeRowHtml(idx) {
                 <input type="text" class="input input-bordered input-sm chg-desc" required>
             </div>
             <div class="form-control">
-                <label class="label py-0"><span class="label-text text-xs">${t('fin_quantity')}</span></label>
+                <label class="label py-0"><span class="label-text text-xs chg-qty-label">${t('fin_quantity')}</span></label>
                 <input type="number" class="input input-bordered input-sm chg-qty" value="1" min="0.01" step="any" required>
             </div>
             <div class="form-control">
@@ -270,10 +270,19 @@ function chargeRowHtml(idx) {
                 <input type="number" class="input input-bordered input-sm chg-discount" min="0" step="0.01" placeholder="0">
             </div>
             <div class="form-control col-span-2 md:col-span-3 hidden chg-discount-reason-wrap">
-                <label class="label py-0"><span class="label-text text-xs">${t('fin_discount_reason')}</span></label>
-                <input type="text" class="input input-bordered input-sm chg-discount-reason">
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-2">
+                    <div class="form-control">
+                        <label class="label py-0"><span class="label-text text-xs">${t('fin_discount_reason')}</span></label>
+                        <input type="text" class="input input-bordered input-sm chg-discount-reason">
+                    </div>
+                    <div class="form-control">
+                        <label class="label py-0"><span class="label-text text-xs">${t('fin_agreed_with')}</span></label>
+                        <input type="text" class="input input-bordered input-sm chg-agreed-with">
+                    </div>
+                </div>
             </div>
         </div>
+        <div class="text-right text-sm mt-2 opacity-70 chg-total"></div>
         ${idx > 0 ? `<button type="button" class="btn btn-ghost btn-sm text-error mt-1" aria-label="${t('fin_remove_row')}" onclick="this.closest('.chg-row').remove()">${FinUtils.ICONS.x}</button>` : ''}
     </div>`;
 }
@@ -291,6 +300,31 @@ function wireChargeRow(row) {
     desc.addEventListener('input', () => { desc.dataset.touched = '1'; });
     kindSel.addEventListener('change', autofill);
     autofill();
+
+    // Проживание и питание начисляются за дни — лейбл количества говорит об этом
+    // прямо (требование ВГ: при расчёте видеть число дней, а не только сумму)
+    const qtyLabel = row.querySelector('.chg-qty-label');
+    const relabel = () => {
+        qtyLabel.textContent = ['accommodation', 'meals'].includes(kindSel.value)
+            ? t('fin_days') : t('fin_quantity');
+    };
+    kindSel.addEventListener('change', relabel);
+    relabel();
+
+    // Живой итог строки: qty × цена − скидка
+    const totalEl = row.querySelector('.chg-total');
+    const recalc = () => {
+        const qty = Number(row.querySelector('.chg-qty').value) || 0;
+        const price = Number(row.querySelector('.chg-price').value) || 0;
+        const disc = Number(row.querySelector('.chg-discount').value) || 0;
+        if (!qty || !price) { totalEl.textContent = ''; return; }
+        const total = Math.max(qty * price - disc, 0);
+        totalEl.textContent = `${t('fin_row_total')}: ${qty} × ${FinUtils.fmtMoney(price, 'INR')}`
+            + (disc > 0 ? ` − ${FinUtils.fmtMoney(disc, 'INR')}` : '')
+            + ` = ${FinUtils.fmtMoney(total, 'INR')}`;
+    };
+    ['.chg-qty', '.chg-price', '.chg-discount'].forEach(sel =>
+        row.querySelector(sel).addEventListener('input', recalc));
 }
 
 function addChargeRow(presetPerson) {
@@ -326,6 +360,7 @@ async function submitCharge(ev) {
         unit_price: row.querySelector('.chg-price').value,
         discount_amount: row.querySelector('.chg-discount').value || null,
         discount_reason: row.querySelector('.chg-discount-reason').value || null,
+        agreed_with: row.querySelector('.chg-agreed-with').value || null,
         creation_reason: reason
     }));
     if (rows.some(r => !r.participant_id)) {
