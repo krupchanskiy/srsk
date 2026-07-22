@@ -266,6 +266,18 @@
             filter: brightness(0.95);
         }
 
+        /* Долг по финмодулю: точка-маркер, виден на любом цвете категории.
+           Только факт долга — суммы шахматке недоступны */
+        .guest-bar .debt-dot {
+            flex: 0 0 auto;
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: #dc2626;
+            border: 1.5px solid #fff;
+            margin-right: 4px;
+        }
+
         /* Бронирование — штриховка */
         .guest-bar.booking {
             background: repeating-linear-gradient(
@@ -976,7 +988,7 @@
         if (btn) { btn.classList.toggle('btn-active', isFS); btn.title = isFS ? Layout.t('normal_view') : Layout.t('fullscreen'); }
     }
     </script>
-    <script src="../js/pages/timeline.js?v=8"></script>
+    <script src="../js/pages/timeline.js?v=9"></script>
 
 </body>
 </html>

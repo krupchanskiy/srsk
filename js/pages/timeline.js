@@ -32,6 +32,7 @@ let ekadashiDays = new Set();
 
 // Фактическое время прибытия/отъезда из retreat_registrations
 let retreatTimesMap = new Map();
+let debtorsSet = new Set();   // `${vaishnava_id}_${retreat_id}` — участники с долгом по финмодулю
 
 // Флаг права на редактирование таймлайна
 const canEditTimeline = () => window.hasPermission?.('edit_timeline') ?? false;
@@ -134,6 +135,15 @@ async function loadTimelineData() {
             }
         }
     }
+
+    // Должники по финмодулю: только флаг «есть долг», без сумм (fin_retreat_debtors
+    // отдаёт список id; детали — в финмодуле по его собственным правам)
+    debtorsSet = new Set();
+    await Promise.all(residentRetreatIds.map(async rid => {
+        const { data, error } = await Layout.db.rpc('fin_retreat_debtors', { p_retreat: rid });
+        if (error) return; // нет прав/сбой — шахматка работает без подсветки
+        for (const row of (data || [])) debtorsSet.add(`${row.participant_id}_${rid}`);
+    }));
 
     // Фильтруем временные здания по датам шахматки
     buildings = buildings.filter(b => {
@@ -302,6 +312,8 @@ async function loadTimelineData() {
                         border,
                         isBooking,
                         isCheckedOut: res.status === 'checked_out',
+                        hasDebt: !!(res.vaishnava_id && res.retreat_id
+                            && debtorsSet.has(`${res.vaishnava_id}_${res.retreat_id}`)),
                         // Сырые данные для модалки
                         rawData: res
                     };
@@ -994,6 +1006,18 @@ function openResidentModal(guestData, buildingName, roomName) {
         <span class="font-medium">${nameLink}</span>
     </div>`;
 
+    // Долг по финмодулю: шахматка знает только факт, суммы — в карточке финмодуля
+    // (страница сама проверит права; ресепшену без fin-прав покажет отказ)
+    if (guestData.hasDebt) {
+        infoHtml += `<div class="flex justify-between py-1 border-b">
+            <span class="text-gray-500">${t('timeline_finance_card')}:</span>
+            <span class="font-medium text-error">
+                ${t('timeline_has_debt')}
+                <a href="../finance/participants.html?retreat=${res.retreat_id}&open=${res.vaishnava_id}" class="link link-primary ml-1">→</a>
+            </span>
+        </div>`;
+    }
+
     // Категория
     if (res.resident_categories) {
         infoHtml += `<div class="flex justify-between py-1 border-b">
@@ -1211,6 +1235,16 @@ async function checkoutResident() {
     if (checkoutDate < res.check_in) {
         alert(Layout.t('checkout_before_checkin') || 'Дата выезда не может быть раньше заезда');
         return;
+    }
+
+    // Долг по финмодулю: предупреждаем, но не блокируем — решать долг проще,
+    // пока гость ещё на месте (вопрос 9 интеграционных ответов). Флаг спрашиваем
+    // свежий: подсветка могла устареть с момента загрузки шахматки.
+    if (res.vaishnava_id && res.retreat_id) {
+        const { data: hasDebt } = await Layout.db.rpc('fin_has_debt', {
+            p_participant: res.vaishnava_id, p_retreat: res.retreat_id
+        });
+        if (hasDebt === true && !confirm(t('timeline_debt_warning'))) return;
     }
 
     const { error } = await Layout.db
@@ -2133,15 +2167,17 @@ function renderTable() {
                         const width = spanCells * CELL_WIDTH - 2; // минус отступы
                         const checkedOutClass = guest.isCheckedOut ? ' checked-out' : '';
 
+                        const debtClass = guest.hasDebt ? ' has-debt' : '';
+                        const debtDot = guest.hasDebt ? `<span class="debt-dot" title="${t('timeline_has_debt')}"></span>` : '';
                         if (guest.isBooking) {
                             // Бронирование — штриховка
                             const bgColor = guest.color || '#3b82f6';
-                            html += `<div class="guest-bar booking${checkedOutClass}" style="width: ${width}px; --bar-color: ${bgColor}; border-color: ${bgColor};" data-action="open-resident-from-map" data-id="${guest.id}">${guest.name}</div>`;
+                            html += `<div class="guest-bar booking${checkedOutClass}${debtClass}" style="width: ${width}px; --bar-color: ${bgColor}; border-color: ${bgColor};" data-action="open-resident-from-map" data-id="${guest.id}">${debtDot}${guest.name}</div>`;
                         } else {
                             // Обычное заселение
                             const bgColor = guest.color || '#3b82f6';
                             const borderColor = guest.border || '#facc15';
-                            html += `<div class="guest-bar${checkedOutClass}" style="width: ${width}px; background: ${bgColor}; border-color: ${borderColor};" data-action="open-resident-from-map" data-id="${guest.id}">${guest.name}</div>`;
+                            html += `<div class="guest-bar${checkedOutClass}${debtClass}" style="width: ${width}px; background: ${bgColor}; border-color: ${borderColor};" data-action="open-resident-from-map" data-id="${guest.id}">${debtDot}${guest.name}</div>`;
                         }
                     }
 
