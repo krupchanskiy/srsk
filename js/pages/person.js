@@ -2544,7 +2544,9 @@ function renderFamily() {
 function openAddFamilyModal() {
     document.getElementById('familySearch').value = '';
     document.getElementById('familyRelativeId').value = '';
-    document.getElementById('familySearchResults').classList.add('hidden');
+    const box = document.getElementById('familySearchResults');
+    box.innerHTML = '';   // не оставляем прошлые результаты в скрытом боксе
+    box.classList.add('hidden');
     document.getElementById('addFamilyModal').showModal();
 }
 
