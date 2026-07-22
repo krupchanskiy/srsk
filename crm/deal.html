@@ -2277,11 +2277,10 @@ async function saveNameEdit() {
 
 // ==================== HELPERS ====================
 async function refreshDeal() {
-    const { data } = await Layout.db.from('crm_deals').select('total_charged, total_paid, deposit_balance').eq('id', dealId).single();
+    const { data } = await Layout.db.from('crm_deals').select('total_charged, total_paid').eq('id', dealId).single();
     if (data) {
         deal.total_charged = data.total_charged;
         deal.total_paid = data.total_paid;
-        deal.deposit_balance = data.deposit_balance;
         renderSidebar();
     }
 }
