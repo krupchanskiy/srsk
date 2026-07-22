@@ -212,8 +212,10 @@ function renderTable() {
                 <td>
                     ${c.is_default
                         ? `<span class="badge badge-ghost badge-sm">${t('crm_base_currency')}</span>`
-                        : `<button class="btn btn-ghost btn-xs" onclick="editCurrency('${c.code}')"
-                                data-permission="edit_crm_settings" title="${t('crm_change_rate')}">${CrmUtils.UI_ICONS.edit}</button>`}
+                        : (window.hasPermission?.('fin_admin')
+                            ? `<button class="btn btn-ghost btn-xs" onclick="editCurrency('${c.code}')"
+                                title="${t('crm_change_rate')}">${CrmUtils.UI_ICONS.edit}</button>`
+                            : '')}
                 </td>
             </tr>
         `;
@@ -248,6 +250,25 @@ function updateRateExample() {
 }
 
 // ==================== SAVE ====================
+// Источник курса — финмодуль (fin_exchange_rates). Запись идёт туда,
+// rate_to_inr здесь обновится сам через триггер trg_fin_sync_crm_currency_cache.
+async function saveRateToFin(code, rate) {
+    const { data, error } = await Layout.db.rpc('fin_save_exchange_rate', {
+        payload: {
+            object_id: null,
+            effective_date: DateUtils.toISO(new Date()),
+            from_currency: code,
+            rate: rate
+        }
+    });
+    if (error) { Layout.handleError(error, 'Сохранение курса'); return false; }
+    if (!data?.ok) {
+        Layout.showNotification(data?.error?.message || t('crm_invalid_rate'), 'error');
+        return false;
+    }
+    return true;
+}
+
 async function saveCurrency(event) {
     event.preventDefault();
 
@@ -259,18 +280,7 @@ async function saveCurrency(event) {
         return;
     }
 
-    const { error } = await Layout.db
-        .from('crm_currencies')
-        .update({
-            rate_to_inr: rate,
-            updated_at: new Date().toISOString()
-        })
-        .eq('code', code);
-
-    if (error) {
-        Layout.handleError(error, 'Сохранение курса');
-        return;
-    }
+    if (!await saveRateToFin(code, rate)) return;
 
     Layout.showNotification(t('saved'), 'success');
     closeModal();
@@ -301,10 +311,7 @@ async function fetchAutoRates() {
                 // Нам нужно наоборот: сколько INR за 1 единицу = 1 / rates[code]
                 const newRate = Math.round((1 / rates[code]) * 100) / 100;
                 if (Math.abs(newRate - (c.rate_to_inr || 0)) > 0.01) {
-                    await Layout.db.from('crm_currencies')
-                        .update({ rate_to_inr: newRate, updated_at: new Date().toISOString() })
-                        .eq('code', c.code);
-                    updated++;
+                    if (await saveRateToFin(c.code, newRate)) updated++;
                 }
             }
         }
@@ -330,6 +337,12 @@ async function init() {
 
     // Обновление примера при вводе
     document.getElementById('currencyRate').addEventListener('input', updateRateExample);
+
+    // Курсы правит только администратор финансов — запись идёт в справочник
+    // финмодуля (fin_save_exchange_rate), здесь лишь производный кэш
+    if (!window.hasPermission?.('fin_admin')) {
+        document.getElementById('autoRateBtn').style.display = 'none';
+    }
 
     await loadCurrencies();
 }
