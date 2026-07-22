@@ -545,10 +545,14 @@ async function toggleStatus(id) {
     const p = findPayment(id);
     if (!p) return;
     const confirming = !p.is_confirmed;
-    // Автопроводка в финмодуль идёт от имени подтверждающего и требует fin_admin.
-    // Без него платёж останется подтверждённым в CRM, но не разнесённым — предупреждаем заранее.
-    if (confirming && !window.hasPermission?.('fin_admin')
-        && !confirm(t('crm_confirm_without_fin_rights'))) return;
+    // Решение ВГ (вопрос 2, 23.07.2026): подтверждать платежи может ТОЛЬКО
+    // администратор финансов — автопроводка идёт от имени подтверждающего,
+    // без fin_admin платёж не попадёт в учёт. Жёсткий запрет, не предупреждение;
+    // дублируется триггером в БД (миграция 224).
+    if (confirming && !window.hasPermission?.('fin_admin')) {
+        Layout.showNotification(t('crm_confirm_requires_fin_admin'), 'error');
+        return;
+    }
     const patch = {
         is_confirmed: confirming,
         confirmed_at: confirming ? new Date().toISOString() : null,
