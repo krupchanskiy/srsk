@@ -2532,7 +2532,7 @@ function renderFamily() {
     list.innerHTML = familyLinks.map(l => `
         <div class="flex items-center justify-between border border-base-300 rounded-lg px-3 py-2">
             <div>
-                <a href="person.html?id=${l.other?.id}" class="link link-primary font-medium">${escapeHtml(familyName(l.other))}</a>
+                <a href="person.html?id=${l.other?.id}" class="link link-primary font-medium">${e(familyName(l.other))}</a>
                 <span class="text-sm opacity-60 ml-2">${t('family_rel_' + l.relation)}</span>
             </div>
             ${canEdit ? `<button class="btn btn-ghost btn-xs text-error" data-action="remove-family-link" data-link-id="${l.id}" title="${t('delete')}">
@@ -2562,7 +2562,7 @@ async function familySearchInput() {
     const linked = new Set(familyLinks.map(l => l.other?.id));
     const rows = (data || []).filter(v => !linked.has(v.id));
     box.innerHTML = rows.map(v =>
-        `<div class="px-3 py-2 cursor-pointer hover:bg-base-200" data-action="pick-family-person" data-person-id="${v.id}" data-person-name="${escapeHtml(familyName(v))}">${escapeHtml(familyName(v))}</div>`
+        `<div class="px-3 py-2 cursor-pointer hover:bg-base-200" data-action="pick-family-person" data-person-id="${v.id}" data-person-name="${e(familyName(v))}">${e(familyName(v))}</div>`
     ).join('') || `<div class="px-3 py-2 opacity-60">—</div>`;
     box.classList.remove('hidden');
 }
