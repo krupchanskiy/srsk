@@ -550,6 +550,43 @@
     <form method="dialog" class="modal-backdrop"><button>close</button></form>
 </dialog>
 
+<!-- Модалка: член группы (вариант В — выбор из справочника для «Объединить в семью») -->
+<dialog id="addMemberModal" class="modal">
+    <div class="modal-box max-w-md">
+        <button type="button" class="btn btn-sm btn-circle btn-ghost absolute right-2 top-2" onclick="addMemberModal.close()">✕</button>
+        <h3 class="font-bold text-lg mb-1" data-i18n="crm_group_members">Состав группы</h3>
+        <p class="text-xs opacity-60 mb-3" data-i18n="crm_member_pick_person">Выбрать из базы (для семьи) или вписать имя</p>
+        <div class="form-control mb-3 relative">
+            <input type="text" id="memberName" class="input input-bordered" autocomplete="off"
+                   data-i18n-placeholder="crm_member_name" placeholder="Имя">
+            <input type="hidden" id="memberVaishnavaId">
+            <div id="memberSearchResults" class="absolute top-full left-0 right-0 z-20 bg-base-100 border border-base-300 rounded-lg shadow-lg max-h-56 overflow-y-auto hidden"></div>
+        </div>
+        <div class="grid grid-cols-2 gap-3 mb-4">
+            <div class="form-control">
+                <label class="label py-1"><span class="label-text text-xs" data-i18n="crm_member_relation">Связь</span></label>
+                <select id="memberRelation" class="select select-bordered select-sm">
+                    <option value="wife" data-i18n="crm_rel_wife">Жена</option>
+                    <option value="husband" data-i18n="crm_rel_husband">Муж</option>
+                    <option value="child" data-i18n="crm_rel_child">Ребёнок</option>
+                    <option value="parent" data-i18n="crm_rel_parent">Родитель</option>
+                    <option value="sibling" data-i18n="crm_rel_sibling">Брат/сестра</option>
+                    <option value="friend" data-i18n="crm_rel_friend">Друг</option>
+                    <option value="colleague" data-i18n="crm_rel_colleague">Коллега</option>
+                </select>
+            </div>
+            <div class="form-control">
+                <label class="label py-1"><span class="label-text text-xs" data-i18n="crm_member_age">Возраст</span></label>
+                <input type="number" id="memberAge" class="input input-bordered input-sm" min="0" max="120">
+            </div>
+        </div>
+        <div class="modal-action">
+            <button type="button" class="btn btn-ghost" onclick="addMemberModal.close()" data-i18n="cancel">Отмена</button>
+            <button type="button" class="btn btn-primary" onclick="saveMember()" data-i18n="add">Добавить</button>
+        </div>
+    </div>
+    <form method="dialog" class="modal-backdrop"><button>close</button></form>
+</dialog>
 
 <script src="../js/config.js?v=4"></script>
 <script src="../js/auth-check.js?v=7"></script>
@@ -1064,7 +1101,10 @@ function renderInfoTab() {
                     <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-5 h-5 text-primary"><path stroke-linecap="round" stroke-linejoin="round" d="M18 18.72a9.094 9.094 0 0 0 3.741-.479 3 3 0 0 0-4.682-2.72m.94 3.198.001.031c0 .225-.012.447-.037.666A11.944 11.944 0 0 1 12 21c-2.17 0-4.207-.576-5.963-1.584A6.062 6.062 0 0 1 6 18.719m12 0a5.971 5.971 0 0 0-.941-3.197m0 0A5.995 5.995 0 0 0 12 12.75a5.995 5.995 0 0 0-5.058 2.772m0 0a3 3 0 0 0-4.681 2.72 8.986 8.986 0 0 0 3.74.477m.94-3.197a5.971 5.971 0 0 0-.94 3.197M15 6.75a3 3 0 1 1-6 0 3 3 0 0 1 6 0Zm6 3a2.25 2.25 0 1 1-4.5 0 2.25 2.25 0 0 1 4.5 0Zm-13.5 0a2.25 2.25 0 1 1-4.5 0 2.25 2.25 0 0 1 4.5 0Z" /></svg>
                     ${t('crm_group_members')}
                 </h3>
-                <button type="button" class="btn btn-xs btn-outline btn-primary gap-1" onclick="addMember()">+ ${t('add')}</button>
+                <div class="flex gap-2">
+                    <button type="button" class="btn btn-xs btn-outline gap-1" onclick="makeFamilyFromMembers()" title="${t('crm_make_family')}">${t('crm_make_family')}</button>
+                    <button type="button" class="btn btn-xs btn-outline btn-primary gap-1" onclick="openAddMemberModal()">+ ${t('add')}</button>
+                </div>
             </div>
             <div id="dealMembersList"></div>
         </div>
@@ -2306,13 +2346,16 @@ function renderDealMembers() {
         return;
     }
 
-    const relationLabels = { wife: t('crm_rel_wife'), husband: t('crm_rel_husband'), child: t('crm_rel_child'), friend: t('crm_rel_friend'), colleague: t('crm_rel_colleague'), other: t('crm_cat_other') };
+    const relationLabels = { wife: t('crm_rel_wife'), husband: t('crm_rel_husband'), child: t('crm_rel_child'), parent: t('crm_rel_parent'), sibling: t('crm_rel_sibling'), friend: t('crm_rel_friend'), colleague: t('crm_rel_colleague'), other: t('crm_cat_other') };
 
     container.innerHTML = dealMembers.map(m => `
         <div class="flex items-center justify-between py-2 border-b border-base-200 last:border-0">
             <div>
-                <span class="font-medium">${e(m.name)}</span>
-                ${m.relation ? `<span class="badge badge-sm badge-ghost ml-2">${relationLabels[m.relation] || m.relation}</span>` : ''}
+                ${m.vaishnava_id
+                    ? `<a href="../vaishnavas/person.html?id=${m.vaishnava_id}" class="link link-primary font-medium">${e(m.name)}</a>
+                       <span class="badge badge-xs badge-success badge-outline ml-1">${t('crm_in_database')}</span>`
+                    : `<span class="font-medium">${e(m.name)}</span>`}
+                ${m.relation ? `<span class="badge badge-sm badge-ghost ml-2">${relationLabels[m.relation] || e(m.relation)}</span>` : ''}
                 ${m.age ? `<span class="text-xs opacity-50 ml-1">${m.age} ${t('crm_years_old')}</span>` : ''}
                 ${m.notes ? `<span class="text-xs opacity-50 ml-2">${e(m.notes)}</span>` : ''}
             </div>
@@ -2373,17 +2416,88 @@ async function addNote() {
     await loadManagerNotes();
 }
 
-async function addMember() {
-    const name = prompt(t('crm_member_name') + ':');
-    if (!name) return;
-    const relation = prompt(t('crm_member_relation') + ' (wife/husband/child/friend/colleague):') || null;
-    const age = relation === 'child' ? parseInt(prompt(t('crm_member_age') + ':') || '0') || null : null;
+// ==================== ЧЛЕН ГРУППЫ: модалка с выбором из справочника ====================
+// Вариант В семейной интеграции: человек из базы (vaishnava_id) сможет попасть
+// в «Объединить в семью»; вписанный текстом — останется просто строкой состава.
 
-    await Layout.db.from('crm_deal_members').insert({
-        deal_id: dealId, name, relation, age
+function openAddMemberModal() {
+    document.getElementById('memberName').value = '';
+    document.getElementById('memberVaishnavaId').value = '';
+    document.getElementById('memberAge').value = '';
+    const box = document.getElementById('memberSearchResults');
+    box.innerHTML = '';
+    box.classList.add('hidden');
+    document.getElementById('addMemberModal').showModal();
+}
+
+async function memberSearchInput() {
+    const q = document.getElementById('memberName').value.trim();
+    const box = document.getElementById('memberSearchResults');
+    document.getElementById('memberVaishnavaId').value = '';
+    if (q.length < 2) { box.classList.add('hidden'); return; }
+    const { data } = await Layout.db.from('vaishnavas')
+        .select('id, spiritual_name, first_name, last_name')
+        .or(`spiritual_name.ilike.%${q}%,first_name.ilike.%${q}%,last_name.ilike.%${q}%`)
+        .eq('is_deleted', false)
+        .neq('id', deal?.vaishnava_id || '00000000-0000-0000-0000-000000000000')
+        .limit(8);
+    const pName = v => v.spiritual_name || `${v.first_name || ''} ${v.last_name || ''}`.trim();
+    box.innerHTML = (data || []).map(v =>
+        `<div class="px-3 py-2 cursor-pointer hover:bg-base-200" onclick="pickMemberPerson('${v.id}', this.textContent)">${e(pName(v))}</div>`
+    ).join('') || `<div class="px-3 py-2 opacity-60">—</div>`;
+    box.classList.remove('hidden');
+}
+
+function pickMemberPerson(id, name) {
+    document.getElementById('memberName').value = name.trim();
+    document.getElementById('memberVaishnavaId').value = id;
+    document.getElementById('memberSearchResults').classList.add('hidden');
+}
+
+async function saveMember() {
+    const name = document.getElementById('memberName').value.trim();
+    if (!name) return;
+    const { error } = await Layout.db.from('crm_deal_members').insert({
+        deal_id: dealId,
+        name,
+        vaishnava_id: document.getElementById('memberVaishnavaId').value || null,
+        relation: document.getElementById('memberRelation').value || null,
+        age: parseInt(document.getElementById('memberAge').value) || null
     });
+    if (error) { Layout.handleError(error, 'Состав группы'); return; }
+    document.getElementById('addMemberModal').close();
     loadDealMembers();
 }
+
+// «Объединить в семью»: гость сделки ↔ каждый член из базы с семейной связью.
+// wife/husband → spouse; связи между самими членами не создаются (их вид
+// неизвестен) — при необходимости добиваются вручную в карточке человека.
+async function makeFamilyFromMembers() {
+    const FAMILY_MAP = { wife: 'spouse', husband: 'spouse', child: 'child', parent: 'parent', sibling: 'sibling' };
+    const candidates = dealMembers.filter(m => m.vaishnava_id && FAMILY_MAP[m.relation]);
+    if (!deal?.vaishnava_id || candidates.length === 0) {
+        Layout.showNotification(t('crm_family_nobody'), 'warning');
+        return;
+    }
+    let created = 0, skipped = 0;
+    for (const m of candidates) {
+        const { error } = await Layout.db.from('family_links').insert({
+            vaishnava_id: deal.vaishnava_id,
+            relative_id: m.vaishnava_id,
+            relation: FAMILY_MAP[m.relation],
+            created_by: window.currentUser?.vaishnava_id || null
+        });
+        if (!error) created++;
+        else if (error.code === '23505') skipped++;   // связь уже существует
+        else { Layout.handleError(error, 'Семья'); return; }
+    }
+    Layout.showNotification(
+        `${t('crm_family_links_created')}: ${created}${skipped ? ` (${skipped} ${t('crm_family_links_skipped')})` : ''}`,
+        'success');
+}
+
+document.getElementById('memberName')?.addEventListener('input',
+    Layout.debounce(memberSearchInput, 300));
 
 async function removeMember(id) {
     if (!confirm(t('crm_confirm_remove_member'))) return;
