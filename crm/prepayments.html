@@ -150,6 +150,19 @@
     </div>
 </main>
 
+<!-- Выбор кассы при подтверждении наличного платежа (автопроводка в финмодуль) -->
+<dialog id="cashAccountModal" class="modal">
+    <div class="modal-box max-w-sm">
+        <h3 class="font-bold text-lg mb-4" data-i18n="crm_pick_cash_account">В какую кассу приняты наличные?</h3>
+        <select id="cashAccountSelect" class="select select-bordered w-full mb-4"></select>
+        <div class="modal-action">
+            <form method="dialog"><button class="btn" data-i18n="cancel">Отмена</button></form>
+            <button type="button" id="cashAccountOk" class="btn btn-primary" data-i18n="crm_confirm">Подтвердить</button>
+        </div>
+    </div>
+    <form method="dialog" class="modal-backdrop"><button>close</button></form>
+</dialog>
+
 <div id="footer-placeholder"></div>
 
 <script src="../js/config.js?v=4"></script>
@@ -531,14 +544,62 @@ async function toggleStatus(id) {
     if (!canConfirm()) return;
     const p = findPayment(id);
     if (!p) return;
+    const confirming = !p.is_confirmed;
     const patch = {
-        is_confirmed: !p.is_confirmed,
-        confirmed_at: !p.is_confirmed ? new Date().toISOString() : null,
-        confirmed_by: !p.is_confirmed ? (window.currentUser?.vaishnava_id || null) : null
+        is_confirmed: confirming,
+        confirmed_at: confirming ? new Date().toISOString() : null,
+        confirmed_by: confirming ? (window.currentUser?.vaishnava_id || null) : null
     };
+    // Наличные проводятся в финмодуль на конкретную кассу — счёт выбирается
+    // при подтверждении (безналичные определяются маппингом автоматически)
+    if (confirming && p.payment_method === 'cash' && !p.fin_account_id) {
+        const accId = await pickCashAccount(p.currency);
+        if (!accId) return;
+        patch.fin_account_id = accId;
+    }
     await savePatch(id, patch);
     applyFilters();
     Layout.refreshPrepaymentsBadge?.();
+    if (confirming) reportAutopost(id);
+}
+
+// Модалка выбора кассы: только активные кассы в валюте платежа
+async function pickCashAccount(currency) {
+    const { data, error } = await Layout.db.from('fin_v_account_balances')
+        .select('account_id, name')
+        .eq('is_active', true)
+        .eq('reconciliation_mode', 'cash_count')
+        .eq('currency_code', currency)
+        .order('name');
+    if (error || !data?.length) {
+        Layout.showNotification(`${t('crm_cash_no_accounts')} (${currency})`, 'error');
+        return null;
+    }
+    return new Promise(resolve => {
+        const dlg = document.getElementById('cashAccountModal');
+        const sel = document.getElementById('cashAccountSelect');
+        sel.innerHTML = data.map(a => `<option value="${a.account_id}">${e(a.name)}</option>`).join('');
+        const done = value => { dlg.close(); dlg.onclose = null; resolve(value); };
+        document.getElementById('cashAccountOk').onclick = () => done(sel.value);
+        dlg.onclose = () => resolve(null);
+        dlg.showModal();
+    });
+}
+
+// Итог автопроводки: подтверждающий сразу видит, разнёсся ли платёж в финмодуль
+async function reportAutopost(paymentId) {
+    const { data } = await Layout.db.from('fin_crm_autopost_log')
+        .select('status, message')
+        .eq('payment_id', paymentId)
+        .order('created_at', { ascending: false })
+        .limit(1);
+    const log = data?.[0];
+    if (!log) return; // нет записи или нет fin-прав на чтение лога — молчим
+    if (log.status === 'ok') {
+        Layout.showNotification(t('crm_autopost_ok'), 'success');
+    } else {
+        Layout.showNotification(`${t('crm_autopost_error')}: ${log.message || ''}`, 'error');
+    }
 }
 
 function editSystem(id, cellEl) {
