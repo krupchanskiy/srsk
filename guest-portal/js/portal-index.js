@@ -1186,22 +1186,26 @@ function finStatusHtml(net) {
     return `<span class="text-srsk-green">${t('portal_fin_paid_up')}</span>`;
 }
 
+function finBlocksHtml(balance) {
+    const t = k => PortalLayout.t(k);
+    return ['org_fee', 'accommodation', 'meals', 'extra']
+        .map(k => ({ k, ...(balance?.blocks?.[k] || {}) }))
+        .filter(x => Number(x.charged) > 0 || Number(x.paid) > 0)
+        .map(x => {
+            const bal = Number(x.balance) || 0;
+            return `<div class="flex justify-between text-sm">
+                <span class="text-gray-600">${t('fin_block_' + x.k)}</span>
+                <span class="${bal > 0 ? 'text-red-600 font-medium' : 'text-gray-700'}">
+                    ${finMoney(x.paid)} / ${finMoney(x.charged)}${bal > 0 ? ` · ${t('fin_debt').toLowerCase()} ${finMoney(bal)}` : ''}
+                </span>
+            </div>`;
+        }).join('');
+}
+
 function renderFinanceRetreat(item) {
     const t = k => PortalLayout.t(k);
     const b = item.balance || {};
-    const blocks = ['org_fee', 'accommodation', 'meals', 'extra']
-        .map(k => ({ k, ...(b.blocks?.[k] || {}) }))
-        .filter(x => Number(x.charged) > 0 || Number(x.paid) > 0);
-
-    const blocksHtml = blocks.map(x => {
-        const bal = Number(x.balance) || 0;
-        return `<div class="flex justify-between text-sm">
-            <span class="text-gray-600">${t('fin_block_' + x.k)}</span>
-            <span class="${bal > 0 ? 'text-red-600 font-medium' : 'text-gray-700'}">
-                ${finMoney(x.paid)} / ${finMoney(x.charged)}${bal > 0 ? ` · ${t('fin_debt').toLowerCase()} ${finMoney(bal)}` : ''}
-            </span>
-        </div>`;
-    }).join('');
+    const blocksHtml = finBlocksHtml(b);
 
     const charges = (item.charges || []).map(c => `
         <div class="flex justify-between text-sm ${c.is_cancelled ? 'line-through text-gray-400' : 'text-gray-700'}">
@@ -1220,6 +1224,29 @@ function renderFinanceRetreat(item) {
         </div>`;
     }).join('');
 
+    // Семья: только итоги и блоки родственников, без их операций
+    // (детализация чужих платежей в портал не отдаётся сервером)
+    const family = (item.family || []).map(f => `
+        <div class="pt-2 mt-2 border-t border-gray-200/70">
+            <div class="flex justify-between text-sm mb-1">
+                <span class="font-medium text-gray-800">${escapeHtml(f.name || '')}
+                    <span class="text-gray-400 font-normal">· ${t('family_rel_' + f.relation)}</span>
+                </span>
+                <span class="font-semibold">${finStatusHtml(f.balance?.net)}</span>
+            </div>
+            ${finBlocksHtml(f.balance)}
+        </div>`).join('');
+
+    const familySection = family ? `
+        <div class="mt-3">
+            <div class="text-xs text-gray-400 uppercase tracking-wide mb-1">${t('portal_family_title')}</div>
+            ${family}
+            <div class="flex justify-between text-sm font-semibold mt-2 pt-2 border-t border-gray-300">
+                <span class="text-gray-800">${t('portal_family_total')}</span>
+                <span>${finStatusHtml(item.family_net)}</span>
+            </div>
+        </div>` : '';
+
     return `
     <div class="p-4 bg-white/70 rounded-xl">
         <div class="flex flex-wrap items-center justify-between gap-2 mb-2">
@@ -1229,6 +1256,7 @@ function renderFinanceRetreat(item) {
         ${blocksHtml ? `<div class="space-y-1 mb-3">${blocksHtml}</div>` : ''}
         ${charges ? `<div class="text-xs text-gray-400 uppercase tracking-wide mb-1">${t('fin_charges')}</div><div class="space-y-1 mb-3">${charges}</div>` : ''}
         ${payments ? `<div class="text-xs text-gray-400 uppercase tracking-wide mb-1">${t('fin_payments')}</div><div class="space-y-1">${payments}</div>` : ''}
+        ${familySection}
     </div>`;
 }
 

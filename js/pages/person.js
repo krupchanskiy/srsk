@@ -57,7 +57,8 @@ async function init() {
         loadStays(personId),
         loadRegistrations(personId),
         loadPermanentResident(personId),
-        loadChildren(personId)
+        loadChildren(personId),
+        loadFamily(personId)
     ]);
     Layout.hideLoader();
 }
@@ -2490,14 +2491,132 @@ window.onLanguageChange = function(lang) {
     Layout.updateAllTranslations();
 };
 
-// Делегирование кликов для секций детей и родителя
+// ==================== СЕМЬЯ (этап 7 интеграции финмодуля) ====================
+// Постоянные связи для общего доступа к финансовым итогам в Guest Portal.
+// Одна строка на пару; relation = «кем relative приходится vaishnava»,
+// при показе с другой стороны child/parent инвертируются.
+let familyLinks = [];
+
+function familyName(p) {
+    return p?.spiritual_name || `${p?.first_name || ''} ${p?.last_name || ''}`.trim() || '—';
+}
+
+function invertRelation(rel) {
+    return rel === 'child' ? 'parent' : rel === 'parent' ? 'child' : rel;
+}
+
+async function loadFamily(personId) {
+    const { data, error } = await Layout.db
+        .from('family_links')
+        .select(`id, vaishnava_id, relative_id, relation,
+            va:vaishnavas!family_links_vaishnava_id_fkey(id, spiritual_name, first_name, last_name),
+            rel:vaishnavas!family_links_relative_id_fkey(id, spiritual_name, first_name, last_name)`)
+        .or(`vaishnava_id.eq.${personId},relative_id.eq.${personId}`);
+    if (error) { console.error('Семья:', error); return; }
+    familyLinks = (data || []).map(l => {
+        const outgoing = l.vaishnava_id === personId;
+        return {
+            id: l.id,
+            other: outgoing ? l.rel : l.va,
+            relation: outgoing ? l.relation : invertRelation(l.relation)
+        };
+    });
+    renderFamily();
+}
+
+function renderFamily() {
+    const list = document.getElementById('familyList');
+    const empty = document.getElementById('emptyFamily');
+    const canEdit = window.hasPermission && window.hasPermission('edit_vaishnava');
+    empty.classList.toggle('hidden', familyLinks.length > 0);
+    list.innerHTML = familyLinks.map(l => `
+        <div class="flex items-center justify-between border border-base-300 rounded-lg px-3 py-2">
+            <div>
+                <a href="person.html?id=${l.other?.id}" class="link link-primary font-medium">${escapeHtml(familyName(l.other))}</a>
+                <span class="text-sm opacity-60 ml-2">${t('family_rel_' + l.relation)}</span>
+            </div>
+            ${canEdit ? `<button class="btn btn-ghost btn-xs text-error" data-action="remove-family-link" data-link-id="${l.id}" title="${t('delete')}">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+            </button>` : ''}
+        </div>`).join('');
+}
+
+function openAddFamilyModal() {
+    document.getElementById('familySearch').value = '';
+    document.getElementById('familyRelativeId').value = '';
+    document.getElementById('familySearchResults').classList.add('hidden');
+    document.getElementById('addFamilyModal').showModal();
+}
+
+async function familySearchInput() {
+    const q = document.getElementById('familySearch').value.trim();
+    const box = document.getElementById('familySearchResults');
+    document.getElementById('familyRelativeId').value = '';
+    if (q.length < 2) { box.classList.add('hidden'); return; }
+    const { data } = await Layout.db.from('vaishnavas')
+        .select('id, spiritual_name, first_name, last_name')
+        .or(`spiritual_name.ilike.%${q}%,first_name.ilike.%${q}%,last_name.ilike.%${q}%`)
+        .eq('is_deleted', false)
+        .neq('id', person.id)
+        .limit(8);
+    const linked = new Set(familyLinks.map(l => l.other?.id));
+    const rows = (data || []).filter(v => !linked.has(v.id));
+    box.innerHTML = rows.map(v =>
+        `<div class="px-3 py-2 cursor-pointer hover:bg-base-200" data-action="pick-family-person" data-person-id="${v.id}" data-person-name="${escapeHtml(familyName(v))}">${escapeHtml(familyName(v))}</div>`
+    ).join('') || `<div class="px-3 py-2 opacity-60">—</div>`;
+    box.classList.remove('hidden');
+}
+
+async function saveFamilyLink() {
+    const relativeId = document.getElementById('familyRelativeId').value;
+    if (!relativeId) {
+        Layout.showNotification(t('family_relation') + ': ' + t('search'), 'warning');
+        return;
+    }
+    const { error } = await Layout.db.from('family_links').insert({
+        vaishnava_id: person.id,
+        relative_id: relativeId,
+        relation: document.getElementById('familyRelation').value,
+        created_by: window.currentUser?.vaishnava_id || null
+    });
+    if (error) { Layout.handleError(error, 'Семья'); return; }
+    document.getElementById('addFamilyModal').close();
+    Layout.showNotification(t('saved'), 'success');
+    await loadFamily(person.id);
+}
+
+async function removeFamilyLink(linkId) {
+    if (!confirm(t('family_remove_confirm'))) return;
+    const { error } = await Layout.db.from('family_links').delete().eq('id', linkId);
+    if (error) { Layout.handleError(error, 'Семья'); return; }
+    await loadFamily(person.id);
+}
+
+// Делегирование кликов для секций детей, родителя и семьи
 document.addEventListener('click', ev => {
     const el = ev.target.closest('[data-action]');
-    if (!el) return;
+    if (!el) {
+        // клик мимо результатов поиска — прячем выпадашку
+        if (!ev.target.closest('#familySearchResults, #familySearch')) {
+            document.getElementById('familySearchResults')?.classList.add('hidden');
+        }
+        return;
+    }
     switch (el.dataset.action) {
         case 'open-add-child-modal': openAddChildModal(); break;
         case 'make-independent': makeIndependent(); break;
+        case 'open-add-family-modal': openAddFamilyModal(); break;
+        case 'save-family-link': saveFamilyLink(); break;
+        case 'remove-family-link': removeFamilyLink(el.dataset.linkId); break;
+        case 'pick-family-person':
+            document.getElementById('familySearch').value = el.dataset.personName;
+            document.getElementById('familyRelativeId').value = el.dataset.personId;
+            document.getElementById('familySearchResults').classList.add('hidden');
+            break;
     }
 });
+
+document.getElementById('familySearch')?.addEventListener('input',
+    Layout.debounce(familySearchInput, 300));
 
 init();
