@@ -1207,13 +1207,13 @@ function renderFinanceRetreat(item) {
     const b = item.balance || {};
     const blocksHtml = finBlocksHtml(b);
 
-    const charges = (item.charges || []).map(c => `
+    const renderChargeLines = list => (list || []).map(c => `
         <div class="flex justify-between text-sm ${c.is_cancelled ? 'line-through text-gray-400' : 'text-gray-700'}">
             <span>${escapeHtml(c.description || t('fin_block_' + c.kind))}</span>
             <span>${finMoney(c.net_amount)}</span>
         </div>`).join('');
 
-    const payments = (item.payments || []).map(p => {
+    const renderPaymentLines = list => (list || []).map(p => {
         const badge = p.status === 'reversed' ? ` <span class="text-xs text-gray-400">(${t('fin_reversed_badge')})</span>`
             : p.status === 'refunded_partially' ? ` <span class="text-xs text-amber-600">(${t('fin_refunded_partially')})</span>`
             : p.status === 'refunded_fully' ? ` <span class="text-xs text-gray-500">(${t('fin_refunded_fully')})</span>`
@@ -1224,9 +1224,17 @@ function renderFinanceRetreat(item) {
         </div>`;
     }).join('');
 
+    const charges = renderChargeLines(item.charges);
+    const payments = renderPaymentLines(item.payments);
+
     // Семья: только итоги и блоки родственников, без их операций
     // (детализация чужих платежей в портал не отдаётся сервером)
-    const family = (item.family || []).map(f => `
+    const family = (item.family || []).map(f => {
+        // Детализация родственника приходит только при включённом full_details
+        // на связи — иначе сервер эти ключи не отдаёт вовсе
+        const fCharges = f.charges ? renderChargeLines(f.charges) : '';
+        const fPayments = f.payments ? renderPaymentLines(f.payments) : '';
+        return `
         <div class="pt-2 mt-2 border-t border-gray-200/70">
             <div class="flex justify-between text-sm mb-1">
                 <span class="font-medium text-gray-800">${escapeHtml(f.name || '')}
@@ -1235,7 +1243,10 @@ function renderFinanceRetreat(item) {
                 <span class="font-semibold">${finStatusHtml(f.balance?.net)}</span>
             </div>
             ${finBlocksHtml(f.balance)}
-        </div>`).join('');
+            ${fCharges ? `<div class="text-xs text-gray-400 uppercase tracking-wide mt-2 mb-1">${t('fin_charges')}</div><div class="space-y-1">${fCharges}</div>` : ''}
+            ${fPayments ? `<div class="text-xs text-gray-400 uppercase tracking-wide mt-2 mb-1">${t('fin_payments')}</div><div class="space-y-1">${fPayments}</div>` : ''}
+        </div>`;
+    }).join('');
 
     const familySection = family ? `
         <div class="mt-3">

@@ -2508,7 +2508,7 @@ function invertRelation(rel) {
 async function loadFamily(personId) {
     const { data, error } = await Layout.db
         .from('family_links')
-        .select(`id, vaishnava_id, relative_id, relation,
+        .select(`id, vaishnava_id, relative_id, relation, full_details,
             va:vaishnavas!family_links_vaishnava_id_fkey(id, spiritual_name, first_name, last_name),
             rel:vaishnavas!family_links_relative_id_fkey(id, spiritual_name, first_name, last_name)`)
         .or(`vaishnava_id.eq.${personId},relative_id.eq.${personId}`);
@@ -2518,7 +2518,8 @@ async function loadFamily(personId) {
         return {
             id: l.id,
             other: outgoing ? l.rel : l.va,
-            relation: outgoing ? l.relation : invertRelation(l.relation)
+            relation: outgoing ? l.relation : invertRelation(l.relation),
+            fullDetails: l.full_details
         };
     });
     renderFamily();
@@ -2535,9 +2536,15 @@ function renderFamily() {
                 <a href="person.html?id=${l.other?.id}" class="link link-primary font-medium">${e(familyName(l.other))}</a>
                 <span class="text-sm opacity-60 ml-2">${t('family_rel_' + l.relation)}</span>
             </div>
-            ${canEdit ? `<button class="btn btn-ghost btn-xs text-error" data-action="remove-family-link" data-link-id="${l.id}" title="${t('delete')}">
-                <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
-            </button>` : ''}
+            <div class="flex items-center gap-3">
+                ${canEdit ? `<label class="label cursor-pointer gap-2 py-0" title="${t('family_full_details_hint')}">
+                    <span class="label-text text-xs opacity-70">${t('family_full_details')}</span>
+                    <input type="checkbox" class="toggle toggle-xs toggle-primary" data-action="toggle-family-details" data-link-id="${l.id}" ${l.fullDetails ? 'checked' : ''}>
+                </label>
+                <button class="btn btn-ghost btn-xs text-error" data-action="remove-family-link" data-link-id="${l.id}" title="${t('delete')}">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+                </button>` : ''}
+            </div>
         </div>`).join('');
 }
 
@@ -2594,6 +2601,16 @@ async function removeFamilyLink(linkId) {
     await loadFamily(person.id);
 }
 
+// Полная детализация: обе стороны связи видят строки друг друга в портале
+async function toggleFamilyDetails(linkId, on) {
+    const { error } = await Layout.db.from('family_links')
+        .update({ full_details: on }).eq('id', linkId);
+    if (error) { Layout.handleError(error, 'Семья'); await loadFamily(person.id); return; }
+    const link = familyLinks.find(l => l.id === linkId);
+    if (link) link.fullDetails = on;
+    Layout.showNotification(t('saved'), 'success');
+}
+
 // Делегирование кликов для секций детей, родителя и семьи
 document.addEventListener('click', ev => {
     const el = ev.target.closest('[data-action]');
@@ -2610,6 +2627,7 @@ document.addEventListener('click', ev => {
         case 'open-add-family-modal': openAddFamilyModal(); break;
         case 'save-family-link': saveFamilyLink(); break;
         case 'remove-family-link': removeFamilyLink(el.dataset.linkId); break;
+        case 'toggle-family-details': toggleFamilyDetails(el.dataset.linkId, el.checked); break;
         case 'pick-family-person':
             document.getElementById('familySearch').value = el.dataset.personName;
             document.getElementById('familyRelativeId').value = el.dataset.personId;
