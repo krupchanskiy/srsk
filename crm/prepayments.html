@@ -545,6 +545,10 @@ async function toggleStatus(id) {
     const p = findPayment(id);
     if (!p) return;
     const confirming = !p.is_confirmed;
+    // Автопроводка в финмодуль идёт от имени подтверждающего и требует fin_admin.
+    // Без него платёж останется подтверждённым в CRM, но не разнесённым — предупреждаем заранее.
+    if (confirming && !window.hasPermission?.('fin_admin')
+        && !confirm(t('crm_confirm_without_fin_rights'))) return;
     const patch = {
         is_confirmed: confirming,
         confirmed_at: confirming ? new Date().toISOString() : null,
