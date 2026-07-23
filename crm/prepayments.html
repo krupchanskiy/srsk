@@ -153,7 +153,8 @@
 <!-- Выбор кассы при подтверждении наличного платежа (автопроводка в финмодуль) -->
 <dialog id="cashAccountModal" class="modal">
     <div class="modal-box max-w-sm">
-        <h3 class="font-bold text-lg mb-4" data-i18n="crm_pick_cash_account">В какую кассу приняты наличные?</h3>
+        <h3 class="font-bold text-lg mb-1" data-i18n="crm_pick_account">На какой счёт поступили деньги?</h3>
+        <p class="text-sm opacity-70 mb-4" data-i18n="crm_pick_account_hint">Приход отмечается только на том счёте, где деньги фактически лежат.</p>
         <select id="cashAccountSelect" class="select select-bordered w-full mb-4"></select>
         <div class="modal-action">
             <form method="dialog"><button class="btn" data-i18n="cancel">Отмена</button></form>
@@ -169,7 +170,7 @@
 <script src="../js/auth-check.js?v=7"></script>
 <script src="../js/cache.js?v=1"></script>
 <script src="../js/utils.js?v=4"></script>
-<script src="../js/layout.js?v=27"></script>
+<script src="../js/layout.js?v=28"></script>
 <script src="../js/date-utils.js?v=3"></script>
 <script src="../js/crm-utils.js?v=3"></script>
 <script src="../js/prepayment-ops.js?v=2"></script>
@@ -553,15 +554,22 @@ async function toggleStatus(id) {
         Layout.showNotification(t('crm_confirm_requires_fin_admin'), 'error');
         return;
     }
+    // Способ оплаты обязателен при подтверждении (решение ВГ, вопрос 3):
+    // без него непонятно, откуда пришли деньги. Дублируется триггером в БД.
+    if (confirming && !p.payment_system_id) {
+        Layout.showNotification(t('crm_confirm_requires_payment_system'), 'error');
+        return;
+    }
     const patch = {
         is_confirmed: confirming,
         confirmed_at: confirming ? new Date().toISOString() : null,
         confirmed_by: confirming ? (window.currentUser?.vaishnava_id || null) : null
     };
-    // Наличные проводятся в финмодуль на конкретную кассу — счёт выбирается
-    // при подтверждении (безналичные определяются маппингом автоматически)
-    if (confirming && p.payment_method === 'cash' && !p.fin_account_id) {
-        const accId = await pickCashAccount(p.currency);
+    // Решение ВГ (вопрос 4, 23.07.2026): «отмечать приход денег только на тот
+    // счёт, на котором они лежат». Счёт указывает подтверждающий — для любого
+    // платежа, не только наличного. Система по валюте больше не угадывает.
+    if (confirming && !p.fin_account_id) {
+        const accId = await pickAccount(p.currency);
         if (!accId) return;
         patch.fin_account_id = accId;
     }
@@ -571,22 +579,31 @@ async function toggleStatus(id) {
     if (confirming) reportAutopost(id);
 }
 
-// Модалка выбора кассы: только активные кассы в валюте платежа
-async function pickCashAccount(currency) {
-    const { data, error } = await Layout.db.from('fin_v_account_balances')
-        .select('account_id, name')
-        .eq('is_active', true)
-        .eq('reconciliation_mode', 'cash_count')
-        .eq('currency_code', currency)
-        .order('name');
+// Модалка выбора счёта: активные боевые счета в валюте платежа.
+// По умолчанию предлагается счёт из подсказки fin_crm_channel_map, но
+// решение всегда за человеком — он видит, где деньги лежат на самом деле.
+async function pickAccount(currency) {
+    const [accountsRes, hintRes] = await Promise.all([
+        Layout.db.from('fin_v_account_balances')
+            .select('account_id, name')
+            .eq('is_active', true)
+            .eq('kind', 'real')
+            .eq('currency_code', currency)
+            .order('name'),
+        Layout.db.from('fin_crm_channel_map').select('account_id').eq('currency_code', currency).maybeSingle()
+    ]);
+    const { data, error } = accountsRes;
     if (error || !data?.length) {
-        Layout.showNotification(`${t('crm_cash_no_accounts')} (${currency})`, 'error');
+        Layout.showNotification(`${t('crm_no_accounts_for_currency')} (${currency})`, 'error');
         return null;
     }
+    const suggested = hintRes.data?.account_id || '';
     return new Promise(resolve => {
         const dlg = document.getElementById('cashAccountModal');
         const sel = document.getElementById('cashAccountSelect');
-        sel.innerHTML = data.map(a => `<option value="${a.account_id}">${e(a.name)}</option>`).join('');
+        sel.innerHTML = data.map(a =>
+            `<option value="${a.account_id}"${a.account_id === suggested ? ' selected' : ''}>${e(a.name)}</option>`
+        ).join('');
         const done = value => { dlg.close(); dlg.onclose = null; resolve(value); };
         document.getElementById('cashAccountOk').onclick = () => done(sel.value);
         dlg.onclose = () => resolve(null);
@@ -616,9 +633,10 @@ function editSystem(id, cellEl) {
     const current = p?.payment_system_id || '';
     const select = document.createElement('select');
     select.className = 'select select-bordered select-sm w-full';
-    select.innerHTML = paymentSystems.map(s =>
-        `<option value="${s.id}" ${s.id === current ? 'selected' : ''}>${e(Layout.getName(s))}</option>`
-    ).join('');
+    select.innerHTML = `<option value="" disabled ${current ? '' : 'selected'}>${e(t('crm_choose_payment_system'))}</option>` +
+        paymentSystems.map(s =>
+            `<option value="${s.id}" ${s.id === current ? 'selected' : ''}>${e(Layout.getName(s))}</option>`
+        ).join('');
     cellEl.innerHTML = '';
     cellEl.appendChild(select);
     select.focus();
