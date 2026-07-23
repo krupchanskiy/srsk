@@ -10,6 +10,16 @@ const e = str => Layout.escapeHtml(str);
 let currentTab = 'pending';
 let opsById = {};
 
+async function loadUnpostedCount() {
+    // Платежи, подтверждённые в CRM, но не разнесённые в финмодуль
+    const { count } = await Layout.db.from('fin_v_unposted_crm_payments')
+        .select('*', { count: 'exact', head: true });
+    const el = document.getElementById('unpostedTabCount');
+    el.textContent = count || 0;
+    el.classList.toggle('badge-error', (count || 0) > 0);
+    el.classList.toggle('badge-ghost', (count || 0) === 0);
+}
+
 async function loadCounts() {
     const { data } = await Layout.db.from('fin_v_operations')
         .select('operation_id, approval')
@@ -18,6 +28,25 @@ async function loadCounts() {
     const disputed = (data || []).filter(o => o.approval === 'disputed').length;
     document.getElementById('pendingTabCount').textContent = pending;
     document.getElementById('disputedTabCount').textContent = disputed;
+    await loadUnpostedCount();
+}
+
+// Карточка неразнесённого платежа: сумма, дата, причина сбоя, ссылка на сделку.
+// Действия нет — платёж чинится либо в CRM (сменить счёт/валюту), либо
+// перезаходом подтверждения; здесь только видимость проблемы.
+function unpostedCardHtml(p) {
+    return `
+    <div class="card bg-base-100 shadow-sm border-l-4 border-error">
+        <div class="card-body py-4">
+            <div class="flex flex-wrap items-center gap-3">
+                <span class="whitespace-nowrap opacity-70">${DateUtils.formatShort(DateUtils.parseDate((p.received_at || '').slice(0,10)))}</span>
+                <span class="font-mono font-semibold">${FinUtils.fmtMoney(p.amount, p.currency)}</span>
+                <span class="badge badge-ghost badge-sm">${e(p.payment_method || '—')}</span>
+                <span class="text-error truncate max-w-md">${e(p.last_error_message || p.last_error_code || '')}</span>
+                <a href="../crm/deal.html?id=${p.deal_id}" class="btn btn-ghost btn-sm ml-auto">${t('fin_open_deal')}</a>
+            </div>
+        </div>
+    </div>`;
 }
 
 function opCardHtml(op) {
@@ -48,6 +77,25 @@ function opCardHtml(op) {
 async function loadList() {
     const list = document.getElementById('inboxList');
     list.innerHTML = `<div class="text-center py-8"><span class="loading loading-spinner loading-md"></span></div>`;
+
+    if (currentTab === 'unposted') {
+        const { data, error } = await Layout.db.from('fin_v_unposted_crm_payments')
+            .select('*').order('received_at', { ascending: false }).limit(200);
+        if (error) { Layout.handleError(error, 'Входящие'); return; }
+        if (!data?.length) {
+            const icon = '<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-12 h-12 mx-auto"><path stroke-linecap="round" stroke-linejoin="round" d="M9 12.75L11.25 15 15 9.75M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>';
+            list.innerHTML = `<div class="text-center py-14">
+                <div class="fin-icon-chip mx-auto mb-3" style="width:3.5rem;height:3.5rem">${icon}</div>
+                <div class="opacity-70">${t('fin_no_unposted')}</div>
+            </div>`;
+            await loadCounts();
+            return;
+        }
+        list.innerHTML = data.map(unpostedCardHtml).join('');
+        await loadCounts();
+        return;
+    }
+
     const { data, error } = await Layout.db.from('fin_v_operations')
         .select('*')
         .eq('approval', currentTab)

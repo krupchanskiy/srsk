@@ -139,9 +139,39 @@ function renderSyncAge(accounts) {
     card.style.display = '';
 }
 
+// Сигналы наверху дашборда: платежи, не разнесённые в учёт (автопроводка),
+// и нарушения целостности от ночного сторожа. Если чисто — блок скрыт.
+async function loadSignals() {
+    const box = document.getElementById('finSignals');
+    if (!box) return;
+    const [unposted, integrity] = await Promise.all([
+        Layout.db.from('fin_v_unposted_crm_payments').select('*', { count: 'exact', head: true }),
+        Layout.db.from('fin_v_integrity_open').select('check_name, detail, bad_count')
+    ]);
+    const cards = [];
+    const nUnposted = unposted.count || 0;
+    if (nUnposted > 0) {
+        cards.push(`<a href="inbox.html?tab=unposted" class="flex items-center gap-3 p-3 rounded-lg bg-error/10 border border-error/30 hover:bg-error/15">
+            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.8" stroke="currentColor" class="w-5 h-5 text-error shrink-0"><path stroke-linecap="round" stroke-linejoin="round" d="M12 9v3.75m9-.75a9 9 0 11-18 0 9 9 0 0118 0zm-9 3.75h.008v.008H12v-.008z"/></svg>
+            <span class="text-sm"><span class="font-semibold text-error">${nUnposted}</span> ${t('fin_signal_unposted')}</span>
+        </a>`);
+    }
+    // integrity view может отсутствовать, пока миграция сторожа не применена — тихо игнорируем
+    for (const a of (integrity.data || [])) {
+        cards.push(`<div class="flex items-center gap-3 p-3 rounded-lg bg-error/10 border border-error/30">
+            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.8" stroke="currentColor" class="w-5 h-5 text-error shrink-0"><path stroke-linecap="round" stroke-linejoin="round" d="M12 9v3.75m9-.75a9 9 0 11-18 0 9 9 0 0118 0zm-9 3.75h.008v.008H12v-.008z"/></svg>
+            <span class="text-sm"><span class="font-semibold text-error">${t('fin_signal_integrity')}:</span> ${e(a.detail)} (${a.bad_count})</span>
+        </div>`);
+    }
+    if (!cards.length) { box.classList.add('hidden'); return; }
+    box.innerHTML = `<div class="space-y-2">${cards.join('')}</div>`;
+    box.classList.remove('hidden');
+}
+
 async function init() {
     await Layout.init({ module: 'finance', menuId: 'fin_main', itemId: 'fin_main' });
     await loadDashboard();
+    loadSignals();
 }
 
 init();
