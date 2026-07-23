@@ -735,7 +735,13 @@ async function deletePerson() {
 
     if (error) {
         console.error('Error deleting:', error);
-        Layout.showNotification(t('error_deleting'), 'error');
+        // Сторож в БД (миграция 237): человека с непогашенным долгом удалить
+        // нельзя — сначала долг переносят на основную запись или гасят
+        if ((error.message || '').includes('has_unpaid_debt')) {
+            Layout.showNotification(t('person_delete_has_debt'), 'error');
+        } else {
+            Layout.showNotification(t('error_deleting'), 'error');
+        }
         return;
     }
 
