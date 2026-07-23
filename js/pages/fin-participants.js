@@ -221,7 +221,7 @@ async function loadCardPayments() {
             <td class="whitespace-nowrap">${DateUtils.formatShort(DateUtils.parseDate(p.occurred_on))}</td>
             <td>${e(FinUtils.typeLabel(p.type))}</td>
             <td>${e(blockLabel(p.balance_kind))}</td>
-            <td class="text-right font-mono">${FinUtils.fmtMoney(p.amount, p.currency_code)}${p.currency_code !== 'INR' ? ` <span class="opacity-70">₹ ${Number(p.amount_base).toLocaleString('ru-RU')}</span>` : ''}</td>
+            <td class="text-right font-mono">${FinUtils.fmtMoney(p.amount, p.currency_code)}${p.currency_code !== 'INR' ? `<div class="text-xs opacity-70">${t('fin_at_rate')} ${Number(p.rate_used).toLocaleString('ru-RU', { maximumFractionDigits: 4 })} → ₹ ${Number(p.amount_base).toLocaleString('ru-RU')}</div>` : ''}</td>
             <td>${e(FinUtils.channelLabel(p.payment_channel))}</td>
             <td>${statusBadge(p.status)}</td>
             <td class="text-right">${isAdmin && p.type === 'payment' && Number(p.available_to_refund) > 0 ? `<button class="btn btn-ghost btn-xs" data-refund="${p.posting_id}" title="${t('fin_refund')}">

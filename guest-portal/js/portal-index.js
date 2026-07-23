@@ -1218,9 +1218,15 @@ function renderFinanceRetreat(item) {
             : p.status === 'refunded_partially' ? ` <span class="text-xs text-amber-600">(${t('fin_refunded_partially')})</span>`
             : p.status === 'refunded_fully' ? ` <span class="text-xs text-gray-500">(${t('fin_refunded_fully')})</span>`
             : '';
+        // Валютный платёж показывает свой расчёт: курс зафиксирован в момент
+        // операции и не меняется задним числом — вопрос «а почему столько рупий»
+        // должен закрываться самой строкой, без обращения к администратору
+        const conv = p.currency_code && p.currency_code !== 'INR' && Number(p.rate_used)
+            ? `<div class="text-xs text-gray-400">${t('fin_at_rate')} ${Number(p.rate_used).toLocaleString('ru-RU', { maximumFractionDigits: 4 })} → ${finMoney(p.amount_base)}</div>`
+            : '';
         return `<div class="flex justify-between text-sm ${p.status === 'reversed' ? 'text-gray-400' : 'text-gray-700'}">
             <span>${escapeHtml(formatPortalDate(p.occurred_on))} · ${t('fin_type_' + p.type)}${badge}</span>
-            <span>${p.type === 'refund' ? '−' : ''}${finMoney(p.amount, p.currency_code)}</span>
+            <span class="text-right">${p.type === 'refund' ? '−' : ''}${finMoney(p.amount, p.currency_code)}${conv}</span>
         </div>`;
     }).join('');
 
