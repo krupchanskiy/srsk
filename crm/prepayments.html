@@ -563,9 +563,13 @@ async function toggleStatus(id) {
         Layout.showNotification(t('crm_confirm_requires_fin_admin'), 'error');
         return;
     }
+    // Платёж, полученный до даты запуска финмодуля, в учёт не проводится —
+    // деньги уже сидят в начальных остатках. Счёт и фактическую сумму для
+    // него не спрашиваем: подтверждение чисто для истории CRM.
+    const preCutover = confirming && await isPreCutover(p);
     // Способ оплаты обязателен при подтверждении (решение ВГ, вопрос 3):
     // без него непонятно, откуда пришли деньги. Дублируется триггером в БД.
-    if (confirming && !p.payment_system_id) {
+    if (confirming && !preCutover && !p.payment_system_id) {
         Layout.showNotification(t('crm_confirm_requires_payment_system'), 'error');
         return;
     }
@@ -577,7 +581,7 @@ async function toggleStatus(id) {
     // Решение ВГ (вопрос 4, 23.07.2026): «отмечать приход денег только на тот
     // счёт, на котором они лежат». Счёт указывает подтверждающий — для любого
     // платежа, не только наличного. Система по валюте больше не угадывает.
-    if (confirming && !p.fin_account_id) {
+    if (confirming && !preCutover && !p.fin_account_id) {
         const choice = await pickAccount(p.currency, Number(p.amount));
         if (!choice) return;
         patch.fin_account_id = choice.accountId;
@@ -650,6 +654,19 @@ async function pickAccount(currency, amount) {
     });
 }
 
+// Дата запуска финмодуля: платежи, полученные раньше, учтены в начальных
+// остатках и в учёт не проводятся (миграция 241). Кэшируем один раз.
+let _cutoverDate;
+async function isPreCutover(p) {
+    if (_cutoverDate === undefined) {
+        const { data } = await Layout.db.rpc('fin_cutover_date');
+        _cutoverDate = data || null;
+    }
+    if (!_cutoverDate) return false;
+    const received = (p.received_at || '').slice(0, 10);
+    return received && received < _cutoverDate;
+}
+
 // Итог автопроводки: подтверждающий сразу видит, разнёсся ли платёж в финмодуль
 async function reportAutopost(paymentId) {
     const { data } = await Layout.db.from('fin_crm_autopost_log')
@@ -661,6 +678,9 @@ async function reportAutopost(paymentId) {
     if (!log) return; // нет записи или нет fin-прав на чтение лога — молчим
     if (log.status === 'ok') {
         Layout.showNotification(t('crm_autopost_ok'), 'success');
+    } else if (log.status === 'skipped') {
+        // Платёж до запуска: подтверждён для истории, деньги в начальных остатках
+        Layout.showNotification(log.message || t('crm_autopost_ok'), 'success');
     } else {
         Layout.showNotification(`${t('crm_autopost_error')}: ${log.message || ''}`, 'error');
     }
