@@ -11,10 +11,12 @@
 -- СОХРАНЯЮТСЯ ТАКЖЕ (появились после первой версии, 23.07.2026):
 --   fin_settings      — дата запуска (cutover_date);
 --   tg_channels       — chat_id Telegram-каналов;
---   fin_crm_channel_map — подсказки счёта по валюте.
--- ОЧИЩАЮТСЯ ДОПОЛНИТЕЛЬНО (тестовые логи интеграции — иначе в первое
--- утро запуска витрина неразнесённых и сторож дадут ложные сигналы):
---   fin_crm_autopost_log, fin_integrity_alerts, tg_log.
+--   fin_crm_channel_map — подсказки счёта по валюте;
+--   tg_chat_links, tg_user_links — привязки чатов и людей бота-департаментов.
+-- ОЧИЩАЮТСЯ ДОПОЛНИТЕЛЬНО (тестовые логи и заявки интеграции — иначе в
+-- первое утро запуска витрина неразнесённых и сторож дадут ложные сигналы,
+-- а во «Входящих» повиснут тестовые заявки из чатов):
+--   fin_crm_autopost_log, fin_integrity_alerts, tg_log, tg_drafts, tg_incoming.
 --
 -- Это единственное официально допустимое нарушение append-only
 -- (ТЗ раздел 5, инвариант 7) — одноразовое, только для окна cutover.
@@ -51,6 +53,8 @@ DELETE FROM fin_audit_log;
 DELETE FROM fin_crm_autopost_log;
 DELETE FROM fin_integrity_alerts;
 DELETE FROM tg_log;
+DELETE FROM tg_drafts;
+DELETE FROM tg_incoming;
 
 -- 3) боевая последовательность начинается с 1 (ТЗ раздел 11)
 ALTER SEQUENCE fin_ledger_seq RESTART WITH 1;
@@ -88,6 +92,8 @@ BEGIN
        + (SELECT count(*) FROM fin_audit_log)
        + (SELECT count(*) FROM fin_crm_autopost_log)
        + (SELECT count(*) FROM fin_integrity_alerts)
+       + (SELECT count(*) FROM tg_drafts)
+       + (SELECT count(*) FROM tg_incoming)
     INTO v_cleared;
   IF v_cleared <> 0 THEN
     RAISE EXCEPTION 'RESET FAILED: очищаемые таблицы не пусты (%)', v_cleared;
