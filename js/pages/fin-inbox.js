@@ -20,6 +20,16 @@ async function loadUnpostedCount() {
     el.classList.toggle('badge-ghost', (count || 0) === 0);
 }
 
+async function loadChatDraftsCount() {
+    // Заявки из чатов департаментов, ждущие проведения
+    const { count } = await Layout.db.from('fin_v_chat_drafts')
+        .select('*', { count: 'exact', head: true });
+    const el = document.getElementById('chatDraftsTabCount');
+    el.textContent = count || 0;
+    el.classList.toggle('badge-warning', (count || 0) > 0);
+    el.classList.toggle('badge-ghost', (count || 0) === 0);
+}
+
 async function loadCounts() {
     const { data } = await Layout.db.from('fin_v_operations')
         .select('operation_id, approval')
@@ -29,6 +39,31 @@ async function loadCounts() {
     document.getElementById('pendingTabCount').textContent = pending;
     document.getElementById('disputedTabCount').textContent = disputed;
     await loadUnpostedCount();
+    await loadChatDraftsCount();
+}
+
+// Карточка заявки из чата департамента: тип, сумма, автор, исходный текст.
+// «Провести» создаёт настоящий расход/перевод; «Отклонить» закрывает заявку.
+function chatDraftCardHtml(d) {
+    const isTransfer = d.kind === 'transfer';
+    const head = isTransfer
+        ? `${t('fin_chat_transfer')} → ${e(d.target_department || '—')}`
+        : t('fin_chat_expense');
+    return `
+    <div class="card bg-base-100 shadow-sm border-l-4 border-warning" data-draft="${d.id}">
+        <div class="card-body py-4">
+            <div class="flex flex-wrap items-center gap-3">
+                <span class="badge badge-ghost badge-sm">${e(d.department)}</span>
+                <span class="font-medium">${e(head)}</span>
+                <span class="font-mono font-semibold">${FinUtils.fmtMoney(d.amount, d.currency)}</span>
+                <span class="opacity-60 truncate max-w-md">${e([d.author, d.raw_text].filter(Boolean).join(' · '))}</span>
+                <div class="ml-auto flex gap-2">
+                    <button class="btn btn-success btn-sm" data-action="post-draft">${t('fin_post_draft')}</button>
+                    <button class="btn btn-ghost btn-sm" data-action="dismiss-draft">${t('fin_dismiss_draft')}</button>
+                </div>
+            </div>
+        </div>
+    </div>`;
 }
 
 // Карточка неразнесённого платежа: сумма, дата, причина сбоя, ссылка на сделку.
@@ -92,6 +127,24 @@ async function loadList() {
             return;
         }
         list.innerHTML = data.map(unpostedCardHtml).join('');
+        await loadCounts();
+        return;
+    }
+
+    if (currentTab === 'chat_drafts') {
+        const { data, error } = await Layout.db.from('fin_v_chat_drafts')
+            .select('*').order('created_at', { ascending: true }).limit(200);
+        if (error) { Layout.handleError(error, 'Входящие'); return; }
+        if (!data?.length) {
+            const icon = '<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-12 h-12 mx-auto"><path stroke-linecap="round" stroke-linejoin="round" d="M9 12.75L11.25 15 15 9.75M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>';
+            list.innerHTML = `<div class="text-center py-14">
+                <div class="fin-icon-chip mx-auto mb-3" style="width:3.5rem;height:3.5rem">${icon}</div>
+                <div class="opacity-70">${t('fin_no_chat_drafts')}</div>
+            </div>`;
+            await loadCounts();
+            return;
+        }
+        list.innerHTML = data.map(chatDraftCardHtml).join('');
         await loadCounts();
         return;
     }
@@ -195,6 +248,21 @@ async function submitReversal(ev) {
     }
 }
 
+// Провести заявку из чата: fin-админ создаёт настоящий расход/перевод,
+// на исходное сообщение в чате бот ставит 👍
+async function postDraft(id) {
+    const { data, error } = await Layout.db.rpc('tg_post_draft', { p_id: id });
+    if (error) { Layout.handleError(error, t('fin_post_draft')); return; }
+    if (data?.ok) { Layout.showNotification(t('fin_saved'), 'success'); await loadList(); }
+    else Layout.showNotification(data?.error || t('error'), 'error');
+}
+
+async function dismissDraft(id) {
+    const { data, error } = await Layout.db.rpc('tg_dismiss_draft', { p_id: id });
+    if (error) { Layout.handleError(error, t('fin_dismiss_draft')); return; }
+    if (data?.ok) await loadList();
+}
+
 // ==================== INIT ====================
 async function init() {
     await Layout.init({ module: 'finance', menuId: 'fin_inbox', itemId: 'fin_inbox' });
@@ -215,6 +283,14 @@ async function init() {
         const att = ev.target.closest('[data-attachment-path]');
         if (att) { FinUtils.openAttachment(att.dataset.attachmentPath); return; }
         const btn = ev.target.closest('[data-action]');
+        // Заявки из чатов — своя карточка (data-draft), без разворота деталей
+        const draftCard = ev.target.closest('[data-draft]');
+        if (draftCard && btn) {
+            const id = draftCard.dataset.draft;
+            if (btn.dataset.action === 'post-draft') postDraft(id);
+            else if (btn.dataset.action === 'dismiss-draft') dismissDraft(id);
+            return;
+        }
         const card = ev.target.closest('[data-op]');
         if (!card) return;
         const opId = card.dataset.op;
