@@ -1,6 +1,7 @@
 // ==================== tg-webhook ====================
 // Бот-департаментов:
-//   • /start <токен> — привязка Telegram к профилю;
+//   • узнаёт автора по нику из карточки вайшнава (привязка создаётся сама);
+//   • /start <токен> — явная привязка Telegram к профилю;
 //   • бота добавили в чат → чат сам регистрируется;
 //   • в чатах департаментов — увидел сумму, дозадал вопросы, записал заявку.
 //
@@ -150,9 +151,11 @@ Deno.serve(async (req) => {
   if (!m || !text) return new Response("ok");
 
   if (m.chat?.type !== "private") {
+    // bot_status НЕ передаём: из обычного сообщения он неизвестен, а раньше
+    // «member» затирал настоящий «administrator». Статус — только из my_chat_member.
     await supa.rpc("tg_note_chat", {
       p: { chat_id: m.chat.id, title: m.chat.title ?? null, chat_type: m.chat.type,
-           bot_status: "member", is_forum: m.chat.is_forum ?? false },
+           bot_status: null, is_forum: m.chat.is_forum ?? false },
     });
   }
 
@@ -168,7 +171,18 @@ Deno.serve(async (req) => {
         await tg("sendMessage", { chat_id: m.chat.id, text: `⚠️ Не получилось привязать: ${why}. Откройте профиль на in.rupaseva.com и нажмите «Привязать Telegram» ещё раз.` });
       }
     } else {
-      await tg("sendMessage", { chat_id: m.chat.id, text: "Здравствуйте! Чтобы привязать Telegram, откройте свой профиль на in.rupaseva.com и нажмите «Привязать Telegram»." });
+      // Без токена — пробуем узнать по нику из профиля, чтобы не гонять
+      // человека за ссылкой, если он и так уже прописан в системе.
+      const { data: rows } = await supa.rpc("tg_resolve_user", {
+        p_user: m.from.id, p_username: m.from.username ?? null,
+      });
+      const who = Array.isArray(rows) ? rows[0] : rows;
+      await tg("sendMessage", {
+        chat_id: m.chat.id,
+        text: who
+          ? `✅ Вы уже привязаны: ${who.person_name}. Пишите траты в чат своего департамента — я оформлю заявку.`
+          : "Здравствуйте! Чтобы привязать Telegram, откройте свой профиль на in.rupaseva.com и нажмите «Привязать Telegram».",
+      });
     }
     return new Response("ok");
   }
@@ -192,11 +206,27 @@ Deno.serve(async (req) => {
     kind = "expense";
   }
 
-  const { data: userRows } = await supa.rpc("tg_resolve_user", { p_user: m.from.id });
+  // Узнаём автора: по явной привязке, а если её нет — по нику из профиля
+  // (тогда привязка создаётся сама, и человек об этом узнаёт один раз).
+  const { data: userRows } = await supa.rpc("tg_resolve_user", {
+    p_user: m.from.id, p_username: m.from.username ?? null,
+  });
   const user = Array.isArray(userRows) ? userRows[0] : userRows;
   if (!user) {
-    await tg("sendMessage", { chat_id: m.chat.id, reply_to_message_id: m.message_id, text: "Привяжите Telegram к профилю на in.rupaseva.com — тогда смогу записывать расходы от вашего имени." });
+    const uname = m.from.username ? `@${m.from.username}` : null;
+    await tg("sendMessage", {
+      chat_id: m.chat.id, reply_to_message_id: m.message_id, parse_mode: "HTML",
+      text: uname
+        ? `Не нахожу вас в системе: в профилях нет ника <b>${uname}</b> (или он указан у двоих).\nОткройте свой профиль на in.rupaseva.com → впишите ${uname} в поле Telegram либо нажмите «Привязать Telegram».`
+        : "У вашего Telegram нет ника, поэтому не могу вас узнать. Откройте свой профиль на in.rupaseva.com и нажмите «Привязать Telegram».",
+    });
     return new Response("ok");
+  }
+  if (user.auto_linked) {
+    await tg("sendMessage", {
+      chat_id: m.chat.id, reply_to_message_id: m.message_id,
+      text: `👋 Узнал вас по нику из профиля: ${user.person_name}. Записываю расходы от вашего имени.`,
+    });
   }
 
   const { data: draftId } = await supa.rpc("tg_create_draft", {
