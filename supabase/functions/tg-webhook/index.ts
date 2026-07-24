@@ -42,15 +42,28 @@ const CURRENCIES: Record<string, string> = { INR: "₹", RUB: "₽", USD: "$", E
 // поэтому «300 руб» раньше не распознавалось как валюта вообще.
 const CUR_WORDS = "[₹₽$€]|usd|eur|inr|rub|rs|руб\\p{L}*|рупи\\p{L}*|долл\\p{L}*|евро";
 const NUM = "\\d[\\d\\s]{0,9}\\d|\\d";
+const AMT = `(${NUM})(?:[.,](\\d{1,2}))?(?![\\d])`;
+const amtValue = (int: string, frac?: string) =>
+  parseFloat(int.replace(/\s/g, "") + (frac ? "." + frac : ""));
 
-// В сообщении может быть несколько чисел: «5 кг риса 340». Берём то, рядом с
-// которым названа валюта, и только если её нет — первое попавшееся.
+// В сообщении обычно несколько чисел: «5 кг риса 340», «в 14:30 купил на 500».
+// Порядок разбора — от самого надёжного признака к самому слабому:
+//   1) «20к», «20 тыс» — множитель тысяч («20 кг» не считается: после «к» буква);
+//   2) число рядом с названной валютой — «340 ₹»;
+//   3) иначе ПОСЛЕДНЕЕ число: по-русски сумму почти всегда пишут в конце.
+// Раньше бралось первое, и «5 кг риса 340» превращалось в заявку на 5.
 function parseMoney(text: string): { amount: number; raw: string } | null {
-  const near = text.match(new RegExp(`(${NUM})\\s*(?:${CUR_WORDS})(?![\\p{L}])`, "iu"));
-  const m = near ?? text.match(new RegExp(`(${NUM})`, "u"));
-  if (!m) return null;
-  const n = parseInt(m[1].replace(/\s/g, ""), 10);
-  return Number.isFinite(n) && n > 0 ? { amount: n, raw: m[1] } : null;
+  const k = text.match(new RegExp(`${AMT}\\s*(?:к|тыс\\p{L}*)(?![\\p{L}])`, "iu"));
+  if (k) return { amount: amtValue(k[1], k[2]) * 1000, raw: k[0] };
+
+  const c = text.match(new RegExp(`${AMT}\\s*(?:${CUR_WORDS})(?![\\p{L}])`, "iu"));
+  if (c) return { amount: amtValue(c[1], c[2]), raw: c[0] };
+
+  const all = [...text.matchAll(new RegExp(AMT, "gu"))];
+  if (!all.length) return null;
+  const m = all[all.length - 1];
+  const n = amtValue(m[1], m[2]);
+  return Number.isFinite(n) && n > 0 ? { amount: n, raw: m[0] } : null;
 }
 // Валюта только если названа ЯВНО. Иначе null — бот спросит (решение ВГ).
 function parseCurrency(text: string): string | null {
@@ -251,7 +264,9 @@ Deno.serve(async (req) => {
 
   const m = update.message ?? update.edited_message;
   const text: string | undefined = m?.text ?? m?.caption;
-  if (!m || !text) return new Response("ok");
+  // from нет у сообщений «от имени группы» и у автопересылок из канала —
+  // автора там установить не выйдет, а без автора заявка бессмысленна.
+  if (!m || !text || !m.from) return new Response("ok");
 
   if (m.chat?.type !== "private") {
     // bot_status НЕ передаём: из обычного сообщения он неизвестен, а раньше
