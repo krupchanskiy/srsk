@@ -374,6 +374,36 @@ function renderViewTelegram() {
     } else {
         el.textContent = '—';
     }
+    renderTgLinkBox();
+}
+
+// Привязка Telegram к боту @SRSKteambot (для записи расходов из чатов).
+// Кнопка доступна на своём профиле или при праве edit_vaishnava.
+async function renderTgLinkBox() {
+    const box = document.getElementById('tgLinkBox');
+    if (!box) return;
+    box.innerHTML = '';
+    const own = window.currentUser?.vaishnava_id === person.id;
+    if (!own && !window.hasPermission?.('edit_vaishnava')) return;
+
+    const { data: linked } = await Layout.db.rpc('tg_is_linked', { p_vaishnava: person.id });
+    if (linked) {
+        box.innerHTML = `<span class="text-success text-sm inline-flex items-center gap-1">
+            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="w-4 h-4"><path stroke-linecap="round" stroke-linejoin="round" d="M4.5 12.75l6 6 9-13.5"/></svg>
+            ${e(Layout.t('tg_linked'))}</span>`;
+        return;
+    }
+    box.innerHTML = `<button id="tgLinkBtn" class="btn btn-xs btn-outline gap-1">
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" class="w-4 h-4"><path d="M9.78 18.65l.28-4.23 7.68-6.92c.34-.31-.07-.46-.52-.19L7.74 13.3 3.64 12c-.88-.25-.89-.86.2-1.3l15.97-6.16c.73-.33 1.43.18 1.15 1.3l-2.72 12.81c-.19.91-.74 1.13-1.5.71l-4.15-3.06-2 1.94c-.23.23-.42.42-.86.42z"/></svg>
+        ${e(Layout.t('tg_link_btn'))}</button>`;
+    document.getElementById('tgLinkBtn').addEventListener('click', async (ev) => {
+        const btn = ev.currentTarget;
+        btn.disabled = true;
+        const { data: token, error } = await Layout.db.rpc('tg_gen_link_token', { p_vaishnava: person.id });
+        if (error || !token) { Layout.handleError(error, Layout.t('tg_link_btn')); btn.disabled = false; return; }
+        window.open(`https://t.me/SRSKteambot?start=${token}`, '_blank');
+        box.innerHTML = `<span class="text-sm opacity-70">${e(Layout.t('tg_link_open'))}</span>`;
+    });
 }
 
 function getCountryName(code) {
