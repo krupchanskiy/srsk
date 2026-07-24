@@ -57,6 +57,7 @@ function chatDraftCardHtml(d) {
                 <span class="font-medium">${e(head)}</span>
                 <span class="font-mono font-semibold">${FinUtils.fmtMoney(d.amount, d.currency)}</span>
                 ${d.category ? `<span class="badge badge-outline badge-sm">${e(d.category)}</span>` : ''}
+                ${d.source_account ? `<span class="badge badge-outline badge-sm">${t('fin_from')}: ${e(d.source_account)}</span>` : ''}
                 ${d.purpose ? `<span class="truncate max-w-md">${e(d.purpose)}</span>` : ''}
                 <div class="ml-auto flex gap-2">
                     <button class="btn btn-success btn-sm" data-action="post-draft">${t('fin_post_draft')}</button>

@@ -5,26 +5,37 @@
 //   • бота добавили в чат → чат сам регистрируется;
 //   • в чатах департаментов — увидел сумму, дозадал вопросы, записал заявку.
 //
-// Правки ВГ (24.07.2026):
+// Три вида сообщений (правила Адриана и ВГ, 24.07.2026):
+//   • РАСХОД: слово-признак + сумма → списание с подотчёта департамента;
+//   • ПЕРЕДАЧА: слово-признак + сумма → в ДРУГОЙ департамент, получателя
+//     называют департаментом или именем ответственного, иначе спросим кнопками;
+//     а если пишет казначей — это, наоборот, приход департаменту с настоящего
+//     счёта, и бот спрашивает, из какой кассы или с какого счёта выдано;
+//   • ПОЛУЧЕНИЕ: заявку не создаём вовсе — тегаем казначея, пусть проверит.
+//     Иначе одни и те же деньги попали бы в учёт дважды.
+//
+// Ещё два правила:
 //   • валюту спрашиваем ВСЕГДА, если она не названа явно — «1% ошибок
-//     дороже, а вопрос вырабатывает привычку указывать валюту»;
-//   • если признаков траты нет, а сумма есть — переспрашиваем, что это;
-//   • «на что потрачено» обязательно — иначе в отчёте суммы без смысла;
-//   • «получил …» — перепроверка получателя, не реагируем совсем.
-// Карточка — мини-диалог: вид → (кому) → валюта → статья → «Записать».
-// Но описание в диалог не входит: без него заявка не заводится совсем,
-// бот отвечает «не могу принять» и просит переписать сообщение.
+//     дороже, а вопрос вырабатывает привычку указывать валюту» (ВГ);
+//   • «на что потрачено» обязательно, но в диалог не входит: без описания
+//     заявка не заводится совсем, бот просит переписать сообщение.
+//
+// Карточка — мини-диалог: вид → кому → валюта → откуда → статья → «Записать».
 //
 // Бот НИКОГДА не пишет в ядро финмодуля — только в свои таблицы заявок.
 // Проведение — только фин-админ во «Входящих».
 import { createClient } from "jsr:@supabase/supabase-js@2";
 
-const EXPENSE_WORDS = /(купил|купила|купили|куплю|оплатил|оплатила|оплатили|заплатил|потратил|потрачено|потратили|расход|зарплат|платёж)/i;
-const TRANSFER_WORDS = /(выдал|выдала|выдать|выдаю|выдано|выдали)/i;
-// «Получил 20 000» пишет тот, КОМУ выдали, — это подтверждение чужой записи.
-// Передачу заявляет сторона, которая выдала; если реагировать на обе, одни и
-// те же деньги попадут в учёт дважды. Поэтому такие сообщения молча пропускаем.
-const CONFIRM_WORDS = /получ/i;
+// Порядок проверки важен: получение → передача → расход. «Взял» есть и в
+// расходе («взял продукты»), и в получении («взял деньги у Ашиша»), поэтому
+// в получении оно распознаётся только с уточнением: «взял у…», «взял деньги».
+const RECEIPT_WORDS =
+  /получ|принял|при[её]м касс|забрал|вн[её]с|пришл[оаи]|приход|поступил|взял[аи]?\s+(деньги|у\s)/i;
+const TRANSFER_WORDS =
+  /выда(л|ла|ли|ть|ю|но)|передал|передач|передать|отдал|отдать|вручил|скинул/i;
+const EXPENSE_WORDS =
+  /купи|купл|покупк|оплат|заплат|потрат|трат|расход|взял|заказ|закуп|приобре|отоварил|скупил|съездил за|чек|сч[её]т|затрат|издержк|убыток|услуг|продлил|зарплат|плат[её]ж/i;
+
 const CURRENCIES: Record<string, string> = { INR: "₹", RUB: "₽", USD: "$", EUR: "€" };
 
 // Названия валют. Границы слова через \b не годятся: в JS \w — только латиница,
@@ -49,9 +60,16 @@ function parseCurrency(text: string): string | null {
   if (/[₹]|рупи|inr|\brs\b/i.test(text)) return "INR";
   return null;
 }
+// Наличные или безналичные — чтобы сузить список счетов казначею.
+// null — в сообщении не сказано, покажем все счета этой валюты.
+function detectCash(text: string): boolean | null {
+  if (/налич|кэш|\bcash\b|из кассы/i.test(text)) return true;
+  if (/перевод|безнал|на карт|картой|по сч[её]ту|банк/i.test(text)) return false;
+  return null;
+}
 // «На что» вытаскиваем из самого сообщения: убираем сумму и валюту, остальное
 // и есть описание. «Купил овощи 500 рупий» → «Купил овощи». Если после чистки
-// букв почти не осталось (написали голое «500») — вернём null, бот спросит.
+// букв почти не осталось («500», «300 руб») — вернём null, и заявки не будет.
 function parsePurpose(text: string, amountRaw: string): string | null {
   const s = text
     .replace(amountRaw, " ")
@@ -86,19 +104,30 @@ Deno.serve(async (req) => {
       method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body),
     }).then((r) => r.json()).catch(() => null);
 
+  async function treasurer() {
+    const { data } = await supa.rpc("tg_treasurer");
+    return Array.isArray(data) ? data[0] : data;
+  }
+
   // Карточка-диалог: показывает, что уже понято, и спрашивает недостающее
-  async function renderCard(chatId: number, messageId: number | null, draftId: string, st: any, replyTo?: number) {
+  async function renderCard(chatId: number, messageId: number | null, draftId: string, st: any, replyTo?: number): Promise<void> {
     const sym = st.currency ? CURRENCIES[st.currency] ?? st.currency : "";
-    // Строка «что уже известно»: сумма, статья, на что. Растёт по ходу диалога,
-    // чтобы человек видел, что именно он подтверждает.
+    // Строка «что уже известно» растёт по ходу диалога, чтобы человек видел,
+    // что именно он подтверждает.
     const known = [
       `${st.amount}${sym ? " " + sym : ""}`,
       st.category ? esc(st.category) : null,
+      st.source_account ? `откуда: ${esc(st.source_account)}` : null,
       st.purpose ? `на что: ${esc(st.purpose)}` : null,
     ].filter(Boolean).join(" · ");
     const amountLine = `${known}\n<i>${esc(st.raw_text)}</i>`;
     let head: string;
     let keyboard: any[][];
+    const rows = (btns: any[]) => {
+      const out: any[][] = [];
+      for (let i = 0; i < btns.length; i += 2) out.push(btns.slice(i, i + 2));
+      return out;
+    };
 
     if (st.needs_kind) {
       head = `🤔 <b>Что это за сумма?</b>`;
@@ -109,9 +138,7 @@ Deno.serve(async (req) => {
     } else if (st.needs_target) {
       const { data: depts } = await supa.rpc("tg_list_departments", { p_exclude: null });
       head = `🔁 <b>Кому передаём?</b>`;
-      const btns = (depts ?? []).map((d: any) => ({ text: d.name, callback_data: `t:${d.id.slice(0, 8)}:${draftId}` }));
-      keyboard = [];
-      for (let i = 0; i < btns.length; i += 2) keyboard.push(btns.slice(i, i + 2));
+      keyboard = rows((depts ?? []).map((d: any) => ({ text: d.name, callback_data: `t:${d.id.slice(0, 8)}:${draftId}` })));
       keyboard.push([{ text: "✖️ Отмена", callback_data: `no:${draftId}` }]);
     } else if (st.needs_currency) {
       head = `💱 <b>В какой валюте?</b>`;
@@ -122,12 +149,30 @@ Deno.serve(async (req) => {
         { text: "$ Доллары", callback_data: `c:USD:${draftId}` },
         { text: "€ Евро", callback_data: `c:EUR:${draftId}` },
       ], [{ text: "✖️ Не про деньги", callback_data: `no:${draftId}` }]];
+    } else if (st.needs_source) {
+      // Казначей выдаёт с настоящего счёта. Если в сообщении сказано «наличкой»
+      // или «переводом» — показываем только подходящие; если таких нет, лучше
+      // показать все, чем упереться в пустой список.
+      const cash = detectCash(st.raw_text);
+      let { data: accs } = await supa.rpc("tg_list_source_accounts", { p_currency: st.currency, p_cash: cash });
+      if (!accs?.length && cash !== null) {
+        ({ data: accs } = await supa.rpc("tg_list_source_accounts", { p_currency: st.currency, p_cash: null }));
+      }
+      // Счёт в этой валюте один — выбирать не из чего, ставим сами и показываем
+      // его в карточке: подтверждение всё равно за человеком.
+      if (accs?.length === 1) {
+        const { data: st2 } = await supa.rpc("tg_patch_draft", { p_id: draftId, p: { source_account_id: accs[0].id } });
+        if (st2?.ok) return await renderCard(chatId, messageId, draftId, st2, replyTo);
+      }
+      head = accs?.length
+        ? `🏦 <b>Откуда выдаём?</b>`
+        : `🏦 <b>Нет активного счёта в этой валюте</b> — заведите счёт в системе.`;
+      keyboard = rows((accs ?? []).map((a: any) => ({ text: a.name, callback_data: `a:${a.id.slice(0, 8)}:${draftId}` })));
+      keyboard.push([{ text: "✖️ Отмена", callback_data: `no:${draftId}` }]);
     } else if (st.needs_category) {
       const { data: cats } = await supa.rpc("tg_list_expense_categories");
       head = `🏷 <b>Какая это статья расходов?</b>`;
-      const btns = (cats ?? []).map((c: any) => ({ text: c.name, callback_data: `s:${c.id.slice(0, 8)}:${draftId}` }));
-      keyboard = [];
-      for (let i = 0; i < btns.length; i += 2) keyboard.push(btns.slice(i, i + 2));
+      keyboard = rows((cats ?? []).map((c: any) => ({ text: c.name, callback_data: `s:${c.id.slice(0, 8)}:${draftId}` })));
       keyboard.push([{ text: "✖️ Не про деньги", callback_data: `no:${draftId}` }]);
     } else {
       head = st.kind === "transfer"
@@ -175,7 +220,7 @@ Deno.serve(async (req) => {
       const row = Array.isArray(data) ? data[0] : data;
       if (row) await tg("setMessageReaction", { chat_id: row.chat_id, message_id: row.source_message_id, reaction: [{ type: "emoji", emoji: "👀" }] });
       await tg("editMessageText", { chat_id: msg.chat.id, message_id: msg.message_id, parse_mode: "HTML", text: esc(msg.text || "") + "\n\n👀 <b>Записано, ждёт проведения</b>" });
-    } else if (action === "k" || action === "c" || action === "t" || action === "s") {
+    } else if (action === "k" || action === "c" || action === "t" || action === "s" || action === "a") {
       const value = parts[1];
       const draftId = parts[2];
       const patch: Record<string, string> = {};
@@ -190,6 +235,12 @@ Deno.serve(async (req) => {
         const { data: cats } = await supa.rpc("tg_list_expense_categories");
         const found = (cats ?? []).find((c: any) => c.id.startsWith(value));
         if (found) patch.category_id = found.id;
+      }
+      if (action === "a") {
+        const { data: st0 } = await supa.rpc("tg_patch_draft", { p_id: draftId, p: {} });
+        const { data: accs } = await supa.rpc("tg_list_source_accounts", { p_currency: st0?.currency, p_cash: null });
+        const found = (accs ?? []).find((a: any) => a.id.startsWith(value));
+        if (found) patch.source_account_id = found.id;
       }
       const { data: st } = await supa.rpc("tg_patch_draft", { p_id: draftId, p: patch });
       if (st?.ok) await renderCard(msg.chat.id, msg.message_id, draftId, st);
@@ -244,22 +295,20 @@ Deno.serve(async (req) => {
   const chat = Array.isArray(chatRows) ? chatRows[0] : chatRows;
   if (!chat) return new Response("ok");
 
-  // Подтверждение получения — не заявка. Проверяем раньше всего остального,
-  // чтобы не было ни карточки, ни отказа: человек просто перепроверяет.
-  if (CONFIRM_WORDS.test(text)) return new Response("ok");
-
   const money = parseMoney(text);
   if (!money) return new Response("ok");
 
-  // Вид определяем по словам; если слов нет — спросим (решение ВГ)
-  let kind: string | null = null;
-  let targetDept: string | null = null;
-  if (TRANSFER_WORDS.test(text)) {
-    kind = "transfer";
-    const { data: tgt } = await supa.rpc("tg_match_department", { p_text: text, p_exclude: chat.department_id });
-    if (tgt) targetDept = tgt;
-  } else if (EXPENSE_WORDS.test(text)) {
-    kind = "expense";
+  // ---------- получение: не проводим, тегаем казначея ----------
+  // Так пишет тот, КОМУ передали. Передачу заявляет сторона, которая выдала;
+  // если реагировать на обе, одни и те же деньги попадут в учёт дважды.
+  if (RECEIPT_WORDS.test(text)) {
+    const tre = await treasurer();
+    const tag = tre?.username ? `@${tre.username}` : "Казначей";
+    await tg("sendMessage", {
+      chat_id: m.chat.id, reply_to_message_id: m.message_id,
+      text: `${tag} — здесь про получение денег. Заявку не создаю: передачу записывает тот, кто выдал. Проверьте, пожалуйста.`,
+    });
+    return new Response("ok");
   }
 
   // Узнаём автора: по явной привязке, а если её нет — по нику из профиля
@@ -285,9 +334,29 @@ Deno.serve(async (req) => {
     });
   }
 
-  // Нет описания — заявку не заводим вовсе. Валюту и статью можно доспросить
-  // кнопками, а «на что» знает только автор: доспрашивать текстом долго, и
-  // висящие полузаявки хуже, чем просьба переписать сообщение целиком.
+  const tre = await treasurer();
+  const isTreasurer = !!tre && user.vaishnava_id === tre.vaishnava_id;
+
+  // Вид определяем по словам; если слов нет — спросим (решение ВГ)
+  let kind: string | null = null;
+  let targetDept: string | null = null;
+  if (TRANSFER_WORDS.test(text)) {
+    kind = "transfer";
+    // Департамент-получателя ищем по названию или по имени ответственного.
+    // Департаменты передают ДРУГИМ, поэтому свой исключаем; у казначея это
+    // приход department'у, в чьём чате он пишет, — значит не исключаем ничего
+    // и при отсутствии явного упоминания берём департамент чата.
+    const { data: tgt } = await supa.rpc("tg_match_department", {
+      p_text: text, p_exclude: isTreasurer ? null : chat.department_id,
+    });
+    targetDept = tgt ?? (isTreasurer ? chat.department_id : null);
+  } else if (EXPENSE_WORDS.test(text)) {
+    kind = "expense";
+  }
+
+  // Нет описания — заявку не заводим вовсе. Валюту, счёт и статью можно
+  // доспросить кнопками, а «на что» знает только автор: доспрашивать текстом
+  // долго, и висящие полузаявки хуже, чем просьба переписать сообщение.
   const purpose = parsePurpose(text, money.raw);
   if (!purpose) {
     await tg("sendMessage", {
