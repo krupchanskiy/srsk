@@ -156,6 +156,15 @@
         <h3 class="font-bold text-lg mb-1" data-i18n="crm_pick_account">На какой счёт поступили деньги?</h3>
         <p class="text-sm opacity-70 mb-4" data-i18n="crm_pick_account_hint">Приход отмечается только на том счёте, где деньги фактически лежат.</p>
         <select id="cashAccountSelect" class="select select-bordered w-full mb-4"></select>
+
+        <label class="label pb-1"><span class="label-text" data-i18n="crm_amount_received">Сколько пришло на счёт</span></label>
+        <label class="input input-bordered flex items-center gap-2 mb-1">
+            <input type="number" id="amountReceivedInput" step="0.01" min="0" class="grow text-right font-mono">
+            <span id="amountReceivedCurrency" class="opacity-60"></span>
+        </label>
+        <p class="text-xs opacity-70 mb-4" data-i18n="crm_amount_received_hint">Если банк удержал комиссию — укажите сумму из выписки. Разница спишется расходом, долгом на гостя не ляжет.</p>
+        <p id="amountReceivedFee" class="text-xs text-warning mb-4 hidden"></p>
+
         <div class="modal-action">
             <form method="dialog"><button class="btn" data-i18n="cancel">Отмена</button></form>
             <button type="button" id="cashAccountOk" class="btn btn-primary" data-i18n="crm_confirm">Подтвердить</button>
@@ -170,7 +179,7 @@
 <script src="../js/auth-check.js?v=7"></script>
 <script src="../js/cache.js?v=1"></script>
 <script src="../js/utils.js?v=4"></script>
-<script src="../js/layout.js?v=29"></script>
+<script src="../js/layout.js?v=30"></script>
 <script src="../js/date-utils.js?v=3"></script>
 <script src="../js/crm-utils.js?v=3"></script>
 <script src="../js/prepayment-ops.js?v=2"></script>
@@ -569,9 +578,10 @@ async function toggleStatus(id) {
     // счёт, на котором они лежат». Счёт указывает подтверждающий — для любого
     // платежа, не только наличного. Система по валюте больше не угадывает.
     if (confirming && !p.fin_account_id) {
-        const accId = await pickAccount(p.currency);
-        if (!accId) return;
-        patch.fin_account_id = accId;
+        const choice = await pickAccount(p.currency, Number(p.amount));
+        if (!choice) return;
+        patch.fin_account_id = choice.accountId;
+        patch.amount_received = choice.amountReceived;
     }
     await savePatch(id, patch);
     applyFilters();
@@ -579,10 +589,12 @@ async function toggleStatus(id) {
     if (confirming) reportAutopost(id);
 }
 
-// Модалка выбора счёта: активные боевые счета в валюте платежа.
-// По умолчанию предлагается счёт из подсказки fin_crm_channel_map, но
-// решение всегда за человеком — он видит, где деньги лежат на самом деле.
-async function pickAccount(currency) {
+// Модалка подтверждения: счёт и фактически зачисленная сумма.
+// Счёт по умолчанию берётся из подсказки fin_crm_channel_map, но решение
+// всегда за человеком — он видит, где деньги лежат на самом деле.
+// Сумма подставляется полная; если банк удержал комиссию, подтверждающий
+// вписывает цифру из выписки, и разница уходит расходом (решение ВГ).
+async function pickAccount(currency, amount) {
     const [accountsRes, hintRes] = await Promise.all([
         Layout.db.from('fin_v_account_balances')
             .select('account_id, name')
@@ -601,11 +613,38 @@ async function pickAccount(currency) {
     return new Promise(resolve => {
         const dlg = document.getElementById('cashAccountModal');
         const sel = document.getElementById('cashAccountSelect');
+        const amountInput = document.getElementById('amountReceivedInput');
+        const feeHint = document.getElementById('amountReceivedFee');
         sel.innerHTML = data.map(a =>
             `<option value="${a.account_id}"${a.account_id === suggested ? ' selected' : ''}>${e(a.name)}</option>`
         ).join('');
+        amountInput.value = amount;
+        amountInput.max = amount;
+        document.getElementById('amountReceivedCurrency').textContent = currency;
+
+        // Живая подсказка: сколько удержал банк
+        const showFee = () => {
+            const got = parseFloat(amountInput.value);
+            const fee = Number((amount - got).toFixed(2));
+            if (!isNaN(got) && fee > 0) {
+                feeHint.textContent = `${t('crm_bank_fee')}: ${fee} ${currency}`;
+                feeHint.classList.remove('hidden');
+            } else {
+                feeHint.classList.add('hidden');
+            }
+        };
+        amountInput.oninput = showFee;
+        showFee();
+
         const done = value => { dlg.close(); dlg.onclose = null; resolve(value); };
-        document.getElementById('cashAccountOk').onclick = () => done(sel.value);
+        document.getElementById('cashAccountOk').onclick = () => {
+            const got = parseFloat(amountInput.value);
+            if (isNaN(got) || got <= 0 || got > amount) {
+                Layout.showNotification(t('crm_confirm_requires_amount_received'), 'error');
+                return;
+            }
+            done({ accountId: sel.value, amountReceived: got });
+        };
         dlg.onclose = () => resolve(null);
         dlg.showModal();
     });
