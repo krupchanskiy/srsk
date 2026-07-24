@@ -8,11 +8,13 @@
 // Правки ВГ (24.07.2026):
 //   • валюту спрашиваем ВСЕГДА, если она не названа явно — «1% ошибок
 //     дороже, а вопрос вырабатывает привычку указывать валюту»;
-//   • если признаков траты нет, а сумма есть — переспрашиваем, что это.
-// Поэтому карточка — мини-диалог: вид → (кому) → валюта → «Записать».
+//   • если признаков траты нет, а сумма есть — переспрашиваем, что это;
+//   • «на что потрачено» обязательно — иначе в отчёте суммы без смысла.
+// Поэтому карточка — мини-диалог:
+//   вид → (кому) → валюта → статья → на что → «Записать».
 //
 // Бот НИКОГДА не пишет в ядро финмодуля — только в свои таблицы заявок.
-// Проведение — только fin-админ во «Входящих».
+// Проведение — только фин-админ во «Входящих».
 import { createClient } from "jsr:@supabase/supabase-js@2";
 
 const EXPENSE_WORDS = /(купил|купила|купили|куплю|оплатил|оплатила|оплатили|заплатил|потратил|потрачено|потратили|расход|зарплат|платёж)/i;
@@ -33,6 +35,23 @@ function parseCurrency(text: string): string | null {
   if (/[₹]|рупи|inr|\brs\b/i.test(text)) return "INR";
   return null;
 }
+// «На что» вытаскиваем из самого сообщения: убираем сумму и валюту, остальное
+// и есть описание. «Купил овощи 500 рупий» → «Купил овощи». Если после чистки
+// букв почти не осталось (написали голое «500») — вернём null, бот спросит.
+function parsePurpose(text: string, amountRaw: string): string | null {
+  const s = text
+    .replace(amountRaw, " ")
+    .replace(/[₹₽$€]|\b(usd|eur|inr|rub|rs|руб\w*|рупи\w*|долл\w*|евро)\b/gi, " ")
+    .replace(/\s+/g, " ")
+    .replace(/^[\s\-–—:,.;]+|[\s\-–—:,.;]+$/g, "")
+    .slice(0, 200);
+  return /\p{L}{3,}/u.test(s) ? s : null;
+}
+
+// Сообщения шлём с parse_mode HTML, а внутрь попадает текст людей. Без этого
+// «купил 5 < 10» или «R&D» ломают разметку — Telegram отклоняет всё сообщение.
+const esc = (s: unknown) =>
+  String(s ?? "").replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
 
 Deno.serve(async (req) => {
   const supa = createClient(
@@ -56,7 +75,14 @@ Deno.serve(async (req) => {
   // Карточка-диалог: показывает, что уже понято, и спрашивает недостающее
   async function renderCard(chatId: number, messageId: number | null, draftId: string, st: any, replyTo?: number) {
     const sym = st.currency ? CURRENCIES[st.currency] ?? st.currency : "";
-    const amountLine = `${st.amount}${sym ? " " + sym : ""} · ${st.raw_text}`;
+    // Строка «что уже известно»: сумма, статья, на что. Растёт по ходу диалога,
+    // чтобы человек видел, что именно он подтверждает.
+    const known = [
+      `${st.amount}${sym ? " " + sym : ""}`,
+      st.category ? esc(st.category) : null,
+      st.purpose ? `на что: ${esc(st.purpose)}` : null,
+    ].filter(Boolean).join(" · ");
+    const amountLine = `${known}\n<i>${esc(st.raw_text)}</i>`;
     let head: string;
     let keyboard: any[][];
 
@@ -82,22 +108,40 @@ Deno.serve(async (req) => {
         { text: "$ Доллары", callback_data: `c:USD:${draftId}` },
         { text: "€ Евро", callback_data: `c:EUR:${draftId}` },
       ], [{ text: "✖️ Не про деньги", callback_data: `no:${draftId}` }]];
+    } else if (st.needs_category) {
+      const { data: cats } = await supa.rpc("tg_list_expense_categories");
+      head = `🏷 <b>Какая это статья расходов?</b>`;
+      const btns = (cats ?? []).map((c: any) => ({ text: c.name, callback_data: `s:${c.id.slice(0, 8)}:${draftId}` }));
+      keyboard = [];
+      for (let i = 0; i < btns.length; i += 2) keyboard.push(btns.slice(i, i + 2));
+      keyboard.push([{ text: "✖️ Не про деньги", callback_data: `no:${draftId}` }]);
+    } else if (st.needs_purpose) {
+      // Единственный шаг, где нужен текст: статью можно выбрать кнопкой,
+      // а «на что» кнопками не перечислишь. Просим ответить на сообщение.
+      head = `✍️ <b>На что потрачено?</b>\nОтветьте на это сообщение — напишите пару слов.`;
+      keyboard = [[{ text: "✖️ Не про деньги", callback_data: `no:${draftId}` }]];
     } else {
       head = st.kind === "transfer"
-        ? `🔁 <b>Передать в «${st.target_department}»?</b>`
-        : `💸 <b>Записать расход по «${st.department}»?</b>`;
+        ? `🔁 <b>Передать в «${esc(st.target_department)}»?</b>`
+        : `💸 <b>Записать расход по «${esc(st.department)}»?</b>`;
       keyboard = [[
         { text: "✅ Записать", callback_data: `ok:${draftId}` },
         { text: "✖️ Не надо", callback_data: `no:${draftId}` },
-      ]];
+      ], [{ text: "✍️ Исправить описание", callback_data: `e:${draftId}` }]];
     }
 
     const body = {
       chat_id: chatId, parse_mode: "HTML", text: `${head}\n${amountLine}`,
       reply_markup: { inline_keyboard: keyboard },
     };
-    if (messageId) await tg("editMessageText", { ...body, message_id: messageId });
-    else await tg("sendMessage", { ...body, reply_to_message_id: replyTo });
+    if (messageId) {
+      await tg("editMessageText", { ...body, message_id: messageId });
+    } else {
+      const sent = await tg("sendMessage", { ...body, reply_to_message_id: replyTo });
+      // Запоминаем карточку: по ней узнаём заявку, когда человек ответит текстом
+      const mid = sent?.result?.message_id;
+      if (mid) await supa.rpc("tg_set_card_message", { p_id: draftId, p_msg: mid });
+    }
   }
 
   // ---------- бота добавили/убрали из чата ----------
@@ -127,8 +171,12 @@ Deno.serve(async (req) => {
       const { data } = await supa.rpc("tg_set_draft_status", { p_id: parts[1], p_status: "pending", p_card_message_id: msg?.message_id });
       const row = Array.isArray(data) ? data[0] : data;
       if (row) await tg("setMessageReaction", { chat_id: row.chat_id, message_id: row.source_message_id, reaction: [{ type: "emoji", emoji: "👀" }] });
-      await tg("editMessageText", { chat_id: msg.chat.id, message_id: msg.message_id, parse_mode: "HTML", text: (msg.text || "") + "\n\n👀 <b>Записано, ждёт проведения</b>" });
-    } else if (action === "k" || action === "c" || action === "t") {
+      await tg("editMessageText", { chat_id: msg.chat.id, message_id: msg.message_id, parse_mode: "HTML", text: esc(msg.text || "") + "\n\n👀 <b>Записано, ждёт проведения</b>" });
+    } else if (action === "e") {
+      // «Исправить описание» — стираем «на что», карточка снова спросит текстом
+      const { data: st } = await supa.rpc("tg_patch_draft", { p_id: parts[1], p: { clear: "purpose" } });
+      if (st?.ok) await renderCard(msg.chat.id, msg.message_id, parts[1], st);
+    } else if (action === "k" || action === "c" || action === "t" || action === "s") {
       const value = parts[1];
       const draftId = parts[2];
       const patch: Record<string, string> = {};
@@ -138,6 +186,11 @@ Deno.serve(async (req) => {
         const { data: depts } = await supa.rpc("tg_list_departments", { p_exclude: null });
         const found = (depts ?? []).find((d: any) => d.id.startsWith(value));
         if (found) patch.target_department_id = found.id;
+      }
+      if (action === "s") {
+        const { data: cats } = await supa.rpc("tg_list_expense_categories");
+        const found = (cats ?? []).find((c: any) => c.id.startsWith(value));
+        if (found) patch.category_id = found.id;
       }
       const { data: st } = await supa.rpc("tg_patch_draft", { p_id: draftId, p: patch });
       if (st?.ok) await renderCard(msg.chat.id, msg.message_id, draftId, st);
@@ -187,11 +240,29 @@ Deno.serve(async (req) => {
     return new Response("ok");
   }
 
+  // ---------- ответ на карточку — это «на что потрачено» ----------
+  // Проверяем ДО разбора суммы: в ответе может быть число («овощи 3 кг»),
+  // и без этой ветки бот завёл бы вторую заявку на 3.
+  if (m.reply_to_message?.message_id) {
+    const { data: draftId } = await supa.rpc("tg_find_card_draft", {
+      p_chat: m.chat.id, p_msg: m.reply_to_message.message_id,
+    });
+    if (draftId) {
+      const { data: st } = await supa.rpc("tg_patch_draft", { p_id: draftId, p: { purpose: text } });
+      if (st?.ok) {
+        await renderCard(m.chat.id, m.reply_to_message.message_id, draftId, st);
+        await tg("setMessageReaction", { chat_id: m.chat.id, message_id: m.message_id, reaction: [{ type: "emoji", emoji: "👀" }] });
+      }
+      return new Response("ok");
+    }
+  }
+
   // ---------- суммы в чатах департаментов ----------
   const { data: chatRows } = await supa.rpc("tg_resolve_chat", { p_chat: m.chat.id });
   const chat = Array.isArray(chatRows) ? chatRows[0] : chatRows;
   if (!chat) return new Response("ok");
 
+  const amountMatch = text.match(/(\d[\d\s]{0,9}\d|\d)/);
   const amount = parseAmount(text);
   if (!amount) return new Response("ok");
 
@@ -217,7 +288,7 @@ Deno.serve(async (req) => {
     await tg("sendMessage", {
       chat_id: m.chat.id, reply_to_message_id: m.message_id, parse_mode: "HTML",
       text: uname
-        ? `Не нахожу вас в системе: в профилях нет ника <b>${uname}</b> (или он указан у двоих).\nОткройте свой профиль на in.rupaseva.com → впишите ${uname} в поле Telegram либо нажмите «Привязать Telegram».`
+        ? `Не нахожу вас в системе: в профилях нет ника <b>${esc(uname)}</b> (или он указан у двоих).\nОткройте свой профиль на in.rupaseva.com → впишите ${esc(uname)} в поле Telegram либо нажмите «Привязать Telegram».`
         : "У вашего Telegram нет ника, поэтому не могу вас узнать. Откройте свой профиль на in.rupaseva.com и нажмите «Привязать Telegram».",
     });
     return new Response("ok");
@@ -231,7 +302,8 @@ Deno.serve(async (req) => {
 
   const { data: draftId } = await supa.rpc("tg_create_draft", {
     p: { chat_id: m.chat.id, source_message_id: m.message_id, tg_user_id: m.from.id,
-         kind, amount, currency: parseCurrency(text), target_department_id: targetDept, raw_text: text },
+         kind, amount, currency: parseCurrency(text), target_department_id: targetDept,
+         purpose: parsePurpose(text, amountMatch?.[0] ?? ""), raw_text: text },
   });
   if (!draftId) return new Response("ok");
 

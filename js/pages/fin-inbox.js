@@ -56,12 +56,14 @@ function chatDraftCardHtml(d) {
                 <span class="badge badge-ghost badge-sm">${e(d.department)}</span>
                 <span class="font-medium">${e(head)}</span>
                 <span class="font-mono font-semibold">${FinUtils.fmtMoney(d.amount, d.currency)}</span>
-                <span class="opacity-60 truncate max-w-md">${e([d.author, d.raw_text].filter(Boolean).join(' · '))}</span>
+                ${d.category ? `<span class="badge badge-outline badge-sm">${e(d.category)}</span>` : ''}
+                ${d.purpose ? `<span class="truncate max-w-md">${e(d.purpose)}</span>` : ''}
                 <div class="ml-auto flex gap-2">
                     <button class="btn btn-success btn-sm" data-action="post-draft">${t('fin_post_draft')}</button>
                     <button class="btn btn-ghost btn-sm" data-action="dismiss-draft">${t('fin_dismiss_draft')}</button>
                 </div>
             </div>
+            <div class="text-xs opacity-60 mt-1">${e([d.author, d.raw_text].filter(Boolean).join(' · '))}</div>
         </div>
     </div>`;
 }
