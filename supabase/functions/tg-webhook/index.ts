@@ -346,10 +346,16 @@ Deno.serve(async (req) => {
     // Департаменты передают ДРУГИМ, поэтому свой исключаем; у казначея это
     // приход department'у, в чьём чате он пишет, — значит не исключаем ничего
     // и при отсутствии явного упоминания берём департамент чата.
-    const { data: tgt } = await supa.rpc("tg_match_department", {
-      p_text: text, p_exclude: isTreasurer ? null : chat.department_id,
-    });
-    targetDept = tgt ?? (isTreasurer ? chat.department_id : null);
+    const p_exclude = isTreasurer ? null : chat.department_id;
+    const { data: tgt } = await supa.rpc("tg_match_department", { p_text: text, p_exclude });
+    targetDept = tgt ?? null;
+    if (!targetDept && isTreasurer) {
+      // Подставляем департамент чата, только если получатель вообще не назван.
+      // Названо, но неоднозначно («выдал Олегу» — у него два департамента) —
+      // спрашиваем каждый раз, иначе деньги молча ушли бы не туда.
+      const { data: hits } = await supa.rpc("tg_department_hits", { p_text: text, p_exclude });
+      if (!hits) targetDept = chat.department_id;
+    }
   } else if (EXPENSE_WORDS.test(text)) {
     kind = "expense";
   }
