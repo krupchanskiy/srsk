@@ -1,0 +1,251 @@
+<!DOCTYPE html>
+<html lang="ru" data-theme="light">
+<head>
+    <script src="../js/color-init.js?v=2"></script>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title data-i18n-title="crm_retreat_prices_page_title">Цены ретрита — CRM — ШРСК</title>
+    <link href="https://cdn.jsdelivr.net/npm/daisyui@4.12.14/dist/full.min.css" rel="stylesheet" />
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script>tailwind.config = { theme: { extend: { screens: { 'desktop': '1200px' } } } }</script>
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="../css/common.css?v=3">
+    <style>
+        .price-input { width: 7rem; text-align: right; font-variant-numeric: tabular-nums; }
+        .flash-saved { animation: flash-saved 0.8s ease; }
+        @keyframes flash-saved {
+            0% { background: transparent; }
+            30% { background: #dcfce7; }
+            100% { background: transparent; }
+        }
+    </style>
+</head>
+<body class="bg-base-200 min-h-screen flex flex-col">
+
+<div id="header-placeholder"></div>
+
+<main class="container mx-auto px-4 py-6 flex-1">
+    <div class="flex flex-wrap justify-between items-center gap-3 mb-2">
+        <h1 class="text-2xl font-bold" data-i18n="nav_crm_retreat_prices">Цены ретрита</h1>
+        <button class="btn btn-primary btn-sm" onclick="openAddModal()" data-permission="edit_retreat_prices">
+            + <span data-i18n="add">Добавить</span>
+        </button>
+    </div>
+    <p class="text-sm opacity-70 mb-4" data-i18n="crm_retreat_prices_hint">
+        Стоимость ретрита в разных валютах. Цены задаются независимо, а не пересчитываются по курсу.
+        Отсюда начисления берут суммы участникам.
+    </p>
+
+    <div class="card bg-base-100 shadow-sm mb-4">
+        <div class="card-body p-4">
+            <div class="form-control max-w-md">
+                <label class="label py-1"><span class="label-text text-xs" data-i18n="crm_retreat">Ретрит</span></label>
+                <select id="retreatSelect" class="select select-bordered select-sm" onchange="loadPrices()"></select>
+            </div>
+        </div>
+    </div>
+
+    <div class="card bg-base-100 shadow-sm">
+        <div class="card-body p-0">
+            <div class="overflow-x-auto">
+                <table class="table">
+                    <thead>
+                        <tr>
+                            <th data-i18n="crm_service">Услуга</th>
+                            <th class="text-right">₹</th>
+                            <th class="text-right">₽</th>
+                            <th class="text-right">$</th>
+                            <th class="text-right">€</th>
+                            <th data-i18n="crm_note">Пометка</th>
+                            <th class="w-10"></th>
+                        </tr>
+                    </thead>
+                    <tbody id="pricesBody">
+                        <tr><td colspan="7" class="text-center py-8"><span class="loading loading-spinner loading-md"></span></td></tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</main>
+
+<div id="footer-placeholder"></div>
+
+<!-- Модалка: добавить услугу в прайс ретрита -->
+<dialog id="addModal" class="modal">
+    <div class="modal-box max-w-md">
+        <h3 class="font-bold text-lg mb-3" data-i18n="crm_add_price">Добавить услугу в прайс</h3>
+        <form id="addForm">
+            <div class="form-control mb-3">
+                <label class="label py-1"><span class="label-text" data-i18n="crm_service">Услуга</span></label>
+                <select id="addService" class="select select-bordered select-sm" required></select>
+            </div>
+            <div class="grid grid-cols-2 gap-2 mb-3">
+                <div class="form-control">
+                    <label class="label py-1"><span class="label-text">₹</span></label>
+                    <input type="number" id="addInr" class="input input-bordered input-sm text-right" step="0.01" min="0" required>
+                </div>
+                <div class="form-control">
+                    <label class="label py-1"><span class="label-text">₽</span></label>
+                    <input type="number" id="addRub" class="input input-bordered input-sm text-right" step="0.01" min="0">
+                </div>
+                <div class="form-control">
+                    <label class="label py-1"><span class="label-text">$</span></label>
+                    <input type="number" id="addUsd" class="input input-bordered input-sm text-right" step="0.01" min="0">
+                </div>
+                <div class="form-control">
+                    <label class="label py-1"><span class="label-text">€</span></label>
+                    <input type="number" id="addEur" class="input input-bordered input-sm text-right" step="0.01" min="0">
+                </div>
+            </div>
+            <div class="form-control mb-3">
+                <label class="label py-1"><span class="label-text" data-i18n="crm_note">Пометка</span></label>
+                <input type="text" id="addNote" class="input input-bordered input-sm">
+            </div>
+            <div class="modal-action">
+                <button type="button" class="btn" onclick="document.getElementById('addModal').close()" data-i18n="cancel">Отмена</button>
+                <button type="submit" class="btn btn-primary" data-i18n="save">Сохранить</button>
+            </div>
+        </form>
+    </div>
+    <form method="dialog" class="modal-backdrop"><button>close</button></form>
+</dialog>
+
+<script src="../js/config.js?v=4"></script>
+<script src="../js/auth-check.js?v=7"></script>
+<script src="../js/cache.js?v=1"></script>
+<script src="../js/utils.js?v=4"></script>
+<script src="../js/layout.js?v=33"></script>
+<script src="../js/date-utils.js?v=3"></script>
+<script>
+const t = key => Layout.t(key);
+const e = str => Layout.escapeHtml(str);
+
+let retreats = [], services = [], prices = [];
+// Право проверяем строгой серверной функцией, а не общим hasPermission:
+// цены меняют только трое поимённо, суперправа сюда не пускают (решение ВГ).
+let editAllowed = false;
+const canEdit = () => editAllowed;
+
+async function loadRefs() {
+    const [r, s] = await Promise.all([
+        Layout.db.from('retreats').select('id, name_ru, name_en, start_date').order('start_date', { ascending: false }),
+        Layout.db.from('crm_services').select('id, code, name_ru, name_en, category').eq('is_active', true).order('sort_order')
+    ]);
+    retreats = r.data || [];
+    services = s.data || [];
+    document.getElementById('retreatSelect').innerHTML =
+        retreats.map(x => `<option value="${x.id}">${e(Layout.getName(x))}</option>`).join('');
+}
+
+async function loadPrices() {
+    const retreatId = document.getElementById('retreatSelect').value;
+    const body = document.getElementById('pricesBody');
+    body.innerHTML = `<tr><td colspan="7" class="text-center py-8"><span class="loading loading-spinner loading-md"></span></td></tr>`;
+    const { data, error } = await Layout.db.from('crm_retreat_prices')
+        .select('id, service_id, price, price_rub, price_usd, price_eur, note')
+        .eq('retreat_id', retreatId);
+    if (error) { Layout.handleError(error, t('nav_crm_retreat_prices')); return; }
+    prices = data || [];
+    renderTable();
+}
+
+function renderTable() {
+    const body = document.getElementById('pricesBody');
+    if (!prices.length) {
+        body.innerHTML = `<tr><td colspan="7" class="text-center py-10 opacity-60">${t('crm_no_prices')}</td></tr>`;
+        return;
+    }
+    const byId = Object.fromEntries(services.map(s => [s.id, s]));
+    const ro = canEdit() ? '' : 'disabled';
+    body.innerHTML = prices
+        .sort((a, b) => (byId[a.service_id]?.name_ru || '').localeCompare(byId[b.service_id]?.name_ru || ''))
+        .map(p => {
+            const s = byId[p.service_id];
+            return `<tr data-price="${p.id}">
+                <td class="font-medium">${e(s ? Layout.getName(s) : '—')}</td>
+                ${['price', 'price_rub', 'price_usd', 'price_eur'].map(f => `
+                <td class="text-right"><input type="number" class="input input-bordered input-sm price-input"
+                    data-field="${f}" value="${p[f] ?? ''}" step="0.01" min="0" ${ro}></td>`).join('')}
+                <td><input type="text" class="input input-bordered input-sm w-full" data-field="note" value="${e(p.note || '')}" ${ro}></td>
+                <td>${canEdit() ? `<button class="btn btn-ghost btn-xs text-error" data-action="del" title="${t('delete')}">✕</button>` : ''}</td>
+            </tr>`;
+        }).join('');
+}
+
+// Сохранение по уходу из поля — без отдельной кнопки «Сохранить»
+async function saveCell(row, input) {
+    const id = row.dataset.price;
+    const field = input.dataset.field;
+    const raw = input.value.trim();
+    const value = field === 'note' ? (raw || null) : (raw === '' ? null : Number(raw));
+    const { error } = await Layout.db.from('crm_retreat_prices')
+        .update({ [field]: value, updated_at: new Date().toISOString(), updated_by: window.currentUser?.id || null })
+        .eq('id', id);
+    if (error) { Layout.handleError(error, t('save')); return; }
+    const p = prices.find(x => x.id === id);
+    if (p) p[field] = value;
+    row.classList.add('flash-saved');
+    setTimeout(() => row.classList.remove('flash-saved'), 900);
+}
+
+async function deletePrice(id) {
+    if (!confirm(t('confirm_delete'))) return;
+    const { error } = await Layout.db.from('crm_retreat_prices').delete().eq('id', id);
+    if (error) { Layout.handleError(error, t('delete')); return; }
+    await loadPrices();
+}
+
+function openAddModal() {
+    const used = new Set(prices.map(p => p.service_id));
+    const free = services.filter(s => !used.has(s.id));
+    if (!free.length) { Layout.showNotification(t('crm_all_services_priced'), 'error'); return; }
+    document.getElementById('addService').innerHTML =
+        free.map(s => `<option value="${s.id}">${e(Layout.getName(s))}</option>`).join('');
+    ['addInr', 'addRub', 'addUsd', 'addEur', 'addNote'].forEach(id => document.getElementById(id).value = '');
+    document.getElementById('addModal').showModal();
+}
+
+async function submitAdd(ev) {
+    ev.preventDefault();
+    const num = id => { const v = document.getElementById(id).value.trim(); return v === '' ? null : Number(v); };
+    const { error } = await Layout.db.from('crm_retreat_prices').insert({
+        retreat_id: document.getElementById('retreatSelect').value,
+        service_id: document.getElementById('addService').value,
+        price: num('addInr'),
+        price_rub: num('addRub'), price_usd: num('addUsd'), price_eur: num('addEur'),
+        note: document.getElementById('addNote').value.trim() || null,
+        updated_by: window.currentUser?.id || null
+    });
+    if (error) { Layout.handleError(error, t('save')); return; }
+    document.getElementById('addModal').close();
+    await loadPrices();
+}
+
+async function init() {
+    await Layout.init({ module: 'crm', menuId: 'crm_settings', itemId: 'crm_retreat_prices' });
+    const { data: allowed } = await Layout.db.rpc('crm_can_edit_retreat_prices', { p_user: window.currentUser?.id });
+    editAllowed = !!allowed;
+    // Кнопка «Добавить» скрыта тем же правилом, что и поля
+    if (!editAllowed) document.querySelector('[data-permission="edit_retreat_prices"]')?.classList.add('hidden');
+    await loadRefs();
+    document.getElementById('addForm').addEventListener('submit', submitAdd);
+    document.getElementById('pricesBody').addEventListener('change', ev => {
+        const input = ev.target.closest('[data-field]');
+        const row = ev.target.closest('[data-price]');
+        if (input && row) saveCell(row, input);
+    });
+    document.getElementById('pricesBody').addEventListener('click', ev => {
+        const btn = ev.target.closest('[data-action="del"]');
+        const row = ev.target.closest('[data-price]');
+        if (btn && row) deletePrice(row.dataset.price);
+    });
+    await loadPrices();
+}
+
+init();
+</script>
+
+</body>
+</html>

@@ -98,6 +98,7 @@ const modules = {
             ]},
             { id: 'crm_settings', items: [
                 { id: 'crm_services', href: 'crm/services.html' },
+                { id: 'crm_retreat_prices', href: 'crm/retreat-prices.html' },
                 { id: 'crm_currencies', href: 'crm/currencies.html' },
                 { id: 'crm_tags', href: 'crm/tags.html' },
                 { id: 'crm_templates', href: 'crm/templates.html' },
@@ -262,6 +263,7 @@ const pagePermissions = {
 
     // CRM - Настройки
     'crm/services.html': 'edit_crm_settings',
+    'crm/retreat-prices.html': 'view_crm',
     'crm/currencies.html': 'edit_crm_settings',
     'crm/tags.html': 'edit_crm_settings',
     'crm/templates.html': 'edit_crm_settings',
@@ -489,7 +491,7 @@ function getPersonName(person, lang = currentLang) {
 
 // ==================== TRANSLATIONS ====================
 async function loadTranslations(retried = false) {
-    const data = await Cache.getOrLoad('translations_v22', async () => {
+    const data = await Cache.getOrLoad('translations_v23', async () => {
         // Supabase ограничивает 1000 записей на запрос, используем пагинацию
         const allData = [];
         let from = 0;
@@ -524,7 +526,7 @@ async function loadTranslations(retried = false) {
 
     if (!hasAllKeys && !retried) {
         // Кэш устарел, инвалидируем и перезагружаем (только 1 раз)
-        Cache.invalidate('translations_v22');
+        Cache.invalidate('translations_v23');
         return loadTranslations(true);
     }
 
