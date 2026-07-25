@@ -332,6 +332,24 @@ Deno.serve(async (req) => {
     return new Response("ok");
   }
 
+  // ---------- /balance — остаток департамента (запрос ВГ, 25.07.2026) ----------
+  // Пишут по-русски, поэтому кроме латинской команды (её понимает меню
+  // Telegram) принимаем «/баланс» и «/остаток».
+  if (/^\/(balance|баланс|остаток)/i.test(text)) {
+    const { data: rows } = await supa.rpc("tg_department_balance", { p_chat: m.chat.id });
+    const b = Array.isArray(rows) ? rows[0] : rows;
+    await tg("sendMessage", {
+      chat_id: m.chat.id, reply_to_message_id: m.message_id, parse_mode: "HTML",
+      text: b
+        ? `💰 <b>${esc(b.department_name)}: ${esc(b.formatted)}</b>`
+          + (b.pending_drafts > 0
+              ? `\nЖдут проведения: ${b.pending_drafts} — остаток изменится, когда их проведут.`
+              : "")
+        : "Этот чат не привязан к департаменту, поэтому остаток показать не могу.",
+    });
+    return new Response("ok");
+  }
+
   // ---------- суммы в чатах департаментов ----------
   const { data: chatRows } = await supa.rpc("tg_resolve_chat", { p_chat: m.chat.id });
   const chat = Array.isArray(chatRows) ? chatRows[0] : chatRows;
