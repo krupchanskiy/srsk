@@ -53,17 +53,21 @@ const amtValue = (int: string, frac?: string) =>
 //   3) иначе ПОСЛЕДНЕЕ число: по-русски сумму почти всегда пишут в конце.
 // Раньше бралось первое, и «5 кг риса 340» превращалось в заявку на 5.
 function parseMoney(text: string): { amount: number; raw: string } | null {
+  let n: number | null = null, raw = "";
+
   const k = text.match(new RegExp(`${AMT}\\s*(?:к|тыс\\p{L}*)(?![\\p{L}])`, "iu"));
-  if (k) return { amount: amtValue(k[1], k[2]) * 1000, raw: k[0] };
-
   const c = text.match(new RegExp(`${AMT}\\s*(?:${CUR_WORDS})(?![\\p{L}])`, "iu"));
-  if (c) return { amount: amtValue(c[1], c[2]), raw: c[0] };
+  if (k) { n = amtValue(k[1], k[2]) * 1000; raw = k[0]; }
+  else if (c) { n = amtValue(c[1], c[2]); raw = c[0]; }
+  else {
+    const all = [...text.matchAll(new RegExp(AMT, "gu"))];
+    if (all.length) { const m = all[all.length - 1]; n = amtValue(m[1], m[2]); raw = m[0]; }
+  }
 
-  const all = [...text.matchAll(new RegExp(AMT, "gu"))];
-  if (!all.length) return null;
-  const m = all[all.length - 1];
-  const n = amtValue(m[1], m[2]);
-  return Number.isFinite(n) && n > 0 ? { amount: n, raw: m[0] } : null;
+  // Проверка «сумма положительная» — одна для всех ветвей. Раньше стояла только
+  // в последней, и «купил овощи 0 ₹» доходило до заявки: там ограничение БД
+  // (amount > 0) роняло вставку, и бот молча не отвечал вообще.
+  return n !== null && Number.isFinite(n) && n > 0 ? { amount: n, raw } : null;
 }
 // Валюта только если названа ЯВНО. Иначе null — бот спросит (решение ВГ).
 function parseCurrency(text: string): string | null {
