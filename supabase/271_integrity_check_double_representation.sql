@@ -1,0 +1,26 @@
+-- Сторож против двойного представления денег участника.
+--
+-- Штатные проверки этого не ловили: totals_mismatch сверяет сохранённое
+-- значение с формулой, и при ошибке В САМОЙ формуле обе стороны согласны.
+-- Нужна проверка, которая смотрит на источники, а не на согласованность.
+--
+-- Добавлены две проверки к fin_run_integrity_checks (было 12, стало 14):
+--
+--   advance_double_representation
+--     платёж есть и в журнале, и в начальном остатке своей сделки
+--     SQL: SELECT count(*) FROM crm_payments p JOIN crm_deals d ON d.id=p.deal_id
+--          WHERE p.is_confirmed
+--            AND EXISTS (SELECT 1 FROM fin_operations o WHERE o.id=p.id AND NOT o.is_reversed)
+--            AND EXISTS (SELECT 1 FROM fin_participant_opening_balances ob
+--                        WHERE ob.source_row_id=d.id::text)
+--
+--   advance_partial_load
+--     у сделки есть начальный остаток, но сумма исторических платежей
+--     с ним не сходится (перенесли частично)
+--     SQL: сверка SUM(amount_inr) непроведённых доcutover-платежей сделки
+--          с SUM(amount) её строк начальных остатков батча
+--
+-- Полное тело функции — в базе; здесь зафиксирован смысл добавленного,
+-- потому что функция монолитная и её текст целиком дублировать незачем.
+-- Актуальное определение всегда доступно:
+--   SELECT pg_get_functiondef('fin_run_integrity_checks'::regproc);
