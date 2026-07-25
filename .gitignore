@@ -9,3 +9,5 @@ task.md
 .env*
 supabase/.temp/
 .claude/worktrees/
+.mcp.json
+.claude/memory-bank/

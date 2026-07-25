@@ -13,10 +13,13 @@
 -- =============================================================
 
 -- Токен бота (единственное место хранения — vault)
+-- ВНИМАНИЕ: настоящий токен в этом файле не хранится.
+-- Он лежит в vault (secret 'telegram_bot_token'). Репозиторий публичный:
+-- любой секрет, попавший в него, считается утёкшим и подлежит замене.
 DO $$
 BEGIN
   IF NOT EXISTS (SELECT 1 FROM vault.secrets WHERE name = 'telegram_bot_token') THEN
-    PERFORM vault.create_secret('8877629320:AAGaJCXo8qsYupbtpiMFGq7yx9moedn5WBk', 'telegram_bot_token');
+    PERFORM vault.create_secret('ВСТАВИТЬ_ТОКЕН_БОТА_ВРУЧНУЮ', 'telegram_bot_token');
   END IF;
 END $$;
 
