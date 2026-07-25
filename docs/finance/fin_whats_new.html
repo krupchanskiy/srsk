@@ -1,0 +1,299 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Финансы — что нового и куда нажать</title>
+</head>
+<body>
+<style>
+  :root{
+    --paper:#f4f7f7; --surface:#ffffff; --ink:#12302e; --muted:#5b7472;
+    --line:rgba(15,45,43,.10); --line-strong:rgba(15,45,43,.16);
+    --accent:#0d9488; --accent-deep:#0f766e; --chip:rgba(13,148,136,.10);
+    --good:#059669; --bad:#dc2626;
+    --sans:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
+    --mono:ui-monospace,"SF Mono","JetBrains Mono","Cascadia Code",monospace;
+  }
+  @media (prefers-color-scheme:dark){
+    :root{
+      --paper:#0a1413; --surface:#0f1d1c; --ink:#e6f1ef; --muted:#8aa3a0;
+      --line:rgba(255,255,255,.10); --line-strong:rgba(255,255,255,.16);
+      --accent:#2dd4bf; --accent-deep:#5eead4; --chip:rgba(45,212,191,.14);
+      --good:#34d399; --bad:#f87171;
+    }
+  }
+  :root[data-theme="light"]{
+    --paper:#f4f7f7; --surface:#ffffff; --ink:#12302e; --muted:#5b7472;
+    --line:rgba(15,45,43,.10); --line-strong:rgba(15,45,43,.16);
+    --accent:#0d9488; --accent-deep:#0f766e; --chip:rgba(13,148,136,.10);
+    --good:#059669; --bad:#dc2626;
+  }
+  :root[data-theme="dark"]{
+    --paper:#0a1413; --surface:#0f1d1c; --ink:#e6f1ef; --muted:#8aa3a0;
+    --line:rgba(255,255,255,.10); --line-strong:rgba(255,255,255,.16);
+    --accent:#2dd4bf; --accent-deep:#5eead4; --chip:rgba(45,212,191,.14);
+    --good:#34d399; --bad:#f87171;
+  }
+  *{box-sizing:border-box}
+  .wrap{background:var(--paper);color:var(--ink);font-family:var(--sans);
+    line-height:1.55;-webkit-font-smoothing:antialiased;min-height:100vh;
+    padding:clamp(20px,5vw,64px) 20px}
+  .page{max-width:780px;margin:0 auto}
+
+  /* header */
+  .eyebrow{font-size:12px;font-weight:600;letter-spacing:.14em;text-transform:uppercase;
+    color:var(--accent-deep);margin:0 0 12px}
+  h1{font-size:clamp(28px,5vw,42px);line-height:1.08;letter-spacing:-.02em;font-weight:800;
+    margin:0 0 14px;text-wrap:balance}
+  .lede{font-size:17px;color:var(--muted);max-width:60ch;margin:0}
+  .rule{height:1px;background:var(--line);border:0;margin:34px 0}
+
+  /* highlight strip */
+  .top{display:grid;grid-template-columns:repeat(auto-fit,minmax(210px,1fr));gap:12px;margin:6px 0 4px}
+  .top .card{background:var(--surface);border:1px solid var(--line);border-radius:14px;
+    padding:16px 16px 15px;box-shadow:0 1px 2px rgba(16,24,40,.04),0 10px 26px -18px rgba(16,24,40,.18)}
+  .top .k{font-size:12.5px;font-weight:700;letter-spacing:.02em;color:var(--accent-deep);
+    text-transform:uppercase;margin:0 0 6px}
+  .top .v{font-size:14.5px;color:var(--ink);margin:0}
+
+  /* section */
+  section{margin-top:38px}
+  .head{display:flex;align-items:center;gap:12px;margin-bottom:6px}
+  .chip{width:40px;height:40px;border-radius:11px;flex:0 0 auto;display:flex;align-items:center;
+    justify-content:center;background:var(--chip);color:var(--accent-deep)}
+  .chip svg{width:22px;height:22px}
+  .head h2{font-size:21px;font-weight:750;letter-spacing:-.01em;margin:0}
+  .head .where0{font-size:12px;color:var(--muted);margin-top:2px}
+
+  .list{display:flex;flex-direction:column;gap:2px;margin-top:14px;
+    border:1px solid var(--line);border-radius:14px;background:var(--surface);overflow:hidden}
+  .item{padding:14px 18px;border-top:1px solid var(--line)}
+  .item:first-child{border-top:0}
+  .item .name{font-weight:700;font-size:15.5px;margin:0 0 3px}
+  .item .why{color:var(--muted);font-size:14px;margin:0 0 8px}
+  .item .where{display:inline-flex;align-items:center;gap:7px;font-family:var(--mono);font-size:12px;
+    color:var(--accent-deep);background:var(--chip);border-radius:999px;padding:4px 11px;letter-spacing:0}
+  .where svg{width:13px;height:13px;opacity:.8}
+  .money-g{color:var(--good);font-weight:700}
+  .money-r{color:var(--bad);font-weight:700}
+
+  footer{margin-top:44px;padding-top:22px;border-top:1px solid var(--line);
+    color:var(--muted);font-size:13.5px}
+  footer b{color:var(--ink)}
+  .tag{display:inline-block;font-family:var(--mono);font-size:12px;background:var(--chip);
+    color:var(--accent-deep);border-radius:6px;padding:2px 7px}
+</style>
+
+<div class="wrap"><div class="page">
+
+  <p class="eyebrow">Финансовый модуль · обновление интерфейса</p>
+  <h1>Что нового в «Финансах» и куда нажать</h1>
+  <p class="lede">Мы переработали интерфейс так, чтобы каждодневная работа стала быстрее:
+  меньше кликов, поиск везде, где он нужен, и цифры, которые раскрываются в детали.
+  Ниже — по каждой странице: что появилось, зачем и где это увидеть.</p>
+
+  <hr class="rule">
+
+  <div class="top">
+    <div class="card"><p class="k">Не забыть сверить кассу</p><p class="v">Главная сама показывает, какие счета давно не сверяли — цветной точкой.</p></div>
+    <div class="card"><p class="k">Найти любую операцию</p><p class="v">В журнале — поиск по сумме, а сумма прихода/расхода считается по выборке.</p></div>
+    <div class="card"><p class="k">Долг гостю — в WhatsApp</p><p class="v">Кнопка «Скопировать сводку» готовит текст с долгом одним нажатием.</p></div>
+    <div class="card"><p class="k">Цифра → детали</p><p class="v">Любая статья в аналитике раскрывается в конкретные операции по ней.</p></div>
+  </div>
+
+  <!-- ГЛАВНАЯ -->
+  <section>
+    <div class="head">
+      <span class="chip"><svg fill="none" viewBox="0 0 24 24" stroke-width="1.7" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M2.25 12l8.954-8.955c.44-.439 1.152-.439 1.591 0L21.75 12M4.5 9.75v10.125c0 .621.504 1.125 1.125 1.125H9.75v-4.875c0-.621.504-1.125 1.125-1.125h2.25c.621 0 1.125.504 1.125 1.125V21h4.125c.621 0 1.125-.504 1.125-1.125V9.75"/></svg></span>
+      <div><h2>Главная</h2><div class="where0">Финансы › Главная</div></div>
+    </div>
+    <div class="list">
+      <div class="item">
+        <p class="name">Быстрые кнопки: Приход · Расход · Перевод</p>
+        <p class="why">Создать операцию сразу, не переходя в журнал.</p>
+        <span class="where">вверху страницы, справа</span>
+      </div>
+      <div class="item">
+        <p class="name">«Давность сверки»</p>
+        <p class="why">Сразу видно, какие кассы давно не сверяли: <span class="money-g">зелёная</span> точка — сверено сегодня, жёлтая — пару дней назад, <span class="money-r">красная</span> — давно или ни разу. Клик по строке открывает сверку этого счёта.</p>
+        <span class="where">карточка «Давность сверки»</span>
+      </div>
+      <div class="item">
+        <p class="name">Минусовые счета кликабельны</p>
+        <p class="why">Увидели минус — клик открывает ленту этого счёта, чтобы понять, откуда он взялся.</p>
+        <span class="where">карточка «Минусы»</span>
+      </div>
+    </div>
+  </section>
+
+  <!-- ДДС -->
+  <section>
+    <div class="head">
+      <span class="chip"><svg fill="none" viewBox="0 0 24 24" stroke-width="1.7" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M3.75 5.25h16.5m-16.5 4.5h16.5m-16.5 4.5h16.5m-16.5 4.5h16.5"/></svg></span>
+      <div><h2>ДДС — журнал операций</h2><div class="where0">Финансы › ДДС</div></div>
+    </div>
+    <div class="list">
+      <div class="item">
+        <p class="name">Кнопки периода: Сегодня · Неделя · Месяц</p>
+        <p class="why">Не набирать две даты руками — один клик.</p>
+        <span class="where">строка «Период» над фильтрами</span>
+      </div>
+      <div class="item">
+        <p class="name">Поиск по сумме, комментарию или плательщику</p>
+        <p class="why">Например, ввести «5000» — найдутся операции на эту сумму.</p>
+        <span class="where">поле «Поиск» в фильтрах</span>
+      </div>
+      <div class="item">
+        <p class="name">Фильтр по статье и итог по выборке</p>
+        <p class="why">Выбрать статью — увидеть все операции по ней, а под таблицей — сумму <span class="money-g">прихода</span> и <span class="money-r">расхода</span>. Удобно для ежедневной сверки с Excel.</p>
+        <span class="where">фильтр «Статья» · итог под таблицей</span>
+      </div>
+      <div class="item">
+        <p class="name">Выгрузка в CSV</p>
+        <p class="why">Сохранить текущую выборку в файл для Excel.</p>
+        <span class="where">кнопка «CSV» справа над фильтрами</span>
+      </div>
+      <div class="item">
+        <p class="name">«Повторить» операцию</p>
+        <p class="why">Разверните операцию и нажмите «Повторить» — откроется такая же заготовка (счёт, статья, сумма). Для регулярных расходов и повторяющихся платежей.</p>
+        <span class="where">клик по операции → «Повторить»</span>
+      </div>
+      <div class="item">
+        <p class="name">Автор и подсветка при развороте</p>
+        <p class="why">Видно, кто внёс операцию; раскрытая операция подсвечивается, чтобы не путать, к какой строке относятся детали.</p>
+        <span class="where">клик по строке операции</span>
+      </div>
+    </div>
+  </section>
+
+  <!-- УЧАСТНИКИ -->
+  <section>
+    <div class="head">
+      <span class="chip"><svg fill="none" viewBox="0 0 24 24" stroke-width="1.7" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M15 19.128a9.38 9.38 0 002.625.372 9.337 9.337 0 004.121-.952 4.125 4.125 0 00-7.533-2.493M15 19.128v-.003c0-1.113-.285-2.16-.786-3.07M15 19.128v.106A12.318 12.318 0 018.624 21c-2.331 0-4.512-.645-6.374-1.766l-.001-.109a6.375 6.375 0 0111.964-3.07M12 6.375a3.375 3.375 0 11-6.75 0 3.375 3.375 0 016.75 0zm8.25 2.25a2.625 2.625 0 11-5.25 0 2.625 2.625 0 015.25 0z"/></svg></span>
+      <div><h2>Участники</h2><div class="where0">Финансы › Участники</div></div>
+    </div>
+    <div class="list">
+      <div class="item">
+        <p class="name">Поиск по имени</p>
+        <p class="why">В день заезда, когда участников много, — быстро найти нужного.</p>
+        <span class="where">поле поиска над списком</span>
+      </div>
+      <div class="item">
+        <p class="name">Фильтры: Все · Должники · Авансы + итог</p>
+        <p class="why">Работать только с должниками; справа — сколько всего должников и на какую сумму.</p>
+        <span class="where">чипы над списком</span>
+      </div>
+      <div class="item">
+        <p class="name">«Скопировать сводку»</p>
+        <p class="why">В карточке участника — кнопка формирует готовый текст («Долг: ₹ 5 000») для отправки гостю в WhatsApp. Не нужно перепечатывать.</p>
+        <span class="where">карточка участника, вверху</span>
+      </div>
+      <div class="item">
+        <p class="name">Сортировка кликом по заголовку</p>
+        <p class="why">Клик по «Итог» — крупнейшие должники поднимаются наверх.</p>
+        <span class="where">заголовки «Участник» и «Итог»</span>
+      </div>
+    </div>
+  </section>
+
+  <!-- СЧЕТА -->
+  <section>
+    <div class="head">
+      <span class="chip"><svg fill="none" viewBox="0 0 24 24" stroke-width="1.7" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M21 12a2.25 2.25 0 00-2.25-2.25H15a3 3 0 11-6 0H5.25A2.25 2.25 0 003 12m18 0v6a2.25 2.25 0 01-2.25 2.25H5.25A2.25 2.25 0 013 18v-6m18 0V9a2.25 2.25 0 00-2.25-2.25H5.25A2.25 2.25 0 003 9v3"/></svg></span>
+      <div><h2>Счета</h2><div class="where0">Финансы › Счета</div></div>
+    </div>
+    <div class="list">
+      <div class="item">
+        <p class="name">Сводка сверху</p>
+        <p class="why">Итог остатков, число счетов и сколько в минусе — по текущей вкладке.</p>
+        <span class="where">карточки над таблицей</span>
+      </div>
+      <div class="item">
+        <p class="name">Клик по строке · кнопка «Сверить» · цвет давности</p>
+        <p class="why">Клик по счёту открывает его ленту; кнопка «Сверить» — сразу сверку; давность последней сверки показана цветом.</p>
+        <span class="where">строки таблицы счетов</span>
+      </div>
+    </div>
+  </section>
+
+  <!-- СВЕРКА -->
+  <section>
+    <div class="head">
+      <span class="chip"><svg fill="none" viewBox="0 0 24 24" stroke-width="1.7" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M9 12.75L11.25 15 15 9.75M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg></span>
+      <div><h2>Сверка</h2><div class="where0">Финансы › Сверка</div></div>
+    </div>
+    <div class="list">
+      <div class="item">
+        <p class="name">Пересчёт с клавиатуры</p>
+        <p class="why">Ввод по номиналам: Enter переводит на следующее поле, значение выделяется — без мыши.</p>
+        <span class="where">блок наличного пересчёта</span>
+      </div>
+      <div class="item">
+        <p class="name">Плитки: Расчётный · Фактический · Разница</p>
+        <p class="why">Разница крупно, рамка краснеет при расхождении — сразу видно, сошлось или нет.</p>
+        <span class="where">под блоком пересчёта</span>
+      </div>
+      <div class="item">
+        <p class="name">«Сверено ✓» и серия чекпоинтов</p>
+        <p class="why">После сохранения — подтверждение и счётчик сверок подряд без расхождений. Это и есть критерий запуска (три подряд).</p>
+        <span class="where">после сохранения · бейдж у «Истории»</span>
+      </div>
+    </div>
+  </section>
+
+  <!-- АНАЛИТИКА -->
+  <section>
+    <div class="head">
+      <span class="chip"><svg fill="none" viewBox="0 0 24 24" stroke-width="1.7" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M3 13.125C3 12.504 3.504 12 4.125 12h2.25c.621 0 1.125.504 1.125 1.125v6.75C7.5 20.496 6.996 21 6.375 21h-2.25A1.125 1.125 0 013 19.875v-6.75zM9.75 8.625c0-.621.504-1.125 1.125-1.125h2.25c.621 0 1.125.504 1.125 1.125v11.25c0 .621-.504 1.125-1.125 1.125h-2.25a1.125 1.125 0 01-1.125-1.125V8.625zM16.5 4.125c0-.621.504-1.125 1.125-1.125h2.25C20.496 3 21 3.504 21 4.125v15.75c0 .621-.504 1.125-1.125 1.125h-2.25a1.125 1.125 0 01-1.125-1.125V4.125z"/></svg></span>
+      <div><h2>Аналитика</h2><div class="where0">Финансы › Аналитика</div></div>
+    </div>
+    <div class="list">
+      <div class="item">
+        <p class="name">Карточки отчёта</p>
+        <p class="why">Участники, приход, расход и сальдо — крупными цифрами вверху отчёта ретрита.</p>
+        <span class="where">вкладка «По ретриту»</span>
+      </div>
+      <div class="item">
+        <p class="name">Клик по статье → операции по ней</p>
+        <p class="why">Любая строка статьи раскрывается в конкретные операции в журнале (с учётом ретрита или периода). «Сколько» превращается в «из чего».</p>
+        <span class="where">строки статей в отчёте</span>
+      </div>
+      <div class="item">
+        <p class="name">Клик по должнику → его карточка</p>
+        <p class="why">Из списка должников — сразу в карточку участника, где кнопка «Скопировать сводку».</p>
+        <span class="where">список «Должники»</span>
+      </div>
+    </div>
+  </section>
+
+  <!-- СПРАВОЧНИКИ -->
+  <section>
+    <div class="head">
+      <span class="chip"><svg fill="none" viewBox="0 0 24 24" stroke-width="1.7" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M12 6.042A8.967 8.967 0 006 3.75c-1.052 0-2.062.18-3 .512v14.25A8.987 8.987 0 016 18c2.305 0 4.408.867 6 2.292m0-14.25a8.966 8.966 0 016-2.292c1.052 0 2.062.18 3 .512v14.25A8.987 8.987 0 0018 18a8.967 8.967 0 00-6 2.292m0-14.25v14.25"/></svg></span>
+      <div><h2>Справочники</h2><div class="where0">Финансы › Справочники</div></div>
+    </div>
+    <div class="list">
+      <div class="item">
+        <p class="name">Поиск по названию и коду</p>
+        <p class="why">Особенно на запуске, когда статей около семидесяти — не листать вслепую.</p>
+        <span class="where">поле поиска над таблицей</span>
+      </div>
+      <div class="item">
+        <p class="name">Фильтр Приход/Расход и отметка действующего курса</p>
+        <p class="why">Быстро отсеять статьи по направлению; у курсов виден тот, что действует сейчас.</p>
+        <span class="where">вкладки «Статьи» и «Курсы валют»</span>
+      </div>
+    </div>
+  </section>
+
+  <footer>
+    <p>Все страницы теперь связаны между собой: из аналитики — в журнал, из журнала — в счёт, из должника — в карточку.
+    Ничего в самих деньгах не менялось — только удобство работы.</p>
+    <p style="margin-top:10px">Если страница выглядит по-старому, обновите её с очисткой кэша: <span class="tag">Cmd/Ctrl + Shift + R</span>.
+    Доступ к «Финансам» — только у тех, кому явно выдано право: сейчас это Ачинтья Кришна дас, Ванамали Гопал дас и Сварупананда дас.</p>
+  </footer>
+
+</div></div>
+</body>
+</html>
