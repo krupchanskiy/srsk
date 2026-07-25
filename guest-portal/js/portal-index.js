@@ -1287,6 +1287,14 @@ async function loadFinances() {
     try {
         const { data, error } = await window.portalSupabase.rpc('portal_fin_get_my_finances');
         if (error || !data?.ok) return;
+        // Одним входом пользуются несколько человек — чей баланс показать,
+        // неизвестно. Молчать без объяснения хуже, чем сказать прямо.
+        if (data.shared_account) {
+            document.getElementById('finance-content').innerHTML =
+                `<p class="text-base text-yellow-700">${PortalLayout.t('portal_fin_shared_account')}</p>`;
+            document.getElementById('finance-block').classList.remove('hidden');
+            return;
+        }
         const items = data.result || [];
         if (!items.length) return;
         document.getElementById('finance-content').innerHTML = items.map(renderFinanceRetreat).join('');
