@@ -1,0 +1,36 @@
+#!/bin/sh
+# Не пускаем секреты в репозиторий: он публичный (github.com/krupchanskiy/srsk),
+# и всё попавшее в историю считается утёкшим навсегда.
+#
+# Ловим то, что уже один раз просочилось:
+#   sbp_…            personal access token Supabase
+#   AKIA…            идентификатор ключа AWS
+#   123456789:AA…    токен Telegram-бота
+#   JWT с service_role — ключ, обходящий все права
+#
+# anon-ключи не трогаем: они публичны по устройству.
+#
+# Обойти в исключительном случае: git commit --no-verify
+
+found=0
+for f in $(git diff --cached --name-only --diff-filter=ACM); do
+  [ -f "$f" ] || continue
+  # сам хук пропускаем: в нём эти шаблоны лежат как образцы
+  case "$f" in .githooks/*) continue ;; esac
+  hit=$(git show ":$f" 2>/dev/null | grep -n -E \
+    'sbp_[A-Za-z0-9]{20}|AKIA[A-Z0-9]{16}|[0-9]{9,10}:AA[A-Za-z0-9_-]{30}|c2VydmljZV9yb2xl' \
+    | head -3)
+  if [ -n "$hit" ]; then
+    [ $found -eq 0 ] && printf '\n\033[31mКОММИТ ОСТАНОВЛЕН: похоже на секрет\033[0m\n\n'
+    found=1
+    printf '  %s\n' "$f"
+    printf '%s\n' "$hit" | sed -E 's/(sbp_[A-Za-z0-9]{6})[A-Za-z0-9]+/\1…/g; s/(AKIA[A-Z0-9]{4})[A-Z0-9]+/\1…/g; s/([0-9]{9,10}:AA[A-Za-z0-9]{4})[A-Za-z0-9_-]+/\1…/g' | sed 's/^/      /'
+  fi
+done
+
+if [ $found -eq 1 ]; then
+  printf '\nРепозиторий публичный. Секрет в истории не удалить — только заменить ключ.\n'
+  printf 'Если это ложная тревога: git commit --no-verify\n\n'
+  exit 1
+fi
+exit 0
