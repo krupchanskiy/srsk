@@ -278,16 +278,22 @@
             margin-right: 4px;
         }
 
-        /* Бронирование — штриховка */
+        /* Бронирование — бледная штриховка, имя тёмное.
+           Раньше полосы шли «цвет / 35% цвета», а текст оставался белым от
+           .guest-bar — на светлых полосах имя пропадало совсем. Осветляем фон
+           и берём почти чёрный текст: читается на любом цвете категории,
+           а пунктирная рамка в цвете категории сохраняет узнаваемость. */
         .guest-bar.booking {
             background: repeating-linear-gradient(
                 45deg,
-                var(--bar-color),
-                var(--bar-color) 4px,
-                color-mix(in srgb, var(--bar-color) 35%, white) 4px,
-                color-mix(in srgb, var(--bar-color) 35%, white) 8px
+                color-mix(in srgb, var(--bar-color) 42%, white),
+                color-mix(in srgb, var(--bar-color) 42%, white) 4px,
+                color-mix(in srgb, var(--bar-color) 14%, white) 4px,
+                color-mix(in srgb, var(--bar-color) 14%, white) 8px
             );
             border-style: dashed;
+            border-color: color-mix(in srgb, var(--bar-color) 75%, black);
+            color: #111827;
         }
 
         /* Выселенный — серый */
@@ -363,15 +369,18 @@
             border: 1px solid rgba(0,0,0,0.15);
         }
 
+        /* Та же логика, что и у .guest-bar.booking: бледный фон, тёмный текст */
         .room-summary-bar.booking {
             background: repeating-linear-gradient(
                 45deg,
-                var(--bar-color),
-                var(--bar-color) 4px,
-                color-mix(in srgb, var(--bar-color) 35%, white) 4px,
-                color-mix(in srgb, var(--bar-color) 35%, white) 8px
+                color-mix(in srgb, var(--bar-color) 42%, white),
+                color-mix(in srgb, var(--bar-color) 42%, white) 4px,
+                color-mix(in srgb, var(--bar-color) 14%, white) 4px,
+                color-mix(in srgb, var(--bar-color) 14%, white) 8px
             );
             border-style: dashed;
+            border-color: color-mix(in srgb, var(--bar-color) 75%, black);
+            color: #111827;
         }
 
         /* Частичная занятость — показываем дробь */
@@ -988,7 +997,7 @@
         if (btn) { btn.classList.toggle('btn-active', isFS); btn.title = isFS ? Layout.t('normal_view') : Layout.t('fullscreen'); }
     }
     </script>
-    <script src="../js/pages/timeline.js?v=9"></script>
+    <script src="../js/pages/timeline.js?v=10"></script>
 
 </body>
 </html>

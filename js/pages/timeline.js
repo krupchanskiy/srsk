@@ -637,7 +637,7 @@ function renderLegend() {
 
     // Бронирования (штриховка)
     const bookingHtml = `<div class="flex items-center gap-1.5">
-        <span class="w-4 h-4 rounded" style="background: repeating-linear-gradient(45deg, #3b82f6, #3b82f6 2px, rgba(255,255,255,0.5) 2px, rgba(255,255,255,0.5) 4px); border: 1px dashed rgba(0,0,0,0.3);"></span>
+        <span class="w-4 h-4 rounded" style="background: repeating-linear-gradient(45deg, #9dc1f7, #9dc1f7 2px, #e3edfd 2px, #e3edfd 4px); border: 1px dashed #1e40af;"></span>
         <span class="text-sm text-gray-600">${t('timeline_booking')}</span>
     </div>`;
 
