@@ -9,6 +9,14 @@
 const db = window.supabaseClient;
 
 const DESKTOP_BP = 1200;
+const AB_KITCHEN_SLUG = 'ab-kitchen';
+const AB_KITCHEN_CONTEXT_KEY = 'srsk_ab_kitchen_context';
+let isAbKitchenContext = false;
+try {
+    isAbKitchenContext = sessionStorage.getItem(AB_KITCHEN_CONTEXT_KEY) === '1';
+} catch {
+    isAbKitchenContext = false;
+}
 
 // ==================== MODULES ====================
 const modules = {
@@ -296,13 +304,13 @@ function hasPagePermission(requiredPerm) {
 // ==================== STATE ====================
 let currentModule, currentLang, currentLocation;
 try {
-    currentModule = localStorage.getItem('srsk_module') || 'kitchen';
+    currentModule = isAbKitchenContext ? 'kitchen' : (localStorage.getItem('srsk_module') || 'kitchen');
     currentLang = localStorage.getItem('srsk_lang') || 'ru';
-    currentLocation = localStorage.getItem('srsk_location') || 'main';
+    currentLocation = isAbKitchenContext ? AB_KITCHEN_SLUG : (localStorage.getItem('srsk_location') || 'main');
 } catch {
     currentModule = 'kitchen';
     currentLang = 'ru';
-    currentLocation = 'main';
+    currentLocation = isAbKitchenContext ? AB_KITCHEN_SLUG : 'main';
 }
 let locations = [];
 let translations = {}; // { key: { ru: '...', en: '...', hi: '...' } }
@@ -572,6 +580,7 @@ function updateAllTranslations() {
 // ==================== HEADER HTML ====================
 function getHeaderHTML() {
     const menuConfig = getMenuConfig();
+    const homeHref = isAbKitchenContext ? 'ab-kitchen/' : 'index.html';
 
     return `
     <header class="bg-base-100 shadow-sm sticky top-0 z-50">
@@ -580,7 +589,7 @@ function getHeaderHTML() {
 
                 <!-- Logo + Location/Module Selector -->
                 <div class="flex items-center gap-3 flex-shrink-0 header-brand">
-                    <a href="${adjustHref('index.html')}" class="hover:opacity-80 transition-opacity">
+                    <a href="${adjustHref(homeHref)}" class="hover:opacity-80 transition-opacity">
                         <svg class="h-14 w-auto logo-svg" viewBox="0 0 122.03 312.54" xmlns="http://www.w3.org/2000/svg">
                             <path fill="var(--current-color)" d="M102,15.99h-15.18v81.89c0,6.21.12,11.58-.88,15.98-1.01,4.45-2.6,7.98-4.77,10.58-2.02,2.81-4.85,4.83-8.51,6.05-2.38,1-5.08,1.62-8.1,1.83-1.01.21-2.02.32-3.02.32h-.64c-3.81-.21-7.23-.83-10.25-1.83-3.81-1.22-7.02-3.13-9.62-5.73-2.65-2.81-4.56-6.44-5.73-10.89-1.22-4.4-1.83-9.83-1.83-16.3V15.99h-15.1v89.12c0,13.68,3.81,23.94,11.45,30.77,3.81,3.44,8.56,5.96,14.23,7.55,1.17.42,2.57.74,4.21.96-13.89,5.03-23.35,11.87-28.38,20.51-7.05,10.65-7.26,24.14-.64,40.46l41.34,100.45,39.91-100.45c6.41-16.32,6.2-29.82-.64-40.46-4.82-8.48-13.97-15.21-27.43-20.2,1.59-.43,3.18-.85,4.77-1.27,5.25-1.59,9.67-4.19,13.27-7.79,3.82-3.66,6.65-8.18,8.51-13.59,2.02-5.62,3.02-12.27,3.02-19.95V15.99M87.45,172.46c4.03,7.26,3.84,16.4-.56,27.43l-26.31,68.13-27.75-68.13c-4.61-11.03-4.8-20.17-.55-27.43,4.61-7.47,13.76-13.01,27.43-16.62,13.67,3.61,22.93,9.15,27.75,16.62"/>
                         </svg>
@@ -588,7 +597,7 @@ function getHeaderHTML() {
 
                     <!-- Desktop: full name + selector -->
                     <div class="hidden md:flex flex-col">
-                        <a href="${adjustHref('index.html')}" class="text-xl font-semibold whitespace-nowrap hover:opacity-80 transition-opacity" data-i18n="app_name">Шри Рупа Сева Кунджа</a>
+                        <a href="${adjustHref(homeHref)}" class="text-xl font-semibold whitespace-nowrap hover:opacity-80 transition-opacity">${isAbKitchenContext ? 'AB Kitchen' : '<span data-i18n="app_name">Шри Рупа Сева Кунджа</span>'}</a>
                         <div class="relative location-selector" id="locationDesktop">
                             <button class="flex items-center justify-between gap-2 w-full text-xl opacity-70 hover:opacity-100 transition-opacity" data-toggle="location">
                                 <span class="location-name">${currentModule === 'housing' ? t('module_housing') : currentModule === 'crm' ? t('module_crm') : currentModule === 'finance' ? t('module_finance') : currentModule === 'portal' ? t('module_portal') : currentModule === 'photos' ? t('module_photos') : currentModule === 'admin' ? t('module_admin') : ''}</span>
@@ -602,7 +611,7 @@ function getHeaderHTML() {
 
                     <!-- Mobile: короткое название + selector -->
                     <div class="flex items-center gap-2 md:hidden">
-                        <span class="text-xl font-semibold whitespace-nowrap" data-i18n="app_name_short">ШРСК</span>
+                        <span class="text-xl font-semibold whitespace-nowrap"${isAbKitchenContext ? '' : ' data-i18n="app_name_short"'}>${isAbKitchenContext ? 'AB Kitchen' : 'ШРСК'}</span>
                         <span class="text-xl opacity-50">·</span>
                         <div class="relative location-selector" id="locationMobile">
                             <button class="flex items-center gap-1 text-xl opacity-70" data-toggle="location">
@@ -743,6 +752,10 @@ function buildLocationOptions() {
     $$('.location-dropdown').forEach(el => {
         // Очищаем содержимое
         el.replaceChildren();
+
+        // Скрытый раздел AB Kitchen всегда зафиксирован на своей локации.
+        // Другие кухни и модули в его переключателе не показываются.
+        if (isAbKitchenContext) return;
 
         // Проверка кухонных прав
         const kitchenPerms = ['view_menu', 'view_menu_templates', 'view_recipes', 'view_products',
@@ -1080,7 +1093,9 @@ function alignSubmenu() {
 function selectLocation(slug, isInitial = false) {
     const changed = currentLocation !== slug;
     currentLocation = slug;
-    localStorage.setItem('srsk_location', slug);
+    if (!isAbKitchenContext) {
+        localStorage.setItem('srsk_location', slug);
+    }
     const loc = locations.find(l => l.slug === slug);
     if (!loc) return;
 
@@ -1120,7 +1135,14 @@ async function loadLocations() {
     });
 
     if (!data) return;
-    locations = data;
+    locations = isAbKitchenContext
+        ? data.filter(loc => loc.slug === AB_KITCHEN_SLUG)
+        : data.filter(loc => loc.slug !== AB_KITCHEN_SLUG);
+
+    if (!isAbKitchenContext && !locations.some(loc => loc.slug === currentLocation)) {
+        currentLocation = locations.find(loc => loc.slug === 'main')?.slug || locations[0]?.slug || 'main';
+    }
+
     buildLocationOptions();
     selectLocation(currentLocation, true); // isInitial = true, чтобы не вызывать колбэк при загрузке
 }
@@ -1139,7 +1161,7 @@ function updateUserInfo() {
         img.src = photoUrl;
 
         // Делаем аватар кликабельным
-        if (vaishnavaId && !img.parentElement.classList.contains('avatar-link')) {
+        if (!isAbKitchenContext && vaishnavaId && !img.parentElement.classList.contains('avatar-link')) {
             const parent = img.parentElement;
             parent.classList.add('avatar-link', 'cursor-pointer', 'hover:opacity-80', 'transition-opacity');
             parent.addEventListener('click', () => {
@@ -1295,6 +1317,7 @@ function initHeaderEvents() {
 // ==================== MODULE SWITCHING ====================
 function switchModule(moduleId) {
     if (!modules[moduleId]) return;
+    if (isAbKitchenContext && moduleId !== 'kitchen') return;
 
     currentModule = moduleId;
     localStorage.setItem('srsk_module', moduleId);
@@ -1307,7 +1330,10 @@ function switchModule(moduleId) {
 // ==================== INIT LAYOUT ====================
 async function initLayout(page = { module: null, menuId: 'kitchen', itemId: null }) {
     // Устанавливаем модуль (из параметра или из localStorage)
-    if (page.module) {
+    if (isAbKitchenContext) {
+        currentModule = 'kitchen';
+        currentLocation = AB_KITCHEN_SLUG;
+    } else if (page.module) {
         currentModule = page.module;
         localStorage.setItem('srsk_module', currentModule);
     }
@@ -1373,6 +1399,14 @@ async function initLayout(page = { module: null, menuId: 'kitchen', itemId: null
     buildSubmenuBar();
     initHeaderEvents();
     updateUserInfo();
+
+    if (isAbKitchenContext) {
+        $$('.location-selector button').forEach(button => {
+            button.disabled = true;
+            button.classList.remove('hover:opacity-100');
+        });
+        $$('.location-arrow').forEach(arrow => arrow.classList.add('hidden'));
+    }
 
     // На главной странице (без menuId) скрываем селектор локаций
     if (!page.menuId) {
@@ -1461,7 +1495,9 @@ async function logout() {
             return;
         }
         // Редирект на страницу логина
-        window.location.href = '/login.html';
+        window.location.href = isAbKitchenContext
+            ? '/login.html?redirect=%2Fab-kitchen%2F'
+            : '/login.html';
     } catch (err) {
         console.error('Logout exception:', err);
         showNotification(t('layout_logout_error'), 'error');
@@ -1501,6 +1537,7 @@ window.Layout = {
     get currentLang() { return currentLang; },
     get currentLocation() { return currentLocation; },
     get currentModule() { return currentModule; },
+    get isAbKitchenContext() { return isAbKitchenContext; },
     get locations() { return locations; },
     get translations() { return translations; },
     get modules() { return modules; }
