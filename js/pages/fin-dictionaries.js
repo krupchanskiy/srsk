@@ -119,7 +119,8 @@ function renderTab() {
                 <td>${r.chat_title
                         ? e(r.chat_title)
                         : `<span class="badge badge-warning badge-sm">${t('fin_dept_no_chat')}</span>`}</td>
-                <td class="font-mono">${e(r.balances || '—')}</td>
+                <td class="font-mono">${
+                    (r.balances || []).map(b => FinUtils.fmtMoney(b.amount, b.currency)).join(' · ') || '—'}</td>
                 <td class="text-right"><button class="btn btn-ghost btn-sm" data-edit="${r.id}" aria-label="${t('edit')}" title="${t('edit')}">${editIcon}</button></td>
             </tr>`).join('');
     } else {
