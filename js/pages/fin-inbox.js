@@ -9,6 +9,7 @@ const e = str => Layout.escapeHtml(str);
 
 let currentTab = 'pending';
 let opsById = {};
+let chatDrafts = [];   // заявки из чатов текущей выдачи — нужны модалке статей
 
 async function loadUnpostedCount() {
     // Платежи, подтверждённые в CRM, но не разнесённые в финмодуль
@@ -60,6 +61,8 @@ function chatDraftCardHtml(d) {
                 ${d.source_account ? `<span class="badge badge-outline badge-sm">${t('fin_from')}: ${e(d.source_account)}</span>` : ''}
                 ${d.purpose ? `<span class="truncate max-w-md">${e(d.purpose)}</span>` : ''}
                 <div class="ml-auto flex gap-2">
+                    ${isTransfer ? '' :
+                      `<button class="btn btn-outline btn-sm" data-action="split-draft">${t('fin_split')}</button>`}
                     <button class="btn btn-success btn-sm" data-action="post-draft">${t('fin_post_draft')}</button>
                     <button class="btn btn-ghost btn-sm" data-action="dismiss-draft">${t('fin_dismiss_draft')}</button>
                 </div>
@@ -138,6 +141,7 @@ async function loadList() {
         const { data, error } = await Layout.db.from('fin_v_chat_drafts')
             .select('*').order('created_at', { ascending: true }).limit(200);
         if (error) { Layout.handleError(error, 'Входящие'); return; }
+        chatDrafts = data || [];   // модалка статей берёт заявку отсюда
         if (!data?.length) {
             const icon = '<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-12 h-12 mx-auto"><path stroke-linecap="round" stroke-linejoin="round" d="M9 12.75L11.25 15 15 9.75M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>';
             list.innerHTML = `<div class="text-center py-14">
@@ -260,6 +264,74 @@ async function postDraft(id) {
     else Layout.showNotification(data?.error || t('error'), 'error');
 }
 
+// ==================== СТАТЬИ ЗАЯВКИ (замечание ВГ, 26.07.2026) ====================
+// Одна строка с другой статьёй — «поменять статью», несколько — «разбить чек».
+// Отдельной правки статьи нет намеренно: два пути к одному результату только
+// путают. Сумма строк обязана сойтись с суммой заявки — иначе в учёт попадёт
+// не то, что человек написал в чате, и расхождение всплывёт только на сверке.
+let splitDraft = null;
+
+function outCategoryOptions(selected) {
+    return FinUtils.refs.categories
+        .filter(c => c.is_active && c.direction === 'out')
+        .map(c => `<option value="${c.id}" ${c.id === selected ? 'selected' : ''}>${e(c.name)}</option>`)
+        .join('');
+}
+
+function splitRowHtml(amount, categoryId) {
+    return `<div class="flex items-center gap-2" data-split-row>
+        <input type="number" class="input input-bordered input-sm w-32 font-mono" step="0.01" min="0.01"
+               value="${amount ?? ''}" data-split-amount>
+        <select class="select select-bordered select-sm flex-1" data-split-cat>${outCategoryOptions(categoryId)}</select>
+        <button type="button" class="btn btn-ghost btn-sm text-error" data-split-remove
+                aria-label="${t('delete')}">✕</button>
+    </div>`;
+}
+
+function renderRemainder() {
+    const total = Number(splitDraft.amount);
+    const sum = [...document.querySelectorAll('[data-split-amount]')]
+        .reduce((acc, i) => acc + (Number(i.value) || 0), 0);
+    const left = Math.round((total - sum) * 100) / 100;
+    const el = document.getElementById('splitRemainder');
+    const ok = left === 0;
+    el.innerHTML = ok
+        ? `<span class="text-success">${t('fin_split_ok')}</span>`
+        : `<span class="text-error">${t('fin_split_left')}: ${FinUtils.fmtMoney(left, splitDraft.currency)}</span>`;
+    document.getElementById('splitSubmit').disabled = !ok;
+}
+
+function openSplit(id) {
+    splitDraft = chatDrafts.find(d => d.id === id);
+    if (!splitDraft) return;
+    document.getElementById('splitDraftId').value = id;
+    document.getElementById('splitInfo').textContent =
+        `${FinUtils.fmtMoney(splitDraft.amount, splitDraft.currency)} · ${splitDraft.purpose || splitDraft.raw_text || ''}`;
+    // Стартуем с одной строки на всю сумму: самый частый случай — просто
+    // поправить статью, а не делить.
+    document.getElementById('splitRows').innerHTML =
+        splitRowHtml(splitDraft.amount, splitDraft.category_id || null);
+    renderRemainder();
+    document.getElementById('splitModal').showModal();
+}
+
+async function submitSplit(ev) {
+    ev.preventDefault();
+    const rows = [...document.querySelectorAll('[data-split-row]')].map(r => ({
+        amount: Number(r.querySelector('[data-split-amount]').value),
+        category_id: r.querySelector('[data-split-cat]').value
+    }));
+    const { data, error } = await Layout.db.rpc('tg_post_draft', {
+        p_id: document.getElementById('splitDraftId').value, p_rows: rows
+    });
+    if (error) { Layout.handleError(error, t('fin_post_draft')); return; }
+    if (data?.ok) {
+        document.getElementById('splitModal').close();
+        Layout.showNotification(t('fin_saved'), 'success');
+        await loadList();
+    } else Layout.showNotification(data?.error || t('error'), 'error');
+}
+
 async function dismissDraft(id) {
     const { data, error } = await Layout.db.rpc('tg_dismiss_draft', { p_id: id });
     if (error) { Layout.handleError(error, t('fin_dismiss_draft')); return; }
@@ -280,6 +352,19 @@ async function init() {
         }));
 
     document.getElementById('disputeForm').addEventListener('submit', submitDispute);
+    document.getElementById('splitForm').addEventListener('submit', submitSplit);
+    document.getElementById('splitAddRow').addEventListener('click', () => {
+        document.getElementById('splitRows').insertAdjacentHTML('beforeend', splitRowHtml(null, null));
+        renderRemainder();
+    });
+    document.getElementById('splitRows').addEventListener('input', renderRemainder);
+    document.getElementById('splitRows').addEventListener('click', ev => {
+        const rm = ev.target.closest('[data-split-remove]');
+        if (!rm) return;
+        // последнюю строку не удаляем: пустой список нечего проводить
+        if (document.querySelectorAll('[data-split-row]').length > 1) rm.closest('[data-split-row]').remove();
+        renderRemainder();
+    });
     document.getElementById('reversalForm').addEventListener('submit', submitReversal);
 
     document.getElementById('inboxList').addEventListener('click', ev => {
@@ -291,6 +376,7 @@ async function init() {
         if (draftCard && btn) {
             const id = draftCard.dataset.draft;
             if (btn.dataset.action === 'post-draft') postDraft(id);
+            else if (btn.dataset.action === 'split-draft') openSplit(id);
             else if (btn.dataset.action === 'dismiss-draft') dismissDraft(id);
             return;
         }
