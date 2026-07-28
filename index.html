@@ -2,6 +2,10 @@
 <html lang="ru" data-theme="light">
 <head>
     <meta charset="UTF-8">
+    <script>
+        // Общая главная BackOffice всегда выходит из скрытого контекста AB Kitchen.
+        try { sessionStorage.removeItem('srsk_ab_kitchen_context'); } catch {}
+    </script>
     <script src="js/color-init.js?v=2"></script>
     <script>document.documentElement.style.setProperty('--current-color', '#f59e0b');</script>
 
@@ -226,7 +230,7 @@
     <script src="js/utils.js?v=4"></script>
     <script src="js/translit.js"></script>
     <script src="js/auto-translate.js"></script>
-    <script src="js/layout.js?v=34"></script>
+    <script src="js/layout.js?v=35"></script>
     <script>
         window.onLanguageChange = function(lang) {
             Layout.updateAllTranslations();
