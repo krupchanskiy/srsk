@@ -1,5 +1,10 @@
 // ==================== ФИНАНСЫ: СПРАВОЧНИКИ ====================
-// Табы: статьи / cost centers / контрагенты / курсы валют
+// Табы: статьи / cost centers / контрагенты / департаменты / курсы валют
+//
+// Департаменты добавлены 26.07.2026 по просьбе ВГ: раньше их список и привязка
+// чата жили только в базе. Подотчётный счёт департаменту здесь не заводится —
+// он создаётся сам при первой выдаче; при переименовании имя счёта тянется
+// следом на сервере.
 (function() {
 'use strict';
 
@@ -21,12 +26,22 @@ async function loadTab() {
         categories: () => Layout.db.from('fin_v_categories').select('*').order('name'),
         cost_centers: () => Layout.db.from('fin_v_cost_centers').select('*').order('name'),
         contractors: () => Layout.db.from('fin_v_contractors').select('*').order('name'),
+        departments: () => Layout.db.from('fin_v_departments').select('*').order('name'),
         rates: () => Layout.db.from('fin_v_exchange_rates').select('*').order('effective_date', { ascending: false }).limit(200)
     };
     const { data, error } = await sources[currentTab]();
     if (error) { Layout.handleError(error, 'Справочники'); return; }
     rows = data || [];
+    if (currentTab === 'departments' && !knownChats) await loadKnownChats();
     renderTab();
+}
+
+// Чаты, которые бот уже видел: сам чат регистрируется, когда бота туда
+// добавляют, поэтому chat_id руками вводить не нужно — только выбрать.
+let knownChats = null;
+async function loadKnownChats() {
+    const { data } = await Layout.db.from('fin_v_known_chats').select('*').order('title');
+    knownChats = data || [];
 }
 
 function activeBadge(row) {
@@ -42,7 +57,8 @@ function filteredRows() {
     return rows.filter(r => {
         if (currentTab === 'categories' && dictDir && r.direction !== dictDir) return false;
         if (!q) return true;
-        const hay = [r.name, r.code, r.from_currency, r.object_name, r.contact_info].filter(Boolean).join(' ').toLowerCase();
+        const hay = [r.name, r.code, r.from_currency, r.object_name, r.contact_info,
+                     r.responsible_name, r.chat_title].filter(Boolean).join(' ').toLowerCase();
         return hay.includes(q);
     });
 }
@@ -92,6 +108,18 @@ function renderTab() {
                 <td>${e(r.name)}${activeBadge(r)}</td>
                 <td>${t(r.type === 'person' ? 'fin_person' : 'fin_organization')}</td>
                 <td class="opacity-70">${e([r.contact_info, r.note].filter(Boolean).join(' · '))}</td>
+                <td class="text-right"><button class="btn btn-ghost btn-sm" data-edit="${r.id}" aria-label="${t('edit')}" title="${t('edit')}">${editIcon}</button></td>
+            </tr>`).join('');
+    } else if (currentTab === 'departments') {
+        head.innerHTML = `<tr><th>${t('col_name') || 'Название'}</th><th>${t('fin_responsible')}</th><th>${t('fin_dept_chat')}</th><th>${t('fin_dept_on_hand')}</th><th></th></tr>`;
+        body.innerHTML = view.map(r => `
+            <tr>
+                <td>${e(r.name)}</td>
+                <td>${e(r.responsible_name || '')}</td>
+                <td>${r.chat_title
+                        ? e(r.chat_title)
+                        : `<span class="badge badge-warning badge-sm">${t('fin_dept_no_chat')}</span>`}</td>
+                <td class="font-mono">${e(r.balances || '—')}</td>
                 <td class="text-right"><button class="btn btn-ghost btn-sm" data-edit="${r.id}" aria-label="${t('edit')}" title="${t('edit')}">${editIcon}</button></td>
             </tr>`).join('');
     } else {
@@ -153,6 +181,24 @@ function openForm(row) {
                 <option value="organization" ${row?.type === 'organization' ? 'selected' : ''}>${t('fin_organization')}</option></select>`) +
             fieldHtml('f_info', 'fin_comment', `<input type="text" id="f_info" class="input input-bordered input-sm" value="${e(row?.contact_info || '')}">`) +
             activeCheckbox(row);
+    } else if (currentTab === 'departments') {
+        // Чат выбираем из тех, где бот уже побывал. Занятые другим департаментом
+        // показываем с подписью: выбрать можно, но видно, что он переедет.
+        const chatOpts = (knownChats || []).map(c => {
+            const busy = c.linked_department_id && c.linked_department_id !== row?.id;
+            return `<option value="${c.chat_id}" ${String(c.chat_id) === String(row?.chat_id || '') ? 'selected' : ''}>${
+                e(c.title || c.chat_id)}${busy ? ` — ${t('fin_dept_chat_busy')}: ${e(c.linked_department)}` : ''}</option>`;
+        }).join('');
+        fields.innerHTML =
+            fieldHtml('f_name', 'col_name', `<input type="text" id="f_name" class="input input-bordered input-sm" value="${e(row?.name || '')}" required>`) +
+            `<div class="form-control mb-2">
+                <label class="label py-0"><span class="label-text">${t('fin_responsible')}</span></label>
+                <input type="text" id="f_resp_search" class="input input-bordered input-sm" autocomplete="off" value="${e(row?.responsible_name || '')}">
+                <input type="hidden" id="f_resp" value="${e(row?.responsible_person_id || '')}">
+            </div>` +
+            fieldHtml('f_chat', 'fin_dept_chat', `<select id="f_chat" class="select select-bordered select-sm">
+                <option value="">${t('fin_dept_no_chat')}</option>${chatOpts}</select>`) +
+            `<p class="text-xs opacity-60 mt-1">${t('fin_dept_hint')}</p>`;
     } else {
         fields.innerHTML =
             fieldHtml('f_cur', 'fin_currency', `<select id="f_cur" class="select select-bordered select-sm">${
@@ -163,6 +209,11 @@ function openForm(row) {
             fieldHtml('f_obj', 'fin_retreat_object', `<select id="f_obj" class="select select-bordered select-sm">
                 <option value="">${t('fin_general_rate')}</option>${
                 FinUtils.refs.objects.map(o => `<option value="${o.id}">${e(o.display_name)}</option>`).join('')}</select>`);
+    }
+    // Поля формы пересоздаются каждый раз, поэтому подсказку по людям вешаем здесь,
+    // а не в init — иначе она указывала бы на удалённый input.
+    if (currentTab === 'departments') {
+        FinUtils.attachPersonSearch(document.getElementById('f_resp_search'), document.getElementById('f_resp'));
     }
     document.getElementById('dictModal').showModal();
 }
@@ -193,6 +244,15 @@ async function submitForm(ev) {
             id: editingId, name: val('f_name'), type: val('f_type'),
             contact_info: val('f_info') || null, is_active: checked('f_active')
         });
+    } else if (currentTab === 'departments') {
+        // Ключи передаём всегда — форма показывает оба поля, значит пустое
+        // значение это осознанное «нет», а не «не трогай».
+        res = await FinUtils.rpc('fin_save_department', {
+            id: editingId, name: val('f_name'),
+            responsible_person_id: val('f_resp') || null,
+            chat_id: val('f_chat') || null
+        });
+        if (res?.ok) knownChats = null;   // привязки изменились — перечитаем список чатов
     } else {
         res = await FinUtils.rpc('fin_save_exchange_rate', {
             object_id: val('f_obj') || null, effective_date: val('f_date'),
