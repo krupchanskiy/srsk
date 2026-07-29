@@ -143,19 +143,28 @@ function renderSyncAge(accounts) {
     const real = accounts.filter(a => a.kind === 'real');
     if (!real.length) { card.style.display = 'none'; return; }
     const COLORS = { success: '#059669', warning: '#b45309', error: '#dc2626' };
+    // Свежесть — это ещё не порядок. Сверка, закончившаяся расхождением,
+    // раньше выглядела здоровым зелёным «сегодня»: сигнал о свежести прятал
+    // сам факт недостачи (замечание ВГ, 26.07.2026). Расхождение важнее
+    // давности, поэтому оно перекрывает цвет и выносится в подпись.
     const ageInfo = a => {
-        if (!a.last_checkpoint_seq) return { days: Infinity, label: t('fin_never_reconciled'), cls: 'error' };
+        const gap = Number(a.last_difference) || 0;
+        if (!a.last_checkpoint_seq) return { days: Infinity, label: t('fin_never_reconciled'), cls: 'error', gap: 0 };
         const days = Math.floor((Date.now() - new Date(a.last_checkpoint_at).getTime()) / 86400000);
         const label = days <= 0 ? t('fin_today') : t('fin_days_ago').replace('{n}', days);
-        return { days, label, cls: days <= 0 ? 'success' : days <= 3 ? 'warning' : 'error' };
+        const cls = gap !== 0 ? 'error' : days <= 0 ? 'success' : days <= 3 ? 'warning' : 'error';
+        return { days, label, cls, gap };
     };
     real.sort((a, b) => ageInfo(b).days - ageInfo(a).days);   // самые несвежие сверху
     list.innerHTML = real.map(a => {
         const info = ageInfo(a);
+        const gapText = info.gap !== 0
+            ? ` · ${t('fin_difference').toLowerCase()} ${FinUtils.fmtMoney(info.gap, a.currency_code)}`
+            : '';
         return `<a href="reconciliation.html?account=${a.account_id}" class="flex items-center gap-2 py-2 hover:bg-base-200/50 -mx-2 px-2 rounded">
             <span class="inline-block w-2 h-2 rounded-full" style="background:${COLORS[info.cls]}"></span>
             <span class="flex-1">${e(a.name)}</span>
-            <span class="text-sm" style="color:${COLORS[info.cls]}">${info.label}</span>
+            <span class="text-sm" style="color:${COLORS[info.cls]}">${info.label}${gapText}</span>
         </a>`;
     }).join('');
     card.style.display = '';
