@@ -519,6 +519,12 @@
             </div>
         </div>
 
+        <!-- Гости, у которых бронь не покрывает даты их рейсов -->
+        <details id="uncoveredBanner" class="hidden mb-4 bg-warning/10 border border-warning/40 rounded-lg px-4 py-3">
+            <summary class="cursor-pointer text-sm font-medium" id="uncoveredSummary"></summary>
+            <div id="uncoveredList" class="mt-2 text-sm"></div>
+        </details>
+
         <!-- Контейнер шахматки -->
         <div class="bg-white rounded-lg shadow flex flex-col timeline-wrapper" style="max-height: calc(100vh - 180px);">
             <!-- Полоса ретритов -->
@@ -990,14 +996,14 @@
     <script src="../js/translit.js"></script>
     <script src="../js/auto-translate.js"></script>
     <script src="../js/date-utils.js?v=3"></script>
-    <script src="../js/layout.js?v=35"></script>
+    <script src="../js/layout.js?v=36"></script>
     <script>
     function toggleFullscreen(btn) {
         const isFS = document.body.classList.toggle('board-fullscreen');
         if (btn) { btn.classList.toggle('btn-active', isFS); btn.title = isFS ? Layout.t('normal_view') : Layout.t('fullscreen'); }
     }
     </script>
-    <script src="../js/pages/timeline.js?v=10"></script>
+    <script src="../js/pages/timeline.js?v=11"></script>
 
 </body>
 </html>

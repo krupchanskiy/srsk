@@ -1,0 +1,35 @@
+-- Переводы: описки в датах рейсов и непокрытые бронью ночи
+
+INSERT INTO translations (key, ru, en, hi, context) VALUES
+  ('crm_warn_departure_before_arrival',
+   'Отъезд раньше приезда — проверьте даты рейсов.',
+   'Departure is earlier than arrival — check the flight dates.',
+   'प्रस्थान आगमन से पहले है — उड़ान की तिथियाँ जाँचें।', 'CRM'),
+  ('crm_warn_arrival_far',
+   'Приезд на {days} дн. в стороне от ретрита — проверьте год и месяц.',
+   'Arrival is {days} days away from the retreat — check the year and month.',
+   'आगमन रिट्रीट से {days} दिन दूर है — वर्ष और माह जाँचें।', 'CRM'),
+  ('crm_warn_departure_far',
+   'Отъезд на {days} дн. в стороне от ретрита — проверьте год и месяц.',
+   'Departure is {days} days away from the retreat — check the year and month.',
+   'प्रस्थान रिट्रीट से {days} दिन दूर है — वर्ष और माह जाँचें।', 'CRM'),
+  ('crm_nights_uncovered_before',
+   'Приезжает раньше брони на {n} ноч. — жить негде',
+   'Arrives {n} night(s) before the booking — nowhere to stay',
+   'बुकिंग से {n} रात पहले आता है — ठहरने की जगह नहीं', 'CRM'),
+  ('crm_nights_uncovered_after',
+   'Уезжает позже брони на {n} ноч. — жить негде',
+   'Leaves {n} night(s) after the booking — nowhere to stay',
+   'बुकिंग के {n} रात बाद जाता है — ठहरने की जगह नहीं', 'CRM'),
+  ('timeline_uncovered_title',
+   'Бронь не покрывает даты рейсов',
+   'Booking does not cover the flight dates',
+   'बुकिंग उड़ान की तिथियाँ नहीं ढकती', 'Размещение'),
+  ('timeline_uncovered_before', 'ночей до заезда:', 'nights before check-in:',
+   'चेक-इन से पहले रातें:', 'Размещение'),
+  ('timeline_uncovered_after', 'ночей после выезда:', 'nights after check-out:',
+   'चेक-आउट के बाद रातें:', 'Размещение'),
+  ('timeline_uncovered_flights', 'Рейсы', 'Flights', 'उड़ानें', 'Размещение'),
+  ('timeline_uncovered_booking', 'Бронь', 'Booking', 'बुकिंग', 'Размещение')
+ON CONFLICT (key) DO UPDATE
+  SET ru = EXCLUDED.ru, en = EXCLUDED.en, hi = EXCLUDED.hi, context = EXCLUDED.context;

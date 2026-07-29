@@ -200,6 +200,8 @@
                                 </label>
                             </div>
                         </div>
+                        <!-- Странные даты рейсов: перепутанный год или месяц -->
+                        <div id="flightDatesWarning" class="hidden text-xs text-warning leading-snug"></div>
                     </div>
                     <div id="checklistReadiness" class="mt-2 text-xs text-center"></div>
                 </div>
@@ -592,7 +594,7 @@
 <script src="../js/auth-check.js?v=7"></script>
 <script src="../js/cache.js?v=1"></script>
 <script src="../js/utils.js?v=4"></script>
-<script src="../js/layout.js?v=35"></script>
+<script src="../js/layout.js?v=36"></script>
 <script src="../js/date-utils.js?v=3"></script>
 <script src="../js/crm-utils.js?v=3"></script>
 <script src="../js/prepayment-ops.js?v=2"></script>
@@ -2583,6 +2585,7 @@ async function renderPlacement() {
                     <div class="font-bold">${e(buildingName)}, ${t('crm_room')} ${e(roomNum)}</div>
                     <div class="text-sm opacity-60">${dates}</div>
                     ${isCrmBooking ? `<div class="text-xs text-info mt-0.5">${t('crm_booked_from_crm')}</div>` : ''}
+                    ${uncoveredNightsHtml(placementData.check_in, placementData.check_out)}
                 </div>
             </div>
             <div class="flex gap-2 mt-2">
@@ -2599,6 +2602,7 @@ async function renderPlacement() {
         block.innerHTML = `
             <div class="text-sm text-warning mb-1">${t('crm_booking_no_room')}</div>
             <div class="text-xs opacity-60">${dates} · ${bookingData.beds_count} ${t('crm_beds')}</div>
+            ${uncoveredNightsHtml(bookingData.check_in, bookingData.check_out)}
         `;
         return;
     }
@@ -2798,10 +2802,20 @@ function openRoomBookingModal() {
     // Имена участников (для отображения в форме)
     const memberNames = dealMembers.map(m => m.name).join(', ');
 
+    // Гость может прилететь раньше начала ретрита и улететь позже конца — в эти дни
+    // ему тоже негде жить. Раньше подставлялись только даты ретрита, и лишние ночи
+    // просто терялись. Берём самый широкий интервал; менеджер поправит в форме,
+    // если первые ночи гость живёт не в ашраме.
+    // Даты рейсов — TIMESTAMPTZ, берём дату строкой, без new Date (иначе сдвиг суток).
+    const arrivalDate   = deal.arrival_datetime?.slice(0, 10)   || '';
+    const departureDate = deal.departure_datetime?.slice(0, 10) || '';
+    const checkIn  = [retreat?.start_date, arrivalDate].filter(Boolean).sort()[0]        || '';
+    const checkOut = [retreat?.end_date, departureDate].filter(Boolean).sort().pop()     || '';
+
     const params = new URLSearchParams({
         crm_deal_id:   dealId,
-        check_in:      retreat?.start_date || '',
-        check_out:     retreat?.end_date   || '',
+        check_in:      checkIn,
+        check_out:     checkOut,
         retreat_id:    retreat?.id         || '',
         contact_name:  CrmUtils.getGuestName(guest)      || '',
         contact_phone: guest?.phone || deal?.phone        || '',
@@ -3057,9 +3071,70 @@ function renderFlightData() {
     if (deal.departure_datetime) setVal('departureDatetime', deal.departure_datetime.slice(0, 16));
     setChecked('departureLateCheckout', deal.departure_late_checkout || false);
     setChecked('departureNeedsTransfer', deal.checklist_transfer_departure === 'needed');
+
+    checkFlightDates();   // описки, введённые раньше, видны при открытии сделки
 }
 
 // updateArrivalType и updateDepartureType убраны — рейсы управляются через чеклист
+
+// Описки в датах рейсов (год 2027 вместо 2026, август вместо сентября) расползаются
+// дальше в бронь, трансфер и шахматку, и найти их там уже некому. Ловим сразу при
+// вводе, но не блокируем: бывают и настоящие «прилетел за месяц».
+const DAY_MS = 24 * 60 * 60 * 1000;
+
+function daysOutsideRetreat(dateStr) {
+    if (!dateStr || !retreat?.start_date || !retreat?.end_date) return 0;
+    const d = DateUtils.parseDate(dateStr);
+    const from = DateUtils.parseDate(retreat.start_date);
+    const to   = DateUtils.parseDate(retreat.end_date);
+    if (d < from) return Math.round((from - d) / DAY_MS);
+    if (d > to)   return Math.round((d - to) / DAY_MS);
+    return 0;
+}
+
+// Бронь может не покрывать рейсы гостя: прилетел 18-го, а место забронировано с 22-го —
+// четыре ночи жить негде, и до заезда об этом никто не узнает. Считаем обе стороны.
+function uncoveredNights(checkIn, checkOut) {
+    const arrival   = deal.arrival_datetime?.slice(0, 10)   || '';
+    const departure = deal.departure_datetime?.slice(0, 10) || '';
+    return {
+        before: arrival && checkIn && arrival < checkIn
+            ? Math.round((DateUtils.parseDate(checkIn) - DateUtils.parseDate(arrival)) / DAY_MS) : 0,
+        after: departure && checkOut && departure > checkOut
+            ? Math.round((DateUtils.parseDate(departure) - DateUtils.parseDate(checkOut)) / DAY_MS) : 0,
+    };
+}
+
+function uncoveredNightsHtml(checkIn, checkOut) {
+    const { before, after } = uncoveredNights(checkIn, checkOut);
+    if (!before && !after) return '';
+    const parts = [];
+    if (before) parts.push(t('crm_nights_uncovered_before').replace('{n}', before));
+    if (after)  parts.push(t('crm_nights_uncovered_after').replace('{n}', after));
+    return `<div class="text-xs text-warning mt-1">⚠️ ${e(parts.join(' · '))}</div>`;
+}
+
+function checkFlightDates() {
+    const box = document.getElementById('flightDatesWarning');
+    if (!box) return;
+
+    const arrival   = deal.arrival_datetime?.slice(0, 10)   || '';
+    const departure = deal.departure_datetime?.slice(0, 10) || '';
+    const msgs = [];
+
+    if (arrival && departure && departure < arrival) {
+        msgs.push(t('crm_warn_departure_before_arrival'));
+    }
+    // Месяц в запасе — это уже не «приехал заранее», а почти всегда описка
+    const farArrival   = daysOutsideRetreat(arrival);
+    const farDeparture = daysOutsideRetreat(departure);
+    if (farArrival > 30)   msgs.push(t('crm_warn_arrival_far').replace('{days}', farArrival));
+    if (farDeparture > 30) msgs.push(t('crm_warn_departure_far').replace('{days}', farDeparture));
+
+    box.innerHTML = msgs.map(m => `⚠️ ${e(m)}`).join('<br>');
+    box.classList.toggle('hidden', msgs.length === 0);
+    return msgs;
+}
 
 async function saveFlightField(field, value) {
     await Layout.db.from('crm_deals').update({ [field]: value }).eq('id', dealId);
@@ -3088,6 +3163,8 @@ async function saveArrivalDatetime(value) {
             await updateChecklist('checklist_transfer_arrival', 'needed');
         }
     }
+    const warnings = checkFlightDates();
+    if (warnings.length) Layout.showNotification(warnings[0], 'warning');
 }
 
 async function saveDepartureDatetime(value) {
@@ -3112,6 +3189,8 @@ async function saveDepartureDatetime(value) {
             await updateChecklist('checklist_transfer_departure', 'needed');
         }
     }
+    const warnings = checkFlightDates();
+    if (warnings.length) Layout.showNotification(warnings[0], 'warning');
 }
 
 // ==================== INIT ====================

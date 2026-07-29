@@ -2295,6 +2295,44 @@ function setupTimelineDelegation() {
     }
 }
 
+// Гость прилетает раньше начала брони или улетает позже её конца — в эти ночи ему
+// негде жить. Даты рейсов заполняет менеджер в чеклисте сделки, и до сих пор они
+// никак не сверялись с бронью: расхождение всплывало на ресепшене в день заезда.
+async function loadUncoveredNights() {
+    const banner = document.getElementById('uncoveredBanner');
+    if (!banner) return;
+
+    const { data, error } = await Layout.db
+        .from('v_placement_uncovered')
+        .select('deal_id, guest_name, retreat_name, arrival_date, departure_date, check_in, check_out, nights_before, nights_after')
+        .gte('retreat_end', formatDateYMD(new Date()))
+        .order('nights_before', { ascending: false })
+        .order('nights_after', { ascending: false });
+
+    // Молча выходим: шахматка важнее сигнала, ронять её из-за него нельзя
+    if (error || !data?.length) return;
+
+    document.getElementById('uncoveredSummary').textContent =
+        `⚠️ ${t('timeline_uncovered_title')}: ${data.length}`;
+
+    document.getElementById('uncoveredList').innerHTML = data.map(r => {
+        const gaps = [];
+        if (r.nights_before) gaps.push(`${t('timeline_uncovered_before')} ${r.nights_before}`);
+        if (r.nights_after)  gaps.push(`${t('timeline_uncovered_after')} ${r.nights_after}`);
+        return `<div class="py-1 border-t border-warning/20">
+            <a href="../crm/deal.html?id=${r.deal_id}" class="link link-hover font-medium">${e(r.guest_name || '—')}</a>
+            <span class="opacity-60"> · ${e(r.retreat_name || '')}</span>
+            <div class="text-xs opacity-70">
+                ${t('timeline_uncovered_flights')}: ${DateUtils.formatDate(r.arrival_date)} — ${r.departure_date ? DateUtils.formatDate(r.departure_date) : '?'}
+                · ${t('timeline_uncovered_booking')}: ${DateUtils.formatDate(r.check_in)} — ${DateUtils.formatDate(r.check_out)}
+            </div>
+            <div class="text-xs text-warning">${e(gaps.join(' · '))}</div>
+        </div>`;
+    }).join('');
+
+    banner.classList.remove('hidden');
+}
+
 async function init() {
     await Layout.init({ module: 'housing', menuId: 'reception', itemId: 'timeline' });
     Layout.showLoader();
@@ -2307,6 +2345,8 @@ async function init() {
     syncScroll();
     setupTimelineDelegation();
     Layout.hideLoader();
+
+    loadUncoveredNights();   // не задерживает отрисовку шахматки
 
     // Подписка на изменения в реальном времени
     subscribeToRealtime();
