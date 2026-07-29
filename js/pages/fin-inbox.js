@@ -399,11 +399,14 @@ async function init() {
         if (card) { ev.preventDefault(); toggleDetails(card, card.dataset.op); }
     });
 
+    // Раньше распознавался только ?tab=disputed, поэтому ссылка ?tab=unposted
+    // из сигнальной карточки на главной молча открывала «Не проверено».
     const params = new URLSearchParams(window.location.search);
-    if (params.get('tab') === 'disputed') {
-        document.querySelector('[data-tab="disputed"]').classList.add('tab-active');
+    const wanted = params.get('tab');
+    if (wanted && wanted !== 'pending' && document.querySelector(`[data-tab="${wanted}"]`)) {
         document.querySelector('[data-tab="pending"]').classList.remove('tab-active');
-        currentTab = 'disputed';
+        document.querySelector(`[data-tab="${wanted}"]`).classList.add('tab-active');
+        currentTab = wanted;
     }
     await loadList();
 }

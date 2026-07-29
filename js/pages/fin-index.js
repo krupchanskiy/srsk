@@ -70,15 +70,37 @@ async function loadDashboard() {
 
     renderSyncAge(accounts);
 
-    // Pending / disputed
-    const { data: statusOps } = await Layout.db
-        .from('fin_v_operations')
-        .select('operation_id, approval')
-        .in('approval', ['pending', 'disputed']);
+    // Плитка «Входящие» считает ВСЁ, что ждёт разбора: непроверенные операции,
+    // заявки из чатов и неразнесённые платежи. Замечание ВГ от 26.07.2026:
+    // раньше считались только непроверенные, и при двух висящих заявках из
+    // чатов на главной честно горел ноль — то есть плитка говорила «всё
+    // разобрано», когда это было неправдой.
+    // Оспоренные сюда не входят: у них своя плитка рядом.
+    const [{ data: statusOps }, chatDrafts, unpostedPay] = await Promise.all([
+        Layout.db.from('fin_v_operations').select('operation_id, approval')
+            .in('approval', ['pending', 'disputed']),
+        Layout.db.from('fin_v_chat_drafts').select('*', { count: 'exact', head: true }),
+        Layout.db.from('fin_v_unposted_crm_payments').select('*', { count: 'exact', head: true })
+    ]);
     const pending = (statusOps || []).filter(o => o.approval === 'pending').length;
     const disputed = (statusOps || []).filter(o => o.approval === 'disputed').length;
-    document.getElementById('pendingCount').textContent = pending;
+    const fromChats = chatDrafts.count || 0;
+    const unposted = unpostedPay.count || 0;
+
+    document.getElementById('pendingCount').textContent = pending + fromChats + unposted;
     document.getElementById('disputedCount').textContent = disputed;
+
+    // Состав под заголовком: иначе непонятно, что именно ждёт разбора
+    const parts = [];
+    if (pending)  parts.push(`${pending} ${t('fin_tab_pending').toLowerCase()}`);
+    if (fromChats) parts.push(`${fromChats} ${t('fin_tab_chat_drafts').toLowerCase()}`);
+    if (unposted) parts.push(`${unposted} ${t('fin_tab_unposted').toLowerCase()}`);
+    document.getElementById('pendingBreakdown').textContent = parts.join(' · ');
+
+    // Ведём сразу на вкладку, где что-то есть: иначе человек жмёт «Входящие»,
+    // попадает на пустое «Не проверено» и ищет сам.
+    const target = pending ? '' : fromChats ? '?tab=chat_drafts' : unposted ? '?tab=unposted' : '';
+    document.getElementById('pendingCount').closest('a').href = 'inbox.html' + target;
 
     // Последние операции
     const { data: ops } = await Layout.db
