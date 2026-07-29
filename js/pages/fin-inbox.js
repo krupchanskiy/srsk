@@ -333,7 +333,16 @@ async function submitSplit(ev) {
 }
 
 async function dismissDraft(id) {
-    const { data, error } = await Layout.db.rpc('tg_dismiss_draft', { p_id: id });
+    // Автор заявки увидит отказ в своём чате, поэтому спрашиваем причину: без неё
+    // человек не поймёт, переписать заявку или деньги уже учли иначе.
+    // Запасной текст на случай, если кэш переводов ещё не обновился.
+    const label = Layout.translations?.['fin_dismiss_reason_prompt']
+        ? t('fin_dismiss_reason_prompt')
+        : 'Причина отказа (необязательно) — её увидит автор в чате';
+    const reason = prompt(label);
+    if (reason === null) return;   // передумал
+
+    const { data, error } = await Layout.db.rpc('tg_dismiss_draft', { p_id: id, p_reason: reason || null });
     if (error) { Layout.handleError(error, t('fin_dismiss_draft')); return; }
     if (data?.ok) await loadList();
 }
