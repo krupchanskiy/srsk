@@ -82,6 +82,13 @@
                     </div>
                 </div>
 
+                <!-- Пересчёт ещё не введён: подсказка вместо обвинения в недостаче -->
+                <div id="untouchedHint" class="hidden mt-3 flex flex-wrap items-center gap-3">
+                    <span class="text-sm opacity-70" data-i18n="fin_recon_enter_hint">Введите, сколько денег на руках: по купюрам или общей суммой.</span>
+                    <button type="button" class="btn btn-outline btn-sm" id="recMatchBtn"
+                            onclick="FinRecon.fillAsMatching()" data-i18n="fin_recon_matches">Сходится с расчётом</button>
+                </div>
+
                 <!-- Расхождение -->
                 <div id="mismatchBlock" class="hidden mt-3">
                     <div class="alert alert-warning py-2 mb-2">
@@ -130,7 +137,7 @@
 <script src="../js/layout.js?v=35"></script>
 <script src="../js/date-utils.js?v=3"></script>
 <script src="../js/fin-utils.js?v=6"></script>
-<script src="../js/pages/fin-reconciliation.js?v=4"></script>
+<script src="../js/pages/fin-reconciliation.js?v=5"></script>
 
 </body>
 </html>

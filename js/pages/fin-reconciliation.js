@@ -132,17 +132,49 @@ function countedTotal() {
     return total;
 }
 
+// Пересчёт ещё не начат: ни одной купюры и ни одной свободной суммы.
+// Отличать это состояние важно — иначе на чистом бланке сразу горит
+// «расхождение не устранено» на всю сумму счёта (замечание ВГ, 26.07.2026):
+// человек ничего не вводил, а система уже обвиняет его в недостаче.
+function nothingEntered() {
+    if (!currentAccount) return true;
+    if (currentAccount.reconciliation_mode === 'statement') {
+        return document.getElementById('statementBalance').value.trim() === '';
+    }
+    return ![...document.querySelectorAll('.denom-qty, .other-amount')]
+        .some(inp => inp.value.trim() !== '');
+}
+
 function recalc() {
     if (!currentAccount) return;
     const counted = countedTotal();
     const diff = Math.round((counted - Number(currentAccount.balance)) * 100) / 100;
+    const untouched = nothingEntered();
     document.getElementById('countedBalance').textContent = FinUtils.fmtMoney(counted, currentAccount.currency_code);
     const diffEl = document.getElementById('differenceValue');
-    diffEl.textContent = FinUtils.fmtMoney(diff, currentAccount.currency_code);
-    diffEl.className = 'font-mono font-bold text-xl mt-0.5 ' + (diff === 0 ? 'text-success' : 'text-error');
+    diffEl.textContent = untouched ? '—' : FinUtils.fmtMoney(diff, currentAccount.currency_code);
+    diffEl.className = 'font-mono font-bold text-xl mt-0.5 '
+        + (untouched ? 'opacity-40' : diff === 0 ? 'text-success' : 'text-error');
     const tile = document.getElementById('differenceTile');
-    if (tile) tile.className = 'rounded-xl border-2 p-3 ' + (diff === 0 ? 'border-success/40' : 'border-error/40');
-    document.getElementById('mismatchBlock').classList.toggle('hidden', diff === 0);
+    if (tile) tile.className = 'rounded-xl border-2 p-3 '
+        + (untouched ? 'border-base-300' : diff === 0 ? 'border-success/40' : 'border-error/40');
+
+    // Предупреждение про корректировку — только когда пересчёт действительно
+    // сделан и не сошёлся
+    document.getElementById('mismatchBlock').classList.toggle('hidden', untouched || diff === 0);
+    const hint = document.getElementById('untouchedHint');
+    if (hint) hint.classList.toggle('hidden', !untouched);
+    const matchBtn = document.getElementById('recMatchBtn');
+    if (matchBtn) matchBtn.classList.toggle('hidden', !untouched);
+}
+
+// «Сходится» — пересчитал и сумма та же. Кладём остаток в свободную сумму
+// первой точки: это честная запись «посчитал столько, без разбивки по купюрам».
+function fillAsMatching() {
+    const first = document.querySelector('.recon-location .other-amount');
+    if (!first || !currentAccount) return;
+    first.value = Number(currentAccount.balance);
+    recalc();
 }
 
 // ==================== СОХРАНЕНИЕ ====================
@@ -291,6 +323,6 @@ async function init() {
     }
 }
 
-window.FinRecon = { addLocation: () => { addLocation(''); recalc(); }, recalc, save };
+window.FinRecon = { addLocation: () => { addLocation(''); recalc(); }, recalc, save, fillAsMatching };
 init();
 })();
