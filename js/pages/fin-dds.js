@@ -155,14 +155,64 @@ function applyHighlight() {
 
 let totalsAcc = null;   // { INR: {inc, exp}, ... } по загруженной выборке
 
-// Итог по выборке (приход/расход по валютам) — режимы «счёт» и «статья»
+// Заявки из чатов по департаменту выбранного счёта — сколько ждёт и на сколько
+let chatWaiting = null;   // { count, byCurrency: {INR: 250, …} } | null
+
+async function loadChatWaiting(departmentId) {
+    chatWaiting = null;
+    if (!departmentId) return;
+    const { data } = await Layout.db.from('fin_v_chat_drafts')
+        .select('amount, currency').eq('department_id', departmentId);
+    if (!data?.length) return;
+    const byCurrency = {};
+    for (const d of data) byCurrency[d.currency] = (byCurrency[d.currency] || 0) + Number(d.amount);
+    chatWaiting = { count: data.length, byCurrency };
+}
+
+function chip(label, value, cls) {
+    return `<div class="px-3 py-2 rounded-lg bg-base-100 border border-base-300">
+        <div class="text-xs opacity-60">${label}</div>
+        <div class="font-mono font-semibold ${cls || ''}">${value}</div>
+    </div>`;
+}
+
+// Сводка по выборке. Сторно вынесено из прихода отдельной цифрой (замечание ВГ
+// от 26.07.2026): сторнирование расхода создаёт проводку «в плюс», и раньше оно
+// попадало в «Приход», завышая его. Из прихода/расхода исключены обе стороны —
+// и отменённая операция, и сама отмена: вместе они дают ноль, и показывать их
+// внутри оборота значит врать про оборот.
 function renderTotals() {
     const el = document.getElementById('ddsTotals');
     if (!el) return;
-    if (!totalsAcc || !Object.keys(totalsAcc).length) { el.innerHTML = ''; return; }
-    const parts = Object.entries(totalsAcc).map(([c, v]) =>
-        `<span class="text-success">${t('fin_income')} ${FinUtils.fmtMoney(v.inc, c)}</span> · <span class="text-error">${t('fin_expense')} ${FinUtils.fmtMoney(v.exp, c)}</span>`);
-    el.innerHTML = `<span class="opacity-60">${t('fin_by_selection')}:</span> ` + parts.join(' &nbsp;•&nbsp; ');
+    const f = filterValues();
+    const acc = f.account ? FinUtils.refs.accounts.find(a => a.account_id === f.account) : null;
+    const chips = [];
+
+    if (acc) {
+        chips.push(chip(
+            acc.kind === 'custodial' ? t('fin_dept_on_hand') : t('fin_balance'),
+            FinUtils.fmtMoney(acc.balance, acc.currency_code),
+            Number(acc.balance) < 0 ? 'text-error' : ''));
+    }
+
+    for (const [c, v] of Object.entries(totalsAcc || {})) {
+        chips.push(chip(t('fin_income'), FinUtils.fmtMoney(v.inc, c), 'text-success'));
+        chips.push(chip(t('fin_expense'), FinUtils.fmtMoney(v.exp, c), 'text-error'));
+        if (v.rev) chips.push(chip(t('fin_totals_reversed'), FinUtils.fmtMoney(v.rev, c), 'opacity-60'));
+    }
+
+    if (chatWaiting) {
+        const sums = Object.entries(chatWaiting.byCurrency)
+            .map(([c, s]) => FinUtils.fmtMoney(s, c)).join(' · ');
+        chips.push(`<a href="inbox.html?tab=chat_drafts"
+            class="px-3 py-2 rounded-lg bg-warning/10 border border-warning/40 hover:bg-warning/20">
+            <div class="text-xs opacity-70">${t('fin_chat_waiting')}</div>
+            <div class="font-mono font-semibold">${chatWaiting.count} · ${sums}</div>
+        </a>`);
+    }
+
+    if (!chips.length) { el.innerHTML = ''; return; }
+    el.innerHTML = `<div class="flex flex-wrap gap-2 items-stretch text-sm">${chips.join('')}</div>`;
 }
 
 async function loadTable(append = false) {
@@ -174,6 +224,9 @@ async function loadTable(append = false) {
         listOffset = 0;
         shownCount = 0;
         totalsAcc = {};
+        // Непроведённые заявки считаем по департаменту выбранного счёта
+        const selAcc = f.account ? FinUtils.refs.accounts.find(a => a.account_id === f.account) : null;
+        await loadChatWaiting(selAcc?.department_id || null);
         body.innerHTML = `<tr><td colspan="8" class="text-center py-8"><span class="loading loading-spinner loading-md"></span></td></tr>`;
     }
     const amt = f.q && /^\d+(\.\d+)?$/.test(f.q) ? Number(f.q) : null;
@@ -210,9 +263,13 @@ async function loadTable(append = false) {
             renderPager(false); renderTotals(); return;
         }
         for (const p of data) {
-            const c = (totalsAcc[p.currency_code] = totalsAcc[p.currency_code] || { inc: 0, exp: 0 });
+            const c = (totalsAcc[p.currency_code] = totalsAcc[p.currency_code] || { inc: 0, exp: 0, rev: 0 });
             const v = Number(p.signed_amount);
-            if (v >= 0) c.inc += v; else c.exp += -v;
+            // Отменённая операция и её сторно — обе в «Сторнировано»: в обороте
+            // они дают ноль, а внутри прихода/расхода искажали бы обе цифры.
+            if (p.is_reversed || p.type === 'reversal') c.rev += Math.abs(v);
+            else if (v >= 0) c.inc += v;
+            else c.exp += -v;
         }
         const html = data.map(p => `
             <tr class="${p.is_reversed ? 'opacity-60' : ''}">
