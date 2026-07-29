@@ -187,7 +187,9 @@ Deno.serve(async (req) => {
       keyboard = rows((accs ?? []).map((a: any) => ({ text: a.name, callback_data: `a:${a.id.slice(0, 8)}:${draftId}` })));
       keyboard.push([{ text: "✖️ Отмена", callback_data: `no:${draftId}` }]);
     } else if (st.needs_category) {
-      const { data: cats } = await supa.rpc("tg_list_expense_categories");
+      // Набор статей зависит от департамента чата: у кого он свой — тот и
+      // видит свой, у остальных общий (просьба ВГ, 26.07.2026).
+      const { data: cats } = await supa.rpc("tg_list_expense_categories", { p_chat: chatId });
       head = `🏷 <b>Какая это статья расходов?</b>`;
       keyboard = rows((cats ?? []).map((c: any) => ({ text: c.name, callback_data: `s:${c.id.slice(0, 8)}:${draftId}` })));
       keyboard.push([{ text: "✖️ Не про деньги", callback_data: `no:${draftId}` }]);
@@ -249,7 +251,7 @@ Deno.serve(async (req) => {
         if (found) patch.target_department_id = found.id;
       }
       if (action === "s") {
-        const { data: cats } = await supa.rpc("tg_list_expense_categories");
+        const { data: cats } = await supa.rpc("tg_list_expense_categories", { p_chat: msg.chat.id });
         const found = (cats ?? []).find((c: any) => c.id.startsWith(value));
         if (found) patch.category_id = found.id;
       }

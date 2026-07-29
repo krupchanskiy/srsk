@@ -32,7 +32,10 @@ async function loadTab() {
     const { data, error } = await sources[currentTab]();
     if (error) { Layout.handleError(error, 'Справочники'); return; }
     rows = data || [];
-    if (currentTab === 'departments' && !knownChats) await loadKnownChats();
+    if (currentTab === 'departments') {
+        if (!knownChats) await loadKnownChats();
+        await loadDeptCategories();
+    }
     renderTab();
 }
 
@@ -42,6 +45,15 @@ let knownChats = null;
 async function loadKnownChats() {
     const { data } = await Layout.db.from('fin_v_known_chats').select('*').order('title');
     knownChats = data || [];
+}
+
+// Свои наборы статей по департаментам: { department_id: [category_id, …] }.
+// Пустой массив означает «общий набор» — это же правило и на сервере.
+let deptCategories = {};
+async function loadDeptCategories() {
+    const { data } = await Layout.db.from('fin_v_department_categories').select('department_id, category_id');
+    deptCategories = {};
+    for (const r of data || []) (deptCategories[r.department_id] = deptCategories[r.department_id] || []).push(r.category_id);
 }
 
 function activeBadge(row) {
@@ -125,13 +137,14 @@ function renderTab() {
             </tr>`).join('');
     } else {
         const currentIds = computeCurrentRateIds(rows);
-        head.innerHTML = `<tr><th>${t('fin_currency')}</th><th>${t('fin_effective_date')}</th><th>${t('fin_rate')}</th><th>${t('fin_retreat_object')}</th></tr>`;
+        head.innerHTML = `<tr><th>${t('fin_currency')}</th><th>${t('fin_effective_date')}</th><th>${t('fin_rate')}</th><th>${t('fin_retreat_object')}</th><th></th></tr>`;
         body.innerHTML = view.map(r => `
             <tr class="${currentIds.has(r.id) ? 'font-medium' : 'opacity-70'}">
                 <td class="font-mono font-bold">${e(r.from_currency)}</td>
                 <td>${DateUtils.formatShort(DateUtils.parseDate(r.effective_date))}${currentIds.has(r.id) ? ` <span class="badge badge-success badge-xs">${t('fin_rate_current')}</span>` : ''}</td>
                 <td class="font-mono">${r.rate}</td>
                 <td>${e(r.object_name || t('fin_general_rate'))}</td>
+                <td class="text-right"><button class="btn btn-ghost btn-sm" data-edit="${r.id}" aria-label="${t('edit')}" title="${t('edit')}">${editIcon}</button></td>
             </tr>`).join('');
     }
     if (!view.length) {
@@ -183,6 +196,7 @@ function openForm(row) {
             fieldHtml('f_info', 'fin_comment', `<input type="text" id="f_info" class="input input-bordered input-sm" value="${e(row?.contact_info || '')}">`) +
             activeCheckbox(row);
     } else if (currentTab === 'departments') {
+        const deptCats = deptCategories[row?.id] || [];
         // Чат выбираем из тех, где бот уже побывал. Занятые другим департаментом
         // показываем с подписью: выбрать можно, но видно, что он переедет.
         const chatOpts = (knownChats || []).map(c => {
@@ -199,23 +213,46 @@ function openForm(row) {
             </div>` +
             fieldHtml('f_chat', 'fin_dept_chat', `<select id="f_chat" class="select select-bordered select-sm">
                 <option value="">${t('fin_dept_no_chat')}</option>${chatOpts}</select>`) +
+            // Свой набор статей: пусто = общий набор. Так добавление новой общей
+            // статьи не требует обходить все департаменты (просьба ВГ, 26.07).
+            `<div class="form-control mb-2">
+                <label class="label py-0"><span class="label-text">${t('fin_dept_categories')}</span></label>
+                <div class="max-h-40 overflow-y-auto border border-base-300 rounded-lg p-2" id="f_cats">
+                    ${FinUtils.refs.categories.filter(c => c.is_active && c.direction === 'out').map(c => `
+                        <label class="label cursor-pointer justify-start gap-2 py-0.5">
+                            <input type="checkbox" class="checkbox checkbox-xs dept-cat" value="${c.id}"
+                                   ${deptCats.includes(c.id) ? 'checked' : ''}>
+                            <span class="label-text text-sm">${e(c.name)}</span>
+                        </label>`).join('')}
+                </div>
+                <span class="text-xs opacity-60 mt-1">${t('fin_dept_categories_hint')}</span>
+            </div>` +
             `<p class="text-xs opacity-60 mt-1">${t('fin_dept_hint')}</p>`;
     } else {
+        // Курс правится и удаляется (вопрос ВГ: «ни удалить, ни изменить?»).
+        // Валюта, дата и объект — это ключ записи: меняя их, вы правите уже
+        // другой курс, поэтому при правке они заперты. Прошлые операции курс
+        // не трогает вовсе: проводка хранит собственный rate_used.
+        const lock = row ? 'disabled' : '';
         fields.innerHTML =
-            fieldHtml('f_cur', 'fin_currency', `<select id="f_cur" class="select select-bordered select-sm">${
+            fieldHtml('f_cur', 'fin_currency', `<select id="f_cur" class="select select-bordered select-sm" ${lock}>${
                 FinUtils.refs.currencies.filter(c => c.is_active && c.code !== 'INR')
-                    .map(c => `<option value="${c.code}">${e(c.symbol)} ${c.code}</option>`).join('')}</select>`) +
-            fieldHtml('f_date', 'fin_effective_date', `<input type="date" id="f_date" class="input input-bordered input-sm" value="${FinUtils.todayISO()}" required>`) +
-            fieldHtml('f_rate', 'fin_rate', `<input type="number" id="f_rate" class="input input-bordered input-sm" min="0.000001" step="0.000001" required>`) +
-            fieldHtml('f_obj', 'fin_retreat_object', `<select id="f_obj" class="select select-bordered select-sm">
+                    .map(c => `<option value="${c.code}" ${row?.from_currency === c.code ? 'selected' : ''}>${e(c.symbol)} ${c.code}</option>`).join('')}</select>`) +
+            fieldHtml('f_date', 'fin_effective_date', `<input type="date" id="f_date" class="input input-bordered input-sm" value="${e(row?.effective_date || FinUtils.todayISO())}" ${lock} required>`) +
+            fieldHtml('f_rate', 'fin_rate', `<input type="number" id="f_rate" class="input input-bordered input-sm" min="0.000001" step="0.000001" value="${e(row?.rate ?? '')}" required>`) +
+            fieldHtml('f_obj', 'fin_retreat_object', `<select id="f_obj" class="select select-bordered select-sm" ${lock}>
                 <option value="">${t('fin_general_rate')}</option>${
-                FinUtils.refs.objects.map(o => `<option value="${o.id}">${e(o.display_name)}</option>`).join('')}</select>`);
+                FinUtils.refs.objects.map(o => `<option value="${o.id}" ${row?.object_id === o.id ? 'selected' : ''}>${e(o.display_name)}</option>`).join('')}</select>`) +
+            (row ? `<p class="text-xs opacity-60 mt-2">${t('fin_rate_history_note')}</p>
+                    <button type="button" class="btn btn-outline btn-error btn-sm mt-2" id="f_rate_delete">${t('delete')}</button>` : '');
     }
     // Поля формы пересоздаются каждый раз, поэтому подсказку по людям вешаем здесь,
     // а не в init — иначе она указывала бы на удалённый input.
     if (currentTab === 'departments') {
         FinUtils.attachPersonSearch(document.getElementById('f_resp_search'), document.getElementById('f_resp'));
     }
+    const delBtn = document.getElementById('f_rate_delete');
+    if (delBtn) delBtn.addEventListener('click', () => deleteRate(editingId));
     document.getElementById('dictModal').showModal();
 }
 
@@ -223,6 +260,15 @@ function activeCheckbox(row) {
     return `<div class="form-control mb-2"><label class="label cursor-pointer justify-start gap-3 py-1">
         <input type="checkbox" id="f_active" class="checkbox checkbox-sm" ${!row || row.is_active ? 'checked' : ''}>
         <span class="label-text">${t('fin_active')}</span></label></div>`;
+}
+
+async function deleteRate(id) {
+    if (!confirm(t('fin_rate_delete_confirm'))) return;
+    const res = await FinUtils.rpc('fin_delete_exchange_rate', { id });
+    if (FinUtils.handleResult(res)) {
+        document.getElementById('dictModal').close();
+        await loadTab();
+    }
 }
 
 async function submitForm(ev) {
@@ -251,7 +297,8 @@ async function submitForm(ev) {
         res = await FinUtils.rpc('fin_save_department', {
             id: editingId, name: val('f_name'),
             responsible_person_id: val('f_resp') || null,
-            chat_id: val('f_chat') || null
+            chat_id: val('f_chat') || null,
+            category_ids: [...document.querySelectorAll('.dept-cat:checked')].map(i => i.value)
         });
         if (res?.ok) knownChats = null;   // привязки изменились — перечитаем список чатов
     } else {
