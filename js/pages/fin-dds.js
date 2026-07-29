@@ -274,7 +274,13 @@ async function loadTable(append = false) {
         const html = data.map(p => `
             <tr class="${p.is_reversed ? 'opacity-60' : ''}">
                 <td class="whitespace-nowrap">${DateUtils.formatShort(DateUtils.parseDate(p.occurred_on))}</td>
-                <td>${e(FinUtils.typeLabel(p.type))}${badges(p)}</td>
+                <td>${e(FinUtils.typeLabel(p.type))}${
+                    // Вторая сторона операции: в режиме одного счёта её не было
+                    // видно вовсе — уходило 50 000, а куда, journal не говорил.
+                    // Стрелка показывает направление относительно этого счёта.
+                    p.contra_account
+                        ? ` <span class="opacity-70 whitespace-nowrap">${p.direction === 'out' ? '→' : '←'} ${e(p.contra_account)}</span>`
+                        : ''}${badges(p)}</td>
                 <td>${e(p.category_name || '—')}</td>
                 <td>${e(showRunning ? (p.object_name || '') : (p.account_name || ''))}</td>
                 <td class="max-w-xs truncate opacity-70">${e(p.comment || '')}</td>
