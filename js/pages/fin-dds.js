@@ -102,8 +102,10 @@ async function exportCsv() {
         if (f.to) q = q.lte('occurred_on', f.to);
         if (f.q) q = q.or(`comment.ilike.%${f.q}%,payer_name.ilike.%${f.q}%`);
         const { data } = await q;
-        header = ['Дата', 'Тип', 'Плательщик', 'Комментарий', 'Статус', 'Суммы'];
-        rows = (data || []).map(op => [op.occurred_on, FinUtils.typeLabel(op.type), op.payer_name, op.comment, t('fin_approval_' + op.approval), FinUtils.fmtAmountsByCurrency(op.amounts_by_currency)]);
+        // Счёт и ретрит есть на экране — значит должны быть и в выгрузке,
+        // иначе CSV отвечает не на те вопросы, что журнал
+        header = ['Дата', 'Тип', 'Счета', 'Ретрит', 'Плательщик', 'Комментарий', 'Статус', 'Суммы'];
+        rows = (data || []).map(op => [op.occurred_on, FinUtils.typeLabel(op.type), op.accounts, op.objects, op.payer_name, op.comment, t('fin_approval_' + op.approval), FinUtils.fmtAmountsByCurrency(op.amounts_by_currency)]);
     }
     const csv = '﻿' + [header, ...rows].map(r => r.map(c => `"${String(c ?? '').replace(/"/g, '""')}"`).join(';')).join('\n');
     const a = document.createElement('a');
@@ -302,6 +304,7 @@ async function loadTable(append = false) {
             <th>${t('fin_occurred_on')}</th>
             <th>${t('fin_kind')}</th>
             <th>${t('fin_account')}</th>
+            <th>${t('fin_retreat_object')}</th>
             <th class="text-right">${t('fin_amount')}</th>
             <th>${t('fin_comment')}</th>
             <th>${t('fin_status')}</th></tr>`;
@@ -317,7 +320,7 @@ async function loadTable(append = false) {
         const { data, error } = await q;
         if (error) { Layout.handleError(error, 'ДДС'); return; }
         if (!data.length && !append) {
-            body.innerHTML = `<tr><td colspan="6" class="text-center py-6 opacity-60">${t('fin_no_operations')}</td></tr>`;
+            body.innerHTML = `<tr><td colspan="7" class="text-center py-6 opacity-60">${t('fin_no_operations')}</td></tr>`;
             renderPager(false); renderTotals(); return;
         }
         opsById = append ? { ...opsById, ...Object.fromEntries(data.map(op => [op.operation_id, op])) }
@@ -327,11 +330,12 @@ async function loadTable(append = false) {
                 <td class="whitespace-nowrap">${DateUtils.formatShort(DateUtils.parseDate(op.occurred_on))}</td>
                 <td>${e(FinUtils.typeLabel(op.type))}${badges(op)}</td>
                 <td class="whitespace-nowrap">${e(op.accounts || '—')}</td>
+                <td class="whitespace-nowrap">${e(op.objects || '—')}</td>
                 <td class="text-right font-mono whitespace-nowrap">${FinUtils.fmtAmountsByCurrencyColored(op.amounts_by_currency)}</td>
                 <td class="max-w-md truncate opacity-70">${e([op.payer_name, op.comment].filter(Boolean).join(' · '))}</td>
                 <td>${FinUtils.approvalBadge(op.approval)}</td>
             </tr>
-            <tr class="hidden" id="det-${op.operation_id}"><td colspan="6" class="bg-base-200/50 p-0"></td></tr>
+            <tr class="hidden" id="det-${op.operation_id}"><td colspan="7" class="bg-base-200/50 p-0"></td></tr>
         `).join('');
         if (append) body.insertAdjacentHTML('beforeend', html); else body.innerHTML = html;
         listOffset += data.length;
