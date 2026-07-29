@@ -2323,8 +2323,8 @@ async function loadUncoveredNights() {
             <a href="../crm/deal.html?id=${r.deal_id}" class="link link-hover font-medium">${e(r.guest_name || '—')}</a>
             <span class="opacity-60"> · ${e(r.retreat_name || '')}</span>
             <div class="text-xs opacity-70">
-                ${t('timeline_uncovered_flights')}: ${DateUtils.formatDate(r.arrival_date)} — ${r.departure_date ? DateUtils.formatDate(r.departure_date) : '?'}
-                · ${t('timeline_uncovered_booking')}: ${DateUtils.formatDate(r.check_in)} — ${DateUtils.formatDate(r.check_out)}
+                ${t('timeline_uncovered_flights')}: ${DateUtils.formatShort(r.arrival_date)} — ${r.departure_date ? DateUtils.formatShort(r.departure_date) : '?'}
+                · ${t('timeline_uncovered_booking')}: ${DateUtils.formatShort(r.check_in)} — ${DateUtils.formatShort(r.check_out)}
             </div>
             <div class="text-xs text-warning">${e(gaps.join(' · '))}</div>
         </div>`;
