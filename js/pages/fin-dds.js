@@ -666,17 +666,75 @@ function openIncome() {
     document.getElementById('incComment').value = '';
     document.getElementById('incDonorSearch').value = '';
     document.getElementById('incDonorId').value = '';
+    document.getElementById('incParticipantSearch').value = '';
+    document.getElementById('incParticipantId').value = '';
+    document.getElementById('incKind').innerHTML =
+        PAY_KINDS.map(k => `<option value="${k}">${e(t('fin_block_' + k))}</option>`).join('');
     document.getElementById('incomeModal').showModal();
+}
+
+// Виды начислений участника — те же, что на странице «Участники»
+const PAY_KINDS = ['org_fee', 'accommodation', 'meals', 'extra', 'general'];
+
+// Статья «оплата от участника» требует имени: без него приход не уменьшит долг
+// гостя и не попадёт в его карточку — деньги в кассе есть, а долг висит.
+// Замечание ВГ от 26.07.2026: в форме не было ни участника, ни мероприятия.
+function isParticipantCategory() {
+    const id = document.getElementById('incCategory').value;
+    return FinUtils.refs.categories.find(c => c.id === id)?.code === 'participant_payment';
 }
 
 function updateIncomeCategoryList() {
     document.getElementById('incCategory').innerHTML = FinUtils.categoryOptions('in', null, true);
     document.getElementById('incDonorWrap').classList.toggle('hidden', !document.getElementById('incIsDonation').checked);
+    syncParticipantBlock();
+}
+
+function syncParticipantBlock() {
+    const need = isParticipantCategory() && !document.getElementById('incIsDonation').checked;
+    document.getElementById('incParticipantWrap').classList.toggle('hidden', !need);
+    // Ретрит для платежа участника обязателен: без него платёж не привяжется
+    // к его балансу по мероприятию
+    document.getElementById('incObject').required = need;
 }
 
 async function submitIncome(ev) {
     ev.preventDefault();
     const isDonation = document.getElementById('incIsDonation').checked;
+
+    // Платёж участника проводим отдельной операцией: только она привязывает
+    // деньги к человеку и его балансу по мероприятию. Обычный «приход» с той
+    // же статьёй оставил бы долг гостя нетронутым.
+    if (!isDonation && isParticipantCategory()) {
+        const person = document.getElementById('incParticipantId').value;
+        const object = document.getElementById('incObject').value;
+        if (!person) { Layout.showNotification(t('fin_participant_required'), 'error'); return; }
+        if (!object) { Layout.showNotification(t('fin_object_required'), 'error'); return; }
+        const res = await FinUtils.rpc('fin_create_payment', {
+            request_id: requestIds.income,
+            occurred_on: document.getElementById('incDate').value,
+            comment: document.getElementById('incComment').value || null,
+            payer_contact_id: person,
+            rows: [{
+                id: FinUtils.newRequestId(),
+                account_id: document.getElementById('incAccount').value,
+                amount: document.getElementById('incAmount').value,
+                object_id: object,
+                participant_id: person,
+                participant_balance_kind: document.getElementById('incKind').value,
+                payment_channel: document.getElementById('incChannel').value || null
+            }]
+        });
+        if (FinUtils.handleResult(res)) {
+            requestIds.income = null;
+            document.getElementById('incomeModal').close();
+            highlightNext = true;
+            await FinUtils.reloadAccounts();
+            await loadTable();
+        }
+        return;
+    }
+
     const payload = {
         request_id: requestIds.income,
         occurred_on: document.getElementById('incDate').value,
@@ -799,6 +857,8 @@ async function init() {
     document.getElementById('expenseModal').addEventListener('input', updateExpenseRecap);
     document.getElementById('expenseModal').addEventListener('change', updateExpenseRecap);
     FinUtils.attachPersonSearch(document.getElementById('incDonorSearch'), document.getElementById('incDonorId'));
+    FinUtils.attachPersonSearch(document.getElementById('incParticipantSearch'), document.getElementById('incParticipantId'));
+    document.getElementById('incCategory').addEventListener('change', syncParticipantBlock);
 
     // Esc не должен молча терять введённые данные
     const guardDialog = (dlgId, isDirty) => document.getElementById(dlgId).addEventListener('cancel', ev => {

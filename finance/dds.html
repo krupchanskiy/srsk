@@ -208,6 +208,19 @@
                     <select id="incChannel" class="select select-bordered select-sm"></select>
                 </div>
             </div>
+            <!-- Появляется, когда выбрана статья «Оплата от участника»: без имени
+                 такой приход не уменьшит долг гостя и не попадёт в его карточку -->
+            <div class="grid grid-cols-2 gap-3 mb-2 hidden" id="incParticipantWrap">
+                <div class="form-control">
+                    <label class="label py-0"><span class="label-text" data-i18n="fin_participant">Участник</span></label>
+                    <input type="text" id="incParticipantSearch" class="input input-bordered input-sm" autocomplete="off">
+                    <input type="hidden" id="incParticipantId">
+                </div>
+                <div class="form-control">
+                    <label class="label py-0"><span class="label-text" data-i18n="fin_block">Блок</span></label>
+                    <select id="incKind" class="select select-bordered select-sm"></select>
+                </div>
+            </div>
             <div class="form-control mb-2">
                 <label class="label py-0"><span class="label-text" data-i18n="fin_comment">Комментарий</span></label>
                 <input type="text" id="incComment" class="input input-bordered input-sm">
@@ -339,7 +352,7 @@
 <script src="../js/layout.js?v=35"></script>
 <script src="../js/date-utils.js?v=3"></script>
 <script src="../js/fin-utils.js?v=6"></script>
-<script src="../js/pages/fin-dds.js?v=11"></script>
+<script src="../js/pages/fin-dds.js?v=12"></script>
 
 </body>
 </html>
