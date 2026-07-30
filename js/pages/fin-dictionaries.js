@@ -266,7 +266,16 @@ function activeCheckbox(row) {
 }
 
 async function deleteRate(id) {
-    if (!confirm(t('fin_rate_delete_confirm'))) return;
+    // Курс удаляют, когда завели по ошибке, — но если это последний общий курс
+    // валюты, приход в ней перестанет проводиться вовсе. Предупреждаем отдельно
+    // и жёстче: ошибку ввода легко перепутать с последней опорой (решение ВГ, 30.07.2026).
+    const rate = rows.find(r => r.id === id);
+    const isLastCommon = rate && !rate.object_id
+        && rows.filter(r => r.from_currency === rate.from_currency && !r.object_id).length === 1;
+    const question = isLastCommon
+        ? t('fin_rate_delete_last').replace('{cur}', rate.from_currency)
+        : t('fin_rate_delete_confirm');
+    if (!confirm(question)) return;
     const res = await FinUtils.rpc('fin_delete_exchange_rate', { id });
     if (FinUtils.handleResult(res)) {
         document.getElementById('dictModal').close();
