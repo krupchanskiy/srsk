@@ -31,6 +31,16 @@ async function loadChatDraftsCount() {
     el.classList.toggle('badge-ghost', (count || 0) === 0);
 }
 
+async function loadUnfinishedCount() {
+    const { count } = await Layout.db.from('fin_v_chat_drafts_unfinished')
+        .select('*', { count: 'exact', head: true });
+    const el = document.getElementById('unfinishedTabCount');
+    if (!el) return;
+    el.textContent = count || 0;
+    el.classList.toggle('badge-warning', (count || 0) > 0);
+    el.classList.toggle('badge-ghost', (count || 0) === 0);
+}
+
 async function loadCounts() {
     const { data } = await Layout.db.from('fin_v_operations')
         .select('operation_id, approval')
@@ -41,6 +51,25 @@ async function loadCounts() {
     document.getElementById('disputedTabCount').textContent = disputed;
     await loadUnpostedCount();
     await loadChatDraftsCount();
+    await loadUnfinishedCount();
+}
+
+// Заявка, на которой диалог с ботом оборвался. Действие тут не за казначеем,
+// поэтому кнопок проведения нет — только видно, кому напомнить и чего не хватает.
+function unfinishedCardHtml(d) {
+    return `
+    <div class="card bg-base-100 shadow-sm border-l-4 border-base-300">
+        <div class="card-body py-3">
+            <div class="flex flex-wrap items-center gap-3">
+                <span class="badge badge-ghost badge-sm">${e(d.department)}</span>
+                <span class="font-mono font-semibold">${FinUtils.fmtMoney(d.amount, d.currency || 'INR')}</span>
+                ${d.purpose ? `<span class="truncate max-w-md">${e(d.purpose)}</span>` : ''}
+                <span class="badge badge-warning badge-sm">${t('fin_unfinished_' + d.missing)}</span>
+                <span class="ml-auto text-xs opacity-60">${t('fin_unfinished_days')}: ${d.days_waiting}</span>
+            </div>
+            <div class="text-xs opacity-60 mt-1">${e([d.author, d.raw_text].filter(Boolean).join(' · '))}</div>
+        </div>
+    </div>`;
 }
 
 // Карточка заявки из чата департамента: тип, сумма, автор, исходный текст.
@@ -152,6 +181,19 @@ async function loadList() {
             return;
         }
         list.innerHTML = data.map(chatDraftCardHtml).join('');
+        await loadCounts();
+        return;
+    }
+
+    // Бот спросил — человек не ответил. Такие заявки не ждут казначея, они ждут
+    // автора, но раньше их не видел никто: в «Входящих» показывались только pending.
+    if (currentTab === 'unfinished') {
+        const { data, error } = await Layout.db.from('fin_v_chat_drafts_unfinished')
+            .select('*').order('days_waiting', { ascending: false }).limit(200);
+        if (error) { Layout.handleError(error, 'Входящие'); return; }
+        list.innerHTML = data?.length
+            ? data.map(unfinishedCardHtml).join('')
+            : `<div class="text-center py-14 opacity-70">${t('fin_no_unfinished')}</div>`;
         await loadCounts();
         return;
     }

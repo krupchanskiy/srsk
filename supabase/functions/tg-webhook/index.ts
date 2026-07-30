@@ -102,6 +102,25 @@ function parsePurpose(text: string, amountRaw: string): string | null {
 const esc = (s: unknown) =>
   String(s ?? "").replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
 
+// Перечень трат одним сообщением: «За навоз 1400р, удобрения 580р, топливо 200р».
+// Сумму мы берём последнюю (по-русски её обычно пишут в конце), и для такого
+// перечня это неверно — в учёт уйдёт 200 вместо 2180. Угадывать итог нельзя:
+// «5 кг риса 340» — тоже два числа, но сумма одна. Поэтому не меняем выбор, а
+// честно предупреждаем в карточке, чтобы человек проверил до подтверждения.
+// Найдено при сквозной проверке 29.07.2026 на реальном сообщении из чата.
+function looksLikeList(text: string): boolean {
+  // NUM содержит альтернативу, поэтому его обязательно брать в группу: иначе `|`
+  // разрывает весь шаблон и в счёт попадают числа вообще, включая «14:30».
+  const withCurrency = [...text.matchAll(
+    new RegExp(`(?:${NUM})(?:[.,]\\d{1,2})?\\s*(?:${CUR_WORDS})(?![\\p{L}])`, "giu"))].length;
+  if (withCurrency > 1) return true;
+  // Либо три и более «денежных» числа: мелочь вроде «5 кг» и время «14:30» не считаются
+  const bigNumbers = [...text.matchAll(new RegExp(`(?<![\\d:.,])(?:${NUM})(?![\\d:.,])`, "gu"))]
+    .map((m) => parseFloat(m[0].replace(/\s/g, "")))
+    .filter((n) => Number.isFinite(n) && n >= 100);
+  return bigNumbers.length >= 3;
+}
+
 Deno.serve(async (req) => {
   const supa = createClient(
     Deno.env.get("SUPABASE_URL")!,
@@ -137,7 +156,10 @@ Deno.serve(async (req) => {
       st.source_account ? `откуда: ${esc(st.source_account)}` : null,
       st.purpose ? `на что: ${esc(st.purpose)}` : null,
     ].filter(Boolean).join(" · ");
-    const amountLine = `${known}\n<i>${esc(st.raw_text)}</i>`;
+    const listWarning = looksLikeList(String(st.raw_text ?? ""))
+      ? `\n⚠️ <b>В сообщении несколько сумм</b> — взял ${st.amount}. Если нужна другая, пришлите её отдельным сообщением.`
+      : "";
+    const amountLine = `${known}\n<i>${esc(st.raw_text)}</i>${listWarning}`;
     let head: string;
     let keyboard: any[][];
     const rows = (btns: any[]) => {
