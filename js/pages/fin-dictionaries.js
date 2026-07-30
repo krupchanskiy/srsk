@@ -272,14 +272,25 @@ async function deleteRate(id) {
     const rate = rows.find(r => r.id === id);
     const isLastCommon = rate && !rate.object_id
         && rows.filter(r => r.from_currency === rate.from_currency && !r.object_id).length === 1;
-    const question = isLastCommon
-        ? t('fin_rate_delete_last').replace('{cur}', rate.from_currency)
-        : t('fin_rate_delete_confirm');
-    if (!confirm(question)) return;
+    if (isLastCommon) {
+        // Правило ВГ (30.07.2026): кнопка удаления — только для ошибочно созданных
+        // курсов, а опорный удалять не нужно. Поэтому спрашиваем дважды и разными
+        // словами: случайный клик так не проходит, а осознанное удаление возможно.
+        if (!confirm(t('fin_rate_delete_last').replace('{cur}', rate.from_currency))) return;
+        if (!confirm(t('fin_rate_delete_last2').replace('{cur}', rate.from_currency))) return;
+    } else if (!confirm(t('fin_rate_delete_confirm'))) {
+        return;
+    }
     const res = await FinUtils.rpc('fin_delete_exchange_rate', { id });
     if (FinUtils.handleResult(res)) {
         document.getElementById('dictModal').close();
         await loadTab();
+        // Валюта осталась без опоры — сразу открываем форму нового курса, чтобы
+        // не разойтись с реальностью: «если удалить, то нужно сразу создать новый».
+        if (isLastCommon) {
+            Layout.showNotification(t('fin_rate_create_now').replace('{cur}', rate.from_currency), 'warning');
+            openForm(null);
+        }
     }
 }
 
