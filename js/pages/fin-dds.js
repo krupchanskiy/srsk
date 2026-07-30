@@ -11,7 +11,7 @@ const OP_TYPES = ['payment', 'refund', 'transfer', 'expense', 'income', 'donatio
 
 // request_id живёт от открытия формы до успешного сохранения:
 // повтор после сетевой ошибки уходит с тем же UUID (идемпотентность)
-const requestIds = { expense: null, income: null, transfer: null, reversal: null };
+const requestIds = { expense: null, income: null, transfer: null, reversal: null, realloc: null };
 let expenseRowSeq = 0;
 let opsById = {};   // операции общей ленты (для кнопки сторно в развороте)
 
@@ -518,9 +518,112 @@ function reversalButtonHtml(opId) {
     const op = opsById[opId];
     if (!op || op.is_reversed || op.type === 'reversal') return '';
     if (!window.hasPermission?.('fin_admin')) return '';
-    return `<div class="pt-2"><button class="btn btn-outline btn-error btn-xs gap-1" onclick="FinDds.openReversal('${opId}')">
+    // Платёж участника можно ещё и перераспределить — не отменяя деньги
+    const realloc = op.type === 'payment'
+        ? `<button class="btn btn-outline btn-xs gap-1" onclick="FinDds.openRealloc('${opId}')">
+            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="w-3 h-3"><path stroke-linecap="round" stroke-linejoin="round" d="M7.5 21L3 16.5m0 0L7.5 12M3 16.5h13.5a4.5 4.5 0 000-9H15M16.5 3L21 7.5"/></svg>
+            ${t('fin_realloc_action')}</button>`
+        : '';
+    return `<div class="pt-2 flex flex-wrap gap-2"><button class="btn btn-outline btn-error btn-xs gap-1" onclick="FinDds.openReversal('${opId}')">
         <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="w-3 h-3"><path stroke-linecap="round" stroke-linejoin="round" d="M9 15L3 9m0 0l6-6M3 9h12a6 6 0 010 12h-3"/></svg>
-        ${t('fin_reverse')}</button></div>`;
+        ${t('fin_reverse')}</button>${realloc}</div>`;
+}
+
+// ==================== ПЕРЕРАСПРЕДЕЛЕНИЕ ПЛАТЕЖА ====================
+// Деньги принёс один, а закрывать надо долги нескольких. Сумма платежа неизменна
+// («в рамках имеющейся суммы» — условие ВГ): в журнале это сторно плюс новый платёж,
+// но для казначея — одна операция с одной причиной.
+let raCurrency = 'INR';
+let raTotal = 0;
+
+function openRealloc(opId) {
+    const op = opsById[opId];
+    if (!op) return;
+    requestIds.realloc = requestIds.realloc || FinUtils.newRequestId();
+    document.getElementById('raOpId').value = opId;
+
+    // Строки этого платежа уже загружены при развороте операции
+    const rows = Object.values(postingsById).filter(p => p.operation_id === opId);
+    raCurrency = rows[0]?.currency_code || 'INR';
+    raTotal = rows.reduce((s, p) => s + Math.abs(Number(p.amount)), 0);
+
+    document.getElementById('raInfo').textContent =
+        `${DateUtils.formatShort(DateUtils.parseDate(op.occurred_on))} · ${FinUtils.fmtMoney(raTotal, raCurrency)}`;
+    document.getElementById('raReason').value = '';
+    document.getElementById('raRows').innerHTML = '';
+    // Предзаполняем текущим распределением — казначею останется его поправить
+    rows.forEach(p => addReallocRow({
+        participant_id: p.participant_id, name: p.participant_name,
+        kind: p.participant_balance_kind, amount: Math.abs(Number(p.amount))
+    }));
+    if (!rows.length) addReallocRow();
+    document.getElementById('reallocModal').showModal();
+}
+
+function addReallocRow(preset) {
+    const row = document.createElement('div');
+    row.className = 'grid grid-cols-[1fr_auto_auto_auto] gap-1 items-center';
+    row.dataset.raRow = '1';
+    row.innerHTML = `
+        <div class="form-control">
+            <input type="text" class="input input-bordered input-xs" data-ra-search autocomplete="off"
+                   placeholder="${e(t('fin_participant'))}" value="${e(preset?.name || '')}">
+            <input type="hidden" data-ra-id value="${e(preset?.participant_id || '')}">
+        </div>
+        <select class="select select-bordered select-xs" data-ra-kind>
+            ${PAY_KINDS.map(k => `<option value="${k}" ${preset?.kind === k ? 'selected' : ''}>${e(t('fin_block_' + k))}</option>`).join('')}
+        </select>
+        <input type="number" step="0.01" min="0.01" class="input input-bordered input-xs w-24" data-ra-amount
+               value="${preset?.amount ?? ''}">
+        <button type="button" class="btn btn-ghost btn-xs text-error" data-ra-remove aria-label="${e(t('delete'))}">✕</button>`;
+
+    document.getElementById('raRows').appendChild(row);
+    FinUtils.attachPersonSearch(row.querySelector('[data-ra-search]'), row.querySelector('[data-ra-id]'));
+    row.querySelector('[data-ra-amount]').addEventListener('input', updateReallocRecap);
+    row.querySelector('[data-ra-remove]').addEventListener('click', () => { row.remove(); updateReallocRecap(); });
+    updateReallocRecap();
+}
+
+function reallocRows() {
+    return [...document.querySelectorAll('[data-ra-row]')].map(r => ({
+        participant_id: r.querySelector('[data-ra-id]').value,
+        participant_balance_kind: r.querySelector('[data-ra-kind]').value,
+        amount: Number(r.querySelector('[data-ra-amount]').value) || 0,
+    }));
+}
+
+function updateReallocRecap() {
+    const box = document.getElementById('raRecap');
+    if (!box) return;
+    const sum = reallocRows().reduce((s, r) => s + r.amount, 0);
+    const diff = Math.round((raTotal - sum) * 100) / 100;
+    if (diff === 0) {
+        box.className = 'text-xs mt-1 text-success';
+        box.textContent = t('fin_split_ok');
+    } else {
+        box.className = 'text-xs mt-1 text-error';
+        box.textContent = `${t('fin_split_left')}: ${FinUtils.fmtMoney(diff, raCurrency)}`;
+    }
+}
+
+async function submitRealloc(ev) {
+    ev.preventDefault();
+    const rows = reallocRows();
+    if (rows.some(r => !r.participant_id)) { Layout.showNotification(t('fin_participant_required'), 'error'); return; }
+    if (rows.some(r => r.amount <= 0))     { Layout.showNotification(t('fin_split_amount_required'), 'error'); return; }
+
+    const res = await FinUtils.rpc('fin_reallocate_payment', {
+        request_id: requestIds.realloc,
+        operation_id: document.getElementById('raOpId').value,
+        reason: document.getElementById('raReason').value,
+        rows
+    });
+    if (FinUtils.handleResult(res)) {
+        requestIds.realloc = null;
+        document.getElementById('reallocModal').close();
+        await FinUtils.reloadAccounts();
+        await loadTable();
+    }
 }
 
 function openReversal(opId) {
@@ -674,6 +777,8 @@ function openIncome() {
     document.getElementById('incParticipantId').value = '';
     document.getElementById('incKind').innerHTML =
         PAY_KINDS.map(k => `<option value="${k}">${e(t('fin_block_' + k))}</option>`).join('');
+    document.getElementById('incPayeeRows').innerHTML = '';   // строки прошлого платежа
+    updateSplitRecap();
     document.getElementById('incomeModal').showModal();
 }
 
@@ -697,9 +802,72 @@ function updateIncomeCategoryList() {
 function syncParticipantBlock() {
     const need = isParticipantCategory() && !document.getElementById('incIsDonation').checked;
     document.getElementById('incParticipantWrap').classList.toggle('hidden', !need);
+    document.getElementById('incSplitWrap').classList.toggle('hidden', !need);
     // Ретрит для платежа участника обязателен: без него платёж не привяжется
     // к его балансу по мероприятию
     document.getElementById('incObject').required = need;
+}
+
+// ---- Один платёж за нескольких (правило ВГ, 29.07.2026) ----
+// Деньги приносит один — глава семьи или старший в группе, — а закрывать надо
+// долги нескольких. Казначей вводит только то, что уходит ДРУГИМ, а плательщику
+// достаётся остаток. Поэтому сумма строк всегда равна сумме платежа: повисших
+// денег не бывает, каждая рупия либо закрыла долг, либо лежит именной переплатой.
+function addPayeeRow() {
+    const row = document.createElement('div');
+    row.className = 'grid grid-cols-[1fr_auto_auto_auto] gap-1 items-center';
+    row.dataset.payeeRow = '1';
+    row.innerHTML = `
+        <div class="form-control">
+            <input type="text" class="input input-bordered input-xs" data-payee-search autocomplete="off"
+                   placeholder="${e(t('fin_participant'))}">
+            <input type="hidden" data-payee-id>
+        </div>
+        <select class="select select-bordered select-xs" data-payee-kind>
+            ${PAY_KINDS.map(k => `<option value="${k}">${e(t('fin_block_' + k))}</option>`).join('')}
+        </select>
+        <input type="number" step="0.01" min="0.01" class="input input-bordered input-xs w-24" data-payee-amount
+               placeholder="0">
+        <button type="button" class="btn btn-ghost btn-xs text-error" data-payee-remove aria-label="${e(t('delete'))}">✕</button>`;
+
+    document.getElementById('incPayeeRows').appendChild(row);
+    FinUtils.attachPersonSearch(row.querySelector('[data-payee-search]'), row.querySelector('[data-payee-id]'));
+    row.querySelector('[data-payee-amount]').addEventListener('input', updateSplitRecap);
+    row.querySelector('[data-payee-remove]').addEventListener('click', () => { row.remove(); updateSplitRecap(); });
+    updateSplitRecap();
+}
+
+function payeeRows() {
+    return [...document.querySelectorAll('[data-payee-row]')].map(r => ({
+        el: r,
+        participant_id: r.querySelector('[data-payee-id]').value,
+        kind: r.querySelector('[data-payee-kind]').value,
+        amount: Number(r.querySelector('[data-payee-amount]').value) || 0,
+    }));
+}
+
+// Остаток плательщика: сколько из принесённой суммы закроет его собственный долг
+function splitRemainder() {
+    const total = Number(document.getElementById('incAmount').value) || 0;
+    const others = payeeRows().reduce((s, r) => s + r.amount, 0);
+    return Math.round((total - others) * 100) / 100;
+}
+
+function updateSplitRecap() {
+    const box = document.getElementById('incSplitRecap');
+    if (!box) return;
+    const rows = payeeRows();
+    if (!rows.length) { box.textContent = ''; return; }
+    const left = splitRemainder();
+    const acc = document.getElementById('incAccount');
+    const money = FinUtils.fmtMoney(Math.abs(left), acc.selectedOptions[0]?.dataset.currency || 'INR');
+    if (left < 0) {
+        box.className = 'text-xs mt-1 text-error';
+        box.textContent = `${t('fin_split_over')} ${money}`;
+    } else {
+        box.className = 'text-xs mt-1 opacity-70';
+        box.textContent = `${t('fin_split_payer_gets')} ${money}`;
+    }
 }
 
 async function submitIncome(ev) {
@@ -714,20 +882,34 @@ async function submitIncome(ev) {
         const object = document.getElementById('incObject').value;
         if (!person) { Layout.showNotification(t('fin_participant_required'), 'error'); return; }
         if (!object) { Layout.showNotification(t('fin_object_required'), 'error'); return; }
+
+        const account = document.getElementById('incAccount').value;
+        const channel = document.getElementById('incChannel').value || null;
+        const others  = payeeRows();
+        if (others.some(r => !r.participant_id)) { Layout.showNotification(t('fin_participant_required'), 'error'); return; }
+        if (others.some(r => r.amount <= 0))     { Layout.showNotification(t('fin_split_amount_required'), 'error'); return; }
+
+        // Плательщику достаётся остаток — так сумма строк равна сумме платежа
+        const left = splitRemainder();
+        if (left < 0) { Layout.showNotification(t('fin_split_over'), 'error'); return; }
+
+        const rows = others.map(r => ({
+            id: FinUtils.newRequestId(), account_id: account, amount: r.amount, object_id: object,
+            participant_id: r.participant_id, participant_balance_kind: r.kind, payment_channel: channel
+        }));
+        // Остаток 0 — плательщик заплатил ровно за других, своей строки у него нет
+        if (left > 0) rows.unshift({
+            id: FinUtils.newRequestId(), account_id: account, amount: left, object_id: object,
+            participant_id: person, participant_balance_kind: document.getElementById('incKind').value,
+            payment_channel: channel
+        });
+
         const res = await FinUtils.rpc('fin_create_payment', {
             request_id: requestIds.income,
             occurred_on: document.getElementById('incDate').value,
             comment: document.getElementById('incComment').value || null,
             payer_contact_id: person,
-            rows: [{
-                id: FinUtils.newRequestId(),
-                account_id: document.getElementById('incAccount').value,
-                amount: document.getElementById('incAmount').value,
-                object_id: object,
-                participant_id: person,
-                participant_balance_kind: document.getElementById('incKind').value,
-                payment_channel: document.getElementById('incChannel').value || null
-            }]
+            rows
         });
         if (FinUtils.handleResult(res)) {
             requestIds.income = null;
@@ -848,6 +1030,7 @@ async function init() {
     document.getElementById('transferForm').addEventListener('submit', FinUtils.lockedSubmit(submitTransfer));
     document.getElementById('reversalForm').addEventListener('submit', FinUtils.lockedSubmit(submitReversal));
     document.getElementById('analyticsForm').addEventListener('submit', FinUtils.lockedSubmit(submitAnalytics));
+    document.getElementById('reallocForm').addEventListener('submit', FinUtils.lockedSubmit(submitRealloc));
     document.getElementById('revNewDate').addEventListener('change', ev =>
         document.getElementById('revDateWrap').classList.toggle('hidden', !ev.target.checked));
     document.addEventListener('click', ev => {
@@ -863,6 +1046,9 @@ async function init() {
     FinUtils.attachPersonSearch(document.getElementById('incDonorSearch'), document.getElementById('incDonorId'));
     FinUtils.attachPersonSearch(document.getElementById('incParticipantSearch'), document.getElementById('incParticipantId'));
     document.getElementById('incCategory').addEventListener('change', syncParticipantBlock);
+    // Остаток плательщика зависит от общей суммы и валюты счёта
+    document.getElementById('incAmount').addEventListener('input', updateSplitRecap);
+    document.getElementById('incAccount').addEventListener('change', updateSplitRecap);
 
     // Esc не должен молча терять введённые данные
     const guardDialog = (dlgId, isDirty) => document.getElementById(dlgId).addEventListener('cancel', ev => {
@@ -905,6 +1091,6 @@ async function init() {
     }
 }
 
-window.FinDds = { openExpense, openIncome, openTransfer, addExpenseRow, openReversal, openAnalytics, attachFile, updateRecap: updateExpenseRecap, repeatOperation };
+window.FinDds = { openExpense, openIncome, openTransfer, addExpenseRow, addPayeeRow, openReversal, openRealloc, addReallocRow, openAnalytics, attachFile, updateRecap: updateExpenseRecap, repeatOperation };
 init();
 })();
