@@ -893,6 +893,19 @@ async function submitIncome(ev) {
         const left = splitRemainder();
         if (left < 0) { Layout.showNotification(t('fin_split_over'), 'error'); return; }
 
+        // Опечатка в подсказке имён заводит постороннего в отчёт ретрита и в списки
+        // должников — потом это почти не найти. Предупреждаем, но не запрещаем:
+        // человек мог присоединиться к ретриту прямо сейчас (решение ВГ, 30.07.2026).
+        const { data: strangers } = await Layout.db
+            .rpc('fin_unregistered_participants', {
+                p_object_id: object,
+                p_participants: [person, ...others.map(r => r.participant_id)]
+            });
+        if (strangers?.length) {
+            const names = strangers.map(s => s.participant_name).join(', ');
+            if (!confirm(t('fin_not_in_participants').replace('{names}', names))) return;
+        }
+
         const rows = others.map(r => ({
             id: FinUtils.newRequestId(), account_id: account, amount: r.amount, object_id: object,
             participant_id: r.participant_id, participant_balance_kind: r.kind, payment_channel: channel

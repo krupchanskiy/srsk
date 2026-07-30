@@ -156,10 +156,7 @@ Deno.serve(async (req) => {
       st.source_account ? `откуда: ${esc(st.source_account)}` : null,
       st.purpose ? `на что: ${esc(st.purpose)}` : null,
     ].filter(Boolean).join(" · ");
-    const listWarning = looksLikeList(String(st.raw_text ?? ""))
-      ? `\n⚠️ <b>В сообщении несколько сумм</b> — взял ${st.amount}. Если нужна другая, пришлите её отдельным сообщением.`
-      : "";
-    const amountLine = `${known}\n<i>${esc(st.raw_text)}</i>${listWarning}`;
+    const amountLine = `${known}\n<i>${esc(st.raw_text)}</i>`;
     let head: string;
     let keyboard: any[][];
     const rows = (btns: any[]) => {
@@ -381,6 +378,20 @@ Deno.serve(async (req) => {
 
   const money = parseMoney(text);
   if (!money) return new Response("ok");
+
+  // Правило ВГ (30.07.2026): одна трата — одно сообщение. Перечень сумм в одном
+  // сообщении заявкой не становится вовсе: складывать за человека нельзя («5 кг
+  // риса 340» — тоже два числа, а сумма одна), а брать последнюю неверно — так
+  // «навоз 1400р, удобрения 580р, топливо 200р» уходило в учёт как 200.
+  if (looksLikeList(text)) {
+    await tg("sendMessage", {
+      chat_id: m.chat.id, reply_to_message_id: m.message_id,
+      text: "⚠️ Вижу в сообщении несколько сумм — такую заявку я не завожу, чтобы"
+          + " не записать не ту сумму.\nПришлите каждую трату отдельным сообщением:"
+          + " «Навоз 1400 ₹», «Удобрения 580 ₹», «Топливо 200 ₹».",
+    });
+    return new Response("ok");
+  }
 
   // ---------- получение: не проводим, тегаем казначея ----------
   // Так пишет тот, КОМУ передали. Передачу заявляет сторона, которая выдала;
