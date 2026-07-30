@@ -283,11 +283,13 @@ const pagePermissions = {
     'guest-portal/materials-admin.html': 'edit_portal_materials',
 
     // Финансы (массив = достаточно любого из прав)
-    'finance/index.html': ['fin_admin', 'fin_observer'],
-    'finance/dds.html': ['fin_admin', 'fin_observer'],
+    // fin_account_user — глава департамента: видит только свой счёт, витрины
+    // ДДС и счетов фильтруются функцией fin_can_see_account
+    'finance/index.html': ['fin_admin', 'fin_observer', 'fin_account_user'],
+    'finance/dds.html': ['fin_admin', 'fin_observer', 'fin_account_user'],
     'finance/inbox.html': 'fin_admin',
     'finance/participants.html': ['fin_admin', 'fin_observer'],
-    'finance/accounts.html': ['fin_admin', 'fin_observer'],
+    'finance/accounts.html': ['fin_admin', 'fin_observer', 'fin_account_user'],
     'finance/reconciliation.html': ['fin_admin', 'fin_observer'],
     'finance/analytics.html': ['fin_admin', 'fin_observer'],
     'finance/dictionaries.html': 'fin_admin'
