@@ -1214,9 +1214,18 @@ function renderFinanceRetreat(item) {
         </div>`).join('');
 
     const renderPaymentLines = list => (list || []).map(p => {
-        const badge = p.status === 'reversed' ? ` <span class="text-xs text-gray-400">(${t('fin_reversed_badge')})</span>`
+        // «Переоформлен» — это перераспределение между участниками, деньги на месте.
+        // Раньше такой платёж показывался как сторно, и гость читал это как
+        // «мой платёж отменили».
+        const badge = p.status === 'reallocated' ? ` <span class="text-xs text-gray-400">(${t('fin_reallocated')})</span>`
+            : p.status === 'reversed' ? ` <span class="text-xs text-gray-400">(${t('fin_reversed_badge')})</span>`
             : p.status === 'refunded_partially' ? ` <span class="text-xs text-amber-600">(${t('fin_refunded_partially')})</span>`
             : p.status === 'refunded_fully' ? ` <span class="text-xs text-gray-500">(${t('fin_refunded_fully')})</span>`
+            : '';
+        // За гостя мог заплатить кто-то из семьи или старший в группе — без этой
+        // строки в портале появляется платёж, которого человек не делал
+        const paidBy = p.paid_by
+            ? `<div class="text-xs text-gray-400">${t('fin_paid_by')}: ${escapeHtml(p.paid_by)}</div>`
             : '';
         // Валютный платёж показывает свой расчёт: курс зафиксирован в момент
         // операции и не меняется задним числом — вопрос «а почему столько рупий»
@@ -1224,8 +1233,9 @@ function renderFinanceRetreat(item) {
         const conv = p.currency_code && p.currency_code !== 'INR' && Number(p.rate_used)
             ? `<div class="text-xs text-gray-400">${t('fin_at_rate')} ${Number(p.rate_used).toLocaleString('ru-RU', { maximumFractionDigits: 4 })} → ${finMoney(p.amount_base)}</div>`
             : '';
-        return `<div class="flex justify-between text-sm ${p.status === 'reversed' ? 'text-gray-400' : 'text-gray-700'}">
-            <span>${escapeHtml(formatPortalDate(p.occurred_on))} · ${t('fin_type_' + p.type)}${badge}</span>
+        const dim = p.status === 'reversed' || p.status === 'reallocated';
+        return `<div class="flex justify-between text-sm ${dim ? 'text-gray-400' : 'text-gray-700'}">
+            <span>${escapeHtml(formatPortalDate(p.occurred_on))} · ${t('fin_type_' + p.type)}${badge}${paidBy}</span>
             <span class="text-right">${p.type === 'refund' ? '−' : ''}${finMoney(p.amount, p.currency_code)}${conv}</span>
         </div>`;
     }).join('');

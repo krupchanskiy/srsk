@@ -130,7 +130,10 @@ function renderTab() {
                 <td>${e(r.responsible_name || '')}</td>
                 <td>${r.chat_title
                         ? e(r.chat_title)
-                        : `<span class="badge badge-warning badge-sm">${t('fin_dept_no_chat')}</span>`}</td>
+                        : `<span class="badge badge-warning badge-sm">${t('fin_dept_no_chat')}</span>`}
+                    ${r.chat_title && r.bot_knows_responsible === false
+                        ? `<div class="text-xs text-warning mt-0.5" title="${t('fin_dept_bot_blind_hint')}">⚠️ ${t('fin_dept_bot_blind')}</div>`
+                        : ''}</td>
                 <td class="font-mono">${
                     (r.balances || []).map(b => FinUtils.fmtMoney(b.amount, b.currency)).join(' · ') || '—'}</td>
                 <td class="text-right"><button class="btn btn-ghost btn-sm" data-edit="${r.id}" aria-label="${t('edit')}" title="${t('edit')}">${editIcon}</button></td>
