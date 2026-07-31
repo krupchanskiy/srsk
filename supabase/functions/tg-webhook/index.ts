@@ -226,8 +226,16 @@ Deno.serve(async (req) => {
       chat_id: chatId, parse_mode: "HTML", text: `${head}\n${amountLine}`,
       reply_markup: { inline_keyboard: keyboard },
     };
-    if (messageId) await tg("editMessageText", { ...body, message_id: messageId });
-    else await tg("sendMessage", { ...body, reply_to_message_id: replyTo });
+    if (messageId) {
+      await tg("editMessageText", { ...body, message_id: messageId });
+    } else {
+      // Запоминаем карточку сразу: раньше её id сохранялся только при нажатии
+      // кнопки, и у «молчаливых» заявок — тех самых, кому потом идут напоминания —
+      // ссылки на кнопки не было (замечание Адриана, 30.07.2026).
+      const sent = await tg("sendMessage", { ...body, reply_to_message_id: replyTo });
+      const cardId = sent?.result?.message_id;
+      if (cardId) await supa.rpc("tg_set_card_message", { p_id: draftId, p_message_id: cardId });
+    }
   }
 
   // ---------- бота добавили/убрали из чата ----------
