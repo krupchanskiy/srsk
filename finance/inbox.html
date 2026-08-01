@@ -87,8 +87,12 @@
         <form id="splitForm">
             <input type="hidden" id="splitDraftId">
             <div id="splitRows" class="flex flex-col gap-2"></div>
-            <button type="button" class="btn btn-ghost btn-sm mt-2" id="splitAddRow"
-                    data-i18n="fin_split_add">+ Ещё строка</button>
+            <div class="flex gap-2 mt-2">
+                <button type="button" class="btn btn-ghost btn-sm" id="splitAddRow"
+                        data-i18n="fin_split_add">+ Ещё строка</button>
+                <button type="button" class="btn btn-ghost btn-sm" id="splitEven"
+                        data-i18n="fin_split_evenly">Поровну</button>
+            </div>
             <div class="text-sm mt-3" id="splitRemainder"></div>
             <div class="modal-action">
                 <button type="button" class="btn" onclick="document.getElementById('splitModal').close()"
@@ -108,7 +112,7 @@
 <script src="../js/layout.js?v=37"></script>
 <script src="../js/date-utils.js?v=3"></script>
 <script src="../js/fin-utils.js?v=6"></script>
-<script src="../js/pages/fin-inbox.js?v=11"></script>
+<script src="../js/pages/fin-inbox.js?v=12"></script>
 
 </body>
 </html>

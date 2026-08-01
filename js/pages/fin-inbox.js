@@ -320,14 +320,30 @@ function outCategoryOptions(selected) {
         .join('');
 }
 
-function splitRowHtml(amount, categoryId) {
+function splitRowHtml(amount, categoryId, objectId) {
     return `<div class="flex items-center gap-2" data-split-row>
-        <input type="number" class="input input-bordered input-sm w-32 font-mono" step="0.01" min="0.01"
+        <input type="number" class="input input-bordered input-sm w-28 font-mono" step="0.01" min="0.01"
                value="${amount ?? ''}" data-split-amount>
         <select class="select select-bordered select-sm flex-1" data-split-cat>${outCategoryOptions(categoryId)}</select>
+        <select class="select select-bordered select-sm flex-1" data-split-object>${FinUtils.objectOptions(objectId)}</select>
         <button type="button" class="btn btn-ghost btn-sm text-error" data-split-remove
                 aria-label="${t('delete')}">✕</button>
     </div>`;
+}
+
+// Делим поровну в целых рупиях, остаток отдаём последней строке: иначе на
+// 1000/3 сумма строк не сойдётся с заявкой и сервер откажет (правило ВГ:
+// «копейки можно округлять до целых, главное чтобы сошлась итоговая сумма»).
+function splitEvenly() {
+    const rows = [...document.querySelectorAll('[data-split-row]')];
+    if (!rows.length) return;
+    const total = Math.round(Number(splitDraft.amount));
+    const base = Math.floor(total / rows.length);
+    rows.forEach((r, i) => {
+        const amount = i === rows.length - 1 ? total - base * (rows.length - 1) : base;
+        r.querySelector('[data-split-amount]').value = amount;
+    });
+    renderRemainder();
 }
 
 function renderRemainder() {
@@ -361,7 +377,8 @@ async function submitSplit(ev) {
     ev.preventDefault();
     const rows = [...document.querySelectorAll('[data-split-row]')].map(r => ({
         amount: Number(r.querySelector('[data-split-amount]').value),
-        category_id: r.querySelector('[data-split-cat]').value
+        category_id: r.querySelector('[data-split-cat]').value,
+        object_id: r.querySelector('[data-split-object]').value || null
     }));
     const { data, error } = await Layout.db.rpc('tg_post_draft', {
         p_id: document.getElementById('splitDraftId').value, p_rows: rows
@@ -404,6 +421,7 @@ async function init() {
 
     document.getElementById('disputeForm').addEventListener('submit', submitDispute);
     document.getElementById('splitForm').addEventListener('submit', submitSplit);
+    document.getElementById('splitEven').addEventListener('click', splitEvenly);
     document.getElementById('splitAddRow').addEventListener('click', () => {
         document.getElementById('splitRows').insertAdjacentHTML('beforeend', splitRowHtml(null, null));
         renderRemainder();
