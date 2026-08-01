@@ -1,0 +1,13 @@
+
+Running 9 tests using 1 worker
+
+[1/9] tests\ab-kitchen-isolation.spec.js:66:3 › AB Kitchen — граница маршрутов › ABK-ISO-002: прямой URL общего профиля возвращает в AB Kitchen
+[2/9] tests\ab-kitchen-isolation.spec.js:81:3 › AB Kitchen — граница маршрутов › ABK-ISO-002: общая главная не выключает AB-контекст
+[3/9] tests\ab-kitchen-isolation.spec.js:96:3 › AB Kitchen — граница маршрутов › ABK-ISO-003: разрешённый маршрут кухни не блокируется
+[4/9] tests\ab-kitchen-isolation.spec.js:152:3 › AB Kitchen — оболочка навигации › ABK-ISO-001: в AB-оболочке нет команды, профиля и общих модулей
+[5/9] tests\ab-kitchen-isolation.spec.js:172:3 › AB Kitchen — оболочка навигации › ABK-NORMAL-001: обычная оболочка остаётся без AB-ограничений
+[6/9] tests\ab-kitchen-isolation.spec.js:187:3 › AB Kitchen — контракты изоляции данных › ABK-DATA-001: поступления и их изменения ограничены location_id
+[7/9] tests\ab-kitchen-isolation.spec.js:194:3 › AB Kitchen — контракты изоляции данных › ABK-DATA-002: чтение и изменение рецептов ограничены location_id
+[8/9] tests\ab-kitchen-isolation.spec.js:209:3 › AB Kitchen — контракты изоляции данных › ABK-DATA-003: все операционные документы изменяются только в текущей локации
+[9/9] tests\ab-kitchen-isolation.spec.js:233:3 › AB Kitchen — контракты изоляции данных › ABK-DATA-004: меню и блюда изменяются только внутри текущей кухни
+  9 passed (2.7s)

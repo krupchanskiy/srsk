@@ -1,0 +1,29 @@
+{
+  "schema_version": 1,
+  "tests": [
+    {
+      "id": "ABK-ISOLATION-PLAYWRIGHT",
+      "status": "active",
+      "path": "tests/ab-kitchen-isolation.spec.js",
+      "kind": "e2e",
+      "requirement_ids": [
+        "ABK-ISO-001",
+        "ABK-ISO-002",
+        "ABK-ISO-003",
+        "ABK-DATA-001",
+        "ABK-DATA-002",
+        "ABK-DATA-003",
+        "ABK-DATA-004",
+        "ABK-NORMAL-001"
+      ],
+      "fixture": "Детерминированный hybrid fixture: авторизованный администратор, две локации и синтетические защищённые страницы без обращения к продовой БД",
+      "oracles": ["ui", "route", "client-state", "network-contract"],
+      "ci_jobs": ["isolation-contract"]
+    }
+  ],
+  "ci": {
+    "pr_jobs": ["isolation-contract"],
+    "full_jobs": ["isolation-contract"],
+    "config_paths": [".github/workflows/ab-kitchen-isolation.yml"]
+  }
+}

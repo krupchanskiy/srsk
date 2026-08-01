@@ -374,12 +374,12 @@
     </dialog>
 
     <script src="../js/config.js?v=4"></script>
-    <script src="../js/auth-check.js?v=7"></script>
+    <script src="../js/auth-check.js?v=8"></script>
     <script src="../js/cache.js?v=1"></script>
     <script src="../js/utils.js?v=4"></script>
     <script src="../js/translit.js"></script>
     <script src="../js/auto-translate.js"></script>
-    <script src="../js/layout.js?v=39"></script>
+    <script src="../js/layout.js?v=40"></script>
     <script>
         // ==================== STATE ====================
         let recipeId = null;
@@ -630,10 +630,13 @@
         }
 
         async function loadRecipe(id) {
+            if (!locationId) return null;
+
             const { data, error } = await Layout.db
                 .from('recipes')
                 .select('*')
                 .eq('id', id)
+                .eq('location_id', locationId)
                 .single();
             if (error) { console.error('Error loading recipe:', error); return null; }
             return data;
@@ -1088,7 +1091,7 @@
 
                 if (recipeId) {
                     // Update existing
-                    const { error } = await Layout.db.from('recipes').update(recipeData).eq('id', recipeId);
+                    const { error } = await Layout.db.from('recipes').update(recipeData).eq('id', recipeId).eq('location_id', locationId);
                     if (error) {
                         console.error('Update error:', error);
                         throw new Error(t('save_error') + ': ' + error.message);
@@ -1144,7 +1147,7 @@
                         console.error('Photo upload error:', uploadError);
                     } else {
                         const { data: { publicUrl } } = Layout.db.storage.from('recipe-photos').getPublicUrl(fileName);
-                        await Layout.db.from('recipes').update({ photo_url: publicUrl }).eq('id', savedRecipeId);
+                        await Layout.db.from('recipes').update({ photo_url: publicUrl }).eq('id', savedRecipeId).eq('location_id', locationId);
                     }
                 }
 
@@ -1160,12 +1163,12 @@
         }
 
         async function deleteRecipe() {
-            if (!recipeId) return;
+            if (!recipeId || !recipe || recipe.location_id !== locationId) return;
             if (!confirm(t('delete_confirm'))) return;
 
             try {
                 await Layout.db.from('recipe_ingredients').delete().eq('recipe_id', recipeId);
-                const { error } = await Layout.db.from('recipes').delete().eq('id', recipeId);
+                const { error } = await Layout.db.from('recipes').delete().eq('id', recipeId).eq('location_id', locationId);
                 if (error) throw error;
                 window.location.href = 'recipes.html';
             } catch (err) {
@@ -1232,10 +1235,13 @@
             if (recipeId) {
                 // Edit existing recipe
                 recipe = await loadRecipe(recipeId);
-                if (recipe) {
-                    ingredients = await loadIngredients(recipeId);
-                    populateForm();
+                if (!recipe) {
+                    Layout.showNotification(t('recipe_not_found'), 'error');
+                    window.location.replace('recipes.html');
+                    return;
                 }
+                ingredients = await loadIngredients(recipeId);
+                populateForm();
             } else {
                 // New recipe - add one empty step
                 instructions.push({ ru: '', en: '', hi: '' });

@@ -392,14 +392,14 @@
     </dialog>
 
     <script src="../js/config.js?v=4"></script>
-    <script src="../js/auth-check.js?v=7"></script>
+    <script src="../js/auth-check.js?v=8"></script>
     <script src="../js/cache.js?v=1"></script>
     <script src="../js/utils.js?v=4"></script>
     <script src="../js/translit.js"></script>
     <script src="../js/auto-translate.js"></script>
     <script src="../js/date-utils.js?v=3"></script>
     <script src="../js/eating-utils.js?v=3"></script>
-    <script src="../js/layout.js?v=39"></script>
+    <script src="../js/layout.js?v=40"></script>
     <script>
         // ==================== STATE ====================
         let receipts = [];
@@ -644,9 +644,16 @@
 
         // ==================== МЕНЮ: ЗАГРУЗКА И МОДАЛКА ====================
         async function loadMenuRecipes() {
+            const locationId = Layout.locations?.find(l => l.slug === Layout.currentLocation)?.id;
+            if (!locationId) {
+                menuRecipes = [];
+                return;
+            }
+
             const { data, error } = await Layout.db
                 .from('recipes')
-                .select('*, recipe_ingredients(*), category:recipe_categories(*)');
+                .select('*, recipe_ingredients(*), category:recipe_categories(*)')
+                .eq('location_id', locationId);
             if (error) { console.error('Error loading recipes:', error); return; }
             menuRecipes = data || [];
         }
@@ -940,17 +947,18 @@
 
         async function loadRequests() {
             const locationId = Layout.locations?.find(l => l.slug === Layout.currentLocation)?.id;
+            if (!locationId) {
+                requests = [];
+                return;
+            }
 
-            let query = Layout.db
+            const query = Layout.db
                 .from('purchase_requests')
                 .select('*, purchase_request_items(*, products(*))')
+                .eq('location_id', locationId)
                 .neq('status', 'archived')
                 .neq('status', 'deleted')
                 .order('created_at', { ascending: false });
-
-            if (locationId) {
-                query = query.eq('location_id', locationId);
-            }
 
             const { data, error } = await query;
 
@@ -959,9 +967,17 @@
         }
 
         async function loadReceipts() {
+            const locationId = Layout.locations?.find(l => l.slug === Layout.currentLocation)?.id;
+            if (!locationId) {
+                receipts = [];
+                updateReceiptsCount();
+                return;
+            }
+
             const { data, error } = await Layout.db
                 .from('stock_receipts')
                 .select('*, stock_receipt_items(*, products(*)), buyers(name_ru, name_en, name_hi)')
+                .eq('location_id', locationId)
                 .order('created_at', { ascending: false });
 
             if (error) { console.error('Error loading receipts:', error); return; }
@@ -1452,7 +1468,9 @@
             if (!window.hasPermission?.('receive_stock')) return;
             if (!await showConfirm(tr('archive_confirm', 'Переместить в архив?'))) return;
 
-            const { error } = await Layout.db.from('stock_receipts').update({ archived: true }).eq('id', id);
+            const locationId = Layout.locations?.find(l => l.slug === Layout.currentLocation)?.id;
+            if (!locationId) return;
+            const { error } = await Layout.db.from('stock_receipts').update({ archived: true }).eq('id', id).eq('location_id', locationId);
             if (error) {
                 console.error('Error archiving:', error);
                 return;
@@ -1465,7 +1483,9 @@
             if (!window.hasPermission?.('receive_stock')) return;
             if (!await showConfirm(tr('delete_confirm', 'Переместить в удалённые?'))) return;
 
-            const { error } = await Layout.db.from('stock_receipts').update({ deleted: true }).eq('id', id);
+            const locationId = Layout.locations?.find(l => l.slug === Layout.currentLocation)?.id;
+            if (!locationId) return;
+            const { error } = await Layout.db.from('stock_receipts').update({ deleted: true }).eq('id', id).eq('location_id', locationId);
             if (error) {
                 console.error('Error deleting:', error);
                 return;
@@ -1477,7 +1497,9 @@
 
         async function restoreReceipt(id) {
             if (!window.hasPermission?.('receive_stock')) return;
-            const { error } = await Layout.db.from('stock_receipts').update({ deleted: false }).eq('id', id);
+            const locationId = Layout.locations?.find(l => l.slug === Layout.currentLocation)?.id;
+            if (!locationId) return;
+            const { error } = await Layout.db.from('stock_receipts').update({ deleted: false }).eq('id', id).eq('location_id', locationId);
             if (error) {
                 console.error('Error restoring:', error);
                 return;
@@ -1514,7 +1536,7 @@
             await Layout.db.from('stock_receipt_items').delete().eq('receipt_id', id);
 
             // Удаляем приёмку
-            const { error } = await Layout.db.from('stock_receipts').delete().eq('id', id);
+            const { error } = await Layout.db.from('stock_receipts').delete().eq('id', id).eq('location_id', locationId);
             if (error) {
                 console.error('Error deleting receipt:', error);
                 return;
