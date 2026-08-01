@@ -22,7 +22,8 @@
 -- ОЧИЩАЮТСЯ ДОПОЛНИТЕЛЬНО (тестовые логи и заявки интеграции — иначе в
 -- первое утро запуска витрина неразнесённых и сторож дадут ложные сигналы,
 -- а во «Входящих» повиснут тестовые заявки из чатов):
---   fin_crm_autopost_log, fin_integrity_alerts, tg_log, tg_drafts, tg_incoming.
+--   fin_crm_autopost_log, fin_integrity_alerts, tg_log, tg_drafts, tg_incoming,
+--   tg_draft_operations (связь заявки с её операциями, добавлена 01.08.2026).
 --
 -- Это единственное официально допустимое нарушение append-only
 -- (ТЗ раздел 5, инвариант 7) — одноразовое, только для окна cutover.
@@ -69,7 +70,8 @@ ALTER TABLE fin_object_closures              DISABLE TRIGGER trg_fin_audit;
 ALTER TABLE fin_accounting_objects           DISABLE TRIGGER trg_fin_audit;
 
 -- 2) очистка в порядке FK (closures ссылаются на attachments;
---    postings/reconciliations — на operations)
+--    postings/reconciliations и связи заявок — на operations)
+DELETE FROM tg_draft_operations;
 DELETE FROM fin_object_closures;
 DELETE FROM fin_attachments;
 DELETE FROM fin_reconciliations;
@@ -125,6 +127,7 @@ BEGIN
        + (SELECT count(*) FROM fin_integrity_alerts)
        + (SELECT count(*) FROM tg_drafts)
        + (SELECT count(*) FROM tg_incoming)
+       + (SELECT count(*) FROM tg_draft_operations)
     INTO v_cleared;
   IF v_cleared <> 0 THEN
     RAISE EXCEPTION 'RESET FAILED: очищаемые таблицы не пусты (%)', v_cleared;
