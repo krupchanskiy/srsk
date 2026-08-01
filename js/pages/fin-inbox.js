@@ -333,16 +333,16 @@ function deptOptions() {
 
 function splitRowHtml(amount, categoryId, objectId) {
     return `<div class="flex flex-col gap-1 border-b border-base-200 pb-2" data-split-row>
-        <div class="flex items-center gap-2">
-            <input type="number" class="input input-bordered input-sm w-28 font-mono" step="0.01" min="0.01"
+        <div class="flex items-center gap-2 min-w-0">
+            <input type="number" class="input input-bordered input-sm w-24 shrink-0 font-mono" step="0.01" min="0.01"
                    value="${amount ?? ''}" data-split-amount>
-            <select class="select select-bordered select-sm flex-1" data-split-cat>${outCategoryOptions(categoryId)}</select>
-            <select class="select select-bordered select-sm flex-1" data-split-object>${FinUtils.objectOptions(objectId)}</select>
-            <button type="button" class="btn btn-ghost btn-sm text-error" data-split-remove
+            <select class="select select-bordered select-sm flex-1 min-w-0" data-split-cat>${outCategoryOptions(categoryId)}</select>
+            <select class="select select-bordered select-sm flex-1 min-w-0" data-split-object>${FinUtils.objectOptions(objectId)}</select>
+            <button type="button" class="btn btn-ghost btn-sm shrink-0 text-error" data-split-remove
                     aria-label="${t('delete')}">✕</button>
         </div>
-        <div class="flex items-center gap-2 pl-1">
-            <select class="select select-bordered select-sm flex-1" data-split-dept
+        <div class="flex items-center gap-2 pl-1 min-w-0">
+            <select class="select select-bordered select-sm flex-1 min-w-0" data-split-dept
                     title="${t('fin_split_dept_hint')}">${deptOptions()}</select>
             <label class="label cursor-pointer gap-2 hidden" data-split-expense-box>
                 <input type="checkbox" class="checkbox checkbox-sm" checked data-split-as-expense>
