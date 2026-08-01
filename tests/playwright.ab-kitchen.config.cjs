@@ -1,4 +1,5 @@
 const { defineConfig } = require('playwright/test');
+const path = require('node:path');
 
 module.exports = defineConfig({
   testDir: '.',
@@ -16,6 +17,7 @@ module.exports = defineConfig({
   },
   webServer: {
     command: 'python3 -m http.server 4174 --bind 127.0.0.1',
+    cwd: path.resolve(__dirname, '..'),
     url: 'http://127.0.0.1:4174/ab-kitchen/',
     reuseExistingServer: true,
     timeout: 30_000
