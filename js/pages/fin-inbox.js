@@ -450,22 +450,54 @@ function openRefine(id) {
         `<option value="">${t('fin_split_dept_own')}</option>` +
         FinUtils.accountOptions(refineDraft.source_account_id,
                                 a => a.currency_code === refineDraft.currency);
+    // Пустая опция первой: иначе дефолтом окажется первая статья по алфавиту
+    // и расход уедет не туда молча.
+    document.getElementById('refineCategory').innerHTML =
+        `<option value="">${t('fin_select_category')}</option>` + outCategoryOptions(null);
+    document.getElementById('refineObject').innerHTML = FinUtils.objectOptions(null);
+    document.getElementById('refineSpent').checked = false;
+    syncRefineSpent();
     document.getElementById('refineModal').showModal();
+}
+
+// «Уже потрачено» — деньги ушли из рук в руки и тут же были израсходованы:
+// нужны статья и, если это трата события, ретрит.
+function syncRefineSpent() {
+    const spent = document.getElementById('refineSpent').checked;
+    document.getElementById('refineSpentFields').classList.toggle('hidden', !spent);
+    document.getElementById('refineCategory').required = spent;
+    document.getElementById('refineSubmit').textContent = spent ? t('fin_post_draft') : t('save');
 }
 
 async function submitRefine(ev) {
     ev.preventDefault();
+    const id = document.getElementById('refineDraftId').value;
+    const spent = document.getElementById('refineSpent').checked;
+
     const { data, error } = await Layout.db.rpc('tg_refine_draft', {
-        p_id: document.getElementById('refineDraftId').value,
+        p_id: id,
         p_target_department: document.getElementById('refineTarget').value || null,
         p_source_account: document.getElementById('refineSource').value || null
     });
     if (error) { Layout.handleError(error, t('fin_refine')); return; }
-    if (data?.ok) {
-        document.getElementById('refineModal').close();
-        Layout.showNotification(t('fin_saved'), 'success');
-        await loadList();
-    } else Layout.showNotification(data?.error || t('error'), 'error');
+    if (!data?.ok) { Layout.showNotification(data?.error || t('error'), 'error'); return; }
+
+    // Без галочки уточнение только сохраняется — проводит казначей отдельно,
+    // посмотрев на исправленную карточку.
+    if (spent) {
+        const rows = [{
+            amount: Number(refineDraft.amount),
+            category_id: document.getElementById('refineCategory').value,
+            object_id: document.getElementById('refineObject').value || null
+        }];
+        const res = await Layout.db.rpc('tg_post_draft', { p_id: id, p_rows: rows });
+        if (res.error) { Layout.handleError(res.error, t('fin_post_draft')); return; }
+        if (!res.data?.ok) { Layout.showNotification(res.data?.error || t('error'), 'error'); return; }
+    }
+
+    document.getElementById('refineModal').close();
+    Layout.showNotification(t('fin_saved'), 'success');
+    await loadList();
 }
 
 async function dismissDraft(id) {
@@ -502,6 +534,7 @@ async function init() {
     document.getElementById('disputeForm').addEventListener('submit', submitDispute);
     document.getElementById('splitForm').addEventListener('submit', submitSplit);
     document.getElementById('refineForm').addEventListener('submit', submitRefine);
+    document.getElementById('refineSpent').addEventListener('change', syncRefineSpent);
     document.getElementById('splitEven').addEventListener('click', splitEvenly);
     document.getElementById('splitAddRow').addEventListener('click', () => {
         document.getElementById('splitRows').insertAdjacentHTML('beforeend', splitRowHtml(null, null));
