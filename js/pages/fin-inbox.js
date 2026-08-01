@@ -10,6 +10,7 @@ const e = str => Layout.escapeHtml(str);
 let currentTab = 'pending';
 let opsById = {};
 let chatDrafts = [];   // заявки из чатов текущей выдачи — нужны модалке статей
+let departments = [];  // справочник для выбора департамента-получателя
 
 async function loadUnpostedCount() {
     // Платежи, подтверждённые в CRM, но не разнесённые в финмодуль
@@ -90,8 +91,9 @@ function chatDraftCardHtml(d) {
                 ${d.source_account ? `<span class="badge badge-outline badge-sm">${t('fin_from')}: ${e(d.source_account)}</span>` : ''}
                 ${d.purpose ? `<span class="truncate max-w-md">${e(d.purpose)}</span>` : ''}
                 <div class="ml-auto flex gap-2">
-                    ${isTransfer ? '' :
-                      `<button class="btn btn-outline btn-sm" data-action="split-draft">${t('fin_split')}</button>`}
+                    ${isTransfer
+                      ? `<button class="btn btn-outline btn-sm" data-action="refine-draft">${t('fin_refine')}</button>`
+                      : `<button class="btn btn-outline btn-sm" data-action="split-draft">${t('fin_split')}</button>`}
                     <button class="btn btn-success btn-sm" data-action="post-draft">${t('fin_post_draft')}</button>
                     <button class="btn btn-ghost btn-sm" data-action="dismiss-draft">${t('fin_dismiss_draft')}</button>
                 </div>
@@ -320,15 +322,45 @@ function outCategoryOptions(selected) {
         .join('');
 }
 
+// Департаменты, кроме автора заявки: передавать самому себе нечего, сервер
+// такую строку и не примет.
+function deptOptions() {
+    return `<option value="">${t('fin_split_dept_own')}</option>` + departments
+        .filter(d => d.id !== splitDraft?.department_id)
+        .map(d => `<option value="${d.id}">${e(d.name)}</option>`)
+        .join('');
+}
+
 function splitRowHtml(amount, categoryId, objectId) {
-    return `<div class="flex items-center gap-2" data-split-row>
-        <input type="number" class="input input-bordered input-sm w-28 font-mono" step="0.01" min="0.01"
-               value="${amount ?? ''}" data-split-amount>
-        <select class="select select-bordered select-sm flex-1" data-split-cat>${outCategoryOptions(categoryId)}</select>
-        <select class="select select-bordered select-sm flex-1" data-split-object>${FinUtils.objectOptions(objectId)}</select>
-        <button type="button" class="btn btn-ghost btn-sm text-error" data-split-remove
-                aria-label="${t('delete')}">✕</button>
+    return `<div class="flex flex-col gap-1 border-b border-base-200 pb-2" data-split-row>
+        <div class="flex items-center gap-2">
+            <input type="number" class="input input-bordered input-sm w-28 font-mono" step="0.01" min="0.01"
+                   value="${amount ?? ''}" data-split-amount>
+            <select class="select select-bordered select-sm flex-1" data-split-cat>${outCategoryOptions(categoryId)}</select>
+            <select class="select select-bordered select-sm flex-1" data-split-object>${FinUtils.objectOptions(objectId)}</select>
+            <button type="button" class="btn btn-ghost btn-sm text-error" data-split-remove
+                    aria-label="${t('delete')}">✕</button>
+        </div>
+        <div class="flex items-center gap-2 pl-1">
+            <select class="select select-bordered select-sm flex-1" data-split-dept
+                    title="${t('fin_split_dept_hint')}">${deptOptions()}</select>
+            <label class="label cursor-pointer gap-2 hidden" data-split-expense-box>
+                <input type="checkbox" class="checkbox checkbox-sm" checked data-split-as-expense>
+                <span class="label-text text-sm">${t('fin_split_as_expense')}</span>
+            </label>
+        </div>
+        <div class="text-xs text-warning hidden" data-split-warn>⚠️ ${t('fin_split_no_expense_warn')}</div>
     </div>`;
+}
+
+// Департамент выбран — показываем галочку; галочка снята — говорим, чем это
+// обернётся: у получателя повиснет остаток, которого нет в кассе.
+function syncRowState(row) {
+    const dept = row.querySelector('[data-split-dept]').value;
+    const box = row.querySelector('[data-split-expense-box]');
+    const asExpense = row.querySelector('[data-split-as-expense]');
+    box.classList.toggle('hidden', !dept);
+    row.querySelector('[data-split-warn]').classList.toggle('hidden', !dept || asExpense.checked);
 }
 
 // Делим поровну в целых рупиях, остаток отдаём последней строке: иначе на
@@ -375,17 +407,62 @@ function openSplit(id) {
 
 async function submitSplit(ev) {
     ev.preventDefault();
-    const rows = [...document.querySelectorAll('[data-split-row]')].map(r => ({
-        amount: Number(r.querySelector('[data-split-amount]').value),
-        category_id: r.querySelector('[data-split-cat]').value,
-        object_id: r.querySelector('[data-split-object]').value || null
-    }));
+    const rows = [...document.querySelectorAll('[data-split-row]')].map(r => {
+        const dept = r.querySelector('[data-split-dept]').value || null;
+        return {
+            amount: Number(r.querySelector('[data-split-amount]').value),
+            category_id: r.querySelector('[data-split-cat]').value,
+            object_id: r.querySelector('[data-split-object]').value || null,
+            department_id: dept,
+            as_expense: dept ? r.querySelector('[data-split-as-expense]').checked : null
+        };
+    });
     const { data, error } = await Layout.db.rpc('tg_post_draft', {
         p_id: document.getElementById('splitDraftId').value, p_rows: rows
     });
     if (error) { Layout.handleError(error, t('fin_post_draft')); return; }
     if (data?.ok) {
         document.getElementById('splitModal').close();
+        Layout.showNotification(t('fin_saved'), 'success');
+        await loadList();
+    } else Layout.showNotification(data?.error || t('error'), 'error');
+}
+
+// ==================== УТОЧНЕНИЕ ВЫДАЧИ (замечание ВГ, 01.08.2026) ====================
+// Бот угадывает получателя по тексту сообщения и ошибается. Раньше при ошибке
+// заявку оставалось только отклонить и просить переписать; теперь получателя и
+// счёт-источник правит казначей. Сумма и текст заявки неприкосновенны.
+let refineDraft = null;
+
+function openRefine(id) {
+    refineDraft = chatDrafts.find(d => d.id === id);
+    if (!refineDraft) return;
+    document.getElementById('refineDraftId').value = id;
+    document.getElementById('refineInfo').textContent =
+        `${FinUtils.fmtMoney(refineDraft.amount, refineDraft.currency)} · ${refineDraft.raw_text || ''}`;
+    document.getElementById('refineTarget').innerHTML =
+        `<option value="">—</option>` + departments
+            .filter(d => d.id !== refineDraft.department_id)
+            .map(d => `<option value="${d.id}" ${d.id === refineDraft.target_department_id ? 'selected' : ''}>${e(d.name)}</option>`)
+            .join('');
+    // счета только в валюте заявки: иначе сервер откажет уже после нажатия
+    document.getElementById('refineSource').innerHTML =
+        `<option value="">${t('fin_split_dept_own')}</option>` +
+        FinUtils.accountOptions(refineDraft.source_account_id,
+                                a => a.currency_code === refineDraft.currency);
+    document.getElementById('refineModal').showModal();
+}
+
+async function submitRefine(ev) {
+    ev.preventDefault();
+    const { data, error } = await Layout.db.rpc('tg_refine_draft', {
+        p_id: document.getElementById('refineDraftId').value,
+        p_target_department: document.getElementById('refineTarget').value || null,
+        p_source_account: document.getElementById('refineSource').value || null
+    });
+    if (error) { Layout.handleError(error, t('fin_refine')); return; }
+    if (data?.ok) {
+        document.getElementById('refineModal').close();
         Layout.showNotification(t('fin_saved'), 'success');
         await loadList();
     } else Layout.showNotification(data?.error || t('error'), 'error');
@@ -411,6 +488,9 @@ async function init() {
     await Layout.init({ module: 'finance', menuId: 'fin_inbox', itemId: 'fin_inbox' });
     await FinUtils.loadRefs();
 
+    const { data: depts } = await Layout.db.from('fin_v_departments').select('id, name').order('name');
+    departments = depts || [];
+
     document.querySelectorAll('[data-tab]').forEach(tab =>
         tab.addEventListener('click', () => {
             document.querySelectorAll('[data-tab]').forEach(x => x.classList.remove('tab-active'));
@@ -421,12 +501,17 @@ async function init() {
 
     document.getElementById('disputeForm').addEventListener('submit', submitDispute);
     document.getElementById('splitForm').addEventListener('submit', submitSplit);
+    document.getElementById('refineForm').addEventListener('submit', submitRefine);
     document.getElementById('splitEven').addEventListener('click', splitEvenly);
     document.getElementById('splitAddRow').addEventListener('click', () => {
         document.getElementById('splitRows').insertAdjacentHTML('beforeend', splitRowHtml(null, null));
         renderRemainder();
     });
     document.getElementById('splitRows').addEventListener('input', renderRemainder);
+    document.getElementById('splitRows').addEventListener('change', ev => {
+        const row = ev.target.closest('[data-split-row]');
+        if (row) syncRowState(row);
+    });
     document.getElementById('splitRows').addEventListener('click', ev => {
         const rm = ev.target.closest('[data-split-remove]');
         if (!rm) return;
@@ -446,6 +531,7 @@ async function init() {
             const id = draftCard.dataset.draft;
             if (btn.dataset.action === 'post-draft') postDraft(id);
             else if (btn.dataset.action === 'split-draft') openSplit(id);
+            else if (btn.dataset.action === 'refine-draft') openRefine(id);
             else if (btn.dataset.action === 'dismiss-draft') dismissDraft(id);
             return;
         }

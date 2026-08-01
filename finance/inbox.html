@@ -105,14 +105,40 @@
     <form method="dialog" class="modal-backdrop"><button>close</button></form>
 </dialog>
 
+<!-- Модалка: уточнение выдачи. Бот угадывает получателя по тексту и ошибается —
+     казначей правит адресацию, не трогая сумму и текст заявки. -->
+<dialog id="refineModal" class="modal">
+    <div class="modal-box max-w-md">
+        <h3 class="font-bold text-lg mb-1" data-i18n="fin_refine_title">Уточнить выдачу</h3>
+        <div class="text-sm opacity-70 mb-3" id="refineInfo"></div>
+        <form id="refineForm">
+            <input type="hidden" id="refineDraftId">
+            <label class="form-control">
+                <div class="label"><span class="label-text" data-i18n="fin_refine_target">Кому выдаём</span></div>
+                <select class="select select-bordered" id="refineTarget" required></select>
+            </label>
+            <label class="form-control mt-2">
+                <div class="label"><span class="label-text" data-i18n="fin_refine_source">С какого счёта</span></div>
+                <select class="select select-bordered" id="refineSource"></select>
+            </label>
+            <div class="modal-action">
+                <button type="button" class="btn" onclick="document.getElementById('refineModal').close()"
+                        data-i18n="cancel">Отмена</button>
+                <button type="submit" class="btn btn-primary" data-i18n="save">Сохранить</button>
+            </div>
+        </form>
+    </div>
+    <form method="dialog" class="modal-backdrop"><button>close</button></form>
+</dialog>
+
 <script src="../js/config.js?v=4"></script>
 <script src="../js/auth-check.js?v=7"></script>
 <script src="../js/cache.js?v=1"></script>
 <script src="../js/utils.js?v=4"></script>
-<script src="../js/layout.js?v=37"></script>
+<script src="../js/layout.js?v=38"></script>
 <script src="../js/date-utils.js?v=3"></script>
-<script src="../js/fin-utils.js?v=6"></script>
-<script src="../js/pages/fin-inbox.js?v=12"></script>
+<script src="../js/fin-utils.js?v=7"></script>
+<script src="../js/pages/fin-inbox.js?v=13"></script>
 
 </body>
 </html>

@@ -174,8 +174,9 @@ const FinUtils = {
 
     objectOptions(selectedId) {
         const e = s => Layout.escapeHtml(s);
+        // Закрытый ретрит выбирать бесполезно — сервер откажет; помечаем в списке
         return `<option value="">${Layout.t('fin_no_object')}</option>` + refs.objects
-            .map(o => `<option value="${o.id}" ${o.id === selectedId ? 'selected' : ''}>${e(o.display_name)}</option>`)
+            .map(o => `<option value="${o.id}" ${o.id === selectedId ? 'selected' : ''}>${e(o.display_name)}${o.is_closed ? ` (${Layout.t('fin_object_closed')})` : ''}</option>`)
             .join('');
     },
 
