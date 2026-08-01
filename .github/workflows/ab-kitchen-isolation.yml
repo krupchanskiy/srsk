@@ -1,0 +1,51 @@
+name: AB Kitchen isolation
+
+on:
+  pull_request:
+    paths:
+      - 'ab-kitchen/**'
+      - 'index.html'
+      - 'js/auth-check.js'
+      - 'js/layout.js'
+      - 'js/pages/kitchen-menu*.js'
+      - 'js/pages/stock-requests.js'
+      - 'kitchen/**'
+      - 'stock/**'
+      - 'tests/ab-kitchen-isolation.spec.js'
+      - 'tests/playwright.ab-kitchen.config.cjs'
+      - '.github/workflows/ab-kitchen-isolation.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'ab-kitchen/**'
+      - 'index.html'
+      - 'js/auth-check.js'
+      - 'js/layout.js'
+      - 'js/pages/kitchen-menu*.js'
+      - 'js/pages/stock-requests.js'
+      - 'kitchen/**'
+      - 'stock/**'
+      - 'tests/ab-kitchen-isolation.spec.js'
+      - 'tests/playwright.ab-kitchen.config.cjs'
+      - '.github/workflows/ab-kitchen-isolation.yml'
+
+jobs:
+  isolation-contract:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Install Playwright test runner
+        run: npm install --no-save playwright@1.55.0
+      - name: Run AB Kitchen isolation suite
+        run: npx playwright test --config tests/playwright.ab-kitchen.config.cjs
+      - name: Upload failure evidence
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ab-kitchen-isolation-evidence
+          path: test-results/
+          retention-days: 7

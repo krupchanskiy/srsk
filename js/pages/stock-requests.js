@@ -172,9 +172,11 @@ async function loadStock() {
 }
 
 async function loadRecipes() {
+    if (!locationId) return;
     const { data } = await Layout.db
         .from('recipes')
-        .select('*, recipe_ingredients(*), category:recipe_categories(*)');
+        .select('*, recipe_ingredients(*), category:recipe_categories(*)')
+        .eq('location_id', locationId);
     recipes = data || [];
 }
 
@@ -781,7 +783,11 @@ async function saveRequest() {
 
     if (items.length === 0) {
         // Удаляем пустую заявку
-        await Layout.db.from('purchase_requests').delete().eq('id', request.id);
+        await Layout.db
+            .from('purchase_requests')
+            .delete()
+            .eq('id', request.id)
+            .eq('location_id', locationId);
         showAlert(tr('no_items_to_purchase', 'Нет позиций для закупки — всё есть на складе'));
         return;
     }
@@ -793,6 +799,7 @@ async function saveRequest() {
         .from('purchase_requests')
         .select('id, number')
         .eq('id', request.id)
+        .eq('location_id', locationId)
         .single();
 
     // Update state with saved request info
@@ -851,7 +858,8 @@ async function autoArchiveOldRequests() {
     await Layout.db
         .from('purchase_requests')
         .update({ status: 'archived' })
-        .in('id', ids);
+        .in('id', ids)
+        .eq('location_id', locationId);
 
     // Обновляем локально
     toArchive.forEach(r => r.status = 'archived');
@@ -1053,7 +1061,8 @@ async function updateRequestBuyer(id, buyerId) {
     const { error } = await Layout.db
         .from('purchase_requests')
         .update({ buyer_id: buyerId || null })
-        .eq('id', id);
+        .eq('id', id)
+        .eq('location_id', locationId);
 
     if (error) {
         console.error('Error updating buyer:', error);
@@ -1078,7 +1087,8 @@ async function toggleInProgress(id) {
     const { error } = await Layout.db
         .from('purchase_requests')
         .update({ status: newStatus })
-        .eq('id', id);
+        .eq('id', id)
+        .eq('location_id', locationId);
 
     if (error) {
         console.error('Error updating request status:', error);
@@ -1096,7 +1106,8 @@ async function archiveRequest(id) {
     const { error } = await Layout.db
         .from('purchase_requests')
         .update({ status: 'archived' })
-        .eq('id', id);
+        .eq('id', id)
+        .eq('location_id', locationId);
 
     if (error) {
         console.error('Error archiving request:', error);
@@ -1112,7 +1123,8 @@ async function restoreRequest(id) {
     const { error } = await Layout.db
         .from('purchase_requests')
         .update({ status: 'pending' })
-        .eq('id', id);
+        .eq('id', id)
+        .eq('location_id', locationId);
 
     if (error) {
         console.error('Error restoring request:', error);
@@ -1127,6 +1139,14 @@ async function deleteRequest(id) {
     if (!window.hasPermission?.('delete_request')) return;
     if (!await showConfirm(tr('permanent_delete_confirm', 'Удалить заявку навсегда? Это действие нельзя отменить!'))) return;
 
+    const { data: request } = await Layout.db
+        .from('purchase_requests')
+        .select('id')
+        .eq('id', id)
+        .eq('location_id', locationId)
+        .maybeSingle();
+    if (!request) return;
+
     // Удаляем items
     await Layout.db.from('purchase_request_items').delete().eq('request_id', id);
 
@@ -1134,7 +1154,8 @@ async function deleteRequest(id) {
     const { error } = await Layout.db
         .from('purchase_requests')
         .delete()
-        .eq('id', id);
+        .eq('id', id)
+        .eq('location_id', locationId);
 
     if (error) {
         console.error('Error deleting request:', error);

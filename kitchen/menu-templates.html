@@ -286,13 +286,13 @@
     </dialog>
 
     <script src="../js/config.js?v=4"></script>
-    <script src="../js/auth-check.js?v=7"></script>
+    <script src="../js/auth-check.js?v=8"></script>
     <script src="../js/cache.js?v=1"></script>
     <script src="../js/utils.js?v=4"></script>
     <script src="../js/translit.js"></script>
     <script src="../js/auto-translate.js"></script>
     <script src="../js/date-utils.js?v=3"></script>
-    <script src="../js/layout.js?v=39"></script>
+    <script src="../js/layout.js?v=40"></script>
     <script>
         // ==================== STATE ====================
         let templates = [];
@@ -642,7 +642,10 @@
         async function deleteTemplate(id) {
             if (!confirm(t('confirm_delete_template'))) return;
 
-            await Layout.db.from('menu_templates').delete().eq('id', id);
+            const locationId = getCurrentLocation()?.id;
+            if (!locationId || !templates.some(template => template.id === id)) return;
+
+            await Layout.db.from('menu_templates').delete().eq('id', id).eq('location_id', locationId);
             templates = templates.filter(t => t.id !== id);
             renderTemplates();
         }
@@ -817,6 +820,7 @@
 
             const locationId = getCurrentLocation()?.id;
             const dayCount = parseInt(Layout.$('#templateDayCount').value) || 7;
+            if (!locationId || (editingTemplateId && !templates.some(template => template.id === editingTemplateId))) return;
 
             saveBtn.disabled = true;
             saveBtn.textContent = '...';
@@ -837,7 +841,8 @@
                             description_hi: Layout.$('#templateDescHi').value.trim() || null,
                             day_count: dayCount
                         })
-                        .eq('id', templateId);
+                        .eq('id', templateId)
+                        .eq('location_id', locationId);
 
                     // Delete existing meals
                     await Layout.db

@@ -1,0 +1,120 @@
+{
+  "schema_version": 1,
+  "run_id": "abk-isolation-2026-08-01-run-3",
+  "results": [
+    {
+      "id": "ABK-ISO-001",
+      "status": "passed",
+      "replay_from_step_1": true,
+      "steps_completed": 4,
+      "final_url": "http://127.0.0.1:4174/kitchen/menu.html",
+      "fixture_mode": "hybrid",
+      "assertions": [
+        { "id": "ABK-ISO-001-A1", "passed": true, "expected": "В навигации нет общих разделов", "actual": "Команда, профиль и общие модули отсутствуют", "evidence": "output/ui-audit/regression/run-3.txt; tests/ab-kitchen-isolation.spec.js" },
+        { "id": "ABK-ISO-001-A2", "passed": true, "expected": "Ссылки оболочки входят в белый список", "actual": "Каждый href AB-оболочки найден в AB_KITCHEN_ALLOWED_PATHS", "evidence": "output/ui-audit/regression/run-3.txt; js/auth-check.js; js/layout.js" },
+        { "id": "ABK-ISO-001-A3", "passed": true, "expected": "AB-контекст и локация сохраняются", "actual": "Layout.currentLocation равен ab-kitchen", "evidence": "output/ui-audit/regression/run-3.txt" }
+      ],
+      "automated_test": { "command": "playwright test --config tests/playwright.ab-kitchen.config.cjs", "passed": true, "evidence": "output/ui-audit/regression/run-3.txt" }
+    },
+    {
+      "id": "ABK-ISO-002",
+      "status": "passed",
+      "replay_from_step_1": true,
+      "steps_completed": 4,
+      "final_url": "http://127.0.0.1:4174/ab-kitchen/",
+      "fixture_mode": "hybrid",
+      "assertions": [
+        { "id": "ABK-ISO-002-A1", "passed": true, "expected": "Запрещённый маршрут возвращает в AB Kitchen", "actual": "Прямой URL профиля перенаправлен в /ab-kitchen/", "evidence": "output/ui-audit/regression/run-3.txt" },
+        { "id": "ABK-ISO-002-A2", "passed": true, "expected": "Главная не удаляет AB-контекст", "actual": "sessionStorage marker остался равен 1", "evidence": "output/ui-audit/regression/run-3.txt; index.html" },
+        { "id": "ABK-ISO-002-A3", "passed": true, "expected": "Общий профиль не отображается", "actual": "До загрузки профиля выполнен location.replace", "evidence": "tests/ab-kitchen-isolation.spec.js; js/auth-check.js" }
+      ],
+      "automated_test": { "command": "playwright test --config tests/playwright.ab-kitchen.config.cjs", "passed": true, "evidence": "output/ui-audit/regression/run-3.txt" }
+    },
+    {
+      "id": "ABK-ISO-003",
+      "status": "passed",
+      "replay_from_step_1": true,
+      "steps_completed": 6,
+      "final_url": "http://127.0.0.1:4174/kitchen/menu.html",
+      "fixture_mode": "hybrid",
+      "assertions": [
+        { "id": "ABK-ISO-003-A1", "passed": true, "expected": "Маршруты кухни и склада разрешены", "actual": "Защищённый kitchen/menu.html загружен без редиректа", "evidence": "output/ui-audit/regression/run-3.txt" },
+        { "id": "ABK-ISO-003-A2", "passed": true, "expected": "Локация фиксирована на AB Kitchen", "actual": "В AB-оболочке доступна только локация ab-kitchen", "evidence": "tests/ab-kitchen-isolation.spec.js; js/layout.js" },
+        { "id": "ABK-ISO-003-A3", "passed": true, "expected": "Layout.currentLocation равен ab-kitchen", "actual": "Значение проверено после Layout.init", "evidence": "output/ui-audit/regression/run-3.txt" }
+      ],
+      "automated_test": { "command": "playwright test --config tests/playwright.ab-kitchen.config.cjs", "passed": true, "evidence": "output/ui-audit/regression/run-3.txt" }
+    },
+    {
+      "id": "ABK-DATA-001",
+      "status": "passed",
+      "replay_from_step_1": true,
+      "steps_completed": 4,
+      "final_url": "http://127.0.0.1:4174/stock/receive.html",
+      "fixture_mode": "hybrid",
+      "assertions": [
+        { "id": "ABK-DATA-001-A1", "passed": true, "expected": "SELECT поступлений содержит location_id", "actual": "loadReceipts фильтрует текущую locationId", "evidence": "stock/receive.html; output/ui-audit/regression/run-3.txt" },
+        { "id": "ABK-DATA-001-A2", "passed": true, "expected": "Чужие поступления не попадают в список", "actual": "Без locationId список очищается, с ней запрос ограничен", "evidence": "stock/receive.html; tests/ab-kitchen-isolation.spec.js" },
+        { "id": "ABK-DATA-001-A3", "passed": true, "expected": "Изменения поступлений содержат location_id", "actual": "UPDATE и DELETE ограничены id и location_id", "evidence": "stock/receive.html; output/ui-audit/regression/run-3.txt" }
+      ],
+      "automated_test": { "command": "playwright test --config tests/playwright.ab-kitchen.config.cjs", "passed": true, "evidence": "output/ui-audit/regression/run-3.txt" }
+    },
+    {
+      "id": "ABK-DATA-002",
+      "status": "passed",
+      "replay_from_step_1": true,
+      "steps_completed": 5,
+      "final_url": "http://127.0.0.1:4174/kitchen/recipes.html",
+      "fixture_mode": "hybrid",
+      "assertions": [
+        { "id": "ABK-DATA-002-A1", "passed": true, "expected": "Рецепт запрашивается по id и location_id", "actual": "Просмотр и редактор применяют оба фильтра", "evidence": "kitchen/recipe.html; kitchen/recipe-edit.html; output/ui-audit/regression/run-3.txt" },
+        { "id": "ABK-DATA-002-A2", "passed": true, "expected": "Чужая форма не отображается", "actual": "При отсутствии рецепта текущей локации выполнен возврат к списку", "evidence": "kitchen/recipe-edit.html; tests/ab-kitchen-isolation.spec.js" },
+        { "id": "ABK-DATA-002-A3", "passed": true, "expected": "UPDATE и DELETE рецепта ограничены location_id", "actual": "Обе операции используют id и location_id", "evidence": "kitchen/recipe-edit.html; output/ui-audit/regression/run-3.txt" },
+        { "id": "ABK-DATA-002-A4", "passed": true, "expected": "Складские списки рецептов ограничены location_id", "actual": "Закупки, поступления и выдачи фильтруют recipes по текущей локации", "evidence": "js/pages/stock-requests.js; stock/receive.html; stock/issue.html" }
+      ],
+      "automated_test": { "command": "playwright test --config tests/playwright.ab-kitchen.config.cjs", "passed": true, "evidence": "output/ui-audit/regression/run-3.txt" }
+    },
+    {
+      "id": "ABK-DATA-003",
+      "status": "passed",
+      "replay_from_step_1": true,
+      "steps_completed": 5,
+      "final_url": "http://127.0.0.1:4174/stock/requests.html",
+      "fixture_mode": "hybrid",
+      "assertions": [
+        { "id": "ABK-DATA-003-A1", "passed": true, "expected": "Заявки изменяются с location_id", "actual": "Все UPDATE и DELETE purchase_requests имеют фильтр location_id", "evidence": "js/pages/stock-requests.js; output/ui-audit/regression/run-3.txt" },
+        { "id": "ABK-DATA-003-A2", "passed": true, "expected": "Выдачи и инвентаризации изменяются с location_id", "actual": "Все проверенные мутации stock_issuances и stock_inventories ограничены локацией", "evidence": "stock/issue.html; stock/inventory.html; output/ui-audit/regression/run-3.txt" },
+        { "id": "ABK-DATA-003-A3", "passed": true, "expected": "Шаблоны меняются с location_id", "actual": "UPDATE и DELETE menu_templates ограничены текущей локацией", "evidence": "kitchen/menu-templates.html; output/ui-audit/regression/run-3.txt" },
+        { "id": "ABK-DATA-003-A4", "passed": true, "expected": "Родительский документ принадлежит текущей локации", "actual": "Удаление заявки проверяет родительскую запись по id и location_id; выдачи и шаблоны берутся из location-scoped списков", "evidence": "js/pages/stock-requests.js; stock/issue.html; kitchen/menu-templates.html" }
+      ],
+      "automated_test": { "command": "playwright test --config tests/playwright.ab-kitchen.config.cjs", "passed": true, "evidence": "output/ui-audit/regression/run-3.txt" }
+    },
+    {
+      "id": "ABK-DATA-004",
+      "status": "passed",
+      "replay_from_step_1": true,
+      "steps_completed": 4,
+      "final_url": "http://127.0.0.1:4174/kitchen/menu-board.html",
+      "fixture_mode": "hybrid",
+      "assertions": [
+        { "id": "ABK-DATA-004-A1", "passed": true, "expected": "Меню изменяется с location_id", "actual": "Каждая UPDATE/DELETE цепочка menu_meals содержит location_id", "evidence": "js/pages/kitchen-menu.js; output/ui-audit/regression/run-3.txt" },
+        { "id": "ABK-DATA-004-A2", "passed": true, "expected": "Блюдо найдено в текущем меню", "actual": "Изменение прекращается, если блюдо отсутствует в location-scoped menuData", "evidence": "js/pages/kitchen-menu.js; js/pages/kitchen-menu-board.js" },
+        { "id": "ABK-DATA-004-A3", "passed": true, "expected": "Мутации блюда ограничены meal_id", "actual": "Все UPDATE/DELETE menu_dishes используют родительский meal_id", "evidence": "tests/ab-kitchen-isolation.spec.js; output/ui-audit/regression/run-3.txt" }
+      ],
+      "automated_test": { "command": "playwright test --config tests/playwright.ab-kitchen.config.cjs", "passed": true, "evidence": "output/ui-audit/regression/run-3.txt" }
+    },
+    {
+      "id": "ABK-NORMAL-001",
+      "status": "passed",
+      "replay_from_step_1": true,
+      "steps_completed": 4,
+      "final_url": "http://127.0.0.1:4174/layout-host",
+      "fixture_mode": "hybrid",
+      "assertions": [
+        { "id": "ABK-NORMAL-001-A1", "passed": true, "expected": "Обычные модули и профиль доступны", "actual": "Команда и две ссылки профиля присутствуют без AB-контекста", "evidence": "output/ui-audit/regression/run-3.txt" },
+        { "id": "ABK-NORMAL-001-A2", "passed": true, "expected": "AB Kitchen скрыта из общей навигации", "actual": "Обычный список локаций содержит только main", "evidence": "tests/ab-kitchen-isolation.spec.js; js/layout.js" },
+        { "id": "ABK-NORMAL-001-A3", "passed": true, "expected": "Обычный профиль не перенаправляется", "actual": "Ограничение маршрутов включается только при sessionStorage AB-маркере", "evidence": "js/auth-check.js; output/ui-audit/regression/run-3.txt" }
+      ],
+      "automated_test": { "command": "playwright test --config tests/playwright.ab-kitchen.config.cjs", "passed": true, "evidence": "output/ui-audit/regression/run-3.txt" }
+    }
+  ]
+}

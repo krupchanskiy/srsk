@@ -1,0 +1,307 @@
+{
+  "schema_version": 1,
+  "requirements": [
+    {
+      "id": "ABK-ISO-001",
+      "title": "Навигация AB Kitchen содержит только кухню и склад",
+      "priority": "P1",
+      "status": "active",
+      "route": "/ab-kitchen/",
+      "viewport": { "width": 1440, "height": 900 },
+      "fixture_mode": "hybrid",
+      "fixture": "Авторизованный администратор, sessionStorage.srsk_ab_kitchen_context=1, локации main и ab-kitchen",
+      "steps": [
+        "Открыть специальную ссылку AB Kitchen",
+        "Дождаться перехода в меню кухни",
+        "Проверить шапку, мобильное меню и подвал",
+        "Перезагрузить страницу"
+      ],
+      "assertions": [
+        {
+          "id": "ABK-ISO-001-A1",
+          "oracle": "ui",
+          "expected": "В навигации отсутствуют Команда, общий профиль и модули BackOffice"
+        },
+        {
+          "id": "ABK-ISO-001-A2",
+          "oracle": "route",
+          "expected": "Все внутренние ссылки оболочки ведут только на разрешённые маршруты кухни и склада"
+        },
+        {
+          "id": "ABK-ISO-001-A3",
+          "oracle": "client-state",
+          "expected": "Контекст AB Kitchen и локация ab-kitchen сохраняются после перезагрузки"
+        }
+      ],
+      "automated_test_required": true,
+      "independent_verification_required": false,
+      "test_requirements": ["e2e", "contract"]
+    },
+    {
+      "id": "ABK-ISO-002",
+      "title": "AB-контекст блокирует прямой переход в общий BackOffice",
+      "priority": "P1",
+      "status": "active",
+      "route": "/vaishnavas/person.html?id=fixture-person",
+      "viewport": { "width": 390, "height": 844 },
+      "fixture_mode": "hybrid",
+      "fixture": "Авторизованный администратор с активным AB-контекстом",
+      "steps": [
+        "Активировать AB-контекст",
+        "Открыть URL общего профиля",
+        "Попытаться открыть корень BackOffice",
+        "Вернуться назад и обновить страницу"
+      ],
+      "assertions": [
+        {
+          "id": "ABK-ISO-002-A1",
+          "oracle": "route",
+          "expected": "Любой неразрешённый маршрут немедленно возвращает в /ab-kitchen/"
+        },
+        {
+          "id": "ABK-ISO-002-A2",
+          "oracle": "client-state",
+          "expected": "Общая главная не удаляет AB-контекст"
+        },
+        {
+          "id": "ABK-ISO-002-A3",
+          "oracle": "ui",
+          "expected": "Содержимое общего профиля не отображается"
+        }
+      ],
+      "automated_test_required": true,
+      "independent_verification_required": false,
+      "test_requirements": ["e2e", "contract"]
+    },
+    {
+      "id": "ABK-ISO-003",
+      "title": "Разрешённые кухонные процессы остаются доступны и фиксированы на AB Kitchen",
+      "priority": "P1",
+      "status": "active",
+      "route": "/kitchen/menu.html",
+      "viewport": { "width": 768, "height": 1024 },
+      "fixture_mode": "hybrid",
+      "fixture": "Авторизованный администратор, локации main и ab-kitchen",
+      "steps": [
+        "Открыть меню AB Kitchen",
+        "Перейти в рецепты",
+        "Перейти в склад",
+        "Перейти в закупки",
+        "Вернуться назад",
+        "Обновить страницу"
+      ],
+      "assertions": [
+        {
+          "id": "ABK-ISO-003-A1",
+          "oracle": "route",
+          "expected": "Разрешённые маршруты кухни и склада не блокируются"
+        },
+        {
+          "id": "ABK-ISO-003-A2",
+          "oracle": "ui",
+          "expected": "Селектор локации заблокирован и показывает AB Kitchen"
+        },
+        {
+          "id": "ABK-ISO-003-A3",
+          "oracle": "client-state",
+          "expected": "Layout.currentLocation всегда равен ab-kitchen"
+        }
+      ],
+      "automated_test_required": true,
+      "independent_verification_required": false,
+      "test_requirements": ["e2e"]
+    },
+    {
+      "id": "ABK-DATA-001",
+      "title": "Поступления склада изолированы по локации AB Kitchen",
+      "priority": "P1",
+      "status": "active",
+      "route": "/stock/receive.html",
+      "viewport": { "width": 1440, "height": 900 },
+      "fixture_mode": "hybrid",
+      "fixture": "Поступления существуют одновременно в main и ab-kitchen",
+      "steps": [
+        "Открыть поступления AB Kitchen",
+        "Загрузить сохранённые документы",
+        "Открыть архив",
+        "Выполнить действие над документом AB Kitchen"
+      ],
+      "assertions": [
+        {
+          "id": "ABK-DATA-001-A1",
+          "oracle": "network",
+          "expected": "SELECT stock_receipts содержит фильтр location_id текущей AB-локации"
+        },
+        {
+          "id": "ABK-DATA-001-A2",
+          "oracle": "client-state",
+          "expected": "В списках нет поступлений другой кухни"
+        },
+        {
+          "id": "ABK-DATA-001-A3",
+          "oracle": "network",
+          "expected": "Изменение или удаление поступления дополнительно ограничено location_id"
+        }
+      ],
+      "automated_test_required": true,
+      "independent_verification_required": false,
+      "test_requirements": ["contract", "e2e"]
+    },
+    {
+      "id": "ABK-DATA-002",
+      "title": "Просмотр, выбор и редактирование рецептов ограничены текущей кухней",
+      "priority": "P1",
+      "status": "active",
+      "route": "/kitchen/recipe-edit.html?id=foreign-recipe",
+      "viewport": { "width": 1440, "height": 900 },
+      "fixture_mode": "hybrid",
+      "fixture": "Рецепт принадлежит main, активная локация ab-kitchen",
+      "steps": [
+        "Открыть прямую ссылку на чужой рецепт",
+        "Открыть выбор рецептов из закупок, поступлений и выдач",
+        "Дождаться загрузки текущей локации",
+        "Попытаться отобразить форму",
+        "Попытаться сохранить или удалить запись"
+      ],
+      "assertions": [
+        {
+          "id": "ABK-DATA-002-A1",
+          "oracle": "network",
+          "expected": "Запрос рецепта содержит одновременно id и location_id"
+        },
+        {
+          "id": "ABK-DATA-002-A2",
+          "oracle": "ui",
+          "expected": "Форма чужого рецепта не отображается"
+        },
+        {
+          "id": "ABK-DATA-002-A3",
+          "oracle": "network",
+          "expected": "UPDATE и DELETE рецепта ограничены location_id"
+        },
+        {
+          "id": "ABK-DATA-002-A4",
+          "oracle": "network",
+          "expected": "Списки рецептов в складских процессах загружаются только для текущей location_id"
+        }
+      ],
+      "automated_test_required": true,
+      "independent_verification_required": false,
+      "test_requirements": ["contract", "e2e"]
+    },
+    {
+      "id": "ABK-DATA-003",
+      "title": "Все изменения операционных документов ограничены текущей локацией",
+      "priority": "P1",
+      "status": "active",
+      "route": "/stock/requests.html",
+      "viewport": { "width": 1440, "height": 900 },
+      "fixture_mode": "hybrid",
+      "fixture": "Документы закупок, выдач, инвентаризаций и шаблоны одновременно существуют в main и ab-kitchen",
+      "steps": [
+        "Открыть каждый список из AB Kitchen",
+        "Изменить статус документа",
+        "Архивировать и восстановить документ",
+        "Удалить документ",
+        "Обновить шаблон меню"
+      ],
+      "assertions": [
+        {
+          "id": "ABK-DATA-003-A1",
+          "oracle": "network",
+          "expected": "UPDATE и DELETE purchase_requests содержат location_id"
+        },
+        {
+          "id": "ABK-DATA-003-A2",
+          "oracle": "network",
+          "expected": "UPDATE и DELETE stock_issuances и stock_inventories содержат location_id"
+        },
+        {
+          "id": "ABK-DATA-003-A3",
+          "oracle": "network",
+          "expected": "UPDATE и DELETE menu_templates содержат location_id"
+        },
+        {
+          "id": "ABK-DATA-003-A4",
+          "oracle": "client-state",
+          "expected": "Дочерние записи удаляются только после подтверждения принадлежности родительского документа текущей локации"
+        }
+      ],
+      "automated_test_required": true,
+      "independent_verification_required": false,
+      "test_requirements": ["contract", "e2e"]
+    },
+    {
+      "id": "ABK-DATA-004",
+      "title": "Изменения меню и блюд принадлежат только текущей кухне",
+      "priority": "P1",
+      "status": "active",
+      "route": "/kitchen/menu.html",
+      "viewport": { "width": 1440, "height": 900 },
+      "fixture_mode": "hybrid",
+      "fixture": "Меню и блюда одновременно существуют в main и ab-kitchen",
+      "steps": [
+        "Открыть меню AB Kitchen",
+        "Изменить количество порций и повара",
+        "Изменить и удалить блюдо",
+        "Переместить блюдо на доске меню"
+      ],
+      "assertions": [
+        {
+          "id": "ABK-DATA-004-A1",
+          "oracle": "network",
+          "expected": "UPDATE и DELETE menu_meals содержат location_id"
+        },
+        {
+          "id": "ABK-DATA-004-A2",
+          "oracle": "client-state",
+          "expected": "Изменяемое блюдо обязательно найдено в загруженном меню текущей кухни"
+        },
+        {
+          "id": "ABK-DATA-004-A3",
+          "oracle": "network",
+          "expected": "UPDATE и DELETE menu_dishes дополнительно ограничены meal_id текущего меню"
+        }
+      ],
+      "automated_test_required": true,
+      "independent_verification_required": false,
+      "test_requirements": ["contract", "e2e"]
+    },
+    {
+      "id": "ABK-NORMAL-001",
+      "title": "Обычный BackOffice не получает ограничения AB Kitchen",
+      "priority": "P1",
+      "status": "active",
+      "route": "/index.html",
+      "viewport": { "width": 1440, "height": 900 },
+      "fixture_mode": "hybrid",
+      "fixture": "Авторизованный администратор без AB-контекста",
+      "steps": [
+        "Открыть обычный BackOffice в чистом контексте",
+        "Открыть переключатель модулей",
+        "Открыть профиль",
+        "Перезагрузить страницу"
+      ],
+      "assertions": [
+        {
+          "id": "ABK-NORMAL-001-A1",
+          "oracle": "ui",
+          "expected": "Обычные модули и ссылка профиля остаются доступны"
+        },
+        {
+          "id": "ABK-NORMAL-001-A2",
+          "oracle": "client-state",
+          "expected": "Локация ab-kitchen не показывается в общей навигации"
+        },
+        {
+          "id": "ABK-NORMAL-001-A3",
+          "oracle": "route",
+          "expected": "Обычный профиль не перенаправляется в AB Kitchen"
+        }
+      ],
+      "automated_test_required": true,
+      "independent_verification_required": false,
+      "test_requirements": ["e2e"]
+    }
+  ]
+}

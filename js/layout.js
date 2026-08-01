@@ -374,7 +374,14 @@ function getFirstAccessibleModule() {
 
 // Получить текущий menuConfig (с фильтрацией по правам)
 function getMenuConfig() {
-    const baseConfig = modules[currentModule]?.menuConfig || modules.kitchen.menuConfig;
+    let baseConfig = modules[currentModule]?.menuConfig || modules.kitchen.menuConfig;
+
+    // Команда использует общий реестр вайшнавов и ведёт в общий профиль BackOffice.
+    // В изолированной оболочке AB Kitchen остаются только процессы кухни и склада.
+    if (isAbKitchenContext) {
+        baseConfig = baseConfig.filter(section => section.id !== 'team');
+    }
+
     return filterMenuByPermissions(baseConfig);
 }
 
@@ -398,6 +405,9 @@ function getBasePath() {
 // Корректировать href с учётом текущего расположения
 function adjustHref(href) {
     const currentFolder = getCurrentFolder();
+
+    // Абсолютные пути уже корректны независимо от текущего раздела.
+    if (href.startsWith('/')) return href;
 
     // Если мы в корне - ничего не меняем
     if (!currentFolder) return href;
@@ -582,7 +592,7 @@ function updateAllTranslations() {
 // ==================== HEADER HTML ====================
 function getHeaderHTML() {
     const menuConfig = getMenuConfig();
-    const homeHref = isAbKitchenContext ? 'ab-kitchen/' : 'index.html';
+    const homeHref = isAbKitchenContext ? '/ab-kitchen/' : 'index.html';
 
     return `
     <header class="bg-base-100 shadow-sm sticky top-0 z-50">
@@ -1346,7 +1356,7 @@ async function initLayout(page = { module: null, menuId: 'kitchen', itemId: null
     await Promise.all([loadTranslations(), waitForAuth()]);
 
     // Автовыбор доступного модуля (если текущий недоступен)
-    if (window.currentUser && !window.currentUser.is_superuser) {
+    if (!isAbKitchenContext && window.currentUser && !window.currentUser.is_superuser) {
         const config = filterMenuByPermissions(modules[currentModule]?.menuConfig || []);
         const hasAccess = config.some(s => s.items.length > 0);
         if (!hasAccess) {

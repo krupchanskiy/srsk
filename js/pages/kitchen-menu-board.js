@@ -604,6 +604,10 @@ async function moveDish(dishId, sourceDate, sourceMealType, targetDate, targetMe
     const locationId = getCurrentLocation()?.id;
     if (!locationId) return;
 
+    const sourceMeal = menuData[sourceDate]?.[sourceMealType];
+    const sourceDishIndex = sourceMeal?.dishes?.findIndex(d => d.id === dishId) ?? -1;
+    if (!sourceMeal?.id || sourceDishIndex < 0) return;
+
     // Проверить уникальность рецепта в целевой ячейке
     const targetMeal = menuData[targetDate]?.[targetMealType];
     if (targetMeal?.dishes?.some(d => d.recipe_id === recipeId)) {
@@ -639,7 +643,8 @@ async function moveDish(dishId, sourceDate, sourceMealType, targetDate, targetMe
     const { error } = await Layout.db
         .from('menu_dishes')
         .update({ meal_id: targetMealId })
-        .eq('id', dishId);
+        .eq('id', dishId)
+        .eq('meal_id', sourceMeal.id);
 
     if (error) {
         Layout.showNotification(t('error'), 'error');
@@ -647,18 +652,12 @@ async function moveDish(dishId, sourceDate, sourceMealType, targetDate, targetMe
     }
 
     // Обновить локальные данные: убрать из source, добавить в target
-    const sourceMeal = menuData[sourceDate]?.[sourceMealType];
-    if (sourceMeal) {
-        const idx = sourceMeal.dishes.findIndex(d => d.id === dishId);
-        if (idx !== -1) {
-            const [movedDish] = sourceMeal.dishes.splice(idx, 1);
-            if (!menuData[targetDate]) menuData[targetDate] = {};
-            if (!menuData[targetDate][targetMealType]) {
-                menuData[targetDate][targetMealType] = { id: targetMealId, portions: getEatingTotal(targetDate, targetMealType), dishes: [] };
-            }
-            menuData[targetDate][targetMealType].dishes.push(movedDish);
-        }
+    const [movedDish] = sourceMeal.dishes.splice(sourceDishIndex, 1);
+    if (!menuData[targetDate]) menuData[targetDate] = {};
+    if (!menuData[targetDate][targetMealType]) {
+        menuData[targetDate][targetMealType] = { id: targetMealId, portions: getEatingTotal(targetDate, targetMealType), dishes: [] };
     }
+    menuData[targetDate][targetMealType].dishes.push(movedDish);
 
     renderBoard();
 }
@@ -932,12 +931,16 @@ function openEditDishModal(dishId, dateStr, mealType) {
 async function saveEditDish() {
     if (!editingDish) return;
 
+    const mealData = menuData[editingDate]?.[editingMealType];
+    if (!mealData?.id || !mealData.dishes?.some(dish => dish.id === editingDish.id)) return;
+
     const newSize = parseFloat(document.getElementById('editPortionSize').value) || 0;
 
     await Layout.db
         .from('menu_dishes')
         .update({ portion_size: newSize })
-        .eq('id', editingDish.id);
+        .eq('id', editingDish.id)
+        .eq('meal_id', mealData.id);
 
     editingDish.portion_size = newSize;
     editDishModal.close();
@@ -947,15 +950,16 @@ async function saveEditDish() {
 async function deleteDish() {
     if (!editingDish) return;
 
+    const mealData = menuData[editingDate]?.[editingMealType];
+    if (!mealData?.id || !mealData.dishes?.some(dish => dish.id === editingDish.id)) return;
+
     await Layout.db
         .from('menu_dishes')
         .delete()
-        .eq('id', editingDish.id);
+        .eq('id', editingDish.id)
+        .eq('meal_id', mealData.id);
 
-    const mealData = menuData[editingDate]?.[editingMealType];
-    if (mealData) {
-        mealData.dishes = mealData.dishes.filter(d => d.id !== editingDish.id);
-    }
+    mealData.dishes = mealData.dishes.filter(d => d.id !== editingDish.id);
 
     editDishModal.close();
     editingDish = null;

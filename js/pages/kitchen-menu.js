@@ -1224,7 +1224,8 @@ async function updateMealPortions(dateStr, mealType, value) {
         await Layout.db
             .from('menu_meals')
             .update({ portions })
-            .eq('id', mealData.id);
+            .eq('id', mealData.id)
+            .eq('location_id', locationId);
         mealData.portions = portions;
     } else {
         const { data } = await Layout.db
@@ -1257,7 +1258,8 @@ async function updateMealCook(dateStr, mealType, cookId) {
         await Layout.db
             .from('menu_meals')
             .update({ cook_id: cookId || null })
-            .eq('id', mealData.id);
+            .eq('id', mealData.id)
+            .eq('location_id', locationId);
 
         mealData.cook_id = cookId || null;
         mealData.cook = getCook(cookId);
@@ -1267,15 +1269,16 @@ async function updateMealCook(dateStr, mealType, cookId) {
 }
 
 async function removeDish(dateStr, mealType, dishId) {
+    const mealData = menuData[dateStr]?.[mealType];
+    if (!mealData?.dishes?.some(dish => dish.id === dishId)) return;
+
     await Layout.db
         .from('menu_dishes')
         .delete()
-        .eq('id', dishId);
+        .eq('id', dishId)
+        .eq('meal_id', mealData.id);
 
-    const mealData = menuData[dateStr]?.[mealType];
-    if (mealData) {
-        mealData.dishes = mealData.dishes.filter(d => d.id !== dishId);
-    }
+    mealData.dishes = mealData.dishes.filter(d => d.id !== dishId);
 
     render();
 }
@@ -1283,21 +1286,29 @@ async function removeDish(dateStr, mealType, dishId) {
 async function updateDishQuantity(dishId, value) {
     const quantity = parseFloat(value) || 0;
 
+    let currentDish = null;
+    let currentMeal = null;
+    for (const dateStr in menuData) {
+        for (const mealType in menuData[dateStr]) {
+            const meal = menuData[dateStr][mealType];
+            const dish = meal.dishes?.find(item => item.id === dishId);
+            if (dish) {
+                currentDish = dish;
+                currentMeal = meal;
+                break;
+            }
+        }
+        if (currentDish) break;
+    }
+    if (!currentDish || !currentMeal?.id) return;
+
     await Layout.db
         .from('menu_dishes')
         .update({ portion_size: quantity })
-        .eq('id', dishId);
+        .eq('id', dishId)
+        .eq('meal_id', currentMeal.id);
 
-    // Обновляем локальные данные
-    for (const dateStr in menuData) {
-        for (const mealType in menuData[dateStr]) {
-            const dish = menuData[dateStr][mealType].dishes?.find(d => d.id === dishId);
-            if (dish) {
-                dish.portion_size = quantity;
-                return;
-            }
-        }
-    }
+    currentDish.portion_size = quantity;
 }
 
 // ==================== DISH MODAL ====================
