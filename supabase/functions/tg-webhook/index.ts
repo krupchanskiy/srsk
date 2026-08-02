@@ -372,7 +372,9 @@ Deno.serve(async (req) => {
   // ---------- /тема — привязать тему чата ----------
   // У темы в Telegram нет имени в API, только номер, и узнать его можно лишь
   // из сообщения, написанного прямо в ней. Поэтому привязка — командой.
-  if (/^\/(тема|topic)\b/i.test(text)) {
+  // \b здесь не годится: в JS граница слова считается по латинице, и после
+  // кириллического «тема» она не срабатывает — команда молча не распознавалась.
+  if (/^\/(тема|topic)(\s|$)/i.test(text)) {
     const arg = text.replace(/^\/\S+\s*/, "").trim().toLowerCase();
     const kind = /финанс|счёт|счет|деньг|трат/.test(arg) ? "finance"
                : /ресепшен|ресепшн|оповещ|информ|заезд/.test(arg) ? "notify"
@@ -392,6 +394,34 @@ Deno.serve(async (req) => {
       text: data?.ok
         ? `✅ Запомнил: сюда буду писать ${kind === "finance" ? "про деньги" : "оповещения ресепшена"} для «${esc(data.department)}».`
         : `⚠️ ${esc(data?.error ?? "не получилось")}`,
+    });
+    return new Response("ok");
+  }
+
+  // ---------- /вкушающие — сколько готовить (просьба Адриана, 02.08.2026) ----------
+  // Повар спрашивает прямо в чате, не открывая сайт. Считает та же функция,
+  // что и меню на сайте, — расхождения быть не может.
+  if (/^\/(вкушающие|питание|eaters)(\s|$)/i.test(text)) {
+    const arg = text.replace(/^\/\S+\s*/, "").trim().toLowerCase();
+    const today = new Date();
+    let date = new Date(today);
+    if (/завтра/.test(arg)) date.setDate(date.getDate() + 1);
+    else if (/послезавтра/.test(arg)) date.setDate(date.getDate() + 2);
+    else if (arg) {
+      // «5.08», «5.08.2026», «2026-08-05»
+      const iso = arg.match(/(\d{4})-(\d{2})-(\d{2})/);
+      const dot = arg.match(/(\d{1,2})[.\/](\d{1,2})(?:[.\/](\d{2,4}))?/);
+      if (iso) date = new Date(+iso[1], +iso[2] - 1, +iso[3]);
+      else if (dot) {
+        const y = dot[3] ? (dot[3].length === 2 ? 2000 + +dot[3] : +dot[3]) : today.getFullYear();
+        date = new Date(y, +dot[2] - 1, +dot[1]);
+      }
+    }
+    const iso = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
+    const { data: txt } = await supa.rpc("tg_eating_text", { p_date: iso });
+    await tg("sendMessage", {
+      chat_id: m.chat.id, reply_to_message_id: m.message_id, parse_mode: "HTML",
+      text: txt ?? "На эту дату данных нет. Напишите «/вкушающие завтра» или «/вкушающие 5.08».",
     });
     return new Response("ok");
   }
