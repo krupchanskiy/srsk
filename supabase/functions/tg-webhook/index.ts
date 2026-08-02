@@ -135,10 +135,17 @@ Deno.serve(async (req) => {
   try { update = await req.json(); } catch { return new Response("ok"); }
 
   const { data: token } = await supa.rpc("tg_bot_token");
-  const tg = (method: string, body: unknown) =>
-    fetch(`https://api.telegram.org/bot${token}/${method}`, {
+  // Если сообщение пришло из темы, отвечаем в неё же: иначе ответ бота падает
+  // в общий раздел чата и разговор рвётся пополам.
+  let replyThread: number | undefined;
+  const tg = (method: string, body: any) => {
+    if (method === "sendMessage" && replyThread !== undefined && body?.message_thread_id === undefined) {
+      body = { ...body, message_thread_id: replyThread };
+    }
+    return fetch(`https://api.telegram.org/bot${token}/${method}`, {
       method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body),
     }).then((r) => r.json()).catch(() => null);
+  };
 
   async function treasurer() {
     const { data } = await supa.rpc("tg_treasurer");
@@ -300,6 +307,7 @@ Deno.serve(async (req) => {
   // from нет у сообщений «от имени группы» и у автопересылок из канала —
   // автора там установить не выйдет, а без автора заявка бессмысленна.
   if (!m || !text || !m.from) return new Response("ok");
+  replyThread = m.message_thread_id;
 
   // Правка сообщения, по которому заявка уже создана. Дубля не будет и так
   // (уникальный индекс по chat_id+source_message_id), но раньше бот просто
@@ -358,6 +366,33 @@ Deno.serve(async (req) => {
           : "Здравствуйте! Чтобы привязать Telegram, откройте свой профиль на in.rupaseva.com и нажмите «Привязать Telegram».",
       });
     }
+    return new Response("ok");
+  }
+
+  // ---------- /тема — привязать тему чата ----------
+  // У темы в Telegram нет имени в API, только номер, и узнать его можно лишь
+  // из сообщения, написанного прямо в ней. Поэтому привязка — командой.
+  if (/^\/(тема|topic)\b/i.test(text)) {
+    const arg = text.replace(/^\/\S+\s*/, "").trim().toLowerCase();
+    const kind = /финанс|счёт|счет|деньг|трат/.test(arg) ? "finance"
+               : /ресепшен|ресепшн|оповещ|информ|заезд/.test(arg) ? "notify"
+               : null;
+    if (!kind) {
+      await tg("sendMessage", {
+        chat_id: m.chat.id, reply_to_message_id: m.message_id,
+        text: "Напишите, какая это тема:\n/тема финансы — сюда пойдут траты и выдачи\n/тема ресепшен — сюда заезды, отъезды и долги",
+      });
+      return new Response("ok");
+    }
+    const { data } = await supa.rpc("tg_set_topic", {
+      p_chat: m.chat.id, p_thread: m.message_thread_id ?? null, p_kind: kind,
+    });
+    await tg("sendMessage", {
+      chat_id: m.chat.id, reply_to_message_id: m.message_id, parse_mode: "HTML",
+      text: data?.ok
+        ? `✅ Запомнил: сюда буду писать ${kind === "finance" ? "про деньги" : "оповещения ресепшена"} для «${esc(data.department)}».`
+        : `⚠️ ${esc(data?.error ?? "не получилось")}`,
+    });
     return new Response("ok");
   }
 
