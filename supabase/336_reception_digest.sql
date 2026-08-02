@@ -105,11 +105,15 @@ BEGIN
        AND ret.end_date >= v_day
        -- только идущие и ближайшие: расселение ретрита следующего года
        -- каждое утро в сводке — шум, а не сигнал
-       AND ret.start_date <= v_day + 14
+       AND ret.start_date <= v_day + 30
+       -- Человек расселён, даже если в записи размещения не проставлен
+       -- ретрит: сверяем по пересечению дат, иначе сигнал завышает вдвое
+       -- (проверено 02.08.2026: 44 «без места» против 21 настоящего).
        AND NOT EXISTS (SELECT 1 FROM residents res
                         WHERE res.vaishnava_id = rr.vaishnava_id
-                          AND res.retreat_id = rr.retreat_id
-                          AND res.status = 'confirmed')
+                          AND res.status = 'confirmed'
+                          AND res.check_in <= ret.end_date
+                          AND COALESCE(res.check_out, '2100-01-01') >= ret.start_date)
      GROUP BY 1 ORDER BY 2 DESC
   LOOP
     v_n := v_n + r.cnt;
