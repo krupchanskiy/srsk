@@ -299,11 +299,14 @@ function renderBoard() {
             const mc = counts?.[key];
             let eatingHtml = '';
             if (mc) {
-                const total = (mc.team || 0) + (mc.volunteers || 0) + (mc.vips || 0) + (mc.guests || 0) + (mc.groups || 0);
+                // expected — ожидаемые: бронь есть, «Заселить» ещё не нажимали
+                const total = (mc.team || 0) + (mc.volunteers || 0) + (mc.vips || 0)
+                            + (mc.guests || 0) + (mc.groups || 0) + (mc.expected || 0);
                 if (total > 0) {
                     const mealLabel = t(mt) || mt;
                     const parts = [mc.team, mc.volunteers, mc.vips, mc.guests];
                     if (mc.groups) parts.push(mc.groups);
+                    if (mc.expected) parts.push(mc.expected);
                     eatingHtml = `<div class="eating-badge"><b style="color:#111">${e(mealLabel)}</b> ${parts.join('+')}=${total}</div>`;
                 }
             }

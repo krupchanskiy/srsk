@@ -484,7 +484,9 @@ async function loadKitchenTotals() {
     const ln = day.lunch;
     if (!bf && !ln) return;
 
-    const sum = mc => (mc.team || 0) + (mc.volunteers || 0) + (mc.vips || 0) + (mc.guests || 0) + (mc.groups || 0);
+    // expected — ожидаемые: бронь есть, «Заселить» ещё не нажимали
+    const sum = mc => (mc.team || 0) + (mc.volunteers || 0) + (mc.vips || 0) + (mc.guests || 0)
+                    + (mc.groups || 0) + (mc.expected || 0);
     const bfTotal = bf ? sum(bf) : 0;
     const lnTotal = ln ? sum(ln) : 0;
     if (bfTotal === 0 && lnTotal === 0) return;
@@ -498,6 +500,7 @@ async function loadKitchenTotals() {
         if (mc.vips) items.push(`${t('category_vip')} ${mc.vips}`);
         if (mc.guests) items.push(`${t('status_guest')} ${mc.guests}`);
         if (mc.groups) items.push(`${t('nav_groups')} ${mc.groups}`);
+        if (mc.expected) items.push(`${t('expected_guests')} ${mc.expected}`);
         return items.join(', ');
     };
 
