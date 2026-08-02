@@ -418,30 +418,46 @@ Deno.serve(async (req) => {
     return new Response("ok");
   }
 
-  // ---------- /вкушающие — сколько готовить (просьба Адриана, 02.08.2026) ----------
-  // Повар спрашивает прямо в чате, не открывая сайт. Считает та же функция,
-  // что и меню на сайте, — расхождения быть не может.
-  if (/^\/(вкушающие|питание|eaters)(\s|$)/i.test(text)) {
-    const arg = text.replace(/^\/\S+\s*/, "").trim().toLowerCase();
+  // Разбор даты в команде: «завтра», «5.08», «5.08.2026», «2026-08-05».
+  // Без аргумента — сегодня.
+  const askedDate = (arg: string): string => {
     const today = new Date();
-    let date = new Date(today);
-    if (/завтра/.test(arg)) date.setDate(date.getDate() + 1);
-    else if (/послезавтра/.test(arg)) date.setDate(date.getDate() + 2);
+    const date = new Date(today);
+    if (/послезавтра/.test(arg)) date.setDate(date.getDate() + 2);
+    else if (/завтра/.test(arg)) date.setDate(date.getDate() + 1);
+    else if (/вчера/.test(arg)) date.setDate(date.getDate() - 1);
     else if (arg) {
-      // «5.08», «5.08.2026», «2026-08-05»
       const iso = arg.match(/(\d{4})-(\d{2})-(\d{2})/);
       const dot = arg.match(/(\d{1,2})[.\/](\d{1,2})(?:[.\/](\d{2,4}))?/);
-      if (iso) date = new Date(+iso[1], +iso[2] - 1, +iso[3]);
-      else if (dot) {
+      if (iso) return `${iso[1]}-${iso[2]}-${iso[3]}`;
+      if (dot) {
         const y = dot[3] ? (dot[3].length === 2 ? 2000 + +dot[3] : +dot[3]) : today.getFullYear();
-        date = new Date(y, +dot[2] - 1, +dot[1]);
+        date.setFullYear(y, +dot[2] - 1, +dot[1]);
       }
     }
-    const iso = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
+    return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
+  };
+
+  // ---------- /сколько — питающиеся на дату (ТЗ, п. 6) ----------
+  // Считает та же функция, что и меню на сайте, — расхождения быть не может.
+  if (/^\/(сколько|вкушающие|питание|eaters)(\s|$)/i.test(text)) {
+    const iso = askedDate(text.replace(/^\/\S+\s*/, "").trim().toLowerCase());
     const { data: txt } = await supa.rpc("tg_eating_text", { p_date: iso });
     await tg("sendMessage", {
       chat_id: m.chat.id, reply_to_message_id: m.message_id, parse_mode: "HTML",
-      text: txt ?? "На эту дату данных нет. Напишите «/вкушающие завтра» или «/вкушающие 5.08».",
+      text: txt ?? "На эту дату данных нет. Напишите «/сколько завтра» или «/сколько 5.08».",
+    });
+    return new Response("ok");
+  }
+
+  // ---------- /приезд и /выезд — списки ресепшена (ТЗ, п. 7) ----------
+  if (/^\/(приезд|заезд|выезд|отъезд|arrivals|departures)(\s|$)/i.test(text)) {
+    const dir = /выезд|отъезд|departures/i.test(text) ? "out" : "in";
+    const iso = askedDate(text.replace(/^\/\S+\s*/, "").trim().toLowerCase());
+    const { data: txt } = await supa.rpc("tg_arrivals_text", { p_date: iso, p_direction: dir });
+    await tg("sendMessage", {
+      chat_id: m.chat.id, reply_to_message_id: m.message_id, parse_mode: "HTML",
+      text: txt ?? "Не получилось собрать список.",
     });
     return new Response("ok");
   }
@@ -557,6 +573,21 @@ Deno.serve(async (req) => {
       chat_id: m.chat.id, reply_to_message_id: m.message_id,
       text: "⚠️ Не могу принять заявку: не написано, на что потрачено.\n"
           + "Напишите сумму вместе с описанием одним сообщением — например: «Купил овощи 500 ₹».",
+    });
+    return new Response("ok");
+  }
+
+  // ---------- финансы принимаются только из финансовой темы (ТЗ, п. 4–5) ----------
+  // Иначе трата, написанная в «Информации», молча уехала бы в учёт, а найти её
+  // потом было бы нечем.
+  const { data: guard } = await supa.rpc("tg_finance_topic_check", {
+    p_chat: m.chat.id, p_thread: m.message_thread_id ?? null,
+  });
+  if (guard && guard.allowed === false) {
+    await tg("sendMessage", {
+      chat_id: m.chat.id, reply_to_message_id: m.message_id, parse_mode: "HTML",
+      text: "⚠️ Это не финансовая тема, поэтому трату я не записал.\n"
+          + `Напишите её в теме «Счёт ${esc(guard.department ?? "департамента")}» — оттуда она попадёт в учёт.`,
     });
     return new Response("ok");
   }
