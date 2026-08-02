@@ -6,7 +6,10 @@ const EatingUtils = {
      * Загрузить количество едоков по дням за период
      * @param {string} startDate — 'YYYY-MM-DD'
      * @param {string} endDate   — 'YYYY-MM-DD'
-     * @returns {{ [dateStr]: { breakfast: {team,volunteers,vips,guests,groups}, lunch: {team,volunteers,vips,guests,groups} } }}
+     * @returns {{ [dateStr]: { breakfast: {team,volunteers,vips,guests,groups,expected}, lunch: {...} } }}
+     *
+     * expected — «ожидаемые»: бронь есть, имя ещё не проставлено. Считаются как
+     * едоки: недокормить приехавшего хуже, чем приготовить лишнюю порцию.
      */
     async loadCounts(startDate, endDate) {
         // Ретриты, попадающие в период
@@ -20,9 +23,12 @@ const EatingUtils = {
         const [residentsResult, guestRegResult, mealGroupsResult] = await Promise.all([
             Layout.db
                 .from('residents')
-                .select('id, vaishnava_id, retreat_id, check_in, check_out, early_checkin, late_checkout, resident_categories!inner(slug)')
+                .select('id, vaishnava_id, guest_name, retreat_id, check_in, check_out, early_checkin, late_checkout, resident_categories!inner(slug)')
                 .eq('status', 'confirmed')
-                .eq('has_meals', true)
+                // У брони питание не заполнено (не «нет», а «пока неизвестно») —
+                // раньше такие записи выпадали из расчёта, и порций не хватало.
+                // Исключаем только явный отказ от питания.
+                .not('has_meals', 'is', false)
                 .lte('check_in', endDate)
                 .or(`check_out.gte.${startDate},check_out.is.null`),
             retreatIds.length > 0
@@ -79,6 +85,7 @@ const EatingUtils = {
             let bfVol = 0, lnVol = 0;
             let bfVip = 0, lnVip = 0;
             let bfGuest = 0, lnGuest = 0;
+            let bfExpected = 0, lnExpected = 0;
 
             // Residents — считаем по категориям + собираем vaishnava_id для дедупликации на эту дату
             const residentIdsForDate = new Set();
@@ -108,15 +115,19 @@ const EatingUtils = {
                     }
 
                     const slug = r.resident_categories?.slug;
+                    // Ожидаемый: место забронировано, кто именно приедет — ещё не указано
+                    const isExpected = !r.vaishnava_id && !(r.guest_name || '').trim();
 
                     if (getsBreakfast) {
-                        if (slug === 'team') bfTeam++;
+                        if (isExpected) bfExpected++;
+                        else if (slug === 'team') bfTeam++;
                         else if (slug === 'volunteer') bfVol++;
                         else if (slug === 'vip') bfVip++;
                         else bfGuest++;
                     }
                     if (getsLunch) {
-                        if (slug === 'team') lnTeam++;
+                        if (isExpected) lnExpected++;
+                        else if (slug === 'team') lnTeam++;
                         else if (slug === 'volunteer') lnVol++;
                         else if (slug === 'vip') lnVip++;
                         else lnGuest++;
@@ -191,8 +202,10 @@ const EatingUtils = {
             }
 
             counts[dateStr] = {
-                breakfast: { team: bfTeam, volunteers: bfVol, vips: bfVip, guests: bfGuest, groups: breakfastGroups },
-                lunch:     { team: lnTeam, volunteers: lnVol, vips: lnVip, guests: lnGuest, groups: lunchGroups }
+                breakfast: { team: bfTeam, volunteers: bfVol, vips: bfVip, guests: bfGuest,
+                             groups: breakfastGroups, expected: bfExpected },
+                lunch:     { team: lnTeam, volunteers: lnVol, vips: lnVip, guests: lnGuest,
+                             groups: lunchGroups, expected: lnExpected }
             };
         }
 
@@ -212,7 +225,7 @@ const EatingUtils = {
         const key = (mealType === 'breakfast') ? 'breakfast' : 'lunch';
         const mc = dayData[key];
         if (!mc) return 50;
-        const total = mc.team + mc.volunteers + mc.vips + mc.guests + mc.groups;
+        const total = mc.team + mc.volunteers + mc.vips + mc.guests + mc.groups + (mc.expected || 0);
         return total > 0 ? total : 50;
     }
 };

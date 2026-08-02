@@ -345,9 +345,12 @@ function getEatingTotal(dateStr, mealType) {
     return EatingUtils.getTotal(eatingCounts, dateStr, mealType);
 }
 
-// Сумма всех полей meal-counts
+// Сумма всех полей meal-counts. expected — ожидаемые: бронь есть, «Заселить»
+// ещё не нажимали. Порции на них готовим: недокормить приехавшего хуже, чем
+// приготовить лишнюю.
 function mealTotal(mc) {
-    return (mc.team || 0) + (mc.volunteers || 0) + (mc.vips || 0) + (mc.guests || 0) + (mc.groups || 0);
+    return (mc.team || 0) + (mc.volunteers || 0) + (mc.vips || 0) + (mc.guests || 0)
+         + (mc.groups || 0) + (mc.expected || 0);
 }
 
 // Строка с подсчётом питающихся (завтрак / обед)
@@ -369,6 +372,7 @@ function formatEatingLine(dateStr, cssClass) {
     const fmtParts = (mc) => {
         const parts = [mc.team, mc.volunteers, mc.vips, mc.guests];
         if (mc.groups) parts.push(mc.groups);
+        if (mc.expected) parts.push(mc.expected);
         return parts.join('+');
     };
 
@@ -419,6 +423,8 @@ function formatEatingDetailed(dateStr) {
         if (mc.vips) parts.push(`${t('category_vip')} – ${mc.vips}`);
         if (mc.guests) parts.push(`${t('status_guest')} – ${mc.guests}`);
         if (mc.groups) parts.push(`${t('nav_groups')} – ${mc.groups}`);
+        // отдельной позицией: повар видит, где факт, а где ожидание
+        if (mc.expected) parts.push(`${t('expected_guests')} – ${mc.expected}`);
 
         const cookPortions = dayMenu?.[mealKey]?.portions;
         const hasCookOverride = cookPortions && cookPortions !== total;

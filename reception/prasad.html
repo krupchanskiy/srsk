@@ -86,7 +86,7 @@
 
         <!-- Счётчики: Категории -->
         <div class="mb-2 text-sm font-semibold uppercase tracking-wide opacity-60" data-i18n="col_category">Категории</div>
-        <div class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-6 gap-3 mb-4" id="statsCategories">
+        <div class="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-7 gap-3 mb-4" id="statsCategories">
             <div class="bg-base-100 rounded-lg px-3 py-2"><div class="skeleton h-6 w-10 mb-1"></div><div class="skeleton h-3 w-16"></div></div>
             <div class="bg-base-100 rounded-lg px-3 py-2"><div class="skeleton h-6 w-10 mb-1"></div><div class="skeleton h-3 w-16"></div></div>
             <div class="bg-base-100 rounded-lg px-3 py-2"><div class="skeleton h-6 w-10 mb-1"></div><div class="skeleton h-3 w-16"></div></div>
@@ -200,7 +200,7 @@
     <script src="../js/auto-translate.js"></script>
     <script src="../js/date-utils.js?v=3"></script>
     <script src="../js/layout.js?v=40"></script>
-    <script src="../js/eating-utils.js?v=3"></script>
+    <script src="../js/eating-utils.js?v=4"></script>
     <script>
         // ==================== STATE ====================
         let residents = [];
@@ -443,14 +443,15 @@
 
             const bf = dayData.breakfast;
             const ln = dayData.lunch;
-            const breakfastCount = bf.team + bf.volunteers + bf.vips + bf.guests + bf.groups;
-            const lunchCount = ln.team + ln.volunteers + ln.vips + ln.guests + ln.groups;
+            const breakfastCount = bf.team + bf.volunteers + bf.vips + bf.guests + bf.groups + (bf.expected || 0);
+            const lunchCount = ln.team + ln.volunteers + ln.vips + ln.guests + ln.groups + (ln.expected || 0);
             const total = Math.max(breakfastCount, lunchCount);
 
-            // Без питания — из таблицы (кто здесь, но не ест)
+            // Без питания — только явный отказ. У брони питание не заполнено
+            // («пока неизвестно»), и раньше такие люди попадали сюда по ошибке.
             let noMeals = 0;
             residents.forEach(r => {
-                if (!r.has_meals) noMeals++;
+                if (r.has_meals === false) noMeals++;
             });
 
             container.innerHTML = `
@@ -512,6 +513,15 @@
                 <div class="bg-base-100 rounded-lg px-3 py-2 border-l-4 border-base-300 stat-card">
                     <div class="text-xl font-bold">${ln.groups}</div>
                     <div class="text-xs opacity-60">${t('in_groups') || 'В группах'}</div>
+                </div>
+            `);
+
+            // Ожидаемые: место забронировано, «Заселить» ещё не нажимали. Порции на
+            // них готовим, но повар должен видеть, что это ожидание, а не факт.
+            cards.push(`
+                <div class="bg-base-100 rounded-lg px-3 py-2 border-l-4 stat-card" style="border-color: #a855f7">
+                    <div class="text-xl font-bold">${ln.expected || 0}</div>
+                    <div class="text-xs opacity-60">${t('expected_guests') || 'Ожидаются'}</div>
                 </div>
             `);
 
@@ -608,7 +618,9 @@
                 const name = v.spiritual_name || `${v.first_name || ''} ${v.last_name || ''}`.trim();
                 return Layout.currentLang === 'ru' ? name : Layout.transliterate(name);
             }
-            return r.guest_name || '—';
+            // Прочерк вместо имени ничего не объясняет: это бронь, по которой
+            // ещё не нажали «Заселить». Называем вещи своими именами.
+            return r.guest_name || (t('expected_guest_row') || 'Ожидается заезд');
         }
 
         function formatShortDate(dateStr) {
