@@ -350,7 +350,7 @@ function getSortValue(r, key) {
         case 'name':  return getDisplayName(r).toLowerCase();
         case 'dates': return r.check_in || '';
         case 'room':  return getRoomText(r).toLowerCase();
-        case 'meals': return r.has_meals ? 0 : 1;
+        case 'meals': return r.has_meals !== false ? 0 : 1;
     }
 }
 
@@ -397,7 +397,8 @@ function buildTable(residents, slug) {
         const nameHtml = link ? `<a href="${link}">${name}</a>` : name;
         const dates = formatDateRange(r);
         const room = getRoomText(r);
-        const mealBadge = r.has_meals
+        // у брони питание не заполнено — это «пока неизвестно», а не отказ
+        const mealBadge = r.has_meals !== false
             ? `<span class="meal-badge yes">${t('dashboard_eating')}</span>`
             : `<span class="meal-badge no">${t('dashboard_not_eating')}</span>`;
 
@@ -419,7 +420,7 @@ function renderCategorySection(slug, catName, residents) {
     const cfg = CATEGORY_CONFIG[slug] || CATEGORY_CONFIG.guest;
     const icon = CATEGORY_ICONS[slug] || CATEGORY_ICONS.guest;
     const housing = residents.filter(r => r.rooms).length;
-    const eating = residents.filter(r => r.has_meals).length;
+    const eating = residents.filter(r => r.has_meals !== false).length;
     const subtitle = `${residents.length} ${t('dashboard_total_short')} / ${housing} ${t('dashboard_housed_short')} / ${eating} ${t('dashboard_eating_short')}`;
 
     groupedData[slug] = residents;
@@ -551,7 +552,7 @@ function renderDashboard(present) {
     // Metrics — всегда от полного набора
     function setMetric(idPrefix, arr) {
         const total = arr.length;
-        const eating = arr.filter(r => r.has_meals).length;
+        const eating = arr.filter(r => r.has_meals !== false).length;
         const housing = arr.filter(r => r.rooms).length;
         document.getElementById(idPrefix).textContent = `${total} / ${housing} / ${eating}`;
         document.getElementById(idPrefix + 'Sub').textContent = `${t('dashboard_total_short')} / ${t('dashboard_housed_short')} / ${t('dashboard_eating_short')}`;
