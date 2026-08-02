@@ -398,6 +398,26 @@ Deno.serve(async (req) => {
     return new Response("ok");
   }
 
+  // ---------- /продолжить — вернуться к незавершённой заявке ----------
+  // Вопрос ВГ: у заявки нет срока годности, но бот раньше просил прислать
+  // трату заново, если не помнил, где карточка. Человек уже всё написал —
+  // достаём заявку сами и присылаем свежую карточку.
+  if (/^\/(продолжить|continue)(\s|$)/i.test(text)) {
+    const { data: draftId } = await supa.rpc("tg_my_unfinished_draft", {
+      p_chat: m.chat.id, p_tg_user: m.from.id,
+    });
+    if (!draftId) {
+      await tg("sendMessage", {
+        chat_id: m.chat.id, reply_to_message_id: m.message_id,
+        text: "Незавершённых заявок за вами нет — всё в порядке.",
+      });
+      return new Response("ok");
+    }
+    const { data: st } = await supa.rpc("tg_patch_draft", { p_id: draftId, p: {} });
+    if (st?.ok) await renderCard(m.chat.id, null, draftId, st, m.message_id);
+    return new Response("ok");
+  }
+
   // ---------- /вкушающие — сколько готовить (просьба Адриана, 02.08.2026) ----------
   // Повар спрашивает прямо в чате, не открывая сайт. Считает та же функция,
   // что и меню на сайте, — расхождения быть не может.
