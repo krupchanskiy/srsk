@@ -417,19 +417,25 @@ function formatEatingDetailed(dateStr) {
         const total = mealTotal(mc);
         if (total === 0) return '';
 
+        // Каждая пара «кто — сколько» не должна разрываться переносом:
+        // «Ожидаются –» на одной строке и «8» на другой не читается.
+        const nb = s => `<span class="whitespace-nowrap">${s}</span>`;
         const parts = [];
-        if (mc.team) parts.push(`${t('status_team')} – ${mc.team}`);
-        if (mc.volunteers) parts.push(`${t('category_volunteer')} – ${mc.volunteers}`);
-        if (mc.vips) parts.push(`${t('category_vip')} – ${mc.vips}`);
-        if (mc.guests) parts.push(`${t('status_guest')} – ${mc.guests}`);
-        if (mc.groups) parts.push(`${t('nav_groups')} – ${mc.groups}`);
+        if (mc.team) parts.push(nb(`${t('status_team')} – ${mc.team}`));
+        if (mc.volunteers) parts.push(nb(`${t('category_volunteer')} – ${mc.volunteers}`));
+        if (mc.vips) parts.push(nb(`${t('category_vip')} – ${mc.vips}`));
+        if (mc.guests) parts.push(nb(`${t('status_guest')} – ${mc.guests}`));
+        if (mc.groups) parts.push(nb(`${t('nav_groups')} – ${mc.groups}`));
         // отдельной позицией: повар видит, где факт, а где ожидание
-        if (mc.expected) parts.push(`${t('expected_guests')} – ${mc.expected}`);
+        if (mc.expected) parts.push(nb(`${t('expected_guests')} – ${mc.expected}`));
 
         const cookPortions = dayMenu?.[mealKey]?.portions;
         const hasCookOverride = cookPortions && cookPortions !== total;
 
-        let line = `<span class="text-sm">${label}: ${parts.join(', ')} = ${total}</span>`;
+        // Итог держим при последней позиции и выделяем: даже если строка
+        // перенеслась, глаз находит главное число сразу.
+        let line = `<span class="text-sm">${nb(`${label}:`)} ${parts.join(', ')}`
+                 + `${nb(`&nbsp;= <b>${total}</b>`)}</span>`;
         if (hasCookOverride) {
             line += ` <span class="text-sm font-bold">→ ${t('cook')}: ${cookPortions}</span>`;
         }
