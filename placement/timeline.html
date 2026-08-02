@@ -678,7 +678,7 @@
                             <label class="label py-1">
                                 <span class="label-text font-medium" data-i18n="check_in">Заезд</span>
                             </label>
-                            <input type="date" name="check_in" id="checkinDateIn" class="input input-bordered input-sm w-full" required />
+                            <input type="date" name="check_in" id="checkinDateIn" class="input input-bordered input-sm w-full" required onchange="suggestRetreat()" />
                             <label class="label cursor-pointer justify-start gap-2 py-1">
                                 <input type="checkbox" name="early_checkin" class="checkbox checkbox-sm checkbox-primary" />
                                 <span class="label-text text-sm" data-i18n="timeline_early_checkin">Ранний заезд</span>
@@ -688,7 +688,7 @@
                             <label class="label py-1">
                                 <span class="label-text font-medium" data-i18n="check_out">Выезд</span>
                             </label>
-                            <input type="date" name="check_out" id="checkinDateOut" class="input input-bordered input-sm w-full" />
+                            <input type="date" name="check_out" id="checkinDateOut" class="input input-bordered input-sm w-full" onchange="suggestRetreat()" />
                             <label class="label cursor-pointer justify-start gap-2 py-1">
                                 <input type="checkbox" name="late_checkout" class="checkbox checkbox-sm checkbox-primary" />
                                 <span class="label-text text-sm" data-i18n="timeline_late_checkout">Поздний выезд</span>
@@ -697,6 +697,18 @@
                     </div>
 
                     <!-- Питание -->
+                    <!-- Ретрит: подставляется по датам, но остаётся на выбор.
+                         Кто-то приезжает до ретрита, кто-то живёт в его даты,
+                         но волонтёром — за него ретрит решать нельзя. -->
+                    <div class="form-control mt-3">
+                        <label class="label py-1">
+                            <span class="label-text font-medium" data-i18n="nav_retreats">Ретрит</span>
+                            <span class="label-text-alt opacity-60" id="checkinRetreatHint"></span>
+                        </label>
+                        <select name="retreat_id" id="checkinRetreat" class="select select-bordered select-sm w-full"
+                                onchange="this.dataset.touched='1'"></select>
+                    </div>
+
                     <div class="form-control mt-3">
                         <label class="label py-1">
                             <span class="label-text font-medium" data-i18n="timeline_meal">Питание</span>
@@ -1025,14 +1037,14 @@
     <script src="../js/translit.js"></script>
     <script src="../js/auto-translate.js"></script>
     <script src="../js/date-utils.js?v=3"></script>
-    <script src="../js/layout.js?v=40"></script>
+    <script src="../js/layout.js?v=41"></script>
     <script>
     function toggleFullscreen(btn) {
         const isFS = document.body.classList.toggle('board-fullscreen');
         if (btn) { btn.classList.toggle('btn-active', isFS); btn.title = isFS ? Layout.t('normal_view') : Layout.t('fullscreen'); }
     }
     </script>
-    <script src="../js/pages/timeline.js?v=13"></script>
+    <script src="../js/pages/timeline.js?v=14"></script>
 
 </body>
 </html>

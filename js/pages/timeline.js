@@ -32,6 +32,7 @@ let ekadashiDays = new Set();
 
 // Фактическое время прибытия/отъезда из retreat_registrations
 let retreatTimesMap = new Map();
+let allRetreats = [];         // для выбора ретрита при заселении
 let debtorsSet = new Set();   // `${vaishnava_id}_${retreat_id}` — участники с долгом по финмодулю
 
 // Флаг права на редактирование таймлайна
@@ -110,6 +111,7 @@ async function loadTimelineData() {
     const rooms = roomsRes.data || [];
     const residents = residentsRes.data || [];
     const retreats = retreatsRes.data || [];
+    allRetreats = retreats;
     const cleanings = cleaningsRes.data || [];
 
     // Строим Set dayIndex-ов для Экадаши
@@ -756,6 +758,57 @@ function selectVaishnava(id) {
     // Скрываем поля нового гостя
     document.getElementById('guestFields').classList.add('hidden');
     document.getElementById('checkinGuestName').value = '';
+    suggestRetreat();
+}
+
+// ==================== РЕТРИТ ПРИ ЗАСЕЛЕНИИ ====================
+// Раньше шахматка вообще не связывала гостя с ретритом — отсюда 45 записей,
+// где человек живёт, а система не знает, что он участник: ни долг при выезде
+// не проверить, ни расселение. Теперь подставляем сами, но оставляем на выбор:
+// кто-то приезжает до ретрита, а кто-то живёт в его даты волонтёром.
+function fillRetreatSelect(selectedId) {
+    const sel = document.getElementById('checkinRetreat');
+    if (!sel) return;
+    sel.innerHTML = `<option value="">${Layout.t('timeline_no_retreat') || '— без ретрита —'}</option>`
+        + allRetreats.map(r =>
+            `<option value="${r.id}" ${r.id === selectedId ? 'selected' : ''}>${Layout.escapeHtml(Layout.getName(r))}</option>`
+        ).join('');
+}
+
+// Подсказать ретрит по человеку и датам: берём регистрацию, чей ретрит
+// пересекается с проживанием. Если подходит несколько — не выбираем за
+// человека, показываем подсказку.
+async function suggestRetreat() {
+    const hint = document.getElementById('checkinRetreatHint');
+    const sel = document.getElementById('checkinRetreat');
+    if (!sel || !hint) return;
+    if (sel.dataset.touched === '1') return;   // казначей выбрал сам — не перебиваем
+
+    const vId = document.getElementById('checkinVaishnavId').value;
+    const from = document.getElementById('checkinDateIn').value;
+    const to = document.getElementById('checkinDateOut').value || from;
+    hint.textContent = '';
+    if (!vId || !from) { fillRetreatSelect(''); return; }
+
+    const { data } = await Layout.db
+        .from('retreat_registrations')
+        .select('retreat_id, retreats(id, name_ru, name_en, name_hi, start_date, end_date)')
+        .eq('vaishnava_id', vId)
+        .eq('is_deleted', false)
+        .not('status', 'in', '("cancelled","rejected")');
+
+    const fits = (data || []).filter(r => r.retreats
+        && r.retreats.start_date <= to && r.retreats.end_date >= from);
+
+    if (fits.length === 1) {
+        fillRetreatSelect(fits[0].retreat_id);
+        hint.textContent = Layout.t('timeline_retreat_auto') || 'подставлено по регистрации';
+    } else if (fits.length > 1) {
+        fillRetreatSelect('');
+        hint.textContent = Layout.t('timeline_retreat_many') || 'подходит несколько — выберите';
+    } else {
+        fillRetreatSelect('');
+    }
 }
 
 function clearVaishnavSelection() {
@@ -764,6 +817,9 @@ function clearVaishnavSelection() {
     document.getElementById('clearVaishnava').classList.add('hidden');
     // Показываем поля нового гостя
     document.getElementById('guestFields').classList.remove('hidden');
+    const sel = document.getElementById('checkinRetreat');
+    if (sel) delete sel.dataset.touched;
+    suggestRetreat();
 }
 
 // Закрытие подсказок при клике вне
@@ -798,6 +854,9 @@ async function saveCheckin(e) {
         check_out: form.check_out.value || null,
         early_checkin: form.early_checkin.checked,
         late_checkout: form.late_checkout.checked,
+        // Ретрит подставляется по датам, но остаётся на выбор: без него
+        // человек не считается участником — не увидим ни долг, ни расселение
+        retreat_id: form.retreat_id?.value || null,
         meal_type: mealTypeVal,
         has_housing: true,
         has_meals: mealTypeVal !== 'self',
@@ -1765,6 +1824,8 @@ async function convertToCheckin() {
     document.getElementById('checkinForm').reset();
     document.getElementById('checkinDateIn').value = res.check_in;
     document.getElementById('checkinDateOut').value = res.check_out || '';
+    delete document.getElementById('checkinRetreat').dataset.touched;
+    fillRetreatSelect(res.retreat_id || '');
 
     if (res.early_checkin) {
         document.querySelector('#checkinForm [name="early_checkin"]').checked = true;
