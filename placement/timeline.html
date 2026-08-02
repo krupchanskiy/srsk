@@ -706,6 +706,18 @@
                             <option value="child" data-i18n="timeline_meal_child">Детское</option>
                             <option value="self" data-i18n="timeline_meal_self">Самостоятельно</option>
                         </select>
+                        <!-- Галочки — основа расчёта порций на кухне. По умолчанию
+                             стоят обе: гость питается, пока не сказано иное. -->
+                        <div class="flex gap-4 mt-2" data-prasad-meals>
+                            <label class="label cursor-pointer justify-start gap-2 py-1">
+                                <input type="checkbox" name="breakfast" class="checkbox checkbox-sm checkbox-primary" checked />
+                                <span class="label-text text-sm" data-i18n="breakfast">Завтрак</span>
+                            </label>
+                            <label class="label cursor-pointer justify-start gap-2 py-1">
+                                <input type="checkbox" name="lunch" class="checkbox checkbox-sm checkbox-primary" checked />
+                                <span class="label-text text-sm" data-i18n="lunch">Обед</span>
+                            </label>
+                        </div>
                     </div>
 
                     <!-- Примечания -->
@@ -787,6 +799,23 @@
                             <span class="label-text font-medium" data-i18n="booking_beds_count">Количество мест</span>
                         </label>
                         <input type="number" name="beds_count" min="1" value="1" class="input input-bordered input-sm w-full" required />
+                    </div>
+
+                    <!-- Прасад: с брони и начинается расчёт порций на кухне -->
+                    <div class="form-control mt-3">
+                        <label class="label py-1">
+                            <span class="label-text font-medium" data-i18n="prasad_title">Прасад</span>
+                        </label>
+                        <div class="flex gap-4">
+                            <label class="label cursor-pointer justify-start gap-2 py-1">
+                                <input type="checkbox" name="breakfast" class="checkbox checkbox-sm checkbox-info" checked />
+                                <span class="label-text text-sm" data-i18n="breakfast">Завтрак</span>
+                            </label>
+                            <label class="label cursor-pointer justify-start gap-2 py-1">
+                                <input type="checkbox" name="lunch" class="checkbox checkbox-sm checkbox-info" checked />
+                                <span class="label-text text-sm" data-i18n="lunch">Обед</span>
+                            </label>
+                        </div>
                     </div>
 
                     <!-- Примечания -->
@@ -1003,7 +1032,7 @@
         if (btn) { btn.classList.toggle('btn-active', isFS); btn.title = isFS ? Layout.t('normal_view') : Layout.t('fullscreen'); }
     }
     </script>
-    <script src="../js/pages/timeline.js?v=12"></script>
+    <script src="../js/pages/timeline.js?v=13"></script>
 
 </body>
 </html>

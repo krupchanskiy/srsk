@@ -801,6 +801,9 @@ async function saveCheckin(e) {
         meal_type: mealTypeVal,
         has_housing: true,
         has_meals: mealTypeVal !== 'self',
+        // Галочки «Прасад» — основа расчёта порций на кухне
+        breakfast: form.breakfast?.checked ?? true,
+        lunch: form.lunch?.checked ?? true,
         notes: form.notes.value || null,
         status: 'confirmed'
     };
@@ -849,6 +852,8 @@ async function saveBooking(e) {
     // Создаём бронирование
     const earlyCheckin = form.early_checkin.checked;
     const lateCheckout = form.late_checkout.checked;
+    const bookingBreakfast = form.breakfast?.checked ?? true;
+    const bookingLunch = form.lunch?.checked ?? true;
     const bookingName = form.name.value.trim() || null;
 
     const bookingData = {
@@ -888,6 +893,9 @@ async function saveBooking(e) {
             late_checkout: lateCheckout,
             has_housing: true,
             has_meals: null,
+            // Питание считается уже с брони, не дожидаясь заселения
+            breakfast: bookingBreakfast,
+            lunch: bookingLunch,
             status: 'confirmed'
         });
     }
@@ -1764,6 +1772,10 @@ async function convertToCheckin() {
     if (res.late_checkout) {
         document.querySelector('#checkinForm [name="late_checkout"]').checked = true;
     }
+    // Питание перенеслось с брони: если при бронировании завтрак сняли,
+    // заселение не должно втихую вернуть его обратно.
+    document.querySelector('#checkinForm [name="breakfast"]').checked = res.breakfast !== false;
+    document.querySelector('#checkinForm [name="lunch"]').checked = res.lunch !== false;
 
     clearVaishnavSelection();
 
