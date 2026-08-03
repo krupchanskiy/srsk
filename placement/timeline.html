@@ -764,6 +764,25 @@
                         <input type="text" name="name" class="input input-bordered input-sm w-full" placeholder="Например: Группа из Москвы" data-i18n-placeholder="booking_name_placeholder" />
                     </div>
 
+                    <!-- Гость из справочника: не обязателен, но если выбран —
+                         бронь сразу привязана к человеку (долг, питание, «без места») -->
+                    <div class="form-control mb-3">
+                        <label class="label py-1">
+                            <span class="label-text font-medium" data-i18n="timeline_vaishnava">Вайшнав</span>
+                        </label>
+                        <div class="relative">
+                            <input type="hidden" name="vaishnava_id" id="bookingVaishnavId" />
+                            <input type="text" id="bookingVaishnavSearch" class="input input-bordered input-sm w-full pr-10"
+                                   placeholder="Поиск по имени..." data-i18n-placeholder="timeline_search_by_name"
+                                   autocomplete="off"
+                                   oninput="searchBookingVaishnavas(this.value)" />
+                            <div class="absolute right-2 top-1/2 -translate-y-1/2">
+                                <button type="button" class="btn btn-ghost btn-xs hidden" id="clearBookingVaishnava" onclick="clearBookingVaishnavSelection()">✕</button>
+                            </div>
+                            <div id="bookingVaishnavaSuggestions" class="hidden absolute z-50 w-full bg-base-100 shadow-lg rounded-lg mt-1 max-h-48 overflow-y-auto border"></div>
+                        </div>
+                    </div>
+
                     <!-- Контакт -->
                     <div class="grid grid-cols-2 gap-3 mb-3">
                         <div class="form-control">
@@ -1054,7 +1073,7 @@
         if (btn) { btn.classList.toggle('btn-active', isFS); btn.title = isFS ? Layout.t('normal_view') : Layout.t('fullscreen'); }
     }
     </script>
-    <script src="../js/pages/timeline.js?v=15"></script>
+    <script src="../js/pages/timeline.js?v=16"></script>
 
 </body>
 </html>

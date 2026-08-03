@@ -713,10 +713,10 @@ function showBookingForm() {
     document.getElementById('bookingDateOut').value =
         document.getElementById('modalCheckOut').value;
 
-    // Ретрит: свежая подсказка по датам на каждое открытие
+    // Гость и ретрит: чистый старт на каждое открытие
     const bookingRetreatSel = document.getElementById('bookingRetreat');
     if (bookingRetreatSel) delete bookingRetreatSel.dataset.touched;
-    suggestBookingRetreat();
+    clearBookingVaishnavSelection();
 }
 
 // ===== Поиск вайшнавов =====
@@ -818,9 +818,62 @@ async function suggestRetreat() {
     }
 }
 
-// Ретрит в форме бронирования: человека ещё нет, поэтому подсказываем
-// только по пересечению дат. Один подходящий — подставляем, иначе на выбор.
-function suggestBookingRetreat() {
+// ===== Гость из справочника в форме бронирования =====
+// Не обязателен (безымянная бронь — норма), но если выбран — бронь сразу
+// привязана к человеку: заработают долг, питание и «без места».
+function searchBookingVaishnavas(query) {
+    const suggestionsEl = document.getElementById('bookingVaishnavaSuggestions');
+    if (!query || query.length < 2) {
+        suggestionsEl.classList.add('hidden');
+        return;
+    }
+    const q = query.toLowerCase();
+    const matches = vaishnavas.filter(v => {
+        const name = getVaishnavName(v).toLowerCase();
+        const phone = (v.phone || '').toLowerCase();
+        return name.includes(q) || phone.includes(q);
+    }).slice(0, 10);
+
+    if (matches.length === 0) {
+        suggestionsEl.innerHTML = `<div class="p-3 text-gray-500 text-sm">${t('timeline_not_found')}</div>`;
+    } else {
+        suggestionsEl.innerHTML = matches.map(v =>
+            `<div class="p-2 hover:bg-base-200 cursor-pointer" data-action="select-booking-vaishnava" data-id="${v.id}">${e(getVaishnavName(v))}</div>`
+        ).join('');
+    }
+    suggestionsEl.classList.remove('hidden');
+}
+
+function selectBookingVaishnava(id) {
+    const v = vaishnavas.find(v => v.id === id);
+    const name = v ? getVaishnavName(v) : '';
+    document.getElementById('bookingVaishnavId').value = id;
+    document.getElementById('bookingVaishnavSearch').value = name;
+    document.getElementById('bookingVaishnavaSuggestions').classList.add('hidden');
+    document.getElementById('clearBookingVaishnava').classList.remove('hidden');
+    // Контакт по умолчанию — сам гость
+    const form = document.getElementById('bookingForm');
+    if (form && !form.contact_name.value.trim()) form.contact_name.value = name;
+    suggestBookingRetreat();
+}
+
+function clearBookingVaishnavSelection() {
+    document.getElementById('bookingVaishnavId').value = '';
+    document.getElementById('bookingVaishnavSearch').value = '';
+    document.getElementById('clearBookingVaishnava').classList.add('hidden');
+    const sel = document.getElementById('bookingRetreat');
+    if (sel) delete sel.dataset.touched;
+    suggestBookingRetreat();
+}
+
+document.getElementById('bookingVaishnavaSuggestions')?.addEventListener('click', ev => {
+    const el = ev.target.closest('[data-action="select-booking-vaishnava"]');
+    if (el) selectBookingVaishnava(el.dataset.id);
+});
+
+// Ретрит в форме бронирования: если выбран человек — сначала пробуем его
+// регистрации (как при заселении), иначе подсказываем по пересечению дат.
+async function suggestBookingRetreat() {
     const sel = document.getElementById('bookingRetreat');
     const hint = document.getElementById('bookingRetreatHint');
     if (!sel || !hint) return;
@@ -830,25 +883,45 @@ function suggestBookingRetreat() {
     const to = document.getElementById('bookingDateOut').value || from;
     hint.textContent = '';
 
+    const vId = document.getElementById('bookingVaishnavId')?.value;
+    if (vId && from) {
+        const { data } = await Layout.db
+            .from('retreat_registrations')
+            .select('retreat_id, retreats(id, start_date, end_date)')
+            .eq('vaishnava_id', vId)
+            .eq('is_deleted', false)
+            .not('status', 'in', '("cancelled","rejected")');
+        const regFits = (data || []).filter(r => r.retreats
+            && r.retreats.start_date <= to && r.retreats.end_date >= from);
+        if (regFits.length === 1) {
+            fillBookingRetreatSelect(regFits[0].retreat_id);
+            hint.textContent = Layout.t('timeline_retreat_auto') || 'подставлено по регистрации';
+            return;
+        }
+    }
+
     const fits = from
         ? allRetreats.filter(r => r.start_date <= to && r.end_date >= from)
         : [];
-    const fillSel = id => {
-        sel.innerHTML = `<option value="">${Layout.t('timeline_no_retreat') || '— без ретрита —'}</option>`
-            + allRetreats.map(r =>
-                `<option value="${r.id}" ${r.id === id ? 'selected' : ''}>${Layout.escapeHtml(Layout.getName(r))}</option>`
-            ).join('');
-    };
 
     if (fits.length === 1) {
-        fillSel(fits[0].id);
+        fillBookingRetreatSelect(fits[0].id);
         hint.textContent = Layout.t('timeline_retreat_by_dates') || 'подставлено по датам';
     } else if (fits.length > 1) {
-        fillSel('');
+        fillBookingRetreatSelect('');
         hint.textContent = Layout.t('timeline_retreat_many') || 'подходит несколько — выберите';
     } else {
-        fillSel('');
+        fillBookingRetreatSelect('');
     }
+}
+
+function fillBookingRetreatSelect(selectedId) {
+    const sel = document.getElementById('bookingRetreat');
+    if (!sel) return;
+    sel.innerHTML = `<option value="">${Layout.t('timeline_no_retreat') || '— без ретрита —'}</option>`
+        + allRetreats.map(r =>
+            `<option value="${r.id}" ${r.id === selectedId ? 'selected' : ''}>${Layout.escapeHtml(Layout.getName(r))}</option>`
+        ).join('');
 }
 
 function clearVaishnavSelection() {
@@ -868,6 +941,11 @@ document.addEventListener('click', (e) => {
     const searchInput = document.getElementById('checkinVaishnavSearch');
     if (suggestions && !suggestions.contains(e.target) && e.target !== searchInput) {
         suggestions.classList.add('hidden');
+    }
+    const bookingSuggestions = document.getElementById('bookingVaishnavaSuggestions');
+    const bookingSearch = document.getElementById('bookingVaishnavSearch');
+    if (bookingSuggestions && !bookingSuggestions.contains(e.target) && e.target !== bookingSearch) {
+        bookingSuggestions.classList.add('hidden');
     }
 });
 
@@ -959,6 +1037,7 @@ async function saveBooking(e) {
     const bookingName = form.name.value.trim() || null;
 
     const bookingRetreatId = form.retreat_id?.value || null;
+    const bookingVaishnavaId = form.vaishnava_id?.value || null;
 
     const bookingData = {
         name: bookingName,
@@ -986,12 +1065,14 @@ async function saveBooking(e) {
         return;
     }
 
-    // Создаём placeholder резидентов для бронирования
+    // Создаём placeholder резидентов для бронирования.
+    // Первое место — за выбранным гостем (если указан), остальные безымянные.
     const residents = [];
     for (let i = 0; i < bedsCount; i++) {
         residents.push({
             room_id: modalContext.roomId,
             booking_id: booking.id,
+            vaishnava_id: i === 0 ? bookingVaishnavaId : null,
             // Ретрит с брони: без него место не свяжется ни с регистрацией,
             // ни с долгом при выезде
             retreat_id: bookingRetreatId,
