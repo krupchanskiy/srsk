@@ -47,8 +47,8 @@ BEGIN
       LEFT JOIN bookings bk ON bk.id = res.booking_id
       LEFT JOIN tg_checkin_alerts a ON a.resident_id = res.id
      WHERE res.status = 'confirmed'
-       -- «Заселить» ещё не нажимали: имени нет
-       AND res.vaishnava_id IS NULL AND COALESCE(btrim(res.guest_name), '') = ''
+       -- «Заселить» ещё не нажимали: приезд не отмечен
+       AND res.arrived_at IS NULL
        AND res.check_in <= current_date
        AND (res.check_out IS NULL OR res.check_out >= current_date)
        -- раз в день, не чаще

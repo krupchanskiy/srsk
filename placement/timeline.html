@@ -696,7 +696,6 @@
                         </div>
                     </div>
 
-                    <!-- Питание -->
                     <!-- Ретрит: подставляется по датам, но остаётся на выбор.
                          Кто-то приезжает до ретрита, кто-то живёт в его даты,
                          но волонтёром — за него ретрит решать нельзя. -->
@@ -787,7 +786,7 @@
                             <label class="label py-1">
                                 <span class="label-text font-medium" data-i18n="check_in">Заезд</span>
                             </label>
-                            <input type="date" name="check_in" id="bookingDateIn" class="input input-bordered input-sm w-full" required />
+                            <input type="date" name="check_in" id="bookingDateIn" class="input input-bordered input-sm w-full" required onchange="suggestBookingRetreat()" />
                             <label class="label cursor-pointer justify-start gap-2 py-1">
                                 <input type="checkbox" name="early_checkin" class="checkbox checkbox-sm checkbox-info" />
                                 <span class="label-text text-sm" data-i18n="timeline_early_checkin">Ранний заезд</span>
@@ -797,7 +796,7 @@
                             <label class="label py-1">
                                 <span class="label-text font-medium" data-i18n="check_out">Выезд</span>
                             </label>
-                            <input type="date" name="check_out" id="bookingDateOut" class="input input-bordered input-sm w-full" required />
+                            <input type="date" name="check_out" id="bookingDateOut" class="input input-bordered input-sm w-full" required onchange="suggestBookingRetreat()" />
                             <label class="label cursor-pointer justify-start gap-2 py-1">
                                 <input type="checkbox" name="late_checkout" class="checkbox checkbox-sm checkbox-info" />
                                 <span class="label-text text-sm" data-i18n="timeline_late_checkout">Поздний выезд</span>
@@ -811,6 +810,17 @@
                             <span class="label-text font-medium" data-i18n="booking_beds_count">Количество мест</span>
                         </label>
                         <input type="number" name="beds_count" min="1" value="1" class="input input-bordered input-sm w-full" required />
+                    </div>
+
+                    <!-- Ретрит: подставляется по пересечению дат, но остаётся
+                         на выбор — гость может жить в даты ретрита, не участвуя -->
+                    <div class="form-control mt-3">
+                        <label class="label py-1">
+                            <span class="label-text font-medium" data-i18n="nav_retreats">Ретрит</span>
+                            <span class="label-text-alt opacity-60" id="bookingRetreatHint"></span>
+                        </label>
+                        <select name="retreat_id" id="bookingRetreat" class="select select-bordered select-sm w-full"
+                                onchange="this.dataset.touched='1'"></select>
                     </div>
 
                     <!-- Прасад: с брони и начинается расчёт порций на кухне -->
@@ -1044,7 +1054,7 @@
         if (btn) { btn.classList.toggle('btn-active', isFS); btn.title = isFS ? Layout.t('normal_view') : Layout.t('fullscreen'); }
     }
     </script>
-    <script src="../js/pages/timeline.js?v=14"></script>
+    <script src="../js/pages/timeline.js?v=15"></script>
 
 </body>
 </html>

@@ -265,9 +265,11 @@ async function loadTimelineData() {
                         guestName = res.bookings.name || res.bookings.contact_name || '';
                     }
 
-                    // Определяем, это бронирование или заселение
-                    // Бронирование = есть booking_id без реального гостя, ИЛИ статус 'booked'
-                    const isBooking = (res.booking_id && !res.vaishnava_id && !res.guest_name) || res.status === 'booked';
+                    // Определяем, это бронирование или заселение.
+                    // Бронь = гость ещё не отмечен приехавшим («Заселить» не нажимали).
+                    // Раньше признаком было пустое имя — из-за этого бронь с именем
+                    // выглядела заселением и теряла кнопку «Заселить» (03.08.2026).
+                    const isBooking = res.status === 'booked' || !res.arrived_at;
 
                     // Получаем цвет категории
                     const category = res.resident_categories;
@@ -710,6 +712,11 @@ function showBookingForm() {
         document.getElementById('modalCheckIn').value;
     document.getElementById('bookingDateOut').value =
         document.getElementById('modalCheckOut').value;
+
+    // Ретрит: свежая подсказка по датам на каждое открытие
+    const bookingRetreatSel = document.getElementById('bookingRetreat');
+    if (bookingRetreatSel) delete bookingRetreatSel.dataset.touched;
+    suggestBookingRetreat();
 }
 
 // ===== Поиск вайшнавов =====
@@ -811,6 +818,39 @@ async function suggestRetreat() {
     }
 }
 
+// Ретрит в форме бронирования: человека ещё нет, поэтому подсказываем
+// только по пересечению дат. Один подходящий — подставляем, иначе на выбор.
+function suggestBookingRetreat() {
+    const sel = document.getElementById('bookingRetreat');
+    const hint = document.getElementById('bookingRetreatHint');
+    if (!sel || !hint) return;
+    if (sel.dataset.touched === '1') return;   // выбрали сами — не перебиваем
+
+    const from = document.getElementById('bookingDateIn').value;
+    const to = document.getElementById('bookingDateOut').value || from;
+    hint.textContent = '';
+
+    const fits = from
+        ? allRetreats.filter(r => r.start_date <= to && r.end_date >= from)
+        : [];
+    const fillSel = id => {
+        sel.innerHTML = `<option value="">${Layout.t('timeline_no_retreat') || '— без ретрита —'}</option>`
+            + allRetreats.map(r =>
+                `<option value="${r.id}" ${r.id === id ? 'selected' : ''}>${Layout.escapeHtml(Layout.getName(r))}</option>`
+            ).join('');
+    };
+
+    if (fits.length === 1) {
+        fillSel(fits[0].id);
+        hint.textContent = Layout.t('timeline_retreat_by_dates') || 'подставлено по датам';
+    } else if (fits.length > 1) {
+        fillSel('');
+        hint.textContent = Layout.t('timeline_retreat_many') || 'подходит несколько — выберите';
+    } else {
+        fillSel('');
+    }
+}
+
 function clearVaishnavSelection() {
     document.getElementById('checkinVaishnavId').value = '';
     document.getElementById('checkinVaishnavSearch').value = '';
@@ -857,6 +897,9 @@ async function saveCheckin(e) {
         // Ретрит подставляется по датам, но остаётся на выбор: без него
         // человек не считается участником — не увидим ни долг, ни расселение
         retreat_id: form.retreat_id?.value || null,
+        // «Заселить» = человек на пороге: приезд фиксируется всегда.
+        // Заранее место держат через «Забронировать» или расселение ретрита.
+        arrived_at: new Date().toISOString(),
         meal_type: mealTypeVal,
         has_housing: true,
         has_meals: mealTypeVal !== 'self',
@@ -915,6 +958,8 @@ async function saveBooking(e) {
     const bookingLunch = form.lunch?.checked ?? true;
     const bookingName = form.name.value.trim() || null;
 
+    const bookingRetreatId = form.retreat_id?.value || null;
+
     const bookingData = {
         name: bookingName,
         contact_name: form.contact_name.value,
@@ -922,6 +967,7 @@ async function saveBooking(e) {
         check_in: form.check_in.value,
         check_out: form.check_out.value,
         beds_count: bedsCount,
+        retreat_id: bookingRetreatId,
         early_checkin: earlyCheckin,
         late_checkout: lateCheckout,
         notes: form.notes.value || null,
@@ -946,6 +992,9 @@ async function saveBooking(e) {
         residents.push({
             room_id: modalContext.roomId,
             booking_id: booking.id,
+            // Ретрит с брони: без него место не свяжется ни с регистрацией,
+            // ни с долгом при выезде
+            retreat_id: bookingRetreatId,
             check_in: form.check_in.value,
             check_out: form.check_out.value,
             early_checkin: earlyCheckin,
@@ -1783,10 +1832,12 @@ async function convertToCheckin() {
 
     // Если это бронирование с уже привязанным человеком (status='booked') —
     // просто меняем статус на confirmed без открытия формы
-    if (res.status === 'booked' && (res.vaishnava_id || res.guest_name)) {
+    // Человек в броне уже назван — заселение сводится к отметке о приезде,
+    // переспрашивать имя незачем.
+    if (!res.arrived_at && (res.vaishnava_id || res.guest_name)) {
         const { error } = await Layout.db
             .from('residents')
-            .update({ status: 'confirmed' })
+            .update({ status: 'confirmed', arrived_at: new Date().toISOString() })
             .eq('id', currentResident.id);
 
         if (error) {

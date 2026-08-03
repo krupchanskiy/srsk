@@ -52,7 +52,7 @@ BEGIN
     FOR r IN
       SELECT res.id, res.vaishnava_id, res.guest_name, res.retreat_id,
              res.check_in, res.check_out, res.early_checkin, res.late_checkout,
-             res.breakfast, res.lunch, rc.slug,
+             res.breakfast, res.lunch, res.arrived_at, rc.slug,
              -- время из регистрации на ретрит: у поля TIMESTAMPTZ «локальное»
              -- значение лежит как UTC, поэтому читаем его без сдвига
              (SELECT rr.arrival_datetime AT TIME ZONE 'UTC' FROM retreat_registrations rr
@@ -86,7 +86,10 @@ BEGIN
       IF r.breakfast IS false THEN v_bf := false; END IF;
       IF r.lunch IS false THEN v_ln := false; END IF;
 
-      IF r.vaishnava_id IS NULL AND COALESCE(btrim(r.guest_name), '') = '' THEN
+      -- Ожидаемый — тот, кто ещё не отмечен приехавшим. Раньше признаком было
+      -- пустое имя, из-за чего бронь с именем считалась дважды: и как место,
+      -- и как участник ретрита (02.08.2026).
+      IF r.arrived_at IS NULL THEN
         IF v_bf THEN bf_exp := bf_exp + 1; END IF;
         IF v_ln THEN ln_exp := ln_exp + 1; END IF;
       ELSIF r.slug = 'team' THEN

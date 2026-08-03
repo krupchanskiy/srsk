@@ -23,7 +23,7 @@ const EatingUtils = {
         const [residentsResult, guestRegResult, mealGroupsResult] = await Promise.all([
             Layout.db
                 .from('residents')
-                .select('id, vaishnava_id, guest_name, retreat_id, check_in, check_out, early_checkin, late_checkout, breakfast, lunch, resident_categories!inner(slug)')
+                .select('id, vaishnava_id, guest_name, retreat_id, check_in, check_out, early_checkin, late_checkout, breakfast, lunch, arrived_at, resident_categories!inner(slug)')
                 .eq('status', 'confirmed')
                 // У брони питание не заполнено (не «нет», а «пока неизвестно») —
                 // раньше такие записи выпадали из расчёта, и порций не хватало.
@@ -123,8 +123,10 @@ const EatingUtils = {
                     if (r.lunch === false) getsLunch = false;
 
                     const slug = r.resident_categories?.slug;
-                    // Ожидаемый: место забронировано, кто именно приедет — ещё не указано
-                    const isExpected = !r.vaishnava_id && !(r.guest_name || '').trim();
+                    // Ожидаемый — тот, кто ещё не отмечен приехавшим. Раньше
+                    // признаком было пустое имя, и бронь с именем считалась
+                    // дважды: как место и как участник ретрита.
+                    const isExpected = !r.arrived_at;
 
                     if (getsBreakfast) {
                         if (isExpected) bfExpected++;
