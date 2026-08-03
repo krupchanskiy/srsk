@@ -858,9 +858,13 @@ function selectBookingVaishnava(id) {
 }
 
 function clearBookingVaishnavSelection() {
-    document.getElementById('bookingVaishnavId').value = '';
-    document.getElementById('bookingVaishnavSearch').value = '';
-    document.getElementById('clearBookingVaishnava').classList.add('hidden');
+    // Элементов может не быть, пока браузер держит старый HTML (кэш 10 мин)
+    const idEl = document.getElementById('bookingVaishnavId');
+    const searchEl = document.getElementById('bookingVaishnavSearch');
+    const clearBtn = document.getElementById('clearBookingVaishnava');
+    if (idEl) idEl.value = '';
+    if (searchEl) searchEl.value = '';
+    if (clearBtn) clearBtn.classList.add('hidden');
     const sel = document.getElementById('bookingRetreat');
     if (sel) delete sel.dataset.touched;
     suggestBookingRetreat();
