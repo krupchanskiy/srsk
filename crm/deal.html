@@ -2814,6 +2814,9 @@ function openRoomBookingModal() {
 
     const params = new URLSearchParams({
         crm_deal_id:   dealId,
+        // Человек из сделки: бронь должна нести vaishnava_id, иначе размещение
+        // не свяжется ни с регистрацией, ни с долгом (разбор 03.08.2026)
+        vaishnava_id:  deal.vaishnava_id   || '',
         check_in:      checkIn,
         check_out:     checkOut,
         retreat_id:    retreat?.id         || '',

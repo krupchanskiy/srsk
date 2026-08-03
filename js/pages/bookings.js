@@ -18,6 +18,7 @@ let bookingBuildingId = null;
 
 // CRM mode: crm_deal_id из URL
 let crmDealId = null;
+let crmVaishnavaId = null; // человек из сделки — уходит в первое место брони
 let crmBuildingIds = []; // фильтр зданий при бронировании из CRM
 
 const statusColors = {
@@ -836,13 +837,17 @@ async function saveNewBooking() {
 
         if (bookingError) throw bookingError;
 
-        // Create placeholder residents for each selected bed
+        // Места брони: первое несёт человека из сделки (если бронь из CRM),
+        // остальные — безымянные спутники. Ретрит проставляется всем: иначе
+        // размещение не свяжется ни с регистрацией, ни с долгом при выезде.
         const residentsData = [];
-        bookingSelectedBeds.forEach(bedKey => {
+        [...bookingSelectedBeds].forEach((bedKey, idx) => {
             const [roomId] = bedKey.split('_');
             residentsData.push({
                 room_id: roomId,
                 booking_id: booking.id,
+                vaishnava_id: idx === 0 ? (crmVaishnavaId || null) : null,
+                retreat_id: form.retreat_id.value || null,
                 check_in: form.check_in.value,
                 check_out: form.check_out.value,
                 has_housing: true,
@@ -1079,6 +1084,7 @@ async function init() {
     // Проверяем CRM-режим (переход с карточки сделки)
     const urlParams = new URLSearchParams(window.location.search);
     crmDealId = urlParams.get('crm_deal_id') || null;
+    crmVaishnavaId = urlParams.get('vaishnava_id') || null;
 
     if (crmDealId) {
         // Показываем кнопку «Вернуться к сделке» только если НЕ в iframe
