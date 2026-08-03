@@ -1,0 +1,32 @@
+name: Signup authentication recovery
+
+on:
+  pull_request:
+    paths:
+      - 'js/signup-auth.js'
+      - 'guest-signup.html'
+      - 'team-signup.html'
+      - 'retreat.html'
+      - 'tests/signup-auth.test.cjs'
+      - '.github/workflows/signup-auth.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'js/signup-auth.js'
+      - 'guest-signup.html'
+      - 'team-signup.html'
+      - 'retreat.html'
+      - 'tests/signup-auth.test.cjs'
+      - '.github/workflows/signup-auth.yml'
+
+jobs:
+  auth-recovery-contract:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Run signup authentication recovery tests
+        run: node --test tests/signup-auth.test.cjs

@@ -579,6 +579,7 @@
     <!-- Scripts -->
     <script src="js/date-utils.js?v=3"></script>
     <script src="guest-portal/js/portal-config.js?v=3"></script>
+    <script src="js/signup-auth.js?v=1"></script>
     <script>
         const db = window.portalSupabase;
         let currentLang = localStorage.getItem('srsk_lang') || 'ru';
@@ -625,6 +626,8 @@
             retreat_success_hint: { ru: 'Мы свяжемся с вами для подтверждения', en: 'We will contact you for confirmation', hi: 'हम पुष्टि के लिए आपसे संपर्क करेंगे' },
             error_invalid_credentials: { ru: 'Неверный пароль', en: 'Invalid password', hi: 'गलत पासवर्ड' },
             error_email_taken: { ru: 'Этот email уже зарегистрирован', en: 'This email is already registered', hi: 'यह ईमेल पहले से पंजीकृत है' },
+            error_registration_incomplete: { ru: 'Аккаунт уже создан, но регистрация не завершена. Сбросьте пароль на странице входа и повторите регистрацию.', en: 'The account exists, but registration is incomplete. Reset the password on the login page and register again.', hi: 'खाता बन चुका है, लेकिन पंजीकरण पूरा नहीं हुआ। लॉगिन पेज पर पासवर्ड रीसेट करें और फिर से पंजीकरण करें।' },
+            error_confirm_email: { ru: 'Проверьте почту и подтвердите email, затем повторите регистрацию', en: 'Check your email, confirm it, and then register again', hi: 'अपना ईमेल जांचें, पुष्टि करें और फिर से पंजीकरण करें' },
             error_unknown: { ru: 'Произошла ошибка', en: 'An error occurred', hi: 'एक त्रुटि हुई' },
             error_password_reset_sent: { ru: 'Ссылка для сброса пароля отправлена на вашу почту', en: 'Password reset link sent to your email', hi: 'पासवर्ड रीसेट लिंक आपके ईमेल पर भेजा गया' },
             back_to_profile: { ru: 'в профиль', en: 'to profile', hi: 'प्रोफाइल' },
@@ -1165,20 +1168,15 @@
             };
 
             try {
-                // Создаём auth user
-                const { data: authData, error: signUpError } = await db.auth.signUp({
+                // Создаём Auth-пользователя или продолжаем оборванную регистрацию
+                const authData = await window.SignupAuth.ensureUser(db, {
                     email: userData.email,
-                    password: userData.password
-                });
-
-                if (signUpError) {
-                    if (signUpError.message.includes('already registered')) {
-                        showError('error_email_taken');
-                    } else {
-                        showError('error_unknown');
+                    password: userData.password,
+                    metadata: {
+                        full_name: `${userData.firstName} ${userData.lastName}`,
+                        spiritual_name: userData.spiritualName
                     }
-                    return;
-                }
+                });
 
                 // Создаём vaishnava через RPC функцию (обходит RLS)
                 const { data: registerResult, error: rpcError } = await db.rpc('register_guest', {
@@ -1218,7 +1216,13 @@
 
             } catch (error) {
                 console.error('Register error:', error);
-                showError('error_unknown');
+                if (error.code === 'account_exists_password_mismatch') {
+                    showError('error_registration_incomplete');
+                } else if (error.code === 'email_confirmation_required') {
+                    showError('error_confirm_email');
+                } else {
+                    showError('error_unknown');
+                }
             } finally {
                 spinner.classList.add('hidden');
             }

@@ -87,6 +87,7 @@
     </div>
 
     <script src="js/config.js?v=4"></script>
+    <script src="js/signup-auth.js?v=1"></script>
     <script>
         const db = window.supabaseClient;
 
@@ -99,7 +100,7 @@
             btn.innerHTML = '<span class="loading loading-spinner loading-sm"></span> Регистрация...';
 
             const formData = new FormData(e.target);
-            const email = formData.get('email');
+            const email = formData.get('email').trim().toLowerCase();
             const password = formData.get('password');
             const firstName = formData.get('first_name');
             const lastName = formData.get('last_name');
@@ -117,29 +118,17 @@
                     throw new Error('Вы уже зарегистрированы в системе. Используйте функцию восстановления пароля на странице входа.');
                 }
 
-                // 2. Создать Auth пользователя
-                const { data: authData, error: authError } = await db.auth.signUp({
+                // 2. Создать Auth-пользователя или продолжить оборванную регистрацию
+                const authData = await window.SignupAuth.ensureUser(db, {
                     email,
                     password,
-                    options: {
-                        data: {
-                            full_name: `${firstName} ${lastName}`,
-                            spiritual_name: spiritualName
-                        }
+                    metadata: {
+                        full_name: `${firstName} ${lastName}`,
+                        spiritual_name: spiritualName
                     }
                 });
 
-                if (authError) throw authError;
-
-                // 3. Залогинить (нужен authenticated для RPC)
-                const { error: signInError } = await db.auth.signInWithPassword({
-                    email,
-                    password
-                });
-
-                if (signInError) throw signInError;
-
-                // 4. Создать запись vaishnavas + роль Guest (через RPC)
+                // 3. Создать запись vaishnavas + роль Guest (через RPC)
                 const { data: vaishnavId, error: rpcError } = await db
                     .rpc('create_guest_account', {
                         p_user_id: authData.user.id,
@@ -152,7 +141,7 @@
 
                 if (rpcError) throw rpcError;
 
-                // 5. Перенаправить в гостевой портал
+                // 4. Перенаправить в гостевой портал
                 window.location.href = '/guest-portal/';
 
             } catch (err) {
@@ -161,7 +150,11 @@
                 const errorText = document.getElementById('errorText');
                 errorAlert.classList.remove('hidden');
 
-                if (err.message.includes('already registered')) {
+                if (err.code === 'account_exists_password_mismatch') {
+                    errorText.textContent = 'Аккаунт уже создан, но регистрация не завершена. На странице входа нажмите «Забыли пароль?», установите новый пароль и повторите регистрацию.';
+                } else if (err.code === 'email_confirmation_required') {
+                    errorText.textContent = 'Проверьте почту и подтвердите email, затем повторите регистрацию.';
+                } else if (err.message.includes('already registered')) {
                     errorText.textContent = 'Этот email уже зарегистрирован. Попробуйте войти.';
                 } else {
                     errorText.textContent = err.message || 'Произошла ошибка при регистрации';
