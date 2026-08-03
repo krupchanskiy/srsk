@@ -154,7 +154,11 @@ const EatingUtils = {
 
                     const arrivalDt = reg.arrival_datetime || arrivalFlight;
                     const departureDt = reg.departure_datetime || departureFlight;
-                    const effectiveStart = arrivalDt ? arrivalDt.slice(0, 10) : retreat.start_date;
+                    // Дата приезда неизвестна — не считаем. Раньше такой человек
+                    // числился едоком весь ретрит: на двухмесячном «Ретрите
+                    // Художников» это дало 25 лишних порций с первого дня.
+                    if (!arrivalDt) continue;
+                    const effectiveStart = arrivalDt.slice(0, 10);
                     const effectiveEnd = departureDt ? departureDt.slice(0, 10) : retreat.end_date;
 
                     if (dateStr < effectiveStart || dateStr > effectiveEnd) continue;

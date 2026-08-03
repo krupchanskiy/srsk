@@ -124,7 +124,12 @@ BEGIN
     LOOP
       v_arr := COALESCE(r.arr, r.arr_flight);
       v_dep := COALESCE(r.dep, r.dep_flight);
-      v_start := COALESCE(v_arr::date, r.start_date);
+      -- Дата приезда неизвестна — человека не считаем. Раньше его записывали
+      -- едоком на весь ретрит: на двухмесячном «Ретрите Художников» это дало
+      -- 25 лишних порций с первого дня, хотя люди заезжали позже (02.08.2026).
+      -- Приехавших расселяют, а расселённые считаются по размещению.
+      CONTINUE WHEN v_arr IS NULL;
+      v_start := v_arr::date;
       v_end   := COALESCE(v_dep::date, r.end_date);
       CONTINUE WHEN v_day < v_start OR v_day > v_end;
 
