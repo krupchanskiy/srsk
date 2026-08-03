@@ -19,9 +19,13 @@ DECLARE
   v_when text;
 BEGIN
   FOR r IN
+    -- Имя может лежать в самой брони: «бронь без имени» вместо «Адирадж д»
+    -- ресепшену бесполезно (замечание Адриана, 02.08.2026)
     SELECT COALESCE(NULLIF(v.spiritual_name, ''),
                     NULLIF(btrim(COALESCE(v.first_name,'') || ' ' || COALESCE(v.last_name,'')), ''),
-                    res.guest_name, 'бронь без имени') AS who,
+                    NULLIF(btrim(res.guest_name), ''),
+                    NULLIF(btrim(bk.name), ''), NULLIF(btrim(bk.contact_name), ''),
+                    'бронь без имени') AS who,
            rm.number AS room, b.name_ru AS building,
            res.early_checkin, res.late_checkout,
            (SELECT CASE WHEN p_direction = 'in' THEN rr.arrival_datetime ELSE rr.departure_datetime END
@@ -39,6 +43,7 @@ BEGIN
       LEFT JOIN vaishnavas v ON v.id = res.vaishnava_id
       LEFT JOIN rooms rm ON rm.id = res.room_id
       LEFT JOIN buildings b ON b.id = rm.building_id
+      LEFT JOIN bookings bk ON bk.id = res.booking_id
      WHERE res.status = 'confirmed'
        AND ((p_direction = 'in' AND res.check_in = p_date)
          OR (p_direction = 'out' AND res.check_out = p_date))

@@ -36,13 +36,16 @@ BEGIN
   FOR r IN
     SELECT COALESCE(NULLIF(v.spiritual_name, ''),
                     NULLIF(btrim(COALESCE(v.first_name,'') || ' ' || COALESCE(v.last_name,'')), ''),
-                    res.guest_name, 'бронь без имени') AS who,
+                    NULLIF(btrim(res.guest_name), ''),
+                    NULLIF(btrim(bk.name), ''), NULLIF(btrim(bk.contact_name), ''),
+                    'бронь без имени') AS who,
            rm.number AS room, b.name_ru AS building,
            res.vaishnava_id IS NULL AND COALESCE(btrim(res.guest_name), '') = '' AS is_expected
       FROM residents res
       LEFT JOIN vaishnavas v ON v.id = res.vaishnava_id
       LEFT JOIN rooms rm ON rm.id = res.room_id
       LEFT JOIN buildings b ON b.id = rm.building_id
+      LEFT JOIN bookings bk ON bk.id = res.booking_id
      WHERE res.status = 'confirmed' AND res.check_in = v_day
      ORDER BY b.name_ru NULLS LAST, rm.number
   LOOP
@@ -59,12 +62,15 @@ BEGIN
     SELECT res.vaishnava_id, res.retreat_id,
            COALESCE(NULLIF(v.spiritual_name, ''),
                     NULLIF(btrim(COALESCE(v.first_name,'') || ' ' || COALESCE(v.last_name,'')), ''),
-                    res.guest_name, 'бронь без имени') AS who,
+                    NULLIF(btrim(res.guest_name), ''),
+                    NULLIF(btrim(bk.name), ''), NULLIF(btrim(bk.contact_name), ''),
+                    'бронь без имени') AS who,
            rm.number AS room, b.name_ru AS building
       FROM residents res
       LEFT JOIN vaishnavas v ON v.id = res.vaishnava_id
       LEFT JOIN rooms rm ON rm.id = res.room_id
       LEFT JOIN buildings b ON b.id = rm.building_id
+      LEFT JOIN bookings bk ON bk.id = res.booking_id
      WHERE res.status = 'confirmed' AND res.check_out = v_day
      ORDER BY b.name_ru NULLS LAST, rm.number
   LOOP
@@ -130,6 +136,6 @@ $function$;
 
 grant execute on function tg_reception_digest(date) to authenticated, service_role;
 
--- Утром по Мумбаи (8:30 = 3:00 UTC), до начала заездов.
-select cron.schedule('reception-digest', '0 3 * * *',
-  $$SELECT tg_reception_digest()$$);
+-- Расписания у этой сводки нет намеренно: по ТЗ (п. 13) ресепшен получает
+-- план вечером на следующий день — это делает tg_reception_evening (340).
+-- Функция остаётся для ручного вызова на любую дату.
