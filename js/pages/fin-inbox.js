@@ -445,11 +445,16 @@ function openRefine(id) {
             .filter(d => d.id !== refineDraft.department_id)
             .map(d => `<option value="${d.id}" ${d.id === refineDraft.target_department_id ? 'selected' : ''}>${e(d.name)}</option>`)
             .join('');
-    // счета только в валюте заявки: иначе сервер откажет уже после нажатия
+    // счета только в валюте заявки: иначе сервер откажет уже после нажатия.
+    // Пустая опция = подотчёт департамента-заявителя; называем его прямо,
+    // чтобы казначей не выбирал кассу вслепую (просьба ВГ 03.08.2026).
+    const ownAcc = FinUtils.refs.accounts.find(a => a.department_id === refineDraft.department_id
+        && a.kind === 'custodial' && a.currency_code === refineDraft.currency && a.is_active);
     document.getElementById('refineSource').innerHTML =
-        `<option value="">${t('fin_split_dept_own')}</option>` +
+        `<option value="">${ownAcc ? e(ownAcc.name) + ' — ' + t('fin_split_dept_own') : t('fin_split_dept_own')}</option>` +
         FinUtils.accountOptions(refineDraft.source_account_id,
-                                a => a.currency_code === refineDraft.currency);
+                                a => a.currency_code === refineDraft.currency
+                                     && a.account_id !== ownAcc?.account_id);
     // Пустая опция первой: иначе дефолтом окажется первая статья по алфавиту
     // и расход уедет не туда молча.
     document.getElementById('refineCategory').innerHTML =

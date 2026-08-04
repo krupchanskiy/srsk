@@ -196,10 +196,13 @@ Deno.serve(async (req) => {
       // Казначей выдаёт с настоящего счёта. Если в сообщении сказано «наличкой»
       // или «переводом» — показываем только подходящие; если таких нет, лучше
       // показать все, чем упереться в пустой список.
+      // Свой подотчёт департамента идёт первым: перевод из чата завода
+      // списывается со счёта завода, а не с общей кассы (просьба ВГ 03.08.2026).
       const cash = detectCash(st.raw_text);
-      let { data: accs } = await supa.rpc("tg_list_source_accounts", { p_currency: st.currency, p_cash: cash });
+      const src = { p_currency: st.currency, p_department: st.department_id ?? null };
+      let { data: accs } = await supa.rpc("tg_list_source_accounts", { ...src, p_cash: cash });
       if (!accs?.length && cash !== null) {
-        ({ data: accs } = await supa.rpc("tg_list_source_accounts", { p_currency: st.currency, p_cash: null }));
+        ({ data: accs } = await supa.rpc("tg_list_source_accounts", { ...src, p_cash: null }));
       }
       // Счёт в этой валюте один — выбирать не из чего, ставим сами и показываем
       // его в карточке: подтверждение всё равно за человеком.
@@ -291,7 +294,9 @@ Deno.serve(async (req) => {
       }
       if (action === "a") {
         const { data: st0 } = await supa.rpc("tg_patch_draft", { p_id: draftId, p: {} });
-        const { data: accs } = await supa.rpc("tg_list_source_accounts", { p_currency: st0?.currency, p_cash: null });
+        // тот же список, что показывали кнопками, — иначе выбранный счёт не найдётся
+        const { data: accs } = await supa.rpc("tg_list_source_accounts", {
+          p_currency: st0?.currency, p_cash: null, p_department: st0?.department_id ?? null });
         const found = (accs ?? []).find((a: any) => a.id.startsWith(value));
         if (found) patch.source_account_id = found.id;
       }
