@@ -406,7 +406,7 @@ function openSplit(id) {
     const ownAcc = FinUtils.refs.accounts.find(a => a.department_id === splitDraft.department_id
         && a.kind === 'custodial' && a.currency_code === splitDraft.currency && a.is_active);
     document.getElementById('splitSource').innerHTML =
-        `<option value="">${ownAcc ? e(ownAcc.name) + ' — ' + t('fin_split_dept_own') : t('fin_split_dept_own')}</option>` +
+        `<option value="">${ownAcc ? e(ownAcc.name) + ' — ' + t('fin_split_own_account') : t('fin_split_dept_own')}</option>` +
         FinUtils.accountOptions(splitDraft.source_account_id,
                                 a => a.currency_code === splitDraft.currency
                                      && a.account_id !== ownAcc?.account_id);
@@ -466,7 +466,7 @@ function openRefine(id) {
     const ownAcc = FinUtils.refs.accounts.find(a => a.department_id === refineDraft.department_id
         && a.kind === 'custodial' && a.currency_code === refineDraft.currency && a.is_active);
     document.getElementById('refineSource').innerHTML =
-        `<option value="">${ownAcc ? e(ownAcc.name) + ' — ' + t('fin_split_dept_own') : t('fin_split_dept_own')}</option>` +
+        `<option value="">${ownAcc ? e(ownAcc.name) + ' — ' + t('fin_split_own_account') : t('fin_split_dept_own')}</option>` +
         FinUtils.accountOptions(refineDraft.source_account_id,
                                 a => a.currency_code === refineDraft.currency
                                      && a.account_id !== ownAcc?.account_id);

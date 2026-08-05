@@ -68,3 +68,9 @@ insert into translations (key, ru, en, hi, page) values
    'Available once a department is chosen: the spend becomes their expense instead of sitting as a balance',
    'विभाग चुनने पर उपलब्ध', 'inbox')
 on conflict (key) do update set ru = excluded.ru, en = excluded.en, hi = excluded.hi;
+
+-- Подпись своего счёта в селекте: «Ашиш (₹) — свой подотчёт».
+-- Прежний ключ fin_split_dept_own = «— свой —» давал двойное тире.
+insert into translations (key, ru, en, hi, page) values
+  ('fin_split_own_account', 'свой подотчёт', 'own float', 'अपना खाता', 'inbox')
+on conflict (key) do update set ru = excluded.ru, en = excluded.en, hi = excluded.hi;
