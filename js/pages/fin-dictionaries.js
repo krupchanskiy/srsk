@@ -276,7 +276,13 @@ function openForm(row) {
                         <label class="label cursor-pointer justify-start gap-2 py-0.5">
                             <input type="checkbox" class="checkbox checkbox-xs dept-cat" value="${c.id}"
                                    ${deptCats.includes(c.id) ? 'checked' : ''}>
-                            <span class="label-text text-sm">${e(c.name)}</span>
+                            <span class="label-text text-sm">${e(c.name)}${
+                                // Отмеченная здесь статья попадёт к департаменту даже без
+                                // общего флага — набор сильнее. Подписываем, чтобы такую
+                                // не отметить случайно (просьба ВГ 05.08.2026).
+                                c.visible_to_departments ? ''
+                                  : ` <span class="opacity-50 text-xs">— ${t('fin_cat_hidden_from_depts')}</span>`
+                            }</span>
                         </label>`).join('')}
                 </div>
                 <span class="text-xs opacity-60 mt-1">${t('fin_dept_categories_hint')}</span>

@@ -60,3 +60,12 @@ insert into translations (key, ru, en, hi, page) values
    'No accounts yet — add one in the currency you need', 'अभी कोई खाता नहीं', 'Справочники'),
   ('fin_dept_account_added', 'Счёт заведён', 'Account created', 'खाता बन गया', 'Справочники')
 on conflict (key) do update set ru = excluded.ru, en = excluded.en, hi = excluded.hi;
+
+-- Статьи, скрытые от департаментов, подписываются в наборе департамента.
+-- Набор сильнее общего флага: отмеченная здесь статья уйдёт департаменту даже
+-- без галочки «видна департаментам». Подпись — чтобы не отметить случайно
+-- (просьба ВГ 05.08.2026).
+insert into translations (key, ru, en, hi, page) values
+  ('fin_cat_hidden_from_depts', 'не видна департаментам', 'hidden from departments',
+   'विभागों से छिपी', 'Справочники')
+on conflict (key) do update set ru = excluded.ru, en = excluded.en, hi = excluded.hi;
