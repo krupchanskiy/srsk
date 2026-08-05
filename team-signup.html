@@ -108,14 +108,11 @@
             const telegram = formData.get('telegram');
 
             try {
-                // 1. Проверить, не зарегистрирован ли уже этот email
-                const { data: existingVaishnava } = await db
-                    .from('vaishnavas')
-                    .select('id, email, spiritual_name, first_name, last_name')
-                    .ilike('email', email)
-                    .single();
+                // 1. Проверить, не зарегистрирован ли уже этот email.
+                // Через RPC, а не прямым запросом: до входа справочник людей читать нельзя.
+                const { data: emailTaken } = await db.rpc('check_email_exists', { check_email: email });
 
-                if (existingVaishnava) {
+                if (emailTaken) {
                     throw new Error('Вы уже зарегистрированы в системе. Обратитесь к администратору или используйте функцию восстановления пароля на странице входа.');
                 }
 
