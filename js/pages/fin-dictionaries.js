@@ -160,6 +160,57 @@ function renderTab() {
     }
 }
 
+// ==================== СЧЕТА ДЕПАРТАМЕНТА ====================
+// Подотчётные счета раньше рождались только сами — при первой передаче денег.
+// Из-за этого счёт, заведённый руками на странице «Счета», оказывался ничьим
+// и не появлялся в списке получателей (случай ВГ со «Стройкой», 05.08.2026).
+function deptAccountsHtml(deptId) {
+    const own = FinUtils.refs.accounts
+        .filter(a => a.department_id === deptId && a.kind === 'custodial' && a.is_active)
+        .sort((a, b) => a.name.localeCompare(b.name));
+    const have = new Set(own.map(a => a.currency_code));
+    const canAdd = FinUtils.refs.currencies.filter(c => !have.has(c.code));
+
+    const list = own.length
+        ? own.map(a => `<div class="flex justify-between gap-2 text-sm py-0.5">
+               <span>${e(a.name)}</span>
+               <span class="font-mono opacity-70">${FinUtils.fmtMoney(a.balance, a.currency_code)}</span>
+           </div>`).join('')
+        : `<div class="text-sm opacity-60">${t('fin_dept_no_accounts')}</div>`;
+
+    return `<div class="form-control mb-2">
+        <label class="label py-0"><span class="label-text">${t('fin_dept_accounts')}</span></label>
+        <div class="border border-base-300 rounded-lg p-2">
+            ${list}
+            ${canAdd.length ? `<div class="flex gap-2 mt-2">
+                <select id="f_acc_currency" class="select select-bordered select-xs">
+                    ${canAdd.map(c => `<option value="${c.code}">${e(c.code)}</option>`).join('')}
+                </select>
+                <button type="button" class="btn btn-outline btn-xs"
+                        onclick="FinDicts.addAccount('${deptId}')">${t('fin_dept_add_account')}</button>
+            </div>` : ''}
+        </div>
+    </div>`;
+}
+
+async function addDeptAccount(deptId) {
+    const currency = document.getElementById('f_acc_currency')?.value;
+    if (!currency) return;
+    const res = await FinUtils.rpc('fin_add_department_account', {
+        p_department: deptId, p_currency: currency
+    });
+    if (!FinUtils.handleResult(res)) return;
+    Layout.showNotification(t('fin_dept_account_added'), 'success');
+    // счёт создан — обновляем справочник и перерисовываем блок
+    await FinUtils.reloadAccounts();
+    const box = document.getElementById('dictFields');
+    const fresh = document.createElement('div');
+    fresh.innerHTML = deptAccountsHtml(deptId);
+    const old = [...box.querySelectorAll('.form-control')]
+        .find(el => el.textContent.includes(t('fin_dept_accounts')));
+    if (old) old.replaceWith(fresh.firstElementChild);
+}
+
 // ==================== ФОРМЫ ====================
 function fieldHtml(id, labelKey, inputHtml) {
     return `<div class="form-control mb-2">
@@ -230,6 +281,11 @@ function openForm(row) {
                 </div>
                 <span class="text-xs opacity-60 mt-1">${t('fin_dept_categories_hint')}</span>
             </div>` +
+            // Счета департамента — здесь, а не на странице «Счета»: там нельзя
+            // указать департамент, и счёт оказывался ничьим (случай ВГ со
+            // «Стройкой», 05.08.2026). У нового департамента блока нет: сначала
+            // сохраняем его, потом заводим счета.
+            (row?.id ? deptAccountsHtml(row.id) : '') +
             `<p class="text-xs opacity-60 mt-1">${t('fin_dept_hint')}</p>`;
     } else {
         // Курс правится и удаляется (вопрос ВГ: «ни удалить, ни изменить?»).
@@ -367,6 +423,6 @@ async function init() {
     await loadTab();
 }
 
-window.FinDicts = { openAdd: () => openForm(null) };
+window.FinDicts = { openAdd: () => openForm(null), addAccount: addDeptAccount };
 init();
 })();
