@@ -1514,9 +1514,18 @@ async function cancelBooking() {
             alert(Layout.t('error') + ': ' + resError.message);
             return;
         }
+    }
 
-        // Если это было связано с бронированием, обновляем статус брони
-        if (res.booking_id) {
+    // Бронь снимаем целиком только когда освободили её последнее место —
+    // иначе у отменённой брони остаются занятые комнаты и лишние едоки.
+    if (res.booking_id) {
+        const { count } = await Layout.db
+            .from('residents')
+            .select('id', { count: 'exact', head: true })
+            .eq('booking_id', res.booking_id)
+            .neq('status', 'cancelled');
+
+        if (!count) {
             await Layout.db
                 .from('bookings')
                 .update({ status: 'cancelled' })
