@@ -179,7 +179,7 @@
 <script src="../js/auth-check.js?v=8"></script>
 <script src="../js/cache.js?v=1"></script>
 <script src="../js/utils.js?v=4"></script>
-<script src="../js/layout.js?v=43"></script>
+<script src="../js/layout.js?v=44"></script>
 <script src="../js/date-utils.js?v=3"></script>
 <script src="../js/crm-utils.js?v=3"></script>
 <script src="../js/prepayment-ops.js?v=2"></script>
@@ -222,7 +222,10 @@ async function loadAll() {
                     manager:manager_id(id, spiritual_name, first_name, last_name)
                 )
             `)
-            .eq('payment_type', 'org_fee')
+            // Раньше брали только оргвзносы — и платежи за проживание было
+            // негде подтвердить: в карточке сделки кнопки нет, а сюда они не
+            // попадали. Два таких висели неподтверждёнными, один с 17 июня
+            // (замечание Нитья-виласини 05.08.2026). Тип показываем меткой.
             .order('created_at', { ascending: false })
     ]);
 
@@ -494,9 +497,13 @@ function renderAmountCell(p) {
     const inr = p.currency !== 'INR'
         ? `<div class="text-xs text-base-content/50">≈ ${CrmUtils.formatMoney(p.amount_inr)} (курс ${p.rate_to_inr})</div>`
         : '';
+    // Оргвзнос и проживание лежат в одном списке — подписываем, что есть что
+    const kind = p.payment_type !== 'org_fee'
+        ? `<div class="text-xs text-base-content/60">${e(t('crm_payment_type_' + p.payment_type) || p.payment_type)}</div>`
+        : '';
     return `<div class="inline-edit-cell text-right" onclick="editAmount('${p.id}', this)">
         <div class="font-mono font-bold">${amount}</div>
-        ${inr}
+        ${inr}${kind}
     </div>`;
 }
 
