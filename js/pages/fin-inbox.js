@@ -344,8 +344,11 @@ function splitRowHtml(amount, categoryId, objectId) {
         <div class="flex items-center gap-2 pl-1 min-w-0">
             <select class="select select-bordered select-sm flex-1 min-w-0" data-split-dept
                     title="${t('fin_split_dept_hint')}">${deptOptions()}</select>
-            <label class="label cursor-pointer gap-2 hidden" data-split-expense-box>
-                <input type="checkbox" class="checkbox checkbox-sm" checked data-split-as-expense>
+            <!-- Галочку показываем всегда: раньше она возникала из ниоткуда при
+                 выборе департамента, и о такой возможности не знали (ВГ, 05.08.2026) -->
+            <label class="label cursor-pointer gap-2 opacity-40" data-split-expense-box
+                   title="${t('fin_split_as_expense_hint')}">
+                <input type="checkbox" class="checkbox checkbox-sm" checked disabled data-split-as-expense>
                 <span class="label-text text-sm">${t('fin_split_as_expense')}</span>
             </label>
         </div>
@@ -359,7 +362,9 @@ function syncRowState(row) {
     const dept = row.querySelector('[data-split-dept]').value;
     const box = row.querySelector('[data-split-expense-box]');
     const asExpense = row.querySelector('[data-split-as-expense]');
-    box.classList.toggle('hidden', !dept);
+    // без департамента галочка бессмысленна — гасим, но не прячем
+    box.classList.toggle('opacity-40', !dept);
+    asExpense.disabled = !dept;
     row.querySelector('[data-split-warn]').classList.toggle('hidden', !dept || asExpense.checked);
 }
 
@@ -397,6 +402,14 @@ function openSplit(id) {
     document.getElementById('splitDraftId').value = id;
     document.getElementById('splitInfo').textContent =
         `${FinUtils.fmtMoney(splitDraft.amount, splitDraft.currency)} · ${splitDraft.purpose || splitDraft.raw_text || ''}`;
+    // Откуда списываем: свой подотчёт первым и назван прямо, кассы — ниже
+    const ownAcc = FinUtils.refs.accounts.find(a => a.department_id === splitDraft.department_id
+        && a.kind === 'custodial' && a.currency_code === splitDraft.currency && a.is_active);
+    document.getElementById('splitSource').innerHTML =
+        `<option value="">${ownAcc ? e(ownAcc.name) + ' — ' + t('fin_split_dept_own') : t('fin_split_dept_own')}</option>` +
+        FinUtils.accountOptions(splitDraft.source_account_id,
+                                a => a.currency_code === splitDraft.currency
+                                     && a.account_id !== ownAcc?.account_id);
     // Стартуем с одной строки на всю сумму: самый частый случай — просто
     // поправить статью, а не делить.
     document.getElementById('splitRows').innerHTML =
@@ -418,7 +431,9 @@ async function submitSplit(ev) {
         };
     });
     const { data, error } = await Layout.db.rpc('tg_post_draft', {
-        p_id: document.getElementById('splitDraftId').value, p_rows: rows
+        p_id: document.getElementById('splitDraftId').value,
+        p_rows: rows,
+        p_source_account: document.getElementById('splitSource').value || null
     });
     if (error) { Layout.handleError(error, t('fin_post_draft')); return; }
     if (data?.ok) {

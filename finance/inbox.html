@@ -86,6 +86,12 @@
         <div class="text-sm opacity-70 mb-3" id="splitInfo"></div>
         <form id="splitForm">
             <input type="hidden" id="splitDraftId">
+            <!-- Откуда ушли деньги: по умолчанию подотчёт департамента-автора,
+                 но казначей может указать кассу (просьба ВГ 05.08.2026) -->
+            <label class="form-control mb-3">
+                <span class="label-text font-medium" data-i18n="fin_split_source">Списать со счёта</span>
+                <select id="splitSource" class="select select-bordered select-sm w-full"></select>
+            </label>
             <div id="splitRows" class="flex flex-col gap-2"></div>
             <div class="flex gap-2 mt-2">
                 <button type="button" class="btn btn-ghost btn-sm" id="splitAddRow"
@@ -144,10 +150,10 @@
 <script src="../js/auth-check.js?v=8"></script>
 <script src="../js/cache.js?v=1"></script>
 <script src="../js/utils.js?v=4"></script>
-<script src="../js/layout.js?v=41"></script>
+<script src="../js/layout.js?v=42"></script>
 <script src="../js/date-utils.js?v=3"></script>
 <script src="../js/fin-utils.js?v=7"></script>
-<script src="../js/pages/fin-inbox.js?v=16"></script>
+<script src="../js/pages/fin-inbox.js?v=17"></script>
 
 </body>
 </html>
