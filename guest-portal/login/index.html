@@ -197,7 +197,7 @@
 
     <!-- Scripts -->
     <script src="../js/portal-config.js?v=3"></script>
-    <script src="../js/portal-auth.js"></script>
+    <script src="../js/portal-auth.js?v=2"></script>
     <script>
         const db = window.portalSupabase;
         let currentLang = localStorage.getItem('srsk_lang') || 'ru';
@@ -234,7 +234,8 @@
             portal_check_email_reset: { ru: 'Проверьте почту и перейдите по ссылке для сброса пароля', en: 'Check your email and click the link to reset password', hi: 'अपना ईमेल जांचें और पासवर्ड रीसेट करने के लिए लिंक पर क्लिक करें' },
             error_cooldown: { ru: 'Подождите минуту перед повторной отправкой', en: 'Please wait a minute before sending again', hi: 'कृपया दोबारा भेजने से पहले एक मिनट प्रतीक्षा करें' },
             error_too_many_attempts: { ru: 'Слишком много попыток. Подождите минуту.', en: 'Too many attempts. Please wait a minute.', hi: 'बहुत अधिक प्रयास। कृपया एक मिनट प्रतीक्षा करें।' },
-            error_network: { ru: 'Ошибка сети. Проверьте интернет и попробуйте снова.', en: 'Network error. Check your internet and try again.', hi: 'नेटवर्क त्रुटि। अपना इंटरनेट जांचें और पुनः प्रयास करें।' }
+            error_network: { ru: 'Ошибка сети. Проверьте интернет и попробуйте снова.', en: 'Network error. Check your internet and try again.', hi: 'नेटवर्क त्रुटि। अपना इंटरनेट जांचें और पुनः प्रयास करें।' },
+            error_ab_kitchen_access: { ru: 'Для этого аккаунта не назначен доступ администратора AB Kitchen', en: 'This account does not have AB Kitchen administrator access', hi: 'इस खाते को AB Kitchen व्यवस्थापक पहुँच नहीं दी गई है' }
         };
 
         // Загрузка переводов
@@ -371,8 +372,10 @@
             spinner.classList.remove('hidden');
 
             try {
+                const redirect = getSafeRedirect();
                 const { error } = await db.auth.resetPasswordForEmail(email, {
                     redirectTo: window.location.origin + '/reset-password/'
+                        + (redirect ? `?redirect=${encodeURIComponent(redirect)}` : '')
                 });
 
                 if (error) {
@@ -418,7 +421,7 @@
             spinner.classList.remove('hidden');
 
             try {
-                const result = await window.PortalAuth.sendMagicLink(email);
+                const result = await window.PortalAuth.sendMagicLink(email, getSafeRedirect());
 
                 if (!result.success) {
                     if (result.isNewUser) {
@@ -469,6 +472,56 @@
                 console.error('[Login] Permissions check exception:', e);
                 return false;
             }
+        }
+
+        function getSafeRedirect() {
+            const redirect = new URLSearchParams(window.location.search).get('redirect') || '';
+            return redirect.startsWith('/') && !redirect.startsWith('//') ? redirect : '';
+        }
+
+        async function checkAccessRpc(functionName) {
+            try {
+                const { data, error } = await db.rpc(functionName);
+                if (error) {
+                    console.error(`[Login] ${functionName} failed:`, error);
+                    return false;
+                }
+                return data === true;
+            } catch (error) {
+                console.error(`[Login] ${functionName} exception:`, error);
+                return false;
+            }
+        }
+
+        async function resolveAuthenticatedDestination(userId, isSuperuser) {
+            const redirect = getSafeRedirect();
+            const wantsAbKitchen = redirect === '/ab-kitchen' || redirect.startsWith('/ab-kitchen/');
+            const [hasOperationalPerms, hasAbAccess, hasMainAccess] = await Promise.all([
+                checkHasOperationalPermissions(userId, isSuperuser),
+                isSuperuser ? Promise.resolve(true) : checkAccessRpc('has_ab_kitchen_access'),
+                isSuperuser ? Promise.resolve(true) : checkAccessRpc('has_main_backoffice_access')
+            ]);
+
+            if (wantsAbKitchen) {
+                if (!hasAbAccess) return { deniedAbKitchen: true };
+                try { sessionStorage.setItem('srsk_ab_kitchen_context', '1'); } catch {}
+                return { target: redirect };
+            }
+
+            // Пользователь только AB Kitchen не попадает в общий BackOffice.
+            if (hasAbAccess && !hasMainAccess) {
+                try { sessionStorage.setItem('srsk_ab_kitchen_context', '1'); } catch {}
+                return { target: '/ab-kitchen/' };
+            }
+
+            try { sessionStorage.removeItem('srsk_ab_kitchen_context'); } catch {}
+            if (hasMainAccess && hasOperationalPerms) {
+                return { target: redirect || '/' };
+            }
+
+            return {
+                target: redirect.startsWith('/guest-portal/') ? redirect : '/guest-portal/'
+            };
         }
 
         // Обработка формы
@@ -545,25 +598,12 @@
                     return;
                 }
 
-                // Определяем куда перенаправлять по правам пользователя
-                const hasOperationalPerms = await checkHasOperationalPermissions(data.user.id, vaishnava.is_superuser);
-                const redirect = new URLSearchParams(window.location.search).get('redirect');
-
-                if (hasOperationalPerms) {
-                    // Есть операционные права — полное приложение
-                    if (redirect && redirect.startsWith('/') && !redirect.startsWith('//')) {
-                        window.location.href = redirect;
-                    } else {
-                        window.location.href = '/';
-                    }
-                } else {
-                    // Только базовые права — гостевой портал (игнорируем redirect на основное приложение)
-                    if (redirect && redirect.startsWith('/guest-portal/')) {
-                        window.location.href = redirect;
-                    } else {
-                        window.location.href = '/guest-portal/';
-                    }
+                const destination = await resolveAuthenticatedDestination(data.user.id, vaishnava.is_superuser);
+                if (destination.deniedAbKitchen) {
+                    window.location.href = '/ab-kitchen/access-denied.html';
+                    return;
                 }
+                window.location.href = destination.target;
 
             } catch (error) {
                 console.error('Ошибка входа:', error);
@@ -611,13 +651,10 @@
                         .single();
 
                     if (vaishnava && vaishnava.is_active !== false && vaishnava.approval_status === 'approved') {
-                        // Уже залогинен и одобрен — редирект по правам
-                        const hasOperationalPerms = await checkHasOperationalPermissions(session.user.id, vaishnava.is_superuser);
-                        if (hasOperationalPerms) {
-                            window.location.href = '/';
-                        } else {
-                            window.location.href = '/guest-portal/';
-                        }
+                        const destination = await resolveAuthenticatedDestination(session.user.id, vaishnava.is_superuser);
+                        window.location.href = destination.deniedAbKitchen
+                            ? '/ab-kitchen/access-denied.html'
+                            : destination.target;
                         return;
                     }
                     if (vaishnava && vaishnava.approval_status === 'pending') {
@@ -653,7 +690,8 @@
                 const reasonMap = {
                     'no_session': 'error_invalid_credentials',
                     'user_not_found': 'error_user_not_found',
-                    'account_disabled': 'error_account_disabled'
+                    'account_disabled': 'error_account_disabled',
+                    'ab_kitchen_access': 'error_ab_kitchen_access'
                 };
                 if (reasonMap[reason]) {
                     showError(reasonMap[reason]);

@@ -16,7 +16,7 @@ module.exports = defineConfig({
     screenshot: 'only-on-failure'
   },
   webServer: {
-    command: 'python3 -m http.server 4174 --bind 127.0.0.1',
+    command: 'node tests/static-server.cjs 4174',
     cwd: path.resolve(__dirname, '..'),
     url: 'http://127.0.0.1:4174/ab-kitchen/',
     reuseExistingServer: true,

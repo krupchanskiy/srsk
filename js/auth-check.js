@@ -12,6 +12,7 @@
     const AB_KITCHEN_ALLOWED_PATHS = new Set([
         '/ab-kitchen',
         '/ab-kitchen/index.html',
+        '/ab-kitchen/access-denied.html',
         '/kitchen/menu.html',
         '/kitchen/menu-board.html',
         '/kitchen/menu-templates.html',
@@ -145,6 +146,27 @@
             }
             return window.currentUser?.is_superuser || window.currentUser?.permissions.includes(permCode);
         };
+
+        // AB Kitchen имеет отдельную серверную роль и явную привязку к локации.
+        // Одних общих прав кухни для входа в скрытый раздел недостаточно.
+        if (isAbKitchenContext) {
+            const { data: hasAbAccess, error: abAccessError } = await db.rpc('has_ab_kitchen_access');
+            if (abAccessError || !hasAbAccess) {
+                console.error('AB Kitchen access denied:', abAccessError);
+                window.location.replace('/ab-kitchen/access-denied.html');
+                return;
+            }
+        } else if (!vaishnava.is_superuser) {
+            const { data: hasMainAccess, error: mainAccessError } = await db.rpc('has_main_backoffice_access');
+            if (mainAccessError || !hasMainAccess) {
+                const { data: hasAbAccess } = await db.rpc('has_ab_kitchen_access');
+                if (hasAbAccess) {
+                    try { sessionStorage.setItem(AB_KITCHEN_CONTEXT_KEY, '1'); } catch {}
+                    window.location.replace(AB_KITCHEN_ENTRY_PATH);
+                    return;
+                }
+            }
+        }
 
         // Проверка доступа: основное приложение или гостевой портал
         // Если у пользователя есть права кроме базовых гостевых — пускаем в основное приложение

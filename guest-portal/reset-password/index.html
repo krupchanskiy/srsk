@@ -156,6 +156,34 @@
             document.getElementById('error-alert').classList.add('hidden');
         }
 
+        function getSafeRedirect() {
+            const redirect = new URLSearchParams(window.location.search).get('redirect') || '';
+            return redirect.startsWith('/') && !redirect.startsWith('//') ? redirect : '';
+        }
+
+        async function resolveDestination() {
+            const redirect = getSafeRedirect();
+            const wantsAbKitchen = redirect === '/ab-kitchen' || redirect.startsWith('/ab-kitchen/');
+            const [{ data: hasAbAccess }, { data: hasMainAccess }] = await Promise.all([
+                db.rpc('has_ab_kitchen_access'),
+                db.rpc('has_main_backoffice_access')
+            ]);
+
+            if (wantsAbKitchen) {
+                if (!hasAbAccess) return '/ab-kitchen/access-denied.html';
+                try { sessionStorage.setItem('srsk_ab_kitchen_context', '1'); } catch {}
+                return redirect;
+            }
+            if (hasAbAccess && !hasMainAccess) {
+                try { sessionStorage.setItem('srsk_ab_kitchen_context', '1'); } catch {}
+                return '/ab-kitchen/';
+            }
+
+            try { sessionStorage.removeItem('srsk_ab_kitchen_context'); } catch {}
+            if (hasMainAccess) return redirect || '/';
+            return redirect.startsWith('/guest-portal/') ? redirect : '/guest-portal/';
+        }
+
         // Toggle пароля
         function togglePassword() {
             const input = document.getElementById('password');
@@ -211,21 +239,11 @@
                 // Успех!
                 showState('success-state');
 
-                // Получаем информацию о пользователе для редиректа
                 const { data: { session } } = await db.auth.getSession();
                 if (session) {
-                    const { data: vaishnava } = await db
-                        .from('vaishnavas')
-                        .select('is_team')
-                        .eq('user_id', session.user.id)
-                        .single();
-
+                    const destination = await resolveDestination();
                     setTimeout(() => {
-                        if (vaishnava && vaishnava.is_team) {
-                            window.location.href = 'https://srsk.rupaseva.com/';
-                        } else {
-                            window.location.href = '/';
-                        }
+                        window.location.href = destination;
                     }, 1500);
                 } else {
                     setTimeout(() => {

@@ -77,16 +77,23 @@ Deno.serve(async (req: Request) => {
     }
 
     // Получаем данные запроса
-    const { email, vaishnavId } = await req.json();
+    const { email, vaishnavId, mode = 'email' } = await req.json();
 
-    if (!email) {
+    if (!email || !vaishnavId) {
       return new Response(
-        JSON.stringify({ error: 'Email is required' }),
+        JSON.stringify({ error: 'Email and vaishnavId are required' }),
         { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
 
-    // Проверяем что vaishnava существует и не имеет user_id
+    if (!['email', 'link'].includes(mode)) {
+      return new Response(
+        JSON.stringify({ error: 'Unsupported invite mode' }),
+        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    // Проверяем профиль и не позволяем связать чужой email.
     const { data: vaishnava, error: vaishError } = await supabaseAdmin
       .from('vaishnavas')
       .select('id, email, user_id, spiritual_name, first_name')
@@ -100,30 +107,109 @@ Deno.serve(async (req: Request) => {
       );
     }
 
-    if (vaishnava.user_id) {
+    if ((vaishnava.email || '').trim().toLowerCase() !== email.trim().toLowerCase()) {
       return new Response(
-        JSON.stringify({ error: 'User already has an account', alreadyHasAccount: true }),
+        JSON.stringify({ error: 'Email does not match the profile' }),
         { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
 
-    // Отправляем invite (создаст пользователя если не существует)
-    const redirectUrl = `${Deno.env.get('SITE_URL') || 'https://in.rupaseva.com'}/guest-portal/auth-callback.html`;
+    const siteUrl = (Deno.env.get('SITE_URL') || 'https://in.rupaseva.com').replace(/\/$/, '');
+    // И приглашение, и повторная выдача доступа ведут на установку нового пароля.
+    // После назначения роли AB Kitchen страница сама вернёт пользователя в кухню.
+    const redirectUrl = `${siteUrl}/reset-password/`;
+    const metadata = {
+      vaishnava_id: vaishnavId,
+      full_name: vaishnava.spiritual_name || `${vaishnava.first_name || ''}`
+    };
 
-    const { error: inviteError } = await supabaseAdmin.auth.admin.inviteUserByEmail(email, {
-      redirectTo: redirectUrl,
-      data: {
-        vaishnava_id: vaishnavId,
-        full_name: vaishnava.spiritual_name || `${vaishnava.first_name || ''}`
+    let authUserId = vaishnava.user_id as string | null;
+
+    // Профиль мог быть создан раньше Auth-пользователя или остаться несвязанным
+    // после неудачного приглашения. Ищем существующий Auth-аккаунт по email.
+    if (!authUserId) {
+      let page = 1;
+      while (!authUserId) {
+        const { data: usersPage, error: listError } = await supabaseAdmin.auth.admin.listUsers({
+          page,
+          perPage: 200
+        });
+        if (listError) throw listError;
+        const existing = usersPage.users.find(
+          candidate => (candidate.email || '').toLowerCase() === email.trim().toLowerCase()
+        );
+        if (existing) {
+          authUserId = existing.id;
+          break;
+        }
+        if (usersPage.users.length < 200) break;
+        page += 1;
       }
-    });
+    }
 
-    if (inviteError) {
-      console.error('Invite error:', inviteError);
+    if (authUserId) {
+      const { error: linkError } = await supabaseAdmin
+        .from('vaishnavas')
+        .update({ user_id: authUserId })
+        .eq('id', vaishnavId);
+      if (linkError) throw linkError;
+
+      if (mode === 'link') {
+        const { data: linkData, error: linkError } = await supabaseAdmin.auth.admin.generateLink({
+          type: 'recovery',
+          email,
+          options: { redirectTo: redirectUrl }
+        });
+        if (linkError) throw linkError;
+        return new Response(
+          JSON.stringify({ success: true, url: linkData.properties.action_link, accountRecovered: true }),
+          { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+
+      const { error: recoveryError } = await supabaseAdmin.auth.resetPasswordForEmail(email, {
+        redirectTo: redirectUrl
+      });
+      if (recoveryError) throw recoveryError;
       return new Response(
-        JSON.stringify({ error: inviteError.message }),
-        { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        JSON.stringify({ success: true, message: 'Password setup link sent', accountRecovered: true }),
+        { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
+    }
+
+    if (mode === 'link') {
+      const { data: linkData, error: linkError } = await supabaseAdmin.auth.admin.generateLink({
+        type: 'invite',
+        email,
+        options: { redirectTo: redirectUrl, data: metadata }
+      });
+      if (linkError) throw linkError;
+
+      const createdUserId = linkData.user?.id;
+      if (!createdUserId) throw new Error('Invite link did not create an Auth user');
+      const { error: profileLinkError } = await supabaseAdmin
+        .from('vaishnavas')
+        .update({ user_id: createdUserId })
+        .eq('id', vaishnavId);
+      if (profileLinkError) throw profileLinkError;
+
+      return new Response(
+        JSON.stringify({ success: true, url: linkData.properties.action_link }),
+        { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    const { data: inviteData, error: inviteError } = await supabaseAdmin.auth.admin.inviteUserByEmail(email, {
+      redirectTo: redirectUrl,
+      data: metadata
+    });
+    if (inviteError) throw inviteError;
+    if (inviteData.user?.id) {
+      const { error: profileLinkError } = await supabaseAdmin
+        .from('vaishnavas')
+        .update({ user_id: inviteData.user.id })
+        .eq('id', vaishnavId);
+      if (profileLinkError) throw profileLinkError;
     }
 
     return new Response(

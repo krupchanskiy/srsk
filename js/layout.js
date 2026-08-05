@@ -208,6 +208,8 @@ const pagePermissions = {
     'kitchen/menu-board.html': 'view_menu',
     'kitchen/menu-templates.html': 'view_menu_templates',
     'kitchen/recipes.html': 'view_recipes',
+    'kitchen/recipe.html': 'view_recipes',
+    'kitchen/recipe-edit.html': 'edit_recipe',
     'kitchen/products.html': 'view_products',
     'kitchen/dictionaries.html': 'view_kitchen_dictionaries',
 
@@ -348,7 +350,7 @@ function checkPageAccess() {
     // Если для страницы указано требуемое право и у пользователя его нет — редирект
     if (requiredPerm && !hasPagePermission(requiredPerm)) {
         console.warn('⛔ Нет доступа к', path, '— требуется', requiredPerm);
-        window.location.href = '/';
+        window.location.href = isAbKitchenContext ? '/ab-kitchen/' : '/';
     }
 }
 
@@ -1351,6 +1353,12 @@ async function initLayout(page = { module: null, menuId: 'kitchen', itemId: null
     }
 
     currentPage = page;
+
+    if (isAbKitchenContext) {
+        document.title = document.title
+            .replace(/\s*[|—-]\s*(?:ШРСК|Шри Рупа Сева Кунджа).*$/i, '')
+            .replace(/\s*[|—-]\s*Rupa Seva.*$/i, '') + ' — AB Kitchen';
+    }
 
     // Ждём переводы и авторизацию параллельно
     await Promise.all([loadTranslations(), waitForAuth()]);

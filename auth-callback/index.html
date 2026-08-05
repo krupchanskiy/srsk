@@ -5,8 +5,8 @@
     <title>Авторизация — ШРСК</title>
     <link rel="icon" type="image/svg+xml" href="/favicon.svg">
     <script>
-        // Редирект с сохранением hash (токен авторизации)
-        window.location.href = '/guest-portal/auth-callback/' + window.location.hash;
+        // Сохраняем и назначение входа, и токен авторизации.
+        window.location.href = '/guest-portal/auth-callback/' + window.location.search + window.location.hash;
     </script>
 </head>
 <body>

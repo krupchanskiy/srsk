@@ -78,7 +78,7 @@
 
     <!-- Scripts -->
     <script src="../js/portal-config.js?v=3"></script>
-    <script src="../js/portal-auth.js"></script>
+    <script src="../js/portal-auth.js?v=2"></script>
     <script>
         const db = window.portalSupabase;
         const currentLang = localStorage.getItem('srsk_lang') || 'ru';
@@ -127,6 +127,34 @@
         // Обновить статус
         function updateStatus(text) {
             document.getElementById('status-text').textContent = text;
+        }
+
+        function getSafeRedirect() {
+            const redirect = new URLSearchParams(window.location.search).get('redirect') || '';
+            return redirect.startsWith('/') && !redirect.startsWith('//') ? redirect : '';
+        }
+
+        async function resolveDestination() {
+            const redirect = getSafeRedirect();
+            const wantsAbKitchen = redirect === '/ab-kitchen' || redirect.startsWith('/ab-kitchen/');
+            const [{ data: hasAbAccess }, { data: hasMainAccess }] = await Promise.all([
+                db.rpc('has_ab_kitchen_access'),
+                db.rpc('has_main_backoffice_access')
+            ]);
+
+            if (wantsAbKitchen) {
+                if (!hasAbAccess) return '/ab-kitchen/access-denied.html';
+                try { sessionStorage.setItem('srsk_ab_kitchen_context', '1'); } catch {}
+                return redirect;
+            }
+            if (hasAbAccess && !hasMainAccess) {
+                try { sessionStorage.setItem('srsk_ab_kitchen_context', '1'); } catch {}
+                return '/ab-kitchen/';
+            }
+
+            try { sessionStorage.removeItem('srsk_ab_kitchen_context'); } catch {}
+            if (hasMainAccess) return redirect || '/';
+            return redirect.startsWith('/guest-portal/') ? redirect : '/guest-portal/';
         }
 
         // Основная логика
@@ -194,20 +222,9 @@
                 // Успех!
                 showSuccess();
 
-                // Получаем информацию о пользователе для редиректа
-                const { data: vaishnava } = await db
-                    .from('vaishnavas')
-                    .select('is_team')
-                    .eq('id', linkResult.vaishnavId)
-                    .single();
-
-                // Редирект в зависимости от типа пользователя
+                const destination = await resolveDestination();
                 setTimeout(() => {
-                    if (vaishnava && vaishnava.is_team) {
-                        window.location.href = 'https://srsk.rupaseva.com/';
-                    } else {
-                        window.location.href = '/';
-                    }
+                    window.location.href = destination;
                 }, 1000);
 
             } catch (error) {

@@ -4,14 +4,14 @@ const path = require('node:path');
 
 const AB_CONTEXT_KEY = 'srsk_ab_kitchen_context';
 
-function authMockScript() {
+function authMockScript({ abAccess = true, mainAccess = true, isSuperuser = true } = {}) {
   return `
     (() => {
       const user = { id: 'admin-1', email: 'admin@example.test' };
       const vaishnava = {
         id: 'person-1', spiritual_name: 'Администратор', first_name: null,
         last_name: null, photo_url: null, user_type: 'staff',
-        approval_status: 'approved', is_superuser: true, is_active: true
+        approval_status: 'approved', is_superuser: ${isSuperuser}, is_active: true
       };
       const resultFor = table => table === 'vaishnavas'
         ? { data: vaishnava, error: null }
@@ -34,7 +34,11 @@ function authMockScript() {
           signOut: async () => ({ error: null })
         },
         from: table => query(table),
-        rpc: async () => ({ data: [], error: null })
+        rpc: async name => {
+          if (name === 'has_ab_kitchen_access') return { data: ${abAccess}, error: null };
+          if (name === 'has_main_backoffice_access') return { data: ${mainAccess}, error: null };
+          return { data: [], error: null };
+        }
       };
       window.supabase = { createClient: () => client };
       window.debug = () => {};
@@ -51,11 +55,11 @@ async function seedAbContext(page) {
   await page.evaluate(key => sessionStorage.setItem(key, '1'), AB_CONTEXT_KEY);
 }
 
-async function installSyntheticProtectedPage(page, pathPattern) {
+async function installSyntheticProtectedPage(page, pathPattern, authOptions) {
   await page.route(pathPattern, route => route.fulfill({
     contentType: 'text/html',
     body: `<!doctype html><html><body><main id="protected-content">Общий BackOffice</main>
-      <script>${authMockScript()}</script>
+      <script>${authMockScript(authOptions)}</script>
       <script src="/js/config.js?v=4"></script>
       <script src="/js/auth-check.js?v=8"></script>
     </body></html>`
@@ -102,6 +106,20 @@ test.describe('AB Kitchen — граница маршрутов', () => {
 
     await expect(page).toHaveURL(/\/kitchen\/menu\.html$/);
     await expect(page.locator('#protected-content')).toBeVisible();
+  });
+
+  test('ABK-AUTH-003: пользователь без AB-роли получает понятный отказ', async ({ page }) => {
+    await seedAbContext(page);
+    await installSyntheticProtectedPage(page, '**/kitchen/menu.html', {
+      abAccess: false,
+      mainAccess: true,
+      isSuperuser: false
+    });
+
+    await page.goto('/kitchen/menu.html');
+
+    await expect(page).toHaveURL(/\/ab-kitchen\/access-denied\.html$/);
+    await expect(page.getByRole('heading', { name: 'Нет доступа к AB Kitchen' })).toBeVisible();
   });
 });
 
@@ -250,5 +268,47 @@ test.describe('AB Kitchen — контракты изоляции данных',
     for (const chain of dishMutations) {
       expect(chain).toMatch(/\.eq\('meal_id',\s*(?:currentMeal|mealData|sourceMeal)\.id\)/);
     }
+  });
+
+  test('ABK-DATA-005: migration создаёт роль, привязку локации и location-aware RLS', () => {
+    const migration = fs.readFileSync(path.join(repoRoot, 'supabase', '367_ab_kitchen_admin.sql'), 'utf8');
+    expect(migration).toContain("'ab_kitchen_admin'");
+    expect(migration).toContain("'sasha.kostromin.200@gmail.com'");
+    expect(migration).toContain("'a.caytanya@gmail.com'");
+    expect(migration).toContain('CREATE TABLE IF NOT EXISTS public.user_locations');
+    expect(migration).toContain('CREATE OR REPLACE FUNCTION public.has_ab_kitchen_access()');
+    expect(migration).toContain('CREATE OR REPLACE FUNCTION public.has_main_backoffice_access()');
+
+    const locationTables = [
+      'recipes', 'recipe_ingredients', 'menu_meals', 'menu_dishes',
+      'menu_templates', 'menu_template_meals', 'menu_template_dishes',
+      'stock', 'purchase_requests', 'purchase_request_items',
+      'stock_receipts', 'stock_receipt_items', 'stock_issuances',
+      'stock_issuance_items', 'stock_inventories', 'stock_inventory_items'
+    ];
+    for (const table of locationTables) {
+      expect(migration, `${table} должен быть защищён RLS`)
+        .toContain(`ALTER TABLE public.${table} ENABLE ROW LEVEL SECURITY`);
+    }
+    expect(migration).toContain("bucket_id = 'recipe-photos'");
+  });
+
+  test('ABK-AUTH-004: invitation/recovery uses real routes and can be repeated', () => {
+    const inviteFunction = fs.readFileSync(
+      path.join(repoRoot, 'supabase', 'functions', 'send-invite', 'index.ts'),
+      'utf8'
+    );
+    const callback = fs.readFileSync(path.join(repoRoot, 'guest-portal', 'auth-callback', 'index.html'), 'utf8');
+    const reset = fs.readFileSync(path.join(repoRoot, 'guest-portal', 'reset-password', 'index.html'), 'utf8');
+
+    expect(inviteFunction).toContain("mode = 'email'");
+    expect(inviteFunction).toContain("type: 'recovery'");
+    expect(inviteFunction).toContain("type: 'invite'");
+    expect(inviteFunction).toContain("/reset-password/");
+    expect(inviteFunction).not.toContain('/guest-portal/auth-callback.html');
+    expect(callback).not.toContain("select('is_team')");
+    expect(reset).not.toContain("select('is_team')");
+    expect(callback).toContain("rpc('has_ab_kitchen_access')");
+    expect(reset).toContain("rpc('has_ab_kitchen_access')");
   });
 });

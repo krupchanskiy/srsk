@@ -4,6 +4,12 @@ on:
   pull_request:
     paths:
       - 'ab-kitchen/**'
+      - 'auth-callback/**'
+      - 'reset-password/**'
+      - 'guest-portal/auth-callback/**'
+      - 'guest-portal/login/**'
+      - 'guest-portal/reset-password/**'
+      - 'guest-portal/js/portal-auth.js'
       - 'index.html'
       - 'js/auth-check.js'
       - 'js/layout.js'
@@ -11,13 +17,22 @@ on:
       - 'js/pages/stock-requests.js'
       - 'kitchen/**'
       - 'stock/**'
+      - 'supabase/367_ab_kitchen_admin.sql'
+      - 'supabase/functions/send-invite/**'
       - 'tests/ab-kitchen-isolation.spec.js'
       - 'tests/playwright.ab-kitchen.config.cjs'
+      - 'tests/static-server.cjs'
       - '.github/workflows/ab-kitchen-isolation.yml'
   push:
     branches: [main]
     paths:
       - 'ab-kitchen/**'
+      - 'auth-callback/**'
+      - 'reset-password/**'
+      - 'guest-portal/auth-callback/**'
+      - 'guest-portal/login/**'
+      - 'guest-portal/reset-password/**'
+      - 'guest-portal/js/portal-auth.js'
       - 'index.html'
       - 'js/auth-check.js'
       - 'js/layout.js'
@@ -25,8 +40,11 @@ on:
       - 'js/pages/stock-requests.js'
       - 'kitchen/**'
       - 'stock/**'
+      - 'supabase/367_ab_kitchen_admin.sql'
+      - 'supabase/functions/send-invite/**'
       - 'tests/ab-kitchen-isolation.spec.js'
       - 'tests/playwright.ab-kitchen.config.cjs'
+      - 'tests/static-server.cjs'
       - '.github/workflows/ab-kitchen-isolation.yml'
 
 jobs:

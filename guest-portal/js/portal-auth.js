@@ -135,9 +135,10 @@ async function logout() {
 /**
  * Отправка magic link на email
  * @param {string} email
+ * @param {string} redirectPath безопасный локальный маршрут после входа
  * @returns {Promise<{success: boolean, error?: string, isNewUser?: boolean}>}
  */
-async function sendMagicLink(email) {
+async function sendMagicLink(email, redirectPath = '') {
     try {
         // Проверяем есть ли vaishnava с таким email
         const { data: vaishnava, error: checkError } = await db
@@ -162,7 +163,11 @@ async function sendMagicLink(email) {
         }
 
         // Отправляем magic link
-        const redirectUrl = window.location.origin + '/auth-callback/';
+        const safeRedirect = redirectPath.startsWith('/') && !redirectPath.startsWith('//')
+            ? redirectPath
+            : '';
+        const redirectUrl = window.location.origin + '/auth-callback/'
+            + (safeRedirect ? `?redirect=${encodeURIComponent(safeRedirect)}` : '');
         const { error: otpError } = await db.auth.signInWithOtp({
             email: email,
             options: {
