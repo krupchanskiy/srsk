@@ -545,6 +545,11 @@
             if (op.donation_retreat) {
                 detailsHtml = `<span class="badge badge-sm whitespace-nowrap" style="background-color:${e(op.donation_retreat.color || '#6b7280')};color:white;">${e(Layout.getName(op.donation_retreat))}</span>`;
             }
+            // Примечание к пожертвованию писали, но нигде не показывали —
+            // у переноса такая подпись есть, у пожертвования не было (ревизия 05.08.2026)
+            if (op.donation_note) {
+                detailsHtml += `<span class="text-base-content/70 text-xs">${detailsHtml ? ' · ' : ''}${e(op.donation_note)}</span>`;
+            }
             statusHtml = op.is_confirmed
                 ? `<span class="text-emerald-600 text-xs">✓</span>`
                 : `<span class="text-amber-600 text-xs">○</span>`;
