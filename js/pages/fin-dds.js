@@ -15,6 +15,14 @@ const requestIds = { expense: null, income: null, transfer: null, reversal: null
 let expenseRowSeq = 0;
 let opsById = {};   // операции общей ленты (для кнопки сторно в развороте)
 
+// У сторно своего комментария нет — там причина, которую написал казначей
+// (поле reason). Раньше колонка показывала только comment, и причина
+// сторнирования пропадала из журнала (замечание ВГ 05.08.2026).
+function commentOf(row) {
+    if (row.comment) return row.comment;
+    return row.reason ? `${t('fin_reason')}: ${row.reason}` : '';
+}
+
 // ==================== ФИЛЬТРЫ ====================
 const FILTER_IDS = { filterAccount: 'account', filterType: 'type', filterCategory: 'category', filterApproval: 'approval', filterFrom: 'from', filterTo: 'to', filterSearch: 'q' };
 
@@ -89,23 +97,23 @@ async function exportCsv() {
         if (f.approval) q = q.eq('approval', f.approval);
         if (f.from) q = q.gte('occurred_on', f.from);
         if (f.to) q = q.lte('occurred_on', f.to);
-        if (amt !== null) q = q.or(`comment.ilike.%${f.q}%,signed_amount.eq.${amt},signed_amount.eq.${-amt}`);
-        else if (f.q) q = q.ilike('comment', `%${f.q}%`);
+        if (amt !== null) q = q.or(`comment.ilike.%${f.q}%,reason.ilike.%${f.q}%,signed_amount.eq.${amt},signed_amount.eq.${-amt}`);
+        else if (f.q) q = q.or(`comment.ilike.%${f.q}%,reason.ilike.%${f.q}%`);
         const { data } = await q;
         header = ['Дата', 'Тип', 'Счёт', 'Статья', 'Центр затрат', 'Объект', 'Участник', 'Комментарий', 'Сумма', 'Валюта'];
-        rows = (data || []).map(p => [p.occurred_on, FinUtils.typeLabel(p.type), p.account_name, p.category_name, p.cost_center_name, p.object_name, p.participant_name, p.comment, p.signed_amount, p.currency_code]);
+        rows = (data || []).map(p => [p.occurred_on, FinUtils.typeLabel(p.type), p.account_name, p.category_name, p.cost_center_name, p.object_name, p.participant_name, commentOf(p), p.signed_amount, p.currency_code]);
     } else {
         let q = Layout.db.from('fin_v_operations').select('*').order('created_at', { ascending: false }).limit(5000);
         if (f.type) q = q.eq('type', f.type);
         if (f.approval) q = q.eq('approval', f.approval);
         if (f.from) q = q.gte('occurred_on', f.from);
         if (f.to) q = q.lte('occurred_on', f.to);
-        if (f.q) q = q.or(`comment.ilike.%${f.q}%,payer_name.ilike.%${f.q}%`);
+        if (f.q) q = q.or(`comment.ilike.%${f.q}%,reason.ilike.%${f.q}%,payer_name.ilike.%${f.q}%`);
         const { data } = await q;
         // Счёт и ретрит есть на экране — значит должны быть и в выгрузке,
         // иначе CSV отвечает не на те вопросы, что журнал
         header = ['Дата', 'Тип', 'Счета', 'Ретрит', 'Плательщик', 'Комментарий', 'Статус', 'Суммы'];
-        rows = (data || []).map(op => [op.occurred_on, FinUtils.typeLabel(op.type), op.accounts, op.objects, op.payer_name, op.comment, t('fin_approval_' + op.approval), FinUtils.fmtAmountsByCurrency(op.amounts_by_currency)]);
+        rows = (data || []).map(op => [op.occurred_on, FinUtils.typeLabel(op.type), op.accounts, op.objects, op.payer_name, commentOf(op), t('fin_approval_' + op.approval), FinUtils.fmtAmountsByCurrency(op.amounts_by_currency)]);
     }
     const csv = '﻿' + [header, ...rows].map(r => r.map(c => `"${String(c ?? '').replace(/"/g, '""')}"`).join(';')).join('\n');
     const a = document.createElement('a');
@@ -256,8 +264,8 @@ async function loadTable(append = false) {
         if (f.approval) q = q.eq('approval', f.approval);
         if (f.from) q = q.gte('occurred_on', f.from);
         if (f.to) q = q.lte('occurred_on', f.to);
-        if (amt !== null) q = q.or(`comment.ilike.%${f.q}%,signed_amount.eq.${amt},signed_amount.eq.${-amt}`);
-        else if (f.q) q = q.ilike('comment', `%${f.q}%`);
+        if (amt !== null) q = q.or(`comment.ilike.%${f.q}%,reason.ilike.%${f.q}%,signed_amount.eq.${amt},signed_amount.eq.${-amt}`);
+        else if (f.q) q = q.or(`comment.ilike.%${f.q}%,reason.ilike.%${f.q}%`);
         const { data, error } = await q;
         if (error) { Layout.handleError(error, 'ДДС'); return; }
         if (!data.length && !append) {
@@ -285,7 +293,7 @@ async function loadTable(append = false) {
                         : ''}${badges(p)}</td>
                 <td>${e(p.category_name || '—')}</td>
                 <td>${e(showRunning ? (p.object_name || '') : (p.account_name || ''))}</td>
-                <td class="max-w-xs truncate opacity-70">${e(p.comment || '')}</td>
+                <td class="max-w-xs truncate opacity-70">${e(commentOf(p))}</td>
                 <td class="text-right font-mono ${Number(p.signed_amount) < 0 ? 'text-error' : 'text-success'}">${FinUtils.fmtMoney(p.signed_amount, p.currency_code)}</td>
                 ${showRunning ? `<td class="text-right font-mono">${FinUtils.fmtMoney(p.running_balance, p.currency_code)}</td>` : ''}
                 <td>${FinUtils.approvalBadge(p.approval)}</td>
@@ -316,7 +324,7 @@ async function loadTable(append = false) {
         if (f.approval) q = q.eq('approval', f.approval);
         if (f.from) q = q.gte('occurred_on', f.from);
         if (f.to) q = q.lte('occurred_on', f.to);
-        if (f.q) q = q.or(`comment.ilike.%${f.q}%,payer_name.ilike.%${f.q}%`);
+        if (f.q) q = q.or(`comment.ilike.%${f.q}%,reason.ilike.%${f.q}%,payer_name.ilike.%${f.q}%`);
         const { data, error } = await q;
         if (error) { Layout.handleError(error, 'ДДС'); return; }
         if (!data.length && !append) {
@@ -332,7 +340,7 @@ async function loadTable(append = false) {
                 <td class="whitespace-nowrap">${e(op.accounts || '—')}</td>
                 <td class="whitespace-nowrap">${e(op.objects || '—')}</td>
                 <td class="text-right font-mono whitespace-nowrap">${FinUtils.fmtAmountsByCurrencyColored(op.amounts_by_currency)}</td>
-                <td class="max-w-md truncate opacity-70">${e([op.payer_name, op.comment].filter(Boolean).join(' · '))}</td>
+                <td class="max-w-md truncate opacity-70">${e([op.payer_name, commentOf(op)].filter(Boolean).join(' · '))}</td>
                 <td>${FinUtils.approvalBadge(op.approval)}</td>
             </tr>
             <tr class="hidden" id="det-${op.operation_id}"><td colspan="7" class="bg-base-200/50 p-0"></td></tr>
