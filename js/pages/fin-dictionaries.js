@@ -389,6 +389,9 @@ async function submitForm(ev) {
 
     if (FinUtils.handleResult(res)) {
         document.getElementById('dictModal').close();
+        // Справочник поправили — обновляем общий кэш, иначе новая статья не
+        // появится в наборе департамента, пока не перезагрузишь страницу
+        await FinUtils.refreshRefs();
         await loadTab();
     }
 }

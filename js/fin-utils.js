@@ -140,6 +140,14 @@ const FinUtils = {
         return refs.accounts;
     },
 
+    // Справочники грузятся один раз на страницу, поэтому только что созданная
+    // статья не появлялась в наборе департамента до перезагрузки страницы
+    // (замечание ВГ 05.08.2026: «добавил статью — её нет в списке набора»).
+    async refreshRefs() {
+        refs.loaded = false;
+        return await this.loadRefs();
+    },
+
     // Опции селектов. Счета группируются: реальные / подотчётные
     accountOptions(selectedId, filter) {
         const e = s => Layout.escapeHtml(s);
