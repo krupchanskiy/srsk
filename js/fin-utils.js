@@ -45,7 +45,15 @@ const FinUtils = {
         const args = payload === undefined ? {} : { payload };
         const { data, error } = await Layout.db.rpc(name, args);
         if (error) {
-            return { ok: false, error: { code: 'network_error', message: error.message } };
+            // Обрыв связи приходит без кода PostgREST. Всё, у чего код есть, — это ответ
+            // сервера, и его нужно показать: иначе человек перезагружает страницу впустую.
+            if (!error.code) {
+                return { ok: false, error: { code: 'network_error', message: error.message } };
+            }
+            return { ok: false, error: {
+                code: error.code,
+                message: error.message || error.details || error.hint || error.code
+            } };
         }
         return data;
     },
