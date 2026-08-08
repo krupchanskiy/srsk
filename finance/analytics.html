@@ -25,6 +25,7 @@
     <div role="tablist" class="tabs tabs-boxed w-fit mb-4">
         <a role="tab" class="tab tab-active" data-tab="retreat" data-i18n="fin_analytics_retreat">По ретриту</a>
         <a role="tab" class="tab" data-tab="summary" data-i18n="fin_analytics_summary">Общая</a>
+        <a role="tab" class="tab" data-tab="dept" data-i18n="fin_analytics_departments">По департаментам</a>
     </div>
 
     <!-- ===== ПО РЕТРИТУ ===== -->
@@ -54,7 +55,123 @@
         </div>
         <div id="summaryReport" class="space-y-4"></div>
     </div>
+
+    <!-- ВКЛАДКА: ПО ДЕПАРТАМЕНТАМ -->
+    <div id="deptTab" class="hidden">
+        <div class="flex flex-wrap items-end gap-3 mb-4">
+            <div class="flex flex-wrap items-center gap-2">
+                <span class="text-xs opacity-60" data-i18n="fin_period">Период</span>
+                <button class="btn btn-xs btn-ghost" data-dept-preset="month" data-i18n="fin_period_month">Месяц</button>
+                <button class="btn btn-xs btn-ghost" data-dept-preset="quarter" data-i18n="fin_period_quarter">Квартал</button>
+                <button class="btn btn-xs btn-ghost" data-dept-preset="year" data-i18n="fin_period_year">Год</button>
+                <button class="btn btn-xs btn-ghost" data-dept-preset="all" data-i18n="fin_period_all">Всё</button>
+            </div>
+            <div class="form-control">
+                <label class="label py-0" for="deptFrom"><span class="label-text text-xs" data-i18n="fin_period_from">С</span></label>
+                <input type="date" id="deptFrom" class="input input-bordered input-sm w-40">
+            </div>
+            <div class="form-control">
+                <label class="label py-0" for="deptTo"><span class="label-text text-xs" data-i18n="fin_period_to">По</span></label>
+                <input type="date" id="deptTo" class="input input-bordered input-sm w-40">
+            </div>
+            <button class="btn btn-primary btn-sm" onclick="FinAnalytics.loadDepartments()" data-i18n="fin_show">Показать</button>
+            <button class="btn btn-ghost btn-sm ml-auto gap-1" onclick="FinAnalytics.exportDeptCsv()">
+                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="w-3.5 h-3.5"><path stroke-linecap="round" stroke-linejoin="round" d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5M16.5 12L12 16.5m0 0L7.5 12m4.5 4.5V3"/></svg>
+                <span data-i18n="fin_export_csv">CSV</span>
+            </button>
+        </div>
+        <div id="deptReport" class="space-y-4"></div>
+    </div>
 </main>
+
+<style>
+    /* ---------- Отчёт по департаментам ----------
+       Три числа на департамент: получил, потратил, осталось. Полоса под названием
+       даёт пропорцию — кто съедает бюджет, видно раньше, чем прочитаны цифры. */
+    .fin-dept-totals {
+        display: grid; gap: 0.75rem;
+        grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    }
+    .fin-dept-kpi {
+        display: flex; flex-direction: column; gap: 0.2rem;
+        padding: 0.9rem 1.1rem;
+        background: #fff;
+        border: 1px solid var(--fin-border);
+        border-radius: 14px;
+        box-shadow: var(--fin-shadow);
+    }
+    .fin-dept-kpi-label {
+        font-size: 0.7rem; text-transform: uppercase; letter-spacing: 0.08em;
+        font-weight: 600; color: var(--fin-muted);
+    }
+    .fin-dept-kpi-value {
+        font-size: 1.5rem; font-weight: 700; letter-spacing: -0.015em;
+        font-variant-numeric: tabular-nums; color: var(--fin-ink);
+    }
+
+    .fin-dept-head, .fin-dept-row {
+        display: grid;
+        grid-template-columns: minmax(11rem, 1fr) 8.5rem 8.5rem 8.5rem;
+        align-items: center;
+        gap: 0.75rem;
+        padding: 0.7rem 1.1rem;
+    }
+    .fin-dept-head {
+        font-size: 0.7rem; text-transform: uppercase; letter-spacing: 0.07em;
+        font-weight: 600; color: var(--fin-muted);
+        border-bottom: 1px solid var(--fin-border);
+        padding-top: 0.85rem; padding-bottom: 0.55rem;
+    }
+    .fin-dept-row + .fin-dept-row { border-top: 1px solid var(--fin-border); }
+    .fin-dept-row:hover { background: rgba(15, 23, 42, 0.015); }
+
+    .fin-dept-name { display: flex; flex-direction: column; gap: 0.3rem; min-width: 0; }
+    .fin-dept-bar {
+        display: block; height: 4px; border-radius: 2px;
+        background: rgba(15, 23, 42, 0.07); overflow: hidden;
+    }
+    .fin-dept-bar > span {
+        display: block; height: 100%; border-radius: 2px;
+        background: var(--fin-accent);
+    }
+    .fin-dept-note { font-size: 0.7rem; color: var(--fin-muted); }
+    .fin-dept-num {
+        text-align: right; white-space: nowrap;
+        font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+        font-variant-numeric: tabular-nums;
+        font-size: 0.875rem;
+    }
+
+    /* Статьи — вторая строка сетки: на что именно ушли деньги департамента */
+    .fin-dept-cats {
+        grid-column: 1 / -1;
+        display: flex; flex-wrap: wrap; gap: 0.35rem;
+        margin-top: 0.1rem;
+    }
+    .fin-dept-cat {
+        font-size: 0.72rem; line-height: 1.6;
+        padding: 0 0.5rem; border-radius: 6px;
+        background: rgba(15, 23, 42, 0.05); color: var(--fin-muted);
+        white-space: nowrap;
+    }
+    .fin-dept-cat b { color: var(--fin-ink); font-variant-numeric: tabular-nums; }
+
+    /* На узком экране каждое число — своя строка «подпись → значение» */
+    @media (max-width: 760px) {
+        .fin-dept-head { display: none; }
+        .fin-dept-row { grid-template-columns: 1fr; row-gap: 0.15rem; }
+        .fin-dept-name { margin-bottom: 0.25rem; }
+        .fin-dept-num {
+            display: flex; justify-content: space-between; align-items: baseline; gap: 1rem;
+        }
+        .fin-dept-num::before {
+            content: attr(data-label);
+            font-family: 'Noto Sans', system-ui, sans-serif;
+            font-size: 0.75rem; color: var(--fin-muted);
+        }
+        .fin-dept-cats { margin-top: 0.4rem; }
+    }
+</style>
 
 <div id="footer-placeholder"></div>
 
@@ -94,12 +211,12 @@
 <script src="../js/auth-check.js?v=8"></script>
 <script src="../js/cache.js?v=1"></script>
 <script src="../js/utils.js?v=4"></script>
-<script src="../js/layout.js?v=46"></script>
+<script src="../js/layout.js?v=47"></script>
 <script src="../js/date-utils.js?v=3"></script>
 <script src="../js/fin-utils.js?v=9"></script>
 <script src="https://cdn.jsdelivr.net/npm/pdf-lib@1.17.1/dist/pdf-lib.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@pdf-lib/fontkit@1.1.1/dist/fontkit.umd.min.js"></script>
-<script src="../js/pages/fin-analytics.js?v=5"></script>
+<script src="../js/pages/fin-analytics.js?v=6"></script>
 
 </body>
 </html>

@@ -329,6 +329,123 @@ async function loadSummary() {
         || `<div class="text-center py-8 opacity-60">${t('fin_no_operations')}</div>`;
 }
 
+// ==================== ПО ДЕПАРТАМЕНТАМ ====================
+// Экономика департамента — не «доход/расход», а «получил → потратил → осталось»:
+// своих доходов у них нет, деньги приходят переводом из кассы.
+let deptData = null;
+
+function deptPeriod(preset) {
+    const now = new Date();
+    const iso = d => DateUtils.toISO(d);
+    switch (preset) {
+        case 'month':   return [iso(new Date(now.getFullYear(), now.getMonth(), 1)), FinUtils.todayISO()];
+        case 'quarter': return [iso(new Date(now.getFullYear(), Math.floor(now.getMonth() / 3) * 3, 1)), FinUtils.todayISO()];
+        case 'year':    return [`${now.getFullYear()}-01-01`, FinUtils.todayISO()];
+        default:        return ['2000-01-01', FinUtils.todayISO()];
+    }
+}
+
+async function loadDepartments() {
+    const from = document.getElementById('deptFrom').value;
+    const to = document.getElementById('deptTo').value;
+    if (!from || !to) return;
+    const box = document.getElementById('deptReport');
+    box.innerHTML = `<div class="text-center py-8"><span class="loading loading-spinner loading-md"></span></div>`;
+
+    const { data, error } = await Layout.db.rpc('fin_get_department_report', { p_from: from, p_to: to });
+    if (error) { Layout.handleError(error, 'Аналитика'); return; }
+    if (!data?.ok) { Layout.showNotification(data?.error?.message || 'Ошибка', 'error'); return; }
+
+    deptData = data.result;
+    const все = deptData.departments || [];
+    // Департамент без движений и без остатка — не строка отчёта, а сноска внизу
+    const активные = все.filter(d => Number(d.received) || Number(d.spent)
+                                  || Number(d.passed_on) || Number(d.balance_end));
+    const пустые = все.filter(d => !активные.includes(d));
+
+    if (!активные.length) {
+        box.innerHTML = `<div class="text-center py-8 opacity-60">${t('fin_dept_no_movements')}</div>`;
+        return;
+    }
+
+    // Суммируем только движения периода. Остатки не складываем: среди «департаментов»
+    // есть подотчётные лица с минусом (ашрам должен им), и общая сумма ушла бы в минус,
+    // хотя у настоящих департаментов деньги на руках есть.
+    const итог = активные.reduce((s, d) => ({
+        received: s.received + Number(d.received),
+        spent: s.spent + Number(d.spent)
+    }), { received: 0, spent: 0 });
+
+    // Полоса показывает долю в общих расходах: глазу нужна пропорция, а не только число
+    const maxSpent = Math.max(...активные.map(d => Number(d.spent)), 1);
+
+    box.innerHTML = `
+        <div class="fin-dept-totals">
+            ${kpiBox(t('fin_dept_received'), итог.received)}
+            ${kpiBox(t('fin_dept_spent'), итог.spent)}
+        </div>
+        <div class="card bg-base-100 shadow-sm"><div class="card-body p-0">
+            <div class="fin-dept-head">
+                <span>${t('fin_department')}</span>
+                <span class="text-right">${t('fin_dept_received')}</span>
+                <span class="text-right">${t('fin_dept_spent')}</span>
+                <span class="text-right">${t('fin_dept_balance')}</span>
+            </div>
+            ${активные.map(d => deptRow(d, maxSpent)).join('')}
+        </div></div>
+        ${пустые.length ? `<p class="text-xs opacity-60">${t('fin_dept_idle')}: ${пустые.map(d => e(d.name)).join(', ')}</p>` : ''}`;
+}
+
+function kpiBox(label, value) {
+    return `<div class="fin-dept-kpi">
+        <span class="fin-dept-kpi-label">${e(label)}</span>
+        <span class="fin-dept-kpi-value">${fmtB(value)}</span>
+    </div>`;
+}
+
+function deptRow(d, maxSpent) {
+    const spent = Number(d.spent), received = Number(d.received);
+    const passed = Number(d.passed_on), balance = Number(d.balance_end);
+    const доля = spent > 0 ? Math.max(2, Math.round(spent / maxSpent * 100)) : 0;
+    return `<div class="fin-dept-row">
+        <div class="fin-dept-name">
+            <span class="font-medium">${e(d.name)}</span>
+            ${доля ? `<span class="fin-dept-bar"><span style="width:${доля}%"></span></span>` : ''}
+            ${passed ? `<span class="fin-dept-note">${t('fin_dept_passed')}: ${fmtB(passed)}</span>` : ''}
+        </div>
+        <span class="fin-dept-num" data-label="${t('fin_dept_received')}">${received ? fmtB(received) : '—'}</span>
+        <span class="fin-dept-num ${spent ? 'text-error' : ''}" data-label="${t('fin_dept_spent')}">${spent ? fmtB(spent) : '—'}</span>
+        <span class="fin-dept-num ${balance < 0 ? 'text-error' : ''}" data-label="${t('fin_dept_balance')}">${fmtB(balance)}</span>
+        ${d.by_category?.length ? `<div class="fin-dept-cats">
+            ${d.by_category.map(c => `<span class="fin-dept-cat">${e(c.name)} <b>${fmtB(c.total)}</b></span>`).join('')}
+        </div>` : ''}
+    </div>`;
+}
+
+function exportDeptCsv() {
+    if (!deptData) return;
+    const header = ['Департамент', 'Получено ₹', 'Потрачено ₹', 'Передано дальше ₹', 'На руках ₹', 'Статья', 'Сумма по статье ₹'];
+    const rows = [];
+    (deptData.departments || []).forEach(d => {
+        if (!d.by_category?.length) {
+            rows.push([d.name, d.received, d.spent, d.passed_on, d.balance_end, '', '']);
+        } else {
+            d.by_category.forEach((c, i) => rows.push([
+                d.name,
+                i === 0 ? d.received : '', i === 0 ? d.spent : '',
+                i === 0 ? d.passed_on : '', i === 0 ? d.balance_end : '',
+                c.name, c.total
+            ]));
+        }
+    });
+    const csv = '﻿' + [header, ...rows]
+        .map(r => r.map(c => `"${String(c ?? '').replace(/"/g, '""')}"`).join(';')).join('\n');
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(new Blob([csv], { type: 'text/csv;charset=utf-8' }));
+    a.download = `departments-${deptData.from}_${deptData.to}.csv`;
+    a.click();
+}
+
 // ==================== INIT ====================
 async function init() {
     await Layout.init({ module: 'finance', menuId: 'fin_analytics', itemId: 'fin_analytics' });
@@ -341,6 +458,17 @@ async function init() {
             tab.classList.add('tab-active');
             document.getElementById('retreatTab').classList.toggle('hidden', tab.dataset.tab !== 'retreat');
             document.getElementById('summaryTab').classList.toggle('hidden', tab.dataset.tab !== 'summary');
+            document.getElementById('deptTab').classList.toggle('hidden', tab.dataset.tab !== 'dept');
+            // Первый заход на вкладку сразу показывает цифры, а не пустой экран
+            if (tab.dataset.tab === 'dept' && !deptData) loadDepartments();
+        }));
+
+    document.querySelectorAll('[data-dept-preset]').forEach(btn =>
+        btn.addEventListener('click', () => {
+            const [from, to] = deptPeriod(btn.dataset.deptPreset);
+            document.getElementById('deptFrom').value = from;
+            document.getElementById('deptTo').value = to;
+            loadDepartments();
         }));
 
     document.getElementById('reissueForm').addEventListener('submit', submitReissue);
@@ -353,6 +481,10 @@ async function init() {
     const now = new Date();
     document.getElementById('sumFrom').value = `${now.getFullYear()}-01-01`;
     document.getElementById('sumTo').value = FinUtils.todayISO();
+    // По департаментам по умолчанию текущий месяц: расходы смотрят помесячно
+    const [dFrom, dTo] = deptPeriod('month');
+    document.getElementById('deptFrom').value = dFrom;
+    document.getElementById('deptTo').value = dTo;
 
     const params = new URLSearchParams(window.location.search);
     const preset = params.get('retreat');
@@ -362,6 +494,7 @@ async function init() {
     }
 }
 
-window.FinAnalytics = { openClose, submitClose, openReissue, makePdf, exportCsv, loadSummary };
+window.FinAnalytics = { openClose, submitClose, openReissue, makePdf, exportCsv, loadSummary,
+                        loadDepartments, exportDeptCsv };
 init();
 })();
