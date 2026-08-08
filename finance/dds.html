@@ -95,7 +95,7 @@
     <div class="card bg-base-100 shadow-sm">
         <div class="card-body p-0">
             <div class="overflow-x-auto">
-                <table class="table table-sm">
+                <table class="table table-sm fin-ledger">
                     <thead id="ddsHead"></thead>
                     <tbody id="ddsBody">
                         <tr><td colspan="8" class="text-center py-8"><span class="loading loading-spinner loading-md"></span></td></tr>
@@ -108,11 +108,97 @@
 </main>
 
 <style>
-    /* Развёрнутая операция: строка + панель проводок читаются как единый блок */
-    #ddsBody tr.fin-expanded > td {
-        background-color: color-mix(in srgb, var(--current-color) 10%, transparent) !important;
+    /* ---------- Разворот операции ----------
+       Раньше строка и панель заливались одним цветом во всю ширину: два раскрытых
+       подряд сливались в сплошную полосу, границы операций терялись (ВГ, 07.08).
+       Теперь блок обозначен линиями сверху и снизу, а проводки лежат в отдельной
+       карточке с отступом — видно, где операция начинается и где кончается. */
+
+    /* Шеврон: сразу понятно, какая строка раскрыта */
+    .fin-ledger .fin-chev-cell { width: 1.5rem; padding-right: 0; }
+    .fin-chev {
+        display: inline-block; width: 0.5rem; height: 0.5rem;
+        border-right: 1.5px solid currentColor; border-bottom: 1.5px solid currentColor;
+        transform: rotate(-45deg); opacity: 0.35;
+        transition: transform 0.18s var(--fin-ease), opacity 0.18s ease-out;
     }
-    #ddsBody tr[data-op].fin-expanded > td { border-bottom-color: transparent; }
+    #ddsBody tr[data-op]:hover .fin-chev { opacity: 0.7; }
+    #ddsBody tr[data-op].is-open .fin-chev { transform: rotate(45deg); opacity: 0.9; }
+
+    #ddsBody tr[data-op].is-open > td {
+        background-color: color-mix(in srgb, var(--current-color) 5%, transparent);
+        border-bottom-color: transparent;
+        box-shadow: inset 0 1px 0 color-mix(in srgb, var(--current-color) 45%, transparent);
+        font-weight: 500;
+    }
+    #ddsBody tr.fin-det.is-open > td {
+        background-color: color-mix(in srgb, var(--current-color) 5%, transparent);
+        border-bottom: 1px solid color-mix(in srgb, var(--current-color) 22%, transparent);
+    }
+
+    /* Панель проводок — объект внутри строки, а не залитая полоса */
+    .fin-panel {
+        margin: 0 0.75rem 0.7rem 2.1rem;
+        background: #fff;
+        border: 1px solid var(--fin-border);
+        border-radius: 12px;
+        box-shadow: 0 1px 2px rgba(16, 24, 40, 0.04);
+        overflow: hidden;
+    }
+    .fin-postings { padding: 0.15rem 0; }
+    /* Суммы в одной колонке справа: глаз сравнивает их по вертикали */
+    .fin-posting {
+        display: grid;
+        grid-template-columns: minmax(9rem, auto) 1fr auto auto;
+        align-items: center;
+        gap: 0.75rem;
+        padding: 0.5rem 0.85rem;
+        font-size: 0.8125rem;
+    }
+    .fin-posting + .fin-posting { border-top: 1px dashed rgba(15, 23, 42, 0.08); }
+    .fin-posting-acc { font-weight: 600; color: var(--fin-ink); }
+    .fin-posting-sum {
+        font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+        font-variant-numeric: tabular-nums; text-align: right; white-space: nowrap;
+    }
+    .fin-tags { display: flex; flex-wrap: wrap; gap: 0.35rem; align-items: center; }
+    .fin-tag {
+        font-size: 0.7rem; line-height: 1.5;
+        padding: 0 0.45rem; border-radius: 5px;
+        background: rgba(15, 23, 42, 0.05); color: var(--fin-muted);
+        white-space: nowrap;
+    }
+    /* Правка аналитики видна всегда, но приглушена: не спорит с суммой */
+    .fin-edit { opacity: 0.45; transition: opacity 0.15s ease-out; }
+    .fin-posting:hover .fin-edit, .fin-edit:focus-within { opacity: 1; }
+
+    /* Подвал: служебное и действия отделены от денег */
+    .fin-panel-foot {
+        display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between;
+        gap: 0.5rem;
+        padding: 0.35rem 0.5rem 0.35rem 0.85rem;
+        border-top: 1px solid var(--fin-border);
+        background: rgba(15, 23, 42, 0.015);
+    }
+    .fin-author { font-size: 0.7rem; color: var(--fin-muted); }
+    .fin-acts { display: flex; flex-wrap: wrap; gap: 0.15rem; align-items: center; }
+
+    /* Приглушение цветом, а не opacity: opacity на ячейке гасит и фон подсветки,
+       из-за чего у раскрытой строки появлялись светлые прорехи. */
+    .fin-ledger .fin-dim { color: var(--fin-muted); }
+
+    /* На узком экране: счёт, правка и сумма в строке, метки — под ними */
+    @media (max-width: 640px) {
+        .fin-panel { margin-left: 0.75rem; }
+        .fin-posting { grid-template-columns: 1fr auto auto; row-gap: 0.3rem; }
+        .fin-posting-acc { grid-column: 1; }
+        .fin-tags { grid-column: 1 / -1; order: 3; }
+        .fin-edit { opacity: 1; }
+        .fin-panel-foot { padding-left: 0.6rem; }
+    }
+    @media (prefers-reduced-motion: reduce) {
+        .fin-chev, .fin-edit { transition: none; }
+    }
 
     /* Подсветка свежесозданной операции */
     .fin-new-row { animation: finNewRow 2.5s ease-out; }
@@ -392,7 +478,7 @@
 <script src="../js/layout.js?v=46"></script>
 <script src="../js/date-utils.js?v=3"></script>
 <script src="../js/fin-utils.js?v=9"></script>
-<script src="../js/pages/fin-dds.js?v=17"></script>
+<script src="../js/pages/fin-dds.js?v=18"></script>
 
 </body>
 </html>

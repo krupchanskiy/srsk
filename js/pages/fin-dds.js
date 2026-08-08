@@ -309,6 +309,7 @@ async function loadTable(append = false) {
         // Колонка счетов добавлена 26.07.2026: без неё в общей ленте не видно,
         // откуда ушли деньги, — счёт открывался только разворотом строки.
         head.innerHTML = `<tr>
+            <th class="fin-chev-cell"></th>
             <th>${t('fin_occurred_on')}</th>
             <th>${t('fin_kind')}</th>
             <th>${t('fin_account')}</th>
@@ -328,22 +329,23 @@ async function loadTable(append = false) {
         const { data, error } = await q;
         if (error) { Layout.handleError(error, 'ДДС'); return; }
         if (!data.length && !append) {
-            body.innerHTML = `<tr><td colspan="7" class="text-center py-6 opacity-60">${t('fin_no_operations')}</td></tr>`;
+            body.innerHTML = `<tr><td colspan="8" class="text-center py-6 opacity-60">${t('fin_no_operations')}</td></tr>`;
             renderPager(false); renderTotals(); return;
         }
         opsById = append ? { ...opsById, ...Object.fromEntries(data.map(op => [op.operation_id, op])) }
                          : Object.fromEntries(data.map(op => [op.operation_id, op]));
         const html = data.map(op => `
             <tr class="cursor-pointer hover:bg-base-200 ${op.is_reversed ? 'opacity-60' : ''}" data-op="${op.operation_id}" tabindex="0">
+                <td class="fin-chev-cell"><span class="fin-chev"></span></td>
                 <td class="whitespace-nowrap">${DateUtils.formatShort(DateUtils.parseDate(op.occurred_on))}</td>
                 <td>${e(FinUtils.typeLabel(op.type))}${badges(op)}</td>
                 <td class="whitespace-nowrap">${e(op.accounts || '—')}</td>
-                <td class="whitespace-nowrap">${e(op.objects || '—')}</td>
+                <td class="whitespace-nowrap ${op.objects ? '' : 'fin-dim'}">${e(op.objects || '—')}</td>
                 <td class="text-right font-mono whitespace-nowrap">${FinUtils.fmtAmountsByCurrencyColored(op.amounts_by_currency)}</td>
-                <td class="max-w-md truncate opacity-70">${e([op.payer_name, commentOf(op)].filter(Boolean).join(' · '))}</td>
+                <td class="max-w-md truncate fin-dim">${e([op.payer_name, commentOf(op)].filter(Boolean).join(' · '))}</td>
                 <td>${FinUtils.approvalBadge(op.approval)}</td>
             </tr>
-            <tr class="hidden" id="det-${op.operation_id}"><td colspan="7" class="bg-base-200/50 p-0"></td></tr>
+            <tr class="hidden fin-det" id="det-${op.operation_id}"><td colspan="8" class="p-0"></td></tr>
         `).join('');
         if (append) body.insertAdjacentHTML('beforeend', html); else body.innerHTML = html;
         listOffset += data.length;
@@ -362,15 +364,15 @@ async function toggleDetails(opId) {
     const parent = document.querySelector(`tr[data-op="${opId}"]`);
     if (!row.classList.contains('hidden')) {
         row.classList.add('hidden');
-        row.classList.remove('fin-expanded');
-        parent?.classList.remove('fin-expanded');
+        row.classList.remove('is-open');
+        parent?.classList.remove('is-open');
         return;
     }
     row.classList.remove('hidden');
-    row.classList.add('fin-expanded');
-    parent?.classList.add('fin-expanded');
+    row.classList.add('is-open');
+    parent?.classList.add('is-open');
     const cell = row.firstElementChild;
-    cell.innerHTML = `<div class="p-3"><span class="loading loading-spinner loading-sm"></span></div>`;
+    cell.innerHTML = `<div class="fin-panel"><div class="p-3"><span class="loading loading-spinner loading-sm"></span></div></div>`;
     const [{ data }, { data: atts }] = await Promise.all([
         Layout.db.from('fin_v_account_ledger').select('*').eq('operation_id', opId).order('ledger_seq'),
         Layout.db.from('fin_v_attachments').select('*').eq('parent_type', 'operation').eq('parent_id', opId)
@@ -379,31 +381,39 @@ async function toggleDetails(opId) {
     const op = opsById[opId];
     const canEdit = window.hasPermission?.('fin_admin') && op && !op.is_reversed
         && !['reversal', 'refund', 'transfer', 'opening', 'reconciliation_adjustment'].includes(op.type);
-    cell.innerHTML = `<div class="p-3 text-sm space-y-1">` + (data || []).map(p => `
-        <div class="flex flex-wrap gap-3 items-center">
-            <span class="font-medium">${e(p.account_name)}</span>
-            <span class="font-mono ${Number(p.signed_amount) < 0 ? 'text-error' : 'text-success'}">${FinUtils.fmtMoney(p.signed_amount, p.currency_code)}</span>
-            ${p.amount_base !== null && p.currency_code !== 'INR' ? `<span class="opacity-60 font-mono">₹ ${Number(p.amount_base).toLocaleString('ru-RU')}</span>` : ''}
-            ${p.category_name ? `<span class="opacity-70">${e(p.category_name)}</span>` : ''}
-            ${p.cost_center_name ? `<span class="badge badge-ghost badge-sm">${e(p.cost_center_name)}</span>` : ''}
-            ${p.object_name ? `<span class="opacity-70">${e(p.object_name)}</span>` : ''}
-            ${p.participant_name ? `<span class="opacity-70">${e(p.participant_name)}</span>` : ''}
-            ${p.contractor_name ? `<span class="opacity-70">${e(p.contractor_name)}</span>` : ''}
-            ${p.payment_channel ? `<span class="opacity-50">${e(FinUtils.channelLabel(p.payment_channel))}</span>` : ''}
-            ${canEdit ? `<button class="btn btn-ghost btn-sm gap-1" onclick="FinDds.openAnalytics('${p.posting_id}')" aria-label="${t('fin_edit_analytics')}">
+    // Проводка = счёт, метки аналитики, сумма в общей колонке справа, правка.
+    // Суммы выровнены по вертикали: у перевода сразу видно, что −961 гасится +961.
+    const тег = txt => `<span class="fin-tag">${e(txt)}</span>`;
+    cell.innerHTML = `<div class="fin-panel"><div class="fin-postings">` + (data || []).map(p => `
+        <div class="fin-posting">
+            <span class="fin-posting-acc">${e(p.account_name)}</span>
+            <span class="fin-tags">
+                ${p.category_name ? тег(p.category_name) : ''}
+                ${p.cost_center_name ? тег(p.cost_center_name) : ''}
+                ${p.object_name ? тег(p.object_name) : ''}
+                ${p.participant_name ? тег(p.participant_name) : ''}
+                ${p.contractor_name ? тег(p.contractor_name) : ''}
+                ${p.payment_channel ? тег(FinUtils.channelLabel(p.payment_channel)) : ''}
+            </span>
+            ${canEdit ? `<button class="btn btn-ghost btn-xs btn-square fin-edit" onclick="FinDds.openAnalytics('${p.posting_id}')"
+                    aria-label="${t('fin_edit_analytics')}" title="${t('fin_edit_analytics')}">
                 <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="w-3.5 h-3.5"><path stroke-linecap="round" stroke-linejoin="round" d="M16.862 4.487l1.687-1.688a1.875 1.875 0 112.652 2.652L6.832 19.82a4.5 4.5 0 01-1.897 1.13l-2.685.8.8-2.685a4.5 4.5 0 011.13-1.897L16.863 4.487z"/></svg>
-                <span class="hidden md:inline">${t('fin_edit_analytics')}</span>
-            </button>` : ''}
-        </div>`).join('')
-        + FinUtils.attachmentsHtml(atts || [])
-        + `<div class="pt-1 opacity-60 text-xs" id="author-${opId}"></div>`
-        + (window.hasPermission?.('fin_admin') ? `<div class="pt-1 flex flex-wrap gap-2 items-center"><label class="btn btn-ghost btn-xs gap-1">
+            </button>` : '<span></span>'}
+            <span class="fin-posting-sum ${Number(p.signed_amount) < 0 ? 'text-error' : 'text-success'}">${FinUtils.fmtMoney(p.signed_amount, p.currency_code)}${
+                p.amount_base !== null && p.currency_code !== 'INR'
+                    ? `<br><span class="fin-author">₹ ${Number(p.amount_base).toLocaleString('ru-RU')}</span>` : ''}</span>
+        </div>`).join('') + `</div>`
+        + (atts?.length ? `<div class="px-3 pb-2">${FinUtils.attachmentsHtml(atts)}</div>` : '')
+        + `<div class="fin-panel-foot">
+            <span class="fin-author" id="author-${opId}"></span>
+            <span class="fin-acts">`
+        + (window.hasPermission?.('fin_admin') ? `<label class="btn btn-ghost btn-xs gap-1">
             <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="w-3 h-3"><path stroke-linecap="round" stroke-linejoin="round" d="M18.375 12.739l-7.693 7.693a4.5 4.5 0 01-6.364-6.364l10.94-10.94A3 3 0 1119.5 7.372L8.552 18.32m.009-.01l-.01.01m5.699-9.941l-7.81 7.81a1.5 1.5 0 002.112 2.13"/></svg>
             ${t('fin_attach_file')}<input type="file" class="hidden" accept="image/jpeg,image/png,image/webp,application/pdf" onchange="FinDds.attachFile(this, '${opId}')">
         </label>${['expense', 'income', 'donation'].includes(op?.type) && !op?.is_reversed ? `<button class="btn btn-ghost btn-xs gap-1" onclick="FinDds.repeatOperation('${opId}')">
             <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="w-3 h-3"><path stroke-linecap="round" stroke-linejoin="round" d="M16.023 9.348h4.992v-.001M2.985 19.644v-4.992m0 0h4.992m-4.993 0l3.181 3.183a8.25 8.25 0 0013.803-3.7M4.031 9.865a8.25 8.25 0 0113.803-3.7l3.181 3.182m0-4.991v4.99"/></svg>
-            ${t('fin_repeat')}</button>` : ''}</div>` : '')
-        + reversalButtonHtml(opId) + `</div>`;
+            ${t('fin_repeat')}</button>` : ''}` : '')
+        + reversalButtonHtml(opId) + `</span></div></div>`;
 
     // автор операции (2.8) — резолвим имя по created_by
     if (op?.created_by) {
@@ -528,13 +538,14 @@ function reversalButtonHtml(opId) {
     if (!window.hasPermission?.('fin_admin')) return '';
     // Платёж участника можно ещё и перераспределить — не отменяя деньги
     const realloc = op.type === 'payment'
-        ? `<button class="btn btn-outline btn-xs gap-1" onclick="FinDds.openRealloc('${opId}')">
+        ? `<button class="btn btn-ghost btn-xs gap-1" onclick="FinDds.openRealloc('${opId}')">
             <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="w-3 h-3"><path stroke-linecap="round" stroke-linejoin="round" d="M7.5 21L3 16.5m0 0L7.5 12M3 16.5h13.5a4.5 4.5 0 000-9H15M16.5 3L21 7.5"/></svg>
             ${t('fin_realloc_action')}</button>`
         : '';
-    return `<div class="pt-2 flex flex-wrap gap-2"><button class="btn btn-outline btn-error btn-xs gap-1" onclick="FinDds.openReversal('${opId}')">
+    // Без обёртки: кнопки встают в общий ряд действий в подвале панели
+    return `<button class="btn btn-ghost btn-xs gap-1 text-error" onclick="FinDds.openReversal('${opId}')">
         <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="w-3 h-3"><path stroke-linecap="round" stroke-linejoin="round" d="M9 15L3 9m0 0l6-6M3 9h12a6 6 0 010 12h-3"/></svg>
-        ${t('fin_reverse')}</button>${realloc}</div>`;
+        ${t('fin_reverse')}</button>${realloc}`;
 }
 
 // ==================== ПЕРЕРАСПРЕДЕЛЕНИЕ ПЛАТЕЖА ====================
