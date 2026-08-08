@@ -334,15 +334,38 @@ async function loadSummary() {
 // своих доходов у них нет, деньги приходят переводом из кассы.
 let deptData = null;
 
+// Неделя — скользящие 7 дней, месяц и год — календарные:
+// та же логика, что в пресетах ДДС, чтобы цифры сходились между страницами.
 function deptPeriod(preset) {
     const now = new Date();
     const iso = d => DateUtils.toISO(d);
     switch (preset) {
-        case 'month':   return [iso(new Date(now.getFullYear(), now.getMonth(), 1)), FinUtils.todayISO()];
-        case 'quarter': return [iso(new Date(now.getFullYear(), Math.floor(now.getMonth() / 3) * 3, 1)), FinUtils.todayISO()];
-        case 'year':    return [`${now.getFullYear()}-01-01`, FinUtils.todayISO()];
-        default:        return ['2000-01-01', FinUtils.todayISO()];
+        case 'week': {
+            const с = new Date(); с.setDate(с.getDate() - 6);
+            return [iso(с), FinUtils.todayISO()];
+        }
+        case 'month': return [iso(new Date(now.getFullYear(), now.getMonth(), 1)), FinUtils.todayISO()];
+        case 'year':  return [`${now.getFullYear()}-01-01`, FinUtils.todayISO()];
+        default:      return null;   // «Выбрать» — период задаёт человек
     }
+}
+
+const DEPT_PRESET_KEY = 'fin_dept_report_preset';
+
+function markDeptPreset(preset) {
+    document.querySelectorAll('#deptPresets [data-dept-preset]').forEach(b =>
+        b.classList.toggle('is-on', b.dataset.deptPreset === preset));
+    document.getElementById('deptCustomRange').classList.toggle('hidden', preset !== 'custom');
+    localStorage.setItem(DEPT_PRESET_KEY, preset);
+}
+
+function applyDeptPreset(preset) {
+    markDeptPreset(preset);
+    if (preset === 'custom') return;   // ждём, пока выберут даты и нажмут «Показать»
+    const [from, to] = deptPeriod(preset);
+    document.getElementById('deptFrom').value = from;
+    document.getElementById('deptTo').value = to;
+    loadDepartments();
 }
 
 // Выбор департаментов живёт между сеансами: набор меняют редко,
@@ -532,12 +555,7 @@ async function init() {
         }));
 
     document.querySelectorAll('[data-dept-preset]').forEach(btn =>
-        btn.addEventListener('click', () => {
-            const [from, to] = deptPeriod(btn.dataset.deptPreset);
-            document.getElementById('deptFrom').value = from;
-            document.getElementById('deptTo').value = to;
-            loadDepartments();
-        }));
+        btn.addEventListener('click', () => applyDeptPreset(btn.dataset.deptPreset)));
 
     document.getElementById('reissueForm').addEventListener('submit', submitReissue);
     document.addEventListener('click', ev => {
@@ -549,10 +567,13 @@ async function init() {
     const now = new Date();
     document.getElementById('sumFrom').value = `${now.getFullYear()}-01-01`;
     document.getElementById('sumTo').value = FinUtils.todayISO();
-    // По департаментам по умолчанию текущий месяц: расходы смотрят помесячно
-    const [dFrom, dTo] = deptPeriod('month');
+    // Возвращаем период, с которым работали в прошлый раз; по умолчанию текущий месяц.
+    // Поля дат заполняем всегда — они же стартовые значения для «Выбрать».
+    const сохранённый = localStorage.getItem(DEPT_PRESET_KEY) || 'month';
+    const [dFrom, dTo] = deptPeriod(сохранённый) || deptPeriod('month');
     document.getElementById('deptFrom').value = dFrom;
     document.getElementById('deptTo').value = dTo;
+    markDeptPreset(сохранённый);
 
     const params = new URLSearchParams(window.location.search);
     const preset = params.get('retreat');
