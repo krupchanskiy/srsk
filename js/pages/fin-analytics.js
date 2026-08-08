@@ -345,6 +345,29 @@ function deptPeriod(preset) {
     }
 }
 
+// Выбор департаментов живёт между сеансами: набор меняют редко,
+// а переставлять галочки при каждом заходе — лишняя работа.
+const DEPT_PICK_KEY = 'fin_dept_report_excluded';
+let deptExcluded = new Set(JSON.parse(localStorage.getItem(DEPT_PICK_KEY) || '[]'));
+
+function saveDeptPick() {
+    localStorage.setItem(DEPT_PICK_KEY, JSON.stringify([...deptExcluded]));
+}
+
+function toggleDept(id) {
+    if (deptExcluded.has(id)) deptExcluded.delete(id); else deptExcluded.add(id);
+    saveDeptPick();
+    renderDeptReport();
+}
+
+function pickAllDepts(включить) {
+    deptExcluded = включить
+        ? new Set()
+        : new Set((deptData?.departments || []).map(d => d.department_id));
+    saveDeptPick();
+    renderDeptReport();
+}
+
 async function loadDepartments() {
     const from = document.getElementById('deptFrom').value;
     const to = document.getElementById('deptTo').value;
@@ -357,14 +380,28 @@ async function loadDepartments() {
     if (!data?.ok) { Layout.showNotification(data?.error?.message || 'Ошибка', 'error'); return; }
 
     deptData = data.result;
+    renderDeptReport();
+}
+
+function renderDeptReport() {
+    const box = document.getElementById('deptReport');
+    if (!deptData) return;
+
     const все = deptData.departments || [];
     // Департамент без движений и без остатка — не строка отчёта, а сноска внизу
-    const активные = все.filter(d => Number(d.received) || Number(d.spent)
-                                  || Number(d.passed_on) || Number(d.balance_end));
-    const пустые = все.filter(d => !активные.includes(d));
+    const сдвижениями = все.filter(d => Number(d.received) || Number(d.spent)
+                                     || Number(d.passed_on) || Number(d.balance_end));
+    const пустые = все.filter(d => !сдвижениями.includes(d));
+    const активные = сдвижениями.filter(d => !deptExcluded.has(d.department_id));
 
+    const шапка = deptPeriodLine(сдвижениями) + deptPicker(сдвижениями, пустые);
+
+    if (!сдвижениями.length) {
+        box.innerHTML = шапка + `<div class="text-center py-8 opacity-60">${t('fin_dept_no_movements')}</div>`;
+        return;
+    }
     if (!активные.length) {
-        box.innerHTML = `<div class="text-center py-8 opacity-60">${t('fin_dept_no_movements')}</div>`;
+        box.innerHTML = шапка + `<div class="text-center py-8 opacity-60">${t('fin_dept_none_picked')}</div>`;
         return;
     }
 
@@ -379,7 +416,7 @@ async function loadDepartments() {
     // Полоса показывает долю в общих расходах: глазу нужна пропорция, а не только число
     const maxSpent = Math.max(...активные.map(d => Number(d.spent)), 1);
 
-    box.innerHTML = `
+    box.innerHTML = шапка + `
         <div class="fin-dept-totals">
             ${kpiBox(t('fin_dept_received'), итог.received)}
             ${kpiBox(t('fin_dept_spent'), итог.spent)}
@@ -392,8 +429,36 @@ async function loadDepartments() {
                 <span class="text-right">${t('fin_dept_balance')}</span>
             </div>
             ${активные.map(d => deptRow(d, maxSpent)).join('')}
-        </div></div>
-        ${пустые.length ? `<p class="text-xs opacity-60">${t('fin_dept_idle')}: ${пустые.map(d => e(d.name)).join(', ')}</p>` : ''}`;
+        </div></div>`;
+}
+
+// Шапка отчёта: за какой период он построен и сколько департаментов в нём учтено.
+// Без этого распечатанный или выгруженный отчёт не отвечает сам за себя.
+function deptPeriodLine(сдвижениями) {
+    const учтено = сдвижениями.filter(d => !deptExcluded.has(d.department_id)).length;
+    return `<div class="fin-dept-range">
+        <span class="fin-dept-range-dates">${e(DateUtils.formatRange(deptData.from, deptData.to))}</span>
+        <span class="fin-dept-range-count">${t('fin_dept_included')}: ${учтено} ${t('fin_of')} ${сдвижениями.length}</span>
+    </div>`;
+}
+
+function deptPicker(сдвижениями, пустые) {
+    if (!сдвижениями.length) return '';
+    return `<div class="fin-dept-picker">
+        ${сдвижениями.map(d => {
+            const вкл = !deptExcluded.has(d.department_id);
+            return `<label class="fin-dept-chip ${вкл ? 'is-on' : ''}">
+                <input type="checkbox" ${вкл ? 'checked' : ''}
+                       onchange="FinAnalytics.toggleDept('${d.department_id}')">
+                <span>${e(d.name)}</span>
+            </label>`;
+        }).join('')}
+        <span class="fin-dept-picker-actions">
+            <button class="btn btn-ghost btn-xs" onclick="FinAnalytics.pickAllDepts(true)">${t('fin_pick_all')}</button>
+            <button class="btn btn-ghost btn-xs" onclick="FinAnalytics.pickAllDepts(false)">${t('fin_pick_none')}</button>
+        </span>
+        ${пустые.length ? `<span class="fin-dept-picker-idle">${t('fin_dept_idle')}: ${пустые.map(d => e(d.name)).join(', ')}</span>` : ''}
+    </div>`;
 }
 
 function kpiBox(label, value) {
@@ -424,9 +489,12 @@ function deptRow(d, maxSpent) {
 
 function exportDeptCsv() {
     if (!deptData) return;
+    // Выгружаем ровно то, что на экране: снятые галочки в файл не попадают
     const header = ['Департамент', 'Получено ₹', 'Потрачено ₹', 'Передано дальше ₹', 'На руках ₹', 'Статья', 'Сумма по статье ₹'];
     const rows = [];
-    (deptData.departments || []).forEach(d => {
+    (deptData.departments || [])
+      .filter(d => !deptExcluded.has(d.department_id))
+      .forEach(d => {
         if (!d.by_category?.length) {
             rows.push([d.name, d.received, d.spent, d.passed_on, d.balance_end, '', '']);
         } else {
@@ -495,6 +563,6 @@ async function init() {
 }
 
 window.FinAnalytics = { openClose, submitClose, openReissue, makePdf, exportCsv, loadSummary,
-                        loadDepartments, exportDeptCsv };
+                        loadDepartments, exportDeptCsv, toggleDept, pickAllDepts };
 init();
 })();
