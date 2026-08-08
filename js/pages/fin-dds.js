@@ -384,7 +384,13 @@ async function toggleDetails(opId) {
     // Проводка = счёт, метки аналитики, сумма в общей колонке справа, правка.
     // Суммы выровнены по вертикали: у перевода сразу видно, что −961 гасится +961.
     const тег = txt => `<span class="fin-tag">${e(txt)}</span>`;
-    cell.innerHTML = `<div class="fin-panel"><div class="fin-postings">` + (data || []).map(p => `
+    // Пояснение — первое, что нужно человеку в развороте: статья говорит «Оборудование»,
+    // а что именно купили, знает только комментарий. В строке он обрезан по ширине,
+    // поэтому здесь показываем целиком (ВГ, 07.08).
+    const пояснение = op ? [op.payer_name, commentOf(op)].filter(Boolean).join(' · ') : '';
+    cell.innerHTML = `<div class="fin-panel">`
+        + (пояснение ? `<div class="fin-panel-head">${e(пояснение)}</div>` : '')
+        + `<div class="fin-postings">` + (data || []).map(p => `
         <div class="fin-posting">
             <span class="fin-posting-acc">${e(p.account_name)}</span>
             <span class="fin-tags">
