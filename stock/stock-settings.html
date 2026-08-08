@@ -229,7 +229,7 @@
     <script src="../js/utils.js?v=4"></script>
     <script src="../js/translit.js"></script>
     <script src="../js/auto-translate.js"></script>
-    <script src="../js/layout.js?v=47"></script>
+    <script src="../js/layout.js?v=48"></script>
     <script>
         // ==================== STATE ====================
         let buyers = [];
@@ -326,7 +326,7 @@
                 .select('*, product_categories(*)');
 
             if (error) { console.error('Error loading products:', error); return; }
-            products = data || [];
+            products = await Layout.filterAbKitchenProducts(data || []);
             // Sort by name locally
             products.sort((a, b) => (a.name_ru || '').localeCompare(b.name_ru || '', 'ru'));
             renderMinStock();

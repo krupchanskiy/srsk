@@ -1961,6 +1961,7 @@ async function loadIngredientsForRecipes(recipeIds) {
 }
 
 async function openMealDetailsModal(dateStr, mealType) {
+    selectedDate = dateStr;
     selectedMealType = mealType;
     const mealData = menuData[dateStr]?.[mealType];
     if (!mealData?.dishes?.length) return;
@@ -2125,6 +2126,347 @@ function printMealDetails() {
     }, 200);
 }
 
+// ==================== AB KITCHEN: PROMPT GENERATOR ====================
+// Этот блок активируется только в изолированном AB-контексте. Он не вызывает LLM:
+// приложение лишь собирает фактические данные кухни в текст для ручной вставки в чат.
+function getAbPromptDefaultRange() {
+    let start;
+    let end;
+    if (currentView === 'week') {
+        start = new Date(currentWeekStart);
+        end = new Date(currentWeekStart);
+        end.setDate(end.getDate() + 6);
+    } else if (currentView === 'month') {
+        start = new Date(currentMonth.getFullYear(), currentMonth.getMonth(), 1);
+        end = new Date(currentMonth.getFullYear(), currentMonth.getMonth() + 1, 0);
+    } else if (currentView === 'period' && periodStart && periodEnd) {
+        start = new Date(periodStart);
+        end = new Date(periodEnd);
+    } else {
+        start = new Date(currentDate);
+        end = new Date(currentDate);
+        end.setDate(end.getDate() + 6);
+    }
+    return { start, end };
+}
+
+function openAbMenuPromptModal() {
+    if (!Layout.isAbKitchenContext) return;
+    const { start, end } = getAbPromptDefaultRange();
+    Layout.$('#abPromptStartDate').value = formatDate(start);
+    Layout.$('#abPromptEndDate').value = formatDate(end);
+    Layout.$('#abPromptResult').value = '';
+    Layout.$('#abPromptResultBlock').classList.add('hidden');
+    Layout.$('#abCopyPromptBtn').classList.add('hidden');
+    abMenuPromptModal.showModal();
+}
+
+function listDates(start, end) {
+    const result = [];
+    const cursor = new Date(start);
+    while (cursor <= end) {
+        result.push(new Date(cursor));
+        cursor.setDate(cursor.getDate() + 1);
+    }
+    return result;
+}
+
+function recipePromptName(recipe) {
+    return recipe?.name_ru || recipe?.name_en || recipe?.name_hi || '';
+}
+
+function getRussianMealTypeName(type) {
+    return { breakfast: 'Завтрак', lunch: 'Обед', dinner: 'Ужин', menu: 'Меню' }[type] || type;
+}
+
+function flattenTemplateForPrompt(template) {
+    const meals = [...(template.meals || [])].sort((a, b) => a.day_number - b.day_number);
+    const rows = meals.map(meal => {
+        const dishNames = (meal.dishes || [])
+            .map(dish => recipePromptName(dish.recipe))
+            .filter(Boolean)
+            .join(', ');
+        return `день ${meal.day_number}, ${getRussianMealTypeName(meal.meal_type)}: ${dishNames || 'без блюд'}`;
+    });
+    return `${template.name_ru || template.name_en || 'Шаблон'} — ${rows.join('; ')}`;
+}
+
+async function loadAbMenuHistory(start, end) {
+    const locationId = getCurrentLocation()?.id;
+    if (!locationId) return [];
+    const historyStart = new Date(start);
+    historyStart.setDate(historyStart.getDate() - 21);
+    const { data, error } = await Layout.db
+        .from('menu_meals')
+        .select('date, meal_type, dishes:menu_dishes(recipe:recipes(name_ru, name_en, name_hi))')
+        .eq('location_id', locationId)
+        .gte('date', formatDate(historyStart))
+        .lte('date', formatDate(end))
+        .order('date');
+    if (error) {
+        console.error('[AB Kitchen prompt history]', error);
+        return [];
+    }
+    return data || [];
+}
+
+async function generateAbMenuPrompt() {
+    if (!Layout.isAbKitchenContext) return;
+    const startValue = Layout.$('#abPromptStartDate').value;
+    const endValue = Layout.$('#abPromptEndDate').value;
+    if (!startValue || !endValue) {
+        Layout.showNotification('Укажите начало и окончание периода', 'warning');
+        return;
+    }
+
+    const start = parseLocalDate(startValue);
+    const end = parseLocalDate(endValue);
+    const dates = listDates(start, end);
+    if (end < start || dates.length > 31) {
+        Layout.showNotification('Период должен составлять от 1 до 31 дня', 'warning');
+        return;
+    }
+
+    const button = Layout.$('#abGeneratePromptBtn');
+    button.disabled = true;
+    button.textContent = 'Собираем данные…';
+
+    try {
+        const [, history] = await Promise.all([loadTemplates(), loadAbMenuHistory(start, end)]);
+        const wishes = Layout.$('#abPromptWishes').value.trim();
+        const mealTypes = getMealTypes();
+
+        const recipesByCategory = new Map();
+        recipes.forEach(recipe => {
+            const categoryName = recipe.category?.name_ru || 'Без категории';
+            if (!recipesByCategory.has(categoryName)) recipesByCategory.set(categoryName, []);
+            recipesByCategory.get(categoryName).push(
+                `${recipePromptName(recipe)}${recipe.ekadashi ? ' [экадаши]' : ''}`
+            );
+        });
+        const recipeLines = [...recipesByCategory.entries()]
+            .sort(([a], [b]) => a.localeCompare(b, 'ru'))
+            .map(([category, names]) => `- ${category}: ${names.sort((a, b) => a.localeCompare(b, 'ru')).join('; ')}`);
+
+        const targetLines = dates.map(date => {
+            const dateStr = formatDate(date);
+            const events = [];
+            if (isEkadashi(dateStr)) events.push('Экадаши');
+            const festival = getMajorFestival(dateStr);
+            if (festival) events.push(festival.name_ru || festival.name_en || 'праздник');
+            const portions = mealTypes.map(type => {
+                const stored = menuData[dateStr]?.[type]?.portions;
+                const calculated = getEatingTotal(dateStr, type);
+                return `${getRussianMealTypeName(type)}: ${stored || calculated || 'количество не задано'}`;
+            });
+            return `- ${dateStr}${events.length ? ` (${events.join(', ')})` : ''}; порции — ${portions.join(', ')}`;
+        });
+
+        const historyLines = history
+            .filter(meal => (meal.dishes || []).length)
+            .map(meal => {
+                const names = (meal.dishes || []).map(dish => recipePromptName(dish.recipe)).filter(Boolean);
+                return `- ${meal.date}, ${getRussianMealTypeName(meal.meal_type)}: ${names.join(', ')}`;
+            });
+        const templateLines = templates.slice(0, 12).map(flattenTemplateForPrompt);
+
+        const prompt = [
+            'Ты — помощник по планированию вайшнавской кухни AB Kitchen.',
+            `Составь варианты меню на период ${startValue} — ${endValue}.`,
+            '',
+            'Обязательные правила:',
+            '1. Используй только рецепты из списка ниже и сохраняй их названия без изменений.',
+            '2. Не придумывай новые рецепты, продукты или граммовки. Нужны только новые удачные комбинации уже заведённых блюд.',
+            '3. Ориентируйся на структуру существующих шаблонов, но не копируй один шаблон целиком.',
+            '4. Делай меню разнообразным: по возможности не повторяй одно блюдо чаще одного раза за 3 дня.',
+            '5. Для Экадаши выбирай только блюда с пометкой [экадаши]. Если подходящих данных недостаточно, напиши об этом, не додумывай.',
+            `6. Планируемые приёмы пищи: ${mealTypes.map(getRussianMealTypeName).join(', ')}.`,
+            '7. Верни результат как Markdown-таблицу с колонками: Дата | Приём пищи | Блюда (точные названия) | Обоснование сочетания.',
+            '8. После таблицы перечисли возможные повторы и предупреждения. Никакого текста до таблицы не добавляй.',
+            wishes ? `9. Дополнительные пожелания пользователя: ${wishes}` : null,
+            '',
+            'Даты и количество порций:',
+            ...targetLines,
+            '',
+            'Доступные рецепты по категориям:',
+            ...(recipeLines.length ? recipeLines : ['- Рецепты не найдены']),
+            '',
+            'Существующие шаблоны как примеры структуры:',
+            ...(templateLines.length ? templateLines.map(line => `- ${line}`) : ['- Шаблоны ещё не созданы']),
+            '',
+            'Меню за предыдущие 21 день и уже заполненная часть выбранного периода (избегай лишних повторов):',
+            ...(historyLines.length ? historyLines : ['- История меню отсутствует'])
+        ].filter(line => line !== null).join('\n');
+
+        Layout.$('#abPromptResult').value = prompt;
+        Layout.$('#abPromptResultBlock').classList.remove('hidden');
+        Layout.$('#abCopyPromptBtn').classList.remove('hidden');
+        Layout.$('#abPromptResult').focus();
+    } catch (error) {
+        console.error('[AB Kitchen prompt]', error);
+        Layout.showNotification(`Не удалось сформировать промпт: ${error.message || error}`, 'error');
+    } finally {
+        button.disabled = false;
+        button.textContent = 'Сформировать промпт';
+    }
+}
+
+async function copyAbMenuPrompt() {
+    if (!Layout.isAbKitchenContext) return;
+    const value = Layout.$('#abPromptResult').value;
+    if (!value) return;
+    try {
+        await navigator.clipboard.writeText(value);
+    } catch {
+        Layout.$('#abPromptResult').select();
+        document.execCommand('copy');
+    }
+    Layout.showNotification('Промпт скопирован. Вставьте его в выбранный ИИ-чат.', 'success');
+}
+
+// ==================== AB KITCHEN: SHAREABLE MEAL CARD ====================
+function getAbMealCardLines() {
+    const meal = menuData[selectedDate]?.[selectedMealType];
+    if (!meal) return [];
+    const portions = meal.portions || getEatingTotal(selectedDate, selectedMealType);
+    const lines = [];
+    (meal.dishes || []).forEach(dish => {
+        const recipe = dish.recipe;
+        if (!recipe) return;
+        const portionSize = dish.portion_size || recipe.portion_amount || 100;
+        const portionUnit = dish.portion_unit || 'g';
+        lines.push({ type: 'dish', text: `${getName(recipe)} — ${portionSize} ${getUnitShort(portionUnit)} × ${portions}` });
+
+        const recipeOutput = (recipe.output_amount || 1) * (recipe.output_unit === 'kg' ? 1000 : 1);
+        const multiplier = recipeOutput > 0 ? (portions * portionSize) / recipeOutput : 1;
+        (ingredientsCache[dish.recipe_id] || []).forEach(ingredient => {
+            const amount = formatIngredientAmount((ingredient.amount || 0) * multiplier, ingredient.unit);
+            lines.push({
+                type: 'ingredient',
+                text: `${getName(ingredient.products)} — ${amount.value} ${getUnitShort(amount.unit)}`
+            });
+        });
+    });
+    return lines;
+}
+
+function wrapCanvasText(context, text, maxWidth) {
+    const words = String(text).split(/\s+/);
+    const lines = [];
+    let current = '';
+    words.forEach(word => {
+        const next = current ? `${current} ${word}` : word;
+        if (current && context.measureText(next).width > maxWidth) {
+            lines.push(current);
+            current = word;
+        } else {
+            current = next;
+        }
+    });
+    if (current) lines.push(current);
+    return lines;
+}
+
+async function createAbMealCardBlob() {
+    const dataLines = getAbMealCardLines();
+    if (!dataLines.length) throw new Error('В карточке нет блюд');
+    const date = parseLocalDate(selectedDate);
+    const portions = menuData[selectedDate]?.[selectedMealType]?.portions || getEatingTotal(selectedDate, selectedMealType);
+    const title = `${getMealTypeName(selectedMealType)} — ${formatDateDisplay(date)}`;
+
+    const width = 1200;
+    const measureCanvas = document.createElement('canvas');
+    const measure = measureCanvas.getContext('2d');
+    let estimatedLines = 0;
+    dataLines.forEach(line => {
+        measure.font = line.type === 'dish' ? '700 34px "Noto Sans", sans-serif' : '400 28px "Noto Sans", sans-serif';
+        estimatedLines += wrapCanvasText(measure, line.text, line.type === 'dish' ? 1060 : 1010).length;
+    });
+    const height = Math.max(680, 300 + estimatedLines * 48 + dataLines.filter(line => line.type === 'dish').length * 34);
+    const canvas = document.createElement('canvas');
+    canvas.width = width;
+    canvas.height = height;
+    const context = canvas.getContext('2d');
+
+    context.fillStyle = '#fffaf4';
+    context.fillRect(0, 0, width, height);
+    context.fillStyle = '#f49800';
+    context.fillRect(0, 0, width, 24);
+    context.fillStyle = '#252525';
+    context.font = '700 42px "Noto Sans", sans-serif';
+    context.fillText('AB Kitchen', 70, 90);
+    context.font = '700 36px "Noto Sans", sans-serif';
+    context.fillText(title, 70, 155);
+    context.font = '500 28px "Noto Sans", sans-serif';
+    context.fillStyle = '#666';
+    context.fillText(`${portions} ${t('persons')}`, 70, 205);
+
+    let y = 270;
+    dataLines.forEach(line => {
+        const isDish = line.type === 'dish';
+        if (isDish) {
+            y += 18;
+            context.fillStyle = '#f49800';
+            context.fillRect(70, y - 33, 8, 42);
+        }
+        context.font = isDish ? '700 34px "Noto Sans", sans-serif' : '400 28px "Noto Sans", sans-serif';
+        context.fillStyle = isDish ? '#252525' : '#4b5563';
+        const x = isDish ? 100 : 125;
+        const prefix = isDish ? '' : '• ';
+        wrapCanvasText(context, prefix + line.text, width - x - 70).forEach(textLine => {
+            context.fillText(textLine, x, y);
+            y += isDish ? 46 : 40;
+        });
+        if (isDish) y += 8;
+    });
+
+    context.fillStyle = '#f49800';
+    context.fillRect(0, height - 18, width, 18);
+    return new Promise((resolve, reject) => canvas.toBlob(
+        blob => blob ? resolve(blob) : reject(new Error('Не удалось создать изображение')),
+        'image/png'
+    ));
+}
+
+async function shareAbMealCard() {
+    if (!Layout.isAbKitchenContext) return;
+    const button = Layout.$('#abShareMealBtn');
+    button.disabled = true;
+    try {
+        const blob = await createAbMealCardBlob();
+        const safeMealType = selectedMealType || 'menu';
+        const filename = `ab-kitchen-${safeMealType}-${selectedDate}.png`;
+        const file = new File([blob], filename, { type: 'image/png' });
+        const sharePayload = {
+            title: `AB Kitchen — ${getMealTypeName(selectedMealType)}`,
+            text: `${getMealTypeName(selectedMealType)} · ${selectedDate}`,
+            files: [file]
+        };
+
+        if (navigator.share && (!navigator.canShare || navigator.canShare({ files: [file] }))) {
+            await navigator.share(sharePayload);
+            return;
+        }
+
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement('a');
+        link.href = url;
+        link.download = filename;
+        document.body.appendChild(link);
+        link.click();
+        link.remove();
+        setTimeout(() => URL.revokeObjectURL(url), 1000);
+        Layout.showNotification('Изображение меню скачано. Его можно отправить в Telegram или WhatsApp.', 'success');
+    } catch (error) {
+        if (error?.name !== 'AbortError') {
+            console.error('[AB Kitchen share]', error);
+            Layout.showNotification(`Не удалось поделиться: ${error.message || error}`, 'error');
+        }
+    } finally {
+        button.disabled = false;
+    }
+}
+
 // ==================== INIT ====================
 // ==================== ДЕЛЕГИРОВАНИЕ КЛИКОВ ====================
 // Общий обработчик для всех view-контейнеров (day/week/period/month)
@@ -2189,6 +2531,11 @@ function setupRecipeDelegation() {
 
 async function init() {
     await Layout.init({ module: 'kitchen', menuId: 'kitchen', itemId: 'menu' });
+
+    if (Layout.isAbKitchenContext) {
+        Layout.$('#abMenuPromptBtn')?.classList.remove('hidden');
+        Layout.$('#abShareMealBtn')?.classList.remove('hidden');
+    }
 
     // Восстановить вид и дату из hash до загрузки данных
     restoreFromHash();

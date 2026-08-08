@@ -95,7 +95,7 @@
     <script src="../js/utils.js?v=4"></script>
     <script src="../js/translit.js"></script>
     <script src="../js/auto-translate.js"></script>
-    <script src="../js/layout.js?v=47"></script>
+    <script src="../js/layout.js?v=48"></script>
     <script>
         // ==================== STATE ====================
         let currentTab = 'recipe_categories';
@@ -206,7 +206,7 @@
                 .from('products')
                 .select('id, name_ru, name_en, name_hi')
                 .order('name_ru');
-            if (!error) allProducts = rows || [];
+            if (!error) allProducts = await Layout.filterAbKitchenProducts(rows || []);
         }
 
         async function loadData(tab) {

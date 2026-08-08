@@ -84,7 +84,7 @@
     <script src="../js/utils.js?v=4"></script>
     <script src="../js/translit.js"></script>
     <script src="../js/auto-translate.js"></script>
-    <script src="../js/layout.js?v=47"></script>
+    <script src="../js/layout.js?v=48"></script>
     <script>
         // ==================== STATE ====================
         let currentCategory = 'all';
@@ -168,7 +168,7 @@
         async function loadProducts() {
             const { data, error } = await Layout.db.from('products').select('id, name_ru, name_en, name_hi, unit, product_categories(id, slug, name_ru, name_en, name_hi)');
             if (error) { console.error('Error loading products:', error); return; }
-            products = data;
+            products = await Layout.filterAbKitchenProducts(data || []);
         }
 
         async function loadStock() {

@@ -140,7 +140,7 @@ async function loadProducts() {
     const { data } = await Layout.db
         .from('products')
         .select('*, product_categories(*)');
-    products = data || [];
+    products = await Layout.filterAbKitchenProducts(data || []);
 }
 
 async function loadProductCategories() {

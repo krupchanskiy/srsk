@@ -48,12 +48,19 @@
                 <h1 class="text-2xl font-bold" data-i18n="products_title">Продукты</h1>
                 <p class="text-sm opacity-60" id="productsCount" data-i18n="loading">Загрузка...</p>
             </div>
-            <button class="btn btn-primary gap-2" onclick="openAddModal()" data-permission="edit_products">
-                <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" />
-                </svg>
-                <span data-i18n="add_product">Добавить продукт</span>
-            </button>
+            <div class="flex flex-wrap gap-2">
+                <button id="hiddenProductsToggle" class="btn btn-ghost gap-2 hidden" type="button"
+                        onclick="toggleHiddenProducts()" data-permission="edit_products">
+                    <span>Скрытые</span>
+                    <span id="hiddenProductsCount" class="badge badge-sm">0</span>
+                </button>
+                <button class="btn btn-primary gap-2" onclick="openAddModal()" data-permission="edit_products">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" />
+                    </svg>
+                    <span data-i18n="add_product">Добавить продукт</span>
+                </button>
+            </div>
         </div>
 
         <!-- Search -->
@@ -226,7 +233,7 @@
     <script src="../js/utils.js?v=4"></script>
     <script src="../js/translit.js"></script>
     <script src="../js/auto-translate.js"></script>
-    <script src="../js/layout.js?v=47"></script>
+    <script src="../js/layout.js?v=48"></script>
     <script>
         // ==================== STATE ====================
         let currentCategory = 'all';
@@ -236,9 +243,12 @@
         let products = [];
         let categories = [];
         let units = [];
+        let hiddenProductIds = new Set();
+        let showHiddenProducts = false;
 
         const t = key => Layout.t(key);
         const editForm = () => document.getElementById('editForm');
+        const abText = (ru, en, hi) => ({ ru, en, hi })[Layout.currentLang] || ru;
 
         // Категории, для которых показываем поле "% на очистку"
         const WASTE_CATEGORIES = ['vegetables', 'fruits'];
@@ -355,7 +365,29 @@
                 .select('*, product_categories(slug, name_ru, name_en, name_hi)')
                 .order('name_ru');
             if (error) { console.error('Error loading products:', error); return; }
-            products = data;
+            products = data || [];
+            hiddenProductIds = Layout.isAbKitchenContext
+                ? await Layout.getAbKitchenHiddenProductIds(true)
+                : new Set();
+            updateHiddenProductsToggle();
+            renderProducts();
+        }
+
+        function updateHiddenProductsToggle() {
+            const button = Layout.$('#hiddenProductsToggle');
+            if (!button) return;
+            button.classList.toggle('hidden', !Layout.isAbKitchenContext);
+            button.classList.toggle('btn-active', showHiddenProducts);
+            button.querySelector('span:first-child').textContent = showHiddenProducts
+                ? abText('Активные', 'Active', 'सक्रिय')
+                : abText('Скрытые', 'Hidden', 'छिपे हुए');
+            Layout.$('#hiddenProductsCount').textContent = hiddenProductIds.size;
+        }
+
+        function toggleHiddenProducts() {
+            if (!Layout.isAbKitchenContext) return;
+            showHiddenProducts = !showHiddenProducts;
+            updateHiddenProductsToggle();
             renderProducts();
         }
 
@@ -417,8 +449,13 @@
         // ==================== RENDERING ====================
         function renderCategoryFilters() {
             const container = Layout.$('#categoryFilters');
-            const counts = { all: products.length };
-            products.forEach(p => {
+            const visibleProducts = products.filter(product => {
+                if (!Layout.isAbKitchenContext) return true;
+                const isHidden = hiddenProductIds.has(product.id);
+                return showHiddenProducts ? isHidden : !isHidden;
+            });
+            const counts = { all: visibleProducts.length };
+            visibleProducts.forEach(p => {
                 const slug = p.product_categories?.slug;
                 if (slug) counts[slug] = (counts[slug] || 0) + 1;
             });
@@ -461,12 +498,14 @@
             const canEdit = window.hasPermission && window.hasPermission('edit_products');
 
             let filtered = products.filter(product => {
+                const isHidden = hiddenProductIds.has(product.id);
+                const matchesVisibility = !Layout.isAbKitchenContext || (showHiddenProducts ? isHidden : !isHidden);
                 const matchesCategory = currentCategory === 'all' || product.product_categories?.slug === currentCategory;
                 const matchesSearch = searchQuery === '' ||
                     product.name_ru?.toLowerCase().includes(searchQuery.toLowerCase()) ||
                     product.name_en?.toLowerCase().includes(searchQuery.toLowerCase()) ||
                     product.name_hi?.includes(searchQuery);
-                return matchesCategory && matchesSearch;
+                return matchesVisibility && matchesCategory && matchesSearch;
             });
 
             // Apply sorting
@@ -496,7 +535,7 @@
                 }
 
                 return `
-                    <tr class="product-row border-b border-base-200" data-id="${product.id}">
+                    <tr class="product-row border-b border-base-200 ${hiddenProductIds.has(product.id) ? 'opacity-60' : ''}" data-id="${product.id}">
                         <td>
                             <div class="flex flex-col desktop:flex-row desktop:items-baseline desktop:gap-4">
                                 <div class="font-medium">${Layout.getName(product)}</div>
@@ -522,11 +561,17 @@
                                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
                                     </svg>
                                 </button>
-                                <button class="btn btn-ghost btn-sm btn-square text-error" onclick="deleteProduct('${product.id}')">
+                                ${Layout.isAbKitchenContext && hiddenProductIds.has(product.id) ? `
+                                <button class="btn btn-ghost btn-sm btn-square text-success" onclick="restoreProduct('${product.id}')" title="${abText('Вернуть в AB Kitchen', 'Restore in AB Kitchen', 'AB Kitchen में वापस लाएँ')}">
+                                    <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                                    </svg>
+                                </button>` : `
+                                <button class="btn btn-ghost btn-sm btn-square text-error" onclick="deleteProduct('${product.id}')" title="${Layout.isAbKitchenContext ? abText('Скрыть только в AB Kitchen', 'Hide only in AB Kitchen', 'केवल AB Kitchen में छिपाएँ') : t('delete')}">
                                     <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
                                     </svg>
-                                </button>
+                                </button>`}
                             </div>
                         </td>` : '<td></td>'}
                     </tr>
@@ -634,7 +679,11 @@
             }
 
             if (error) {
-                Layout.showNotification(t('error') + ': ' + error.message, 'error');
+                const isDuplicate = error.code === '23505' || error.message?.includes('products_name_en_unique');
+                const message = isDuplicate
+                    ? abText('Продукт с таким английским названием уже существует', 'A product with this English name already exists', 'इस अंग्रेज़ी नाम वाला उत्पाद पहले से मौजूद है')
+                    : error.message;
+                Layout.showNotification(t('error') + ': ' + message, 'error');
                 return false;
             }
 
@@ -651,6 +700,33 @@
             const product = products.find(p => p.id === id);
             if (!product) return;
 
+            if (Layout.isAbKitchenContext) {
+                const confirmed = await showConfirm(
+                    abText('Скрыть продукт только в AB Kitchen?', 'Hide this product only in AB Kitchen?', 'इस उत्पाद को केवल AB Kitchen में छिपाएँ?'),
+                    Layout.getName(product)
+                );
+                if (!confirmed) return;
+
+                const locationId = Layout.locations?.find(location => location.slug === 'ab-kitchen')?.id;
+                if (!locationId) return;
+                const { error } = await Layout.db.from('ab_kitchen_hidden_products').upsert({
+                    location_id: locationId,
+                    product_id: id
+                }, { onConflict: 'location_id,product_id' });
+                if (error) {
+                    Layout.showNotification(t('error') + ': ' + error.message, 'error');
+                    return;
+                }
+
+                hiddenProductIds.add(id);
+                Layout.invalidateAbKitchenHiddenProducts();
+                updateHiddenProductsToggle();
+                renderCategoryFilters();
+                renderProducts();
+                Layout.showNotification(abText('Продукт скрыт только в AB Kitchen', 'Product hidden only in AB Kitchen', 'उत्पाद केवल AB Kitchen में छिपा है'), 'success');
+                return;
+            }
+
             const confirmed = await showConfirm(t('confirm_delete'), Layout.getName(product));
             if (!confirmed) return;
 
@@ -663,6 +739,29 @@
             products = products.filter(p => p.id !== id);
             renderCategoryFilters();
             renderProducts();
+        }
+
+        async function restoreProduct(id) {
+            if (!Layout.isAbKitchenContext || !window.hasPermission?.('edit_products')) return;
+            const locationId = Layout.locations?.find(location => location.slug === 'ab-kitchen')?.id;
+            if (!locationId) return;
+
+            const { error } = await Layout.db
+                .from('ab_kitchen_hidden_products')
+                .delete()
+                .eq('location_id', locationId)
+                .eq('product_id', id);
+            if (error) {
+                Layout.showNotification(t('error') + ': ' + error.message, 'error');
+                return;
+            }
+
+            hiddenProductIds.delete(id);
+            Layout.invalidateAbKitchenHiddenProducts();
+            updateHiddenProductsToggle();
+            renderCategoryFilters();
+            renderProducts();
+            Layout.showNotification(abText('Продукт снова доступен в AB Kitchen', 'Product restored in AB Kitchen', 'उत्पाद AB Kitchen में बहाल हो गया'), 'success');
         }
 
         // ==================== EVENT LISTENERS ====================
@@ -687,9 +786,16 @@
 
             Layout.$('#editForm')?.addEventListener('submit', async e => {
                 e.preventDefault();
+                const submitButton = e.submitter || e.target.querySelector('button[type="submit"]');
+                if (submitButton?.disabled) return;
+                if (submitButton) submitButton.disabled = true;
                 const formData = new FormData(e.target);
-                const success = await saveProduct(formData);
-                if (success) editModal.close();
+                try {
+                    const success = await saveProduct(formData);
+                    if (success) editModal.close();
+                } finally {
+                    if (submitButton) submitButton.disabled = false;
+                }
             });
 
             // Автотранслитерация хинди → IAST
@@ -714,6 +820,7 @@
             renderUnitSelect();
             updateSortIcons();
             renderProducts();
+            updateHiddenProductsToggle();
         }
 
         window.onLanguageChange = () => updatePageUI();

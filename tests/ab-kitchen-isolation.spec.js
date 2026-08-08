@@ -311,4 +311,32 @@ test.describe('AB Kitchen — контракты изоляции данных',
     expect(callback).toContain("rpc('has_ab_kitchen_access')");
     expect(reset).toContain("rpc('has_ab_kitchen_access')");
   });
+
+  test('ABK-PRODUCT-001: удаление в AB Kitchen скрывает продукт, не удаляя общий справочник', () => {
+    const productSource = fs.readFileSync(path.join(repoRoot, 'kitchen', 'products.html'), 'utf8');
+    const layoutSource = fs.readFileSync(path.join(repoRoot, 'js', 'layout.js'), 'utf8');
+    const migration = fs.readFileSync(path.join(repoRoot, 'supabase', '373_ab_kitchen_hidden_products.sql'), 'utf8');
+
+    expect(productSource).toContain("if (Layout.isAbKitchenContext)");
+    expect(productSource).toContain("from('ab_kitchen_hidden_products').upsert");
+    expect(productSource).toContain("from('products').delete().eq('id', id)");
+    expect(productSource.indexOf("from('ab_kitchen_hidden_products').upsert"))
+      .toBeLessThan(productSource.indexOf("from('products').delete().eq('id', id)"));
+    expect(layoutSource).toContain('if (!isAbKitchenContext || currentLocation !== AB_KITCHEN_SLUG) return products || [];');
+    expect(migration).toContain("l.slug = 'ab-kitchen'");
+    expect(migration).toContain('PRIMARY KEY (location_id, product_id)');
+  });
+
+  test('ABK-MENU-TOOLS-001: генерация промпта и отправка карточки включаются только в AB-контексте', () => {
+    const menuHtml = fs.readFileSync(path.join(repoRoot, 'kitchen', 'menu.html'), 'utf8');
+    const menuSource = fs.readFileSync(path.join(repoRoot, 'js', 'pages', 'kitchen-menu.js'), 'utf8');
+
+    expect(menuHtml).toMatch(/id="abMenuPromptBtn"[^>]*hidden/);
+    expect(menuHtml).toMatch(/id="abShareMealBtn"[^>]*hidden/);
+    expect(menuSource).toContain('if (!Layout.isAbKitchenContext) return;');
+    expect(menuSource).toMatch(/if \(Layout\.isAbKitchenContext\) \{[\s\S]{0,220}abMenuPromptBtn[\s\S]{0,160}abShareMealBtn/);
+    expect(menuSource).toContain(".eq('location_id', locationId)");
+    expect(menuSource).toContain('navigator.share(sharePayload)');
+    expect(menuSource).toContain('Не придумывай новые рецепты, продукты или граммовки');
+  });
 });

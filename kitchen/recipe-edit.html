@@ -379,7 +379,7 @@
     <script src="../js/utils.js?v=4"></script>
     <script src="../js/translit.js"></script>
     <script src="../js/auto-translate.js"></script>
-    <script src="../js/layout.js?v=47"></script>
+    <script src="../js/layout.js?v=48"></script>
     <script>
         // ==================== STATE ====================
         let recipeId = null;
@@ -571,7 +571,7 @@
 
         async function loadProducts() {
             const { data } = await Layout.db.from('products').select('*, product_categories(*)').order('name_ru');
-            return data || [];
+            return Layout.filterAbKitchenProducts(data || []);
         }
 
         async function loadProductCategories() {

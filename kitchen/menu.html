@@ -215,6 +215,12 @@
             </div>
 
             <div class="flex items-center gap-2">
+                <button id="abMenuPromptBtn" class="btn btn-primary btn-sm gap-2 no-print hidden" type="button" onclick="openAbMenuPromptModal()">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.663 17h4.673M12 3v1m6.364.636-.707.707M21 12h-1M4 12H3m3.343-6.657-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.373 3.373 0 0014 17.469V18a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" />
+                    </svg>
+                    <span>Подобрать меню</span>
+                </button>
                 <button id="applyTemplateBtn" class="btn btn-ghost btn-sm gap-1 no-print hidden" onclick="openApplyTemplateModal()">
                     <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01" />
@@ -428,6 +434,47 @@
         <form method="dialog" class="modal-backdrop"><button>close</button></form>
     </dialog>
 
+    <!-- AB Kitchen: генератор промпта без подключения LLM API -->
+    <dialog id="abMenuPromptModal" class="modal">
+        <div class="modal-box max-w-3xl relative">
+            <button type="button" class="btn btn-sm btn-circle btn-ghost absolute right-2 top-2"
+                    onclick="abMenuPromptModal.close()">✕</button>
+            <h3 class="font-bold text-xl mb-2">Подбор меню</h3>
+            <p class="text-sm opacity-70 mb-4">
+                AB Kitchen соберёт рецепты, шаблоны и параметры периода в готовый промпт. Скопируйте его в любой доступный ИИ-чат.
+            </p>
+
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-3">
+                <label class="form-control">
+                    <span class="label-text mb-1">Начало</span>
+                    <input id="abPromptStartDate" type="date" class="input input-bordered w-full" />
+                </label>
+                <label class="form-control">
+                    <span class="label-text mb-1">Окончание</span>
+                    <input id="abPromptEndDate" type="date" class="input input-bordered w-full" />
+                </label>
+            </div>
+
+            <label class="form-control mb-4">
+                <span class="label-text mb-1">Дополнительные пожелания</span>
+                <textarea id="abPromptWishes" class="textarea textarea-bordered min-h-24"
+                          placeholder="Например: больше простых завтраков, не повторять сладости, использовать сезонные овощи"></textarea>
+            </label>
+
+            <div id="abPromptResultBlock" class="hidden">
+                <label class="label px-0"><span class="label-text font-medium">Готовый промпт</span></label>
+                <textarea id="abPromptResult" class="textarea textarea-bordered w-full min-h-72 font-mono text-xs" readonly></textarea>
+            </div>
+
+            <div class="modal-action flex-wrap">
+                <button type="button" class="btn btn-ghost" onclick="abMenuPromptModal.close()">Закрыть</button>
+                <button id="abGeneratePromptBtn" type="button" class="btn btn-primary" onclick="generateAbMenuPrompt()">Сформировать промпт</button>
+                <button id="abCopyPromptBtn" type="button" class="btn btn-success hidden" onclick="copyAbMenuPrompt()">Копировать</button>
+            </div>
+        </div>
+        <form method="dialog" class="modal-backdrop"><button>close</button></form>
+    </dialog>
+
     <!-- Meal Details Modal -->
     <dialog id="mealDetailsModal" class="modal">
         <div class="modal-box max-w-2xl relative">
@@ -444,6 +491,12 @@
 
             <div class="modal-action no-print">
                 <button type="button" class="btn btn-ghost" onclick="mealDetailsModal.close()" data-i18n="close">Закрыть</button>
+                <button id="abShareMealBtn" type="button" class="btn btn-secondary gap-2 hidden" onclick="shareAbMealCard()">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8.684 13.342C8.886 12.938 9 12.482 9 12s-.114-.938-.316-1.342m0 2.684a3 3 0 110-2.684m0 2.684l6.632 3.316m-6.632-6l6.632-3.316m0 0a3 3 0 105.368-2.684 3 3 0 00-5.368 2.684zm0 9.316a3 3 0 105.368 2.684 3 3 0 00-5.368-2.684z" />
+                    </svg>
+                    <span>Поделиться</span>
+                </button>
                 <button type="button" class="btn btn-primary gap-2" onclick="printMealDetails()">
                     <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z"/>
@@ -479,8 +532,8 @@
     <script src="../js/date-utils.js?v=3"></script>
     <script src="../js/translit.js"></script>
     <script src="../js/auto-translate.js"></script>
-    <script src="../js/layout.js?v=47"></script>
+    <script src="../js/layout.js?v=48"></script>
     <script src="../js/eating-utils.js?v=6"></script>
-    <script src="../js/pages/kitchen-menu.js?v=22"></script>
+    <script src="../js/pages/kitchen-menu.js?v=23"></script>
 </body>
 </html>
