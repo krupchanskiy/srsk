@@ -390,17 +390,33 @@ async function submitCharge(ev) {
 }
 
 // ==================== ФОРМА: ПЛАТЁЖ ====================
+// Валюта платежа задаётся явно и первой: человек вносит «560 долларов», а не
+// «платёж на долларовый счёт». Счета фильтруются по выбранной валюте — принять
+// евро на рупиевую кассу всё равно нельзя (ВГ, 08.08).
+function payCurrencyOptions(selected) {
+    const active = FinUtils.refs.currencies.filter(c => c.is_active !== false);
+    const list = active.length ? active : [{ code: 'INR' }];
+    return list.map(c => `<option value="${e(c.code)}" ${c.code === selected ? 'selected' : ''}>
+        ${e(FinUtils.symbol(c.code))} ${e(c.code)}</option>`).join('');
+}
+
 function payRowHtml(idx) {
+    const валюта = 'INR';
     return `
     <div class="border border-base-300 rounded-lg p-3 mb-2 pay-row" data-idx="${idx}">
-        <div class="grid grid-cols-2 md:grid-cols-4 gap-2">
+        <!-- Три колонки, а не пять: в модалке пять полей сжимаются и подписи обрезаются -->
+        <div class="grid grid-cols-2 md:grid-cols-3 gap-2">
             <div class="form-control">
                 <label class="label py-0"><span class="label-text text-xs">${t('fin_block')}</span></label>
                 <select class="select select-bordered select-sm pay-kind">${PAY_KINDS.map(k => `<option value="${k}">${e(blockLabel(k))}</option>`).join('')}</select>
             </div>
             <div class="form-control">
+                <label class="label py-0"><span class="label-text text-xs">${t('fin_currency')}</span></label>
+                <select class="select select-bordered select-sm pay-currency">${payCurrencyOptions(валюта)}</select>
+            </div>
+            <div class="form-control">
                 <label class="label py-0"><span class="label-text text-xs">${t('fin_account')}</span></label>
-                <select class="select select-bordered select-sm pay-account" required>${FinUtils.accountOptions()}</select>
+                <select class="select select-bordered select-sm pay-account" required>${FinUtils.accountOptions(undefined, a => a.currency_code === валюта)}</select>
             </div>
             <div class="form-control">
                 <label class="label py-0"><span class="label-text text-xs">${t('fin_amount')}</span></label>
@@ -411,13 +427,32 @@ function payRowHtml(idx) {
                 <select class="select select-bordered select-sm pay-channel">${FinUtils.channelOptions('cash')}</select>
             </div>
         </div>
+        <div class="text-xs opacity-70 mt-1 pay-hint"></div>
         ${idx > 0 ? `<button type="button" class="btn btn-ghost btn-sm text-error mt-1" aria-label="${t('fin_remove_row')}" onclick="this.closest('.pay-row').remove()">${FinUtils.ICONS.x}</button>` : ''}
     </div>`;
+}
+
+// Смена валюты пересобирает список счетов: показываем только те, куда эти деньги
+// физически можно принять. Если счёта в такой валюте нет — говорим об этом прямо.
+function onPayCurrencyChange(row) {
+    const валюта = row.querySelector('.pay-currency').value;
+    const счета = row.querySelector('.pay-account');
+    счета.innerHTML = FinUtils.accountOptions(undefined, a => a.currency_code === валюта);
+    const пусто = !счета.options.length;
+    счета.disabled = пусто;
+    row.querySelector('.pay-hint').textContent = пусто ? t('fin_no_account_in_currency') : '';
 }
 
 function addPayRow() {
     const wrap = document.getElementById('payRows');
     wrap.insertAdjacentHTML('beforeend', payRowHtml(wrap.children.length));
+    // Строки добавляются на лету — слушатель вешаем один раз на контейнер
+    if (!wrap.dataset.delegated) {
+        wrap.dataset.delegated = '1';
+        wrap.addEventListener('change', ev => {
+            if (ev.target.classList.contains('pay-currency')) onPayCurrencyChange(ev.target.closest('.pay-row'));
+        });
+    }
 }
 
 function openPayment(fromCard) {
