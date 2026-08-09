@@ -214,15 +214,21 @@ async function loadCardPayments() {
         active: '',
         reversed: `<span class="badge badge-ghost badge-xs">${t('fin_reversed_badge')}</span>`,
         refunded_partially: `<span class="badge badge-warning badge-xs">${t('fin_refunded_partially')}</span>`,
-        refunded_fully: `<span class="badge badge-neutral badge-xs">${t('fin_refunded_fully')}</span>`
+        refunded_fully: `<span class="badge badge-neutral badge-xs">${t('fin_refunded_fully')}</span>`,
+        // Платёж принят до переезда: в журнале его нет, он свёрнут в начальный остаток
+        pre_cutover: `<span class="badge badge-ghost badge-xs">${t('fin_before_cutover')}</span>`
     }[s] || '');
+    // Куда пришли деньги: счёт, если известен, иначе способ оплаты или канал.
+    // У платежей до переезда счёт часто не заполнялся — тогда виден хотя бы способ.
+    const куда = p => [p.account_name, p.payment_system, FinUtils.channelLabel(p.payment_channel)]
+        .filter(Boolean).join(' · ') || '—';
     document.getElementById('cardPayments').innerHTML = card.payments.map(p => `
         <tr class="${p.is_reversed ? 'opacity-60' : ''}">
             <td class="whitespace-nowrap">${DateUtils.formatShort(DateUtils.parseDate(p.occurred_on))}</td>
             <td>${e(FinUtils.typeLabel(p.type))}</td>
             <td>${e(blockLabel(p.balance_kind))}</td>
             <td class="text-right font-mono">${FinUtils.fmtMoney(p.amount, p.currency_code)}${p.currency_code !== 'INR' ? `<div class="text-xs opacity-70">${t('fin_at_rate')} ${Number(p.rate_used).toLocaleString('ru-RU', { maximumFractionDigits: 4 })} → ₹ ${Number(p.amount_base).toLocaleString('ru-RU')}</div>` : ''}</td>
-            <td>${e(FinUtils.channelLabel(p.payment_channel))}</td>
+            <td class="whitespace-nowrap">${e(куда(p))}</td>
             <td>${statusBadge(p.status)}</td>
             <td class="text-right">${isAdmin && p.type === 'payment' && Number(p.available_to_refund) > 0 ? `<button class="btn btn-ghost btn-xs" data-refund="${p.posting_id}" title="${t('fin_refund')}">
                 <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="w-4 h-4"><path stroke-linecap="round" stroke-linejoin="round" d="M9 15L3 9m0 0l6-6M3 9h12a6 6 0 010 12h-3"/></svg>
