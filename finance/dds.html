@@ -136,8 +136,11 @@
         border-bottom: 1px solid color-mix(in srgb, var(--current-color) 22%, transparent);
     }
 
-    /* Панель проводок — объект внутри строки, а не залитая полоса */
+    /* Панель проводок — объект внутри строки, а не залитая полоса.
+       Ширину задаём свою, а не по ячейке: ячейка равна ширине всей таблицы,
+       и на узком экране правый край панели вместе с суммой уходил за окно. */
     .fin-panel {
+        width: min(100%, 48rem);
         margin: 0 0.75rem 0.7rem 2.1rem;
         background: #fff;
         border: 1px solid var(--fin-border);
@@ -182,10 +185,11 @@
     .fin-edit { opacity: 0.45; transition: opacity 0.15s ease-out; }
     .fin-posting:hover .fin-edit, .fin-edit:focus-within { opacity: 1; }
 
-    /* Подвал: служебное и действия отделены от денег */
+    /* Подвал: служебное и действия отделены от денег.
+       Всё прижато влево — при разносе по краям кнопки уезжали за границу окна. */
     .fin-panel-foot {
-        display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between;
-        gap: 0.5rem;
+        display: flex; flex-wrap: wrap; align-items: center;
+        gap: 0.25rem 0.75rem;
         padding: 0.35rem 0.5rem 0.35rem 0.85rem;
         border-top: 1px solid var(--fin-border);
         background: rgba(15, 23, 42, 0.015);
@@ -199,7 +203,9 @@
 
     /* На узком экране: счёт, правка и сумма в строке, метки — под ними */
     @media (max-width: 640px) {
-        .fin-panel { margin-left: 0.75rem; }
+        /* Таблица здесь всё равно прокручивается, но панель держим по ширине экрана.
+           Вычитаем 6rem: это отступы карточки и собственный отступ панели слева. */
+        .fin-panel { margin-left: 0.75rem; width: min(100%, calc(100vw - 6rem)); }
         .fin-posting { grid-template-columns: 1fr auto auto; row-gap: 0.3rem; }
         .fin-posting-acc { grid-column: 1; }
         .fin-tags { grid-column: 1 / -1; order: 3; }
@@ -488,7 +494,7 @@
 <script src="../js/layout.js?v=52"></script>
 <script src="../js/date-utils.js?v=3"></script>
 <script src="../js/fin-utils.js?v=9"></script>
-<script src="../js/pages/fin-dds.js?v=19"></script>
+<script src="../js/pages/fin-dds.js?v=20"></script>
 
 </body>
 </html>

@@ -342,7 +342,7 @@ async function loadTable(append = false) {
                 <td class="whitespace-nowrap">${e(op.accounts || '—')}</td>
                 <td class="whitespace-nowrap ${op.objects ? '' : 'fin-dim'}">${e(op.objects || '—')}</td>
                 <td class="text-right font-mono whitespace-nowrap">${FinUtils.fmtAmountsByCurrencyColored(op.amounts_by_currency)}</td>
-                <td class="max-w-md truncate fin-dim">${e([op.payer_name, commentOf(op)].filter(Boolean).join(' · '))}</td>
+                <td class="max-w-xs truncate fin-dim">${e([op.payer_name, commentOf(op)].filter(Boolean).join(' · '))}</td>
                 <td>${FinUtils.approvalBadge(op.approval)}</td>
             </tr>
             <tr class="hidden fin-det" id="det-${op.operation_id}"><td colspan="8" class="p-0"></td></tr>
