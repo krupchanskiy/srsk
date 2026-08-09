@@ -188,15 +188,37 @@ async function loadSignals() {
         </a>`);
     }
     // integrity view может отсутствовать, пока миграция сторожа не применена — тихо игнорируем
+    // Сигнал раскрывается: «не сходится (1)» без имён и сумм не позволяет дойти
+    // до проблемы, а именно за этим на него и смотрят (ВГ, 08.08).
     for (const a of (integrity.data || [])) {
-        cards.push(`<div class="flex items-center gap-3 p-3 rounded-lg bg-error/10 border border-error/30">
-            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.8" stroke="currentColor" class="w-5 h-5 text-error shrink-0"><path stroke-linecap="round" stroke-linejoin="round" d="M12 9v3.75m9-.75a9 9 0 11-18 0 9 9 0 0118 0zm-9 3.75h.008v.008H12v-.008z"/></svg>
-            <span class="text-sm"><span class="font-semibold text-error">${t('fin_signal_integrity')}:</span> ${e(a.detail)} (${a.bad_count})</span>
-        </div>`);
+        cards.push(`<details class="fin-signal" data-check="${e(a.check_name)}">
+            <summary class="flex items-center gap-3 p-3 rounded-lg bg-error/10 border border-error/30 cursor-pointer hover:bg-error/15">
+                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.8" stroke="currentColor" class="w-5 h-5 text-error shrink-0"><path stroke-linecap="round" stroke-linejoin="round" d="M12 9v3.75m9-.75a9 9 0 11-18 0 9 9 0 0118 0zm-9 3.75h.008v.008H12v-.008z"/></svg>
+                <span class="text-sm flex-1"><span class="font-semibold text-error">${t('fin_signal_integrity')}:</span> ${e(a.detail)} (${a.bad_count})</span>
+                <span class="fin-signal-chev"></span>
+            </summary>
+            <div class="fin-signal-body"><span class="loading loading-spinner loading-xs"></span></div>
+        </details>`);
     }
     if (!cards.length) { box.classList.add('hidden'); return; }
     box.innerHTML = `<div class="space-y-2">${cards.join('')}</div>`;
     box.classList.remove('hidden');
+
+    // Расшифровку тянем при раскрытии: на дашборде она нужна не всегда
+    box.querySelectorAll('.fin-signal').forEach(d => d.addEventListener('toggle', async () => {
+        if (!d.open || d.dataset.loaded) return;
+        d.dataset.loaded = '1';
+        const body = d.querySelector('.fin-signal-body');
+        const { data, error } = await Layout.db.rpc('fin_get_integrity_details', { p_check: d.dataset.check });
+        const rows = (!error && data?.ok) ? data.result : [];
+        body.innerHTML = rows.length
+            ? rows.map(r => `<a class="fin-signal-row" href="${e(r.link)}">
+                    <span class="fin-signal-who">${e(r.title)}</span>
+                    <span class="fin-signal-where">${e(r.subtitle || '')}</span>
+                    <span class="fin-signal-what">${e(r.detail || '')}</span>
+                </a>`).join('')
+            : `<div class="fin-signal-empty">${t('fin_signal_no_details')}</div>`;
+    }));
 }
 
 async function init() {

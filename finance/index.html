@@ -146,16 +146,58 @@
     </div>
 </main>
 
+<style>
+    /* ---------- Сигнал целостности ----------
+       Раскрывается в список: кто, какой ретрит, какие суммы — и ссылка прямо
+       на карточку. Без этого «не сходится (1)» некуда нажать и нечего понять. */
+    .fin-signal > summary { list-style: none; }
+    .fin-signal > summary::-webkit-details-marker { display: none; }
+    .fin-signal-chev {
+        width: 0.5rem; height: 0.5rem; flex-shrink: 0;
+        border-right: 1.5px solid currentColor; border-bottom: 1.5px solid currentColor;
+        transform: rotate(45deg) translate(-2px, -2px);
+        opacity: 0.5;
+        transition: transform 0.18s var(--fin-ease);
+    }
+    .fin-signal[open] .fin-signal-chev { transform: rotate(-135deg) translate(-3px, -3px); }
+
+    .fin-signal-body {
+        margin: 0.35rem 0 0 0.5rem;
+        border-left: 2px solid color-mix(in srgb, #dc2626 25%, transparent);
+        padding-left: 0.75rem;
+    }
+    .fin-signal-row {
+        display: grid;
+        grid-template-columns: minmax(9rem, auto) minmax(8rem, auto) 1fr;
+        align-items: baseline;
+        gap: 0.25rem 0.75rem;
+        padding: 0.4rem 0.5rem;
+        border-radius: 8px;
+        font-size: 0.8125rem;
+        color: var(--fin-ink);
+        text-decoration: none;
+    }
+    .fin-signal-row:hover { background: rgba(15, 23, 42, 0.04); }
+    .fin-signal-who { font-weight: 600; }
+    .fin-signal-where { color: var(--fin-muted); }
+    .fin-signal-what { color: var(--fin-muted); font-variant-numeric: tabular-nums; }
+    .fin-signal-empty { padding: 0.5rem; font-size: 0.8rem; color: var(--fin-muted); }
+
+    @media (max-width: 640px) {
+        .fin-signal-row { grid-template-columns: 1fr; }
+    }
+</style>
+
 <div id="footer-placeholder"></div>
 
 <script src="../js/config.js?v=4"></script>
 <script src="../js/auth-check.js?v=8"></script>
 <script src="../js/cache.js?v=1"></script>
 <script src="../js/utils.js?v=4"></script>
-<script src="../js/layout.js?v=50"></script>
+<script src="../js/layout.js?v=51"></script>
 <script src="../js/date-utils.js?v=3"></script>
 <script src="../js/fin-utils.js?v=9"></script>
-<script src="../js/pages/fin-index.js?v=9"></script>
+<script src="../js/pages/fin-index.js?v=10"></script>
 
 </body>
 </html>
