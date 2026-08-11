@@ -14,6 +14,15 @@ window.DateUtils = {
         return new Date(val);
     },
 
+    // Время рейса вводят как местное, но TIMESTAMPTZ возвращает его с «+00».
+    // new Date() принял бы это за UTC и сдвинул на часовой пояс браузера
+    // (в Индии — на 5:30), поэтому таймзону обрезаем.
+    parseTimestamp(val) {
+        if (!val) return null;
+        if (val instanceof Date) return val;
+        return new Date(String(val).slice(0, 16));
+    },
+
     // Названия месяцев по языкам
     monthNames: {
         ru: ['января', 'февраля', 'марта', 'апреля', 'мая', 'июня',

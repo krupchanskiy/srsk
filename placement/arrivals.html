@@ -187,7 +187,7 @@
     <script src="../js/utils.js?v=4"></script>
     <script src="../js/translit.js"></script>
     <script src="../js/auto-translate.js"></script>
-    <script src="../js/date-utils.js?v=3"></script>
+    <script src="../js/date-utils.js?v=4"></script>
     <script src="../js/layout.js?v=52"></script>
     <script>
         const t = key => Layout.t(key);
@@ -395,8 +395,7 @@
                 const arrival = (reg.guest_transfers || []).find(t => t.direction === 'arrival');
                 if (arrival?.flight_datetime) {
                     withTime++;
-                    const estimatedDate = new Date(arrival.flight_datetime);
-                    estimatedDate.setHours(estimatedDate.getHours() + 4);
+                    const estimatedDate = addHours(arrival.flight_datetime, 4);
                     const estimatedStr = toLocalDateStr(estimatedDate);
 
                     if (estimatedStr === todayStr) today++;
@@ -458,8 +457,7 @@
             registrations.forEach(reg => {
                 const arrival = (reg.guest_transfers || []).find(t => t.direction === 'arrival');
                 if (arrival?.flight_datetime) {
-                    const estimatedDate = new Date(arrival.flight_datetime);
-                    estimatedDate.setHours(estimatedDate.getHours() + 4);
+                    const estimatedDate = addHours(arrival.flight_datetime, 4);
                     const dateStr = toLocalDateStr(estimatedDate);
 
                     if (dateStr === selectedDate) {
@@ -502,9 +500,11 @@
             return DateUtils.calculateAge(birthDate);
         }
 
+        const toLocal = dt => DateUtils.parseTimestamp(dt);
+
         function formatDateTime(datetime) {
             if (!datetime) return '';
-            const date = new Date(datetime);
+            const date = toLocal(datetime);
             const day = date.getDate().toString().padStart(2, '0');
             const month = (date.getMonth() + 1).toString().padStart(2, '0');
             const hours = date.getHours().toString().padStart(2, '0');
@@ -514,7 +514,7 @@
 
         function formatTime(datetime) {
             if (!datetime) return '';
-            const date = new Date(datetime);
+            const date = toLocal(datetime);
             const hours = date.getHours().toString().padStart(2, '0');
             const minutes = date.getMinutes().toString().padStart(2, '0');
             return `${hours}:${minutes}`;
@@ -522,9 +522,9 @@
 
         function addHours(datetime, hours) {
             if (!datetime) return null;
-            const date = new Date(datetime);
+            const date = toLocal(datetime);
             date.setHours(date.getHours() + hours);
-            return date.toISOString();
+            return date;
         }
 
         function formatDateLabel(dateStr) {
@@ -658,6 +658,7 @@
                     <td class="text-sm">${genderAge || '—'}</td>
                     <td class="text-sm text-center">
                         <div>${arrivalTime ? formatDateTime(arrivalTime) : '—'}</div>
+                        ${arrival?.flight_number ? `<div class="text-xs opacity-60">${e(arrival.flight_number)}</div>` : ''}
                         ${needsTransfer ? (taxiOrdered ? `<div class="badge badge-success badge-xs gap-1 mt-1 cursor-pointer" onclick="event.stopPropagation(); showTaxiDetails('${arrival.id}')"><svg xmlns="http://www.w3.org/2000/svg" class="w-3 h-3" viewBox="0 0 103.07 59.75" fill="currentColor"><path d="M5.75,53.47c-1.68-1.71-2.63-4.23-2.68-6.64,2.97-10.49,6.26-20.89,9.36-31.35,1.71-5.78,1.81-10.95,9.24-12.11h58.86c3.74.23,7.15,2.76,8.35,6.35.33,1,.31,1.98.58,2.89,3.38,11.42,6.9,22.8,10.18,34.25-.11,4.72-3.5,8.64-8.16,9.3H11.55c-2.09-.16-4.35-1.22-5.8-2.7ZM21.72,9.78c-2.2.69-1.86,2.64-2.36,4.28-3.3,10.95-6.61,21.9-9.85,32.87-.47,2.23,1.92,3.11,3.77,3.19h76.19c1.99-.17,3.63-.69,3.83-2.97-3.25-10.64-6.4-21.3-9.61-31.95-.48-1.59-.56-4.58-2.24-5.26l-59.73-.16Z"/><polygon points="60.75 20.68 63.64 26.16 67.25 20.68 72.58 20.68 66.57 29.82 72.29 38.86 66.96 38.86 63.64 33.67 61.04 38.86 55.27 38.86 60.98 29.81 55.27 20.68 60.75 20.68"/><path d="M37.96,38.86l6.09-18.15,4.45-.05,6.48,18.2h-4.76l-1.27-3.29-4.91-.14-.89,3.43h-5.19ZM48.06,31.93c-.5-1.5-.78-3.12-1.3-4.61-.1-.28-.03-.66-.42-.58l-1.45,5.19h3.17Z"/><polygon points="39.12 20.68 39.12 25.01 33.92 25.01 33.92 38.86 28.73 38.86 28.73 25.01 23.54 25.01 23.54 20.68 39.12 20.68"/><rect x="74.03" y="20.68" width="5.19" height="18.18"/></svg>${t('ordered')}</div>` : `<div class="badge badge-warning badge-xs gap-1 mt-1 cursor-pointer" onclick="event.stopPropagation(); openTaxiModal('${arrival.id}')"><svg xmlns="http://www.w3.org/2000/svg" class="w-3 h-3" viewBox="0 0 103.07 59.75" fill="currentColor"><path d="M5.75,53.47c-1.68-1.71-2.63-4.23-2.68-6.64,2.97-10.49,6.26-20.89,9.36-31.35,1.71-5.78,1.81-10.95,9.24-12.11h58.86c3.74.23,7.15,2.76,8.35,6.35.33,1,.31,1.98.58,2.89,3.38,11.42,6.9,22.8,10.18,34.25-.11,4.72-3.5,8.64-8.16,9.3H11.55c-2.09-.16-4.35-1.22-5.8-2.7ZM21.72,9.78c-2.2.69-1.86,2.64-2.36,4.28-3.3,10.95-6.61,21.9-9.85,32.87-.47,2.23,1.92,3.11,3.77,3.19h76.19c1.99-.17,3.63-.69,3.83-2.97-3.25-10.64-6.4-21.3-9.61-31.95-.48-1.59-.56-4.58-2.24-5.26l-59.73-.16Z"/><polygon points="60.75 20.68 63.64 26.16 67.25 20.68 72.58 20.68 66.57 29.82 72.29 38.86 66.96 38.86 63.64 33.67 61.04 38.86 55.27 38.86 60.98 29.81 55.27 20.68 60.75 20.68"/><path d="M37.96,38.86l6.09-18.15,4.45-.05,6.48,18.2h-4.76l-1.27-3.29-4.91-.14-.89,3.43h-5.19ZM48.06,31.93c-.5-1.5-.78-3.12-1.3-4.61-.1-.28-.03-.66-.42-.58l-1.45,5.19h3.17Z"/><polygon points="39.12 20.68 39.12 25.01 33.92 25.01 33.92 38.86 28.73 38.86 28.73 25.01 23.54 25.01 23.54 20.68 39.12 20.68"/><rect x="74.03" y="20.68" width="5.19" height="18.18"/></svg>${t('needs_transfer')}</div>`) : ''}
                     </td>
                     <td class="text-sm text-center">
@@ -706,7 +707,8 @@
             const infoParts = [];
             if (genderAge) infoParts.push(genderAge);
             if (arrivalTime) {
-                infoParts.push(`<span title="${t('flight_time')}">✈ ${formatDateTime(arrivalTime)}</span>`);
+                const рейс = arrival.flight_number ? ` ${e(arrival.flight_number)}` : '';
+                infoParts.push(`<span title="${t('flight_time')}">✈ ${formatDateTime(arrivalTime)}${рейс}</span>`);
                 infoParts.push(`<span class="font-semibold text-base-content" title="${t('arrives_at_srsk')}">→ ${formatTime(estimatedArrival)}</span>`);
             }
             if (arrival?.needs_transfer === 'yes') {
@@ -777,8 +779,7 @@
             filtered.forEach(reg => {
                 const arrival = (reg.guest_transfers || []).find(t => t.direction === 'arrival');
                 if (arrival?.flight_datetime) {
-                    const estimatedDate = new Date(arrival.flight_datetime);
-                    estimatedDate.setHours(estimatedDate.getHours() + 4);
+                    const estimatedDate = addHours(arrival.flight_datetime, 4);
                     const dateStr = toLocalDateStr(estimatedDate);
 
                     if (!groups.has(dateStr)) groups.set(dateStr, []);

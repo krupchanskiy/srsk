@@ -200,8 +200,7 @@ function updateStats() {
         const departure = (reg.guest_transfers || []).find(t => t.direction === 'departure');
         if (departure?.flight_datetime) {
             withTime++;
-            const estimatedDate = new Date(departure.flight_datetime);
-            estimatedDate.setHours(estimatedDate.getHours() - 7);
+            const estimatedDate = addHours(departure.flight_datetime, -7);
             const estimatedStr = toLocalDateStr(estimatedDate);
 
             if (estimatedStr === todayStr) today++;
@@ -272,8 +271,7 @@ function updateChart() {
     registrations.forEach(reg => {
         const departure = (reg.guest_transfers || []).find(t => t.direction === 'departure');
         if (departure?.flight_datetime) {
-            const estimatedDate = new Date(departure.flight_datetime);
-            estimatedDate.setHours(estimatedDate.getHours() - 7);
+            const estimatedDate = addHours(departure.flight_datetime, -7);
             const dateStr = toLocalDateStr(estimatedDate);
 
             if (dateStr === selectedDate) {
@@ -316,9 +314,11 @@ function calculateAge(birthDate) {
     return DateUtils.calculateAge(birthDate);
 }
 
+const toLocal = dt => DateUtils.parseTimestamp(dt);
+
 function formatDateTime(datetime) {
     if (!datetime) return '';
-    const date = new Date(datetime);
+    const date = toLocal(datetime);
     const day = date.getDate().toString().padStart(2, '0');
     const month = (date.getMonth() + 1).toString().padStart(2, '0');
     const hours = date.getHours().toString().padStart(2, '0');
@@ -328,7 +328,7 @@ function formatDateTime(datetime) {
 
 function formatTime(datetime) {
     if (!datetime) return '';
-    const date = new Date(datetime);
+    const date = toLocal(datetime);
     const hours = date.getHours().toString().padStart(2, '0');
     const minutes = date.getMinutes().toString().padStart(2, '0');
     return `${hours}:${minutes}`;
@@ -336,9 +336,9 @@ function formatTime(datetime) {
 
 function addHours(datetime, hours) {
     if (!datetime) return null;
-    const date = new Date(datetime);
+    const date = toLocal(datetime);
     date.setHours(date.getHours() + hours);
-    return date.toISOString();
+    return date;
 }
 
 function formatDateLabel(dateStr) {
@@ -592,8 +592,7 @@ function renderTable() {
     filtered.forEach(reg => {
         const departure = (reg.guest_transfers || []).find(t => t.direction === 'departure');
         if (departure?.flight_datetime) {
-            const estimatedDate = new Date(departure.flight_datetime);
-            estimatedDate.setHours(estimatedDate.getHours() - 7);
+            const estimatedDate = addHours(departure.flight_datetime, -7);
             const dateStr = toLocalDateStr(estimatedDate);
 
             if (!groups.has(dateStr)) groups.set(dateStr, []);

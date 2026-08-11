@@ -188,6 +188,7 @@
     <script src="../js/translit.js"></script>
     <script src="../js/auto-translate.js"></script>
     <script src="../js/layout.js?v=52"></script>
+    <script src="../js/date-utils.js?v=4"></script>
     <script>
         let transfers = [];
         let residentsMap = new Map();
@@ -274,7 +275,7 @@
             let taxiNeedsOrdering = 0;
 
             transfers.forEach(t => {
-                const date = new Date(t.flight_datetime);
+                const date = toLocal(t.flight_datetime);
                 if (t.needs_transfer === 'yes' && t.taxi_status !== 'ordered' && date >= cutoff) {
                     taxiNeedsOrdering++;
                 }
@@ -326,9 +327,11 @@
             }
         }
 
+        const toLocal = dt => DateUtils.parseTimestamp(dt);
+
         function getUrgencyClass(datetime) {
             const now = new Date();
-            const transferTime = new Date(datetime);
+            const transferTime = toLocal(datetime);
             const hoursUntil = (transferTime - now) / (1000 * 60 * 60);
 
             if (hoursUntil < 0) return 'urgency-normal'; // Прошедшие
@@ -338,7 +341,7 @@
         }
 
         function formatTime(datetime) {
-            const date = new Date(datetime);
+            const date = toLocal(datetime);
             const hours = date.getHours().toString().padStart(2, '0');
             const minutes = date.getMinutes().toString().padStart(2, '0');
             return `${hours}:${minutes}`;
@@ -346,7 +349,7 @@
 
         function getCheckoutTime(flightDatetime) {
             // Выезд = время вылета минус 7 часов
-            const flight = new Date(flightDatetime);
+            const flight = toLocal(flightDatetime);
             const checkout = new Date(flight.getTime() - 7 * 60 * 60 * 1000);
             return checkout;
         }
@@ -384,7 +387,7 @@
 
             // Показываем только будущие и сегодняшние (с небольшим запасом в прошлое — 6 часов)
             const cutoff = new Date(Date.now() - 6 * 60 * 60 * 1000);
-            filtered = filtered.filter(t => new Date(t.flight_datetime) >= cutoff);
+            filtered = filtered.filter(t => toLocal(t.flight_datetime) >= cutoff);
 
             // Фильтруем по поиску
             if (searchQuery) {
@@ -416,7 +419,7 @@
             // Группируем по датам
             const grouped = {};
             filtered.forEach(t => {
-                const dateKey = new Date(t.flight_datetime).toDateString();
+                const dateKey = toLocal(t.flight_datetime).toDateString();
                 if (!grouped[dateKey]) grouped[dateKey] = [];
                 grouped[dateKey].push(t);
             });
@@ -517,7 +520,7 @@
             let taxiTransfers = transfers.filter(t =>
                 t.needs_transfer === 'yes' &&
                 t.taxi_status !== 'completed' &&
-                new Date(t.flight_datetime) >= cutoff
+                toLocal(t.flight_datetime) >= cutoff
             );
 
             // Применяем фильтр направления
@@ -555,7 +558,7 @@
             // Группируем по датам (для выездов используем дату выезда, для заездов - дату прилёта)
             const grouped = {};
             taxiTransfers.forEach(t => {
-                const relevantDate = t.direction === 'departure' ? getCheckoutTime(t.flight_datetime) : new Date(t.flight_datetime);
+                const relevantDate = t.direction === 'departure' ? getCheckoutTime(t.flight_datetime) : toLocal(t.flight_datetime);
                 const dateKey = relevantDate.toDateString();
                 if (!grouped[dateKey]) grouped[dateKey] = [];
                 grouped[dateKey].push(t);
@@ -581,8 +584,8 @@
 
                 // Сортируем внутри дня по времени
                 items.sort((a, b) => {
-                    const timeA = a.direction === 'departure' ? getCheckoutTime(a.flight_datetime) : new Date(a.flight_datetime);
-                    const timeB = b.direction === 'departure' ? getCheckoutTime(b.flight_datetime) : new Date(b.flight_datetime);
+                    const timeA = a.direction === 'departure' ? getCheckoutTime(a.flight_datetime) : toLocal(a.flight_datetime);
+                    const timeB = b.direction === 'departure' ? getCheckoutTime(b.flight_datetime) : toLocal(b.flight_datetime);
                     return timeA - timeB;
                 });
 
@@ -627,7 +630,7 @@
             else if (urgencyClass === 'urgency-warning') borderColor = 'border-yellow-500';
 
             // Формат даты и времени
-            const flightDate = new Date(transfer.flight_datetime);
+            const flightDate = toLocal(transfer.flight_datetime);
             const flightDateStr = flightDate.toLocaleDateString('ru-RU', { day: 'numeric', month: 'short' });
             const timeStr = formatTime(transfer.flight_datetime);
 
