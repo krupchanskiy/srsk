@@ -211,11 +211,42 @@ function getVaishnavFullName(v, fallback) {
     return v.spiritual_name ? `${v.spiritual_name} (${civil})` : civil || fallback || '—';
 }
 
+/**
+ * Выбрать актуальное размещение из нескольких.
+ * У человека может быть несколько подтверждённых записей — прошлый визит и
+ * нынешний. Без выбора по датам списки показывали ту, что пришла из БД последней:
+ * Чандра-рекха жила в гостевом доме, а трансферы звали её в коттедж (ВГ, 11.08).
+ *
+ * @param {object} было - текущий кандидат (может быть undefined)
+ * @param {object} стало - новый кандидат
+ * @param {object} [опции]
+ * @param {string} [опции.retreatId] - ретрит, к которому относится список
+ * @param {string} [опции.date] - опорная дата (YYYY-MM-DD), по умолчанию сегодня
+ * @returns {object} тот из двух, который уместнее показать
+ */
+function pickResident(было, стало, { retreatId, date } = {}) {
+    if (!было) return стало;
+    if (!стало) return было;
+
+    const день = date || DateUtils.toISO(new Date());
+    const вес = r => {
+        if (retreatId && r.retreat_id === retreatId) return 4;      // тот самый ретрит
+        if (r.check_in <= день && (!r.check_out || r.check_out >= день)) return 3;  // живёт сейчас
+        if (r.check_in > день) return 2;                            // заедет позже
+        return 1;                                                    // уже выехал
+    };
+
+    const вЕсть = вес(было), вНово = вес(стало);
+    if (вНово !== вЕсть) return вНово > вЕсть ? стало : было;
+    // При равном весе — та запись, что начинается позже: она свежее
+    return (стало.check_in || '') > (было.check_in || '') ? стало : было;
+}
+
 window.getVaishnavName = getVaishnavName;
 window.getVaishnavFullName = getVaishnavFullName;
 
 // Глобальный debug-логгер доступен без префикса — используется часто, как console.log.
 window.debug = debug;
-window.Utils = { pluralize, debounce, debug, escapeHtml, isValidColor, safeColor, checkAndMoveDatesAcrossRetreats, fetchAll, getVaishnavName, getVaishnavFullName };
+window.Utils = { pluralize, debounce, debug, escapeHtml, isValidColor, safeColor, checkAndMoveDatesAcrossRetreats, fetchAll, getVaishnavName, getVaishnavFullName, pickResident };
 
 })();

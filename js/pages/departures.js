@@ -110,30 +110,30 @@ async function loadRegistrations() {
     if (vaishnavaIds.length > 0) {
         const resResult = await Layout.db
             .from('residents')
-            .select('vaishnava_id, room_id, rooms(number, buildings(id, name_ru, name_en, name_hi))')
+            .select('vaishnava_id, room_id, retreat_id, check_in, check_out, rooms(number, buildings(id, name_ru, name_en, name_hi))')
             .in('vaishnava_id', vaishnavaIds)
             .eq('status', 'confirmed');
 
         if (resResult.data) {
+            // У человека может быть и прошлый визит, и нынешний — берём размещение этого ретрита
+            const лучшее = new Map();
             resResult.data.forEach(r => {
-                if (r.vaishnava_id) {
-                    if (!r.room_id) {
-                        // Self-accommodation (NULL room_id)
-                        residentsMap.set(r.vaishnava_id, {
-                            roomNumber: null,
-                            buildingName: null,
-                            buildingId: 'self',
-                            isSelfAccommodation: true
-                        });
-                    } else if (r.rooms) {
-                        residentsMap.set(r.vaishnava_id, {
-                            roomNumber: r.rooms.number,
-                            buildingName: Layout.getName(r.rooms.buildings),
-                            buildingId: r.rooms.buildings.id,
-                            isSelfAccommodation: false
-                        });
-                    }
-                }
+                if (!r.vaishnava_id || (r.room_id && !r.rooms)) return;
+                лучшее.set(r.vaishnava_id, Utils.pickResident(лучшее.get(r.vaishnava_id), r, { retreatId }));
+            });
+            лучшее.forEach((r, id) => {
+                residentsMap.set(id, r.room_id ? {
+                    roomNumber: r.rooms.number,
+                    buildingName: Layout.getName(r.rooms.buildings),
+                    buildingId: r.rooms.buildings.id,
+                    isSelfAccommodation: false
+                } : {
+                    // Self-accommodation (NULL room_id)
+                    roomNumber: null,
+                    buildingName: null,
+                    buildingId: 'self',
+                    isSelfAccommodation: true
+                });
             });
         }
     }
