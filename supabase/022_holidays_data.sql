@@ -141,7 +141,7 @@ INSERT INTO holidays (date, name_en, name_ru, type) VALUES
 ('2026-07-11', 'Yogini Ekadasi', 'Йогини Экадаши', 'ekadashi'),
 ('2026-07-25', 'Sayana Ekadasi', 'Шаяна Экадаши', 'ekadashi'),
 ('2026-08-09', 'Kamika Ekadasi', 'Камика Экадаши', 'ekadashi'),
-('2026-08-23', 'Pavitraropana Ekadasi', 'Павитропана Экадаши', 'ekadashi'),
+('2026-08-24', 'Pavitraropana Ekadasi', 'Павитропана Экадаши', 'ekadashi'),
 ('2026-09-07', 'Annada Ekadasi', 'Аннада Экадаши', 'ekadashi'),
 ('2026-09-22', 'Parsva Ekadasi', 'Паршва Экадаши', 'ekadashi'),
 ('2026-10-06', 'Indira Ekadasi', 'Индира Экадаши', 'ekadashi'),
