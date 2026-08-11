@@ -208,19 +208,24 @@
         }
 
         async function loadTransfers() {
+            // Только идущие и будущие ретриты: иначе одна опечатка в годе рейса
+            // держала бы завершившийся ретрит в списке годами (ВГ, 11.08)
+            const порог = DateUtils.toISO(new Date(Date.now() - 7 * 24 * 60 * 60 * 1000));
+
             // Загружаем трансферы с данными о регистрации и вайшнаве
             const { data, error } = await Layout.db
                 .from('guest_transfers')
                 .select(`
                     *,
-                    retreat_registrations (
+                    retreat_registrations!inner (
                         id,
                         retreat_id,
-                        retreats (id, name_ru, name_en, name_hi),
+                        retreats!inner (id, name_ru, name_en, name_hi, end_date),
                         vaishnavas (id, first_name, last_name, spiritual_name, phone, telegram)
                     )
                 `)
                 .not('flight_datetime', 'is', null)
+                .gte('retreat_registrations.retreats.end_date', порог)
                 .order('flight_datetime', { ascending: true });
 
             if (error) {
