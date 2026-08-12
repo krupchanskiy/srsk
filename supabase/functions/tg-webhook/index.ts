@@ -472,15 +472,27 @@ Deno.serve(async (req) => {
   // Telegram) принимаем «/баланс» и «/остаток».
   if (/^\/(balance|баланс|остаток)/i.test(text)) {
     const { data: rows } = await supa.rpc("tg_department_balance", { p_chat: m.chat.id });
-    const b = Array.isArray(rows) ? rows[0] : rows;
+    // У департамента счёт в каждой валюте — раньше брали только первый и
+    // прятали остальные: у «Кафе» показывались 0 ₹ при 13 022 ₽ на руках (ВГ, 12.08).
+    const счета = (Array.isArray(rows) ? rows : rows ? [rows] : [])
+      .sort((a, b) =>
+        (a.currency_code === "INR" ? -1 : b.currency_code === "INR" ? 1 : 0)
+        || String(a.currency_code).localeCompare(String(b.currency_code)));
+    const первый = счета[0];
+    let текст: string;
+    if (!первый) {
+      текст = "Этот чат не привязан к департаменту, поэтому остаток показать не могу.";
+    } else {
+      текст = счета.length === 1
+        ? `💰 <b>${esc(первый.department_name)}: ${esc(первый.formatted)}</b>`
+        : `💰 <b>${esc(первый.department_name)}</b>\n`
+          + счета.map((s) => `• <b>${esc(s.formatted)}</b>`).join("\n");
+      if (первый.pending_drafts > 0) {
+        текст += `\nЖдут проведения: ${первый.pending_drafts} — остаток изменится, когда их проведут.`;
+      }
+    }
     await tg("sendMessage", {
-      chat_id: m.chat.id, reply_to_message_id: m.message_id, parse_mode: "HTML",
-      text: b
-        ? `💰 <b>${esc(b.department_name)}: ${esc(b.formatted)}</b>`
-          + (b.pending_drafts > 0
-              ? `\nЖдут проведения: ${b.pending_drafts} — остаток изменится, когда их проведут.`
-              : "")
-        : "Этот чат не привязан к департаменту, поэтому остаток показать не могу.",
+      chat_id: m.chat.id, reply_to_message_id: m.message_id, parse_mode: "HTML", text: текст,
     });
     return new Response("ok");
   }
