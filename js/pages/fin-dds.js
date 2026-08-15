@@ -245,6 +245,7 @@ async function loadTable(append = false) {
     if (f.account || f.category || f.object) {
         const showRunning = !!f.account;   // running balance осмыслен только для одного счёта
         head.innerHTML = `<tr>
+            <th class="fin-chev-cell"></th>
             <th>${t('fin_occurred_on')}</th>
             <th>${t('fin_kind')}</th>
             <th>${t('fin_category')}</th>
@@ -281,8 +282,14 @@ async function loadTable(append = false) {
             else if (v >= 0) c.inc += v;
             else c.exp += -v;
         }
+        // Колонок в этом режиме больше на шеврон и на «остаток после» при выбранном счёте
+        const колонок = showRunning ? 9 : 8;
+        // Ключ строки — проводка, а не операция: одна операция может дать по счёту
+        // несколько строк, и общий id развернул бы не ту.
         const html = data.map(p => `
-            <tr class="${p.is_reversed ? 'opacity-60' : ''}">
+            <tr class="cursor-pointer hover:bg-base-200 ${p.is_reversed ? 'opacity-60' : ''}"
+                data-op="${p.operation_id}" data-key="p${p.posting_id}" tabindex="0">
+                <td class="fin-chev-cell"><span class="fin-chev"></span></td>
                 <td class="whitespace-nowrap">${DateUtils.formatShort(DateUtils.parseDate(p.occurred_on))}</td>
                 <td>${e(FinUtils.typeLabel(p.type))}${
                     // Вторая сторона операции: в режиме одного счёта её не было
@@ -298,6 +305,7 @@ async function loadTable(append = false) {
                 ${showRunning ? `<td class="text-right font-mono">${FinUtils.fmtMoney(p.running_balance, p.currency_code)}</td>` : ''}
                 <td>${FinUtils.approvalBadge(p.approval)}</td>
             </tr>
+            <tr class="hidden fin-det" id="det-p${p.posting_id}"><td colspan="${колонок}" class="p-0"></td></tr>
         `).join('');
         if (append) body.insertAdjacentHTML('beforeend', html); else body.innerHTML = html;
         listOffset += data.length;
@@ -335,7 +343,7 @@ async function loadTable(append = false) {
         opsById = append ? { ...opsById, ...Object.fromEntries(data.map(op => [op.operation_id, op])) }
                          : Object.fromEntries(data.map(op => [op.operation_id, op]));
         const html = data.map(op => `
-            <tr class="cursor-pointer hover:bg-base-200 ${op.is_reversed ? 'opacity-60' : ''}" data-op="${op.operation_id}" tabindex="0">
+            <tr class="cursor-pointer hover:bg-base-200 ${op.is_reversed ? 'opacity-60' : ''}" data-op="${op.operation_id}" data-key="${op.operation_id}" tabindex="0">
                 <td class="fin-chev-cell"><span class="fin-chev"></span></td>
                 <td class="whitespace-nowrap">${DateUtils.formatShort(DateUtils.parseDate(op.occurred_on))}</td>
                 <td>${e(FinUtils.typeLabel(op.type))}${badges(op)}</td>
@@ -357,11 +365,12 @@ async function loadTable(append = false) {
 }
 
 // Разворот операции в проводки
-async function toggleDetails(opId) {
-    const row = document.getElementById('det-' + opId);
+// ключ — id строки разворота: в общей ленте это операция, в режиме счёта — проводка
+async function toggleDetails(opId, ключ = opId) {
+    const row = document.getElementById('det-' + ключ);
     if (!row) return;
     // Подсветка: родительская строка + панель читаются как единый блок
-    const parent = document.querySelector(`tr[data-op="${opId}"]`);
+    const parent = document.querySelector(`tr[data-key="${ключ}"]`) || document.querySelector(`tr[data-op="${opId}"]`);
     if (!row.classList.contains('hidden')) {
         row.classList.add('hidden');
         row.classList.remove('is-open');
@@ -491,8 +500,10 @@ async function attachFile(input, opId) {
     input.disabled = false;
     input.value = '';
     if (FinUtils.handleResult(res)) {
-        const row = document.getElementById('det-' + opId);
-        if (row) { row.classList.add('hidden'); toggleDetails(opId); }
+        // В режиме счёта разворот привязан к проводке — ключ берём с самой строки
+        const ключ = document.querySelector(`tr[data-op="${opId}"]`)?.dataset.key || opId;
+        const row = document.getElementById('det-' + ключ);
+        if (row) { row.classList.add('hidden'); toggleDetails(opId, ключ); }
     }
 }
 
@@ -1099,13 +1110,13 @@ async function init() {
     const ddsBody = document.getElementById('ddsBody');
     ddsBody.addEventListener('click', ev => {
         const row = ev.target.closest('tr[data-op]');
-        if (row) toggleDetails(row.dataset.op);
+        if (row) toggleDetails(row.dataset.op, row.dataset.key || row.dataset.op);
     });
     // Enter/Space на строке — разворот (клавиатурная навигация)
     ddsBody.addEventListener('keydown', ev => {
         if (ev.key !== 'Enter' && ev.key !== ' ') return;
         const row = ev.target.closest('tr[data-op]');
-        if (row) { ev.preventDefault(); toggleDetails(row.dataset.op); }
+        if (row) { ev.preventDefault(); toggleDetails(row.dataset.op, row.dataset.key || row.dataset.op); }
     });
 
     await loadTable();
