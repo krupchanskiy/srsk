@@ -11,7 +11,7 @@ const OP_TYPES = ['payment', 'refund', 'transfer', 'expense', 'income', 'donatio
 
 // request_id живёт от открытия формы до успешного сохранения:
 // повтор после сетевой ошибки уходит с тем же UUID (идемпотентность)
-const requestIds = { expense: null, income: null, transfer: null, reversal: null, realloc: null };
+const requestIds = { expense: null, income: null, transfer: null, transferExpense: null, reversal: null, realloc: null };
 let expenseRowSeq = 0;
 let opsById = {};   // операции общей ленты (для кнопки сторно в развороте)
 
@@ -1005,9 +1005,21 @@ function openTransfer(sourceId) {
     document.getElementById('trAmount').value = '';
     document.getElementById('trTargetAmount').value = '';
     document.getElementById('trComment').value = '';
+    document.getElementById('trSpent').checked = false;
+    document.getElementById('trSpentCategory').innerHTML = FinUtils.categoryOptions('out', null, true);
+    document.getElementById('trSpentObject').innerHTML = FinUtils.objectOptions();
+    toggleTransferSpent();
     updateTransferCurrency();
     updateTransferRecap();
     document.getElementById('transferModal').showModal();
+}
+
+// «Деньги уже потрачены»: за департамент оплатили напрямую, и одним действием
+// нужны обе стороны — и выдача, и расход (ВГ, 15.08)
+function toggleTransferSpent() {
+    const spent = document.getElementById('trSpent').checked;
+    document.getElementById('trSpentBlock').classList.toggle('hidden', !spent);
+    document.getElementById('trSpentCategory').required = spent;
 }
 
 // Получатель никогда не совпадает с источником: источник исключён из списка
@@ -1050,22 +1062,57 @@ async function submitTransfer(ev) {
         return;
     }
     const differ = accCurrency('trSource') !== accCurrency('trTarget');
+    const spent = document.getElementById('trSpent').checked;
+    const категория = document.getElementById('trSpentCategory').value;
+    if (spent && !категория) {
+        Layout.showNotification(t('fin_category'), 'error');
+        return;
+    }
+    const дата = document.getElementById('trDate').value;
+    const комментарий = document.getElementById('trComment').value || null;
     const res = await FinUtils.rpc('fin_create_transfer', {
         request_id: requestIds.transfer,
-        occurred_on: document.getElementById('trDate').value,
+        occurred_on: дата,
         source_account_id: source,
         target_account_id: target,
         source_amount: document.getElementById('trAmount').value,
         target_amount: differ ? document.getElementById('trTargetAmount').value : null,
-        comment: document.getElementById('trComment').value || null
+        comment: комментарий
     });
-    if (FinUtils.handleResult(res)) {
-        requestIds.transfer = null;
-        document.getElementById('transferModal').close();
-        highlightNext = true;
-        await FinUtils.reloadAccounts();
-        await loadTable();
+    if (!FinUtils.handleResult(res)) return;
+    requestIds.transfer = null;
+
+    // Деньги ушли сразу поставщику: тем же действием списываем их со счёта получателя
+    if (spent) {
+        requestIds.transferExpense = requestIds.transferExpense || FinUtils.newRequestId();
+        const сумма = differ ? document.getElementById('trTargetAmount').value
+                             : document.getElementById('trAmount').value;
+        const expRes = await FinUtils.rpc('fin_create_expense', {
+            request_id: requestIds.transferExpense,
+            occurred_on: дата,
+            comment: комментарий,
+            rows: [{
+                id: FinUtils.newRequestId(),
+                account_id: target,
+                amount: сумма,
+                category_id: категория,
+                cost_center_id: null,
+                object_id: document.getElementById('trSpentObject').value || null,
+                contractor_id: null,
+                payment_channel: null
+            }]
+        });
+        // Перевод уже прошёл — если расход не удался, человек должен об этом знать
+        if (!FinUtils.handleResult(expRes)) {
+            Layout.showNotification(t('fin_transfer_spent_failed'), 'warning');
+        }
+        requestIds.transferExpense = null;
     }
+
+    document.getElementById('transferModal').close();
+    highlightNext = true;
+    await FinUtils.reloadAccounts();
+    await loadTable();
 }
 
 // ==================== INIT ====================
@@ -1090,6 +1137,7 @@ async function init() {
     document.getElementById('trSource').addEventListener('change', () => { rebuildTransferTarget(); updateTransferCurrency(); updateTransferRecap(); });
     document.getElementById('trTarget').addEventListener('change', () => { updateTransferCurrency(); updateTransferRecap(); });
     document.getElementById('trAmount').addEventListener('input', updateTransferRecap);
+    document.getElementById('trSpent').addEventListener('change', toggleTransferSpent);
     document.getElementById('expenseModal').addEventListener('input', updateExpenseRecap);
     document.getElementById('expenseModal').addEventListener('change', updateExpenseRecap);
     FinUtils.attachPersonSearch(document.getElementById('incDonorSearch'), document.getElementById('incDonorId'));
