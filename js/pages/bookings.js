@@ -592,8 +592,10 @@ async function renderBookingPlan() {
     const buildingPlans = floorPlans.filter(p => p.building_id === bookingBuildingId).sort((a, b) => a.floor - b.floor);
     const buildingRooms = rooms.filter(r => r.building_id === bookingBuildingId);
 
+    // У внешних гостиниц планов этажей нет, а селить в них надо: показываем
+    // комнаты списком с теми же местами и цветами, что и на плане (ВГ, 15.08)
     if (buildingPlans.length === 0) {
-        container.innerHTML = `<div class="col-span-2 text-center py-8 opacity-50">${t('floor_plan_no_plan')}</div>`;
+        renderBookingRoomList(container, buildingRooms, bookingOccupancy || [], bedGenderMap);
         return;
     }
 
@@ -621,6 +623,57 @@ function getBedFill(isSelected, isOccupied, isBooked, bedGenderMap, roomId, bedI
     }
     if (isBooked) return statusColors.booked;
     return statusColors.available;
+}
+
+// Запасной выбор комнат: то же, что план этажа, но списком — для зданий,
+// у которых плана нет (внешние гостиницы). Места кликаются так же.
+function renderBookingRoomList(container, buildingRooms, bookingOccupancy, bedGenderMap = {}) {
+    const комнаты = buildingRooms
+        .filter(r => r.status !== 'maintenance' && r.status !== 'mothballed')
+        .sort((a, b) => (a.floor || 0) - (b.floor || 0) ||
+                        String(a.number).localeCompare(String(b.number), 'ru', { numeric: true }));
+
+    if (!комнаты.length) {
+        container.innerHTML = `<div class="col-span-2 text-center py-8 opacity-50">${t('floor_plan_no_plan')}</div>`;
+        return;
+    }
+
+    container.innerHTML = `<div class="col-span-2 grid grid-cols-2 sm:grid-cols-3 gap-2" id="bookingRoomList"></div>`;
+    const список = container.querySelector('#bookingRoomList');
+
+    комнаты.forEach(room => {
+        const occ = bookingOccupancy.find(o => o.room_id === room.id);
+        const занято = occ?.occupied || 0;
+        const забронировано = occ?.booked || 0;
+        const мест = occ?.capacity || room.capacity || 1;
+
+        const карточка = document.createElement('div');
+        карточка.className = 'bg-base-200 rounded-lg p-2';
+        карточка.dataset.roomId = room.id;
+        карточка.innerHTML = `<div class="text-xs font-medium mb-1 opacity-60">
+            ${Layout.escapeHtml(String(room.number))}${room.floor ? ` · ${t('floor_plan_floor')} ${room.floor}` : ''}
+        </div>`;
+
+        const ряд = document.createElement('div');
+        ряд.className = 'flex gap-1';
+        for (let i = 0; i < мест; i++) {
+            const занятоМесто = i < занято;
+            const бронь = !занятоМесто && i < занято + забронировано;
+            const выбрано = bookingSelectedBeds.has(`${room.id}_${i}`);
+            const свободно = !занятоМесто && !бронь;
+
+            const место = document.createElement('button');
+            место.type = 'button';
+            место.className = 'flex-1 h-8 rounded';
+            место.style.background = getBedFill(выбрано, занятоМесто, бронь, bedGenderMap, room.id, i);
+            место.disabled = !(свободно || выбрано);
+            место.title = `${t('floor_plan_room') || ''} ${room.number}`.trim();
+            if (!место.disabled) место.onclick = () => toggleBookingBed(room.id, i, мест);
+            ряд.appendChild(место);
+        }
+        карточка.appendChild(ряд);
+        список.appendChild(карточка);
+    });
 }
 
 function renderBookingPlanMarkers(floor, buildingRooms, bookingOccupancy, bedGenderMap = {}) {
@@ -785,23 +838,15 @@ function updateBookingBedVisual(roomId, bedIndex, capacity) {
     const bedKey = `${roomId}_${bedIndex}`;
     const isSelected = bookingSelectedBeds.has(bedKey);
 
-    // Находим все SVG элементы комнаты
-    document.querySelectorAll(`[data-room-id="${roomId}"]`).forEach(roomGroup => {
-        const rects = roomGroup.querySelectorAll('rect');
+    const цвет = isSelected ? statusColors.selected : statusColors.available;
 
-        if (capacity === 1) {
-            // Одноместная комната - обновляем единственный прямоугольник
-            const rect = rects[0];
-            if (rect) {
-                rect.setAttribute('fill', isSelected ? statusColors.selected : statusColors.available);
-            }
-        } else {
-            // Многоместная - обновляем конкретное место
-            const rect = rects[bedIndex];
-            if (rect) {
-                rect.setAttribute('fill', isSelected ? statusColors.selected : statusColors.available);
-            }
-        }
+    // Места — прямоугольники на плане этажа либо кнопки в списке комнат
+    document.querySelectorAll(`[data-room-id="${roomId}"]`).forEach(roomGroup => {
+        const места = roomGroup.querySelectorAll('rect, button');
+        const место = места[capacity === 1 ? 0 : bedIndex];
+        if (!место) return;
+        if (место.tagName === 'rect') место.setAttribute('fill', цвет);
+        else место.style.background = цвет;
     });
 }
 
