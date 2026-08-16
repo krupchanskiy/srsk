@@ -2646,7 +2646,15 @@ async function renderPlacement() {
     } else if (accom === 'partner_hotel') {
         const building = partnerBuildings.find(b => b.id === deal.checklist_accommodation_building_id);
         const name = building ? Layout.getName(building) : t('crm_other_hotels');
-        block.innerHTML = `<div class="text-sm opacity-70">${e(name)}</div>`;
+        // Комнаты внешних гостиниц заведены в шахматке — бронируем так же, как свои:
+        // раньше гостиницу выбрать можно было, а расселить в неё нет (ВГ, 15.08)
+        const кнопка = canBook && building
+            ? `<button type="button" class="btn btn-xs btn-primary gap-1 mt-2" onclick="openRoomBookingModal()">
+                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-3.5 h-3.5"><path stroke-linecap="round" stroke-linejoin="round" d="M12 9v6m3-3H9m12 0a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" /></svg>
+                ${t('crm_book_room')}
+               </button>`
+            : '';
+        block.innerHTML = `<div class="text-sm opacity-70">${e(name)}</div>${кнопка}`;
     } else if (accom === 'self') {
         block.innerHTML = `<div class="text-sm opacity-70">${t('crm_self_arrangement')}</div>`;
     } else {
@@ -2794,6 +2802,9 @@ function openRoomBookingModal() {
         buildingIds = BUILDING_GUEST_HOUSE;
     } else if (accom === 'staff_house') {
         buildingIds = BUILDING_STAFF_IDS.join(',');
+    } else if (accom === 'partner_hotel' && deal.checklist_accommodation_building_id) {
+        // Внешняя гостиница: селим ровно в ту, что выбрана в чеклисте
+        buildingIds = deal.checklist_accommodation_building_id;
     }
 
     // Количество мест: основной гость + участники группы
