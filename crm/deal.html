@@ -264,6 +264,8 @@
                         <h3 class="font-bold" data-i18n="crm_finances">Финансы</h3>
                         <button class="btn btn-xs btn-primary add-payment-btn" onclick="openPaymentModal()" data-i18n="crm_add_payment_short">+ Платёж</button>
                     </div>
+                    <!-- Расчётная стоимость участия (ТЗ 4.1а): цены ретрита × фактические дни × условия -->
+                    <div id="participationCalc" class="mb-2"></div>
                     <!-- Список платежей -->
                     <div id="financePaymentsList" class="space-y-1 mb-2">
                         <p class="text-base-content/40 text-xs text-center py-2" data-i18n="crm_no_payments">Нет платежей</p>
@@ -688,6 +690,7 @@ async function loadDeal() {
     renderChecklist();
     renderFlightData();
     await Promise.all([loadCounts(), loadPayments(), loadGuestHistory(), loadDealMembers(), loadPlacement(), loadRecentComms(), loadDealTerms()]);
+    loadParticipationCalc();   // расчёт стоимости — асинхронно, не блокирует карточку
     renderHeader(); // повторно — теперь с бейджем «повторный гость»
     loadTabData();
 }
@@ -1320,6 +1323,59 @@ function renderPaymentsTab() {
 }
 
 
+
+// ==================== РАСЧЁТ СТОИМОСТИ УЧАСТИЯ (ТЗ 4.1а) ====================
+let participationCalc = null;
+
+async function loadParticipationCalc() {
+    const { data } = await Layout.db.rpc('crm_calc_participation', { p_deal: dealId });
+    participationCalc = data?.ok ? data : null;
+    renderParticipationCalc();
+}
+
+function calcMoneyLine(vals) {
+    if (!vals) return '—';
+    const парой = [['INR', '₹'], ['RUB', '₽'], ['USD', '$'], ['EUR', '€']]
+        .filter(([c]) => vals[c] != null)
+        .map(([c, sym]) => `${Number(vals[c]).toLocaleString('ru-RU')} ${sym}`);
+    return парой.join(' / ') || '—';
+}
+
+function renderParticipationCalc() {
+    const el = document.getElementById('participationCalc');
+    if (!el) return;
+    if (!participationCalc) { el.innerHTML = ''; return; }
+    const c = participationCalc;
+    const блок = (key, назв) => {
+        const b = c.blocks?.[key];
+        if (!b) return '';
+        const условие = b.term
+            ? `<span class="badge badge-xs badge-warning ml-1" title="${e(b.term.reason || '')}">${termTypeLabel(key, b.term.type)}${b.term.percent ? ' ' + b.term.percent + '%' : ''}</span>`
+            : '';
+        // Во время / между ретритами — раздельно, объясняет разницу с соседом (ТЗ 4.1а)
+        const разбивка = b.between && Number(b.between.nights) > 0
+            ? `<div class="text-[11px] opacity-50 pl-2">во время: ${b.during.nights} ноч. · ${calcMoneyLine(b.during)}<br>вне ретрита: ${b.between.nights} ноч. · ${calcMoneyLine(b.between)}</div>`
+            : '';
+        const примечание = b.note ? `<div class="text-[11px] text-warning pl-2">${e(b.note)}</div>` : '';
+        return `<div class="py-1 border-b border-base-200/60 last:border-0">
+            <div class="flex justify-between items-baseline gap-2 text-xs">
+                <span class="opacity-60 shrink-0">${назв}${условие}</span>
+                <span class="font-mono text-right ${b.term ? 'text-amber-700 font-semibold' : ''}">${calcMoneyLine(b.final)}</span>
+            </div>
+            ${разбивка}${примечание}
+        </div>`;
+    };
+    el.innerHTML = `
+        <div class="bg-base-200/40 rounded-lg px-2.5 py-1.5">
+            <div class="text-[11px] uppercase tracking-wide opacity-40 mb-0.5">${t('crm_calc_title')}
+                <span class="normal-case">· ${CrmUtils.formatDate(c.dates.check_in)} — ${CrmUtils.formatDate(c.dates.check_out)}, ${c.dates.nights_total} ноч.${c.dates.building ? ` · ${e(c.dates.building)}` : ''}</span>
+            </div>
+            ${блок('org_fee', t('crm_terms_org_fee'))}
+            ${блок('accommodation', t('crm_terms_accommodation'))}
+            ${блок('meals', t('crm_terms_meals'))}
+        </div>`;
+}
+
 // ==================== ИНДИВИДУАЛЬНЫЕ УСЛОВИЯ (ТЗ 1.3) ====================
 let dealTerms = [];   // строки crm_deal_terms; нет строки по блоку = полная цена
 
@@ -1441,6 +1497,7 @@ async function onTermChange(ev) {
         await Layout.db.from('crm_deal_terms').delete().eq('deal_id', dealId).eq('block', block);
         dealTerms = dealTerms.filter(x => x.block !== block);
         renderDealTerms();
+        loadParticipationCalc();
         return;
     }
 
@@ -1469,6 +1526,7 @@ async function onTermChange(ev) {
         .upsert(запись, { onConflict: 'deal_id,block' }).select().single();
     if (error) { Layout.handleError(error, t('crm_terms_title')); return; }
     dealTerms = dealTerms.filter(x => x.block !== block).concat([data]);
+    loadParticipationCalc();
     // «Самостоятельно» синхронизирует чеклист триггером — обновим локально
     if (block === 'accommodation' && тип === 'self') {
         deal.checklist_accommodation = 'self';
