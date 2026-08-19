@@ -770,14 +770,12 @@ async function init() {
     document.getElementById('paymentForm').addEventListener('submit', FinUtils.lockedSubmit(submitPayment));
     document.getElementById('refundForm').addEventListener('submit', FinUtils.lockedSubmit(submitRefund));
     document.getElementById('cancelChargeForm').addEventListener('submit', FinUtils.lockedSubmit(submitCancelCharge));
-    FinUtils.attachPersonSearch(document.getElementById('payPayerSearch'), document.getElementById('payPayerId'));
-
-    // Esc не должен молча терять введённые данные
-    const guardDialog = (dlgId, isDirty) => document.getElementById(dlgId).addEventListener('cancel', ev => {
-        if (isDirty() && !confirm(t('fin_confirm_discard'))) ev.preventDefault();
+    // Плательщик задаётся открытой карточкой участника — отдельного поиска больше нет.
+    // Esc в карточке не должен молча терять заполняемые формы
+    document.getElementById('cardModal').addEventListener('cancel', ev => {
+        const занято = [...document.querySelectorAll('#chargeRows .chg-price, #payRows .pay-amount')].some(i => i.value);
+        if (занято && !confirm(t('fin_confirm_discard'))) ev.preventDefault();
     });
-    guardDialog('chargeModal', () => [...document.querySelectorAll('#chargeRows .chg-price')].some(i => i.value));
-    guardDialog('paymentModal', () => [...document.querySelectorAll('#payRows .pay-amount')].some(i => i.value));
 
     const pBody = document.getElementById('participantsBody');
     pBody.addEventListener('click', ev => {
