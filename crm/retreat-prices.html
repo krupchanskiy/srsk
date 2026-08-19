@@ -37,6 +37,13 @@
         Отсюда начисления берут суммы участникам.
     </p>
 
+    <!-- Две под-вкладки: цены конкретного ретрита и общий транспортный справочник (ТЗ 1.1/1.2) -->
+    <div class="tabs tabs-boxed bg-base-100 mb-4 w-fit">
+        <button class="tab tab-active" id="tabRetreat" onclick="switchPricesTab('retreat')" data-i18n="crm_prices_tab_retreat">Ретрит</button>
+        <button class="tab" id="tabTransport" onclick="switchPricesTab('transport')" data-i18n="crm_prices_tab_transport">Трансфер и выездные</button>
+    </div>
+
+    <div id="retreatView">
     <div class="card bg-base-100 shadow-sm mb-4">
         <div class="card-body p-4">
             <div class="form-control max-w-md">
@@ -65,6 +72,30 @@
                         <tr><td colspan="7" class="text-center py-8"><span class="loading loading-spinner loading-md"></span></td></tr>
                     </tbody>
                 </table>
+            </div>
+        </div>
+    </div>
+    </div><!-- /retreatView -->
+
+    <!-- Транспортный справочник: не зависит от выбранного ретрита (ТЗ 1.2) -->
+    <div id="transportView" class="hidden">
+        <p class="text-sm opacity-70 mb-3" data-i18n="crm_prices_transport_hint">
+            Справочные цены для менеджера: такси, парикрамы, выездные программы.
+            Не входят в расчёт стоимости ретрита — трансфер организуется отдельно.
+        </p>
+        <div class="card bg-base-100 shadow-sm">
+            <div class="card-body p-0">
+                <table class="table">
+                    <thead><tr>
+                        <th data-i18n="crm_service">Услуга</th>
+                        <th class="text-right">₹</th>
+                        <th class="w-10"></th>
+                    </tr></thead>
+                    <tbody id="transportBody"></tbody>
+                </table>
+                <div class="p-3" id="transportAddWrap">
+                    <button class="btn btn-ghost btn-sm" onclick="addTransportRow()">+ <span data-i18n="add">Добавить</span></button>
+                </div>
             </div>
         </div>
     </div>
@@ -116,27 +147,100 @@
 <script src="../js/auth-check.js?v=8"></script>
 <script src="../js/cache.js?v=1"></script>
 <script src="../js/utils.js?v=5"></script>
-<script src="../js/layout.js?v=53"></script>
+<script src="../js/layout.js?v=54"></script>
 <script src="../js/date-utils.js?v=4"></script>
 <script>
 const t = key => Layout.t(key);
 const e = str => Layout.escapeHtml(str);
 
-let retreats = [], services = [], prices = [];
+let retreats = [], services = [], prices = [], buildings = [];
 // Право проверяем строгой серверной функцией, а не общим hasPermission:
 // цены меняют только трое поимённо, суперправа сюда не пускают (решение ВГ).
 let editAllowed = false;
 const canEdit = () => editAllowed;
 
 async function loadRefs() {
-    const [r, s] = await Promise.all([
-        Layout.db.from('retreats').select('id, name_ru, name_en, start_date').order('start_date', { ascending: false }),
-        Layout.db.from('crm_services').select('id, code, name_ru, name_en, category').eq('is_active', true).order('sort_order')
+    const [r, s, b] = await Promise.all([
+        Layout.db.from('retreats').select('id, name_ru, name_en, start_date, end_date').order('start_date', { ascending: false }),
+        Layout.db.from('crm_services').select('id, code, name_ru, name_en, category, unit, default_price, building_id, room_capacity').eq('is_active', true).order('sort_order'),
+        Layout.db.from('buildings').select('id, name_ru, name_en, name_hi')
     ]);
     retreats = r.data || [];
     services = s.data || [];
+    buildings = b.data || [];
     document.getElementById('retreatSelect').innerHTML =
-        retreats.map(x => `<option value="${x.id}">${e(Layout.getName(x))}</option>`).join('');
+        retreats.map(x => `<option value="${x.id}">${e(Layout.getName(x))} · ${DateUtils.formatShort(DateUtils.parseDate(x.start_date))}</option>`).join('');
+    // Дефолт — ретрит с наибольшей активностью в канбане, не ближайший по датам (ТЗ 1.1)
+    const { data: активность } = await Layout.db.from('crm_deals')
+        .select('retreat_id').in('status', ['lead', 'working', 'invoiced', 'booked', 'checklist', 'ready']);
+    if (активность?.length) {
+        const счёт = {};
+        активность.forEach(d => { if (d.retreat_id) счёт[d.retreat_id] = (счёт[d.retreat_id] || 0) + 1; });
+        const лидер = Object.entries(счёт).sort((a, z) => z[1] - a[1])[0]?.[0];
+        if (лидер && retreats.some(x => x.id === лидер)) document.getElementById('retreatSelect').value = лидер;
+    }
+}
+
+function buildingLabel(sv) {
+    if (!sv?.building_id) return '';
+    const b = buildings.find(x => x.id === sv.building_id);
+    const мест = sv.room_capacity ? ` · ${sv.room_capacity} ${t('crm_price_capacity').toLowerCase()}` : '';
+    return b ? `<div class="text-xs opacity-50">${e(Layout.getName(b))}${мест}</div>` : '';
+}
+
+function switchPricesTab(tab) {
+    document.getElementById('tabRetreat').classList.toggle('tab-active', tab === 'retreat');
+    document.getElementById('tabTransport').classList.toggle('tab-active', tab === 'transport');
+    document.getElementById('retreatView').classList.toggle('hidden', tab !== 'retreat');
+    document.getElementById('transportView').classList.toggle('hidden', tab !== 'transport');
+    if (tab === 'transport') renderTransport();
+}
+
+// ==================== ТРАНСПОРТНЫЙ СПРАВОЧНИК (ТЗ 1.2) ====================
+function renderTransport() {
+    const body = document.getElementById('transportBody');
+    const rows = services.filter(sv => sv.category === 'transport');
+    const ro = canEdit() ? '' : 'disabled';
+    document.getElementById('transportAddWrap').style.display = canEdit() ? '' : 'none';
+    body.innerHTML = rows.length ? rows.map(sv => `
+        <tr data-service="${sv.id}">
+            <td><input type="text" class="input input-bordered input-sm w-full" data-tfield="name_ru" value="${e(sv.name_ru || '')}" ${ro}></td>
+            <td class="text-right"><input type="number" class="input input-bordered input-sm price-input" data-tfield="default_price" value="${sv.default_price ?? ''}" step="1" min="0" ${ro}></td>
+            <td>${canEdit() ? `<button class="btn btn-ghost btn-xs text-error" data-taction="del" title="${t('delete')}">✕</button>` : ''}</td>
+        </tr>`).join('')
+        : `<tr><td colspan="3" class="text-center py-8 opacity-60">${t('crm_no_prices')}</td></tr>`;
+}
+
+async function saveTransportCell(row, input) {
+    const id = row.dataset.service;
+    const field = input.dataset.tfield;
+    const value = field === 'default_price' ? (input.value.trim() === '' ? null : Number(input.value)) : input.value.trim();
+    const { error } = await Layout.db.from('crm_services').update({ [field]: value }).eq('id', id);
+    if (error) { Layout.handleError(error, t('save')); return; }
+    const sv = services.find(x => x.id === id);
+    if (sv) sv[field] = value;
+    row.classList.add('flash-saved');
+    setTimeout(() => row.classList.remove('flash-saved'), 900);
+}
+
+async function addTransportRow() {
+    const name = prompt(t('crm_service'));
+    if (!name?.trim()) return;
+    const { data, error } = await Layout.db.from('crm_services').insert({
+        code: 'transport_' + Date.now(), name_ru: name.trim(), name_en: name.trim(),
+        category: 'transport', unit: 'piece', is_active: true, sort_order: 200
+    }).select('id, code, name_ru, name_en, category, unit, default_price, building_id, room_capacity').single();
+    if (error) { Layout.handleError(error, t('save')); return; }
+    services.push(data);
+    renderTransport();
+}
+
+async function deleteTransport(id) {
+    if (!confirm(t('confirm_delete'))) return;
+    const { error } = await Layout.db.from('crm_services').update({ is_active: false }).eq('id', id);
+    if (error) { Layout.handleError(error, t('delete')); return; }
+    services = services.filter(x => x.id !== id);
+    renderTransport();
 }
 
 async function loadPrices() {
@@ -164,7 +268,7 @@ function renderTable() {
         .map(p => {
             const s = byId[p.service_id];
             return `<tr data-price="${p.id}">
-                <td class="font-medium">${e(s ? Layout.getName(s) : '—')}</td>
+                <td class="font-medium">${e(s ? Layout.getName(s) : '—')}${buildingLabel(s)}</td>
                 ${['price', 'price_rub', 'price_usd', 'price_eur'].map(f => `
                 <td class="text-right"><input type="number" class="input input-bordered input-sm price-input"
                     data-field="${f}" value="${p[f] ?? ''}" step="0.01" min="0" ${ro}></td>`).join('')}
@@ -180,6 +284,14 @@ async function saveCell(row, input) {
     const field = input.dataset.field;
     const raw = input.value.trim();
     const value = field === 'note' ? (raw || null) : (raw === '' ? null : Number(raw));
+    // Цена фиксируется до старта набора; изменение — редкий случай (ТЗ 1.1)
+    const прежнее = prices.find(x => x.id === id)?.[field];
+    if (field !== 'note' && прежнее != null && Number(прежнее) !== value) {
+        if (!confirm(t('crm_price_change_confirm'))) {
+            input.value = прежнее;
+            return;
+        }
+    }
     const { error } = await Layout.db.from('crm_retreat_prices')
         .update({ [field]: value, updated_at: new Date().toISOString(), updated_by: window.currentUser?.id || null })
         .eq('id', id);
@@ -199,7 +311,7 @@ async function deletePrice(id) {
 
 function openAddModal() {
     const used = new Set(prices.map(p => p.service_id));
-    const free = services.filter(s => !used.has(s.id));
+    const free = services.filter(s => !used.has(s.id) && s.category !== 'transport');
     if (!free.length) { Layout.showNotification(t('crm_all_services_priced'), 'error'); return; }
     document.getElementById('addService').innerHTML =
         free.map(s => `<option value="${s.id}">${e(Layout.getName(s))}</option>`).join('');
@@ -240,6 +352,16 @@ async function init() {
         const btn = ev.target.closest('[data-action="del"]');
         const row = ev.target.closest('[data-price]');
         if (btn && row) deletePrice(row.dataset.price);
+    });
+    document.getElementById('transportBody').addEventListener('change', ev => {
+        const input = ev.target.closest('[data-tfield]');
+        const row = ev.target.closest('[data-service]');
+        if (input && row) saveTransportCell(row, input);
+    });
+    document.getElementById('transportBody').addEventListener('click', ev => {
+        const btn = ev.target.closest('[data-taction="del"]');
+        const row = ev.target.closest('[data-service]');
+        if (btn && row) deleteTransport(row.dataset.service);
     });
     await loadPrices();
 }

@@ -98,8 +98,11 @@ const modules = {
             { id: 'crm_sales', items: [
                 { id: 'crm_kanban', href: 'crm/index.html' },
                 { id: 'crm_deals', href: 'crm/deals.html' },
-                { id: 'crm_tasks', href: 'crm/tasks.html' },
-                { id: 'crm_prepayments', href: 'crm/prepayments.html', badgeKey: 'crm_unconfirmed_prepayments' }
+                { id: 'crm_tasks', href: 'crm/tasks.html', badgeKey: 'crm_today_tasks' },
+                { id: 'crm_prepayments', href: 'crm/prepayments.html', badgeKey: 'crm_unconfirmed_prepayments' },
+                // Шахматка — прямой вход в модуль «Проживание», у ОП только просмотр (ТЗ 1.10)
+                { id: 'crm_timeline', href: 'placement/timeline.html' },
+                { id: 'crm_retreat_prices', href: 'crm/retreat-prices.html' }
             ]},
             { id: 'crm_analytics', items: [
                 { id: 'crm_dashboard', href: 'crm/dashboard.html' },
@@ -107,7 +110,6 @@ const modules = {
             ]},
             { id: 'crm_settings', items: [
                 { id: 'crm_services', href: 'crm/services.html' },
-                { id: 'crm_retreat_prices', href: 'crm/retreat-prices.html' },
                 { id: 'crm_currencies', href: 'crm/currencies.html' },
                 { id: 'crm_tags', href: 'crm/tags.html' },
                 { id: 'crm_templates', href: 'crm/templates.html' },
@@ -514,7 +516,7 @@ function getPersonName(person, lang = currentLang) {
 
 // ==================== TRANSLATIONS ====================
 async function loadTranslations(retried = false) {
-    const data = await Cache.getOrLoad('translations_v36', async () => {
+    const data = await Cache.getOrLoad('translations_v37', async () => {
         // Supabase ограничивает 1000 записей на запрос, используем пагинацию
         const allData = [];
         let from = 0;
@@ -549,7 +551,7 @@ async function loadTranslations(retried = false) {
 
     if (!hasAllKeys && !retried) {
         // Кэш устарел, инвалидируем и перезагружаем (только 1 раз)
-        Cache.invalidate('translations_v36');
+        Cache.invalidate('translations_v37');
         return loadTranslations(true);
     }
 
@@ -884,6 +886,24 @@ function setMenuBadge(itemId, count) {
         el.textContent = n > 0 ? n : '';
         el.classList.toggle('hidden', n <= 0);
     });
+}
+
+// Красный счётчик «Мои задачи»: задачи на сегодня и просроченные (ТЗ 1.8).
+// Отложенные (postponed_until в будущем) не считаются — они ещё «спят».
+async function refreshTasksBadge() {
+    if (!window.hasPermission?.('view_crm')) return;
+    const vid = window.currentUser?.vaishnava_id;
+    if (!vid) return;
+    const today = DateUtils.toISO(new Date());
+    const { data, error } = await db
+        .from('crm_tasks')
+        .select('id, postponed_until')
+        .eq('assignee_id', vid)
+        .is('completed_at', null)
+        .lte('due_date', today);
+    if (error) return;
+    const count = (data || []).filter(t => !t.postponed_until || t.postponed_until <= today).length;
+    setMenuBadge('crm_tasks', count);
 }
 
 async function refreshPrepaymentsBadge() {
@@ -1442,7 +1462,7 @@ async function initLayout(page = { module: null, menuId: 'kitchen', itemId: null
     updateAllTranslations();
 
     // Обновляем бейдж неподтверждённых предоплат (в фоне, не блокирует рендер)
-    if (currentModule === 'crm') refreshPrepaymentsBadge();
+    if (currentModule === 'crm') { refreshPrepaymentsBadge(); refreshTasksBadge(); }
 
     return { db, currentLang, currentLocation, currentModule, locations };
 }
