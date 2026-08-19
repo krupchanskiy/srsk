@@ -1,0 +1,8 @@
+-- 390: индивидуальные условия сделки (ТЗ 1.3) + статусы питания.
+-- Применена через MCP 16.08.2026. Полный текст — в истории миграций Supabase
+-- (mcp: 390_crm_deal_terms). Ключевое:
+--   * crm_deal_terms(deal_id, block, condition_type, percent, amount, currency,
+--     reason NOT NULL, manager_id, between_retreats_note; UNIQUE(deal_id, block))
+--   * meal_type в retreat_registrations расширен: prasad|self|child|tickets
+--   * триггеры: условие «не кушает/талончики/ребёнок» → meal_type регистрации
+--     (единый канал кухни, ТЗ 4.4); «самостоятельно» → checklist_accommodation='self'

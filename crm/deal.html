@@ -659,7 +659,7 @@ async function loadDeal() {
     renderSidebar();
     renderChecklist();
     renderFlightData();
-    await Promise.all([loadCounts(), loadPayments(), loadGuestHistory(), loadDealMembers(), loadPlacement(), loadRecentComms()]);
+    await Promise.all([loadCounts(), loadPayments(), loadGuestHistory(), loadDealMembers(), loadPlacement(), loadRecentComms(), loadDealTerms()]);
     renderHeader(); // повторно — теперь с бейджем «повторный гость»
     loadTabData();
 }
@@ -976,6 +976,7 @@ function renderTab() {
                 renderPlacement();
                 renderDealMembers();
                 loadSpiritualTeachers();
+                renderDealTerms();
             }, 0);
             break;
         case 'services':
@@ -1063,6 +1064,12 @@ function renderInfoTab() {
                     ${contactRow(emailIcon, 'Email', guest.email, guest.email ? 'mailto:' + guest.email : null, 'email')}
                     ${contactRow(tgIcon, 'Telegram', guest.telegram, guest.telegram ? 'https://t.me/' + guest.telegram.replace('@','') : null, 'telegram')}
                     ${contactRow(locationIcon, t('crm_location'), location || null, null, null)}
+                    <div class="flex items-center gap-2 py-1.5 text-sm border-t border-base-200/60">
+                        <span class="text-xs opacity-50 w-24 shrink-0">${t('crm_birth_date')}</span>
+                        <input type="date" class="input input-ghost input-xs" id="guestBirthDate"
+                               value="${e(guest.birth_date || '')}" onchange="saveBirthDate(this.value)">
+                        <span class="text-xs opacity-50" id="guestAgeHint">${ageHintText()}</span>
+                    </div>
                 </div>
             </div>
 
@@ -1121,6 +1128,15 @@ function renderInfoTab() {
             <div id="placementBlock" class="bg-base-200/50 rounded-xl p-4"></div>
         </div>
 
+        <!-- Индивидуальные условия (ТЗ 1.3): три блока, отклонение — только с причиной -->
+        <div class="mt-6">
+            <h3 class="text-lg font-bold flex items-center gap-2 mb-3">
+                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-5 h-5 text-primary"><path stroke-linecap="round" stroke-linejoin="round" d="M9 14.25l6-6m4.5-3.493V21.75l-3.75-1.5-3.75 1.5-3.75-1.5-3.75 1.5V4.757c0-1.108.806-2.057 1.907-2.185a48.507 48.507 0 0 1 11.186 0c1.1.128 1.907 1.077 1.907 2.185ZM9.75 9h.008v.008H9.75V9Zm.375 0a.375.375 0 1 1-.75 0 .375.375 0 0 1 .75 0Zm4.125 4.5h.008v.008h-.008V13.5Zm.375 0a.375.375 0 1 1-.75 0 .375.375 0 0 1 .75 0Z" /></svg>
+                ${t('crm_terms_title')}
+            </h3>
+            <div id="dealTermsBlock" class="bg-base-200/30 rounded-xl p-4"></div>
+        </div>
+
         <!-- Дополнительно -->
         <div class="mt-6">
             <h3 class="text-lg font-bold flex items-center gap-2 mb-3">
@@ -1149,9 +1165,8 @@ function renderInfoTab() {
                     </div>
                     <div>
                         <label class="label py-0"><span class="label-text text-xs opacity-50">${t('crm_special_needs')}</span></label>
-                        <input type="text" class="input input-bordered input-sm w-full" id="specialNeeds" placeholder="—"
-                               value="${e(deal.special_needs || '')}"
-                               onchange="saveDealField('special_needs', this.value)">
+                        <!-- Ввод — в «Индивидуальных условиях»; здесь только отображение (ТЗ 2.2) -->
+                        <div class="input input-bordered input-sm w-full bg-base-200/60 flex items-center overflow-hidden" id="specialNeedsRO">${e(deal.special_needs || '—')}</div>
                     </div>
                 </div>
             </div>
@@ -1274,6 +1289,166 @@ function renderPaymentsTab() {
             </table>`
         }
     `;
+}
+
+
+// ==================== ИНДИВИДУАЛЬНЫЕ УСЛОВИЯ (ТЗ 1.3) ====================
+let dealTerms = [];   // строки crm_deal_terms; нет строки по блоку = полная цена
+
+// Формула детей (Приложение Б): оргвзнос — до 7 бесплатно, 7–14 — 50%, 14+ — полный;
+// питание — до 7 бесплатно, дальше полностью
+function childSuggestion(block, age) {
+    if (age == null) return null;
+    if (block === 'org_fee') return age < 7 ? 100 : age < 14 ? 50 : 0;
+    if (block === 'meals') return age < 7 ? 100 : 0;
+    return null;   // проживание — от состава номера, не от возраста
+}
+
+function guestAge() {
+    if (!guest?.birth_date) return null;
+    const b = DateUtils.parseDate(guest.birth_date);
+    const now = new Date();
+    let age = now.getFullYear() - b.getFullYear();
+    if (now.getMonth() < b.getMonth() || (now.getMonth() === b.getMonth() && now.getDate() < b.getDate())) age--;
+    return age;
+}
+
+function ageHintText() {
+    const age = guestAge();
+    return age == null ? '' : `${age} ${Layout.pluralize(age, 'год', 'года', 'лет')}`;
+}
+
+async function saveBirthDate(value) {
+    await Layout.db.from('vaishnavas').update({ birth_date: value || null }).eq('id', guest.id);
+    guest.birth_date = value || null;
+    document.getElementById('guestAgeHint').textContent = ageHintText();
+    renderDealTerms();
+}
+
+const TERM_TYPES = {
+    org_fee:       ['discount', 'child', 'free', 'donation', 'fixed'],
+    accommodation: ['discount', 'self', 'donation', 'fixed'],
+    meals:         ['self', 'child', 'discount', 'tickets', 'fixed']
+};
+
+function termTypeLabel(block, type) {
+    if (type === 'self') return block === 'meals' ? t('crm_terms_self_meals') : t('crm_terms_self_acc');
+    return t('crm_terms_' + type);
+}
+
+async function loadDealTerms() {
+    const { data } = await Layout.db.from('crm_deal_terms').select('*').eq('deal_id', dealId);
+    dealTerms = data || [];
+}
+
+function renderDealTerms() {
+    const el = document.getElementById('dealTermsBlock');
+    if (!el) return;
+    const age = guestAge();
+    const блоки = ['org_fee', 'accommodation', 'meals'].map(block => {
+        const term = dealTerms.find(x => x.block === block);
+        const тип = term?.condition_type || 'full';
+        const процент = тип === 'child' && age != null && !term?.percent ? childSuggestion(block, age) : term?.percent;
+        const подсказка = age != null && ['org_fee', 'meals'].includes(block) && age < 14
+            ? `<div class="text-xs text-amber-600 mt-0.5">${t('crm_terms_child')}: ${childSuggestion(block, age)}% ${t('crm_terms_discount').toLowerCase()}</div>` : '';
+        return `
+        <div class="mb-3" data-term-block="${block}">
+            <div class="flex flex-wrap items-center gap-2">
+                <span class="text-sm font-medium w-28 shrink-0">${t('crm_terms_' + block)}</span>
+                <select class="select select-bordered select-xs term-type">
+                    <option value="full" ${тип === 'full' ? 'selected' : ''}>${t('crm_terms_full')}</option>
+                    ${TERM_TYPES[block].map(ty =>
+                        `<option value="${ty}" ${тип === ty ? 'selected' : ''}>${termTypeLabel(block, ty)}</option>`).join('')}
+                </select>
+                <input type="number" class="input input-bordered input-xs w-16 term-percent ${['discount','child'].includes(тип) ? '' : 'hidden'}"
+                       min="0" max="100" placeholder="%" value="${процент ?? ''}">
+                <input type="number" class="input input-bordered input-xs w-24 term-amount ${тип === 'fixed' ? '' : 'hidden'}"
+                       min="0" placeholder="${t('fin_amount') || 'Сумма'}" value="${term?.amount ?? ''}">
+                <select class="select select-bordered select-xs term-currency ${тип === 'fixed' ? '' : 'hidden'}">
+                    ${['INR','RUB','USD','EUR'].map(c => `<option value="${c}" ${term?.currency === c ? 'selected' : ''}>${c}</option>`).join('')}
+                </select>
+                <input type="text" class="input input-bordered input-xs flex-1 min-w-40 term-reason ${тип === 'full' ? 'hidden' : ''}"
+                       placeholder="${t('crm_terms_reason')}" value="${e(term?.reason || '')}">
+            </div>
+            ${тип !== 'full' && term?.manager_id && managers?.length
+                ? `<div class="text-xs opacity-50 mt-0.5 ml-28 pl-2">${t('crm_terms_manager')}: ${e(CrmUtils.getGuestShortName(managers.find(m => m.id === term.manager_id)) || '')}</div>` : ''}
+            ${тип === 'full' ? подсказка : ''}
+        </div>`;
+    }).join('');
+
+    // Особые потребности — согласованный факт, живёт в условиях (ТЗ 2.2)
+    el.innerHTML = блоки + `
+        <div class="border-t border-base-300 pt-3 mt-1">
+            <label class="label py-0"><span class="label-text text-xs opacity-50">${t('crm_special_needs')}</span></label>
+            <input type="text" class="input input-bordered input-sm w-full" id="termsSpecialNeeds" placeholder="—"
+                   value="${e(deal.special_needs || '')}">
+        </div>`;
+
+    if (!el.dataset.wired) {
+        el.dataset.wired = '1';
+        el.addEventListener('change', onTermChange);
+    }
+}
+
+async function onTermChange(ev) {
+    if (ev.target.id === 'termsSpecialNeeds') {
+        await saveDealField('special_needs', ev.target.value);
+        const ro = document.getElementById('specialNeedsRO');
+        if (ro) ro.textContent = ev.target.value || '—';
+        return;
+    }
+    const wrap = ev.target.closest('[data-term-block]');
+    if (!wrap) return;
+    const block = wrap.dataset.termBlock;
+    const тип = wrap.querySelector('.term-type').value;
+
+    // Переключение видимости полей — до сохранения
+    wrap.querySelector('.term-percent').classList.toggle('hidden', !['discount', 'child'].includes(тип));
+    wrap.querySelector('.term-amount').classList.toggle('hidden', тип !== 'fixed');
+    wrap.querySelector('.term-currency').classList.toggle('hidden', тип !== 'fixed');
+    wrap.querySelector('.term-reason').classList.toggle('hidden', тип === 'full');
+
+    if (тип === 'full') {
+        // Возврат к полной цене — строка условий удаляется
+        await Layout.db.from('crm_deal_terms').delete().eq('deal_id', dealId).eq('block', block);
+        dealTerms = dealTerms.filter(x => x.block !== block);
+        renderDealTerms();
+        return;
+    }
+
+    const причина = wrap.querySelector('.term-reason').value.trim();
+    if (!причина) {
+        // Причина обязательна при любом отклонении (ТЗ 1.3) — ждём её ввода
+        if (ev.target.classList.contains('term-reason')) return;
+        Layout.showNotification(t('crm_terms_reason_required'), 'warning');
+        return;
+    }
+
+    const age = guestAge();
+    const запись = {
+        deal_id: dealId,
+        block,
+        condition_type: тип,
+        percent: ['discount', 'child'].includes(тип)
+            ? (Number(wrap.querySelector('.term-percent').value) || childSuggestion(block, age) || null) : null,
+        amount: тип === 'fixed' ? (Number(wrap.querySelector('.term-amount').value) || null) : null,
+        currency: тип === 'fixed' ? wrap.querySelector('.term-currency').value : null,
+        reason: причина,
+        manager_id: deal.manager_id || window.currentUser?.vaishnava_id || null,
+        updated_at: new Date().toISOString()
+    };
+    const { data, error } = await Layout.db.from('crm_deal_terms')
+        .upsert(запись, { onConflict: 'deal_id,block' }).select().single();
+    if (error) { Layout.handleError(error, t('crm_terms_title')); return; }
+    dealTerms = dealTerms.filter(x => x.block !== block).concat([data]);
+    // «Самостоятельно» синхронизирует чеклист триггером — обновим локально
+    if (block === 'accommodation' && тип === 'self') {
+        deal.checklist_accommodation = 'self';
+        deal.checklist_accommodation_building_id = null;
+        renderChecklist(); renderPlacement();
+    }
+    renderDealTerms();
+    Layout.showNotification(t('save') + ' ✓', 'success');
 }
 
 function renderFinanceBlock() {
