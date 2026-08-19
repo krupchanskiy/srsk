@@ -60,7 +60,7 @@ async function selectRetreat(retreatId) {
     const url = new URL(window.location);
     url.searchParams.set('retreat', retreatId);
     history.replaceState(null, '', url);
-    await loadParticipants();
+    await Promise.all([loadParticipants(), loadRetreatRates()]);
 }
 
 let pFilter = 'all';                       // all | debt | advance
@@ -153,7 +153,69 @@ async function openCard(pid) {
     document.getElementById('cardPayments').innerHTML =
         `<tr><td colspan="7" class="text-center py-4"><span class="loading loading-spinner loading-sm"></span></td></tr>`;
     document.getElementById('cardModal').showModal();
+    closeCharge(); closePayment();
+    renderCardRates();
+    loadCardCrmInfo();
     await Promise.all([loadCardCharges(), loadCardPayments()]);
+}
+
+// Кросс-курсы ретрита в шапке: 1$ = X₹ и т.д. (ТЗ 3.1)
+let retreatRates = {};   // currency -> rate к INR
+async function loadRetreatRates() {
+    retreatRates = { INR: 1 };
+    const { data } = await Layout.db.rpc('fin_get_retreat_rates', { p_retreat: currentRetreat });
+    (data || []).forEach(r => { retreatRates[r.currency_code] = Number(r.rate); });
+}
+
+function renderCardRates() {
+    const el = document.getElementById('cardRates');
+    if (!el) return;
+    const parts = Object.entries(retreatRates)
+        .filter(([c]) => c !== 'INR')
+        .map(([c, r]) => `1 ${FinUtils.symbol(c)} = ${Number(r).toLocaleString('ru-RU', { maximumFractionDigits: 2 })} ₹`);
+    el.textContent = parts.length ? `${t('fin_rates_header')}: ${parts.join(' · ')}` : '';
+}
+
+// Условия и даты из CRM — администратор видит договорённость в момент приёма денег (ТЗ 4.5)
+let cardCalc = null;
+async function loadCardCrmInfo() {
+    const el = document.getElementById('cardCrmInfo');
+    if (el) el.innerHTML = '';
+    cardCalc = null;
+    const { data: deal } = await Layout.db.from('crm_deals')
+        .select('id').eq('vaishnava_id', card.id).eq('retreat_id', currentRetreat)
+        .neq('status', 'cancelled').order('updated_at', { ascending: false }).limit(1).maybeSingle();
+    if (!deal) return;
+    const { data: calc } = await Layout.db.rpc('crm_calc_participation', { p_deal: deal.id });
+    if (!calc?.ok) return;
+    cardCalc = calc;
+    const условия = ['org_fee', 'accommodation', 'meals']
+        .map(k => ({ k, term: calc.blocks?.[k]?.term })).filter(x => x.term);
+    const метки = условия.map(x =>
+        `<span class="badge badge-warning badge-sm gap-1" title="${e(x.term.reason || '')}">
+            ${e(blockLabel(x.k))}: ${e(x.term.type)}${x.term.percent ? ' ' + x.term.percent + '%' : ''}${x.term.reason ? ` · ${e(x.term.reason)}` : ''}
+        </span>`).join(' ');
+    const d = calc.dates;
+    if (el) el.innerHTML = `
+        <div class="flex flex-wrap items-center gap-2 text-xs">
+            <span class="opacity-60">${t('fin_calc_dates')}: <b>${DateUtils.formatShort(DateUtils.parseDate(d.check_in))} — ${DateUtils.formatShort(DateUtils.parseDate(d.check_out))}</b>
+                (${d.nights_total} ноч.${Number(d.nights_between) > 0 ? `, из них ${d.nights_between} вне ретрита` : ''})${d.building ? ` · ${e(d.building)}` : ''}</span>
+            ${метки}
+        </div>`;
+}
+
+// «Подтянуть из CRM»: материализация расчёта в начисления (ТЗ 3.1, сценарий 1)
+async function syncFromCrm() {
+    if (!card.id) return;
+    const { data: res, error } = await Layout.db.rpc('fin_sync_charges_from_crm',
+        { p_participant: card.id, p_retreat: currentRetreat });
+    if (error) { Layout.handleError(error, 'CRM'); return; }
+    if (FinUtils.handleResult(res)) {
+        const r = res.result || {};
+        if (r.no_deal) Layout.showNotification(t('fin_no_deal_in_crm'), 'warning');
+        else Layout.showNotification(`CRM → ${t('fin_charges')}: +${r.created || 0} / ~${r.updated || 0}`, 'success');
+        await refreshAfterChange();
+    }
 }
 
 function renderCardBlocks(b) {
@@ -230,7 +292,9 @@ async function loadCardPayments() {
             <td class="text-right font-mono">${FinUtils.fmtMoney(p.amount, p.currency_code)}${p.currency_code !== 'INR' ? `<div class="text-xs opacity-70">${t('fin_at_rate')} ${Number(p.rate_used).toLocaleString('ru-RU', { maximumFractionDigits: 4 })} → ₹ ${Number(p.amount_base).toLocaleString('ru-RU')}</div>` : ''}</td>
             <td class="whitespace-nowrap">${e(куда(p))}</td>
             <td>${statusBadge(p.status)}</td>
-            <td class="text-right">${isAdmin && p.type === 'payment' && Number(p.available_to_refund) > 0 ? `<button class="btn btn-ghost btn-xs" data-refund="${p.posting_id}" title="${t('fin_refund')}">
+            <td class="text-right">${isAdmin && p.type === 'payment' && p.operation_id ? `<a class="btn btn-ghost btn-xs" href="dds.html?op=${p.operation_id}" title="${t('fin_realloc_action')}">
+                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="w-4 h-4"><path stroke-linecap="round" stroke-linejoin="round" d="M16.023 9.348h4.992v-.001M2.985 19.644v-4.992m0 0h4.992m-4.993 0l3.181 3.183a8.25 8.25 0 0013.803-3.7M4.031 9.865a8.25 8.25 0 0113.803-3.7l3.181 3.182m0-4.991v4.99"/></svg>
+            </a>` : ''}${isAdmin && p.type === 'payment' && Number(p.available_to_refund) > 0 ? `<button class="btn btn-ghost btn-xs" data-refund="${p.posting_id}" title="${t('fin_refund')}">
                 <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="w-4 h-4"><path stroke-linecap="round" stroke-linejoin="round" d="M9 15L3 9m0 0l6-6M3 9h12a6 6 0 010 12h-3"/></svg>
             </button>` : ''}</td>
         </tr>`).join('') || `<tr><td colspan="7" class="text-center py-3 opacity-60">${t('fin_no_payments')}</td></tr>`;
@@ -266,6 +330,14 @@ function chargeRowHtml(idx) {
             <div class="form-control">
                 <label class="label py-0"><span class="label-text text-xs chg-qty-label">${t('fin_quantity')}</span></label>
                 <input type="number" class="input input-bordered input-sm chg-qty" value="1" min="0.01" step="any" required>
+            </div>
+            <!-- Дни правятся через даты, сумма пересчитывается сама (ТЗ 3.4) -->
+            <div class="form-control chg-dates-wrap hidden">
+                <label class="label py-0"><span class="label-text text-xs">${t('fin_dates_from')} — ${t('fin_dates_to')}</span></label>
+                <div class="flex gap-1">
+                    <input type="date" class="input input-bordered input-sm chg-date-from w-full">
+                    <input type="date" class="input input-bordered input-sm chg-date-to w-full">
+                </div>
             </div>
             <div class="form-control">
                 <label class="label py-0"><span class="label-text text-xs">${t('fin_unit_price')}</span></label>
@@ -310,12 +382,27 @@ function wireChargeRow(row) {
     // Проживание и питание начисляются за дни — лейбл количества говорит об этом
     // прямо (требование ВГ: при расчёте видеть число дней, а не только сумму)
     const qtyLabel = row.querySelector('.chg-qty-label');
+    const datesWrap = row.querySelector('.chg-dates-wrap');
     const relabel = () => {
-        qtyLabel.textContent = ['accommodation', 'meals'].includes(kindSel.value)
-            ? t('fin_days') : t('fin_quantity');
+        const поДням = ['accommodation', 'meals'].includes(kindSel.value);
+        qtyLabel.textContent = поДням ? t('fin_days') : t('fin_quantity');
+        datesWrap.classList.toggle('hidden', !поДням);
     };
     kindSel.addEventListener('change', relabel);
     relabel();
+    // Даты → количество дней: расчёт остаётся объяснимым (ТЗ 3.4)
+    const по_датам = () => {
+        const a = row.querySelector('.chg-date-from').value;
+        const b = row.querySelector('.chg-date-to').value;
+        if (!a || !b) return;
+        const дней = Math.round((DateUtils.parseDate(b) - DateUtils.parseDate(a)) / 86400000);
+        if (дней > 0) {
+            row.querySelector('.chg-qty').value = дней;
+            row.querySelector('.chg-qty').dispatchEvent(new Event('input'));
+        }
+    };
+    row.querySelector('.chg-date-from').addEventListener('change', по_датам);
+    row.querySelector('.chg-date-to').addEventListener('change', по_датам);
 
     // Живой итог строки: qty × цена − скидка
     const totalEl = row.querySelector('.chg-total');
@@ -345,12 +432,19 @@ function addChargeRow(presetPerson) {
     return row;
 }
 
-function openCharge(fromCard) {
+function openCharge() {
     if (!currentRetreat) { Layout.showNotification(t('fin_select_retreat'), 'warning'); return; }
     document.getElementById('chargeRows').innerHTML = '';
-    addChargeRow(fromCard && card.id ? { id: card.id, name: card.name } : null);
+    addChargeRow(card.id ? { id: card.id, name: card.name } : null);
     document.getElementById('chargeReason').value = '';
-    document.getElementById('chargeModal').showModal();
+    // Форма раскрывается внутри карточки: сводка выше остаётся видна (ТЗ 3.1)
+    closePayment();
+    document.getElementById('chargeSection').classList.remove('hidden');
+    document.getElementById('chargeSection').scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+}
+
+function closeCharge() {
+    document.getElementById('chargeSection')?.classList.add('hidden');
 }
 
 async function submitCharge(ev) {
@@ -361,7 +455,10 @@ async function submitCharge(ev) {
         participant_id: row.querySelector('.chg-person-id').value,
         retreat_id: currentRetreat,
         kind: row.querySelector('.chg-kind').value,
-        description: row.querySelector('.chg-desc').value || null,
+        description: (row.querySelector('.chg-desc').value || '') + (
+            row.querySelector('.chg-date-from')?.value && row.querySelector('.chg-date-to')?.value
+                ? ` (${DateUtils.formatShort(DateUtils.parseDate(row.querySelector('.chg-date-from').value))} — ${DateUtils.formatShort(DateUtils.parseDate(row.querySelector('.chg-date-to').value))})`
+                : '') || null,
         quantity: row.querySelector('.chg-qty').value,
         unit_price: row.querySelector('.chg-price').value,
         discount_amount: row.querySelector('.chg-discount').value || null,
@@ -384,7 +481,7 @@ async function submitCharge(ev) {
         input.scrollIntoView({ block: 'center', behavior: 'smooth' });
     }
     if (FinUtils.handleResult(res)) {
-        document.getElementById('chargeModal').close();
+        closeCharge();
         await refreshAfterChange();
     }
 }
@@ -451,22 +548,67 @@ function addPayRow() {
         wrap.dataset.delegated = '1';
         wrap.addEventListener('change', ev => {
             if (ev.target.classList.contains('pay-currency')) onPayCurrencyChange(ev.target.closest('.pay-row'));
+            updatePayRunningTotal();
+        });
+        wrap.addEventListener('input', ev => {
+            if (ev.target.classList.contains('pay-amount')) updatePayRunningTotal();
         });
     }
 }
 
-function openPayment(fromCard) {
-    if (!currentRetreat) { Layout.showNotification(t('fin_select_retreat'), 'warning'); return; }
+function openPayment() {
+    if (!currentRetreat || !card.id) { Layout.showNotification(t('fin_select_retreat'), 'warning'); return; }
     requestIds.payment = requestIds.payment || FinUtils.newRequestId();
     document.getElementById('payDate').value = FinUtils.todayISO();
     document.getElementById('payComment').value = '';
-    const search = document.getElementById('payPayerSearch');
-    const hidden = document.getElementById('payPayerId');
-    if (fromCard && card.id) { search.value = card.name; hidden.value = card.id; }
-    else { search.value = ''; hidden.value = ''; }
+    document.getElementById('payPayerId').value = card.id;
+    document.getElementById('payPayerName').textContent = card.name;
     document.getElementById('payRows').innerHTML = '';
     addPayRow();
-    document.getElementById('paymentModal').showModal();
+    updatePayRunningTotal();
+    closeCharge();
+    document.getElementById('paySection').classList.remove('hidden');
+    document.getElementById('paySection').scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+}
+
+function closePayment() {
+    document.getElementById('paySection')?.classList.add('hidden');
+}
+
+// «Засчитать другому участнику» (ТЗ 3.1): компактная строка — человек, его
+// остаток главной цифрой, своя сумма в удобной валюте. Стопкой друг под другом.
+function addOtherParticipantRow() {
+    const wrap = document.getElementById('payRows');
+    const idx = wrap.children.length;
+    wrap.insertAdjacentHTML('beforeend', payRowHtml(idx));
+    const row = wrap.lastElementChild;
+    row.classList.add('pay-other');
+    row.insertAdjacentHTML('afterbegin', `
+        <div class="grid grid-cols-2 gap-2 mb-2">
+            <div class="form-control relative">
+                <label class="label py-0"><span class="label-text text-xs">${t('fin_participant')}</span></label>
+                <input type="text" class="input input-bordered input-sm pay-person" autocomplete="off" required>
+                <input type="hidden" class="pay-person-id">
+            </div>
+            <div class="form-control justify-end">
+                <div class="text-xs opacity-60">${t('fin_balance')}</div>
+                <div class="font-mono font-semibold pay-person-balance">—</div>
+            </div>
+        </div>`);
+    FinUtils.attachPersonSearch(row.querySelector('.pay-person'), row.querySelector('.pay-person-id'));
+    // Остаток подгружается при выборе человека — главная видимая цифра строки
+    // attachPersonSearch пишет в hidden без события — следим за сменой значения сами
+    const hid = row.querySelector('.pay-person-id');
+    let прежний = '';
+    const наблюдатель = setInterval(async () => {
+        if (!document.body.contains(hid)) { clearInterval(наблюдатель); return; }
+        if (hid.value && hid.value !== прежний) {
+            прежний = hid.value;
+            const { data } = await Layout.db.rpc('fin_get_participant_balance', { p_participant: hid.value, p_retreat: currentRetreat });
+            const net = Number(data?.net) || 0;
+            row.querySelector('.pay-person-balance').innerHTML = fmtNet(net);
+        }
+    }, 500);
 }
 
 // объект учёта ретрита нужен каждой строке платежа
@@ -493,11 +635,31 @@ async function submitPayment(ev) {
         id: FinUtils.newRequestId(),
         account_id: row.querySelector('.pay-account').value,
         amount: row.querySelector('.pay-amount').value,
-        participant_id: payer,
+        // Строка «за другого» несёт своего участника; оплата закрывается по каждому отдельно
+        participant_id: row.querySelector('.pay-person-id')?.value || payer,
         object_id: objectId,
         participant_balance_kind: row.querySelector('.pay-kind').value,
         payment_channel: row.querySelector('.pay-channel').value || null
     }));
+    if (rows.some(r => !r.participant_id)) {
+        Layout.showNotification(t('fin_participant_required'), 'warning');
+        return;
+    }
+
+    // Финальная сверка перед записью (ТЗ 3.1): итог по валютам и людям
+    const поВалютам = {};
+    document.querySelectorAll('#payRows .pay-row').forEach(row => {
+        const c = row.querySelector('.pay-currency').value;
+        поВалютам[c] = (поВалютам[c] || 0) + (Number(row.querySelector('.pay-amount').value) || 0);
+    });
+    const людей = new Set(rows.map(r => r.participant_id)).size;
+    const итог = Object.entries(поВалютам).filter(([, v]) => v > 0)
+        .map(([c, v]) => FinUtils.fmtMoney(v, c)).join(' + ');
+    const вопрос = `${t('fin_running_total')}: ${итог}` +
+        (людей > 1 ? ` ${t('fin_for_n_people').replace('{n}', людей)}` : '') +
+        `\n${t('fin_pay_confirm_q')}`;
+    if (!confirm(вопрос)) return;
+
     const res = await FinUtils.rpc('fin_create_payment', {
         request_id: requestIds.payment,
         occurred_on: document.getElementById('payDate').value,
@@ -507,10 +669,38 @@ async function submitPayment(ev) {
     });
     if (FinUtils.handleResult(res)) {
         requestIds.payment = null;
-        document.getElementById('paymentModal').close();
+        closePayment();
         await FinUtils.reloadAccounts();
         await refreshAfterChange();
     }
+}
+
+// Живой пересчёт строк в опорную валюту (первой строки) по курсу ретрита (ТЗ 3.3)
+function updatePayRunningTotal() {
+    const el = document.getElementById('payRunningTotal');
+    if (!el) return;
+    const rows = [...document.querySelectorAll('#payRows .pay-row')];
+    if (!rows.length) { el.innerHTML = ''; return; }
+    const опорная = rows[0].querySelector('.pay-currency').value;
+    const кОпорной = c => (retreatRates[c] || 1) / (retreatRates[опорная] || 1);
+    let итог = 0;
+    const поВалютам = {};
+    rows.forEach(row => {
+        const c = row.querySelector('.pay-currency').value;
+        const v = Number(row.querySelector('.pay-amount').value) || 0;
+        if (!v) return;
+        поВалютам[c] = (поВалютам[c] || 0) + v;
+        итог += v * кОпорной(c);
+    });
+    if (!итог) { el.innerHTML = ''; return; }
+    const детали = Object.entries(поВалютам).map(([c, v]) => FinUtils.fmtMoney(v, c)).join(' + ');
+    // Против остатка участника карточки — видно, закрывает ли внесённое долг
+    const p = participants.find(x => x.participant_id === card.id);
+    const остаток = Number(p?.balance?.net) || 0;
+    const остатокОпорной = остаток * кОпорной('INR');
+    const после = остатокОпорной - итог;
+    el.innerHTML = `${t('fin_running_total')}: <b>${детали}</b> ≈ ${FinUtils.fmtMoney(итог, опорная)}`
+        + (остаток > 0 ? ` · ${t('fin_remaining_after')}: <b class="${после > 0.01 ? 'text-error' : 'text-success'}">${FinUtils.fmtMoney(Math.max(после, 0), опорная)}</b>` : '');
 }
 
 // ==================== ФОРМА: ВОЗВРАТ ====================
@@ -650,6 +840,6 @@ async function copySummary() {
     Layout.showNotification(ok ? t('fin_copied') : t('fin_copy_failed'), ok ? 'success' : 'error');
 }
 
-window.FinParticipants = { openCharge, openPayment, addChargeRow, addPayRow, copySummary };
+window.FinParticipants = { openCharge, closeCharge, openPayment, closePayment, addChargeRow, addPayRow, addOtherParticipantRow, syncFromCrm, copySummary };
 init();
 })();

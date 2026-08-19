@@ -831,6 +831,11 @@ function isParticipantCategory() {
 
 function updateIncomeCategoryList() {
     document.getElementById('incCategory').innerHTML = FinUtils.categoryOptions('in', null, true);
+    // Оплата участника идёт через отдельную кнопку и карточку участника (ТЗ 3.1):
+    // дублирующий путь через «Приход» закрыт, статья убрана из списка
+    [...document.getElementById('incCategory').options].forEach(o => {
+        if (FinUtils.refs.categories.find(c => c.id === o.value)?.code === 'participant_payment') o.remove();
+    });
     document.getElementById('incDonorWrap').classList.toggle('hidden', !document.getElementById('incIsDonation').checked);
     syncParticipantBlock();
 }
