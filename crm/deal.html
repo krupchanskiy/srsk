@@ -180,6 +180,17 @@
                                     <span class="text-xs opacity-60" data-i18n="crm_cl_early_checkin">Ранний заезд</span>
                                 </label>
                             </div>
+                            <!-- Статус дат заезда (ТЗ 1.4): виден только при обнаруженном расхождении -->
+                            <div id="arrivalDatesRow" class="hidden mt-1">
+                                <select class="select select-xs select-bordered w-full border-red-300" id="arrivalDatesStatus"
+                                        onchange="saveDatesStatus('arrival', this.value)">
+                                    <option value="unconfirmed" data-i18n="crm_dates_unconfirmed">Не уточнено</option>
+                                    <option value="matches" data-i18n="crm_dates_matches">Совпадает с рейсом</option>
+                                    <option value="custom" data-i18n="crm_dates_custom">Не совпадает с рейсом</option>
+                                </select>
+                                <input type="datetime-local" class="input input-bordered input-xs w-full mt-1 hidden" id="stayCheckIn"
+                                       title="Заезд в ШРСК" onchange="saveStayDate('stay_check_in', this.value)">
+                            </div>
                         </div>
                         <!-- Отъезд -->
                         <div class="pl-2 border-l-2 border-primary/30">
@@ -199,6 +210,23 @@
                                     <span class="text-xs opacity-60" data-i18n="crm_cl_late_checkout">Поздний выезд</span>
                                 </label>
                             </div>
+                            <div id="departureDatesRow" class="hidden mt-1">
+                                <select class="select select-xs select-bordered w-full border-red-300" id="departureDatesStatus"
+                                        onchange="saveDatesStatus('departure', this.value)">
+                                    <option value="unconfirmed" data-i18n="crm_dates_unconfirmed">Не уточнено</option>
+                                    <option value="matches" data-i18n="crm_dates_matches">Совпадает с рейсом</option>
+                                    <option value="custom" data-i18n="crm_dates_custom">Не совпадает с рейсом</option>
+                                </select>
+                                <input type="datetime-local" class="input input-bordered input-xs w-full mt-1 hidden" id="stayCheckOut"
+                                       title="Выезд из ШРСК" onchange="saveStayDate('stay_check_out', this.value)">
+                            </div>
+                        </div>
+                        <!-- Гость уже в Индии, рейса нет (ТЗ 1.4): трансфер без опоры на рейс -->
+                        <div id="noFlightBlock" class="hidden pl-2 border-l-2 border-amber-300">
+                            <div class="text-xs font-semibold opacity-50 mb-1" data-i18n="crm_no_flight_note">Трансфер без рейса: откуда, куда, во сколько</div>
+                            <input type="text" class="input input-bordered input-xs w-full" id="noFlightNote"
+                                   placeholder="Вриндаван, гостиница X → ШРСК, ~14:00"
+                                   onchange="saveFlightField('no_flight_transfer_note', this.value)">
                         </div>
                         <!-- Странные даты рейсов: перепутанный год или месяц -->
                         <div id="flightDatesWarning" class="hidden text-xs text-warning leading-snug"></div>
@@ -1743,7 +1771,9 @@ async function changeStatus(newStatus) {
         .eq('id', dealId);
 
     if (error) {
-        Layout.handleError(error, t('crm_changing_status'));
+        // Блокировка стадии из БД (ТЗ 1.6): текст объясняет, чего не хватает
+        Layout.showNotification(error.message, 'error');
+        document.getElementById('statusSelect').value = deal.status;
         return;
     }
 
@@ -3221,6 +3251,19 @@ async function updateChecklist(field, value) {
     await Layout.db.from('crm_deals').update({ [field]: value }).eq('id', dealId);
     deal[field] = value;
     renderChecklist();
+    // «Билеты: не нужны» — гость уже в Индии: трансфер по умолчанию не требуется,
+    // но вручную его можно вернуть; сравнение с рейсом невозможно (ТЗ 1.4)
+    if (field === 'checklist_tickets') {
+        if (value === 'not_needed' && deal.checklist_transfer_arrival === 'unknown') {
+            await Layout.db.from('crm_deals').update({ checklist_transfer_arrival: 'not_needed', checklist_transfer_departure: 'not_needed' }).eq('id', dealId);
+            deal.checklist_transfer_arrival = 'not_needed';
+            deal.checklist_transfer_departure = 'not_needed';
+        }
+        renderFlightData();
+    }
+    if (field === 'checklist_transfer_arrival' || field === 'checklist_transfer_departure') {
+        renderDatesStatus();
+    }
     // Обновить зависимые блоки
     if (field === 'checklist_accommodation') {
         // Если убрали проживание в ШРСК — удалить незавершённую задачу на расселение
@@ -3261,7 +3304,56 @@ function renderFlightData() {
     setChecked('departureLateCheckout', deal.departure_late_checkout || false);
     setChecked('departureNeedsTransfer', deal.checklist_transfer_departure === 'needed');
 
+    renderDatesStatus();
     checkFlightDates();   // описки, введённые раньше, видны при открытии сделки
+}
+
+// ==================== СТАТУС ДАТ ЗАЕЗДА/ВЫЕЗДА (ТЗ 1.4) ====================
+// Селект показывается только при обнаруженном расхождении рейса с ретритом
+// (или при «Билеты: не нужны» — тогда сравнивать не с чем, сразу свои даты).
+function renderDatesStatus() {
+    const setVal = (id, val) => { const el = document.getElementById(id); if (el) el.value = val; };
+    const noFlights = deal.checklist_tickets === 'not_needed';
+
+    // Гость уже в Индии: рейсов нет, трансфер по своим точкам
+    const nf = document.getElementById('noFlightBlock');
+    if (nf) {
+        nf.classList.toggle('hidden', !(noFlights && deal.checklist_transfer_arrival === 'needed'));
+        setVal('noFlightNote', deal.no_flight_transfer_note || '');
+    }
+    // При «не нужны» блок рейсов открываем ради статуса дат
+    if (noFlights) document.getElementById('flightFieldsBlock')?.classList.remove('hidden');
+
+    [['arrival', 'stayCheckIn', 'stay_check_in'], ['departure', 'stayCheckOut', 'stay_check_out']].forEach(([dir, inputId, field]) => {
+        const row = document.getElementById(dir + 'DatesRow');
+        if (!row) return;
+        const статус = deal[dir + '_dates_status'];
+        const показать = !!статус || noFlights;
+        row.classList.toggle('hidden', !показать);
+        if (!показать) return;
+        const sel = document.getElementById(dir + 'DatesStatus');
+        // Без рейса сравнение невозможно — сразу режим своих дат (ТЗ 1.4)
+        sel.value = noFlights ? 'custom' : (статус || 'unconfirmed');
+        sel.classList.toggle('border-red-300', sel.value === 'unconfirmed');
+        if (noFlights) sel.querySelector('option[value="matches"]')?.setAttribute('disabled', '');
+        const input = document.getElementById(inputId);
+        input.classList.toggle('hidden', sel.value !== 'custom');
+        if (deal[field]) input.value = String(deal[field]).slice(0, 16);
+    });
+}
+
+async function saveDatesStatus(dir, value) {
+    const patch = { [dir + '_dates_status']: value };
+    const { error } = await Layout.db.from('crm_deals').update(patch).eq('id', dealId);
+    if (error) { Layout.handleError(error, t('crm_dates_status')); return; }
+    Object.assign(deal, patch);
+    renderDatesStatus();
+}
+
+async function saveStayDate(field, value) {
+    const { error } = await Layout.db.from('crm_deals').update({ [field]: value || null }).eq('id', dealId);
+    if (error) { Layout.handleError(error, t('crm_dates_status')); return; }
+    deal[field] = value || null;
 }
 
 // updateArrivalType и updateDepartureType убраны — рейсы управляются через чеклист
@@ -3333,6 +3425,13 @@ async function saveFlightField(field, value) {
 async function saveArrivalDatetime(value) {
     await Layout.db.from('crm_deals').update({ arrival_datetime: value || null }).eq('id', dealId);
     deal.arrival_datetime = value;
+    // Триггер БД пересчитывает расхождение и может сбросить подтверждение — перечитываем
+    {
+        const { data: fresh } = await Layout.db.from('crm_deals')
+            .select('arrival_dates_status, departure_dates_status, dates_mismatch_detected_at').eq('id', dealId).single();
+        if (fresh) Object.assign(deal, fresh);
+        renderDatesStatus();
+    }
     // Авто-расчёт раннего заезда
     if (value) {
         const dt = new Date(value);
@@ -3359,6 +3458,13 @@ async function saveArrivalDatetime(value) {
 async function saveDepartureDatetime(value) {
     await Layout.db.from('crm_deals').update({ departure_datetime: value || null }).eq('id', dealId);
     deal.departure_datetime = value;
+    // Триггер БД пересчитывает расхождение и может сбросить подтверждение — перечитываем
+    {
+        const { data: fresh } = await Layout.db.from('crm_deals')
+            .select('arrival_dates_status, departure_dates_status, dates_mismatch_detected_at').eq('id', dealId).single();
+        if (fresh) Object.assign(deal, fresh);
+        renderDatesStatus();
+    }
     // Авто-расчёт позднего выезда
     if (value) {
         const dt = new Date(value);

@@ -1611,6 +1611,7 @@ window.Layout = {
     updateUserInfo,
     setMenuBadge,
     refreshPrepaymentsBadge,
+    refreshTasksBadge,
     getAbKitchenHiddenProductIds,
     filterAbKitchenProducts,
     invalidateAbKitchenHiddenProducts,

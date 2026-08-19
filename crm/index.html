@@ -525,8 +525,8 @@ function initSortable() {
                     .eq('id', dealId);
 
                 if (error) {
-                    Layout.handleError(error, 'Изменение статуса');
-                    // Откатываем
+                    // Блокировка стадии (ТЗ 1.6): триггер БД объясняет, чего не хватает
+                    Layout.showNotification(error.message, 'error');
                     await loadDeals();
                     return;
                 }
@@ -549,7 +549,12 @@ async function quickAdvance(dealId, currentStatus) {
     const nextStatus = CrmUtils.getNextStatus(currentStatus);
     if (!nextStatus) return;
 
-    await Layout.db.from('crm_deals').update({ status: nextStatus }).eq('id', dealId);
+    const { error } = await Layout.db.from('crm_deals').update({ status: nextStatus }).eq('id', dealId);
+    if (error) {
+        // Блокировка стадии из БД (ТЗ 1.6) — показываем её текст как есть
+        Layout.showNotification(error.message, 'error');
+        return;
+    }
 
     // Обновляем локально
     const deal = deals.find(d => d.id === dealId);

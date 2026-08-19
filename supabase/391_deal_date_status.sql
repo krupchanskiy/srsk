@@ -1,0 +1,13 @@
+-- 391: статус дат заезда/выезда, блокировки стадий, автозадачи (ТЗ 1.4/1.6/1.8/1.9)
+-- Применена через MCP 16.08.2026 (mcp: 391_deal_date_status). Ключевое:
+--   * crm_deals: arrival/departure_dates_status (unconfirmed|matches|custom),
+--     stay_check_in/out, dates_mismatch_detected_at, no_flight_transfer_note
+--   * crm_tasks: postponed_until, postpone_reason
+--   * crm_dates_mismatch(): буферы +4.5ч прилёт / −7ч вылет против дат ретрита
+--   * триггер trg_crm_deal_dates_watch: автодетект и сброс подтверждения при
+--     изменении даты/времени рейса (номер рейса/аэропорт не сбрасывают)
+--   * триггер trg_crm_guard_status: working→invoiced требует проживание+питание;
+--     booked→checklist блокируется при статусе «не уточнено»
+--   * crm_create_date_tasks() + cron crm-date-tasks (*/5): автозадача менеджеру
+--     через 10 минут после обнаружения расхождения, до стадии чек-листа
+--   * бэкфилл: 28 прилётов и 31 вылет получили статус «не уточнено»

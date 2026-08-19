@@ -103,6 +103,11 @@
         </div>
 
         <!-- Завершённые -->
+        <div id="sectionPostponed" class="hidden">
+            <h2 class="text-lg font-bold text-base-content/50 mb-3 flex items-center gap-2" data-i18n="crm_task_postponed">Отложенные</h2>
+            <div class="space-y-2" id="tasksPostponed"></div>
+        </div>
+
         <div id="sectionCompleted" class="hidden">
             <h2 class="text-lg font-bold text-success mb-3 flex items-center gap-2" id="headerCompleted" data-i18n="crm_filter_completed">Завершённые</h2>
             <div id="tasksCompleted" class="space-y-2"></div>
@@ -148,6 +153,28 @@
 
 <div id="footer-placeholder"></div>
 
+<dialog id="postponeModal" class="modal">
+    <div class="modal-box max-w-sm">
+        <h3 class="font-bold text-lg mb-3" data-i18n="crm_task_postpone">Отложить</h3>
+        <form onsubmit="submitPostpone(event)">
+            <div class="form-control mb-3">
+                <label class="label py-1"><span class="label-text" data-i18n="crm_task_postpone_until">До какой даты</span></label>
+                <input type="date" id="postponeDate" class="input input-bordered input-sm" required>
+            </div>
+            <div class="form-control mb-3">
+                <label class="label py-1"><span class="label-text" data-i18n="crm_task_postpone_reason">Причина (обязательно)</span></label>
+                <input type="text" id="postponeReason" class="input input-bordered input-sm" required
+                       placeholder="Написал гостю, жду ответа">
+            </div>
+            <div class="modal-action">
+                <button type="button" class="btn" onclick="document.getElementById('postponeModal').close()" data-i18n="cancel">Отмена</button>
+                <button type="submit" class="btn btn-primary" data-i18n="save">Сохранить</button>
+            </div>
+        </form>
+    </div>
+    <form method="dialog" class="modal-backdrop"><button>close</button></form>
+</dialog>
+
 <script src="../js/config.js?v=4"></script>
 <script src="../js/auth-check.js?v=8"></script>
 <script src="../js/cache.js?v=1"></script>
@@ -190,6 +217,33 @@ async function loadManagers() {
             `<option value="${m.id}">${e(m.name)}</option>`
         );
     });
+}
+
+// ==================== ОТЛОЖЕННЫЕ ЗАДАЧИ (ТЗ 1.9) ====================
+let postponeTaskId = null;
+
+function openPostpone(taskId) {
+    postponeTaskId = taskId;
+    document.getElementById('postponeDate').value = '';
+    document.getElementById('postponeReason').value = '';
+    document.getElementById('postponeModal').showModal();
+}
+
+async function submitPostpone(ev) {
+    ev.preventDefault();
+    const until = document.getElementById('postponeDate').value;
+    const reason = document.getElementById('postponeReason').value.trim();
+    if (!until || !reason) {
+        Layout.showNotification(t('crm_task_postpone_reason'), 'warning');
+        return;
+    }
+    const { error } = await Layout.db.from('crm_tasks')
+        .update({ postponed_until: until, postpone_reason: reason, due_date: until })
+        .eq('id', postponeTaskId);
+    if (error) { Layout.handleError(error, t('crm_task_postpone')); return; }
+    document.getElementById('postponeModal').close();
+    await loadTasks();
+    Layout.refreshTasksBadge?.();
 }
 
 async function loadTasks() {
@@ -252,9 +306,11 @@ function applyFilters() {
 
 // ==================== RENDER ====================
 function renderStats() {
+    const сегодняISO = DateUtils.toISO(new Date());
     const all = tasks.filter(t => !t.completed_at);
-    const today = all.filter(t => isToday(t.due_date));
-    const overdue = all.filter(t => CrmUtils.isTaskOverdue(t));
+    const спит = t => t.postponed_until && t.postponed_until > сегодняISO;
+    const today = all.filter(t => isToday(t.due_date) && !спит(t));
+    const overdue = all.filter(t => CrmUtils.isTaskOverdue(t) && !спит(t));
     const completed = tasks.filter(t => t.completed_at);
 
     document.getElementById('statTotal').textContent = all.length;
@@ -276,11 +332,15 @@ function renderTasks() {
         week: [],
         later: [],
         noDate: [],
+        postponed: [],
         completed: []
     };
 
+    const сегодняISO = DateUtils.toISO(today);
     filteredTasks.forEach(task => {
-        if (task.completed_at) {
+        if (!task.completed_at && task.postponed_until && task.postponed_until > сегодняISO) {
+            groups.postponed.push(task);   // спит до срока; вернётся сама (ТЗ 1.9)
+        } else if (task.completed_at) {
             groups.completed.push(task);
         } else if (!task.due_date) {
             groups.noDate.push(task);
@@ -304,6 +364,7 @@ function renderTasks() {
     renderSection('Week', groups.week);
     renderSection('Later', groups.later);
     renderSection('NoDate', groups.noDate);
+    renderSection('Postponed', groups.postponed);
     renderSection('Completed', groups.completed);
 
     // Показываем empty state
@@ -391,6 +452,13 @@ function renderTaskCard(task) {
                                 <span class="badge badge-xs" style="background-color: ${retreat.color}; color: white;">
                                     ${e(Layout.getName(retreat))}
                                 </span>
+                            ` : ''}
+
+                            ${!isCompleted ? `
+                                <button class="btn btn-ghost btn-xs text-base-content/50" onclick="openPostpone('${task.id}')">${t('crm_task_postpone')} →</button>
+                            ` : ''}
+                            ${task.postponed_until && !isCompleted ? `
+                                <span class="text-amber-600">${t('crm_task_postponed')} ${CrmUtils.formatDate(task.postponed_until)}${task.postpone_reason ? ` · ${e(task.postpone_reason)}` : ''}</span>
                             ` : ''}
                         </div>
 
