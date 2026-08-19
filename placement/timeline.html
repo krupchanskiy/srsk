@@ -268,6 +268,12 @@
 
         /* Долг по финмодулю: точка-маркер, виден на любом цвете категории.
            Только факт долга — суммы шахматке недоступны */
+        .guest-bar .needs-dot {
+            color: #d97706;
+            margin-right: 2px;
+            font-size: 9px;
+            cursor: help;
+        }
         .guest-bar .debt-dot {
             flex: 0 0 auto;
             width: 8px;
@@ -1073,7 +1079,7 @@
         if (btn) { btn.classList.toggle('btn-active', isFS); btn.title = isFS ? Layout.t('normal_view') : Layout.t('fullscreen'); }
     }
     </script>
-    <script src="../js/pages/timeline.js?v=17"></script>
+    <script src="../js/pages/timeline.js?v=18"></script>
 
 </body>
 </html>

@@ -168,6 +168,17 @@ async function loadRegistrations() {
 
     registrations = data || [];
 
+    // Особые потребности — из сделок CRM этого ретрита (ТЗ 2.3)
+    {
+        const { data: deals } = await Layout.db.from('crm_deals')
+            .select('vaishnava_id, special_needs')
+            .eq('retreat_id', retreatId).neq('status', 'cancelled')
+            .not('special_needs', 'is', null);
+        const по_людям = Object.fromEntries((deals || []).filter(d => d.special_needs?.trim())
+            .map(d => [d.vaishnava_id, d.special_needs.trim()]));
+        registrations.forEach(r => { r.special_needs = по_людям[r.vaishnava_id] || null; });
+    }
+
     // Загружаем размещения и занятость комнат параллельно
     const vaishnavIds = registrations.map(r => r.vaishnava_id).filter(Boolean);
 
@@ -257,7 +268,12 @@ function getRegCheckIn(reg) {
     if (reg.resident?.check_in) return reg.resident.check_in;
     if (reg.arrival_datetime) return reg.arrival_datetime.slice(0, 10);
     const flight = (reg.guest_transfers || []).find(t => t.direction === 'arrival');
-    if (flight?.flight_datetime) return flight.flight_datetime.slice(0, 10);
+    if (flight?.flight_datetime) {
+        // Буфер от аэропорта: приезд в ШРСК ≈ прилёт + 4,5 часа (ТЗ 1.4)
+        const d = new Date(flight.flight_datetime.slice(0, 16));
+        d.setMinutes(d.getMinutes() + 270);
+        return DateUtils.toISO(d);
+    }
     return retreat?.start_date || null;
 }
 
@@ -265,7 +281,13 @@ function getRegCheckOut(reg) {
     if (reg.resident?.check_out) return reg.resident.check_out;
     if (reg.departure_datetime) return reg.departure_datetime.slice(0, 10);
     const flight = (reg.guest_transfers || []).find(t => t.direction === 'departure');
-    if (flight?.flight_datetime) return flight.flight_datetime.slice(0, 10);
+    if (flight?.flight_datetime) {
+        // Буфер до аэропорта (ТЗ 1.4): из ШРСК выезжают за ~7 часов до вылета —
+        // ночной рейс означает выезд накануне, голая дата рейса здесь врала
+        const d = new Date(flight.flight_datetime.slice(0, 16));
+        d.setHours(d.getHours() - 7);
+        return DateUtils.toISO(d);
+    }
     return retreat?.end_date || null;
 }
 
@@ -468,6 +490,9 @@ function filterRegistrations() {
             const statusOrder = { team: 1, volunteer: 2, guest: 3, vip: 4, cancelled: 5 };
             aVal = statusOrder[a.status] || 99;
             bVal = statusOrder[b.status] || 99;
+        } else if (sortField === 'special_needs') {
+            aVal = a.special_needs || '';
+            bVal = b.special_needs || '';
         } else if (sortField === 'meal_type') {
             // Сортировка по типу питания
             const mealOrder = { prasad: 1, self: 2, child: 3 };
@@ -549,6 +574,23 @@ function renderTable() {
     }
 
     noGuests.classList.add('hidden');
+
+    // Сводка по особым потребностям: масштаб виден без пролистывания (ТЗ 2.3)
+    {
+        let box = document.getElementById('specialNeedsSummary');
+        if (!box) {
+            box = document.createElement('div');
+            box.id = 'specialNeedsSummary';
+            box.className = 'text-xs text-amber-700 mb-2';
+            tbody.closest('table').parentElement.insertAdjacentElement('beforebegin', box);
+        }
+        const сНуждами = filtered.filter(r => r.special_needs);
+        const имя = r => r.vaishnavas?.spiritual_name
+            || `${r.vaishnavas?.first_name || ''} ${r.vaishnavas?.last_name || ''}`.trim() || '—';
+        box.textContent = сНуждами.length
+            ? `${t('special_needs_summary')}: ${сНуждами.length} — ${сНуждами.slice(0, 5).map(имя).join(', ')}${сНуждами.length > 5 ? '…' : ''}`
+            : '';
+    }
 
     // Проверка прав на редактирование
     const canEdit = window.hasPermission && window.hasPermission('edit_preliminary');
@@ -726,7 +768,7 @@ function renderTable() {
                     ${departureLines.map(l => `<div>${l}</div>`).join('')}
                 </td>
                 <td class="col-days text-center text-sm whitespace-nowrap">${daysCount !== '' ? `<span class="badge badge-sm">${daysCount} ${t('preliminary_days_short')}</span>` : '—'}</td>
-                <td class="col-plans text-sm">${e(reg.extended_stay || '—')}</td>
+                <td class="col-plans text-sm ${reg.special_needs ? 'text-amber-700' : ''}">${e(reg.special_needs || '—')}</td>
                 <td class="col-questions text-sm">${e(reg.guest_questions || '—')}</td>
                 <td class="col-org-notes text-sm">${e(reg.org_notes || '—')}</td>
                 <td class="col-meal text-sm">
@@ -737,6 +779,7 @@ function renderTable() {
                         <option value="prasad" ${reg.meal_type === 'prasad' ? 'selected' : ''}>${mealTypePrasad}</option>
                         <option value="self" ${reg.meal_type === 'self' ? 'selected' : ''}>${mealTypeSelf}</option>
                         <option value="child" ${reg.meal_type === 'child' ? 'selected' : ''}>${mealTypeChild}</option>
+                        <option value="tickets" ${reg.meal_type === 'tickets' ? 'selected' : ''}>${t('meal_type_tickets')}</option>
                     </select>
                 </td>
                 <td class="col-notes text-sm">
@@ -1206,7 +1249,7 @@ async function onRoomChange(registrationId, roomId) {
         status: 'confirmed',
         category_id: STATUS_CATEGORY_MAP[reg.status] || DEFAULT_CATEGORY_ID,
         has_housing: true,
-        has_meals: reg.meal_type !== 'self'
+        has_meals: !['self', 'tickets'].includes(reg.meal_type)
     };
 
     try {
@@ -1266,7 +1309,7 @@ async function saveSelfAccommodation(registrationId) {
         status: 'confirmed',
         category_id: STATUS_CATEGORY_MAP[reg.status] || DEFAULT_CATEGORY_ID,
         has_housing: false,
-        has_meals: reg.meal_type !== 'self'
+        has_meals: !['self', 'tickets'].includes(reg.meal_type)
     };
 
     try {

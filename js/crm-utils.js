@@ -218,6 +218,23 @@ const CrmUtils = {
     /**
      * Получить короткое имя гостя (для карточек)
      */
+    /**
+     * Духовное имя + паспортное рядом (ТЗ 1.12): банковский перевод приходит
+     * под паспортным именем — без него платёж не с кем сопоставить.
+     * Возвращает готовый HTML (экранировано внутри).
+     */
+    getGuestDualName(vaishnava, opts = {}) {
+        const e = s => Layout.escapeHtml(s || '');
+        if (!vaishnava) return '';
+        const sn = vaishnava.spiritual_name && vaishnava.spiritual_name !== '-' && vaishnava.spiritual_name !== '—'
+            ? vaishnava.spiritual_name : '';
+        const civil = `${vaishnava.first_name || ''} ${vaishnava.last_name || ''}`.trim();
+        if (sn && civil) {
+            return `${e(sn)} <span class="${opts.subClass || 'text-xs opacity-60'}">(${e(civil)})</span>`;
+        }
+        return e(sn || civil || vaishnava.email || Layout.t('crm_no_name'));
+    },
+
     getGuestShortName(vaishnava) {
         if (!vaishnava) return '';
         const sn = vaishnava.spiritual_name && vaishnava.spiritual_name !== '-' && vaishnava.spiritual_name !== '—' ? vaishnava.spiritual_name : '';

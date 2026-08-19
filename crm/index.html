@@ -419,7 +419,7 @@ function renderCard(deal) {
              data-id="${deal.id}"
              onclick="openDeal('${deal.id}')">
             <div class="flex items-start justify-between gap-1 mb-1">
-                <div class="font-medium text-sm leading-tight">${e(CrmUtils.getGuestShortName(guest))}</div>
+                <div class="font-medium text-sm leading-tight">${CrmUtils.getGuestDualName(guest)}</div>
                 <div class="flex items-center gap-1 shrink-0">
                     ${renderCardMarkers(deal)}
                     ${tempBadge}

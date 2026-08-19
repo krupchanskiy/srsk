@@ -34,6 +34,7 @@ let ekadashiDays = new Set();
 let retreatTimesMap = new Map();
 let allRetreats = [];         // для выбора ретрита при заселении
 let debtorsSet = new Set();   // `${vaishnava_id}_${retreat_id}` — участники с долгом по финмодулю
+let specialNeedsMap = new Map();   // `${vaishnava_id}_${retreat_id}` — особые потребности из CRM
 
 // Флаг права на редактирование таймлайна
 const canEditTimeline = () => window.hasPermission?.('edit_timeline') ?? false;
@@ -146,6 +147,19 @@ async function loadTimelineData() {
         if (error) return; // нет прав/сбой — шахматка работает без подсветки
         for (const row of (data || [])) debtorsSet.add(`${row.participant_id}_${rid}`);
     }));
+
+    // Особые потребности из сделок CRM (доп. подушка, обогреватель…) — значок
+    // на баре, детали по клику в карточке (ТЗ 2.3)
+    specialNeedsMap = new Map();
+    if (residentRetreatIds.length) {
+        const { data: нужды } = await Layout.db.from('crm_deals')
+            .select('vaishnava_id, retreat_id, special_needs')
+            .in('retreat_id', residentRetreatIds).neq('status', 'cancelled')
+            .not('special_needs', 'is', null);
+        for (const d of (нужды || [])) {
+            if (d.special_needs?.trim()) specialNeedsMap.set(`${d.vaishnava_id}_${d.retreat_id}`, d.special_needs.trim());
+        }
+    }
 
     // Фильтруем временные здания по датам шахматки
     buildings = buildings.filter(b => {
@@ -318,6 +332,8 @@ async function loadTimelineData() {
                         isCheckedOut: res.status === 'checked_out',
                         hasDebt: !!(res.vaishnava_id && res.retreat_id
                             && debtorsSet.has(`${res.vaishnava_id}_${res.retreat_id}`)),
+                        specialNeeds: (res.vaishnava_id && res.retreat_id
+                            && specialNeedsMap.get(`${res.vaishnava_id}_${res.retreat_id}`)) || null,
                         // Сырые данные для модалки
                         rawData: res
                     };
@@ -1206,6 +1222,18 @@ function openResidentModal(guestData, buildingName, roomName) {
         <span class="text-gray-500">${t('timeline_guest')}:</span>
         <span class="font-medium">${nameLink}</span>
     </div>`;
+
+    // Особые потребности из CRM — видны при заселении, без перехода в другой раздел (ТЗ 2.3)
+    {
+        const нужды = res.vaishnava_id && res.retreat_id
+            && specialNeedsMap.get(`${res.vaishnava_id}_${res.retreat_id}`);
+        if (нужды) {
+            infoHtml += `<div class="flex justify-between py-1 border-b">
+                <span class="text-gray-500">${t('special_needs_col')}:</span>
+                <span class="font-medium text-amber-700">${Layout.escapeHtml(нужды)}</span>
+            </div>`;
+        }
+    }
 
     // Долг по финмодулю: шахматка знает только факт, суммы — в карточке финмодуля
     // (страница сама проверит права; ресепшену без fin-прав покажет отказ)
@@ -2387,15 +2415,17 @@ function renderTable() {
 
                         const debtClass = guest.hasDebt ? ' has-debt' : '';
                         const debtDot = guest.hasDebt ? `<span class="debt-dot" title="${t('timeline_has_debt')}"></span>` : '';
+                        // Бытовые потребности — не финансовый маркер: ромбик с подсказкой (ТЗ 2.3)
+                        const needsDot = guest.specialNeeds ? `<span class="needs-dot" title="${Layout.escapeHtml(guest.specialNeeds)}">◆</span>` : '';
                         if (guest.isBooking) {
                             // Бронирование — штриховка
                             const bgColor = guest.color || '#3b82f6';
-                            html += `<div class="guest-bar booking${checkedOutClass}${debtClass}" style="width: ${width}px; --bar-color: ${bgColor}; border-color: ${bgColor};" data-action="open-resident-from-map" data-id="${guest.id}">${debtDot}${guest.name}</div>`;
+                            html += `<div class="guest-bar booking${checkedOutClass}${debtClass}" style="width: ${width}px; --bar-color: ${bgColor}; border-color: ${bgColor};" data-action="open-resident-from-map" data-id="${guest.id}">${debtDot}${needsDot}${guest.name}</div>`;
                         } else {
                             // Обычное заселение
                             const bgColor = guest.color || '#3b82f6';
                             const borderColor = guest.border || '#facc15';
-                            html += `<div class="guest-bar${checkedOutClass}${debtClass}" style="width: ${width}px; background: ${bgColor}; border-color: ${borderColor};" data-action="open-resident-from-map" data-id="${guest.id}">${debtDot}${guest.name}</div>`;
+                            html += `<div class="guest-bar${checkedOutClass}${debtClass}" style="width: ${width}px; background: ${bgColor}; border-color: ${borderColor};" data-action="open-resident-from-map" data-id="${guest.id}">${debtDot}${needsDot}${guest.name}</div>`;
                         }
                     }
 

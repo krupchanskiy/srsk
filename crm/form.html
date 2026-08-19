@@ -403,7 +403,22 @@ async function findOrCreateVaishnava(data) {
         }
     }
 
-    // 3. Создаём нового
+    // 3. Ищем по полному имени (ТЗ 1.14): человек мог прийти с новым номером
+    // и почтой — дубль карточки хуже, чем совпадение тёзок, которое менеджер
+    // разберёт при первом контакте
+    if (data.first_name) {
+        let q = db.from('vaishnavas').select('id')
+            .eq('is_deleted', false)
+            .ilike('first_name', data.first_name.trim());
+        q = data.last_name ? q.ilike('last_name', data.last_name.trim()) : q.is('last_name', null);
+        const { data: byName } = await q.limit(1).maybeSingle();
+        if (byName) {
+            await updateVaishnava(byName.id, data);
+            return byName.id;
+        }
+    }
+
+    // 4. Создаём нового
     const { data: created, error } = await db
         .from('vaishnavas')
         .insert({

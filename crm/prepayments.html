@@ -441,7 +441,7 @@ function renderTable() {
                 <td>${chevron}</td>
                 <td>
                     <a href="deal.html?id=${p.deal?.id}" class="hover:underline">
-                        <div class="font-medium">${e(CrmUtils.getGuestName(guest))}</div>
+                        <div class="font-medium">${CrmUtils.getGuestDualName(guest)}</div>
                         <div class="text-xs text-base-content/50">${e(guest?.phone || guest?.email || '')}</div>
                     </a>
                     ${opsSummary}
@@ -562,6 +562,11 @@ async function toggleStatus(id) {
     const p = findPayment(id);
     if (!p) return;
     const confirming = !p.is_confirmed;
+    // Один случайный клик подтверждал платёж без вопросов (ТЗ 1.13)
+    if (confirming) {
+        const кто = CrmUtils.getGuestName(p.deal?.vaishnavas);
+        if (!confirm(`${t('crm_confirm_payment_q')}\n${CrmUtils.formatMoney(p.amount, p.currency)}${кто ? ` — ${кто}` : ''}`)) return;
+    }
     // Решение ВГ (вопрос 2, 23.07.2026): подтверждать платежи может ТОЛЬКО
     // администратор финансов — автопроводка идёт от имени подтверждающего,
     // без fin_admin платёж не попадёт в учёт. Жёсткий запрет, не предупреждение;

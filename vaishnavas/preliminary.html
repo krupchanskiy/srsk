@@ -370,10 +370,13 @@
                                 <span class="sort-icon" data-sort="days">↕</span>
                             </div>
                         </th>
-                        <th class="col-plans cursor-pointer hover:bg-base-200 select-none" onclick="toggleSort('extended_stay')">
+                        <!-- «Планы до/после» убраны (ТЗ 2.2): наследие ручной системы,
+                             источник истины — статус дат в CRM. Вместо них — особые
+                             потребности из «Индивидуальных условий» сделки (ТЗ 2.3). -->
+                        <th class="col-plans cursor-pointer hover:bg-base-200 select-none" onclick="toggleSort('special_needs')">
                             <div class="flex items-center gap-1">
-                                <span data-i18n="extended_stay">Планы до/после</span>
-                                <span class="sort-icon" data-sort="extended_stay">↕</span>
+                                <span data-i18n="special_needs_col">Особые потребности</span>
+                                <span class="sort-icon" data-sort="special_needs">↕</span>
                             </div>
                         </th>
                         <th class="col-questions cursor-pointer hover:bg-base-200 select-none" onclick="toggleSort('guest_questions')">
@@ -622,6 +625,7 @@
                             <option value="prasad" data-i18n="meal_type_prasad">Прасад</option>
                             <option value="self" data-i18n="meal_type_self">Своё</option>
                             <option value="child" data-i18n="meal_type_child">Детское</option>
+                            <option value="tickets" data-i18n="meal_type_tickets">По талончикам</option>
                         </select>
                     </div>
                     <div class="sm:col-span-2">
@@ -974,7 +978,7 @@
         if (btn) { btn.classList.toggle('btn-active', isFS); btn.title = isFS ? t('normal_view') : t('fullscreen'); }
     }
     </script>
-    <script src="../js/pages/preliminary.js?v=21"></script>
+    <script src="../js/pages/preliminary.js?v=22"></script>
 
 </body>
 </html>

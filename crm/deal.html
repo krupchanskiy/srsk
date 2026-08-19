@@ -858,7 +858,8 @@ async function loadHistory() {
 // ==================== RENDER ====================
 function renderHeader() {
     document.getElementById('breadcrumbGuest').textContent = CrmUtils.getGuestName(guest);
-    document.getElementById('guestName').textContent = CrmUtils.getGuestName(guest);
+    // Паспортное имя рядом с духовным (ТЗ 1.12): по нему сопоставляются переводы
+    document.getElementById('guestName').innerHTML = CrmUtils.getGuestDualName(guest, { subClass: 'text-base opacity-60 font-normal' });
     document.getElementById('guestContact').textContent = CrmUtils.getGuestContact(guest);
 
     // Плашка статуса
@@ -3052,6 +3053,20 @@ window.addEventListener('message', async (event) => {
     document.getElementById('roomBookingIframe').src = '';
     deal.booking_id = event.data.booking_id;
     deal.room_id    = event.data.room_id;
+    // Групповая бронь видна во всех сделках группы, не только у инициатора (ТЗ 2.2).
+    // Раньше карточка второго участника не показывала номер, и менеджеры
+    // обходили это, бронируя каждому место по отдельности.
+    if (event.data.booking_id && dealMembers?.length) {
+        const ids = dealMembers.map(m => m.vaishnava_id).filter(Boolean);
+        if (ids.length) {
+            await Layout.db.from('crm_deals')
+                .update({ booking_id: event.data.booking_id })
+                .in('vaishnava_id', ids)
+                .eq('retreat_id', deal.retreat_id)
+                .neq('status', 'cancelled')
+                .is('booking_id', null);
+        }
+    }
     Layout.showNotification(t('crm_room_booked'), 'success');
     await loadPlacement();
     // Обновить историю если вкладка открыта
