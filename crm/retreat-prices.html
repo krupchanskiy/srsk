@@ -34,7 +34,7 @@
     </div>
     <p class="text-sm opacity-70 mb-4" data-i18n="crm_retreat_prices_hint">
         Стоимость ретрита в разных валютах. Цены задаются независимо, а не пересчитываются по курсу.
-        Отсюда начисления берут суммы участникам.
+        Отсюда начисления берут суммы участникам. Проживание заводится по зданию и вместимости номера.
     </p>
 
     <!-- Две под-вкладки: цены конкретного ретрита и общий транспортный справочник (ТЗ 1.1/1.2) -->
@@ -106,11 +106,36 @@
 <!-- Модалка: добавить услугу в прайс ретрита -->
 <dialog id="addModal" class="modal">
     <div class="modal-box max-w-md">
-        <h3 class="font-bold text-lg mb-3" data-i18n="crm_add_price">Добавить услугу в прайс</h3>
+        <h3 class="font-bold text-lg mb-3" data-i18n="crm_add_price">Добавить позицию в прайс</h3>
         <form id="addForm">
-            <div class="form-control mb-3">
-                <label class="label py-1"><span class="label-text" data-i18n="crm_service">Услуга</span></label>
-                <select id="addService" class="select select-bordered select-sm" required></select>
+            <!-- Позиция проживания — это здание и вместимость, а не «услуга» (замечание ВГ, 19.08) -->
+            <div class="tabs tabs-boxed tabs-xs bg-base-200 mb-3 w-fit">
+                <button type="button" class="tab tab-active" id="addKindRoom" onclick="setAddKind('room')" data-i18n="crm_price_kind_room">Проживание</button>
+                <button type="button" class="tab" id="addKindOther" onclick="setAddKind('other')" data-i18n="crm_price_kind_other">Оргвзнос / питание / другое</button>
+            </div>
+            <div id="addRoomFields">
+                <div class="grid grid-cols-3 gap-2 mb-2">
+                    <div class="form-control col-span-2">
+                        <label class="label py-1"><span class="label-text" data-i18n="crm_price_building">Здание</span></label>
+                        <select id="addBuilding" class="select select-bordered select-sm" onchange="suggestRoomName()"></select>
+                    </div>
+                    <div class="form-control">
+                        <label class="label py-1"><span class="label-text" data-i18n="crm_price_capacity">Мест</span></label>
+                        <input type="number" id="addCapacity" class="input input-bordered input-sm" min="1" max="12" value="2" oninput="suggestRoomName()">
+                    </div>
+                </div>
+                <div class="form-control mb-2">
+                    <label class="label py-1"><span class="label-text" data-i18n="crm_price_name">Название позиции</span></label>
+                    <input type="text" id="addRoomName" class="input input-bordered input-sm" oninput="this.dataset.touched='1'">
+                </div>
+                <div class="form-control mb-3">
+                    <label class="label py-1"><span class="label-text text-xs opacity-60" data-i18n="crm_price_pattern">Номера комнат (если в здании несколько тарифов одной вместимости), напр. %Girigaj%</span></label>
+                    <input type="text" id="addPattern" class="input input-bordered input-sm" placeholder="—">
+                </div>
+            </div>
+            <div class="form-control mb-3 hidden" id="addServiceWrap">
+                <label class="label py-1"><span class="label-text" data-i18n="crm_service">Позиция</span></label>
+                <select id="addService" class="select select-bordered select-sm"></select>
             </div>
             <div class="grid grid-cols-2 gap-2 mb-3">
                 <div class="form-control">
@@ -162,8 +187,8 @@ const canEdit = () => editAllowed;
 async function loadRefs() {
     const [r, s, b] = await Promise.all([
         Layout.db.from('retreats').select('id, name_ru, name_en, start_date, end_date').order('start_date', { ascending: false }),
-        Layout.db.from('crm_services').select('id, code, name_ru, name_en, category, unit, default_price, building_id, room_capacity').eq('is_active', true).order('sort_order'),
-        Layout.db.from('buildings').select('id, name_ru, name_en, name_hi')
+        Layout.db.from('crm_services').select('id, code, name_ru, name_en, category, unit, default_price, building_id, room_capacity, room_number_pattern').eq('is_active', true).order('sort_order'),
+        Layout.db.from('buildings').select('id, name_ru, name_en, name_hi, is_temporary, sort_order').eq('is_active', true).order('is_temporary').order('sort_order')
     ]);
     retreats = r.data || [];
     services = s.data || [];
@@ -182,10 +207,22 @@ async function loadRefs() {
 }
 
 function buildingLabel(sv) {
-    if (!sv?.building_id) return '';
-    const b = buildings.find(x => x.id === sv.building_id);
-    const мест = sv.room_capacity ? ` · ${sv.room_capacity} ${t('crm_price_capacity').toLowerCase()}` : '';
-    return b ? `<div class="text-xs opacity-50">${e(Layout.getName(b))}${мест}</div>` : '';
+    if (!sv || sv.category !== 'accommodation') return '';
+    if (!canEdit()) {
+        const b = buildings.find(x => x.id === sv.building_id);
+        const мест = sv.room_capacity ? ` · ${sv.room_capacity} ${t('crm_price_capacity').toLowerCase()}` : '';
+        return b ? `<div class="text-xs opacity-50">${e(Layout.getName(b))}${мест}</div>` : `<div class="text-xs text-warning">${t('crm_price_no_building')}</div>`;
+    }
+    // Редактору — селект здания и вместимость прямо в строке
+    return `<div class="flex items-center gap-1 mt-0.5">
+        <select class="select select-xs select-bordered ${sv.building_id ? '' : 'border-warning'}" data-svc="${sv.id}" data-svcfield="building_id">
+            <option value="">${t('crm_price_no_building')}</option>
+            ${buildings.map(b => `<option value="${b.id}" ${b.id === sv.building_id ? 'selected' : ''}>${e(Layout.getName(b))}</option>`).join('')}
+        </select>
+        <input type="number" class="input input-xs input-bordered w-14" data-svc="${sv.id}" data-svcfield="room_capacity"
+               value="${sv.room_capacity ?? ''}" min="1" max="12" title="${t('crm_price_capacity')}">
+        ${sv.room_number_pattern ? `<span class="text-xs opacity-50" title="${t('crm_price_pattern')}">${e(sv.room_number_pattern)}</span>` : ''}
+    </div>`;
 }
 
 function switchPricesTab(tab) {
@@ -309,22 +346,81 @@ async function deletePrice(id) {
     await loadPrices();
 }
 
+let addKind = 'room';
+
+function setAddKind(kind) {
+    addKind = kind;
+    document.getElementById('addKindRoom').classList.toggle('tab-active', kind === 'room');
+    document.getElementById('addKindOther').classList.toggle('tab-active', kind === 'other');
+    document.getElementById('addRoomFields').classList.toggle('hidden', kind !== 'room');
+    document.getElementById('addServiceWrap').classList.toggle('hidden', kind !== 'other');
+    document.getElementById('addService').required = kind === 'other';
+}
+
+function suggestRoomName() {
+    const b = buildings.find(x => x.id === document.getElementById('addBuilding').value);
+    const n = Number(document.getElementById('addCapacity').value) || 0;
+    const input = document.getElementById('addRoomName');
+    if (!input.dataset.touched && b) input.value = `${Layout.getName(b)}, ${n}-местный`;
+}
+
 function openAddModal() {
+    // Здания — все активные, включая временные гостиницы; новая гостиница
+    // появляется здесь сразу после заведения в «Проживании»
+    document.getElementById('addBuilding').innerHTML =
+        buildings.map(b => `<option value="${b.id}">${e(Layout.getName(b))}</option>`).join('');
+    // Остальные позиции (оргвзнос, питание, доп. кровать, сим-карта…) — из справочника
     const used = new Set(prices.map(p => p.service_id));
-    const free = services.filter(s => !used.has(s.id) && s.category !== 'transport');
-    if (!free.length) { Layout.showNotification(t('crm_all_services_priced'), 'error'); return; }
+    const free = services.filter(s => !used.has(s.id) && s.category !== 'transport' && s.category !== 'accommodation');
     document.getElementById('addService').innerHTML =
         free.map(s => `<option value="${s.id}">${e(Layout.getName(s))}</option>`).join('');
-    ['addInr', 'addRub', 'addUsd', 'addEur', 'addNote'].forEach(id => document.getElementById(id).value = '');
+    ['addInr', 'addRub', 'addUsd', 'addEur', 'addNote', 'addPattern'].forEach(id => document.getElementById(id).value = '');
+    const имя = document.getElementById('addRoomName');
+    имя.value = ''; delete имя.dataset.touched;
+    setAddKind('room');
+    suggestRoomName();
     document.getElementById('addModal').showModal();
+}
+
+// Услуга проживания создаётся сама по зданию и вместимости (или берётся уже
+// существующая с той же привязкой) — менеджеру не нужно лезть в справочник
+async function ensureRoomService() {
+    const building_id = document.getElementById('addBuilding').value;
+    const room_capacity = Number(document.getElementById('addCapacity').value) || null;
+    const room_number_pattern = document.getElementById('addPattern').value.trim() || null;
+    const name = document.getElementById('addRoomName').value.trim();
+    if (!building_id || !room_capacity || !name) {
+        Layout.showNotification(t('crm_price_building') + ' + ' + t('crm_price_capacity'), 'warning');
+        return null;
+    }
+    const найденная = services.find(s => s.category === 'accommodation'
+        && s.building_id === building_id && s.room_capacity === room_capacity
+        && (s.room_number_pattern || null) === room_number_pattern);
+    if (найденная) {
+        if (prices.some(p => p.service_id === найденная.id)) {
+            Layout.showNotification(t('crm_all_services_priced'), 'error');
+            return null;
+        }
+        return найденная.id;
+    }
+    const { data, error } = await Layout.db.from('crm_services').insert({
+        code: `room_${Date.now()}`, name_ru: name, name_en: name,
+        category: 'accommodation', unit: 'piece', is_active: true, sort_order: 60,
+        building_id, room_capacity, room_number_pattern
+    }).select('id, code, name_ru, name_en, category, unit, default_price, building_id, room_capacity, room_number_pattern').single();
+    if (error) { Layout.handleError(error, t('save')); return null; }
+    services.push(data);
+    return data.id;
 }
 
 async function submitAdd(ev) {
     ev.preventDefault();
     const num = id => { const v = document.getElementById(id).value.trim(); return v === '' ? null : Number(v); };
+    const service_id = addKind === 'room' ? await ensureRoomService() : document.getElementById('addService').value;
+    if (!service_id) return;
     const { error } = await Layout.db.from('crm_retreat_prices').insert({
         retreat_id: document.getElementById('retreatSelect').value,
-        service_id: document.getElementById('addService').value,
+        service_id,
         price: num('addInr'),
         price_rub: num('addRub'), price_usd: num('addUsd'), price_eur: num('addEur'),
         note: document.getElementById('addNote').value.trim() || null,
@@ -333,6 +429,17 @@ async function submitAdd(ev) {
     if (error) { Layout.handleError(error, t('save')); return; }
     document.getElementById('addModal').close();
     await loadPrices();
+}
+
+// Привязка позиции к зданию правится прямо в таблице — так позицию, заведённую
+// до этой доработки, можно довязать к гостинице без пересоздания
+async function saveServiceLink(serviceId, field, value) {
+    const patch = { [field]: field === 'room_capacity' ? (Number(value) || null) : (value || null) };
+    const { error } = await Layout.db.from('crm_services').update(patch).eq('id', serviceId);
+    if (error) { Layout.handleError(error, t('save')); return; }
+    const sv = services.find(x => x.id === serviceId);
+    if (sv) Object.assign(sv, patch);
+    renderTable();
 }
 
 async function init() {
@@ -347,6 +454,10 @@ async function init() {
         const input = ev.target.closest('[data-field]');
         const row = ev.target.closest('[data-price]');
         if (input && row) saveCell(row, input);
+    });
+    document.getElementById('pricesBody').addEventListener('change', ev => {
+        const link = ev.target.closest('[data-svcfield]');
+        if (link) saveServiceLink(link.dataset.svc, link.dataset.svcfield, link.value);
     });
     document.getElementById('pricesBody').addEventListener('click', ev => {
         const btn = ev.target.closest('[data-action="del"]');
