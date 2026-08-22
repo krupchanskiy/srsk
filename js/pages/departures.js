@@ -110,9 +110,9 @@ async function loadRegistrations() {
     if (vaishnavaIds.length > 0) {
         const resResult = await Layout.db
             .from('residents')
-            .select('vaishnava_id, room_id, retreat_id, check_in, check_out, rooms(number, buildings(id, name_ru, name_en, name_hi))')
+            .select('id, vaishnava_id, room_id, retreat_id, check_in, check_out, arrived_at, status, rooms(number, buildings(id, name_ru, name_en, name_hi))')
             .in('vaishnava_id', vaishnavaIds)
-            .eq('status', 'confirmed');
+            .in('status', ['confirmed', 'active', 'checked_out']);
 
         if (resResult.data) {
             // У человека может быть и прошлый визит, и нынешний — берём размещение этого ретрита
@@ -122,7 +122,7 @@ async function loadRegistrations() {
                 лучшее.set(r.vaishnava_id, Utils.pickResident(лучшее.get(r.vaishnava_id), r, { retreatId }));
             });
             лучшее.forEach((r, id) => {
-                residentsMap.set(id, r.room_id ? {
+                residentsMap.set(id, Object.assign(r.room_id ? {
                     roomNumber: r.rooms.number,
                     buildingName: Layout.getName(r.rooms.buildings),
                     buildingId: r.rooms.buildings.id,
@@ -133,7 +133,7 @@ async function loadRegistrations() {
                     buildingName: null,
                     buildingId: 'self',
                     isSelfAccommodation: true
-                });
+                }, { residentId: r.id, arrivedAt: r.arrived_at, status: r.status, vaishnavaId: r.vaishnava_id }));
             });
         }
     }
@@ -388,7 +388,61 @@ function getFilteredRegistrations() {
         });
     }
 
+    // Статус проживания: проживает / выехал (ВГ, 20.08)
+    const stayStatus = document.getElementById('stayStatusFilter')?.value || 'all';
+    if (stayStatus !== 'all') {
+        filtered = filtered.filter(reg => {
+            const acc = reg.vaishnava_id ? residentsMap.get(reg.vaishnava_id) : null;
+            const left = acc?.status === 'checked_out';
+            return stayStatus === 'left' ? left : (!!acc && !left);
+        });
+    }
+
+    // «С даты»: этот день и все последующие; без времени — остаются
+    const fromDate = document.getElementById('fromDateFilter')?.value;
+    if (fromDate) {
+        filtered = filtered.filter(reg => {
+            const dep = (reg.guest_transfers || []).find(t => t.direction === 'departure');
+            if (!dep?.flight_datetime) return true;
+            return toLocalDateStr(addHours(dep.flight_datetime, -7)) >= fromDate;
+        });
+    }
+
     return filtered;
+}
+
+// «Выехал» прямо отсюда — тот же статус, что ставит шахматка при выселении.
+// Долг проверяем свежим запросом, как и там: выпускать должника молча нельзя.
+async function markCheckedOut(residentId) {
+    if (!window.hasPermission?.('edit_timeline')) return;
+    const acc = [...residentsMap.values()].find(a => a.residentId === residentId);
+    if (acc?.vaishnavaId && retreatId) {
+        const { data: hasDebt } = await Layout.db.rpc('fin_has_debt', { p_participant: acc.vaishnavaId, p_retreat: retreatId });
+        if (hasDebt === true && !confirm(t('timeline_debt_warning'))) return;
+    }
+    if (!confirm(t('stay_check_out_confirm'))) return;
+    const { error } = await Layout.db.from('residents')
+        .update({ status: 'checked_out' })
+        .eq('id', residentId);
+    if (error) { Layout.handleError(error, t('stay_check_out_btn')); return; }
+    if (acc) acc.status = 'checked_out';
+    renderTable();
+    Layout.showNotification(t('stay_status_left') + ' ✓', 'success');
+}
+
+function stayStatusCell(reg) {
+    const acc = reg.vaishnava_id ? residentsMap.get(reg.vaishnava_id) : null;
+    if (!acc || acc.isSelfAccommodation) return `<td class="text-sm opacity-40">—</td>`;
+    if (acc.status === 'checked_out') {
+        return `<td class="text-sm"><span class="badge badge-ghost badge-sm">${t('stay_status_left')}</span></td>`;
+    }
+    if (!acc.arrivedAt) {
+        return `<td class="text-sm"><span class="badge badge-warning badge-sm">${t('stay_status_expected')}</span></td>`;
+    }
+    const can = window.hasPermission?.('edit_timeline');
+    return `<td class="text-sm">${can
+        ? `<button class="btn btn-xs btn-outline" onclick="event.stopPropagation(); markCheckedOut('${acc.residentId}')">${t('stay_check_out_btn')}</button>`
+        : `<span class="badge badge-success badge-sm">${t('stay_status_staying')}</span>`}</td>`;
 }
 
 // ==================== RENDER ====================
@@ -478,6 +532,7 @@ function renderRow(reg) {
                 <div>${flightTime ? formatDateTime(flightTime) : '—'}</div>
             </td>
             <td class="text-sm ${accommodation?.isSelfAccommodation ? 'bg-error/20 font-medium text-error' : (accommodation ? 'bg-success/20 font-medium' : '')}">${accommodation?.isSelfAccommodation ? Layout.t('self_accommodation') : (accommodation ? `${accommodation.buildingName}, ${accommodation.roomNumber}` : '—')}</td>
+            ${stayStatusCell(reg)}
             <td class="text-sm">${contactsHtml || '—'}</td>
         </tr>
     `;
@@ -635,6 +690,7 @@ function renderTable() {
                                 <th class="text-center">${t('departure_from_srsc')}</th>
                                 <th class="text-center">${t('flight_departure')}</th>
                                 <th>${t('accommodation')}</th>
+                                <th>${t('stay_status')}</th>
                                 <th>${t('contacts')}</th>
                             </tr>
                         </thead>
@@ -670,6 +726,7 @@ function renderTable() {
                                 <th class="text-center">${t('departure_from_srsc')}</th>
                                 <th class="text-center">${t('flight_departure')}</th>
                                 <th>${t('accommodation')}</th>
+                                <th>${t('stay_status')}</th>
                                 <th>${t('contacts')}</th>
                             </tr>
                         </thead>
@@ -837,6 +894,7 @@ async function cancelTaxi(transferId) {
 async function init() {
     await Layout.init({ module: 'housing', menuId: 'placement', itemId: 'departures' });
     initStatsState();
+    document.getElementById('fromDateFilter').value = toLocalDateStr(new Date());
     Layout.showLoader();
     await loadRetreats();
     Layout.hideLoader();

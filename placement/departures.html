@@ -99,6 +99,16 @@
             <select id="buildingFilter" class="select select-bordered w-64" onchange="onBuildingChange(this.value)">
                 <option value="all" data-i18n="all_buildings">Все гостиницы</option>
             </select>
+            <!-- С даты: этот день и все последующие (ВГ, 20.08) -->
+            <label class="flex items-center gap-2">
+                <span class="text-sm opacity-60 whitespace-nowrap" data-i18n="from_date">С даты</span>
+                <input type="date" id="fromDateFilter" class="input input-bordered w-40" onchange="renderTable()">
+            </label>
+            <select id="stayStatusFilter" class="select select-bordered w-44" onchange="renderTable()">
+                <option value="all" data-i18n="stay_status_all">Все</option>
+                <option value="staying" data-i18n="stay_status_staying">Проживают</option>
+                <option value="left" data-i18n="stay_status_left">Выехали</option>
+            </select>
         </div>
 
         <!-- Table -->
@@ -175,8 +185,8 @@
     <script src="../js/translit.js"></script>
     <script src="../js/auto-translate.js"></script>
     <script src="../js/date-utils.js?v=4"></script>
-    <script src="../js/layout.js?v=54"></script>
-    <script src="../js/pages/departures.js?v=3"></script>
+    <script src="../js/layout.js?v=55"></script>
+    <script src="../js/pages/departures.js?v=4"></script>
 
 </body>
 </html>
