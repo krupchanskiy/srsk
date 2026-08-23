@@ -155,6 +155,17 @@ async function openCard(pid) {
     document.getElementById('cardModal').showModal();
     closeCharge(); closePayment();
     renderCardRates();
+    // Начисления подтягиваются из CRM сами при открытии (ТЗ 3.1, сценарий 1);
+    // кнопка «Обновить из CRM» остаётся для принудительного пересчёта
+    if (window.hasPermission?.('fin_admin')) {
+        const { data: res } = await Layout.db.rpc('fin_sync_charges_from_crm',
+            { p_participant: card.id, p_retreat: currentRetreat });
+        if (res?.ok && ((res.result?.created || 0) + (res.result?.updated || 0)) > 0) {
+            await loadParticipants();
+            const fresh = participants.find(x => x.participant_id === card.id);
+            if (fresh) renderCardBlocks(fresh.balance);
+        }
+    }
     loadCardCrmInfo();
     await Promise.all([loadCardCharges(), loadCardPayments()]);
 }
@@ -196,11 +207,30 @@ async function loadCardCrmInfo() {
             ${e(blockLabel(x.k))}: ${e(x.term.type)}${x.term.percent ? ' ' + x.term.percent + '%' : ''}${x.term.reason ? ` · ${e(x.term.reason)}` : ''}
         </span>`).join(' ');
     const d = calc.dates;
+    const деньги = vals => !vals ? '—' : [['INR','₹'],['RUB','₽'],['USD','$'],['EUR','€']]
+        .filter(([c]) => vals[c] != null).map(([c, s]) => `${Number(vals[c]).toLocaleString('ru-RU')} ${s}`).join(' / ') || '—';
+    const блок = (k, назв) => {
+        const b = calc.blocks?.[k];
+        if (!b) return '';
+        const срок = b.during && Number(b.between?.nights ?? b.between?.days) > 0
+            ? `<div class="text-[11px] opacity-60 pl-2">${t('fin_during_retreat')}: ${b.during.nights ?? b.during.days} · ${деньги(b.during)}<br>${t('fin_outside_retreat')}: ${b.between.nights ?? b.between.days} · ${деньги(b.between)}${b.between.discount_percent ? ` (−${b.between.discount_percent}%)` : ''}</div>` : '';
+        const усл = b.term ? `<span class="badge badge-warning badge-xs ml-1" title="${e(b.term.reason || '')}">${e(b.term.type)}${b.term.percent ? ' ' + b.term.percent + '%' : ''}</span>` : '';
+        return `<div class="py-0.5 border-b border-base-200/60 last:border-0">
+            <div class="flex justify-between gap-2 text-xs">
+                <span class="opacity-60">${назв}${усл}</span>
+                <span class="font-mono text-right ${b.term ? 'text-amber-700 font-semibold' : ''}">${деньги(b.final)}</span>
+            </div>${срок}${b.note ? `<div class="text-[11px] text-warning pl-2">${e(b.note)}</div>` : ''}
+        </div>`;
+    };
     if (el) el.innerHTML = `
-        <div class="flex flex-wrap items-center gap-2 text-xs">
-            <span class="opacity-60">${t('fin_calc_dates')}: <b>${DateUtils.formatShort(DateUtils.parseDate(d.check_in))} — ${DateUtils.formatShort(DateUtils.parseDate(d.check_out))}</b>
-                (${d.nights_total} ноч.${Number(d.nights_between) > 0 ? `, из них ${d.nights_between} вне ретрита` : ''})${d.building ? ` · ${e(d.building)}` : ''}</span>
-            ${метки}
+        <div class="bg-base-200/40 rounded-lg px-2.5 py-1.5">
+            <div class="flex flex-wrap items-center gap-2 text-[11px] uppercase tracking-wide opacity-50 mb-0.5">
+                <span>${t('fin_crm_terms_info')} · <span class="normal-case">${DateUtils.formatShort(DateUtils.parseDate(d.check_in))} — ${DateUtils.formatShort(DateUtils.parseDate(d.check_out))}, ${d.nights_total} ноч.${d.building ? ` · ${e(d.building)}${d.room ? ' №' + e(String(d.room)) : ''}` : ''}</span></span>
+            </div>
+            ${блок('org_fee', blockLabel('org_fee'))}
+            ${блок('accommodation', blockLabel('accommodation'))}
+            ${блок('meals', blockLabel('meals'))}
+            ${метки ? `<div class="mt-1">${метки}</div>` : ''}
         </div>`;
 }
 
@@ -248,20 +278,24 @@ function renderCardBlocks(b) {
         </div>`;
 }
 
+let cardChargesById = {};
 async function loadCardCharges() {
     const { data, error } = await Layout.db.from('fin_v_charges').select('*')
         .eq('participant_id', card.id).eq('retreat_id', currentRetreat)
         .order('created_at');
     if (error) { Layout.handleError(error, 'Начисления'); return; }
+    cardChargesById = Object.fromEntries((data || []).map(c => [c.id, c]));
     const isAdmin = window.hasPermission?.('fin_admin');
     document.getElementById('cardCharges').innerHTML = (data || []).map(c => `
-        <tr class="${c.is_cancelled ? 'opacity-60 line-through' : ''}">
+        <tr class="${c.is_cancelled ? 'opacity-60 line-through' : ''} ${!c.is_cancelled && Number(c.discount_amount) > 0 ? 'bg-amber-50' : ''}">
             <td>${e(blockLabel(c.kind))}</td>
-            <td>${e(c.description || '')}${c.quantity != 1 ? ` <span class="opacity-70">(${c.quantity} × ${FinUtils.fmtMoney(c.unit_price, 'INR')})</span>` : ''}${c.is_cancelled ? ` <span class="badge badge-ghost badge-xs no-underline">${t('fin_cancelled')}</span>${c.cancelled_reason ? `<div class="text-xs opacity-60">${t('fin_reason')}: ${e(c.cancelled_reason)}</div>` : ''}` : ''}${c.creation_reason === 'crm_auto' ? ` <span class="badge badge-info badge-xs no-underline">CRM</span>` : c.creation_reason ? `<div class="text-xs opacity-60">${t('fin_post_close_reason')}: ${e(c.creation_reason)}</div>` : ''}${Number(c.discount_amount) > 0 && (c.discount_reason || c.agreed_with) ? `<div class="text-xs opacity-60">${e(c.discount_reason || '')}${c.agreed_with ? ` · ${t('fin_agreed_with').toLowerCase()}: ${e(c.agreed_with)}` : ''}</div>` : ''}</td>
+            <td>${e(c.description || '')}${c.quantity != 1 ? ` <span class="opacity-70">(${c.quantity} × ${FinUtils.fmtMoney(c.unit_price, 'INR')})</span>` : ''}${c.is_cancelled ? ` <span class="badge badge-ghost badge-xs no-underline">${t('fin_cancelled')}</span>${c.cancelled_reason ? `<div class="text-xs opacity-60">${t('fin_reason')}: ${e(c.cancelled_reason)}</div>` : ''}` : ''}${c.creation_reason === 'crm_auto' ? ` <span class="badge badge-info badge-xs no-underline">CRM</span>` : c.creation_reason?.startsWith('Перерасчёт') ? `<div class="text-xs text-amber-700">${e(c.creation_reason)}</div>` : c.creation_reason ? `<div class="text-xs opacity-60">${t('fin_post_close_reason')}: ${e(c.creation_reason)}</div>` : ''}${Number(c.discount_amount) > 0 && (c.discount_reason || c.agreed_with) ? `<div class="text-xs opacity-60">${e(c.discount_reason || '')}${c.agreed_with ? ` · ${t('fin_agreed_with').toLowerCase()}: ${e(c.agreed_with)}` : ''}</div>` : ''}</td>
             <td class="text-right font-mono">${FinUtils.fmtMoney(c.amount, 'INR')}</td>
             <td class="text-right font-mono">${Number(c.discount_amount) > 0 ? FinUtils.fmtMoney(c.discount_amount, 'INR') : '—'}</td>
             <td class="text-right font-mono font-semibold">${FinUtils.fmtMoney(c.net_amount, 'INR')}</td>
-            <td class="text-right">${!c.is_cancelled && isAdmin ? `<button class="btn btn-ghost btn-xs text-error" data-cancel-charge="${c.id}" data-desc="${e(c.description || blockLabel(c.kind))}" title="${t('fin_cancel_charge')}">
+            <td class="text-right whitespace-nowrap">${!c.is_cancelled && isAdmin ? `<button class="btn btn-ghost btn-xs" data-recalc-charge="${c.id}" title="${t('fin_recalc')}">
+                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="w-4 h-4"><path stroke-linecap="round" stroke-linejoin="round" d="M16.862 4.487l1.687-1.688a1.875 1.875 0 112.652 2.652L10.582 16.07a4.5 4.5 0 01-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 011.13-1.897l8.932-8.931z"/></svg>
+            </button>` : ''}${!c.is_cancelled && isAdmin ? `<button class="btn btn-ghost btn-xs text-error" data-cancel-charge="${c.id}" data-desc="${e(c.description || blockLabel(c.kind))}" title="${t('fin_cancel_charge')}">
                 <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="w-4 h-4"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12"/></svg>
             </button>` : ''}</td>
         </tr>`).join('') || `<tr><td colspan="6" class="text-center py-3 opacity-60">${t('fin_no_charges')}</td></tr>`;
@@ -445,11 +479,51 @@ function openCharge() {
 
 function closeCharge() {
     document.getElementById('chargeSection')?.classList.add('hidden');
+    recalcSource = null;
+    document.getElementById('chargeRecalcWrap')?.classList.add('hidden');
+}
+
+// «Перерасчёт» (ТЗ 3.1, сценарий 3): не тихая замена числа, а видимая запись
+// «было → стало» — старая строка отменяется с причиной, новая добавляется
+let recalcSource = null;
+function openRecalc(chargeId) {
+    const c = cardChargesById[chargeId];
+    if (!c) return;
+    openCharge();
+    recalcSource = c;
+    const row = document.querySelector('#chargeRows .chg-row');
+    row.querySelector('.chg-kind').value = c.kind;
+    row.querySelector('.chg-kind').dispatchEvent(new Event('change'));
+    const desc = row.querySelector('.chg-desc');
+    desc.value = c.description || ''; desc.dataset.touched = '1';
+    row.querySelector('.chg-qty').value = c.quantity;
+    row.querySelector('.chg-price').value = c.unit_price;
+    row.querySelector('.chg-discount').value = Number(c.discount_amount) > 0 ? c.discount_amount : '';
+    row.querySelector('.chg-discount').dispatchEvent(new Event('input'));
+    row.querySelector('.chg-discount-reason').value = c.discount_reason || '';
+    row.querySelector('.chg-qty').dispatchEvent(new Event('input'));
+    const wrap = document.getElementById('chargeRecalcWrap');
+    wrap.classList.remove('hidden');
+    document.getElementById('chargeRecalcReason').value = '';
+    document.getElementById('chargeRecalcWas').textContent =
+        `${t('fin_recalc')}: ${e(c.description || blockLabel(c.kind))} — ${FinUtils.fmtMoney(c.net_amount, 'INR')}`;
+    document.getElementById('chargeRecalcReason').focus();
 }
 
 async function submitCharge(ev) {
     ev.preventDefault();
-    const reason = document.getElementById('chargeReason').value || null;
+    let reason = document.getElementById('chargeReason').value || null;
+    let причинаПерерасчёта = null;
+    if (recalcSource) {
+        причинаПерерасчёта = document.getElementById('chargeRecalcReason').value.trim();
+        if (!причинаПерерасчёта) {
+            Layout.showNotification(t('fin_recalc_reason'), 'warning');
+            document.getElementById('chargeRecalcReason').focus();
+            return;
+        }
+        // Кто и почему — в самой строке, видно в истории без раскопок
+        reason = `Перерасчёт: ${причинаПерерасчёта} (было ${FinUtils.fmtMoney(recalcSource.net_amount, 'INR')})`;
+    }
     const rows = [...document.querySelectorAll('#chargeRows .chg-row')].map(row => ({
         id: FinUtils.newRequestId(),
         participant_id: row.querySelector('.chg-person-id').value,
@@ -471,6 +545,15 @@ async function submitCharge(ev) {
         return;
     }
     const res = await FinUtils.rpc('fin_create_charge', { rows });
+    if (res?.ok && recalcSource) {
+        // Новая строка уже есть — теперь отменяем старую с записью «было → стало»
+        const новая = rows[0];
+        const стало = Math.max(Number(новая.quantity) * Number(новая.unit_price) - Number(новая.discount_amount || 0), 0);
+        await FinUtils.rpc('fin_cancel_charge', {
+            charge_id: recalcSource.id,
+            reason: `Перерасчёт: было ${FinUtils.fmtMoney(recalcSource.net_amount, 'INR')} → стало ${FinUtils.fmtMoney(стало, 'INR')}. ${причинаПерерасчёта}`
+        });
+    }
     if (res?.error?.code === 'post_close_reason_required') {
         // ретрит закрыт: показываем поле причины и ведём к нему фокус,
         // чтобы новое поле не осталось незамеченным под тостом ошибки
@@ -498,7 +581,7 @@ function payCurrencyOptions(selected) {
 }
 
 function payRowHtml(idx) {
-    const валюта = 'INR';
+    const валюта = document.getElementById('payBaseCurrency')?.value || 'INR';
     return `
     <div class="border border-base-300 rounded-lg p-3 mb-2 pay-row" data-idx="${idx}">
         <!-- Три колонки, а не пять: в модалке пять полей сжимаются и подписи обрезаются -->
@@ -563,6 +646,8 @@ function openPayment() {
     document.getElementById('payComment').value = '';
     document.getElementById('payPayerId').value = card.id;
     document.getElementById('payPayerName').textContent = card.name;
+    const base = document.getElementById('payBaseCurrency');
+    if (base) { base.innerHTML = payCurrencyOptions('INR'); base.value = 'INR'; }
     document.getElementById('payRows').innerHTML = '';
     addPayRow();
     updatePayRunningTotal();
@@ -675,13 +760,24 @@ async function submitPayment(ev) {
     }
 }
 
-// Живой пересчёт строк в опорную валюту (первой строки) по курсу ретрита (ТЗ 3.3)
+// Опорная валюта всего платежа: «сегодня гость платит в долларах» — новые
+// строки и остаток считаются в ней; строку можно перевести в другую валюту точечно
+function onBaseCurrencyChange() {
+    const cur = document.getElementById('payBaseCurrency').value;
+    document.querySelectorAll('#payRows .pay-row').forEach(row => {
+        row.querySelector('.pay-currency').value = cur;
+        onPayCurrencyChange(row);
+    });
+    updatePayRunningTotal();
+}
+
+// Живой пересчёт строк в опорную валюту по курсу ретрита (ТЗ 3.3)
 function updatePayRunningTotal() {
     const el = document.getElementById('payRunningTotal');
     if (!el) return;
     const rows = [...document.querySelectorAll('#payRows .pay-row')];
     if (!rows.length) { el.innerHTML = ''; return; }
-    const опорная = rows[0].querySelector('.pay-currency').value;
+    const опорная = document.getElementById('payBaseCurrency')?.value || rows[0].querySelector('.pay-currency').value;
     const кОпорной = c => (retreatRates[c] || 1) / (retreatRates[опорная] || 1);
     let итог = 0;
     const поВалютам = {};
@@ -699,8 +795,22 @@ function updatePayRunningTotal() {
     const остаток = Number(p?.balance?.net) || 0;
     const остатокОпорной = остаток * кОпорной('INR');
     const после = остатокОпорной - итог;
-    el.innerHTML = `${t('fin_running_total')}: <b>${детали}</b> ≈ ${FinUtils.fmtMoney(итог, опорная)}`
-        + (остаток > 0 ? ` · ${t('fin_remaining_after')}: <b class="${после > 0.01 ? 'text-error' : 'text-success'}">${FinUtils.fmtMoney(Math.max(после, 0), опорная)}</b>` : '');
+    // Переплата показывается суммой, а не нулём — её можно перенести на другой блок (ТЗ 3.2)
+    const хвост = остаток > 0
+        ? (после > 0.01
+            ? ` · ${t('fin_remaining_after')}: <b class="text-error">${FinUtils.fmtMoney(после, опорная)}</b>`
+            : после < -0.01
+                ? ` · ${t('fin_overpaid')}: <b class="text-success">${FinUtils.fmtMoney(-после, опорная)}</b>`
+                : ` · <b class="text-success">0</b>`)
+        : (итог > 0 ? ` · ${t('fin_overpaid')}: <b class="text-success">${FinUtils.fmtMoney(итог, опорная)}</b>` : '');
+    el.innerHTML = `${t('fin_running_total')}: <b>${детали}</b> ≈ ${FinUtils.fmtMoney(итог, опорная)}${хвост}`;
+    // Та же сводка видна над кнопкой «Сохранить» — глазами, до подтверждения (п. 8)
+    const чек = document.getElementById('paySummaryLine');
+    if (чек) chек_set(чек, детали, итог, опорная);
+}
+function chек_set(el, детали, итог, опорная) {
+    const людей = new Set([...document.querySelectorAll('#payRows .pay-row')].map(r => r.querySelector('.pay-person-id')?.value || 'me')).size;
+    el.textContent = `${t('fin_pay_total_check')}: ${детали}${людей > 1 ? ' ' + t('fin_for_n_people').replace('{n}', людей) : ''}`;
 }
 
 // ==================== ФОРМА: ВОЗВРАТ ====================
@@ -791,7 +901,9 @@ async function init() {
         const refundBtn = ev.target.closest('[data-refund]');
         if (refundBtn) { openRefund(refundBtn.dataset.refund); return; }
         const cancelBtn = ev.target.closest('[data-cancel-charge]');
-        if (cancelBtn) openCancelCharge(cancelBtn.dataset.cancelCharge, cancelBtn.dataset.desc);
+        if (cancelBtn) { openCancelCharge(cancelBtn.dataset.cancelCharge, cancelBtn.dataset.desc); return; }
+        const recalcBtn = ev.target.closest('[data-recalc-charge]');
+        if (recalcBtn) openRecalc(recalcBtn.dataset.recalcCharge);
     });
 
     // Панель: поиск, фильтр-чипы, сортировка
@@ -838,6 +950,6 @@ async function copySummary() {
     Layout.showNotification(ok ? t('fin_copied') : t('fin_copy_failed'), ok ? 'success' : 'error');
 }
 
-window.FinParticipants = { openCharge, closeCharge, openPayment, closePayment, addChargeRow, addPayRow, addOtherParticipantRow, syncFromCrm, copySummary };
+window.FinParticipants = { openCharge, closeCharge, openPayment, closePayment, addChargeRow, addPayRow, addOtherParticipantRow, syncFromCrm, copySummary, openRecalc, onBaseCurrencyChange };
 init();
 })();

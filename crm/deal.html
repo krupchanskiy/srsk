@@ -1452,7 +1452,13 @@ function renderDealTerms() {
                 <select class="select select-bordered select-xs term-currency ${тип === 'fixed' ? '' : 'hidden'}">
                     ${['INR','RUB','USD','EUR'].map(c => `<option value="${c}" ${term?.currency === c ? 'selected' : ''}>${c}</option>`).join('')}
                 </select>
-                <input type="text" class="input input-bordered input-xs flex-1 min-w-40 term-reason ${тип === 'full' ? 'hidden' : ''}"
+                ${['accommodation', 'meals'].includes(block) ? `
+                <label class="flex items-center gap-1 text-xs opacity-70 whitespace-nowrap" title="${t('crm_terms_between_pct')}">
+                    ${t('crm_between_retreats')}
+                    <input type="number" class="input input-bordered input-xs w-14 term-between" min="0" max="100" placeholder="−%"
+                           value="${term?.between_percent ?? ''}">%
+                </label>` : ''}
+                <input type="text" class="input input-bordered input-xs flex-1 min-w-40 term-reason ${тип === 'full' && term?.between_percent == null ? 'hidden' : ''}"
                        placeholder="${t('crm_terms_reason')}" value="${e(term?.reason || '')}">
             </div>
             ${тип !== 'full' && term?.manager_id && managers?.length
@@ -1493,8 +1499,12 @@ async function onTermChange(ev) {
     wrap.querySelector('.term-currency').classList.toggle('hidden', тип !== 'fixed');
     wrap.querySelector('.term-reason').classList.toggle('hidden', тип === 'full');
 
-    if (тип === 'full') {
-        // Возврат к полной цене — строка условий удаляется
+    const between = wrap.querySelector('.term-between')?.value.trim();
+    const betweenPct = between === '' || between == null ? null : Number(between);
+    wrap.querySelector('.term-reason').classList.toggle('hidden', тип === 'full' && betweenPct == null);
+
+    if (тип === 'full' && betweenPct == null) {
+        // Полная цена без оговорок — строка условий удаляется
         await Layout.db.from('crm_deal_terms').delete().eq('deal_id', dealId).eq('block', block);
         dealTerms = dealTerms.filter(x => x.block !== block);
         renderDealTerms();
@@ -1520,6 +1530,7 @@ async function onTermChange(ev) {
         amount: тип === 'fixed' ? (Number(wrap.querySelector('.term-amount').value) || null) : null,
         currency: тип === 'fixed' ? wrap.querySelector('.term-currency').value : null,
         reason: причина,
+        between_percent: ['accommodation', 'meals'].includes(block) ? betweenPct : null,
         manager_id: deal.manager_id || window.currentUser?.vaishnava_id || null,
         updated_at: new Date().toISOString()
     };
