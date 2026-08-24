@@ -238,6 +238,8 @@ async function loadCardCrmInfo() {
         const p = participants.find(x => x.participant_id === card.id);
         if (p) renderCardBlocks(p.balance);
     }
+    // и расшифровка курсов в истории платежей: она опирается на цены из расчёта
+    if (card.payments?.length) renderCardPayments();
 }
 
 // «Подтянуть из CRM»: материализация расчёта в начисления (ТЗ 3.1, сценарий 1)
@@ -475,10 +477,33 @@ async function loadCardCharges() {
         </tr>`).join('') || `<tr><td colspan="6" class="text-center py-3 opacity-60">${t('fin_no_charges')}</td></tr>`;
 }
 
+// «Откуда он эти курсы берёт?» (ВГ, 24.08): курс платежа — не из справочника,
+// а следствие прайса CRM: питание $128 = ₹11 200 даёт 87,5. Пишем это словами,
+// иначе дробное число выглядит взятым с потолка.
+function объяснитьКурс(p) {
+    const cur = p.currency_code;
+    const rate = Number(p.rate_used);
+    const число = n => Number(n).toLocaleString('ru-RU', { maximumFractionDigits: 4 });
+    const f = cardCalc?.blocks?.[p.balance_kind]?.final;
+    if (f && Number(f[cur]) > 0 && Number(f.INR) > 0
+        && Math.abs(rate - Number(f.INR) / Number(f[cur])) < 0.01) {
+        return `${t('fin_rate_by_crm')}: ${FinUtils.fmtMoney(f[cur], cur)} = ${FinUtils.fmtMoney(f.INR, 'INR')}`;
+    }
+    if (retreatRates[cur] && Math.abs(rate - Number(retreatRates[cur])) < 0.0001) {
+        return `${t('fin_rate_by_retreat')} ${число(rate)}`;
+    }
+    if (p.source === 'crm') return `${t('fin_rate_crm_historic')} ${число(rate)}`;
+    return `${t('fin_at_rate')} ${число(rate)}`;
+}
+
 async function loadCardPayments() {
     const { data, error } = await Layout.db.rpc('fin_get_participant_payments', { p_participant: card.id, p_retreat: currentRetreat });
     if (error) { Layout.handleError(error, 'Платежи'); return; }
     card.payments = data || [];
+    renderCardPayments();
+}
+
+function renderCardPayments() {
     const isAdmin = window.hasPermission?.('fin_admin');
     const statusBadge = s => ({
         active: '',
@@ -497,7 +522,7 @@ async function loadCardPayments() {
             <td class="whitespace-nowrap">${DateUtils.formatShort(DateUtils.parseDate(p.occurred_on))}</td>
             <td>${e(p.direction === 'out' && p.type === 'payment' ? t('fin_change') : FinUtils.typeLabel(p.type))}</td>
             <td>${e(blockLabel(p.balance_kind))}</td>
-            <td class="text-right font-mono ${p.direction === 'out' ? 'text-warning' : ''}">${p.direction === 'out' ? '−' : ''}${FinUtils.fmtMoney(p.amount, p.currency_code)}${p.currency_code !== 'INR' ? `<div class="text-xs opacity-70">${t('fin_at_rate')} ${Number(p.rate_used).toLocaleString('ru-RU', { maximumFractionDigits: 4 })} → ₹ ${Number(p.amount_base).toLocaleString('ru-RU')}</div>` : ''}</td>
+            <td class="text-right font-mono ${p.direction === 'out' ? 'text-warning' : ''}">${p.direction === 'out' ? '−' : ''}${FinUtils.fmtMoney(p.amount, p.currency_code)}${p.currency_code !== 'INR' ? `<div class="text-xs opacity-70">${объяснитьКурс(p)} → ₹ ${Number(p.amount_base).toLocaleString('ru-RU')}</div>` : ''}</td>
             <td class="whitespace-nowrap">${e(куда(p))}</td>
             <td>${statusBadge(p.status)}</td>
             <td class="text-right">${isAdmin && p.type === 'payment' && p.direction !== 'out' && p.operation_id ? `<a class="btn btn-ghost btn-xs" href="dds.html?op=${p.operation_id}" title="${t('fin_realloc_action')}">
