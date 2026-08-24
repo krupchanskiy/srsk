@@ -1150,14 +1150,16 @@ function updatePayRunningTotal() {
     const поЛюдям = {};   // pid → внесено в ₹: остаток считается по каждому человеку формы (п.7, ВГ 24.08)
     const поВалютам = {};
     rows.forEach(row => {
+        // добавленный человек входит в «останется закрыть» сразу, ещё до суммы
+        const pid = rowPid(row);
+        if (pid) поЛюдям[pid] = поЛюдям[pid] || 0;
         const c = row.querySelector('.pay-currency').value;
         const v = Number(row.querySelector('.pay-amount').value) || 0;
         if (!v) return;
         поВалютам[c] = (поВалютам[c] || 0) + v;
         const вInr = v * rowRateInr(row);
         итогInr += вInr;
-        const pid = rowPid(row);
-        поЛюдям[pid] = (поЛюдям[pid] || 0) + вInr;
+        поЛюдям[pid] = поЛюдям[pid] + вInr;
     });
     if (!итогInr) { el.innerHTML = ''; return; }
     // Сдача уменьшает то, что реально засчитывается участнику карточки
