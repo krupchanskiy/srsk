@@ -83,6 +83,10 @@
         <div class="text-xs opacity-50 mb-2 font-mono" id="cardRates"></div>
         <!-- Условия и даты из CRM — видны в момент приёма денег (ТЗ 4.5) -->
         <div id="cardCrmInfo" class="mb-3"></div>
+        <!-- Сводка блоков в валюте, в которой гость хочет платить (ВГ, 24.08) -->
+        <div class="flex justify-end mb-1">
+            <div class="join" id="cardCurrencyBtns"></div>
+        </div>
         <div id="cardBlocks" class="grid grid-cols-2 md:grid-cols-5 gap-2 mb-4"></div>
 
         <div class="flex items-center justify-between mb-1">
@@ -303,7 +307,7 @@
 <script src="../js/layout.js?v=56"></script>
 <script src="../js/date-utils.js?v=4"></script>
 <script src="../js/fin-utils.js?v=10"></script>
-<script src="../js/pages/fin-participants.js?v=16"></script>
+<script src="../js/pages/fin-participants.js?v=17"></script>
 
 </body>
 </html>

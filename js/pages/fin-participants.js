@@ -23,9 +23,9 @@ function blockLabel(kind) {
     return t('fin_block_' + kind);
 }
 
-function fmtNet(n) {
+function fmtNet(n, cur = 'INR') {
     const v = Number(n) || 0;
-    const s = FinUtils.fmtMoney(Math.abs(v), 'INR');
+    const s = FinUtils.fmtMoney(Math.abs(v), cur);
     if (v > 0) return `<span class="text-error font-mono">${s}</span>`;
     if (v < 0) return `<span class="text-success font-mono">−${s}</span>`;
     return `<span class="font-mono opacity-40">—</span>`;
@@ -129,9 +129,9 @@ function renderParticipantsSummary() {
 }
 
 // Итог со словом: «Долг ₹N» / «Аванс ₹N» — знак и цвет не спорят друг с другом
-function fmtNetWord(n) {
+function fmtNetWord(n, cur = 'INR') {
     const v = Number(n) || 0;
-    const s = FinUtils.fmtMoney(Math.abs(v), 'INR');
+    const s = FinUtils.fmtMoney(Math.abs(v), cur);
     if (v > 0) return `<span class="badge badge-error badge-outline whitespace-nowrap font-mono">${t('fin_debt')} ${s}</span>`;
     if (v < 0) return `<span class="badge badge-success badge-outline whitespace-nowrap font-mono">${t('fin_advance')} ${s}</span>`;
     return `<span class="font-mono opacity-40">—</span>`;
@@ -155,6 +155,7 @@ async function openCard(pid) {
     document.getElementById('cardModal').showModal();
     closeCharge(); closePayment();
     renderCardRates();
+    renderCardCurrencyBtns();
     // Начисления подтягиваются из CRM сами при открытии (ТЗ 3.1, сценарий 1);
     // кнопка «Обновить из CRM» остаётся для принудительного пересчёта
     if (window.hasPermission?.('fin_admin')) {
@@ -232,6 +233,11 @@ async function loadCardCrmInfo() {
             ${блок('meals', blockLabel('meals'))}
             ${метки ? `<div class="mt-1">${метки}</div>` : ''}
         </div>`;
+    // Сводка в валюте пересчитывается по ценам CRM — теперь, когда расчёт загружен
+    if (cardCurrency !== 'INR') {
+        const p = participants.find(x => x.participant_id === card.id);
+        if (p) renderCardBlocks(p.balance);
+    }
 }
 
 // «Подтянуть из CRM»: материализация расчёта в начисления (ТЗ 3.1, сценарий 1)
@@ -248,17 +254,40 @@ async function syncFromCrm() {
     }
 }
 
+// Валюта сводных карточек блоков (замечание ВГ 24.08): «в той валюте, в которой
+// человек хочет оплатить». Пересчёт по цене CRM каждого блока (не по курсу
+// ретрита) — тогда цифры сводки совпадают с подстановкой в форме платежа.
+let cardCurrency = 'INR';
+
+function renderCardCurrencyBtns() {
+    const el = document.getElementById('cardCurrencyBtns');
+    if (!el) return;
+    const active = FinUtils.refs.currencies.filter(c => c.is_active !== false);
+    const list = active.length ? active : [{ code: 'INR' }];
+    el.innerHTML = list.map(c =>
+        `<button type="button" class="join-item btn btn-xs ${c.code === cardCurrency ? 'btn-active' : ''}" data-cardcur="${e(c.code)}">${e(FinUtils.symbol(c.code))}</button>`
+    ).join('');
+}
+
 function renderCardBlocks(b) {
     const isAdmin = window.hasPermission?.('fin_admin');
+    // Коэффициент блока: своя цена CRM в выбранной валюте; без цены — курс ретрита
+    const кБлоку = k => {
+        if (cardCurrency === 'INR') return 1;
+        const f = cardCalc?.blocks?.[k]?.final;
+        if (f && Number(f.INR) > 0 && Number(f[cardCurrency]) > 0) return Number(f[cardCurrency]) / Number(f.INR);
+        return retreatRates[cardCurrency] ? 1 / retreatRates[cardCurrency] : 1;
+    };
     const cell = (k, block) => {
+        const kx = кБлоку(k);
         // Часть долга блока могла быть погашена «Общим» платежом (зачёт по
         // приоритету блоков, ТЗ 7) — показываем это явно, иначе «Оплачено 0 /
         // Остаток 0» при активном начислении выглядит как ошибка.
         const fromGeneral = Math.max(0, (Number(block.charged) - Number(block.paid)) - Number(block.balance));
         const balance = Number(block.balance);
         const balanceHtml = balance === 0 && Number(block.charged) > 0
-            ? `<span class="font-mono">${FinUtils.fmtMoney(0, 'INR')}</span>`
-            : fmtNet(balance);
+            ? `<span class="font-mono">${FinUtils.fmtMoney(0, cardCurrency)}</span>`
+            : fmtNet(balance * kx, cardCurrency);
         // Небольшой остаток долга можно простить — «Списать» (чек-лист v3, п.3)
         const списать = isAdmin && balance > 0
             ? `<button type="button" class="btn btn-ghost btn-xs text-error px-1 -mr-1" data-writeoff="${k}" title="${t('fin_write_off_title')}">${t('fin_write_off')}</button>`
@@ -266,20 +295,30 @@ function renderCardBlocks(b) {
         return `
         <div class="border border-base-300 rounded-lg p-2">
             <div class="text-xs font-semibold uppercase opacity-60 mb-1 flex justify-between items-center">${blockLabel(k)}${списать}</div>
-            <div class="text-xs flex justify-between"><span>${t('fin_charged')}</span><span class="font-mono">${FinUtils.fmtMoney(block.charged, 'INR')}</span></div>
-            <div class="text-xs flex justify-between"><span>${t('fin_paid')}</span><span class="font-mono">${FinUtils.fmtMoney(block.paid, 'INR')}</span></div>
-            ${fromGeneral > 0 ? `<div class="text-xs flex justify-between text-success"><span>${t('fin_from_general')}</span><span class="font-mono">${FinUtils.fmtMoney(fromGeneral, 'INR')}</span></div>` : ''}
+            <div class="text-xs flex justify-between"><span>${t('fin_charged')}</span><span class="font-mono">${FinUtils.fmtMoney(Number(block.charged) * kx, cardCurrency)}</span></div>
+            <div class="text-xs flex justify-between"><span>${t('fin_paid')}</span><span class="font-mono">${FinUtils.fmtMoney(Number(block.paid) * kx, cardCurrency)}</span></div>
+            ${fromGeneral > 0 ? `<div class="text-xs flex justify-between text-success"><span>${t('fin_from_general')}</span><span class="font-mono">${FinUtils.fmtMoney(fromGeneral * kx, cardCurrency)}</span></div>` : ''}
             <div class="text-sm flex justify-between mt-1 pt-1 border-t border-base-200"><span>${t('fin_balance')}</span>${balanceHtml}</div>
         </div>`;
     };
+    // Итог складывается из блоков, пересчитанных каждый по своей цене, — чтобы
+    // сумма карточек сходилась с итоговой; «общий» — по курсу ретрита
+    const kОбщ = cardCurrency === 'INR' ? 1 : (retreatRates[cardCurrency] ? 1 / retreatRates[cardCurrency] : 1);
+    let долг = 0, аванс = 0;
+    BLOCKS.forEach(k => {
+        const v = Number(b.blocks[k].balance) * кБлоку(k);
+        if (v > 0) долг += v; else аванс += -v;
+    });
+    долг += Number(b.general_debt) * kОбщ;
+    аванс += Number(b.general_advance) * kОбщ;
     const totalNet = Number(b.net) || 0;
     document.getElementById('cardBlocks').innerHTML =
         BLOCKS.map(k => cell(k, b.blocks[k])).join('') +
         `<div class="border-2 rounded-lg p-2 ${totalNet > 0 ? 'border-error' : totalNet < 0 ? 'border-success' : 'border-base-300'}">
             <div class="text-xs font-semibold uppercase opacity-60 mb-1">${t('fin_total')}</div>
-            <div class="text-xs flex justify-between"><span>${t('fin_debt')}</span><span class="font-mono">${FinUtils.fmtMoney(b.total_debt, 'INR')}</span></div>
-            <div class="text-xs flex justify-between"><span>${t('fin_advance')}</span><span class="font-mono">${FinUtils.fmtMoney(b.total_advance, 'INR')}</span></div>
-            <div class="text-sm flex justify-between mt-1 pt-1 border-t border-base-200"><span>${t('fin_total')}</span>${fmtNetWord(totalNet)}</div>
+            <div class="text-xs flex justify-between"><span>${t('fin_debt')}</span><span class="font-mono">${FinUtils.fmtMoney(долг, cardCurrency)}</span></div>
+            <div class="text-xs flex justify-between"><span>${t('fin_advance')}</span><span class="font-mono">${FinUtils.fmtMoney(аванс, cardCurrency)}</span></div>
+            <div class="text-sm flex justify-between mt-1 pt-1 border-t border-base-200"><span>${t('fin_total')}</span>${fmtNetWord(долг - аванс, cardCurrency)}</div>
         </div>`;
 }
 
@@ -747,8 +786,14 @@ async function updateRowHint(row) {
         режим = 'retreat';
     }
     row.dataset.rateMode = режим;
+    // Если часть блока уже оплачена, показываем разложение «цена − оплачено»:
+    // иначе 24 175,56 при цене 24 366,67 выглядит как ошибка (ВГ, 24.08)
+    let расшифровка = режим === 'crm_price' ? t('fin_rate_by_crm') : t('fin_rate_by_retreat');
+    if (режим === 'crm_price' && cur !== 'INR' && ценаБлока && Number(ценаБлока[cur]) - сумма > 0.01) {
+        расшифровка += `: ${FinUtils.fmtMoney(ценаБлока[cur], cur)} − ${t('fin_paid').toLowerCase()} ${FinUtils.fmtMoney(Math.round((Number(ценаБлока[cur]) - сумма) * 100) / 100, cur)}`;
+    }
     if (hint) hint.innerHTML = сумма > 0
-        ? `${t('fin_block_remaining')}: <b class="font-mono">${FinUtils.fmtMoney(сумма, cur)}</b> <span class="opacity-60">(${режим === 'crm_price' ? t('fin_rate_by_crm') : t('fin_rate_by_retreat')})</span>`
+        ? `${t('fin_block_remaining')}: <b class="font-mono">${FinUtils.fmtMoney(сумма, cur)}</b> <span class="opacity-60">(${расшифровка})</span>`
         : '';
     const поле = row.querySelector('.pay-amount');
     if (сумма > 0 && !поле.dataset.touched) {
@@ -1287,6 +1332,15 @@ async function init() {
         if (recalcBtn) { openRecalc(recalcBtn.dataset.recalcCharge); return; }
         const writeOffBtn = ev.target.closest('[data-writeoff]');
         if (writeOffBtn) { openWriteOff(writeOffBtn.dataset.writeoff); return; }
+        // Валюта сводных карточек: «в чём человек хочет платить» (ВГ, 24.08)
+        const curBtn = ev.target.closest('[data-cardcur]');
+        if (curBtn) {
+            cardCurrency = curBtn.dataset.cardcur;
+            renderCardCurrencyBtns();
+            const p = participants.find(x => x.participant_id === card.id);
+            if (p) renderCardBlocks(p.balance);
+            return;
+        }
         // Кнопки «Выдать сдачу» / «Оставить как пожертвование» при переплате (п.2–3)
         const payAct = ev.target.closest('[data-payact]');
         if (payAct) payAct.dataset.payact === 'change' ? openChangeBlock() : keepAsDonation();
