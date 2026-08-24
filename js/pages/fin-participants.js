@@ -269,24 +269,54 @@ function renderCardCurrencyBtns() {
     ).join('');
 }
 
-// Автовалюта блока (ВГ, 24.08): строка платежа главного участника задаёт валюту
-// своего блока в сводке — «Николай вносит проживание в рублях → блок в рублях».
+// Автовалюта блока (ВГ, 24.08): строка платежа участника задаёт валюту его
+// блока в сводке — «Николай вносит проживание в рублях → блок в рублях».
 // Блоки без строки показываются в валюте переключателя.
 let blockFormCurrency = {};
+let формСлепок = '';
 function syncBlockCurrencies() {
-    const прежние = JSON.stringify(blockFormCurrency);
     blockFormCurrency = {};
+    const части = [];
     const секция = document.getElementById('paySection');
     if (секция && !секция.classList.contains('hidden')) {
         document.querySelectorAll('#payRows .pay-row').forEach(row => {
-            if (rowPid(row) !== card.id) return;
-            blockFormCurrency[row.querySelector('.pay-kind').value] = row.querySelector('.pay-currency').value;
+            const pid = rowPid(row);
+            const kind = row.querySelector('.pay-kind').value;
+            const cur = row.querySelector('.pay-currency').value;
+            части.push(`${pid}|${kind}|${cur}`);
+            if (pid === card.id) blockFormCurrency[kind] = cur;
         });
     }
-    if (JSON.stringify(blockFormCurrency) !== прежние) {
-        const p = participants.find(x => x.participant_id === card.id);
-        if (p) renderCardBlocks(p.balance);
-    }
+    const слепок = части.join(';');
+    if (слепок === формСлепок) return;
+    формСлепок = слепок;
+    const p = participants.find(x => x.participant_id === card.id);
+    if (p) renderCardBlocks(p.balance);
+    // мини-разбивки добавленных участников — в валютах их строк
+    document.querySelectorAll('#payRows .pay-row.pay-other').forEach(row => {
+        const pid = row.querySelector('.pay-person-id')?.value;
+        if (pid && pidData.balance[pid]) renderOtherBreakdown(row, pidData.balance[pid]);
+    });
+}
+
+// Коэффициент пересчёта блока участника в валюту: цена CRM, иначе курс ретрита
+function блокКоэф(pid, kind, cur) {
+    if (!cur || cur === 'INR') return 1;
+    const calc = pid === card.id ? cardCalc : pidData.calc[pid];
+    const f = calc?.blocks?.[kind]?.final;
+    if (f && Number(f.INR) > 0 && Number(f[cur]) > 0) return Number(f[cur]) / Number(f.INR);
+    return retreatRates[cur] ? 1 / retreatRates[cur] : 1;
+}
+
+// Валюта, выбранная в форме для блока данного участника (последняя строка)
+function формнаяВалютаБлока(pid, kind) {
+    let cur = null;
+    document.querySelectorAll('#payRows .pay-row').forEach(row => {
+        if (rowPid(row) === pid && row.querySelector('.pay-kind').value === kind) {
+            cur = row.querySelector('.pay-currency').value;
+        }
+    });
+    return cur;
 }
 
 function renderCardBlocks(b) {
@@ -923,18 +953,23 @@ function addOtherParticipantRow() {
     }, 500);
 }
 
-// Мини-версия сводки по блокам добавленного участника (Начислено/Оплачено/Остаток)
+// Мини-версия сводки по блокам добавленного участника (Начислено/Оплачено/Остаток).
+// Валюта блока подхватывается из его строк формы — та же автологика, что у
+// главного участника (ВГ, 24.08)
 function renderOtherBreakdown(row, balance) {
     const el = row.querySelector('.pay-other-blocks');
     if (!el || !balance?.blocks) return;
+    const pid = row.querySelector('.pay-person-id')?.value;
     el.innerHTML = BLOCKS.map(k => {
         const b = balance.blocks[k];
         if (!(Number(b.charged) || Number(b.paid))) return '';
+        const cur = формнаяВалютаБлока(pid, k) || 'INR';
+        const kx = блокКоэф(pid, k, cur);
         return `<div class="border border-base-300 rounded p-1.5 text-[11px]">
             <div class="font-semibold uppercase opacity-60">${e(blockLabel(k))}</div>
-            <div class="flex justify-between"><span>${t('fin_charged')}</span><span class="font-mono">${FinUtils.fmtMoney(b.charged, 'INR')}</span></div>
-            <div class="flex justify-between"><span>${t('fin_paid')}</span><span class="font-mono">${FinUtils.fmtMoney(b.paid, 'INR')}</span></div>
-            <div class="flex justify-between border-t border-base-200 mt-0.5 pt-0.5"><span>${t('fin_balance')}</span>${fmtNet(b.balance)}</div>
+            <div class="flex justify-between"><span>${t('fin_charged')}</span><span class="font-mono">${FinUtils.fmtMoney(Number(b.charged) * kx, cur)}</span></div>
+            <div class="flex justify-between"><span>${t('fin_paid')}</span><span class="font-mono">${FinUtils.fmtMoney(Number(b.paid) * kx, cur)}</span></div>
+            <div class="flex justify-between border-t border-base-200 mt-0.5 pt-0.5"><span>${t('fin_balance')}</span>${fmtNet(Number(b.balance) * kx, cur)}</div>
         </div>`;
     }).join('');
 }
@@ -1021,8 +1056,10 @@ async function submitPayment(ev) {
     const людей = new Set(rows.map(r => r.participant_id)).size;
     const итог = Object.entries(поВалютам).filter(([, v]) => v > 0)
         .map(([c, v]) => FinUtils.fmtMoney(v, c)).join(' + ');
+    const поИменам = собратьРазбивку().текст;
     const вопрос = `${t('fin_running_total')}: ${итог}` +
         (людей > 1 ? ` ${t('fin_for_n_people').replace('{n}', людей)}` : '') +
+        (поИменам.length > 1 ? `\n${поИменам.join('\n')}` : '') +
         (change ? `\n${t('fin_change')}: ${FinUtils.fmtMoney(change.amount, document.getElementById('payChangeCurrency').value)}` : '') +
         (payDonation ? `\n${t('fin_donation_excess')}: ${FinUtils.fmtMoney(payDonation.amount, payDonation.currency)}` : '') +
         `\n${t('fin_pay_confirm_q')}`;
@@ -1237,8 +1274,36 @@ function updatePayRunningTotal() {
     // Та же сводка видна над кнопкой «Сохранить» — глазами, до подтверждения (п. 8)
     const чек = document.getElementById('paySummaryLine');
     if (чек) chек_set(чек, детали, итогInr, 'INR');
+    // Разбивка «по блокам и по именам, кто за кого и в какой валюте» (ВГ, 24.08)
+    const разбивка = document.getElementById('payBreakdown');
+    if (разбивка) разбивка.innerHTML = собратьРазбивку().html;
     // Валюта строк формы автоматически задаёт валюту сводных блоков (ВГ, 24.08)
     syncBlockCurrencies();
+}
+
+// Введённое в форме, сгруппированное по блокам (общие суммы в валютах) и по
+// людям («что за кого было оплачено и в какой валюте»)
+function собратьРазбивку() {
+    const поБлокам = {};   // kind -> cur -> v
+    const поЛюдям = new Map();   // имя -> [«Оргвзнос ₽ 25 000»]
+    document.querySelectorAll('#payRows .pay-row').forEach(row => {
+        const v = Number(row.querySelector('.pay-amount').value) || 0;
+        if (!v) return;
+        const kind = row.querySelector('.pay-kind').value;
+        const cur = row.querySelector('.pay-currency').value;
+        (поБлокам[kind] = поБлокам[kind] || {})[cur] = (поБлокам[kind]?.[cur] || 0) + v;
+        const имя = row.querySelector('.pay-person')?.value || card.name;
+        if (!поЛюдям.has(имя)) поЛюдям.set(имя, []);
+        поЛюдям.get(имя).push(`${blockLabel(kind)} ${FinUtils.fmtMoney(v, cur)}`);
+    });
+    const блоки = Object.entries(поБлокам).map(([k, m]) =>
+        `${blockLabel(k)}: ${Object.entries(m).map(([c, v]) => FinUtils.fmtMoney(v, c)).join(' + ')}`);
+    const люди = [...поЛюдям.entries()].map(([имя, части]) => `${имя} — ${части.join(' · ')}`);
+    return {
+        html: (блоки.length ? `<div>${блоки.map(e).join(' &nbsp;·&nbsp; ')}</div>` : '') +
+              (люди.length > 1 ? люди.map(x => `<div>${e(x)}</div>`).join('') : ''),
+        текст: люди
+    };
 }
 function chек_set(el, детали, итог, опорная) {
     const людей = new Set([...document.querySelectorAll('#payRows .pay-row')].map(r => r.querySelector('.pay-person-id')?.value || 'me')).size;

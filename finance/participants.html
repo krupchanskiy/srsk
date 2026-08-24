@@ -159,6 +159,8 @@
                 </div>
                 <!-- Живой пересчёт всех строк в опорную валюту против остатка (ТЗ 3.3) -->
                 <div id="payRunningTotal" class="text-sm font-mono mb-2"></div>
+                <!-- Разбивка по блокам и по именам: кто за кого и в какой валюте (ВГ, 24.08) -->
+                <div id="payBreakdown" class="text-xs opacity-70 mb-2"></div>
                 <!-- Сдача (чек-лист v3, п.2): наличные, возвращаемые гостю из кассы -->
                 <div id="payChangeWrap" class="hidden border border-warning/40 bg-warning/5 rounded-lg p-2 mb-2">
                     <div class="flex flex-wrap items-end gap-2">
@@ -308,7 +310,7 @@
 <script src="../js/layout.js?v=56"></script>
 <script src="../js/date-utils.js?v=4"></script>
 <script src="../js/fin-utils.js?v=10"></script>
-<script src="../js/pages/fin-participants.js?v=21"></script>
+<script src="../js/pages/fin-participants.js?v=22"></script>
 
 </body>
 </html>
