@@ -259,10 +259,11 @@
 <!-- Модалка: списание остатка долга (чек-лист v3, п.3) -->
 <dialog id="writeOffModal" class="modal">
     <div class="modal-box max-w-sm">
-        <h3 class="font-bold text-lg mb-2" data-i18n="fin_write_off_title">Списать остаток долга</h3>
+        <h3 class="font-bold text-lg mb-2" id="writeOffTitle" data-i18n="fin_write_off_title">Списать остаток долга</h3>
         <div class="text-sm opacity-70 mb-3" id="writeOffInfo"></div>
         <form id="writeOffForm">
             <input type="hidden" id="writeOffKind">
+            <input type="hidden" id="writeOffMode">
             <div class="form-control mb-2">
                 <label class="label py-0"><span class="label-text" data-i18n="fin_amount">Сумма</span></label>
                 <input type="number" id="writeOffAmount" class="input input-bordered input-sm" min="0.01" step="0.01" required>
@@ -307,7 +308,7 @@
 <script src="../js/layout.js?v=56"></script>
 <script src="../js/date-utils.js?v=4"></script>
 <script src="../js/fin-utils.js?v=10"></script>
-<script src="../js/pages/fin-participants.js?v=17"></script>
+<script src="../js/pages/fin-participants.js?v=18"></script>
 
 </body>
 </html>

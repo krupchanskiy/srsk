@@ -288,9 +288,12 @@ function renderCardBlocks(b) {
         const balanceHtml = balance === 0 && Number(block.charged) > 0
             ? `<span class="font-mono">${FinUtils.fmtMoney(0, cardCurrency)}</span>`
             : fmtNet(balance * kx, cardCurrency);
-        // Небольшой остаток долга можно простить — «Списать» (чек-лист v3, п.3)
+        // Небольшой остаток долга можно простить — «Списать»; переплату по блоку —
+        // оставить пожертвованием пост-фактум (чек-лист v3, п.3; ВГ 24.08)
         const списать = isAdmin && balance > 0
             ? `<button type="button" class="btn btn-ghost btn-xs text-error px-1 -mr-1" data-writeoff="${k}" title="${t('fin_write_off_title')}">${t('fin_write_off')}</button>`
+            : isAdmin && balance < 0
+            ? `<button type="button" class="btn btn-ghost btn-xs text-success px-1 -mr-1" data-donate-advance="${k}" title="${t('fin_keep_as_donation')}">${t('fin_type_donation')}</button>`
             : '';
         return `
         <div class="border border-base-300 rounded-lg p-2">
@@ -861,12 +864,23 @@ function addOtherParticipantRow() {
         if (hid.value && hid.value !== прежний) {
             прежний = hid.value;
             delete pidData.balance[hid.value]; delete pidData.calc[hid.value];
+            // Начисления добавленного подтягиваются из CRM сразу — иначе у человека,
+            // чью карточку ещё не открывали, разбивка пуста (ВГ, 24.08)
+            if (window.hasPermission?.('fin_admin')) {
+                await Layout.db.rpc('fin_sync_charges_from_crm',
+                    { p_participant: hid.value, p_retreat: currentRetreat });
+            }
+            // после синка баланс берём свежий с сервера, а не из списка страницы
+            const { data: свежий } = await Layout.db.rpc('fin_get_participant_balance',
+                { p_participant: hid.value, p_retreat: currentRetreat });
+            if (свежий) pidData.balance[hid.value] = свежий;
             const { balance } = await ensurePidData(hid.value);
             row.querySelector('.pay-person-balance').innerHTML = fmtNet(Number(balance?.net) || 0);
             renderOtherBreakdown(row, balance);
             loadOtherHistory(row, hid.value);
             delete row.querySelector('.pay-amount').dataset.touched;
             updateRowHint(row);
+            updatePayRunningTotal();
         }
     }, 500);
 }
@@ -894,6 +908,7 @@ async function loadOtherHistory(row, pid) {
     const { data } = await Layout.db.rpc('fin_get_participant_payments', { p_participant: pid, p_retreat: currentRetreat });
     const список = data || [];
     details.classList.toggle('hidden', !список.length);
+    details.open = список.length > 0;   // история видна сразу, не спрятана (ВГ, 24.08)
     details.querySelector('tbody').innerHTML = список.map(p => `
         <tr class="${p.is_reversed ? 'opacity-50' : ''}">
             <td class="whitespace-nowrap">${DateUtils.formatShort(DateUtils.parseDate(p.occurred_on))}</td>
@@ -1132,7 +1147,7 @@ function updatePayRunningTotal() {
     const опорная = document.getElementById('payBaseCurrency')?.value || rows[0].querySelector('.pay-currency').value;
     const изInr = v => v / (retreatRates[опорная] || 1);
     let итогInr = 0;
-    let главногоInr = 0;   // строки участника карточки — против его остатка
+    const поЛюдям = {};   // pid → внесено в ₹: остаток считается по каждому человеку формы (п.7, ВГ 24.08)
     const поВалютам = {};
     rows.forEach(row => {
         const c = row.querySelector('.pay-currency').value;
@@ -1141,22 +1156,29 @@ function updatePayRunningTotal() {
         поВалютам[c] = (поВалютам[c] || 0) + v;
         const вInr = v * rowRateInr(row);
         итогInr += вInr;
-        if (rowPid(row) === card.id) главногоInr += вInr;
+        const pid = rowPid(row);
+        поЛюдям[pid] = (поЛюдям[pid] || 0) + вInr;
     });
     if (!итогInr) { el.innerHTML = ''; return; }
-    // Сдача уменьшает то, что реально засчитывается участнику
+    // Сдача уменьшает то, что реально засчитывается участнику карточки
     let сдачаInr = 0;
     const changeWrap = document.getElementById('payChangeWrap');
     if (changeWrap && !changeWrap.classList.contains('hidden')) {
         const сумма = Number(document.getElementById('payChangeAmount').value) || 0;
         сдачаInr = сумма * (retreatRates[document.getElementById('payChangeCurrency').value] || 1);
-        главногоInr -= сдачаInr;
+        поЛюдям[card.id] = (поЛюдям[card.id] || 0) - сдачаInr;
         итогInr -= сдачаInr;
     }
     const детали = Object.entries(поВалютам).map(([c, v]) => FinUtils.fmtMoney(v, c)).join(' + ');
-    const p = participants.find(x => x.participant_id === card.id);
-    const остаток = Number(p?.balance?.net) || 0;
-    const после = изInr(Math.max(остаток, 0) - главногоInr);
+    // «Останется закрыть» — по всем людям формы: остаток каждого минус его строки
+    let остатокВсехInr = 0;
+    for (const [pid, внесено] of Object.entries(поЛюдям)) {
+        const бал = pid === card.id
+            ? participants.find(x => x.participant_id === card.id)?.balance
+            : pidData.balance[pid];
+        остатокВсехInr += Math.max(Number(бал?.net) || 0, 0) - внесено;
+    }
+    const после = изInr(остатокВсехInr);
     const хвост = после > 0.01
         ? ` · ${t('fin_remaining_after')}: <b class="text-error">${FinUtils.fmtMoney(после, опорная)}</b>`
         : после < -0.01
@@ -1221,13 +1243,19 @@ async function submitRefund(ev) {
 // ==================== СПИСАНИЕ ОСТАТКА ДОЛГА (чек-лист v3, п.3) ====================
 // Не тихое обнуление: та же механика, что «Перерасчёт» — старое начисление
 // отменяется с записью «было → стало», новое несёт увеличенную скидку с причиной.
-function openWriteOff(kind) {
+// mode 'debt' — простить остаток долга; mode 'advance' — оставить переплату
+// блока пожертвованием (компенсирующее начисление закрывает аванс в ноль)
+function openWriteOff(kind, mode = 'debt') {
     const p = participants.find(x => x.participant_id === card.id);
-    const остаток = Number(p?.balance?.blocks?.[kind]?.balance) || 0;
+    const баланс = Number(p?.balance?.blocks?.[kind]?.balance) || 0;
+    const остаток = mode === 'advance' ? -баланс : баланс;
     if (остаток <= 0) return;
     document.getElementById('writeOffKind').value = kind;
+    document.getElementById('writeOffMode').value = mode;
+    document.getElementById('writeOffTitle').textContent =
+        mode === 'advance' ? t('fin_keep_as_donation') : t('fin_write_off_title');
     document.getElementById('writeOffInfo').textContent =
-        `${card.name} · ${blockLabel(kind)} · ${t('fin_balance')}: ${FinUtils.fmtMoney(остаток, 'INR')}`;
+        `${card.name} · ${blockLabel(kind)} · ${mode === 'advance' ? t('fin_overpaid') : t('fin_balance')}: ${FinUtils.fmtMoney(остаток, 'INR')}`;
     const поле = document.getElementById('writeOffAmount');
     поле.value = остаток;
     поле.max = остаток;
@@ -1238,9 +1266,32 @@ function openWriteOff(kind) {
 async function submitWriteOff(ev) {
     ev.preventDefault();
     const kind = document.getElementById('writeOffKind').value;
+    const mode = document.getElementById('writeOffMode').value || 'debt';
     const сумма = Number(document.getElementById('writeOffAmount').value) || 0;
     const причина = document.getElementById('writeOffReason').value.trim();
     if (сумма <= 0 || !причина) return;
+    if (mode === 'advance') {
+        // Переплата → пожертвование: компенсирующее начисление того же блока,
+        // деньги уже в кассе — блок закрывается, след с причиной остаётся
+        const res = await FinUtils.rpc('fin_create_charge', { rows: [{
+            id: FinUtils.newRequestId(),
+            participant_id: card.id,
+            retreat_id: currentRetreat,
+            kind,
+            description: t('fin_donation_excess'),
+            quantity: 1,
+            unit_price: сумма,
+            discount_amount: null,
+            discount_reason: null,
+            agreed_with: null,
+            creation_reason: `Излишек оставлен как пожертвование — ${причина}`
+        }]});
+        if (FinUtils.handleResult(res)) {
+            document.getElementById('writeOffModal').close();
+            await refreshAfterChange();
+        }
+        return;
+    }
     // Новейшее активное начисление блока, чей «К оплате» покрывает списание
     const кандидат = Object.values(cardChargesById)
         .filter(c => c.kind === kind && !c.is_cancelled && Number(c.net_amount) >= сумма)
@@ -1332,6 +1383,8 @@ async function init() {
         if (recalcBtn) { openRecalc(recalcBtn.dataset.recalcCharge); return; }
         const writeOffBtn = ev.target.closest('[data-writeoff]');
         if (writeOffBtn) { openWriteOff(writeOffBtn.dataset.writeoff); return; }
+        const donateBtn = ev.target.closest('[data-donate-advance]');
+        if (donateBtn) { openWriteOff(donateBtn.dataset.donateAdvance, 'advance'); return; }
         // Валюта сводных карточек: «в чём человек хочет платить» (ВГ, 24.08)
         const curBtn = ev.target.closest('[data-cardcur]');
         if (curBtn) {
