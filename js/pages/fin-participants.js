@@ -357,6 +357,20 @@ function фмтЧасти(части, валютаЕслиПусто) {
     return части.map(x => FinUtils.fmtMoney(x.v, x.cur)).join(' + ');
 }
 
+// Несколько валют — столбиком, друг под другом: в линейку они слипаются и
+// последние суммы не видны (ВГ, 24.08)
+function фмтЧастиHtml(части, валютаЕслиПусто, cls = '') {
+    if (!части.length) return `<span class="font-mono ${cls}">${FinUtils.fmtMoney(0, валютаЕслиПусто)}</span>`;
+    if (части.length === 1) return `<span class="font-mono ${cls}">${FinUtils.fmtMoney(части[0].v, части[0].cur)}</span>`;
+    return `<span class="font-mono ${cls} flex flex-col items-end leading-tight">${
+        части.map(x => `<span class="whitespace-nowrap">${FinUtils.fmtMoney(x.v, x.cur)}</span>`).join('')}</span>`;
+}
+
+// То же для карты «валюта → сумма» (итоговые долг/аванс)
+function фмтВалHtml(m, валютаЕслиПусто, cls = '') {
+    return фмтЧастиHtml(Object.entries(m).map(([cur, v]) => ({ cur, v })), валютаЕслиПусто, cls);
+}
+
 function renderCardBlocks(b) {
     const isAdmin = window.hasPermission?.('fin_admin');
     const валютаБлока = k => blockFormCurrency[k] || cardCurrency;
@@ -382,7 +396,7 @@ function renderCardBlocks(b) {
         const balanceHtml = balance === 0 && Number(block.charged) > 0
             ? `<span class="font-mono">${FinUtils.fmtMoney(0, cardCur)}</span>`
             : мульти
-                ? `<span class="font-mono text-error text-right">${фмтЧасти(части, cardCur)}</span>`
+                ? фмтЧастиHtml(части, cardCur, 'text-error')
                 : fmtNet(balance * kx, cardCur);
         // Небольшой остаток долга можно простить — «Списать»; переплату по блоку —
         // оставить пожертвованием пост-фактум (чек-лист v3, п.3; ВГ 24.08)
@@ -393,11 +407,11 @@ function renderCardBlocks(b) {
             : '';
         return `
         <div class="border border-base-300 rounded-lg p-2">
-            <div class="text-xs font-semibold uppercase opacity-60 mb-1 flex justify-between items-center">${blockLabel(k)}${списать}</div>
-            <div class="text-xs flex justify-between"><span>${t('fin_charged')}</span><span class="font-mono">${FinUtils.fmtMoney(Number(block.charged) * kx, cardCur)}</span></div>
-            <div class="text-xs flex justify-between"><span>${t('fin_paid')}</span><span class="font-mono">${FinUtils.fmtMoney(Number(block.paid) * kx, cardCur)}</span></div>
-            ${fromGeneral > 0 ? `<div class="text-xs flex justify-between text-success"><span>${t('fin_from_general')}</span><span class="font-mono">${FinUtils.fmtMoney(fromGeneral * kx, cardCur)}</span></div>` : ''}
-            <div class="text-sm flex justify-between mt-1 pt-1 border-t border-base-200"><span>${t('fin_balance')}</span>${balanceHtml}</div>
+            <div class="text-xs font-semibold uppercase opacity-60 mb-1 flex justify-between items-center gap-1">${blockLabel(k)}${списать}</div>
+            <div class="text-xs flex justify-between gap-2"><span>${t('fin_charged')}</span><span class="font-mono">${FinUtils.fmtMoney(Number(block.charged) * kx, cardCur)}</span></div>
+            <div class="text-xs flex justify-between gap-2"><span>${t('fin_paid')}</span><span class="font-mono">${FinUtils.fmtMoney(Number(block.paid) * kx, cardCur)}</span></div>
+            ${fromGeneral > 0 ? `<div class="text-xs flex justify-between gap-2 text-success"><span>${t('fin_from_general')}</span><span class="font-mono">${FinUtils.fmtMoney(fromGeneral * kx, cardCur)}</span></div>` : ''}
+            <div class="text-sm flex justify-between gap-2 mt-1 pt-1 border-t border-base-200 items-start"><span>${t('fin_balance')}</span>${balanceHtml}</div>
         </div>`;
     };
     // Итог собирает долг по валютам блоков — «сколько человек должен в конкретных
@@ -413,13 +427,16 @@ function renderCardBlocks(b) {
     });
     if (Number(b.general_debt) > 0) долгВал[cardCurrency] = (долгВал[cardCurrency] || 0) + Number(b.general_debt) * kОбщ;
     if (Number(b.general_advance) > 0) авансВал[cardCurrency] = (авансВал[cardCurrency] || 0) + Number(b.general_advance) * kОбщ;
-    const фмтВал = m => Object.entries(m).map(([c, v]) => FinUtils.fmtMoney(v, c)).join(' + ') || FinUtils.fmtMoney(0, cardCurrency);
     const totalNet = Number(b.net) || 0;
-    const итогHtml = totalNet > 0
-        ? `<span class="badge badge-error badge-outline whitespace-nowrap font-mono">${t('fin_debt')} ${фмтВал(долгВал)}</span>`
-        : totalNet < 0
-            ? `<span class="badge badge-success badge-outline whitespace-nowrap font-mono">${t('fin_advance')} ${фмтВал(авансВал)}</span>`
-            : `<span class="font-mono opacity-40">—</span>`;
+    const мультиИтог = Object.keys(totalNet > 0 ? долгВал : авансВал).length > 1;
+    // При одной валюте — привычный бейдж; при нескольких — столбик, иначе
+    // суммы уезжают в линейку и последние не видны (ВГ, 24.08)
+    const итогHtml = totalNet === 0
+        ? `<span class="font-mono opacity-40">—</span>`
+        : мультиИтог
+            ? `<span class="text-right"><span class="text-[11px] uppercase opacity-60 ${totalNet > 0 ? 'text-error' : 'text-success'}">${totalNet > 0 ? t('fin_debt') : t('fin_advance')}</span>
+               ${фмтВалHtml(totalNet > 0 ? долгВал : авансВал, cardCurrency, totalNet > 0 ? 'text-error font-semibold' : 'text-success font-semibold')}</span>`
+            : `<span class="badge ${totalNet > 0 ? 'badge-error' : 'badge-success'} badge-outline whitespace-nowrap font-mono">${totalNet > 0 ? t('fin_debt') : t('fin_advance')} ${фмтЧасти(Object.entries(totalNet > 0 ? долгВал : авансВал).map(([cur, v]) => ({ cur, v })), cardCurrency)}</span>`;
     // «Факт списания долга» одной операцией из итога (ВГ, 24.08): долги блоков
     // списываются, авансы оформляются пожертвованием — карточка закрывается в ноль
     const списатьВсё = isAdmin && totalNet > 0
@@ -428,10 +445,10 @@ function renderCardBlocks(b) {
     document.getElementById('cardBlocks').innerHTML =
         BLOCKS.map(k => cell(k, b.blocks[k])).join('') +
         `<div class="border-2 rounded-lg p-2 ${totalNet > 0 ? 'border-error' : totalNet < 0 ? 'border-success' : 'border-base-300'}">
-            <div class="text-xs font-semibold uppercase opacity-60 mb-1 flex justify-between items-center">${t('fin_total')}${списатьВсё}</div>
-            <div class="text-xs flex justify-between gap-2"><span>${t('fin_debt')}</span><span class="font-mono text-right">${фмтВал(долгВал)}</span></div>
-            <div class="text-xs flex justify-between gap-2"><span>${t('fin_advance')}</span><span class="font-mono text-right">${фмтВал(авансВал)}</span></div>
-            <div class="text-sm flex justify-between gap-2 mt-1 pt-1 border-t border-base-200"><span>${t('fin_total')}</span>${итогHtml}</div>
+            <div class="text-xs font-semibold uppercase opacity-60 mb-1 flex justify-between items-center gap-1">${t('fin_total')}${списатьВсё}</div>
+            <div class="text-xs flex justify-between gap-2 items-start"><span>${t('fin_debt')}</span>${фмтВалHtml(долгВал, cardCurrency)}</div>
+            <div class="text-xs flex justify-between gap-2 items-start"><span>${t('fin_advance')}</span>${фмтВалHtml(авансВал, cardCurrency)}</div>
+            <div class="text-sm flex justify-between gap-2 mt-1 pt-1 border-t border-base-200 items-start"><span>${t('fin_total')}</span>${итогHtml}</div>
         </div>`;
 }
 
@@ -1011,7 +1028,7 @@ function renderOtherBreakdown(row, balance) {
         const kx = блокКоэф(pid, k, cur);
         const части = разложениеБлока(pid, k, Number(b.balance), cur);
         const остатокHtml = части.length > 1
-            ? `<span class="font-mono text-error text-right">${фмтЧасти(части, cur)}</span>`
+            ? фмтЧастиHtml(части, cur, 'text-error')
             : fmtNet(Number(b.balance) * kx, cur);
         return `<div class="border border-base-300 rounded p-1.5 text-[11px]">
             <div class="font-semibold uppercase opacity-60">${e(blockLabel(k))}</div>
