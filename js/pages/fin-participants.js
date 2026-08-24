@@ -269,25 +269,48 @@ function renderCardCurrencyBtns() {
     ).join('');
 }
 
+// Автовалюта блока (ВГ, 24.08): строка платежа главного участника задаёт валюту
+// своего блока в сводке — «Николай вносит проживание в рублях → блок в рублях».
+// Блоки без строки показываются в валюте переключателя.
+let blockFormCurrency = {};
+function syncBlockCurrencies() {
+    const прежние = JSON.stringify(blockFormCurrency);
+    blockFormCurrency = {};
+    const секция = document.getElementById('paySection');
+    if (секция && !секция.classList.contains('hidden')) {
+        document.querySelectorAll('#payRows .pay-row').forEach(row => {
+            if (rowPid(row) !== card.id) return;
+            blockFormCurrency[row.querySelector('.pay-kind').value] = row.querySelector('.pay-currency').value;
+        });
+    }
+    if (JSON.stringify(blockFormCurrency) !== прежние) {
+        const p = participants.find(x => x.participant_id === card.id);
+        if (p) renderCardBlocks(p.balance);
+    }
+}
+
 function renderCardBlocks(b) {
     const isAdmin = window.hasPermission?.('fin_admin');
-    // Коэффициент блока: своя цена CRM в выбранной валюте; без цены — курс ретрита
+    const валютаБлока = k => blockFormCurrency[k] || cardCurrency;
+    // Коэффициент блока: своя цена CRM в его валюте; без цены — курс ретрита
     const кБлоку = k => {
-        if (cardCurrency === 'INR') return 1;
+        const cur = валютаБлока(k);
+        if (cur === 'INR') return 1;
         const f = cardCalc?.blocks?.[k]?.final;
-        if (f && Number(f.INR) > 0 && Number(f[cardCurrency]) > 0) return Number(f[cardCurrency]) / Number(f.INR);
-        return retreatRates[cardCurrency] ? 1 / retreatRates[cardCurrency] : 1;
+        if (f && Number(f.INR) > 0 && Number(f[cur]) > 0) return Number(f[cur]) / Number(f.INR);
+        return retreatRates[cur] ? 1 / retreatRates[cur] : 1;
     };
     const cell = (k, block) => {
         const kx = кБлоку(k);
+        const cardCur = валютаБлока(k);
         // Часть долга блока могла быть погашена «Общим» платежом (зачёт по
         // приоритету блоков, ТЗ 7) — показываем это явно, иначе «Оплачено 0 /
         // Остаток 0» при активном начислении выглядит как ошибка.
         const fromGeneral = Math.max(0, (Number(block.charged) - Number(block.paid)) - Number(block.balance));
         const balance = Number(block.balance);
         const balanceHtml = balance === 0 && Number(block.charged) > 0
-            ? `<span class="font-mono">${FinUtils.fmtMoney(0, cardCurrency)}</span>`
-            : fmtNet(balance * kx, cardCurrency);
+            ? `<span class="font-mono">${FinUtils.fmtMoney(0, cardCur)}</span>`
+            : fmtNet(balance * kx, cardCur);
         // Небольшой остаток долга можно простить — «Списать»; переплату по блоку —
         // оставить пожертвованием пост-фактум (чек-лист v3, п.3; ВГ 24.08)
         const списать = isAdmin && balance > 0
@@ -298,23 +321,31 @@ function renderCardBlocks(b) {
         return `
         <div class="border border-base-300 rounded-lg p-2">
             <div class="text-xs font-semibold uppercase opacity-60 mb-1 flex justify-between items-center">${blockLabel(k)}${списать}</div>
-            <div class="text-xs flex justify-between"><span>${t('fin_charged')}</span><span class="font-mono">${FinUtils.fmtMoney(Number(block.charged) * kx, cardCurrency)}</span></div>
-            <div class="text-xs flex justify-between"><span>${t('fin_paid')}</span><span class="font-mono">${FinUtils.fmtMoney(Number(block.paid) * kx, cardCurrency)}</span></div>
-            ${fromGeneral > 0 ? `<div class="text-xs flex justify-between text-success"><span>${t('fin_from_general')}</span><span class="font-mono">${FinUtils.fmtMoney(fromGeneral * kx, cardCurrency)}</span></div>` : ''}
+            <div class="text-xs flex justify-between"><span>${t('fin_charged')}</span><span class="font-mono">${FinUtils.fmtMoney(Number(block.charged) * kx, cardCur)}</span></div>
+            <div class="text-xs flex justify-between"><span>${t('fin_paid')}</span><span class="font-mono">${FinUtils.fmtMoney(Number(block.paid) * kx, cardCur)}</span></div>
+            ${fromGeneral > 0 ? `<div class="text-xs flex justify-between text-success"><span>${t('fin_from_general')}</span><span class="font-mono">${FinUtils.fmtMoney(fromGeneral * kx, cardCur)}</span></div>` : ''}
             <div class="text-sm flex justify-between mt-1 pt-1 border-t border-base-200"><span>${t('fin_balance')}</span>${balanceHtml}</div>
         </div>`;
     };
-    // Итог складывается из блоков, пересчитанных каждый по своей цене, — чтобы
-    // сумма карточек сходилась с итоговой; «общий» — по курсу ретрита
+    // Итог собирает долг по валютам блоков — «сколько человек должен в конкретных
+    // валютах» (ВГ, 24.08): проживание в ₽, питание в ₹ → «₽ 24 366,67 + ₹ 11 900»
     const kОбщ = cardCurrency === 'INR' ? 1 : (retreatRates[cardCurrency] ? 1 / retreatRates[cardCurrency] : 1);
-    let долг = 0, аванс = 0;
+    const долгВал = {}, авансВал = {};
     BLOCKS.forEach(k => {
         const v = Number(b.blocks[k].balance) * кБлоку(k);
-        if (v > 0) долг += v; else аванс += -v;
+        const cur = валютаБлока(k);
+        if (v > 0.005) долгВал[cur] = (долгВал[cur] || 0) + v;
+        else if (v < -0.005) авансВал[cur] = (авансВал[cur] || 0) - v;
     });
-    долг += Number(b.general_debt) * kОбщ;
-    аванс += Number(b.general_advance) * kОбщ;
+    if (Number(b.general_debt) > 0) долгВал[cardCurrency] = (долгВал[cardCurrency] || 0) + Number(b.general_debt) * kОбщ;
+    if (Number(b.general_advance) > 0) авансВал[cardCurrency] = (авансВал[cardCurrency] || 0) + Number(b.general_advance) * kОбщ;
+    const фмтВал = m => Object.entries(m).map(([c, v]) => FinUtils.fmtMoney(v, c)).join(' + ') || FinUtils.fmtMoney(0, cardCurrency);
     const totalNet = Number(b.net) || 0;
+    const итогHtml = totalNet > 0
+        ? `<span class="badge badge-error badge-outline whitespace-nowrap font-mono">${t('fin_debt')} ${фмтВал(долгВал)}</span>`
+        : totalNet < 0
+            ? `<span class="badge badge-success badge-outline whitespace-nowrap font-mono">${t('fin_advance')} ${фмтВал(авансВал)}</span>`
+            : `<span class="font-mono opacity-40">—</span>`;
     // «Факт списания долга» одной операцией из итога (ВГ, 24.08): долги блоков
     // списываются, авансы оформляются пожертвованием — карточка закрывается в ноль
     const списатьВсё = isAdmin && totalNet > 0
@@ -324,9 +355,9 @@ function renderCardBlocks(b) {
         BLOCKS.map(k => cell(k, b.blocks[k])).join('') +
         `<div class="border-2 rounded-lg p-2 ${totalNet > 0 ? 'border-error' : totalNet < 0 ? 'border-success' : 'border-base-300'}">
             <div class="text-xs font-semibold uppercase opacity-60 mb-1 flex justify-between items-center">${t('fin_total')}${списатьВсё}</div>
-            <div class="text-xs flex justify-between"><span>${t('fin_debt')}</span><span class="font-mono">${FinUtils.fmtMoney(долг, cardCurrency)}</span></div>
-            <div class="text-xs flex justify-between"><span>${t('fin_advance')}</span><span class="font-mono">${FinUtils.fmtMoney(аванс, cardCurrency)}</span></div>
-            <div class="text-sm flex justify-between mt-1 pt-1 border-t border-base-200"><span>${t('fin_total')}</span>${fmtNetWord(долг - аванс, cardCurrency)}</div>
+            <div class="text-xs flex justify-between gap-2"><span>${t('fin_debt')}</span><span class="font-mono text-right">${фмтВал(долгВал)}</span></div>
+            <div class="text-xs flex justify-between gap-2"><span>${t('fin_advance')}</span><span class="font-mono text-right">${фмтВал(авансВал)}</span></div>
+            <div class="text-sm flex justify-between gap-2 mt-1 pt-1 border-t border-base-200"><span>${t('fin_total')}</span>${итогHtml}</div>
         </div>`;
 }
 
@@ -831,6 +862,8 @@ function openPayment() {
 
 function closePayment() {
     document.getElementById('paySection')?.classList.add('hidden');
+    // форма закрыта — сводка возвращается к валюте переключателя
+    syncBlockCurrencies();
 }
 
 // «Засчитать другому участнику» (ТЗ 3.1 + чек-лист v3, п.7): своя строка платежа
@@ -1204,6 +1237,8 @@ function updatePayRunningTotal() {
     // Та же сводка видна над кнопкой «Сохранить» — глазами, до подтверждения (п. 8)
     const чек = document.getElementById('paySummaryLine');
     if (чек) chек_set(чек, детали, итогInr, 'INR');
+    // Валюта строк формы автоматически задаёт валюту сводных блоков (ВГ, 24.08)
+    syncBlockCurrencies();
 }
 function chек_set(el, детали, итог, опорная) {
     const людей = new Set([...document.querySelectorAll('#payRows .pay-row')].map(r => r.querySelector('.pay-person-id')?.value || 'me')).size;
