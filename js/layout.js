@@ -1363,7 +1363,34 @@ function switchModule(moduleId) {
 }
 
 // ==================== INIT LAYOUT ====================
+// GitHub Pages отдаёт HTML с max-age=600: после деплоя браузер ещё до 10 минут
+// показывает старую разметку, а значит и старые ?v= у скриптов — человек тестирует
+// вчерашний код и не понимает, почему правок нет. Один раз за сессию сверяем
+// версии скриптов с сервером и, если разошлись, перезагружаем страницу.
+async function ensureFreshPage() {
+    const флаг = 'srsk_fresh:' + location.pathname;
+    if (sessionStorage.getItem(флаг)) return;
+    sessionStorage.setItem(флаг, '1');   // ставим до перезагрузки — цикл невозможен
+    try {
+        const версии = html => (html.match(/[\w-]+\.js\?v=\d+/g) || []).sort().join(',');
+        const мои = versionsFromDom();
+        if (!мои) return;
+        const resp = await fetch(location.pathname + '?fresh=' + Date.now(), { cache: 'no-store' });
+        if (!resp.ok) return;
+        const серверные = версии(await resp.text());
+        if (серверные && серверные !== мои) location.reload();
+    } catch { /* нет сети — работаем с тем, что загружено */ }
+}
+
+function versionsFromDom() {
+    return [...document.scripts]
+        .map(s => (s.getAttribute('src') || '').match(/[\w-]+\.js\?v=\d+/))
+        .filter(Boolean).map(m => m[0]).sort().join(',');
+}
+
 async function initLayout(page = { module: null, menuId: 'kitchen', itemId: null }) {
+    ensureFreshPage();   // не ждём: если версии разошлись, страница перезагрузится
+
     // Устанавливаем модуль (из параметра или из localStorage)
     if (isAbKitchenContext) {
         currentModule = 'kitchen';
