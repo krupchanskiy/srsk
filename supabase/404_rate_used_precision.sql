@@ -1,0 +1,12 @@
+-- 404: rate_used numeric(12,6) → numeric(18,10): курс «по прайсу CRM» — дробь
+-- вроде 22500/21500, и при 6 знаках round(amount × rate, 2) расходился с базой
+-- на копейку, зажигая сторож amount_base_wrong на каждом таком платеже.
+-- Вьюха fin_v_account_ledger зависит от колонки — в применённой миграции
+-- пересоздана байт в байт (drop view → alter type → create view → grants).
+-- Полный текст вьюхи см. в применённой миграции 404 (mcp apply_migration).
+
+-- drop view fin_v_account_ledger;
+-- alter table fin_postings alter column rate_used type numeric(18,10);
+-- create view fin_v_account_ledger as ... (без изменений);
+-- grant select, insert, update, delete, references, trigger, truncate
+--   on fin_v_account_ledger to authenticated, service_role;

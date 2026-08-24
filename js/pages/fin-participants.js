@@ -721,11 +721,15 @@ async function updateRowHint(row) {
     if (!блок) { if (hint) hint.textContent = ''; delete row.dataset.rateMode; return; }
     // Остаток блока в ₹ минус то, что уже введено в предыдущих строках формы
     let остатокInr = Math.max(Number(блок.balance) || 0, 0);
-    let былиСтроки = false;
+    // «Другая валюта» появляется, когда часть блока уже вносится в иной валюте
+    // (не в текущей и не в ₹) — только тогда остаток идёт по курсу ретрита (п.6);
+    // доплата той же валютой всегда сверяется с её собственной ценой CRM (п.1)
+    let былаДругаяВалюта = false;
     for (const прежняя of document.querySelectorAll('#payRows .pay-row')) {
         if (прежняя === row) break;
         if (rowPid(прежняя) !== pid || прежняя.querySelector('.pay-kind').value !== kind) continue;
-        былиСтроки = true;
+        const валютаПрежней = прежняя.querySelector('.pay-currency').value;
+        if (валютаПрежней !== cur && валютаПрежней !== 'INR') былаДругаяВалюта = true;
         остатокInr = Math.max(остатокInr - (Number(прежняя.querySelector('.pay-amount').value) || 0) * rowRateInr(прежняя), 0);
     }
     const ценаБлока = calc?.blocks?.[kind]?.final;
@@ -733,7 +737,7 @@ async function updateRowHint(row) {
     if (cur === 'INR') {
         сумма = Math.round(остатокInr * 100) / 100;
         режим = 'crm_price';
-    } else if (!былиСтроки && ценаБлока && Number(ценаБлока[cur]) > 0 && Number(ценаБлока.INR) > 0) {
+    } else if (!былаДругаяВалюта && ценаБлока && Number(ценаБлока[cur]) > 0 && Number(ценаБлока.INR) > 0) {
         // своя цена валюты из CRM: полный блок = ровно цена, часть — пропорция (п.1)
         сумма = Math.round(Number(ценаБлока[cur]) * остатокInr / Number(ценаБлока.INR) * 100) / 100;
         режим = 'crm_price';
@@ -1008,7 +1012,9 @@ function removeChange() {
 // излишек проводится пожертвованием на тот же счёт — деньги гостя сходятся 1:1
 function keepAsDonation() {
     removeChange();
-    const rows = [...document.querySelectorAll('#payRows .pay-row')];
+    // Излишек посчитан против остатка участника карточки — вычитаем из его же
+    // последней строки, а не из строки «за другого» (чек-лист v3, п.3/7)
+    const rows = [...document.querySelectorAll('#payRows .pay-row')].filter(r => rowPid(r) === card.id);
     const row = rows[rows.length - 1];
     if (!row) return;
     const валюта = row.querySelector('.pay-currency').value;
@@ -1035,7 +1041,7 @@ function keepAsDonation() {
 function removeDonation() {
     if (payDonation) {
         // вернуть излишек в строку, из которой он был вычтен
-        const rows = [...document.querySelectorAll('#payRows .pay-row')];
+        const rows = [...document.querySelectorAll('#payRows .pay-row')].filter(r => rowPid(r) === card.id);
         const row = rows.find(r => r.querySelector('.pay-account').value === payDonation.account_id) || rows[rows.length - 1];
         if (row) {
             const поле = row.querySelector('.pay-amount');
