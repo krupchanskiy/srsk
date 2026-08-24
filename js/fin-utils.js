@@ -156,11 +156,14 @@ const FinUtils = {
         return await this.loadRefs();
     },
 
-    // Опции селектов. Счета группируются: реальные / подотчётные
-    accountOptions(selectedId, filter) {
+    // Опции селектов. Счета группируются: реальные / подотчётные.
+    // prefer — предикат приоритета: подходящие счета идут первыми в своей группе
+    // (чек-лист ВГ v3, п.4: канал «наличные» ставит кассы выше онлайн-счетов)
+    accountOptions(selectedId, filter, prefer) {
         const e = s => Layout.escapeHtml(s);
         const opt = a => `<option value="${a.account_id}" data-currency="${e(a.currency_code)}" ${a.account_id === selectedId ? 'selected' : ''}>${e(a.name)} (${this.fmtMoney(a.balance, a.currency_code)})</option>`;
         const active = refs.accounts.filter(a => a.is_active && (!filter || filter(a)));
+        if (prefer) active.sort((a, b) => (prefer(b) ? 1 : 0) - (prefer(a) ? 1 : 0));
         const real = active.filter(a => a.kind === 'real');
         const custodial = active.filter(a => a.kind === 'custodial');
         if (!real.length || !custodial.length) return active.map(opt).join('');

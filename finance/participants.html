@@ -155,6 +155,34 @@
                 </div>
                 <!-- Живой пересчёт всех строк в опорную валюту против остатка (ТЗ 3.3) -->
                 <div id="payRunningTotal" class="text-sm font-mono mb-2"></div>
+                <!-- Сдача (чек-лист v3, п.2): наличные, возвращаемые гостю из кассы -->
+                <div id="payChangeWrap" class="hidden border border-warning/40 bg-warning/5 rounded-lg p-2 mb-2">
+                    <div class="flex flex-wrap items-end gap-2">
+                        <div class="text-sm font-medium self-center" data-i18n="fin_change">Сдача</div>
+                        <div class="form-control">
+                            <label class="label py-0"><span class="label-text text-xs" data-i18n="fin_currency">Валюта</span></label>
+                            <select id="payChangeCurrency" class="select select-bordered select-sm"></select>
+                        </div>
+                        <div class="form-control">
+                            <label class="label py-0"><span class="label-text text-xs" data-i18n="fin_amount">Сумма</span></label>
+                            <input type="number" id="payChangeAmount" class="input input-bordered input-sm w-28" min="0.01" step="0.01">
+                        </div>
+                        <div class="form-control">
+                            <label class="label py-0"><span class="label-text text-xs" data-i18n="fin_account">Счёт</span></label>
+                            <select id="payChangeAccount" class="select select-bordered select-sm"></select>
+                        </div>
+                        <button type="button" class="btn btn-ghost btn-sm" onclick="FinParticipants.removeChange()">✕</button>
+                    </div>
+                    <div class="text-xs opacity-60 mt-1" data-i18n="fin_change_hint">Наличные, возвращаемые гостю</div>
+                </div>
+                <!-- Излишек как пожертвование (чек-лист v3, п.3) -->
+                <div id="payDonationWrap" class="hidden border border-success/40 bg-success/5 rounded-lg p-2 mb-2">
+                    <div class="flex items-center gap-2 text-sm">
+                        <span class="font-medium" data-i18n="fin_donation_excess">Излишек — пожертвование</span>
+                        <span id="payDonationInfo" class="font-mono"></span>
+                        <button type="button" class="btn btn-ghost btn-xs ml-auto" onclick="FinParticipants.removeDonation()">✕</button>
+                    </div>
+                </div>
                 <div class="form-control mb-2">
                     <label class="label py-0" for="payComment"><span class="label-text" data-i18n="fin_comment">Комментарий</span></label>
                     <input type="text" id="payComment" class="input input-bordered input-sm">
@@ -224,6 +252,30 @@
     <form method="dialog" class="modal-backdrop"><button>close</button></form>
 </dialog>
 
+<!-- Модалка: списание остатка долга (чек-лист v3, п.3) -->
+<dialog id="writeOffModal" class="modal">
+    <div class="modal-box max-w-sm">
+        <h3 class="font-bold text-lg mb-2" data-i18n="fin_write_off_title">Списать остаток долга</h3>
+        <div class="text-sm opacity-70 mb-3" id="writeOffInfo"></div>
+        <form id="writeOffForm">
+            <input type="hidden" id="writeOffKind">
+            <div class="form-control mb-2">
+                <label class="label py-0"><span class="label-text" data-i18n="fin_amount">Сумма</span></label>
+                <input type="number" id="writeOffAmount" class="input input-bordered input-sm" min="0.01" step="0.01" required>
+            </div>
+            <div class="form-control mb-2">
+                <label class="label py-0"><span class="label-text" data-i18n="fin_write_off_reason">Причина списания</span></label>
+                <input type="text" id="writeOffReason" class="input input-bordered input-sm" required>
+            </div>
+            <div class="modal-action">
+                <button type="button" class="btn" onclick="document.getElementById('writeOffModal').close()" data-i18n="cancel">Отмена</button>
+                <button type="submit" class="btn btn-error" data-i18n="fin_write_off">Списать</button>
+            </div>
+        </form>
+    </div>
+    <form method="dialog" class="modal-backdrop"><button>close</button></form>
+</dialog>
+
 <!-- Модалка: отмена начисления -->
 <dialog id="cancelChargeModal" class="modal">
     <div class="modal-box max-w-sm">
@@ -248,10 +300,10 @@
 <script src="../js/auth-check.js?v=8"></script>
 <script src="../js/cache.js?v=1"></script>
 <script src="../js/utils.js?v=5"></script>
-<script src="../js/layout.js?v=55"></script>
+<script src="../js/layout.js?v=56"></script>
 <script src="../js/date-utils.js?v=4"></script>
-<script src="../js/fin-utils.js?v=9"></script>
-<script src="../js/pages/fin-participants.js?v=13"></script>
+<script src="../js/fin-utils.js?v=10"></script>
+<script src="../js/pages/fin-participants.js?v=14"></script>
 
 </body>
 </html>
