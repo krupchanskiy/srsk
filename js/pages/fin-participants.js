@@ -1118,10 +1118,12 @@ function updatePayRunningTotal() {
            <button type="button" class="btn btn-xs btn-outline btn-success" data-payact="donate">${t('fin_keep_as_donation')}</button>`
         : '';
     const строкаСдачи = сдачаInr > 0 ? ` · ${t('fin_change')}: <b class="text-warning">−${FinUtils.fmtMoney(изInr(сдачаInr), опорная)}</b>` : '';
-    el.innerHTML = `${t('fin_running_total')}: <b>${детали}</b> ≈ ${FinUtils.fmtMoney(изInr(итогInr), опорная)}${строкаСдачи}${хвост}${кнопки}`;
+    // Зачёт показываем в ₹ — валюте учёта: платёж по цене CRM зачитывается не по
+    // курсу ретрита, и «₽ 21 500 ≈ ₽ 20 455» только путал бы (чек-лист v3, п.1)
+    el.innerHTML = `${t('fin_running_total')}: <b>${детали}</b> ≈ ${FinUtils.fmtMoney(итогInr, 'INR')}${строкаСдачи}${хвост}${кнопки}`;
     // Та же сводка видна над кнопкой «Сохранить» — глазами, до подтверждения (п. 8)
     const чек = document.getElementById('paySummaryLine');
-    if (чек) chек_set(чек, детали, изInr(итогInr), опорная);
+    if (чек) chек_set(чек, детали, итогInr, 'INR');
 }
 function chек_set(el, детали, итог, опорная) {
     const людей = new Set([...document.querySelectorAll('#payRows .pay-row')].map(r => r.querySelector('.pay-person-id')?.value || 'me')).size;
