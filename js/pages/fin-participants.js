@@ -1209,8 +1209,12 @@ function openChangeBlock() {
             подставитьСдачу();
         });
     }
-    валютаSel.value = 'INR';
-    document.getElementById('payChangeAccount').innerHTML = счетаДляСтроки('INR', 'cash');
+    // по умолчанию — валюта, в которой платит гость; менять можно любую (ВГ, 24.08)
+    const строки = [...document.querySelectorAll('#payRows .pay-row')];
+    const валюты = new Set(строки.map(r => r.querySelector('.pay-currency').value));
+    const поумолчанию = валюты.size === 1 ? [...валюты][0] : 'INR';
+    валютаSel.value = поумолчанию;
+    document.getElementById('payChangeAccount').innerHTML = счетаДляСтроки(поумолчанию, 'cash');
     подставитьСдачу();
     updatePayRunningTotal();
 }
@@ -1309,7 +1313,13 @@ function updatePayRunningTotal() {
     if (!el) return;
     const rows = [...document.querySelectorAll('#payRows .pay-row')];
     if (!rows.length) { el.innerHTML = ''; return; }
-    const опорная = document.getElementById('payBaseCurrency')?.value || rows[0].querySelector('.pay-currency').value;
+    // Валюта итога — та, в которой платит человек (ВГ, 24.08): показывать остаток
+    // и переплату в рупиях, когда гость даёт доллары, бессмысленно. Если строки
+    // в разных валютах — считаем в опорной.
+    const валютыСтрок = new Set(rows.map(r => r.querySelector('.pay-currency').value));
+    const опорная = валютыСтрок.size === 1
+        ? [...валютыСтрок][0]
+        : (document.getElementById('payBaseCurrency')?.value || rows[0].querySelector('.pay-currency').value);
     const изInr = v => v / (retreatRates[опорная] || 1);
     let итогInr = 0;
     const поЛюдям = {};   // pid → внесено в ₹: остаток считается по каждому человеку формы (п.7, ВГ 24.08)
