@@ -800,7 +800,10 @@ function счетаДляСтроки(валюта, канал) {
 }
 
 function payRowHtml(idx) {
-    const валюта = document.getElementById('payBaseCurrency')?.value || 'INR';
+    // Новая строка наследует валюту первой строки формы — ту, в которой реально
+    // платит гость (ВГ, 24.08). Пока строк нет, берём опорную валюту.
+    const первая = document.querySelector('#payRows .pay-row .pay-currency');
+    const валюта = первая?.value || document.getElementById('payBaseCurrency')?.value || 'INR';
     return `
     <div class="border border-base-300 rounded-lg p-3 mb-2 pay-row" data-idx="${idx}">
         <!-- Три колонки, а не пять: в модалке пять полей сжимаются и подписи обрезаются -->
