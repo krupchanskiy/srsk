@@ -315,10 +315,15 @@ function renderCardBlocks(b) {
     долг += Number(b.general_debt) * kОбщ;
     аванс += Number(b.general_advance) * kОбщ;
     const totalNet = Number(b.net) || 0;
+    // «Факт списания долга» одной операцией из итога (ВГ, 24.08): долги блоков
+    // списываются, авансы оформляются пожертвованием — карточка закрывается в ноль
+    const списатьВсё = isAdmin && totalNet > 0
+        ? `<button type="button" class="btn btn-ghost btn-xs text-error px-1 -mr-1" data-writeoff-all="1" title="${t('fin_write_off_title')}">${t('fin_write_off')}</button>`
+        : '';
     document.getElementById('cardBlocks').innerHTML =
         BLOCKS.map(k => cell(k, b.blocks[k])).join('') +
         `<div class="border-2 rounded-lg p-2 ${totalNet > 0 ? 'border-error' : totalNet < 0 ? 'border-success' : 'border-base-300'}">
-            <div class="text-xs font-semibold uppercase opacity-60 mb-1">${t('fin_total')}</div>
+            <div class="text-xs font-semibold uppercase opacity-60 mb-1 flex justify-between items-center">${t('fin_total')}${списатьВсё}</div>
             <div class="text-xs flex justify-between"><span>${t('fin_debt')}</span><span class="font-mono">${FinUtils.fmtMoney(долг, cardCurrency)}</span></div>
             <div class="text-xs flex justify-between"><span>${t('fin_advance')}</span><span class="font-mono">${FinUtils.fmtMoney(аванс, cardCurrency)}</span></div>
             <div class="text-sm flex justify-between mt-1 pt-1 border-t border-base-200"><span>${t('fin_total')}</span>${fmtNetWord(долг - аванс, cardCurrency)}</div>
@@ -1245,10 +1250,34 @@ async function submitRefund(ev) {
 // ==================== СПИСАНИЕ ОСТАТКА ДОЛГА (чек-лист v3, п.3) ====================
 // Не тихое обнуление: та же механика, что «Перерасчёт» — старое начисление
 // отменяется с записью «было → стало», новое несёт увеличенную скидку с причиной.
-// mode 'debt' — простить остаток долга; mode 'advance' — оставить переплату
-// блока пожертвованием (компенсирующее начисление закрывает аванс в ноль)
+// mode 'debt' — простить остаток долга блока; mode 'advance' — оставить переплату
+// блока пожертвованием; mode 'all' — закрыть весь итог карточки одной операцией:
+// долги блоков списываются, авансы оформляются пожертвованием (ВГ, 24.08)
 function openWriteOff(kind, mode = 'debt') {
     const p = participants.find(x => x.participant_id === card.id);
+    const поле = document.getElementById('writeOffAmount');
+    поле.disabled = false;
+    if (mode === 'all') {
+        const b = p?.balance;
+        const totalNet = Number(b?.net) || 0;
+        if (totalNet <= 0) return;
+        const части = [];
+        for (const k of BLOCKS) {
+            const v = Number(b.blocks[k].balance) || 0;
+            if (v > 0) части.push(`${blockLabel(k)}: ${t('fin_write_off').toLowerCase()} ${FinUtils.fmtMoney(v, 'INR')}`);
+            if (v < 0) части.push(`${blockLabel(k)}: ${t('fin_donation_excess').toLowerCase()} ${FinUtils.fmtMoney(-v, 'INR')}`);
+        }
+        document.getElementById('writeOffKind').value = '';
+        document.getElementById('writeOffMode').value = 'all';
+        document.getElementById('writeOffTitle').textContent = t('fin_write_off_title');
+        document.getElementById('writeOffInfo').textContent =
+            `${card.name} · ${части.join(' · ')} → ${t('fin_total')}: 0`;
+        поле.value = totalNet;
+        поле.disabled = true;   // сумма — весь итог, разложение показано выше
+        document.getElementById('writeOffReason').value = '';
+        document.getElementById('writeOffModal').showModal();
+        return;
+    }
     const баланс = Number(p?.balance?.blocks?.[kind]?.balance) || 0;
     const остаток = mode === 'advance' ? -баланс : баланс;
     if (остаток <= 0) return;
@@ -1258,50 +1287,19 @@ function openWriteOff(kind, mode = 'debt') {
         mode === 'advance' ? t('fin_keep_as_donation') : t('fin_write_off_title');
     document.getElementById('writeOffInfo').textContent =
         `${card.name} · ${blockLabel(kind)} · ${mode === 'advance' ? t('fin_overpaid') : t('fin_balance')}: ${FinUtils.fmtMoney(остаток, 'INR')}`;
-    const поле = document.getElementById('writeOffAmount');
     поле.value = остаток;
     поле.max = остаток;
     document.getElementById('writeOffReason').value = '';
     document.getElementById('writeOffModal').showModal();
 }
 
-async function submitWriteOff(ev) {
-    ev.preventDefault();
-    const kind = document.getElementById('writeOffKind').value;
-    const mode = document.getElementById('writeOffMode').value || 'debt';
-    const сумма = Number(document.getElementById('writeOffAmount').value) || 0;
-    const причина = document.getElementById('writeOffReason').value.trim();
-    if (сумма <= 0 || !причина) return;
-    if (mode === 'advance') {
-        // Переплата → пожертвование: компенсирующее начисление того же блока,
-        // деньги уже в кассе — блок закрывается, след с причиной остаётся
-        const res = await FinUtils.rpc('fin_create_charge', { rows: [{
-            id: FinUtils.newRequestId(),
-            participant_id: card.id,
-            retreat_id: currentRetreat,
-            kind,
-            description: t('fin_donation_excess'),
-            quantity: 1,
-            unit_price: сумма,
-            discount_amount: null,
-            discount_reason: null,
-            agreed_with: null,
-            creation_reason: `Излишек оставлен как пожертвование — ${причина}`
-        }]});
-        if (FinUtils.handleResult(res)) {
-            document.getElementById('writeOffModal').close();
-            await refreshAfterChange();
-        }
-        return;
-    }
-    // Новейшее активное начисление блока, чей «К оплате» покрывает списание
+// Списание долга одного блока через механику перерасчёта: старое начисление
+// отменяется с записью «было → стало», новое несёт увеличенную скидку
+async function writeOffBlockDebt(kind, сумма, причина) {
     const кандидат = Object.values(cardChargesById)
         .filter(c => c.kind === kind && !c.is_cancelled && Number(c.net_amount) >= сумма)
         .sort((a, b) => new Date(b.created_at) - new Date(a.created_at))[0];
-    if (!кандидат) {
-        Layout.showNotification(t('fin_write_off_no_charge'), 'warning');
-        return;
-    }
+    if (!кандидат) return { ok: false, error: { message: t('fin_write_off_no_charge') } };
     const новаяСкидка = Math.round((Number(кандидат.discount_amount || 0) + сумма) * 100) / 100;
     const стало = Number(кандидат.net_amount) - сумма;
     const res = await FinUtils.rpc('fin_create_charge', { rows: [{
@@ -1322,6 +1320,70 @@ async function submitWriteOff(ev) {
             charge_id: кандидат.id,
             reason: `Списание остатка долга: было ${FinUtils.fmtMoney(кандидат.net_amount, 'INR')} → стало ${FinUtils.fmtMoney(стало, 'INR')}. ${причина}`
         });
+    }
+    return res;
+}
+
+// Переплата блока → пожертвование: компенсирующее начисление, деньги уже в кассе
+async function donateBlockAdvance(kind, сумма, причина) {
+    return await FinUtils.rpc('fin_create_charge', { rows: [{
+        id: FinUtils.newRequestId(),
+        participant_id: card.id,
+        retreat_id: currentRetreat,
+        kind,
+        description: t('fin_donation_excess'),
+        quantity: 1,
+        unit_price: сумма,
+        discount_amount: null,
+        discount_reason: null,
+        agreed_with: null,
+        creation_reason: `Излишек оставлен как пожертвование — ${причина}`
+    }]});
+}
+
+async function submitWriteOff(ev) {
+    ev.preventDefault();
+    const kind = document.getElementById('writeOffKind').value;
+    const mode = document.getElementById('writeOffMode').value || 'debt';
+    const сумма = Number(document.getElementById('writeOffAmount').value) || 0;
+    const причина = document.getElementById('writeOffReason').value.trim();
+    if (сумма <= 0 || !причина) return;
+
+    if (mode === 'all') {
+        // Весь итог карточки одной операцией: сначала проверяем, что каждому
+        // долгу есть чем «ответить» (начисление с достаточным «К оплате»)
+        const b = participants.find(x => x.participant_id === card.id)?.balance;
+        if (!b) return;
+        const долги = BLOCKS.map(k => ({ k, v: Number(b.blocks[k].balance) || 0 })).filter(x => x.v > 0);
+        const авансы = BLOCKS.map(k => ({ k, v: -(Number(b.blocks[k].balance) || 0) })).filter(x => x.v > 0);
+        const безПокрытия = долги.find(({ k, v }) => !Object.values(cardChargesById)
+            .some(c => c.kind === k && !c.is_cancelled && Number(c.net_amount) >= v));
+        if (безПокрытия) {
+            Layout.showNotification(`${blockLabel(безПокрытия.k)}: ${t('fin_write_off_no_charge')}`, 'warning');
+            return;
+        }
+        let res = { ok: true };
+        for (const { k, v } of долги) {
+            res = await writeOffBlockDebt(k, v, причина);
+            if (!res?.ok) break;
+        }
+        if (res?.ok) for (const { k, v } of авансы) {
+            res = await donateBlockAdvance(k, v, причина);
+            if (!res?.ok) break;
+        }
+        if (FinUtils.handleResult(res)) {
+            document.getElementById('writeOffModal').close();
+        }
+        await refreshAfterChange();   // и при частичном сбое показать фактическое состояние
+        return;
+    }
+
+    const res = mode === 'advance'
+        ? await donateBlockAdvance(kind, сумма, причина)
+        : await writeOffBlockDebt(kind, сумма, причина);
+    if (!res?.ok && res?.error?.message === t('fin_write_off_no_charge')) {
+        Layout.showNotification(t('fin_write_off_no_charge'), 'warning');
+        return;
     }
     if (FinUtils.handleResult(res)) {
         document.getElementById('writeOffModal').close();
@@ -1387,6 +1449,8 @@ async function init() {
         if (writeOffBtn) { openWriteOff(writeOffBtn.dataset.writeoff); return; }
         const donateBtn = ev.target.closest('[data-donate-advance]');
         if (donateBtn) { openWriteOff(donateBtn.dataset.donateAdvance, 'advance'); return; }
+        const writeOffAllBtn = ev.target.closest('[data-writeoff-all]');
+        if (writeOffAllBtn) { openWriteOff(null, 'all'); return; }
         // Валюта сводных карточек: «в чём человек хочет платить» (ВГ, 24.08)
         const curBtn = ev.target.closest('[data-cardcur]');
         if (curBtn) {
