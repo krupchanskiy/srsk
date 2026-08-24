@@ -694,6 +694,13 @@ async function submitReversal(ev) {
     }
 }
 
+// Приоритет счетов по каналу (ВГ, 24.08 — как в карточке приёма оплаты):
+// наличные — кассы первыми, безнал — счета по выпискам первыми
+function счетаПоКаналу(канал, selectedId, filter) {
+    return FinUtils.accountOptions(selectedId, filter,
+        канал ? a => (a.reconciliation_mode === 'cash_count') === (канал === 'cash') : undefined);
+}
+
 // ==================== ФОРМА: РАСХОД ====================
 function expenseRowHtml(idx) {
     return `
@@ -701,7 +708,7 @@ function expenseRowHtml(idx) {
         <div class="grid grid-cols-2 md:grid-cols-3 gap-2">
             <div class="form-control">
                 <label class="label py-0"><span class="label-text text-xs">${t('fin_account')}</span></label>
-                <select class="select select-bordered select-sm exp-account" required>${FinUtils.accountOptions()}</select>
+                <select class="select select-bordered select-sm exp-account" required>${счетаПоКаналу('cash')}</select>
             </div>
             <div class="form-control">
                 <label class="label py-0"><span class="label-text text-xs">${t('fin_amount')}</span></label>
@@ -801,7 +808,7 @@ function updateExpenseRecap() {
 function openIncome() {
     requestIds.income = requestIds.income || FinUtils.newRequestId();
     document.getElementById('incDate').value = FinUtils.todayISO();
-    document.getElementById('incAccount').innerHTML = FinUtils.accountOptions();
+    document.getElementById('incAccount').innerHTML = счетаПоКаналу('cash');
     document.getElementById('incObject').innerHTML = FinUtils.objectOptions();
     document.getElementById('incChannel').innerHTML = FinUtils.channelOptions('cash');
     updateIncomeCategoryList();
@@ -1145,6 +1152,17 @@ async function init() {
     document.getElementById('trSpent').addEventListener('change', toggleTransferSpent);
     document.getElementById('expenseModal').addEventListener('input', updateExpenseRecap);
     document.getElementById('expenseModal').addEventListener('change', updateExpenseRecap);
+    // Смена канала пересобирает список счетов строки: кассы или безнал первыми
+    document.getElementById('expenseModal').addEventListener('change', ev => {
+        if (!ev.target.classList.contains('exp-channel')) return;
+        const счета = ev.target.closest('.exp-row').querySelector('.exp-account');
+        счета.innerHTML = счетаПоКаналу(ev.target.value, счета.value);
+    });
+    document.getElementById('incChannel').addEventListener('change', ev => {
+        const счета = document.getElementById('incAccount');
+        счета.innerHTML = счетаПоКаналу(ev.target.value, счета.value);
+        updateSplitRecap();
+    });
     FinUtils.attachPersonSearch(document.getElementById('incDonorSearch'), document.getElementById('incDonorId'));
     FinUtils.attachPersonSearch(document.getElementById('incParticipantSearch'), document.getElementById('incParticipantId'));
     document.getElementById('incCategory').addEventListener('change', syncParticipantBlock);
