@@ -283,7 +283,8 @@ function syncBlockCurrencies() {
             const pid = rowPid(row);
             const kind = row.querySelector('.pay-kind').value;
             const cur = row.querySelector('.pay-currency').value;
-            части.push(`${pid}|${kind}|${cur}`);
+            // сумма входит в слепок: «доп сумма» в блоке пересчитывается по ходу ввода
+            части.push(`${pid}|${kind}|${cur}|${row.querySelector('.pay-amount').value}`);
             if (pid === card.id) blockFormCurrency[kind] = cur;
         });
     }
@@ -319,6 +320,43 @@ function формнаяВалютаБлока(pid, kind) {
     return cur;
 }
 
+// Разложение остатка блока по валютам (ВГ, 24.08): «сумма к оплате в рублях, а
+// доплата в другой валюте — доп суммой». Введённые строки формы идут своими
+// валютами, непокрытый хвост — в валюте последней строки блока.
+// Без формы — одна часть в валюте блока.
+function разложениеБлока(pid, kind, balanceInr, валютаПоУмолчанию) {
+    const части = [];
+    let остатокInr = balanceInr;
+    let последняя = null;
+    const секция = document.getElementById('paySection');
+    if (секция && !секция.classList.contains('hidden')) {
+        document.querySelectorAll('#payRows .pay-row').forEach(row => {
+            if (rowPid(row) !== pid || row.querySelector('.pay-kind').value !== kind) return;
+            последняя = row.querySelector('.pay-currency').value;
+            const v = Number(row.querySelector('.pay-amount').value) || 0;
+            if (v <= 0) return;
+            части.push({ cur: последняя, v });
+            остатокInr -= v * rowRateInr(row);
+        });
+    }
+    const cur = последняя || валютаПоУмолчанию;
+    if (Math.abs(остатокInr) > 0.005 || !части.length) {
+        части.push({ cur, v: остатокInr * блокКоэф(pid, kind, cur) });
+    }
+    // одинаковые валюты складываем: «₽ 100 + ₽ 50» читается как ошибка
+    const свёрнуто = [];
+    for (const ч of части) {
+        const есть = свёрнуто.find(x => x.cur === ч.cur);
+        if (есть) есть.v += ч.v; else свёрнуто.push({ ...ч });
+    }
+    return свёрнуто.filter(x => Math.abs(x.v) > 0.005);
+}
+
+function фмтЧасти(части, валютаЕслиПусто) {
+    if (!части.length) return FinUtils.fmtMoney(0, валютаЕслиПусто);
+    return части.map(x => FinUtils.fmtMoney(x.v, x.cur)).join(' + ');
+}
+
 function renderCardBlocks(b) {
     const isAdmin = window.hasPermission?.('fin_admin');
     const валютаБлока = k => blockFormCurrency[k] || cardCurrency;
@@ -338,9 +376,14 @@ function renderCardBlocks(b) {
         // Остаток 0» при активном начислении выглядит как ошибка.
         const fromGeneral = Math.max(0, (Number(block.charged) - Number(block.paid)) - Number(block.balance));
         const balance = Number(block.balance);
+        // Остаток блока с разложением по валютам: основная сумма + доплата (ВГ, 24.08)
+        const части = разложениеБлока(card.id, k, balance, cardCur);
+        const мульти = части.length > 1;
         const balanceHtml = balance === 0 && Number(block.charged) > 0
             ? `<span class="font-mono">${FinUtils.fmtMoney(0, cardCur)}</span>`
-            : fmtNet(balance * kx, cardCur);
+            : мульти
+                ? `<span class="font-mono text-error text-right">${фмтЧасти(части, cardCur)}</span>`
+                : fmtNet(balance * kx, cardCur);
         // Небольшой остаток долга можно простить — «Списать»; переплату по блоку —
         // оставить пожертвованием пост-фактум (чек-лист v3, п.3; ВГ 24.08)
         const списать = isAdmin && balance > 0
@@ -362,10 +405,11 @@ function renderCardBlocks(b) {
     const kОбщ = cardCurrency === 'INR' ? 1 : (retreatRates[cardCurrency] ? 1 / retreatRates[cardCurrency] : 1);
     const долгВал = {}, авансВал = {};
     BLOCKS.forEach(k => {
-        const v = Number(b.blocks[k].balance) * кБлоку(k);
-        const cur = валютаБлока(k);
-        if (v > 0.005) долгВал[cur] = (долгВал[cur] || 0) + v;
-        else if (v < -0.005) авансВал[cur] = (авансВал[cur] || 0) - v;
+        // итог собирается из тех же частей, что показаны в блоке — включая доплаты
+        разложениеБлока(card.id, k, Number(b.blocks[k].balance), валютаБлока(k)).forEach(({ cur, v }) => {
+            if (v > 0.005) долгВал[cur] = (долгВал[cur] || 0) + v;
+            else if (v < -0.005) авансВал[cur] = (авансВал[cur] || 0) - v;
+        });
     });
     if (Number(b.general_debt) > 0) долгВал[cardCurrency] = (долгВал[cardCurrency] || 0) + Number(b.general_debt) * kОбщ;
     if (Number(b.general_advance) > 0) авансВал[cardCurrency] = (авансВал[cardCurrency] || 0) + Number(b.general_advance) * kОбщ;
@@ -965,11 +1009,15 @@ function renderOtherBreakdown(row, balance) {
         if (!(Number(b.charged) || Number(b.paid))) return '';
         const cur = формнаяВалютаБлока(pid, k) || 'INR';
         const kx = блокКоэф(pid, k, cur);
+        const части = разложениеБлока(pid, k, Number(b.balance), cur);
+        const остатокHtml = части.length > 1
+            ? `<span class="font-mono text-error text-right">${фмтЧасти(части, cur)}</span>`
+            : fmtNet(Number(b.balance) * kx, cur);
         return `<div class="border border-base-300 rounded p-1.5 text-[11px]">
             <div class="font-semibold uppercase opacity-60">${e(blockLabel(k))}</div>
             <div class="flex justify-between"><span>${t('fin_charged')}</span><span class="font-mono">${FinUtils.fmtMoney(Number(b.charged) * kx, cur)}</span></div>
             <div class="flex justify-between"><span>${t('fin_paid')}</span><span class="font-mono">${FinUtils.fmtMoney(Number(b.paid) * kx, cur)}</span></div>
-            <div class="flex justify-between border-t border-base-200 mt-0.5 pt-0.5"><span>${t('fin_balance')}</span>${fmtNet(Number(b.balance) * kx, cur)}</div>
+            <div class="flex justify-between gap-1 border-t border-base-200 mt-0.5 pt-0.5"><span>${t('fin_balance')}</span>${остатокHtml}</div>
         </div>`;
     }).join('');
 }
