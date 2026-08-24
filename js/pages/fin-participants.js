@@ -430,15 +430,27 @@ function renderCardBlocks(b) {
     if (Number(b.general_debt) > 0) долгВал[cardCurrency] = (долгВал[cardCurrency] || 0) + Number(b.general_debt) * kОбщ;
     if (Number(b.general_advance) > 0) авансВал[cardCurrency] = (авансВал[cardCurrency] || 0) + Number(b.general_advance) * kОбщ;
     const totalNet = Number(b.net) || 0;
-    const мультиИтог = Object.keys(totalNet > 0 ? долгВал : авансВал).length > 1;
-    // При одной валюте — привычный бейдж; при нескольких — столбик, иначе
-    // суммы уезжают в линейку и последние не видны (ВГ, 24.08)
-    const итогHtml = totalNet === 0
+    // Итог — чистая позиция: долг одного блока гасится авансом другого. Раньше
+    // показывался только аванс целиком, и «Долг ₹1 900 + Аванс ₹2 251 = Аванс
+    // ₹2 251» выглядело как потерянный долг (ВГ, 24.08).
+    const неттоВал = {};
+    const плюс = (cur, v) => { неттоВал[cur] = (неттоВал[cur] || 0) + v; };
+    Object.entries(долгВал).forEach(([cur, v]) => плюс(cur, v));
+    Object.entries(авансВал).forEach(([cur, v]) => плюс(cur, -v));
+    Object.keys(неттоВал).forEach(cur => { if (Math.abs(неттоВал[cur]) < 0.005) delete неттоВал[cur]; });
+    const частиИтога = Object.entries(неттоВал).map(([cur, v]) => ({ cur, v }));
+    const всеДолг = частиИтога.length && частиИтога.every(x => x.v > 0);
+    const всеАванс = частиИтога.length && частиИтога.every(x => x.v < 0);
+    const подпись = всеДолг ? t('fin_debt') : всеАванс ? t('fin_advance') : t('fin_total');
+    const цвет = всеДолг ? 'text-error' : всеАванс ? 'text-success' : '';
+    // при чистом авансе показываем модуль — знак и слово не должны спорить
+    const показИтога = частиИтога.map(x => ({ cur: x.cur, v: всеАванс ? -x.v : x.v }));
+    const итогHtml = !частиИтога.length
         ? `<span class="font-mono opacity-40">—</span>`
-        : мультиИтог
-            ? `<span class="text-right"><span class="text-[11px] uppercase opacity-60 ${totalNet > 0 ? 'text-error' : 'text-success'}">${totalNet > 0 ? t('fin_debt') : t('fin_advance')}</span>
-               ${фмтВалHtml(totalNet > 0 ? долгВал : авансВал, cardCurrency, totalNet > 0 ? 'text-error font-semibold' : 'text-success font-semibold')}</span>`
-            : `<span class="badge ${totalNet > 0 ? 'badge-error' : 'badge-success'} badge-outline whitespace-nowrap font-mono">${totalNet > 0 ? t('fin_debt') : t('fin_advance')} ${фмтЧасти(Object.entries(totalNet > 0 ? долгВал : авансВал).map(([cur, v]) => ({ cur, v })), cardCurrency)}</span>`;
+        : частиИтога.length > 1
+            ? `<span class="text-right"><span class="text-[11px] uppercase opacity-60 ${цвет}">${подпись}</span>
+               ${фмтЧастиHtml(показИтога, cardCurrency, `${цвет} font-semibold`)}</span>`
+            : `<span class="badge ${всеДолг ? 'badge-error' : 'badge-success'} badge-outline whitespace-nowrap font-mono">${подпись} ${фмтЧасти(показИтога, cardCurrency)}</span>`;
     // «Факт списания долга» одной операцией из итога (ВГ, 24.08): долги блоков
     // списываются, авансы оформляются пожертвованием — карточка закрывается в ноль
     const списатьВсё = isAdmin && totalNet > 0
@@ -1033,10 +1045,37 @@ function addOtherParticipantRow() {
             renderOtherBreakdown(row, balance);
             loadOtherHistory(row, hid.value);
             delete row.querySelector('.pay-amount').dataset.touched;
+            // все блоки с долгом сразу: первый — в эту строку, остальные — своими
+            const долги = BLOCKS.filter(k => Number(balance?.blocks?.[k]?.balance) > 0.005);
+            const валюта = row.querySelector('.pay-currency').value;
+            if (долги.length) {
+                row.querySelector('.pay-kind').value = долги[0];
+                onPayCurrencyChange(row);
+            }
             updateRowHint(row);
+            const имя = row.querySelector('.pay-person')?.value || '';
+            долги.slice(1).forEach(k => добавитьДочернююСтроку(hid.value, имя, k, валюта));
             updatePayRunningTotal();
         }
     }, 500);
+}
+
+// Строка платежа для уже выбранного участника: тот же человек, другой блок.
+// Нужна, чтобы за второго гостя заполнялись все его блоки, а не один (ВГ, 24.08)
+function добавитьДочернююСтроку(pid, имя, kind, валюта) {
+    const wrap = document.getElementById('payRows');
+    wrap.insertAdjacentHTML('beforeend', payRowHtml(wrap.children.length));
+    const row = wrap.lastElementChild;
+    row.classList.add('pay-child');
+    row.dataset.personName = имя;
+    row.insertAdjacentHTML('afterbegin',
+        `<input type="hidden" class="pay-person-id" value="${e(pid)}">
+         <div class="text-xs opacity-60 mb-1">${e(имя)}</div>`);
+    row.querySelector('.pay-kind').value = kind;
+    row.querySelector('.pay-currency').value = валюта;
+    onPayCurrencyChange(row);
+    updateRowHint(row);
+    return row;
 }
 
 // Мини-версия сводки по блокам добавленного участника (Начислено/Оплачено/Остаток).
@@ -1361,11 +1400,14 @@ function updatePayRunningTotal() {
         : после < -0.01
             ? ` · ${t('fin_overpaid')}: <b class="text-success">${FinUtils.fmtMoney(-после, опорная)}</b>`
             : ` · <b class="text-success">0</b>`;
-    // Переплата — не тупик: тут же выдать сдачу или оставить пожертвованием (п.2–3)
-    const переплата = после < -0.01 && !payDonation && (!changeWrap || changeWrap.classList.contains('hidden'));
+    // Переплата — не тупик: тут же выдать сдачу или оставить пожертвованием (п.2–3).
+    // После частичной сдачи остаток тоже можно оставить в дар — кнопка остаётся
+    // видимой при открытом блоке сдачи (ВГ, 24.08)
+    const сдачаОткрыта = changeWrap && !changeWrap.classList.contains('hidden');
+    const переплата = после < -0.01 && !payDonation;
     const кнопки = переплата
-        ? ` <button type="button" class="btn btn-xs btn-outline btn-warning ml-2" data-payact="change">${t('fin_change_give')}</button>
-           <button type="button" class="btn btn-xs btn-outline btn-success" data-payact="donate">${t('fin_keep_as_donation')}</button>`
+        ? (сдачаОткрыта ? '' : ` <button type="button" class="btn btn-xs btn-outline btn-warning ml-2" data-payact="change">${t('fin_change_give')}</button>`)
+           + ` <button type="button" class="btn btn-xs btn-outline btn-success ml-1" data-payact="donate">${t('fin_keep_as_donation')}</button>`
         : '';
     const строкаСдачи = сдачаInr > 0 ? ` · ${t('fin_change')}: <b class="text-warning">−${FinUtils.fmtMoney(изInr(сдачаInr), опорная)}</b>` : '';
     // Зачёт показываем в ₹ — валюте учёта: платёж по цене CRM зачитывается не по
@@ -1392,7 +1434,7 @@ function собратьРазбивку() {
         const kind = row.querySelector('.pay-kind').value;
         const cur = row.querySelector('.pay-currency').value;
         (поБлокам[kind] = поБлокам[kind] || {})[cur] = (поБлокам[kind]?.[cur] || 0) + v;
-        const имя = row.querySelector('.pay-person')?.value || card.name;
+        const имя = row.dataset.personName || row.querySelector('.pay-person')?.value || card.name;
         if (!поЛюдям.has(имя)) поЛюдям.set(имя, []);
         поЛюдям.get(имя).push(`${blockLabel(kind)} ${FinUtils.fmtMoney(v, cur)}`);
     });
