@@ -169,6 +169,7 @@ async function openCard(pid) {
     }
     loadCardCrmInfo();
     await Promise.all([loadCardCharges(), loadCardPayments()]);
+    loadCardCompanions();
 }
 
 // Кросс-курсы ретрита в шапке: 1$ = X₹ и т.д. (ТЗ 3.1)
@@ -476,7 +477,7 @@ async function loadCardCharges() {
     const isAdmin = window.hasPermission?.('fin_admin');
     document.getElementById('cardCharges').innerHTML = (data || []).map(c => `
         <tr class="${c.is_cancelled ? 'opacity-60 line-through' : ''} ${!c.is_cancelled && Number(c.discount_amount) > 0 ? 'bg-amber-50' : ''}">
-            <td>${e(blockLabel(c.kind))}</td>
+            <td class="whitespace-nowrap">${e(blockLabel(c.kind))}<div class="text-xs opacity-50">${c.occurred_on ? DateUtils.formatShort(DateUtils.parseDate(c.occurred_on)) : ''}</div></td>
             <td>${e(c.description || '')}${c.quantity != 1 ? ` <span class="opacity-70">(${c.quantity} × ${FinUtils.fmtMoney(c.unit_price, 'INR')})</span>` : ''}${c.is_cancelled ? ` <span class="badge badge-ghost badge-xs no-underline">${t('fin_cancelled')}</span>${c.cancelled_reason ? `<div class="text-xs opacity-60">${t('fin_reason')}: ${e(c.cancelled_reason)}</div>` : ''}` : ''}${c.creation_reason === 'crm_auto' ? ` <span class="badge badge-info badge-xs no-underline">CRM</span>` : c.creation_reason?.startsWith('Перерасчёт') ? `<div class="text-xs text-amber-700">${e(c.creation_reason)}</div>` : c.creation_reason ? `<div class="text-xs opacity-60">${t('fin_post_close_reason')}: ${e(c.creation_reason)}</div>` : ''}${Number(c.discount_amount) > 0 && (c.discount_reason || c.agreed_with) ? `<div class="text-xs opacity-60">${e(c.discount_reason || '')}${c.agreed_with ? ` · ${t('fin_agreed_with').toLowerCase()}: ${e(c.agreed_with)}` : ''}</div>` : ''}</td>
             <td class="text-right font-mono">${FinUtils.fmtMoney(c.amount, 'INR')}</td>
             <td class="text-right font-mono">${Number(c.discount_amount) > 0 ? FinUtils.fmtMoney(c.discount_amount, 'INR') : '—'}</td>
@@ -545,6 +546,34 @@ function renderCardPayments() {
         </tr>`).join('') || `<tr><td colspan="7" class="text-center py-3 opacity-60">${t('fin_no_payments')}</td></tr>`;
 }
 
+// «Платили вместе» (ВГ, 25.08): в карточке не было видно спутника, за которого
+// шла общая оплата, и его долг оставался незамеченным
+async function loadCardCompanions() {
+    const el = document.getElementById('cardCompanions');
+    if (!el) return;
+    el.innerHTML = '';
+    const операции = [...new Set((card.payments || []).map(p => p.operation_id).filter(Boolean))];
+    if (!операции.length) return;
+    const { data } = await Layout.db.from('fin_v_account_ledger')
+        .select('participant_id, participant_name, operation_id')
+        .in('operation_id', операции)
+        .not('participant_id', 'is', null);
+    const другие = [...new Map((data || [])
+        .filter(x => x.participant_id !== card.id)
+        .map(x => [x.participant_id, x])).values()];
+    if (!другие.length) return;
+    const балансы = await Promise.all(другие.map(async x => {
+        const { data: b } = await Layout.db.rpc('fin_get_participant_balance',
+            { p_participant: x.participant_id, p_retreat: currentRetreat });
+        return { ...x, net: Number(b?.net) || 0 };
+    }));
+    el.innerHTML = `<div class="text-xs opacity-70 mt-1">${t('fin_paid_together')}: ` +
+        балансы.map(x => `<button type="button" class="link" data-open-participant="${x.participant_id}">${e(x.participant_name || '')}</button> — ${
+            x.net > 0.005 ? `<span class="text-error">${t('fin_debt')} ${FinUtils.fmtMoney(x.net, 'INR')}</span>`
+            : x.net < -0.005 ? `<span class="text-success">${t('fin_advance')} ${FinUtils.fmtMoney(-x.net, 'INR')}</span>`
+            : `<span class="opacity-60">0</span>`}`).join(' &nbsp;·&nbsp; ') + `</div>`;
+}
+
 async function refreshAfterChange() {
     await loadParticipants();
     if (card.id && document.getElementById('cardModal').open) {
@@ -586,7 +615,15 @@ function chargeRowHtml(idx) {
             </div>
             <div class="form-control">
                 <label class="label py-0"><span class="label-text text-xs">${t('fin_unit_price')}</span></label>
-                <input type="number" class="input input-bordered input-sm chg-price" min="0" step="0.01" required>
+                <div class="flex gap-1">
+                    <input type="number" class="input input-bordered input-sm chg-price w-full" min="0" step="0.01" required>
+                    <!-- Цена вводится в любой валюте, в учёт идёт ₹ по прайсу CRM (ВГ, 25.08) -->
+                    <select class="select select-bordered select-sm chg-currency w-20">${payCurrencyOptions('INR')}</select>
+                </div>
+            </div>
+            <div class="form-control">
+                <label class="label py-0"><span class="label-text text-xs">${t('fin_occurred_on')}</span></label>
+                <input type="date" class="input input-bordered input-sm chg-date" value="${FinUtils.todayISO()}">
             </div>
             <div class="form-control">
                 <label class="label py-0"><span class="label-text text-xs">${t('fin_discount')}</span></label>
@@ -655,14 +692,30 @@ function wireChargeRow(row) {
         const qty = Number(row.querySelector('.chg-qty').value) || 0;
         const price = Number(row.querySelector('.chg-price').value) || 0;
         const disc = Number(row.querySelector('.chg-discount').value) || 0;
+        const cur = row.querySelector('.chg-currency').value;
         if (!qty || !price) { totalEl.textContent = ''; return; }
         const total = Math.max(qty * price - disc, 0);
-        totalEl.textContent = `${t('fin_row_total')}: ${qty} × ${FinUtils.fmtMoney(price, 'INR')}`
-            + (disc > 0 ? ` − ${FinUtils.fmtMoney(disc, 'INR')}` : '')
-            + ` = ${FinUtils.fmtMoney(total, 'INR')}`;
+        const вInr = total * ценаВInr(row, 1);
+        totalEl.innerHTML = `${t('fin_row_total')}: ${qty} × ${FinUtils.fmtMoney(price, cur)}`
+            + (disc > 0 ? ` − ${FinUtils.fmtMoney(disc, cur)}` : '')
+            + ` = ${FinUtils.fmtMoney(total, cur)}`
+            + (cur !== 'INR' ? ` <span class="opacity-70">≈ ${FinUtils.fmtMoney(вInr, 'INR')}</span>` : '');
     };
     ['.chg-qty', '.chg-price', '.chg-discount'].forEach(sel =>
         row.querySelector(sel).addEventListener('input', recalc));
+    row.querySelector('.chg-currency').addEventListener('change', recalc);
+    row.querySelector('.chg-kind').addEventListener('change', recalc);
+}
+
+// Во сколько рупий обходится единица введённой валюты для этого блока:
+// сперва цена блока в прайсе CRM, иначе курс ретрита (ВГ, 25.08)
+function ценаВInr(row, единиц) {
+    const cur = row.querySelector('.chg-currency').value;
+    if (cur === 'INR') return 1;
+    const kind = row.querySelector('.chg-kind').value;
+    const f = cardCalc?.blocks?.[kind]?.final;
+    if (f && Number(f[cur]) > 0 && Number(f.INR) > 0) return Number(f.INR) / Number(f[cur]);
+    return retreatRates[cur] || 1;
 }
 
 function addChargeRow(presetPerson) {
@@ -709,6 +762,8 @@ function openRecalc(chargeId) {
     desc.value = c.description || ''; desc.dataset.touched = '1';
     row.querySelector('.chg-qty').value = c.quantity;
     row.querySelector('.chg-price').value = c.unit_price;
+    row.querySelector('.chg-currency').value = 'INR';
+    if (c.occurred_on) row.querySelector('.chg-date').value = c.occurred_on;
     row.querySelector('.chg-discount').value = Number(c.discount_amount) > 0 ? c.discount_amount : '';
     row.querySelector('.chg-discount').dispatchEvent(new Event('input'));
     row.querySelector('.chg-discount-reason').value = c.discount_reason || '';
@@ -740,12 +795,17 @@ async function submitCharge(ev) {
         participant_id: row.querySelector('.chg-person-id').value,
         retreat_id: currentRetreat,
         kind: row.querySelector('.chg-kind').value,
-        description: (row.querySelector('.chg-desc').value || '') + (
+        description: (row.querySelector('.chg-desc').value || '')
+            + (row.querySelector('.chg-currency').value !== 'INR'
+                ? ` (${row.querySelector('.chg-qty').value} × ${FinUtils.fmtMoney(row.querySelector('.chg-price').value, row.querySelector('.chg-currency').value)})` : '')
+            + (
             row.querySelector('.chg-date-from')?.value && row.querySelector('.chg-date-to')?.value
                 ? ` (${DateUtils.formatShort(DateUtils.parseDate(row.querySelector('.chg-date-from').value))} — ${DateUtils.formatShort(DateUtils.parseDate(row.querySelector('.chg-date-to').value))})`
                 : '') || null,
         quantity: row.querySelector('.chg-qty').value,
-        unit_price: row.querySelector('.chg-price').value,
+        // в учёте рупия: цену из другой валюты пересчитываем по прайсу CRM
+        unit_price: Math.round(Number(row.querySelector('.chg-price').value || 0) * ценаВInr(row, 1) * 100) / 100,
+        occurred_on: row.querySelector('.chg-date').value || null,
         discount_amount: row.querySelector('.chg-discount').value || null,
         discount_reason: row.querySelector('.chg-discount-reason').value || null,
         agreed_with: row.querySelector('.chg-agreed-with').value || null,
@@ -1201,6 +1261,14 @@ async function submitPayment(ev) {
     const людей = new Set(rows.map(r => r.participant_id)).size;
     const итог = Object.entries(поВалютам).filter(([, v]) => v > 0)
         .map(([c, v]) => FinUtils.fmtMoney(v, c)).join(' + ');
+    // деньги должны сходиться: распределено не больше полученного (ВГ, 25.08)
+    const получ = полученоПоВалютам();
+    const распр = распределеноПоВалютам();
+    const нехватка = Object.entries(распр)
+        .map(([cur, v]) => [cur, Math.round((v - (получ[cur] || 0)) * 100) / 100])
+        .filter(([, d]) => d > 0.005);
+    if (нехватка.length && !confirm(
+        `${t('fin_received_less')}: ${нехватка.map(([c, v]) => FinUtils.fmtMoney(v, c)).join(' + ')}\n${t('fin_save_anyway')}`)) return;
     const поИменам = собратьРазбивку().текст;
     const вопрос = `${t('fin_running_total')}: ${итог}` +
         (людей > 1 ? ` ${t('fin_for_n_people').replace('{n}', людей)}` : '') +
@@ -1539,13 +1607,22 @@ function updatePayRunningTotal() {
         донатИнфо.textContent = Object.entries(payDonation)
             .map(([cur, v]) => FinUtils.fmtMoney(v, cur)).join(' + ');
     }
+    // Получено меньше распределённого — деньги не сходятся: зачли больше, чем взяли.
+    // Именно так у пары матаджи «потерялись» $32 (ВГ, 25.08)
+    const получено = полученоПоВалютам();
+    const распределено = распределеноПоВалютам();
+    const недостача = Object.entries(распределено)
+        .map(([cur, v]) => [cur, Math.round((v - (получено[cur] || 0)) * 100) / 100])
+        .filter(([, d]) => d > 0.005);
     const подсказка = document.getElementById('payReceivedHint');
     if (подсказка) {
-        подсказка.innerHTML = переборСдачи.length
-            ? `<span class="text-error">${t('fin_change_exceeds_excess')}: ${переборСдачи.join(' + ')}</span>`
-            : Object.keys(излишек).length
-                ? `${t('fin_excess')}: ${Object.entries(излишек).map(([c, v]) => FinUtils.fmtMoney(v, c)).join(' + ')}`
-                : `<span class="opacity-60">${t('fin_received_hint')}</span>`;
+        подсказка.innerHTML = недостача.length
+            ? `<span class="text-error font-medium">${t('fin_received_less')}: ${недостача.map(([c, v]) => FinUtils.fmtMoney(v, c)).join(' + ')}</span>`
+            : переборСдачи.length
+                ? `<span class="text-error">${t('fin_change_exceeds_excess')}: ${переборСдачи.join(' + ')}</span>`
+                : Object.keys(излишек).length
+                    ? `${t('fin_excess')}: ${Object.entries(излишек).map(([c, v]) => FinUtils.fmtMoney(v, c)).join(' + ')}`
+                    : `<span class="opacity-60">${t('fin_received_hint')}</span>`;
     }
     // Переплата — не тупик: тут же выдать сдачу или оставить пожертвованием (п.2–3).
     // После частичной сдачи остаток тоже можно оставить в дар — кнопка остаётся
@@ -1840,6 +1917,8 @@ async function init() {
         if (writeOffBtn) { openWriteOff(writeOffBtn.dataset.writeoff); return; }
         const donateBtn = ev.target.closest('[data-donate-advance]');
         if (donateBtn) { openWriteOff(donateBtn.dataset.donateAdvance, 'advance'); return; }
+        const compBtn = ev.target.closest('[data-open-participant]');
+        if (compBtn) { openCard(compBtn.dataset.openParticipant); return; }
         const writeOffAllBtn = ev.target.closest('[data-writeoff-all]');
         if (writeOffAllBtn) { openWriteOff(null, 'all'); return; }
         // Валюта сводных карточек: «в чём человек хочет платить» (ВГ, 24.08)
