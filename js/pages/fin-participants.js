@@ -1621,7 +1621,11 @@ function updatePayRunningTotal() {
             : переборСдачи.length
                 ? `<span class="text-error">${t('fin_change_exceeds_excess')}: ${переборСдачи.join(' + ')}</span>`
                 : Object.keys(излишек).length
+                    // цепочка «излишек → сдача → в дар»: без неё непонятно, почему
+                    // дар меньше излишка, и кажется, что сдача не учтена (ВГ, 25.08)
                     ? `${t('fin_excess')}: ${Object.entries(излишек).map(([c, v]) => FinUtils.fmtMoney(v, c)).join(' + ')}`
+                      + (сдачаInr > 0 ? ` − ${t('fin_change').toLowerCase()} ${Object.entries(сдача).map(([c, v]) => FinUtils.fmtMoney(v, c)).join(' + ')}` : '')
+                      + (payDonation ? ` → ${t('fin_to_donation')} <b>${Object.entries(payDonation).map(([c, v]) => FinUtils.fmtMoney(v, c)).join(' + ')}</b>` : ` → 0`)
                     : `<span class="opacity-60">${t('fin_received_hint')}</span>`;
     }
     // Переплата — не тупик: тут же выдать сдачу или оставить пожертвованием (п.2–3).
