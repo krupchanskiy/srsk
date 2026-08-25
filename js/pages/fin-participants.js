@@ -20,6 +20,8 @@ let card = { id: null, name: '', payments: [] };
 const requestIds = { payment: null, refund: null };
 
 function blockLabel(kind) {
+    // сдача не относится к блоку — в истории у неё прочерк (ВГ, 25.08)
+    if (!kind || kind === 'none') return '—';
     return t('fin_block_' + kind);
 }
 
@@ -1244,7 +1246,7 @@ async function submitPayment(ev) {
         amount: Number(line.querySelector('.chgline-amount').value) || 0,
         participant_id: payer,
         object_id: objectId,
-        participant_balance_kind: rows[0].participant_balance_kind,
+        participant_balance_kind: 'none',   // сдача возвращает деньги, не зачтённые на блок
         payment_channel: 'cash'
     })).filter(x => x.amount > 0);
     if (change.some(x => !x.account_id)) {
