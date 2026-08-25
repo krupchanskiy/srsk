@@ -161,24 +161,23 @@
                 <div id="payRunningTotal" class="text-sm font-mono mb-2"></div>
                 <!-- Разбивка по блокам и по именам: кто за кого и в какой валюте (ВГ, 24.08) -->
                 <div id="payBreakdown" class="text-xs opacity-70 mb-2"></div>
-                <!-- Сдача (чек-лист v3, п.2): наличные, возвращаемые гостю из кассы -->
-                <div id="payChangeWrap" class="hidden border border-warning/40 bg-warning/5 rounded-lg p-2 mb-2">
-                    <div class="flex flex-wrap items-end gap-2">
-                        <div class="text-sm font-medium self-center" data-i18n="fin_change">Сдача</div>
-                        <div class="form-control">
-                            <label class="label py-0"><span class="label-text text-xs" data-i18n="fin_currency">Валюта</span></label>
-                            <select id="payChangeCurrency" class="select select-bordered select-sm"></select>
-                        </div>
-                        <div class="form-control">
-                            <label class="label py-0"><span class="label-text text-xs" data-i18n="fin_amount">Сумма</span></label>
-                            <input type="number" id="payChangeAmount" class="input input-bordered input-sm w-28" min="0.01" step="0.01">
-                        </div>
-                        <div class="form-control">
-                            <label class="label py-0"><span class="label-text text-xs" data-i18n="fin_account">Счёт</span></label>
-                            <select id="payChangeAccount" class="select select-bordered select-sm"></select>
-                        </div>
-                        <button type="button" class="btn btn-ghost btn-sm" onclick="FinParticipants.removeChange()">✕</button>
+                <!-- Получено от гостя: сколько наличных реально передано, по валютам
+                     (чек-лист v4, п.10). Из этого распределяются блоки, сдача и дар. -->
+                <div id="payReceivedWrap" class="border border-info/40 bg-info/5 rounded-lg p-2 mb-2">
+                    <div class="flex flex-wrap items-center gap-2">
+                        <span class="text-sm font-medium" data-i18n="fin_received_from_guest">Получено от гостя</span>
+                        <div id="payReceivedRows" class="flex flex-wrap items-end gap-2"></div>
                     </div>
+                    <div class="text-xs mt-1" id="payReceivedHint"></div>
+                </div>
+                <!-- Сдача (чек-лист v3, п.2; v4, п.11 — несколькими валютами) -->
+                <div id="payChangeWrap" class="hidden border border-warning/40 bg-warning/5 rounded-lg p-2 mb-2">
+                    <div class="flex items-center gap-2 mb-1">
+                        <span class="text-sm font-medium" data-i18n="fin_change">Сдача</span>
+                        <button type="button" class="btn btn-ghost btn-xs" onclick="FinParticipants.addChangeRow()">+ <span data-i18n="fin_add">Добавить</span></button>
+                        <button type="button" class="btn btn-ghost btn-xs ml-auto" onclick="FinParticipants.removeChange()">✕</button>
+                    </div>
+                    <div id="payChangeRows" class="flex flex-col gap-1"></div>
                     <div class="text-xs opacity-60 mt-1" data-i18n="fin_change_hint">Наличные, возвращаемые гостю</div>
                 </div>
                 <!-- Излишек как пожертвование (чек-лист v3, п.3) -->
@@ -307,10 +306,10 @@
 <script src="../js/auth-check.js?v=10"></script>
 <script src="../js/cache.js?v=1"></script>
 <script src="../js/utils.js?v=12"></script>
-<script src="../js/layout.js?v=58"></script>
+<script src="../js/layout.js?v=59"></script>
 <script src="../js/date-utils.js?v=4"></script>
 <script src="../js/fin-utils.js?v=11"></script>
-<script src="../js/pages/fin-participants.js?v=28"></script>
+<script src="../js/pages/fin-participants.js?v=29"></script>
 
 </body>
 </html>

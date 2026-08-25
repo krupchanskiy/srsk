@@ -1,0 +1,5 @@
+-- 406: Сдача несколькими валютами в одной операции (чек-лист ВГ v4, п.11).
+-- payload.change принимает массив строк {account_id, amount, participant_id,
+-- object_id, participant_balance_kind, payment_channel}; одиночный объект
+-- по-прежнему допустим — старый контракт не ломается.
+-- Полный текст функции применён через MCP apply_migration (см. историю миграций).
