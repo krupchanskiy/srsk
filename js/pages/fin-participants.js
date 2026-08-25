@@ -1813,7 +1813,6 @@ async function init() {
         if (payAct) payAct.dataset.payact === 'change' ? openChangeBlock() : keepAsDonation();
     });
     document.getElementById('writeOffForm').addEventListener('submit', FinUtils.lockedSubmit(submitWriteOff));
-    document.getElementById('payChangeAmount').addEventListener('input', updatePayRunningTotal);
 
     // Панель: поиск, фильтр-чипы, сортировка
     document.getElementById('pSearch').addEventListener('input', Layout.debounce(renderParticipants, 200));
