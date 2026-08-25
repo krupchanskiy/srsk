@@ -1342,6 +1342,46 @@ function излишекПоВалютам() {
     return m;
 }
 
+// Сдача гасит излишек через рупии: сначала свою валюту, потом остальные.
+// Возвращает {остаток: {валюта: сумма} — в дар, перебор: ₹ сверх излишка}
+function распределитьСдачу(излишек, сдача) {
+    const курс = c => retreatRates[c] || 1;
+    const остаток = {};
+    Object.entries(излишек).forEach(([c, v]) => { остаток[c] = v; });
+    let перебор = 0;
+    for (const [curС, сумма] of Object.entries(сдача)) {
+        let нужноInr = сумма * курс(curС);
+        // сперва та же валюта — гостю удобнее получить сдачу тем же, чем платил
+        const порядок = [curС, ...Object.keys(остаток).filter(c => c !== curС)];
+        for (const c of порядок) {
+            if (нужноInr <= 0.005) break;
+            const естьInr = (остаток[c] || 0) * курс(c);
+            if (естьInr <= 0.005) continue;
+            const беремInr = Math.min(естьInr, нужноInr);
+            остаток[c] = Math.round((остаток[c] - беремInr / курс(c)) * 100) / 100;
+            нужноInr -= беремInr;
+        }
+        перебор += Math.max(нужноInr, 0);
+    }
+    Object.keys(остаток).forEach(c => { if (остаток[c] <= 0.005) delete остаток[c]; });
+    return { остаток, перебор };
+}
+
+// Сколько излишка ещё не покрыто сдачей — в валюте cur (для подстановки в строку)
+function непокрытыйОстаток(cur, кромеСтроки) {
+    const сдача = {};
+    document.querySelectorAll('#payChangeRows .chg-line').forEach(line => {
+        if (line === кромеСтроки) return;
+        const v = Number(line.querySelector('.chgline-amount').value) || 0;
+        if (!v) return;
+        const c = line.querySelector('.chgline-currency').value;
+        сдача[c] = (сдача[c] || 0) + v;
+    });
+    const { остаток } = распределитьСдачу(излишекПоВалютам(), сдача);
+    const вInr = Object.entries(остаток).reduce((a, [c, v]) => a + v * (retreatRates[c] || 1), 0);
+    return Math.round(вInr / (retreatRates[cur] || 1) * 100) / 100;
+}
+
 // ==================== СДАЧА И ИЗЛИШЕК (v3 п.2–3; v4 п.10–11) ====================
 // Излишек = получено от гостя − распределено по блокам. Часть можно вернуть
 // сдачей (сколько угодно строк, любые валюты), остальное остаётся в дар.
@@ -1365,6 +1405,10 @@ function addChangeRow(валюта, сумма) {
     const rows = document.getElementById('payChangeRows');
     const cur = валюта || Object.keys(излишекПоВалютам())[0]
         || document.querySelector('#payRows .pay-currency')?.value || 'INR';
+    if (сумма == null) {
+        const надо = непокрытыйОстаток(cur);
+        if (надо > 0) сумма = надо;
+    }
     rows.insertAdjacentHTML('beforeend', `
         <div class="chg-line flex flex-wrap items-end gap-2">
             <div class="form-control">
@@ -1384,6 +1428,10 @@ function addChangeRow(валюта, сумма) {
     const line = rows.lastElementChild;
     line.querySelector('.chgline-currency').addEventListener('change', ev => {
         line.querySelector('.chgline-account').innerHTML = счетаДляСтроки(ev.target.value, 'cash');
+        // сумма пересчитывается в новую валюту: «дал рублями, сдача рупиями» (ВГ, 25.08)
+        const поле = line.querySelector('.chgline-amount');
+        const надо = непокрытыйОстаток(ev.target.value, line);
+        if (надо > 0) поле.value = надо;
         updatePayRunningTotal();
     });
     line.querySelector('.chgline-amount').addEventListener('input', updatePayRunningTotal);
@@ -1477,18 +1525,13 @@ function updatePayRunningTotal() {
         : после < -0.01
             ? ` · ${t('fin_overpaid')}: <b class="text-success">${FinUtils.fmtMoney(-после, опорная)}</b>`
             : ` · <b class="text-success">0</b>`;
-    // Дар = излишек минус возвращённая сдача, по каждой валюте (v4, п.8/10)
+    // Дар = излишек минус возвращённая сдача. Сдачу можно выдать другой валютой,
+    // поэтому гасим излишки через рупии — валюту учёта (ВГ, 25.08)
     const излишек = излишекПоВалютам();
-    payDonation = {};
-    Object.keys(излишек).forEach(cur => {
-        const остаток = Math.round((излишек[cur] - (сдача[cur] || 0)) * 100) / 100;
-        if (остаток > 0.005) payDonation[cur] = остаток;
-    });
-    // сдача сверх излишка — ошибка ввода, покажем красным
-    const переборСдачи = Object.entries(сдача)
-        .filter(([cur, v]) => v - (излишек[cur] || 0) > 0.005)
-        .map(([cur, v]) => FinUtils.fmtMoney(v - (излишек[cur] || 0), cur));
-    if (!Object.keys(payDonation).length) payDonation = null;
+    const разбор = распределитьСдачу(излишек, сдача);
+    payDonation = Object.keys(разбор.остаток).length ? разбор.остаток : null;
+    const переборСдачи = разбор.перебор > 0.005
+        ? [FinUtils.fmtMoney(разбор.перебор / (retreatRates[опорная] || 1), опорная)] : [];
     const донатEl = document.getElementById('payDonationWrap');
     const донатИнфо = document.getElementById('payDonationInfo');
     if (донатEl) донатEl.classList.toggle('hidden', !payDonation);
