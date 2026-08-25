@@ -1477,16 +1477,6 @@ function updatePayRunningTotal() {
         : после < -0.01
             ? ` · ${t('fin_overpaid')}: <b class="text-success">${FinUtils.fmtMoney(-после, опорная)}</b>`
             : ` · <b class="text-success">0</b>`;
-    // Переплата — не тупик: тут же выдать сдачу или оставить пожертвованием (п.2–3).
-    // После частичной сдачи остаток тоже можно оставить в дар — кнопка остаётся
-    // видимой при открытом блоке сдачи (ВГ, 24.08)
-    const changeWrap = document.getElementById('payChangeWrap');
-    const сдачаОткрыта = changeWrap && !changeWrap.classList.contains('hidden');
-    const переплата = Object.keys(излишек).length > 0;
-    const кнопки = переплата
-        ? (сдачаОткрыта ? '' : ` <button type="button" class="btn btn-xs btn-outline btn-warning ml-2" data-payact="change">${t('fin_change_give')}</button>`)
-           + ` <button type="button" class="btn btn-xs btn-outline btn-success ml-1" data-payact="donate">${t('fin_keep_as_donation')}</button>`
-        : '';
     // Дар = излишек минус возвращённая сдача, по каждой валюте (v4, п.8/10)
     const излишек = излишекПоВалютам();
     payDonation = {};
@@ -1514,6 +1504,16 @@ function updatePayRunningTotal() {
                 ? `${t('fin_excess')}: ${Object.entries(излишек).map(([c, v]) => FinUtils.fmtMoney(v, c)).join(' + ')}`
                 : `<span class="opacity-60">${t('fin_received_hint')}</span>`;
     }
+    // Переплата — не тупик: тут же выдать сдачу или оставить пожертвованием (п.2–3).
+    // После частичной сдачи остаток тоже можно оставить в дар — кнопка остаётся
+    // видимой при открытом блоке сдачи (ВГ, 24.08)
+    const changeWrap = document.getElementById('payChangeWrap');
+    const сдачаОткрыта = changeWrap && !changeWrap.classList.contains('hidden');
+    const переплата = Object.keys(излишек).length > 0;
+    const кнопки = переплата
+        ? (сдачаОткрыта ? '' : ` <button type="button" class="btn btn-xs btn-outline btn-warning ml-2" data-payact="change">${t('fin_change_give')}</button>`)
+           + ` <button type="button" class="btn btn-xs btn-outline btn-success ml-1" data-payact="donate">${t('fin_keep_as_donation')}</button>`
+        : '';
     const строкаСдачи = сдачаInr > 0
         ? ` · ${t('fin_change')}: <b class="text-warning">${Object.entries(сдача).map(([c, v]) => '−' + FinUtils.fmtMoney(v, c)).join(' ')}</b>` : '';
     // Зачёт показываем в ₹ — валюте учёта: платёж по цене CRM зачитывается не по
