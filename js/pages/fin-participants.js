@@ -96,6 +96,10 @@ function renderParticipants() {
         const net = Number(p.balance.net) || 0;
         if (pFilter === 'debt' && net <= 0) return false;
         if (pFilter === 'advance' && net >= 0) return false;
+        if (pFilter === 'paid') {
+            const начислено = BLOCKS.reduce((a, k) => a + (Number(p.balance.blocks?.[k]?.charged) || 0), 0);
+            if (Math.abs(net) > 0.005 || начислено <= 0) return false;
+        }
         if (query && !(p.name || '').toLowerCase().includes(query)) return false;
         return true;
     });
@@ -105,11 +109,20 @@ function renderParticipants() {
     });
     body.innerHTML = list.map(p => {
         const b = p.balance;
+        // Закрытый блок отмечаем галочкой, а не прочерком: прочерк одинаково
+        // выглядит и у оплаченного, и у того, кому ничего не начисляли (ВГ, 26.08)
+        const ячейка = k => {
+            const блок = b.blocks[k];
+            if (Math.abs(Number(блок.balance)) < 0.005 && Number(блок.charged) > 0) {
+                return `<span class="text-success" title="${t('fin_paid')}">${FinUtils.ICONS.check}</span>`;
+            }
+            return fmtNet(блок.balance);
+        };
         return `<tr class="cursor-pointer hover:bg-base-200" data-pid="${p.participant_id}" tabindex="0">
             <td class="font-medium">${e(p.name || '')}</td>
-            ${BLOCKS.map(k => `<td class="text-right">${fmtNet(b.blocks[k].balance)}</td>`).join('')}
+            ${BLOCKS.map(k => `<td class="text-right">${ячейка(k)}</td>`).join('')}
             <td class="text-right">${fmtNet(Number(b.general_debt) - Number(b.general_advance))}</td>
-            <td class="text-right font-semibold">${fmtNetWord(b.net)}</td>
+            <td class="text-right font-semibold">${fmtNetWord(b.net, 'INR', b)}</td>
         </tr>`;
     }).join('') || `<tr><td colspan="7" class="text-center py-6 opacity-60">${t('fin_nothing_found')}</td></tr>`;
     renderParticipantsSummary();
@@ -130,12 +143,19 @@ function renderParticipantsSummary() {
         ` &nbsp;•&nbsp; <span class="text-success">${t('fin_advances')}: ${advCount} · ${FinUtils.fmtMoney(advSum, 'INR')}</span>`;
 }
 
-// Итог со словом: «Долг ₹N» / «Аванс ₹N» — знак и цвет не спорят друг с другом
-function fmtNetWord(n, cur = 'INR') {
+// Итог со словом: «Долг ₹N» / «Аванс ₹N» — знак и цвет не спорят друг с другом.
+// Ноль при наличии начислений — это «Оплачено», а не пустота (ВГ, 26.08)
+function fmtNetWord(n, cur = 'INR', balance) {
     const v = Number(n) || 0;
     const s = FinUtils.fmtMoney(Math.abs(v), cur);
     if (v > 0) return `<span class="badge badge-error badge-outline whitespace-nowrap font-mono">${t('fin_debt')} ${s}</span>`;
     if (v < 0) return `<span class="badge badge-success badge-outline whitespace-nowrap font-mono">${t('fin_advance')} ${s}</span>`;
+    const начислено = balance
+        ? BLOCKS.reduce((a, k) => a + (Number(balance.blocks?.[k]?.charged) || 0), 0)
+        : 0;
+    if (начислено > 0) {
+        return `<span class="badge badge-success badge-outline whitespace-nowrap gap-1">${FinUtils.ICONS.check} ${t('fin_paid')}</span>`;
+    }
     return `<span class="font-mono opacity-40">—</span>`;
 }
 
@@ -452,8 +472,11 @@ function renderCardBlocks(b) {
     const цвет = всеДолг ? 'text-error' : всеАванс ? 'text-success' : '';
     // при чистом авансе показываем модуль — знак и слово не должны спорить
     const показИтога = частиИтога.map(x => ({ cur: x.cur, v: всеАванс ? -x.v : x.v }));
+    const начисленоВсего = BLOCKS.reduce((a, k) => a + (Number(b.blocks[k].charged) || 0), 0);
     const итогHtml = !частиИтога.length
-        ? `<span class="font-mono opacity-40">—</span>`
+        ? (начисленоВсего > 0
+            ? `<span class="badge badge-success badge-outline whitespace-nowrap gap-1">${FinUtils.ICONS.check} ${t('fin_paid')}</span>`
+            : `<span class="font-mono opacity-40">—</span>`)
         : частиИтога.length > 1
             ? `<span class="text-right"><span class="text-[11px] uppercase opacity-60 ${цвет}">${подпись}</span>
                ${фмтЧастиHtml(показИтога, cardCurrency, `${цвет} font-semibold`)}</span>`
