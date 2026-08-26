@@ -1226,6 +1226,18 @@ async function submitPayment(ev) {
     if (!payer) { Layout.showNotification(t('fin_participant_required'), 'warning'); return; }
     const objectId = await ensureObjectId();
     if (!objectId) return;
+
+    // В кассу проводим ровно принятое: если денег принесли меньше расчёта,
+    // строки урезаются, а разница остаётся долгом участника (ВГ, 25.08)
+    const { правки, долг } = урезкаПоПолученному();
+    if (правки.size) {
+        const текст = Object.entries(долг)
+            .map(([k, x]) => `${blockLabel(k)} ${FinUtils.fmtMoney(x.v, x.cur)}`).join(' + ');
+        if (!confirm(`${t('fin_will_credit')}: ${Object.entries(полученоПоВалютам())
+            .map(([c, v]) => FinUtils.fmtMoney(v, c)).join(' + ')}\n${t('fin_will_remain_debt')}: ${текст}\n${t('fin_pay_confirm_q')}`)) return;
+        правки.forEach((сумма, row) => { row.querySelector('.pay-amount').value = сумма; });
+    }
+
     const rows = [...document.querySelectorAll('#payRows .pay-row')].map(row => ({
         id: FinUtils.newRequestId(),
         account_id: row.querySelector('.pay-account').value,
@@ -1267,20 +1279,6 @@ async function submitPayment(ev) {
     const людей = new Set(rows.map(r => r.participant_id)).size;
     const итог = Object.entries(поВалютам).filter(([, v]) => v > 0)
         .map(([c, v]) => FinUtils.fmtMoney(v, c)).join(' + ');
-    // Деньги должны сходиться: в кассу нельзя провести больше, чем принято.
-    // Раньше это был вопрос-подтверждение, и его проскакивали — в кассе оседали
-    // лишние $32 при скидке, о которой договорились устно (ВГ, 25.08).
-    const получ = полученоПоВалютам();
-    const распр = распределеноПоВалютам();
-    const нехватка = Object.entries(распр)
-        .map(([cur, v]) => [cur, Math.round((v - (получ[cur] || 0)) * 100) / 100])
-        .filter(([cur, d]) => d > 0.005 && (получ[cur] || 0) > 0);
-    if (нехватка.length) {
-        Layout.showNotification(
-            `${t('fin_received_less')}: ${нехватка.map(([c, v]) => FinUtils.fmtMoney(v, c)).join(' + ')}. ${t('fin_discount_or_debt')}`,
-            'error');
-        return;
-    }
     const поИменам = собратьРазбивку().текст;
     const вопрос = `${t('fin_running_total')}: ${итог}` +
         (людей > 1 ? ` ${t('fin_for_n_people').replace('{n}', людей)}` : '') +
@@ -1408,6 +1406,41 @@ function полученоПоВалютам() {
         if (v) m[line.dataset.cur] = v;
     });
     return m;
+}
+
+// Гость принёс меньше, чем посчитали: в кассу идёт принятое, разница остаётся
+// долгом — расчёт не переделываем, деньги на руках не зависают (ВГ, 25.08).
+// Урезаем с наименее приоритетных блоков, чтобы долг собрался в одном месте,
+// а не размазался копейками по всем трём.
+const ПОРЯДОК_УРЕЗКИ = ['extra', 'meals', 'accommodation', 'org_fee'];
+
+function урезкаПоПолученному() {
+    const получено = полученоПоВалютам();
+    const распределено = распределеноПоВалютам();
+    const правки = new Map();      // строка → сколько зачесть
+    const долг = {};               // блок → сколько останется долгом (в валюте)
+    for (const [cur, надо] of Object.entries(распределено)) {
+        const есть = получено[cur];
+        if (есть === undefined || есть <= 0) continue;   // поле не заполнено — не трогаем
+        let нехватка = Math.round((надо - есть) * 100) / 100;
+        if (нехватка <= 0.005) continue;
+        for (const kind of ПОРЯДОК_УРЕЗКИ) {
+            if (нехватка <= 0.005) break;
+            const строки = [...document.querySelectorAll('#payRows .pay-row')]
+                .filter(r => r.querySelector('.pay-currency').value === cur
+                          && r.querySelector('.pay-kind').value === kind);
+            for (const row of строки) {
+                if (нехватка <= 0.005) break;
+                const было = Number(row.querySelector('.pay-amount').value) || 0;
+                if (было <= 0) continue;
+                const снять = Math.min(было, нехватка);
+                правки.set(row, Math.round((было - снять) * 100) / 100);
+                долг[kind] = { cur, v: Math.round(((долг[kind]?.v || 0) + снять) * 100) / 100 };
+                нехватка = Math.round((нехватка - снять) * 100) / 100;
+            }
+        }
+    }
+    return { правки, долг };
 }
 
 // Излишек = получено − распределено по блокам, отдельно по каждой валюте
@@ -1628,8 +1661,10 @@ function updatePayRunningTotal() {
         .filter(([, d]) => d > 0.005);
     const подсказка = document.getElementById('payReceivedHint');
     if (подсказка) {
+        const остатокДолга = недостача.length ? урезкаПоПолученному().долг : {};
         подсказка.innerHTML = недостача.length
-            ? `<span class="text-error font-medium">${t('fin_received_less')}: ${недостача.map(([c, v]) => FinUtils.fmtMoney(v, c)).join(' + ')}</span>`
+            ? `<span class="text-warning font-medium">${t('fin_will_credit')}: ${Object.entries(получено).map(([c, v]) => FinUtils.fmtMoney(v, c)).join(' + ')}</span>`
+              + ` · <span class="text-error">${t('fin_will_remain_debt')}: ${Object.entries(остатокДолга).map(([k, x]) => `${blockLabel(k)} ${FinUtils.fmtMoney(x.v, x.cur)}`).join(' + ')}</span>`
             : переборСдачи.length
                 ? `<span class="text-error">${t('fin_change_exceeds_excess')}: ${переборСдачи.join(' + ')}</span>`
                 : Object.keys(излишек).length
