@@ -393,7 +393,10 @@ function renderCardBlocks(b) {
         // Часть долга блока могла быть погашена «Общим» платежом (зачёт по
         // приоритету блоков, ТЗ 7) — показываем это явно, иначе «Оплачено 0 /
         // Остаток 0» при активном начислении выглядит как ошибка.
-        const fromGeneral = Math.max(0, (Number(block.charged) - Number(block.paid)) - Number(block.balance));
+        // «зачтено из общего» — платежи без блока; «из аванса» — переплата
+        // соседнего блока, погасившая долг этого (ВГ, 25.08)
+        const fromOffset = Number(block.offset) || 0;
+        const fromGeneral = Math.max(0, (Number(block.charged) - Number(block.paid)) - Number(block.balance) - fromOffset);
         const balance = Number(block.balance);
         // Остаток блока с разложением по валютам: основная сумма + доплата (ВГ, 24.08)
         const части = разложениеБлока(card.id, k, balance, cardCur);
@@ -416,6 +419,7 @@ function renderCardBlocks(b) {
             <div class="text-xs flex justify-between gap-2"><span>${t('fin_charged')}</span><span class="font-mono">${FinUtils.fmtMoney(Number(block.charged) * kx, cardCur)}</span></div>
             <div class="text-xs flex justify-between gap-2"><span>${t('fin_paid')}</span><span class="font-mono">${FinUtils.fmtMoney(Number(block.paid) * kx, cardCur)}</span></div>
             ${fromGeneral > 0 ? `<div class="text-xs flex justify-between gap-2 text-success"><span>${t('fin_from_general')}</span><span class="font-mono">${FinUtils.fmtMoney(fromGeneral * kx, cardCur)}</span></div>` : ''}
+            ${fromOffset > 0 ? `<div class="text-xs flex justify-between gap-2 text-success"><span>${t('fin_from_advance')}</span><span class="font-mono">${FinUtils.fmtMoney(fromOffset * kx, cardCur)}</span></div>` : ''}
             <div class="text-sm flex justify-between gap-2 mt-1 pt-1 border-t border-base-200 items-start"><span>${t('fin_balance')}</span>${balanceHtml}</div>
         </div>`;
     };
