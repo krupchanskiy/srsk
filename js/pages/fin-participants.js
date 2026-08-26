@@ -1267,14 +1267,20 @@ async function submitPayment(ev) {
     const людей = new Set(rows.map(r => r.participant_id)).size;
     const итог = Object.entries(поВалютам).filter(([, v]) => v > 0)
         .map(([c, v]) => FinUtils.fmtMoney(v, c)).join(' + ');
-    // деньги должны сходиться: распределено не больше полученного (ВГ, 25.08)
+    // Деньги должны сходиться: в кассу нельзя провести больше, чем принято.
+    // Раньше это был вопрос-подтверждение, и его проскакивали — в кассе оседали
+    // лишние $32 при скидке, о которой договорились устно (ВГ, 25.08).
     const получ = полученоПоВалютам();
     const распр = распределеноПоВалютам();
     const нехватка = Object.entries(распр)
         .map(([cur, v]) => [cur, Math.round((v - (получ[cur] || 0)) * 100) / 100])
-        .filter(([, d]) => d > 0.005);
-    if (нехватка.length && !confirm(
-        `${t('fin_received_less')}: ${нехватка.map(([c, v]) => FinUtils.fmtMoney(v, c)).join(' + ')}\n${t('fin_save_anyway')}`)) return;
+        .filter(([cur, d]) => d > 0.005 && (получ[cur] || 0) > 0);
+    if (нехватка.length) {
+        Layout.showNotification(
+            `${t('fin_received_less')}: ${нехватка.map(([c, v]) => FinUtils.fmtMoney(v, c)).join(' + ')}. ${t('fin_discount_or_debt')}`,
+            'error');
+        return;
+    }
     const поИменам = собратьРазбивку().текст;
     const вопрос = `${t('fin_running_total')}: ${итог}` +
         (людей > 1 ? ` ${t('fin_for_n_people').replace('{n}', людей)}` : '') +
