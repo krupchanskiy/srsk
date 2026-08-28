@@ -178,6 +178,15 @@ async function openCard(pid) {
     closeCharge(); closePayment();
     renderCardRates();
     renderCardCurrencyBtns();
+    // Баланс тянем с сервера: список мог устареть после платежей, и карточка
+    // показывала нули при живых начислениях (ВГ, 28.08)
+    const { data: свежий } = await Layout.db.rpc('fin_get_participant_balance',
+        { p_participant: card.id, p_retreat: currentRetreat });
+    if (свежий) {
+        const inList = participants.find(x => x.participant_id === card.id);
+        if (inList) inList.balance = свежий;
+        renderCardBlocks(свежий);
+    }
     // Начисления подтягиваются из CRM сами при открытии (ТЗ 3.1, сценарий 1);
     // кнопка «Обновить из CRM» остаётся для принудительного пересчёта
     if (window.hasPermission?.('fin_admin')) {
@@ -933,6 +942,25 @@ function onPayCurrencyChange(row) {
     const пусто = !счета.options.length;
     счета.disabled = пусто;
     if (пусто) row.querySelector('.pay-hint').textContent = t('fin_no_account_in_currency');
+}
+
+// Когда в форме несколько человек, у каждой строки подписываем, за кого она:
+// строка в рупиях ушла владельцу карточки вместо спутника, и деньги легли
+// не тому (ВГ, 28.08)
+function подписатьСтроки() {
+    const строки = [...document.querySelectorAll('#payRows .pay-row')];
+    const людей = new Set(строки.map(r => rowPid(r))).size;
+    строки.forEach(row => {
+        const прежняя = row.querySelector('.pay-owner');
+        if (людей < 2 || row.classList.contains('pay-other') || row.classList.contains('pay-child')) {
+            прежняя?.remove();
+            return;
+        }
+        if (!прежняя) {
+            row.insertAdjacentHTML('afterbegin',
+                `<div class="pay-owner text-xs opacity-60 mb-1">${e(card.name || '')}</div>`);
+        }
+    });
 }
 
 function addPayRow() {
@@ -1721,6 +1749,7 @@ function updatePayRunningTotal() {
     if (разбивка) разбивка.innerHTML = собратьРазбивку().html;
     // Валюта строк формы автоматически задаёт валюту сводных блоков (ВГ, 24.08)
     syncBlockCurrencies();
+    подписатьСтроки();
 }
 
 // Введённое в форме, сгруппированное по блокам (общие суммы в валютах) и по
