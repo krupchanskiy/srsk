@@ -1828,6 +1828,23 @@ function openWriteOff(kind, mode = 'debt') {
     const p = participants.find(x => x.participant_id === card.id);
     const поле = document.getElementById('writeOffAmount');
     поле.disabled = false;
+    if (mode === 'advance_all') {
+        // весь аванс участника — в дар, одной причиной на все блоки (ВГ, 28.08)
+        const b = p?.balance;
+        const авансы = BLOCKS.map(k => ({ k, v: -(Number(b?.blocks?.[k]?.balance) || 0) })).filter(x => x.v > 0.005);
+        if (!авансы.length) return;
+        document.getElementById('writeOffKind').value = '';
+        document.getElementById('writeOffMode').value = 'advance_all';
+        document.getElementById('writeOffTitle').textContent = t('fin_keep_as_donation');
+        document.getElementById('writeOffInfo').textContent =
+            `${card.name} · ${авансы.map(x => `${blockLabel(x.k)}: ${FinUtils.fmtMoney(x.v, 'INR')}`).join(' · ')} → ${t('fin_total')}: 0`;
+        поле.value = авансы.reduce((a, x) => a + x.v, 0);
+        поле.disabled = true;
+        document.getElementById('writeOffReason').value = '';
+        document.getElementById('writeOffModal').showModal();
+        return;
+    }
+
     if (mode === 'all') {
         const b = p?.balance;
         const totalNet = Number(b?.net) || 0;
@@ -1919,6 +1936,21 @@ async function submitWriteOff(ev) {
     const сумма = Number(document.getElementById('writeOffAmount').value) || 0;
     const причина = document.getElementById('writeOffReason').value.trim();
     if (сумма <= 0 || !причина) return;
+
+    if (mode === 'advance_all') {
+        const b = participants.find(x => x.participant_id === card.id)?.balance;
+        if (!b) return;
+        const авансы = BLOCKS.map(k => ({ k, v: -(Number(b.blocks[k].balance) || 0) })).filter(x => x.v > 0.005);
+        let res = { ok: true };
+        for (const { k, v } of авансы) {
+            res = await donateBlockAdvance(k, v, причина);
+            if (!res?.ok) break;
+        }
+        if (FinUtils.handleResult(res)) document.getElementById('writeOffModal').close();
+        await refreshAfterChange();
+        return;
+    }
+
 
     if (mode === 'all') {
         // Весь итог карточки одной операцией: сначала проверяем, что каждому
