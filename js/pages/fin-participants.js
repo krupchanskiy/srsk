@@ -494,6 +494,10 @@ function renderCardBlocks(b) {
     // списываются, авансы оформляются пожертвованием — карточка закрывается в ноль
     const списатьВсё = isAdmin && totalNet > 0
         ? `<button type="button" class="btn btn-ghost btn-xs text-error px-1 -mr-1" data-writeoff-all="1" title="${t('fin_write_off_title')}">${t('fin_write_off')}</button>`
+        // Аванс тоже закрывается из итога — раньше кнопка была только в блоке,
+        // и её искали здесь (ВГ, 28.08)
+        : isAdmin && totalNet < 0
+        ? `<button type="button" class="btn btn-ghost btn-xs text-success px-1 -mr-1" data-donate-all="1" title="${t('fin_keep_as_donation')}">${t('fin_type_donation')}</button>`
         : '';
     document.getElementById('cardBlocks').innerHTML =
         BLOCKS.map(k => cell(k, b.blocks[k])).join('') +
@@ -2056,6 +2060,8 @@ async function init() {
         if (compBtn) { openCard(compBtn.dataset.openParticipant); return; }
         const writeOffAllBtn = ev.target.closest('[data-writeoff-all]');
         if (writeOffAllBtn) { openWriteOff(null, 'all'); return; }
+        const donateAllBtn = ev.target.closest('[data-donate-all]');
+        if (donateAllBtn) { openWriteOff(null, 'advance_all'); return; }
         // Валюта сводных карточек: «в чём человек хочет платить» (ВГ, 24.08)
         const curBtn = ev.target.closest('[data-cardcur]');
         if (curBtn) {
