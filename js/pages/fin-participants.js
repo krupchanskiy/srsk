@@ -607,13 +607,65 @@ async function loadCardCompanions() {
     const балансы = await Promise.all(другие.map(async x => {
         const { data: b } = await Layout.db.rpc('fin_get_participant_balance',
             { p_participant: x.participant_id, p_retreat: currentRetreat });
-        return { ...x, net: Number(b?.net) || 0 };
+        return { ...x, net: Number(b?.net) || 0, balance: b };
     }));
-    el.innerHTML = `<div class="text-xs opacity-70 mt-1">${t('fin_paid_together')}: ` +
-        балансы.map(x => `<button type="button" class="link" data-open-participant="${x.participant_id}">${e(x.participant_name || '')}</button> — ${
-            x.net > 0.005 ? `<span class="text-error">${t('fin_debt')} ${FinUtils.fmtMoney(x.net, 'INR')}</span>`
-            : x.net < -0.005 ? `<span class="text-success">${t('fin_advance')} ${FinUtils.fmtMoney(-x.net, 'INR')}</span>`
-            : `<span class="opacity-60">0</span>`}`).join(' &nbsp;·&nbsp; ') + `</div>`;
+    // Парная оплата: долги и история спутников видны прямо здесь, без ухода
+    // из карточки — «чтобы видеть всю историю платежа и задолженности за двоих»
+    // (ВГ, 28.08)
+    const мойNet = Number(participants.find(x => x.participant_id === card.id)?.balance?.net) || 0;
+    const итогПары = балансы.reduce((a, x) => a + x.net, мойNet);
+    const деньги = v => v > 0.005
+        ? `<span class="text-error">${t('fin_debt')} ${FinUtils.fmtMoney(v, 'INR')}</span>`
+        : v < -0.005
+            ? `<span class="text-success">${t('fin_advance')} ${FinUtils.fmtMoney(-v, 'INR')}</span>`
+            : `<span class="opacity-60">0</span>`;
+    el.innerHTML = `
+        <div class="border border-base-300 rounded-lg p-2 mb-2">
+            <div class="flex flex-wrap items-center gap-2 text-xs mb-1">
+                <span class="opacity-70">${t('fin_paid_together')}</span>
+                <span class="ml-auto">${t('fin_pair_total')}: <b>${деньги(итогПары)}</b></span>
+            </div>
+            ${балансы.map(x => `
+                <details class="companion" data-cid="${x.participant_id}">
+                    <summary class="text-sm cursor-pointer flex flex-wrap items-center gap-2">
+                        <span class="font-medium">${e(x.participant_name || '')}</span>
+                        ${деньги(x.net)}
+                        <button type="button" class="btn btn-ghost btn-xs ml-auto" data-open-participant="${x.participant_id}">${t('fin_open_card')}</button>
+                    </summary>
+                    <div class="companion-body pt-1"></div>
+                </details>`).join('')}
+        </div>`;
+    // содержимое подгружаем при раскрытии — карточка не должна тормозить
+    el.querySelectorAll('details.companion').forEach(det => {
+        det.addEventListener('toggle', async () => {
+            const тело = det.querySelector('.companion-body');
+            if (!det.open || тело.dataset.loaded) return;
+            тело.dataset.loaded = '1';
+            const данные = балансы.find(x => x.participant_id === det.dataset.cid);
+            const блоки = BLOCKS.map(k => {
+                const b = данные?.balance?.blocks?.[k];
+                if (!b || !(Number(b.charged) || Number(b.paid))) return '';
+                return `<div class="border border-base-300 rounded p-1.5 text-[11px]">
+                    <div class="font-semibold uppercase opacity-60">${e(blockLabel(k))}</div>
+                    <div class="flex justify-between"><span>${t('fin_charged')}</span><span class="font-mono">${FinUtils.fmtMoney(b.charged, 'INR')}</span></div>
+                    <div class="flex justify-between"><span>${t('fin_paid')}</span><span class="font-mono">${FinUtils.fmtMoney(b.paid, 'INR')}</span></div>
+                    <div class="flex justify-between border-t border-base-200 mt-0.5 pt-0.5"><span>${t('fin_balance')}</span>${fmtNet(b.balance)}</div>
+                </div>`;
+            }).join('');
+            const { data: платежи } = await Layout.db.rpc('fin_get_participant_payments',
+                { p_participant: det.dataset.cid, p_retreat: currentRetreat });
+            тело.innerHTML =
+                `<div class="grid grid-cols-2 md:grid-cols-4 gap-1 mb-1">${блоки}</div>` +
+                `<div class="overflow-x-auto"><table class="table table-xs"><tbody>${
+                    (платежи || []).map(pp => `<tr class="${pp.is_reversed ? 'opacity-50' : ''}">
+                        <td class="whitespace-nowrap">${DateUtils.formatShort(DateUtils.parseDate(pp.occurred_on))}</td>
+                        <td>${e(pp.direction === 'out' ? t('fin_change') : FinUtils.typeLabel(pp.type))}</td>
+                        <td>${e(blockLabel(pp.balance_kind))}</td>
+                        <td class="text-right font-mono">${pp.direction === 'out' ? '−' : ''}${FinUtils.fmtMoney(pp.amount, pp.currency_code)}</td>
+                    </tr>`).join('') || `<tr><td class="opacity-60">${t('fin_no_payments')}</td></tr>`
+                }</tbody></table></div>`;
+        });
+    });
 }
 
 async function refreshAfterChange() {
