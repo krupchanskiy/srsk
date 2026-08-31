@@ -630,7 +630,13 @@ async function loadCardCompanions() {
                     <summary class="text-sm cursor-pointer flex flex-wrap items-center gap-2">
                         <span class="font-medium">${e(x.participant_name || '')}</span>
                         ${деньги(x.net)}
-                        <button type="button" class="btn btn-ghost btn-xs ml-auto" data-open-participant="${x.participant_id}">${t('fin_open_card')}</button>
+                        <span class="ml-auto flex gap-1">
+                            ${x.net < -0.005 && мойNet > 0.005
+                                ? `<button type="button" class="btn btn-xs btn-outline btn-success" data-offset-from="${x.participant_id}" title="${t('fin_offset_hint')}">${t('fin_offset_advance')}</button>` : ''}
+                            ${x.net > 0.005
+                                ? `<button type="button" class="btn btn-xs btn-outline" data-pay-for="${x.participant_id}">${t('fin_pay_for_him')}</button>` : ''}
+                            <button type="button" class="btn btn-ghost btn-xs" data-open-participant="${x.participant_id}">${t('fin_open_card')}</button>
+                        </span>
                     </summary>
                     <div class="companion-body pt-1"></div>
                 </details>`).join('')}
@@ -666,6 +672,93 @@ async function loadCardCompanions() {
                 }</tbody></table></div>`;
         });
     });
+}
+
+// Открыть форму платежа сразу со строками спутника: «пишет остаток, но куда
+// вносить — этого нет» (ВГ, 28.08)
+async function openPaymentFor(pid) {
+    openPayment();
+    await new Promise(r => setTimeout(r, 150));
+    addOtherParticipantRow();
+    const row = [...document.querySelectorAll('#payRows .pay-row')].pop();
+    const { data } = await Layout.db.from('vaishnavas')
+        .select('id, spiritual_name, first_name, last_name').eq('id', pid).maybeSingle();
+    if (!data) return;
+    row.querySelector('.pay-person').value =
+        data.spiritual_name || `${data.first_name || ''} ${data.last_name || ''}`.trim();
+    row.querySelector('.pay-person-id').value = pid;
+    document.getElementById('paySection').scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+}
+
+// Зачесть аванс спутника в долг владельца карточки: деньги пары уже в кассе,
+// поэтому переносим не деньги, а их принадлежность — штатным перераспределением
+// платежа (сторно + новый платёж с исправленным распределением)
+async function offsetFromCompanion(pid) {
+    const мой = Number(participants.find(x => x.participant_id === card.id)?.balance?.net) || 0;
+    if (мой <= 0.005) return;
+    const { data: b } = await Layout.db.rpc('fin_get_participant_balance',
+        { p_participant: pid, p_retreat: currentRetreat });
+    const донорNet = Number(b?.net) || 0;
+    if (донорNet >= -0.005) return;
+
+    // строки платежей донора по блокам, где у него переплата
+    const авансБлоки = BLOCKS.filter(k => Number(b.blocks[k].balance) < -0.005);
+    const { data: строки } = await Layout.db.from('fin_v_account_ledger')
+        .select('posting_id, operation_id, participant_id, participant_balance_kind, amount, amount_base, account_id, is_reversed, type')
+        .eq('participant_id', pid).eq('type', 'payment');
+    const годные = (строки || []).filter(x => !x.is_reversed && авансБлоки.includes(x.participant_balance_kind));
+    if (!годные.length) { Layout.showNotification(t('fin_offset_no_rows'), 'warning'); return; }
+
+    // берём строки одной операции, пока не покроем долг
+    const поОперациям = {};
+    годные.forEach(x => (поОперациям[x.operation_id] = поОперациям[x.operation_id] || []).push(x));
+    // переносим не больше, чем есть у донора и чем нужно получателю —
+    // иначе донор ушёл бы в долг на ровном месте
+    const лимит = Math.min(мой, -донорNet);
+    let выбор = null;
+    for (const [opId, список] of Object.entries(поОперациям)) {
+        const набор = [];
+        let сумма = 0;
+        for (const x of список.sort((a, c) => Number(c.amount_base) - Number(a.amount_base))) {
+            if (сумма >= лимит - 0.005) break;
+            if (сумма + Number(x.amount_base) > лимит + 0.005) continue;
+            набор.push(x); сумма += Number(x.amount_base);
+        }
+        if (набор.length) { выбор = { opId, набор, сумма }; break; }
+    }
+    if (!выбор) { Layout.showNotification(t('fin_offset_no_rows'), 'warning'); return; }
+
+    // на какие блоки владельца зачесть — по его долгам, по порядку
+    const мойБаланс = participants.find(x => x.participant_id === card.id)?.balance;
+    const долги = BLOCKS.map(k => ({ k, v: Number(мойБаланс.blocks[k].balance) || 0 })).filter(x => x.v > 0.005);
+
+    // полное новое распределение операции: чужие строки не трогаем
+    const { data: всеСтроки } = await Layout.db.from('fin_v_account_ledger')
+        .select('posting_id, participant_id, participant_balance_kind, amount, amount_base')
+        .eq('operation_id', выбор.opId);
+    const переносимые = new Set(выбор.набор.map(x => x.posting_id));
+    let остатокДолга = долги.slice();
+    const rows = (всеСтроки || []).map(x => {
+        if (!переносимые.has(x.posting_id)) {
+            return { participant_id: x.participant_id, participant_balance_kind: x.participant_balance_kind, amount: x.amount };
+        }
+        // строка уезжает владельцу карточки — на первый непокрытый блок долга
+        const цель = остатокДолга.find(d => d.v > 0.005) || { k: долги[0]?.k || 'org_fee', v: 0 };
+        цель.v -= Number(x.amount_base);
+        return { participant_id: card.id, participant_balance_kind: цель.k, amount: x.amount };
+    });
+
+    const сумма = выбор.набор.reduce((a, x) => a + Number(x.amount_base), 0);
+    if (!confirm(`${t('fin_offset_advance')}: ${FinUtils.fmtMoney(сумма, 'INR')}\n${t('fin_offset_confirm')}`)) return;
+    const res = await FinUtils.rpc('fin_reallocate_payment', {
+        operation_id: выбор.opId,
+        rows,
+        reason: `Зачёт аванса: ${FinUtils.fmtMoney(сумма, 'INR')} с одного участника пары на долг другого`
+    });
+    if (FinUtils.handleResult(res)) {
+        await refreshAfterChange();
+        loadCardCompanions();
+    }
 }
 
 async function refreshAfterChange() {
@@ -2110,6 +2203,12 @@ async function init() {
         if (donateBtn) { openWriteOff(donateBtn.dataset.donateAdvance, 'advance'); return; }
         const compBtn = ev.target.closest('[data-open-participant]');
         if (compBtn) { openCard(compBtn.dataset.openParticipant); return; }
+        // внести за спутника, не выходя из карточки (ВГ, 28.08)
+        const payForBtn = ev.target.closest('[data-pay-for]');
+        if (payForBtn) { openPaymentFor(payForBtn.dataset.payFor); return; }
+        // зачесть аванс спутника в долг владельца карточки
+        const offsetBtn = ev.target.closest('[data-offset-from]');
+        if (offsetBtn) { offsetFromCompanion(offsetBtn.dataset.offsetFrom); return; }
         const writeOffAllBtn = ev.target.closest('[data-writeoff-all]');
         if (writeOffAllBtn) { openWriteOff(null, 'all'); return; }
         const donateAllBtn = ev.target.closest('[data-donate-all]');
