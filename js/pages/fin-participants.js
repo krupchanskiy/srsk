@@ -751,6 +751,7 @@ async function offsetFromCompanion(pid) {
     const сумма = выбор.набор.reduce((a, x) => a + Number(x.amount_base), 0);
     if (!confirm(`${t('fin_offset_advance')}: ${FinUtils.fmtMoney(сумма, 'INR')}\n${t('fin_offset_confirm')}`)) return;
     const res = await FinUtils.rpc('fin_reallocate_payment', {
+        request_id: FinUtils.newRequestId(),
         operation_id: выбор.opId,
         rows,
         reason: `Зачёт аванса: ${FinUtils.fmtMoney(сумма, 'INR')} с одного участника пары на долг другого`
