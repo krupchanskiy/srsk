@@ -631,7 +631,7 @@ async function loadCardCompanions() {
                         <span class="font-medium">${e(x.participant_name || '')}</span>
                         ${деньги(x.net)}
                         <span class="ml-auto flex gap-1">
-                            ${x.net < -0.005 && мойNet > 0.005
+                            ${(x.net < -0.005 && мойNet > 0.005) || (x.net > 0.005 && мойNet < -0.005)
                                 ? `<button type="button" class="btn btn-xs btn-outline btn-success" data-offset-from="${x.participant_id}" title="${t('fin_offset_hint')}">${t('fin_offset_advance')}</button>` : ''}
                             ${x.net > 0.005
                                 ? `<button type="button" class="btn btn-xs btn-outline" data-pay-for="${x.participant_id}">${t('fin_pay_for_him')}</button>` : ''}
@@ -677,6 +677,13 @@ async function loadCardCompanions() {
 // Открыть форму платежа сразу со строками спутника: «пишет остаток, но куда
 // вносить — этого нет» (ВГ, 28.08)
 async function openPaymentFor(pid) {
+    // если у владельца карточки переплата, деньги за спутника можно не брать —
+    // сначала зачёт (ВГ, 28.08)
+    const мойNet = Number(participants.find(x => x.participant_id === card.id)?.balance?.net) || 0;
+    if (мойNet < -0.005) {
+        Layout.showNotification(
+            `${t('fin_offset_available')}: ${FinUtils.fmtMoney(-мойNet, 'INR')} — ${t('fin_offset_advance')}`, 'info');
+    }
     openPayment();
     await new Promise(r => setTimeout(r, 150));
     addOtherParticipantRow();
@@ -694,18 +701,25 @@ async function openPaymentFor(pid) {
 // поэтому переносим не деньги, а их принадлежность — штатным перераспределением
 // платежа (сторно + новый платёж с исправленным распределением)
 async function offsetFromCompanion(pid) {
-    const мой = Number(participants.find(x => x.participant_id === card.id)?.balance?.net) || 0;
-    if (мой <= 0.005) return;
-    const { data: b } = await Layout.db.rpc('fin_get_participant_balance',
+    const мойБалансНач = participants.find(x => x.participant_id === card.id)?.balance;
+    const мойNet = Number(мойБалансНач?.net) || 0;
+    const { data: егоБаланс } = await Layout.db.rpc('fin_get_participant_balance',
         { p_participant: pid, p_retreat: currentRetreat });
-    const донорNet = Number(b?.net) || 0;
-    if (донорNet >= -0.005) return;
+    const егоNet = Number(егоБаланс?.net) || 0;
+    // донор — тот, у кого переплата; получатель — тот, у кого долг. Зачёт нужен
+    // в обе стороны: аванс бывает и у владельца карточки (ВГ, 28.08)
+    const донорId = мойNet < -0.005 ? card.id : pid;
+    const получательId = донорId === card.id ? pid : card.id;
+    const b = донорId === card.id ? мойБалансНач : егоБаланс;
+    const донорNet = донорId === card.id ? мойNet : егоNet;
+    const мой = донорId === card.id ? егоNet : мойNet;   // долг получателя
+    if (донорNet >= -0.005 || мой <= 0.005) return;
 
     // строки платежей донора по блокам, где у него переплата
     const авансБлоки = BLOCKS.filter(k => Number(b.blocks[k].balance) < -0.005);
     const { data: строки } = await Layout.db.from('fin_v_account_ledger')
         .select('posting_id, operation_id, participant_id, participant_balance_kind, amount, amount_base, account_id, is_reversed, type')
-        .eq('participant_id', pid).eq('type', 'payment');
+        .eq('participant_id', донорId).eq('type', 'payment');
     const годные = (строки || []).filter(x => !x.is_reversed && авансБлоки.includes(x.participant_balance_kind));
     if (!годные.length) { Layout.showNotification(t('fin_offset_no_rows'), 'warning'); return; }
 
@@ -729,8 +743,8 @@ async function offsetFromCompanion(pid) {
     if (!выбор) { Layout.showNotification(t('fin_offset_no_rows'), 'warning'); return; }
 
     // на какие блоки владельца зачесть — по его долгам, по порядку
-    const мойБаланс = participants.find(x => x.participant_id === card.id)?.balance;
-    const долги = BLOCKS.map(k => ({ k, v: Number(мойБаланс.blocks[k].balance) || 0 })).filter(x => x.v > 0.005);
+    const балансПолучателя = получательId === card.id ? мойБалансНач : егоБаланс;
+    const долги = BLOCKS.map(k => ({ k, v: Number(балансПолучателя.blocks[k].balance) || 0 })).filter(x => x.v > 0.005);
 
     // полное новое распределение операции: чужие строки не трогаем
     const { data: всеСтроки } = await Layout.db.from('fin_v_account_ledger')
@@ -745,7 +759,7 @@ async function offsetFromCompanion(pid) {
         // строка уезжает владельцу карточки — на первый непокрытый блок долга
         const цель = остатокДолга.find(d => d.v > 0.005) || { k: долги[0]?.k || 'org_fee', v: 0 };
         цель.v -= Number(x.amount_base);
-        return { participant_id: card.id, participant_balance_kind: цель.k, amount: x.amount };
+        return { participant_id: получательId, participant_balance_kind: цель.k, amount: x.amount };
     });
 
     const сумма = выбор.набор.reduce((a, x) => a + Number(x.amount_base), 0);
