@@ -183,6 +183,27 @@
     .fin-signal-what { color: var(--fin-muted); font-variant-numeric: tabular-nums; }
     .fin-signal-empty { padding: 0.5rem; font-size: 0.8rem; color: var(--fin-muted); }
 
+    .fin-signal-item { display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap; }
+    .fin-signal-item .fin-signal-row { flex: 1 1 22rem; }
+    .fin-signal-acts { display: flex; gap: 0.35rem; padding-right: 0.25rem; }
+    .fin-signal-act {
+        border: 1px solid color-mix(in srgb, #dc2626 45%, transparent);
+        background: color-mix(in srgb, #dc2626 10%, transparent);
+        color: var(--fin-ink);
+        border-radius: 999px;
+        padding: 0.2rem 0.7rem;
+        font-size: 0.75rem;
+        white-space: nowrap;
+        cursor: pointer;
+    }
+    .fin-signal-act:hover { background: color-mix(in srgb, #dc2626 18%, transparent); }
+    .fin-signal-act.ghost {
+        border-color: color-mix(in srgb, currentColor 20%, transparent);
+        background: transparent;
+        color: var(--fin-muted);
+    }
+    .fin-signal-act:disabled { opacity: 0.5; cursor: default; }
+
     @media (max-width: 640px) {
         .fin-signal-row { grid-template-columns: 1fr; }
     }
@@ -194,10 +215,10 @@
 <script src="../js/auth-check.js?v=10"></script>
 <script src="../js/cache.js?v=1"></script>
 <script src="../js/utils.js?v=12"></script>
-<script src="../js/layout.js?v=67"></script>
+<script src="../js/layout.js?v=68"></script>
 <script src="../js/date-utils.js?v=4"></script>
 <script src="../js/fin-utils.js?v=11"></script>
-<script src="../js/pages/fin-index.js?v=10"></script>
+<script src="../js/pages/fin-index.js?v=11"></script>
 
 </body>
 </html>

@@ -212,13 +212,54 @@ async function loadSignals() {
         const { data, error } = await Layout.db.rpc('fin_get_integrity_details', { p_check: d.dataset.check });
         const rows = (!error && data?.ok) ? data.result : [];
         body.innerHTML = rows.length
-            ? rows.map(r => `<a class="fin-signal-row" href="${e(r.link)}">
-                    <span class="fin-signal-who">${e(r.title)}</span>
-                    <span class="fin-signal-where">${e(r.subtitle || '')}</span>
-                    <span class="fin-signal-what">${e(r.detail || '')}</span>
-                </a>`).join('')
+            ? rows.map(r => `<div class="fin-signal-item">
+                    <a class="fin-signal-row" href="${e(r.link)}">
+                        <span class="fin-signal-who">${e(r.title)}</span>
+                        <span class="fin-signal-where">${e(r.subtitle || '')}</span>
+                        <span class="fin-signal-what">${e(r.detail || '')}</span>
+                    </a>
+                    ${resolveActionsHtml(r.action)}
+                </div>`).join('')
             : `<div class="fin-signal-empty">${t('fin_signal_no_details')}</div>`;
+        body.querySelectorAll('.fin-signal-act').forEach(b => b.addEventListener('click', onResolveClick));
     }));
+}
+
+// Разбор сигнала «человека нет в учёте» прямо из списка: ВГ проходит 13 строк
+// в несколько кликов, а не открывает каждую карточку (ВГ, 03.09).
+// Отменившим участие — пометка «оставлено как пожертвование», едущим —
+// добор начального остатка. Деньги в обоих случаях уже внутри остатков счетов
+// на дату запуска, поэтому проводок ни то ни другое не создаёт.
+function resolveActionsHtml(a) {
+    if (!a || a.kind !== 'resolve_missing_advance') return '';
+    const attrs = act => `data-act="${act}" data-pid="${e(a.participant_id)}" data-rid="${e(a.retreat_id)}"`
+        + ` data-who="${e(a.who || '')}" data-amount="${e(a.amount || '')}"`;
+    const пожертвование = `<button class="fin-signal-act${a.cancelled ? '' : ' ghost'}" ${attrs('donation')}>${t('fin_resolve_donation')}</button>`;
+    const аванс = `<button class="fin-signal-act${a.cancelled ? ' ghost' : ''}" ${attrs('advance')}>${t('fin_resolve_advance')}</button>`;
+    // Первой идёт та кнопка, которая уместна по статусу сделки
+    return `<div class="fin-signal-acts">${a.cancelled ? пожертвование + аванс : аванс + пожертвование}</div>`;
+}
+
+async function onResolveClick(ev) {
+    const b = ev.currentTarget;
+    const ключ = b.dataset.act === 'donation' ? 'fin_resolve_donation_confirm' : 'fin_resolve_advance_confirm';
+    const вопрос = t(ключ).replace('{0}', b.dataset.who).replace('{1}', b.dataset.amount);
+    if (!confirm(вопрос)) return;
+    b.disabled = true;
+    const { data, error } = await Layout.db.rpc('fin_resolve_missing_advance', {
+        payload: {
+            request_id: FinUtils.newRequestId(),
+            participant_id: b.dataset.pid,
+            retreat_id: b.dataset.rid,
+            action: b.dataset.act
+        }
+    });
+    if (error || !data?.ok) {
+        b.disabled = false;
+        alert(`${t('fin_resolve_failed')}: ${error?.message || data?.error?.message || ''}`);
+        return;
+    }
+    loadSignals();
 }
 
 async function init() {
