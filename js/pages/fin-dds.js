@@ -282,6 +282,14 @@ async function loadTable(append = false) {
             else if (v >= 0) c.inc += v;
             else c.exp += -v;
         }
+        // Кэш операций нужен и здесь: без него в развороте пропадала кнопка
+        // «Сторнировать» — казалось, что у старых операций истёк срок правки,
+        // хотя дело было в режиме просмотра (ВГ, 03.09)
+        opsById = { ...opsById, ...Object.fromEntries(data.map(p => [p.operation_id, {
+            operation_id: p.operation_id, type: p.type, is_reversed: p.is_reversed,
+            approval: p.approval, occurred_on: p.occurred_on, comment: p.comment,
+            reason: p.reason, created_at: p.created_at, payer_name: p.participant_name
+        }])) };
         // Колонок в этом режиме больше на шеврон и на «остаток после» при выбранном счёте
         const колонок = showRunning ? 9 : 8;
         // Ключ строки — проводка, а не операция: одна операция может дать по счёту
