@@ -233,7 +233,11 @@ async function loadSignals() {
 function resolveActionsHtml(a) {
     if (!a || a.kind !== 'resolve_missing_advance') return '';
     const attrs = act => `data-act="${act}" data-pid="${e(a.participant_id)}" data-rid="${e(a.retreat_id)}"`
-        + ` data-who="${e(a.who || '')}" data-amount="${e(a.amount || '')}"`;
+        + ` data-who="${e(a.who || '')}" data-amount="${e(a.amount || '')}" data-mode="${e(a.mode || '')}"`;
+    // Неполная загрузка: остаток есть, но недобрал — выбора нет, только добор
+    if (a.mode === 'topup') {
+        return `<div class="fin-signal-acts"><button class="fin-signal-act" ${attrs('advance')}>${t('fin_resolve_topup')}</button></div>`;
+    }
     const пожертвование = `<button class="fin-signal-act${a.cancelled ? '' : ' ghost'}" ${attrs('donation')}>${t('fin_resolve_donation')}</button>`;
     const аванс = `<button class="fin-signal-act${a.cancelled ? ' ghost' : ''}" ${attrs('advance')}>${t('fin_resolve_advance')}</button>`;
     // Первой идёт та кнопка, которая уместна по статусу сделки
@@ -242,7 +246,9 @@ function resolveActionsHtml(a) {
 
 async function onResolveClick(ev) {
     const b = ev.currentTarget;
-    const ключ = b.dataset.act === 'donation' ? 'fin_resolve_donation_confirm' : 'fin_resolve_advance_confirm';
+    const ключ = b.dataset.act === 'donation' ? 'fin_resolve_donation_confirm'
+        : b.dataset.mode === 'topup' ? 'fin_resolve_topup_confirm'
+        : 'fin_resolve_advance_confirm';
     const вопрос = t(ключ).replace('{0}', b.dataset.who).replace('{1}', b.dataset.amount);
     if (!confirm(вопрос)) return;
     b.disabled = true;
