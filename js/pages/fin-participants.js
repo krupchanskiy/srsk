@@ -497,7 +497,10 @@ function renderCardBlocks(b) {
         // Аванс тоже закрывается из итога — раньше кнопка была только в блоке,
         // и её искали здесь (ВГ, 28.08)
         : isAdmin && totalNet < 0
-        ? `<button type="button" class="btn btn-ghost btn-xs text-success px-1 -mr-1" data-donate-all="1" title="${t('fin_keep_as_donation')}">${t('fin_type_donation')}</button>`
+        // Аванс можно и вернуть деньгами: человек отказался от участия, часть
+        // оставил пожертвованием, остальное просит назад (ВГ, 05.09)
+        ? `<button type="button" class="btn btn-ghost btn-xs text-success px-1" data-donate-all="1" title="${t('fin_keep_as_donation')}">${t('fin_type_donation')}</button>`
+          + `<button type="button" class="btn btn-ghost btn-xs text-warning px-1 -mr-1" data-refund-advance="1" title="${t('fin_refund_advance_hint')}">${t('fin_refund')}</button>`
         : '';
     document.getElementById('cardBlocks').innerHTML =
         BLOCKS.map(k => cell(k, b.blocks[k])).join('') +
@@ -2093,6 +2096,8 @@ function openRefund(postingId) {
     if (!p) return;
     requestIds.refund = requestIds.refund || FinUtils.newRequestId();
     document.getElementById('refundPostingId').value = postingId;
+    document.getElementById('refundTitle').textContent = t('fin_refund');
+    document.getElementById('refundAccount').onchange = null;
     document.getElementById('refundInfo').textContent =
         `${card.name} · ${t('fin_available_to_refund')}: ${FinUtils.fmtMoney(p.available_to_refund, p.currency_code)}`;
     const amountEl = document.getElementById('refundAmount');
@@ -2105,9 +2110,43 @@ function openRefund(postingId) {
     document.getElementById('refundModal').showModal();
 }
 
+// Возврат аванса деньгами (ВГ, 05.09): у платежей до рубежа исходной проводки
+// нет, возвращать «с проводки» нечего — поэтому отдельный режим той же модалки.
+// Пустой refundPostingId и есть признак режима.
+function openRefundAdvance() {
+    const b = participants.find(x => x.participant_id === card.id)?.balance;
+    const аванс = Math.max(-(Number(b?.net) || 0), 0);
+    if (аванс <= 0.005) return;
+    requestIds.refund = requestIds.refund || FinUtils.newRequestId();
+    document.getElementById('refundPostingId').value = '';
+    document.getElementById('refundTitle').textContent = t('fin_refund_advance_title');
+    document.getElementById('refundInfo').textContent =
+        `${card.name} · ${t('fin_advance')}: ${FinUtils.fmtMoney(аванс, 'INR')}`;
+    const счета = document.getElementById('refundAccount');
+    // деньги отдают из кассы, чаще всего рупиями — её и ставим первой
+    счета.innerHTML = FinUtils.accountOptions(null, null, a => a.currency_code === 'INR' ? 1 : 0);
+    document.getElementById('refundDate').value = FinUtils.todayISO();
+    document.getElementById('refundReason').value = '';
+    подставитьСуммуВозврата(аванс);
+    счета.onchange = () => подставитьСуммуВозврата(аванс);
+    document.getElementById('refundModal').showModal();
+}
+
+// Сумма в валюте выбранного счёта. Округляем вниз: при пересчёте вверх возврат
+// вышел бы на копейку больше аванса, и сервер отказал бы
+function подставитьСуммуВозврата(авансInr) {
+    const acc = FinUtils.refs.accounts.find(a => a.account_id === document.getElementById('refundAccount').value);
+    const курс = retreatRates[acc?.currency_code] || 1;
+    const поле = document.getElementById('refundAmount');
+    поле.value = Math.floor((авансInr / курс) * 100) / 100;
+    поле.max = поле.value;
+}
+
 async function submitRefund(ev) {
     ev.preventDefault();
-    const res = await FinUtils.rpc('fin_create_refund', {
+    const posting = document.getElementById('refundPostingId').value;
+    const res = posting
+        ? await FinUtils.rpc('fin_create_refund', {
         request_id: requestIds.refund,
         refund_of_posting_id: document.getElementById('refundPostingId').value,
         source_account_id: document.getElementById('refundAccount').value || null,
@@ -2115,7 +2154,17 @@ async function submitRefund(ev) {
         occurred_on: document.getElementById('refundDate').value,
         refund_recipient_contact_id: card.id,
         reason: document.getElementById('refundReason').value || null
-    });
+    })
+        : await FinUtils.rpc('fin_refund_advance', {
+            request_id: requestIds.refund,
+            participant_id: card.id,
+            retreat_id: currentRetreat,
+            account_id: document.getElementById('refundAccount').value,
+            amount: document.getElementById('refundAmount').value,
+            occurred_on: document.getElementById('refundDate').value,
+            reason: document.getElementById('refundReason').value || null,
+            payment_channel: 'cash'
+        });
     if (FinUtils.handleResult(res)) {
         requestIds.refund = null;
         document.getElementById('refundModal').close();
@@ -2370,6 +2419,8 @@ async function init() {
         if (writeOffAllBtn) { openWriteOff(null, 'all'); return; }
         const donateAllBtn = ev.target.closest('[data-donate-all]');
         if (donateAllBtn) { openWriteOff(null, 'advance_all'); return; }
+        const refundAdvBtn = ev.target.closest('[data-refund-advance]');
+        if (refundAdvBtn) { openRefundAdvance(); return; }
         // Валюта сводных карточек: «в чём человек хочет платить» (ВГ, 24.08)
         const curBtn = ev.target.closest('[data-cardcur]');
         if (curBtn) {
