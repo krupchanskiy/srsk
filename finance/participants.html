@@ -158,6 +158,9 @@
                     <button type="button" class="btn btn-ghost btn-sm" onclick="FinParticipants.addPayRow()">+ <span data-i18n="fin_add">Добавить</span></button>
                     <button type="button" class="btn btn-ghost btn-sm" onclick="FinParticipants.addOtherParticipantRow()">+ <span data-i18n="fin_pay_other_participant">Засчитать другому участнику</span></button>
                 </div>
+                <!-- Объединённый баланс группы: долги и авансы всех участников операции
+                     складываются, чтобы видеть картину на двоих (ВГ, 05.09) -->
+                <div id="payGroupBalance" class="hidden border border-base-300 rounded-lg p-2 mb-2"></div>
                 <!-- Живой пересчёт всех строк в опорную валюту против остатка (ТЗ 3.3) -->
                 <div id="payRunningTotal" class="text-sm font-mono mb-2"></div>
                 <!-- Разбивка по блокам и по именам: кто за кого и в какой валюте (ВГ, 24.08) -->
@@ -205,6 +208,7 @@
         <div class="overflow-x-auto">
             <table class="table table-xs">
                 <thead><tr>
+                    <th id="thPayWho" class="hidden" data-i18n="fin_participant">Участник</th>
                     <th data-i18n="fin_occurred_on">Дата</th>
                     <th data-i18n="fin_kind">Тип</th>
                     <th data-i18n="fin_block">Блок</th>
@@ -308,10 +312,10 @@
 <script src="../js/auth-check.js?v=10"></script>
 <script src="../js/cache.js?v=1"></script>
 <script src="../js/utils.js?v=12"></script>
-<script src="../js/layout.js?v=69"></script>
+<script src="../js/layout.js?v=70"></script>
 <script src="../js/date-utils.js?v=4"></script>
 <script src="../js/fin-utils.js?v=11"></script>
-<script src="../js/pages/fin-participants.js?v=46"></script>
+<script src="../js/pages/fin-participants.js?v=47"></script>
 
 </body>
 </html>

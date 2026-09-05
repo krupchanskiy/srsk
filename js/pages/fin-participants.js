@@ -555,6 +555,7 @@ async function loadCardPayments() {
     const { data, error } = await Layout.db.rpc('fin_get_participant_payments', { p_participant: card.id, p_retreat: currentRetreat });
     if (error) { Layout.handleError(error, 'Платежи'); return; }
     card.payments = data || [];
+    card.companionPayments = [];   // спутники подгрузит loadCardCompanions
     renderCardPayments();
 }
 
@@ -572,20 +573,31 @@ function renderCardPayments() {
     // У платежей до переезда счёт часто не заполнялся — тогда виден хотя бы способ.
     const куда = p => [p.account_name, p.payment_system, FinUtils.channelLabel(p.payment_channel)]
         .filter(Boolean).join(' · ') || '—';
-    document.getElementById('cardPayments').innerHTML = card.payments.map(p => `
-        <tr class="${p.is_reversed ? 'opacity-60' : ''}">
+    // Совместная оплата: в таблице видны платежи всех участников операции, с
+    // именем в строке — иначе, чтобы понять, кто и сколько внёс, приходилось
+    // открывать карточку каждого (чек-лист «оплата за нескольких», п.3)
+    const чужие = card.companionPayments || [];
+    const парно = чужие.length > 0;
+    document.getElementById('thPayWho')?.classList.toggle('hidden', !парно);
+    const все = парно
+        ? [...card.payments.map(x => ({ ...x, _кто: card.name, _свой: true })), ...чужие]
+            .sort((a, b) => String(b.occurred_on).localeCompare(String(a.occurred_on)))
+        : card.payments;
+    document.getElementById('cardPayments').innerHTML = все.map(p => `
+        <tr class="${p.is_reversed ? 'opacity-60' : ''}${p._свой === false ? ' bg-base-200/40' : ''}">
+            ${парно ? `<td class="whitespace-nowrap text-xs">${e(p._кто || card.name)}</td>` : ''}
             <td class="whitespace-nowrap">${DateUtils.formatShort(DateUtils.parseDate(p.occurred_on))}</td>
             <td>${e(p.direction === 'out' && p.type === 'payment' ? t('fin_change') : FinUtils.typeLabel(p.type))}</td>
             <td>${e(blockLabel(p.balance_kind))}</td>
             <td class="text-right font-mono ${p.direction === 'out' ? 'text-warning' : ''}">${p.direction === 'out' ? '−' : ''}${FinUtils.fmtMoney(p.amount, p.currency_code)}${p.currency_code !== 'INR' ? `<div class="text-xs opacity-70">${объяснитьКурс(p)} → ₹ ${Number(p.amount_base).toLocaleString('ru-RU')}</div>` : ''}</td>
             <td class="whitespace-nowrap">${e(куда(p))}</td>
             <td>${statusBadge(p.status)}</td>
-            <td class="text-right">${isAdmin && p.type === 'payment' && p.direction !== 'out' && p.operation_id ? `<a class="btn btn-ghost btn-xs" href="dds.html?op=${p.operation_id}" title="${t('fin_realloc_action')}">
+            <td class="text-right">${p._свой === false ? '' : isAdmin && p.type === 'payment' && p.direction !== 'out' && p.operation_id ? `<a class="btn btn-ghost btn-xs" href="dds.html?op=${p.operation_id}" title="${t('fin_realloc_action')}">
                 <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="w-4 h-4"><path stroke-linecap="round" stroke-linejoin="round" d="M16.023 9.348h4.992v-.001M2.985 19.644v-4.992m0 0h4.992m-4.993 0l3.181 3.183a8.25 8.25 0 0013.803-3.7M4.031 9.865a8.25 8.25 0 0113.803-3.7l3.181 3.182m0-4.991v4.99"/></svg>
-            </a>` : ''}${isAdmin && p.type === 'payment' && Number(p.available_to_refund) > 0 ? `<button class="btn btn-ghost btn-xs" data-refund="${p.posting_id}" title="${t('fin_refund')}">
+            </a>` : ''}${p._свой === false ? '' : isAdmin && p.type === 'payment' && Number(p.available_to_refund) > 0 ? `<button class="btn btn-ghost btn-xs" data-refund="${p.posting_id}" title="${t('fin_refund')}">
                 <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="w-4 h-4"><path stroke-linecap="round" stroke-linejoin="round" d="M9 15L3 9m0 0l6-6M3 9h12a6 6 0 010 12h-3"/></svg>
             </button>` : ''}</td>
-        </tr>`).join('') || `<tr><td colspan="7" class="text-center py-3 opacity-60">${t('fin_no_payments')}</td></tr>`;
+        </tr>`).join('') || `<tr><td colspan="${парно ? 8 : 7}" class="text-center py-3 opacity-60">${t('fin_no_payments')}</td></tr>`;
 }
 
 // «Платили вместе» (ВГ, 25.08): в карточке не было видно спутника, за которого
@@ -594,6 +606,7 @@ async function loadCardCompanions() {
     const el = document.getElementById('cardCompanions');
     if (!el) return;
     el.innerHTML = '';
+    card.companionPayments = [];
     const операции = [...new Set((card.payments || []).map(p => p.operation_id).filter(Boolean))];
     if (!операции.length) return;
     const { data } = await Layout.db.from('fin_v_account_ledger')
@@ -609,6 +622,14 @@ async function loadCardCompanions() {
             { p_participant: x.participant_id, p_retreat: currentRetreat });
         return { ...x, net: Number(b?.net) || 0, balance: b };
     }));
+    // Платежи спутников — в общую таблицу карточки, с именем в строке (п.3)
+    const чужиеПлатежи = await Promise.all(другие.map(async x => {
+        const { data } = await Layout.db.rpc('fin_get_participant_payments',
+            { p_participant: x.participant_id, p_retreat: currentRetreat });
+        return (data || []).map(p => ({ ...p, _кто: x.participant_name || '', _свой: false }));
+    }));
+    card.companionPayments = чужиеПлатежи.flat();
+    renderCardPayments();
     // Парная оплата: долги и история спутников видны прямо здесь, без ухода
     // из карточки — «чтобы видеть всю историю платежа и задолженности за двоих»
     // (ВГ, 28.08)
@@ -721,7 +742,9 @@ async function offsetFromCompanion(pid) {
         .select('posting_id, operation_id, participant_id, participant_balance_kind, amount, amount_base, account_id, is_reversed, type')
         .eq('participant_id', донорId).eq('type', 'payment');
     const годные = (строки || []).filter(x => !x.is_reversed && авансБлоки.includes(x.participant_balance_kind));
-    if (!годные.length) { Layout.showNotification(t('fin_offset_no_rows'), 'warning'); return; }
+    // Аванс из загрузки рубежа живёт в начальном остатке, проводок под ним нет —
+    // перевешивать нечего, зачитываем на уровне остатков (ВГ, 05.09)
+    if (!годные.length) { await зачестьМеждуУчастниками(донорId, получательId); return; }
 
     // берём строки одной операции, пока не покроем долг
     const поОперациям = {};
@@ -740,7 +763,7 @@ async function offsetFromCompanion(pid) {
         }
         if (набор.length) { выбор = { opId, набор, сумма }; break; }
     }
-    if (!выбор) { Layout.showNotification(t('fin_offset_no_rows'), 'warning'); return; }
+    if (!выбор) { await зачестьМеждуУчастниками(донорId, получательId); return; }
 
     // на какие блоки владельца зачесть — по его долгам, по порядку
     const балансПолучателя = получательId === card.id ? мойБалансНач : егоБаланс;
@@ -1808,6 +1831,9 @@ function onBaseCurrencyChange() {
 function updatePayRunningTotal() {
     const el = document.getElementById('payRunningTotal');
     if (!el) return;
+    // Панель группы рисуем до всех ранних выходов: она нужна сразу, как только
+    // добавлен второй человек, ещё до ввода сумм
+    renderGroupBalance();
     const rows = [...document.querySelectorAll('#payRows .pay-row')];
     if (!rows.length) { el.innerHTML = ''; return; }
     // Валюта итога — та, в которой платит человек (ВГ, 24.08): показывать остаток
@@ -1841,11 +1867,14 @@ function updatePayRunningTotal() {
     const детали = Object.entries(поВалютам).map(([c, v]) => FinUtils.fmtMoney(v, c)).join(' + ');
     // «Останется закрыть» — по всем людям формы: остаток каждого минус его строки
     let остатокВсехInr = 0;
+    const людейВФорме = Object.keys(поЛюдям).length;
     for (const [pid, внесено] of Object.entries(поЛюдям)) {
-        const бал = pid === card.id
-            ? participants.find(x => x.participant_id === card.id)?.balance
-            : pidData.balance[pid];
-        остатокВсехInr += Math.max(Number(бал?.net) || 0, 0) - внесено;
+        const net = Number(балансУчастника(pid)?.net) || 0;
+        // Пара считается вместе: аванс одного гасит долг другого, иначе итог
+        // показывал долг жены и не видел переплаты мужа (ВГ, 05.09).
+        // У одного человека аванс по-прежнему не уходит в минус — он виден
+        // отдельной строкой «переплата»
+        остатокВсехInr += (людейВФорме > 1 ? net : Math.max(net, 0)) - внесено;
     }
     const после = изInr(остатокВсехInr);
     const хвост = после > 0.01
@@ -1916,6 +1945,105 @@ function updatePayRunningTotal() {
     подписатьСтроки();
 }
 
+// Баланс участника формы: у владельца карточки — из общего списка, у
+// добавленных — из кэша формы
+function балансУчастника(pid) {
+    return pid === card.id
+        ? participants.find(x => x.participant_id === card.id)?.balance
+        : pidData.balance[pid];
+}
+
+// Кто участвует в операции: владелец карточки плюс все добавленные
+function участникиФормы() {
+    const люди = new Map();
+    const основной = document.getElementById('payPayerId')?.value;
+    if (основной) люди.set(основной, card.name);
+    document.querySelectorAll('#payRows .pay-row').forEach(row => {
+        const pid = row.querySelector('.pay-person-id')?.value;
+        if (!pid || люди.has(pid)) return;
+        люди.set(pid, row.dataset.personName || row.querySelector('.pay-person')?.value || '');
+    });
+    return люди;
+}
+
+// Объединённый баланс группы (чек-лист «оплата за нескольких», п.2): пока
+// участник один — панели нет, как только добавлен второй — долги и авансы
+// складываются, и сразу видно, сколько нужно на двоих вместе
+function renderGroupBalance() {
+    const el = document.getElementById('payGroupBalance');
+    if (!el) return;
+    const люди = участникиФормы();
+    if (люди.size < 2) { el.classList.add('hidden'); el.innerHTML = ''; return; }
+
+    const строки = [...люди].map(([pid, имя]) => ({
+        pid, имя: имя || (pid === card.id ? card.name : ''),
+        net: Number(балансУчастника(pid)?.net) || 0
+    }));
+    const итог = строки.reduce((a, x) => a + x.net, 0);
+    const деньги = v => v > 0.005
+        ? `<span class="text-error">${t('fin_debt')} ${FinUtils.fmtMoney(v, 'INR')}</span>`
+        : v < -0.005
+            ? `<span class="text-success">${t('fin_advance')} ${FinUtils.fmtMoney(-v, 'INR')}</span>`
+            : `<span class="opacity-60">0</span>`;
+
+    // Зачёт предлагаем самой очевидной паре: наибольший аванс → наибольший долг
+    const донор = строки.filter(x => x.net < -0.005).sort((a, b) => a.net - b.net)[0];
+    const получатель = строки.filter(x => x.net > 0.005).sort((a, b) => b.net - a.net)[0];
+    const кнопка = донор && получатель
+        ? `<button type="button" class="btn btn-xs btn-outline btn-success"
+             data-group-offset="${e(донор.pid)}" data-group-to="${e(получатель.pid)}"
+             title="${e(`${донор.имя} → ${получатель.имя}`)}">${t('fin_offset_advance')}</button>`
+        : '';
+
+    el.classList.remove('hidden');
+    el.innerHTML = `
+        <div class="flex flex-wrap items-center gap-2 text-xs mb-1">
+            <span class="opacity-70">${t('fin_group_total')}</span>
+            <b>${деньги(итог)}</b>
+            <span class="ml-auto">${кнопка}</span>
+        </div>
+        <div class="flex flex-wrap gap-x-4 gap-y-0.5 text-xs">
+            ${строки.map(x => `<span>${e(x.имя)} — ${деньги(x.net)}</span>`).join('')}
+        </div>`;
+    el.querySelector('[data-group-offset]')?.addEventListener('click', ev => {
+        const b = ev.currentTarget;
+        зачестьМеждуУчастниками(b.dataset.groupOffset, b.dataset.groupTo);
+    });
+}
+
+// Зачёт аванса одного участника в долг другого. Деньги уже в кассе — меняется
+// только принадлежность суммы, поэтому проводок не создаётся (ВГ, 05.09)
+async function зачестьМеждуУчастниками(донорId, получательId) {
+    const имя = pid => участникиФормы().get(pid) || '';
+    if (!confirm(`${t('fin_offset_advance')}: ${имя(донорId)} → ${имя(получательId)}\n${t('fin_offset_confirm')}`)) return;
+    const res = await FinUtils.rpc('fin_offset_between_participants', {
+        request_id: FinUtils.newRequestId(),
+        from_participant: донорId,
+        to_participant: получательId,
+        retreat_id: currentRetreat,
+        reason: `Зачёт аванса между участниками совместной оплаты`
+    });
+    if (!FinUtils.handleResult(res)) return;
+    // балансы обоих изменились — перечитываем и пересобираем форму
+    delete pidData.balance[донорId];
+    delete pidData.balance[получательId];
+    await refreshAfterChange();
+    for (const pid of [донорId, получательId]) {
+        if (pid === card.id) continue;
+        const { data } = await Layout.db.rpc('fin_get_participant_balance',
+            { p_participant: pid, p_retreat: currentRetreat });
+        if (data) pidData.balance[pid] = data;
+    }
+    document.querySelectorAll('#payRows .pay-row.pay-other').forEach(row => {
+        const pid = row.querySelector('.pay-person-id')?.value;
+        if (!pid || !pidData.balance[pid]) return;
+        row.querySelector('.pay-person-balance').innerHTML = fmtNet(Number(pidData.balance[pid].net) || 0);
+        renderOtherBreakdown(row, pidData.balance[pid]);
+    });
+    updatePayRunningTotal();
+    loadCardCompanions();
+}
+
 // Введённое в форме, сгруппированное по блокам (общие суммы в валютах) и по
 // людям («что за кого было оплачено и в какой валюте»)
 function собратьРазбивку() {
@@ -1941,8 +2069,18 @@ function собратьРазбивку() {
     };
 }
 function chек_set(el, детали, итог, опорная) {
-    const людей = new Set([...document.querySelectorAll('#payRows .pay-row')].map(r => r.querySelector('.pay-person-id')?.value || 'me')).size;
-    el.textContent = `${t('fin_pay_total_check')}: ${детали}${людей > 1 ? ' ' + t('fin_for_n_people').replace('{n}', людей) : ''}`;
+    const люди = участникиФормы();
+    // При совместной оплате к сумме к внесению добавляем баланс группы целиком:
+    // «₽79 860 за 2 чел.» скрывало переплату второго участника (ВГ, 05.09)
+    const хвост = люди.size > 1
+        ? ` ${t('fin_for_n_people').replace('{n}', люди.size)} · ${t('fin_group_total')}: `
+          + (() => {
+              const net = [...люди.keys()].reduce((a, pid) => a + (Number(балансУчастника(pid)?.net) || 0), 0);
+              return net > 0.005 ? `${t('fin_debt')} ${FinUtils.fmtMoney(net, 'INR')}`
+                   : net < -0.005 ? `${t('fin_advance')} ${FinUtils.fmtMoney(-net, 'INR')}` : '0';
+          })()
+        : '';
+    el.textContent = `${t('fin_pay_total_check')}: ${детали}${хвост}`;
 }
 
 // ==================== ФОРМА: ВОЗВРАТ ====================
