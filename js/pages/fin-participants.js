@@ -2014,7 +2014,11 @@ function renderGroupBalance() {
 // Зачёт аванса одного участника в долг другого. Деньги уже в кассе — меняется
 // только принадлежность суммы, поэтому проводок не создаётся (ВГ, 05.09)
 async function зачестьМеждуУчастниками(донорId, получательId) {
-    const имя = pid => участникиФормы().get(pid) || '';
+    // Зачёт вызывается и из формы, и из блока «Платили вместе» — имя ищем везде
+    const имя = pid => pid === card.id ? card.name
+        : (участникиФормы().get(pid)
+           || participants.find(x => x.participant_id === pid)?.name
+           || '');
     if (!confirm(`${t('fin_offset_advance')}: ${имя(донорId)} → ${имя(получательId)}\n${t('fin_offset_confirm')}`)) return;
     const res = await FinUtils.rpc('fin_offset_between_participants', {
         request_id: FinUtils.newRequestId(),
