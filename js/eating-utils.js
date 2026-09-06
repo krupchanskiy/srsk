@@ -67,9 +67,14 @@ const EatingUtils = {
         for (const reg of guestRegistrations) {
             if (reg.vaishnava_id) {
                 const key = `${reg.vaishnava_id}_${reg.retreat_id}`;
+                const transfers = reg.guest_transfers || [];
                 regTimesMap.set(key, {
                     arrival: reg.arrival_datetime,
-                    departure: reg.departure_datetime
+                    departure: reg.departure_datetime,
+                    // Рейс — запасной источник времени: у заселённых он не
+                    // смотрелся вовсе, хотя у незаселённых работал (06.09.2026)
+                    arrivalFlight: transfers.find(t => t.direction === 'arrival')?.flight_datetime,
+                    departureFlight: transfers.find(t => t.direction === 'departure')?.flight_datetime
                 });
             }
         }
@@ -103,13 +108,32 @@ const EatingUtils = {
                     if (r.vaishnava_id && r.retreat_id) {
                         const regTimes = regTimesMap.get(`${r.vaishnava_id}_${r.retreat_id}`);
                         if (regTimes) {
-                            if (isFirstDay && !r.early_checkin && regTimes.arrival) {
-                                const hour = new Date(regTimes.arrival.slice(0, 16)).getHours();
+                            const arrival = regTimes.arrival || regTimes.arrivalFlight;
+                            const arrDate = arrival ? arrival.slice(0, 10) : null;
+                            // Время уточняет только свой день: час рейса другой
+                            // даты ничего не говорит о сегодняшнем приёме пищи
+                            if (isFirstDay && !r.early_checkin && arrDate === dateStr) {
+                                const hour = new Date(arrival.slice(0, 16)).getHours();
                                 getsBreakfast = hour < BREAKFAST_CUTOFF;
                             }
-                            if (isLastDay && !r.late_checkout && regTimes.departure) {
-                                const hour = new Date(regTimes.departure.slice(0, 16)).getHours();
-                                getsLunch = hour >= LUNCH_CUTOFF;
+                            const departure = regTimes.departure || regTimes.departureFlight;
+                            const depDate = departure ? departure.slice(0, 10) : null;
+                            if (isLastDay && !r.late_checkout && depDate) {
+                                if (depDate < dateStr) {
+                                    // Уехал раньше, чем кончается бронь — кормить некого
+                                    getsBreakfast = false;
+                                    getsLunch = false;
+                                } else if (depDate === dateStr) {
+                                    // Утренний рейс — человека нет и на завтраке.
+                                    // Раньше проверялся только обед, и 6 сентября
+                                    // девять улетевших до рассвета попали в завтрак
+                                    const hour = new Date(departure.slice(0, 16)).getHours();
+                                    getsBreakfast = getsBreakfast && hour >= BREAKFAST_CUTOFF;
+                                    getsLunch = getsLunch && hour >= LUNCH_CUTOFF;
+                                }
+                                // depDate > dateStr — вылет позже конца брони.
+                                // Час чужого дня не применяем: работает базовое
+                                // правило «последний день — без обеда»
                             }
                         }
                     }
