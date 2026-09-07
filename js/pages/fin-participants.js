@@ -499,13 +499,15 @@ function renderCardBlocks(b) {
         : isAdmin && totalNet < 0
         // Аванс можно и вернуть деньгами: человек отказался от участия, часть
         // оставил пожертвованием, остальное просит назад (ВГ, 05.09)
-        ? `<button type="button" class="btn btn-ghost btn-xs text-success px-1" data-donate-all="1" title="${t('fin_keep_as_donation')}">${t('fin_type_donation')}</button>`
-          + `<button type="button" class="btn btn-ghost btn-xs text-warning px-1 -mr-1" data-refund-advance="1" title="${t('fin_refund_advance_hint')}">${t('fin_refund')}</button>`
+        ? `<div class="flex flex-col items-start -mr-1">
+            <button type="button" class="btn btn-ghost btn-xs text-success px-1" data-donate-all="1" title="${t('fin_keep_as_donation')}">${t('fin_type_donation')}</button>
+            <button type="button" class="btn btn-ghost btn-xs text-warning px-1" data-refund-advance="1" title="${t('fin_refund_advance_hint')}">${t('fin_refund')}</button>
+           </div>`
         : '';
     document.getElementById('cardBlocks').innerHTML =
         BLOCKS.map(k => cell(k, b.blocks[k])).join('') +
         `<div class="border-2 rounded-lg p-2 ${totalNet > 0 ? 'border-error' : totalNet < 0 ? 'border-success' : 'border-base-300'}">
-            <div class="text-xs font-semibold uppercase opacity-60 mb-1 flex justify-between items-center gap-1">${t('fin_total')}${списатьВсё}</div>
+            <div class="text-xs font-semibold uppercase opacity-60 mb-1 flex justify-between items-start gap-1">${t('fin_total')}${списатьВсё}</div>
             <div class="text-xs flex justify-between gap-2 items-start"><span>${t('fin_debt')}</span>${фмтВалHtml(долгВал, cardCurrency)}</div>
             <div class="text-xs flex justify-between gap-2 items-start"><span>${t('fin_advance')}</span>${фмтВалHtml(авансВал, cardCurrency)}</div>
             <div class="text-sm flex justify-between gap-2 mt-1 pt-1 border-t border-base-200 items-start"><span>${t('fin_total')}</span>${итогHtml}</div>
