@@ -2181,6 +2181,21 @@ async function submitRefund(ev) {
 // mode 'debt' — простить остаток долга блока; mode 'advance' — оставить переплату
 // блока пожертвованием; mode 'all' — закрыть весь итог карточки одной операцией:
 // долги блоков списываются, авансы оформляются пожертвованием (ВГ, 24.08)
+// Аванс, не привязанный к конкретному блоку (general_advance — остаток после
+// зачёта блоков, например «хвост» округления при конвертации валют), сам по
+// себе не входит ни в один блок. Пристёгиваем его к первому блоку с
+// начислением — иначе при пустых блоках «Пожертвование» молча ничего не
+// делает, а аванс так и висит (ВГ, 07.09)
+function собратьАвансыДляДара(b) {
+    const авансы = BLOCKS.map(k => ({ k, v: -(Number(b?.blocks?.[k]?.balance) || 0) })).filter(x => x.v > 0.005);
+    const общий = Number(b?.general_advance) || 0;
+    if (общий > 0.005) {
+        const kind = BLOCKS.find(k => Number(b?.blocks?.[k]?.charged) > 0) || 'org_fee';
+        авансы.push({ k: kind, v: общий });
+    }
+    return авансы;
+}
+
 function openWriteOff(kind, mode = 'debt') {
     const p = participants.find(x => x.participant_id === card.id);
     const поле = document.getElementById('writeOffAmount');
@@ -2188,7 +2203,7 @@ function openWriteOff(kind, mode = 'debt') {
     if (mode === 'advance_all') {
         // весь аванс участника — в дар, одной причиной на все блоки (ВГ, 28.08)
         const b = p?.balance;
-        const авансы = BLOCKS.map(k => ({ k, v: -(Number(b?.blocks?.[k]?.balance) || 0) })).filter(x => x.v > 0.005);
+        const авансы = собратьАвансыДляДара(b);
         if (!авансы.length) return;
         document.getElementById('writeOffKind').value = '';
         document.getElementById('writeOffMode').value = 'advance_all';
@@ -2297,7 +2312,7 @@ async function submitWriteOff(ev) {
     if (mode === 'advance_all') {
         const b = participants.find(x => x.participant_id === card.id)?.balance;
         if (!b) return;
-        const авансы = BLOCKS.map(k => ({ k, v: -(Number(b.blocks[k].balance) || 0) })).filter(x => x.v > 0.005);
+        const авансы = собратьАвансыДляДара(b);
         let res = { ok: true };
         for (const { k, v } of авансы) {
             res = await donateBlockAdvance(k, v, причина);
