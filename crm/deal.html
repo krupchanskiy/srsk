@@ -1236,7 +1236,7 @@ function renderGuestHistory() {
 
     const completed = guestHistory.filter(d => d.status === 'completed').length;
     const subtitle = completed > 0
-        ? `${t('crm_visited')} ${completed} ${Layout.pluralize ? Layout.pluralize(completed, t('crm_time_one'), t('crm_time_few'), t('crm_time_many')) : completed}`
+        ? `${t('crm_visited')} ${Layout.pluralize ? Layout.pluralize(completed, { ru: [t('crm_time_one'), t('crm_time_few'), t('crm_time_many')] }) : completed}`
         : '';
 
     return `
@@ -1400,7 +1400,7 @@ function guestAge() {
 
 function ageHintText() {
     const age = guestAge();
-    return age == null ? '' : `${age} ${Layout.pluralize(age, 'год', 'года', 'лет')}`;
+    return age == null ? '' : Layout.pluralize(age, { ru: ['год', 'года', 'лет'] });
 }
 
 async function saveBirthDate(value) {
