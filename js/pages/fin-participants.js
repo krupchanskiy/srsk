@@ -119,10 +119,10 @@ function renderParticipants() {
             return fmtNet(блок.balance);
         };
         return `<tr class="cursor-pointer hover:bg-base-200" data-pid="${p.participant_id}" tabindex="0">
-            <td class="font-medium">${e(p.name || '')}${crmCancelledBadge(p)}</td>
+            <td class="font-medium">${e(p.name || '')}</td>
             ${BLOCKS.map(k => `<td class="text-right">${ячейка(k)}</td>`).join('')}
             <td class="text-right">${fmtNet(Number(b.general_debt) - Number(b.general_advance))}</td>
-            <td class="text-right font-semibold">${fmtNetWord(b.net, 'INR', b)}</td>
+            <td class="text-right font-semibold">${fmtNetWord(b.net, 'INR', b)}${crmCancelledBadge(p)}</td>
         </tr>`;
     }).join('') || `<tr><td colspan="7" class="text-center py-6 opacity-60">${t('fin_nothing_found')}</td></tr>`;
     renderParticipantsSummary();
@@ -172,7 +172,7 @@ async function openCard(pid) {
     if (!p) return;
     card.id = pid;
     card.name = p.name;
-    document.getElementById('cardName').innerHTML = `${e(p.name || '')}${crmCancelledBadge(p)}`;
+    document.getElementById('cardName').textContent = p.name;
     const r = retreats.find(x => x.id === currentRetreat);
     card.retreatName = r ? Layout.getName(r) : '';
     document.getElementById('cardRetreat').textContent = card.retreatName;
@@ -236,7 +236,22 @@ async function loadCardCrmInfo() {
     const { data: deal } = await Layout.db.from('crm_deals')
         .select('id').eq('vaishnava_id', card.id).eq('retreat_id', currentRetreat)
         .neq('status', 'cancelled').order('updated_at', { ascending: false }).limit(1).maybeSingle();
-    if (!deal) return;
+    if (!deal) {
+        // Активной сделки нет — если была и её отменили, это должно быть видно
+        // сразу вверху карточки, а не пустым местом там, где обычно условия из
+        // CRM (ВГ, 07.09)
+        const { data: cancelled } = await Layout.db.from('crm_deals')
+            .select('cancellation_reason, cancellation_note').eq('vaishnava_id', card.id).eq('retreat_id', currentRetreat)
+            .eq('status', 'cancelled').order('updated_at', { ascending: false }).limit(1).maybeSingle();
+        if (el && cancelled) {
+            const причина = cancelled.cancellation_reason
+                ? (t('crm_reason_' + cancelled.cancellation_reason) || t('crm_cat_other')) : '';
+            el.innerHTML = `<div class="alert alert-error py-2 px-3 text-sm">
+                <span>${t('fin_crm_cancelled_title')}${причина ? ` · ${e(причина)}` : ''}${cancelled.cancellation_note ? `<div class="text-xs opacity-80 mt-0.5">${e(cancelled.cancellation_note)}</div>` : ''}</span>
+            </div>`;
+        }
+        return;
+    }
     const { data: calc } = await Layout.db.rpc('crm_calc_participation', { p_deal: deal.id });
     if (!calc?.ok) return;
     cardCalc = calc;
@@ -517,7 +532,7 @@ function renderCardBlocks(b) {
             <div class="text-xs font-semibold uppercase opacity-60 mb-1 flex justify-between items-start gap-1">${t('fin_total')}${списатьВсё}</div>
             <div class="text-xs flex justify-between gap-2 items-start"><span>${t('fin_debt')}</span>${фмтВалHtml(долгВал, cardCurrency)}</div>
             <div class="text-xs flex justify-between gap-2 items-start"><span>${t('fin_advance')}</span>${фмтВалHtml(авансВал, cardCurrency)}</div>
-            <div class="text-sm flex justify-between gap-2 mt-1 pt-1 border-t border-base-200 items-start"><span>${t('fin_total')}</span>${итогHtml}</div>
+            <div class="text-sm flex justify-between gap-2 mt-1 pt-1 border-t border-base-200 items-start"><span>${t('fin_total')}</span>${итогHtml}${crmCancelledBadge(participants.find(x => x.participant_id === card.id))}</div>
         </div>`;
 }
 
@@ -826,10 +841,7 @@ async function refreshAfterChange() {
     await loadParticipants();
     if (card.id && document.getElementById('cardModal').open) {
         const p = participants.find(x => x.participant_id === card.id);
-        if (p) {
-            renderCardBlocks(p.balance);
-            document.getElementById('cardName').innerHTML = `${e(p.name || '')}${crmCancelledBadge(p)}`;
-        }
+        if (p) renderCardBlocks(p.balance);
         await Promise.all([loadCardCharges(), loadCardPayments()]);
     }
 }
