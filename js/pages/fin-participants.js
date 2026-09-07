@@ -119,7 +119,7 @@ function renderParticipants() {
             return fmtNet(блок.balance);
         };
         return `<tr class="cursor-pointer hover:bg-base-200" data-pid="${p.participant_id}" tabindex="0">
-            <td class="font-medium">${e(p.name || '')}</td>
+            <td class="font-medium">${e(p.name || '')}${crmCancelledBadge(p)}</td>
             ${BLOCKS.map(k => `<td class="text-right">${ячейка(k)}</td>`).join('')}
             <td class="text-right">${fmtNet(Number(b.general_debt) - Number(b.general_advance))}</td>
             <td class="text-right font-semibold">${fmtNetWord(b.net, 'INR', b)}</td>
@@ -141,6 +141,13 @@ function renderParticipantsSummary() {
     el.innerHTML =
         `<span class="text-error">${t('fin_debtors')}: ${debtCount} · ${FinUtils.fmtMoney(debtSum, 'INR')}</span>` +
         ` &nbsp;•&nbsp; <span class="text-success">${t('fin_advances')}: ${advCount} · ${FinUtils.fmtMoney(advSum, 'INR')}</span>`;
+}
+
+// Сделка в CRM отменена, новой активной взамен нет — казначей видит причину
+// долга сразу, не заходя в CRM (ВГ, 07.09)
+function crmCancelledBadge(p) {
+    if (!p?.crm_cancelled) return '';
+    return ` <span class="badge badge-ghost badge-sm align-middle" title="${t('fin_crm_cancelled_title')}">${t('fin_crm_cancelled_badge')}</span>`;
 }
 
 // Итог со словом: «Долг ₹N» / «Аванс ₹N» — знак и цвет не спорят друг с другом.
@@ -165,7 +172,7 @@ async function openCard(pid) {
     if (!p) return;
     card.id = pid;
     card.name = p.name;
-    document.getElementById('cardName').textContent = p.name;
+    document.getElementById('cardName').innerHTML = `${e(p.name || '')}${crmCancelledBadge(p)}`;
     const r = retreats.find(x => x.id === currentRetreat);
     card.retreatName = r ? Layout.getName(r) : '';
     document.getElementById('cardRetreat').textContent = card.retreatName;
@@ -819,7 +826,10 @@ async function refreshAfterChange() {
     await loadParticipants();
     if (card.id && document.getElementById('cardModal').open) {
         const p = participants.find(x => x.participant_id === card.id);
-        if (p) renderCardBlocks(p.balance);
+        if (p) {
+            renderCardBlocks(p.balance);
+            document.getElementById('cardName').innerHTML = `${e(p.name || '')}${crmCancelledBadge(p)}`;
+        }
         await Promise.all([loadCardCharges(), loadCardPayments()]);
     }
 }
@@ -2397,6 +2407,47 @@ async function submitCancelCharge(ev) {
     }
 }
 
+// ==================== ОТКАЗ ОТ УЧАСТИЯ ====================
+// Факт узнали не из CRM (там сделка ещё активна), а напрямую в финансах —
+// отменяем все активные начисления и толкаем статус в CRM, чтобы менеджеры
+// увидели без ручной синхронизации (ВГ, 07.09)
+function openWithdraw() {
+    if (!card.id) return;
+    document.getElementById('withdrawComment').value = '';
+    document.getElementById('withdrawModal').showModal();
+}
+
+async function submitWithdraw(ev) {
+    ev.preventDefault();
+    const comment = document.getElementById('withdrawComment').value.trim();
+    const причина = 'Отказ от участия' + (comment ? `: ${comment}` : '');
+
+    const активные = Object.values(cardChargesById).filter(c => BLOCKS.includes(c.kind) && !c.is_cancelled);
+    for (const c of активные) {
+        const res = await FinUtils.rpc('fin_cancel_charge', { charge_id: c.id, reason: причина });
+        if (!res?.ok) {
+            Layout.showNotification(res?.error?.message || 'Ошибка', 'error');
+            await refreshAfterChange();   // показать, что уже успело отмениться
+            return;
+        }
+    }
+
+    const { data: deal } = await Layout.db.from('crm_deals')
+        .select('id').eq('vaishnava_id', card.id).eq('retreat_id', currentRetreat)
+        .neq('status', 'cancelled').order('updated_at', { ascending: false }).limit(1).maybeSingle();
+    if (deal) {
+        const { error } = await Layout.db.from('crm_deals')
+            .update({ status: 'cancelled', cancellation_reason: 'other', cancellation_note: причина })
+            .eq('id', deal.id);
+        if (error) Layout.showNotification(`${t('fin_withdraw_crm_failed')}: ${error.message}`, 'warning');
+    }
+
+    document.getElementById('withdrawModal').close();
+    Layout.showNotification(t('fin_withdrawn_success'), 'success');
+    await refreshAfterChange();
+    loadCardCrmInfo();
+}
+
 // ==================== INIT ====================
 async function init() {
     await Layout.init({ module: 'finance', menuId: 'fin_participants', itemId: 'fin_participants' });
@@ -2407,6 +2458,7 @@ async function init() {
     document.getElementById('paymentForm').addEventListener('submit', FinUtils.lockedSubmit(submitPayment));
     document.getElementById('refundForm').addEventListener('submit', FinUtils.lockedSubmit(submitRefund));
     document.getElementById('cancelChargeForm').addEventListener('submit', FinUtils.lockedSubmit(submitCancelCharge));
+    document.getElementById('withdrawForm').addEventListener('submit', FinUtils.lockedSubmit(submitWithdraw));
     // Плательщик задаётся открытой карточкой участника — отдельного поиска больше нет.
     // Esc в карточке не должен молча терять заполняемые формы
     document.getElementById('cardModal').addEventListener('cancel', ev => {
@@ -2508,6 +2560,6 @@ async function copySummary() {
     Layout.showNotification(ok ? t('fin_copied') : t('fin_copy_failed'), ok ? 'success' : 'error');
 }
 
-window.FinParticipants = { openCharge, closeCharge, openPayment, closePayment, addChargeRow, addPayRow, addOtherParticipantRow, syncFromCrm, copySummary, openRecalc, onBaseCurrencyChange, removeChange, removeDonation, addChangeRow, keepAsDonation };
+window.FinParticipants = { openCharge, closeCharge, openPayment, closePayment, addChargeRow, addPayRow, addOtherParticipantRow, syncFromCrm, copySummary, openRecalc, onBaseCurrencyChange, removeChange, removeDonation, addChangeRow, keepAsDonation, openWithdraw };
 init();
 })();
