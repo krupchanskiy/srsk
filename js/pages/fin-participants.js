@@ -515,11 +515,22 @@ function renderCardBlocks(b) {
 }
 
 let cardChargesById = {};
+// Сначала активные (по типу — Оргвзнос/Проживание/Питание/Доп.), затем история
+// отменённых — тоже по типу, внутри каждого типа от новых к старым (ВГ, 07.09)
+function сортировкаНачислений(a, b) {
+    if (a.is_cancelled !== b.is_cancelled) return a.is_cancelled ? 1 : -1;
+    const kOrder = k => { const i = BLOCKS.indexOf(k); return i === -1 ? BLOCKS.length : i; };
+    const ka = kOrder(a.kind), kb = kOrder(b.kind);
+    if (ka !== kb) return ka - kb;
+    const dt = new Date(a.created_at) - new Date(b.created_at);
+    return a.is_cancelled ? -dt : dt;
+}
 async function loadCardCharges() {
     const { data, error } = await Layout.db.from('fin_v_charges').select('*')
         .eq('participant_id', card.id).eq('retreat_id', currentRetreat)
         .order('created_at');
     if (error) { Layout.handleError(error, 'Начисления'); return; }
+    data?.sort(сортировкаНачислений);
     cardChargesById = Object.fromEntries((data || []).map(c => [c.id, c]));
     const isAdmin = window.hasPermission?.('fin_admin');
     document.getElementById('cardCharges').innerHTML = (data || []).map(c => `
