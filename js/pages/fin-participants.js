@@ -1254,11 +1254,11 @@ function acceptInOtherCurrency(targetCur) {
             return;
         }
         // Обмен через ₹ по курсу ретрита, не по цене блока в целевой валюте.
-        // Блок меняем на «Общий» (ВГ, 09.09): если оставить строку привязанной
-        // к своему блоку (напр. «Питание»), сервер увидит формальную переплату
-        // именно по нему. Курс ретрита выше цены блока — разницу сверху не
-        // оставляем висеть авансом, а сразу проводим тем же платежом как дар
-        // (ВГ, 09.09): это доход от обмена валюты, а не долг ашрама гостю.
+        // Курс ретрита выше цены блока — курсовую разницу сверху отделяем
+        // заранее (ВГ, 09.09) и проводим тем же платежом как дар, а не даём ей
+        // осесть авансом. Блок строки НЕ трогаем: раз сумма уменьшена ровно до
+        // настоящего остатка блока, она закроет именно его, без остатка —
+        // менять на «Общий» незачем и только запутывает историю платежей.
         const исходныйБлок = row.querySelector('.pay-kind').value;
         const pid = rowPid(row);
         const полнаяInr = Math.round(сумма * retreatRates[срCur] * 100) / 100;
@@ -1269,7 +1269,6 @@ function acceptInOtherCurrency(targetCur) {
         const новаяСумма = Math.round((полнаяInr - премияInr) / retreatRates[targetCur] * 100) / 100;
         row.dataset.forceRetreat = '1';
         row.dataset.rateMode = 'retreat';
-        row.querySelector('.pay-kind').value = 'general';
         row.querySelector('.pay-currency').value = targetCur;
         onPayCurrencyChange(row);
         const поле = row.querySelector('.pay-amount');
@@ -1278,7 +1277,7 @@ function acceptInOtherCurrency(targetCur) {
         const hint = row.querySelector('.pay-hint');
         const премияTxt = премияInr > 0.005
             ? ` <span class="opacity-60">+ ${FinUtils.fmtMoney(премияInr / retreatRates[targetCur], targetCur)} курсовая разница → в дар</span>`
-            : ' <span class="opacity-60">(зачтётся как общий платёж)</span>';
+            : '';
         if (hint) hint.innerHTML = `${blockLabel(исходныйБлок)}: ${FinUtils.fmtMoney(сумма, срCur)} по курсу ретрита `
             + `(${retreatRates[targetCur].toLocaleString('ru-RU')} ₹) → `
             + `<b class="font-mono">${FinUtils.fmtMoney(новаяСумма, targetCur)}</b>${премияTxt}`;
