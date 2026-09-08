@@ -1197,8 +1197,12 @@ function addPayRow() {
         wrap.addEventListener('change', ev => {
             const row = ev.target.closest('.pay-row');
             if (ev.target.classList.contains('pay-currency') || ev.target.classList.contains('pay-channel')) onPayCurrencyChange(row);
-            // Блок или валюта сменились — пересчитать подсказку остатка (п.5/6)
-            if (row && (ev.target.classList.contains('pay-currency') || ev.target.classList.contains('pay-kind'))) updateRowHint(row);
+            // Блок или валюта сменились — пересчитать подсказку остатка (п.5/6).
+            // Ручной выбор валюты отменяет обмен по курсу ретрита (ВГ, 08.09)
+            if (row && (ev.target.classList.contains('pay-currency') || ev.target.classList.contains('pay-kind'))) {
+                delete row.dataset.forceRetreat;
+                updateRowHint(row);
+            }
             updatePayRunningTotal();
         });
         wrap.addEventListener('input', ev => {
@@ -1209,6 +1213,62 @@ function addPayRow() {
         });
     }
     updateRowHint(wrap.lastElementChild);
+}
+
+// ==================== ПРИЁМ ОСТАТКА В ДРУГОЙ ВАЛЮТЕ (ВГ, 08.09) ====================
+// Остаток уже посчитан и зафиксирован в опорной валюте формы (по цене блока —
+// это факт, пересчитывать его снова не нужно). Если гость гасит его валютой,
+// в которой не считали (не смог снять исходную), это обмен уже известной
+// суммы, а не новая цена блока — поэтому курс ретрита на дату оплаты, а не
+// цена блока в целевой валюте.
+function openOtherCurrencyPicker() {
+    const sel = document.getElementById('payOtherCurrencySelect');
+    const текущая = document.querySelector('#payRows .pay-row .pay-currency')?.value || 'INR';
+    // Без курса ретрита валюту предлагать нельзя — иначе конвертация молча
+    // уйдёт по «1», что для реальных денег недопустимо (ВГ, 08.09)
+    const доступные = FinUtils.refs.currencies.filter(c => c.is_active !== false && c.code !== текущая && retreatRates[c.code]);
+    if (!доступные.length) {
+        Layout.showNotification('Нет курса ретрита ни для одной другой валюты — сначала внесите курс в справочник', 'warning');
+        return;
+    }
+    sel.innerHTML = доступные.map(c => `<option value="${e(c.code)}">${e(FinUtils.symbol(c.code))} ${e(c.code)}</option>`).join('');
+    sel.value = '';
+    document.getElementById('payOtherCurrencyBtn').classList.add('hidden');
+    sel.classList.remove('hidden');
+    sel.focus();
+}
+
+function acceptInOtherCurrency(targetCur) {
+    if (!targetCur) return;
+    if (!retreatRates[targetCur]) {
+        Layout.showNotification('Нет курса ретрита для этой валюты', 'error');
+        return;
+    }
+    document.querySelectorAll('#payRows .pay-row').forEach(row => {
+        const срCur = row.querySelector('.pay-currency').value;
+        const сумма = Number(row.querySelector('.pay-amount').value) || 0;
+        if (!сумма || срCur === targetCur) return;
+        if (!retreatRates[срCur]) {
+            Layout.showNotification(`Нет курса ретрита для ${срCur} — строка не пересчитана`, 'error');
+            return;
+        }
+        // Обмен через ₹ по курсу ретрита, не по цене блока в целевой валюте
+        const новаяСумма = Math.round(сумма * retreatRates[срCur] / retreatRates[targetCur] * 100) / 100;
+        row.dataset.forceRetreat = '1';
+        row.dataset.rateMode = 'retreat';
+        row.querySelector('.pay-currency').value = targetCur;
+        onPayCurrencyChange(row);
+        const поле = row.querySelector('.pay-amount');
+        поле.value = новаяСумма;
+        поле.dataset.touched = '1';
+        const hint = row.querySelector('.pay-hint');
+        if (hint) hint.innerHTML = `${FinUtils.fmtMoney(сумма, срCur)} по курсу ретрита `
+            + `(${retreatRates[targetCur].toLocaleString('ru-RU')} ₹) → `
+            + `<b class="font-mono">${FinUtils.fmtMoney(новаяСумма, targetCur)}</b>`;
+    });
+    document.getElementById('payOtherCurrencyBtn').classList.remove('hidden');
+    syncReceivedRows();
+    updatePayRunningTotal();
 }
 
 // ==================== ОСТАТОК БЛОКА В ВАЛЮТЕ (чек-лист v3, п.5–6) ====================
@@ -1261,6 +1321,9 @@ function rowRateInr(row) {
 // Значение берётся из уже посчитанного CRM-расчёта, не пересчитывается заново (п.5)
 async function updateRowHint(row) {
     if (!row || !row.classList.contains('pay-row')) return;
+    // Сумма уже зафиксирована обменом по курсу ретрита (acceptInOtherCurrency) —
+    // не пересчитывать её обратно по цене блока (ВГ, 08.09)
+    if (row.dataset.forceRetreat === '1') return;
     const pid = rowPid(row);
     if (!pid) return;
     const kind = row.querySelector('.pay-kind').value;
@@ -2572,6 +2635,6 @@ async function copySummary() {
     Layout.showNotification(ok ? t('fin_copied') : t('fin_copy_failed'), ok ? 'success' : 'error');
 }
 
-window.FinParticipants = { openCharge, closeCharge, openPayment, closePayment, addChargeRow, addPayRow, addOtherParticipantRow, syncFromCrm, copySummary, openRecalc, onBaseCurrencyChange, removeChange, removeDonation, addChangeRow, keepAsDonation, openWithdraw };
+window.FinParticipants = { openCharge, closeCharge, openPayment, closePayment, addChargeRow, addPayRow, addOtherParticipantRow, syncFromCrm, copySummary, openRecalc, onBaseCurrencyChange, removeChange, removeDonation, addChangeRow, keepAsDonation, openWithdraw, openOtherCurrencyPicker, acceptInOtherCurrency };
 init();
 })();
