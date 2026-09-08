@@ -166,21 +166,19 @@
                 <div id="payRunningTotal" class="text-sm font-mono mb-2"></div>
                 <!-- Разбивка по блокам и по именам: кто за кого и в какой валюте (ВГ, 24.08) -->
                 <div id="payBreakdown" class="text-xs opacity-70 mb-2"></div>
-                <!-- Остаток уже посчитан и зафиксирован в опорной валюте (см. выше) —
-                     это просто обмен уже известной суммы по курсу ретрита на дату
-                     оплаты, если гость не смог отдать исходную валюту (ВГ, 08.09) -->
-                <div class="flex items-center gap-2 mb-2">
-                    <button type="button" class="btn btn-ghost btn-xs" id="payOtherCurrencyBtn" onclick="FinParticipants.openOtherCurrencyPicker()">
-                        <span data-i18n="fin_accept_other_currency">Принять в другой валюте</span>
-                    </button>
-                    <select id="payOtherCurrencySelect" class="select select-bordered select-xs hidden" onchange="FinParticipants.acceptInOtherCurrency(this.value); this.classList.add('hidden')"></select>
-                </div>
                 <!-- Получено от гостя: сколько наличных реально передано, по валютам
                      (чек-лист v4, п.10). Из этого распределяются блоки, сдача и дар. -->
                 <div id="payReceivedWrap" class="border border-info/40 bg-info/5 rounded-lg p-2 mb-2">
                     <div class="flex flex-wrap items-center gap-2">
                         <span class="text-sm font-medium" data-i18n="fin_received_from_guest">Получено от гостя</span>
                         <div id="payReceivedRows" class="flex flex-wrap items-end gap-2"></div>
+                        <!-- Остаток уже посчитан и зафиксирован в опорной валюте (см. выше) —
+                             это просто обмен уже известной суммы по курсу ретрита на дату
+                             оплаты, если гость не смог отдать исходную валюту (ВГ, 08.09) -->
+                        <button type="button" class="btn btn-outline btn-info btn-xs ml-auto" id="payOtherCurrencyBtn" onclick="FinParticipants.openOtherCurrencyPicker()">
+                            <span data-i18n="fin_accept_other_currency">Принять в другой валюте</span>
+                        </button>
+                        <select id="payOtherCurrencySelect" class="select select-bordered select-xs hidden" onchange="FinParticipants.acceptInOtherCurrency(this.value); this.classList.add('hidden')"></select>
                     </div>
                     <div class="text-xs mt-1" id="payReceivedHint"></div>
                 </div>
