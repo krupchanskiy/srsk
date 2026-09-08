@@ -1244,6 +1244,7 @@ function acceptInOtherCurrency(targetCur) {
         Layout.showNotification('Нет курса ретрита для этой валюты', 'error');
         return;
     }
+    let премияTargetCur = 0;
     document.querySelectorAll('#payRows .pay-row').forEach(row => {
         const срCur = row.querySelector('.pay-currency').value;
         const сумма = Number(row.querySelector('.pay-amount').value) || 0;
@@ -1252,23 +1253,49 @@ function acceptInOtherCurrency(targetCur) {
             Layout.showNotification(`Нет курса ретрита для ${срCur} — строка не пересчитана`, 'error');
             return;
         }
-        // Обмен через ₹ по курсу ретрита, не по цене блока в целевой валюте
-        const новаяСумма = Math.round(сумма * retreatRates[срCur] / retreatRates[targetCur] * 100) / 100;
+        // Обмен через ₹ по курсу ретрита, не по цене блока в целевой валюте.
+        // Блок меняем на «Общий» (ВГ, 09.09): если оставить строку привязанной
+        // к своему блоку (напр. «Питание»), сервер увидит формальную переплату
+        // именно по нему. Курс ретрита выше цены блока — разницу сверху не
+        // оставляем висеть авансом, а сразу проводим тем же платежом как дар
+        // (ВГ, 09.09): это доход от обмена валюты, а не долг ашрама гостю.
+        const исходныйБлок = row.querySelector('.pay-kind').value;
+        const pid = rowPid(row);
+        const полнаяInr = Math.round(сумма * retreatRates[срCur] * 100) / 100;
+        const блок = pidData.balance[pid]?.blocks?.[исходныйБлок];
+        const правильнаяInr = блок ? Math.max(Number(блок.balance) || 0, 0) : полнаяInr;
+        const премияInr = Math.max(Math.round((полнаяInr - правильнаяInr) * 100) / 100, 0);
+        премияTargetCur += премияInr / retreatRates[targetCur];
+        const новаяСумма = Math.round((полнаяInr - премияInr) / retreatRates[targetCur] * 100) / 100;
         row.dataset.forceRetreat = '1';
         row.dataset.rateMode = 'retreat';
+        row.querySelector('.pay-kind').value = 'general';
         row.querySelector('.pay-currency').value = targetCur;
         onPayCurrencyChange(row);
         const поле = row.querySelector('.pay-amount');
         поле.value = новаяСумма;
         поле.dataset.touched = '1';
         const hint = row.querySelector('.pay-hint');
-        if (hint) hint.innerHTML = `${FinUtils.fmtMoney(сумма, срCur)} по курсу ретрита `
+        const премияTxt = премияInr > 0.005
+            ? ` <span class="opacity-60">+ ${FinUtils.fmtMoney(премияInr / retreatRates[targetCur], targetCur)} курсовая разница → в дар</span>`
+            : ' <span class="opacity-60">(зачтётся как общий платёж)</span>';
+        if (hint) hint.innerHTML = `${blockLabel(исходныйБлок)}: ${FinUtils.fmtMoney(сумма, срCur)} по курсу ретрита `
             + `(${retreatRates[targetCur].toLocaleString('ru-RU')} ₹) → `
-            + `<b class="font-mono">${FinUtils.fmtMoney(новаяСумма, targetCur)}</b>`;
+            + `<b class="font-mono">${FinUtils.fmtMoney(новаяСумма, targetCur)}</b>${премияTxt}`;
     });
     document.getElementById('payOtherCurrencyBtn').classList.remove('hidden');
     syncReceivedRows();
     updatePayRunningTotal();
+    // Курсовую разницу добавляем к тому, что уже посчиталось выше (излишек
+    // «получено − распределено», если он тоже есть) — не заменяем, а суммируем
+    if (премияTargetCur > 0.005) {
+        премияTargetCur = Math.round(премияTargetCur * 100) / 100;
+        payDonation = payDonation || {};
+        payDonation[targetCur] = Math.round(((payDonation[targetCur] || 0) + премияTargetCur) * 100) / 100;
+        document.getElementById('payDonationWrap')?.classList.remove('hidden');
+        const донатИнфо = document.getElementById('payDonationInfo');
+        if (донатИнфо) донатИнфо.textContent = Object.entries(payDonation).map(([c, v]) => FinUtils.fmtMoney(v, c)).join(' + ');
+    }
 }
 
 // ==================== ОСТАТОК БЛОКА В ВАЛЮТЕ (чек-лист v3, п.5–6) ====================
