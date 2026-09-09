@@ -14,6 +14,20 @@
 - Карточку рассчитанного приёма пищи можно сохранить/передать как PNG.
 - Удаление продукта в AB Kitchen означает локальное скрытие, а не удаление общего продукта и рецептуры.
 
+## Получение проекта на Mac
+
+До переноса в отдельный GitHub-репозиторий проект хранится как самостоятельная
+ветка с отдельной историей:
+
+```bash
+git clone --single-branch --branch ab-kitchen-macos \
+  git@github.com:krupchanskiy/srsk.git AB-Kitchen-macOS
+cd AB-Kitchen-macOS
+```
+
+Веб-удаление подготовлено отдельно в ветке `codex/remove-ab-kitchen-web` и не
+входит в историю desktop-приложения.
+
 ## Что проверить первым на Mac
 
 1. `npm install && npm run verify`.
