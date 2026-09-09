@@ -5,46 +5,6 @@
 (async function() {
     'use strict';
 
-    // AB Kitchen — отдельная оболочка в общей кодовой базе.
-    // Пока контекст активен, пользователь может открывать только маршруты кухни и склада.
-    const AB_KITCHEN_CONTEXT_KEY = 'srsk_ab_kitchen_context';
-    const AB_KITCHEN_ENTRY_PATH = '/ab-kitchen/';
-    const AB_KITCHEN_ALLOWED_PATHS = new Set([
-        '/ab-kitchen',
-        '/ab-kitchen/index.html',
-        '/ab-kitchen/access-denied.html',
-        '/kitchen/menu.html',
-        '/kitchen/menu-board.html',
-        '/kitchen/menu-templates.html',
-        '/kitchen/recipes.html',
-        '/kitchen/recipe.html',
-        '/kitchen/recipe-edit.html',
-        '/kitchen/products.html',
-        '/kitchen/dictionaries.html',
-        '/stock/stock.html',
-        '/stock/requests.html',
-        '/stock/receive.html',
-        '/stock/issue.html',
-        '/stock/inventory.html',
-        '/stock/stock-settings.html'
-    ]);
-
-    let isAbKitchenContext = false;
-    try {
-        isAbKitchenContext = sessionStorage.getItem(AB_KITCHEN_CONTEXT_KEY) === '1';
-    } catch {
-        isAbKitchenContext = false;
-    }
-
-    const normalizedPath = window.location.pathname.length > 1
-        ? window.location.pathname.replace(/\/+$/, '')
-        : window.location.pathname;
-
-    if (isAbKitchenContext && !AB_KITCHEN_ALLOWED_PATHS.has(normalizedPath)) {
-        window.location.replace(AB_KITCHEN_ENTRY_PATH);
-        return;
-    }
-
     // Список публичных страниц (не требуют авторизации)
     const publicPages = ['login.html', 'team-signup.html', 'guest-signup.html', 'pending-approval.html'];
     const currentPage = window.location.pathname.split('/').pop();
@@ -147,24 +107,13 @@
             return window.currentUser?.is_superuser || window.currentUser?.permissions.includes(permCode);
         };
 
-        // AB Kitchen имеет отдельную серверную роль и явную привязку к локации.
-        // Одних общих прав кухни для входа в скрытый раздел недостаточно.
-        if (isAbKitchenContext) {
-            const { data: hasAbAccess, error: abAccessError } = await db.rpc('has_ab_kitchen_access');
-            if (abAccessError || !hasAbAccess) {
-                console.error('AB Kitchen access denied:', abAccessError);
-                window.location.replace('/ab-kitchen/access-denied.html');
-                return;
-            }
-        } else if (!vaishnava.is_superuser) {
+        // Пользователь только desktop-приложения AB Kitchen не получает доступ
+        // к публичному BackOffice даже при наличии кухонных permissions.
+        if (!vaishnava.is_superuser) {
             const { data: hasMainAccess, error: mainAccessError } = await db.rpc('has_main_backoffice_access');
             if (mainAccessError || !hasMainAccess) {
-                const { data: hasAbAccess } = await db.rpc('has_ab_kitchen_access');
-                if (hasAbAccess) {
-                    try { sessionStorage.setItem(AB_KITCHEN_CONTEXT_KEY, '1'); } catch {}
-                    window.location.replace(AB_KITCHEN_ENTRY_PATH);
-                    return;
-                }
+                window.location.replace('/guest-portal/');
+                return;
             }
         }
 

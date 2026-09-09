@@ -10,13 +10,6 @@ const db = window.supabaseClient;
 
 const DESKTOP_BP = 1200;
 const AB_KITCHEN_SLUG = 'ab-kitchen';
-const AB_KITCHEN_CONTEXT_KEY = 'srsk_ab_kitchen_context';
-let isAbKitchenContext = false;
-try {
-    isAbKitchenContext = sessionStorage.getItem(AB_KITCHEN_CONTEXT_KEY) === '1';
-} catch {
-    isAbKitchenContext = false;
-}
 
 // ==================== MODULES ====================
 const modules = {
@@ -310,13 +303,13 @@ function hasPagePermission(requiredPerm) {
 // ==================== STATE ====================
 let currentModule, currentLang, currentLocation;
 try {
-    currentModule = isAbKitchenContext ? 'kitchen' : (localStorage.getItem('srsk_module') || 'kitchen');
+    currentModule = localStorage.getItem('srsk_module') || 'kitchen';
     currentLang = localStorage.getItem('srsk_lang') || 'ru';
-    currentLocation = isAbKitchenContext ? AB_KITCHEN_SLUG : (localStorage.getItem('srsk_location') || 'main');
+    currentLocation = localStorage.getItem('srsk_location') || 'main';
 } catch {
     currentModule = 'kitchen';
     currentLang = 'ru';
-    currentLocation = isAbKitchenContext ? AB_KITCHEN_SLUG : 'main';
+    currentLocation = 'main';
 }
 let locations = [];
 let translations = {}; // { key: { ru: '...', en: '...', hi: '...' } }
@@ -352,7 +345,7 @@ function checkPageAccess() {
     // Если для страницы указано требуемое право и у пользователя его нет — редирект
     if (requiredPerm && !hasPagePermission(requiredPerm)) {
         console.warn('⛔ Нет доступа к', path, '— требуется', requiredPerm);
-        window.location.href = isAbKitchenContext ? '/ab-kitchen/' : '/';
+        window.location.href = '/';
     }
 }
 
@@ -378,14 +371,7 @@ function getFirstAccessibleModule() {
 
 // Получить текущий menuConfig (с фильтрацией по правам)
 function getMenuConfig() {
-    let baseConfig = modules[currentModule]?.menuConfig || modules.kitchen.menuConfig;
-
-    // Команда использует общий реестр вайшнавов и ведёт в общий профиль BackOffice.
-    // В изолированной оболочке AB Kitchen остаются только процессы кухни и склада.
-    if (isAbKitchenContext) {
-        baseConfig = baseConfig.filter(section => section.id !== 'team');
-    }
-
+    const baseConfig = modules[currentModule]?.menuConfig || modules.kitchen.menuConfig;
     return filterMenuByPermissions(baseConfig);
 }
 
@@ -596,7 +582,7 @@ function updateAllTranslations() {
 // ==================== HEADER HTML ====================
 function getHeaderHTML() {
     const menuConfig = getMenuConfig();
-    const homeHref = isAbKitchenContext ? '/ab-kitchen/' : 'index.html';
+    const homeHref = 'index.html';
 
     return `
     <header class="bg-base-100 shadow-sm sticky top-0 z-50">
@@ -613,7 +599,7 @@ function getHeaderHTML() {
 
                     <!-- Desktop: full name + selector -->
                     <div class="hidden md:flex flex-col">
-                        <a href="${adjustHref(homeHref)}" class="text-xl font-semibold whitespace-nowrap hover:opacity-80 transition-opacity">${isAbKitchenContext ? 'AB Kitchen' : '<span data-i18n="app_name">Шри Рупа Сева Кунджа</span>'}</a>
+                        <a href="${adjustHref(homeHref)}" class="text-xl font-semibold whitespace-nowrap hover:opacity-80 transition-opacity"><span data-i18n="app_name">Шри Рупа Сева Кунджа</span></a>
                         <div class="relative location-selector" id="locationDesktop">
                             <button class="flex items-center justify-between gap-2 w-full text-xl opacity-70 hover:opacity-100 transition-opacity" data-toggle="location">
                                 <span class="location-name">${currentModule === 'housing' ? t('module_housing') : currentModule === 'crm' ? t('module_crm') : currentModule === 'finance' ? t('module_finance') : currentModule === 'portal' ? t('module_portal') : currentModule === 'photos' ? t('module_photos') : currentModule === 'admin' ? t('module_admin') : ''}</span>
@@ -627,7 +613,7 @@ function getHeaderHTML() {
 
                     <!-- Mobile: короткое название + selector -->
                     <div class="flex items-center gap-2 md:hidden">
-                        <span class="text-xl font-semibold whitespace-nowrap"${isAbKitchenContext ? '' : ' data-i18n="app_name_short"'}>${isAbKitchenContext ? 'AB Kitchen' : 'ШРСК'}</span>
+                        <span class="text-xl font-semibold whitespace-nowrap" data-i18n="app_name_short">ШРСК</span>
                         <span class="text-xl opacity-50">·</span>
                         <div class="relative location-selector" id="locationMobile">
                             <button class="flex items-center gap-1 text-xl opacity-70" data-toggle="location">
@@ -768,10 +754,6 @@ function buildLocationOptions() {
     $$('.location-dropdown').forEach(el => {
         // Очищаем содержимое
         el.replaceChildren();
-
-        // Скрытый раздел AB Kitchen всегда зафиксирован на своей локации.
-        // Другие кухни и модули в его переключателе не показываются.
-        if (isAbKitchenContext) return;
 
         // Проверка кухонных прав
         const kitchenPerms = ['view_menu', 'view_menu_templates', 'view_recipes', 'view_products',
@@ -1127,9 +1109,7 @@ function alignSubmenu() {
 function selectLocation(slug, isInitial = false) {
     const changed = currentLocation !== slug;
     currentLocation = slug;
-    if (!isAbKitchenContext) {
-        localStorage.setItem('srsk_location', slug);
-    }
+    localStorage.setItem('srsk_location', slug);
     const loc = locations.find(l => l.slug === slug);
     if (!loc) return;
 
@@ -1169,11 +1149,10 @@ async function loadLocations() {
     });
 
     if (!data) return;
-    locations = isAbKitchenContext
-        ? data.filter(loc => loc.slug === AB_KITCHEN_SLUG)
-        : data.filter(loc => loc.slug !== AB_KITCHEN_SLUG);
+    // Локация AB Kitchen принадлежит отдельному desktop-приложению.
+    locations = data.filter(loc => loc.slug !== AB_KITCHEN_SLUG);
 
-    if (!isAbKitchenContext && !locations.some(loc => loc.slug === currentLocation)) {
+    if (!locations.some(loc => loc.slug === currentLocation)) {
         currentLocation = locations.find(loc => loc.slug === 'main')?.slug || locations[0]?.slug || 'main';
     }
 
@@ -1195,7 +1174,7 @@ function updateUserInfo() {
         img.src = photoUrl;
 
         // Делаем аватар кликабельным
-        if (!isAbKitchenContext && vaishnavaId && !img.parentElement.classList.contains('avatar-link')) {
+        if (vaishnavaId && !img.parentElement.classList.contains('avatar-link')) {
             const parent = img.parentElement;
             parent.classList.add('avatar-link', 'cursor-pointer', 'hover:opacity-80', 'transition-opacity');
             parent.addEventListener('click', () => {
@@ -1351,7 +1330,6 @@ function initHeaderEvents() {
 // ==================== MODULE SWITCHING ====================
 function switchModule(moduleId) {
     if (!modules[moduleId]) return;
-    if (isAbKitchenContext && moduleId !== 'kitchen') return;
 
     currentModule = moduleId;
     localStorage.setItem('srsk_module', moduleId);
@@ -1391,27 +1369,18 @@ async function initLayout(page = { module: null, menuId: 'kitchen', itemId: null
     ensureFreshPage();   // не ждём: если версии разошлись, страница перезагрузится
 
     // Устанавливаем модуль (из параметра или из localStorage)
-    if (isAbKitchenContext) {
-        currentModule = 'kitchen';
-        currentLocation = AB_KITCHEN_SLUG;
-    } else if (page.module) {
+    if (page.module) {
         currentModule = page.module;
         localStorage.setItem('srsk_module', currentModule);
     }
 
     currentPage = page;
 
-    if (isAbKitchenContext) {
-        document.title = document.title
-            .replace(/\s*[|—-]\s*(?:ШРСК|Шри Рупа Сева Кунджа).*$/i, '')
-            .replace(/\s*[|—-]\s*Rupa Seva.*$/i, '') + ' — AB Kitchen';
-    }
-
     // Ждём переводы и авторизацию параллельно
     await Promise.all([loadTranslations(), waitForAuth()]);
 
     // Автовыбор доступного модуля (если текущий недоступен)
-    if (!isAbKitchenContext && window.currentUser && !window.currentUser.is_superuser) {
+    if (window.currentUser && !window.currentUser.is_superuser) {
         const config = filterMenuByPermissions(modules[currentModule]?.menuConfig || []);
         const hasAccess = config.some(s => s.items.length > 0);
         if (!hasAccess) {
@@ -1466,14 +1435,6 @@ async function initLayout(page = { module: null, menuId: 'kitchen', itemId: null
     buildSubmenuBar();
     initHeaderEvents();
     updateUserInfo();
-
-    if (isAbKitchenContext) {
-        $$('.location-selector button').forEach(button => {
-            button.disabled = true;
-            button.classList.remove('hover:opacity-100');
-        });
-        $$('.location-arrow').forEach(arrow => arrow.classList.add('hidden'));
-    }
 
     // На главной странице (без menuId) скрываем селектор локаций
     if (!page.menuId) {
@@ -1562,9 +1523,7 @@ async function logout() {
             return;
         }
         // Редирект на страницу логина
-        window.location.href = isAbKitchenContext
-            ? '/login.html?redirect=%2Fab-kitchen%2F'
-            : '/login.html';
+        window.location.href = '/login.html';
     } catch (err) {
         console.error('Logout exception:', err);
         showNotification(t('layout_logout_error'), 'error');
@@ -1605,7 +1564,6 @@ window.Layout = {
     get currentLang() { return currentLang; },
     get currentLocation() { return currentLocation; },
     get currentModule() { return currentModule; },
-    get isAbKitchenContext() { return isAbKitchenContext; },
     get locations() { return locations; },
     get translations() { return translations; },
     get modules() { return modules; }

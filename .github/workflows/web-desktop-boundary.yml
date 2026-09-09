@@ -1,0 +1,38 @@
+name: Web and desktop boundary
+
+on:
+  pull_request:
+    paths:
+      - 'index.html'
+      - 'ab-kitchen/**'
+      - 'js/auth-check.js'
+      - 'js/layout.js'
+      - 'guest-portal/**'
+      - 'supabase/280_ab_kitchen_hidden_location.sql'
+      - 'supabase/367_ab_kitchen_admin.sql'
+      - 'tests/web-desktop-boundary.test.cjs'
+      - '.github/workflows/web-desktop-boundary.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'index.html'
+      - 'ab-kitchen/**'
+      - 'js/auth-check.js'
+      - 'js/layout.js'
+      - 'guest-portal/**'
+      - 'supabase/280_ab_kitchen_hidden_location.sql'
+      - 'supabase/367_ab_kitchen_admin.sql'
+      - 'tests/web-desktop-boundary.test.cjs'
+      - '.github/workflows/web-desktop-boundary.yml'
+
+jobs:
+  boundary-contract:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Verify AB Kitchen is desktop-only
+        run: node --test tests/web-desktop-boundary.test.cjs

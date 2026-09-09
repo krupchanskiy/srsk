@@ -116,7 +116,7 @@ Deno.serve(async (req: Request) => {
 
     const siteUrl = (Deno.env.get('SITE_URL') || 'https://in.rupaseva.com').replace(/\/$/, '');
     // И приглашение, и повторная выдача доступа ведут на установку нового пароля.
-    // После назначения роли AB Kitchen страница сама вернёт пользователя в кухню.
+    // После назначения роли пользователь сможет войти через отдельное приложение AB Kitchen.
     const redirectUrl = `${siteUrl}/reset-password/`;
     const metadata = {
       vaishnava_id: vaishnavId,

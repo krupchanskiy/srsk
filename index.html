@@ -2,14 +2,6 @@
 <html lang="ru" data-theme="light">
 <head>
     <meta charset="UTF-8">
-    <script>
-        // AB Kitchen не должен раскрывать общую главную даже через прямую ссылку или Back.
-        try {
-            if (sessionStorage.getItem('srsk_ab_kitchen_context') === '1') {
-                window.location.replace('/ab-kitchen/');
-            }
-        } catch {}
-    </script>
     <script src="js/color-init.js?v=2"></script>
     <script>document.documentElement.style.setProperty('--current-color', '#f59e0b');</script>
 

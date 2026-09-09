@@ -1,5 +1,5 @@
 -- Скрытая кухонная локация AB Kitchen.
--- Она не отображается в общей навигации и открывается только через /ab-kitchen/.
+-- Она не отображается в общей веб-навигации и используется отдельным приложением macOS.
 
 INSERT INTO public.locations (slug, name_ru, name_en, name_hi, color)
 VALUES (

@@ -234,8 +234,7 @@
             portal_check_email_reset: { ru: 'Проверьте почту и перейдите по ссылке для сброса пароля', en: 'Check your email and click the link to reset password', hi: 'अपना ईमेल जांचें और पासवर्ड रीसेट करने के लिए लिंक पर क्लिक करें' },
             error_cooldown: { ru: 'Подождите минуту перед повторной отправкой', en: 'Please wait a minute before sending again', hi: 'कृपया दोबारा भेजने से पहले एक मिनट प्रतीक्षा करें' },
             error_too_many_attempts: { ru: 'Слишком много попыток. Подождите минуту.', en: 'Too many attempts. Please wait a minute.', hi: 'बहुत अधिक प्रयास। कृपया एक मिनट प्रतीक्षा करें।' },
-            error_network: { ru: 'Ошибка сети. Проверьте интернет и попробуйте снова.', en: 'Network error. Check your internet and try again.', hi: 'नेटवर्क त्रुटि। अपना इंटरनेट जांचें और पुनः प्रयास करें।' },
-            error_ab_kitchen_access: { ru: 'Для этого аккаунта не назначен доступ администратора AB Kitchen', en: 'This account does not have AB Kitchen administrator access', hi: 'इस खाते को AB Kitchen व्यवस्थापक पहुँच नहीं दी गई है' }
+            error_network: { ru: 'Ошибка сети. Проверьте интернет и попробуйте снова.', en: 'Network error. Check your internet and try again.', hi: 'नेटवर्क त्रुटि। अपना इंटरनेट जांचें और पुनः प्रयास करें।' }
         };
 
         // Загрузка переводов
@@ -476,6 +475,7 @@
 
         function getSafeRedirect() {
             const redirect = new URLSearchParams(window.location.search).get('redirect') || '';
+            if (redirect === '/ab-kitchen' || redirect.startsWith('/ab-kitchen/')) return '';
             return redirect.startsWith('/') && !redirect.startsWith('//') ? redirect : '';
         }
 
@@ -495,26 +495,11 @@
 
         async function resolveAuthenticatedDestination(userId, isSuperuser) {
             const redirect = getSafeRedirect();
-            const wantsAbKitchen = redirect === '/ab-kitchen' || redirect.startsWith('/ab-kitchen/');
-            const [hasOperationalPerms, hasAbAccess, hasMainAccess] = await Promise.all([
+            const [hasOperationalPerms, hasMainAccess] = await Promise.all([
                 checkHasOperationalPermissions(userId, isSuperuser),
-                isSuperuser ? Promise.resolve(true) : checkAccessRpc('has_ab_kitchen_access'),
                 isSuperuser ? Promise.resolve(true) : checkAccessRpc('has_main_backoffice_access')
             ]);
 
-            if (wantsAbKitchen) {
-                if (!hasAbAccess) return { deniedAbKitchen: true };
-                try { sessionStorage.setItem('srsk_ab_kitchen_context', '1'); } catch {}
-                return { target: redirect };
-            }
-
-            // Пользователь только AB Kitchen не попадает в общий BackOffice.
-            if (hasAbAccess && !hasMainAccess) {
-                try { sessionStorage.setItem('srsk_ab_kitchen_context', '1'); } catch {}
-                return { target: '/ab-kitchen/' };
-            }
-
-            try { sessionStorage.removeItem('srsk_ab_kitchen_context'); } catch {}
             if (hasMainAccess && hasOperationalPerms) {
                 return { target: redirect || '/' };
             }
@@ -599,10 +584,6 @@
                 }
 
                 const destination = await resolveAuthenticatedDestination(data.user.id, vaishnava.is_superuser);
-                if (destination.deniedAbKitchen) {
-                    window.location.href = '/ab-kitchen/access-denied.html';
-                    return;
-                }
                 window.location.href = destination.target;
 
             } catch (error) {
@@ -652,9 +633,7 @@
 
                     if (vaishnava && vaishnava.is_active !== false && vaishnava.approval_status === 'approved') {
                         const destination = await resolveAuthenticatedDestination(session.user.id, vaishnava.is_superuser);
-                        window.location.href = destination.deniedAbKitchen
-                            ? '/ab-kitchen/access-denied.html'
-                            : destination.target;
+                        window.location.href = destination.target;
                         return;
                     }
                     if (vaishnava && vaishnava.approval_status === 'pending') {
@@ -690,8 +669,7 @@
                 const reasonMap = {
                     'no_session': 'error_invalid_credentials',
                     'user_not_found': 'error_user_not_found',
-                    'account_disabled': 'error_account_disabled',
-                    'ab_kitchen_access': 'error_ab_kitchen_access'
+                    'account_disabled': 'error_account_disabled'
                 };
                 if (reasonMap[reason]) {
                     showError(reasonMap[reason]);
