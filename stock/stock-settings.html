@@ -326,7 +326,7 @@
                 .select('*, product_categories(*)');
 
             if (error) { console.error('Error loading products:', error); return; }
-            products = await Layout.filterAbKitchenProducts(data || []);
+            products = data || [];
             // Sort by name locally
             products.sort((a, b) => (a.name_ru || '').localeCompare(b.name_ru || '', 'ru'));
             renderMinStock();

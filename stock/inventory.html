@@ -297,7 +297,7 @@
         async function loadProducts() {
             const { data, error } = await Layout.db.from('products').select('*, product_categories(*)');
             if (error) { console.error('Error loading products:', error); return; }
-            products = await Layout.filterAbKitchenProducts(data || []);
+            products = data || [];
         }
 
         async function loadProductCategories() {

@@ -12,7 +12,6 @@ const DESKTOP_BP = 1200;
 const AB_KITCHEN_SLUG = 'ab-kitchen';
 const AB_KITCHEN_CONTEXT_KEY = 'srsk_ab_kitchen_context';
 let isAbKitchenContext = false;
-let abKitchenHiddenProductIdsCache = null;
 try {
     isAbKitchenContext = sessionStorage.getItem(AB_KITCHEN_CONTEXT_KEY) === '1';
 } catch {
@@ -1514,42 +1513,6 @@ function showNotification(message, type = 'info') {
     setTimeout(() => toast.remove(), 5000);
 }
 
-/**
- * Возвращает продукты, скрытые только для AB Kitchen.
- * Общая часть приложения никогда не обращается к AB-таблице и получает исходный список.
- */
-async function getAbKitchenHiddenProductIds(force = false) {
-    if (!isAbKitchenContext || currentLocation !== AB_KITCHEN_SLUG) return new Set();
-    if (!force && abKitchenHiddenProductIdsCache) return new Set(abKitchenHiddenProductIdsCache);
-
-    const locationId = locations.find(location => location.slug === AB_KITCHEN_SLUG)?.id;
-    if (!locationId) return new Set();
-
-    const { data, error } = await db
-        .from('ab_kitchen_hidden_products')
-        .select('product_id')
-        .eq('location_id', locationId);
-
-    if (error) {
-        console.error('[AB Kitchen hidden products]', error);
-        return new Set();
-    }
-
-    abKitchenHiddenProductIdsCache = new Set((data || []).map(row => row.product_id));
-    return new Set(abKitchenHiddenProductIdsCache);
-}
-
-async function filterAbKitchenProducts(products, options = {}) {
-    if (!isAbKitchenContext || currentLocation !== AB_KITCHEN_SLUG) return products || [];
-    const keepIds = new Set(options.keepIds || []);
-    const hiddenIds = await getAbKitchenHiddenProductIds();
-    return (products || []).filter(product => !hiddenIds.has(product.id) || keepIds.has(product.id));
-}
-
-function invalidateAbKitchenHiddenProducts() {
-    abKitchenHiddenProductIdsCache = null;
-}
-
 /** Унифицированная обработка ошибок */
 function handleError(error, context = '') {
     const message = error?.message || String(error);
@@ -1639,9 +1602,6 @@ window.Layout = {
     setMenuBadge,
     refreshPrepaymentsBadge,
     refreshTasksBadge,
-    getAbKitchenHiddenProductIds,
-    filterAbKitchenProducts,
-    invalidateAbKitchenHiddenProducts,
     get currentLang() { return currentLang; },
     get currentLocation() { return currentLocation; },
     get currentModule() { return currentModule; },

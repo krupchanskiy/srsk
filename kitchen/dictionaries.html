@@ -206,7 +206,7 @@
                 .from('products')
                 .select('id, name_ru, name_en, name_hi')
                 .order('name_ru');
-            if (!error) allProducts = await Layout.filterAbKitchenProducts(rows || []);
+            if (!error) allProducts = rows || [];
         }
 
         async function loadData(tab) {
