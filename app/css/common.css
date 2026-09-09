@@ -1,0 +1,404 @@
+/* ==================== COMMON.CSS ==================== */
+/* Общие стили для всех страниц ШРСК */
+
+:root {
+    --color-main: #f49800;
+    --color-cafe: #10b981;
+    --color-guest: #3b82f6;
+    --current-color: #f49800;
+}
+
+/* Override DaisyUI primary color with current location color */
+[data-theme],
+[data-theme="light"],
+:root {
+    --p: var(--current-color);
+    --pc: 255 255 255;
+    --pf: var(--current-color);
+}
+
+* {
+    font-family: 'Noto Sans', 'Noto Sans Devanagari', sans-serif;
+}
+
+/* Увеличенный шрифт для всего контента под хедером */
+main {
+    font-size: 18px !important;
+}
+
+main .table { font-size: 18px !important; }
+main .table td, main .table th { font-size: 18px !important; }
+main .card { font-size: 18px !important; }
+
+main h1 { font-size: 1.75rem !important; }
+main h2 { font-size: 1.5rem !important; }
+main h3 { font-size: 1.25rem !important; }
+
+main .text-xs { font-size: 0.9rem !important; }
+main .text-sm { font-size: 1rem !important; }
+main .text-base { font-size: 1.1rem !important; }
+main .badge {
+    font-size: 0.9rem !important;
+    padding: 0.75rem 1rem !important;
+}
+main .btn { font-size: 1rem !important; }
+main input, main select, main textarea { font-size: 1rem !important; }
+
+main p, main span, main div { font-size: inherit; }
+
+/* ==================== HEADER ==================== */
+.nav-link {
+    transition: all 0.15s ease;
+}
+.nav-link:hover {
+    opacity: 1;
+}
+.nav-link.active {
+    opacity: 1;
+    color: var(--current-color);
+}
+
+.lang-btn.active {
+    background-color: var(--current-color) !important;
+    color: white !important;
+    border-color: var(--current-color) !important;
+}
+
+.submenu-link {
+    transition: all 0.15s ease;
+}
+.submenu-link.active {
+    background-color: white;
+    color: var(--current-color) !important;
+}
+
+#submenuBar {
+    background-color: var(--current-color);
+}
+
+.logo-svg path {
+    transition: fill 0.3s ease;
+}
+
+/* ==================== MOBILE MENU ==================== */
+@media (max-width: 1199px) {
+    #submenuBar {
+        display: none !important;
+    }
+}
+
+/* Свёрнутая навигация: включается из JS (updateNavMode), когда горизонтальное
+   меню физически не помещается в строку — независимо от ширины экрана.
+   Переводит хедер в мобильный режим (бургер) даже выше 1200px. */
+html.nav-compact #mainNav,
+html.nav-compact .nav-desktop-only {
+    display: none !important;
+}
+html.nav-compact #mobileMenuBtn {
+    display: flex !important;
+}
+html.nav-compact #mobileMenu {
+    display: block !important;
+}
+html.nav-compact #submenuBar {
+    display: none !important;
+}
+
+.mobile-menu {
+    max-height: 0;
+    overflow: hidden;
+    transition: max-height 0.3s ease;
+}
+.mobile-menu.open {
+    max-height: 85vh;
+    overflow-y: auto;
+}
+
+/* Пункты меню — компактной сеткой, а не длинным столбцом.
+   На широком экране (меню свернулось из-за нехватки места) — 3-4 колонки,
+   на телефоне — одна. Раскрывающиеся пункты занимают всю ширину. */
+#mobileNav {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(190px, 1fr));
+    gap: 0.25rem;
+    padding: 0.5rem;
+}
+#mobileNav .mobile-nav-item[data-has-submenu] {
+    grid-column: 1 / -1;
+}
+
+.mobile-nav-item.open > button {
+    color: var(--current-color);
+}
+.mobile-nav-item.open .arrow-icon {
+    transform: rotate(180deg);
+}
+.mobile-nav-item .submenu {
+    display: none;
+}
+.mobile-nav-item.open .submenu {
+    display: block;
+}
+
+/* ==================== DYNAMIC COLORS ==================== */
+.btn-primary {
+    background-color: var(--current-color) !important;
+    border-color: var(--current-color) !important;
+    color: white !important;
+}
+.btn-primary:hover {
+    background-color: var(--current-color) !important;
+    border-color: var(--current-color) !important;
+    filter: brightness(0.9);
+}
+
+.toggle-primary:checked {
+    background-color: var(--current-color) !important;
+    border-color: var(--current-color) !important;
+}
+
+.text-primary {
+    color: var(--current-color) !important;
+}
+
+.btn-neutral.active {
+    background-color: var(--current-color) !important;
+    border-color: var(--current-color) !important;
+}
+
+/* ==================== COMMON UI ==================== */
+.filter-btn.active {
+    background-color: var(--current-color) !important;
+    border-color: var(--current-color) !important;
+    color: white !important;
+}
+
+/* Tabs - override DaisyUI defaults */
+/* Увеличенный размер табов */
+main .tabs .tab,
+main .tabs-boxed .tab {
+    font-size: 1rem !important;
+    padding: 0.5rem 1.25rem !important;
+    height: auto !important;
+    min-height: 2.25rem !important;
+}
+
+.tab-active,
+.tabs .tab-active,
+.tabs-boxed .tab-active,
+.tabs-boxed .tab.tab-active,
+.tabs-boxed > .tab-active,
+.tabs-boxed > input:checked + .tab,
+[role="tablist"] .tab-active,
+.tab[aria-selected="true"] {
+    --tab-bg: var(--current-color) !important;
+    --tab-border-color: var(--current-color) !important;
+    background-color: var(--current-color) !important;
+    border-color: var(--current-color) !important;
+    color: white !important;
+}
+
+.tabs-boxed .tab-active:not(.tab-disabled):not([disabled]),
+.tabs-boxed .tab-active:hover {
+    background-color: var(--current-color) !important;
+    border-color: var(--current-color) !important;
+    color: white !important;
+}
+
+/* Checkboxes */
+.checkbox:checked,
+.checkbox-primary:checked {
+    background-color: var(--current-color) !important;
+    border-color: var(--current-color) !important;
+}
+
+/* Radio */
+.radio:checked,
+.radio-primary:checked {
+    background-color: var(--current-color) !important;
+    border-color: var(--current-color) !important;
+}
+
+/* Input focus */
+.input:focus,
+.select:focus,
+.textarea:focus {
+    border-color: var(--current-color) !important;
+    outline-color: var(--current-color) !important;
+}
+
+/* Outline buttons */
+.btn-outline.btn-primary {
+    color: var(--current-color) !important;
+    border-color: var(--current-color) !important;
+    background-color: transparent !important;
+}
+.btn-outline.btn-primary:hover {
+    background-color: var(--current-color) !important;
+    border-color: var(--current-color) !important;
+    color: white !important;
+}
+
+.skeleton-card {
+    animation: pulse 1.5s infinite;
+}
+
+@keyframes pulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.5; }
+}
+
+/* ==================== CARDS ==================== */
+.card-hover {
+    transition: all 0.2s ease;
+}
+.card-hover:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 8px 25px -5px rgba(0,0,0,0.1);
+}
+
+/* ==================== SPACING ==================== */
+/* Увеличенные отступы внутри контейнеров с рамками */
+main .bg-base-100.rounded-xl,
+main .bg-base-100.rounded-lg {
+    padding: 1.5rem !important;
+}
+
+main .card-body {
+    padding: 1.25rem !important;
+}
+
+main .stats .stat {
+    padding: 1.25rem 1.5rem !important;
+}
+
+main .modal-box {
+    padding: 1.75rem !important;
+}
+
+main .table td,
+main .table th {
+    padding: 0.875rem 1rem !important;
+}
+
+/* ==================== NUMBER INPUTS ==================== */
+/* Убираем стрелки (spinners) у числовых полей */
+input[type="number"]::-webkit-outer-spin-button,
+input[type="number"]::-webkit-inner-spin-button {
+    -webkit-appearance: none;
+    margin: 0;
+}
+
+input[type="number"] {
+    -moz-appearance: textfield; /* Firefox */
+    appearance: textfield;
+}
+
+/* ==================== UTILITY ==================== */
+.sub-text {
+    font-size: 0.7rem;
+    opacity: 0.5;
+}
+
+.category-badge {
+    font-size: 0.7rem;
+    padding: 0.2rem 0.5rem;
+}
+
+/* ==================== SKELETON LOADERS ==================== */
+/* Базовые стили для skeleton loading состояний */
+.skeleton {
+    background: linear-gradient(90deg,
+        var(--b3, #e5e7eb) 25%,
+        var(--b2, #f3f4f6) 50%,
+        var(--b3, #e5e7eb) 75%
+    );
+    background-size: 200% 100%;
+    animation: skeleton-pulse 1.5s ease-in-out infinite;
+    border-radius: 0.25rem;
+}
+
+@keyframes skeleton-pulse {
+    0% { background-position: 200% 0; }
+    100% { background-position: -200% 0; }
+}
+
+/* Skeleton элементы для таблиц */
+.skeleton-row {
+    display: flex;
+    align-items: center;
+    padding: 0.75rem 1rem;
+    gap: 1rem;
+    border-bottom: 1px solid var(--b3, #e5e7eb);
+}
+
+.skeleton-avatar {
+    width: 2.5rem;
+    height: 2.5rem;
+    border-radius: 50%;
+    flex-shrink: 0;
+}
+
+.skeleton-text {
+    height: 1rem;
+    border-radius: 0.25rem;
+}
+
+.skeleton-text-sm {
+    height: 0.75rem;
+    border-radius: 0.25rem;
+}
+
+.skeleton-text-lg {
+    height: 1.25rem;
+    border-radius: 0.25rem;
+}
+
+/* Skeleton для карточек */
+.skeleton-card {
+    padding: 1rem;
+    border-radius: 0.5rem;
+    border: 1px solid var(--b3, #e5e7eb);
+}
+
+/* ==================== EMPTY STATES ==================== */
+/* Стили для пустых состояний */
+.empty-state {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 3rem 1rem;
+    text-align: center;
+    color: var(--bc, #374151);
+    opacity: 0.6;
+}
+
+.empty-state-icon {
+    width: 4rem;
+    height: 4rem;
+    margin-bottom: 1rem;
+    opacity: 0.4;
+}
+
+.empty-state-title {
+    font-size: 1.125rem;
+    font-weight: 600;
+    margin-bottom: 0.5rem;
+}
+
+.empty-state-description {
+    font-size: 0.875rem;
+    max-width: 300px;
+}
+
+/* ==================== ROLE-BASED VISIBILITY ==================== */
+/* Скрытие элементов для гостей (body.user-type-guest) */
+body.user-type-guest [data-hide-for-guests] {
+    display: none !important;
+}
+
+/* Скрытие элементов требующих редактирования для гостей */
+body.user-type-guest .edit-action {
+    display: none !important;
+}

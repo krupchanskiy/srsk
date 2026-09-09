@@ -1,0 +1,839 @@
+<!DOCTYPE html>
+<html lang="ru" data-theme="light">
+<head>
+    <meta charset="UTF-8">
+    <script src="../js/color-init.js?v=2"></script>
+
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Продукты — ШРСК</title>
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg">
+    <link href="https://cdn.jsdelivr.net/npm/daisyui@4.12.14/dist/full.min.css" rel="stylesheet" />
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script>tailwind.config = { theme: { extend: { screens: { 'desktop': '1200px' } } } }</script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans:wght@400;500;600;700&family=Noto+Sans+Devanagari:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="../css/common.css?v=3">
+    <style>
+        .product-row:hover { background-color: rgba(0,0,0,0.02); }
+        .translate-btn {
+            padding: 2px 8px;
+            font-size: 11px;
+            border-radius: 4px;
+            background: #e5e7eb;
+            color: #6b7280;
+            cursor: pointer;
+            transition: all 0.15s;
+        }
+        .translate-btn:hover {
+            background: var(--current-color);
+            color: white;
+        }
+        .translate-btn.loading {
+            opacity: 0.5;
+            pointer-events: none;
+        }
+    </style>
+</head>
+<body class="bg-base-200 min-h-screen flex flex-col">
+
+    <div id="header-placeholder"></div>
+
+    <main class="container mx-auto px-4 py-6 flex-1">
+
+        <!-- Page Title -->
+        <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6">
+            <div>
+                <h1 class="text-2xl font-bold" data-i18n="products_title">Продукты</h1>
+                <p class="text-sm opacity-60" id="productsCount" data-i18n="loading">Загрузка...</p>
+            </div>
+            <div class="flex flex-wrap gap-2">
+                <button id="hiddenProductsToggle" class="btn btn-ghost gap-2 hidden" type="button"
+                        onclick="toggleHiddenProducts()" data-permission="edit_products">
+                    <span>Скрытые</span>
+                    <span id="hiddenProductsCount" class="badge badge-sm">0</span>
+                </button>
+                <button class="btn btn-primary gap-2" onclick="openAddModal()" data-permission="edit_products">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" />
+                    </svg>
+                    <span data-i18n="add_product">Добавить продукт</span>
+                </button>
+            </div>
+        </div>
+
+        <!-- Search -->
+        <div class="flex flex-col sm:flex-row gap-4 mb-4">
+            <div class="flex-1 max-w-md relative">
+                <input type="text" id="searchInput" placeholder="Поиск по названию..." class="input input-bordered w-full pr-10" data-i18n-placeholder="search_placeholder" />
+                <button type="button" id="clearSearch" class="absolute right-3 top-1/2 -translate-y-1/2 text-base-content/40 hover:text-base-content hidden">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+                    </svg>
+                </button>
+            </div>
+        </div>
+
+        <!-- Category Filters -->
+        <div class="flex flex-wrap gap-2 mb-6" id="categoryFilters">
+            <div class="skeleton h-8 w-20"></div>
+            <div class="skeleton h-8 w-24"></div>
+            <div class="skeleton h-8 w-20"></div>
+        </div>
+
+        <!-- Products Table -->
+        <div class="bg-base-100 rounded-xl shadow-sm overflow-hidden">
+            <div class="overflow-x-auto">
+                <table class="table w-full">
+                    <thead>
+                        <tr class="border-b border-base-200">
+                            <th class="bg-base-100 cursor-pointer select-none hover:bg-base-200 transition-colors" onclick="toggleSort('name')">
+                                <div class="flex items-center gap-1">
+                                    <span data-i18n="col_name">Название</span>
+                                    <span id="sort-icon-name" class="opacity-40">↕</span>
+                                </div>
+                            </th>
+                            <th class="bg-base-100 hidden sm:table-cell cursor-pointer select-none hover:bg-base-200 transition-colors" onclick="toggleSort('category')">
+                                <div class="flex items-center gap-1">
+                                    <span data-i18n="col_category">Категория</span>
+                                    <span id="sort-icon-category" class="opacity-40">↕</span>
+                                </div>
+                            </th>
+                            <th class="bg-base-100 w-24 cursor-pointer select-none hover:bg-base-200 transition-colors" onclick="toggleSort('unit')">
+                                <div class="flex items-center gap-1">
+                                    <span data-i18n="col_unit">Ед. изм.</span>
+                                    <span id="sort-icon-unit" class="opacity-40">↕</span>
+                                </div>
+                            </th>
+                            <th class="bg-base-100 w-12 text-center cursor-pointer select-none hover:bg-base-200 transition-colors" onclick="toggleSort('ekadashi')" data-i18n-title="ekadashi_column">
+                                <div class="flex items-center justify-center gap-1">
+                                    <span data-i18n="ekadashi_short">Э</span>
+                                    <span id="sort-icon-ekadashi" class="opacity-40">↕</span>
+                                </div>
+                            </th>
+                            <th class="bg-base-100 w-20"></th>
+                        </tr>
+                    </thead>
+                    <tbody id="productsTable">
+                        <!-- Skeleton rows -->
+                        <tr><td colspan="5"><div class="skeleton h-6 w-full my-2"></div></td></tr>
+                        <tr><td colspan="5"><div class="skeleton h-6 w-full my-2"></div></td></tr>
+                        <tr><td colspan="5"><div class="skeleton h-6 w-full my-2"></div></td></tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+    </main>
+
+    <div id="footer-placeholder"></div>
+
+    <!-- Add/Edit Modal -->
+    <dialog id="editModal" class="modal">
+        <div class="modal-box relative">
+            <button type="button" class="btn btn-sm btn-circle btn-ghost absolute right-2 top-2" onclick="editModal.close()">✕</button>
+            <h3 class="font-bold text-lg mb-4" id="modalTitle" data-i18n="add_product">Добавить продукт</h3>
+            <form id="editForm" class="space-y-4">
+                <input type="hidden" name="id" />
+
+                <!-- Категория -->
+                <div>
+                    <label class="label"><span class="label-text font-medium" data-i18n="col_category">Категория</span></label>
+                    <select name="category_id" class="select select-bordered w-full" required id="categorySelect"></select>
+                </div>
+
+                <!-- Русский и English -->
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div>
+                        <label class="label"><span class="label-text font-medium" data-i18n="col_russian">Русский</span></label>
+                        <input type="text" name="name_ru" class="input input-bordered w-full" required placeholder="Рис" data-i18n-placeholder="placeholder_product_name" />
+                    </div>
+                    <div>
+                        <label class="label">
+                            <span class="label-text font-medium" data-i18n="col_english">English</span>
+                            <button type="button" class="translate-btn" data-i18n="auto_translate_btn" onclick="autoTranslate('name_ru', 'name_en', 'ru', 'en', this)">🌐 Auto</button>
+                        </label>
+                        <input type="text" name="name_en" class="input input-bordered w-full" required placeholder="Rice" />
+                    </div>
+                </div>
+
+                <!-- Хинди + Транслит -->
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div>
+                        <label class="label">
+                            <span class="label-text font-medium" data-i18n="col_hindi">हिंदी</span>
+                            <button type="button" class="translate-btn" data-i18n="auto_translate_btn" onclick="autoTranslate('name_ru', 'name_hi', 'ru', 'hi', this)">🌐 Auto</button>
+                        </label>
+                        <input type="text" name="name_hi" id="hindiInput" class="input input-bordered w-full" required placeholder="चावल" />
+                    </div>
+                    <div>
+                        <label class="label"><span class="label-text font-medium" data-i18n="iast_label">IAST</span></label>
+                        <input type="text" name="translit" id="translitInput" class="input input-bordered w-full" placeholder="cāval" />
+                        <label class="label"><span class="label-text-alt opacity-60" data-i18n="auto_from_hindi">Автоматически из хинди</span></label>
+                    </div>
+                </div>
+
+                <!-- Единица измерения -->
+                <div>
+                    <label class="label"><span class="label-text font-medium" data-i18n="col_unit">Единица измерения</span></label>
+                    <select name="unit" class="select select-bordered w-full" required id="unitSelect"></select>
+                </div>
+
+                <!-- % на очистку (только для овощей и фруктов) -->
+                <div id="wastePercentField" class="hidden">
+                    <label class="label"><span class="label-text font-medium" data-i18n="waste_percent">% на очистку</span></label>
+                    <div class="join w-full">
+                        <input type="number" name="waste_percent" class="input input-bordered join-item w-full" min="0" max="99" step="1" placeholder="20" />
+                        <span class="btn btn-disabled join-item">%</span>
+                    </div>
+                    <label class="label"><span class="label-text-alt opacity-60" data-i18n="waste_percent_hint">Процент отходов при чистке</span></label>
+                </div>
+
+                <!-- Ссылка на покупку -->
+                <div>
+                    <label class="label"><span class="label-text font-medium" data-i18n="purchase_url">Ссылка на покупку</span></label>
+                    <input type="url" name="purchase_url" class="input input-bordered w-full" placeholder="https://amazon.in/..." />
+                    <label class="label"><span class="label-text-alt opacity-60" data-i18n="purchase_url_hint">Amazon, магазин и т.д.</span></label>
+                </div>
+
+                <!-- Экадаши -->
+                <div class="form-control">
+                    <label class="label cursor-pointer justify-start gap-3">
+                        <input type="checkbox" name="ekadashi" class="checkbox checkbox-primary" checked />
+                        <span class="label-text font-medium" data-i18n="ekadashi_suitable">Подходит для Экадаши</span>
+                    </label>
+                    <label class="label pt-0"><span class="label-text-alt opacity-60" data-i18n="ekadashi_hint">Без зерновых и бобовых</span></label>
+                </div>
+
+                <div class="modal-action">
+                    <button type="button" class="btn btn-ghost" onclick="editModal.close()" data-i18n="cancel">Отмена</button>
+                    <button type="submit" class="btn btn-primary" data-i18n="save">Сохранить</button>
+                </div>
+            </form>
+        </div>
+        <form method="dialog" class="modal-backdrop"><button>close</button></form>
+    </dialog>
+
+    <!-- Confirm Modal -->
+    <dialog id="confirmModal" class="modal">
+        <div class="modal-box max-w-sm">
+            <p id="confirmMessage" class="py-4 text-center text-lg"></p>
+            <div class="modal-action justify-center gap-2">
+                <button type="button" class="btn btn-ghost" onclick="confirmNo()" data-i18n="cancel">Отмена</button>
+                <button type="button" class="btn btn-error" onclick="confirmYes()" data-i18n="delete">Удалить</button>
+            </div>
+        </div>
+        <form method="dialog" class="modal-backdrop"><button>close</button></form>
+    </dialog>
+
+    <script src="../js/config.js?v=5"></script>
+    <script src="../js/auth-check.js?v=10"></script>
+    <script src="../js/cache.js?v=1"></script>
+    <script src="../js/utils.js?v=12"></script>
+    <script src="../js/translit.js"></script>
+    <script src="../js/auto-translate.js"></script>
+    <script src="../js/layout.js?v=71"></script>
+    <script>
+        // ==================== STATE ====================
+        let currentCategory = 'all';
+        let searchQuery = '';
+        let sortColumn = 'name';
+        let sortDirection = 'asc';
+        let products = [];
+        let categories = [];
+        let units = [];
+        let hiddenProductIds = new Set();
+        let showHiddenProducts = false;
+
+        const t = key => Layout.t(key);
+        const editForm = () => document.getElementById('editForm');
+        const abText = (ru, en, hi) => ({ ru, en, hi })[Layout.currentLang] || ru;
+
+        // Категории, для которых показываем поле "% на очистку"
+        const WASTE_CATEGORIES = ['vegetables', 'fruits'];
+
+        // ==================== CONFIRM MODAL ====================
+        let confirmResolve = null;
+
+        function showConfirm(message, itemName = '') {
+            return new Promise(resolve => {
+                confirmResolve = resolve;
+                const msgEl = Layout.$('#confirmMessage');
+                if (itemName) {
+                    msgEl.innerHTML = message + '<br><strong class="text-error">' + itemName + '</strong>';
+                } else {
+                    msgEl.textContent = message;
+                }
+                confirmModal.showModal();
+            });
+        }
+
+        function confirmYes() {
+            confirmModal.close();
+            if (confirmResolve) confirmResolve(true);
+            confirmResolve = null;
+        }
+
+        function confirmNo() {
+            confirmModal.close();
+            if (confirmResolve) confirmResolve(false);
+            confirmResolve = null;
+        }
+
+        // Показать/скрыть поле waste_percent в зависимости от категории
+        function toggleWastePercentField(categoryId) {
+            const field = Layout.$('#wastePercentField');
+            if (!field) return;
+
+            const category = categories.find(c => c.id === categoryId);
+            const shouldShow = category && WASTE_CATEGORIES.includes(category.slug);
+
+            field.classList.toggle('hidden', !shouldShow);
+
+            // Если скрываем, очищаем значение
+            if (!shouldShow) {
+                const input = Layout.$('input[name="waste_percent"]');
+                if (input) input.value = '';
+            }
+        }
+
+        // ==================== AUTO-TRANSLATE ====================
+        async function autoTranslate(fromField, toField, fromLang, toLang, btn) {
+            const fromEl = editForm()[fromField];
+            const toEl = editForm()[toField];
+            if (!fromEl || !toEl) return;
+
+            const text = fromEl.value.trim();
+            if (!text) {
+                toEl.focus();
+                return;
+            }
+
+            btn.classList.add('loading');
+            btn.textContent = '...';
+
+            try {
+                const translated = await Layout.translate(text, fromLang, toLang);
+                toEl.value = translated;
+                // Обновляем транслит если переводим на хинди
+                if (toField === 'name_hi') {
+                    toEl.dispatchEvent(new Event('input'));
+                }
+            } catch (e) {
+                console.error('Translation error:', e);
+            }
+
+            btn.classList.remove('loading');
+            btn.textContent = t('auto_translate_btn');
+        }
+
+        const PRODUCT_FORMS = {
+            ru: ['продукт', 'продукта', 'продуктов'],
+            en: ['product', 'products'],
+            hi: 'उत्पाद'
+        };
+
+        // Используем транслитерацию из layout.js (удалено дублирование ~130 строк кода)
+        const transliterate = Layout.transliterateHindi;
+
+        // ==================== DATA LOADING ====================
+        async function loadCategories() {
+            categories = await Cache.getOrLoad('product_categories', async () => {
+                const { data, error } = await Layout.db.from('product_categories').select('*').order('name_ru');
+                if (error) { console.error('Error loading product_categories:', error); return null; }
+                return data;
+            });
+            categories = categories || [];
+            renderCategoryFilters();
+            renderCategorySelect();
+        }
+
+        async function loadUnits() {
+            units = await Cache.getOrLoad('units', async () => {
+                const { data, error } = await Layout.db.from('units').select('*').order('sort_order');
+                if (error) { console.error('Error loading units:', error); return null; }
+                return data;
+            });
+            units = units || [];
+            renderUnitSelect();
+        }
+
+        async function loadProducts() {
+            const { data, error } = await Layout.db
+                .from('products')
+                .select('*, product_categories(slug, name_ru, name_en, name_hi)')
+                .order('name_ru');
+            if (error) { console.error('Error loading products:', error); return; }
+            products = data || [];
+            hiddenProductIds = Layout.isAbKitchenContext
+                ? await Layout.getAbKitchenHiddenProductIds(true)
+                : new Set();
+            updateHiddenProductsToggle();
+            renderProducts();
+        }
+
+        function updateHiddenProductsToggle() {
+            const button = Layout.$('#hiddenProductsToggle');
+            if (!button) return;
+            button.classList.toggle('hidden', !Layout.isAbKitchenContext);
+            button.classList.toggle('btn-active', showHiddenProducts);
+            button.querySelector('span:first-child').textContent = showHiddenProducts
+                ? abText('Активные', 'Active', 'सक्रिय')
+                : abText('Скрытые', 'Hidden', 'छिपे हुए');
+            Layout.$('#hiddenProductsCount').textContent = hiddenProductIds.size;
+        }
+
+        function toggleHiddenProducts() {
+            if (!Layout.isAbKitchenContext) return;
+            showHiddenProducts = !showHiddenProducts;
+            updateHiddenProductsToggle();
+            renderProducts();
+        }
+
+        // ==================== SORTING ====================
+        function toggleSort(column) {
+            if (sortColumn === column) {
+                sortDirection = sortDirection === 'asc' ? 'desc' : 'asc';
+            } else {
+                sortColumn = column;
+                sortDirection = 'asc';
+            }
+            updateSortIcons();
+            renderProducts();
+        }
+
+        function updateSortIcons() {
+            const columns = ['name', 'category', 'unit', 'ekadashi'];
+            columns.forEach(col => {
+                const icon = Layout.$(`#sort-icon-${col}`);
+                if (!icon) return;
+                const isActive = sortColumn === col;
+                icon.textContent = isActive ? (sortDirection === 'asc' ? '↑' : '↓') : '↕';
+                icon.classList.toggle('opacity-40', !isActive);
+                icon.classList.toggle('opacity-100', isActive);
+            });
+        }
+
+        function sortProducts(items) {
+            const lang = Layout.currentLang;
+            const nameKey = `name_${lang}`;
+            const mult = sortDirection === 'asc' ? 1 : -1;
+
+            return [...items].sort((a, b) => {
+                let cmp = 0;
+                switch (sortColumn) {
+                    case 'name':
+                        cmp = (a[nameKey] || a.name_ru || '').localeCompare(b[nameKey] || b.name_ru || '', lang);
+                        break;
+                    case 'category':
+                        const catA = a.product_categories ? Layout.getName(a.product_categories) : '';
+                        const catB = b.product_categories ? Layout.getName(b.product_categories) : '';
+                        cmp = catA.localeCompare(catB, lang);
+                        break;
+                    case 'unit':
+                        const unitA = units.find(u => u.code === a.unit);
+                        const unitB = units.find(u => u.code === b.unit);
+                        const unitNameA = unitA ? Layout.getName(unitA) : a.unit || '';
+                        const unitNameB = unitB ? Layout.getName(unitB) : b.unit || '';
+                        cmp = unitNameA.localeCompare(unitNameB, lang);
+                        break;
+                    case 'ekadashi':
+                        cmp = (a.ekadashi === b.ekadashi) ? 0 : (a.ekadashi ? -1 : 1);
+                        break;
+                }
+                return cmp * mult;
+            });
+        }
+
+        // ==================== RENDERING ====================
+        function renderCategoryFilters() {
+            const container = Layout.$('#categoryFilters');
+            const visibleProducts = products.filter(product => {
+                if (!Layout.isAbKitchenContext) return true;
+                const isHidden = hiddenProductIds.has(product.id);
+                return showHiddenProducts ? isHidden : !isHidden;
+            });
+            const counts = { all: visibleProducts.length };
+            visibleProducts.forEach(p => {
+                const slug = p.product_categories?.slug;
+                if (slug) counts[slug] = (counts[slug] || 0) + 1;
+            });
+
+            let html = `<button class="btn btn-sm filter-btn ${currentCategory === 'all' ? 'active btn-neutral' : 'btn-ghost'}" data-category="all">${t('all')}<sup class="ml-1 opacity-60">${counts.all}</sup></button>`;
+
+            categories.forEach(cat => {
+                const isActive = currentCategory === cat.slug;
+                html += `<button class="btn btn-sm filter-btn ${isActive ? 'active btn-neutral' : 'btn-ghost'}" data-category="${cat.slug}">${Layout.getName(cat)}<sup class="ml-1 opacity-60">${counts[cat.slug] || 0}</sup></button>`;
+            });
+
+            container.innerHTML = html;
+            container.querySelectorAll('.filter-btn').forEach(btn => {
+                btn.addEventListener('click', () => {
+                    currentCategory = btn.dataset.category;
+                    renderCategoryFilters();
+                    renderProducts();
+                });
+            });
+        }
+
+        function renderCategorySelect() {
+            const select = Layout.$('#categorySelect');
+            select.innerHTML = categories.map(cat =>
+                `<option value="${cat.id}">${Layout.getName(cat)}</option>`
+            ).join('');
+        }
+
+        function renderUnitSelect() {
+            const select = Layout.$('#unitSelect');
+            select.innerHTML = units.map(u =>
+                `<option value="${u.code}">${Layout.getName(u)} (${u['short_' + Layout.currentLang] || u.short_ru})</option>`
+            ).join('');
+        }
+
+        function renderProducts() {
+            const tbody = Layout.$('#productsTable');
+            const countEl = Layout.$('#productsCount');
+            const lang = Layout.currentLang;
+            const canEdit = window.hasPermission && window.hasPermission('edit_products');
+
+            let filtered = products.filter(product => {
+                const isHidden = hiddenProductIds.has(product.id);
+                const matchesVisibility = !Layout.isAbKitchenContext || (showHiddenProducts ? isHidden : !isHidden);
+                const matchesCategory = currentCategory === 'all' || product.product_categories?.slug === currentCategory;
+                const matchesSearch = searchQuery === '' ||
+                    product.name_ru?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+                    product.name_en?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+                    product.name_hi?.includes(searchQuery);
+                return matchesVisibility && matchesCategory && matchesSearch;
+            });
+
+            // Apply sorting
+            filtered = sortProducts(filtered);
+
+            countEl.textContent = Layout.pluralize(filtered.length, PRODUCT_FORMS);
+
+            if (filtered.length === 0) {
+                tbody.innerHTML = `<tr><td colspan="5" class="text-center py-12 opacity-50">
+                    <div class="text-4xl mb-2">📦</div>
+                    <div>${t('no_products')}</div>
+                </td></tr>`;
+                return;
+            }
+
+            tbody.innerHTML = filtered.map(product => {
+                const cat = product.product_categories;
+                const unit = units.find(u => u.code === product.unit);
+                const unitShort = unit ? (unit['short_' + lang] || unit.short_ru) : product.unit;
+
+                // Собираем дополнительные языки (все кроме текущего)
+                const otherNames = [];
+                if (lang !== 'ru' && product.name_ru) otherNames.push(product.name_ru);
+                if (lang !== 'en' && product.name_en) otherNames.push(product.name_en);
+                if (lang !== 'hi' && product.name_hi) {
+                    otherNames.push(product.name_hi + (product.translit ? ' · ' + product.translit : ''));
+                }
+
+                return `
+                    <tr class="product-row border-b border-base-200 ${hiddenProductIds.has(product.id) ? 'opacity-60' : ''}" data-id="${product.id}">
+                        <td>
+                            <div class="flex flex-col desktop:flex-row desktop:items-baseline desktop:gap-4">
+                                <div class="font-medium">${Layout.getName(product)}</div>
+                                ${otherNames.map(name => `<div class="text-xs desktop:text-base opacity-50">${name}</div>`).join('')}
+                            </div>
+                        </td>
+                        <td class="hidden sm:table-cell">
+                            <span class="badge badge border-base-300 whitespace-nowrap">${Layout.getName(cat) || '—'}</span>
+                        </td>
+                        <td>
+                            <div class="flex items-center gap-2">
+                                <span>${unitShort}</span>
+                                ${product.waste_percent ? `<span class="badge badge border-base-300 badge-sm" title="${t('waste_percent')}">${product.waste_percent}%</span>` : ''}
+                            </div>
+                        </td>
+                        <td class="text-center">
+                            ${product.ekadashi ? `<span class="text-success" title="${t('ekadashi_suitable_tooltip')}">✓</span>` : `<span class="text-error opacity-50" title="${t('ekadashi_not_suitable_tooltip')}">✗</span>`}
+                        </td>
+                        ${canEdit ? `<td>
+                            <div class="flex gap-1">
+                                <button class="btn btn-ghost btn-sm btn-square" onclick="openEditModal('${product.id}')">
+                                    <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                                    </svg>
+                                </button>
+                                ${Layout.isAbKitchenContext && hiddenProductIds.has(product.id) ? `
+                                <button class="btn btn-ghost btn-sm btn-square text-success" onclick="restoreProduct('${product.id}')" title="${abText('Вернуть в AB Kitchen', 'Restore in AB Kitchen', 'AB Kitchen में वापस लाएँ')}">
+                                    <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                                    </svg>
+                                </button>` : `
+                                <button class="btn btn-ghost btn-sm btn-square text-error" onclick="deleteProduct('${product.id}')" title="${Layout.isAbKitchenContext ? abText('Скрыть только в AB Kitchen', 'Hide only in AB Kitchen', 'केवल AB Kitchen में छिपाएँ') : t('delete')}">
+                                    <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                                    </svg>
+                                </button>`}
+                            </div>
+                        </td>` : '<td></td>'}
+                    </tr>
+                `;
+            }).join('');
+        }
+
+        // ==================== MODAL ====================
+        function openAddModal() {
+            if (!window.hasPermission || !window.hasPermission('edit_products')) {
+                Layout.showNotification(t('insufficient_permissions'), 'error');
+                return;
+            }
+            Layout.$('#modalTitle').textContent = t('add_product');
+            Layout.$('#editForm').reset();
+            Layout.$('input[name="id"]').value = '';
+            // Проверяем первую категорию по умолчанию
+            const categorySelect = Layout.$('#categorySelect');
+            if (categorySelect && categorySelect.value) {
+                toggleWastePercentField(categorySelect.value);
+            } else {
+                Layout.$('#wastePercentField')?.classList.add('hidden');
+            }
+            Layout.setupAutoTranslate('#editForm', ['name']);
+            editModal.showModal();
+        }
+
+        function openEditModal(id) {
+            if (!window.hasPermission || !window.hasPermission('edit_products')) {
+                Layout.showNotification(t('insufficient_permissions'), 'error');
+                return;
+            }
+            const product = products.find(p => p.id === id);
+            if (!product) return;
+
+            Layout.$('#modalTitle').textContent = t('edit') + ' — ' + Layout.getName(product);
+            Layout.$('input[name="id"]').value = id;
+            Layout.$('select[name="category_id"]').value = product.category_id || '';
+            Layout.$('input[name="name_ru"]').value = product.name_ru || '';
+            Layout.$('input[name="name_en"]').value = product.name_en || '';
+            Layout.$('input[name="name_hi"]').value = product.name_hi || '';
+            Layout.$('input[name="translit"]').value = product.translit || '';
+            Layout.$('select[name="unit"]').value = product.unit || '';
+
+            // Показываем/скрываем и заполняем поле waste_percent
+            toggleWastePercentField(product.category_id);
+            Layout.$('input[name="waste_percent"]').value = product.waste_percent || '';
+            Layout.$('input[name="purchase_url"]').value = product.purchase_url || '';
+            Layout.$('input[name="ekadashi"]').checked = product.ekadashi !== false;
+
+            Layout.setupAutoTranslate('#editForm', ['name']);
+            editModal.showModal();
+        }
+
+        // ==================== CRUD ====================
+        async function saveProduct(formData) {
+            if (!window.hasPermission || !window.hasPermission('edit_products')) {
+                Layout.showNotification(t('insufficient_permissions'), 'error');
+                return false;
+            }
+            const id = formData.get('id');
+            const isNew = !id;
+
+            // Определяем, нужно ли сохранять waste_percent
+            const categoryId = formData.get('category_id');
+            const category = categories.find(c => c.id === categoryId);
+            const wastePercentValue = formData.get('waste_percent');
+            const shouldSaveWaste = category && WASTE_CATEGORIES.includes(category.slug);
+
+            const purchaseUrl = formData.get('purchase_url')?.trim();
+            const productData = {
+                category_id: categoryId,
+                name_ru: formData.get('name_ru'),
+                name_en: formData.get('name_en'),
+                name_hi: formData.get('name_hi'),
+                translit: formData.get('translit') || null,
+                unit: formData.get('unit'),
+                waste_percent: shouldSaveWaste && wastePercentValue ? parseFloat(wastePercentValue) : null,
+                purchase_url: purchaseUrl || null,
+                ekadashi: formData.get('ekadashi') === 'on'
+            };
+
+            let error;
+            if (isNew) {
+                const result = await Layout.db.from('products').insert(productData).select('*, product_categories(slug, name_ru, name_en, name_hi)');
+                error = result.error;
+                if (!error && result.data?.[0]) {
+                    products.push(result.data[0]);
+                }
+            } else {
+                const result = await Layout.db.from('products').update(productData).eq('id', id);
+                error = result.error;
+                if (!error) {
+                    const idx = products.findIndex(p => p.id === id);
+                    if (idx !== -1) {
+                        // Обновляем локально, включая связанную категорию
+                        const cat = categories.find(c => c.id === productData.category_id);
+                        products[idx] = {
+                            ...products[idx],
+                            ...productData,
+                            product_categories: cat ? { slug: cat.slug, name_ru: cat.name_ru, name_en: cat.name_en, name_hi: cat.name_hi } : null
+                        };
+                    }
+                }
+            }
+
+            if (error) {
+                const isDuplicate = error.code === '23505' || error.message?.includes('products_name_en_unique');
+                const message = isDuplicate
+                    ? abText('Продукт с таким английским названием уже существует', 'A product with this English name already exists', 'इस अंग्रेज़ी नाम वाला उत्पाद पहले से मौजूद है')
+                    : error.message;
+                Layout.showNotification(t('error') + ': ' + message, 'error');
+                return false;
+            }
+
+            renderCategoryFilters();
+            renderProducts();
+            return true;
+        }
+
+        async function deleteProduct(id) {
+            if (!window.hasPermission || !window.hasPermission('edit_products')) {
+                Layout.showNotification(t('insufficient_permissions'), 'error');
+                return;
+            }
+            const product = products.find(p => p.id === id);
+            if (!product) return;
+
+            if (Layout.isAbKitchenContext) {
+                const confirmed = await showConfirm(
+                    abText('Скрыть продукт только в AB Kitchen?', 'Hide this product only in AB Kitchen?', 'इस उत्पाद को केवल AB Kitchen में छिपाएँ?'),
+                    Layout.getName(product)
+                );
+                if (!confirmed) return;
+
+                const locationId = Layout.locations?.find(location => location.slug === 'ab-kitchen')?.id;
+                if (!locationId) return;
+                const { error } = await Layout.db.from('ab_kitchen_hidden_products').upsert({
+                    location_id: locationId,
+                    product_id: id
+                }, { onConflict: 'location_id,product_id' });
+                if (error) {
+                    Layout.showNotification(t('error') + ': ' + error.message, 'error');
+                    return;
+                }
+
+                hiddenProductIds.add(id);
+                Layout.invalidateAbKitchenHiddenProducts();
+                updateHiddenProductsToggle();
+                renderCategoryFilters();
+                renderProducts();
+                Layout.showNotification(abText('Продукт скрыт только в AB Kitchen', 'Product hidden only in AB Kitchen', 'उत्पाद केवल AB Kitchen में छिपा है'), 'success');
+                return;
+            }
+
+            const confirmed = await showConfirm(t('confirm_delete'), Layout.getName(product));
+            if (!confirmed) return;
+
+            const { error } = await Layout.db.from('products').delete().eq('id', id);
+            if (error) {
+                Layout.showNotification(t('error') + ': ' + error.message, 'error');
+                return;
+            }
+
+            products = products.filter(p => p.id !== id);
+            renderCategoryFilters();
+            renderProducts();
+        }
+
+        async function restoreProduct(id) {
+            if (!Layout.isAbKitchenContext || !window.hasPermission?.('edit_products')) return;
+            const locationId = Layout.locations?.find(location => location.slug === 'ab-kitchen')?.id;
+            if (!locationId) return;
+
+            const { error } = await Layout.db
+                .from('ab_kitchen_hidden_products')
+                .delete()
+                .eq('location_id', locationId)
+                .eq('product_id', id);
+            if (error) {
+                Layout.showNotification(t('error') + ': ' + error.message, 'error');
+                return;
+            }
+
+            hiddenProductIds.delete(id);
+            Layout.invalidateAbKitchenHiddenProducts();
+            updateHiddenProductsToggle();
+            renderCategoryFilters();
+            renderProducts();
+            Layout.showNotification(abText('Продукт снова доступен в AB Kitchen', 'Product restored in AB Kitchen', 'उत्पाद AB Kitchen में बहाल हो गया'), 'success');
+        }
+
+        // ==================== EVENT LISTENERS ====================
+        document.addEventListener('DOMContentLoaded', () => {
+            const searchInput = Layout.$('#searchInput');
+            const clearBtn = Layout.$('#clearSearch');
+            const debouncedSearch = Layout.debounce(() => renderProducts(), 200);
+
+            searchInput?.addEventListener('input', e => {
+                searchQuery = e.target.value;
+                clearBtn?.classList.toggle('hidden', !e.target.value);
+                debouncedSearch();
+            });
+
+            clearBtn?.addEventListener('click', () => {
+                searchInput.value = '';
+                searchQuery = '';
+                clearBtn.classList.add('hidden');
+                renderProducts();
+                searchInput.focus();
+            });
+
+            Layout.$('#editForm')?.addEventListener('submit', async e => {
+                e.preventDefault();
+                const submitButton = e.submitter || e.target.querySelector('button[type="submit"]');
+                if (submitButton?.disabled) return;
+                if (submitButton) submitButton.disabled = true;
+                const formData = new FormData(e.target);
+                try {
+                    const success = await saveProduct(formData);
+                    if (success) editModal.close();
+                } finally {
+                    if (submitButton) submitButton.disabled = false;
+                }
+            });
+
+            // Автотранслитерация хинди → IAST
+            Layout.$('#hindiInput')?.addEventListener('input', e => {
+                const translitInput = Layout.$('#translitInput');
+                if (translitInput) {
+                    translitInput.value = transliterate(e.target.value);
+                }
+            });
+
+            // Показ/скрытие поля waste_percent при смене категории
+            Layout.$('#categorySelect')?.addEventListener('change', e => {
+                toggleWastePercentField(e.target.value);
+            });
+        });
+
+        // ==================== LANGUAGE UPDATE ====================
+        function updatePageUI() {
+            Layout.updateAllTranslations();
+            renderCategoryFilters();
+            renderCategorySelect();
+            renderUnitSelect();
+            updateSortIcons();
+            renderProducts();
+            updateHiddenProductsToggle();
+        }
+
+        window.onLanguageChange = () => updatePageUI();
+
+        // ==================== INIT ====================
+        async function init() {
+            await Layout.init({ module: 'kitchen', menuId: 'kitchen', itemId: 'products' });
+            await Promise.all([loadCategories(), loadUnits()]);
+            await loadProducts();
+            updatePageUI();
+        }
+
+        init();
+    </script>
+</body>
+</html>

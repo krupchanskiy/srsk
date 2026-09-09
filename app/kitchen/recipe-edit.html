@@ -1,0 +1,1263 @@
+<!DOCTYPE html>
+<html lang="ru" data-theme="light">
+<head>
+    <meta charset="UTF-8">
+    <script src="../js/color-init.js?v=2"></script>
+
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Редактирование рецепта — ШРСК</title>
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg">
+    <link href="https://cdn.jsdelivr.net/npm/daisyui@4.12.14/dist/full.min.css" rel="stylesheet" />
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script>tailwind.config = { theme: { extend: { screens: { 'desktop': '1200px' } } } }</script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans:wght@400;500;600;700&family=Noto+Sans+Devanagari:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="../css/common.css?v=3">
+    <style>
+        /* Убираем стрелки у number input */
+        input[type="number"]::-webkit-outer-spin-button,
+        input[type="number"]::-webkit-inner-spin-button {
+            -webkit-appearance: none;
+            margin: 0;
+        }
+        input[type="number"] {
+            -moz-appearance: textfield;
+        }
+        /* Кнопка автоперевода */
+        .translate-btn {
+            padding: 2px 8px;
+            font-size: 11px;
+            border-radius: 4px;
+            background: #e5e7eb;
+            color: #6b7280;
+            cursor: pointer;
+            transition: all 0.15s;
+        }
+        .translate-btn:hover {
+            background: var(--current-color);
+            color: white;
+        }
+        .translate-btn.loading {
+            opacity: 0.5;
+            pointer-events: none;
+        }
+    </style>
+</head>
+<body class="bg-base-200 min-h-screen flex flex-col">
+
+    <div id="header-placeholder"></div>
+
+    <main class="container mx-auto px-4 py-6 flex-1">
+
+        <!-- Back link + Actions -->
+        <div class="flex justify-between items-center mb-4">
+            <a href="recipes.html" class="inline-flex items-center gap-1 text-sm opacity-60 hover:opacity-100">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7" />
+                </svg>
+                <span data-i18n="back_to_recipes">Назад к рецептам</span>
+            </a>
+            <div class="flex gap-2">
+                <button class="btn btn-ghost btn-sm" onclick="cancelEdit()">
+                    <span data-i18n="cancel">Отмена</span>
+                </button>
+                <button class="btn btn-primary btn-sm gap-1" onclick="saveRecipe()">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
+                    </svg>
+                    <span data-i18n="save">Сохранить</span>
+                </button>
+            </div>
+        </div>
+
+        <!-- Page Title -->
+        <h1 class="text-2xl font-bold mb-6" id="pageTitle" data-i18n="edit_recipe">Редактирование рецепта</h1>
+
+        <!-- Loading skeleton -->
+        <div id="loadingSkeleton">
+            <div class="bg-base-100 rounded-xl p-6 shadow-sm mb-6">
+                <div class="skeleton h-6 w-48 mb-4"></div>
+                <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                    <div class="skeleton aspect-[4/3] rounded-lg"></div>
+                    <div class="lg:col-span-2 space-y-4">
+                        <div class="grid grid-cols-3 gap-4">
+                            <div class="skeleton h-12"></div>
+                            <div class="skeleton h-12"></div>
+                            <div class="skeleton h-12"></div>
+                        </div>
+                        <div class="skeleton h-12"></div>
+                        <div class="grid grid-cols-4 gap-4">
+                            <div class="skeleton h-12"></div>
+                            <div class="skeleton h-12"></div>
+                            <div class="skeleton h-12"></div>
+                            <div class="skeleton h-12"></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Form Content (hidden until loaded) -->
+        <form id="recipeForm" class="space-y-6 hidden" onsubmit="event.preventDefault(); saveRecipe();">
+
+            <!-- Basic Info Section -->
+            <section class="bg-base-100 rounded-xl p-6 shadow-sm">
+                <h2 class="text-lg font-bold mb-4" data-i18n="section_basic">Основная информация</h2>
+
+                <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+
+                    <!-- Photo -->
+                    <div>
+                        <label class="label">
+                            <span class="label-text font-medium" data-i18n="field_photo">Фото</span>
+                        </label>
+                        <div class="aspect-[4/3] rounded-lg border-2 border-dashed border-base-300 bg-base-200 flex flex-col items-center justify-center cursor-pointer hover:border-primary transition-colors overflow-hidden" onclick="document.getElementById('photoInput').click()">
+                            <img id="photoPreview" src="" class="w-full h-full object-cover hidden" />
+                            <div id="photoPlaceholder" class="text-center p-4">
+                                <svg xmlns="http://www.w3.org/2000/svg" class="h-12 w-12 mx-auto opacity-30 mb-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                                </svg>
+                                <span class="text-sm opacity-50" data-i18n="photo_hint">Нажмите для загрузки</span>
+                            </div>
+                            <input type="file" id="photoInput" accept="image/*" class="hidden" onchange="previewPhoto(this)" />
+                        </div>
+                    </div>
+
+                    <!-- Names + Category -->
+                    <div class="lg:col-span-2 space-y-4">
+
+                        <!-- Names: RU + EN -->
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <div>
+                                <label class="label">
+                                    <span class="label-text font-medium" data-i18n="field_name_ru">Название (RU) *</span>
+                                </label>
+                                <input type="text" name="name_ru" class="input input-bordered w-full" required />
+                            </div>
+                            <div>
+                                <label class="label">
+                                    <span class="label-text font-medium" data-i18n="field_name_en">Name (EN) *</span>
+                                    <button type="button" class="translate-btn" data-i18n="auto_translate_btn" onclick="autoTranslate('name_ru', 'name_en', 'ru', 'en', this)">🌐 Auto</button>
+                                </label>
+                                <input type="text" name="name_en" class="input input-bordered w-full" required />
+                            </div>
+                        </div>
+
+                        <!-- Names: HI + Translit -->
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <div>
+                                <label class="label">
+                                    <span class="label-text font-medium" data-i18n="field_name_hi">नाम (HI)</span>
+                                    <button type="button" class="translate-btn" data-i18n="auto_translate_btn" onclick="autoTranslate('name_ru', 'name_hi', 'ru', 'hi', this)">🌐 Auto</button>
+                                </label>
+                                <input type="text" name="name_hi" id="nameHiInput" class="input input-bordered w-full" oninput="updateTranslit()" />
+                            </div>
+                            <div>
+                                <label class="label">
+                                    <span class="label-text font-medium" data-i18n="field_translit">Транслитерация (IAST)</span>
+                                </label>
+                                <input type="text" name="translit" id="translitInput" class="input input-bordered w-full bg-base-200" data-i18n-placeholder="automatically" placeholder="Автоматически" readonly />
+                            </div>
+                        </div>
+
+                        <!-- Category + Time + Output + Portion -->
+                        <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
+                            <div>
+                                <label class="label">
+                                    <span class="label-text font-medium" data-i18n="field_category">Категория *</span>
+                                </label>
+                                <select name="category_id" id="categorySelect" class="select select-bordered w-full" required>
+                                    <!-- Will be populated dynamically -->
+                                </select>
+                            </div>
+                            <div>
+                                <label class="label">
+                                    <span class="label-text font-medium" data-i18n="field_time">Время (мин)</span>
+                                </label>
+                                <input type="number" name="cooking_time" min="1" class="input input-bordered w-full" />
+                            </div>
+                            <div>
+                                <label class="label">
+                                    <span class="label-text font-medium" data-i18n="field_output">Выход *</span>
+                                </label>
+                                <label class="input input-bordered flex items-center gap-2 w-full">
+                                    <input type="number" name="output_amount" min="0.1" step="0.1" class="grow w-full" required />
+                                    <select name="output_unit" onchange="onOutputUnitChange()" class="select select-ghost select-xs bg-transparent border-0 focus:outline-none opacity-50 px-0 min-h-0 h-auto w-auto">
+                                        <option value="kg" data-i18n="unit_kg">кг</option>
+                                        <option value="pcs" data-i18n="unit_pcs">шт</option>
+                                    </select>
+                                </label>
+                            </div>
+                            <div>
+                                <label class="label">
+                                    <span class="label-text font-medium" data-i18n="field_portion">Порция</span>
+                                </label>
+                                <label class="input input-bordered flex items-center gap-2 w-full">
+                                    <input type="number" name="portion_amount" min="1" class="grow w-full" />
+                                    <span id="portionUnitLabel" class="opacity-50" data-i18n="unit_g">г</span>
+                                </label>
+                                <input type="hidden" name="portion_unit" value="g" />
+                            </div>
+                        </div>
+
+                    </div>
+                </div>
+
+                <!-- Description in 3 languages -->
+                <div class="mt-6 space-y-4">
+                    <h3 class="font-medium" data-i18n="field_description">Описание</h3>
+                    <div class="grid grid-cols-1 lg:grid-cols-3 gap-4">
+                        <div>
+                            <label class="label"><span class="label-text">RU</span></label>
+                            <textarea name="description_ru" rows="3" class="textarea textarea-bordered w-full"></textarea>
+                        </div>
+                        <div>
+                            <label class="label">
+                                <span class="label-text">EN</span>
+                                <button type="button" class="translate-btn" data-i18n="auto_translate_btn" onclick="autoTranslate('description_ru', 'description_en', 'ru', 'en', this)">🌐 Auto</button>
+                            </label>
+                            <textarea name="description_en" rows="3" class="textarea textarea-bordered w-full"></textarea>
+                        </div>
+                        <div>
+                            <label class="label">
+                                <span class="label-text">HI</span>
+                                <button type="button" class="translate-btn" data-i18n="auto_translate_btn" onclick="autoTranslate('description_ru', 'description_hi', 'ru', 'hi', this)">🌐 Auto</button>
+                            </label>
+                            <textarea name="description_hi" rows="3" class="textarea textarea-bordered w-full"></textarea>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Ingredients Section -->
+            <section class="bg-base-100 rounded-xl p-6 shadow-sm">
+                <h2 class="text-lg font-bold mb-4" data-i18n="section_ingredients">Ингредиенты</h2>
+
+                <div class="space-y-2" id="ingredientsList">
+                    <!-- Will be generated by JS -->
+                </div>
+
+                <!-- Add ingredient button -->
+                <button type="button" class="btn btn-sm gap-1 mt-4" style="background-color: var(--current-color); border-color: var(--current-color); color: white;" onclick="openProductModal()">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" />
+                    </svg>
+                    <span data-i18n="add_product">Добавить продукт</span>
+                </button>
+            </section>
+
+            <!-- Instructions Section -->
+            <section class="bg-base-100 rounded-xl p-6 shadow-sm">
+                <h2 class="text-lg font-bold mb-4" data-i18n="section_instructions">Приготовление</h2>
+
+                <div id="instructionsList" class="space-y-4">
+                    <!-- Will be generated by JS -->
+                </div>
+
+                <button type="button" class="btn btn-ghost btn-sm gap-1 mt-4" onclick="addStep()">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" />
+                    </svg>
+                    <span data-i18n="add_step">Добавить шаг</span>
+                </button>
+            </section>
+
+            <!-- Bottom Actions -->
+            <div class="flex justify-between items-center pt-4">
+                <button type="button" class="btn btn-ghost btn-error gap-1" onclick="deleteRecipe()" id="deleteBtn">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                    </svg>
+                    <span data-i18n="delete_recipe">Удалить рецепт</span>
+                </button>
+                <div class="flex gap-2">
+                    <button type="button" class="btn btn-ghost" onclick="cancelEdit()">
+                        <span data-i18n="cancel">Отмена</span>
+                    </button>
+                    <button type="submit" class="btn btn-primary gap-1">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
+                        </svg>
+                        <span data-i18n="save">Сохранить</span>
+                    </button>
+                </div>
+            </div>
+
+        </form>
+
+    </main>
+
+    <div id="footer-placeholder"></div>
+
+    <!-- Add Product Modal -->
+    <dialog id="productModal" class="modal">
+        <div class="modal-box max-w-lg relative">
+            <button type="button" class="btn btn-sm btn-circle btn-ghost absolute right-2 top-2" onclick="productModal.close()">✕</button>
+            <h3 class="font-bold text-lg mb-4" data-i18n="add_product">Добавить продукт</h3>
+
+            <div class="space-y-4">
+                <!-- Tabs -->
+                <div class="tabs tabs-boxed bg-base-200">
+                    <a class="tab" id="tabProductSearch" onclick="switchProductTab('search')" data-i18n="search" style="background-color: var(--current-color); color: white;">Поиск</a>
+                    <a class="tab" id="tabProductBrowse" onclick="switchProductTab('browse')" data-i18n="by_category">По категории</a>
+                </div>
+
+                <!-- Search Tab -->
+                <div id="productSearchTab">
+                    <div class="relative">
+                        <input type="text"
+                               id="productSearchInput"
+                               class="input input-bordered w-full"
+                               placeholder="Начните вводить название..." data-i18n-placeholder="search_placeholder"
+                               autocomplete="off"
+                               oninput="filterProductsModal(this.value)"
+                               onfocus="showProductDropdownModal()"
+                        />
+                        <div id="productDropdownModal" class="absolute z-50 w-full bg-base-100 border border-base-300 rounded-lg shadow-lg mt-1 max-h-64 overflow-y-auto hidden">
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Browse Tab -->
+                <div id="productBrowseTab" class="hidden">
+                    <div class="flex flex-wrap gap-2 mb-3" id="productCategoryButtons">
+                    </div>
+                    <div id="productCategoryList" class="max-h-64 overflow-y-auto border border-base-300 rounded-lg">
+                    </div>
+                </div>
+
+                <!-- Selected Product -->
+                <div id="selectedProductDisplay" class="hidden">
+                    <div class="flex items-center justify-between p-3 bg-base-200 rounded-lg border-2" style="border-color: var(--current-color);">
+                        <div>
+                            <div class="font-medium" id="selectedProductName"></div>
+                            <div class="text-sm opacity-50" id="selectedProductNameSub"></div>
+                        </div>
+                        <button type="button" class="btn btn-ghost btn-sm btn-square" onclick="clearSelectedProduct()">
+                            <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+                            </svg>
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Quantity + Unit -->
+                <div id="productQuantitySection" class="hidden">
+                    <label class="label"><span class="label-text font-medium" data-i18n="quantity">Количество</span></label>
+                    <div class="join w-full">
+                        <input type="number" id="productQuantityInput" class="input input-bordered join-item w-full" value="100" min="0.01" step="0.01" />
+                        <select id="productUnitSelect" class="select select-bordered join-item w-28">
+                            <!-- Will be populated dynamically -->
+                        </select>
+                    </div>
+                </div>
+
+                <!-- Notes -->
+                <div id="productNotesSection" class="hidden">
+                    <label class="label">
+                        <span class="label-text font-medium" data-i18n="notes">Примечание</span>
+                        <span class="label-text-alt opacity-50" data-i18n="optional_hint">(опционально)</span>
+                    </label>
+                    <input type="text" id="productNotesInput" class="input input-bordered w-full"
+                           placeholder="для теста, для начинки..." data-i18n-placeholder="notes_placeholder" />
+                </div>
+            </div>
+
+            <div class="modal-action">
+                <button type="button" class="btn btn-ghost" onclick="productModal.close()" data-i18n="cancel">Отмена</button>
+                <button type="button" class="btn btn-primary" id="addProductBtn" onclick="addProductFromModal()" disabled data-i18n="add">Добавить</button>
+            </div>
+        </div>
+        <form method="dialog" class="modal-backdrop"><button>close</button></form>
+    </dialog>
+
+    <script src="../js/config.js?v=5"></script>
+    <script src="../js/auth-check.js?v=10"></script>
+    <script src="../js/cache.js?v=1"></script>
+    <script src="../js/utils.js?v=12"></script>
+    <script src="../js/translit.js"></script>
+    <script src="../js/auto-translate.js"></script>
+    <script src="../js/layout.js?v=71"></script>
+    <script>
+        // ==================== STATE ====================
+        let recipeId = null;
+        let recipe = null;
+        let categories = [];
+        let products = [];
+        let productCategories = [];
+        let ingredients = [];
+        let instructions = [];
+        let units = [];
+        let densities = {}; // product_id → { tsp_grams, tbsp_grams, cup_grams }
+        let locationId = null;
+        let photoFile = null;
+        let selectedProduct = null;
+        let currentProductCategory = 'all';
+
+        const t = key => Layout.t(key);
+        const form = () => document.getElementById('recipeForm');
+
+        // ==================== AUTO-TRANSLATE ====================
+        async function autoTranslate(fromField, toField, fromLang, toLang, btn) {
+            const fromEl = form()[fromField];
+            const toEl = form()[toField];
+            if (!fromEl || !toEl) return;
+
+            const text = fromEl.value.trim();
+            if (!text) {
+                toEl.focus();
+                return;
+            }
+
+            btn.classList.add('loading');
+            btn.textContent = '...';
+
+            try {
+                const translated = await Layout.translate(text, fromLang, toLang);
+                toEl.value = translated;
+                // Для поля name_hi обновляем транслит
+                if (toField === 'name_hi') {
+                    updateTranslit();
+                }
+            } catch (e) {
+                console.error('Translation error:', e);
+            } finally {
+                btn.classList.remove('loading');
+                btn.textContent = '🌐 Auto';
+            }
+        }
+
+        async function autoTranslateStep(index, toLang, btn) {
+            const fromEl = document.getElementById(`step_ru_${index}`);
+            const toEl = document.getElementById(`step_${toLang}_${index}`);
+            if (!fromEl || !toEl) return;
+
+            const text = fromEl.value.trim();
+            if (!text) {
+                toEl.focus();
+                return;
+            }
+
+            btn.classList.add('loading');
+            btn.textContent = '...';
+
+            try {
+                const translated = await Layout.translate(text, 'ru', toLang);
+                toEl.value = translated;
+                instructions[index][toLang] = translated;
+            } catch (e) {
+                console.error('Translation error:', e);
+            } finally {
+                btn.classList.remove('loading');
+                btn.textContent = '🌐 Auto';
+            }
+        }
+
+        // ==================== TRANSLITERATION ====================
+        const VOWELS = {
+            'अ': 'a', 'आ': 'ā', 'इ': 'i', 'ई': 'ī', 'उ': 'u', 'ऊ': 'ū',
+            'ऋ': 'ṛ', 'ए': 'e', 'ऐ': 'ai', 'ओ': 'o', 'औ': 'au'
+        };
+        const VOWEL_MARKS = {
+            'ा': 'ā', 'ि': 'i', 'ी': 'ī', 'ु': 'u', 'ू': 'ū',
+            'ृ': 'ṛ', 'े': 'e', 'ै': 'ai', 'ो': 'o', 'ौ': 'au'
+        };
+        const CONSONANTS = {
+            'क': 'k', 'ख': 'kh', 'ग': 'g', 'घ': 'gh', 'ङ': 'ṅ',
+            'च': 'c', 'छ': 'ch', 'ज': 'j', 'झ': 'jh', 'ञ': 'ñ',
+            'ट': 'ṭ', 'ठ': 'ṭh', 'ड': 'ḍ', 'ढ': 'ḍh', 'ण': 'ṇ',
+            'त': 't', 'थ': 'th', 'द': 'd', 'ध': 'dh', 'न': 'n',
+            'प': 'p', 'फ': 'ph', 'ब': 'b', 'भ': 'bh', 'म': 'm',
+            'य': 'y', 'र': 'r', 'ल': 'l', 'व': 'v',
+            'श': 'ś', 'ष': 'ṣ', 'स': 's', 'ह': 'h',
+            'क़': 'q', 'ख़': 'ḵh', 'ग़': 'ġ', 'ज़': 'z', 'फ़': 'f', 'ड़': 'ṛ', 'ढ़': 'ṛh'
+        };
+        const ANUSVARA_MAP = {
+            'क': 'ṅ', 'ख': 'ṅ', 'ग': 'ṅ', 'घ': 'ṅ', 'ङ': 'ṅ',
+            'च': 'ñ', 'छ': 'ñ', 'ज': 'ñ', 'झ': 'ñ', 'ञ': 'ñ',
+            'ट': 'ṇ', 'ठ': 'ṇ', 'ड': 'ṇ', 'ढ': 'ṇ', 'ण': 'ṇ',
+            'त': 'n', 'थ': 'n', 'द': 'n', 'ध': 'n', 'न': 'n',
+            'प': 'm', 'फ': 'm', 'ब': 'm', 'भ': 'm', 'म': 'm'
+        };
+
+        function transliterate(text) {
+            let result = '';
+            const chars = [...text];
+            for (let i = 0; i < chars.length; i++) {
+                const char = chars[i];
+                const next = chars[i + 1];
+                const nextNext = chars[i + 2];
+
+                if (char === 'ं') {
+                    let nextConsonant = null;
+                    for (let j = i + 1; j < chars.length; j++) {
+                        if (CONSONANTS[chars[j]]) { nextConsonant = chars[j]; break; }
+                        if (VOWELS[chars[j]]) break;
+                    }
+                    result += nextConsonant && ANUSVARA_MAP[nextConsonant] ? ANUSVARA_MAP[nextConsonant] : 'ṃ';
+                } else if (char === 'ः') {
+                    result += 'ḥ';
+                } else if (char === '्') {
+                    // virama - skip
+                } else if (VOWELS[char]) {
+                    result += VOWELS[char];
+                } else if (VOWEL_MARKS[char]) {
+                    result += VOWEL_MARKS[char];
+                } else if (CONSONANTS[char]) {
+                    result += CONSONANTS[char];
+                    if (next === '्') {
+                        i++;
+                    } else if (!VOWEL_MARKS[next] && next !== 'ं' && next !== 'ः') {
+                        const isWordEnd = !next || /\s/.test(next) || !CONSONANTS[next] && !VOWELS[next] && !VOWEL_MARKS[next];
+                        if (!isWordEnd) result += 'a';
+                    }
+                } else if (char === ' ') {
+                    result += ' ';
+                } else if (/[a-zA-Z0-9]/.test(char)) {
+                    result += char;
+                }
+            }
+            return result;
+        }
+
+        function updateTranslit() {
+            const hi = document.getElementById('nameHiInput').value;
+            document.getElementById('translitInput').value = transliterate(hi);
+        }
+
+        // ==================== OUTPUT UNIT TOGGLE ====================
+        function onOutputUnitChange() {
+            const unit = form().output_unit.value;
+            const outputInput = form().output_amount;
+            const portionInput = form().portion_amount;
+
+            if (unit === 'pcs') {
+                outputInput.min = '1';
+                outputInput.step = '1';
+                form().portion_unit.value = 'pcs';
+                document.getElementById('portionUnitLabel').textContent = getUnitShort('pcs');
+                portionInput.min = '1';
+                portionInput.step = '1';
+            } else {
+                outputInput.min = '0.1';
+                outputInput.step = '0.1';
+                form().portion_unit.value = 'g';
+                document.getElementById('portionUnitLabel').textContent = getUnitShort('g');
+                portionInput.min = '1';
+                portionInput.step = '1';
+            }
+        }
+
+        // ==================== DATA LOADING ====================
+        async function loadLocationId() {
+            const { data } = await Layout.db
+                .from('locations')
+                .select('id')
+                .eq('slug', Layout.currentLocation)
+                .single();
+            locationId = data?.id;
+        }
+
+        async function loadCategories() {
+            const result = await Cache.getOrLoad('recipe_categories', async () => {
+                const { data, error } = await Layout.db.from('recipe_categories').select('*').order('name_ru');
+                if (error) { console.error('Error loading recipe_categories:', error); return null; }
+                return data;
+            });
+            return result || [];
+        }
+
+        async function loadProducts() {
+            const { data } = await Layout.db.from('products').select('*, product_categories(*)').order('name_ru');
+            return Layout.filterAbKitchenProducts(data || []);
+        }
+
+        async function loadProductCategories() {
+            const result = await Cache.getOrLoad('product_categories', async () => {
+                const { data, error } = await Layout.db.from('product_categories').select('*').order('name_ru');
+                if (error) { console.error('Error loading product_categories:', error); return null; }
+                return data;
+            });
+            return result || [];
+        }
+
+        async function loadUnits() {
+            const result = await Cache.getOrLoad('units', async () => {
+                const { data, error } = await Layout.db.from('units').select('*').order('sort_order');
+                if (error) { console.error('Error loading units:', error); return null; }
+                return data;
+            });
+            return result || [];
+        }
+
+        async function loadDensities() {
+            const { data } = await Layout.db.from('product_densities').select('*');
+            densities = Object.fromEntries((data || []).map(d => [d.product_id, d]));
+        }
+
+        // Получить короткое название единицы
+        function getUnitShort(code) {
+            const unit = units.find(u => u.code === code);
+            if (!unit) return code || '';
+            return unit[`short_${Layout.currentLang}`] || unit.short_ru || code;
+        }
+
+        // Получить доступные единицы для продукта
+        function getAvailableUnits(productId, baseUnit) {
+            // Всегда доступны базовые единицы по типу
+            let available = [];
+            if (baseUnit === 'g' || baseUnit === 'kg') {
+                available = ['g', 'kg'];
+            } else if (baseUnit === 'ml' || baseUnit === 'l') {
+                available = ['ml', 'l'];
+            } else {
+                available = [baseUnit];
+            }
+
+            // Если есть плотность — добавляем объёмные единицы
+            const density = densities[productId];
+            if (density) {
+                available = [...available, 'tsp', 'tbsp', 'cup'];
+                // Если есть liter_grams — добавляем литр для весовых продуктов
+                if (density.liter_grams && (baseUnit === 'g' || baseUnit === 'kg')) {
+                    available.push('l');
+                }
+            }
+
+            return available;
+        }
+
+        async function loadRecipe(id) {
+            if (!locationId) return null;
+
+            const { data, error } = await Layout.db
+                .from('recipes')
+                .select('*')
+                .eq('id', id)
+                .eq('location_id', locationId)
+                .single();
+            if (error) { console.error('Error loading recipe:', error); return null; }
+            return data;
+        }
+
+        async function loadIngredients(recipeId) {
+            const { data } = await Layout.db
+                .from('recipe_ingredients')
+                .select('*, products(*)')
+                .eq('recipe_id', recipeId)
+                .order('sort_order');
+            return data || [];
+        }
+
+        // ==================== FORM POPULATION ====================
+        function populateCategories() {
+            const select = document.getElementById('categorySelect');
+            select.innerHTML = categories.map(cat =>
+                `<option value="${cat.id}">${cat.emoji || ''} ${Layout.getName(cat)}</option>`
+            ).join('');
+        }
+
+        function populateForm() {
+            if (!recipe) return;
+
+            form().name_ru.value = recipe.name_ru || '';
+            form().name_en.value = recipe.name_en || '';
+            form().name_hi.value = recipe.name_hi || '';
+            document.getElementById('translitInput').value = recipe.translit || '';
+            form().category_id.value = recipe.category_id || '';
+            form().cooking_time.value = recipe.cooking_time || '';
+            form().output_amount.value = recipe.output_amount || '';
+            form().output_unit.value = recipe.output_unit || 'kg';
+            form().portion_amount.value = recipe.portion_amount || '';
+            form().portion_unit.value = recipe.portion_unit || 'g';
+            onOutputUnitChange();
+            form().description_ru.value = recipe.description_ru || '';
+            form().description_en.value = recipe.description_en || '';
+            form().description_hi.value = recipe.description_hi || '';
+
+            // Photo
+            if (recipe.photo_url) {
+                document.getElementById('photoPreview').src = recipe.photo_url;
+                document.getElementById('photoPreview').classList.remove('hidden');
+                document.getElementById('photoPlaceholder').classList.add('hidden');
+            }
+
+            // Parse instructions from text fields
+            const ruSteps = (recipe.instructions_ru || '').split('\n').filter(s => s.trim());
+            const enSteps = (recipe.instructions_en || '').split('\n').filter(s => s.trim());
+            const hiSteps = (recipe.instructions_hi || '').split('\n').filter(s => s.trim());
+            const maxSteps = Math.max(ruSteps.length, enSteps.length, hiSteps.length);
+            instructions = [];
+            for (let i = 0; i < maxSteps; i++) {
+                instructions.push({
+                    ru: ruSteps[i] || '',
+                    en: enSteps[i] || '',
+                    hi: hiSteps[i] || ''
+                });
+            }
+        }
+
+        // ==================== INGREDIENTS ====================
+        function renderIngredients() {
+            const list = document.getElementById('ingredientsList');
+            const lang = Layout.currentLang;
+
+            list.innerHTML = ingredients.map((ing, index) => {
+                const product = ing.products;
+                if (!product) return '';
+
+                const name = Layout.getName(product);
+                let subName;
+                if (lang === 'ru') {
+                    subName = `${product.name_en}${product.translit ? ' · ' + product.translit : ''}`;
+                } else if (lang === 'en') {
+                    subName = `${product.name_ru}${product.translit ? ' · ' + product.translit : ''}`;
+                } else {
+                    subName = `${product.name_en} · ${product.name_ru}`;
+                }
+
+                const zebraClass = index % 2 === 0 ? 'bg-base-100' : 'bg-base-200/30';
+                const baseUnit = product.unit || 'g';
+                const availableUnits = getAvailableUnits(product.id, baseUnit);
+                const currentUnit = ing.unit || baseUnit;
+
+                const unitOptions = availableUnits.map(u =>
+                    `<option value="${u}" ${u === currentUnit ? 'selected' : ''}>${getUnitShort(u)}</option>`
+                ).join('');
+
+                return `
+                    <div class="grid grid-cols-[1fr_auto_auto_auto] gap-3 items-center ${zebraClass} rounded-lg p-3">
+                        <div class="min-w-0">
+                            <div class="font-medium truncate">${name}</div>
+                            <div class="text-xs opacity-50 truncate">${subName}</div>
+                        </div>
+                        <div class="flex items-center gap-1">
+                            <input type="number" value="${ing.amount}" step="0.01" min="0"
+                                   class="input input-bordered input-sm w-20 text-center"
+                                   onchange="updateIngredient(${index}, 'amount', parseFloat(this.value))" />
+                            <select class="select select-bordered select-sm w-20"
+                                    onchange="updateIngredient(${index}, 'unit', this.value)">
+                                ${unitOptions}
+                            </select>
+                        </div>
+                        <input type="text" value="${ing.notes || ''}" placeholder="${t('notes_short')}"
+                               class="input input-bordered input-sm w-28"
+                               onchange="updateIngredient(${index}, 'notes', this.value.trim() || null)" />
+                        <button type="button" class="btn btn-ghost btn-sm btn-square opacity-40 hover:opacity-100 hover:text-error" onclick="removeIngredient(${index})" title="${t('delete')}">
+                            <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+                            </svg>
+                        </button>
+                    </div>
+                `;
+            }).join('');
+        }
+
+        // ==================== PRODUCT MODAL ====================
+        function openProductModal() {
+            selectedProduct = null;
+            currentProductCategory = 'all';
+            document.getElementById('productSearchInput').value = '';
+            document.getElementById('productDropdownModal').classList.add('hidden');
+            document.getElementById('selectedProductDisplay').classList.add('hidden');
+            document.getElementById('productQuantitySection').classList.add('hidden');
+            document.getElementById('productNotesSection').classList.add('hidden');
+            document.getElementById('addProductBtn').disabled = true;
+            document.getElementById('productQuantityInput').value = 0.1;
+            document.getElementById('productNotesInput').value = '';
+            switchProductTab('search');
+            buildProductCategoryButtons();
+            document.getElementById('productModal').showModal();
+        }
+
+        function switchProductTab(tab) {
+            const searchTab = document.getElementById('tabProductSearch');
+            const browseTab = document.getElementById('tabProductBrowse');
+            const searchContent = document.getElementById('productSearchTab');
+            const browseContent = document.getElementById('productBrowseTab');
+
+            if (tab === 'search') {
+                searchTab.style.backgroundColor = 'var(--current-color)';
+                searchTab.style.color = 'white';
+                browseTab.style.backgroundColor = '';
+                browseTab.style.color = '';
+                searchContent.classList.remove('hidden');
+                browseContent.classList.add('hidden');
+            } else {
+                browseTab.style.backgroundColor = 'var(--current-color)';
+                browseTab.style.color = 'white';
+                searchTab.style.backgroundColor = '';
+                searchTab.style.color = '';
+                browseContent.classList.remove('hidden');
+                searchContent.classList.add('hidden');
+                filterProductsByCategory();
+            }
+        }
+
+        function buildProductCategoryButtons() {
+            const container = document.getElementById('productCategoryButtons');
+            let html = `<button type="button" class="btn btn-sm ${currentProductCategory === 'all' ? '' : 'btn-ghost'}" data-cat="all" style="${currentProductCategory === 'all' ? 'background-color: var(--current-color); border-color: var(--current-color); color: white;' : ''}">${t('all')}</button>`;
+            productCategories.forEach(cat => {
+                const isActive = currentProductCategory === cat.slug;
+                html += `<button type="button" class="btn btn-sm ${isActive ? '' : 'btn-ghost'}" data-cat="${cat.slug}" style="${isActive ? 'background-color: var(--current-color); border-color: var(--current-color); color: white;' : ''}">${cat.emoji || ''} ${Layout.getName(cat)}</button>`;
+            });
+            container.innerHTML = html;
+            container.querySelectorAll('button').forEach(btn => {
+                btn.addEventListener('click', () => {
+                    currentProductCategory = btn.dataset.cat;
+                    buildProductCategoryButtons();
+                    filterProductsByCategory();
+                });
+            });
+        }
+
+        function filterProductsModal(query) {
+            const dropdown = document.getElementById('productDropdownModal');
+            if (!query || query.length < 1) {
+                dropdown.classList.add('hidden');
+                return;
+            }
+            const q = query.toLowerCase();
+            const filtered = products.filter(p =>
+                p.name_ru?.toLowerCase().includes(q) ||
+                p.name_en?.toLowerCase().includes(q) ||
+                p.name_hi?.includes(q) ||
+                p.translit?.toLowerCase().includes(q)
+            ).slice(0, 10);
+
+            if (filtered.length === 0) {
+                dropdown.innerHTML = `<div class="p-3 text-center opacity-50">${t('not_found')}</div>`;
+            } else {
+                dropdown.innerHTML = filtered.map(p => `
+                    <div class="p-2 hover:bg-base-200 cursor-pointer" onclick="selectProductModal('${p.id}')">
+                        <div class="font-medium">${Layout.getName(p)}</div>
+                        <div class="text-xs opacity-50">${p.product_categories?.emoji || ''} ${Layout.getName(p.product_categories)}</div>
+                    </div>
+                `).join('');
+            }
+            dropdown.classList.remove('hidden');
+        }
+
+        function showProductDropdownModal() {
+            const query = document.getElementById('productSearchInput').value;
+            if (query && query.length >= 1) {
+                filterProductsModal(query);
+            }
+        }
+
+        function filterProductsByCategory() {
+            const container = document.getElementById('productCategoryList');
+            let filtered = products;
+            if (currentProductCategory !== 'all') {
+                filtered = products.filter(p => p.product_categories?.slug === currentProductCategory);
+            }
+
+            if (filtered.length === 0) {
+                container.innerHTML = `<div class="p-4 text-center opacity-50">${t('no_products_in_category')}</div>`;
+            } else {
+                container.innerHTML = filtered.map(p => `
+                    <div class="p-2 hover:bg-base-200 cursor-pointer border-b border-base-200 last:border-b-0" onclick="selectProductModal('${p.id}')">
+                        <div class="font-medium">${Layout.getName(p)}</div>
+                        <div class="text-xs opacity-50">${p.product_categories?.emoji || ''} ${Layout.getName(p.product_categories)}</div>
+                    </div>
+                `).join('');
+            }
+        }
+
+        function selectProductModal(productId) {
+            selectedProduct = products.find(p => p.id === productId);
+            if (!selectedProduct) return;
+
+            document.getElementById('productDropdownModal').classList.add('hidden');
+            document.getElementById('selectedProductDisplay').classList.remove('hidden');
+            document.getElementById('productQuantitySection').classList.remove('hidden');
+            document.getElementById('productNotesSection').classList.remove('hidden');
+            document.getElementById('selectedProductName').textContent = Layout.getName(selectedProduct);
+
+            const lang = Layout.currentLang;
+            let subName;
+            if (lang === 'ru') subName = `${selectedProduct.name_en}${selectedProduct.translit ? ' · ' + selectedProduct.translit : ''}`;
+            else if (lang === 'en') subName = `${selectedProduct.name_ru}${selectedProduct.translit ? ' · ' + selectedProduct.translit : ''}`;
+            else subName = `${selectedProduct.name_en} · ${selectedProduct.name_ru}`;
+            document.getElementById('selectedProductNameSub').textContent = subName;
+
+            // Заполняем select единицами
+            const baseUnit = selectedProduct.unit || 'g';
+            const availableUnits = getAvailableUnits(selectedProduct.id, baseUnit);
+            const unitSelect = document.getElementById('productUnitSelect');
+            unitSelect.innerHTML = availableUnits.map(u =>
+                `<option value="${u}" ${u === baseUnit ? 'selected' : ''}>${getUnitShort(u)}</option>`
+            ).join('');
+
+            // Устанавливаем значение по умолчанию в зависимости от единицы
+            const qtyInput = document.getElementById('productQuantityInput');
+            if (baseUnit === 'kg' || baseUnit === 'l') {
+                qtyInput.value = '0.1';
+                qtyInput.step = '0.01';
+            } else if (baseUnit === 'pcs' || baseUnit === 'pack') {
+                qtyInput.value = '1';
+                qtyInput.step = '1';
+            } else {
+                qtyInput.value = '100';
+                qtyInput.step = '1';
+            }
+
+            document.getElementById('addProductBtn').disabled = false;
+        }
+
+        function clearSelectedProduct() {
+            selectedProduct = null;
+            document.getElementById('selectedProductDisplay').classList.add('hidden');
+            document.getElementById('productQuantitySection').classList.add('hidden');
+            document.getElementById('productNotesSection').classList.add('hidden');
+            document.getElementById('addProductBtn').disabled = true;
+            document.getElementById('productSearchInput').value = '';
+            document.getElementById('productNotesInput').value = '';
+        }
+
+        function addProductFromModal() {
+            if (!selectedProduct) return;
+
+            const quantity = parseFloat(document.getElementById('productQuantityInput').value) || 0.1;
+            const selectedUnit = document.getElementById('productUnitSelect').value;
+            const notes = document.getElementById('productNotesInput').value.trim() || null;
+
+            ingredients.push({
+                product_id: selectedProduct.id,
+                products: selectedProduct,
+                amount: quantity,
+                unit: selectedUnit,
+                notes: notes,
+                sort_order: ingredients.length + 1
+            });
+
+            renderIngredients();
+            document.getElementById('productModal').close();
+        }
+
+        function updateIngredient(index, field, value) {
+            ingredients[index][field] = value;
+        }
+
+        function removeIngredient(index) {
+            ingredients.splice(index, 1);
+            renderIngredients();
+        }
+
+        // ==================== INSTRUCTIONS ====================
+        function renderInstructions() {
+            const list = document.getElementById('instructionsList');
+
+            if (instructions.length === 0) {
+                list.innerHTML = `<p class="opacity-50 text-sm" data-i18n="no_steps">Добавьте шаги приготовления</p>`;
+                return;
+            }
+
+            list.innerHTML = instructions.map((step, index) => `
+                <div class="flex gap-3 items-start ${index % 2 === 0 ? 'bg-base-100' : 'bg-base-200/30'} rounded-lg p-3">
+                    <div class="flex-shrink-0 w-6 text-lg font-bold opacity-40 pt-2">
+                        ${index + 1}.
+                    </div>
+                    <div class="flex-1 space-y-2">
+                        <div>
+                            <label class="text-xs opacity-50">RU</label>
+                            <textarea rows="2" class="textarea textarea-bordered w-full textarea-sm" id="step_ru_${index}"
+                                      onchange="updateInstruction(${index}, 'ru', this.value)">${step.ru || ''}</textarea>
+                        </div>
+                        <div class="grid grid-cols-2 gap-2">
+                            <div>
+                                <div class="flex justify-between items-center">
+                                    <label class="text-xs opacity-50">EN</label>
+                                    <button type="button" class="translate-btn" onclick="autoTranslateStep(${index}, 'en', this)">🌐 Auto</button>
+                                </div>
+                                <textarea rows="2" class="textarea textarea-bordered w-full textarea-sm" id="step_en_${index}"
+                                          onchange="updateInstruction(${index}, 'en', this.value)">${step.en || ''}</textarea>
+                            </div>
+                            <div>
+                                <div class="flex justify-between items-center">
+                                    <label class="text-xs opacity-50">HI</label>
+                                    <button type="button" class="translate-btn" onclick="autoTranslateStep(${index}, 'hi', this)">🌐 Auto</button>
+                                </div>
+                                <textarea rows="2" class="textarea textarea-bordered w-full textarea-sm" id="step_hi_${index}"
+                                          onchange="updateInstruction(${index}, 'hi', this.value)">${step.hi || ''}</textarea>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="flex flex-col gap-1">
+                        <button type="button" class="btn btn-ghost btn-xs btn-square opacity-40 hover:opacity-100" onclick="moveStep(${index}, -1)" ${index === 0 ? 'disabled' : ''}>
+                            <svg xmlns="http://www.w3.org/2000/svg" class="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 15l7-7 7 7" />
+                            </svg>
+                        </button>
+                        <button type="button" class="btn btn-ghost btn-xs btn-square opacity-40 hover:opacity-100" onclick="moveStep(${index}, 1)" ${index === instructions.length - 1 ? 'disabled' : ''}>
+                            <svg xmlns="http://www.w3.org/2000/svg" class="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" />
+                            </svg>
+                        </button>
+                        <button type="button" class="btn btn-ghost btn-xs btn-square opacity-40 hover:opacity-100 hover:text-error" onclick="removeStep(${index})">
+                            <svg xmlns="http://www.w3.org/2000/svg" class="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+                            </svg>
+                        </button>
+                    </div>
+                </div>
+            `).join('');
+        }
+
+        function updateInstruction(index, lang, value) {
+            instructions[index][lang] = value;
+        }
+
+        function addStep() {
+            instructions.push({ ru: '', en: '', hi: '' });
+            renderInstructions();
+        }
+
+        function removeStep(index) {
+            instructions.splice(index, 1);
+            renderInstructions();
+        }
+
+        function moveStep(index, direction) {
+            const newIndex = index + direction;
+            if (newIndex < 0 || newIndex >= instructions.length) return;
+            [instructions[index], instructions[newIndex]] = [instructions[newIndex], instructions[index]];
+            renderInstructions();
+        }
+
+        // ==================== PHOTO ====================
+        function previewPhoto(input) {
+            if (input.files && input.files[0]) {
+                photoFile = input.files[0];
+                const reader = new FileReader();
+                reader.onload = function(e) {
+                    document.getElementById('photoPreview').src = e.target.result;
+                    document.getElementById('photoPreview').classList.remove('hidden');
+                    document.getElementById('photoPlaceholder').classList.add('hidden');
+                }
+                reader.readAsDataURL(input.files[0]);
+            }
+        }
+
+        // ==================== SAVE / DELETE ====================
+        let saving = false;
+
+        async function saveRecipe() {
+            if (saving) return;
+            saving = true;
+            // Блокируем все кнопки сохранения
+            document.querySelectorAll('[onclick="saveRecipe()"], #recipeForm [type="submit"]').forEach(btn => btn.disabled = true);
+
+            const f = form();
+
+            // Валидация обязательного поля "Выход"
+            if (!f.output_amount.value || parseFloat(f.output_amount.value) <= 0) {
+                Layout.showNotification(t('output_required') || 'Укажите выход рецепта', 'error');
+                f.output_amount.focus();
+                saving = false;
+                document.querySelectorAll('[onclick="saveRecipe()"], #recipeForm [type="submit"]').forEach(btn => btn.disabled = false);
+                return;
+            }
+
+            // Build instructions text
+            const instructionsRu = instructions.map(s => s.ru).filter(s => s.trim()).join('\n');
+            const instructionsEn = instructions.map(s => s.en).filter(s => s.trim()).join('\n');
+            const instructionsHi = instructions.map(s => s.hi).filter(s => s.trim()).join('\n');
+
+            const recipeData = {
+                name_ru: f.name_ru.value.trim(),
+                name_en: f.name_en.value.trim(),
+                name_hi: f.name_hi.value.trim() || null,
+                translit: document.getElementById('translitInput').value.trim() || null,
+                category_id: f.category_id.value,
+                cooking_time: parseInt(f.cooking_time.value) || null,
+                output_amount: parseFloat(f.output_amount.value) || null,
+                output_unit: f.output_unit.value,
+                portion_amount: parseInt(f.portion_amount.value) || null,
+                portion_unit: f.portion_unit.value,
+                description_ru: f.description_ru.value.trim() || null,
+                description_en: f.description_en.value.trim() || null,
+                description_hi: f.description_hi.value.trim() || null,
+                instructions_ru: instructionsRu || null,
+                instructions_en: instructionsEn || null,
+                instructions_hi: instructionsHi || null,
+                location_id: locationId
+            };
+
+            try {
+                let savedRecipeId = recipeId;
+
+                if (recipeId) {
+                    // Update existing
+                    const { error } = await Layout.db.from('recipes').update(recipeData).eq('id', recipeId).eq('location_id', locationId);
+                    if (error) {
+                        console.error('Update error:', error);
+                        throw new Error(t('save_error') + ': ' + error.message);
+                    }
+                } else {
+                    // Create new
+                    const { data, error } = await Layout.db.from('recipes').insert(recipeData).select().single();
+                    if (error) {
+                        console.error('Insert error:', error);
+                        throw new Error(t('save_error') + ': ' + error.message);
+                    }
+                    savedRecipeId = data.id;
+                }
+
+                // Save ingredients
+                const { error: delError } = await Layout.db.from('recipe_ingredients').delete().eq('recipe_id', savedRecipeId);
+                if (delError) {
+                    console.error('Delete ingredients error:', delError);
+                    throw new Error(t('delete_error') + ': ' + delError.message);
+                }
+
+                if (ingredients.length > 0) {
+                    const ingData = ingredients.map((ing, idx) => ({
+                        recipe_id: savedRecipeId,
+                        product_id: ing.product_id,
+                        amount: ing.amount,
+                        unit: ing.unit,
+                        notes: ing.notes || null,
+                        sort_order: idx + 1
+                    }));
+                    const { error: ingError } = await Layout.db.from('recipe_ingredients').insert(ingData);
+                    if (ingError) {
+                        console.error('Insert ingredients error:', ingError);
+                        throw new Error(t('save_error') + ': ' + ingError.message);
+                    }
+                }
+
+                // Upload photo if changed
+                if (photoFile) {
+                    const fileName = `${savedRecipeId}_${Date.now()}.jpg`;
+
+                    // Удаляем старое фото если было
+                    if (recipe?.photo_url && recipe.photo_url.includes('recipe-photos')) {
+                        const oldPath = recipe.photo_url.split('/recipe-photos/')[1];
+                        if (oldPath) await Layout.db.storage.from('recipe-photos').remove([oldPath]);
+                    }
+
+                    const { error: uploadError } = await Layout.db.storage
+                        .from('recipe-photos')
+                        .upload(fileName, photoFile, { contentType: photoFile.type, cacheControl: '3600', upsert: true });
+
+                    if (uploadError) {
+                        console.error('Photo upload error:', uploadError);
+                    } else {
+                        const { data: { publicUrl } } = Layout.db.storage.from('recipe-photos').getPublicUrl(fileName);
+                        await Layout.db.from('recipes').update({ photo_url: publicUrl }).eq('id', savedRecipeId).eq('location_id', locationId);
+                    }
+                }
+
+                // Redirect to view page
+                window.location.href = `recipe.html?id=${savedRecipeId}`;
+
+            } catch (err) {
+                console.error('Error saving recipe:', err);
+                Layout.showNotification(t('save_error') + ': ' + (err.message || JSON.stringify(err)), 'error');
+                saving = false;
+                document.querySelectorAll('[onclick="saveRecipe()"], #recipeForm [type="submit"]').forEach(btn => btn.disabled = false);
+            }
+        }
+
+        async function deleteRecipe() {
+            if (!recipeId || !recipe || recipe.location_id !== locationId) return;
+            if (!confirm(t('delete_confirm'))) return;
+
+            try {
+                await Layout.db.from('recipe_ingredients').delete().eq('recipe_id', recipeId);
+                const { error } = await Layout.db.from('recipes').delete().eq('id', recipeId).eq('location_id', locationId);
+                if (error) throw error;
+                window.location.href = 'recipes.html';
+            } catch (err) {
+                console.error('Error deleting recipe:', err);
+                Layout.showNotification(t('delete_error') + ': ' + err.message, 'error');
+            }
+        }
+
+        function cancelEdit() {
+            if (recipeId) {
+                window.location.href = `recipe.html?id=${recipeId}`;
+            } else {
+                window.location.href = 'recipes.html';
+            }
+        }
+
+        // ==================== UI UPDATE ====================
+        function updateUI() {
+            Layout.updateAllTranslations();
+            renderIngredients();
+            renderInstructions();
+
+            // Update page title
+            if (recipeId) {
+                document.getElementById('pageTitle').textContent = t('edit_recipe');
+                document.getElementById('deleteBtn').classList.remove('hidden');
+            } else {
+                document.getElementById('pageTitle').textContent = t('new_recipe');
+                document.getElementById('deleteBtn').classList.add('hidden');
+            }
+        }
+
+        window.onLanguageChange = () => {
+            populateCategories();
+            if (recipe) form().category_id.value = recipe.category_id;
+            updateUI();
+        };
+
+        // При смене локации перенаправляем на список рецептов
+        window.onLocationChange = () => {
+            window.location.href = 'recipes.html';
+        };
+
+        // ==================== INIT ====================
+        async function init() {
+            await Layout.init({ module: 'kitchen', menuId: 'kitchen', itemId: 'recipes' });
+
+            // Get recipe ID from URL
+            const params = new URLSearchParams(window.location.search);
+            recipeId = params.get('id');
+
+            // Load location and reference data
+            await loadLocationId();
+            [categories, products, productCategories, units] = await Promise.all([
+                loadCategories(),
+                loadProducts(),
+                loadProductCategories(),
+                loadUnits()
+            ]);
+            await loadDensities();
+
+            populateCategories();
+
+            if (recipeId) {
+                // Edit existing recipe
+                recipe = await loadRecipe(recipeId);
+                if (!recipe) {
+                    Layout.showNotification(t('recipe_not_found'), 'error');
+                    window.location.replace('recipes.html');
+                    return;
+                }
+                ingredients = await loadIngredients(recipeId);
+                populateForm();
+            } else {
+                // New recipe - add one empty step
+                instructions.push({ ru: '', en: '', hi: '' });
+            }
+
+            // Show form
+            document.getElementById('loadingSkeleton').classList.add('hidden');
+            document.getElementById('recipeForm').classList.remove('hidden');
+
+            // Auto-translate при вводе
+            Layout.setupAutoTranslate('#recipeForm', ['name', 'description']);
+
+            updateUI();
+        }
+
+        init();
+    </script>
+</body>
+</html>

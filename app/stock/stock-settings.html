@@ -1,0 +1,779 @@
+<!DOCTYPE html>
+<html lang="ru" data-theme="light">
+<head>
+    <meta charset="UTF-8">
+    <script src="../js/color-init.js?v=2"></script>
+
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Настройки склада — ШРСК</title>
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg">
+    <link href="https://cdn.jsdelivr.net/npm/daisyui@4.12.14/dist/full.min.css" rel="stylesheet" />
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script>tailwind.config = { theme: { extend: { screens: { 'desktop': '1200px' } } } }</script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans:wght@400;500;600;700&family=Noto+Sans+Devanagari:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="../css/common.css?v=3">
+    <style>
+        /* Убираем стрелки у числовых полей */
+        input[type="number"]::-webkit-outer-spin-button,
+        input[type="number"]::-webkit-inner-spin-button {
+            -webkit-appearance: none;
+            margin: 0;
+        }
+        input[type="number"] {
+            -moz-appearance: textfield;
+        }
+    </style>
+</head>
+<body class="bg-base-200 min-h-screen flex flex-col">
+
+    <div id="header-placeholder"></div>
+
+    <main class="container mx-auto px-4 py-6 flex-1">
+
+        <div class="mb-6">
+            <h1 class="text-2xl font-bold" data-i18n="stock_settings_title">Настройки склада</h1>
+        </div>
+
+        <!-- Tabs -->
+        <div class="tabs tabs-boxed bg-base-100 p-1 mb-6 inline-flex" id="mainTabs">
+            <button class="tab tab-active" data-tab="buyers" onclick="switchTab('buyers')" data-i18n="buyers_tab">Закупщики</button>
+            <button class="tab" data-tab="minStock" onclick="switchTab('minStock')" data-i18n="min_stock_tab">Несгораемый остаток</button>
+            <button class="tab" data-tab="minPurchase" onclick="switchTab('minPurchase')" data-i18n="min_purchase_tab">Мин. закупка</button>
+        </div>
+
+        <!-- Сообщение об отсутствии прав -->
+        <div class="alert alert-warning mb-6" data-no-permission="edit_stock_settings" style="display: none;">
+            <svg xmlns="http://www.w3.org/2000/svg" class="stroke-current shrink-0 h-6 w-6" fill="none" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+            </svg>
+            <span data-i18n="no_permission_warning">У вас нет прав для совершения действий на этой странице. Доступен только просмотр.</span>
+        </div>
+
+        <!-- Tab: Buyers -->
+        <div id="tabContentBuyers">
+            <div class="bg-base-100 rounded-lg p-6 shadow-sm">
+                <div class="flex justify-between items-center mb-4">
+                    <div>
+                        <h3 class="text-lg font-semibold" data-i18n="buyers_list">Список закупщиков</h3>
+                        <p class="text-sm opacity-60" data-i18n="buyers_desc">Люди, которые могут закупать продукты</p>
+                    </div>
+                    <button class="btn btn-sm gap-1" style="background-color: var(--current-color); border-color: var(--current-color); color: white;" onclick="openBuyerModal()" data-permission="edit_stock_settings">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" />
+                        </svg>
+                        <span data-i18n="add">Добавить</span>
+                    </button>
+                </div>
+                <div class="border border-base-300 rounded-lg overflow-hidden">
+                    <table class="table">
+                        <thead class="bg-base-200">
+                            <tr>
+                                <th data-i18n="name">Имя</th>
+                                <th data-i18n="phone">Телефон</th>
+                                <th data-i18n="whatsapp">WhatsApp</th>
+                                <th data-i18n="notes">Примечания</th>
+                                <th class="w-20"></th>
+                            </tr>
+                        </thead>
+                        <tbody id="buyersTableBody">
+                            <tr><td colspan="5" class="text-center py-8 opacity-50" data-i18n="loading">Загрузка...</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+        <!-- Tab: Min Stock -->
+        <div id="tabContentMinStock" class="hidden">
+            <div class="bg-base-100 rounded-lg p-6 shadow-sm">
+                <div class="mb-4">
+                    <h3 class="text-lg font-semibold" data-i18n="min_stock_title">Несгораемый остаток</h3>
+                    <p class="text-sm opacity-60" data-i18n="min_stock_desc">Минимальное количество, ниже которого остаток считается критичным</p>
+                </div>
+                <div class="mb-4">
+                    <input type="text" id="minStockSearch" class="input input-bordered w-full max-w-md" placeholder="Поиск по названию..." data-i18n-placeholder="search_placeholder" />
+                </div>
+                <div class="border border-base-300 rounded-lg overflow-hidden">
+                    <div class="overflow-x-auto">
+                        <table class="table">
+                            <thead class="bg-base-200">
+                                <tr>
+                                    <th data-i18n="product">Продукт</th>
+                                    <th data-i18n="category">Категория</th>
+                                    <th class="w-32" data-i18n="stock_current">Текущий остаток</th>
+                                    <th class="w-40" data-i18n="stock_min">Несгораемый остаток</th>
+                                    <th class="w-48" data-i18n="placement">Размещение</th>
+                                </tr>
+                            </thead>
+                            <tbody id="minStockTableBody">
+                                <tr><td colspan="5" class="text-center py-8 opacity-50" data-i18n="loading">Загрузка...</td></tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Tab: Min Purchase -->
+        <div id="tabContentMinPurchase" class="hidden">
+            <div class="bg-base-100 rounded-lg p-6 shadow-sm">
+                <div class="mb-4">
+                    <h3 class="text-lg font-semibold" data-i18n="min_purchase_title">Минимальная закупка</h3>
+                    <p class="text-sm opacity-60" data-i18n="min_purchase_desc">Минимальное количество продукта, которое можно закупить</p>
+                    <p class="text-sm opacity-50 mt-1" data-i18n="min_purchase_hint">Заявки будут округляться до этого значения</p>
+                </div>
+                <div class="mb-4">
+                    <input type="text" id="minPurchaseSearch" class="input input-bordered w-full max-w-md" placeholder="Поиск по названию..." data-i18n-placeholder="search_placeholder" />
+                </div>
+                <div class="border border-base-300 rounded-lg overflow-hidden">
+                    <div class="overflow-x-auto">
+                        <table class="table">
+                            <thead class="bg-base-200">
+                                <tr>
+                                    <th data-i18n="product">Продукт</th>
+                                    <th data-i18n="category">Категория</th>
+                                    <th class="w-48" data-i18n="min_purchase_tab">Мин. закупка</th>
+                                </tr>
+                            </thead>
+                            <tbody id="minPurchaseTableBody">
+                                <tr><td colspan="3" class="text-center py-8 opacity-50" data-i18n="loading">Загрузка...</td></tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+    </main>
+
+    <div id="footer-placeholder"></div>
+
+    <!-- Buyer Modal -->
+    <dialog id="buyerModal" class="modal">
+        <div class="modal-box max-w-md">
+            <form method="dialog">
+                <button class="btn btn-sm btn-circle btn-ghost absolute right-2 top-2">✕</button>
+            </form>
+            <h3 class="font-bold text-lg mb-4" id="buyerModalTitle" data-i18n="add_buyer">Добавить закупщика</h3>
+
+            <div class="space-y-4">
+                <div>
+                    <label class="label"><span class="label-text font-medium" data-i18n="field_name_ru">Имя (русский)</span></label>
+                    <input type="text" id="buyerNameRu" class="input input-bordered w-full" placeholder="Имя закупщика" data-i18n-placeholder="buyer_name_placeholder" data-auto-translate="name" />
+                </div>
+                <div>
+                    <label class="label"><span class="label-text font-medium" data-i18n="field_name_en">Имя (English)</span></label>
+                    <div class="join w-full">
+                        <input type="text" id="buyerNameEn" class="input input-bordered join-item flex-1" placeholder="Buyer name" data-auto-translate-target="name" data-auto-translate-lang="en" />
+                        <button type="button" class="btn join-item" onclick="translateBuyerName('en')" data-i18n="auto_translate_btn">Auto</button>
+                    </div>
+                </div>
+                <div>
+                    <label class="label"><span class="label-text font-medium" data-i18n="field_name_hi">Имя (हिंदी)</span></label>
+                    <div class="join w-full">
+                        <input type="text" id="buyerNameHi" class="input input-bordered join-item flex-1" placeholder="क्रेता का नाम" data-auto-translate-target="name" data-auto-translate-lang="hi" />
+                        <button type="button" class="btn join-item" onclick="translateBuyerName('hi')" data-i18n="auto_translate_btn">Auto</button>
+                    </div>
+                </div>
+                <div>
+                    <label class="label"><span class="label-text font-medium" data-i18n="phone">Телефон</span></label>
+                    <input type="text" id="buyerPhone" class="input input-bordered w-full" placeholder="+91 98765 43210" />
+                </div>
+                <div>
+                    <label class="label"><span class="label-text font-medium">WhatsApp</span></label>
+                    <input type="text" id="buyerWhatsapp" class="input input-bordered w-full" placeholder="+91 98765 43210" />
+                </div>
+                <div>
+                    <label class="label"><span class="label-text font-medium" data-i18n="notes">Примечания</span></label>
+                    <textarea id="buyerNotes" class="textarea textarea-bordered w-full" rows="2" placeholder="Где закупает, особенности..." data-i18n-placeholder="buyer_notes_placeholder"></textarea>
+                </div>
+            </div>
+
+            <div class="modal-action">
+                <button type="button" class="btn btn-ghost" onclick="closeBuyerModal()" data-i18n="cancel">Отмена</button>
+                <button type="button" class="btn btn-primary" onclick="saveBuyer()" data-permission="edit_stock_settings" data-i18n="save">Сохранить</button>
+            </div>
+        </div>
+        <form method="dialog" class="modal-backdrop"><button>close</button></form>
+    </dialog>
+
+    <!-- Alert Modal -->
+    <dialog id="alertModal" class="modal">
+        <div class="modal-box max-w-sm">
+            <p id="alertMessage" class="py-4 text-center"></p>
+            <div class="modal-action justify-center">
+                <button type="button" class="btn btn-primary" onclick="closeAlert()">OK</button>
+            </div>
+        </div>
+        <form method="dialog" class="modal-backdrop"><button>close</button></form>
+    </dialog>
+
+    <!-- Confirm Modal -->
+    <dialog id="confirmModal" class="modal">
+        <div class="modal-box max-w-sm">
+            <p id="confirmMessage" class="py-4 text-center"></p>
+            <div class="modal-action justify-center gap-2">
+                <button type="button" class="btn btn-ghost" onclick="confirmNo()" data-i18n="no">Нет</button>
+                <button type="button" class="btn btn-primary" onclick="confirmYes()" data-i18n="yes">Да</button>
+            </div>
+        </div>
+        <form method="dialog" class="modal-backdrop"><button>close</button></form>
+    </dialog>
+
+    <script src="../js/config.js?v=5"></script>
+    <script src="../js/auth-check.js?v=10"></script>
+    <script src="../js/cache.js?v=1"></script>
+    <script src="../js/utils.js?v=12"></script>
+    <script src="../js/translit.js"></script>
+    <script src="../js/auto-translate.js"></script>
+    <script src="../js/layout.js?v=71"></script>
+    <script>
+        // ==================== STATE ====================
+        let buyers = [];
+        let stockItems = [];
+        let products = [];
+        let categories = [];
+        let currentTab = 'buyers';
+        let editingBuyerId = null;
+        let minStockSearch = '';
+        let minPurchaseSearch = '';
+
+        const t = key => Layout.t(key);
+        const e = str => Layout.escapeHtml(str);
+
+        // ==================== HELPER FUNCTIONS ====================
+        function tr(key, fallback) {
+            const val = Layout.t(key);
+            return val !== key ? val : fallback;
+        }
+
+        const UNITS = {
+            kg: { ru: 'кг', en: 'kg', hi: 'किलो' },
+            g: { ru: 'г', en: 'g', hi: 'ग्राम' },
+            l: { ru: 'л', en: 'l', hi: 'लीटर' },
+            ml: { ru: 'мл', en: 'ml', hi: 'मिली' },
+            pcs: { ru: 'шт', en: 'pcs', hi: 'टुकड़ा' },
+            pack: { ru: 'уп', en: 'pack', hi: 'पैकेट' }
+        };
+
+        function localizeUnit(unit) {
+            if (!unit) return '';
+            const lang = Layout.currentLang;
+            return UNITS[unit]?.[lang] || unit;
+        }
+
+        // ==================== MODAL DIALOGS ====================
+        function showAlert(message) {
+            const modal = Layout.$('#alertModal');
+            Layout.$('#alertMessage').textContent = message;
+            modal.showModal();
+        }
+
+        function closeAlert() {
+            Layout.$('#alertModal').close();
+        }
+
+        let confirmResolve = null;
+
+        function showConfirm(message) {
+            return new Promise(resolve => {
+                confirmResolve = resolve;
+                const modal = Layout.$('#confirmModal');
+                Layout.$('#confirmMessage').textContent = message;
+                modal.showModal();
+            });
+        }
+
+        function confirmYes() {
+            Layout.$('#confirmModal').close();
+            if (confirmResolve) confirmResolve(true);
+            confirmResolve = null;
+        }
+
+        function confirmNo() {
+            Layout.$('#confirmModal').close();
+            if (confirmResolve) confirmResolve(false);
+            confirmResolve = null;
+        }
+
+        // ==================== DATA LOADING ====================
+        async function loadBuyers() {
+            const { data, error } = await Layout.db.from('buyers').select('*').order('sort_order');
+            if (error) { console.error('Error loading buyers:', error); return; }
+            buyers = data || [];
+            renderBuyers();
+        }
+
+        async function loadStock() {
+            const locationId = (await Layout.db.from('locations').select('id').eq('slug', Layout.currentLocation).single()).data?.id;
+            if (!locationId) { console.error('Location not found'); return; }
+
+            const { data, error } = await Layout.db
+                .from('stock')
+                .select('*, products(*, product_categories(*))')
+                .eq('location_id', locationId);
+
+            if (error) { console.error('Error loading stock:', error); return; }
+            stockItems = data || [];
+        }
+
+        async function loadProducts() {
+            const { data, error } = await Layout.db
+                .from('products')
+                .select('*, product_categories(*)');
+
+            if (error) { console.error('Error loading products:', error); return; }
+            products = await Layout.filterAbKitchenProducts(data || []);
+            // Sort by name locally
+            products.sort((a, b) => (a.name_ru || '').localeCompare(b.name_ru || '', 'ru'));
+            renderMinStock();
+        }
+
+        // ==================== TABS ====================
+        function switchTab(tab) {
+            currentTab = tab;
+
+            // Update tab buttons
+            document.querySelectorAll('#mainTabs .tab').forEach(btn => {
+                btn.classList.remove('tab-active');
+                btn.style.backgroundColor = '';
+                btn.style.color = '';
+            });
+
+            const activeBtn = document.querySelector(`#mainTabs .tab[data-tab="${tab}"]`);
+            activeBtn.classList.add('tab-active');
+            activeBtn.style.backgroundColor = 'var(--current-color)';
+            activeBtn.style.color = 'white';
+
+            // Show/hide content
+            Layout.$('#tabContentBuyers').classList.toggle('hidden', tab !== 'buyers');
+            Layout.$('#tabContentMinStock').classList.toggle('hidden', tab !== 'minStock');
+            Layout.$('#tabContentMinPurchase').classList.toggle('hidden', tab !== 'minPurchase');
+
+            // Render tab content on switch
+            if (tab === 'minPurchase') renderMinPurchase();
+        }
+
+        // ==================== BUYERS ====================
+        function renderBuyers() {
+            const tbody = Layout.$('#buyersTableBody');
+
+            if (buyers.length === 0) {
+                tbody.innerHTML = `<tr><td colspan="5" class="text-center py-8 opacity-50">${t('no_buyers')}</td></tr>`;
+                return;
+            }
+
+            tbody.innerHTML = buyers.map(buyer => {
+                const waNum = (buyer.whatsapp || '').replace(/[^0-9]/g, '');
+                const waBtn = waNum ? `<a href="https://wa.me/${waNum}" target="_blank" class="btn btn-ghost btn-xs btn-square text-success" title="Написать в WhatsApp"><svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" viewBox="0 0 24 24" fill="currentColor"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z"/></svg></a>` : '';
+                return `
+                <tr>
+                    <td class="font-medium">${Layout.getName(buyer)}</td>
+                    <td>${e(buyer.phone || '—')}</td>
+                    <td>${buyer.whatsapp ? `<span class="flex items-center gap-1">${e(buyer.whatsapp)} ${waBtn}</span>` : '—'}</td>
+                    <td class="text-sm opacity-60">${e(buyer.notes || '—')}</td>
+                    <td>
+                        <div class="flex gap-1" data-permission="edit_stock_settings">
+                            <button class="btn btn-ghost btn-sm btn-square" onclick="editBuyer('${buyer.id}')" title="${t('edit')}">
+                                <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                                </svg>
+                            </button>
+                            <button class="btn btn-ghost btn-sm btn-square text-error" onclick="deleteBuyer('${buyer.id}')" title="${t('delete')}">
+                                <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                                </svg>
+                            </button>
+                        </div>
+                    </td>
+                </tr>
+            `}).join('');
+        }
+
+        function openBuyerModal() {
+            editingBuyerId = null;
+            Layout.$('#buyerModalTitle').textContent = t('add_buyer');
+            Layout.$('#buyerNameRu').value = '';
+            Layout.$('#buyerNameEn').value = '';
+            Layout.$('#buyerNameHi').value = '';
+            Layout.$('#buyerPhone').value = '';
+            Layout.$('#buyerWhatsapp').value = '';
+            Layout.$('#buyerNotes').value = '';
+            Layout.$('#buyerModal').showModal();
+        }
+
+        function editBuyer(id) {
+            const buyer = buyers.find(b => b.id === id);
+            if (!buyer) return;
+
+            editingBuyerId = id;
+            Layout.$('#buyerModalTitle').textContent = t('edit_buyer');
+            Layout.$('#buyerNameRu').value = buyer.name_ru || '';
+            Layout.$('#buyerNameEn').value = buyer.name_en || '';
+            Layout.$('#buyerNameHi').value = buyer.name_hi || '';
+            Layout.$('#buyerPhone').value = buyer.phone || '';
+            Layout.$('#buyerWhatsapp').value = buyer.whatsapp || '';
+            Layout.$('#buyerNotes').value = buyer.notes || '';
+            Layout.$('#buyerModal').showModal();
+        }
+
+        function closeBuyerModal() {
+            Layout.$('#buyerModal').close();
+        }
+
+        async function translateBuyerName(lang) {
+            const sourceText = Layout.$('#buyerNameRu').value.trim();
+            if (!sourceText) {
+                showAlert(t('enter_name_ru'));
+                return;
+            }
+
+            const targetInput = lang === 'en' ? Layout.$('#buyerNameEn') : Layout.$('#buyerNameHi');
+            const button = event.target;
+
+            button.disabled = true;
+            button.textContent = '...';
+
+            try {
+                const translated = await window.AutoTranslate.translate(sourceText, 'ru', lang);
+                if (translated) {
+                    targetInput.value = translated;
+                }
+            } catch (error) {
+                console.error('Translation error:', error);
+                showAlert(t('translation_error'));
+            } finally {
+                button.disabled = false;
+                button.textContent = t('auto_translate_btn');
+            }
+        }
+
+        async function saveBuyer() {
+            const nameRu = Layout.$('#buyerNameRu').value.trim();
+            if (!nameRu) {
+                showAlert(tr('enter_buyer_name', 'Введите имя закупщика'));
+                return;
+            }
+
+            const data = {
+                name_ru: nameRu,
+                name_en: Layout.$('#buyerNameEn').value.trim(),
+                name_hi: Layout.$('#buyerNameHi').value.trim(),
+                phone: Layout.$('#buyerPhone').value.trim(),
+                whatsapp: Layout.$('#buyerWhatsapp').value.trim(),
+                notes: Layout.$('#buyerNotes').value.trim()
+            };
+
+            let error;
+            if (editingBuyerId) {
+                ({ error } = await Layout.db.from('buyers').update(data).eq('id', editingBuyerId));
+            } else {
+                ({ error } = await Layout.db.from('buyers').insert(data));
+            }
+
+            if (error) {
+                console.error('Error saving buyer:', error);
+                showAlert(tr('save_error', 'Ошибка сохранения'));
+                return;
+            }
+
+            closeBuyerModal();
+            await loadBuyers();
+        }
+
+        async function deleteBuyer(id) {
+            if (!await showConfirm(tr('delete_buyer_confirm', 'Удалить закупщика?'))) return;
+
+            const { error } = await Layout.db.from('buyers').delete().eq('id', id);
+            if (error) {
+                console.error('Error deleting buyer:', error);
+                showAlert(tr('delete_error', 'Ошибка удаления'));
+                return;
+            }
+
+            await loadBuyers();
+        }
+
+        // ==================== MIN STOCK ====================
+        function renderMinStock() {
+            const tbody = Layout.$('#minStockTableBody');
+            const search = minStockSearch.toLowerCase();
+
+            // Combine products with their stock data
+            let items = products.map(product => {
+                const stockItem = stockItems.find(s => s.product_id === product.id);
+                return {
+                    product,
+                    stockId: stockItem?.id,
+                    currentQty: stockItem?.current_quantity || 0,
+                    minQty: stockItem?.min_quantity || 0,
+                    placement: stockItem?.placement || ''
+                };
+            });
+
+            // Filter by search
+            if (search) {
+                items = items.filter(item =>
+                    item.product.name_ru?.toLowerCase().includes(search) ||
+                    item.product.name_en?.toLowerCase().includes(search)
+                );
+            }
+
+            if (items.length === 0) {
+                tbody.innerHTML = `<tr><td colspan="5" class="text-center py-8 opacity-50">${t('no_products')}</td></tr>`;
+                return;
+            }
+
+            tbody.innerHTML = items.map(item => {
+                const product = item.product;
+                const cat = product.product_categories;
+                const status = item.currentQty < item.minQty ? 'text-error' : '';
+
+                return `
+                    <tr>
+                        <td>
+                            <div class="font-medium">${Layout.getName(product)}</div>
+                            <div class="text-xs opacity-50">${product.name_en || ''}</div>
+                        </td>
+                        <td>
+                            <span class="badge badge-sm" style="background-color: ${cat?.color || '#999'}20; color: ${cat?.color || '#999'}">
+                                ${Layout.getName(cat) || '—'}
+                            </span>
+                        </td>
+                        <td class="${status}">${item.currentQty} ${localizeUnit(product.unit)}</td>
+                        <td>
+                            <div class="join">
+                                <input type="number"
+                                    class="input input-bordered input-sm join-item w-16 no-spinners"
+                                    value="${item.minQty}"
+                                    min="0"
+                                    step="0.1"
+                                    data-product-id="${product.id}"
+                                    data-stock-id="${item.stockId || ''}"
+                                    onchange="updateMinStock(this)"
+                                />
+                                <span class="btn btn-sm join-item no-animation pointer-events-none bg-base-200">${localizeUnit(product.unit) || 'кг'}</span>
+                            </div>
+                        </td>
+                        <td>
+                            <input type="text"
+                                class="input input-bordered input-sm w-full"
+                                value="${item.placement}"
+                                placeholder="${t('placement_hint')}"
+                                data-product-id="${product.id}"
+                                data-stock-id="${item.stockId || ''}"
+                                onchange="updatePlacement(this)"
+                            />
+                        </td>
+                    </tr>
+                `;
+            }).join('');
+        }
+
+        async function updateMinStock(input) {
+            const productId = input.dataset.productId;
+            const stockId = input.dataset.stockId;
+            const newMinQty = parseFloat(input.value) || 0;
+
+            const locationId = (await Layout.db.from('locations').select('id').eq('slug', Layout.currentLocation).single()).data?.id;
+
+            let error;
+            if (stockId) {
+                // Update existing stock record
+                ({ error } = await Layout.db.from('stock').update({ min_quantity: newMinQty }).eq('id', stockId));
+            } else {
+                // Create new stock record with just min_quantity
+                ({ error } = await Layout.db.from('stock').insert({
+                    location_id: locationId,
+                    product_id: productId,
+                    current_quantity: 0,
+                    min_quantity: newMinQty
+                }));
+
+                if (!error) {
+                    // Reload to get the new stock ID
+                    await loadStock();
+                    renderMinStock();
+                }
+            }
+
+            if (error) {
+                console.error('Error updating min stock:', error);
+                showAlert(tr('save_error', 'Ошибка сохранения'));
+            }
+        }
+
+        async function updatePlacement(input) {
+            const productId = input.dataset.productId;
+            const stockId = input.dataset.stockId;
+            const newPlacement = input.value.trim();
+
+            const locationId = (await Layout.db.from('locations').select('id').eq('slug', Layout.currentLocation).single()).data?.id;
+
+            let error;
+            if (stockId) {
+                // Update existing stock record
+                ({ error } = await Layout.db.from('stock').update({ placement: newPlacement }).eq('id', stockId));
+            } else {
+                // Create new stock record with just placement
+                ({ error } = await Layout.db.from('stock').insert({
+                    location_id: locationId,
+                    product_id: productId,
+                    current_quantity: 0,
+                    min_quantity: 0,
+                    placement: newPlacement
+                }));
+
+                if (!error) {
+                    // Reload to get the new stock ID
+                    await loadStock();
+                    renderMinStock();
+                }
+            }
+
+            if (error) {
+                console.error('Error updating placement:', error);
+                showAlert(tr('save_error', 'Ошибка сохранения'));
+            }
+        }
+
+        // ==================== MIN PURCHASE ====================
+        function renderMinPurchase() {
+            const tbody = Layout.$('#minPurchaseTableBody');
+            const search = minPurchaseSearch.toLowerCase();
+
+            let items = [...products];
+
+            // Filter by search
+            if (search) {
+                items = items.filter(p =>
+                    p.name_ru?.toLowerCase().includes(search) ||
+                    p.name_en?.toLowerCase().includes(search)
+                );
+            }
+
+            if (items.length === 0) {
+                tbody.innerHTML = `<tr><td colspan="3" class="text-center py-8 opacity-50">${t('no_products')}</td></tr>`;
+                return;
+            }
+
+            tbody.innerHTML = items.map(product => {
+                const cat = product.product_categories;
+                const unit = product.unit || 'kg';
+
+                // Convert stored grams to display unit
+                const minPurchaseGrams = product.min_purchase || 0;
+                let displayValue = minPurchaseGrams;
+                let displayUnit = unit;
+
+                if (unit === 'kg' && minPurchaseGrams > 0) {
+                    displayValue = minPurchaseGrams / 1000;
+                } else if (unit === 'l' && minPurchaseGrams > 0) {
+                    displayValue = minPurchaseGrams / 1000;
+                }
+
+                return `
+                    <tr>
+                        <td>
+                            <div class="font-medium">${Layout.getName(product)}</div>
+                            <div class="text-xs opacity-50">${product.name_en || ''}</div>
+                        </td>
+                        <td>
+                            <span class="badge badge-sm" style="background-color: ${cat?.color || '#999'}20; color: ${cat?.color || '#999'}">
+                                ${Layout.getName(cat) || '—'}
+                            </span>
+                        </td>
+                        <td>
+                            <div class="join">
+                                <input type="number"
+                                    class="input input-bordered input-sm join-item w-20 no-spinners"
+                                    value="${displayValue || ''}"
+                                    min="0"
+                                    step="0.5"
+                                    placeholder="—"
+                                    data-product-id="${product.id}"
+                                    data-unit="${unit}"
+                                    onchange="updateMinPurchase(this)"
+                                />
+                                <span class="btn btn-sm join-item no-animation pointer-events-none bg-base-200">${localizeUnit(unit)}</span>
+                            </div>
+                        </td>
+                    </tr>
+                `;
+            }).join('');
+        }
+
+        async function updateMinPurchase(input) {
+            const productId = input.dataset.productId;
+            const unit = input.dataset.unit;
+            const displayValue = parseFloat(input.value) || 0;
+
+            // Convert to grams for storage
+            let gramsValue = displayValue;
+            if (unit === 'kg' || unit === 'l') {
+                gramsValue = displayValue * 1000;
+            }
+
+            const { error } = await Layout.db
+                .from('products')
+                .update({ min_purchase: gramsValue || null })
+                .eq('id', productId);
+
+            if (error) {
+                console.error('Error updating min purchase:', error);
+                showAlert(tr('save_error', 'Ошибка сохранения'));
+            } else {
+                // Update local data
+                const product = products.find(p => p.id === productId);
+                if (product) product.min_purchase = gramsValue || null;
+            }
+        }
+
+        // ==================== EVENT LISTENERS ====================
+        window.onLanguageChange = function(lang) {
+            Layout.updateAllTranslations();
+            renderBuyers();
+            renderMinStock();
+            renderMinPurchase();
+        };
+
+        // Колбэк при смене локации
+        window.onLocationChange = async function() {
+            await loadStock();
+            renderMinStock();
+            renderMinPurchase();
+        };
+
+        // ==================== INIT ====================
+        async function init() {
+            await Layout.init({ module: 'kitchen', menuId: 'stock', itemId: 'stock_settings' });
+
+            // Style initial active tab
+            const activeBtn = document.querySelector('#mainTabs .tab[data-tab="buyers"]');
+            activeBtn.style.backgroundColor = 'var(--current-color)';
+            activeBtn.style.color = 'white';
+
+            // Setup search listeners after Layout is ready
+            Layout.$('#minStockSearch')?.addEventListener('input', (e) => {
+                minStockSearch = e.target.value;
+                renderMinStock();
+            });
+
+            Layout.$('#minPurchaseSearch')?.addEventListener('input', (e) => {
+                minPurchaseSearch = e.target.value;
+                renderMinPurchase();
+            });
+
+            await loadBuyers();
+            await loadStock();
+            await loadProducts();
+            Layout.updateAllTranslations();
+        }
+
+        init();
+    </script>
+</body>
+</html>

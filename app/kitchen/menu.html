@@ -1,0 +1,539 @@
+<!DOCTYPE html>
+<html lang="ru" data-theme="light">
+<head>
+    <meta charset="UTF-8">
+    <script src="../js/color-init.js?v=2"></script>
+
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Меню — ШРСК</title>
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg">
+    <link href="https://cdn.jsdelivr.net/npm/daisyui@4.12.14/dist/full.min.css" rel="stylesheet" />
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script>tailwind.config = { theme: { extend: { screens: { 'desktop': '1200px' } } } }</script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans:wght@400;500;600;700&family=Noto+Sans+Devanagari:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="../css/common.css?v=3">
+    <style>
+        .view-btn.active {
+            background-color: var(--current-color) !important;
+            color: white !important;
+        }
+        .meal-empty {
+            cursor: pointer;
+            transition: background-color 0.15s;
+        }
+        .meal-empty:hover {
+            background-color: rgba(0,0,0,0.03);
+        }
+        /* Ring color for today */
+        .ring-2 {
+            --tw-ring-color: var(--current-color) !important;
+        }
+        /* Tabs active state */
+        .tabs-boxed .tab.tab-active {
+            background-color: var(--current-color) !important;
+            color: white !important;
+        }
+        /* Filter buttons */
+        .filter-btn.active {
+            background-color: var(--current-color) !important;
+            color: white !important;
+            border-color: var(--current-color) !important;
+        }
+        @page {
+            margin: 10mm;
+            size: auto;
+        }
+        @media print {
+            header, footer, .no-print { display: none !important; }
+            .print-only { display: flex !important; }
+            main { padding: 0 !important; }
+            .shadow-sm { box-shadow: none !important; }
+            .bg-base-200, .bg-white\/70, .bg-base-100 { background: white !important; }
+            #dayView .rounded-xl { box-shadow: none !important; border: none !important; }
+            .print-header {
+                display: flex !important;
+                justify-content: space-between;
+                align-items: center;
+                margin-bottom: 20pt !important;
+                padding-bottom: 12pt;
+                border-bottom: 2px solid #000;
+            }
+            .print-header-left { display: flex; align-items: center; gap: 12pt; }
+            .print-header-logo { width: 20pt; height: auto; }
+            .print-header-title { font-size: 14pt; font-weight: bold; line-height: 1.2; }
+            .print-header-location { font-size: 11pt; opacity: 0.7; }
+            .print-header-right { text-align: right; }
+            .print-header-menu { font-size: 20pt; font-weight: bold; }
+            .print-header-date { font-size: 12pt; opacity: 0.7; }
+            .print-meal-info { font-size: 11pt; margin-bottom: 8pt; padding: 4pt 0; border-bottom: 1px solid #ccc; }
+            #weekView .rounded-xl, #monthView .rounded, #periodView .rounded-xl { border: 1px solid #ccc !important; }
+        }
+        .print-only { display: none; }
+
+        /* Печать модального окна с деталями приёма пищи */
+        @media print {
+            body.printing-modal {
+                overflow: visible !important;
+                height: auto !important;
+            }
+            body.printing-modal > *:not(.modal) {
+                display: none !important;
+            }
+            body.printing-modal .modal.print-modal-active {
+                display: block !important;
+                position: static !important;
+                overflow: visible !important;
+                height: auto !important;
+            }
+            body.printing-modal .modal.print-modal-active .modal-backdrop {
+                display: none !important;
+            }
+            body.printing-modal .modal.print-modal-active .modal-box {
+                width: 100% !important;
+                max-width: 100% !important;
+                max-height: none !important;
+                height: auto !important;
+                overflow: visible !important;
+                padding: 0 !important;
+                box-shadow: none !important;
+                border-radius: 0 !important;
+            }
+            body.printing-modal #mealDetailsContent {
+                overflow: visible !important;
+                max-height: none !important;
+                height: auto !important;
+                display: grid !important;
+                grid-template-columns: 1fr 1fr !important;
+                gap: 6pt !important;
+            }
+            body.printing-modal #mealDetailsContent .ingredient-card {
+                page-break-inside: avoid;
+                break-inside: avoid;
+                margin-bottom: 0 !important;
+                border: 1px solid #ccc !important;
+                font-size: 9pt !important;
+            }
+            body.printing-modal #mealDetailsContent .ingredient-card .bg-base-200 {
+                padding: 4pt 6pt !important;
+            }
+            body.printing-modal #mealDetailsContent .ingredient-card .font-bold.text-lg {
+                font-size: 10pt !important;
+            }
+            body.printing-modal #mealDetailsContent .ingredient-card .badge {
+                font-size: 8pt !important;
+                padding: 2pt 4pt !important;
+                height: auto !important;
+                min-height: 0 !important;
+            }
+            body.printing-modal #mealDetailsContent .ingredient-card .p-4 {
+                padding: 4pt 6pt !important;
+            }
+            body.printing-modal #mealDetailsContent .ingredient-card table {
+                font-size: 8pt !important;
+            }
+            body.printing-modal #mealDetailsContent .ingredient-card th,
+            body.printing-modal #mealDetailsContent .ingredient-card td {
+                padding: 2pt 4pt !important;
+            }
+            body.printing-modal .no-print-title { display: none !important; }
+        }
+    </style>
+</head>
+<body class="bg-base-200 min-h-screen flex flex-col">
+
+    <div id="header-placeholder"></div>
+
+    <main class="container mx-auto px-4 py-6 flex-1">
+
+        <!-- Title Row -->
+        <h1 class="text-2xl font-bold mb-4 no-print">
+            <span data-i18n="menu_title">Меню</span>
+            <span class="opacity-60 ml-2 font-normal text-lg" id="periodRange"></span>
+        </h1>
+
+        <!-- Navigation Row -->
+        <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6 no-print">
+            <div class="flex items-center gap-2">
+                <!-- Day nav (active) -->
+                <div id="dayNav" class="join border border-base-300 rounded-lg bg-white">
+                    <button class="join-item btn btn-sm bg-white border-0" onclick="prevPeriod()">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7" />
+                        </svg>
+                    </button>
+                    <button class="join-item btn btn-sm bg-white border-0 font-bold view-btn active" data-view="day" onclick="goToToday()" data-i18n="day">День</button>
+                    <button class="join-item btn btn-sm bg-white border-0" onclick="nextPeriod()">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" />
+                        </svg>
+                    </button>
+                </div>
+                <button id="dayBtn" class="btn btn-sm btn-ghost view-btn hidden" data-view="day" onclick="setView('day')" data-i18n="today">Сегодня</button>
+
+                <!-- Week nav -->
+                <div id="weekNav" class="join border border-base-300 rounded-lg bg-white hidden">
+                    <button class="join-item btn btn-sm bg-white border-0" onclick="prevPeriod()">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7" />
+                        </svg>
+                    </button>
+                    <button class="join-item btn btn-sm bg-white border-0 font-bold view-btn active" data-view="week" data-i18n="week">Неделя</button>
+                    <button class="join-item btn btn-sm bg-white border-0" onclick="nextPeriod()">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" />
+                        </svg>
+                    </button>
+                </div>
+                <button id="weekBtn" class="btn btn-sm btn-ghost view-btn" data-view="week" onclick="setView('week')" data-i18n="week">Неделя</button>
+
+                <!-- Month nav -->
+                <div id="monthNav" class="join border border-base-300 rounded-lg bg-white hidden">
+                    <button class="join-item btn btn-sm bg-white border-0" onclick="prevPeriod()">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7" />
+                        </svg>
+                    </button>
+                    <button class="join-item btn btn-sm bg-white border-0 font-bold view-btn active" data-view="month" data-i18n="month">Месяц</button>
+                    <button class="join-item btn btn-sm bg-white border-0" onclick="nextPeriod()">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" />
+                        </svg>
+                    </button>
+                </div>
+                <button id="monthBtn" class="btn btn-sm btn-ghost view-btn" data-view="month" onclick="setView('month')" data-i18n="month">Месяц</button>
+
+                <!-- Period nav -->
+                <div id="periodNav" class="flex items-center gap-2 hidden">
+                    <input type="date" id="periodStartDate" class="input input-sm input-bordered w-36" onchange="onPeriodDatesChange()" />
+                    <span class="text-sm opacity-60">–</span>
+                    <input type="date" id="periodEndDate" class="input input-sm input-bordered w-36" onchange="onPeriodDatesChange()" />
+                </div>
+                <button id="periodBtn" class="btn btn-sm btn-ghost view-btn" data-view="period" onclick="setView('period')" data-i18n="period">Период</button>
+            </div>
+
+            <div class="flex items-center gap-2">
+                <button id="abMenuPromptBtn" class="btn btn-primary btn-sm gap-2 no-print hidden" type="button" onclick="openAbMenuPromptModal()">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.663 17h4.673M12 3v1m6.364.636-.707.707M21 12h-1M4 12H3m3.343-6.657-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.373 3.373 0 0014 17.469V18a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" />
+                    </svg>
+                    <span>Подобрать меню</span>
+                </button>
+                <button id="applyTemplateBtn" class="btn btn-ghost btn-sm gap-1 no-print hidden" onclick="openApplyTemplateModal()">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01" />
+                    </svg>
+                    <span data-i18n="apply_template">Применить шаблон</span>
+                </button>
+                <button class="btn btn-ghost btn-sm gap-2 no-print" onclick="printMenu()">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" />
+                    </svg>
+                    <span data-i18n="print_menu">Распечатать</span>
+                </button>
+            </div>
+        </div>
+
+        <!-- Day View -->
+        <div id="dayView">
+            <div class="max-w-2xl mx-auto" id="dayContent">
+                <!-- Generated by JS -->
+            </div>
+        </div>
+
+        <!-- Week View -->
+        <div id="weekView" class="hidden">
+            <div class="print-only print-header" id="weekPrintHeader"></div>
+            <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4" id="weekGrid">
+                <!-- Generated by JS -->
+            </div>
+        </div>
+
+        <!-- Month View -->
+        <div id="monthView" class="hidden">
+            <div class="print-only print-header" id="monthPrintHeader"></div>
+            <div class="grid grid-cols-7 gap-1 mb-1" id="monthDayNames">
+                <!-- Day names -->
+            </div>
+            <div class="grid grid-cols-7 gap-1" id="monthGrid">
+                <!-- Generated by JS -->
+            </div>
+        </div>
+
+        <!-- Period View -->
+        <div id="periodView" class="hidden">
+            <div class="print-only print-header" id="periodPrintHeader"></div>
+            <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4" id="periodGrid">
+                <!-- Generated by JS -->
+            </div>
+        </div>
+
+    </main>
+
+    <div id="footer-placeholder"></div>
+
+    <!-- Add Dish Modal -->
+    <dialog id="dishModal" class="modal">
+        <div class="modal-box max-w-lg relative">
+            <button type="button" class="btn btn-sm btn-circle btn-ghost absolute right-2 top-2" onclick="dishModal.close()">✕</button>
+            <h3 class="font-bold text-lg mb-4" id="dishModalTitle" data-i18n="add_dish">Добавить блюдо</h3>
+
+            <div class="space-y-4">
+                <!-- Tabs -->
+                <div class="tabs tabs-boxed">
+                    <a class="tab tab-active" id="tabSearch" onclick="switchRecipeTab('search')" data-i18n="search_recipe">Поиск</a>
+                    <a class="tab" id="tabBrowse" onclick="switchRecipeTab('browse')" data-i18n="by_category">По категории</a>
+                </div>
+
+                <!-- Search Tab -->
+                <div id="searchTab">
+                    <div class="relative">
+                        <input type="text"
+                               id="recipeSearch"
+                               class="input input-bordered w-full"
+                               placeholder="Начните вводить название..." data-i18n-placeholder="search_placeholder"
+                               autocomplete="off"
+                               oninput="filterRecipes(this.value)"
+                               onfocus="showRecipeDropdown()"
+                        />
+                        <div id="recipeDropdown" class="absolute z-50 w-full bg-base-100 border border-base-300 rounded-lg shadow-lg mt-1 max-h-64 overflow-y-auto hidden">
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Browse Tab -->
+                <div id="browseTab" class="hidden">
+                    <div class="flex flex-wrap gap-2 mb-3" id="categoryButtons">
+                        <!-- Generated by JS -->
+                    </div>
+                    <div id="categoryRecipeList" class="max-h-64 overflow-y-auto border border-base-300 rounded-lg">
+                    </div>
+                </div>
+
+                <!-- Selected Recipe -->
+                <div id="selectedRecipeDisplay" class="hidden">
+                    <div class="flex items-center justify-between p-3 bg-base-200 rounded-lg border-2" style="border-color: var(--current-color);">
+                        <div>
+                            <div class="font-medium" id="selectedRecipeName"></div>
+                            <div class="text-sm opacity-50" id="selectedRecipeNameEn"></div>
+                        </div>
+                        <button type="button" class="btn btn-ghost btn-sm btn-square" onclick="clearSelectedRecipe()">
+                            <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+                            </svg>
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Portion Size -->
+                <div>
+                    <label class="label"><span class="label-text font-medium" data-i18n="portion_size">Размер порции</span></label>
+                    <div class="join w-full">
+                        <input type="number" id="portionSize" class="input input-bordered join-item w-full" value="200" min="1" />
+                        <span id="portionUnit" class="btn join-item no-animation pointer-events-none bg-base-200" data-i18n="unit_g">г</span>
+                    </div>
+                </div>
+
+                <div class="text-lg font-semibold" id="totalCalculation">—</div>
+            </div>
+
+            <div class="modal-action">
+                <button type="button" class="btn btn-ghost" onclick="dishModal.close()" data-i18n="cancel">Отмена</button>
+                <button type="button" class="btn btn-primary" id="saveDishBtn" onclick="saveDish()" data-i18n="save">Сохранить</button>
+            </div>
+        </div>
+        <form method="dialog" class="modal-backdrop"><button>close</button></form>
+    </dialog>
+
+    <!-- Save as Template Modal -->
+    <dialog id="saveTemplateModal" class="modal">
+        <div class="modal-box max-w-md relative">
+            <button type="button" class="btn btn-sm btn-circle btn-ghost absolute right-2 top-2" onclick="saveTemplateModal.close()">✕</button>
+            <h3 class="font-bold text-lg mb-4" data-i18n="save_as_template">Сохранить как шаблон</h3>
+
+            <div class="space-y-4">
+                <div>
+                    <label class="label"><span class="label-text font-medium" data-i18n="template_name">Название шаблона</span></label>
+                    <input type="text" id="newTemplateName" class="input input-bordered w-full" placeholder="Недельное меню" data-i18n-placeholder="template_name_placeholder" />
+                </div>
+
+                <div class="grid grid-cols-2 gap-4">
+                    <div>
+                        <label class="label"><span class="label-text font-medium" data-i18n="date_from">С даты</span></label>
+                        <input type="date" id="templateFromDate" class="input input-bordered w-full" onchange="updateTemplateDatePreview()" />
+                    </div>
+                    <div>
+                        <label class="label"><span class="label-text font-medium" data-i18n="date_to">По дату</span></label>
+                        <input type="date" id="templateToDate" class="input input-bordered w-full" onchange="updateTemplateDatePreview()" />
+                    </div>
+                </div>
+
+                <div id="templateDatePreview" class="p-4 bg-base-200 rounded-lg hidden">
+                    <div class="text-lg font-medium" id="templateDayCountText"></div>
+                </div>
+            </div>
+
+            <div class="modal-action">
+                <button type="button" class="btn btn-ghost" onclick="saveTemplateModal.close()" data-i18n="cancel">Отмена</button>
+                <button type="button" class="btn btn-primary" onclick="saveAsTemplate()" data-i18n="save">Сохранить</button>
+            </div>
+        </div>
+        <form method="dialog" class="modal-backdrop"><button>close</button></form>
+    </dialog>
+
+    <!-- Apply Template Modal -->
+    <dialog id="applyTemplateModal" class="modal">
+        <div class="modal-box max-w-md relative">
+            <button type="button" class="btn btn-sm btn-circle btn-ghost absolute right-2 top-2" onclick="applyTemplateModal.close()">✕</button>
+            <h3 class="font-bold text-lg mb-4" data-i18n="apply_template">Применить шаблон</h3>
+
+            <div class="space-y-4">
+                <div>
+                    <label class="label"><span class="label-text font-medium" data-i18n="select_template">Выберите шаблон</span></label>
+                    <select id="templateSelect" class="select select-bordered w-full" onchange="onTemplateSelected()">
+                        <option value="">—</option>
+                    </select>
+                </div>
+
+                <div>
+                    <label class="label"><span class="label-text font-medium" data-i18n="select_start_date">Выберите начальную дату</span></label>
+                    <input type="date" id="applyStartDate" class="input input-bordered w-full" onchange="updateApplyPreview()" />
+                </div>
+
+                <div id="applyPreview" class="p-4 bg-base-200 rounded-lg hidden">
+                    <div class="text-sm opacity-60 mb-1" data-i18n="will_apply_to">Будет применено к датам</div>
+                    <div class="font-medium" id="applyDateRange"></div>
+                </div>
+
+                <div id="overwriteWarning" class="alert alert-warning hidden">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="stroke-current shrink-0 h-6 w-6" fill="none" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" /></svg>
+                    <span data-i18n="overwrite_existing">Меню на эти даты уже существует. Перезаписать?</span>
+                </div>
+            </div>
+
+            <div class="modal-action">
+                <button type="button" class="btn btn-ghost" onclick="applyTemplateModal.close()" data-i18n="cancel">Отмена</button>
+                <button type="button" class="btn btn-primary" id="applyTemplateBtn2" onclick="applySelectedTemplate()" data-i18n="apply_template">Применить</button>
+            </div>
+        </div>
+        <form method="dialog" class="modal-backdrop"><button>close</button></form>
+    </dialog>
+
+    <!-- Success Modal -->
+    <dialog id="successModal" class="modal">
+        <div class="modal-box max-w-sm text-center">
+            <div class="text-5xl mb-4">✓</div>
+            <h3 class="font-bold text-lg mb-2" id="successTitle"></h3>
+            <p class="opacity-70" id="successMessage"></p>
+            <div class="modal-action justify-center">
+                <button type="button" class="btn btn-primary" onclick="successModal.close()">OK</button>
+            </div>
+        </div>
+        <form method="dialog" class="modal-backdrop"><button>close</button></form>
+    </dialog>
+
+    <!-- AB Kitchen: генератор промпта без подключения LLM API -->
+    <dialog id="abMenuPromptModal" class="modal">
+        <div class="modal-box max-w-3xl relative">
+            <button type="button" class="btn btn-sm btn-circle btn-ghost absolute right-2 top-2"
+                    onclick="abMenuPromptModal.close()">✕</button>
+            <h3 class="font-bold text-xl mb-2">Подбор меню</h3>
+            <p class="text-sm opacity-70 mb-4">
+                AB Kitchen соберёт рецепты, шаблоны и параметры периода в готовый промпт. Скопируйте его в любой доступный ИИ-чат.
+            </p>
+
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-3">
+                <label class="form-control">
+                    <span class="label-text mb-1">Начало</span>
+                    <input id="abPromptStartDate" type="date" class="input input-bordered w-full" />
+                </label>
+                <label class="form-control">
+                    <span class="label-text mb-1">Окончание</span>
+                    <input id="abPromptEndDate" type="date" class="input input-bordered w-full" />
+                </label>
+            </div>
+
+            <label class="form-control mb-4">
+                <span class="label-text mb-1">Дополнительные пожелания</span>
+                <textarea id="abPromptWishes" class="textarea textarea-bordered min-h-24"
+                          placeholder="Например: больше простых завтраков, не повторять сладости, использовать сезонные овощи"></textarea>
+            </label>
+
+            <div id="abPromptResultBlock" class="hidden">
+                <label class="label px-0"><span class="label-text font-medium">Готовый промпт</span></label>
+                <textarea id="abPromptResult" class="textarea textarea-bordered w-full min-h-72 font-mono text-xs" readonly></textarea>
+            </div>
+
+            <div class="modal-action flex-wrap">
+                <button type="button" class="btn btn-ghost" onclick="abMenuPromptModal.close()">Закрыть</button>
+                <button id="abGeneratePromptBtn" type="button" class="btn btn-primary" onclick="generateAbMenuPrompt()">Сформировать промпт</button>
+                <button id="abCopyPromptBtn" type="button" class="btn btn-success hidden" onclick="copyAbMenuPrompt()">Копировать</button>
+            </div>
+        </div>
+        <form method="dialog" class="modal-backdrop"><button>close</button></form>
+    </dialog>
+
+    <!-- Meal Details Modal -->
+    <dialog id="mealDetailsModal" class="modal">
+        <div class="modal-box max-w-2xl relative">
+            <button type="button" class="btn btn-sm btn-circle btn-ghost absolute right-2 top-2 no-print"
+                    onclick="mealDetailsModal.close()">✕</button>
+
+            <!-- Print Header -->
+            <div class="print-only print-header" id="mealDetailsPrintHeader"></div>
+
+            <h3 class="font-bold text-xl mb-1 no-print-title" id="mealDetailsTitle">—</h3>
+            <p class="text-sm opacity-60 mb-4" id="mealDetailsSubtitle">—</p>
+
+            <div id="mealDetailsContent" class="space-y-6"></div>
+
+            <div class="modal-action no-print">
+                <button type="button" class="btn btn-ghost" onclick="mealDetailsModal.close()" data-i18n="close">Закрыть</button>
+                <button id="abShareMealBtn" type="button" class="btn btn-secondary gap-2 hidden" onclick="shareAbMealCard()">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8.684 13.342C8.886 12.938 9 12.482 9 12s-.114-.938-.316-1.342m0 2.684a3 3 0 110-2.684m0 2.684l6.632 3.316m-6.632-6l6.632-3.316m0 0a3 3 0 105.368-2.684 3 3 0 00-5.368 2.684zm0 9.316a3 3 0 105.368 2.684 3 3 0 00-5.368-2.684z" />
+                    </svg>
+                    <span>Поделиться</span>
+                </button>
+                <button type="button" class="btn btn-primary gap-2" onclick="printMealDetails()">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z"/>
+                    </svg>
+                    <span data-i18n="print_menu">Печать</span>
+                </button>
+            </div>
+        </div>
+        <form method="dialog" class="modal-backdrop"><button>close</button></form>
+    </dialog>
+
+    <!-- Eating Count Change Alert -->
+    <dialog id="eatingChangeModal" class="modal">
+        <div class="modal-box max-w-md">
+            <h3 class="font-bold text-lg mb-3">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6 inline-block text-warning -mt-1 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                </svg>
+                <span data-i18n="eating_count_changed">Количество едоков изменилось</span>
+            </h3>
+            <div id="eatingChangeBody" class="space-y-2 text-sm"></div>
+            <div class="modal-action">
+                <button type="button" class="btn btn-primary" onclick="dismissEatingChangeAlert()">OK</button>
+            </div>
+        </div>
+        <form method="dialog" class="modal-backdrop"><button>close</button></form>
+    </dialog>
+
+    <script src="../js/config.js?v=5"></script>
+    <script src="../js/auth-check.js?v=10"></script>
+    <script src="../js/cache.js?v=1"></script>
+    <script src="../js/utils.js?v=12"></script>
+    <script src="../js/date-utils.js?v=4"></script>
+    <script src="../js/translit.js"></script>
+    <script src="../js/auto-translate.js"></script>
+    <script src="../js/layout.js?v=71"></script>
+    <script src="../js/eating-utils.js?v=7"></script>
+    <script src="../js/pages/kitchen-menu.js?v=23"></script>
+</body>
+</html>

@@ -1,0 +1,43 @@
+{
+  "name": "ab-kitchen-macos",
+  "version": "0.1.0",
+  "description": "Автономное приложение кухни Ашрама Бхактиведанты",
+  "main": "electron/main.cjs",
+  "private": true,
+  "scripts": {
+    "start": "electron .",
+    "verify": "node scripts/verify-isolation.mjs",
+    "dist:mac": "npm run verify && electron-builder --mac dmg zip",
+    "pack:mac": "npm run verify && electron-builder --mac dir"
+  },
+  "devDependencies": {
+    "electron": "^38.0.0",
+    "electron-builder": "^26.0.12"
+  },
+  "build": {
+    "appId": "com.rupaseva.abkitchen",
+    "productName": "AB Kitchen",
+    "asar": true,
+    "files": [
+      "electron/**/*",
+      "app/**/*",
+      "package.json"
+    ],
+    "directories": {
+      "output": "dist"
+    },
+    "mac": {
+      "category": "public.app-category.productivity",
+      "target": [
+        "dmg",
+        "zip"
+      ],
+      "artifactName": "AB-Kitchen-${version}-${arch}.${ext}",
+      "hardenedRuntime": false,
+      "gatekeeperAssess": false
+    },
+    "dmg": {
+      "title": "AB Kitchen ${version}"
+    }
+  }
+}

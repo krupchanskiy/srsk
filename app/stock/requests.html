@@ -1,0 +1,514 @@
+<!DOCTYPE html>
+<html lang="ru" data-theme="light">
+<head>
+    <meta charset="UTF-8">
+    <script src="../js/color-init.js?v=2"></script>
+
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Заявка на закупку — ШРСК</title>
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg">
+    <link href="https://cdn.jsdelivr.net/npm/daisyui@4.12.14/dist/full.min.css" rel="stylesheet" />
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script>tailwind.config = { theme: { extend: { screens: { 'desktop': '1200px' } } } }</script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans:wght@400;500;600;700&family=Noto+Sans+Devanagari:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="../css/common.css?v=3">
+</head>
+<body class="bg-base-200 min-h-screen flex flex-col">
+
+    <div id="header-placeholder"></div>
+
+    <main class="container mx-auto px-4 py-6 flex-1">
+
+        <div class="flex justify-between items-start mb-6">
+            <div>
+                <h1 class="text-2xl font-bold" data-i18n="purchase_request_title">Заявка на закупку</h1>
+                <p class="text-sm opacity-60" data-i18n="purchase_request_subtitle">Формирование списка продуктов для закупки</p>
+            </div>
+            <a href="stock.html" class="link link-hover text-sm opacity-60 flex items-center gap-1">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18" />
+                </svg>
+                <span data-i18n="back_to_stock">На склад</span>
+            </a>
+        </div>
+
+        <!-- Tabs -->
+        <div class="tabs tabs-boxed bg-base-100 p-1 mb-6 inline-flex" id="mainTabs">
+            <button class="tab tab-active" data-tab="new" onclick="switchTab('new')" data-i18n="new_request_tab">Новая заявка</button>
+            <button class="tab" data-tab="saved" onclick="switchTab('saved')" data-i18n="saved_requests_tab">Сохранённые</button>
+            <button class="tab" data-tab="archive" onclick="switchTab('archive')" data-i18n="archived_requests_tab">Архивные</button>
+        </div>
+
+        <!-- Сообщение об отсутствии прав -->
+        <div class="alert alert-warning mb-6" data-no-permission="create_request" style="display: none;">
+            <svg xmlns="http://www.w3.org/2000/svg" class="stroke-current shrink-0 h-6 w-6" fill="none" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+            </svg>
+            <span data-i18n="no_permission_warning">У вас нет прав для совершения действий на этой странице. Доступен только просмотр.</span>
+        </div>
+
+        <!-- Tab: New Request -->
+        <div id="tabContentNew">
+
+        <!-- Choice: From Menu or Manual -->
+        <div id="requestChoiceSection" class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
+            <!-- Option 1: From Menu -->
+            <div class="bg-base-100 rounded-lg p-6 shadow-sm">
+                <div class="text-lg font-semibold mb-2" data-i18n="request_from_menu_title">Сформировать заявку из меню</div>
+                <p class="text-sm opacity-60 mb-4" data-i18n="request_from_menu_desc">Автоматически рассчитать нужные продукты на основе меню</p>
+
+                <div class="text-sm font-medium mb-3 opacity-70" data-i18n="menu_period">Период меню</div>
+
+                <div class="flex flex-wrap items-center gap-2 mb-4">
+                    <button class="btn btn-sm period-btn" data-period="today" onclick="selectPeriod('today')" data-i18n="period_today">Сегодня</button>
+                    <button class="btn btn-sm btn-ghost period-btn" data-period="3days" onclick="selectPeriod('3days')" data-i18n="period_3days">3 дня</button>
+                    <button class="btn btn-sm btn-ghost period-btn" data-period="week" onclick="selectPeriod('week')" data-i18n="period_week">Неделя</button>
+                    <button class="btn btn-sm btn-ghost period-btn" data-period="2weeks" onclick="selectPeriod('2weeks')" data-i18n="period_2weeks">2 недели</button>
+                </div>
+
+                <div class="flex flex-wrap items-center gap-2 mb-4">
+                    <span class="text-sm opacity-60" data-i18n="from">с</span>
+                    <input type="date" id="periodFrom" class="input input-bordered input-sm w-36" />
+                    <span class="text-sm opacity-60" data-i18n="to">по</span>
+                    <input type="date" id="periodTo" class="input input-bordered input-sm w-36" />
+                </div>
+
+                <button class="btn btn-primary w-full" onclick="generateRequest()" data-i18n="generate" data-permission="create_request">
+                    Сформировать
+                </button>
+            </div>
+
+            <!-- Option 2: Manual -->
+            <div class="bg-base-100 rounded-lg p-6 shadow-sm flex flex-col">
+                <div class="text-lg font-semibold mb-2" data-i18n="request_manual_title">Создать заявку вручную</div>
+                <p class="text-sm opacity-60 mb-4" data-i18n="request_manual_desc">Ввести продукты для заявки вручную</p>
+
+                <div class="flex-1"></div>
+
+                <button class="btn btn-outline btn-primary w-full" onclick="createManualRequest()" data-i18n="create_request" data-permission="create_request">
+                    Создать заявку
+                </button>
+            </div>
+        </div>
+
+        <!-- Results -->
+        <div id="resultsSection" class="hidden">
+            <div class="flex justify-between items-center mb-4">
+                <h2 id="requestTitle" class="text-lg font-semibold" data-i18n="new_request">Новая заявка</h2>
+                <button id="saveBtn" class="btn btn-primary btn-sm gap-1" onclick="saveRequest()" data-permission="create_request">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-3m-1 4l-3 3m0 0l-3-3m3 3V4" />
+                    </svg>
+                    <span data-i18n="save_request">Сохранить</span>
+                </button>
+            </div>
+            <div id="portionsInfo" class="hidden text-sm opacity-70 mb-3"></div>
+
+            <div class="bg-base-100 rounded-lg shadow-sm overflow-hidden">
+                <table class="table">
+                    <thead class="bg-base-200">
+                        <tr>
+                            <th data-i18n="product">Продукт</th>
+                            <th data-i18n="category">Категория</th>
+                            <th class="text-right" data-i18n="needed">Нужно</th>
+                            <th class="text-right" data-i18n="in_stock">На складе</th>
+                            <th class="text-right w-48" data-i18n="to_purchase">Закупить</th>
+                            <th class="text-right" data-i18n="est_price">≈ Сумма</th>
+                            <th class="w-10"></th>
+                        </tr>
+                    </thead>
+                    <tbody id="requestItemsTable"></tbody>
+                </table>
+            </div>
+
+            <div class="mt-4 flex flex-wrap justify-between items-center gap-4">
+                <div class="flex flex-wrap gap-2">
+                    <button class="btn btn-ghost btn-sm gap-1" onclick="openProductModal()">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" />
+                        </svg>
+                        <span data-i18n="add_product">Добавить продукт</span>
+                    </button>
+                    <button class="btn btn-ghost btn-sm gap-1" onclick="openMenuDishesModal()">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                        </svg>
+                        <span data-i18n="add_from_menu">Добавить из меню</span>
+                    </button>
+                </div>
+                <div class="flex items-center gap-6">
+                    <div>
+                        <span class="text-sm opacity-60" data-i18n="total_items">Всего позиций: </span>
+                        <span class="font-bold" id="totalItems">0</span>
+                    </div>
+                    <div>
+                        <span class="text-sm opacity-60" data-i18n="est_total">Примерная сумма: </span>
+                        <span class="font-bold text-lg" id="totalSum">—</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+
+        </div><!-- /tabContentNew -->
+
+        <!-- Tab: Saved Requests -->
+        <div id="tabContentSaved" class="hidden">
+            <div class="space-y-3" id="savedRequestsList"></div>
+        </div>
+
+        <!-- Tab: Archived Requests -->
+        <div id="tabContentArchive" class="hidden">
+            <div class="space-y-3" id="archivedRequestsList"></div>
+        </div>
+
+    </main>
+
+    <div id="footer-placeholder"></div>
+
+    <!-- Print-only container (outside modal) -->
+    <div id="printContainer" class="hidden print:block">
+        <!-- Крупная плашка с названием кухни -->
+        <div id="printKitchenBanner" style="padding: 10px 16px; margin-bottom: 1rem; border-radius: 6px; text-align: center; -webkit-print-color-adjust: exact; print-color-adjust: exact;">
+            <div style="font-size: 18px; font-weight: bold; text-transform: uppercase; letter-spacing: 1px; color: white;" id="printKitchenName"></div>
+        </div>
+        <div id="printHeader" style="margin-bottom: 1rem; padding-bottom: 0.5rem; border-bottom: 2px solid black;">
+            <div style="display: flex; justify-content: space-between;">
+                <div>
+                    <div style="font-size: 14px; font-weight: bold;" data-i18n="org_name">Шри Рупа Сева Кунджа</div>
+                </div>
+                <div style="text-align: right;">
+                    <div style="font-size: 16px; font-weight: bold;" id="printContainerTitle"></div>
+                    <div style="font-size: 11px;" id="printContainerPeriod"></div>
+                </div>
+            </div>
+        </div>
+        <div id="printContainerItems" class="print-columns"></div>
+        <div style="margin-top: 1rem; display: flex; justify-content: space-between; font-size: 13px;">
+            <span><span data-i18n="total_items_short">Позиций</span>: <span id="printContainerCount"></span></span>
+            <span><span data-i18n="total">Итого</span>: ______________ ₹</span>
+        </div>
+    </div>
+
+    <!-- Add Product Modal -->
+    <dialog id="productModal" class="modal">
+        <div class="modal-box max-w-lg relative">
+            <button type="button" class="btn btn-sm btn-circle btn-ghost absolute right-2 top-2" onclick="productModal.close()">✕</button>
+            <h3 class="font-bold text-lg mb-4" data-i18n="add_product">Добавить продукт</h3>
+
+            <div class="space-y-4">
+                <!-- Tabs -->
+                <div class="tabs tabs-boxed">
+                    <a class="tab tab-active" id="tabProductSearch" onclick="switchProductTab('search')" data-i18n="search">Поиск</a>
+                    <a class="tab" id="tabProductBrowse" onclick="switchProductTab('browse')" data-i18n="by_category">По категории</a>
+                </div>
+
+                <!-- Search Tab -->
+                <div id="productSearchTab">
+                    <div class="relative">
+                        <input type="text"
+                               id="productSearch"
+                               class="input input-bordered w-full"
+                               placeholder="Начните вводить название..." data-i18n-placeholder="search_placeholder"
+                               autocomplete="off"
+                               oninput="filterProducts(this.value)"
+                               onfocus="showProductDropdown()"
+                        />
+                        <div id="productDropdown" class="absolute z-50 w-full bg-base-100 border border-base-300 rounded-lg shadow-lg mt-1 max-h-64 overflow-y-auto hidden">
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Browse Tab -->
+                <div id="productBrowseTab" class="hidden">
+                    <div class="flex flex-wrap gap-2 mb-3" id="productCategoryButtons">
+                        <!-- Generated by JS -->
+                    </div>
+                    <div id="productCategoryList" class="max-h-64 overflow-y-auto border border-base-300 rounded-lg">
+                    </div>
+                </div>
+
+                <!-- Selected Product -->
+                <div id="selectedProductDisplay" class="hidden">
+                    <div class="flex items-center justify-between p-3 bg-base-200 rounded-lg border-2" style="border-color: var(--current-color);">
+                        <div>
+                            <div class="font-medium" id="selectedProductName"></div>
+                            <div class="text-sm opacity-50" id="selectedProductNameEn"></div>
+                        </div>
+                        <button type="button" class="btn btn-ghost btn-sm btn-square" onclick="clearSelectedProduct()">
+                            <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+                            </svg>
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Quantity -->
+                <div id="productQuantitySection" class="hidden">
+                    <label class="label"><span class="label-text font-medium" data-i18n="quantity">Количество</span></label>
+                    <div class="join w-full">
+                        <input type="number" id="productQuantity" class="input input-bordered join-item w-full" value="1" min="0.1" step="0.1" />
+                        <span id="productUnit" class="btn join-item no-animation pointer-events-none bg-base-200">кг</span>
+                    </div>
+                </div>
+            </div>
+
+            <div class="modal-action">
+                <button type="button" class="btn btn-ghost" onclick="productModal.close()" data-i18n="cancel">Отмена</button>
+                <button type="button" class="btn btn-primary" id="saveProductBtn" onclick="addProductToRequest()" disabled data-i18n="add">Добавить</button>
+            </div>
+        </div>
+        <form method="dialog" class="modal-backdrop"><button>close</button></form>
+    </dialog>
+
+    <!-- Menu Dishes Modal -->
+    <dialog id="menuDishesModal" class="modal">
+        <div class="modal-box max-w-2xl relative">
+            <button type="button" class="btn btn-sm btn-circle btn-ghost absolute right-2 top-2" onclick="menuDishesModal.close()">✕</button>
+            <h3 class="font-bold text-lg mb-4" data-i18n="add_from_menu">Добавить из меню</h3>
+
+            <!-- Период -->
+            <div class="flex flex-wrap items-center gap-2 mb-4">
+                <span class="text-sm opacity-60" data-i18n="from">с</span>
+                <input type="date" id="menuDishesFrom" class="input input-bordered input-sm w-36" />
+                <span class="text-sm opacity-60" data-i18n="to">по</span>
+                <input type="date" id="menuDishesTo" class="input input-bordered input-sm w-36" />
+                <button class="btn btn-sm btn-primary" onclick="loadMenuDishes()" data-i18n="load">Загрузить</button>
+            </div>
+
+            <!-- Фильтр -->
+            <label class="flex items-center gap-2 mb-3 cursor-pointer">
+                <input type="checkbox" id="menuDishesExcludeSpicesWater" class="checkbox checkbox-sm checkbox-warning" checked />
+                <span class="text-sm" data-i18n="exclude_spices_water">Без специй и воды</span>
+            </label>
+
+            <!-- Список дней с блюдами -->
+            <div id="menuDishesList" class="space-y-3 max-h-96 overflow-y-auto">
+                <div class="text-center py-8 opacity-50" data-i18n="select_period_and_load">Выберите период и нажмите «Загрузить»</div>
+            </div>
+
+            <!-- Подвал -->
+            <div class="modal-action">
+                <div class="flex-1 text-sm opacity-60">
+                    <span data-i18n="selected">Выбрано</span>: <span id="menuDishesCount" class="font-bold">0</span> <span data-i18n="dishes_count">блюд</span>
+                </div>
+                <button type="button" class="btn btn-ghost" onclick="menuDishesModal.close()" data-i18n="cancel">Отмена</button>
+                <button type="button" class="btn btn-primary" id="addDishesBtn" onclick="addSelectedDishes()" disabled data-i18n="add_ingredients">Добавить ингредиенты</button>
+            </div>
+        </div>
+        <form method="dialog" class="modal-backdrop"><button>close</button></form>
+    </dialog>
+
+    <!-- View/Edit Request Modal -->
+    <dialog id="viewRequestModal" class="modal">
+        <div class="modal-box max-w-4xl relative">
+            <button type="button" class="btn btn-sm btn-circle btn-ghost absolute right-2 top-2 no-print" onclick="viewRequestModal.close()">✕</button>
+
+            <div class="flex items-start gap-4 mb-4 no-print">
+                <div>
+                    <h3 class="font-bold text-lg" id="viewRequestTitle">Заявка #1</h3>
+                    <p class="text-sm opacity-60" id="viewRequestPeriod">Период: ...</p>
+                </div>
+                <button class="btn btn-primary btn-sm gap-1" onclick="printViewedRequest()">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" />
+                    </svg>
+                    <span data-i18n="print">Печать</span>
+                </button>
+            </div>
+
+            <!-- Экранная версия (две колонки) -->
+            <div id="viewRequestItems" class="no-print view-columns"></div>
+
+            
+            <div class="mt-4 flex flex-wrap justify-between items-center gap-4 border-t pt-4">
+                <button class="btn btn-ghost btn-sm gap-1 no-print" onclick="openProductModalForViewing()">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" />
+                    </svg>
+                    <span data-i18n="add_product">Добавить продукт</span>
+                </button>
+                <div class="flex items-center gap-4">
+                    <div class="text-sm opacity-60">
+                        <span data-i18n="total_items_short">Позиций</span>: <span class="font-bold" id="viewRequestCount">0</span>
+                    </div>
+                    <div class="no-print">
+                        <span data-i18n="total">Итого</span>: <span class="font-bold text-lg" id="viewRequestTotal">—</span>
+                    </div>
+                </div>
+            </div>
+
+            <div class="modal-action no-print">
+                <button type="button" class="btn btn-ghost" onclick="viewRequestModal.close()" data-i18n="close">Закрыть</button>
+                <button type="button" class="btn btn-primary" id="saveViewedRequestBtn" onclick="saveViewedRequest()" data-i18n="save_changes">Сохранить изменения</button>
+            </div>
+        </div>
+        <form method="dialog" class="modal-backdrop"><button>close</button></form>
+    </dialog>
+
+    <!-- Alert Modal -->
+    <dialog id="alertModal" class="modal">
+        <div class="modal-box max-w-sm">
+            <p id="alertMessage" class="py-4 text-center"></p>
+            <div class="modal-action justify-center">
+                <button type="button" class="btn btn-primary" onclick="closeAlert()">OK</button>
+            </div>
+        </div>
+        <form method="dialog" class="modal-backdrop"><button>close</button></form>
+    </dialog>
+
+    <!-- Confirm Modal -->
+    <dialog id="confirmModal" class="modal">
+        <div class="modal-box max-w-sm">
+            <p id="confirmMessage" class="py-4 text-center"></p>
+            <div class="modal-action justify-center gap-2">
+                <button type="button" class="btn btn-ghost" onclick="confirmNo()" data-i18n="no">Нет</button>
+                <button type="button" class="btn btn-primary" onclick="confirmYes()" data-i18n="yes">Да</button>
+            </div>
+        </div>
+        <form method="dialog" class="modal-backdrop"><button>close</button></form>
+    </dialog>
+
+    <script src="../js/config.js?v=5"></script>
+    <script src="../js/auth-check.js?v=10"></script>
+    <script src="../js/cache.js?v=1"></script>
+    <script src="../js/utils.js?v=12"></script>
+    <script src="../js/translit.js"></script>
+    <script src="../js/auto-translate.js"></script>
+    <script src="../js/date-utils.js?v=4"></script>
+    <script src="../js/layout.js?v=71"></script>
+    <script src="../js/eating-utils.js?v=7"></script>
+    <script src="../js/pages/stock-requests.js?v=9"></script>
+
+    <style>
+        /* Убираем стрелки у числовых полей */
+        input[type="number"]::-webkit-outer-spin-button,
+        input[type="number"]::-webkit-inner-spin-button {
+            -webkit-appearance: none;
+            margin: 0;
+        }
+        input[type="number"] {
+            -moz-appearance: textfield;
+        }
+
+        /* Активный таб использует цвет локации */
+        .tab.tab-active {
+            background-color: var(--current-color) !important;
+            color: white !important;
+        }
+
+        /* Печать */
+        @media print {
+            body > *:not(#printContainer) {
+                display: none !important;
+            }
+            #printContainer {
+                display: block !important;
+                position: static !important;
+                width: 100% !important;
+                padding: 0 !important;
+                margin: 0 !important;
+                font-size: 14px;
+            }
+            .no-print {
+                display: none !important;
+            }
+            .print-columns {
+                column-count: 2;
+                column-gap: 1.5rem;
+                font-size: 13px;
+            }
+            .print-category {
+                break-inside: avoid;
+                margin-bottom: 0.5rem;
+            }
+            .print-category-title {
+                font-weight: 700;
+                font-size: 13px;
+                padding: 3px 6px;
+                margin-bottom: 2px;
+                background-color: #e8e8e8 !important;
+                -webkit-print-color-adjust: exact;
+                print-color-adjust: exact;
+            }
+            .print-item {
+                display: flex;
+                align-items: baseline;
+                padding: 3px 6px;
+                border-bottom: 1px dotted #ccc;
+                gap: 4px;
+            }
+            .print-item-name {
+                flex: 1;
+            }
+            .print-item-qty {
+                font-weight: 600;
+                white-space: nowrap;
+            }
+            .print-item-blank {
+                width: 50px;
+                border-bottom: 1px solid #aaa;
+                display: inline-block;
+            }
+        }
+
+        .btn-current-color {
+            background-color: var(--current-color);
+            border-color: var(--current-color);
+            color: white;
+        }
+        .btn-current-color:hover {
+            background-color: var(--current-color);
+            border-color: var(--current-color);
+            opacity: 0.9;
+        }
+        .filter-btn.active {
+            background-color: var(--current-color) !important;
+            color: white !important;
+            border-color: var(--current-color) !important;
+        }
+        .tabs-boxed .tab.tab-active {
+            background-color: var(--current-color) !important;
+            color: white !important;
+        }
+
+        /* Модалка просмотра: две колонки на десктопе, одна на мобилке */
+        .view-columns {
+            column-count: 1;
+            column-gap: 1.5rem;
+        }
+        @media (min-width: 768px) {
+            .view-columns {
+                column-count: 2;
+            }
+        }
+        .view-category {
+            break-inside: avoid;
+            margin-bottom: 0.75rem;
+        }
+        .view-item {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            padding: 4px 0;
+            border-bottom: 1px solid oklch(var(--b3));
+            break-inside: avoid;
+        }
+        .view-item-name {
+            flex: 1;
+            min-width: 0;
+        }
+
+        /* Line clamp for items list */
+        .line-clamp-2 {
+            display: -webkit-box;
+            -webkit-line-clamp: 2;
+            -webkit-box-orient: vertical;
+            overflow: hidden;
+        }
+    </style>
+</body>
+</html>
