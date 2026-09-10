@@ -582,7 +582,7 @@ function renderTable() {
             box = document.createElement('div');
             box.id = 'specialNeedsSummary';
             box.className = 'text-xs text-amber-700 mb-2';
-            tbody.closest('table').parentElement.insertAdjacentElement('beforebegin', box);
+            tbody.closest('table').closest('.flex.gap-4').insertAdjacentElement('beforebegin', box);
         }
         const сНуждами = filtered.filter(r => r.special_needs);
         const имя = r => r.vaishnavas?.spiritual_name
