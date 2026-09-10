@@ -23,14 +23,18 @@ const EatingUtils = {
         const [residentsResult, guestRegResult, mealGroupsResult] = await Promise.all([
             Layout.db
                 .from('residents')
-                .select('id, vaishnava_id, guest_name, retreat_id, check_in, check_out, early_checkin, late_checkout, breakfast, lunch, arrived_at, resident_categories!inner(slug)')
+                .select('id, vaishnava_id, guest_name, retreat_id, check_in, check_out, meal_start_date, meal_end_date, early_checkin, late_checkout, breakfast, lunch, arrived_at, resident_categories!inner(slug)')
                 .eq('status', 'confirmed')
                 // У брони питание не заполнено (не «нет», а «пока неизвестно») —
                 // раньше такие записи выпадали из расчёта, и порций не хватало.
                 // Исключаем только явный отказ от питания.
                 .not('has_meals', 'is', false)
-                .lte('check_in', endDate)
-                .or(`check_out.gte.${startDate},check_out.is.null`),
+                // Период питания может быть переопределён отдельно от заезда/выезда
+                // (например, человек съехал из комнаты, но продолжает питаться) —
+                // фильтр расширен, чтобы не потерять такие записи; точная граница
+                // считается ниже, в цикле по датам.
+                .or(`check_in.lte.${endDate},meal_start_date.lte.${endDate}`)
+                .or(`check_out.gte.${startDate},check_out.is.null,meal_end_date.gte.${startDate}`),
             retreatIds.length > 0
                 ? Layout.db
                     .from('retreat_registrations')
@@ -95,7 +99,11 @@ const EatingUtils = {
             // Residents — считаем по категориям + собираем vaishnava_id для дедупликации на эту дату
             const residentIdsForDate = new Set();
             for (const r of residentsData) {
-                if (r.check_in <= dateStr && (!r.check_out || r.check_out >= dateStr)) {
+                // Период питания может быть продлён (или сокращён) отдельно от
+                // проживания — например, съехал из комнаты, но ещё ест с нами.
+                const mealStart = r.meal_start_date || r.check_in;
+                const mealEnd = r.meal_end_date || r.check_out;
+                if (mealStart <= dateStr && (!mealEnd || mealEnd >= dateStr)) {
                     if (r.vaishnava_id) residentIdsForDate.add(r.vaishnava_id);
 
                     const isFirstDay = (dateStr === r.check_in);

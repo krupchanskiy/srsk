@@ -164,7 +164,7 @@ async function loadRegistrations(personId) {
         if (retreatIds.length > 0) {
             const { data: residentsData } = await Layout.db
                 .from('residents')
-                .select('id, retreat_id, room_id, check_in, check_out, has_meals, breakfast, lunch, category_id, resident_categories:category_id(id, slug, color, name_ru, name_en, name_hi), rooms(number, buildings(name_ru, name_en, name_hi))')
+                .select('id, retreat_id, room_id, check_in, check_out, has_meals, breakfast, lunch, meal_start_date, meal_end_date, category_id, resident_categories:category_id(id, slug, color, name_ru, name_en, name_hi), rooms(number, buildings(name_ru, name_en, name_hi))')
                 .eq('vaishnava_id', personId)
                 .in('retreat_id', retreatIds)
                 .eq('status', 'confirmed');
@@ -1056,7 +1056,7 @@ async function loadResidentCategories() {
 async function loadPermanentResident(personId) {
     const { data } = await Layout.db
         .from('residents')
-        .select('id, room_id, category_id, check_in, check_out, has_meals, breakfast, lunch, resident_categories:category_id(id, slug, color, name_ru, name_en, name_hi), rooms(number, buildings(name_ru, name_en, name_hi))')
+        .select('id, room_id, category_id, check_in, check_out, has_meals, breakfast, lunch, meal_start_date, meal_end_date, resident_categories:category_id(id, slug, color, name_ru, name_en, name_hi), rooms(number, buildings(name_ru, name_en, name_hi))')
         .eq('vaishnava_id', personId)
         .is('retreat_id', null)
         .eq('status', 'confirmed')
@@ -1120,21 +1120,29 @@ function renderPermanentResident() {
                     ${catOptionsHtml}
                 </select>
             </div>
-            <div class="flex items-center gap-3 flex-wrap">
-                <span class="opacity-60 text-sm">${t('meal_type')}</span>
-                <label class="flex items-center gap-2 cursor-pointer">
-                    <input type="checkbox" class="checkbox checkbox-sm checkbox-success" id="permResMeals" ${res.has_meals ? 'checked' : ''} onchange="changePermanentResidentMeals(this.checked)" />
-                    <span class="text-sm">${t('meal_type_prasad')}</span>
-                </label>
-                <div class="flex items-center gap-3 ${res.has_meals ? '' : 'hidden'}" id="permResMealDetails">
-                    <label class="flex items-center gap-1 cursor-pointer">
-                        <input type="checkbox" class="checkbox checkbox-xs" ${res.breakfast !== false ? 'checked' : ''} onchange="changePermanentResidentMealDetail('breakfast', this.checked)" />
-                        <span class="text-xs">${t('breakfast')}</span>
+            <div class="flex flex-col gap-2">
+                <div class="flex items-center gap-3 flex-wrap">
+                    <span class="opacity-60 text-sm">${t('meal_type')}</span>
+                    <label class="flex items-center gap-2 cursor-pointer">
+                        <input type="checkbox" class="checkbox checkbox-sm checkbox-success" id="permResMeals" ${res.has_meals ? 'checked' : ''} onchange="changePermanentResidentMeals(this.checked)" />
+                        <span class="text-sm">${t('meal_type_prasad')}</span>
                     </label>
-                    <label class="flex items-center gap-1 cursor-pointer">
-                        <input type="checkbox" class="checkbox checkbox-xs" ${res.lunch !== false ? 'checked' : ''} onchange="changePermanentResidentMealDetail('lunch', this.checked)" />
-                        <span class="text-xs">${t('lunch')}</span>
-                    </label>
+                    <div class="flex items-center gap-3 ${res.has_meals ? '' : 'hidden'}" id="permResMealCheckboxes">
+                        <label class="flex items-center gap-1 cursor-pointer">
+                            <input type="checkbox" class="checkbox checkbox-xs" ${res.breakfast !== false ? 'checked' : ''} onchange="changePermanentResidentMealDetail('breakfast', this.checked)" />
+                            <span class="text-xs">${t('breakfast')}</span>
+                        </label>
+                        <label class="flex items-center gap-1 cursor-pointer">
+                            <input type="checkbox" class="checkbox checkbox-xs" ${res.lunch !== false ? 'checked' : ''} onchange="changePermanentResidentMealDetail('lunch', this.checked)" />
+                            <span class="text-xs">${t('lunch')}</span>
+                        </label>
+                    </div>
+                </div>
+                <div class="flex items-center gap-2 ${res.has_meals ? '' : 'hidden'}" id="permResMealDates">
+                    <span class="opacity-60 text-xs">${t('person_meal_period')}</span>
+                    <input type="date" class="input input-bordered input-xs" id="permResMealStart" value="${res.meal_start_date || res.check_in || ''}" onchange="savePermanentResidentMealDates()" />
+                    <span class="opacity-60 text-xs">—</span>
+                    <input type="date" class="input input-bordered input-xs" id="permResMealEnd" value="${res.meal_end_date || res.check_out || ''}" onchange="savePermanentResidentMealDates()" />
                 </div>
             </div>
         </div>
@@ -1205,7 +1213,8 @@ async function changePermanentResidentMeals(hasMeals) {
         if (error) throw error;
 
         permanentResident.has_meals = hasMeals;
-        document.getElementById('permResMealDetails')?.classList.toggle('hidden', !hasMeals);
+        document.getElementById('permResMealCheckboxes')?.classList.toggle('hidden', !hasMeals);
+        document.getElementById('permResMealDates')?.classList.toggle('hidden', !hasMeals);
     } catch (err) {
         console.error('Error changing meals:', err);
         Layout.showNotification(t('error_saving') + ': ' + err.message, 'error');
@@ -1225,6 +1234,27 @@ async function changePermanentResidentMealDetail(field, checked) {
         permanentResident[field] = checked;
     } catch (err) {
         console.error('Error changing meal detail:', err);
+        Layout.showNotification(t('error_saving') + ': ' + err.message, 'error');
+    }
+}
+
+async function savePermanentResidentMealDates() {
+    if (!permanentResident?.id) return;
+
+    const mealStart = document.getElementById('permResMealStart').value || null;
+    const mealEnd = document.getElementById('permResMealEnd').value || null;
+
+    try {
+        const { error } = await Layout.db
+            .from('residents')
+            .update({ meal_start_date: mealStart, meal_end_date: mealEnd })
+            .eq('id', permanentResident.id);
+        if (error) throw error;
+
+        permanentResident.meal_start_date = mealStart;
+        permanentResident.meal_end_date = mealEnd;
+    } catch (err) {
+        console.error('Error saving meal dates:', err);
         Layout.showNotification(t('error_saving') + ': ' + err.message, 'error');
     }
 }
@@ -1404,6 +1434,29 @@ async function changeResidentMealDetail(residentId, field, checked) {
         }
     } catch (err) {
         console.error('Error changing meal detail:', err);
+        Layout.showNotification(t('error_saving') + ': ' + err.message, 'error');
+    }
+}
+
+async function changeResidentMealDate(residentId, field, value) {
+    if (!residentId || !field) return;
+    const dateValue = value || null;
+
+    try {
+        const { error } = await Layout.db
+            .from('residents')
+            .update({ [field]: dateValue })
+            .eq('id', residentId);
+        if (error) throw error;
+
+        for (const reg of registrations) {
+            if (reg.resident?.id === residentId) {
+                reg.resident[field] = dateValue;
+                break;
+            }
+        }
+    } catch (err) {
+        console.error('Error saving meal date:', err);
         Layout.showNotification(t('error_saving') + ': ' + err.message, 'error');
     }
 }
@@ -2017,6 +2070,8 @@ function renderRegistrations() {
                 document.querySelector(`[data-meal-details="${target.dataset.residentId}"]`)?.classList.toggle('hidden', !target.checked);
             } else if (target.dataset.action === 'change-meal-detail') {
                 changeResidentMealDetail(target.dataset.residentId, target.dataset.field, target.checked);
+            } else if (target.dataset.action === 'change-meal-date') {
+                changeResidentMealDate(target.dataset.residentId, target.dataset.field, target.value);
             }
         });
     }
@@ -2169,15 +2224,23 @@ function renderRegistrations() {
                         <input type="checkbox" class="checkbox checkbox-xs checkbox-success" data-action="change-meals" data-resident-id="${resident.id}" ${resident.has_meals ? 'checked' : ''} />
                         <span class="text-sm">${t('meal_type_prasad')}</span>
                     </label>
-                    <div class="flex items-center gap-3 mt-1 ${resident.has_meals ? '' : 'hidden'}" data-meal-details="${resident.id}">
-                        <label class="flex items-center gap-1 cursor-pointer">
-                            <input type="checkbox" class="checkbox checkbox-xs" data-action="change-meal-detail" data-resident-id="${resident.id}" data-field="breakfast" ${resident.breakfast !== false ? 'checked' : ''} />
-                            <span class="text-xs">${t('breakfast')}</span>
-                        </label>
-                        <label class="flex items-center gap-1 cursor-pointer">
-                            <input type="checkbox" class="checkbox checkbox-xs" data-action="change-meal-detail" data-resident-id="${resident.id}" data-field="lunch" ${resident.lunch !== false ? 'checked' : ''} />
-                            <span class="text-xs">${t('lunch')}</span>
-                        </label>
+                    <div data-meal-details="${resident.id}" class="${resident.has_meals ? '' : 'hidden'}">
+                        <div class="flex items-center gap-3 mt-1">
+                            <label class="flex items-center gap-1 cursor-pointer">
+                                <input type="checkbox" class="checkbox checkbox-xs" data-action="change-meal-detail" data-resident-id="${resident.id}" data-field="breakfast" ${resident.breakfast !== false ? 'checked' : ''} />
+                                <span class="text-xs">${t('breakfast')}</span>
+                            </label>
+                            <label class="flex items-center gap-1 cursor-pointer">
+                                <input type="checkbox" class="checkbox checkbox-xs" data-action="change-meal-detail" data-resident-id="${resident.id}" data-field="lunch" ${resident.lunch !== false ? 'checked' : ''} />
+                                <span class="text-xs">${t('lunch')}</span>
+                            </label>
+                        </div>
+                        <div class="flex items-center gap-2 mt-1">
+                            <span class="opacity-60 text-xs">${t('person_meal_period')}</span>
+                            <input type="date" class="input input-bordered input-xs" data-action="change-meal-date" data-resident-id="${resident.id}" data-field="meal_start_date" value="${resident.meal_start_date || resident.check_in || ''}" />
+                            <span class="opacity-60 text-xs">—</span>
+                            <input type="date" class="input input-bordered input-xs" data-action="change-meal-date" data-resident-id="${resident.id}" data-field="meal_end_date" value="${resident.meal_end_date || resident.check_out || ''}" />
+                        </div>
                     </div>
                 </div>
             `;
