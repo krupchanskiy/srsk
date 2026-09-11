@@ -560,6 +560,7 @@ const IC = {
     taxi: `<svg class="w-7 h-7 inline -mt-0.5" viewBox="0 0 103.07 59.75"><path fill="#fbbf24" d="M5.75,53.47c-1.68-1.71-2.63-4.23-2.68-6.64,2.97-10.49,6.26-20.89,9.36-31.35,1.71-5.78,1.81-10.95,9.24-12.11h58.86c3.74.23,7.15,2.76,8.35,6.35.33,1,.31,1.98.58,2.89,3.38,11.42,6.9,22.8,10.18,34.25-.11,4.72-3.5,8.64-8.16,9.3H11.55c-2.09-.16-4.35-1.22-5.8-2.7ZM21.72,9.78c-2.2.69-1.86,2.64-2.36,4.28-3.3,10.95-6.61,21.9-9.85,32.87-.47,2.23,1.92,3.11,3.77,3.19h76.19c1.99-.17,3.63-.69,3.83-2.97-3.25-10.64-6.4-21.3-9.61-31.95-.48-1.59-.56-4.58-2.24-5.26l-59.73-.16Z"/><polygon fill="#1f2937" points="60.75 20.68 63.64 26.16 67.25 20.68 72.58 20.68 66.57 29.82 72.29 38.86 66.96 38.86 63.64 33.67 61.04 38.86 55.27 38.86 60.98 29.81 55.27 20.68 60.75 20.68"/><path fill="#1f2937" d="M37.96,38.86l6.09-18.15,4.45-.05,6.48,18.2h-4.76l-1.27-3.29-4.91-.14-.89,3.43h-5.19ZM48.06,31.93c-.5-1.5-.78-3.12-1.3-4.61-.1-.28-.03-.66-.42-.58l-1.45,5.19h3.17Z"/><polygon fill="#1f2937" points="39.12 20.68 39.12 25.01 33.92 25.01 33.92 38.86 28.73 38.86 28.73 25.01 23.54 25.01 23.54 20.68 39.12 20.68"/><rect fill="#1f2937" x="74.03" y="20.68" width="5.19" height="18.18"/></svg>`,
     companions: `<svg class="w-4 h-4 inline -mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5"><path stroke-linecap="round" stroke-linejoin="round" d="M15 19.128a9.38 9.38 0 002.625.372 9.337 9.337 0 004.121-.952 4.125 4.125 0 00-7.533-2.493M15 19.128v-.003c0-1.113-.285-2.16-.786-3.07M15 19.128v.106A12.318 12.318 0 018.624 21c-2.331 0-4.512-.645-6.374-1.766l-.001-.109a6.375 6.375 0 0111.964-3.07M12 6.375a3.375 3.375 0 11-6.75 0 3.375 3.375 0 016.75 0zm8.25 2.25a2.625 2.625 0 11-5.25 0 2.625 2.625 0 015.25 0z"/></svg>`,
     check: `<svg class="w-3.5 h-3.5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M4.5 12.75l6 6 9-13.5"/></svg>`,
+    warning: `<svg class="w-4 h-4 inline -mt-0.5 text-amber-600 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 9v3.75m0 3.75h.007v.008H12v-.008ZM10.29 3.86 1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0Z"/></svg>`,
 };
 
 function renderTable() {
@@ -721,6 +722,8 @@ function renderTable() {
         const initialsUpper = e(initials.toUpperCase());
 
         const childBadge = isChild ? ` <span class="badge badge-xs badge-warning">${t('preliminary_child')}</span>` : '';
+        const specialNeedsBadge = reg.special_needs
+            ? ` <span title="${e(reg.special_needs)}">${IC.warning}</span>` : '';
 
         // Колонка «Дней»
         const regCheckIn = getRegCheckIn(reg);
@@ -745,8 +748,8 @@ function renderTable() {
                             : `<div class="guest-photo-placeholder">${initialsUpper}</div>`
                         }
                         <div>
-                            ${spiritualName ? `<div class="font-medium">${isChild ? '└ ' : ''}${e(spiritualName)}${childBadge}</div>` : ''}
-                            <div class="${spiritualName ? 'text-xs opacity-60' : 'font-medium'}">${!spiritualName && isChild ? '└ ' : ''}${e(name)}${!spiritualName ? childBadge : ''}</div>
+                            ${spiritualName ? `<div class="font-medium">${isChild ? '└ ' : ''}${e(spiritualName)}${childBadge}${specialNeedsBadge}</div>` : ''}
+                            <div class="${spiritualName ? 'text-xs opacity-60' : 'font-medium'}">${!spiritualName && isChild ? '└ ' : ''}${e(name)}${!spiritualName ? childBadge + specialNeedsBadge : ''}</div>
                         </div>
                     </div>
                 </td>
