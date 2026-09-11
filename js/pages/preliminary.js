@@ -579,7 +579,7 @@ function renderTable() {
     {
         let box = document.getElementById('specialNeedsSummary');
         if (!box) {
-            box = document.createElement('div');
+            box = document.createElement('details');
             box.id = 'specialNeedsSummary';
             box.className = 'text-xs text-amber-700 mb-2';
             tbody.closest('table').closest('.flex.gap-4').insertAdjacentElement('beforebegin', box);
@@ -587,9 +587,13 @@ function renderTable() {
         const сНуждами = filtered.filter(r => r.special_needs);
         const имя = r => r.vaishnavas?.spiritual_name
             || `${r.vaishnavas?.first_name || ''} ${r.vaishnavas?.last_name || ''}`.trim() || '—';
-        box.textContent = сНуждами.length
-            ? `${t('special_needs_summary')}: ${сНуждами.length} — ${сНуждами.slice(0, 5).map(имя).join(', ')}${сНуждами.length > 5 ? '…' : ''}`
-            : '';
+        if (сНуждами.length) {
+            const краткийСписок = `${сНуждами.slice(0, 5).map(имя).join(', ')}${сНуждами.length > 5 ? '…' : ''}`;
+            box.innerHTML = `<summary class="cursor-pointer hover:underline">${e(t('special_needs_summary'))}: ${сНуждами.length} — ${e(краткийСписок)}</summary>
+                <div class="mt-1 pl-3 space-y-0.5">${сНуждами.map(r => `<div>${e(имя(r))}: ${e(r.special_needs)}</div>`).join('')}</div>`;
+        } else {
+            box.innerHTML = '';
+        }
     }
 
     // Проверка прав на редактирование

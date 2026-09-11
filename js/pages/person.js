@@ -178,6 +178,18 @@ async function loadRegistrations(personId) {
                     }
                 });
             }
+
+            // Особые потребности — из сделок CRM (ТЗ 2.3)
+            const { data: deals } = await Layout.db.from('crm_deals')
+                .select('retreat_id, special_needs')
+                .eq('vaishnava_id', personId).in('retreat_id', retreatIds)
+                .neq('status', 'cancelled').not('special_needs', 'is', null);
+            (deals || []).forEach(d => {
+                const needs = d.special_needs?.trim();
+                if (!needs) return;
+                const reg = registrations.find(r => r.retreat_id === d.retreat_id);
+                if (reg) reg.special_needs = needs;
+            });
         }
     }
 
@@ -2087,7 +2099,7 @@ function renderRegistrations() {
         const departureRetreat = transfers.find(t => t.direction === 'departure_retreat');
 
         // Check if there's any detail to show
-        const hasDetails = arrival || departure || arrivalRetreat || departureRetreat || reg.arrival_datetime || reg.departure_datetime || reg.resident || reg.guest_accommodations?.[0] || reg.accommodation_wishes || reg.companions || reg.payment_notes || reg.org_notes || reg.extended_stay || reg.guest_questions;
+        const hasDetails = arrival || departure || arrivalRetreat || departureRetreat || reg.arrival_datetime || reg.departure_datetime || reg.resident || reg.guest_accommodations?.[0] || reg.accommodation_wishes || reg.companions || reg.payment_notes || reg.org_notes || reg.extended_stay || reg.guest_questions || reg.special_needs;
 
         // Build details HTML
         let detailsHtml = '';
@@ -2260,6 +2272,15 @@ function renderRegistrations() {
                 <div class="detail-section">
                     <div class="detail-label">🏨 ${t('person_accommodation_wishes')}</div>
                     <div class="text-sm">${reg.accommodation_wishes}</div>
+                </div>
+            `;
+        }
+
+        if (reg.special_needs) {
+            detailsHtml += `
+                <div class="detail-section">
+                    <div class="detail-label">${t('special_needs_col')}</div>
+                    <div class="text-sm text-amber-700 font-medium whitespace-pre-line">${e(reg.special_needs)}</div>
                 </div>
             `;
         }
