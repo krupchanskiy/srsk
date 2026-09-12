@@ -22,6 +22,7 @@ let selectedDate = null;
 let selectedMealType = null;
 let selectedRecipe = null;
 let currentCategory = 'all';
+let currentLetter = 'all';
 
 // Template state
 let templates = [];
@@ -1368,18 +1369,66 @@ function buildCategoryButtons() {
 }
 
 function switchRecipeTab(tab) {
-    if (tab === 'search') {
-        Layout.$('#searchTab').classList.remove('hidden');
-        Layout.$('#browseTab').classList.add('hidden');
-        Layout.$('#tabSearch').classList.add('tab-active');
-        Layout.$('#tabBrowse').classList.remove('tab-active');
-    } else {
-        Layout.$('#searchTab').classList.add('hidden');
-        Layout.$('#browseTab').classList.remove('hidden');
-        Layout.$('#tabSearch').classList.remove('tab-active');
-        Layout.$('#tabBrowse').classList.add('tab-active');
-        filterByCategory(currentCategory);
+    const вкладки = { search: 'searchTab', browse: 'browseTab', alpha: 'alphaTab' };
+    const кнопки = { search: 'tabSearch', browse: 'tabBrowse', alpha: 'tabAlpha' };
+    for (const [имя, блок] of Object.entries(вкладки)) {
+        Layout.$('#' + блок).classList.toggle('hidden', имя !== tab);
+        Layout.$('#' + кнопки[имя]).classList.toggle('tab-active', имя === tab);
     }
+    if (tab === 'browse') filterByCategory(currentCategory);
+    if (tab === 'alpha') { buildAlphabetButtons(); filterByLetter(currentLetter); }
+}
+
+// Первая буква названия на текущем языке. Всё, что не буква (цифры, кавычки),
+// сводится в группу «#»
+function перваяБуква(recipe) {
+    const имя = (getName(recipe) || '').trim();
+    const c = имя.charAt(0).toUpperCase();
+    return /\p{L}/u.test(c) ? c : '#';
+}
+
+// Кнопки-буквы строятся по тому, что есть в справочнике: пустых букв не бывает,
+// а список названий смешанный — часть блюд только на английском
+function buildAlphabetButtons() {
+    const буквы = [...new Set(recipes.map(перваяБуква))]
+        .sort((a, b) => a.localeCompare(b, Layout.currentLang));
+    Layout.$('#letterButtons').innerHTML = `
+        <button type="button" class="btn btn-xs letter-btn ${currentLetter === 'all' ? 'active' : ''}" data-letter="all" data-action="filter-by-letter">${t('filter_all')}</button>
+        ${буквы.map(б => `
+            <button type="button" class="btn btn-xs letter-btn ${currentLetter === б ? 'active' : ''}" data-letter="${б}" data-action="filter-by-letter">${б}</button>
+        `).join('')}
+    `;
+}
+
+function filterByLetter(letter) {
+    currentLetter = letter;
+    const list = Layout.$('#letterRecipeList');
+    const isEkadashiDay = isEkadashi(selectedDate);
+
+    Layout.$$('.letter-btn').forEach(btn => {
+        btn.classList.toggle('active', btn.dataset.letter === letter);
+    });
+
+    // Здесь порядок строго алфавитный: экадашные блюда наверх не поднимаем,
+    // иначе теряется смысл буквы — их видно по пометке «э»
+    const filtered = recipes
+        .filter(r => letter === 'all' || перваяБуква(r) === letter)
+        .sort((a, b) => (getName(a) || '').localeCompare(getName(b) || '', Layout.currentLang));
+
+    if (!filtered.length) {
+        list.innerHTML = `<div class="p-3 text-sm opacity-50 text-center">${t('nothing_found')}</div>`;
+        return;
+    }
+    list.innerHTML = filtered.map(r => `
+        <div class="p-3 hover:bg-base-200 cursor-pointer border-b border-base-200 last:border-0 ${isEkadashiDay && !r.ekadashi ? 'opacity-50' : ''}" data-action="select-recipe" data-id="${r.id}">
+            <div class="font-medium flex items-center gap-2">
+                ${getName(r)}
+                ${r.ekadashi ? '<span class="text-xs text-amber-600">э</span>' : ''}
+                ${isEkadashiDay && !r.ekadashi ? '<span class="text-xs text-error">⚠</span>' : ''}
+            </div>
+            <div class="text-xs opacity-50">${r.name_en || ''} · ${r.category ? getName(r.category) : ''}</div>
+        </div>
+    `).join('');
 }
 
 function filterRecipes(query) {
@@ -2173,6 +2222,24 @@ function setupRecipeDelegation() {
         catList.addEventListener('click', ev => {
             const el = ev.target.closest('[data-action="select-recipe"]');
             if (el) selectRecipe(el.dataset.id);
+        });
+    }
+
+    // Делегирование для алфавитного списка и кнопок-букв
+    const letterList = Layout.$('#letterRecipeList');
+    if (letterList && !letterList._delegated) {
+        letterList._delegated = true;
+        letterList.addEventListener('click', ev => {
+            const el = ev.target.closest('[data-action="select-recipe"]');
+            if (el) selectRecipe(el.dataset.id);
+        });
+    }
+    const letterBtns = Layout.$('#letterButtons');
+    if (letterBtns && !letterBtns._delegated) {
+        letterBtns._delegated = true;
+        letterBtns.addEventListener('click', ev => {
+            const el = ev.target.closest('[data-action="filter-by-letter"]');
+            if (el) filterByLetter(el.dataset.letter);
         });
     }
 
