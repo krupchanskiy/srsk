@@ -1024,7 +1024,7 @@ async function submitIncome(ev) {
 function openTransfer(sourceId) {
     requestIds.transfer = requestIds.transfer || FinUtils.newRequestId();
     document.getElementById('trDate').value = FinUtils.todayISO();
-    document.getElementById('trSource').innerHTML = FinUtils.accountOptions(sourceId);
+    document.getElementById('trSource').innerHTML = счетаПоКаналу('cash', sourceId);
     rebuildTransferTarget();
     document.getElementById('trAmount').value = '';
     document.getElementById('trTargetAmount').value = '';
