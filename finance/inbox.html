@@ -114,7 +114,7 @@
 <!-- Модалка: уточнение выдачи. Бот угадывает получателя по тексту и ошибается —
      казначей правит адресацию, не трогая сумму и текст заявки. -->
 <dialog id="refineModal" class="modal">
-    <div class="modal-box max-w-md">
+    <div class="modal-box max-w-xl">
         <h3 class="font-bold text-lg mb-1" data-i18n="fin_refine_title">Уточнить выдачу</h3>
         <div class="text-sm opacity-70 mb-3" id="refineInfo"></div>
         <form id="refineForm">
@@ -131,9 +131,12 @@
                 <input type="checkbox" class="checkbox checkbox-sm" id="refineSpent">
                 <span class="label-text" data-i18n="fin_refine_spent">Деньги уже потрачены — сразу учесть как расход получателя</span>
             </label>
+            <!-- Несколько строк — если выдача на самом деле разошлась по разным
+                 статьям/ретритам (напр. закупка сразу на два ретрита встык) -->
             <div id="refineSpentFields" class="hidden flex flex-col gap-2 pl-6">
-                <select class="select select-bordered select-sm" id="refineCategory"></select>
-                <select class="select select-bordered select-sm" id="refineObject"></select>
+                <div id="refineRows" class="flex flex-col gap-2"></div>
+                <button type="button" class="btn btn-ghost btn-xs self-start" id="refineAddRow" data-i18n="fin_split_add">+ Ещё строка</button>
+                <div class="text-xs" id="refineRemainder"></div>
             </div>
             <div class="modal-action">
                 <button type="button" class="btn" onclick="document.getElementById('refineModal').close()"
@@ -153,7 +156,7 @@
 <script src="../js/layout.js?v=76"></script>
 <script src="../js/date-utils.js?v=4"></script>
 <script src="../js/fin-utils.js?v=14"></script>
-<script src="../js/pages/fin-inbox.js?v=19"></script>
+<script src="../js/pages/fin-inbox.js?v=20"></script>
 
 </body>
 </html>

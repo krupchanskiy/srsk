@@ -464,27 +464,61 @@ async function submitSplit(ev) {
 // Бот угадывает получателя по тексту сообщения и ошибается. Раньше при ошибке
 // заявку оставалось только отклонить и просить переписать; теперь получателя и
 // счёт-источник правит казначей. Сумма и текст заявки неприкосновенны.
+//
+// «Уже потрачено» — несколько строк (ВГ, сен 2026): выдача на руки могла
+// разойтись сразу по нескольким статьям/ретритам (закупка на стыке двух
+// ретритов) — та же механика, что в «Разбить» (openSplit), но без выбора
+// департамента в строке: получатель уже зафиксирован в refineTarget.
 let refineDraft = null;
-let refineObjectAuto = true;
 
 function refineTargetIsCafe() {
     const opt = document.getElementById('refineTarget').selectedOptions[0];
     return FinUtils.isCafeDepartmentName(opt?.textContent);
 }
 
-// Ретрит подсказываем по дате заявки, только когда деньги выданы кафе и отмечены
-// как уже потраченные (иначе поле «Ретрит» ещё не значит ничего для расхода)
-async function maybeSuggestRefineObject() {
-    if (!refineObjectAuto || !refineDraft) return;
+function refineRowHtml(amount, categoryId, objectId) {
+    return `<div class="flex items-center gap-2" data-refine-row data-object-auto="1">
+        <input type="number" class="input input-bordered input-sm w-24 shrink-0 font-mono" step="0.01" min="0.01"
+               value="${amount ?? ''}" data-refine-amount>
+        <select class="select select-bordered select-sm flex-1 min-w-0" data-refine-cat>${outCategoryOptions(categoryId)}</select>
+        <select class="select select-bordered select-sm flex-1 min-w-0" data-refine-object>${FinUtils.objectOptions(objectId)}</select>
+        <button type="button" class="btn btn-ghost btn-sm shrink-0 text-error" data-refine-remove aria-label="${t('delete')}">✕</button>
+    </div>`;
+}
+
+function refineRows() {
+    return [...document.querySelectorAll('#refineRows [data-refine-row]')];
+}
+
+// Сумма строк обязана сойтись с суммой заявки — иначе кнопка «Сохранить»
+// заблокирована (та же логика, что в renderRemainder для «Разбить»)
+function renderRefineRemainder() {
+    const box = document.getElementById('refineRemainder');
+    if (!refineDraft) return;
+    const sum = refineRows().reduce((s, r) => s + (Number(r.querySelector('[data-refine-amount]').value) || 0), 0);
+    const left = Math.round((Number(refineDraft.amount) - sum) * 100) / 100;
+    const ok = left === 0;
+    box.className = `text-xs ${ok ? 'text-success' : 'text-error'}`;
+    box.textContent = ok ? t('fin_split_ok') : `${t('fin_split_left')}: ${FinUtils.fmtMoney(left, refineDraft.currency)}`;
+    document.getElementById('refineSubmit').disabled = document.getElementById('refineSpent').checked && !ok;
+}
+
+// Ретрит подсказываем по дате заявки для каждой строки отдельно — только когда
+// деньги выданы кафе и отмечены как уже потраченные
+async function maybeSuggestRefineObject(row) {
+    if (!row || row.dataset.objectAuto === '0' || !refineDraft) return;
     if (!document.getElementById('refineSpent').checked) return;
     if (!refineTargetIsCafe()) return;
     const dateStr = (refineDraft.created_at || '').slice(0, 10);
     const objId = await FinUtils.nearestRetreatObject(dateStr);
-    if (objId) document.getElementById('refineObject').value = objId;
+    if (objId) row.querySelector('[data-refine-object]').value = objId;
+}
+
+function suggestAllRefineRows() {
+    refineRows().forEach(maybeSuggestRefineObject);
 }
 
 function openRefine(id) {
-    refineObjectAuto = true;
     refineDraft = chatDrafts.find(d => d.id === id);
     if (!refineDraft) return;
     document.getElementById('refineDraftId').value = id;
@@ -505,24 +539,23 @@ function openRefine(id) {
         FinUtils.accountOptions(refineDraft.source_account_id,
                                 a => a.currency_code === refineDraft.currency
                                      && a.account_id !== ownAcc?.account_id);
-    // Пустая опция первой: иначе дефолтом окажется первая статья по алфавиту
-    // и расход уедет не туда молча.
-    document.getElementById('refineCategory').innerHTML =
-        `<option value="">${t('fin_select_category')}</option>` + outCategoryOptions(null);
-    document.getElementById('refineObject').innerHTML = FinUtils.objectOptions(null);
+    // Стартуем с одной строки на всю сумму — самый частый случай, дробят редко
+    document.getElementById('refineRows').innerHTML = refineRowHtml(refineDraft.amount, null, null);
     document.getElementById('refineSpent').checked = false;
     syncRefineSpent();
-    maybeSuggestRefineObject();
+    renderRefineRemainder();
+    suggestAllRefineRows();
     document.getElementById('refineModal').showModal();
 }
 
 // «Уже потрачено» — деньги ушли из рук в руки и тут же были израсходованы:
-// нужны статья и, если это трата события, ретрит.
+// нужны статья и, если это трата события, ретрит — в каждой строке.
 function syncRefineSpent() {
     const spent = document.getElementById('refineSpent').checked;
     document.getElementById('refineSpentFields').classList.toggle('hidden', !spent);
-    document.getElementById('refineCategory').required = spent;
+    refineRows().forEach(r => { r.querySelector('[data-refine-cat]').required = spent; });
     document.getElementById('refineSubmit').textContent = spent ? t('fin_post_draft') : t('save');
+    renderRefineRemainder();
 }
 
 async function submitRefine(ev) {
@@ -541,11 +574,11 @@ async function submitRefine(ev) {
     // Без галочки уточнение только сохраняется — проводит казначей отдельно,
     // посмотрев на исправленную карточку.
     if (spent) {
-        const rows = [{
-            amount: Number(refineDraft.amount),
-            category_id: document.getElementById('refineCategory').value,
-            object_id: document.getElementById('refineObject').value || null
-        }];
+        const rows = refineRows().map(r => ({
+            amount: Number(r.querySelector('[data-refine-amount]').value),
+            category_id: r.querySelector('[data-refine-cat]').value,
+            object_id: r.querySelector('[data-refine-object]').value || null
+        }));
         const res = await Layout.db.rpc('tg_post_draft', { p_id: id, p_rows: rows });
         if (res.error) { Layout.handleError(res.error, t('fin_post_draft')); return; }
         if (!res.data?.ok) { Layout.showNotification(res.data?.error || t('error'), 'error'); return; }
@@ -591,9 +624,28 @@ async function init() {
     document.getElementById('splitForm').addEventListener('submit', submitSplit);
     document.getElementById('refineForm').addEventListener('submit', submitRefine);
     document.getElementById('refineSpent').addEventListener('change', syncRefineSpent);
-    document.getElementById('refineSpent').addEventListener('change', maybeSuggestRefineObject);
-    document.getElementById('refineTarget').addEventListener('change', maybeSuggestRefineObject);
-    document.getElementById('refineObject').addEventListener('change', () => { refineObjectAuto = false; });
+    document.getElementById('refineSpent').addEventListener('change', suggestAllRefineRows);
+    document.getElementById('refineTarget').addEventListener('change', suggestAllRefineRows);
+    document.getElementById('refineAddRow').addEventListener('click', () => {
+        const spent = document.getElementById('refineSpent').checked;
+        document.getElementById('refineRows').insertAdjacentHTML('beforeend', refineRowHtml(null, null, null));
+        const row = document.querySelector('#refineRows [data-refine-row]:last-child');
+        row.querySelector('[data-refine-cat]').required = spent;
+        renderRefineRemainder();
+        maybeSuggestRefineObject(row);
+    });
+    document.getElementById('refineRows').addEventListener('input', renderRefineRemainder);
+    document.getElementById('refineRows').addEventListener('change', ev => {
+        const row = ev.target.closest('[data-refine-row]');
+        if (row && ev.target.matches('[data-refine-object]')) row.dataset.objectAuto = '0';
+    });
+    document.getElementById('refineRows').addEventListener('click', ev => {
+        const rm = ev.target.closest('[data-refine-remove]');
+        if (!rm) return;
+        // последнюю строку не удаляем: пустой список нечего проводить
+        if (refineRows().length > 1) rm.closest('[data-refine-row]').remove();
+        renderRefineRemainder();
+    });
     document.getElementById('splitEven').addEventListener('click', splitEvenly);
     document.getElementById('splitAddRow').addEventListener('click', () => {
         document.getElementById('splitRows').insertAdjacentHTML('beforeend', splitRowHtml(null, null));
