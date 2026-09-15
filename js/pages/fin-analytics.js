@@ -61,6 +61,8 @@ function subtractCategoryRows(mainRows, subRows) {
     }).filter(row => Math.abs(row.base_total) > 0.005);
 }
 
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
 function catTable(rows, titleKey) {
     if (!rows?.length) return '';
     const objId = currentData?.object_id;
@@ -69,9 +71,12 @@ function catTable(rows, titleKey) {
         <h2 class="card-title text-base">${t(titleKey)}</h2>
         <div class="overflow-x-auto"><table class="table table-sm">
             <tbody>${rows.map(r => {
-                const link = r.category_id ? `class="cursor-pointer hover:bg-base-200" onclick="location.href='dds.html?category=${r.category_id}${objId ? '&object=' + objId : ''}'" title="${t('fin_open_in_dds')}"` : '';
+                // Синтетические группы (org_fee/accommodation/meals — см. subtractCategoryRows)
+                // не ведут в dds.html: там нет такой категории, только настоящий category_id
+                const isRealCategory = r.category_id && UUID_RE.test(r.category_id);
+                const link = isRealCategory ? `class="cursor-pointer hover:bg-base-200" onclick="location.href='dds.html?category=${r.category_id}${objId ? '&object=' + objId : ''}'" title="${t('fin_open_in_dds')}"` : '';
                 return `<tr ${link}>
-                    <td class="${r.category_id ? 'hover:underline' : ''}">${e(r.name)}</td>
+                    <td class="${isRealCategory ? 'hover:underline' : ''}">${e(r.name)}</td>
                     <td class="text-right opacity-60">${Object.entries(r.by_currency || {}).map(([c, v]) => FinUtils.fmtMoney(v, c)).join(' · ')}</td>
                     <td class="text-right font-mono w-36">${fmtB(r.base_total)}</td>
                 </tr>`;
