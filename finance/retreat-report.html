@@ -1,0 +1,129 @@
+<!DOCTYPE html>
+<html lang="ru" data-theme="light">
+<head>
+    <meta charset="UTF-8">
+    <script src="../js/color-init.js?v=2"></script>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title data-i18n="retreat_report_title">Отчёт по ретриту — ШРСК</title>
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg">
+    <link href="https://cdn.jsdelivr.net/npm/daisyui@4.12.14/dist/full.min.css" rel="stylesheet" />
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script>tailwind.config = { theme: { extend: { screens: { 'desktop': '1200px' } } } }</script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans:wght@400;500;600;700&family=Noto+Sans+Devanagari:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="../css/common.css?v=3">
+    <link rel="stylesheet" href="../css/fin.css?v=1">
+    <style>
+        .rr-subtitle {
+            font-size: 0.7rem; text-transform: uppercase; letter-spacing: 0.06em;
+            font-weight: 600; opacity: 0.5; margin-bottom: 0.5rem;
+        }
+
+        .rr-bar-row { display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.35rem; font-size: 0.82rem; }
+        .rr-bar-label { width: 8rem; flex-shrink: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; opacity: 0.75; }
+        .rr-bar-track { flex: 1; height: 8px; background: rgba(15, 23, 42, 0.06); border-radius: 4px; overflow: hidden; }
+        .rr-bar-fill { height: 100%; border-radius: 4px; }
+        .rr-bar-value { width: 2rem; text-align: right; font-variant-numeric: tabular-nums; opacity: 0.8; flex-shrink: 0; }
+
+        .rr-expand-row summary { cursor: pointer; list-style: none; }
+        .rr-expand-row summary::-webkit-details-marker { display: none; }
+        .rr-expand-row summary:hover .rr-bar-label { opacity: 1; }
+        .rr-expand-row summary::after {
+            content: '›'; margin-left: 0.35rem; opacity: 0.35; font-size: 1rem; line-height: 1;
+        }
+        .rr-expand-row[open] summary::after { transform: rotate(90deg); display: inline-block; }
+        .rr-expand-list { padding: 0.1rem 0 0.6rem 0.25rem; font-size: 0.8rem; opacity: 0.85; }
+        .rr-expand-list > div { padding: 0.15rem 0; }
+
+        .rr-daily-chart { display: flex; align-items: flex-end; gap: 3px; height: 130px; min-width: max-content; padding-bottom: 4px; }
+        .rr-daily-col { display: flex; flex-direction: column; justify-content: flex-end; align-items: center; width: 12px; height: 100%; flex-shrink: 0; }
+        .rr-daily-bar { width: 8px; background: var(--current-color, #0d9488); border-radius: 2px 2px 0 0; min-height: 2px; }
+        .rr-daily-date { font-size: 8px; opacity: 0.45; margin-top: 3px; white-space: nowrap; }
+
+        @media print {
+            #header-placeholder, #footer-placeholder, .no-print { display: none !important; }
+            body { background: #fff !important; }
+            main { padding: 0 !important; }
+            .card { box-shadow: none !important; border: 1px solid #ddd !important; break-inside: avoid; }
+        }
+    </style>
+</head>
+<body class="fin-page bg-base-200 min-h-screen flex flex-col">
+
+    <div id="header-placeholder"></div>
+
+    <main class="container mx-auto px-4 py-6 flex-1">
+
+        <!-- Заголовок + переключатель ретрита -->
+        <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6 no-print">
+            <div class="flex items-center gap-2">
+                <select id="retreatSelect" class="select select-bordered select-sm w-64"></select>
+                <a id="backLink" href="analytics.html" class="btn btn-outline btn-sm gap-1">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18" />
+                    </svg>
+                    <span data-i18n="retreat_report_back_to_analytics">К аналитике</span>
+                </a>
+            </div>
+            <button id="printBtn" class="btn btn-ghost btn-sm gap-1">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6.72 13.829c-.24.03-.48.062-.72.096m.72-.096a42.415 42.415 0 0110.56 0m-10.56 0L6.34 18m10.94-4.171c.24.03.48.062.72.096m-.72-.096L17.66 18m0 0l.229 2.523a1.125 1.125 0 01-1.12 1.227H7.231c-.662 0-1.18-.568-1.12-1.227L6.34 18m11.318 0h1.091A2.25 2.25 0 0021 15.75V9.456c0-1.081-.768-2.015-1.837-2.175a48.055 48.055 0 00-1.913-.247M6.34 18H5.25A2.25 2.25 0 013 15.75V9.456c0-1.081.768-2.015 1.837-2.175a48.041 48.041 0 011.913-.247m10.5 0a48.536 48.536 0 00-10.5 0m10.5 0V3.375c0-.621-.504-1.125-1.125-1.125h-8.25c-.621 0-1.125.504-1.125 1.125v3.659M18 10.5h.008v.008H18V10.5zm-3 0h.008v.008H15V10.5z" /></svg>
+                <span data-i18n="retreat_report_print">Печать</span>
+            </button>
+        </div>
+
+        <!-- Пусто: ретрит не выбран -->
+        <div id="reportEmpty" class="text-center py-16 opacity-50">
+            <p data-i18n="select_retreat">Выберите ретрит...</p>
+        </div>
+
+        <!-- Отчёт -->
+        <div id="reportContent" class="hidden space-y-4">
+
+            <div id="rrHeader" class="bg-base-100 rounded-xl p-5 shadow-sm"></div>
+
+            <div id="rrKpis" class="grid grid-cols-2 md:grid-cols-4 gap-3"></div>
+
+            <div id="rrFinanceSection" class="card bg-base-100 hidden"><div class="card-body py-4">
+                <h2 class="card-title text-base" data-i18n="retreat_report_finance_section">Финансы</h2>
+                <div id="rrFinance"></div>
+            </div></div>
+
+            <div id="rrCrmSection" class="card bg-base-100 hidden"><div class="card-body py-4">
+                <h2 class="card-title text-base" data-i18n="retreat_report_crm_section">Воронка продаж</h2>
+                <div id="rrCrm"></div>
+            </div></div>
+
+            <div class="card bg-base-100"><div class="card-body py-4">
+                <h2 class="card-title text-base" data-i18n="retreat_report_guests_section">Состав гостей</h2>
+                <div id="rrGuests"></div>
+            </div></div>
+
+            <div class="card bg-base-100"><div class="card-body py-4">
+                <h2 class="card-title text-base" data-i18n="retreat_report_occupancy_section">Проживание</h2>
+                <div id="rrOccupancy"></div>
+            </div></div>
+
+            <div class="card bg-base-100"><div class="card-body py-4">
+                <h2 class="card-title text-base" data-i18n="retreat_report_logistics_section">Логистика и трансферы</h2>
+                <div id="rrLogistics"></div>
+            </div></div>
+
+        </div>
+
+    </main>
+
+    <div id="footer-placeholder"></div>
+
+    <script src="../js/config.js?v=5"></script>
+    <script src="../js/auth-check.js?v=10"></script>
+    <script src="../js/cache.js?v=1"></script>
+    <script src="../js/utils.js?v=12"></script>
+    <script src="../js/translit.js"></script>
+    <script src="../js/date-utils.js?v=4"></script>
+    <script src="../js/layout.js?v=76"></script>
+    <script src="../js/crm-utils.js?v=4"></script>
+    <script src="../js/pages/retreat-report.js?v=8"></script>
+</body>
+</html>

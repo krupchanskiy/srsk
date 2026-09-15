@@ -225,6 +225,17 @@
                     <input type="hidden" name="color" value="#6366f1" />
                 </div>
 
+                <!-- Кафе: подсказка ближайшего ретрита в кассе кафе не должна предлагать
+                     внутренние проекты вроде «Ретрит Художников», которые ашрам
+                     финансирует сам и к кассе кафе отношения не имеют -->
+                <div class="form-control">
+                    <label class="label cursor-pointer justify-start gap-3">
+                        <input type="checkbox" name="cafe_eligible" class="toggle toggle-primary" checked />
+                        <span class="label-text font-medium" data-i18n="retreats_cafe_eligible">Участвует в кассе кафе</span>
+                    </label>
+                    <p class="text-xs opacity-50 mt-1" data-i18n="retreats_cafe_eligible_hint">Выключите для ретритов, не связанных с кафе (например, внутренние проекты) — их не будет предлагать подсказка ретрита при вводе прихода/расхода кафе</p>
+                </div>
+
                 <!-- Registration Settings -->
                 <div class="divider text-sm opacity-50" data-i18n="retreats_registration">Регистрация</div>
 
@@ -351,7 +362,7 @@
     <script src="../js/translit.js"></script>
     <script src="../js/auto-translate.js"></script>
     <script src="../js/date-utils.js?v=4"></script>
-    <script src="../js/layout.js?v=72"></script>
+    <script src="../js/layout.js?v=76"></script>
     <script>
         // ==================== STATE ====================
         let retreats = [];
@@ -536,6 +547,12 @@
                                 </svg>
                                 <span data-i18n="guests">Гости</span>
                             </a>
+                            <a href="../finance/retreat-report.html?id=${r.id}" class="btn btn-ghost btn-sm gap-1" onclick="event.stopPropagation()">
+                                <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 17.25v-6.75a2.25 2.25 0 012.25-2.25h1.5A2.25 2.25 0 0115 10.5v6.75m-6 0h6m-6 0H5.625c-.621 0-1.125-.504-1.125-1.125V15c0-.621.504-1.125 1.125-1.125H9m6 3.375h3.375c.621 0 1.125-.504 1.125-1.125V6.75c0-.621-.504-1.125-1.125-1.125H15m0 11.25V6.75m0 0h-1.5m1.5 0h1.5" />
+                                </svg>
+                                <span data-i18n="retreat_report_short">Отчёт</span>
+                            </a>
                         </div>
                     </div>
                 `;
@@ -697,6 +714,7 @@
                     form.start_date.value = retreat.start_date;
                     form.end_date.value = retreat.end_date;
                     form.expected_participants.value = retreat.expected_participants || 0;
+                    form.cafe_eligible.checked = retreat.cafe_eligible !== false;
                     renderColorPicker(retreat.color || COLORS[0]);
                     deleteSection.classList.remove('hidden');
 
@@ -841,6 +859,7 @@
                 start_date: form.start_date.value,
                 end_date: form.end_date.value,
                 expected_participants: parseInt(form.expected_participants.value) || 0,
+                cafe_eligible: form.cafe_eligible.checked,
                 color: form.color.value,
                 image_url: form.image_url.value || null,
                 registration_open: form.registration_open.checked,

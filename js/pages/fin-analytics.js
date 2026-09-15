@@ -29,11 +29,15 @@ async function loadRetreats() {
 
 async function selectRetreat(id) {
     currentRetreat = id;
+    const fullReportLink = document.getElementById('fullReportLink');
     if (!id) {
         document.getElementById('retreatReport').innerHTML =
             `<div class="text-center py-8 opacity-60">${t('fin_select_retreat')}</div>`;
+        fullReportLink.classList.add('hidden');
         return;
     }
+    fullReportLink.href = `retreat-report.html?id=${id}`;
+    fullReportLink.classList.remove('hidden');
     await loadReport();
 }
 

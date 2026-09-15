@@ -332,7 +332,7 @@ function deptOptions() {
 }
 
 function splitRowHtml(amount, categoryId, objectId) {
-    return `<div class="flex flex-col gap-1 border-b border-base-200 pb-2" data-split-row>
+    return `<div class="flex flex-col gap-1 border-b border-base-200 pb-2" data-split-row data-object-auto="1">
         <div class="flex items-center gap-2 min-w-0">
             <input type="number" class="input input-bordered input-sm w-24 shrink-0 font-mono" step="0.01" min="0.01"
                    value="${amount ?? ''}" data-split-amount>
@@ -396,6 +396,22 @@ function renderRemainder() {
     document.getElementById('splitSubmit').disabled = !ok;
 }
 
+// Ретрит для строки кафе подсказываем по дате заявки — своя (без выбора в
+// data-split-dept) строка кафе, если сама заявка из чата департамента «Кафе»
+function rowIsCafe(row) {
+    const deptSelect = row.querySelector('[data-split-dept]');
+    const deptName = deptSelect.value ? deptSelect.selectedOptions[0].textContent.trim() : splitDraft?.department;
+    return FinUtils.isCafeDepartmentName(deptName);
+}
+
+async function maybeSuggestSplitObject(row) {
+    if (!row || row.dataset.objectAuto === '0' || !splitDraft) return;
+    if (!rowIsCafe(row)) return;
+    const dateStr = (splitDraft.created_at || '').slice(0, 10);
+    const objId = await FinUtils.nearestRetreatObject(dateStr);
+    if (objId) row.querySelector('[data-split-object]').value = objId;
+}
+
 function openSplit(id) {
     splitDraft = chatDrafts.find(d => d.id === id);
     if (!splitDraft) return;
@@ -415,6 +431,7 @@ function openSplit(id) {
     document.getElementById('splitRows').innerHTML =
         splitRowHtml(splitDraft.amount, splitDraft.category_id || null);
     renderRemainder();
+    document.querySelectorAll('#splitRows [data-split-row]').forEach(maybeSuggestSplitObject);
     document.getElementById('splitModal').showModal();
 }
 
@@ -448,8 +465,26 @@ async function submitSplit(ev) {
 // заявку оставалось только отклонить и просить переписать; теперь получателя и
 // счёт-источник правит казначей. Сумма и текст заявки неприкосновенны.
 let refineDraft = null;
+let refineObjectAuto = true;
+
+function refineTargetIsCafe() {
+    const opt = document.getElementById('refineTarget').selectedOptions[0];
+    return FinUtils.isCafeDepartmentName(opt?.textContent);
+}
+
+// Ретрит подсказываем по дате заявки, только когда деньги выданы кафе и отмечены
+// как уже потраченные (иначе поле «Ретрит» ещё не значит ничего для расхода)
+async function maybeSuggestRefineObject() {
+    if (!refineObjectAuto || !refineDraft) return;
+    if (!document.getElementById('refineSpent').checked) return;
+    if (!refineTargetIsCafe()) return;
+    const dateStr = (refineDraft.created_at || '').slice(0, 10);
+    const objId = await FinUtils.nearestRetreatObject(dateStr);
+    if (objId) document.getElementById('refineObject').value = objId;
+}
 
 function openRefine(id) {
+    refineObjectAuto = true;
     refineDraft = chatDrafts.find(d => d.id === id);
     if (!refineDraft) return;
     document.getElementById('refineDraftId').value = id;
@@ -477,6 +512,7 @@ function openRefine(id) {
     document.getElementById('refineObject').innerHTML = FinUtils.objectOptions(null);
     document.getElementById('refineSpent').checked = false;
     syncRefineSpent();
+    maybeSuggestRefineObject();
     document.getElementById('refineModal').showModal();
 }
 
@@ -555,15 +591,22 @@ async function init() {
     document.getElementById('splitForm').addEventListener('submit', submitSplit);
     document.getElementById('refineForm').addEventListener('submit', submitRefine);
     document.getElementById('refineSpent').addEventListener('change', syncRefineSpent);
+    document.getElementById('refineSpent').addEventListener('change', maybeSuggestRefineObject);
+    document.getElementById('refineTarget').addEventListener('change', maybeSuggestRefineObject);
+    document.getElementById('refineObject').addEventListener('change', () => { refineObjectAuto = false; });
     document.getElementById('splitEven').addEventListener('click', splitEvenly);
     document.getElementById('splitAddRow').addEventListener('click', () => {
         document.getElementById('splitRows').insertAdjacentHTML('beforeend', splitRowHtml(null, null));
         renderRemainder();
+        maybeSuggestSplitObject(document.querySelector('#splitRows [data-split-row]:last-child'));
     });
     document.getElementById('splitRows').addEventListener('input', renderRemainder);
     document.getElementById('splitRows').addEventListener('change', ev => {
         const row = ev.target.closest('[data-split-row]');
-        if (row) syncRowState(row);
+        if (!row) return;
+        syncRowState(row);
+        if (ev.target.matches('[data-split-object]')) row.dataset.objectAuto = '0';
+        else if (ev.target.matches('[data-split-dept]')) maybeSuggestSplitObject(row);
     });
     document.getElementById('splitRows').addEventListener('click', ev => {
         const rm = ev.target.closest('[data-split-remove]');

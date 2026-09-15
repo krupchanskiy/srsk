@@ -289,7 +289,8 @@ const pagePermissions = {
     'finance/accounts.html': ['fin_admin', 'fin_observer', 'fin_account_user'],
     'finance/reconciliation.html': ['fin_admin', 'fin_observer'],
     'finance/analytics.html': ['fin_admin', 'fin_observer'],
-    'finance/dictionaries.html': 'fin_admin'
+    'finance/dictionaries.html': 'fin_admin',
+    'finance/retreat-report.html': ['fin_admin', 'fin_observer', 'view_retreat_guests'],
 };
 
 // Проверка права страницы: строка или массив (достаточно любого)
@@ -531,7 +532,7 @@ async function loadTranslations(retried = false) {
 
     // Проверка на наличие новых переводов (для автоинвалидации устаревшего кэша)
     // Добавляйте сюда ключи новых обязательных переводов
-    const requiredKeys = ['self_accommodation', 'nav_user_management', 'nav_retreat_prasad', 'purchased', 'nav_residents_list', 'nav_prasad', 'timeline_uncovered_title', 'expected_guests', 'timeline_no_retreat', 'fin_split_dept', 'fin_refine', 'fin_refine_spent', 'person_meal_period'];
+    const requiredKeys = ['self_accommodation', 'nav_user_management', 'nav_retreat_prasad', 'purchased', 'nav_residents_list', 'nav_prasad', 'timeline_uncovered_title', 'expected_guests', 'timeline_no_retreat', 'fin_split_dept', 'fin_refine', 'fin_refine_spent', 'person_meal_period', 'retreat_report_title', 'retreats_cafe_eligible', 'retreat_report_finance_cafe'];
     const hasAllKeys = requiredKeys.every(key => data.some(row => row.key === key));
 
     if (!hasAllKeys && !retried) {

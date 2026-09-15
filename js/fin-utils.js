@@ -9,6 +9,9 @@ const CURRENCY_SYMBOLS = { INR: '₹', RUB: '₽', USD: '$', EUR: '€' };
 
 const refs = { loaded: false, currencies: [], accounts: [], categories: [], costCenters: [], objects: [], contractors: [] };
 
+// Кэш дат ретритов для подсказки «ближайший ретрит» (касса кафе, сен 2026)
+let retreatRanges = null;
+
 // Мелкие SVG-иконки для таблиц (правило проекта: только SVG, не эмодзи)
 const ICONS = {
     clock: '<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="w-3 h-3 inline"><path stroke-linecap="round" stroke-linejoin="round" d="M12 6v6h4.5m4.5 0a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>',
@@ -148,11 +151,67 @@ const FinUtils = {
         return refs.accounts;
     },
 
+    // ---- Касса кафе: подсказка ближайшего ретрита по дате (ВГ, сен 2026) ----
+    // Приход/расход кафе почти всегда относится к текущему или ближайшему ретриту,
+    // но ручной выбор из списка легко промахнуть. Ниже — только подсказка (можно
+    // поправить вручную), не жёсткое правило.
+    CAFE_CATEGORY_NAME: 'Касса кафе',
+
+    isCafeCategory(categoryId) {
+        return refs.categories.find(c => c.id === categoryId)?.name === this.CAFE_CATEGORY_NAME;
+    },
+
+    // Кафе не выделено отдельным кост-центром в справочнике — сейчас его выдаёт
+    // только название счёта («Кафе (₹)», «Кафе (₽)», «...Касса кафе...»)
+    isCafeAccount(accountId) {
+        const a = refs.accounts.find(x => x.account_id === accountId);
+        return !!a && /кафе/i.test(a.name);
+    },
+
+    isCafeDepartmentName(name) {
+        return (name || '').trim() === 'Кафе';
+    },
+
+    async loadRetreatRanges() {
+        if (retreatRanges) return retreatRanges;
+        // cafe_eligible = false — ретрит вне подсчёта кафе (внутренний проект,
+        // который ашрам финансирует сам, напр. «Ретрит Художников»)
+        const { data } = await Layout.db.from('retreats')
+            .select('id, start_date, end_date')
+            .eq('cafe_eligible', true);
+        const byRetreat = new Map((data || []).map(r => [r.id, r]));
+        retreatRanges = refs.objects
+            .filter(o => o.retreat_id && !o.is_closed && byRetreat.has(o.retreat_id))
+            .map(o => ({ object_id: o.id, ...byRetreat.get(o.retreat_id) }));
+        return retreatRanges;
+    },
+
+    // Ближайший по датам ретрит: 0, если дата внутри диапазона. При пересечении
+    // диапазонов (два ретрита идут внахлёст) из нескольких с дистанцией 0
+    // побеждает тот, что начался позже — как правило, это более узкое,
+    // вложенное событие, а не широкое «фоновое» окно с более ранним стартом
+    async nearestRetreatObject(dateStr) {
+        if (!dateStr) return null;
+        const ranges = await this.loadRetreatRanges();
+        if (!ranges.length) return null;
+        const target = new Date(dateStr);
+        let best = null, bestDist = Infinity, bestStart = null;
+        for (const r of ranges) {
+            const start = new Date(r.start_date), end = new Date(r.end_date);
+            const dist = target < start ? (start - target) : (target > end ? (target - end) : 0);
+            if (dist < bestDist || (dist === bestDist && start > bestStart)) {
+                best = r.object_id; bestDist = dist; bestStart = start;
+            }
+        }
+        return best;
+    },
+
     // Справочники грузятся один раз на страницу, поэтому только что созданная
     // статья не появлялась в наборе департамента до перезагрузки страницы
     // (замечание ВГ 05.08.2026: «добавил статью — её нет в списке набора»).
     async refreshRefs() {
         refs.loaded = false;
+        retreatRanges = null;
         return await this.loadRefs();
     },
 

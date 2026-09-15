@@ -716,7 +716,7 @@ function счетаПоКаналу(канал, selectedId, filter) {
 // ==================== ФОРМА: РАСХОД ====================
 function expenseRowHtml(idx) {
     return `
-    <div class="border border-base-300 rounded-lg p-3 mb-2 exp-row" data-idx="${idx}">
+    <div class="border border-base-300 rounded-lg p-3 mb-2 exp-row" data-idx="${idx}" data-object-auto="1">
         <div class="grid grid-cols-2 md:grid-cols-3 gap-2">
             <div class="form-control">
                 <label class="label py-0"><span class="label-text text-xs">${t('fin_account')}</span></label>
@@ -754,6 +754,15 @@ function expenseRowHtml(idx) {
 function addExpenseRow() {
     expenseRowSeq++;
     document.getElementById('expRows').insertAdjacentHTML('beforeend', expenseRowHtml(expenseRowSeq));
+}
+
+// Ретрит для трат кафе подсказываем по дате — счёт кафе выдаёт саму принадлежность
+// (отдельного кост-центра «Кафе» в справочнике пока нет), а дальше поле можно поправить
+async function maybeSuggestExpenseObject(row) {
+    if (!row || row.dataset.objectAuto === '0') return;
+    if (!FinUtils.isCafeAccount(row.querySelector('.exp-account').value)) return;
+    const objId = await FinUtils.nearestRetreatObject(document.getElementById('expDate').value);
+    if (objId) row.querySelector('.exp-object').value = objId;
 }
 
 function openExpense() {
@@ -817,8 +826,19 @@ function updateExpenseRecap() {
 }
 
 // ==================== ФОРМА: ПРИХОД / ПОЖЕРТВОВАНИЕ ====================
+// Ретрит для «Касса кафе» подсказываем по дате, пока казначей не поправит поле сам
+let incObjectAuto = true;
+
+async function maybeSuggestIncomeObject() {
+    if (!incObjectAuto) return;
+    if (!FinUtils.isCafeCategory(document.getElementById('incCategory').value)) return;
+    const objId = await FinUtils.nearestRetreatObject(document.getElementById('incDate').value);
+    if (objId) document.getElementById('incObject').value = objId;
+}
+
 function openIncome() {
     requestIds.income = requestIds.income || FinUtils.newRequestId();
+    incObjectAuto = true;
     document.getElementById('incDate').value = FinUtils.todayISO();
     document.getElementById('incAccount').innerHTML = счетаПоКаналу('cash');
     document.getElementById('incObject').innerHTML = FinUtils.objectOptions();
@@ -1170,6 +1190,16 @@ async function init() {
         const счета = ev.target.closest('.exp-row').querySelector('.exp-account');
         счета.innerHTML = счетаПоКаналу(ev.target.value, счета.value);
     });
+    document.getElementById('expenseModal').addEventListener('change', ev => {
+        if (ev.target.classList.contains('exp-object')) {
+            ev.target.closest('.exp-row').dataset.objectAuto = '0';
+        } else if (ev.target.classList.contains('exp-account')) {
+            maybeSuggestExpenseObject(ev.target.closest('.exp-row'));
+        }
+    });
+    document.getElementById('expDate').addEventListener('change', () => {
+        document.querySelectorAll('#expRows .exp-row').forEach(maybeSuggestExpenseObject);
+    });
     document.getElementById('incChannel').addEventListener('change', ev => {
         const счета = document.getElementById('incAccount');
         счета.innerHTML = счетаПоКаналу(ev.target.value, счета.value);
@@ -1178,6 +1208,9 @@ async function init() {
     FinUtils.attachPersonSearch(document.getElementById('incDonorSearch'), document.getElementById('incDonorId'));
     FinUtils.attachPersonSearch(document.getElementById('incParticipantSearch'), document.getElementById('incParticipantId'));
     document.getElementById('incCategory').addEventListener('change', syncParticipantBlock);
+    document.getElementById('incCategory').addEventListener('change', maybeSuggestIncomeObject);
+    document.getElementById('incDate').addEventListener('change', maybeSuggestIncomeObject);
+    document.getElementById('incObject').addEventListener('change', () => { incObjectAuto = false; });
     // Остаток плательщика зависит от общей суммы и валюты счёта
     document.getElementById('incAmount').addEventListener('input', updateSplitRecap);
     document.getElementById('incAccount').addEventListener('change', updateSplitRecap);
