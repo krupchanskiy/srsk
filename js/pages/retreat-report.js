@@ -476,28 +476,37 @@ function renderFinance() {
     const tot = r.totals;
     const net = Number(tot.net_base) || 0;
     const cafe = r.cafe?.totals;
+    const prasad = r.prasad?.totals;
 
-    // Касса кафе — самостоятельная единица внутри ретрита (ВГ, сен 2026): в
-    // приходах/расходах самого ретрита её не показываем построчно, а
-    // вычитаем из общего (totals по-прежнему считает кафе, как и раньше —
-    // «ретрит» здесь просто разница)
-    const retreatOnly = cafe ? {
+    // Прасад и кафе — самостоятельные единицы внутри ретрита (ВГ, сен 2026):
+    // в приходах/расходах самого ретрита их не показываем построчно, а
+    // вычитаем из общего (totals по-прежнему считает всё, как и раньше).
+    // Прасад при этом — часть ретрита (в отличие от кафе): «Ретрит» здесь —
+    // сумма собственно ретрита и прасада, и складывается с кафе только в
+    // самом низу, в «Итого».
+    const hasCafeActivity = cafe && (Number(cafe.income_base) || Number(cafe.expense_base));
+    const hasPrasadActivity = prasad && (Number(prasad.income_base) || Number(prasad.expense_base));
+    const retreatCombined = hasCafeActivity ? {
         income_base: Number(tot.income_base) - Number(cafe.income_base),
         expense_base: Number(tot.expense_base) - Number(cafe.expense_base),
         net_base: net - Number(cafe.net_base)
-    } : null;
+    } : tot;
+    const retreatOnly = hasPrasadActivity ? {
+        income_base: Number(retreatCombined.income_base) - Number(prasad.income_base),
+        expense_base: Number(retreatCombined.expense_base) - Number(prasad.expense_base),
+        net_base: Number(retreatCombined.net_base) - Number(prasad.net_base)
+    } : retreatCombined;
 
     const moneyCell = (n, cls) => `<td class="text-right font-mono ${cls}">${CrmUtils.formatMoney(n, 'INR')}</td>`;
     const netCls = n => Number(n) < 0 ? 'text-error' : 'text-success';
-    const splitRow = (label, block, bold) => `<tr class="${bold ? 'font-semibold border-t-2 border-base-300' : ''}">
-        <td>${label}</td>
+    const splitRow = (label, block, opts = {}) => `<tr class="${opts.bold ? 'font-semibold border-t-2 border-base-300' : ''}">
+        <td class="${opts.indent ? 'pl-6 text-sm opacity-70' : ''}">${label}</td>
         ${moneyCell(block.income_base, 'text-success')}
         ${moneyCell(block.expense_base, 'text-error')}
         ${moneyCell(block.net_base, netCls(block.net_base))}
     </tr>`;
 
-    const hasCafeActivity = cafe && (Number(cafe.income_base) || Number(cafe.expense_base));
-    const splitTable = hasCafeActivity ? `
+    const splitTable = (hasCafeActivity || hasPrasadActivity) ? `
         <div class="overflow-x-auto mt-3">
             <table class="table table-sm">
                 <thead><tr>
@@ -507,9 +516,11 @@ function renderFinance() {
                     <th class="text-right">${t('fin_net')}</th>
                 </tr></thead>
                 <tbody>
-                    ${splitRow(t('retreat_report_finance_retreat_only'), retreatOnly)}
-                    ${splitRow(t('retreat_report_finance_cafe'), cafe)}
-                    ${splitRow(t('retreat_report_finance_total'), tot, true)}
+                    ${splitRow(t('retreat_report_finance_retreat_only'), retreatCombined, { bold: hasPrasadActivity })}
+                    ${hasPrasadActivity ? splitRow(t('retreat_report_finance_retreat_only'), retreatOnly, { indent: true }) : ''}
+                    ${hasPrasadActivity ? splitRow(t('retreat_report_finance_prasad'), prasad, { indent: true }) : ''}
+                    ${hasCafeActivity ? splitRow(t('retreat_report_finance_cafe'), cafe) : ''}
+                    ${splitRow(t('retreat_report_finance_total'), tot, { bold: true })}
                 </tbody>
             </table>
         </div>` : '';

@@ -136,7 +136,9 @@ async function loadReport() {
     const p = r.participants;
     const tot = r.totals;
     const cafe = r.cafe?.totals;
+    const prasad = r.prasad?.totals;
     const hasCafeActivity = cafe && (Number(cafe.income_base) || Number(cafe.expense_base));
+    const hasPrasadActivity = prasad && (Number(prasad.income_base) || Number(prasad.expense_base));
 
     const kpi = (chip, icon, label, value, sub) => `
         <div class="card bg-base-100 fin-kpi"><div class="card-body">
@@ -154,45 +156,71 @@ async function loadReport() {
     const icDown = '<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.7" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M2.25 6L9 12.75l4.286-4.286a11.948 11.948 0 014.306 6.43l.776 2.898m0 0l3.182-5.511m-3.182 5.51l-5.511-3.181"/></svg>';
     const icNet = '<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.7" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M9 8.25H7.5a2.25 2.25 0 00-2.25 2.25v9a2.25 2.25 0 002.25 2.25h9a2.25 2.25 0 002.25-2.25v-9a2.25 2.25 0 00-2.25-2.25H15M9 12l2.25 2.25L15 9.75M9 8.25V6a3 3 0 013-3v0a3 3 0 013 3v2.25"/></svg>';
 
-    // Разбивка по статьям без кафе (кафе — самостоятельная единица, см. subtractCategoryRows)
-    const retreatIncomeRows = hasCafeActivity ? subtractCategoryRows(r.income_by_category, r.cafe.income_by_category) : r.income_by_category;
-    const retreatExpenseRows = hasCafeActivity ? subtractCategoryRows(r.expense_by_category, r.cafe.expense_by_category) : r.expense_by_category;
+    // Разбивка по статьям без кафе и без прасада (самостоятельные единицы, см. subtractCategoryRows)
+    let retreatIncomeRows = r.income_by_category;
+    let retreatExpenseRows = r.expense_by_category;
+    if (hasCafeActivity) {
+        retreatIncomeRows = subtractCategoryRows(retreatIncomeRows, r.cafe.income_by_category);
+        retreatExpenseRows = subtractCategoryRows(retreatExpenseRows, r.cafe.expense_by_category);
+    }
+    if (hasPrasadActivity) {
+        retreatIncomeRows = subtractCategoryRows(retreatIncomeRows, r.prasad.income_by_category);
+        retreatExpenseRows = subtractCategoryRows(retreatExpenseRows, r.prasad.expense_by_category);
+    }
 
-    const splitRow = (label, block, bold) => `<tr class="${bold ? 'font-semibold border-t-2 border-base-300' : ''}">
-        <td>${label}</td>
+    const splitRow = (label, block, opts = {}) => `<tr class="${opts.bold ? 'font-semibold border-t-2 border-base-300' : ''}">
+        <td class="${opts.indent ? 'pl-6 text-sm opacity-70' : ''}">${label}</td>
         <td class="text-right font-mono text-success">${fmtB(block.income_base)}</td>
         <td class="text-right font-mono text-error">${fmtB(block.expense_base)}</td>
         <td class="text-right font-mono ${Number(block.net_base) < 0 ? 'text-error' : 'text-success'}">${fmtB(block.net_base)}</td>
     </tr>`;
-    const retreatOnlyTotals = hasCafeActivity ? {
-        income_base: Number(tot.income_base) - Number(cafe.income_base),
-        expense_base: Number(tot.expense_base) - Number(cafe.expense_base),
-        net_base: Number(tot.net_base) - Number(cafe.net_base)
-    } : null;
-    const splitTotalsTable = hasCafeActivity ? `
+
+    // Прасад — часть ретрита (в отличие от кафе): «Ретрит» в своде — это
+    // сумма собственно ретрита и прасада, кафе складывается только в «Итого»
+    const retreatCombinedTotals = hasCafeActivity ? {
+        income_base: round2(Number(tot.income_base) - Number(cafe.income_base)),
+        expense_base: round2(Number(tot.expense_base) - Number(cafe.expense_base)),
+        net_base: round2(Number(tot.net_base) - Number(cafe.net_base))
+    } : tot;
+    const retreatOnlyTotals = hasPrasadActivity ? {
+        income_base: round2(Number(retreatCombinedTotals.income_base) - Number(prasad.income_base)),
+        expense_base: round2(Number(retreatCombinedTotals.expense_base) - Number(prasad.expense_base)),
+        net_base: round2(Number(retreatCombinedTotals.net_base) - Number(prasad.net_base))
+    } : retreatCombinedTotals;
+
+    const splitTotalsTable = (hasCafeActivity || hasPrasadActivity) ? `
         <div class="card bg-base-100 shadow-sm"><div class="card-body py-4">
             <div class="overflow-x-auto"><table class="table table-sm">
                 <thead><tr><th></th><th class="text-right">${t('fin_income')}</th><th class="text-right">${t('fin_expense')}</th><th class="text-right">${t('fin_net')}</th></tr></thead>
                 <tbody>
-                    ${splitRow(t('retreat_report_finance_retreat_only'), retreatOnlyTotals)}
-                    ${splitRow(t('retreat_report_finance_cafe'), cafe)}
-                    ${splitRow(t('retreat_report_finance_total'), tot, true)}
+                    ${splitRow(t('retreat_report_finance_retreat_only'), retreatCombinedTotals, { bold: hasPrasadActivity })}
+                    ${hasPrasadActivity ? splitRow(t('retreat_report_finance_retreat_only'), retreatOnlyTotals, { indent: true }) : ''}
+                    ${hasPrasadActivity ? splitRow(t('retreat_report_finance_prasad'), prasad, { indent: true }) : ''}
+                    ${hasCafeActivity ? splitRow(t('retreat_report_finance_cafe'), cafe) : ''}
+                    ${splitRow(t('retreat_report_finance_total'), tot, { bold: true })}
                 </tbody>
             </table></div>
         </div></div>` : '';
 
-    const unitTabs = hasCafeActivity ? `
+    const unitTabs = (hasCafeActivity || hasPrasadActivity) ? `
         <div role="tablist" class="tabs tabs-boxed w-fit">
             <input type="radio" name="fin_unit_tabs" role="tab" class="tab" aria-label="${t('retreat_report_finance_retreat_only')}" checked />
             <div role="tabpanel" class="tab-content pt-4 space-y-4">
                 ${catTable(retreatIncomeRows, 'fin_income_by_category')}
                 ${catTable(retreatExpenseRows, 'fin_expense_by_category')}
             </div>
+            ${hasPrasadActivity ? `
+            <input type="radio" name="fin_unit_tabs" role="tab" class="tab" aria-label="${t('retreat_report_finance_prasad')}" />
+            <div role="tabpanel" class="tab-content pt-4 space-y-4">
+                ${catTable(r.prasad.income_by_category, 'fin_income_by_category')}
+                ${catTable(r.prasad.expense_by_category, 'fin_expense_by_category')}
+            </div>` : ''}
+            ${hasCafeActivity ? `
             <input type="radio" name="fin_unit_tabs" role="tab" class="tab" aria-label="${t('retreat_report_finance_cafe')}" />
             <div role="tabpanel" class="tab-content pt-4 space-y-4">
                 ${catTable(r.cafe.income_by_category, 'fin_income_by_category')}
                 ${catTable(r.cafe.expense_by_category, 'fin_expense_by_category')}
-            </div>
+            </div>` : ''}
         </div>` : `${catTable(r.income_by_category, 'fin_income_by_category')}${catTable(r.expense_by_category, 'fin_expense_by_category')}`;
 
     box.innerHTML = `
@@ -330,24 +358,42 @@ async function renderClosurePdf(snap, version) {
         y -= 8;
     };
 
-    // Касса кафе — самостоятельная единица (см. fin-analytics.js:subtractCategoryRows):
-    // в статьях ретрита кафе-часть не показываем, у кафе — свои статьи и итог
+    // Кафе и прасад — самостоятельные единицы (см. fin-analytics.js:subtractCategoryRows):
+    // в статьях ретрита их часть не показываем, у каждой — свои статьи и итог
     const cafe = snap.cafe?.totals;
+    const prasad = snap.prasad?.totals;
     const hasCafeActivity = cafe && (Number(cafe.income_base) || Number(cafe.expense_base));
-    const retreatIncomeRows = hasCafeActivity ? subtractCategoryRows(snap.income_by_category, snap.cafe.income_by_category) : snap.income_by_category;
-    const retreatExpenseRows = hasCafeActivity ? subtractCategoryRows(snap.expense_by_category, snap.cafe.expense_by_category) : snap.expense_by_category;
+    const hasPrasadActivity = prasad && (Number(prasad.income_base) || Number(prasad.expense_base));
+    let retreatIncomeRows = snap.income_by_category;
+    let retreatExpenseRows = snap.expense_by_category;
+    if (hasCafeActivity) {
+        retreatIncomeRows = subtractCategoryRows(retreatIncomeRows, snap.cafe.income_by_category);
+        retreatExpenseRows = subtractCategoryRows(retreatExpenseRows, snap.cafe.expense_by_category);
+    }
+    if (hasPrasadActivity) {
+        retreatIncomeRows = subtractCategoryRows(retreatIncomeRows, snap.prasad.income_by_category);
+        retreatExpenseRows = subtractCategoryRows(retreatExpenseRows, snap.prasad.expense_by_category);
+    }
+    const hasSplit = hasCafeActivity || hasPrasadActivity;
 
-    section('Приходы по статьям' + (hasCafeActivity ? ' — ретрит' : ''), retreatIncomeRows);
-    section('Расходы по статьям' + (hasCafeActivity ? ' — ретрит' : ''), retreatExpenseRows);
+    section('Приходы по статьям' + (hasSplit ? ' — ретрит' : ''), retreatIncomeRows);
+    section('Расходы по статьям' + (hasSplit ? ' — ретрит' : ''), retreatExpenseRows);
+    if (hasPrasadActivity) {
+        section('Приходы по статьям — прасад', snap.prasad.income_by_category);
+        section('Расходы по статьям — прасад', snap.prasad.expense_by_category);
+    }
     if (hasCafeActivity) {
         section('Приходы по статьям — кафе', snap.cafe.income_by_category);
         section('Расходы по статьям — кафе', snap.cafe.expense_by_category);
     }
 
     const tot = snap.totals || {};
-    if (hasCafeActivity) {
-        line(`Ретрит — приход: ${money(Number(tot.income_base) - Number(cafe.income_base))}   расход: ${money(Number(tot.expense_base) - Number(cafe.expense_base))}   сальдо: ${money(Number(tot.net_base) - Number(cafe.net_base))}`, 11, { gap: 4 });
-        line(`Кафе — приход: ${money(cafe.income_base)}   расход: ${money(cafe.expense_base)}   сальдо: ${money(cafe.net_base)}`, 11, { gap: 4 });
+    if (hasSplit) {
+        const retreatIncome = Number(tot.income_base) - Number(cafe?.income_base || 0) - Number(prasad?.income_base || 0);
+        const retreatExpense = Number(tot.expense_base) - Number(cafe?.expense_base || 0) - Number(prasad?.expense_base || 0);
+        line(`Ретрит — приход: ${money(retreatIncome)}   расход: ${money(retreatExpense)}   сальдо: ${money(retreatIncome - retreatExpense)}`, 11, { gap: 4 });
+        if (hasPrasadActivity) line(`Прасад — приход: ${money(prasad.income_base)}   расход: ${money(prasad.expense_base)}   сальдо: ${money(prasad.net_base)}`, 11, { gap: 4 });
+        if (hasCafeActivity) line(`Кафе — приход: ${money(cafe.income_base)}   расход: ${money(cafe.expense_base)}   сальдо: ${money(cafe.net_base)}`, 11, { gap: 4 });
     }
     line(`Итого — приход: ${money(tot.income_base)}   расход: ${money(tot.expense_base)}   сальдо: ${money(tot.net_base)}`, 12, { gap: 16 });
 
@@ -369,19 +415,44 @@ function exportCsv() {
     if (!currentData?.exists) return;
     const r = currentData.report;
     const cafe = r.cafe?.totals;
+    const prasad = r.prasad?.totals;
     const hasCafeActivity = cafe && (Number(cafe.income_base) || Number(cafe.expense_base));
-    const retreatIncomeRows = hasCafeActivity ? subtractCategoryRows(r.income_by_category, r.cafe.income_by_category) : r.income_by_category;
-    const retreatExpenseRows = hasCafeActivity ? subtractCategoryRows(r.expense_by_category, r.cafe.expense_by_category) : r.expense_by_category;
+    const hasPrasadActivity = prasad && (Number(prasad.income_base) || Number(prasad.expense_base));
+    let retreatIncomeRows = r.income_by_category;
+    let retreatExpenseRows = r.expense_by_category;
+    if (hasCafeActivity) {
+        retreatIncomeRows = subtractCategoryRows(retreatIncomeRows, r.cafe.income_by_category);
+        retreatExpenseRows = subtractCategoryRows(retreatExpenseRows, r.cafe.expense_by_category);
+    }
+    if (hasPrasadActivity) {
+        retreatIncomeRows = subtractCategoryRows(retreatIncomeRows, r.prasad.income_by_category);
+        retreatExpenseRows = subtractCategoryRows(retreatExpenseRows, r.prasad.expense_by_category);
+    }
 
     const rows = [['Юнит', 'Раздел', 'Название', 'Сумма (₹)']];
     for (const x of retreatIncomeRows || []) rows.push(['Ретрит', 'Приход', x.name, x.base_total]);
     for (const x of retreatExpenseRows || []) rows.push(['Ретрит', 'Расход', x.name, x.base_total]);
+    if (hasPrasadActivity) {
+        for (const x of r.prasad.income_by_category || []) rows.push(['Прасад', 'Приход', x.name, x.base_total]);
+        for (const x of r.prasad.expense_by_category || []) rows.push(['Прасад', 'Расход', x.name, x.base_total]);
+    }
     if (hasCafeActivity) {
         for (const x of r.cafe.income_by_category || []) rows.push(['Кафе', 'Приход', x.name, x.base_total]);
         for (const x of r.cafe.expense_by_category || []) rows.push(['Кафе', 'Расход', x.name, x.base_total]);
-        rows.push(['Ретрит', 'Итог', 'Приход', round2(Number(r.totals.income_base) - Number(cafe.income_base))]);
-        rows.push(['Ретрит', 'Итог', 'Расход', round2(Number(r.totals.expense_base) - Number(cafe.expense_base))]);
-        rows.push(['Ретрит', 'Итог', 'Сальдо', round2(Number(r.totals.net_base) - Number(cafe.net_base))]);
+    }
+    if (hasCafeActivity || hasPrasadActivity) {
+        const retreatIncome = round2(Number(r.totals.income_base) - Number(cafe?.income_base || 0) - Number(prasad?.income_base || 0));
+        const retreatExpense = round2(Number(r.totals.expense_base) - Number(cafe?.expense_base || 0) - Number(prasad?.expense_base || 0));
+        rows.push(['Ретрит', 'Итог', 'Приход', retreatIncome]);
+        rows.push(['Ретрит', 'Итог', 'Расход', retreatExpense]);
+        rows.push(['Ретрит', 'Итог', 'Сальдо', round2(retreatIncome - retreatExpense)]);
+    }
+    if (hasPrasadActivity) {
+        rows.push(['Прасад', 'Итог', 'Приход', prasad.income_base]);
+        rows.push(['Прасад', 'Итог', 'Расход', prasad.expense_base]);
+        rows.push(['Прасад', 'Итог', 'Сальдо', prasad.net_base]);
+    }
+    if (hasCafeActivity) {
         rows.push(['Кафе', 'Итог', 'Приход', cafe.income_base]);
         rows.push(['Кафе', 'Итог', 'Расход', cafe.expense_base]);
         rows.push(['Кафе', 'Итог', 'Сальдо', cafe.net_base]);
