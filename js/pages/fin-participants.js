@@ -277,6 +277,19 @@ async function loadCardCrmInfo() {
             </div>${срок}${b.note ? `<div class="text-[11px] text-warning pl-2">${e(b.note)}</div>` : ''}
         </div>`;
     };
+    // Доп. услуги (extra) — не считаются в CRM по прайс-листу (произвольная
+    // сумма прямых расходов вроде такси, симки и т.п.), поэтому не заведены
+    // в crm_calc_participation: показываем не «условие», а то, что реально
+    // уже начислено на карточке участника (ВГ, сен 2026)
+    const cardP = participants.find(x => x.participant_id === card.id);
+    const extraCharged = Number(cardP?.balance?.blocks?.extra?.charged) || 0;
+    const extraLine = extraCharged > 0.005 ? `<div class="py-0.5 border-b border-base-200/60 last:border-0">
+        <div class="flex justify-between gap-2 text-xs">
+            <span class="opacity-60">${blockLabel('extra')}</span>
+            <span class="font-mono text-right">${FinUtils.fmtMoney(extraCharged, 'INR')}</span>
+        </div>
+    </div>` : '';
+
     if (el) el.innerHTML = `
         <div class="bg-base-200/40 rounded-lg px-2.5 py-1.5">
             <div class="flex flex-wrap items-center gap-2 text-[11px] uppercase tracking-wide opacity-50 mb-0.5">
@@ -285,6 +298,7 @@ async function loadCardCrmInfo() {
             ${блок('org_fee', blockLabel('org_fee'))}
             ${блок('accommodation', blockLabel('accommodation'))}
             ${блок('meals', blockLabel('meals'))}
+            ${extraLine}
             ${метки ? `<div class="mt-1">${метки}</div>` : ''}
         </div>`;
     // Сводка в валюте пересчитывается по ценам CRM — теперь, когда расчёт загружен
