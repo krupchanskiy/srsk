@@ -41,6 +41,26 @@ async function selectRetreat(id) {
     await loadReport();
 }
 
+// Касса кафе — самостоятельная единица внутри ретрита (ВГ, сен 2026): из
+// общей разбивки по статьям вычитаем кафе-часть (одна статья может тратиться
+// и с кассы кафе, и с обычной кассы ретрита одновременно), чтобы на вкладке
+// «Ретрит» суммы были только ретрита, а кафе — отдельной вкладкой.
+const round2 = n => Math.round(n * 100) / 100;
+
+function subtractCategoryRows(mainRows, subRows) {
+    const byCategory = new Map((subRows || []).map(x => [x.category_id, x]));
+    return (mainRows || []).map(row => {
+        const sub = byCategory.get(row.category_id);
+        if (!sub) return row;
+        const by_currency = {};
+        for (const [code, val] of Object.entries(row.by_currency || {})) {
+            const rest = round2(Number(val) - Number(sub.by_currency?.[code] || 0));
+            if (Math.abs(rest) > 0.005) by_currency[code] = rest;
+        }
+        return { ...row, base_total: round2(Number(row.base_total) - Number(sub.base_total)), by_currency };
+    }).filter(row => Math.abs(row.base_total) > 0.005);
+}
+
 function catTable(rows, titleKey) {
     if (!rows?.length) return '';
     const objId = currentData?.object_id;
@@ -115,6 +135,8 @@ async function loadReport() {
     const r = currentData.report;
     const p = r.participants;
     const tot = r.totals;
+    const cafe = r.cafe?.totals;
+    const hasCafeActivity = cafe && (Number(cafe.income_base) || Number(cafe.expense_base));
 
     const kpi = (chip, icon, label, value, sub) => `
         <div class="card bg-base-100 fin-kpi"><div class="card-body">
@@ -131,6 +153,48 @@ async function loadReport() {
     const icUp = '<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.7" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M2.25 18L9 11.25l4.306 4.307a11.95 11.95 0 015.814-5.519l2.74-1.22m0 0l-5.94-2.28m5.94 2.28l-2.28 5.941"/></svg>';
     const icDown = '<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.7" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M2.25 6L9 12.75l4.286-4.286a11.948 11.948 0 014.306 6.43l.776 2.898m0 0l3.182-5.511m-3.182 5.51l-5.511-3.181"/></svg>';
     const icNet = '<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.7" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M9 8.25H7.5a2.25 2.25 0 00-2.25 2.25v9a2.25 2.25 0 002.25 2.25h9a2.25 2.25 0 002.25-2.25v-9a2.25 2.25 0 00-2.25-2.25H15M9 12l2.25 2.25L15 9.75M9 8.25V6a3 3 0 013-3v0a3 3 0 013 3v2.25"/></svg>';
+
+    // Разбивка по статьям без кафе (кафе — самостоятельная единица, см. subtractCategoryRows)
+    const retreatIncomeRows = hasCafeActivity ? subtractCategoryRows(r.income_by_category, r.cafe.income_by_category) : r.income_by_category;
+    const retreatExpenseRows = hasCafeActivity ? subtractCategoryRows(r.expense_by_category, r.cafe.expense_by_category) : r.expense_by_category;
+
+    const splitRow = (label, block, bold) => `<tr class="${bold ? 'font-semibold border-t-2 border-base-300' : ''}">
+        <td>${label}</td>
+        <td class="text-right font-mono text-success">${fmtB(block.income_base)}</td>
+        <td class="text-right font-mono text-error">${fmtB(block.expense_base)}</td>
+        <td class="text-right font-mono ${Number(block.net_base) < 0 ? 'text-error' : 'text-success'}">${fmtB(block.net_base)}</td>
+    </tr>`;
+    const retreatOnlyTotals = hasCafeActivity ? {
+        income_base: Number(tot.income_base) - Number(cafe.income_base),
+        expense_base: Number(tot.expense_base) - Number(cafe.expense_base),
+        net_base: Number(tot.net_base) - Number(cafe.net_base)
+    } : null;
+    const splitTotalsTable = hasCafeActivity ? `
+        <div class="card bg-base-100 shadow-sm"><div class="card-body py-4">
+            <div class="overflow-x-auto"><table class="table table-sm">
+                <thead><tr><th></th><th class="text-right">${t('fin_income')}</th><th class="text-right">${t('fin_expense')}</th><th class="text-right">${t('fin_net')}</th></tr></thead>
+                <tbody>
+                    ${splitRow(t('retreat_report_finance_retreat_only'), retreatOnlyTotals)}
+                    ${splitRow(t('retreat_report_finance_cafe'), cafe)}
+                    ${splitRow(t('retreat_report_finance_total'), tot, true)}
+                </tbody>
+            </table></div>
+        </div></div>` : '';
+
+    const unitTabs = hasCafeActivity ? `
+        <div role="tablist" class="tabs tabs-boxed w-fit">
+            <input type="radio" name="fin_unit_tabs" role="tab" class="tab" aria-label="${t('retreat_report_finance_retreat_only')}" checked />
+            <div role="tabpanel" class="tab-content pt-4 space-y-4">
+                ${catTable(retreatIncomeRows, 'fin_income_by_category')}
+                ${catTable(retreatExpenseRows, 'fin_expense_by_category')}
+            </div>
+            <input type="radio" name="fin_unit_tabs" role="tab" class="tab" aria-label="${t('retreat_report_finance_cafe')}" />
+            <div role="tabpanel" class="tab-content pt-4 space-y-4">
+                ${catTable(r.cafe.income_by_category, 'fin_income_by_category')}
+                ${catTable(r.cafe.expense_by_category, 'fin_expense_by_category')}
+            </div>
+        </div>` : `${catTable(r.income_by_category, 'fin_income_by_category')}${catTable(r.expense_by_category, 'fin_expense_by_category')}`;
+
     box.innerHTML = `
         <div class="grid grid-cols-2 md:grid-cols-4 gap-3">
             ${kpi('', icUsers, t('fin_participants_count'), p.count, `${t('fin_charged')}: ${fmtB(p.charged)} · ${t('fin_paid')}: ${fmtB(p.paid)}`)}
@@ -140,8 +204,8 @@ async function loadReport() {
         </div>
 
         ${closureBlock(currentData)}
-        ${catTable(r.income_by_category, 'fin_income_by_category')}
-        ${catTable(r.expense_by_category, 'fin_expense_by_category')}
+        ${splitTotalsTable}
+        ${unitTabs}
 
         ${p.debtors?.length ? `
         <div class="card bg-base-100 shadow-sm"><div class="card-body py-4">
@@ -265,11 +329,27 @@ async function renderClosurePdf(snap, version) {
         }
         y -= 8;
     };
-    section('Приходы по статьям', snap.income_by_category);
-    section('Расходы по статьям', snap.expense_by_category);
+
+    // Касса кафе — самостоятельная единица (см. fin-analytics.js:subtractCategoryRows):
+    // в статьях ретрита кафе-часть не показываем, у кафе — свои статьи и итог
+    const cafe = snap.cafe?.totals;
+    const hasCafeActivity = cafe && (Number(cafe.income_base) || Number(cafe.expense_base));
+    const retreatIncomeRows = hasCafeActivity ? subtractCategoryRows(snap.income_by_category, snap.cafe.income_by_category) : snap.income_by_category;
+    const retreatExpenseRows = hasCafeActivity ? subtractCategoryRows(snap.expense_by_category, snap.cafe.expense_by_category) : snap.expense_by_category;
+
+    section('Приходы по статьям' + (hasCafeActivity ? ' — ретрит' : ''), retreatIncomeRows);
+    section('Расходы по статьям' + (hasCafeActivity ? ' — ретрит' : ''), retreatExpenseRows);
+    if (hasCafeActivity) {
+        section('Приходы по статьям — кафе', snap.cafe.income_by_category);
+        section('Расходы по статьям — кафе', snap.cafe.expense_by_category);
+    }
 
     const tot = snap.totals || {};
-    line(`Приход: ${money(tot.income_base)}   Расход: ${money(tot.expense_base)}   Сальдо: ${money(tot.net_base)}`, 12, { gap: 16 });
+    if (hasCafeActivity) {
+        line(`Ретрит — приход: ${money(Number(tot.income_base) - Number(cafe.income_base))}   расход: ${money(Number(tot.expense_base) - Number(cafe.expense_base))}   сальдо: ${money(Number(tot.net_base) - Number(cafe.net_base))}`, 11, { gap: 4 });
+        line(`Кафе — приход: ${money(cafe.income_base)}   расход: ${money(cafe.expense_base)}   сальдо: ${money(cafe.net_base)}`, 11, { gap: 4 });
+    }
+    line(`Итого — приход: ${money(tot.income_base)}   расход: ${money(tot.expense_base)}   сальдо: ${money(tot.net_base)}`, 12, { gap: 16 });
 
     if (p.debtors?.length) {
         line('Должники', 13, { gap: 6 });
@@ -288,13 +368,28 @@ async function renderClosurePdf(snap, version) {
 function exportCsv() {
     if (!currentData?.exists) return;
     const r = currentData.report;
-    const rows = [['Раздел', 'Название', 'Сумма (₹)']];
-    for (const x of r.income_by_category || []) rows.push(['Приход', x.name, x.base_total]);
-    for (const x of r.expense_by_category || []) rows.push(['Расход', x.name, x.base_total]);
-    rows.push(['Итог', 'Приход', r.totals.income_base]);
-    rows.push(['Итог', 'Расход', r.totals.expense_base]);
-    rows.push(['Итог', 'Сальдо', r.totals.net_base]);
-    for (const d of r.participants?.debtors || []) rows.push(['Долг', d.name, d.debt]);
+    const cafe = r.cafe?.totals;
+    const hasCafeActivity = cafe && (Number(cafe.income_base) || Number(cafe.expense_base));
+    const retreatIncomeRows = hasCafeActivity ? subtractCategoryRows(r.income_by_category, r.cafe.income_by_category) : r.income_by_category;
+    const retreatExpenseRows = hasCafeActivity ? subtractCategoryRows(r.expense_by_category, r.cafe.expense_by_category) : r.expense_by_category;
+
+    const rows = [['Юнит', 'Раздел', 'Название', 'Сумма (₹)']];
+    for (const x of retreatIncomeRows || []) rows.push(['Ретрит', 'Приход', x.name, x.base_total]);
+    for (const x of retreatExpenseRows || []) rows.push(['Ретрит', 'Расход', x.name, x.base_total]);
+    if (hasCafeActivity) {
+        for (const x of r.cafe.income_by_category || []) rows.push(['Кафе', 'Приход', x.name, x.base_total]);
+        for (const x of r.cafe.expense_by_category || []) rows.push(['Кафе', 'Расход', x.name, x.base_total]);
+        rows.push(['Ретрит', 'Итог', 'Приход', round2(Number(r.totals.income_base) - Number(cafe.income_base))]);
+        rows.push(['Ретрит', 'Итог', 'Расход', round2(Number(r.totals.expense_base) - Number(cafe.expense_base))]);
+        rows.push(['Ретрит', 'Итог', 'Сальдо', round2(Number(r.totals.net_base) - Number(cafe.net_base))]);
+        rows.push(['Кафе', 'Итог', 'Приход', cafe.income_base]);
+        rows.push(['Кафе', 'Итог', 'Расход', cafe.expense_base]);
+        rows.push(['Кафе', 'Итог', 'Сальдо', cafe.net_base]);
+    }
+    rows.push(['Итого', 'Итог', 'Приход', r.totals.income_base]);
+    rows.push(['Итого', 'Итог', 'Расход', r.totals.expense_base]);
+    rows.push(['Итого', 'Итог', 'Сальдо', r.totals.net_base]);
+    for (const d of r.participants?.debtors || []) rows.push(['Ретрит', 'Долг', d.name, d.debt]);
     const csv = '﻿' + rows.map(row => row.map(c => `"${String(c ?? '').replace(/"/g, '""')}"`).join(';')).join('\n');
     const a = document.createElement('a');
     a.href = URL.createObjectURL(new Blob([csv], { type: 'text/csv;charset=utf-8' }));
