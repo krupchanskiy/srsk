@@ -169,6 +169,25 @@ async function submitPay(ev) {
     }
 }
 
+// Начисление по расписанию срабатывает 1-го числа; сотруднику, заведённому
+// посреди месяца, до этой даты неоткуда взять начисление — кнопка запускает
+// ту же серверную функцию вручную. Идемпотентно: уже начисленные месяцы
+// просто пропускаются, повторный клик ничего не задвоит.
+async function runAccrualNow(ev) {
+    const btn = ev.currentTarget;
+    if (btn.disabled) return;
+    const old = btn.innerHTML;
+    btn.disabled = true;
+    btn.innerHTML = `<span class="loading loading-spinner loading-xs"></span> ${old}`;
+    try {
+        const res = await FinUtils.rpc('fin_trigger_payroll_accrual');
+        if (FinUtils.handleResult(res, 'fin_payroll_accrual_done')) await load();
+    } finally {
+        btn.disabled = false;
+        btn.innerHTML = old;
+    }
+}
+
 async function init() {
     await Layout.init({ module: 'finance', menuId: 'fin_payroll', itemId: 'fin_payroll' });
 
@@ -179,6 +198,7 @@ async function init() {
         else if (toggleBtn) toggleDetail(toggleBtn.dataset.toggle);
     });
     document.getElementById('payForm').addEventListener('submit', FinUtils.lockedSubmit(submitPay));
+    document.getElementById('runAccrualBtn').addEventListener('click', runAccrualNow);
 
     await load();
 }
