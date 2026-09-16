@@ -111,7 +111,11 @@ function render() {
                 <div class="card-body p-0">
                     <div class="px-4 py-3 font-semibold border-b border-base-200">${e(d.name)}</div>
                     <div class="overflow-x-auto">
-                        <table class="table table-sm">
+                        <table class="table table-sm table-fixed w-full min-w-[820px]">
+                            <colgroup>
+                                <col class="w-[22%]"><col class="w-[18%]"><col class="w-[12%]">
+                                <col class="w-[12%]"><col class="w-[12%]"><col class="w-[14%]"><col class="w-[10%]">
+                            </colgroup>
                             <thead><tr>
                                 <th>${t('fin_payroll_employee')}</th>
                                 <th>${t('fin_payroll_position')}</th>
