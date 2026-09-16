@@ -193,6 +193,136 @@ function deptAccountsHtml(deptId) {
     </div>`;
 }
 
+// ==================== СОТРУДНИКИ ДЕПАРТАМЕНТА (зарплата) ====================
+// Позиция ≠ сам вайшнава: один человек может побывать в нескольких
+// департаментах, у каждой позиции своя история оклада (438_fin_payroll.sql).
+// Список грузится по требованию (при открытии формы департамента), а не
+// вместе со справочниками — сотрудники не нужны почти никому, кроме этой формы.
+let deptEmployees = {};   // { department_id: [позиция, …] }
+let editingEmployeeId = null;
+
+async function loadDeptEmployees(deptId) {
+    const { data } = await Layout.db.from('fin_v_payroll_positions')
+        .select('*').eq('department_id', deptId).order('employee_name');
+    deptEmployees[deptId] = data || [];
+    return deptEmployees[deptId];
+}
+
+function resetEmployeeForm() {
+    editingEmployeeId = null;
+    const search = document.getElementById('f_emp_search');
+    if (search) { search.value = ''; search.disabled = false; }
+    const vais = document.getElementById('f_emp_vaishnava');
+    if (vais) vais.value = '';
+    const title = document.getElementById('f_emp_title');
+    if (title) title.value = '';
+    const salary = document.getElementById('f_emp_salary');
+    if (salary) salary.value = '';
+    const btn = document.querySelector('[data-add-employee]');
+    if (btn) btn.textContent = t('fin_add');
+    const cancel = document.getElementById('f_emp_cancel');
+    if (cancel) cancel.classList.add('hidden');
+}
+
+function fillEmployeeForm(p) {
+    editingEmployeeId = p.id;
+    const search = document.getElementById('f_emp_search');
+    if (search) { search.value = p.employee_name; search.disabled = true; }
+    document.getElementById('f_emp_vaishnava').value = p.vaishnava_id;
+    document.getElementById('f_emp_title').value = p.position_title || '';
+    document.getElementById('f_emp_salary').value = p.salary_amount ?? '';
+    const btn = document.querySelector('[data-add-employee]');
+    if (btn) btn.textContent = t('save');
+    const cancel = document.getElementById('f_emp_cancel');
+    if (cancel) cancel.classList.remove('hidden');
+}
+
+function deptEmployeesHtml(deptId) {
+    const current = (deptEmployees[deptId] || []).filter(p => p.is_current);
+    const rows = current.length
+        ? current.map(p => `<div class="flex justify-between items-center gap-2 text-sm py-1 border-b border-base-200 last:border-0">
+            <div class="truncate">
+                <div>${e(p.employee_name)} <span class="opacity-60">— ${e(p.position_title)}</span></div>
+                <div class="opacity-60 text-xs">${p.salary_amount != null
+                    ? `${FinUtils.fmtMoney(p.salary_amount, p.currency_code)} / ${t('fin_payroll_month')}`
+                    : t('fin_payroll_no_salary')}</div>
+            </div>
+            <div class="flex gap-1 shrink-0">
+                <button type="button" class="btn btn-ghost btn-xs" data-edit-employee="${p.id}" title="${t('edit')}">${editIcon}</button>
+                <button type="button" class="btn btn-ghost btn-xs text-error" data-end-employee="${p.id}" title="${t('fin_payroll_terminate')}">${FinUtils.ICONS.x}</button>
+            </div>
+        </div>`).join('')
+        : `<div class="text-sm opacity-60">${t('fin_payroll_no_employees')}</div>`;
+
+    return `<div class="form-control mb-2">
+        <label class="label py-0"><span class="label-text">${t('fin_payroll_employees_section')}</span></label>
+        <div class="border border-base-300 rounded-lg p-2" id="f_emp_list">
+            ${rows}
+        </div>
+        <div class="mt-2 space-y-1">
+            <input type="text" id="f_emp_search" class="input input-bordered input-xs w-full" autocomplete="off" placeholder="${t('fin_payroll_find_person')}">
+            <input type="hidden" id="f_emp_vaishnava">
+            <div class="flex gap-1">
+                <input type="text" id="f_emp_title" class="input input-bordered input-xs flex-1" placeholder="${t('fin_payroll_position_placeholder')}">
+                <input type="number" id="f_emp_salary" class="input input-bordered input-xs w-28" min="0.01" step="0.01" placeholder="${t('fin_payroll_salary_placeholder')}">
+                <button type="button" class="btn btn-outline btn-xs" data-add-employee="${deptId}">${t('fin_add')}</button>
+                <button type="button" id="f_emp_cancel" class="btn btn-ghost btn-xs hidden" data-cancel-employee>${t('fin_payroll_cancel_edit')}</button>
+            </div>
+        </div>
+    </div>`;
+}
+
+function wireEmployeeSection(deptId) {
+    const search = document.getElementById('f_emp_search');
+    const hidden = document.getElementById('f_emp_vaishnava');
+    if (search && hidden) FinUtils.attachPersonSearch(search, hidden);
+}
+
+async function refreshEmployeesBlock(deptId) {
+    await loadDeptEmployees(deptId);
+    const box = document.getElementById('dictFields');
+    const fresh = document.createElement('div');
+    fresh.innerHTML = deptEmployeesHtml(deptId);
+    const old = [...box.querySelectorAll('.form-control')]
+        .find(el => el.textContent.includes(t('fin_payroll_employees_section')));
+    if (old) old.replaceWith(fresh.firstElementChild);
+    resetEmployeeForm();
+    wireEmployeeSection(deptId);
+}
+
+async function saveEmployee(deptId) {
+    const vaishnavaId = document.getElementById('f_emp_vaishnava').value;
+    const title = document.getElementById('f_emp_title').value.trim();
+    const salary = document.getElementById('f_emp_salary').value;
+    if (!editingEmployeeId && !vaishnavaId) {
+        Layout.showNotification(t('fin_payroll_find_person'), 'error');
+        return;
+    }
+    if (!title) {
+        Layout.showNotification(t('fin_payroll_position'), 'error');
+        return;
+    }
+    const current = editingEmployeeId
+        ? (deptEmployees[deptId] || []).find(p => p.id === editingEmployeeId)
+        : null;
+    const res = await FinUtils.rpc('fin_save_payroll_position', {
+        id: editingEmployeeId || null,
+        vaishnava_id: current ? current.vaishnava_id : vaishnavaId,
+        department_id: deptId,
+        position_title: title,
+        salary_amount: salary || null,
+        currency_code: current?.currency_code || 'INR',
+        effective_from: FinUtils.todayISO()
+    });
+    if (FinUtils.handleResult(res)) await refreshEmployeesBlock(deptId);
+}
+
+async function endEmployee(deptId, positionId) {
+    if (!confirm(t('fin_payroll_terminate_confirm'))) return;
+    const res = await FinUtils.rpc('fin_end_payroll_position', { id: positionId, effective_to: null });
+    if (FinUtils.handleResult(res)) await refreshEmployeesBlock(deptId);
+}
+
 async function addDeptAccount(deptId) {
     const currency = document.getElementById('f_acc_currency')?.value;
     if (!currency) return;
@@ -292,6 +422,9 @@ function openForm(row) {
             // «Стройкой», 05.08.2026). У нового департамента блока нет: сначала
             // сохраняем его, потом заводим счета.
             (row?.id ? deptAccountsHtml(row.id) : '') +
+            // Сотрудники — тоже только у уже сохранённого департамента (позиция
+            // ссылается на department_id, у нового департамента его пока нет)
+            (row?.id ? deptEmployeesHtml(row.id) : '') +
             `<p class="text-xs opacity-60 mt-1">${t('fin_dept_hint')}</p>`;
     } else {
         // Курс правится и удаляется (вопрос ВГ: «ни удалить, ни изменить?»).
@@ -315,6 +448,11 @@ function openForm(row) {
     // а не в init — иначе она указывала бы на удалённый input.
     if (currentTab === 'departments') {
         FinUtils.attachPersonSearch(document.getElementById('f_resp_search'), document.getElementById('f_resp'));
+        if (row?.id) {
+            resetEmployeeForm();
+            wireEmployeeSection(row.id);
+            refreshEmployeesBlock(row.id);   // список сотрудников грузится асинхронно, по требованию
+        }
     }
     const delBtn = document.getElementById('f_rate_delete');
     if (delBtn) delBtn.addEventListener('click', () => deleteRate(editingId));
@@ -429,6 +567,20 @@ async function init() {
     });
 
     document.getElementById('dictForm').addEventListener('submit', submitForm);
+
+    // Кнопки сотрудников живут внутри dictFields, который каждый openForm
+    // пересобирает целиком — вешаем один делегированный слушатель на форму
+    document.getElementById('dictForm').addEventListener('click', ev => {
+        const add = ev.target.closest('[data-add-employee]');
+        const edit = ev.target.closest('[data-edit-employee]');
+        const end = ev.target.closest('[data-end-employee]');
+        const cancel = ev.target.closest('[data-cancel-employee]');
+        if (add) saveEmployee(add.dataset.addEmployee);
+        else if (edit) fillEmployeeForm((deptEmployees[editingId] || []).find(p => p.id === edit.dataset.editEmployee));
+        else if (end) endEmployee(editingId, end.dataset.endEmployee);
+        else if (cancel) resetEmployeeForm();
+    });
+
     await loadTab();
 }
 

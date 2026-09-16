@@ -141,6 +141,9 @@ const modules = {
             ]},
             { id: 'fin_dictionaries', items: [
                 { id: 'fin_dictionaries', href: 'finance/dictionaries.html' }
+            ]},
+            { id: 'fin_payroll', items: [
+                { id: 'fin_payroll', href: 'finance/payroll.html' }
             ]}
         ]
     },
@@ -290,6 +293,7 @@ const pagePermissions = {
     'finance/reconciliation.html': ['fin_admin', 'fin_observer'],
     'finance/analytics.html': ['fin_admin', 'fin_observer'],
     'finance/dictionaries.html': 'fin_admin',
+    'finance/payroll.html': 'fin_admin',
     'finance/retreat-report.html': ['fin_admin', 'fin_observer', 'view_retreat_guests'],
 };
 
