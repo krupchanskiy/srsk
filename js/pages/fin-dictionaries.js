@@ -218,6 +218,8 @@ function resetEmployeeForm() {
     if (title) title.value = '';
     const salary = document.getElementById('f_emp_salary');
     if (salary) salary.value = '';
+    const from = document.getElementById('f_emp_from');
+    if (from) from.value = FinUtils.todayISO();
     const btn = document.querySelector('[data-add-employee]');
     if (btn) btn.textContent = t('fin_add');
     const cancel = document.getElementById('f_emp_cancel');
@@ -231,6 +233,7 @@ function fillEmployeeForm(p) {
     document.getElementById('f_emp_vaishnava').value = p.vaishnava_id;
     document.getElementById('f_emp_title').value = p.position_title || '';
     document.getElementById('f_emp_salary').value = p.salary_amount ?? '';
+    document.getElementById('f_emp_from').value = p.effective_from;
     const btn = document.querySelector('[data-add-employee]');
     if (btn) btn.textContent = t('save');
     const cancel = document.getElementById('f_emp_cancel');
@@ -265,9 +268,14 @@ function deptEmployeesHtml(deptId) {
             <div class="flex gap-1">
                 <input type="text" id="f_emp_title" class="input input-bordered input-xs flex-1" placeholder="${t('fin_payroll_position_placeholder')}">
                 <input type="number" id="f_emp_salary" class="input input-bordered input-xs w-28" min="0.01" step="0.01" placeholder="${t('fin_payroll_salary_placeholder')}">
-                <button type="button" class="btn btn-outline btn-xs" data-add-employee="${deptId}">${t('fin_add')}</button>
+            </div>
+            <div class="flex gap-1 items-center">
+                <label class="text-xs opacity-60 shrink-0" for="f_emp_from">${t('fin_payroll_effective_from')}</label>
+                <input type="date" id="f_emp_from" class="input input-bordered input-xs" value="${FinUtils.todayISO()}">
+                <button type="button" class="btn btn-outline btn-xs ml-auto" data-add-employee="${deptId}">${t('fin_add')}</button>
                 <button type="button" id="f_emp_cancel" class="btn btn-ghost btn-xs hidden" data-cancel-employee>${t('fin_payroll_cancel_edit')}</button>
             </div>
+            <div class="text-xs opacity-50">${t('fin_payroll_backdate_hint')}</div>
         </div>
     </div>`;
 }
@@ -312,7 +320,7 @@ async function saveEmployee(deptId) {
         position_title: title,
         salary_amount: salary || null,
         currency_code: current?.currency_code || 'INR',
-        effective_from: FinUtils.todayISO()
+        effective_from: document.getElementById('f_emp_from').value || FinUtils.todayISO()
     });
     if (FinUtils.handleResult(res)) await refreshEmployeesBlock(deptId);
 }
