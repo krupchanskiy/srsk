@@ -315,6 +315,33 @@ async function postDraft(id) {
 // не то, что человек написал в чате, и расхождение всплывёт только на сверке.
 let splitDraft = null;
 
+// Привязка строки к зарплатной ведомости (438/448): необязательное поле,
+// появляется только для статьи «Оплата труда» — позволяет отметить, что
+// этот конкретный расход ещё и выплата такому-то сотруднику, без создания
+// отдельного перевода в самой ведомости (см. 448_tg_post_draft_payroll_link.sql)
+let payrollPositionsCache = {};
+
+function isLaborCategory(catId) {
+    return FinUtils.refs.categories.find(c => c.id === catId)?.code === 'dept_labor';
+}
+
+async function getPayrollPositions(deptId) {
+    if (!deptId) return [];
+    if (!payrollPositionsCache[deptId]) {
+        const { data } = await Layout.db.from('fin_v_payroll_positions')
+            .select('id, employee_name, position_title')
+            .eq('department_id', deptId).eq('is_current', true).order('employee_name');
+        payrollPositionsCache[deptId] = data || [];
+    }
+    return payrollPositionsCache[deptId];
+}
+
+function payrollOptionsHtml(list, selected) {
+    return `<option value="">${t('fin_payroll_link_none')}</option>` + list.map(p =>
+        `<option value="${p.id}" ${p.id === selected ? 'selected' : ''}>${e(p.employee_name)} — ${e(p.position_title)}</option>`
+    ).join('');
+}
+
 function outCategoryOptions(selected) {
     return FinUtils.refs.categories
         .filter(c => c.is_active && c.direction === 'out')
@@ -351,6 +378,8 @@ function splitRowHtml(amount, categoryId, objectId) {
                 <input type="checkbox" class="checkbox checkbox-sm" checked disabled data-split-as-expense>
                 <span class="label-text text-sm">${t('fin_split_as_expense')}</span>
             </label>
+            <select class="select select-bordered select-sm flex-1 min-w-0 hidden" data-split-payroll
+                    title="${t('fin_payroll_link_title')}"><option value="">${t('fin_payroll_link_none')}</option></select>
         </div>
         <div class="text-xs text-warning hidden" data-split-warn>⚠️ ${t('fin_split_no_expense_warn')}</div>
     </div>`;
@@ -366,6 +395,18 @@ function syncRowState(row) {
     box.classList.toggle('opacity-40', !dept);
     asExpense.disabled = !dept;
     row.querySelector('[data-split-warn]').classList.toggle('hidden', !dept || asExpense.checked);
+}
+
+// Строка «Оплата труда» — подгружаем позиции ведомости того департамента,
+// за кем в итоге числится расход (свой, если поле пусто)
+async function syncSplitPayrollField(row) {
+    const sel = row.querySelector('[data-split-payroll]');
+    const catId = row.querySelector('[data-split-cat]').value;
+    const show = isLaborCategory(catId);
+    sel.classList.toggle('hidden', !show);
+    if (!show) return;
+    const deptId = row.querySelector('[data-split-dept]').value || splitDraft?.department_id;
+    sel.innerHTML = payrollOptionsHtml(await getPayrollPositions(deptId), sel.value);
 }
 
 // Делим поровну в целых рупиях, остаток отдаём последней строке: иначе на
@@ -432,6 +473,7 @@ function openSplit(id) {
         splitRowHtml(splitDraft.amount, splitDraft.category_id || null);
     renderRemainder();
     document.querySelectorAll('#splitRows [data-split-row]').forEach(maybeSuggestSplitObject);
+    document.querySelectorAll('#splitRows [data-split-row]').forEach(syncSplitPayrollField);
     document.getElementById('splitModal').showModal();
 }
 
@@ -444,7 +486,8 @@ async function submitSplit(ev) {
             category_id: r.querySelector('[data-split-cat]').value,
             object_id: r.querySelector('[data-split-object]').value || null,
             department_id: dept,
-            as_expense: dept ? r.querySelector('[data-split-as-expense]').checked : null
+            as_expense: dept ? r.querySelector('[data-split-as-expense]').checked : null,
+            payroll_position_id: r.querySelector('[data-split-payroll]').value || null
         };
     });
     const { data, error } = await Layout.db.rpc('tg_post_draft', {
@@ -482,12 +525,30 @@ function refineRowHtml(amount, categoryId, objectId) {
                value="${amount ?? ''}" data-refine-amount>
         <select class="select select-bordered select-sm flex-1 min-w-0" data-refine-cat>${outCategoryOptions(categoryId)}</select>
         <select class="select select-bordered select-sm flex-1 min-w-0" data-refine-object>${FinUtils.objectOptions(objectId)}</select>
+        <select class="select select-bordered select-sm flex-1 min-w-0 hidden" data-refine-payroll
+                title="${t('fin_payroll_link_title')}"><option value="">${t('fin_payroll_link_none')}</option></select>
         <button type="button" class="btn btn-ghost btn-sm shrink-0 text-error" data-refine-remove aria-label="${t('delete')}">✕</button>
     </div>`;
 }
 
 function refineRows() {
     return [...document.querySelectorAll('#refineRows [data-refine-row]')];
+}
+
+// Строка «Оплата труда» — подгружаем позиции ведомости департамента-получателя
+// (refineTarget уже зафиксирован для всех строк сразу, в отличие от «Разбить»)
+async function syncRefinePayrollField(row) {
+    const sel = row.querySelector('[data-refine-payroll]');
+    const catId = row.querySelector('[data-refine-cat]').value;
+    const show = isLaborCategory(catId);
+    sel.classList.toggle('hidden', !show);
+    if (!show) return;
+    const deptId = document.getElementById('refineTarget').value;
+    sel.innerHTML = payrollOptionsHtml(await getPayrollPositions(deptId), sel.value);
+}
+
+function syncAllRefinePayrollFields() {
+    refineRows().forEach(syncRefinePayrollField);
 }
 
 // Сумма строк обязана сойтись с суммой заявки — иначе кнопка «Сохранить»
@@ -545,6 +606,7 @@ function openRefine(id) {
     syncRefineSpent();
     renderRefineRemainder();
     suggestAllRefineRows();
+    syncAllRefinePayrollFields();
     document.getElementById('refineModal').showModal();
 }
 
@@ -577,7 +639,8 @@ async function submitRefine(ev) {
         const rows = refineRows().map(r => ({
             amount: Number(r.querySelector('[data-refine-amount]').value),
             category_id: r.querySelector('[data-refine-cat]').value,
-            object_id: r.querySelector('[data-refine-object]').value || null
+            object_id: r.querySelector('[data-refine-object]').value || null,
+            payroll_position_id: r.querySelector('[data-refine-payroll]').value || null
         }));
         const res = await Layout.db.rpc('tg_post_draft', { p_id: id, p_rows: rows });
         if (res.error) { Layout.handleError(res.error, t('fin_post_draft')); return; }
@@ -626,6 +689,7 @@ async function init() {
     document.getElementById('refineSpent').addEventListener('change', syncRefineSpent);
     document.getElementById('refineSpent').addEventListener('change', suggestAllRefineRows);
     document.getElementById('refineTarget').addEventListener('change', suggestAllRefineRows);
+    document.getElementById('refineTarget').addEventListener('change', syncAllRefinePayrollFields);
     document.getElementById('refineAddRow').addEventListener('click', () => {
         const spent = document.getElementById('refineSpent').checked;
         document.getElementById('refineRows').insertAdjacentHTML('beforeend', refineRowHtml(null, null, null));
@@ -633,11 +697,14 @@ async function init() {
         row.querySelector('[data-refine-cat]').required = spent;
         renderRefineRemainder();
         maybeSuggestRefineObject(row);
+        syncRefinePayrollField(row);
     });
     document.getElementById('refineRows').addEventListener('input', renderRefineRemainder);
     document.getElementById('refineRows').addEventListener('change', ev => {
         const row = ev.target.closest('[data-refine-row]');
-        if (row && ev.target.matches('[data-refine-object]')) row.dataset.objectAuto = '0';
+        if (!row) return;
+        if (ev.target.matches('[data-refine-object]')) row.dataset.objectAuto = '0';
+        else if (ev.target.matches('[data-refine-cat]')) syncRefinePayrollField(row);
     });
     document.getElementById('refineRows').addEventListener('click', ev => {
         const rm = ev.target.closest('[data-refine-remove]');
@@ -650,7 +717,9 @@ async function init() {
     document.getElementById('splitAddRow').addEventListener('click', () => {
         document.getElementById('splitRows').insertAdjacentHTML('beforeend', splitRowHtml(null, null));
         renderRemainder();
-        maybeSuggestSplitObject(document.querySelector('#splitRows [data-split-row]:last-child'));
+        const row = document.querySelector('#splitRows [data-split-row]:last-child');
+        maybeSuggestSplitObject(row);
+        syncSplitPayrollField(row);
     });
     document.getElementById('splitRows').addEventListener('input', renderRemainder);
     document.getElementById('splitRows').addEventListener('change', ev => {
@@ -658,7 +727,8 @@ async function init() {
         if (!row) return;
         syncRowState(row);
         if (ev.target.matches('[data-split-object]')) row.dataset.objectAuto = '0';
-        else if (ev.target.matches('[data-split-dept]')) maybeSuggestSplitObject(row);
+        else if (ev.target.matches('[data-split-dept]')) { maybeSuggestSplitObject(row); syncSplitPayrollField(row); }
+        else if (ev.target.matches('[data-split-cat]')) syncSplitPayrollField(row);
     });
     document.getElementById('splitRows').addEventListener('click', ev => {
         const rm = ev.target.closest('[data-split-remove]');
