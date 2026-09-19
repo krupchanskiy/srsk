@@ -762,6 +762,18 @@
                 <div class="text-sm text-gray-500 mb-4" id="bookingLocation"></div>
 
                 <form id="bookingForm" onsubmit="saveBooking(event)">
+                    <!-- Категория: от неё зависит цвет плашки в шахматке -->
+                    <div class="form-control mb-3">
+                        <label class="label py-1">
+                            <span class="label-text font-medium" data-i18n="timeline_category">Категория</span>
+                            <span class="label-text-alt opacity-60" id="bookingCategoryHint"></span>
+                        </label>
+                        <select name="category_id" id="bookingCategory" class="select select-bordered select-sm w-full"
+                                onchange="this.dataset.touched='1'">
+                            <option value="">—</option>
+                        </select>
+                    </div>
+
                     <!-- Название брони -->
                     <div class="form-control mb-3">
                         <label class="label py-1">
@@ -1079,7 +1091,7 @@
         if (btn) { btn.classList.toggle('btn-active', isFS); btn.title = isFS ? Layout.t('normal_view') : Layout.t('fullscreen'); }
     }
     </script>
-    <script src="../js/pages/timeline.js?v=18"></script>
+    <script src="../js/pages/timeline.js?v=19"></script>
 
 </body>
 </html>

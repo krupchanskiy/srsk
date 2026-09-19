@@ -637,6 +637,8 @@ async function loadDictionaries() {
     const catSelect = document.getElementById('checkinCategory');
     catSelect.innerHTML = '<option value="">—</option>' +
         categories.map(c => `<option value="${c.id}">${Layout.getName(c)}</option>`).join('');
+    const bookingCatSelect = document.getElementById('bookingCategory');
+    if (bookingCatSelect) bookingCatSelect.innerHTML = catSelect.innerHTML;
 
     // Рендерим легенду
     renderLegend();
@@ -732,6 +734,8 @@ function showBookingForm() {
     // Гость и ретрит: чистый старт на каждое открытие
     const bookingRetreatSel = document.getElementById('bookingRetreat');
     if (bookingRetreatSel) delete bookingRetreatSel.dataset.touched;
+    const bookingCatSel = document.getElementById('bookingCategory');
+    if (bookingCatSel) delete bookingCatSel.dataset.touched;
     clearBookingVaishnavSelection();
 }
 
@@ -871,6 +875,40 @@ function selectBookingVaishnava(id) {
     const form = document.getElementById('bookingForm');
     if (form && !form.contact_name.value.trim()) form.contact_name.value = name;
     suggestBookingRetreat();
+    suggestBookingCategory(id);
+}
+
+// Категория по статусу регистрации гостя (команда / волонтёр / важный гость),
+// как при заселении из «Предварительной». Выбранную вручную не перебиваем.
+const BOOKING_STATUS_CATEGORY = {
+    team: '10c4c929-6aaf-4b73-a15a-b7c5ab70f64b',
+    volunteer: 'cdb7a43e-51a8-47cd-ac97-c6fdf4fccd5e',
+    vip: 'ab57efc9-504a-4a31-93e6-6de8daa46bb7'
+};
+
+async function suggestBookingCategory(vaishnavaId) {
+    const sel = document.getElementById('bookingCategory');
+    const hint = document.getElementById('bookingCategoryHint');
+    if (!sel || sel.dataset.touched === '1') return;
+    sel.value = '';
+    if (hint) hint.textContent = '';
+    if (!vaishnavaId) return;
+
+    const from = document.getElementById('bookingDateIn').value;
+    const to = document.getElementById('bookingDateOut').value || from;
+    const { data } = await Layout.db
+        .from('retreat_registrations')
+        .select('status, retreats(start_date, end_date)')
+        .eq('vaishnava_id', vaishnavaId)
+        .eq('is_deleted', false)
+        .not('status', 'in', '("cancelled","rejected")');
+    const fits = (data || []).filter(r => r.retreats
+        && r.retreats.start_date <= to && r.retreats.end_date >= from);
+    const catId = fits.length ? BOOKING_STATUS_CATEGORY[fits[0].status] : null;
+    if (catId && sel.querySelector(`option[value="${catId}"]`)) {
+        sel.value = catId;
+        if (hint) hint.textContent = Layout.t('timeline_retreat_auto') || 'подставлено по регистрации';
+    }
 }
 
 function clearBookingVaishnavSelection() {
@@ -884,6 +922,9 @@ function clearBookingVaishnavSelection() {
     const sel = document.getElementById('bookingRetreat');
     if (sel) delete sel.dataset.touched;
     suggestBookingRetreat();
+    const catSel = document.getElementById('bookingCategory');
+    if (catSel) delete catSel.dataset.touched;
+    suggestBookingCategory(null);
 }
 
 document.getElementById('bookingVaishnavaSuggestions')?.addEventListener('click', ev => {
@@ -1058,6 +1099,7 @@ async function saveBooking(e) {
 
     const bookingRetreatId = form.retreat_id?.value || null;
     const bookingVaishnavaId = form.vaishnava_id?.value || null;
+    const bookingCategoryId = form.category_id?.value || null;
 
     const bookingData = {
         name: bookingName,
@@ -1093,6 +1135,7 @@ async function saveBooking(e) {
             room_id: modalContext.roomId,
             booking_id: booking.id,
             vaishnava_id: i === 0 ? bookingVaishnavaId : null,
+            category_id: bookingCategoryId,
             // Ретрит с брони: без него место не свяжется ни с регистрацией,
             // ни с долгом при выезде
             retreat_id: bookingRetreatId,
