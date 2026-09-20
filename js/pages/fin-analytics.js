@@ -63,27 +63,108 @@ function subtractCategoryRows(mainRows, subRows) {
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
-function catTable(rows, titleKey) {
+// Приходы — зелёным, расходы — красным. Клик по строке открывает справа список
+// операций (fin_get_report_drilldown); unit — какой юнит отчёта показан.
+function catTable(rows, titleKey, unit = 'retreat') {
     if (!rows?.length) return '';
-    const objId = currentData?.object_id;
+    const dir = titleKey === 'fin_income_by_category' ? 'in' : 'out';
     return `
     <div class="card bg-base-100 shadow-sm"><div class="card-body py-4">
-        <h2 class="card-title text-base">${t(titleKey)}</h2>
+        <h2 class="card-title text-base font-bold ${dir === 'in' ? 'text-success' : 'text-error'}">${t(titleKey)}</h2>
         <div class="overflow-x-auto"><table class="table table-sm">
-            <tbody>${rows.map(r => {
-                // Синтетические группы (org_fee/accommodation/meals — см. subtractCategoryRows)
-                // не ведут в dds.html: там нет такой категории, только настоящий category_id
-                const isRealCategory = r.category_id && UUID_RE.test(r.category_id);
-                const link = isRealCategory ? `class="cursor-pointer hover:bg-base-200" onclick="location.href='dds.html?category=${r.category_id}${objId ? '&object=' + objId : ''}'" title="${t('fin_open_in_dds')}"` : '';
-                return `<tr ${link}>
-                    <td class="${isRealCategory ? 'hover:underline' : ''}">${e(r.name)}</td>
+            <tbody>${rows.map(r => `<tr class="fin-drill-row cursor-pointer hover:bg-base-200"
+                    data-drill-unit="${unit}" data-drill-dir="${dir}" data-drill-group="${e(r.category_id)}" data-drill-name="${e(r.name)}">
+                    <td>${e(r.name)}</td>
                     <td class="text-right opacity-60">${Object.entries(r.by_currency || {}).map(([c, v]) => FinUtils.fmtMoney(v, c)).join(' · ')}</td>
                     <td class="text-right font-mono w-36">${fmtB(r.base_total)}</td>
-                </tr>`;
-            }).join('')}
+                </tr>`).join('')}
             </tbody>
         </table></div>
     </div></div>`;
+}
+
+// ---- Детализация строки отчёта (панель справа) ----
+let drillToken = 0;
+
+function drillPanel() { return document.getElementById('finDrill'); }
+
+function drillHintHtml() {
+    return `<div class="p-6 text-sm opacity-50 text-center">${t('fin_drill_hint')}</div>`;
+}
+
+function resetDrill() {
+    drillToken++;
+    document.querySelectorAll('.fin-drill-row.bg-base-200').forEach(x => x.classList.remove('bg-base-200'));
+    const panel = drillPanel();
+    if (panel) panel.innerHTML = drillHintHtml();
+}
+
+function drillOpHtml(r) {
+    const amount = Number(r.amount);
+    const title = r.description || r.reason || r.participant || '—';
+    const meta = [
+        r.description && r.participant ? e(r.participant) : '',
+        r.account ? e(r.account) : '',
+        r.entered_by ? `${t('fin_drill_entered_by')} ${e(r.entered_by)}` : ''
+    ].filter(Boolean).join(' · ');
+    const inBase = r.currency !== 'INR'
+        ? `<div class="text-xs opacity-50">= ${fmtB(r.amount_base)}</div>` : '';
+    return `<a href="dds.html?op=${encodeURIComponent(r.operation_id)}" target="_blank" rel="noopener"
+            class="block px-4 py-2 border-b border-base-200 hover:bg-base-200/60">
+        <div class="flex justify-between gap-3">
+            <div class="min-w-0">
+                <div class="text-xs opacity-60">${DateUtils.formatShort(DateUtils.parseDate(r.occurred_on))}</div>
+                <div class="text-sm break-words">${e(title)}</div>
+                ${meta ? `<div class="text-xs opacity-60 break-words">${meta}</div>` : ''}
+            </div>
+            <div class="text-right font-mono whitespace-nowrap ${amount < 0 ? 'text-error' : ''}">
+                ${FinUtils.fmtMoney(amount, r.currency)}${inBase}
+            </div>
+        </div></a>`;
+}
+
+async function openDrill(rowEl) {
+    const { drillUnit: unit, drillDir: dir, drillGroup: group, drillName: name } = rowEl.dataset;
+    const panel = drillPanel();
+    if (!panel || !currentData?.object_id) return;
+    const token = ++drillToken;
+    document.querySelectorAll('.fin-drill-row.bg-base-200').forEach(x => x.classList.remove('bg-base-200'));
+    rowEl.classList.add('bg-base-200');
+
+    const titleCls = dir === 'in' ? 'text-success' : 'text-error';
+    const ddsLink = UUID_RE.test(group)
+        ? `<a class="link link-primary text-xs" target="_blank" rel="noopener"
+              href="dds.html?category=${group}&object=${currentData.object_id}">${t('fin_open_in_dds')}</a>` : '';
+    const head = extra => `
+        <div class="px-4 py-3 border-b border-base-200 flex items-start justify-between gap-2 shrink-0">
+            <div class="min-w-0">
+                <div class="font-bold ${titleCls}">${e(name)}</div>
+                <div class="text-xs opacity-60">${extra}</div>
+            </div>
+            <div class="flex items-center gap-2 shrink-0">${ddsLink}
+                <button type="button" class="btn btn-ghost btn-xs" data-drill-close>✕</button></div>
+        </div>`;
+    panel.innerHTML = head('') + `<div class="p-6 text-center"><span class="loading loading-spinner loading-md"></span></div>`;
+    if (window.innerWidth < 1024) panel.scrollIntoView({ behavior: 'smooth', block: 'start' });
+
+    const { data, error } = await Layout.db.rpc('fin_get_report_drilldown', {
+        p_object: currentData.object_id, p_unit: unit, p_direction: dir, p_group: group
+    });
+    if (token !== drillToken) return;
+    if (error || !data?.ok) {
+        panel.innerHTML = head('') + `<div class="p-4 text-sm text-error">${e(data?.error?.message || error?.message || 'Ошибка')}</div>`;
+        return;
+    }
+    const { rows, total_base } = data.result;
+    panel.innerHTML = head(`${rows.length} · ${fmtB(total_base)}`) + (rows.length
+        ? `<div class="overflow-y-auto min-h-0 flex-1">${rows.map(drillOpHtml).join('')}</div>`
+        : `<div class="p-6 text-sm opacity-50 text-center">${t('fin_drill_empty')}</div>`);
+}
+
+function onReportClick(ev) {
+    if (ev.target.closest('[data-drill-close]')) { resetDrill(); return; }
+    const row = ev.target.closest('.fin-drill-row');
+    if (row) openDrill(row);
 }
 
 function closureBlock(d) {
@@ -207,26 +288,38 @@ async function loadReport() {
             </table></div>
         </div></div>` : '';
 
+    // Должники и аванс важны только по ретриту — в прасаде и кафе их нет (ВГ, сен 2026)
+    const debtorsHtml = `${p.debtors?.length ? `
+        <div class="card bg-base-100 shadow-sm"><div class="card-body py-4">
+            <h2 class="card-title text-base">${t('fin_debtors')} <span class="badge badge-error badge-sm">${p.debtors.length}</span>
+                <span class="ml-auto font-mono text-error text-base">${fmtB(p.debt_total)}</span></h2>
+            <div class="overflow-x-auto"><table class="table table-sm"><tbody>
+                ${p.debtors.map(x => `<tr class="cursor-pointer hover:bg-base-200" onclick="location.href='participants.html?retreat=${currentRetreat}&open=${x.participant_id}'"><td class="hover:underline">${e(x.name || '')}</td><td class="text-right font-mono text-error w-36">${fmtB(x.debt)}</td></tr>`).join('')}
+            </tbody></table></div>
+        </div></div>` : ''}
+        ${Number(p.advance_total) > 0 ? `<div class="text-sm opacity-70">${t('fin_advance')}: ${fmtB(p.advance_total)}</div>` : ''}`;
+
     const unitTabs = (hasCafeActivity || hasPrasadActivity) ? `
         <div role="tablist" class="tabs tabs-boxed w-fit">
             <input type="radio" name="fin_unit_tabs" role="tab" class="tab" aria-label="${t('retreat_report_finance_retreat_only')}" checked />
             <div role="tabpanel" class="tab-content pt-4 space-y-4">
-                ${catTable(retreatIncomeRows, 'fin_income_by_category')}
-                ${catTable(retreatExpenseRows, 'fin_expense_by_category')}
+                ${catTable(retreatIncomeRows, 'fin_income_by_category', 'retreat')}
+                ${catTable(retreatExpenseRows, 'fin_expense_by_category', 'retreat')}
+                ${debtorsHtml}
             </div>
             ${hasPrasadActivity ? `
             <input type="radio" name="fin_unit_tabs" role="tab" class="tab" aria-label="${t('retreat_report_finance_prasad')}" />
             <div role="tabpanel" class="tab-content pt-4 space-y-4">
-                ${catTable(r.prasad.income_by_category, 'fin_income_by_category')}
-                ${catTable(r.prasad.expense_by_category, 'fin_expense_by_category')}
+                ${catTable(r.prasad.income_by_category, 'fin_income_by_category', 'prasad')}
+                ${catTable(r.prasad.expense_by_category, 'fin_expense_by_category', 'prasad')}
             </div>` : ''}
             ${hasCafeActivity ? `
             <input type="radio" name="fin_unit_tabs" role="tab" class="tab" aria-label="${t('retreat_report_finance_cafe')}" />
             <div role="tabpanel" class="tab-content pt-4 space-y-4">
-                ${catTable(r.cafe.income_by_category, 'fin_income_by_category')}
-                ${catTable(r.cafe.expense_by_category, 'fin_expense_by_category')}
+                ${catTable(r.cafe.income_by_category, 'fin_income_by_category', 'cafe')}
+                ${catTable(r.cafe.expense_by_category, 'fin_expense_by_category', 'cafe')}
             </div>` : ''}
-        </div>` : `${catTable(r.income_by_category, 'fin_income_by_category')}${catTable(r.expense_by_category, 'fin_expense_by_category')}`;
+        </div>` : `${catTable(r.income_by_category, 'fin_income_by_category', 'retreat')}${catTable(r.expense_by_category, 'fin_expense_by_category', 'retreat')}${debtorsHtml}`;
 
     box.innerHTML = `
         <div class="grid grid-cols-2 md:grid-cols-4 gap-3">
@@ -238,18 +331,14 @@ async function loadReport() {
 
         ${closureBlock(currentData)}
         ${splitTotalsTable}
-        ${unitTabs}
-
-        ${p.debtors?.length ? `
-        <div class="card bg-base-100 shadow-sm"><div class="card-body py-4">
-            <h2 class="card-title text-base">${t('fin_debtors')} <span class="badge badge-error badge-sm">${p.debtors.length}</span>
-                <span class="ml-auto font-mono text-error text-base">${fmtB(p.debt_total)}</span></h2>
-            <div class="overflow-x-auto"><table class="table table-sm"><tbody>
-                ${p.debtors.map(x => `<tr class="cursor-pointer hover:bg-base-200" onclick="location.href='participants.html?retreat=${currentRetreat}&open=${x.participant_id}'"><td class="hover:underline">${e(x.name || '')}</td><td class="text-right font-mono text-error w-36">${fmtB(x.debt)}</td></tr>`).join('')}
-            </tbody></table></div>
-        </div></div>` : ''}
-        ${Number(p.advance_total) > 0 ? `<div class="text-sm opacity-70">${t('fin_advance')}: ${fmtB(p.advance_total)}</div>` : ''}
+        <div class="grid grid-cols-1 lg:grid-cols-2 gap-4 items-start">
+            <div class="min-w-0 space-y-4">${unitTabs}</div>
+            <div id="finDrill" class="card bg-base-100 shadow-sm lg:sticky lg:top-4 flex flex-col overflow-hidden"
+                 style="max-height: calc(100vh - 2rem)">${drillHintHtml()}</div>
+        </div>
     `;
+    // Панель относится к юниту — при смене вкладки сбрасываем
+    box.querySelectorAll('input[name="fin_unit_tabs"]').forEach(i => i.addEventListener('change', resetDrill));
 }
 
 // ==================== ЗАКРЫТИЕ ====================
@@ -733,6 +822,7 @@ async function init() {
         btn.addEventListener('click', () => applyDeptPreset(btn.dataset.deptPreset)));
 
     document.getElementById('reissueForm').addEventListener('submit', submitReissue);
+    document.getElementById('retreatReport').addEventListener('click', onReportClick);
     document.addEventListener('click', ev => {
         const att = ev.target.closest('[data-attachment-path]');
         if (att) FinUtils.openAttachment(att.dataset.attachmentPath);
