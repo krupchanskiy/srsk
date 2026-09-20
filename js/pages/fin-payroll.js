@@ -19,8 +19,14 @@ function periodLabel(periodStr) {
     return `${DateUtils.monthNamesShort[lang]?.[d.getMonth()] || DateUtils.monthNamesShort.ru[d.getMonth()]} ${d.getFullYear()}`;
 }
 
+// Баланс имеет смысл, если есть оклад или хоть одно начисление (в т.ч. ручное):
+// без них — только разовые выплаты, долга нет
+function tracksBalance(p) {
+    return p.salary_amount != null || Number(p.total_accrued) > 0;
+}
+
 function balanceBadge(p) {
-    if (p.salary_amount == null) return '';
+    if (!tracksBalance(p)) return '';
     const bal = Number(p.balance) || 0;
     if (bal > 0) return `<span class="badge badge-warning badge-sm">${t('fin_payroll_debt')}: ${FinUtils.fmtMoney(bal, p.currency_code)}</span>`;
     if (bal < 0) return `<span class="badge badge-info badge-sm">${t('fin_payroll_advance')}: ${FinUtils.fmtMoney(-bal, p.currency_code)}</span>`;
@@ -31,6 +37,7 @@ const chevron = `<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 
 
 function rowHtml(p) {
     const hasSalary = p.salary_amount != null;
+    const tracks = tracksBalance(p);
     const isOpen = detailOpen.has(p.id);
     return `<tr class="${p.is_current ? '' : 'opacity-60'}">
         <td>
@@ -41,11 +48,14 @@ function rowHtml(p) {
         </td>
         <td>${e(p.position_title)}</td>
         <td class="font-mono">${hasSalary ? FinUtils.fmtMoney(p.salary_amount, p.currency_code) : `<span class="opacity-50">${t('fin_payroll_no_salary')}</span>`}</td>
-        <td class="font-mono">${hasSalary ? FinUtils.fmtMoney(p.total_accrued, p.currency_code) : '—'}</td>
+        <td class="font-mono">${tracks ? FinUtils.fmtMoney(p.total_accrued, p.currency_code) : '—'}</td>
         <td class="font-mono">${FinUtils.fmtMoney(p.total_paid, p.currency_code)}</td>
         <td>${balanceBadge(p)}</td>
         <td class="text-right">
-            <button type="button" class="btn btn-primary btn-xs" data-pay="${p.id}">${t(hasSalary ? 'fin_payroll_pay' : 'fin_payroll_adhoc_pay')}</button>
+            <div class="flex flex-wrap justify-end gap-1">
+                ${p.is_current ? `<button type="button" class="btn btn-outline btn-xs" data-accrue="${p.id}">${t('fin_payroll_accrue')}</button>` : ''}
+                <button type="button" class="btn btn-primary btn-xs" data-pay="${p.id}">${t(tracks ? 'fin_payroll_pay' : 'fin_payroll_adhoc_pay')}</button>
+            </div>
         </td>
     </tr>
     <tr id="detail-${p.id}" class="${isOpen ? '' : 'hidden'}">
@@ -61,7 +71,7 @@ function detailBodyHtml(id) {
     const d = detailCache[id];
     if (!d) return `<span class="loading loading-spinner loading-xs"></span>`;
     const accruals = d.accruals.length
-        ? d.accruals.map(a => `<div class="flex justify-between gap-4"><span>${periodLabel(a.period)}${a.days_worked < a.days_in_month ? ` (${a.days_worked}/${a.days_in_month} ${t('fin_payroll_days')})` : ''}</span><span class="font-mono">${FinUtils.fmtMoney(a.amount, a.currency_code)}</span></div>`).join('')
+        ? d.accruals.map(a => `<div class="flex justify-between gap-4"><span>${periodLabel(a.period)}${a.is_manual ? ` (${t('fin_payroll_manual')})` : ''}${a.days_worked < a.days_in_month ? ` (${a.days_worked}/${a.days_in_month} ${t('fin_payroll_days')})` : ''}</span><span class="font-mono">${FinUtils.fmtMoney(a.amount, a.currency_code)}</span></div>`).join('')
         : `<div class="opacity-60">${t('fin_payroll_no_accruals')}</div>`;
     const payments = d.payments.length
         ? d.payments.map(p => `<div class="flex justify-between gap-4 ${p.is_reversed ? 'opacity-50 line-through' : ''}"><span>${DateUtils.formatShort(DateUtils.parseDate(p.occurred_on))}${p.comment ? ` — ${e(p.comment)}` : ''}</span><span class="font-mono">${FinUtils.fmtMoney(p.amount, p.currency_code)}</span></div>`).join('')
@@ -90,7 +100,7 @@ async function toggleDetail(id) {
 // Бывшие сотрудники нужны в ведомости только пока за ними остаётся
 // незакрытый остаток — иначе список зарастает историей навсегда
 function visiblePositions() {
-    return positions.filter(p => p.is_current || (p.salary_amount != null && Number(p.balance) !== 0));
+    return positions.filter(p => p.is_current || (tracksBalance(p) && Number(p.balance) !== 0));
 }
 
 function render() {
@@ -113,8 +123,8 @@ function render() {
                     <div class="overflow-x-auto">
                         <table class="table table-sm table-fixed w-full min-w-[820px]">
                             <colgroup>
-                                <col class="w-[22%]"><col class="w-[18%]"><col class="w-[12%]">
-                                <col class="w-[12%]"><col class="w-[12%]"><col class="w-[14%]"><col class="w-[10%]">
+                                <col class="w-[20%]"><col class="w-[16%]"><col class="w-[11%]">
+                                <col class="w-[11%]"><col class="w-[11%]"><col class="w-[13%]"><col class="w-[18%]">
                             </colgroup>
                             <thead><tr>
                                 <th>${t('fin_payroll_employee')}</th>
@@ -143,7 +153,7 @@ function openPayModal(id) {
     const p = positions.find(x => x.id === id);
     if (!p) return;
     document.getElementById('payPositionId').value = p.id;
-    document.getElementById('payModalTitle').textContent = `${t(p.salary_amount != null ? 'fin_payroll_pay' : 'fin_payroll_adhoc_pay')} — ${p.employee_name}`;
+    document.getElementById('payModalTitle').textContent = `${t(tracksBalance(p) ? 'fin_payroll_pay' : 'fin_payroll_adhoc_pay')} — ${p.employee_name}`;
     // Подсказка суммы: есть долг — предлагаем его; нет долга, но оклад есть —
     // предлагаем сам оклад (обычно платят именно его); нет оклада — пусто,
     // сумму вводят руками. Подсказку всегда можно поправить — это и оставляет
@@ -153,6 +163,36 @@ function openPayModal(id) {
     document.getElementById('payDate').value = FinUtils.todayISO();
     document.getElementById('payComment').value = '';
     document.getElementById('payModal').showModal();
+}
+
+// Ручное начисление за месяц — для тех, у кого сумму каждый месяц называет
+// глава департамента. По умолчанию предлагаем прошлый месяц: за него и платят.
+function openAccrueModal(id) {
+    const p = positions.find(x => x.id === id);
+    if (!p) return;
+    document.getElementById('accruePositionId').value = p.id;
+    document.getElementById('accrueModalTitle').textContent = `${t('fin_payroll_accrue_title')} — ${p.employee_name}`;
+    const prev = new Date();
+    prev.setDate(1);
+    prev.setMonth(prev.getMonth() - 1);
+    document.getElementById('accruePeriod').value = DateUtils.toISO(prev).slice(0, 7);
+    document.getElementById('accrueAmount').value = p.salary_amount ?? '';
+    document.getElementById('accrueModal').showModal();
+}
+
+async function submitAccrue(ev) {
+    ev.preventDefault();
+    const posId = document.getElementById('accruePositionId').value;
+    const res = await FinUtils.rpc('fin_set_payroll_accrual', {
+        position_id: posId,
+        period: document.getElementById('accruePeriod').value + '-01',
+        amount: document.getElementById('accrueAmount').value
+    });
+    if (FinUtils.handleResult(res, 'fin_payroll_accrual_done')) {
+        document.getElementById('accrueModal').close();
+        delete detailCache[posId];
+        await load();
+    }
 }
 
 async function submitPay(ev) {
@@ -194,10 +234,13 @@ async function init() {
     document.getElementById('payrollBody').addEventListener('click', ev => {
         const payBtn = ev.target.closest('[data-pay]');
         const toggleBtn = ev.target.closest('[data-toggle]');
+        const accrueBtn = ev.target.closest('[data-accrue]');
         if (payBtn) openPayModal(payBtn.dataset.pay);
+        else if (accrueBtn) openAccrueModal(accrueBtn.dataset.accrue);
         else if (toggleBtn) toggleDetail(toggleBtn.dataset.toggle);
     });
     document.getElementById('payForm').addEventListener('submit', FinUtils.lockedSubmit(submitPay));
+    document.getElementById('accrueForm').addEventListener('submit', FinUtils.lockedSubmit(submitAccrue));
     document.getElementById('runAccrualBtn').addEventListener('click', runAccrualNow);
 
     await load();
