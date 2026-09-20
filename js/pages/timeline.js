@@ -33,6 +33,7 @@ let ekadashiDays = new Set();
 // Фактическое время прибытия/отъезда из retreat_registrations
 let retreatTimesMap = new Map();
 let allRetreats = [];         // для выбора ретрита при заселении
+let creditorsSet = new Set(); // `${vaishnava_id}_${retreat_id}` — ашрам должен участнику (переплата при начисленной карточке)
 let debtorsSet = new Set();   // `${vaishnava_id}_${retreat_id}` — участники с долгом по финмодулю
 let specialNeedsMap = new Map();   // `${vaishnava_id}_${retreat_id}` — особые потребности из CRM
 
@@ -142,10 +143,15 @@ async function loadTimelineData() {
     // Должники по финмодулю: только флаг «есть долг», без сумм (fin_retreat_debtors
     // отдаёт список id; детали — в финмодуле по его собственным правам)
     debtorsSet = new Set();
+    creditorsSet = new Set();
     await Promise.all(residentRetreatIds.map(async rid => {
-        const { data, error } = await Layout.db.rpc('fin_retreat_debtors', { p_retreat: rid });
-        if (error) return; // нет прав/сбой — шахматка работает без подсветки
-        for (const row of (data || [])) debtorsSet.add(`${row.participant_id}_${rid}`);
+        const [debtors, creditors] = await Promise.all([
+            Layout.db.rpc('fin_retreat_debtors', { p_retreat: rid }),
+            Layout.db.rpc('fin_retreat_creditors', { p_retreat: rid })
+        ]);
+        // нет прав/сбой — шахматка работает без значка
+        if (!debtors.error) for (const row of (debtors.data || [])) debtorsSet.add(`${row.participant_id}_${rid}`);
+        if (!creditors.error) for (const row of (creditors.data || [])) creditorsSet.add(`${row.participant_id}_${rid}`);
     }));
 
     // Особые потребности из сделок CRM (доп. подушка, обогреватель…) — значок
@@ -332,6 +338,8 @@ async function loadTimelineData() {
                         isCheckedOut: res.status === 'checked_out',
                         hasDebt: !!(res.vaishnava_id && res.retreat_id
                             && debtorsSet.has(`${res.vaishnava_id}_${res.retreat_id}`)),
+                        hasCredit: !!(res.vaishnava_id && res.retreat_id
+                            && creditorsSet.has(`${res.vaishnava_id}_${res.retreat_id}`)),
                         specialNeeds: (res.vaishnava_id && res.retreat_id
                             && specialNeedsMap.get(`${res.vaishnava_id}_${res.retreat_id}`)) || null,
                         // Сырые данные для модалки
@@ -1286,6 +1294,16 @@ function openResidentModal(guestData, buildingName, roomName) {
             <span class="text-gray-500">${t('timeline_finance_card')}:</span>
             <span class="font-medium text-error">
                 ${t('timeline_has_debt')}
+                <a href="../finance/participants.html?retreat=${res.retreat_id}&open=${res.vaishnava_id}" class="link link-primary ml-1">→</a>
+            </span>
+        </div>`;
+    }
+
+    if (!guestData.hasDebt && guestData.hasCredit) {
+        infoHtml += `<div class="flex justify-between py-1 border-b">
+            <span class="text-gray-500">${t('timeline_finance_card')}:</span>
+            <span class="font-medium text-success">
+                ${t('timeline_we_owe')}
                 <a href="../finance/participants.html?retreat=${res.retreat_id}&open=${res.vaishnava_id}" class="link link-primary ml-1">→</a>
             </span>
         </div>`;
@@ -2458,7 +2476,12 @@ function renderTable() {
                         const checkedOutClass = guest.isCheckedOut ? ' checked-out' : '';
 
                         const debtClass = guest.hasDebt ? ' has-debt' : '';
-                        const debtDot = guest.hasDebt ? `<span class="debt-dot" title="${t('timeline_has_debt')}"></span>` : '';
+                        // Значок «$»: красный — участник должен, зелёный — должны мы.
+                        // Клик ведёт в финансы участника (суммы шахматке недоступны)
+                        const balanceKind = guest.hasDebt ? 'debt' : (guest.hasCredit ? 'credit' : '');
+                        const debtDot = balanceKind
+                            ? `<span class="balance-badge ${balanceKind}" title="${t(balanceKind === 'debt' ? 'timeline_has_debt' : 'timeline_we_owe')}" data-action="open-finance" data-retreat="${guest.rawData.retreat_id}" data-person="${guest.rawData.vaishnava_id}">$</span>`
+                            : '';
                         // Бытовые потребности — не финансовый маркер: ромбик с подсказкой (ТЗ 2.3)
                         const needsDot = guest.specialNeeds ? `<span class="needs-dot" title="${Layout.escapeHtml(guest.specialNeeds)}">◆</span>` : '';
                         if (guest.isBooking) {
@@ -2553,6 +2576,9 @@ function setupTimelineDelegation() {
                     );
                     break;
                 case 'open-resident-from-map': openResidentFromMap(id, ev); break;
+                case 'open-finance':
+                    window.open(`../finance/participants.html?retreat=${el.dataset.retreat}&open=${el.dataset.person}`, '_blank');
+                    break;
                 case 'open-cleaning-modal': openCleaningModal(id); break;
             }
         });

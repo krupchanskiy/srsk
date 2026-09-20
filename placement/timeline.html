@@ -274,15 +274,22 @@
             font-size: 9px;
             cursor: help;
         }
-        .guest-bar .debt-dot {
+        .guest-bar .balance-badge {
             flex: 0 0 auto;
-            width: 8px;
-            height: 8px;
+            width: 15px;
+            height: 15px;
             border-radius: 50%;
-            background: #dc2626;
             border: 1.5px solid #fff;
             margin-right: 4px;
+            font-size: 10px;
+            font-weight: 700;
+            line-height: 12px;
+            text-align: center;
+            color: #fff;
+            cursor: pointer;
         }
+        .guest-bar .balance-badge.debt { background: #dc2626; }
+        .guest-bar .balance-badge.credit { background: #16a34a; }
 
         /* Бронирование — бледная штриховка, имя тёмное.
            Раньше полосы шли «цвет / 35% цвета», а текст оставался белым от
@@ -1091,7 +1098,7 @@
         if (btn) { btn.classList.toggle('btn-active', isFS); btn.title = isFS ? Layout.t('normal_view') : Layout.t('fullscreen'); }
     }
     </script>
-    <script src="../js/pages/timeline.js?v=20"></script>
+    <script src="../js/pages/timeline.js?v=21"></script>
 
 </body>
 </html>
