@@ -1135,7 +1135,8 @@ async function saveBooking(e) {
             room_id: modalContext.roomId,
             booking_id: booking.id,
             vaishnava_id: i === 0 ? bookingVaishnavaId : null,
-            category_id: bookingCategoryId,
+            // Пусто — не передаём, чтобы сработал default колонки («Гость»)
+            ...(bookingCategoryId ? { category_id: bookingCategoryId } : {}),
             // Ретрит с брони: без него место не свяжется ни с регистрацией,
             // ни с долгом при выезде
             retreat_id: bookingRetreatId,
