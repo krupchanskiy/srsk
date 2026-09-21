@@ -519,11 +519,71 @@ function refineTargetIsCafe() {
     return FinUtils.isCafeDepartmentName(opt?.textContent);
 }
 
+// Подсказка статьи по тексту заявки («выдано Уше 1600₹ зп» → Оплата труда).
+// Порядок важен: первое совпавшее правило побеждает. Ошибку казначей поправит
+// в списке, задача — не заставлять его каждый раз выбирать с нуля.
+const CATEGORY_GUESS_RULES = [
+    [/зп|зарплат|оплат[аы] труда|жаловань|оклад/, 'dept_labor'],
+    [/лектор|лекци/, 'lecture_fee'],
+    // Стаканчик, в котором продаётся десерт/мусс, и коробочки — упаковка.
+    // Голое «стаканчики» — одноразовая посуда как самое частое; в Гест-хаусе
+    // это бывают металлические (инвентарь), казначей поправит (ВГ, сен 2026)
+    [/стакан[^.]*(десерт|мусс|сладост)|(десерт|мусс)[^.]*стакан|коробоч/, 'packaging'],
+    [/стакан|одноразов/, 'disposable_tableware'],
+    [/аренд/, 'dept_rent'],
+    [/такси/, 'taxi'],
+    [/бензин|топлив|дизел/, 'fuel'],
+    [/билет/, 'tickets'],
+    [/виз[аыу]/, 'visa'],
+    [/доставк/, 'delivery'],
+    [/ремонт|цемент|стройматериал|краск/, 'dept_repair'],
+    [/электричеств|(^|[^а-яё])(вода|воду|газ)([^а-яё]|$)/, 'dept_utilities'],
+    [/продукт|овощ|фрукт|молок|крупы|мука/, 'dept_food'],
+    [/гирлянд/, 'garlands_flowers'],
+    [/цвет[ыоа]/, 'flowers'],
+    [/уборк/, 'cleaning'],
+    [/удобрен/, 'fertilizers'],
+    [/семен|семена|семян/, 'seeds'],
+    [/хозтовар|расходник/, 'dept_household'],
+    [/прасад/, 'prasad']
+];
+
+function guessCategoryId(text) {
+    const low = (text || '').toLowerCase();
+    const rule = CATEGORY_GUESS_RULES.find(([re]) => re.test(low));
+    if (!rule) return null;
+    return FinUtils.refs.categories.find(c => c.is_active && c.direction === 'out' && c.code === rule[1])?.id || null;
+}
+
+// Позиция ведомости: имя из текста заявки ищем среди сотрудников получателя.
+// Подставляем только однозначное совпадение — двойников не угадываем.
+function guessPayrollPositionId(text, list) {
+    const words = (text || '').toLowerCase().split(/[^а-яёa-z]+/).filter(w => w.length >= 3);
+    const hits = list.filter(p => (p.employee_name || '').toLowerCase().split(/[^а-яёa-z]+/)
+        .some(n => n.length >= 3 && words.some(w => w.startsWith(n.slice(0, 3)) && n.startsWith(w.slice(0, 3)))));
+    return hits.length === 1 ? hits[0].id : null;
+}
+
+// Нет слов-подсказок, но имя из заявки есть в ведомости получателя — это
+// оплата труда (ВГ, сен 2026). Незнакомого человека не трогаем: казначей сам
+// заведёт его в ведомость или проведёт как гонорар.
+async function guessLaborByPayroll(row) {
+    if (!row || !refineDraft) return;
+    const catSel = row.querySelector('[data-refine-cat]');
+    if (catSel.value) return;
+    const list = await getPayrollPositions(document.getElementById('refineTarget').value);
+    if (!guessPayrollPositionId(refineDraft.raw_text, list)) return;
+    const labor = FinUtils.refs.categories.find(c => c.is_active && c.direction === 'out' && c.code === 'dept_labor');
+    if (!labor) return;
+    catSel.value = labor.id;
+    await syncRefinePayrollField(row);
+}
+
 function refineRowHtml(amount, categoryId, objectId) {
     return `<div class="flex items-center gap-2" data-refine-row data-object-auto="1">
         <input type="number" class="input input-bordered input-sm w-24 shrink-0 font-mono" step="0.01" min="0.01"
                value="${amount ?? ''}" data-refine-amount>
-        <select class="select select-bordered select-sm flex-1 min-w-0" data-refine-cat>${outCategoryOptions(categoryId)}</select>
+        <select class="select select-bordered select-sm flex-1 min-w-0" data-refine-cat><option value="">—</option>${outCategoryOptions(categoryId)}</select>
         <select class="select select-bordered select-sm flex-1 min-w-0" data-refine-object>${FinUtils.objectOptions(objectId)}</select>
         <select class="select select-bordered select-sm flex-1 min-w-0 hidden" data-refine-payroll
                 title="${t('fin_payroll_link_title')}"><option value="">${t('fin_payroll_link_none')}</option></select>
@@ -544,7 +604,9 @@ async function syncRefinePayrollField(row) {
     sel.classList.toggle('hidden', !show);
     if (!show) return;
     const deptId = document.getElementById('refineTarget').value;
-    sel.innerHTML = payrollOptionsHtml(await getPayrollPositions(deptId), sel.value);
+    const list = await getPayrollPositions(deptId);
+    const chosen = sel.value || guessPayrollPositionId(refineDraft?.raw_text, list);
+    sel.innerHTML = payrollOptionsHtml(list, chosen);
 }
 
 function syncAllRefinePayrollFields() {
@@ -601,12 +663,13 @@ function openRefine(id) {
                                 a => a.currency_code === refineDraft.currency
                                      && a.account_id !== ownAcc?.account_id);
     // Стартуем с одной строки на всю сумму — самый частый случай, дробят редко
-    document.getElementById('refineRows').innerHTML = refineRowHtml(refineDraft.amount, null, null);
+    document.getElementById('refineRows').innerHTML = refineRowHtml(refineDraft.amount, guessCategoryId(refineDraft.raw_text), null);
     document.getElementById('refineSpent').checked = false;
     syncRefineSpent();
     renderRefineRemainder();
     suggestAllRefineRows();
     syncAllRefinePayrollFields();
+    refineRows().forEach(guessLaborByPayroll);
     document.getElementById('refineModal').showModal();
 }
 
@@ -690,6 +753,7 @@ async function init() {
     document.getElementById('refineSpent').addEventListener('change', suggestAllRefineRows);
     document.getElementById('refineTarget').addEventListener('change', suggestAllRefineRows);
     document.getElementById('refineTarget').addEventListener('change', syncAllRefinePayrollFields);
+    document.getElementById('refineTarget').addEventListener('change', () => refineRows().forEach(guessLaborByPayroll));
     document.getElementById('refineAddRow').addEventListener('click', () => {
         const spent = document.getElementById('refineSpent').checked;
         document.getElementById('refineRows').insertAdjacentHTML('beforeend', refineRowHtml(null, null, null));
