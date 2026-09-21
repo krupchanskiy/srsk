@@ -100,7 +100,8 @@ async function toggleDetail(id) {
 // Бывшие сотрудники нужны в ведомости только пока за ними остаётся
 // незакрытый остаток — иначе список зарастает историей навсегда
 function visiblePositions() {
-    return positions.filter(p => p.is_current || (tracksBalance(p) && Number(p.balance) !== 0));
+    const showEnded = document.getElementById('showEnded')?.checked;
+    return positions.filter(p => p.is_current || showEnded || (tracksBalance(p) && Number(p.balance) !== 0));
 }
 
 function render() {
@@ -242,6 +243,7 @@ async function init() {
     document.getElementById('payForm').addEventListener('submit', FinUtils.lockedSubmit(submitPay));
     document.getElementById('accrueForm').addEventListener('submit', FinUtils.lockedSubmit(submitAccrue));
     document.getElementById('runAccrualBtn').addEventListener('click', runAccrualNow);
+    document.getElementById('showEnded').addEventListener('change', render);
 
     await load();
 }
