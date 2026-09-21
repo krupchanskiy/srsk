@@ -1,0 +1,104 @@
+<!DOCTYPE html>
+<html lang="ru" data-theme="light">
+<head>
+    <meta charset="UTF-8">
+    <script src="../js/color-init.js?v=2"></script>
+
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Себестоимость — ШРСК</title>
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg">
+    <link href="https://cdn.jsdelivr.net/npm/daisyui@4.12.14/dist/full.min.css" rel="stylesheet" />
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script>tailwind.config = { theme: { extend: { screens: { 'desktop': '1200px' } } } }</script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans:wght@400;500;600;700&family=Noto+Sans+Devanagari:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="../css/common.css?v=3">
+</head>
+<body class="bg-base-200 min-h-screen flex flex-col">
+
+    <div id="header-placeholder"></div>
+
+    <main class="container mx-auto px-4 py-6 flex-1">
+
+        <div class="mb-6">
+            <h1 class="text-2xl font-bold" data-i18n="cost_title">Себестоимость прасада</h1>
+            <p class="text-sm opacity-60" data-i18n="cost_subtitle">Прямые затраты: продукты по рецептам, одноразовая посуда, готовое со стороны. Делятся на фактических вкушающих.</p>
+        </div>
+
+        <div id="noAccess" class="alert alert-warning hidden mb-4">
+            <span data-i18n="prices_no_access">Нет доступа к ценам</span>
+        </div>
+
+        <div id="costContent" class="hidden">
+
+            <!-- Период -->
+            <div class="bg-base-100 rounded-xl shadow-sm p-4 mb-4">
+                <div class="flex flex-wrap items-end gap-3">
+                    <div>
+                        <label class="label py-1"><span class="label-text" data-i18n="cost_retreat">Ретрит</span></label>
+                        <select id="retreatSelect" class="select select-bordered select-sm"></select>
+                    </div>
+                    <div>
+                        <label class="label py-1"><span class="label-text" data-i18n="cost_from">С</span></label>
+                        <input type="date" id="dateFrom" class="input input-bordered input-sm" />
+                    </div>
+                    <div>
+                        <label class="label py-1"><span class="label-text" data-i18n="cost_to">По</span></label>
+                        <input type="date" id="dateTo" class="input input-bordered input-sm" />
+                    </div>
+                    <button class="btn btn-sm btn-ghost" data-action="preset" data-preset="month" data-i18n="cost_this_month">Этот месяц</button>
+                    <button class="btn btn-sm btn-ghost" data-action="preset" data-preset="prev" data-i18n="cost_prev_month">Прошлый месяц</button>
+                    <button class="btn btn-sm btn-primary" data-action="calculate" data-i18n="cost_calculate">Посчитать</button>
+                </div>
+            </div>
+
+            <!-- Предупреждения о данных -->
+            <div id="warnings" class="space-y-2 mb-4"></div>
+
+            <!-- Результат -->
+            <div id="result" class="bg-base-100 rounded-xl shadow-sm overflow-hidden mb-6 hidden">
+                <div class="overflow-x-auto">
+                    <table class="table table-sm w-full">
+                        <thead>
+                            <tr class="border-b border-base-200">
+                                <th data-i18n="cost_event">Событие</th>
+                                <th data-i18n="col_category">Категория</th>
+                                <th class="text-right" data-i18n="cost_person_meals">Человеко-приёмов</th>
+                                <th class="text-right" data-i18n="cost_food">Продукты</th>
+                                <th class="text-right" data-i18n="cost_dishware">Посуда</th>
+                                <th class="text-right" data-i18n="cost_external">Готовое</th>
+                                <th class="text-right" data-i18n="cost_total">Всего</th>
+                                <th class="text-right" data-i18n="cost_per_person">На человека</th>
+                            </tr>
+                        </thead>
+                        <tbody id="resultBody"></tbody>
+                    </table>
+                </div>
+            </div>
+
+            <!-- Набор посуды -->
+            <details class="bg-base-100 rounded-xl shadow-sm p-4 mb-6" id="kitBlock">
+                <summary class="cursor-pointer font-semibold" data-i18n="cost_kit_title">Набор одноразовой посуды на порцию</summary>
+                <p class="text-sm opacity-60 mt-2 mb-3" data-i18n="cost_kit_hint">Сколько штук каждой позиции уходит на одного вкушающего. Коэффициент подбирается по замеру за ретритный день (например, 1,1 стаканчика).</p>
+                <div id="kitBody" class="grid grid-cols-1 md:grid-cols-2 gap-6"></div>
+            </details>
+
+        </div>
+
+    </main>
+
+    <div id="footer-placeholder"></div>
+
+    <script src="../js/config.js?v=5"></script>
+    <script src="../js/auth-check.js?v=10"></script>
+    <script src="../js/cache.js?v=1"></script>
+    <script src="../js/utils.js?v=12"></script>
+    <script src="../js/date-utils.js?v=4"></script>
+    <script src="../js/layout.js?v=79"></script>
+    <script src="../js/eating-utils.js?v=9"></script>
+    <script src="../js/kitchen-cost.js?v=1"></script>
+    <script src="../js/pages/kitchen-cost.js?v=1"></script>
+</body>
+</html>

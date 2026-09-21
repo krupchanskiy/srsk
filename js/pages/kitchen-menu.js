@@ -59,6 +59,8 @@ function getMealTypes() {
 
 // ==================== SHORTCUTS ====================
 const t = key => Layout.t(key);
+// Пока кэш переводов у пользователя не обновился, показываем русский текст, а не имя ключа
+const tr = (key, fallback) => { const v = t(key); return v === key ? fallback : v; };
 const getName = (item, lang) => Layout.getName(item, lang || Layout.currentLang);
 const getPersonName = person => Layout.getPersonName(person, Layout.currentLang);
 
@@ -303,7 +305,8 @@ async function loadMenuData() {
         .select(`
             *,
             cook:vaishnavas(*),
-            dishes:menu_dishes(*, recipe:recipes(*, category:recipe_categories(*)))
+            dishes:menu_dishes(*, recipe:recipes(*, category:recipe_categories(*))),
+            external:menu_external_items(id, name, amount)
         `)
         .eq('location_id', locationId)
         .gte('date', startDate)
@@ -320,6 +323,7 @@ async function loadMenuData() {
             portions: meal.portions,
             cook_id: meal.cook_id,
             cook: meal.cook,
+            external: meal.external || [],
             dishes: (meal.dishes || []).map(d => ({
                 id: d.id,
                 recipe_id: d.recipe_id,
@@ -679,7 +683,8 @@ function renderMealSection(dateStr, mealType, index, mealData, isEkadashiDay) {
     // Для кафе показываем просто "Меню дня" без номера
     const mealTitle = isCafe ? getMealTypeName(mealType) : `${index + 1}. ${getMealTypeName(mealType)}`;
 
-    if (dishes.length === 0) {
+    const external = mealData?.external || [];
+    if (dishes.length === 0 && external.length === 0) {
         const canEdit = canEditMenu();
         return `
             <div class="p-4 rounded-lg bg-white/40 meal-empty no-print" ${canEdit ? `data-action="open-dish-modal" data-date="${dateStr}" data-meal-type="${mealType}"` : ''} style="${canEdit ? 'cursor: pointer;' : ''}">
@@ -691,6 +696,7 @@ function renderMealSection(dateStr, mealType, index, mealData, isEkadashiDay) {
                         <span class="text-xl font-medium">${mealTitle}</span>
                     </div>
                 </div>
+                ${canEdit && !isCafe ? `<div class="text-center"><button class="btn btn-ghost btn-xs" data-action="open-external-modal" data-date="${dateStr}" data-meal-type="${mealType}">+ ${tr('menu_external_add', 'Готовое со стороны')}</button></div>` : ''}
             </div>
         `;
     }
@@ -811,8 +817,83 @@ function renderMealSection(dateStr, mealType, index, mealData, isEkadashiDay) {
                     `;
                 }).join('')}
             </div>
+            ${renderExternalItems(dateStr, mealType, external, canEdit && !isCafe, canEdit)}
         </div>
     `;
+}
+
+// Строки «Готовое со стороны»: обед или блюдо, купленное целиком. Сумму видят те, кто правит меню.
+function renderExternalItems(dateStr, mealType, items, canAdd, showAmount) {
+    if (!items.length && !canAdd) return '';
+    const rows = items.map(x => `
+        <div class="flex justify-between items-center py-1">
+            <span>${Layout.escapeHtml(x.name)}</span>
+            <span class="flex items-center gap-2">
+                ${showAmount ? `<span class="text-sm opacity-60 no-print">${Number(x.amount).toLocaleString()} ₹</span>` : ''}
+                ${canAdd ? `<button class="btn btn-ghost btn-xs btn-square text-error/60 no-print" data-action="remove-external" data-date="${dateStr}" data-meal-type="${mealType}" data-id="${x.id}">✕</button>` : ''}
+            </span>
+        </div>`).join('');
+    return `<div class="mt-3 pt-2 border-t border-base-300/50">
+        <div class="text-sm font-medium opacity-70">${tr('menu_external_title', 'Готовое со стороны')}</div>
+        ${rows}
+        ${canAdd ? `<button class="btn btn-ghost btn-xs no-print" data-action="open-external-modal" data-date="${dateStr}" data-meal-type="${mealType}">+ ${tr('menu_external_add', 'Готовое со стороны')}</button>` : ''}
+    </div>`;
+}
+
+let externalContext = null;
+
+function openExternalModal(date, mealType) {
+    externalContext = { date, mealType };
+    const form = Layout.$('#externalForm');
+    form.reset();
+    Layout.$('#externalModal').showModal();
+}
+
+async function saveExternal(ev) {
+    ev.preventDefault();
+    if (!externalContext || !canEditMenu()) return;
+    const { date, mealType } = externalContext;
+    const form = ev.target;
+    const name = form.name.value.trim();
+    const amount = parseFloat(form.amount.value);
+    if (!name || !(amount >= 0)) return;
+
+    let mealData = menuData[date]?.[mealType];
+    let mealId = mealData?.id;
+    const defaultPortions = getEatingTotal(date, mealType);
+    if (!mealId) {
+        const { data: newMeal } = await Layout.db.from('menu_meals')
+            .upsert({ location_id: locationId, date, meal_type: mealType, portions: defaultPortions }, { onConflict: 'location_id,date,meal_type' })
+            .select().single();
+        if (!newMeal) { Layout.showNotification(t('error'), 'error'); return; }
+        mealId = newMeal.id;
+    }
+
+    const { data, error } = await Layout.db.from('menu_external_items')
+        .insert({ meal_id: mealId, name, amount, comment: form.comment.value.trim() || null })
+        .select('id, name, amount').single();
+    if (error) {
+        console.error('Error adding external item:', error);
+        Layout.showNotification(t('error'), 'error');
+        return;
+    }
+
+    if (!menuData[date]) menuData[date] = {};
+    if (!menuData[date][mealType]) menuData[date][mealType] = { id: mealId, portions: defaultPortions, dishes: [], external: [] };
+    (menuData[date][mealType].external = menuData[date][mealType].external || []).push(data);
+
+    Layout.$('#externalModal').close();
+    render();
+}
+
+async function removeExternal(date, mealType, id) {
+    if (!canEditMenu()) return;
+    if (!confirm(tr('menu_external_confirm', 'Удалить строку «Готовое со стороны»?'))) return;
+    const { error } = await Layout.db.from('menu_external_items').delete().eq('id', id);
+    if (error) { Layout.showNotification(t('error'), 'error'); return; }
+    const meal = menuData[date]?.[mealType];
+    if (meal) meal.external = (meal.external || []).filter(x => x.id !== id);
+    render();
 }
 
 function renderWeek() {
@@ -2188,6 +2269,8 @@ function setupViewDelegation(el) {
             case 'open-dish-modal': openDishModal(date, mealType); break;
             case 'open-meal-details-modal': openMealDetailsModal(date, mealType); break;
             case 'remove-dish': removeDish(date, mealType, dishId); break;
+            case 'open-external-modal': openExternalModal(date, mealType); break;
+            case 'remove-external': removeExternal(date, mealType, id); break;
             case 'open-day-detail': openDayDetail(date); break;
         }
     });
@@ -2256,6 +2339,8 @@ function setupRecipeDelegation() {
 
 async function init() {
     await Layout.init({ module: 'kitchen', menuId: 'kitchen', itemId: 'menu' });
+
+    Layout.$('#externalForm')?.addEventListener('submit', saveExternal);
 
     // Восстановить вид и дату из hash до загрузки данных
     restoreFromHash();

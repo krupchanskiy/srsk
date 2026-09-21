@@ -445,6 +445,33 @@
         <form method="dialog" class="modal-backdrop"><button>close</button></form>
     </dialog>
 
+    <!-- Готовое со стороны -->
+    <dialog id="externalModal" class="modal">
+        <div class="modal-box max-w-md relative">
+            <button type="button" class="btn btn-sm btn-circle btn-ghost absolute right-2 top-2" onclick="externalModal.close()">✕</button>
+            <h3 class="font-bold text-lg mb-4" data-i18n="menu_external_title">Готовое со стороны</h3>
+            <form id="externalForm" class="space-y-4">
+                <div>
+                    <label class="label"><span class="label-text font-medium" data-i18n="menu_external_name">Что куплено</span></label>
+                    <input type="text" name="name" class="input input-bordered w-full" required maxlength="200" />
+                </div>
+                <div>
+                    <label class="label"><span class="label-text font-medium" data-i18n="menu_external_amount">Сумма по факту оплаты, ₹</span></label>
+                    <input type="number" name="amount" min="0" step="0.01" class="input input-bordered w-full" required />
+                </div>
+                <div>
+                    <label class="label"><span class="label-text font-medium" data-i18n="prices_field_comment">Комментарий</span></label>
+                    <textarea name="comment" rows="2" class="textarea textarea-bordered w-full" placeholder="У кого куплено"></textarea>
+                </div>
+                <div class="modal-action">
+                    <button type="button" class="btn btn-ghost" onclick="externalModal.close()" data-i18n="cancel">Отменить</button>
+                    <button type="submit" class="btn btn-primary" data-i18n="save">Сохранить</button>
+                </div>
+            </form>
+        </div>
+        <form method="dialog" class="modal-backdrop"><button>close</button></form>
+    </dialog>
+
     <!-- Meal Details Modal -->
     <dialog id="mealDetailsModal" class="modal">
         <div class="modal-box max-w-2xl relative">
@@ -496,8 +523,8 @@
     <script src="../js/date-utils.js?v=4"></script>
     <script src="../js/translit.js"></script>
     <script src="../js/auto-translate.js"></script>
-    <script src="../js/layout.js?v=78"></script>
+    <script src="../js/layout.js?v=79"></script>
     <script src="../js/eating-utils.js?v=9"></script>
-    <script src="../js/pages/kitchen-menu.js?v=24"></script>
+    <script src="../js/pages/kitchen-menu.js?v=25"></script>
 </body>
 </html>
