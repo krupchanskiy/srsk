@@ -44,8 +44,18 @@ function renderGroups() {
 
     noGroups.classList.add('hidden');
 
-    tbody.innerHTML = groups.map(g => {
-        const today = DateUtils.toISO(new Date());
+    const today = DateUtils.toISO(new Date());
+    // Порядок: действующие (скоро заканчивающиеся выше) → будущие (ближайшие выше) → прошедшие (недавно закончившиеся выше)
+    const rank = g => g.end_date < today ? 2 : g.start_date > today ? 1 : 0;
+    const sorted = [...groups].sort((a, b) => {
+        const ra = rank(a), rb = rank(b);
+        if (ra !== rb) return ra - rb;
+        if (ra === 0) return a.end_date.localeCompare(b.end_date) || a.start_date.localeCompare(b.start_date);
+        if (ra === 1) return a.start_date.localeCompare(b.start_date);
+        return b.end_date.localeCompare(a.end_date);
+    });
+
+    tbody.innerHTML = sorted.map(g => {
         const isActive = g.start_date <= today && g.end_date >= today;
         const isPast = g.end_date < today;
 
