@@ -18,7 +18,7 @@ let currentData = null;   // результат fin_get_retreat_report
 // ==================== ПО РЕТРИТУ ====================
 async function loadRetreats() {
     const { data } = await Layout.db.from('retreats')
-        .select('id, name_ru, name_en, name_hi, start_date')
+        .select('id, name_ru, name_en, name_hi, start_date, end_date')
         .order('start_date', { ascending: false });
     retreats = data || [];
     const sel = document.getElementById('retreatSelect');
@@ -206,6 +206,117 @@ function closureBlock(d) {
     </div></div>`;
 }
 
+// ==================== ПРАСАД: РАСЧЁТНАЯ СЕБЕСТОИМОСТЬ ====================
+// Считает кухонный движок (js/kitchen-cost.js) по вкушающим ретрита и ценам кухни.
+// Показывается только тем, кто вправе смотреть себестоимость (fin_kitchen_can_view).
+// Расчёт — это те же затраты, что и в расходах ДДС, посчитанные по модели, поэтому
+// с фактическим расходом прасада он НЕ суммируется: строка ДДС дана для справки.
+let kitchenCostAllowed = null;
+let prasadCostToken = 0;
+
+async function canViewKitchenCost() {
+    if (kitchenCostAllowed === null) {
+        const { data } = await Layout.db.rpc('fin_kitchen_can_view');
+        kitchenCostAllowed = data === true;
+    }
+    return kitchenCostAllowed;
+}
+
+// Карточка в отчёте по департаментам: расчётная себестоимость прасада за период (только для «Кухни»)
+async function fillDeptPrasadCost(from, to) {
+    const box = document.getElementById('deptPrasadCostBox');
+    if (!box || typeof KitchenCost === 'undefined') return;
+    try {
+        if (!await canViewKitchenCost()) return;
+        const locationId = (Layout.locations || []).find(l => l.slug === 'main')?.id;
+        if (!locationId) return;
+        if ((DateUtils.parseDate(to) - DateUtils.parseDate(from)) / 86400000 > 92) {
+            box.innerHTML = `<p class="text-xs opacity-60">${t('fin_prasad_cost_long')}</p>`;
+            return;
+        }
+        const res = await KitchenCost.calculate(Layout.db, locationId, from, to);
+        if (!document.getElementById('deptPrasadCostBox')) return;
+        const cs = Object.values(res.cells).flatMap(ev => Object.values(ev));
+        const sum = f => cs.reduce((a, c) => a + f(c), 0);
+        const direct = sum(c => c.food + c.dishware + c.external);
+        const overhead = sum(c => c.overheadRetreat + c.overheadGeneral);
+        const pm = sum(c => c.personMeals);
+        const total = direct + overhead;
+        box.innerHTML = `
+        <div class="card bg-base-100 shadow-sm"><div class="card-body py-4">
+            <div class="flex items-center gap-2 flex-wrap">
+                <h2 class="card-title text-base">${t('fin_prasad_cost_title')}</h2>
+                ${res.totals.provisional ? `<span class="badge badge-warning badge-sm" title="${e(t('fin_prasad_cost_prov_hint'))}">${t('fin_prasad_cost_prov')}</span>` : ''}
+                <a class="badge badge-outline badge-sm ml-auto" href="../kitchen/cost.html">${t('fin_prasad_cost_details')}</a>
+            </div>
+            <div class="grid grid-cols-2 md:grid-cols-4 gap-3 text-sm">
+                <div><div class="opacity-60 text-xs">${t('fin_prasad_cost_direct')}</div><div class="font-mono">${fmtB(direct)}</div></div>
+                <div><div class="opacity-60 text-xs">${t('fin_prasad_cost_overhead')}</div><div class="font-mono">${fmtB(overhead)}</div></div>
+                <div><div class="opacity-60 text-xs">${t('fin_prasad_cost_total')}</div><div class="font-mono font-semibold">${fmtB(total)}</div></div>
+                <div><div class="opacity-60 text-xs">${t('fin_prasad_cost_per_person')}</div><div class="font-mono">${pm ? fmtB(total / pm) : '—'}</div></div>
+            </div>
+            <p class="text-xs opacity-60">${t('fin_prasad_cost_note')}</p>
+        </div></div>`;
+    } catch (err) {
+        console.error('Dept prasad cost:', err);
+        box.innerHTML = '';
+    }
+}
+
+async function fillPrasadCost(retreatId, prasadTotals) {
+    const box = document.getElementById('prasadCostBox');
+    if (!box || typeof KitchenCost === 'undefined') return;
+    const token = ++prasadCostToken;
+    try {
+        if (!await canViewKitchenCost()) return;
+        const retreat = retreats.find(x => x.id === retreatId);
+        const locationId = (Layout.locations || []).find(l => l.slug === 'main')?.id;
+        if (!retreat?.start_date || !retreat?.end_date || !locationId) return;
+
+        box.innerHTML = `<div class="text-center py-4"><span class="loading loading-spinner loading-sm"></span></div>`;
+        const res = await KitchenCost.calculate(Layout.db, locationId, retreat.start_date, retreat.end_date);
+        if (token !== prasadCostToken) return;
+
+        const evCells = Object.values(res.cells[`retreat:${retreatId}`] || {});
+        const sum = f => evCells.reduce((a, c) => a + f(c), 0);
+        const x = { pm: sum(c => c.personMeals), food: sum(c => c.food), dish: sum(c => c.dishware), ext: sum(c => c.external),
+                    ovR: sum(c => c.overheadRetreat), ovG: sum(c => c.overheadGeneral) };
+        const total = x.food + x.dish + x.ext + x.ovR + x.ovG;
+        const provisional = evCells.some(c => c.provisional) || DateUtils.toISO(new Date()) < retreat.end_date;
+        const w = res.warnings;
+        const gaps = w.missingPrices.size + w.unresolvedUnits.size + w.noMenu.length + w.overheadNoBase.length + w.overheadUnallocated.length + (w.overheadError ? 1 : 0);
+        const income = Number(prasadTotals?.income_base || 0);
+        const expenseDds = Number(prasadTotals?.expense_base || 0);
+        const result = income - total;
+        const row = (label, val, cls = '') => `<tr class="${cls}"><td>${label}</td><td class="text-right font-mono w-36">${fmtB(val)}</td></tr>`;
+
+        box.innerHTML = `
+        <div class="card bg-base-100 shadow-sm"><div class="card-body py-4">
+            <div class="flex items-center gap-2 flex-wrap">
+                <h2 class="card-title text-base">${t('fin_prasad_cost_title')}</h2>
+                ${provisional ? `<span class="badge badge-warning badge-sm" title="${e(t('fin_prasad_cost_prov_hint'))}">${t('fin_prasad_cost_prov')}</span>` : ''}
+                ${gaps ? `<a class="badge badge-outline badge-sm ml-auto" href="../kitchen/cost.html">${t('fin_prasad_cost_gaps')}: ${gaps}</a>` : ''}
+            </div>
+            <div class="overflow-x-auto"><table class="table table-sm">
+                <tbody>
+                    ${row(t('cost_food'), x.food)}${row(t('cost_dishware'), x.dish)}${row(t('cost_external'), x.ext)}
+                    ${row(t('cost_overhead_retreat'), x.ovR)}${row(t('cost_overhead_general'), x.ovG)}
+                    ${row(t('fin_prasad_cost_total'), total, 'font-semibold border-t-2 border-base-300')}
+                    <tr><td>${t('fin_prasad_cost_per_person')} (${x.pm} ${t('fin_prasad_cost_person_meals')})</td>
+                        <td class="text-right font-mono">${x.pm ? fmtB(total / x.pm) : '—'}</td></tr>
+                    ${row(t('fin_prasad_cost_income'), income, 'border-t border-base-300')}
+                    ${row(t('fin_prasad_cost_result'), result, `font-semibold ${result < 0 ? 'text-error' : 'text-success'}`)}
+                    <tr class="opacity-60 text-xs"><td>${t('fin_prasad_cost_dds')}</td><td class="text-right font-mono">${fmtB(expenseDds)}</td></tr>
+                </tbody>
+            </table></div>
+            <p class="text-xs opacity-60">${t('fin_prasad_cost_note')}</p>
+        </div></div>`;
+    } catch (err) {
+        console.error('Prasad cost:', err);
+        if (token === prasadCostToken) box.innerHTML = '';
+    }
+}
+
 async function loadReport() {
     const box = document.getElementById('retreatReport');
     box.innerHTML = `<div class="text-center py-8"><span class="loading loading-spinner loading-md"></span></div>`;
@@ -253,6 +364,7 @@ async function loadReport() {
                 ${kpi('is-error', icDown, t('fin_expense'), `<span class="text-error">${fmtB(pt.expense_base || 0)}</span>`)}
                 ${kpi(Number(pt.net_base) < 0 ? 'is-error' : '', icNet, t('fin_net'), `<span class="${Number(pt.net_base) < 0 ? 'text-error' : ''}">${fmtB(pt.net_base || 0)}</span>`)}
             </div>
+            <div id="prasadCostBox"></div>
             <div class="grid grid-cols-1 lg:grid-cols-2 gap-4 items-start">
                 <div class="min-w-0 space-y-4">
                     <h2 class="text-lg font-semibold">${t('retreat_report_finance_prasad')}</h2>
@@ -262,6 +374,7 @@ async function loadReport() {
                 <div id="finDrill" class="card bg-base-100 shadow-sm lg:sticky lg:top-4 flex flex-col overflow-hidden"
                      style="max-height: calc(100vh - 2rem)">${drillHintHtml()}</div>
             </div>`;
+        fillPrasadCost(currentRetreat, pt);
         return;
     }
 
@@ -353,6 +466,7 @@ async function loadReport() {
         </div>
 
         ${closureBlock(currentData)}
+        ${hasPrasadActivity ? '<div id="prasadCostBox"></div>' : ''}
         ${splitTotalsTable}
         <div class="grid grid-cols-1 lg:grid-cols-2 gap-4 items-start">
             <div class="min-w-0 space-y-4">${unitTabs}</div>
@@ -362,6 +476,7 @@ async function loadReport() {
     `;
     // Панель относится к юниту — при смене вкладки сбрасываем
     box.querySelectorAll('input[name="fin_unit_tabs"]').forEach(i => i.addEventListener('change', resetDrill));
+    if (hasPrasadActivity) fillPrasadCost(currentRetreat, prasad);
 }
 
 // ==================== ЗАКРЫТИЕ ====================
@@ -739,7 +854,9 @@ function renderDeptReport() {
                 <span class="text-right">${t('fin_dept_balance')}</span>
             </div>
             ${активные.map(d => deptRow(d, maxSpent)).join('')}
-        </div></div>`;
+        </div></div>
+        ${активные.some(d => d.name === 'Кухня') ? '<div id="deptPrasadCostBox"></div>' : ''}`;
+    if (активные.some(d => d.name === 'Кухня')) fillDeptPrasadCost(deptData.from, deptData.to);
 }
 
 // Шапка отчёта: за какой период он построен и сколько департаментов в нём учтено.
