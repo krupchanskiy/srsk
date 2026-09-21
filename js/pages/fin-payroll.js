@@ -7,8 +7,9 @@
 // Строка ведомости = человек в департаменте. Под ней могут быть несколько
 // позиций-периодов (Уша: Кухня до 19.08, потом снова Кухня с осени) — история
 // и баланс складываются, поэтому переходы туда-сюда не плодят строк.
-// «Начислено» и «Выплачено» показываются за выбранный период (год/месяц/всё
-// время): итог за всё время через годы ни о чём не говорит, а долг виден в
+// «Начислено» и «Выплачено» показываются за выбранный период (месяц/год/всё
+// время) — что начислили и что выплатили В ЭТОТ период, независимо от того, за
+// какой месяц работы: итог за всё время через годы ни о чём не говорит, а долг виден в
 // балансе, который от периода не зависит.
 (function() {
 'use strict';
@@ -42,7 +43,7 @@ function periodLabel(periodStr) {
 
 // ---------- выбранный период колонок ----------
 function currentRange() {
-    const mode = document.getElementById('payrollRange')?.value || 'year';
+    const mode = document.getElementById('payrollRange')?.value || 'month';
     const now = new Date();
     const y = now.getFullYear();
     const m = String(now.getMonth() + 1).padStart(2, '0');
@@ -85,7 +86,7 @@ function buildGroups() {
         g.total_accrued_all = g.positions.reduce((s, p) => s + Number(p.total_accrued || 0), 0);
         g.accruals = accruals.filter(a => ids.has(a.position_id));
         g.payments = payments.filter(p => ids.has(p.position_id));
-        g.accrued = g.accruals.filter(a => inRange(a.period, r)).reduce((s, a) => s + Number(a.amount), 0);
+        g.accrued = g.accruals.filter(a => inRange(DateUtils.toISO(new Date(a.created_at)), r)).reduce((s, a) => s + Number(a.amount), 0);
         g.paid = g.payments.filter(p => !p.is_reversed && inRange(p.occurred_on, r)).reduce((s, p) => s + Number(p.amount), 0);
         // платёж кладём на действующую позицию, а если её нет (остался долг за
         // прошлый период) — на последнюю: баланс всё равно складывается по группе
