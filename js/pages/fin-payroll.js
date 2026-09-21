@@ -253,10 +253,24 @@ function openAccrueModal(positionId) {
     if (!g) return;
     document.getElementById('accruePositionId').value = positionId;
     document.getElementById('accrueModalTitle').textContent = `${t('fin_payroll_accrue_title')} — ${g.employee_name} (${g.department_name})`;
-    const prev = new Date();
-    prev.setDate(1);
-    prev.setMonth(prev.getMonth() - 1);
-    document.getElementById('accruePeriod').value = DateUtils.toISO(prev).slice(0, 7);
+    // Список месяцев вместо ручного ввода: от начала работы человека в этом
+    // департаменте до текущего (раньше и позже начислять нечего). По умолчанию —
+    // текущий месяц: то, что вносят сейчас, хронологически идёт «сегодняшним»
+    // числом; если платят за другой месяц — выбирают его из списка.
+    const lang = DateUtils.getLang();
+    const names = DateUtils.monthNames[lang] || DateUtils.monthNames.ru;
+    const start = DateUtils.parseDate(g.positions[0].effective_from);
+    const now = new Date();
+    const opts = [];
+    for (let d = new Date(now.getFullYear(), now.getMonth(), 1);
+         d >= new Date(start.getFullYear(), start.getMonth(), 1) && opts.length < 36;
+         d = new Date(d.getFullYear(), d.getMonth() - 1, 1)) {
+        const v = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+        opts.push(`<option value="${v}">${names[d.getMonth()]} ${d.getFullYear()}</option>`);
+    }
+    const sel = document.getElementById('accruePeriod');
+    sel.innerHTML = opts.join('');
+    sel.selectedIndex = 0;
     document.getElementById('accrueAmount').value = g.salary_amount ?? '';
     document.getElementById('accrueModal').showModal();
 }
@@ -309,6 +323,16 @@ async function runAccrualNow(ev) {
 
 async function init() {
     await Layout.init({ module: 'finance', menuId: 'fin_payroll', itemId: 'fin_payroll' });
+
+    // Кэш переводов в браузере живёт долго и не знает про новые ключи: вместо
+    // «fin_payroll_range_all_short» на экране — один раз сбрасываем и перечитываем
+    if (['fin_payroll_range_all_short', 'fin_payroll_ended_on'].some(k => t(k) === k)
+        && !sessionStorage.getItem('payrollTrReload')) {
+        sessionStorage.setItem('payrollTrReload', '1');
+        Cache.invalidate('translations_v54');
+        location.reload();
+        return;
+    }
 
     document.getElementById('payrollBody').addEventListener('click', ev => {
         const payBtn = ev.target.closest('[data-pay]');
