@@ -733,7 +733,17 @@ async function submitRefine(ev) {
     }
 
     document.getElementById('refineModal').close();
-    Layout.showNotification(t('fin_saved'), 'success');
+    if (spent) {
+        Layout.showNotification(t('fin_saved'), 'success');
+    } else {
+        // Сохранили только получателя/счёт — деньги не проведены, заявка осталась в списке.
+        // Зелёное «Сохранено» тут вводило в заблуждение (ВГ, 21.09.2026): казалось, что
+        // выдача проведена. Запасной текст — пока перевод не заведён в базе.
+        const msg = Layout.translations?.['fin_refine_saved_pending']
+            ? t('fin_refine_saved_pending')
+            : '⚠️ Уточнение сохранено, но деньги ещё НЕ проведены — нажмите «Провести» в строке заявки';
+        Layout.showNotification(msg, 'warning');
+    }
     await loadList();
 }
 
