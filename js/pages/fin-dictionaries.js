@@ -265,6 +265,7 @@ function deptEmployeesHtml(deptId) {
         <div class="mt-2 space-y-1">
             <input type="text" id="f_emp_search" class="input input-bordered input-xs w-full" autocomplete="off" placeholder="${t('fin_payroll_find_person')}">
             <input type="hidden" id="f_emp_vaishnava">
+            <button type="button" class="link link-primary text-xs" data-create-person>${t('fin_payroll_create_person')}</button>
             <div class="flex gap-1">
                 <input type="text" id="f_emp_title" class="input input-bordered input-xs flex-1" placeholder="${t('fin_payroll_position_placeholder')}">
                 <input type="number" id="f_emp_salary" class="input input-bordered input-xs w-28" min="0.01" step="0.01" placeholder="${t('fin_payroll_salary_placeholder')}">
@@ -323,6 +324,17 @@ async function saveEmployee(deptId) {
         effective_from: document.getElementById('f_emp_from').value || FinUtils.todayISO()
     });
     if (FinUtils.handleResult(res)) await refreshEmployeesBlock(deptId);
+}
+
+// Местные сотрудники без компьютера и интернета не зарегистрируются, но им
+// платят зарплату — заводим техническую запись прямо отсюда и сразу выбираем её
+async function createTechnicalPerson() {
+    const name = prompt(t('fin_payroll_create_person_prompt'));
+    if (!name || !name.trim()) return;
+    const res = await FinUtils.rpc('fin_create_technical_person', { name });
+    if (!FinUtils.handleResult(res)) return;
+    document.getElementById('f_emp_search').value = res.result.name;
+    document.getElementById('f_emp_vaishnava').value = res.result.id;
 }
 
 async function endEmployee(deptId, positionId) {
@@ -583,10 +595,12 @@ async function init() {
         const edit = ev.target.closest('[data-edit-employee]');
         const end = ev.target.closest('[data-end-employee]');
         const cancel = ev.target.closest('[data-cancel-employee]');
+        const createPerson = ev.target.closest('[data-create-person]');
         if (add) saveEmployee(add.dataset.addEmployee);
         else if (edit) fillEmployeeForm((deptEmployees[editingId] || []).find(p => p.id === edit.dataset.editEmployee));
         else if (end) endEmployee(editingId, end.dataset.endEmployee);
         else if (cancel) resetEmployeeForm();
+        else if (createPerson) createTechnicalPerson();
     });
 
     await loadTab();
