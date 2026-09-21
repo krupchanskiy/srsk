@@ -85,6 +85,20 @@
                 <div id="kitBody" class="grid grid-cols-1 md:grid-cols-2 gap-6"></div>
             </details>
 
+            <!-- Расходы без назначения -->
+            <details class="bg-base-100 rounded-xl shadow-sm p-4 mb-6 hidden" id="unassignedBlock">
+                <summary class="cursor-pointer font-semibold" id="unassignedSummary"></summary>
+                <p class="text-sm opacity-60 mt-2 mb-3" data-i18n="cost_unassigned_hint">Расходы кухни по статьям «на ретрит» (билеты, виза, гонорары, программа), которые не привязаны к ретриту. Выберите: общие расходы кухни или период работы человека, тогда расход разделится между событиями периода. Чтобы привязать к одному ретриту, используйте «Уточнить выдачу» в финансах.</p>
+                <div id="unassignedBody" class="space-y-2"></div>
+            </details>
+
+            <!-- Группы статей -->
+            <details class="bg-base-100 rounded-xl shadow-sm p-4 mb-6 hidden" id="groupsBlock">
+                <summary class="cursor-pointer font-semibold" id="groupsSummary" data-i18n="cost_groups_title">Группы статей расходов кухни</summary>
+                <p class="text-sm opacity-60 mt-2 mb-3" data-i18n="cost_groups_hint">Как статья попадает в себестоимость. Статья без подтверждённой группы считается «общей» и помечена: подтвердите группу.</p>
+                <div class="overflow-x-auto"><table class="table table-sm w-full"><tbody id="groupsBody"></tbody></table></div>
+            </details>
+
         </div>
 
     </main>
@@ -99,6 +113,6 @@
     <script src="../js/layout.js?v=79"></script>
     <script src="../js/eating-utils.js?v=9"></script>
     <script src="../js/kitchen-cost.js?v=1"></script>
-    <script src="../js/pages/kitchen-cost.js?v=1"></script>
+    <script src="../js/pages/kitchen-cost.js?v=2"></script>
 </body>
 </html>

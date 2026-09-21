@@ -29,6 +29,8 @@ let eventFilter = null;   // 'retreat:<id>' — показать только в
 let kits = { breakfast: [], lunch: [] };
 let dishwareProducts = [];
 let kitPrices = {};
+let unassigned = [];
+let costGroups = [];
 
 // ==================== HELPERS ====================
 function money(v) {
@@ -273,6 +275,86 @@ async function saveKit(meal, productId, qty) {
     return true;
 }
 
+// ==================== РАСХОДЫ БЕЗ НАЗНАЧЕНИЯ И ГРУППЫ СТАТЕЙ ====================
+const GROUP_LABELS = {
+    direct: () => tr('cost_group_direct', 'Прямые (сверка с ДДС)'),
+    retreat: () => tr('cost_group_retreat', 'На ретрит'),
+    general: () => tr('cost_group_general', 'Общие'),
+    excluded: () => tr('cost_group_excluded', 'Не учитывать')
+};
+
+async function loadUnassigned() {
+    const { data, error } = await Layout.db.rpc('fin_kitchen_unassigned');
+    unassigned = error ? [] : (data || []);
+}
+
+async function loadGroups() {
+    const { data, error } = await Layout.db.rpc('fin_kitchen_cost_groups');
+    costGroups = error ? [] : (data || []);
+}
+
+function renderUnassigned() {
+    const box = Layout.$('#unassignedBlock');
+    if (!unassigned.length) { box.classList.add('hidden'); return; }
+    box.classList.remove('hidden');
+    Layout.$('#unassignedSummary').textContent = `${tr('cost_unassigned_title', 'Расходы без назначения')}: ${unassigned.length}`;
+    Layout.$('#unassignedBody').innerHTML = unassigned.map(x => `
+        <div class="border border-base-200 rounded-lg p-3 flex flex-wrap items-center gap-3">
+            <div class="flex-1 min-w-[12rem]">
+                <div class="font-medium text-sm">${e(x.category_name)} · ${e(fmtDay(x.occurred_on))}</div>
+                <div class="text-xs opacity-70">${e(Number(x.amount).toLocaleString())} ${e(x.currency_code)}${x.currency_code !== 'INR' ? ` (≈ ${e(money(x.amount_base))})` : ''}${x.comment ? ' · ' + e(x.comment) : ''}</div>
+            </div>
+            ${caps.edit ? `
+            <button class="btn btn-sm btn-outline" data-action="dest-general" data-id="${x.posting_id}">${e(tr('cost_dest_general', 'Общие расходы'))}</button>
+            <div class="flex items-center gap-1">
+                <input type="date" class="input input-bordered input-xs" data-dest-from="${x.posting_id}" />
+                <input type="date" class="input input-bordered input-xs" data-dest-to="${x.posting_id}" />
+                <button class="btn btn-sm btn-primary" data-action="dest-period" data-id="${x.posting_id}">${e(tr('cost_dest_period', 'Период работы'))}</button>
+            </div>` : ''}
+        </div>`).join('');
+}
+
+function renderGroups() {
+    const box = Layout.$('#groupsBlock');
+    if (!costGroups.length) { box.classList.add('hidden'); return; }
+    box.classList.remove('hidden');
+    const unconfirmed = costGroups.filter(g => !g.cost_group).length;
+    Layout.$('#groupsSummary').textContent = `${tr('cost_groups_title', 'Группы статей расходов кухни')}${unconfirmed ? ` · ${tr('cost_group_unconfirmed', 'не подтверждено')}: ${unconfirmed}` : ''}`;
+    Layout.$('#groupsBody').innerHTML = costGroups.map(g => {
+        const options = ['direct', 'retreat', 'general', 'excluded'].map(k =>
+            `<option value="${k}" ${g.cost_group === k ? 'selected' : ''}>${e(GROUP_LABELS[k]())}</option>`).join('');
+        return `<tr class="${g.cost_group ? '' : 'bg-warning/10'}">
+            <td class="text-sm">${e(g.name)}</td>
+            <td class="text-xs opacity-60 text-right">${g.postings}</td>
+            <td class="text-xs opacity-60 text-right">${e(money(g.total_base))}</td>
+            <td class="text-right">
+                <select class="select select-bordered select-xs" data-group-cat="${g.category_id}" ${caps.edit ? '' : 'disabled'}>
+                    ${g.cost_group ? '' : `<option value="" selected>${e(tr('cost_group_unconfirmed_opt', '— не подтверждена —'))}</option>`}
+                    ${options}
+                </select>
+            </td>
+        </tr>`;
+    }).join('');
+}
+
+async function setDestination(postingId, mode, from, to) {
+    const { error } = await Layout.db.rpc('fin_set_posting_destination', {
+        p_posting_id: postingId, p_mode: mode, p_from: from || null, p_to: to || null });
+    if (error) { Layout.showNotification(errorText(error), 'error'); return; }
+    Layout.showNotification(t('saved'), 'success');
+    await loadUnassigned();
+    renderUnassigned();
+}
+
+async function saveGroup(categoryId, group) {
+    const { error } = await Layout.db.rpc('fin_set_cost_group', { p_category_id: categoryId, p_group: group || null });
+    if (error) { Layout.showNotification(errorText(error), 'error'); return; }
+    Layout.showNotification(t('saved'), 'success');
+    await Promise.all([loadGroups(), loadUnassigned()]);
+    renderGroups();
+    renderUnassigned();
+}
+
 // ==================== EVENTS ====================
 document.addEventListener('click', ev => {
     const btn = ev.target.closest('[data-action]');
@@ -280,6 +362,13 @@ document.addEventListener('click', ev => {
     switch (btn.dataset.action) {
         case 'preset': applyPreset(btn.dataset.preset); calculate(); break;
         case 'calculate': calculate(); break;
+        case 'dest-general': setDestination(btn.dataset.id, 'general'); break;
+        case 'dest-period': {
+            const from = Layout.$(`[data-dest-from="${btn.dataset.id}"]`)?.value;
+            const to = Layout.$(`[data-dest-to="${btn.dataset.id}"]`)?.value;
+            setDestination(btn.dataset.id, 'period', from, to);
+            break;
+        }
         case 'kit-remove': saveKit(btn.dataset.meal, btn.dataset.product, 0); break;
         case 'kit-add': {
             const sel = Layout.$(`[data-kit-add-product="${btn.dataset.meal}"]`);
@@ -290,6 +379,8 @@ document.addEventListener('click', ev => {
 });
 
 document.addEventListener('change', ev => {
+    const groupSelect = ev.target.closest('[data-group-cat]');
+    if (groupSelect) { saveGroup(groupSelect.dataset.groupCat, groupSelect.value); return; }
     const input = ev.target.closest('[data-kit-qty]');
     if (input) {
         const qty = parseFloat(input.value);
@@ -313,6 +404,8 @@ function updateUI() {
     renderRetreatSelect();
     if (lastResult) { renderResult(); renderWarnings(); }
     renderKits();
+    renderUnassigned();
+    renderGroups();
 }
 window.onLanguageChange = () => updateUI();
 
@@ -332,7 +425,7 @@ async function init() {
     retreats = data || [];
 
     Layout.$('#costContent').classList.remove('hidden');
-    await loadKits();
+    await Promise.all([loadKits(), loadUnassigned(), loadGroups()]);
     applyPreset('month');
     updateUI();
     calculate();
