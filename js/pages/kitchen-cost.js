@@ -116,7 +116,19 @@ async function calculate() {
 function renderResult() {
     const { cells, totals } = lastResult;
     const rows = [];
-    let grand = { pm: 0, food: 0, dish: 0, ext: 0 };
+    const zero = () => ({ pm: 0, food: 0, dish: 0, ext: 0, ovR: 0, ovG: 0 });
+    const grand = zero();
+    const total = x => x.food + x.dish + x.ext + x.ovR + x.ovG;
+    const line = (a, b, x, cls, pre) => `<tr class="${cls}">${a}${b}
+        <td class="text-right">${x.pm}</td>
+        <td class="text-right">${money(x.food)}</td>
+        <td class="text-right">${money(x.dish)}</td>
+        <td class="text-right">${money(x.ext)}</td>
+        <td class="text-right">${money(x.ovR)}</td>
+        <td class="text-right">${money(x.ovG)}</td>
+        <td class="text-right font-medium">${money(total(x))}${pre ? ` <span class="badge badge-warning badge-xs align-middle" title="${e(tr('cost_provisional_hint', 'Период расходов ещё не закончился или зарплата взята оценкой'))}">${e(tr('cost_provisional', 'предв.'))}</span>` : ''}</td>
+        <td class="text-right">${money2(total(x) / x.pm)}</td>
+    </tr>`;
 
     const eventKeys = Object.keys(cells).filter(k => !eventFilter || k === eventFilter).sort((a, b) => {
         if (a === 'none') return 1;
@@ -125,57 +137,36 @@ function renderResult() {
     });
 
     for (const key of eventKeys) {
-        let sub = { pm: 0, food: 0, dish: 0, ext: 0 };
+        const sub = zero();
+        let subProv = false;
         for (const bucket of KitchenCost.BUCKETS) {
             const c = cells[key][bucket];
             if (!c || !c.personMeals) continue;
-            const total = c.food + c.dishware + c.external;
-            sub.pm += c.personMeals; sub.food += c.food; sub.dish += c.dishware; sub.ext += c.external;
-            rows.push(`<tr>
-                <td class="text-sm">${e(eventLabel(key))}</td>
-                <td class="text-sm">${e(CATEGORY_LABELS[bucket]())}</td>
-                <td class="text-right">${c.personMeals}</td>
-                <td class="text-right">${money(c.food)}</td>
-                <td class="text-right">${money(c.dishware)}</td>
-                <td class="text-right">${money(c.external)}</td>
-                <td class="text-right font-medium">${money(total)}</td>
-                <td class="text-right">${money2(total / c.personMeals)}</td>
-            </tr>`);
+            const x = { pm: c.personMeals, food: c.food, dish: c.dishware, ext: c.external, ovR: c.overheadRetreat, ovG: c.overheadGeneral };
+            Object.keys(sub).forEach(k => sub[k] += x[k]);
+            subProv = subProv || c.provisional;
+            rows.push(line(`<td class="text-sm">${e(eventLabel(key))}</td>`, `<td class="text-sm">${e(CATEGORY_LABELS[bucket]())}</td>`, x, '', c.provisional));
         }
         if (sub.pm) {
-            const total = sub.food + sub.dish + sub.ext;
-            rows.push(`<tr class="bg-base-200/60 font-semibold">
-                <td colspan="2">${e(eventLabel(key))} — ${e(tr('cost_subtotal', 'итого'))}</td>
-                <td class="text-right">${sub.pm}</td>
-                <td class="text-right">${money(sub.food)}</td>
-                <td class="text-right">${money(sub.dish)}</td>
-                <td class="text-right">${money(sub.ext)}</td>
-                <td class="text-right">${money(total)}</td>
-                <td class="text-right">${money2(total / sub.pm)}</td>
-            </tr>`);
+            rows.push(line(`<td colspan="2">${e(eventLabel(key))} — ${e(tr('cost_subtotal', 'итого'))}</td>`, '', sub, 'bg-base-200/60 font-semibold', subProv));
+            Object.keys(grand).forEach(k => grand[k] += sub[k]);
         }
-        grand.pm += sub.pm; grand.food += sub.food; grand.dish += sub.dish; grand.ext += sub.ext;
     }
 
     if (grand.pm) {
-        const total = grand.food + grand.dish + grand.ext;
-        rows.push(`<tr class="font-bold border-t-2 border-base-300">
-            <td colspan="2">${e(tr('cost_grand_total', 'Всего за период'))}</td>
-            <td class="text-right">${grand.pm}</td>
-            <td class="text-right">${money(grand.food)}</td>
-            <td class="text-right">${money(grand.dish)}</td>
-            <td class="text-right">${money(grand.ext)}</td>
-            <td class="text-right">${money(total)}</td>
-            <td class="text-right">${money2(total / grand.pm)}</td>
-        </tr>`);
+        rows.push(line(`<td colspan="2">${e(tr('cost_grand_total', 'Всего за период'))}</td>`, '', grand, 'font-bold border-t-2 border-base-300', totals.provisional && !eventFilter));
     }
     if (totals.unallocated > 0 && !eventFilter) {
-        rows.push(`<tr class="text-warning"><td colspan="6">${e(tr('cost_unallocated', 'Расходы приёмов пищи без вкушающих (не распределены)'))}</td>
+        rows.push(`<tr class="text-warning"><td colspan="8">${e(tr('cost_unallocated', 'Расходы приёмов пищи без вкушающих (не распределены)'))}</td>
             <td class="text-right">${money(totals.unallocated)}</td><td></td></tr>`);
+    }
+    if (totals.overheadUnallocated > 0.5 && !eventFilter) {
+        rows.push(`<tr class="text-warning"><td colspan="8">${e(tr('cost_overhead_unallocated', 'Накладные расходы без вкушающих или без приёма пищи в меню (не распределены)'))}</td>
+            <td class="text-right">${money(totals.overheadUnallocated)}</td><td></td></tr>`);
     }
 
     Layout.$('#resultBody').innerHTML = rows.length ? rows.join('')
-        : `<tr><td colspan="8" class="text-center opacity-60 py-6">${e(tr('cost_nothing', 'За период нет данных'))}</td></tr>`;
+        : `<tr><td colspan="10" class="text-center opacity-60 py-6">${e(tr('cost_nothing', 'За период нет данных'))}</td></tr>`;
     Layout.$('#result').classList.remove('hidden');
 }
 
@@ -206,6 +197,27 @@ function renderWarnings() {
     parts.push(warningBox(
         `${tr('cost_w_noeaters', 'Приём пищи с расходами, но без вкушающих')}: ${w.noEaters.length}`,
         w.noEaters.map(s => { const [d, m] = s.split(' '); return `${fmtDay(d)} · ${MEAL_LABELS[m]()}`; })));
+    if (w.overheadError) {
+        parts.push(warningBox(`${tr('cost_w_ov_error', 'Не удалось загрузить накладные расходы (зарплаты, общие расходы, билеты), показаны только прямые затраты')}: ${w.overheadError}`, []));
+    }
+    parts.push(warningBox(
+        `${tr('cost_w_payroll_est', 'Зарплата за месяц взята оценкой (начисления ещё нет), итог предварительный')}: ${w.payrollEstimated.length}`,
+        w.payrollEstimated, 'alert-info'));
+    parts.push(warningBox(
+        `${tr('cost_w_ov_nobase', 'Расход «на ретрит», а вкушающих ретрита в периоде нет: учтён в общих')}: ${w.overheadNoBase.length}`,
+        w.overheadNoBase));
+    parts.push(warningBox(
+        `${tr('cost_w_ov_unalloc', 'Расход периода, в котором нет вкушающих: не распределён')}: ${w.overheadUnallocated.length}`,
+        w.overheadUnallocated));
+    if (w.overheadUnassigned) {
+        parts.push(warningBox(`${tr('cost_w_ov_unassigned', 'Расходы «на ретрит» без ретрита и назначения считаются общими, назначьте их ниже')}: ${w.overheadUnassigned}`, [], 'alert-info'));
+    }
+    parts.push(warningBox(
+        `${tr('cost_w_labor', 'Выплата по статье «Зарплата» не связана с ведомостью: возможен двойной счёт с начислениями')}: ${w.laborUnlinked.length}`,
+        w.laborUnlinked));
+    if (w.overheadForeign) {
+        parts.push(warningBox(`${tr('cost_w_foreign', 'Зарплата не в рупиях, не учтена')}: ${w.overheadForeign}`, []));
+    }
     if (w.recipesNoOutput.size) {
         parts.push(warningBox(`${tr('cost_w_output', 'У рецептов не указан выход, масштаб не посчитан')}: ${w.recipesNoOutput.size}`, []));
     }

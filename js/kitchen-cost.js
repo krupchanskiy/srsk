@@ -64,8 +64,16 @@ function convert(amount, ingUnit, productUnit, density, units) {
 function computeCosts(input) {
     const { meals, recipes, products, densities, units, prices, kits, externals, counts } = input;
 
-    const cells = {};       // cells[eventKey][bucket] = { personMeals, food, dishware, external }
+    const cells = {};       // cells[eventKey][bucket] = { personMeals, food, dishware, external, overheadRetreat, overheadGeneral, provisional }
+    const mealRecords = []; // приёмы пищи меню с вкушающими — база для накладных расходов
     const warn = {
+        overheadNoBase: [],           // расход «на ретрит» без вкушающих в периоде — ушёл в общие
+        overheadUnallocated: [],      // расход без вкушающих в периоде — не распределён
+        overheadUnassigned: 0,        // статья «на ретрит» без ретрита и назначения — считается общим
+        laborUnlinked: [],            // выплата по статье «Зарплата» вне ведомости — возможен двойной счёт
+        payrollEstimated: [],         // месяцы, где зарплата взята оценкой, а не начислением
+        overheadForeign: 0,           // строки не в рупиях — не учтены
+        overheadError: null,          // не удалось загрузить накладные расходы
         missingPrices: new Map(),     // product_id → сколько раз не нашлась цена
         unresolvedUnits: new Map(),   // 'продукт|ед. рецепта|ед. продукта' → раз
         recipesNoOutput: new Set(),
@@ -73,11 +81,13 @@ function computeCosts(input) {
         mismatch: [],                 // порции в меню сильно отличаются от числа вкушающих
         noMenu: []                    // есть вкушающие, но приём пищи в меню не заведён
     };
-    const totals = { personMeals: 0, food: 0, dishware: 0, external: 0, unallocated: 0 };
+    const totals = { personMeals: 0, food: 0, dishware: 0, external: 0, unallocated: 0,
+                     overheadRetreat: 0, overheadGeneral: 0, overheadUnallocated: 0, provisional: false };
 
     const cell = (ev, bucket) => {
         const e = cells[ev] || (cells[ev] = {});
-        return e[bucket] || (e[bucket] = { personMeals: 0, food: 0, dishware: 0, external: 0 });
+        return e[bucket] || (e[bucket] = { personMeals: 0, food: 0, dishware: 0, external: 0,
+                                           overheadRetreat: 0, overheadGeneral: 0, provisional: false });
     };
     const note = (map, key) => map.set(key, (map.get(key) || 0) + 1);
 
@@ -152,6 +162,7 @@ function computeCosts(input) {
                 c.external += external * n / eaters;
             }
         }
+        mealRecords.push({ date: meal.date, byEvent });
         totals.personMeals += eaters;
         totals.food += food;
         totals.dishware += dishwarePerEater * eaters;
@@ -167,7 +178,108 @@ function computeCosts(input) {
         }
     }
 
+    allocateOverhead(input, mealRecords, cell, totals, warn);
+
     return { cells, totals, warnings: warn };
+}
+
+// ---------- накладные расходы: зарплаты, общие расходы, билеты ----------
+// Ставка = сумма расхода / человеко-приёмов периода расхода (завтраки + обеды по данным
+// вкушающих, независимо от меню). В ячейки периода расчёта попадает ставка × их человеко-приёмы.
+//   general        — все события, включая «без события»
+//   retreat_event  — только вкушающие ретрита, к которому привязан расход
+//   retreat_period — все события кроме «без события» (билет повара: делится между ретритами периода)
+// Нет вкушающих для «на ретрит» → расход уходит в общие (предупреждение); нет и для общих → не распределён.
+function lastDayOfMonth(iso) {
+    const [y, m] = iso.split('-').map(Number);
+    const d = new Date(y, m, 0).getDate();
+    return `${iso.slice(0, 7)}-${String(d).padStart(2, '0')}`;
+}
+
+function allocateOverhead(input, mealRecords, cell, totals, warn) {
+    const ov = input.overhead;
+    if (!ov) return;
+    if (ov.error) { warn.overheadError = ov.error; return; }
+    const today = input.today || '9999-12-31';
+    const counts = input.counts || {};
+
+    // человеко-приёмы по датам и событиям
+    const pmDay = {};
+    for (const [date, day] of Object.entries(counts)) {
+        for (const m of MEALS) {
+            for (const [ev, b] of Object.entries(day.byEvent?.[m] || {})) {
+                const n = BUCKETS.reduce((s, k) => s + (b[k] || 0), 0);
+                if (n) (pmDay[date] = pmDay[date] || {})[ev] = ((pmDay[date] || {})[ev] || 0) + n;
+            }
+        }
+    }
+    const pmIn = (from, to, pass) => {
+        let s = 0;
+        for (const [date, evs] of Object.entries(pmDay)) {
+            if (date < from || date > to) continue;
+            for (const [ev, n] of Object.entries(evs)) if (pass(ev)) s += n;
+        }
+        return s;
+    };
+
+    // нормализация строк
+    const items = [];
+    for (const p of (ov.payroll || [])) {
+        if (p.currency_code && p.currency_code !== 'INR') { warn.overheadForeign++; continue; }
+        const from = p.month.slice(0, 7) + '-01';
+        const to = lastDayOfMonth(from);
+        const estimate = p.source === 'estimate';
+        if (estimate && !warn.payrollEstimated.includes(from.slice(0, 7))) warn.payrollEstimated.push(from.slice(0, 7));
+        items.push({ amount: Number(p.amount), kind: 'general', from, to, provisional: estimate || to >= today, label: p.position_title });
+    }
+    for (const x of (ov.items || [])) {
+        let kind = x.kind;
+        if (kind === 'unassigned') { warn.overheadUnassigned++; kind = 'general'; }
+        if (x.labor_unlinked) warn.laborUnlinked.push(`${x.category_name} ${x.occurred_on}`);
+        items.push({ amount: Number(x.amount_base), kind, from: x.eff_from, to: x.eff_to,
+                     retreatId: x.retreat_id, provisional: x.eff_to >= today, label: `${x.category_name} ${x.occurred_on}` });
+    }
+
+    const passAll = () => true;
+    const passNoNone = ev => ev !== 'none';
+
+    for (const it of items) {
+        if (!(it.amount > 0)) continue;
+        let group = it.kind === 'general' ? 'general' : 'retreat';
+        let pass = it.kind === 'retreat_event' ? (ev => ev === `retreat:${it.retreatId}`)
+                 : it.kind === 'retreat_period' ? passNoNone : passAll;
+        let base = pmIn(it.from, it.to, pass);
+        if (base === 0 && group === 'retreat') {
+            warn.overheadNoBase.push(it.label);
+            group = 'general'; pass = passAll;
+            base = pmIn(it.from, it.to, pass);
+        }
+        if (base === 0) { warn.overheadUnallocated.push(it.label); totals.overheadUnallocated += it.amount; continue; }
+
+        const rate = it.amount / base;
+        const wFrom = it.from > input.from ? it.from : input.from;
+        const wTo = it.to < input.to ? it.to : input.to;
+        if (wFrom > wTo) continue;
+
+        let allocated = 0;
+        for (const rec of mealRecords) {
+            if (rec.date < wFrom || rec.date > wTo) continue;
+            for (const [ev, b] of Object.entries(rec.byEvent)) {
+                if (!pass(ev)) continue;
+                for (const k of BUCKETS) {
+                    const n = b[k] || 0;
+                    if (!n) continue;
+                    const c = cell(ev, k);
+                    if (group === 'retreat') c.overheadRetreat += rate * n; else c.overheadGeneral += rate * n;
+                    if (it.provisional) { c.provisional = true; totals.provisional = true; }
+                    allocated += rate * n;
+                }
+            }
+        }
+        if (group === 'retreat') totals.overheadRetreat += allocated; else totals.overheadGeneral += allocated;
+        // доля периода расчёта, которую не на кого распределить (вкушающие есть, а приёма пищи в меню нет)
+        totals.overheadUnallocated += Math.max(0, rate * pmIn(wFrom, wTo, pass) - allocated);
+    }
 }
 
 // ---------- загрузка данных ----------
@@ -236,9 +348,30 @@ async function load(db, locationId, from, to) {
     const prices = {};
     priceRows.forEach(r => (prices[r.product_id] = prices[r.product_id] || []).push(r));
 
-    const counts = await EatingUtils.loadCounts(from, to);
+    // накладные: зарплаты и расходы кухни из финансов; вкушающих берём за весь период расходов
+    const overhead = { payroll: [], items: [], error: null };
+    let cFrom = from, cTo = to;
+    try {
+        const monthFrom = from.slice(0, 7) + '-01';
+        const [pay, items] = await Promise.all([
+            db.rpc('fin_kitchen_payroll', { p_from: from, p_to: to }),
+            db.rpc('fin_kitchen_overhead_items', { p_from: from, p_to: to })
+        ]);
+        if (pay.error) throw pay.error;
+        if (items.error) throw items.error;
+        overhead.payroll = pay.data || [];
+        overhead.items = items.data || [];
+        cFrom = monthFrom;
+        cTo = lastDayOfMonth(to.slice(0, 7) + '-01');
+        overhead.items.forEach(i => { if (i.eff_from < cFrom) cFrom = i.eff_from; if (i.eff_to > cTo) cTo = i.eff_to; });
+    } catch (err) {
+        overhead.error = err?.details || err?.message || String(err);
+    }
 
-    return { meals, recipes, products, densities, units, prices, kits, externals, counts, from, to };
+    const counts = await EatingUtils.loadCounts(cFrom, cTo);
+    const today = DateUtils.toISO(new Date());
+
+    return { meals, recipes, products, densities, units, prices, kits, externals, counts, overhead, today, from, to };
 }
 
 async function calculate(db, locationId, from, to) {

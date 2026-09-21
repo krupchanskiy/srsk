@@ -153,3 +153,97 @@ test('инвариант: сумма по ячейкам равна итогу �
     near(sumCells(r), r.totals.food + r.totals.dishware + r.totals.external);
     assert.equal(r.totals.personMeals, 59 + 97);
 });
+
+// ---------- накладные расходы ----------
+const ovItem = (o = {}) => ({ kind: 'general', amount_base: 1000, eff_from: '2026-09-01', eff_to: '2026-09-30',
+    retreat_id: null, category_name: 'Статья', occurred_on: '2026-09-05', labor_unlinked: false, ...o });
+const ovInput = (overhead, countsOver, extra = {}) => base({
+    counts: { ...counts({ 'retreat:R': bucket({ team: 40, guests: 60 }) }), ...(countsOver || {}) },
+    overhead: { payroll: [], items: [], error: null, ...overhead }, today: '2026-09-22', ...extra
+});
+const otherDay = (date, byEvent) => ({ [date]: { byEvent: { breakfast: {}, lunch: byEvent } } });
+const cellSum = (r, f) => Object.values(r.cells).flatMap(e => Object.values(e)).reduce((s, c) => s + f(c), 0);
+
+test('общие расходы месяца: ставка на человеко-приём всего периода, в ячейки — доля периода расчёта', () => {
+    // за месяц 100 (в окне) + 200 (вне окна, «без события») = 300 человеко-приёмов, 30 000 → 100 на человека
+    const r = computeCosts(ovInput({ items: [ovItem({ amount_base: 30000 })] }, otherDay('2026-09-20', { none: bucket({ guests: 200 }) })));
+    near(r.totals.overheadGeneral, 10000);
+    near(r.cells['retreat:R'].team.overheadGeneral, 4000);
+    near(r.cells['retreat:R'].guests.overheadGeneral, 6000);
+    near(r.totals.overheadUnallocated, 0);
+    assert.equal(r.totals.provisional, true);   // месяц ещё не закончился
+});
+
+test('период закончился — итог не предварительный', () => {
+    const r = computeCosts(ovInput({ items: [ovItem({ eff_to: '2026-09-15' })] }, null, { today: '2026-09-22' }));
+    assert.equal(r.totals.provisional, false);
+});
+
+test('расход ретрита ложится только на этот ретрит', () => {
+    const r = computeCosts(ovInput({ items: [ovItem({ kind: 'retreat_event', retreat_id: 'R', amount_base: 5000 })] },
+        { [D]: { byEvent: { breakfast: {}, lunch: { 'retreat:R': bucket({ team: 40, guests: 60 }), 'retreat:Q': bucket({ guests: 100 }) } } } }));
+    near(r.totals.overheadRetreat, 5000);
+    near(r.cells['retreat:R'].guests.overheadRetreat, 3000);
+    assert.equal(r.cells['retreat:Q']?.guests.overheadRetreat || 0, 0);
+});
+
+test('билет за период делится между ретритами, «без события» не участвует', () => {
+    const c = { [D]: { byEvent: { breakfast: {}, lunch: { 'retreat:R': bucket({ guests: 60 }), none: bucket({ guests: 40 }) } } } };
+    const r = computeCosts(ovInput({ items: [ovItem({ kind: 'retreat_period', amount_base: 3000, eff_from: D, eff_to: D })] }, c));
+    near(r.totals.overheadRetreat, 3000);
+    near(r.cells['retreat:R'].guests.overheadRetreat, 3000);
+    assert.equal(r.cells.none.guests.overheadRetreat, 0);
+});
+
+test('расход «на ретрит», а в периоде только «без события» — уходит в общие с предупреждением', () => {
+    const c = { [D]: { byEvent: { breakfast: {}, lunch: { none: bucket({ guests: 100 }) } } } };
+    const r = computeCosts(ovInput({ items: [ovItem({ kind: 'retreat_period', amount_base: 800, eff_from: D, eff_to: D })] }, c));
+    near(r.totals.overheadRetreat, 0);
+    near(r.totals.overheadGeneral, 800);
+    assert.equal(r.warnings.overheadNoBase.length, 1);
+});
+
+test('расход без вкушающих в периоде не теряется молча', () => {
+    const r = computeCosts(ovInput({ items: [ovItem({ amount_base: 500, eff_from: '2026-08-01', eff_to: '2026-08-31' })] }));
+    near(r.totals.overheadUnallocated, 500);
+    assert.equal(r.warnings.overheadUnallocated.length, 1);
+});
+
+test('зарплата: оценка помечается, начисление — нет; чужая валюта не учитывается', () => {
+    const r = computeCosts(ovInput({ payroll: [
+        { month: '2026-09-01', position_title: 'Повар', amount: 33000, currency_code: 'INR', source: 'estimate' },
+        { month: '2026-09-01', position_title: 'Глава', amount: 50000, currency_code: 'USD', source: 'accrual' }] }));
+    near(r.totals.overheadGeneral, 33000);
+    assert.deepEqual(r.warnings.payrollEstimated, ['2026-09']);
+    assert.equal(r.warnings.overheadForeign, 1);
+});
+
+test('вкушающие есть, а меню нет: доля расхода уходит в нераспределённое, сумма сходится', () => {
+    const r = computeCosts(ovInput({ items: [ovItem({ amount_base: 2000, eff_from: D, eff_to: '2026-09-11' })] },
+        otherDay('2026-09-11', { 'retreat:R': bucket({ guests: 100 }) }), { to: '2026-09-11' }));
+    near(r.totals.overheadGeneral + r.totals.overheadUnallocated, 2000);
+    near(r.totals.overheadGeneral, 1000);
+});
+
+test('«на ретрит» без ретрита и назначения считается общим и отмечается; выплата вне ведомости отмечается', () => {
+    const r = computeCosts(ovInput({ items: [ovItem({ kind: 'unassigned', amount_base: 700, eff_from: D, eff_to: D, labor_unlinked: true })] }));
+    near(r.totals.overheadGeneral, 700);
+    assert.equal(r.warnings.overheadUnassigned, 1);
+    assert.equal(r.warnings.laborUnlinked.length, 1);
+});
+
+test('ошибка загрузки накладных: прямые затраты считаются, причина в предупреждении', () => {
+    const r = computeCosts(ovInput({ error: 'forbidden' }));
+    near(r.totals.food, 300);
+    assert.equal(r.warnings.overheadError, 'forbidden');
+});
+
+test('инвариант: распределённое накладное + нераспределённое = сумме расходов при нескольких событиях', () => {
+    const c = { [D]: { byEvent: { breakfast: { 'retreat:R': bucket({ team: 10 }) }, lunch: { 'retreat:R': bucket({ team: 40, guests: 60 }), 'retreat:Q': bucket({ vips: 7 }), none: bucket({ guests: 3 }) } } } };
+    const items = [ovItem({ amount_base: 1234.5, eff_from: D, eff_to: D }), ovItem({ kind: 'retreat_period', amount_base: 999, eff_from: D, eff_to: D }),
+        ovItem({ kind: 'retreat_event', retreat_id: 'Q', amount_base: 321, eff_from: D, eff_to: D })];
+    const r = computeCosts(ovInput({ items }, c, {
+        meals: [{ id: 'm1', date: D, meal_type: 'lunch', portions: 110, dishes: [] }] }));
+    near(cellSum(r, x => x.overheadRetreat + x.overheadGeneral) + r.totals.overheadUnallocated, 1234.5 + 999 + 321);
+    near(cellSum(r, x => x.overheadRetreat + x.overheadGeneral), r.totals.overheadRetreat + r.totals.overheadGeneral);
+});
