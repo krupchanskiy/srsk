@@ -44,7 +44,7 @@ function rowHtml(p) {
             <button type="button" class="inline-flex items-center gap-1 hover:underline" data-toggle="${p.id}">
                 <span class="${isOpen ? 'rotate-90' : ''}">${chevron}</span>${e(p.employee_name)}
             </button>
-            ${!p.is_current ? ` <span class="badge badge-ghost badge-xs">${t('fin_payroll_former')}</span>` : ''}
+            ${!p.is_current ? ` <span class="badge badge-ghost badge-xs">${t('fin_payroll_ended_on')} ${DateUtils.formatShort(DateUtils.parseDate(p.effective_to))}</span>` : ''}
         </td>
         <td>${e(p.position_title)}</td>
         <td class="font-mono">${hasSalary ? FinUtils.fmtMoney(p.salary_amount, p.currency_code) : `<span class="opacity-50">${t('fin_payroll_no_salary')}</span>`}</td>
