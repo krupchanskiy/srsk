@@ -665,9 +665,13 @@ function openRefine(id) {
     document.getElementById('refineDraftId').value = id;
     document.getElementById('refineInfo').textContent =
         `${FinUtils.fmtMoney(refineDraft.amount, refineDraft.currency)} · ${refineDraft.raw_text || ''}`;
+    // Казначей пишет «выдал …» в чате департамента — это выдача САМОМУ этому департаменту
+    // (бот ставит получателем департамент чата), поэтому его оставляем в списке.
+    // У департаментов получатель себя исключён (ВГ, 21.09.2026).
+    const selfTarget = refineDraft.target_department_id === refineDraft.department_id;
     document.getElementById('refineTarget').innerHTML =
         `<option value="">—</option>` + departments
-            .filter(d => d.id !== refineDraft.department_id)
+            .filter(d => selfTarget || d.id !== refineDraft.department_id)
             .map(d => `<option value="${d.id}" ${d.id === refineDraft.target_department_id ? 'selected' : ''}>${e(d.name)}</option>`)
             .join('');
     // счета только в валюте заявки: иначе сервер откажет уже после нажатия.
