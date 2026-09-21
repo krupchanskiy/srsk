@@ -41,33 +41,82 @@ const CURRENCIES: Record<string, string> = { INR: "₹", RUB: "₽", USD: "$", E
 // Названия валют. Границы слова через \b не годятся: в JS \w — только латиница,
 // поэтому «300 руб» раньше не распознавалось как валюта вообще.
 const CUR_WORDS = "[₹₽$€]|usd|eur|inr|rub|rs|руб\\p{L}*|рупи\\p{L}*|долл\\p{L}*|евро";
-const NUM = "\\d[\\d\\s]{0,9}\\d|\\d";
+// Только обычный пробел как разделитель тысяч («20 000») — не \s: он матчит и
+// перенос строки, из-за чего «...28/09/2026\n12000₽» склеивалось в 202612000
+// (дата с новой строки + сумма). Баг ВГ 16.09.2026.
+const NUM = "\\d[\\d ]{0,9}\\d|\\d";
 const AMT = `(${NUM})(?:[.,](\\d{1,2}))?(?![\\d])`;
 const amtValue = (int: string, frac?: string) =>
   parseFloat(int.replace(/\s/g, "") + (frac ? "." + frac : ""));
+
+// Числа, которые описывают не деньги, а количество, вес, объём, время, дату:
+// «300шт», «5 кг», «2 л», «14:30», «28/09/2026», «10%». Заменяем их пробелами
+// той же длины — позиции остальных чисел не сдвигаются, поэтому «сырой» кусок
+// суммы (raw) по-прежнему находится в исходном тексте (решение ВГ 21.09.2026:
+// «200 стаканчики для десертов 300шт» — 300 это штуки, а не деньги).
+const QTY_UNITS =
+  "шт|штук\\p{L}*|кг|килограмм\\p{L}*|гр|грамм\\p{L}*|г|л|литр\\p{L}*|мл|м|см|мм|метр\\p{L}*|"
+  + "упак\\p{L}*|пач\\p{L}*|банк\\p{L}*|короб\\p{L}*|бутыл\\p{L}*|мешк\\p{L}*|мешок|пар[аы]?|"
+  + "компл\\p{L}*|чел\\p{L}*|person\\p{L}*|pax|дн\\p{L}*|день|раз\\p{L}*|год\\p{L}*|%|процент\\p{L}*|дюжин\\p{L}*";
+function maskNonMoney(text: string): string {
+  const blank = (m: string) => " ".repeat(m.length);
+  return text
+    // даты и время: 28/09/2026, 28.09.26, 2026-09-28, 14:30, 14:30:59
+    .replace(/\d{1,2}[./]\d{1,2}[./]\d{2,4}|\d{4}-\d{2}-\d{2}|\d{1,2}:\d{2}(?::\d{2})?/g, blank)
+    // число + единица измерения/счёта (единица не должна быть началом другого слова)
+    .replace(new RegExp(`(?:${NUM})(?:[.,]\\d{1,2})?[ \\t]*(?:${QTY_UNITS})(?![\\p{L}])`, "giu"), blank);
+}
+
+// «Весомые» числа-кандидаты (>=100) без десятичных долей и множителей —
+// то, что вообще может быть суммой, а не количеством («5 кг») или временем
+// («14:30», оба конца < 100). Используется и для эвристики «это список трат»
+// (looksLikeList), и для карточки «какая из этих цифр сумма?» (needs_amount).
+function bigCandidates(text: string): number[] {
+  const all = [...maskNonMoney(text).matchAll(new RegExp(AMT, "gu"))]
+    .map((m) => amtValue(m[1], m[2]))
+    .filter((n) => Number.isFinite(n) && n >= 100);
+  return [...new Set(all)];
+}
 
 // В сообщении обычно несколько чисел: «5 кг риса 340», «в 14:30 купил на 500».
 // Порядок разбора — от самого надёжного признака к самому слабому:
 //   1) «20к», «20 тыс» — множитель тысяч («20 кг» не считается: после «к» буква);
 //   2) число рядом с названной валютой — «340 ₹»;
-//   3) иначе ПОСЛЕДНЕЕ число: по-русски сумму почти всегда пишут в конце.
-// Раньше бралось первое, и «5 кг риса 340» превращалось в заявку на 5.
-function parseMoney(text: string): { amount: number; raw: string } | null {
-  let n: number | null = null, raw = "";
-
+//   3) ровно одно «весомое» число во всём сообщении — берём его;
+//   4) несколько «весомых» чисел и ни одно не привязано к валюте — не гадаем,
+//      спрашиваем в карточке (решение ВГ 16.09.2026: раньше молча бралось
+//      последнее число, и «...28/09/2026\n12000₽» без правки (450) могло
+//      увести дату вместо суммы).
+function parseMoney(rawText: string): { amount: number | null; raw: string; candidates?: number[] } | null {
+  const text = maskNonMoney(rawText);
   const k = text.match(new RegExp(`${AMT}\\s*(?:к|тыс\\p{L}*)(?![\\p{L}])`, "iu"));
+  if (k) {
+    const n = amtValue(k[1], k[2]) * 1000;
+    return n > 0 ? { amount: n, raw: k[0] } : null;
+  }
   const c = text.match(new RegExp(`${AMT}\\s*(?:${CUR_WORDS})(?![\\p{L}])`, "iu"));
-  if (k) { n = amtValue(k[1], k[2]) * 1000; raw = k[0]; }
-  else if (c) { n = amtValue(c[1], c[2]); raw = c[0]; }
-  else {
-    const all = [...text.matchAll(new RegExp(AMT, "gu"))];
-    if (all.length) { const m = all[all.length - 1]; n = amtValue(m[1], m[2]); raw = m[0]; }
+  if (c) {
+    const n = amtValue(c[1], c[2]);
+    return n > 0 ? { amount: n, raw: c[0] } : null;
   }
 
-  // Проверка «сумма положительная» — одна для всех ветвей. Раньше стояла только
-  // в последней, и «купил овощи 0 ₹» доходило до заявки: там ограничение БД
-  // (amount > 0) роняло вставку, и бот молча не отвечал вообще.
-  return n !== null && Number.isFinite(n) && n > 0 ? { amount: n, raw } : null;
+  const all = [...text.matchAll(new RegExp(AMT, "gu"))];
+  if (!all.length) return null;
+
+  const big = bigCandidates(text);
+  if (big.length >= 2) return { amount: null, raw: "", candidates: big.slice(0, 4) };
+
+  // Проверка «сумма положительная» — раньше стояла только в этой ветке, и
+  // «купил овощи 0 ₹» доходило до заявки: там ограничение БД (amount > 0)
+  // роняло вставку, и бот молча не отвечал вообще.
+  // Ровно одно «весомое» число — сумма именно оно, а не последнее в тексте:
+  // «Расход 720, спрей от ос, 2 шт.» брало «2» из «2 шт.» (баг 20.09.2026).
+  // Если весомых нет вовсе («2 кг риса 90») — по-прежнему берём последнее.
+  const m = big.length === 1
+    ? all.find((x) => amtValue(x[1], x[2]) === big[0]) ?? all[all.length - 1]
+    : all[all.length - 1];
+  const n = amtValue(m[1], m[2]);
+  return n > 0 ? { amount: n, raw: m[0] } : null;
 }
 // Валюта только если названа ЯВНО. Иначе null — бот спросит (решение ВГ).
 function parseCurrency(text: string): string | null {
@@ -108,7 +157,8 @@ const esc = (s: unknown) =>
 // «5 кг риса 340» — тоже два числа, но сумма одна. Поэтому не меняем выбор, а
 // честно предупреждаем в карточке, чтобы человек проверил до подтверждения.
 // Найдено при сквозной проверке 29.07.2026 на реальном сообщении из чата.
-function looksLikeList(text: string): boolean {
+function looksLikeList(rawText: string): boolean {
+  const text = maskNonMoney(rawText);
   // NUM содержит альтернативу, поэтому его обязательно брать в группу: иначе `|`
   // разрывает весь шаблон и в счёт попадают числа вообще, включая «14:30».
   const withCurrency = [...text.matchAll(
@@ -156,23 +206,38 @@ Deno.serve(async (req) => {
   async function renderCard(chatId: number, messageId: number | null, draftId: string, st: any, replyTo?: number): Promise<void> {
     const sym = st.currency ? CURRENCIES[st.currency] ?? st.currency : "";
     // Строка «что уже известно» растёт по ходу диалога, чтобы человек видел,
-    // что именно он подтверждает.
+    // что именно он подтверждает. Сумма ещё не выбрана (needs_amount) — её
+    // просто нет в строке, а не "null".
     const known = [
-      `${st.amount}${sym ? " " + sym : ""}`,
+      st.amount != null ? `${st.amount}${sym ? " " + sym : ""}` : null,
       st.category ? esc(st.category) : null,
       st.source_account ? `откуда: ${esc(st.source_account)}` : null,
-      st.purpose ? `на что: ${esc(st.purpose)}` : null,
     ].filter(Boolean).join(" · ");
     const amountLine = `${known}\n<i>${esc(st.raw_text)}</i>`;
     let head: string;
     let keyboard: any[][];
+    // Подсказка «как писать в следующий раз, чтобы я не переспрашивал» —
+    // только там, где есть конкретный рецепт (просьба ВГ 16.09.2026).
+    let hint: string | null = null;
     const rows = (btns: any[]) => {
       const out: any[][] = [];
       for (let i = 0; i < btns.length; i += 2) out.push(btns.slice(i, i + 2));
       return out;
     };
 
-    if (st.needs_kind) {
+    if (st.needs_amount) {
+      // Несколько «весомых» чисел и ни одно не рядом с валютой — не гадаем,
+      // спрашиваем. Сумма — ПЕРВЫЙ вопрос: валюта рядом с неверно угаданным
+      // числом только путает (решение ВГ 16.09.2026).
+      const candidates = bigCandidates(st.raw_text).slice(0, 4);
+      head = `🤔 <b>Какая сумма?</b>`;
+      hint = "💡 В следующий раз пишите сумму рядом со значком или словом валюты (12000₹ или 12000 рублей) — так я не перепутаю её с датой или другим числом.";
+      keyboard = rows(candidates.map((n) => ({
+        text: n.toLocaleString("ru-RU"),
+        callback_data: `m:${n}:${draftId}`,
+      })));
+      keyboard.push([{ text: "✖️ Не про деньги", callback_data: `no:${draftId}` }]);
+    } else if (st.needs_kind) {
       head = `🤔 <b>Что это за сумма?</b>`;
       keyboard = [[
         { text: "💸 Расход", callback_data: `k:expense:${draftId}` },
@@ -233,7 +298,8 @@ Deno.serve(async (req) => {
     }
 
     const body = {
-      chat_id: chatId, parse_mode: "HTML", text: `${head}\n${amountLine}`,
+      chat_id: chatId, parse_mode: "HTML",
+      text: `${head}\n${amountLine}${hint ? `\n\n${hint}` : ""}`,
       reply_markup: { inline_keyboard: keyboard },
     };
     if (messageId) {
@@ -270,18 +336,26 @@ Deno.serve(async (req) => {
 
     if (action === "no") {
       await supa.rpc("tg_set_draft_status", { p_id: parts[1], p_status: "dismissed", p_card_message_id: msg?.message_id });
-      await tg("editMessageText", { chat_id: msg.chat.id, message_id: msg.message_id, text: "✖️ Отменено" });
+      // Карточка своё отработала — статус и так виден по реакции на исходном
+      // сообщении (см. ветку ok ниже), а сама карточка после решения только
+      // занимает место (замечание ВГ 16.09.2026). Бот админ во всех чатах —
+      // удаление всегда доступно.
+      await tg("deleteMessage", { chat_id: msg.chat.id, message_id: msg.message_id });
+    } else if (action === "ack") {
+      // «Понял» под предупреждением «не нашёл сумму» — убираем его из чата
+      await tg("deleteMessage", { chat_id: msg.chat.id, message_id: msg.message_id });
     } else if (action === "ok") {
       const { data } = await supa.rpc("tg_set_draft_status", { p_id: parts[1], p_status: "pending", p_card_message_id: msg?.message_id });
       const row = Array.isArray(data) ? data[0] : data;
       if (row) await tg("setMessageReaction", { chat_id: row.chat_id, message_id: row.source_message_id, reaction: [{ type: "emoji", emoji: "👀" }] });
-      await tg("editMessageText", { chat_id: msg.chat.id, message_id: msg.message_id, parse_mode: "HTML", text: esc(msg.text || "") + "\n\n👀 <b>Записано, ждёт проведения</b>" });
-    } else if (action === "k" || action === "c" || action === "t" || action === "s" || action === "a") {
+      await tg("deleteMessage", { chat_id: msg.chat.id, message_id: msg.message_id });
+    } else if (action === "k" || action === "c" || action === "t" || action === "s" || action === "a" || action === "m") {
       const value = parts[1];
       const draftId = parts[2];
       const patch: Record<string, string> = {};
       if (action === "k") patch.kind = value;
       if (action === "c") patch.currency = value;
+      if (action === "m") patch.amount = value;
       if (action === "t") {
         const { data: depts } = await supa.rpc("tg_list_departments", { p_exclude: null });
         const found = (depts ?? []).find((d: any) => d.id.startsWith(value));
@@ -503,7 +577,37 @@ Deno.serve(async (req) => {
   if (!chat) return new Response("ok");
 
   const money = parseMoney(text);
-  if (!money) return new Response("ok");
+  if (!money) {
+    // Похоже на трату, но суммы нет (забыли написать либо было только количество
+    // вроде «300шт») — молчать нельзя: человек будет думать, что заявка принята
+    // (решение ВГ 21.09.2026). Только в финансовой теме и только со словом-признаком
+    // траты/выдачи, иначе бот отвечал бы на любую переписку. Предупреждение
+    // убирается кнопкой «Понял», чтобы не копиться в чате.
+    if (!m.from.is_bot && (EXPENSE_WORDS.test(text) || TRANSFER_WORDS.test(text)) && !RECEIPT_WORDS.test(text)) {
+      const { data: guard } = await supa.rpc("tg_finance_topic_check", {
+        p_chat: m.chat.id, p_thread: m.message_thread_id ?? null,
+      });
+      // hint = в форуме не назначена финансовая тема: это не «Счёт», не шумим
+      if (guard && guard.allowed !== false && !guard.hint) {
+        await tg("sendMessage", {
+          chat_id: m.chat.id, reply_to_message_id: m.message_id, parse_mode: "HTML",
+          text: "⚠️ <b>Не нашёл в сообщении сумму</b>, поэтому заявку не создал.\n"
+              + "Напишите трату <b>новым сообщением</b> — с описанием и суммой, например: «Купил овощи 500 ₹». "
+              + "Это сообщение править не нужно.\n"
+              + "Количество (шт, кг, л), даты и время я за сумму не считаю.",
+          reply_markup: { inline_keyboard: [[{ text: "✅ Понял", callback_data: "ack" }]] },
+        });
+        // Метка на самом сообщении переживёт удаление предупреждения: в чате видно,
+        // что заявка НЕ создана. Не 👎 — он у нас значит «отклонено/отменено», а тут
+        // ничего не принималось. Telegram даёт ботам только фиксированный набор реакций.
+        await tg("setMessageReaction", {
+          chat_id: m.chat.id, message_id: m.message_id,
+          reaction: [{ type: "emoji", emoji: "🤔" }],
+        });
+      }
+    }
+    return new Response("ok");
+  }
 
   // Правило ВГ (30.07.2026): одна трата — одно сообщение. Перечень сумм в одном
   // сообщении заявкой не становится вовсе: складывать за человека нельзя («5 кг
@@ -581,11 +685,21 @@ Deno.serve(async (req) => {
     kind = "expense";
   }
 
+  const currency = parseCurrency(text);
+  // Голое число без слова-признака траты/передачи и без названной валюты —
+  // скорее не отчёт о деньгах, а дата, количество или обсуждение. Раньше на
+  // такое всё равно реагировали (например, ругались «не та тема»), и это
+  // цепляло сообщения вроде «Зп ... 12000 Проверить» в общем чате.
+  // Решение ВГ 16.09.2026: без обоих сигналов — молчим совсем.
+  if (!kind && !currency) return new Response("ok");
+
   // Нет описания — заявку не заводим вовсе. Валюту, счёт и статью можно
   // доспросить кнопками, а «на что» знает только автор: доспрашивать текстом
   // долго, и висящие полузаявки хуже, чем просьба переписать сообщение.
-  const purpose = parsePurpose(text, money.raw);
-  if (!purpose) {
+  // Описание — ровно то, что написал человек, без вырезания суммы и валюты
+  // (просьба ВГ 20.09.2026): иначе проведённую операцию не с чем сверить.
+  // parsePurpose остаётся только проверкой «в сообщении есть слова, а не одни цифры».
+  if (!parsePurpose(text, money.raw)) {
     await tg("sendMessage", {
       chat_id: m.chat.id, reply_to_message_id: m.message_id,
       text: "⚠️ Не могу принять заявку: не написано, на что потрачено.\n"
@@ -593,6 +707,7 @@ Deno.serve(async (req) => {
     });
     return new Response("ok");
   }
+  const purpose = text.trim().slice(0, 1000);
 
   // ---------- финансы принимаются только из финансовой темы (ТЗ, п. 4–5) ----------
   // Иначе трата, написанная в «Информации», молча уехала бы в учёт, а найти её
@@ -601,17 +716,21 @@ Deno.serve(async (req) => {
     p_chat: m.chat.id, p_thread: m.message_thread_id ?? null,
   });
   if (guard && guard.allowed === false) {
-    await tg("sendMessage", {
+    const sent = await tg("sendMessage", {
       chat_id: m.chat.id, reply_to_message_id: m.message_id, parse_mode: "HTML",
       text: "⚠️ Это не финансовая тема, поэтому трату я не записал.\n"
           + `Напишите её в теме «Счёт ${esc(guard.department ?? "департамента")}» — оттуда она попадёт в учёт.`,
     });
+    // Предупреждение не по адресу — не должно висеть в общем чате вечно,
+    // самоудаляется через минуту (просьба ВГ 16.09.2026).
+    const warnId = sent?.result?.message_id;
+    if (warnId) await supa.rpc("tg_schedule_delete", { p_chat: m.chat.id, p_message: warnId, p_delay_seconds: 60 });
     return new Response("ok");
   }
 
   const { data: draftId } = await supa.rpc("tg_create_draft", {
     p: { chat_id: m.chat.id, source_message_id: m.message_id, tg_user_id: m.from.id,
-         kind, amount: money.amount, currency: parseCurrency(text),
+         kind, amount: money.amount, currency,
          target_department_id: targetDept, purpose, raw_text: text },
   });
   if (!draftId) return new Response("ok");
