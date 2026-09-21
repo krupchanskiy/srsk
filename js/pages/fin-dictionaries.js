@@ -240,10 +240,53 @@ function fillEmployeeForm(p) {
     if (cancel) cancel.classList.remove('hidden');
 }
 
+// Кэш переводов в браузере может не знать новых ключей — подставляем запасной текст
+const tr = (key, fallback) => { const v = t(key); return v === key ? fallback : v; };
+
+// Завершённые периоды тех, кто сейчас в департаменте не числится: по одному
+// (последнему) на человека — иначе список зарастёт историей переходов
+function endedPeriods(deptId) {
+    const all = deptEmployees[deptId] || [];
+    const active = new Set(all.filter(p => p.is_current).map(p => p.vaishnava_id));
+    const latest = new Map();
+    for (const p of all.filter(x => !x.is_current && !active.has(x.vaishnava_id))) {
+        const prev = latest.get(p.vaishnava_id);
+        if (!prev || (p.effective_to || '') > (prev.effective_to || '')) latest.set(p.vaishnava_id, p);
+    }
+    return [...latest.values()];
+}
+
+// «Вернуть» — та же операция «добавить сотрудника», только форма уже заполнена
+// прошлой должностью и окладом; создаётся новый период, старый остаётся историей
+function fillReturnForm(deptId, positionId) {
+    const p = (deptEmployees[deptId] || []).find(x => x.id === positionId);
+    if (!p) return;
+    editingEmployeeId = null;
+    const search = document.getElementById('f_emp_search');
+    search.value = p.employee_name;
+    search.disabled = false;
+    document.getElementById('f_emp_vaishnava').value = p.vaishnava_id;
+    document.getElementById('f_emp_title').value = p.position_title || '';
+    document.getElementById('f_emp_salary').value = p.salary_amount ?? '';
+    const from = document.getElementById('f_emp_from');
+    from.value = FinUtils.todayISO();
+    const btn = document.querySelector('[data-add-employee]');
+    if (btn) btn.textContent = t('fin_add');
+    document.getElementById('f_emp_cancel')?.classList.remove('hidden');
+    from.focus();
+}
+
 function deptEmployeesHtml(deptId) {
     const current = (deptEmployees[deptId] || []).filter(p => p.is_current);
-    const rows = current.length
-        ? current.map(p => `<div class="flex justify-between items-center gap-2 text-sm py-1 border-b border-base-200 last:border-0">
+    const ended = endedPeriods(deptId);
+    const endedRows = ended.map(p => `<div class="flex justify-between items-center gap-2 text-sm py-1 border-b border-base-200 last:border-0 opacity-60">
+            <div class="truncate">
+                <div>${e(p.employee_name)} <span class="opacity-70">— ${e(p.position_title)}</span></div>
+                <div class="text-xs">${tr('fin_payroll_ended_on', 'период до')} ${DateUtils.formatShort(DateUtils.parseDate(p.effective_to))}</div>
+            </div>
+            <button type="button" class="btn btn-outline btn-xs shrink-0" data-return-employee="${p.id}">${tr('fin_payroll_return', 'Вернуть')}</button>
+        </div>`).join('');
+    const activeRows = current.map(p => `<div class="flex justify-between items-center gap-2 text-sm py-1 border-b border-base-200 last:border-0">
             <div class="truncate">
                 <div>${e(p.employee_name)} <span class="opacity-60">— ${e(p.position_title)}</span></div>
                 <div class="opacity-60 text-xs">${p.salary_amount != null
@@ -254,7 +297,9 @@ function deptEmployeesHtml(deptId) {
                 <button type="button" class="btn btn-ghost btn-xs" data-edit-employee="${p.id}" title="${t('edit')}">${editIcon}</button>
                 <button type="button" class="btn btn-ghost btn-xs text-error" data-end-employee="${p.id}" title="${t('fin_payroll_terminate')}">${FinUtils.ICONS.x}</button>
             </div>
-        </div>`).join('')
+        </div>`).join('');
+    const rows = (activeRows || endedRows)
+        ? activeRows + endedRows
         : `<div class="text-sm opacity-60">${t('fin_payroll_no_employees')}</div>`;
 
     return `<div class="form-control mb-2">
@@ -596,11 +641,13 @@ async function init() {
         const end = ev.target.closest('[data-end-employee]');
         const cancel = ev.target.closest('[data-cancel-employee]');
         const createPerson = ev.target.closest('[data-create-person]');
+        const ret = ev.target.closest('[data-return-employee]');
         if (add) saveEmployee(add.dataset.addEmployee);
         else if (edit) fillEmployeeForm((deptEmployees[editingId] || []).find(p => p.id === edit.dataset.editEmployee));
         else if (end) endEmployee(editingId, end.dataset.endEmployee);
         else if (cancel) resetEmployeeForm();
         else if (createPerson) createTechnicalPerson();
+        else if (ret) fillReturnForm(editingId, ret.dataset.returnEmployee);
     });
 
     await loadTab();
