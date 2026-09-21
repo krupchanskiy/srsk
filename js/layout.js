@@ -26,7 +26,8 @@ const modules = {
                 { id: 'planner', href: 'kitchen/menu-board.html' },
                 { id: 'menu_templates', href: 'kitchen/menu-templates.html' },
                 { id: 'recipes', href: 'kitchen/recipes.html' },
-                { id: 'products', href: 'kitchen/products.html' }
+                { id: 'products', href: 'kitchen/products.html' },
+                { id: 'prices', href: 'kitchen/prices.html' }
             ]},
             { id: 'stock', items: [
                 { id: 'stock_balance', href: 'stock/stock.html' },
@@ -209,6 +210,7 @@ const pagePermissions = {
     'kitchen/recipe.html': 'view_recipes',
     'kitchen/recipe-edit.html': 'edit_recipe',
     'kitchen/products.html': 'view_products',
+    'kitchen/prices.html': ['view_prices', 'edit_prices', 'edit_archived_prices'],
     'kitchen/dictionaries.html': 'view_kitchen_dictionaries',
 
     // Stock
@@ -536,7 +538,7 @@ async function loadTranslations(retried = false) {
 
     // Проверка на наличие новых переводов (для автоинвалидации устаревшего кэша)
     // Добавляйте сюда ключи новых обязательных переводов
-    const requiredKeys = ['self_accommodation', 'nav_user_management', 'nav_retreat_prasad', 'purchased', 'nav_residents_list', 'nav_prasad', 'timeline_uncovered_title', 'expected_guests', 'timeline_no_retreat', 'fin_split_dept', 'fin_refine', 'fin_refine_spent', 'person_meal_period', 'retreat_report_title', 'retreats_cafe_eligible', 'retreat_report_finance_cafe'];
+    const requiredKeys = ['self_accommodation', 'nav_user_management', 'nav_retreat_prasad', 'purchased', 'nav_residents_list', 'nav_prasad', 'timeline_uncovered_title', 'expected_guests', 'timeline_no_retreat', 'fin_split_dept', 'fin_refine', 'fin_refine_spent', 'person_meal_period', 'retreat_report_title', 'retreats_cafe_eligible', 'retreat_report_finance_cafe', 'nav_prices', 'prices_title'];
     const hasAllKeys = requiredKeys.every(key => data.some(row => row.key === key));
 
     if (!hasAllKeys && !retried) {
