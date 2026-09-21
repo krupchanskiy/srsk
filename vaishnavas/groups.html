@@ -39,6 +39,7 @@
                     <tr>
                         <th data-i18n="group_name">Название</th>
                         <th data-i18n="dates">Даты</th>
+                        <th data-i18n="group_event">Событие</th>
                         <th data-i18n="people_count">Кол-во</th>
                         <th data-i18n="breakfast">Завтрак</th>
                         <th data-i18n="lunch">Обед</th>
@@ -72,6 +73,12 @@
                 <div>
                     <label class="label"><span class="label-text font-medium" data-i18n="group_name">Название группы</span><span class="text-error ml-1">*</span></label>
                     <input type="text" name="name" class="input input-bordered w-full" required />
+                </div>
+
+                <div>
+                    <label class="label"><span class="label-text font-medium" data-i18n="group_event">Событие</span></label>
+                    <select name="event_link" id="eventLinkSelect" class="select select-bordered w-full"></select>
+                    <span class="label-text-alt opacity-60 mt-1 block" data-i18n="group_event_hint">Нужно, чтобы посчитать затраты на питание по ретриту или мероприятию. Самостоятельным гостям событие не нужно.</span>
                 </div>
 
                 <div class="grid grid-cols-2 gap-4">
@@ -124,7 +131,7 @@
     <script src="../js/utils.js?v=12"></script>
     <script src="../js/date-utils.js?v=4"></script>
     <script src="../js/layout.js?v=78"></script>
-    <script src="../js/pages/groups.js?v=1"></script>
+    <script src="../js/pages/groups.js?v=2"></script>
 
 </body>
 </html>

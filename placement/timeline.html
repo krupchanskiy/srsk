@@ -538,6 +538,12 @@
             <div id="uncoveredList" class="mt-2 text-sm"></div>
         </details>
 
+        <!-- Живут вне территории, но питаются с нами (room_id пуст) — в сетку не попадают -->
+        <details id="selfBlock" class="hidden mb-4 bg-white rounded-lg shadow px-4 py-3">
+            <summary class="cursor-pointer text-sm font-medium" id="selfSummary"></summary>
+            <div id="selfList" class="mt-2 text-sm"></div>
+        </details>
+
         <!-- Контейнер шахматки -->
         <div class="bg-white rounded-lg shadow flex flex-col timeline-wrapper" style="max-height: calc(100vh - 180px);">
             <!-- Полоса ретритов -->
@@ -1098,7 +1104,7 @@
         if (btn) { btn.classList.toggle('btn-active', isFS); btn.title = isFS ? Layout.t('normal_view') : Layout.t('fullscreen'); }
     }
     </script>
-    <script src="../js/pages/timeline.js?v=21"></script>
+    <script src="../js/pages/timeline.js?v=23"></script>
 
 </body>
 </html>

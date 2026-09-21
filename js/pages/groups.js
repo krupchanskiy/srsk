@@ -5,10 +5,15 @@
 'use strict';
 
 let groups = [];
+let retreats = [];
 let editingGroupId = null;
+
+const EVENT_OWN = '__own';
 
 const t = key => Layout.t(key);
 const e = str => Layout.escapeHtml(str);
+// Пока кэш переводов у пользователя не обновился, показываем русский текст, а не имя ключа
+const tr = (key, fallback) => { const v = t(key); return v === key ? fallback : v; };
 
 function formatDate(dateStr) {
     if (!dateStr) return '—';
@@ -29,6 +34,37 @@ async function loadGroups() {
         return [];
     }
     return data || [];
+}
+
+async function loadRetreats() {
+    const { data, error } = await Layout.db
+        .from('retreats')
+        .select('id, name_ru, name_en, name_hi, start_date, end_date')
+        .order('start_date', { ascending: false });
+    if (error) {
+        console.error('Error loading retreats:', error);
+        return [];
+    }
+    return data || [];
+}
+
+function renderEventSelect() {
+    const sel = Layout.$('#eventLinkSelect');
+    if (!sel) return;
+    sel.innerHTML = `<option value="">${e(tr('group_event_none', 'Без события (самостоятельные гости)'))}</option>`
+        + `<option value="${EVENT_OWN}">${e(tr('group_event_own', 'Отдельное событие (сама группа)'))}</option>`
+        + `<optgroup label="${e(tr('group_event_retreat', 'Наш ретрит'))}">`
+        + retreats.map(r => `<option value="${r.id}">${e(Layout.getName(r))}</option>`).join('')
+        + '</optgroup>';
+}
+
+function eventLabel(g) {
+    if (g.is_event) return tr('group_event_own', 'Отдельное событие (сама группа)');
+    if (g.retreat_id) {
+        const r = retreats.find(x => x.id === g.retreat_id);
+        return r ? Layout.getName(r) : '—';
+    }
+    return '—';
 }
 
 // ==================== RENDER ====================
@@ -66,6 +102,7 @@ function renderGroups() {
                     ${isActive ? '<span class="badge badge-success badge-xs">active</span>' : ''}
                 </td>
                 <td class="whitespace-nowrap">${formatDate(g.start_date)} — ${formatDate(g.end_date)}</td>
+                <td class="text-sm">${e(eventLabel(g))}</td>
                 <td class="text-center font-semibold">${g.people_count}</td>
                 <td class="text-center">${g.breakfast ? '✓' : '—'}</td>
                 <td class="text-center">${g.lunch ? '✓' : '—'}</td>
@@ -100,6 +137,7 @@ function openGroupModal(groupId = null) {
             form.start_date.value = g.start_date || '';
             form.end_date.value = g.end_date || '';
             form.people_count.value = g.people_count || 1;
+            form.event_link.value = g.is_event ? EVENT_OWN : (g.retreat_id || '');
             form.breakfast.checked = g.breakfast !== false;
             form.lunch.checked = g.lunch !== false;
             form.notes.value = g.notes || '';
@@ -129,7 +167,9 @@ async function saveGroup(ev) {
         people_count: parseInt(form.people_count.value) || 1,
         breakfast: form.breakfast.checked,
         lunch: form.lunch.checked,
-        notes: form.notes.value.trim() || null
+        notes: form.notes.value.trim() || null,
+        is_event: form.event_link.value === EVENT_OWN,
+        retreat_id: (form.event_link.value && form.event_link.value !== EVENT_OWN) ? form.event_link.value : null
     };
 
     if (!data.name || !data.start_date || !data.end_date) return;
@@ -199,6 +239,7 @@ document.addEventListener('click', ev => {
 // ==================== INIT ====================
 function updateUI() {
     Layout.updateAllTranslations();
+    renderEventSelect();
     renderGroups();
 }
 
@@ -208,7 +249,8 @@ async function init() {
     await Layout.init({ module: 'housing', menuId: 'placement', itemId: 'groups' });
     Layout.showLoader();
 
-    groups = await loadGroups();
+    [groups, retreats] = await Promise.all([loadGroups(), loadRetreats()]);
+    renderEventSelect();
 
     Layout.$('#groupForm').addEventListener('submit', saveGroup);
 

@@ -33,8 +33,10 @@ let ekadashiDays = new Set();
 // Фактическое время прибытия/отъезда из retreat_registrations
 let retreatTimesMap = new Map();
 let allRetreats = [];         // для выбора ретрита при заселении
+let eventGroups = [];         // группы-события (meal_groups.is_event) для выбора при заселении
 let creditorsSet = new Set(); // `${vaishnava_id}_${retreat_id}` — ашрам должен участнику (переплата при начисленной карточке)
 let debtorsSet = new Set();   // `${vaishnava_id}_${retreat_id}` — участники с долгом по финмодулю
+let selfAccommodated = [];        // проживающие без номера: живут вне территории, в сетку не попадают
 let specialNeedsMap = new Map();   // `${vaishnava_id}_${retreat_id}` — особые потребности из CRM
 
 // Флаг права на редактирование таймлайна
@@ -112,8 +114,18 @@ async function loadTimelineData() {
     let buildings = buildingsData || [];
     const rooms = roomsRes.data || [];
     const residents = residentsRes.data || [];
+    selfAccommodated = residents.filter(r => !r.room_id);
     const retreats = retreatsRes.data || [];
     allRetreats = retreats;
+    // Группы-события — второй вид «события» рядом с ретритом; без них шахматка работает как раньше
+    const { data: eventGroupsData } = await Layout.db.from('meal_groups')
+        .select('id, name, start_date, end_date')
+        .eq('is_event', true)
+        .lte('start_date', endDateStr)
+        .gte('end_date', startDateStr)
+        .order('start_date');
+    eventGroups = eventGroupsData || [];
+    renderSelfAccommodation().catch(err => console.error('Self accommodation block:', err));
     const cleanings = cleaningsRes.data || [];
 
     // Строим Set dayIndex-ов для Экадаши
@@ -804,10 +816,17 @@ function selectVaishnava(id) {
 function fillRetreatSelect(selectedId) {
     const sel = document.getElementById('checkinRetreat');
     if (!sel) return;
+    // Значение группы-события — 'group:<id>', ретрита — просто id
+    const groupOptions = eventGroups.length
+        ? `<optgroup label="${Layout.escapeHtml(Layout.t('nav_groups'))}">` + eventGroups.map(g =>
+            `<option value="group:${g.id}" ${`group:${g.id}` === selectedId ? 'selected' : ''}>${Layout.escapeHtml(g.name)}</option>`
+        ).join('') + '</optgroup>'
+        : '';
     sel.innerHTML = `<option value="">${Layout.t('timeline_no_retreat') || '— без ретрита —'}</option>`
         + allRetreats.map(r =>
             `<option value="${r.id}" ${r.id === selectedId ? 'selected' : ''}>${Layout.escapeHtml(Layout.getName(r))}</option>`
-        ).join('');
+        ).join('')
+        + groupOptions;
 }
 
 // Подсказать ретрит по человеку и датам: берём регистрацию, чей ретрит
@@ -1031,6 +1050,8 @@ async function saveCheckin(e) {
     const form = e.target;
 
     const mealTypeVal = form.meal_type.value || 'prasad';
+    const eventValue = form.retreat_id?.value || '';
+    const isGroupEvent = eventValue.startsWith('group:');
     const data = {
         room_id: modalContext.roomId,
         category_id: form.category_id.value || null,
@@ -1043,7 +1064,8 @@ async function saveCheckin(e) {
         late_checkout: form.late_checkout.checked,
         // Ретрит подставляется по датам, но остаётся на выбор: без него
         // человек не считается участником — не увидим ни долг, ни расселение
-        retreat_id: form.retreat_id?.value || null,
+        retreat_id: isGroupEvent ? null : (eventValue || null),
+        group_id: isGroupEvent ? eventValue.slice('group:'.length) : null,
         // «Заселить» = человек на пороге: приезд фиксируется всегда.
         // Заранее место держат через «Забронировать» или расселение ретрита.
         arrived_at: new Date().toISOString(),
@@ -2060,7 +2082,7 @@ async function convertToCheckin() {
     document.getElementById('checkinDateIn').value = res.check_in;
     document.getElementById('checkinDateOut').value = res.check_out || '';
     delete document.getElementById('checkinRetreat').dataset.touched;
-    fillRetreatSelect(res.retreat_id || '');
+    fillRetreatSelect(res.retreat_id || (res.group_id ? `group:${res.group_id}` : ''));
 
     if (res.early_checkin) {
         document.querySelector('#checkinForm [name="early_checkin"]').checked = true;
@@ -2611,6 +2633,54 @@ function setupTimelineDelegation() {
             if (btn) moveToRoom(btn.dataset.id);
         });
     }
+}
+
+// Люди без номера (room_id пуст): живут вне территории, но записаны на ретрит
+// или в группу и питаются с нами. Сетка их не рисует, поэтому показываем списком.
+async function renderSelfAccommodation() {
+    const box = document.getElementById('selfBlock');
+    if (!box) return;
+
+    const list = [...selfAccommodated].sort((a, b) =>
+        (a.check_in || '').localeCompare(b.check_in || ''));
+    if (!list.length) { box.classList.add('hidden'); return; }
+
+    const groupIds = [...new Set(list.map(r => r.group_id).filter(Boolean))];
+    const groupNames = new Map();
+    if (groupIds.length) {
+        const { data } = await Layout.db.from('meal_groups').select('id, name').in('id', groupIds);
+        (data || []).forEach(g => groupNames.set(g.id, g.name));
+    }
+
+    document.getElementById('selfSummary').textContent = `${t('self_accommodation')}: ${list.length}`;
+    document.getElementById('selfList').innerHTML = list.map(res => {
+        let name = res.guest_name || '';
+        if (res.vaishnavas) name = getVaishnavName(res.vaishnavas, '');
+        if (!name && res.bookings) name = res.bookings.name || res.bookings.contact_name || '';
+        const nameHtml = res.vaishnava_id
+            ? `<a href="../vaishnavas/person.html?id=${res.vaishnava_id}" class="link link-hover font-medium">${e(name || '—')}</a>`
+            : `<span class="font-medium">${e(name || '—')}</span>`;
+
+        const cat = res.resident_categories;
+        const catHtml = cat
+            ? `<span class="badge badge-sm text-white border-0" style="background: ${Utils.isValidColor(cat.color) ? cat.color : '#3b82f6'}">${e(Layout.getName(cat))}</span>`
+            : '';
+
+        const retreat = res.retreat_id ? allRetreats.find(r => r.id === res.retreat_id) : null;
+        const eventName = retreat ? Layout.getName(retreat) : (res.group_id ? groupNames.get(res.group_id) : '');
+
+        const meals = res.has_meals === true ? t('timeline_meals_yes')
+            : res.has_meals === false ? t('timeline_meals_no') : t('timeline_meals_unknown');
+        const dates = `${DateUtils.formatShort(res.check_in)} — ${res.check_out ? DateUtils.formatShort(res.check_out) : '…'}`;
+
+        return `<div class="py-1 border-t border-base-200 flex flex-wrap items-center gap-x-3 gap-y-1">
+            ${nameHtml} ${catHtml}
+            <span class="opacity-60">${e(eventName || '')}</span>
+            <span class="text-xs opacity-70">${e(dates)} · ${e(meals)}</span>
+        </div>`;
+    }).join('');
+
+    box.classList.remove('hidden');
 }
 
 // Гость прилетает раньше начала брони или улетает позже её конца — в эти ночи ему

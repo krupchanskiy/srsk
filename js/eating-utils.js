@@ -23,7 +23,7 @@ const EatingUtils = {
         const [residentsResult, guestRegResult, mealGroupsResult] = await Promise.all([
             Layout.db
                 .from('residents')
-                .select('id, vaishnava_id, guest_name, retreat_id, check_in, check_out, meal_start_date, meal_end_date, early_checkin, late_checkout, breakfast, lunch, arrived_at, resident_categories!inner(slug)')
+                .select('id, vaishnava_id, guest_name, retreat_id, group_id, check_in, check_out, meal_start_date, meal_end_date, early_checkin, late_checkout, breakfast, lunch, arrived_at, resident_categories!inner(slug)')
                 .eq('status', 'confirmed')
                 // У брони питание не заполнено (не «нет», а «пока неизвестно») —
                 // раньше такие записи выпадали из расчёта, и порций не хватало.
@@ -46,7 +46,7 @@ const EatingUtils = {
                 : Promise.resolve({ data: [] }),
             Layout.db
                 .from('meal_groups')
-                .select('id, start_date, end_date, people_count, breakfast, lunch')
+                .select('id, start_date, end_date, people_count, breakfast, lunch, retreat_id, is_event')
                 .lte('start_date', endDate)
                 .gte('end_date', startDate)
         ]);
@@ -95,6 +95,14 @@ const EatingUtils = {
             let bfVip = 0, lnVip = 0;
             let bfGuest = 0, lnGuest = 0;
             let bfExpected = 0, lnExpected = 0;
+
+            // Разбивка по событию (ретрит / группа-событие / без события) — те же
+            // числа, что и в итогах, но раздельно; сумма по событиям равна итогу.
+            const byEvent = { breakfast: {}, lunch: {} };
+            const bump = (mealKey, evKey, bucket, n = 1) => {
+                const m = byEvent[mealKey];
+                (m[evKey] || (m[evKey] = { team: 0, volunteers: 0, vips: 0, guests: 0, groups: 0, expected: 0 }))[bucket] += n;
+            };
 
             // Residents — считаем по категориям + собираем vaishnava_id для дедупликации на эту дату
             const residentIdsForDate = new Set();
@@ -160,12 +168,19 @@ const EatingUtils = {
                     // дважды: как место и как участник ретрита.
                     const isExpected = !r.arrived_at;
 
+                    const evKey = r.retreat_id ? `retreat:${r.retreat_id}` : r.group_id ? `group:${r.group_id}` : 'none';
+                    const bucket = isExpected ? 'expected'
+                        : slug === 'team' ? 'team'
+                        : slug === 'volunteer' ? 'volunteers'
+                        : slug === 'vip' ? 'vips' : 'guests';
+
                     if (getsBreakfast) {
                         if (isExpected) bfExpected++;
                         else if (slug === 'team') bfTeam++;
                         else if (slug === 'volunteer') bfVol++;
                         else if (slug === 'vip') bfVip++;
                         else bfGuest++;
+                        bump('breakfast', evKey, bucket);
                     }
                     if (getsLunch) {
                         if (isExpected) lnExpected++;
@@ -173,6 +188,7 @@ const EatingUtils = {
                         else if (slug === 'volunteer') lnVol++;
                         else if (slug === 'vip') lnVip++;
                         else lnGuest++;
+                        bump('lunch', evKey, bucket);
                     }
                 }
             }
@@ -223,17 +239,24 @@ const EatingUtils = {
                         }
                     }
 
+                    const regEvKey = `retreat:${retreat.id}`;
+                    const regBucket = reg.status === 'team' ? 'team'
+                        : reg.status === 'volunteer' ? 'volunteers'
+                        : reg.status === 'vip' ? 'vips' : 'guests';
+
                     if (getsBreakfast) {
                         if (reg.status === 'team') bfTeam++;
                         else if (reg.status === 'volunteer') bfVol++;
                         else if (reg.status === 'vip') bfVip++;
                         else bfGuest++;
+                        bump('breakfast', regEvKey, regBucket);
                     }
                     if (getsLunch) {
                         if (reg.status === 'team') lnTeam++;
                         else if (reg.status === 'volunteer') lnVol++;
                         else if (reg.status === 'vip') lnVip++;
                         else lnGuest++;
+                        bump('lunch', regEvKey, regBucket);
                     }
                 }
             }
@@ -242,8 +265,9 @@ const EatingUtils = {
             let breakfastGroups = 0, lunchGroups = 0;
             for (const mg of mealGroups) {
                 if (mg.start_date <= dateStr && mg.end_date >= dateStr) {
-                    if (mg.breakfast) breakfastGroups += mg.people_count;
-                    if (mg.lunch) lunchGroups += mg.people_count;
+                    const mgEvKey = mg.retreat_id ? `retreat:${mg.retreat_id}` : mg.is_event ? `group:${mg.id}` : 'none';
+                    if (mg.breakfast) { breakfastGroups += mg.people_count; bump('breakfast', mgEvKey, 'groups', mg.people_count); }
+                    if (mg.lunch) { lunchGroups += mg.people_count; bump('lunch', mgEvKey, 'groups', mg.people_count); }
                 }
             }
 
@@ -251,7 +275,8 @@ const EatingUtils = {
                 breakfast: { team: bfTeam, volunteers: bfVol, vips: bfVip, guests: bfGuest,
                              groups: breakfastGroups, expected: bfExpected },
                 lunch:     { team: lnTeam, volunteers: lnVol, vips: lnVip, guests: lnGuest,
-                             groups: lunchGroups, expected: lnExpected }
+                             groups: lunchGroups, expected: lnExpected },
+                byEvent
             };
         }
 
@@ -273,5 +298,18 @@ const EatingUtils = {
         if (!mc) return 50;
         const total = mc.team + mc.volunteers + mc.vips + mc.guests + mc.groups + (mc.expected || 0);
         return total > 0 ? total : 50;
+    },
+
+    /**
+     * Вкушающие на дату и приём пищи по событиям.
+     * @param {object} counts — результат loadCounts()
+     * @param {string} dateStr — 'YYYY-MM-DD'
+     * @param {string} mealType — 'breakfast' | 'lunch' (остальные считаются как обед)
+     * @returns {{ [eventKey]: {team,volunteers,vips,guests,groups,expected} }}
+     *   eventKey: 'retreat:<id>' | 'group:<id>' | 'none' (самостоятельные гости и команда без ретрита)
+     */
+    getByEvent(counts, dateStr, mealType) {
+        const key = (mealType === 'breakfast') ? 'breakfast' : 'lunch';
+        return counts[dateStr]?.byEvent?.[key] || {};
     }
 };
