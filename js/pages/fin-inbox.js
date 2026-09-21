@@ -548,11 +548,14 @@ const CATEGORY_GUESS_RULES = [
     [/прасад/, 'prasad']
 ];
 
-function guessCategoryId(text) {
+// Кафе платит людям за конкретный ретрит, а не оклад: там «зп» — это
+// «Гонорар за ретрит», а не «Оплата труда» (решение ВГ, 21.09.2026)
+function guessCategoryId(text, forCafe) {
     const low = (text || '').toLowerCase();
     const rule = CATEGORY_GUESS_RULES.find(([re]) => re.test(low));
     if (!rule) return null;
-    return FinUtils.refs.categories.find(c => c.is_active && c.direction === 'out' && c.code === rule[1])?.id || null;
+    const code = forCafe && rule[1] === 'dept_labor' ? 'retreat_fee' : rule[1];
+    return FinUtils.refs.categories.find(c => c.is_active && c.direction === 'out' && c.code === code)?.id || null;
 }
 
 // Позиция ведомости: имя из текста заявки ищем среди сотрудников получателя.
@@ -663,7 +666,7 @@ function openRefine(id) {
                                 a => a.currency_code === refineDraft.currency
                                      && a.account_id !== ownAcc?.account_id);
     // Стартуем с одной строки на всю сумму — самый частый случай, дробят редко
-    document.getElementById('refineRows').innerHTML = refineRowHtml(refineDraft.amount, guessCategoryId(refineDraft.raw_text), null);
+    document.getElementById('refineRows').innerHTML = refineRowHtml(refineDraft.amount, guessCategoryId(refineDraft.raw_text, refineTargetIsCafe()), null);
     document.getElementById('refineSpent').checked = false;
     syncRefineSpent();
     renderRefineRemainder();
