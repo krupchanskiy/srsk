@@ -20,7 +20,12 @@
 <main class="container mx-auto px-4 py-6 flex-1">
     <div class="flex flex-wrap justify-between items-center gap-3 mb-6">
         <h1 class="text-2xl font-bold" data-i18n="fin_payroll_title">Зарплатная ведомость</h1>
-        <label class="label cursor-pointer gap-2 ml-auto">
+        <select id="payrollRange" class="select select-bordered select-sm ml-auto">
+            <option value="year" data-i18n="fin_payroll_range_year">Этот год</option>
+            <option value="month" data-i18n="fin_payroll_range_month">Этот месяц</option>
+            <option value="all" data-i18n="fin_payroll_range_all">За всё время</option>
+        </select>
+        <label class="label cursor-pointer gap-2">
             <input type="checkbox" id="showEnded" class="checkbox checkbox-sm">
             <span class="label-text" data-i18n="fin_payroll_show_ended">Показать завершённых</span>
         </label>
@@ -90,7 +95,7 @@
 <script src="../js/layout.js?v=77"></script>
 <script src="../js/date-utils.js?v=4"></script>
 <script src="../js/fin-utils.js?v=14"></script>
-<script src="../js/pages/fin-payroll.js?v=7"></script>
+<script src="../js/pages/fin-payroll.js?v=8"></script>
 
 </body>
 </html>
