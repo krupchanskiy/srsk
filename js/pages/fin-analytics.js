@@ -242,6 +242,29 @@ async function loadReport() {
     const icDown = '<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.7" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M2.25 6L9 12.75l4.286-4.286a11.948 11.948 0 014.306 6.43l.776 2.898m0 0l3.182-5.511m-3.182 5.51l-5.511-3.181"/></svg>';
     const icNet = '<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.7" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M9 8.25H7.5a2.25 2.25 0 00-2.25 2.25v9a2.25 2.25 0 002.25 2.25h9a2.25 2.25 0 002.25-2.25v-9a2.25 2.25 0 00-2.25-2.25H15M9 12l2.25 2.25L15 9.75M9 8.25V6a3 3 0 013-3v0a3 3 0 013 3v2.25"/></svg>';
 
+    // Руководитель департамента (просмотр): сервер отдаёт только блок «Прасад» —
+    // без оргвзноса, проживания, долгов участников и кафе
+    if (currentData.restricted) {
+        const pr = r.prasad || { income_by_category: [], expense_by_category: [], totals: {} };
+        const pt = pr.totals || {};
+        box.innerHTML = `
+            <div class="grid grid-cols-2 md:grid-cols-3 gap-3">
+                ${kpi('', icUp, t('fin_income'), `<span class="text-success">${fmtB(pt.income_base || 0)}</span>`)}
+                ${kpi('is-error', icDown, t('fin_expense'), `<span class="text-error">${fmtB(pt.expense_base || 0)}</span>`)}
+                ${kpi(Number(pt.net_base) < 0 ? 'is-error' : '', icNet, t('fin_net'), `<span class="${Number(pt.net_base) < 0 ? 'text-error' : ''}">${fmtB(pt.net_base || 0)}</span>`)}
+            </div>
+            <div class="grid grid-cols-1 lg:grid-cols-2 gap-4 items-start">
+                <div class="min-w-0 space-y-4">
+                    <h2 class="text-lg font-semibold">${t('retreat_report_finance_prasad')}</h2>
+                    ${catTable(pr.income_by_category, 'fin_income_by_category', 'prasad')}
+                    ${catTable(pr.expense_by_category, 'fin_expense_by_category', 'prasad')}
+                </div>
+                <div id="finDrill" class="card bg-base-100 shadow-sm lg:sticky lg:top-4 flex flex-col overflow-hidden"
+                     style="max-height: calc(100vh - 2rem)">${drillHintHtml()}</div>
+            </div>`;
+        return;
+    }
+
     // Разбивка по статьям без кафе и без прасада (самостоятельные единицы, см. subtractCategoryRows)
     let retreatIncomeRows = r.income_by_category;
     let retreatExpenseRows = r.expense_by_category;

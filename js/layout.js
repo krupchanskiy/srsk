@@ -293,9 +293,9 @@ const pagePermissions = {
     'finance/dds.html': ['fin_admin', 'fin_observer', 'fin_account_user'],
     'finance/inbox.html': 'fin_admin',
     'finance/participants.html': ['fin_admin', 'fin_observer'],
-    'finance/accounts.html': ['fin_admin', 'fin_observer', 'fin_account_user'],
+    'finance/accounts.html': ['fin_admin', 'fin_observer', 'fin_account_user', 'fin_dept_viewer'],
     'finance/reconciliation.html': ['fin_admin', 'fin_observer'],
-    'finance/analytics.html': ['fin_admin', 'fin_observer'],
+    'finance/analytics.html': ['fin_admin', 'fin_observer', 'fin_dept_viewer'],
     'finance/dictionaries.html': 'fin_admin',
     'finance/payroll.html': 'fin_admin',
     'finance/retreat-report.html': ['fin_admin', 'fin_observer', 'view_retreat_guests'],
@@ -1343,9 +1343,15 @@ function switchModule(moduleId) {
     currentModule = moduleId;
     localStorage.setItem('srsk_module', moduleId);
 
-    // Переходим на главную страницу модуля
+    // Переходим на главную страницу модуля; если она пользователю недоступна
+    // (например, у роли «просмотр департамента» нет главной финансов) — на первую доступную
     const module = modules[moduleId];
-    window.location.href = adjustHref(module.defaultPage);
+    let target = module.defaultPage;
+    if (window.currentUser && !window.currentUser.is_superuser && !hasPagePermission(pagePermissions[target])) {
+        const first = filterMenuByPermissions(module.menuConfig || []).flatMap(s => s.items)[0];
+        if (first) target = first.href;
+    }
+    window.location.href = adjustHref(target);
 }
 
 // ==================== INIT LAYOUT ====================
