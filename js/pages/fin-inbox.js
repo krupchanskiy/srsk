@@ -756,7 +756,8 @@ async function init() {
     document.getElementById('refineTarget').addEventListener('change', () => refineRows().forEach(guessLaborByPayroll));
     document.getElementById('refineAddRow').addEventListener('click', () => {
         const spent = document.getElementById('refineSpent').checked;
-        document.getElementById('refineRows').insertAdjacentHTML('beforeend', refineRowHtml(null, null, null));
+        const prevCat = document.querySelector('#refineRows [data-refine-row]:last-child [data-refine-cat]')?.value || null;
+        document.getElementById('refineRows').insertAdjacentHTML('beforeend', refineRowHtml(null, prevCat, null));
         const row = document.querySelector('#refineRows [data-refine-row]:last-child');
         row.querySelector('[data-refine-cat]').required = spent;
         renderRefineRemainder();
@@ -779,7 +780,11 @@ async function init() {
     });
     document.getElementById('splitEven').addEventListener('click', splitEvenly);
     document.getElementById('splitAddRow').addEventListener('click', () => {
-        document.getElementById('splitRows').insertAdjacentHTML('beforeend', splitRowHtml(null, null));
+        // Новая строка наследует статью последней: разбивка — это одна трата,
+        // и статья у неё почти всегда общая (ВГ, 21.09.2026). Раньше подставлялась
+        // первая в списке («Аренда»). Поменять статью в строке по-прежнему можно.
+        const prevCat = document.querySelector('#splitRows [data-split-row]:last-child [data-split-cat]')?.value || null;
+        document.getElementById('splitRows').insertAdjacentHTML('beforeend', splitRowHtml(null, prevCat));
         renderRemainder();
         const row = document.querySelector('#splitRows [data-split-row]:last-child');
         maybeSuggestSplitObject(row);
