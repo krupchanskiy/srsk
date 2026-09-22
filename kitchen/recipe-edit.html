@@ -610,14 +610,24 @@
         // грубый случай: это не про плотность, а про то, что единица рецепта в принципе не
         // подходит (например, бананы посчитаны «2 шт», а закупаются в кг) — чинится в самом
         // рецепте (указать вес), а не в карточке продукта, поэтому у него свой сигнал.
+        const SPOON_FIELD = { tsp: 'tsp_grams', tbsp: 'tbsp_grams', cup: 'cup_grams', l: 'liter_grams', ml: 'liter_grams' };
+
+        // Плотность нужна в граммах на ложку/стакан/литр — неважно, с какой стороны эта ложка:
+        // у продукта (закупка — сама ч.л., а в рецепте граммы, как у агара) или у рецепта
+        // (продукт в кг, а в рецепте — ч.л./ст.л., как у кардамона).
+        function densityFieldFor(productUnit, recipeUnit) {
+            return SPOON_FIELD[recipeUnit] || SPOON_FIELD[productUnit] || null;
+        }
+
         function isDensityIssue(product, unit) {
             const baseType = units.find(u => u.code === (product.unit || 'g'))?.type;
             const ingType = units.find(u => u.code === unit)?.type;
             if (!baseType || !ingType || ingType === baseType) return false;
             if (ingType === 'count' || baseType === 'count') return false;
+            const field = densityFieldFor(product.unit, unit);
+            if (!field) return false;
             const density = densities[product.id];
-            const field = { tsp: 'tsp_grams', tbsp: 'tbsp_grams', cup: 'cup_grams', l: 'liter_grams', ml: 'liter_grams' }[unit];
-            return !density || !field || density[field] == null;
+            return !density || density[field] == null;
         }
 
         function isCountMismatch(product, unit) {

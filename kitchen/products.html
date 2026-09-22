@@ -281,14 +281,25 @@
         // несовпадение (например, рецепт считает бананы поштучно, а закупка — в кг): его
         // плотность не решает, это отдельный, ещё не сделанный функционал (вес одной штуки).
         // Такие случаи в фильтр «уточнить плотность» не включаем, чтобы не путать.
+        const SPOON_FIELD = { tsp: 'tsp_grams', tbsp: 'tbsp_grams', cup: 'cup_grams', l: 'liter_grams', ml: 'liter_grams' };
+
+        // Плотность — это всегда «грамм на ложку/стакан/литр», и неважно, с какой стороны эта
+        // ложка: у продукта (закупочная единица — сама ч.л., а рецепт в граммах, как у агара)
+        // или у рецепта (продукт в кг, а рецепт — в ч.л./ст.л., как у кардамона). Ищем поле
+        // с той стороны, где вообще есть ложка/стакан/литр.
+        function densityFieldFor(productUnit, recipeUnit) {
+            return SPOON_FIELD[recipeUnit] || SPOON_FIELD[productUnit] || null;
+        }
+
         function isDensityIssue(product, unit) {
             const baseType = units.find(u => u.code === (product.unit || 'g'))?.type;
             const ingType = units.find(u => u.code === unit)?.type;
             if (!baseType || !ingType || ingType === baseType) return false;
             if (ingType === 'count' || baseType === 'count') return false;
+            const field = densityFieldFor(product.unit, unit);
+            if (!field) return false;
             const density = densities[product.id];
-            const field = { tsp: 'tsp_grams', tbsp: 'tbsp_grams', cup: 'cup_grams', l: 'liter_grams', ml: 'liter_grams' }[unit];
-            return !density || !field || density[field] == null;
+            return !density || density[field] == null;
         }
 
         // Проблема видна прямо в списке продуктов: либо закупочная единица сама по себе
@@ -330,14 +341,25 @@
 
         const DENSITY_FIELD = { tsp: 'tsp_grams', tbsp: 'tbsp_grams', cup: 'cup_grams', l: 'liter_grams' };
         const DENSITY_FIELD_ID = { tsp: '#densityTspField', tbsp: '#densityTbspField', cup: '#densityCupField', l: '#densityLiterField' };
+        const FIELD_TO_UNIT = { tsp_grams: 'tsp', tbsp_grams: 'tbsp', cup_grams: 'cup', liter_grams: 'l' };
 
-        // Какие поля плотности вообще имеют смысл для продукта: только те единицы, которыми
-        // его реально измеряют в рецептах (плюс те, где уже есть сохранённое значение — чтобы
-        // не спрятать существующие данные). Для бананов в кг чайная ложка не нужна никогда.
-        function relevantDensityUnits(productId) {
+        // Какие поля плотности вообще имеют смысл для продукта: строго те единицы, которыми
+        // его реально измеряют в рецептах прямо сейчас — ни больше (не показываем стакан и литр,
+        // если в рецептах используется только чайная ложка), ни меньше (даже если рецепт в
+        // граммах, а закупка — в ч.л., как у агара, всё равно нужна плотность именно для ч.л.).
+        // Новая единица появляется здесь сама, как только её выберут в каком-то рецепте —
+        // отдельно «включать» её на карточке продукта не нужно.
+        function relevantDensityUnits(productId, productUnit) {
             const used = (productId && recipeUnitsByProduct[productId]) || new Set();
-            const d = (productId && densities[productId]) || {};
-            return Object.keys(DENSITY_FIELD).filter(u => used.has(u) || d[DENSITY_FIELD[u]] != null);
+            const relevant = new Set();
+            used.forEach(u => {
+                const baseType = units.find(x => x.code === productUnit)?.type;
+                const ingType = units.find(x => x.code === u)?.type;
+                if (!baseType || !ingType || baseType === ingType || baseType === 'count' || ingType === 'count') return;
+                const field = densityFieldFor(productUnit, u);
+                if (field) relevant.add(FIELD_TO_UNIT[field]);
+            });
+            return [...relevant];
         }
 
         // Показать секцию плотности, только если есть хоть одно уместное поле (штучные продукты
@@ -346,7 +368,7 @@
         function updateDensitySection(unitCode, productId) {
             const section = Layout.$('#densitySection');
             const canEditDensity = window.hasPermission && window.hasPermission('edit_kitchen_dictionaries');
-            const relevant = relevantDensityUnits(productId);
+            const relevant = relevantDensityUnits(productId, unitCode);
             section.classList.toggle('hidden', !(canEditDensity && relevant.length));
             const d = (productId && densities[productId]) || {};
             Object.entries(DENSITY_FIELD).forEach(([unit, field]) => {
