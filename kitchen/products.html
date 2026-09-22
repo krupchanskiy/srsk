@@ -57,7 +57,7 @@
         </div>
 
         <!-- Search -->
-        <div class="flex flex-col sm:flex-row gap-4 mb-4">
+        <div class="flex flex-col sm:flex-row gap-4 mb-4 items-start sm:items-center">
             <div class="flex-1 max-w-md relative">
                 <input type="text" id="searchInput" placeholder="Поиск по названию..." class="input input-bordered w-full pr-10" data-i18n-placeholder="search_placeholder" />
                 <button type="button" id="clearSearch" class="absolute right-3 top-1/2 -translate-y-1/2 text-base-content/40 hover:text-base-content hidden">
@@ -66,6 +66,11 @@
                     </svg>
                 </button>
             </div>
+            <label class="label cursor-pointer gap-2 py-0">
+                <input type="checkbox" id="onlyDensityIssue" class="checkbox checkbox-sm checkbox-warning" />
+                <span class="label-text" data-i18n="products_filter_density_issue">Не уточнена плотность</span>
+                <span id="densityIssueCount" class="badge badge-warning badge-sm"></span>
+            </label>
         </div>
 
         <!-- Category Filters -->
@@ -173,6 +178,30 @@
                     <select name="unit" class="select select-bordered w-full" required id="unitSelect"></select>
                 </div>
 
+                <!-- Плотность: сколько грамм в ложке/стакане/литре (для перевода единиц рецепта) -->
+                <div id="densitySection" class="hidden border border-base-200 rounded-lg p-3">
+                    <div class="font-medium text-sm" data-i18n="density_section_title">Плотность (для рецептов в ложках/стаканах/литрах)</div>
+                    <div class="text-xs opacity-60 mb-2" data-i18n="density_section_hint">Сколько весит эта мера объёма у данного продукта. Нужно, если в рецептах используются ложки/стаканы/литры, а закупочная единица продукта — вес (или наоборот).</div>
+                    <div class="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                        <div>
+                            <label class="label py-1"><span class="label-text-alt" data-i18n="density_tsp">1 чайная ложка, г</span></label>
+                            <input type="number" name="tsp_grams" min="0" step="0.01" class="input input-bordered input-sm w-full" />
+                        </div>
+                        <div>
+                            <label class="label py-1"><span class="label-text-alt" data-i18n="density_tbsp">1 столовая ложка, г</span></label>
+                            <input type="number" name="tbsp_grams" min="0" step="0.01" class="input input-bordered input-sm w-full" />
+                        </div>
+                        <div>
+                            <label class="label py-1"><span class="label-text-alt" data-i18n="density_cup">1 стакан, г</span></label>
+                            <input type="number" name="cup_grams" min="0" step="0.01" class="input input-bordered input-sm w-full" />
+                        </div>
+                        <div>
+                            <label class="label py-1"><span class="label-text-alt" data-i18n="density_liter">1 литр, г</span></label>
+                            <input type="number" name="liter_grams" min="0" step="0.01" class="input input-bordered input-sm w-full" />
+                        </div>
+                    </div>
+                </div>
+
                 <!-- % на очистку (только для овощей и фруктов) -->
                 <div id="wastePercentField" class="hidden">
                     <label class="label"><span class="label-text font-medium" data-i18n="waste_percent">% на очистку</span></label>
@@ -236,12 +265,37 @@
         let products = [];
         let categories = [];
         let units = [];
+        let densities = {};          // product_id → { tsp_grams, tbsp_grams, cup_grams, liter_grams }
+        let recipeUnitsByProduct = {}; // product_id → Set единиц, которыми продукт используется в рецептах
+        let onlyDensityIssue = false;
 
         const t = key => Layout.t(key);
         const editForm = () => document.getElementById('editForm');
 
         // Категории, для которых показываем поле "% на очистку"
         const WASTE_CATEGORIES = ['vegetables', 'fruits'];
+
+        // ==================== ПЛОТНОСТЬ / ПРОВЕРКА ЕДИНИЦ ====================
+        // Та же логика, что в kitchen/recipe-edit.html и js/kitchen-cost.js: можно ли
+        // перевести единицу в закупочную единицу продукта без потери в себестоимости.
+        function unitUnresolved(product, unit) {
+            const baseType = units.find(u => u.code === (product.unit || 'g'))?.type;
+            const ingType = units.find(u => u.code === unit)?.type;
+            if (!baseType || !ingType || ingType === baseType) return false;
+            if (ingType === 'count' || baseType === 'count') return true;
+            const density = densities[product.id];
+            const field = { tsp: 'tsp_grams', tbsp: 'tbsp_grams', cup: 'cup_grams', l: 'liter_grams', ml: 'liter_grams' }[unit];
+            return !density || !field || density[field] == null;
+        }
+
+        // Проблема видна прямо в списке продуктов: либо закупочная единица сама по себе
+        // неудобна для закупки (ложка/стакан), либо в каком-то рецепте единица не переводится
+        function productDensityIssue(product) {
+            if (['tsp', 'tbsp', 'cup'].includes(product.unit)) return true;
+            const usedUnits = recipeUnitsByProduct[product.id];
+            if (!usedUnits) return false;
+            return [...usedUnits].some(u => unitUnresolved(product, u));
+        }
 
         // ==================== CONFIRM MODAL ====================
         let confirmResolve = null;
@@ -269,6 +323,20 @@
             confirmModal.close();
             if (confirmResolve) confirmResolve(false);
             confirmResolve = null;
+        }
+
+        // Показать секцию плотности только для весовых/объёмных продуктов (штучные — не переводятся)
+        // и только тем, у кого есть право её менять; заполнить текущими значениями.
+        function updateDensitySection(unitCode, productId) {
+            const section = Layout.$('#densitySection');
+            const canEditDensity = window.hasPermission && window.hasPermission('edit_kitchen_dictionaries');
+            const unitType = units.find(u => u.code === unitCode)?.type;
+            const show = canEditDensity && unitType && unitType !== 'count';
+            section.classList.toggle('hidden', !show);
+            const d = (productId && densities[productId]) || {};
+            ['tsp_grams', 'tbsp_grams', 'cup_grams', 'liter_grams'].forEach(f => {
+                editForm()[f].value = d[f] ?? '';
+            });
         }
 
         // Показать/скрыть поле waste_percent в зависимости от категории
@@ -357,6 +425,19 @@
             if (error) { console.error('Error loading products:', error); return; }
             products = data;
             renderProducts();
+        }
+
+        async function loadDensities() {
+            const { data, error } = await Layout.db.from('product_densities').select('*');
+            if (error) { console.error('Error loading product_densities:', error); return; }
+            densities = Object.fromEntries((data || []).map(d => [d.product_id, d]));
+        }
+
+        async function loadRecipeUnits() {
+            const { data, error } = await Layout.db.from('recipe_ingredients').select('product_id, unit').not('product_id', 'is', null);
+            if (error) { console.error('Error loading recipe_ingredients:', error); return; }
+            recipeUnitsByProduct = {};
+            (data || []).forEach(r => (recipeUnitsByProduct[r.product_id] || (recipeUnitsByProduct[r.product_id] = new Set())).add(r.unit));
         }
 
         // ==================== SORTING ====================
@@ -466,13 +547,15 @@
                     product.name_ru?.toLowerCase().includes(searchQuery.toLowerCase()) ||
                     product.name_en?.toLowerCase().includes(searchQuery.toLowerCase()) ||
                     product.name_hi?.includes(searchQuery);
-                return matchesCategory && matchesSearch;
+                const matchesDensity = !onlyDensityIssue || productDensityIssue(product);
+                return matchesCategory && matchesSearch && matchesDensity;
             });
 
             // Apply sorting
             filtered = sortProducts(filtered);
 
             countEl.textContent = Layout.pluralize(filtered.length, PRODUCT_FORMS);
+            Layout.$('#densityIssueCount').textContent = products.filter(productDensityIssue).length;
 
             if (filtered.length === 0) {
                 tbody.innerHTML = `<tr><td colspan="5" class="text-center py-12 opacity-50">
@@ -510,6 +593,7 @@
                             <div class="flex items-center gap-2">
                                 <span>${unitShort}</span>
                                 ${product.waste_percent ? `<span class="badge badge border-base-300 badge-sm" title="${t('waste_percent')}">${product.waste_percent}%</span>` : ''}
+                                ${productDensityIssue(product) ? `<span class="badge badge-warning badge-sm whitespace-nowrap" title="${t('products_density_issue_hint')}">${t('products_density_issue')}</span>` : ''}
                             </div>
                         </td>
                         <td class="text-center">
@@ -551,6 +635,7 @@
                 Layout.$('#wastePercentField')?.classList.add('hidden');
             }
             Layout.setupAutoTranslate('#editForm', ['name']);
+            updateDensitySection(Layout.$('select[name="unit"]').value, null);
             editModal.showModal();
         }
 
@@ -570,6 +655,7 @@
             Layout.$('input[name="name_hi"]').value = product.name_hi || '';
             Layout.$('input[name="translit"]').value = product.translit || '';
             Layout.$('select[name="unit"]').value = product.unit || '';
+            updateDensitySection(product.unit, product.id);
 
             // Показываем/скрываем и заполняем поле waste_percent
             toggleWastePercentField(product.category_id);
@@ -638,9 +724,37 @@
                 return false;
             }
 
+            const savedId = isNew ? products[products.length - 1]?.id : id;
+            if (savedId && window.hasPermission?.('edit_kitchen_dictionaries') && !Layout.$('#densitySection').classList.contains('hidden')) {
+                await saveDensity(savedId);
+            }
+
             renderCategoryFilters();
             renderProducts();
             return true;
+        }
+
+        // Плотность продукта — своя таблица, своё право (edit_kitchen_dictionaries), пишем отдельным запросом.
+        // Если все поля пустые — убираем строку, а не храним ноли.
+        async function saveDensity(productId) {
+            const vals = Object.fromEntries(['tsp_grams', 'tbsp_grams', 'cup_grams', 'liter_grams'].map(f => {
+                const raw = editForm()[f].value;
+                return [f, raw === '' ? null : parseFloat(raw)];
+            }));
+            const hasAny = Object.values(vals).some(v => v !== null);
+            let error;
+            if (hasAny) {
+                ({ error } = await Layout.db.from('product_densities').upsert(
+                    { product_id: productId, ...vals }, { onConflict: 'product_id' }));
+            } else {
+                ({ error } = await Layout.db.from('product_densities').delete().eq('product_id', productId));
+            }
+            if (error) {
+                Layout.showNotification(t('error') + ': ' + error.message, 'error');
+                return;
+            }
+            if (hasAny) densities[productId] = { product_id: productId, ...vals };
+            else delete densities[productId];
         }
 
         async function deleteProduct(id) {
@@ -704,6 +818,17 @@
             Layout.$('#categorySelect')?.addEventListener('change', e => {
                 toggleWastePercentField(e.target.value);
             });
+
+            // Показ/скрытие и переинициализация секции плотности при смене единицы измерения
+            Layout.$('#unitSelect')?.addEventListener('change', e => {
+                const id = Layout.$('input[name="id"]').value || null;
+                updateDensitySection(e.target.value, id);
+            });
+
+            Layout.$('#onlyDensityIssue')?.addEventListener('change', e => {
+                onlyDensityIssue = e.target.checked;
+                renderProducts();
+            });
         });
 
         // ==================== LANGUAGE UPDATE ====================
@@ -721,7 +846,7 @@
         // ==================== INIT ====================
         async function init() {
             await Layout.init({ module: 'kitchen', menuId: 'kitchen', itemId: 'products' });
-            await Promise.all([loadCategories(), loadUnits()]);
+            await Promise.all([loadCategories(), loadUnits(), loadDensities(), loadRecipeUnits()]);
             await loadProducts();
             updatePageUI();
         }

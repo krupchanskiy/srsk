@@ -604,6 +604,19 @@
             return unit[`short_${Layout.currentLang}`] || unit.short_ru || code;
         }
 
+        // Можно ли перевести единицу рецепта в закупочную единицу продукта: та же «природа»
+        // единицы (вес/объём/штуки) — всегда можно, вес↔объём — только если задана плотность
+        // продукта (сколько грамм в ложке/стакане/литре), штуки не переводятся ни во что.
+        function unitUnresolved(product, unit) {
+            const baseType = units.find(u => u.code === (product.unit || 'g'))?.type;
+            const ingType = units.find(u => u.code === unit)?.type;
+            if (!baseType || !ingType || ingType === baseType) return false;
+            if (ingType === 'count' || baseType === 'count') return true;
+            const density = densities[product.id];
+            const field = { tsp: 'tsp_grams', tbsp: 'tbsp_grams', cup: 'cup_grams', l: 'liter_grams', ml: 'liter_grams' }[unit];
+            return !density || !field || density[field] == null;
+        }
+
         // Получить доступные единицы для продукта
         function getAvailableUnits(productId, baseUnit) {
             // Всегда доступны базовые единицы по типу
@@ -726,11 +739,15 @@
                 const unitOptions = availableUnits.map(u =>
                     `<option value="${u}" ${u === currentUnit ? 'selected' : ''}>${getUnitShort(u)}</option>`
                 ).join('');
+                const unresolved = unitUnresolved(product, currentUnit);
 
                 return `
                     <div class="grid grid-cols-[1fr_auto_auto_auto] gap-3 items-center ${zebraClass} rounded-lg p-3">
                         <div class="min-w-0">
-                            <div class="font-medium truncate">${name}</div>
+                            <div class="font-medium truncate flex items-center gap-1">
+                                <span class="truncate">${name}</span>
+                                ${unresolved ? `<span class="badge badge-warning badge-xs shrink-0" title="${t('recipe_unit_unresolved_hint')}">${t('recipe_unit_unresolved')}</span>` : ''}
+                            </div>
                             <div class="text-xs opacity-50 truncate">${subName}</div>
                         </div>
                         <div class="flex items-center gap-1">
