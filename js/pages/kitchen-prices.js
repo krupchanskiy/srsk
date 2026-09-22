@@ -56,9 +56,14 @@ function unitRatio(code) {
     return u ? Number(u.to_base_ratio) : null;
 }
 
+// Упаковка — это тара (пакет, бутылка), а не мера для готовки: тип «объём» в units общий и для
+// литра/мл, и для ложки/стакана — но покупают упаковками, а не «пакет на две чайные ложки».
+// Поэтому здесь только настоящие тарные единицы: вес — г/кг, объём — л/мл.
+const PACKAGE_UNIT_CODES = { weight: ['g', 'kg'], volume: ['l', 'ml'] };
 function packageUnitOptions(productUnit) {
     const baseType = units.find(u => u.code === productUnit)?.type;
-    return units.filter(u => u.type === baseType);
+    const codes = PACKAGE_UNIT_CODES[baseType] || [];
+    return codes.map(c => units.find(u => u.code === c)).filter(Boolean);
 }
 
 function computePackagePrice(amount, packageUnit, productUnit, packagePrice) {
