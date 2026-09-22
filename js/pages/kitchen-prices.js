@@ -8,7 +8,7 @@
 const t = key => Layout.t(key);
 const e = str => Layout.escapeHtml(str);
 
-const REASONS = ['supplier_change', 'new_purchase', 'fix_error', 'other'];
+const REASONS = ['new_purchase', 'supplier_change', 'fix_error', 'other'];
 
 let products = [];
 let categories = [];
@@ -342,6 +342,9 @@ async function saveCorrection(ev) {
 
 // ==================== EVENTS ====================
 document.addEventListener('click', ev => {
+    const modeTab = ev.target.closest('[data-price-mode]');
+    if (modeTab) { setPriceMode(modeTab.dataset.priceMode); return; }
+
     const btn = ev.target.closest('[data-action]');
     if (!btn) return;
     switch (btn.dataset.action) {
@@ -355,8 +358,6 @@ document.addEventListener('click', ev => {
         case 'correct': openCorrect(btn.dataset.id, btn.dataset.product); break;
         case 'close-modal': Layout.$('#' + btn.dataset.modal).close(); break;
     }
-    const modeTab = ev.target.closest('[data-price-mode]');
-    if (modeTab) setPriceMode(modeTab.dataset.priceMode);
 });
 
 document.addEventListener('input', ev => {
