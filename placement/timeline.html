@@ -538,12 +538,6 @@
             <div id="uncoveredList" class="mt-2 text-sm"></div>
         </details>
 
-        <!-- Живут вне территории, но питаются с нами (room_id пуст) — в сетку не попадают -->
-        <details id="selfBlock" class="hidden mb-4 bg-white rounded-lg shadow px-4 py-3">
-            <summary class="cursor-pointer text-sm font-medium" id="selfSummary"></summary>
-            <div id="selfList" class="mt-2 text-sm"></div>
-        </details>
-
         <!-- Контейнер шахматки -->
         <div class="bg-white rounded-lg shadow flex flex-col timeline-wrapper" style="max-height: calc(100vh - 180px);">
             <!-- Полоса ретритов -->
@@ -560,6 +554,12 @@
                 </table>
             </div>
         </div>
+
+        <!-- Живут вне территории, но питаются с нами (room_id пуст) — в сетку не попадают -->
+        <details id="selfBlock" class="hidden mt-4 bg-white rounded-lg shadow px-4 py-3">
+            <summary class="cursor-pointer text-sm font-medium" id="selfSummary"></summary>
+            <div id="selfList" class="mt-2 text-sm"></div>
+        </details>
     </main>
 
     <div id="footer-placeholder"></div>
