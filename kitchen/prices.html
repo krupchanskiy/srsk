@@ -82,14 +82,38 @@
                 <div id="firstPriceHint" class="alert alert-info text-sm hidden">
                     <span data-i18n="prices_first_hint">Первая цена по продукту действует и на прошлые даты.</span>
                 </div>
-                <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+
+                <div role="tablist" class="tabs tabs-boxed w-fit" id="priceModeTabs">
+                    <a role="tab" class="tab tab-active" data-price-mode="direct" data-i18n="prices_mode_direct">За единицу</a>
+                    <a role="tab" class="tab" data-price-mode="package" data-i18n="prices_mode_package">По упаковке</a>
+                </div>
+
+                <div id="directPriceField" class="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     <div>
                         <label class="label"><span class="label-text font-medium" data-i18n="prices_field_price">Цена за единицу, ₹</span></label>
-                        <input type="number" name="price" min="0" step="0.01" class="input input-bordered w-full" required />
+                        <input type="number" name="price" min="0" step="0.01" class="input input-bordered w-full" />
                     </div>
                     <div>
                         <label class="label"><span class="label-text font-medium" data-i18n="prices_field_from">Действует с</span></label>
-                        <input type="date" name="valid_from" class="input input-bordered w-full" required />
+                        <input type="date" name="valid_from_direct" class="input input-bordered w-full" />
+                    </div>
+                </div>
+                <div id="packageFields" class="hidden grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div>
+                        <label class="label"><span class="label-text font-medium" data-i18n="prices_field_package_amount">Вес/объём упаковки</span></label>
+                        <div class="join w-full">
+                            <input type="number" name="package_amount" min="0" step="0.01" class="input input-bordered join-item w-full" />
+                            <select name="package_unit" class="select select-bordered join-item" id="packageUnitSelect"></select>
+                        </div>
+                    </div>
+                    <div>
+                        <label class="label"><span class="label-text font-medium" data-i18n="prices_field_package_price">Цена упаковки, ₹</span></label>
+                        <input type="number" name="package_price" min="0" step="0.01" class="input input-bordered w-full" />
+                    </div>
+                    <div class="sm:col-span-2 text-sm" id="packageComputed"></div>
+                    <div>
+                        <label class="label"><span class="label-text font-medium" data-i18n="prices_field_from">Действует с</span></label>
+                        <input type="date" name="valid_from_package" class="input input-bordered w-full" />
                     </div>
                 </div>
                 <div>
@@ -148,6 +172,6 @@
     <script src="../js/utils.js?v=12"></script>
     <script src="../js/date-utils.js?v=4"></script>
     <script src="../js/layout.js?v=80"></script>
-    <script src="../js/pages/kitchen-prices.js?v=1"></script>
+    <script src="../js/pages/kitchen-prices.js?v=2"></script>
 </body>
 </html>

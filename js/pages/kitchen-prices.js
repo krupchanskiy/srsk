@@ -19,6 +19,7 @@ let caps = { view: false, edit: false, correct: false };
 let currentCategory = 'all';
 let searchQuery = '';
 let onlyWithoutPrice = false;
+let priceMode = 'direct';   // 'direct' | 'package' — второй режим сам считает цену за единицу
 
 // ==================== HELPERS ====================
 function productName(p) {
@@ -45,6 +46,26 @@ function currentPrice(productId) {
 
 function errorText(error) {
     return error?.details || error?.message || t('error');
+}
+
+// ==================== ЦЕНА ПО УПАКОВКЕ ====================
+// Вес/объём упаковки в закупочной единице продукта (только та же природа: вес↔вес, объём↔объём —
+// штучные продукты этот режим не используют). Возвращает null, если посчитать нечем.
+function unitRatio(code) {
+    const u = units.find(x => x.code === code);
+    return u ? Number(u.to_base_ratio) : null;
+}
+
+function packageUnitOptions(productUnit) {
+    const baseType = units.find(u => u.code === productUnit)?.type;
+    return units.filter(u => u.type === baseType);
+}
+
+function computePackagePrice(amount, packageUnit, productUnit, packagePrice) {
+    const ru = unitRatio(packageUnit), rp = unitRatio(productUnit);
+    if (!(amount > 0) || !ru || !rp || !(packagePrice >= 0)) return null;
+    const qtyInProductUnit = (amount * ru) / rp;
+    return qtyInProductUnit > 0 ? packagePrice / qtyInProductUnit : null;
 }
 
 // ==================== DATA ====================
@@ -163,33 +184,79 @@ function reasonLabel(code) {
 }
 
 // ==================== MODALS ====================
+function setPriceMode(mode) {
+    priceMode = mode;
+    Layout.$('#priceModeTabs').querySelectorAll('[data-price-mode]').forEach(tab =>
+        tab.classList.toggle('tab-active', tab.dataset.priceMode === mode));
+    Layout.$('#directPriceField').classList.toggle('hidden', mode !== 'direct');
+    Layout.$('#packageFields').classList.toggle('hidden', mode !== 'package');
+}
+
+function renderPackageComputed() {
+    const form = Layout.$('#priceForm');
+    const p = products.find(x => x.id === form.product_id.value);
+    if (!p) return;
+    const price = computePackagePrice(
+        parseFloat(form.package_amount.value), form.package_unit.value, p.unit, parseFloat(form.package_price.value));
+    Layout.$('#packageComputed').innerHTML = price === null
+        ? `<span class="opacity-50">${t('prices_package_fill_hint')}</span>`
+        : `${t('prices_package_result')}: <span class="font-semibold">${money(price)} / ${e(unitShort(p.unit))}</span>`;
+}
+
 function openPriceModal(productId) {
     const p = products.find(x => x.id === productId);
     if (!p) return;
     const form = Layout.$('#priceForm');
     form.reset();
     form.product_id.value = productId;
-    form.valid_from.value = DateUtils.toISO(new Date());
+    const today = DateUtils.toISO(new Date());
+    form.valid_from_direct.value = today;
+    form.valid_from_package.value = today;
     const cur = currentPrice(productId);
     if (cur) form.price.value = cur.price;
     Layout.$('#priceModalProduct').textContent = `${productName(p)} (${unitShort(p.unit)})`;
     Layout.$('#firstPriceHint').classList.toggle('hidden', (pricesByProduct.get(productId) || []).length > 0);
     Layout.$('#reasonSelect').innerHTML = REASONS.map(r => `<option value="${r}">${e(reasonLabel(r))}</option>`).join('');
+
+    const packageUnits = packageUnitOptions(p.unit);
+    Layout.$('#packageUnitSelect').innerHTML = packageUnits.map(u =>
+        `<option value="${u.code}" ${u.code === p.unit ? 'selected' : ''}>${e(u['short_' + Layout.currentLang] || u.short_ru)}</option>`).join('');
+    setPriceMode('direct');
+    Layout.$('#priceModeTabs').classList.toggle('hidden', packageUnits.length < 2);
+    renderPackageComputed();
     Layout.$('#priceModal').showModal();
 }
 
 async function savePrice(ev) {
     ev.preventDefault();
     const form = ev.target;
+    const p = products.find(x => x.id === form.product_id.value);
+
+    let price, validFrom, comment = form.comment.value.trim() || null;
+    if (priceMode === 'package') {
+        const amount = parseFloat(form.package_amount.value);
+        const packageUnit = form.package_unit.value;
+        const packagePrice = parseFloat(form.package_price.value);
+        price = computePackagePrice(amount, packageUnit, p.unit, packagePrice);
+        if (price === null) { Layout.showNotification(t('prices_package_incomplete'), 'error'); return; }
+        validFrom = form.valid_from_package.value;
+        if (!comment) comment = `${t('prices_package_label')}: ${amount} ${unitShort(packageUnit)} × ${money(packagePrice)}`;
+    } else {
+        price = parseFloat(form.price.value);
+        validFrom = form.valid_from_direct.value;
+        if (!(price >= 0)) { Layout.showNotification(t('prices_price_required'), 'error'); return; }
+    }
+    if (!validFrom) { Layout.showNotification(t('prices_date_required'), 'error'); return; }
+
     const btn = form.querySelector('button[type="submit"]');
     btn.disabled = true;
     const { error } = await Layout.db.rpc('kitchen_set_price', {
         p_product_id: form.product_id.value,
         p_location_id: locationId,
-        p_price: parseFloat(form.price.value),
-        p_valid_from: form.valid_from.value,
+        p_price: price,
+        p_valid_from: validFrom,
         p_reason_category: form.reason_category.value,
-        p_comment: form.comment.value.trim() || null
+        p_comment: comment
     });
     btn.disabled = false;
     if (error) {
@@ -288,6 +355,15 @@ document.addEventListener('click', ev => {
         case 'correct': openCorrect(btn.dataset.id, btn.dataset.product); break;
         case 'close-modal': Layout.$('#' + btn.dataset.modal).close(); break;
     }
+    const modeTab = ev.target.closest('[data-price-mode]');
+    if (modeTab) setPriceMode(modeTab.dataset.priceMode);
+});
+
+document.addEventListener('input', ev => {
+    if (['package_amount', 'package_unit', 'package_price'].includes(ev.target.name)) renderPackageComputed();
+});
+document.addEventListener('change', ev => {
+    if (ev.target.name === 'package_unit') renderPackageComputed();
 });
 
 function updateUI() {
