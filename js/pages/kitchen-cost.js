@@ -104,6 +104,8 @@ async function calculate() {
         await loadEventNames(Object.keys(lastResult.cells));
         renderResult();
         renderWarnings();
+        await loadReconcile(from, to);
+        renderReconcile();
     } catch (err) {
         console.error('Cost calculation:', err);
         Layout.showNotification(errorText(err), 'error');
@@ -287,6 +289,51 @@ async function saveKit(meal, productId, qty) {
     return true;
 }
 
+// ==================== СВЕРКА С ДДС (этап 7) ====================
+// Расчёт (модель по рецептам/ценам/вкушающим) против факта (реальные расходы кухни по
+// «прямым» статьям за те же даты). Расхождение не всегда ошибка: «стратегический запас»
+// закупается заранее, а расходуется постепенно — прямого аналога в модели у него нет.
+const RECONCILE_ROWS = [
+    { code: 'dept_food', modelKey: 'food' },
+    { code: 'disposable_tableware', modelKey: 'dishware' },
+    { code: 'prasad_order', modelKey: 'external' },
+    { code: 'strategic_stock', modelKey: null }
+];
+let reconcileActuals = [];
+
+async function loadReconcile(from, to) {
+    const { data, error } = await Layout.db.rpc('fin_kitchen_direct_actuals', { p_from: from, p_to: to });
+    reconcileActuals = error ? [] : (data || []);
+}
+
+function renderReconcile() {
+    const box = Layout.$('#reconcileBlock');
+    if (!lastResult) { box.classList.add('hidden'); return; }
+    const totals = lastResult.totals;
+    let modelSum = 0, factSum = 0;
+    const rows = RECONCILE_ROWS.map(r => {
+        const actual = reconcileActuals.find(x => x.category_code === r.code);
+        const model = r.modelKey ? Number(totals[r.modelKey] || 0) : null;
+        const fact = Number(actual?.amount_base || 0);
+        const name = actual?.category_name || tr('cost_cat_' + r.code, r.code);
+        const diff = model === null ? null : model - fact;
+        if (model !== null) { modelSum += model; factSum += fact; }
+        return `<tr>
+            <td class="text-sm">${e(name)}</td>
+            <td class="text-right">${model === null ? '—' : money(model)}</td>
+            <td class="text-right">${money(fact)}</td>
+            <td class="text-right ${diff !== null && Math.abs(diff) > Math.max(fact, model || 0) * 0.15 ? 'text-warning font-medium' : ''}">${diff === null ? e(tr('cost_reconcile_na', 'нет в модели')) : money(diff)}</td>
+        </tr>`;
+    }).join('') + `<tr class="font-semibold border-t-2 border-base-300">
+        <td class="text-sm">${e(tr('cost_reconcile_total', 'Итого сопоставимых'))}</td>
+        <td class="text-right">${money(modelSum)}</td>
+        <td class="text-right">${money(factSum)}</td>
+        <td class="text-right ${Math.abs(modelSum - factSum) > Math.max(factSum, modelSum) * 0.15 ? 'text-warning' : ''}">${money(modelSum - factSum)}</td>
+    </tr>`;
+    Layout.$('#reconcileBody').innerHTML = rows;
+    box.classList.remove('hidden');
+}
+
 // ==================== РАСХОДЫ БЕЗ НАЗНАЧЕНИЯ И ГРУППЫ СТАТЕЙ ====================
 const GROUP_LABELS = {
     direct: () => tr('cost_group_direct', 'Прямые (сверка с ДДС)'),
@@ -414,7 +461,7 @@ document.addEventListener('change', ev => {
 function updateUI() {
     Layout.updateAllTranslations();
     renderRetreatSelect();
-    if (lastResult) { renderResult(); renderWarnings(); }
+    if (lastResult) { renderResult(); renderWarnings(); renderReconcile(); }
     renderKits();
     renderUnassigned();
     renderGroups();

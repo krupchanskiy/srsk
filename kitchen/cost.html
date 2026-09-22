@@ -101,6 +101,21 @@
                 <div class="overflow-x-auto"><table class="table table-sm w-full"><tbody id="groupsBody"></tbody></table></div>
             </details>
 
+            <!-- Сверка с ДДС -->
+            <details class="bg-base-100 rounded-xl shadow-sm p-4 mb-6 hidden" id="reconcileBlock">
+                <summary class="cursor-pointer font-semibold" data-i18n="cost_reconcile_title">Сверка с ДДС</summary>
+                <p class="text-sm opacity-60 mt-2 mb-3" data-i18n="cost_reconcile_hint">Расчёт — что должно было потратиться по рецептам, ценам и вкушающим этого периода. Факт — что реально прошло по кассе на прямых статьях кухни за те же даты. Расхождение — не обязательно ошибка: закупка «про запас» попадает в кассу раньше, чем блюдо будет приготовлено.</p>
+                <div class="overflow-x-auto"><table class="table table-sm w-full">
+                    <thead><tr>
+                        <th data-i18n="cost_reconcile_category">Статья</th>
+                        <th class="text-right" data-i18n="cost_reconcile_model">Расчёт</th>
+                        <th class="text-right" data-i18n="cost_reconcile_actual">Факт по ДДС</th>
+                        <th class="text-right" data-i18n="cost_reconcile_diff">Разница</th>
+                    </tr></thead>
+                    <tbody id="reconcileBody"></tbody>
+                </table></div>
+            </details>
+
         </div>
 
     </main>
@@ -115,6 +130,6 @@
     <script src="../js/layout.js?v=80"></script>
     <script src="../js/eating-utils.js?v=9"></script>
     <script src="../js/kitchen-cost.js?v=2"></script>
-    <script src="../js/pages/kitchen-cost.js?v=3"></script>
+    <script src="../js/pages/kitchen-cost.js?v=4"></script>
 </body>
 </html>
