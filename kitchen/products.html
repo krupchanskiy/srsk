@@ -593,7 +593,9 @@
                             <div class="flex items-center gap-2">
                                 <span>${unitShort}</span>
                                 ${product.waste_percent ? `<span class="badge badge border-base-300 badge-sm" title="${t('waste_percent')}">${product.waste_percent}%</span>` : ''}
-                                ${productDensityIssue(product) ? `<span class="badge badge-warning badge-sm whitespace-nowrap" title="${t('products_density_issue_hint')}">${t('products_density_issue')}</span>` : ''}
+                                ${productDensityIssue(product) ? (canEdit
+                                    ? `<button type="button" class="badge badge-warning badge-sm whitespace-nowrap hover:brightness-95" title="${t('products_density_issue_hint')}" onclick="openEditModal('${product.id}', true)">${t('products_density_issue')}</button>`
+                                    : `<span class="badge badge-warning badge-sm whitespace-nowrap" title="${t('products_density_issue_hint')}">${t('products_density_issue')}</span>`) : ''}
                             </div>
                         </td>
                         <td class="text-center">
@@ -639,7 +641,7 @@
             editModal.showModal();
         }
 
-        function openEditModal(id) {
+        function openEditModal(id, focusDensity = false) {
             if (!window.hasPermission || !window.hasPermission('edit_products')) {
                 Layout.showNotification(t('insufficient_permissions'), 'error');
                 return;
@@ -665,6 +667,22 @@
 
             Layout.setupAutoTranslate('#editForm', ['name']);
             editModal.showModal();
+
+            // Пришли по клику на «уточнить плотность» — сразу подсветить и подвести к нужному полю
+            if (focusDensity) {
+                const section = Layout.$('#densitySection');
+                const unitType = units.find(u => u.code === product.unit)?.type;
+                if (!section.classList.contains('hidden')) {
+                    section.scrollIntoView({ block: 'center' });
+                    section.classList.add('ring', 'ring-warning');
+                    setTimeout(() => section.classList.remove('ring', 'ring-warning'), 1500);
+                    Layout.$('input[name="tsp_grams"]')?.focus();
+                } else if (unitType === 'count') {
+                    Layout.showNotification(t('products_density_count_unit'), 'warning');
+                } else if (!window.hasPermission('edit_kitchen_dictionaries')) {
+                    Layout.showNotification(t('products_density_no_rights'), 'warning');
+                }
+            }
         }
 
         // ==================== CRUD ====================
