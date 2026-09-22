@@ -606,15 +606,25 @@
 
         // Можно ли перевести единицу рецепта в закупочную единицу продукта: та же «природа»
         // единицы (вес/объём/штуки) — всегда можно, вес↔объём — только если задана плотность
-        // продукта (сколько грамм в ложке/стакане/литре), штуки не переводятся ни во что.
-        function unitUnresolved(product, unit) {
+        // продукта (сколько грамм в ложке/стакане/литре). Штуки ↔ вес/объём — отдельный, более
+        // грубый случай: это не про плотность, а про то, что единица рецепта в принципе не
+        // подходит (например, бананы посчитаны «2 шт», а закупаются в кг) — чинится в самом
+        // рецепте (указать вес), а не в карточке продукта, поэтому у него свой сигнал.
+        function isDensityIssue(product, unit) {
             const baseType = units.find(u => u.code === (product.unit || 'g'))?.type;
             const ingType = units.find(u => u.code === unit)?.type;
             if (!baseType || !ingType || ingType === baseType) return false;
-            if (ingType === 'count' || baseType === 'count') return true;
+            if (ingType === 'count' || baseType === 'count') return false;
             const density = densities[product.id];
             const field = { tsp: 'tsp_grams', tbsp: 'tbsp_grams', cup: 'cup_grams', l: 'liter_grams', ml: 'liter_grams' }[unit];
             return !density || !field || density[field] == null;
+        }
+
+        function isCountMismatch(product, unit) {
+            const baseType = units.find(u => u.code === (product.unit || 'g'))?.type;
+            const ingType = units.find(u => u.code === unit)?.type;
+            if (!baseType || !ingType || ingType === baseType) return false;
+            return ingType === 'count' || baseType === 'count';
         }
 
         // Получить доступные единицы для продукта
@@ -733,20 +743,26 @@
 
                 const zebraClass = index % 2 === 0 ? 'bg-base-100' : 'bg-base-200/30';
                 const baseUnit = product.unit || 'g';
-                const availableUnits = getAvailableUnits(product.id, baseUnit);
                 const currentUnit = ing.unit || baseUnit;
+                // Реально сохранённая единица всегда должна быть в списке выбора — иначе при
+                // несовпадении (штуки вместо веса) браузер молча покажет первую попавшуюся
+                // опцию, а на самом деле в базе сохранено другое: проблему не будет видно.
+                let availableUnits = getAvailableUnits(product.id, baseUnit);
+                if (!availableUnits.includes(currentUnit)) availableUnits = [...availableUnits, currentUnit];
 
                 const unitOptions = availableUnits.map(u =>
                     `<option value="${u}" ${u === currentUnit ? 'selected' : ''}>${getUnitShort(u)}</option>`
                 ).join('');
-                const unresolved = unitUnresolved(product, currentUnit);
+                const densityIssue = isDensityIssue(product, currentUnit);
+                const countMismatch = isCountMismatch(product, currentUnit);
 
                 return `
                     <div class="grid grid-cols-[1fr_auto_auto_auto] gap-3 items-center ${zebraClass} rounded-lg p-3">
                         <div class="min-w-0">
                             <div class="font-medium truncate flex items-center gap-1">
                                 <span class="truncate">${name}</span>
-                                ${unresolved ? `<span class="badge badge-warning badge-xs shrink-0" title="${t('recipe_unit_unresolved_hint')}">${t('recipe_unit_unresolved')}</span>` : ''}
+                                ${densityIssue ? `<span class="badge badge-warning badge-xs shrink-0" title="${t('recipe_unit_unresolved_hint')}">${t('recipe_unit_unresolved')}</span>` : ''}
+                                ${countMismatch ? `<span class="badge badge-error badge-xs shrink-0 text-white" title="${t('recipe_unit_count_mismatch_hint')}">${t('recipe_unit_count_mismatch')}</span>` : ''}
                             </div>
                             <div class="text-xs opacity-50 truncate">${subName}</div>
                         </div>

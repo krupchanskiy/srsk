@@ -182,20 +182,20 @@
                 <div id="densitySection" class="hidden border border-base-200 rounded-lg p-3">
                     <div class="font-medium text-sm" data-i18n="density_section_title">Плотность (для рецептов в ложках/стаканах/литрах)</div>
                     <div class="text-xs opacity-60 mb-2" data-i18n="density_section_hint">Сколько весит эта мера объёма у данного продукта. Нужно, если в рецептах используются ложки/стаканы/литры, а закупочная единица продукта — вес (или наоборот).</div>
-                    <div class="grid grid-cols-2 sm:grid-cols-4 gap-3">
-                        <div>
+                    <div class="flex flex-wrap gap-3">
+                        <div id="densityTspField" class="w-32">
                             <label class="label py-1"><span class="label-text-alt" data-i18n="density_tsp">1 чайная ложка, г</span></label>
                             <input type="number" name="tsp_grams" min="0" step="0.01" class="input input-bordered input-sm w-full" />
                         </div>
-                        <div>
+                        <div id="densityTbspField" class="w-32">
                             <label class="label py-1"><span class="label-text-alt" data-i18n="density_tbsp">1 столовая ложка, г</span></label>
                             <input type="number" name="tbsp_grams" min="0" step="0.01" class="input input-bordered input-sm w-full" />
                         </div>
-                        <div>
+                        <div id="densityCupField" class="w-32">
                             <label class="label py-1"><span class="label-text-alt" data-i18n="density_cup">1 стакан, г</span></label>
                             <input type="number" name="cup_grams" min="0" step="0.01" class="input input-bordered input-sm w-full" />
                         </div>
-                        <div>
+                        <div id="densityLiterField" class="w-32">
                             <label class="label py-1"><span class="label-text-alt" data-i18n="density_liter">1 литр, г</span></label>
                             <input type="number" name="liter_grams" min="0" step="0.01" class="input input-bordered input-sm w-full" />
                         </div>
@@ -276,25 +276,28 @@
         const WASTE_CATEGORIES = ['vegetables', 'fruits'];
 
         // ==================== ПЛОТНОСТЬ / ПРОВЕРКА ЕДИНИЦ ====================
-        // Та же логика, что в kitchen/recipe-edit.html и js/kitchen-cost.js: можно ли
-        // перевести единицу в закупочную единицу продукта без потери в себестоимости.
-        function unitUnresolved(product, unit) {
+        // Настоящая проблема плотности — только ложка/стакан/литр ↔ вес: это и правда
+        // лечится плотностью («сколько грамм в ложке»). Штуки (шт) ↔ вес/объём — другое
+        // несовпадение (например, рецепт считает бананы поштучно, а закупка — в кг): его
+        // плотность не решает, это отдельный, ещё не сделанный функционал (вес одной штуки).
+        // Такие случаи в фильтр «уточнить плотность» не включаем, чтобы не путать.
+        function isDensityIssue(product, unit) {
             const baseType = units.find(u => u.code === (product.unit || 'g'))?.type;
             const ingType = units.find(u => u.code === unit)?.type;
             if (!baseType || !ingType || ingType === baseType) return false;
-            if (ingType === 'count' || baseType === 'count') return true;
+            if (ingType === 'count' || baseType === 'count') return false;
             const density = densities[product.id];
             const field = { tsp: 'tsp_grams', tbsp: 'tbsp_grams', cup: 'cup_grams', l: 'liter_grams', ml: 'liter_grams' }[unit];
             return !density || !field || density[field] == null;
         }
 
         // Проблема видна прямо в списке продуктов: либо закупочная единица сама по себе
-        // неудобна для закупки (ложка/стакан), либо в каком-то рецепте единица не переводится
+        // неудобна для закупки (ложка/стакан), либо в каком-то рецепте ложка/стакан/литр не переводится
         function productDensityIssue(product) {
             if (['tsp', 'tbsp', 'cup'].includes(product.unit)) return true;
             const usedUnits = recipeUnitsByProduct[product.id];
             if (!usedUnits) return false;
-            return [...usedUnits].some(u => unitUnresolved(product, u));
+            return [...usedUnits].some(u => isDensityIssue(product, u));
         }
 
         // ==================== CONFIRM MODAL ====================
@@ -325,17 +328,30 @@
             confirmResolve = null;
         }
 
-        // Показать секцию плотности только для весовых/объёмных продуктов (штучные — не переводятся)
-        // и только тем, у кого есть право её менять; заполнить текущими значениями.
+        const DENSITY_FIELD = { tsp: 'tsp_grams', tbsp: 'tbsp_grams', cup: 'cup_grams', l: 'liter_grams' };
+        const DENSITY_FIELD_ID = { tsp: '#densityTspField', tbsp: '#densityTbspField', cup: '#densityCupField', l: '#densityLiterField' };
+
+        // Какие поля плотности вообще имеют смысл для продукта: только те единицы, которыми
+        // его реально измеряют в рецептах (плюс те, где уже есть сохранённое значение — чтобы
+        // не спрятать существующие данные). Для бананов в кг чайная ложка не нужна никогда.
+        function relevantDensityUnits(productId) {
+            const used = (productId && recipeUnitsByProduct[productId]) || new Set();
+            const d = (productId && densities[productId]) || {};
+            return Object.keys(DENSITY_FIELD).filter(u => used.has(u) || d[DENSITY_FIELD[u]] != null);
+        }
+
+        // Показать секцию плотности, только если есть хоть одно уместное поле (штучные продукты
+        // и продукты без ложечных единиц в рецептах — показывать нечего) и только тем, у кого
+        // есть право её менять; заполнить текущими значениями и скрыть неуместные поля.
         function updateDensitySection(unitCode, productId) {
             const section = Layout.$('#densitySection');
             const canEditDensity = window.hasPermission && window.hasPermission('edit_kitchen_dictionaries');
-            const unitType = units.find(u => u.code === unitCode)?.type;
-            const show = canEditDensity && unitType && unitType !== 'count';
-            section.classList.toggle('hidden', !show);
+            const relevant = relevantDensityUnits(productId);
+            section.classList.toggle('hidden', !(canEditDensity && relevant.length));
             const d = (productId && densities[productId]) || {};
-            ['tsp_grams', 'tbsp_grams', 'cup_grams', 'liter_grams'].forEach(f => {
-                editForm()[f].value = d[f] ?? '';
+            Object.entries(DENSITY_FIELD).forEach(([unit, field]) => {
+                editForm()[field].value = d[field] ?? '';
+                Layout.$(DENSITY_FIELD_ID[unit]).classList.toggle('hidden', !relevant.includes(unit));
             });
         }
 
@@ -668,17 +684,18 @@
             Layout.setupAutoTranslate('#editForm', ['name']);
             editModal.showModal();
 
-            // Пришли по клику на «уточнить плотность» — сразу подсветить и подвести к нужному полю
+            // Пришли по клику на «уточнить плотность» — сразу подсветить и подвести к нужному полю.
+            // Если секция скрыта — значит, дело не в плотности (например, закупочная единица сама
+            // ложка/стакан, а в рецептах продукт ещё не встречался): нужное поле «Единица измерения»
+            // и так видно в форме без подсказки. Скрыта секция может быть и из-за отсутствия права
+            // редактировать плотность — тогда поясняем, кто может это сделать.
             if (focusDensity) {
                 const section = Layout.$('#densitySection');
-                const unitType = units.find(u => u.code === product.unit)?.type;
                 if (!section.classList.contains('hidden')) {
                     section.scrollIntoView({ block: 'center' });
                     section.classList.add('ring', 'ring-warning');
                     setTimeout(() => section.classList.remove('ring', 'ring-warning'), 1500);
                     Layout.$('input[name="tsp_grams"]')?.focus();
-                } else if (unitType === 'count') {
-                    Layout.showNotification(t('products_density_count_unit'), 'warning');
                 } else if (!window.hasPermission('edit_kitchen_dictionaries')) {
                     Layout.showNotification(t('products_density_no_rights'), 'warning');
                 }
