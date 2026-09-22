@@ -8,8 +8,6 @@ let groups = [];
 let retreats = [];
 let editingGroupId = null;
 
-const EVENT_OWN = '__own';
-
 const t = key => Layout.t(key);
 const e = str => Layout.escapeHtml(str);
 // Пока кэш переводов у пользователя не обновился, показываем русский текст, а не имя ключа
@@ -39,7 +37,7 @@ async function loadGroups() {
 async function loadRetreats() {
     const { data, error } = await Layout.db
         .from('retreats')
-        .select('id, name_ru, name_en, name_hi, start_date, end_date')
+        .select('id, name_ru, name_en, name_hi, start_date, end_date, is_external')
         .order('start_date', { ascending: false });
     if (error) {
         console.error('Error loading retreats:', error);
@@ -51,20 +49,20 @@ async function loadRetreats() {
 function renderEventSelect() {
     const sel = Layout.$('#eventLinkSelect');
     if (!sel) return;
+    const own = retreats.filter(r => !r.is_external);
+    const external = retreats.filter(r => r.is_external);
+    const optgroup = (label, items) => items.length
+        ? `<optgroup label="${e(label)}">` + items.map(r => `<option value="${r.id}">${e(Layout.getName(r))}</option>`).join('') + '</optgroup>'
+        : '';
     sel.innerHTML = `<option value="">${e(tr('group_event_none', 'Без события (самостоятельные гости)'))}</option>`
-        + `<option value="${EVENT_OWN}">${e(tr('group_event_own', 'Отдельное событие (сама группа)'))}</option>`
-        + `<optgroup label="${e(tr('group_event_retreat', 'Наш ретрит'))}">`
-        + retreats.map(r => `<option value="${r.id}">${e(Layout.getName(r))}</option>`).join('')
-        + '</optgroup>';
+        + optgroup(tr('group_event_retreat', 'Наш ретрит'), own)
+        + optgroup(tr('retreats_is_external', 'Стороннее мероприятие'), external);
 }
 
 function eventLabel(g) {
-    if (g.is_event) return tr('group_event_own', 'Отдельное событие (сама группа)');
-    if (g.retreat_id) {
-        const r = retreats.find(x => x.id === g.retreat_id);
-        return r ? Layout.getName(r) : '—';
-    }
-    return '—';
+    if (!g.retreat_id) return '—';
+    const r = retreats.find(x => x.id === g.retreat_id);
+    return r ? Layout.getName(r) : '—';
 }
 
 // ==================== RENDER ====================
@@ -137,7 +135,7 @@ function openGroupModal(groupId = null) {
             form.start_date.value = g.start_date || '';
             form.end_date.value = g.end_date || '';
             form.people_count.value = g.people_count || 1;
-            form.event_link.value = g.is_event ? EVENT_OWN : (g.retreat_id || '');
+            form.event_link.value = g.retreat_id || '';
             form.breakfast.checked = g.breakfast !== false;
             form.lunch.checked = g.lunch !== false;
             form.notes.value = g.notes || '';
@@ -168,8 +166,7 @@ async function saveGroup(ev) {
         breakfast: form.breakfast.checked,
         lunch: form.lunch.checked,
         notes: form.notes.value.trim() || null,
-        is_event: form.event_link.value === EVENT_OWN,
-        retreat_id: (form.event_link.value && form.event_link.value !== EVENT_OWN) ? form.event_link.value : null
+        retreat_id: form.event_link.value || null
     };
 
     if (!data.name || !data.start_date || !data.end_date) return;

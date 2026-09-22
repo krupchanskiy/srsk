@@ -75,12 +75,7 @@ function renderRetreatSelect() {
 }
 
 // ==================== CALCULATION ====================
-async function loadEventNames(keys) {
-    const groupIds = keys.filter(k => k.startsWith('group:')).map(k => k.slice(6));
-    if (groupIds.length) {
-        const { data } = await Layout.db.from('meal_groups').select('id, name').in('id', groupIds);
-        (data || []).forEach(g => eventNames.set(`group:${g.id}`, g.name));
-    }
+function loadEventNames() {
     retreats.forEach(r => eventNames.set(`retreat:${r.id}`, Layout.getName(r)));
 }
 
@@ -101,7 +96,7 @@ async function calculate() {
     Layout.showLoader();
     try {
         lastResult = await KitchenCost.calculate(Layout.db, locationId, from, to);
-        await loadEventNames(Object.keys(lastResult.cells));
+        loadEventNames();
         renderResult();
         renderWarnings();
         await loadReconcile(from, to);

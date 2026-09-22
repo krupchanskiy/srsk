@@ -225,6 +225,16 @@
                     <input type="hidden" name="color" value="#6366f1" />
                 </div>
 
+                <!-- Стороннее мероприятие: тот же ретрит по устройству (финансы, заселение,
+                     отчёты), просто организован не нами — для разделения в списках и отчётах -->
+                <div class="form-control">
+                    <label class="label cursor-pointer justify-start gap-3">
+                        <input type="checkbox" name="is_external" class="toggle toggle-primary" />
+                        <span class="label-text font-medium" data-i18n="retreats_is_external">Стороннее мероприятие</span>
+                    </label>
+                    <p class="text-xs opacity-50 mt-1" data-i18n="retreats_is_external_hint">Организовано не нами (аренда площадки, свадьба, чужой ретрит) — та же инфраструктура, но отдельно от наших ретритов в списках и выпадающих меню</p>
+                </div>
+
                 <!-- Кафе: подсказка ближайшего ретрита в кассе кафе не должна предлагать
                      внутренние проекты вроде «Ретрит Художников», которые ашрам
                      финансирует сам и к кассе кафе отношения не имеют -->
@@ -508,6 +518,7 @@
                             <div class="flex items-center gap-2 mb-1">
                                 <h3 class="font-bold text-lg">${name}</h3>
                                 ${isActive ? `<span class="badge badge-sm" style="background-color: ${r.color}; color: white;">${t('now')}</span>` : ''}
+                                ${r.is_external ? `<span class="badge badge-sm badge-outline">${t('retreats_is_external')}</span>` : ''}
                                 ${r.registration_open ? `<span class="badge badge-sm badge-success">Регистрация</span>` : ''}
                             </div>
                             ${desc ? `<p class="text-sm opacity-60 mb-2 line-clamp-2">${desc}</p>` : ''}
@@ -714,6 +725,7 @@
                     form.start_date.value = retreat.start_date;
                     form.end_date.value = retreat.end_date;
                     form.expected_participants.value = retreat.expected_participants || 0;
+                    form.is_external.checked = retreat.is_external || false;
                     form.cafe_eligible.checked = retreat.cafe_eligible !== false;
                     renderColorPicker(retreat.color || COLORS[0]);
                     deleteSection.classList.remove('hidden');
@@ -859,6 +871,7 @@
                 start_date: form.start_date.value,
                 end_date: form.end_date.value,
                 expected_participants: parseInt(form.expected_participants.value) || 0,
+                is_external: form.is_external.checked,
                 cafe_eligible: form.cafe_eligible.checked,
                 color: form.color.value,
                 image_url: form.image_url.value || null,

@@ -23,7 +23,7 @@ const EatingUtils = {
         const [residentsResult, guestRegResult, mealGroupsResult] = await Promise.all([
             Layout.db
                 .from('residents')
-                .select('id, vaishnava_id, guest_name, retreat_id, group_id, check_in, check_out, meal_start_date, meal_end_date, early_checkin, late_checkout, breakfast, lunch, arrived_at, resident_categories!inner(slug)')
+                .select('id, vaishnava_id, guest_name, retreat_id, check_in, check_out, meal_start_date, meal_end_date, early_checkin, late_checkout, breakfast, lunch, arrived_at, resident_categories!inner(slug)')
                 .eq('status', 'confirmed')
                 // У брони питание не заполнено (не «нет», а «пока неизвестно») —
                 // раньше такие записи выпадали из расчёта, и порций не хватало.
@@ -46,7 +46,7 @@ const EatingUtils = {
                 : Promise.resolve({ data: [] }),
             Layout.db
                 .from('meal_groups')
-                .select('id, start_date, end_date, people_count, breakfast, lunch, retreat_id, is_event')
+                .select('id, start_date, end_date, people_count, breakfast, lunch, retreat_id')
                 .lte('start_date', endDate)
                 .gte('end_date', startDate)
         ]);
@@ -168,7 +168,7 @@ const EatingUtils = {
                     // дважды: как место и как участник ретрита.
                     const isExpected = !r.arrived_at;
 
-                    const evKey = r.retreat_id ? `retreat:${r.retreat_id}` : r.group_id ? `group:${r.group_id}` : 'none';
+                    const evKey = r.retreat_id ? `retreat:${r.retreat_id}` : 'none';
                     const bucket = isExpected ? 'expected'
                         : slug === 'team' ? 'team'
                         : slug === 'volunteer' ? 'volunteers'
@@ -265,7 +265,7 @@ const EatingUtils = {
             let breakfastGroups = 0, lunchGroups = 0;
             for (const mg of mealGroups) {
                 if (mg.start_date <= dateStr && mg.end_date >= dateStr) {
-                    const mgEvKey = mg.retreat_id ? `retreat:${mg.retreat_id}` : mg.is_event ? `group:${mg.id}` : 'none';
+                    const mgEvKey = mg.retreat_id ? `retreat:${mg.retreat_id}` : 'none';
                     if (mg.breakfast) { breakfastGroups += mg.people_count; bump('breakfast', mgEvKey, 'groups', mg.people_count); }
                     if (mg.lunch) { lunchGroups += mg.people_count; bump('lunch', mgEvKey, 'groups', mg.people_count); }
                 }
@@ -306,7 +306,7 @@ const EatingUtils = {
      * @param {string} dateStr — 'YYYY-MM-DD'
      * @param {string} mealType — 'breakfast' | 'lunch' (остальные считаются как обед)
      * @returns {{ [eventKey]: {team,volunteers,vips,guests,groups,expected} }}
-     *   eventKey: 'retreat:<id>' | 'group:<id>' | 'none' (самостоятельные гости и команда без ретрита)
+     *   eventKey: 'retreat:<id>' | 'none' (самостоятельные гости, команда и группы без ретрита)
      */
     getByEvent(counts, dateStr, mealType) {
         const key = (mealType === 'breakfast') ? 'breakfast' : 'lunch';
