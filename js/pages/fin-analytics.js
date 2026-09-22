@@ -364,12 +364,12 @@ async function loadReport() {
                 ${kpi('is-error', icDown, t('fin_expense'), `<span class="text-error">${fmtB(pt.expense_base || 0)}</span>`)}
                 ${kpi(Number(pt.net_base) < 0 ? 'is-error' : '', icNet, t('fin_net'), `<span class="${Number(pt.net_base) < 0 ? 'text-error' : ''}">${fmtB(pt.net_base || 0)}</span>`)}
             </div>
-            <div id="prasadCostBox"></div>
             <div class="grid grid-cols-1 lg:grid-cols-2 gap-4 items-start">
                 <div class="min-w-0 space-y-4">
                     <h2 class="text-lg font-semibold">${t('retreat_report_finance_prasad')}</h2>
                     ${catTable(pr.income_by_category, 'fin_income_by_category', 'prasad')}
                     ${catTable(pr.expense_by_category, 'fin_expense_by_category', 'prasad')}
+                    <div id="prasadCostBox"></div>
                 </div>
                 <div id="finDrill" class="card bg-base-100 shadow-sm lg:sticky lg:top-4 flex flex-col overflow-hidden"
                      style="max-height: calc(100vh - 2rem)">${drillHintHtml()}</div>
@@ -448,6 +448,7 @@ async function loadReport() {
             <div role="tabpanel" class="tab-content pt-4 space-y-4">
                 ${catTable(r.prasad.income_by_category, 'fin_income_by_category', 'prasad')}
                 ${catTable(r.prasad.expense_by_category, 'fin_expense_by_category', 'prasad')}
+                <div id="prasadCostBox"></div>
             </div>` : ''}
             ${hasCafeActivity ? `
             <input type="radio" name="fin_unit_tabs" role="tab" class="tab" aria-label="${t('retreat_report_finance_cafe')}" />
@@ -466,7 +467,6 @@ async function loadReport() {
         </div>
 
         ${closureBlock(currentData)}
-        ${hasPrasadActivity ? '<div id="prasadCostBox"></div>' : ''}
         ${splitTotalsTable}
         <div class="grid grid-cols-1 lg:grid-cols-2 gap-4 items-start">
             <div class="min-w-0 space-y-4">${unitTabs}</div>
