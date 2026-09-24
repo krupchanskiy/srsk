@@ -486,10 +486,20 @@
         }
 
         async function loadRecipeUnits() {
-            const { data, error } = await Layout.db.from('recipe_ingredients').select('product_id, unit').not('product_id', 'is', null);
-            if (error) { console.error('Error loading recipe_ingredients:', error); return; }
+            // Только рецепты выбранной кухни (у кафе свой учёт) и порциями — строк больше лимита в 1000
+            const locId = (Layout.locations || []).find(l => l.slug === Layout.currentLocation)?.id;
             recipeUnitsByProduct = {};
-            (data || []).forEach(r => (recipeUnitsByProduct[r.product_id] || (recipeUnitsByProduct[r.product_id] = new Set())).add(r.unit));
+            const size = 1000;
+            for (let from = 0; ; from += size) {
+                let q = Layout.db.from('recipe_ingredients')
+                    .select('product_id, unit, recipes!inner(location_id)')
+                    .not('product_id', 'is', null);
+                if (locId) q = q.eq('recipes.location_id', locId);
+                const { data, error } = await q.order('id').range(from, from + size - 1);
+                if (error) { console.error('Error loading recipe_ingredients:', error); return; }
+                (data || []).forEach(r => (recipeUnitsByProduct[r.product_id] || (recipeUnitsByProduct[r.product_id] = new Set())).add(r.unit));
+                if (!data || data.length < size) break;
+            }
         }
 
         // ==================== SORTING ====================
@@ -918,6 +928,8 @@
         async function init() {
             await Layout.init({ module: 'kitchen', menuId: 'kitchen', itemId: 'products' });
             await Promise.all([loadCategories(), loadUnits(), loadDensities(), loadRecipeUnits()]);
+            // Плотность нужна по рецептам выбранной кухни — при смене кухни пересчитать
+            window.onLocationChange = async () => { await loadRecipeUnits(); renderProducts(); };
             await loadProducts();
             updatePageUI();
         }
