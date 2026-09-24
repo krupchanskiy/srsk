@@ -242,7 +242,7 @@
         }
 
         /* Буквы ретрита перед именем — только когда ретриты идут одновременно */
-        .retreat-tag { font-weight: 700; opacity: 0.85; }
+        .retreat-tag { font-weight: 700; opacity: 0.85; margin-right: 3px; flex: 0 0 auto; }
 
         /* Полоска гостя — абсолютное позиционирование */
         .guest-bar {
@@ -265,11 +265,13 @@
             cursor: pointer;
         }
 
-        /* Самостоятельный гость (не по ретриту): точечная рамка снаружи полосы — отличается от
-           брони (пунктир самой границы + штриховка) и не занимает цветов категорий */
-        .guest-bar.self-guest {
-            outline: 2px dotted #ea580c;
-            outline-offset: 1px;
+        /* Самостоятельный гость: человечек после «$» и «◆», на месте букв ретрита */
+        .guest-bar .self-mark {
+            flex: 0 0 auto;
+            display: inline-flex;
+            align-items: center;
+            margin-right: 3px;
+            opacity: 0.9;
         }
 
         .guest-bar:hover {
@@ -1117,7 +1119,7 @@
         if (btn) { btn.classList.toggle('btn-active', isFS); btn.title = isFS ? Layout.t('normal_view') : Layout.t('fullscreen'); }
     }
     </script>
-    <script src="../js/pages/timeline.js?v=31"></script>
+    <script src="../js/pages/timeline.js?v=32"></script>
 
 </body>
 </html>

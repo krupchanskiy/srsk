@@ -32,6 +32,7 @@ let ekadashiDays = new Set();
 
 // Фактическое время прибытия/отъезда из retreat_registrations
 let retreatTimesMap = new Map();
+const SELF_ICON = '<svg xmlns="http://www.w3.org/2000/svg" width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15.75 6a3.75 3.75 0 11-7.5 0 3.75 3.75 0 017.5 0zM4.5 20.118a7.5 7.5 0 0115 0"/></svg>';
 const GUEST_CATEGORY_ID = '6ad3bfdd-cb95-453a-b589-986717615736'; // resident_categories: «Гость»
 let allRetreats = [];         // для выбора ретрита при заселении (наши и сторонние мероприятия)
 let retreatTags = new Map();  // retreat_id → { tag, name } только для ретритов, пересекающихся с другими в периоде
@@ -729,11 +730,11 @@ function renderLegend() {
         <span class="text-xs text-gray-600">${t('timeline_done')}</span>
     </div>`;
 
-    // Самостоятельный гость — точечная рамка вокруг полосы
+    // Самостоятельный гость — человечек перед именем (компактная легенда, как у остальных)
     const selfLabelRaw = t('timeline_self_guest');
     const selfLabel = selfLabelRaw === 'timeline_self_guest' ? 'Вне ретрита' : selfLabelRaw;
     const selfHtml = `<div class="flex items-center gap-1 whitespace-nowrap" title="Самостоятельный гость — приехал не на ретрит">
-        <span class="w-3 h-3 rounded shrink-0" style="background: #f3f4f6; outline: 2px dotted #ea580c; outline-offset: 1px;"></span>
+        <span class="w-3 h-3 rounded shrink-0 flex items-center justify-center" style="background: #3b82f6; color: #fff;">${SELF_ICON}</span>
         <span class="text-xs text-gray-600">${selfLabel}</span>
     </div>`;
 
@@ -2554,7 +2555,12 @@ function renderTable() {
                         const checkedOutClass = guest.isCheckedOut ? ' checked-out' : '';
 
                         const debtClass = guest.hasDebt ? ' has-debt' : '';
-                        const selfClass = guest.isSelf ? ' self-guest' : '';
+                        const selfLabelRaw = t('timeline_self_guest');
+                        const selfLabel = selfLabelRaw === 'timeline_self_guest' ? 'Самостоятельный гость — приехал не на ретрит' : selfLabelRaw;
+                        // Место после «$» и «◆» — там же, где буквы ретрита: у гостя без ретрита вместо них человечек
+                        const selfHtml = guest.isSelf
+                            ? `<span class="self-mark" title="${Layout.escapeHtml(selfLabel)}">${SELF_ICON}</span>`
+                            : '';
                         // Значок «$»: красный — участник должен, зелёный — должны мы.
                         // Клик ведёт в финансы участника (суммы шахматке недоступны)
                         const balanceKind = guest.hasDebt ? 'debt' : (guest.hasCredit ? 'credit' : '');
@@ -2569,12 +2575,12 @@ function renderTable() {
                         if (guest.isBooking) {
                             // Бронирование — штриховка
                             const bgColor = guest.color || '#3b82f6';
-                            html += `<div class="guest-bar booking${checkedOutClass}${debtClass}${selfClass}" style="width: ${width}px; --bar-color: ${bgColor}; border-color: ${bgColor};" data-action="open-resident-from-map" data-id="${guest.id}">${debtDot}${needsDot}${tagHtml}${guest.name}</div>`;
+                            html += `<div class="guest-bar booking${checkedOutClass}${debtClass}" style="width: ${width}px; --bar-color: ${bgColor}; border-color: ${bgColor};" data-action="open-resident-from-map" data-id="${guest.id}">${debtDot}${needsDot}${tagHtml}${selfHtml}${guest.name}</div>`;
                         } else {
                             // Обычное заселение
                             const bgColor = guest.color || '#3b82f6';
                             const borderColor = guest.border || '#facc15';
-                            html += `<div class="guest-bar${checkedOutClass}${debtClass}${selfClass}" style="width: ${width}px; background: ${bgColor}; border-color: ${borderColor};" data-action="open-resident-from-map" data-id="${guest.id}">${debtDot}${needsDot}${tagHtml}${guest.name}</div>`;
+                            html += `<div class="guest-bar${checkedOutClass}${debtClass}" style="width: ${width}px; background: ${bgColor}; border-color: ${borderColor};" data-action="open-resident-from-map" data-id="${guest.id}">${debtDot}${needsDot}${tagHtml}${selfHtml}${guest.name}</div>`;
                         }
                     }
 
