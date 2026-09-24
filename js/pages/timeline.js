@@ -39,6 +39,8 @@ let retreatTags = new Map();  // retreat_id → { tag, name } только дл�
 let creditorsSet = new Set(); // `${vaishnava_id}_${retreat_id}` — ашрам должен участнику (переплата при начисленной карточке)
 let debtorsSet = new Set();   // `${vaishnava_id}_${retreat_id}` — участники с долгом по финмодулю
 let selfAccommodated = [];        // проживающие без номера: живут вне территории, в сетку не попадают
+let periodRetreats = [];          // ретриты показанного периода — для «Сам организует» из CRM
+let periodResidents = [];         // все проживания периода — чтобы не дублировать людей из CRM
 let specialNeedsMap = new Map();   // `${vaishnava_id}_${retreat_id}` — особые потребности из CRM
 
 // Флаг права на редактирование таймлайна
@@ -144,7 +146,9 @@ async function loadTimelineData() {
     const rooms = roomsRes.data || [];
     const residents = residentsRes.data || [];
     selfAccommodated = residents.filter(r => !r.room_id);
+    periodResidents = residents;
     const retreats = retreatsRes.data || [];
+    periodRetreats = retreats;
     retreatTags = computeRetreatTags(retreats);
     // Для выбора при брони/заселении нужны не только ретриты просматриваемого периода:
     // бронируют и на будущие (и стороннее мероприятие через год тоже). Берём всё, что
@@ -2766,11 +2770,69 @@ function setupTimelineDelegation() {
 
 // Люди без номера (room_id пуст): живут вне территории, но записаны на ретрит
 // или в группу и питаются с нами. Сетка их не рисует, поэтому показываем списком.
+// Из CRM: менеджеры ставят в чеклисте сделки «Сам организует» (checklist_accommodation = 'self'),
+// и отдельно в шахматку таких людей никто не заносит. Даты и питание — из регистрации на ретрит
+// (приезд/отъезд, иначе даты ретрита). Кто уже есть в шахматке на эти даты (с номером или без), не дублируем.
+const REG_STATUS_CATEGORY = {
+    team: '10c4c929-6aaf-4b73-a15a-b7c5ab70f64b',
+    guest: GUEST_CATEGORY_ID,
+    volunteer: 'cdb7a43e-51a8-47cd-ac97-c6fdf4fccd5e',
+    vip: 'ab57efc9-504a-4a31-93e6-6de8daa46bb7'
+};
+
+async function loadCrmSelfAccommodated() {
+    const ids = periodRetreats.map(r => r.id);
+    if (!ids.length) return [];
+    const { data: deals, error } = await Layout.db.from('crm_deals')
+        .select('vaishnava_id, retreat_id, vaishnavas(id, first_name, last_name, spiritual_name)')
+        .eq('checklist_accommodation', 'self')
+        .neq('status', 'cancelled')
+        .in('retreat_id', ids);
+    if (error || !deals?.length) return [];
+
+    const vIds = [...new Set(deals.map(d => d.vaishnava_id).filter(Boolean))];
+    const { data: regs } = await Layout.db.from('retreat_registrations')
+        .select('vaishnava_id, retreat_id, status, meal_type, arrival_datetime, departure_datetime')
+        .in('retreat_id', ids)
+        .in('vaishnava_id', vIds)
+        .eq('is_deleted', false)
+        .neq('status', 'cancelled');
+    const regMap = new Map((regs || []).map(r => [`${r.vaishnava_id}_${r.retreat_id}`, r]));
+
+    const seen = new Set();
+    return deals.flatMap(d => {
+        const key = `${d.vaishnava_id}_${d.retreat_id}`;
+        const reg = regMap.get(key);
+        const retreat = periodRetreats.find(r => r.id === d.retreat_id);
+        if (!reg || !retreat || seen.has(key)) return [];   // без регистрации — не едет
+        seen.add(key);
+        const checkIn = reg.arrival_datetime?.slice(0, 10) || retreat.start_date;
+        const checkOut = reg.departure_datetime?.slice(0, 10) || retreat.end_date;
+        const inTimeline = periodResidents.some(r => r.vaishnava_id === d.vaishnava_id
+            && r.check_in <= checkOut && (r.check_out || checkOut) >= checkIn);
+        if (inTimeline) return [];
+        return [{
+            vaishnava_id: d.vaishnava_id,
+            vaishnavas: d.vaishnavas,
+            retreat_id: d.retreat_id,
+            check_in: checkIn,
+            check_out: checkOut,
+            has_meals: reg.meal_type !== 'self',
+            resident_categories: categories.find(c => c.id === (REG_STATUS_CATEGORY[reg.status] || GUEST_CATEGORY_ID)) || null,
+            fromCrm: true
+        }];
+    });
+}
+
 async function renderSelfAccommodation() {
     const box = document.getElementById('selfBlock');
     if (!box) return;
 
-    const list = [...selfAccommodated].sort((a, b) =>
+    const fromCrm = await loadCrmSelfAccommodated().catch(err => {
+        console.error('CRM self accommodation:', err);
+        return [];
+    });
+    const list = [...selfAccommodated, ...fromCrm].sort((a, b) =>
         (a.check_in || '').localeCompare(b.check_in || ''));
     if (!list.length) { box.classList.add('hidden'); return; }
 
@@ -2778,6 +2840,8 @@ async function renderSelfAccommodation() {
     const blockRaw = t('timeline_self_block');
     const blockLabel = blockRaw === 'timeline_self_block' ? 'Самостоятельное проживание' : blockRaw;
     document.getElementById('selfSummary').textContent = `${blockLabel}: ${list.length}`;
+    const crmRaw = t('timeline_self_from_crm');
+    const crmHint = crmRaw === 'timeline_self_from_crm' ? 'Из сделки в CRM: «Сам организует»' : crmRaw;
     document.getElementById('selfList').innerHTML = list.map(res => {
         let name = res.guest_name || '';
         if (res.vaishnavas) name = getVaishnavName(res.vaishnavas, '');
@@ -2802,6 +2866,7 @@ async function renderSelfAccommodation() {
             ${nameHtml} ${catHtml}
             <span class="opacity-60">${e(eventName || '')}</span>
             <span class="text-xs opacity-70">${e(dates)} · ${e(meals)}</span>
+            ${res.fromCrm ? `<span class="badge badge-ghost badge-sm" title="${e(crmHint)}">CRM</span>` : ''}
         </div>`;
     }).join('');
 
