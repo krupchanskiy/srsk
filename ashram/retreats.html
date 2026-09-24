@@ -441,6 +441,14 @@
                         'month_jul', 'month_aug', 'month_sep', 'month_oct', 'month_nov', 'month_dec'];
         const WEEKDAYS = ['weekday_mon', 'weekday_tue', 'weekday_wed', 'weekday_thu', 'weekday_fri', 'weekday_sat', 'weekday_sun'];
 
+        // Буквы ретрита по названию — то же правило, что в шахматке (timeline.js retreatInitials):
+        // первые буквы двух первых слов, без предлогов и годов
+        const TAG_STOPWORDS = new Set(['для', 'и', 'в', 'на', 'с', 'по', 'of', 'the', 'for', 'and', 'in']);
+        function retreatInitials(name) {
+            const words = (name || '').split(/[\s\-–—.,:()]+/).filter(w => w && !/^\d+$/.test(w) && !TAG_STOPWORDS.has(w.toLowerCase()));
+            return words.slice(0, 2).map(w => w[0]).join('').toUpperCase();
+        }
+
         // ==================== DATA ====================
         async function loadRetreats() {
             const { data, error } = await Layout.db
@@ -719,6 +727,7 @@
 
             form.reset();
             resetImagePreview();
+            delete form.short_name.dataset.touched;
 
             const scheduleSection = document.getElementById('scheduleSection');
 
@@ -729,6 +738,8 @@
                     form.name_ru.value = retreat.name_ru || '';
                     form.name_en.value = retreat.name_en || '';
                     form.short_name.value = retreat.short_name || '';
+                    // Пустые буквы у старого ретрита тоже подскажем — по названию
+                    if (!retreat.short_name) form.short_name.value = retreatInitials(retreat.name_ru);
                     form.description_ru.value = retreat.description_ru || '';
                     form.description_en.value = retreat.description_en || '';
                     form.start_date.value = retreat.start_date;
@@ -1063,6 +1074,12 @@
             });
 
             document.getElementById('retreatForm').addEventListener('submit', saveRetreat);
+            // Буквы подставляются по названию, пока их не поправили руками
+            const rForm = document.getElementById('retreatForm');
+            rForm.name_ru.addEventListener('input', () => {
+                if (rForm.short_name.dataset.touched !== '1') rForm.short_name.value = retreatInitials(rForm.name_ru.value);
+            });
+            rForm.short_name.addEventListener('input', () => { rForm.short_name.dataset.touched = '1'; });
 
             updateUI();
             Layout.hideLoader();
