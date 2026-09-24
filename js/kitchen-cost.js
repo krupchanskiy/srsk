@@ -25,7 +25,8 @@ function priceOn(rows, date) {
 // Количество в единице ингредиента → в единице, в которой у продукта цена.
 // Ложки и стаканы переводятся через плотность продукта (граммы на ложку/стакан),
 // литры — через плотность (граммы на литр), при её отсутствии считаем 1 г = 1 мл.
-// Вес ↔ штуки и объём ↔ штуки не переводятся: возвращаем null.
+// Штуки ↔ вес — через вес одной штуки (piece_grams), если он задан.
+// Объём ↔ штуки не переводятся: возвращаем null.
 function convert(amount, ingUnit, productUnit, density, units) {
     const ui = units[ingUnit], up = units[productUnit];
     if (!ui || !up) return null;
@@ -41,6 +42,11 @@ function convert(amount, ingUnit, productUnit, density, units) {
     const upDirect = { tsp: 'tsp_grams', tbsp: 'tbsp_grams', cup: 'cup_grams' }[productUnit];
     if (kind === 'weight' && upDirect && density?.[upDirect]) return value / Number(density[upDirect]);
 
+    // штуки ↔ вес через вес одной штуки (лавровый лист «2 шт», а закупка в граммах)
+    const pieceGrams = density?.piece_grams ? Number(density.piece_grams) : null;
+    if (pieceGrams && ingUnit === 'pcs' && up.type === 'weight') return (amount * pieceGrams) / up.ratio;
+    if (pieceGrams && kind === 'weight' && productUnit === 'pcs') return value / pieceGrams;
+
     if (kind === 'count' || up.type === 'count') {
         return kind === up.type && ingUnit === productUnit ? amount : null;
     }
@@ -55,7 +61,7 @@ function convert(amount, ingUnit, productUnit, density, units) {
 //   meals:      menu_meals с dishes[{recipe_id, portion_size}]
 //   recipes:    { [id]: {output_amount, output_unit, portion_amount, ingredients:[{product_id, amount, unit}]} }
 //   products:   { [id]: {name, unit, waste_percent} }
-//   densities:  { [product_id]: {tsp_grams, tbsp_grams, cup_grams, liter_grams} }
+//   densities:  { [product_id]: {tsp_grams, tbsp_grams, cup_grams, liter_grams, piece_grams} }
 //   units:      { [code]: {type, ratio} }
 //   prices:     { [product_id]: [{price, valid_from, valid_to}] }
 //   kits:       { breakfast: [{product_id, quantity}], lunch: [...] }
@@ -332,7 +338,7 @@ async function load(db, locationId, from, to) {
     productRows.forEach(p => (products[p.id] = { name: p.name_ru, unit: p.unit, waste_percent: p.waste_percent }));
 
     const densityRows = productIds.length
-        ? await fetchAll(() => db.from('product_densities').select('product_id, tsp_grams, tbsp_grams, cup_grams, liter_grams').in('product_id', productIds))
+        ? await fetchAll(() => db.from('product_densities').select('product_id, tsp_grams, tbsp_grams, cup_grams, liter_grams, piece_grams').in('product_id', productIds))
         : [];
     const densities = {};
     densityRows.forEach(d => (densities[d.product_id] = d));

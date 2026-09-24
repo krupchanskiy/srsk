@@ -180,8 +180,8 @@
 
                 <!-- Плотность: сколько грамм в ложке/стакане/литре (для перевода единиц рецепта) -->
                 <div id="densitySection" class="hidden border border-base-200 rounded-lg p-3">
-                    <div class="font-medium text-sm" data-i18n="density_section_title">Плотность (для рецептов в ложках/стаканах/литрах)</div>
-                    <div class="text-xs opacity-60 mb-2" data-i18n="density_section_hint">Сколько весит эта мера объёма у данного продукта. Нужно, если в рецептах используются ложки/стаканы/литры, а закупочная единица продукта — вес (или наоборот).</div>
+                    <div class="font-medium text-sm" data-i18n="density_section_title">Плотность и вес штуки (для перевода единиц рецепта)</div>
+                    <div class="text-xs opacity-60 mb-2" data-i18n="density_section_hint">Сколько весит эта мера у данного продукта. Нужно, если в рецептах используются ложки/стаканы/литры или штуки, а закупочная единица продукта — вес (или наоборот).</div>
                     <div class="flex flex-wrap gap-3">
                         <div id="densityTspField" class="w-32">
                             <label class="label py-1"><span class="label-text-alt" data-i18n="density_tsp">1 чайная ложка, г</span></label>
@@ -198,6 +198,13 @@
                         <div id="densityLiterField" class="w-32">
                             <label class="label py-1"><span class="label-text-alt" data-i18n="density_liter">1 литр, г</span></label>
                             <input type="number" name="liter_grams" min="0" step="0.01" class="input input-bordered input-sm w-full" />
+                        </div>
+                        <div id="densityPieceField" class="flex items-end gap-3">
+                            <div class="w-32 shrink-0">
+                                <label class="label py-1"><span class="label-text-alt" data-i18n="density_piece">1 штука, г</span></label>
+                                <input type="number" name="piece_grams" min="0" step="0.001" class="input input-bordered input-sm w-full" />
+                            </div>
+                            <div class="text-xs opacity-60 pb-1" data-i18n="density_piece_hint">Мелочь (лист, стручок) взвесьте пачкой: например, 20 штук, и разделите вес на 20.</div>
                         </div>
                     </div>
                 </div>
@@ -277,11 +284,17 @@
 
         // ==================== ПЛОТНОСТЬ / ПРОВЕРКА ЕДИНИЦ ====================
         // Настоящая проблема плотности — только ложка/стакан/литр ↔ вес: это и правда
-        // лечится плотностью («сколько грамм в ложке»). Штуки (шт) ↔ вес/объём — другое
-        // несовпадение (например, рецепт считает бананы поштучно, а закупка — в кг): его
-        // плотность не решает, это отдельный, ещё не сделанный функционал (вес одной штуки).
-        // Такие случаи в фильтр «уточнить плотность» не включаем, чтобы не путать.
-        const SPOON_FIELD = { tsp: 'tsp_grams', tbsp: 'tbsp_grams', cup: 'cup_grams', l: 'liter_grams', ml: 'liter_grams' };
+        // лечится плотностью («сколько грамм в ложке»). Штуки (шт) ↔ вес лечатся так же —
+        // весом одной штуки (piece_grams: лавровый лист «2 шт», а закупка в граммах).
+        // Штуки ↔ объём не лечатся ничем — их в фильтр «уточнить плотность» не включаем.
+        const SPOON_FIELD = { tsp: 'tsp_grams', tbsp: 'tbsp_grams', cup: 'cup_grams', l: 'liter_grams', ml: 'liter_grams', pcs: 'piece_grams' };
+
+        // Штуки ↔ вес решаются весом одной штуки (piece_grams), штуки ↔ объём — нет
+        function isPieceWeightPair(productUnit, recipeUnit) {
+            const typeOf = code => units.find(u => u.code === code)?.type;
+            return (productUnit === 'pcs' && typeOf(recipeUnit) === 'weight') ||
+                   (recipeUnit === 'pcs' && typeOf(productUnit) === 'weight');
+        }
 
         // Плотность — это всегда «грамм на ложку/стакан/литр», и неважно, с какой стороны эта
         // ложка: у продукта (закупочная единица — сама ч.л., а рецепт в граммах, как у агара)
@@ -295,7 +308,7 @@
             const baseType = units.find(u => u.code === (product.unit || 'g'))?.type;
             const ingType = units.find(u => u.code === unit)?.type;
             if (!baseType || !ingType || ingType === baseType) return false;
-            if (ingType === 'count' || baseType === 'count') return false;
+            if ((ingType === 'count' || baseType === 'count') && !isPieceWeightPair(product.unit, unit)) return false;
             const field = densityFieldFor(product.unit, unit);
             if (!field) return false;
             const density = densities[product.id];
@@ -339,9 +352,9 @@
             confirmResolve = null;
         }
 
-        const DENSITY_FIELD = { tsp: 'tsp_grams', tbsp: 'tbsp_grams', cup: 'cup_grams', l: 'liter_grams' };
-        const DENSITY_FIELD_ID = { tsp: '#densityTspField', tbsp: '#densityTbspField', cup: '#densityCupField', l: '#densityLiterField' };
-        const FIELD_TO_UNIT = { tsp_grams: 'tsp', tbsp_grams: 'tbsp', cup_grams: 'cup', liter_grams: 'l' };
+        const DENSITY_FIELD = { tsp: 'tsp_grams', tbsp: 'tbsp_grams', cup: 'cup_grams', l: 'liter_grams', pcs: 'piece_grams' };
+        const DENSITY_FIELD_ID = { tsp: '#densityTspField', tbsp: '#densityTbspField', cup: '#densityCupField', l: '#densityLiterField', pcs: '#densityPieceField' };
+        const FIELD_TO_UNIT = { tsp_grams: 'tsp', tbsp_grams: 'tbsp', cup_grams: 'cup', liter_grams: 'l', piece_grams: 'pcs' };
 
         // Какие поля плотности вообще имеют смысл для продукта: строго те единицы, которыми
         // его реально измеряют в рецептах прямо сейчас — ни больше (не показываем стакан и литр,
@@ -355,7 +368,8 @@
             used.forEach(u => {
                 const baseType = units.find(x => x.code === productUnit)?.type;
                 const ingType = units.find(x => x.code === u)?.type;
-                if (!baseType || !ingType || baseType === ingType || baseType === 'count' || ingType === 'count') return;
+                if (!baseType || !ingType || baseType === ingType) return;
+                if ((baseType === 'count' || ingType === 'count') && !isPieceWeightPair(productUnit, u)) return;
                 const field = densityFieldFor(productUnit, u);
                 if (field) relevant.add(FIELD_TO_UNIT[field]);
             });
@@ -794,7 +808,7 @@
         // Плотность продукта — своя таблица, своё право (edit_kitchen_dictionaries), пишем отдельным запросом.
         // Если все поля пустые — убираем строку, а не храним ноли.
         async function saveDensity(productId) {
-            const vals = Object.fromEntries(['tsp_grams', 'tbsp_grams', 'cup_grams', 'liter_grams'].map(f => {
+            const vals = Object.fromEntries(['tsp_grams', 'tbsp_grams', 'cup_grams', 'liter_grams', 'piece_grams'].map(f => {
                 const raw = editForm()[f].value;
                 return [f, raw === '' ? null : parseFloat(raw)];
             }));

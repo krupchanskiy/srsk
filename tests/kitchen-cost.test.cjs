@@ -63,6 +63,17 @@ test('конвертация единиц', () => {
     assert.equal(convert(1, 'kg', 'nonsense', null, UNITS), null);
 });
 
+test('штуки ↔ вес через вес одной штуки', () => {
+    const leaf = { piece_grams: 0.2 };
+    near(convert(4, 'pcs', 'g', leaf, UNITS), 0.8);           // 4 листа лаврушки → 0,8 г
+    near(convert(20, 'pcs', 'kg', { piece_grams: 0.15 }, UNITS), 0.003);
+    near(convert(1, 'g', 'pcs', leaf, UNITS), 5);             // закупка в штуках, рецепт в граммах
+    near(convert(1, 'tsp', 'pcs', { tsp_grams: 2, piece_grams: 0.5 }, UNITS), 4);
+    assert.equal(convert(4, 'pcs', 'g', null, UNITS), null);  // веса штуки нет — не считаем
+    assert.equal(convert(4, 'pcs', 'l', leaf, UNITS), null);  // штуки ↔ объём не переводим
+    assert.equal(convert(4, 'pack', 'g', leaf, UNITS), null); // упаковка — не штука
+});
+
 test('ложка без плотности считается через миллилитры', () => {
     near(convert(2, 'tbsp', 'kg', null, UNITS), 0.03);   // 30 мл ≈ 30 г
 });

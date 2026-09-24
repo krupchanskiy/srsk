@@ -606,11 +606,16 @@
 
         // Можно ли перевести единицу рецепта в закупочную единицу продукта: та же «природа»
         // единицы (вес/объём/штуки) — всегда можно, вес↔объём — только если задана плотность
-        // продукта (сколько грамм в ложке/стакане/литре). Штуки ↔ вес/объём — отдельный, более
-        // грубый случай: это не про плотность, а про то, что единица рецепта в принципе не
-        // подходит (например, бананы посчитаны «2 шт», а закупаются в кг) — чинится в самом
-        // рецепте (указать вес), а не в карточке продукта, поэтому у него свой сигнал.
-        const SPOON_FIELD = { tsp: 'tsp_grams', tbsp: 'tbsp_grams', cup: 'cup_grams', l: 'liter_grams', ml: 'liter_grams' };
+        // продукта (сколько грамм в ложке/стакане/литре). Штуки ↔ вес — через вес одной штуки
+        // (piece_grams) в карточке продукта: лавровый лист «2 шт», а закупка в граммах.
+        // Штуки ↔ объём не переводятся ничем — это чинится в самом рецепте, поэтому у него свой сигнал.
+        const SPOON_FIELD = { tsp: 'tsp_grams', tbsp: 'tbsp_grams', cup: 'cup_grams', l: 'liter_grams', ml: 'liter_grams', pcs: 'piece_grams' };
+
+        function isPieceWeightPair(productUnit, recipeUnit) {
+            const typeOf = code => units.find(u => u.code === code)?.type;
+            return (productUnit === 'pcs' && typeOf(recipeUnit) === 'weight') ||
+                   (recipeUnit === 'pcs' && typeOf(productUnit) === 'weight');
+        }
 
         // Плотность нужна в граммах на ложку/стакан/литр — неважно, с какой стороны эта ложка:
         // у продукта (закупка — сама ч.л., а в рецепте граммы, как у агара) или у рецепта
@@ -623,7 +628,7 @@
             const baseType = units.find(u => u.code === (product.unit || 'g'))?.type;
             const ingType = units.find(u => u.code === unit)?.type;
             if (!baseType || !ingType || ingType === baseType) return false;
-            if (ingType === 'count' || baseType === 'count') return false;
+            if ((ingType === 'count' || baseType === 'count') && !isPieceWeightPair(product.unit, unit)) return false;
             const field = densityFieldFor(product.unit, unit);
             if (!field) return false;
             const density = densities[product.id];
@@ -634,7 +639,7 @@
             const baseType = units.find(u => u.code === (product.unit || 'g'))?.type;
             const ingType = units.find(u => u.code === unit)?.type;
             if (!baseType || !ingType || ingType === baseType) return false;
-            return ingType === 'count' || baseType === 'count';
+            return (ingType === 'count' || baseType === 'count') && !isPieceWeightPair(product.unit, unit);
         }
 
         // Получить доступные единицы для продукта
@@ -657,6 +662,9 @@
                 if (density.liter_grams && (baseUnit === 'g' || baseUnit === 'kg')) {
                     available.push('l');
                 }
+                // Известен вес одной штуки — весовой продукт можно указывать в штуках и наоборот
+                if (density.piece_grams && (baseUnit === 'g' || baseUnit === 'kg')) available.push('pcs');
+                if (density.piece_grams && baseUnit === 'pcs') available.push('g', 'kg');
             }
 
             return available;
@@ -771,7 +779,9 @@
                         <div class="min-w-0">
                             <div class="font-medium truncate flex items-center gap-1">
                                 <span class="truncate">${name}</span>
-                                ${densityIssue ? `<span class="badge badge-warning badge-xs shrink-0" title="${t('recipe_unit_unresolved_hint')}">${t('recipe_unit_unresolved')}</span>` : ''}
+                                ${densityIssue ? (isPieceWeightPair(baseUnit, currentUnit)
+                                    ? `<span class="badge badge-warning badge-xs shrink-0" title="${t('recipe_unit_no_piece_weight_hint')}">${t('recipe_unit_no_piece_weight')}</span>`
+                                    : `<span class="badge badge-warning badge-xs shrink-0" title="${t('recipe_unit_unresolved_hint')}">${t('recipe_unit_unresolved')}</span>`) : ''}
                                 ${countMismatch ? `<span class="badge badge-error badge-xs shrink-0 text-white" title="${t('recipe_unit_count_mismatch_hint')}">${t('recipe_unit_count_mismatch')}</span>` : ''}
                             </div>
                             <div class="text-xs opacity-50 truncate">${subName}</div>
