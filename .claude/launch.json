@@ -8,6 +8,12 @@
       "port": 3000
     },
     {
+      "name": "srsk-preview",
+      "runtimeExecutable": "npx",
+      "runtimeArgs": ["serve", ".", "-l", "3099"],
+      "port": 3099
+    },
+    {
       "name": "rupaseva",
       "runtimeExecutable": "npx",
       "runtimeArgs": ["serve", "/Users/adrian/Library/CloudStorage/OneDrive-Personal/Рабочий стол/проекты/ИИ - вайбкодинг/rupaseva-site", "-l", "3001"],
