@@ -15,6 +15,11 @@
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Noto+Sans:wght@400;500;600;700&family=Noto+Sans+Devanagari:wght@400;500;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="../css/common.css?v=3">
+    <style>
+        /* суммы и даты в таблицах не переносим — таблица прокручивается вбок */
+        .cost-table td.text-right, .cost-table th.text-right { white-space: nowrap; }
+        .cost-table td:first-child { min-width: 9rem; }
+    </style>
 </head>
 <body class="bg-base-200 min-h-screen flex flex-col">
 
@@ -33,88 +38,120 @@
 
         <div id="costContent" class="hidden">
 
-            <!-- Период -->
+            <!-- Режим: ретрит целиком или период (месяц / квартал / год / свои даты) -->
             <div class="bg-base-100 rounded-xl shadow-sm p-4 mb-4">
-                <div class="flex flex-wrap items-end gap-3">
-                    <div>
-                        <label class="label py-1"><span class="label-text" data-i18n="cost_retreat">Ретрит</span></label>
-                        <select id="retreatSelect" class="select select-bordered select-sm"></select>
+                <div class="flex flex-wrap items-center gap-3">
+                    <div role="tablist" class="tabs tabs-boxed">
+                        <a role="tab" class="tab" data-action="mode" data-mode="retreat" data-i18n="cost_mode_retreat">Ретрит</a>
+                        <a role="tab" class="tab" data-action="mode" data-mode="period" data-i18n="cost_mode_period">Период</a>
                     </div>
-                    <div>
-                        <label class="label py-1"><span class="label-text" data-i18n="cost_from">С</span></label>
+
+                    <div id="retreatControls" class="flex flex-wrap items-center gap-2">
+                        <select id="retreatSelect" class="select select-bordered select-sm max-w-xs"></select>
+                    </div>
+
+                    <div id="periodControls" class="flex flex-wrap items-center gap-2 hidden">
+                        <div class="join">
+                            <button class="btn btn-sm join-item" data-action="step" data-step="month" data-i18n="cost_step_month">Месяц</button>
+                            <button class="btn btn-sm join-item" data-action="step" data-step="quarter" data-i18n="cost_step_quarter">Квартал</button>
+                            <button class="btn btn-sm join-item" data-action="step" data-step="year" data-i18n="cost_step_year">Год</button>
+                        </div>
+                        <button class="btn btn-sm btn-ghost btn-square" data-action="shift" data-dir="-1" aria-label="◀">◀</button>
+                        <span id="periodLabel" class="font-semibold min-w-[9rem] text-center"></span>
+                        <button class="btn btn-sm btn-ghost btn-square" data-action="shift" data-dir="1" aria-label="▶">▶</button>
+                        <span class="opacity-50 text-sm" data-i18n="cost_or_dates">или</span>
                         <input type="date" id="dateFrom" class="input input-bordered input-sm" />
-                    </div>
-                    <div>
-                        <label class="label py-1"><span class="label-text" data-i18n="cost_to">По</span></label>
                         <input type="date" id="dateTo" class="input input-bordered input-sm" />
                     </div>
-                    <button class="btn btn-sm btn-ghost" data-action="preset" data-preset="month" data-i18n="cost_this_month">Этот месяц</button>
-                    <button class="btn btn-sm btn-ghost" data-action="preset" data-preset="prev" data-i18n="cost_prev_month">Прошлый месяц</button>
-                    <button class="btn btn-sm btn-primary" data-action="calculate" data-i18n="cost_calculate">Посчитать</button>
                 </div>
             </div>
 
-            <!-- Предупреждения о данных -->
-            <div id="warnings" class="space-y-2 mb-4"></div>
-
-            <!-- Результат -->
-            <div id="result" class="bg-base-100 rounded-xl shadow-sm overflow-hidden mb-6 hidden">
+            <!-- Сводка с итогом -->
+            <div id="summaryBox" class="bg-base-100 rounded-xl shadow-sm overflow-hidden mb-4 hidden">
+                <div class="px-4 pt-4 flex flex-wrap items-center gap-2">
+                    <h2 id="summaryTitle" class="text-lg font-semibold"></h2>
+                    <span id="summaryBadges" class="flex flex-wrap gap-1"></span>
+                </div>
                 <div class="overflow-x-auto">
-                    <table class="table table-sm w-full">
-                        <thead>
-                            <tr class="border-b border-base-200">
-                                <th data-i18n="cost_event">Событие</th>
-                                <th data-i18n="col_category">Категория</th>
-                                <th class="text-right" data-i18n="cost_person_meals">Человеко-приёмов</th>
-                                <th class="text-right" data-i18n="cost_food">Продукты</th>
-                                <th class="text-right" data-i18n="cost_dishware">Посуда</th>
-                                <th class="text-right" data-i18n="cost_external">Готовое</th>
-                                <th class="text-right" data-i18n="cost_overhead_retreat">На ретрит</th>
-                                <th class="text-right" data-i18n="cost_overhead_general">Общие</th>
-                                <th class="text-right" data-i18n="cost_total">Всего</th>
-                                <th class="text-right" data-i18n="cost_per_person">На человека</th>
-                            </tr>
-                        </thead>
-                        <tbody id="resultBody"></tbody>
+                    <table class="table table-sm w-full cost-table">
+                        <thead id="summaryHead"></thead>
+                        <tbody id="summaryBody"></tbody>
                     </table>
                 </div>
+                <p id="summaryNote" class="text-xs opacity-60 px-4 pb-3"></p>
             </div>
 
-            <!-- Набор посуды -->
-            <details class="bg-base-100 rounded-xl shadow-sm p-4 mb-6" id="kitBlock">
-                <summary class="cursor-pointer font-semibold" data-i18n="cost_kit_title">Набор одноразовой посуды на порцию</summary>
-                <p class="text-sm opacity-60 mt-2 mb-3" data-i18n="cost_kit_hint">Сколько штук каждой позиции уходит на одного вкушающего. Коэффициент подбирается по замеру за ретритный день (например, 1,1 стаканчика).</p>
-                <div id="kitBody" class="grid grid-cols-1 md:grid-cols-2 gap-6"></div>
-            </details>
+            <!-- Вкладки -->
+            <div id="tabsBox" class="hidden">
+                <div role="tablist" class="tabs tabs-lifted" id="tabBar"></div>
+                <div class="bg-base-100 rounded-b-xl rounded-tr-xl shadow-sm p-4 mb-6">
 
-            <!-- Расходы без назначения -->
-            <details class="bg-base-100 rounded-xl shadow-sm p-4 mb-6 hidden" id="unassignedBlock">
-                <summary class="cursor-pointer font-semibold" id="unassignedSummary"></summary>
-                <p class="text-sm opacity-60 mt-2 mb-3" data-i18n="cost_unassigned_hint">Расходы кухни по статьям «на ретрит» (билеты, виза, гонорары, программа), которые не привязаны к ретриту. Выберите: общие расходы кухни или период работы человека, тогда расход разделится между событиями периода. Чтобы привязать к одному ретриту, используйте «Уточнить выдачу» в финансах.</p>
-                <div id="unassignedBody" class="space-y-2"></div>
-            </details>
+                    <div data-panel="eaters" class="space-y-4">
+                        <div class="overflow-x-auto"><table class="table table-sm w-full cost-table">
+                            <thead id="eatersHead"></thead><tbody id="eatersBody"></tbody>
+                        </table></div>
+                        <h3 class="font-semibold" data-i18n="cost_by_day">По дням</h3>
+                        <div class="overflow-x-auto max-h-[32rem]"><table class="table table-sm table-pin-rows w-full cost-table">
+                            <thead id="daysHead"></thead><tbody id="daysBody"></tbody>
+                        </table></div>
+                    </div>
 
-            <!-- Группы статей -->
-            <details class="bg-base-100 rounded-xl shadow-sm p-4 mb-6 hidden" id="groupsBlock">
-                <summary class="cursor-pointer font-semibold" id="groupsSummary" data-i18n="cost_groups_title">Группы статей расходов кухни</summary>
-                <p class="text-sm opacity-60 mt-2 mb-3" data-i18n="cost_groups_hint">Как статья попадает в себестоимость. Статья без подтверждённой группы считается «общей» и помечена: подтвердите группу.</p>
-                <div class="overflow-x-auto"><table class="table table-sm w-full"><tbody id="groupsBody"></tbody></table></div>
-            </details>
+                    <div data-panel="direct" class="hidden">
+                        <p class="text-sm opacity-60 mb-3" data-i18n="cost_direct_hint">Продукты считаются на число порций повара, посуда — на каждого вкушающего, «готовое со стороны» — по чеку. Сумма приёма пищи делится между вкушающими; здесь — доля выбранного ретрита или периода.</p>
+                        <div class="overflow-x-auto max-h-[36rem]"><table class="table table-sm table-pin-rows w-full cost-table">
+                            <thead id="directHead"></thead><tbody id="directBody"></tbody>
+                        </table></div>
+                    </div>
 
-            <!-- Сверка с ДДС -->
-            <details class="bg-base-100 rounded-xl shadow-sm p-4 mb-6 hidden" id="reconcileBlock">
-                <summary class="cursor-pointer font-semibold" data-i18n="cost_reconcile_title">Сверка с ДДС</summary>
-                <p class="text-sm opacity-60 mt-2 mb-3" data-i18n="cost_reconcile_hint">Расчёт — что должно было потратиться по рецептам, ценам и вкушающим этого периода. Факт — что реально прошло по кассе на прямых статьях кухни за те же даты. Расхождение — не обязательно ошибка: закупка «про запас» попадает в кассу раньше, чем блюдо будет приготовлено.</p>
-                <div class="overflow-x-auto"><table class="table table-sm w-full">
-                    <thead><tr>
-                        <th data-i18n="cost_reconcile_category">Статья</th>
-                        <th class="text-right" data-i18n="cost_reconcile_model">Расчёт</th>
-                        <th class="text-right" data-i18n="cost_reconcile_actual">Факт по ДДС</th>
-                        <th class="text-right" data-i18n="cost_reconcile_diff">Разница</th>
-                    </tr></thead>
-                    <tbody id="reconcileBody"></tbody>
-                </table></div>
-            </details>
+                    <div data-panel="overhead" class="hidden space-y-4">
+                        <p class="text-sm opacity-60" data-i18n="cost_overhead_hint">Зарплаты и расходы кухни из финансов. «На ретрит» делится только между людьми своего ретрита, «общие» — между всеми вкушающими месяца или периода расхода.</p>
+                        <div class="overflow-x-auto"><table class="table table-sm w-full cost-table">
+                            <thead id="overheadHead"></thead><tbody id="overheadBody"></tbody>
+                        </table></div>
+                        <div id="unassignedBlock" class="hidden">
+                            <h3 class="font-semibold mb-1" id="unassignedSummary"></h3>
+                            <p class="text-sm opacity-60 mb-3" data-i18n="cost_unassigned_hint">Расходы кухни по статьям «на ретрит» (билеты, виза, гонорары, программа), которые не привязаны к ретриту. Выберите: общие расходы кухни или период работы человека, тогда расход разделится между событиями периода. Чтобы привязать к одному ретриту, используйте «Уточнить выдачу» в финансах.</p>
+                            <div id="unassignedBody" class="space-y-2"></div>
+                        </div>
+                    </div>
+
+                    <div data-panel="months" class="hidden">
+                        <div class="overflow-x-auto"><table class="table table-sm w-full cost-table">
+                            <thead id="monthsHead"></thead><tbody id="monthsBody"></tbody>
+                        </table></div>
+                    </div>
+
+                    <div data-panel="reconcile" class="hidden">
+                        <p class="text-sm opacity-60 mb-3" data-i18n="cost_reconcile_hint">Расчёт — что должно было потратиться по рецептам, ценам и вкушающим этого периода. Факт — что реально прошло по кассе на прямых статьях кухни за те же даты. Расхождение — не обязательно ошибка: закупка «про запас» попадает в кассу раньше, чем блюдо будет приготовлено.</p>
+                        <div class="overflow-x-auto"><table class="table table-sm w-full cost-table">
+                            <thead><tr>
+                                <th data-i18n="cost_reconcile_category">Статья</th>
+                                <th class="text-right" data-i18n="cost_reconcile_model">Расчёт</th>
+                                <th class="text-right" data-i18n="cost_reconcile_actual">Факт по ДДС</th>
+                                <th class="text-right" data-i18n="cost_reconcile_diff">Разница</th>
+                            </tr></thead>
+                            <tbody id="reconcileBody"></tbody>
+                        </table></div>
+                    </div>
+
+                    <div data-panel="settings" class="hidden space-y-6">
+                        <div>
+                            <h3 class="font-semibold" data-i18n="cost_kit_title">Набор одноразовой посуды на порцию</h3>
+                            <p class="text-sm opacity-60 mt-1 mb-3" data-i18n="cost_kit_hint">Сколько штук каждой позиции уходит на одного вкушающего. Коэффициент подбирается по замеру за ретритный день (например, 1,1 стаканчика).</p>
+                            <div id="kitBody" class="grid grid-cols-1 md:grid-cols-2 gap-6"></div>
+                        </div>
+                        <div id="groupsBlock" class="hidden">
+                            <h3 class="font-semibold" id="groupsSummary" data-i18n="cost_groups_title">Группы статей расходов кухни</h3>
+                            <p class="text-sm opacity-60 mt-1 mb-3" data-i18n="cost_groups_hint">Как статья попадает в себестоимость. Статья без подтверждённой группы считается «общей» и помечена: подтвердите группу.</p>
+                            <div class="overflow-x-auto"><table class="table table-sm w-full cost-table"><tbody id="groupsBody"></tbody></table></div>
+                        </div>
+                    </div>
+
+                    <div data-panel="problems" class="hidden">
+                        <div id="warnings" class="space-y-2"></div>
+                    </div>
+                </div>
+            </div>
 
         </div>
 
@@ -129,7 +166,7 @@
     <script src="../js/date-utils.js?v=4"></script>
     <script src="../js/layout.js?v=80"></script>
     <script src="../js/eating-utils.js?v=11"></script>
-    <script src="../js/kitchen-cost.js?v=3"></script>
-    <script src="../js/pages/kitchen-cost.js?v=6"></script>
+    <script src="../js/kitchen-cost.js?v=4"></script>
+    <script src="../js/pages/kitchen-cost.js?v=7"></script>
 </body>
 </html>

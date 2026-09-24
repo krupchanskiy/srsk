@@ -10,7 +10,7 @@ const KitchenCost = (function () {
 
 const BUCKETS = ['team', 'volunteers', 'vips', 'guests', 'groups', 'expected'];
 const MEALS = ['breakfast', 'lunch'];
-const MISMATCH_LIMIT = 5;   // порций больше/меньше числа вкушающих на столько и более — предупреждение
+// Число порций повара с числом вкушающих не сравниваем: повар ставит его сознательно (ВГ, 24.09.2026)
 
 // ---------- цена на дату (то же правило, что kitchen_price_on в базе) ----------
 function priceOn(rows, date) {
@@ -65,13 +65,15 @@ function convert(amount, ingUnit, productUnit, density, units) {
 //   units:      { [code]: {type, ratio} }
 //   prices:     { [product_id]: [{price, valid_from, valid_to}] }
 //   kits:       { breakfast: [{product_id, quantity}], lunch: [...] }
-//   externals:  { [meal_id]: [{name, amount, persons}] }
+//   externals:  { [meal_id]: [{name, amount}] }
 //   counts:     результат EatingUtils.loadCounts
 function computeCosts(input) {
     const { meals, recipes, products, densities, units, prices, kits, externals, counts } = input;
 
     const cells = {};       // cells[eventKey][bucket] = { personMeals, food, dishware, external, overheadRetreat, overheadGeneral, provisional }
-    const mealRecords = []; // приёмы пищи меню с вкушающими — база для накладных расходов
+    const months = {};      // months['YYYY-MM'][eventKey][bucket] — то же, по месяцам (сумма месяцев = cells)
+    const mealRecords = []; // приёмы пищи меню с вкушающими — база для накладных расходов и разбивки по дням
+    const overheadLines = []; // накладные построчно: сколько отнесено на каждое событие в периоде
     const warn = {
         overheadNoBase: [],           // расход «на ретрит» без вкушающих в периоде — ушёл в общие
         overheadUnallocated: [],      // расход без вкушающих в периоде — не распределён
@@ -84,16 +86,23 @@ function computeCosts(input) {
         unresolvedUnits: new Map(),   // 'продукт|ед. рецепта|ед. продукта' → раз
         recipesNoOutput: new Set(),
         noEaters: [],                 // приёмы пищи с расходами, но без вкушающих
-        mismatch: [],                 // порции в меню сильно отличаются от числа вкушающих
         noMenu: []                    // есть вкушающие, но приём пищи в меню не заведён
     };
     const totals = { personMeals: 0, food: 0, dishware: 0, external: 0, unallocated: 0,
                      overheadRetreat: 0, overheadGeneral: 0, overheadUnallocated: 0, provisional: false };
 
-    const cell = (ev, bucket) => {
+    const newCell = () => ({ personMeals: 0, food: 0, dishware: 0, external: 0,
+                             overheadRetreat: 0, overheadGeneral: 0, provisional: false });
+    // ячейка «событие × категория»; с датой — ещё и её копия в месяце этой даты
+    const cell = (ev, bucket, date) => {
         const e = cells[ev] || (cells[ev] = {});
-        return e[bucket] || (e[bucket] = { personMeals: 0, food: 0, dishware: 0, external: 0,
-                                           overheadRetreat: 0, overheadGeneral: 0, provisional: false });
+        const c = e[bucket] || (e[bucket] = newCell());
+        if (!date) return c;
+        const ym = date.slice(0, 7);
+        const me = (months[ym] = months[ym] || {})[ev] || (months[ym][ev] = {});
+        const m = me[bucket] || (me[bucket] = newCell());
+        return { add(field, v) { c[field] += v; m[field] += v; },
+                 mark() { c.provisional = true; m.provisional = true; } };
     };
     const note = (map, key) => map.set(key, (map.get(key) || 0) + 1);
 
@@ -144,16 +153,19 @@ function computeCosts(input) {
         }
 
         // --- готовое со стороны ---
-        const external = (externals[meal.id] || []).reduce((s, x) => s + Number(x.amount), 0);
+        const extRows = externals[meal.id] || [];
+        const external = extRows.reduce((s, x) => s + Number(x.amount), 0);
+        const record = { date: meal.date, meal: meal.meal_type, portions: meal.portions || null, eaters,
+                         food, dishwarePerEater, external, externalNames: extRows.map(x => x.name),
+                         ownDishes: (meal.dishes || []).length, byEvent };
 
         if (eaters === 0) {
             if (food + external > 0) warn.noEaters.push(`${meal.date} ${meal.meal_type}`);
             totals.unallocated += food + external;
             totals.food += food; totals.external += external;
+            record.unallocated = true;
+            mealRecords.push(record);
             continue;
-        }
-        if (Math.abs(portions - eaters) >= MISMATCH_LIMIT) {
-            warn.mismatch.push({ date: meal.date, meal: meal.meal_type, portions, eaters });
         }
 
         // распределяем по ячейкам пропорционально числу вкушающих
@@ -161,14 +173,14 @@ function computeCosts(input) {
             for (const k of BUCKETS) {
                 const n = b[k] || 0;
                 if (!n) continue;
-                const c = cell(ev, k);
-                c.personMeals += n;
-                c.food += food * n / eaters;
-                c.dishware += dishwarePerEater * n;
-                c.external += external * n / eaters;
+                const c = cell(ev, k, meal.date);
+                c.add('personMeals', n);
+                c.add('food', food * n / eaters);
+                c.add('dishware', dishwarePerEater * n);
+                c.add('external', external * n / eaters);
             }
         }
-        mealRecords.push({ date: meal.date, byEvent });
+        mealRecords.push(record);
         totals.personMeals += eaters;
         totals.food += food;
         totals.dishware += dishwarePerEater * eaters;
@@ -184,9 +196,9 @@ function computeCosts(input) {
         }
     }
 
-    allocateOverhead(input, mealRecords, cell, totals, warn);
+    allocateOverhead(input, mealRecords.filter(r => !r.unallocated), cell, totals, warn, overheadLines);
 
-    return { cells, totals, warnings: warn };
+    return { cells, months, totals, warnings: warn, mealRecords, overheadLines };
 }
 
 // ---------- накладные расходы: зарплаты, общие расходы, билеты ----------
@@ -202,7 +214,7 @@ function lastDayOfMonth(iso) {
     return `${iso.slice(0, 7)}-${String(d).padStart(2, '0')}`;
 }
 
-function allocateOverhead(input, mealRecords, cell, totals, warn) {
+function allocateOverhead(input, mealRecords, cell, totals, warn, lines) {
     const ov = input.overhead;
     if (!ov) return;
     if (ov.error) { warn.overheadError = ov.error; return; }
@@ -236,14 +248,16 @@ function allocateOverhead(input, mealRecords, cell, totals, warn) {
         const to = lastDayOfMonth(from);
         const estimate = p.source === 'estimate';
         if (estimate && !warn.payrollEstimated.includes(from.slice(0, 7))) warn.payrollEstimated.push(from.slice(0, 7));
-        items.push({ amount: Number(p.amount), kind: 'general', from, to, provisional: estimate || to >= today, label: p.position_title });
+        items.push({ amount: Number(p.amount), kind: 'general', from, to, provisional: estimate || to >= today, label: p.position_title,
+                     category: 'payroll', estimate });
     }
     for (const x of (ov.items || [])) {
         let kind = x.kind;
         if (kind === 'unassigned') { warn.overheadUnassigned++; kind = 'general'; }
         if (x.labor_unlinked) warn.laborUnlinked.push(`${x.category_name} ${x.occurred_on}`);
         items.push({ amount: Number(x.amount_base), kind, from: x.eff_from, to: x.eff_to,
-                     retreatId: x.retreat_id, provisional: x.eff_to >= today, label: `${x.category_name} ${x.occurred_on}` });
+                     retreatId: x.retreat_id, provisional: x.eff_to >= today, label: `${x.category_name} ${x.occurred_on}`,
+                     category: x.category_name, occurredOn: x.occurred_on, comment: x.comment || null });
     }
 
     const passAll = () => true;
@@ -255,12 +269,17 @@ function allocateOverhead(input, mealRecords, cell, totals, warn) {
         let pass = it.kind === 'retreat_event' ? (ev => ev === `retreat:${it.retreatId}`)
                  : it.kind === 'retreat_period' ? passNoNone : passAll;
         let base = pmIn(it.from, it.to, pass);
+        const line = { label: it.label, category: it.category, occurredOn: it.occurredOn || null, comment: it.comment || null,
+                       estimate: !!it.estimate, kind: it.kind, retreatId: it.retreatId || null, amount: it.amount,
+                       from: it.from, to: it.to, group: null, allocated: 0, byEvent: {} };
+        lines.push(line);
         if (base === 0 && group === 'retreat') {
             warn.overheadNoBase.push(it.label);
             group = 'general'; pass = passAll;
             base = pmIn(it.from, it.to, pass);
         }
-        if (base === 0) { warn.overheadUnallocated.push(it.label); totals.overheadUnallocated += it.amount; continue; }
+        line.group = group;
+        if (base === 0) { warn.overheadUnallocated.push(it.label); totals.overheadUnallocated += it.amount; line.unallocated = true; continue; }
 
         const rate = it.amount / base;
         const wFrom = it.from > input.from ? it.from : input.from;
@@ -275,13 +294,15 @@ function allocateOverhead(input, mealRecords, cell, totals, warn) {
                 for (const k of BUCKETS) {
                     const n = b[k] || 0;
                     if (!n) continue;
-                    const c = cell(ev, k);
-                    if (group === 'retreat') c.overheadRetreat += rate * n; else c.overheadGeneral += rate * n;
-                    if (it.provisional) { c.provisional = true; totals.provisional = true; }
+                    const c = cell(ev, k, rec.date);
+                    c.add(group === 'retreat' ? 'overheadRetreat' : 'overheadGeneral', rate * n);
+                    if (it.provisional) { c.mark(); totals.provisional = true; }
                     allocated += rate * n;
+                    line.byEvent[ev] = (line.byEvent[ev] || 0) + rate * n;
                 }
             }
         }
+        line.allocated = allocated;
         if (group === 'retreat') totals.overheadRetreat += allocated; else totals.overheadGeneral += allocated;
         // доля периода расчёта, которую не на кого распределить (вкушающие есть, а приёма пищи в меню нет)
         totals.overheadUnallocated += Math.max(0, rate * pmIn(wFrom, wTo, pass) - allocated);
@@ -307,7 +328,7 @@ async function load(db, locationId, from, to) {
 
     const mealIds = meals.map(m => m.id);
     const externalRows = mealIds.length
-        ? await fetchAll(() => db.from('menu_external_items').select('id, meal_id, name, amount, persons').in('meal_id', mealIds))
+        ? await fetchAll(() => db.from('menu_external_items').select('id, meal_id, name, amount').in('meal_id', mealIds))
         : [];
     const externals = {};
     externalRows.forEach(x => (externals[x.meal_id] = externals[x.meal_id] || []).push(x));
@@ -384,6 +405,8 @@ async function calculate(db, locationId, from, to) {
     const input = await load(db, locationId, from, to);
     const result = computeCosts(input);
     result.productNames = Object.fromEntries(Object.entries(input.products).map(([id, p]) => [id, p.name]));
+    result.counts = input.counts;
+    result.pricesLoaded = Object.keys(input.prices).length;
     return result;
 }
 
