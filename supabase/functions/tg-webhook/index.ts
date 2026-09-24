@@ -746,7 +746,20 @@ Deno.serve(async (req) => {
   // такое всё равно реагировали (например, ругались «не та тема»), и это
   // цепляло сообщения вроде «Зп ... 12000 Проверить» в общем чате.
   // Решение ВГ 16.09.2026: без обоих сигналов — молчим совсем.
-  if (!kind && !currency) return new Response("ok");
+  // Уточнение ВГ 24.09.2026 («Зеленым на корм рыбам 1500» молча игнорировалось):
+  // в финансовой теме «Счёт» весомое число почти всегда про деньги — не молчим, а
+  // спрашиваем карточкой «Расход / Передача / Не про деньги». Молчание остаётся
+  // в остальных чатах и темах и для мелких чисел (< 100).
+  if (!kind && !currency) {
+    const { data: g } = await supa.rpc("tg_finance_topic_check", {
+      p_chat: m.chat.id, p_thread: m.message_thread_id ?? null,
+    });
+    const inFinanceTopic = !!g && g.allowed !== false && !g.hint;
+    if (!inFinanceTopic || (money.amount != null && money.amount < 100)) return new Response("ok");
+    // название департамента в тексте — заранее подставляем получателя, если выберут «Передача»
+    const { data: tgt } = await supa.rpc("tg_match_department", { p_text: text, p_exclude: chat.department_id });
+    targetDept = tgt ?? null;
+  }
 
   // Нет описания — заявку не заводим вовсе. Валюту, счёт и статью можно
   // доспросить кнопками, а «на что» знает только автор: доспрашивать текстом
