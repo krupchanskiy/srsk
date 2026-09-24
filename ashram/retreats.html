@@ -449,6 +449,16 @@
             return words.slice(0, 2).map(w => w[0]).join('').toUpperCase();
         }
 
+        // Ретриты повторяются из года в год: если у прошлого с тем же названием (без года)
+        // уже есть буквы — берём их (БВП, ШБ), иначе первые буквы названия
+        function suggestShortName(name) {
+            const base = n => (n || '').replace(/\d+/g, '').trim().toLowerCase();
+            const prev = retreats
+                .filter(r => r.short_name && base(r.name_ru) === base(name))
+                .sort((a, b) => b.start_date.localeCompare(a.start_date))[0];
+            return prev ? prev.short_name : retreatInitials(name);
+        }
+
         // ==================== DATA ====================
         async function loadRetreats() {
             const { data, error } = await Layout.db
@@ -739,7 +749,7 @@
                     form.name_en.value = retreat.name_en || '';
                     form.short_name.value = retreat.short_name || '';
                     // Пустые буквы у старого ретрита тоже подскажем — по названию
-                    if (!retreat.short_name) form.short_name.value = retreatInitials(retreat.name_ru);
+                    if (!retreat.short_name) form.short_name.value = suggestShortName(retreat.name_ru);
                     form.description_ru.value = retreat.description_ru || '';
                     form.description_en.value = retreat.description_en || '';
                     form.start_date.value = retreat.start_date;
@@ -1077,7 +1087,7 @@
             // Буквы подставляются по названию, пока их не поправили руками
             const rForm = document.getElementById('retreatForm');
             rForm.name_ru.addEventListener('input', () => {
-                if (rForm.short_name.dataset.touched !== '1') rForm.short_name.value = retreatInitials(rForm.name_ru.value);
+                if (rForm.short_name.dataset.touched !== '1') rForm.short_name.value = suggestShortName(rForm.name_ru.value);
             });
             rForm.short_name.addEventListener('input', () => { rForm.short_name.dataset.touched = '1'; });
 
