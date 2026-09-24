@@ -46,17 +46,47 @@ async function loadRetreats() {
     return data || [];
 }
 
+// Ретрит идёт в даты группы (хотя бы один общий день)
+const fitsDates = (r, from, to) => !!from && !!to && r.start_date <= to && r.end_date >= from;
+
+// Только ретриты, которые идут в даты группы, и с датами в скобках: «Сева-ретрит» 2026
+// и 2027 иначе не различить. Уже выбранный остаётся в списке, даже если даты разошлись, —
+// сохранить с ним не даст проверка в saveGroup.
 function renderEventSelect() {
     const sel = Layout.$('#eventLinkSelect');
-    if (!sel) return;
-    const own = retreats.filter(r => !r.is_external);
-    const external = retreats.filter(r => r.is_external);
+    const form = Layout.$('#groupForm');
+    if (!sel || !form) return;
+    const from = form.start_date.value, to = form.end_date.value;
+    const selectedId = sel.value;
+    const list = retreats.filter(r => r.id === selectedId || fitsDates(r, from, to))
+        .sort((a, b) => a.start_date.localeCompare(b.start_date));
+    const option = r => `<option value="${r.id}">${e(Layout.getName(r))} (${e(DateUtils.formatRange(r.start_date, r.end_date))})</option>`;
     const optgroup = (label, items) => items.length
-        ? `<optgroup label="${e(label)}">` + items.map(r => `<option value="${r.id}">${e(Layout.getName(r))}</option>`).join('') + '</optgroup>'
+        ? `<optgroup label="${e(label)}">` + items.map(option).join('') + '</optgroup>'
         : '';
     sel.innerHTML = `<option value="">${e(tr('group_event_none', 'Без события (самостоятельные гости)'))}</option>`
-        + optgroup(tr('group_event_retreat', 'Наш ретрит'), own)
-        + optgroup(tr('retreats_is_external', 'Стороннее мероприятие'), external);
+        + optgroup(tr('group_event_retreat', 'Наш ретрит'), list.filter(r => !r.is_external))
+        + optgroup(tr('retreats_is_external', 'Стороннее мероприятие'), list.filter(r => r.is_external));
+    sel.value = selectedId;
+
+    const hint = Layout.$('#eventLinkHint');
+    if (hint) hint.textContent = (!from || !to) ? tr('group_event_dates_first', 'сначала укажите даты') : '';
+}
+
+// Смена дат: пересобираем список; новой группе подставляем ретрит, если по датам подходит ровно один
+function onGroupDatesChange() {
+    const sel = Layout.$('#eventLinkSelect');
+    const form = Layout.$('#groupForm');
+    renderEventSelect();
+    if (editingGroupId || sel.dataset.touched === '1' || sel.value) return;
+    const fits = retreats.filter(r => fitsDates(r, form.start_date.value, form.end_date.value));
+    const hint = Layout.$('#eventLinkHint');
+    if (fits.length === 1) {
+        sel.value = fits[0].id;
+        if (hint) hint.textContent = tr('timeline_retreat_by_dates', 'подставлено по датам');
+    } else if (fits.length > 1 && hint) {
+        hint.textContent = tr('timeline_retreat_many', 'подходит несколько — выберите');
+    }
 }
 
 function eventLabel(g) {
@@ -125,6 +155,9 @@ function openGroupModal(groupId = null) {
     const deleteBtn = Layout.$('#deleteGroupBtn');
 
     form.reset();
+    const sel = Layout.$('#eventLinkSelect');
+    delete sel.dataset.touched;
+    sel.value = '';
 
     if (groupId) {
         const g = groups.find(x => x.id === groupId);
@@ -135,6 +168,7 @@ function openGroupModal(groupId = null) {
             form.start_date.value = g.start_date || '';
             form.end_date.value = g.end_date || '';
             form.people_count.value = g.people_count || 1;
+            renderEventSelect();   // список под даты группы, иначе её ретрита в нём нет
             form.event_link.value = g.retreat_id || '';
             form.breakfast.checked = g.breakfast !== false;
             form.lunch.checked = g.lunch !== false;
@@ -145,6 +179,7 @@ function openGroupModal(groupId = null) {
         title.textContent = t('add_group');
         deleteBtn.classList.add('hidden');
     }
+    renderEventSelect();
 
     Layout.$('#groupModal').showModal();
 }
@@ -172,6 +207,11 @@ async function saveGroup(ev) {
     if (!data.name || !data.start_date || !data.end_date) return;
     if (data.start_date > data.end_date) {
         Layout.showNotification(t('groups_date_error'), 'error');
+        return;
+    }
+    const retreat = data.retreat_id && retreats.find(r => r.id === data.retreat_id);
+    if (retreat && !fitsDates(retreat, data.start_date, data.end_date)) {
+        Layout.showNotification(tr('retreat_dates_mismatch', 'Даты не пересекаются с датами выбранного ретрита'), 'error');
         return;
     }
 
@@ -249,7 +289,11 @@ async function init() {
     [groups, retreats] = await Promise.all([loadGroups(), loadRetreats()]);
     renderEventSelect();
 
-    Layout.$('#groupForm').addEventListener('submit', saveGroup);
+    const form = Layout.$('#groupForm');
+    form.addEventListener('submit', saveGroup);
+    form.start_date.addEventListener('change', onGroupDatesChange);
+    form.end_date.addEventListener('change', onGroupDatesChange);
+    Layout.$('#eventLinkSelect').addEventListener('change', ev => { ev.target.dataset.touched = '1'; });
 
     updateUI();
     Layout.hideLoader();

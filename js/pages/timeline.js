@@ -854,19 +854,37 @@ function selectVaishnava(id) {
 // где человек живёт, а система не знает, что он участник: ни долг при выезде
 // не проверить, ни расселение. Теперь подставляем сами, но оставляем на выбор:
 // кто-то приезжает до ретрита, а кто-то живёт в его даты волонтёром.
-// Список для заселения и брони: наши ретриты и сторонние мероприятия — двумя разделами
-function retreatSelectHtml(selectedId) {
-    const option = r => `<option value="${r.id}" ${r.id === selectedId ? 'selected' : ''}>${Layout.escapeHtml(Layout.getName(r))}</option>`;
+// Список для заселения и брони: наши ретриты и сторонние мероприятия — двумя разделами.
+// Только те, что идут в даты проживания, и с датами в скобках: «Сева-ретрит» 2026 и 2027
+// иначе не различить. Уже выбранный остаётся в списке, даже если даты разошлись, —
+// сохранить с ним не даст retreatDatesMismatch.
+const retreatFitsDates = (r, from, to) => !!from && r.start_date <= (to || from) && r.end_date >= from;
+
+function retreatSelectHtml(selectedId, from, to) {
+    const list = allRetreats.filter(r => r.id === selectedId || retreatFitsDates(r, from, to));
+    const option = r => `<option value="${r.id}" ${r.id === selectedId ? 'selected' : ''}>${Layout.escapeHtml(Layout.getName(r))} (${DateUtils.formatRange(r.start_date, r.end_date)})</option>`;
     const optgroup = (label, items) => items.length
         ? `<optgroup label="${Layout.escapeHtml(label)}">` + items.map(option).join('') + '</optgroup>' : '';
     return `<option value="">${Layout.t('timeline_no_retreat') || '— без ретрита —'}</option>`
-        + optgroup(Layout.t('group_event_retreat') || 'Наш ретрит', allRetreats.filter(r => !r.is_external))
-        + optgroup(Layout.t('retreats_is_external') || 'Стороннее мероприятие', allRetreats.filter(r => r.is_external));
+        + optgroup(Layout.t('group_event_retreat') || 'Наш ретрит', list.filter(r => !r.is_external))
+        + optgroup(Layout.t('retreats_is_external') || 'Стороннее мероприятие', list.filter(r => r.is_external));
+}
+
+// Пока кэш переводов у пользователя не обновился, показываем русский текст, а не имя ключа
+function retreatDatesMismatchText() {
+    const v = Layout.t('retreat_dates_mismatch');
+    return v === 'retreat_dates_mismatch' ? 'Даты не пересекаются с датами выбранного ретрита' : v;
+}
+
+function retreatDatesMismatch(retreatId, from, to) {
+    const r = retreatId && allRetreats.find(x => x.id === retreatId);
+    return !!r && !retreatFitsDates(r, from, to);
 }
 
 function fillRetreatSelect(selectedId) {
     const sel = document.getElementById('checkinRetreat');
-    if (sel) sel.innerHTML = retreatSelectHtml(selectedId);
+    if (sel) sel.innerHTML = retreatSelectHtml(selectedId,
+        document.getElementById('checkinDateIn').value, document.getElementById('checkinDateOut').value);
 }
 
 // Подсказать ретрит по человеку и датам: берём регистрацию, чей ретрит
@@ -876,7 +894,8 @@ async function suggestRetreat() {
     const hint = document.getElementById('checkinRetreatHint');
     const sel = document.getElementById('checkinRetreat');
     if (!sel || !hint) return;
-    if (sel.dataset.touched === '1') return;   // казначей выбрал сам — не перебиваем
+    // казначей выбрал сам — не перебиваем, но список под новые даты обновляем
+    if (sel.dataset.touched === '1') { fillRetreatSelect(sel.value); return; }
 
     const vId = document.getElementById('checkinVaishnavId').value;
     const from = document.getElementById('checkinDateIn').value;
@@ -1005,7 +1024,8 @@ async function suggestBookingRetreat() {
     const sel = document.getElementById('bookingRetreat');
     const hint = document.getElementById('bookingRetreatHint');
     if (!sel || !hint) return;
-    if (sel.dataset.touched === '1') return;   // выбрали сами — не перебиваем
+    // выбрали сами — не перебиваем, но список под новые даты обновляем
+    if (sel.dataset.touched === '1') { fillBookingRetreatSelect(sel.value); return; }
 
     const from = document.getElementById('bookingDateIn').value;
     const to = document.getElementById('bookingDateOut').value || from;
@@ -1045,7 +1065,8 @@ async function suggestBookingRetreat() {
 
 function fillBookingRetreatSelect(selectedId) {
     const sel = document.getElementById('bookingRetreat');
-    if (sel) sel.innerHTML = retreatSelectHtml(selectedId);
+    if (sel) sel.innerHTML = retreatSelectHtml(selectedId,
+        document.getElementById('bookingDateIn').value, document.getElementById('bookingDateOut').value);
 }
 
 function clearVaishnavSelection() {
@@ -1084,6 +1105,11 @@ async function saveCheckin(e) {
     e.preventDefault();
     if (!canEditTimeline()) return;
     const form = e.target;
+
+    if (retreatDatesMismatch(form.retreat_id?.value, form.check_in.value, form.check_out.value)) {
+        Layout.showNotification(retreatDatesMismatchText(), 'error');
+        return;
+    }
 
     const mealTypeVal = form.meal_type.value || 'prasad';
     const data = {
@@ -1161,6 +1187,10 @@ async function saveBooking(e) {
     const bookingName = form.name.value.trim() || null;
 
     const bookingRetreatId = form.retreat_id?.value || null;
+    if (retreatDatesMismatch(bookingRetreatId, form.check_in.value, form.check_out.value)) {
+        Layout.showNotification(retreatDatesMismatchText(), 'error');
+        return;
+    }
     const bookingVaishnavaId = form.vaishnava_id?.value || null;
     const bookingCategoryId = form.category_id?.value || null;
 

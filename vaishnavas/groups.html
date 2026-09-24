@@ -75,12 +75,6 @@
                     <input type="text" name="name" class="input input-bordered w-full" required />
                 </div>
 
-                <div>
-                    <label class="label"><span class="label-text font-medium" data-i18n="group_event">Событие</span></label>
-                    <select name="event_link" id="eventLinkSelect" class="select select-bordered w-full"></select>
-                    <span class="label-text-alt opacity-60 mt-1 block" data-i18n="group_event_hint">Нужно, чтобы посчитать затраты на питание по ретриту или мероприятию. Самостоятельным гостям событие не нужно.</span>
-                </div>
-
                 <div class="grid grid-cols-2 gap-4">
                     <div>
                         <label class="label"><span class="label-text font-medium" data-i18n="start_date">Дата начала</span><span class="text-error ml-1">*</span></label>
@@ -90,6 +84,12 @@
                         <label class="label"><span class="label-text font-medium" data-i18n="end_date">Дата окончания</span><span class="text-error ml-1">*</span></label>
                         <input type="date" name="end_date" class="input input-bordered w-full" required />
                     </div>
+                </div>
+
+                <div>
+                    <label class="label"><span class="label-text font-medium" data-i18n="group_event">Событие</span><span class="label-text-alt opacity-60" id="eventLinkHint"></span></label>
+                    <select name="event_link" id="eventLinkSelect" class="select select-bordered w-full"></select>
+                    <span class="label-text-alt opacity-60 mt-1 block" data-i18n="group_event_hint">Нужно, чтобы посчитать затраты на питание по ретриту или мероприятию. Самостоятельным гостям событие не нужно.</span>
                 </div>
 
                 <div>
@@ -131,7 +131,7 @@
     <script src="../js/utils.js?v=12"></script>
     <script src="../js/date-utils.js?v=4"></script>
     <script src="../js/layout.js?v=80"></script>
-    <script src="../js/pages/groups.js?v=3"></script>
+    <script src="../js/pages/groups.js?v=4"></script>
 
 </body>
 </html>
