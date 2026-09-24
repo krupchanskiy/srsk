@@ -376,6 +376,22 @@ Deno.serve(async (req) => {
       }
       const { data: st } = await supa.rpc("tg_patch_draft", { p_id: draftId, p: patch });
       if (st?.ok) await renderCard(msg.chat.id, msg.message_id, draftId, st);
+    } else if (action === "hy" || action === "hn") {
+      // Передача между держателями: подтвердить может только получатель —
+      // по его Telegram-id, а не по имени в тексте. Карточка видна всем в чате,
+      // но кнопка срабатывает только для адресата.
+      const { data } = await supa.rpc("tg_handoff_confirm", {
+        p_id: parts[1], p_tg_user: cq.from.id, p_accept: action === "hy",
+      });
+      if (data?.ok) {
+        await tg("deleteMessage", { chat_id: msg.chat.id, message_id: msg.message_id });
+      } else if (data?.error === "not_recipient") {
+        await tg("answerCallbackQuery", {
+          callback_query_id: cq.id, show_alert: true,
+          text: `Подтвердить может только ${data.recipient_name ?? "получатель"}.`,
+        });
+        return new Response("ok");
+      }
     }
     await tg("answerCallbackQuery", { callback_query_id: cq.id });
     return new Response("ok");
@@ -557,10 +573,12 @@ Deno.serve(async (req) => {
     if (!первый) {
       текст = "Этот чат не привязан к департаменту, поэтому остаток показать не могу.";
     } else {
+      // holders_line уже экранирован в SQL (tg_escape по каждому имени) — re-esc не нужен.
       текст = счета.length === 1
         ? `💰 <b>${esc(первый.department_name)}: ${esc(первый.formatted)}</b>`
+          + (первый.holders_line ? `\n${первый.holders_line}` : "")
         : `💰 <b>${esc(первый.department_name)}</b>\n`
-          + счета.map((s) => `• <b>${esc(s.formatted)}</b>`).join("\n");
+          + счета.map((s) => `• <b>${esc(s.formatted)}</b>` + (s.holders_line ? `\n${s.holders_line}` : "")).join("\n");
       if (первый.pending_drafts > 0) {
         текст += `\nЖдут проведения: ${первый.pending_drafts} — остаток изменится, когда их проведут.`;
       }
@@ -661,6 +679,45 @@ Deno.serve(async (req) => {
 
   const tre = await treasurer();
   const isTreasurer = !!tre && user.vaishnava_id === tre.vaishnava_id;
+  const currency = parseCurrency(text);
+
+  // ---------- передача внутри департамента, между держателями (правило ВГ, 22.09.2026) ----------
+  // «Передал Жене 500» в чате департамента — это НЕ передача другому
+  // департаменту (та ищется через tg_match_department), а перекладывание уже
+  // выданных денег между двумя держателями ОДНОГО департамента. Отличаем по
+  // тому, совпадает ли названное имя с зарегистрированным держателем именно
+  // этого департамента. Казначея не проверяем: у него «выдал» значит настоящую
+  // выдачу с реального счёта, это другой сценарий.
+  // Проводится сразу по подтверждению получателя, без фин-админа: общий
+  // остаток департамента не меняется, риска для денег нет (решение ВГ).
+  if (TRANSFER_WORDS.test(text) && !isTreasurer) {
+    const { data: holderId } = await supa.rpc("tg_match_department_holder", {
+      p_department: chat.department_id, p_text: text, p_exclude: user.vaishnava_id,
+    });
+    if (holderId) {
+      const { data: h } = await supa.rpc("tg_create_handoff", {
+        p: { chat_id: m.chat.id, source_message_id: m.message_id, tg_user_id: m.from.id,
+             amount: money.amount, currency, raw_text: text, recipient_vaishnava_id: holderId },
+      });
+      if (h?.ok) {
+        const sym = h.currency ? (CURRENCIES[h.currency] ?? h.currency) : "";
+        const sent = await tg("sendMessage", {
+          chat_id: m.chat.id, reply_to_message_id: m.message_id, parse_mode: "HTML",
+          text: `🤝 <b>Передача внутри «${esc(h.department_name)}»: ${money.amount}${sym ? " " + sym : ""}</b>\n`
+              + `От: ${esc(h.sender_name)}\n`
+              + `${esc(h.recipient_name)}, подтвердите получение`,
+          reply_markup: { inline_keyboard: [[
+            { text: "✅ Получил(а)", callback_data: `hy:${h.id}` },
+            { text: "✖️ Не получал(а)", callback_data: `hn:${h.id}` },
+          ]] },
+        });
+        const cardId = sent?.result?.message_id;
+        if (cardId) await supa.rpc("tg_set_handoff_card", { p_id: h.id, p_message_id: cardId });
+        return new Response("ok");
+      }
+      // валюта неоднозначна / не держатель / уже обработано — тихо продолжаем обычной веткой ниже
+    }
+  }
 
   // Вид определяем по словам; если слов нет — спросим (решение ВГ)
   let kind: string | null = null;
@@ -684,8 +741,6 @@ Deno.serve(async (req) => {
   } else if (EXPENSE_WORDS.test(text)) {
     kind = "expense";
   }
-
-  const currency = parseCurrency(text);
   // Голое число без слова-признака траты/передачи и без названной валюты —
   // скорее не отчёт о деньгах, а дата, количество или обсуждение. Раньше на
   // такое всё равно реагировали (например, ругались «не та тема»), и это
