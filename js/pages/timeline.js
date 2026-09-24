@@ -62,7 +62,8 @@ function dateToDayIndex(dateStr) {
 
 // Буквенная метка ретрита в полосе гостя: «(СР) Иван». Нужна только там, где ретриты идут
 // одновременно, — иначе непонятно, кто к какому относится; у непересекающихся метки нет.
-// Буквы — первые буквы двух первых слов названия (без предлогов и годов); при совпадении у пересекающихся
+// Буквы — свои из карточки ретрита (short_name), иначе первые буквы двух первых слов названия
+// (без предлогов и годов); при совпадении у пересекающихся
 // ретритов добавляется номер.
 const TAG_STOPWORDS = new Set(['для', 'и', 'в', 'на', 'с', 'по', 'of', 'the', 'for', 'and', 'in']);
 function retreatInitials(name) {
@@ -77,7 +78,7 @@ function computeRetreatTags(list) {
     const tags = new Map();
     inOverlap.forEach(r => {
         const name = Layout.getName(r);
-        let tag = retreatInitials(name) || '?';
+        let tag = r.short_name?.trim() || retreatInitials(name) || '?';
         const n = (used.get(tag) || 0) + 1;
         used.set(tag, n);
         if (n > 1) tag += n;
@@ -118,7 +119,7 @@ async function loadTimelineData() {
             .lte('check_in', endDateStr)
             .or(`check_out.is.null,check_out.gte.${startDateStr}`),
         Layout.db.from('retreats')
-            .select('id, name_ru, name_en, name_hi, start_date, end_date, color, is_external')
+            .select('id, name_ru, name_en, name_hi, short_name, start_date, end_date, color, is_external')
             .lte('start_date', endDateStr)
             .gte('end_date', startDateStr)
             .order('start_date'),
@@ -150,7 +151,7 @@ async function loadTimelineData() {
     // закончилось не раньше 3 месяцев до начала периода (старые для брони не нужны).
     const threeMonthsBefore = new Date(baseDate); threeMonthsBefore.setMonth(threeMonthsBefore.getMonth() - 3);
     const { data: selectableRetreats } = await Layout.db.from('retreats')
-        .select('id, name_ru, name_en, name_hi, start_date, end_date, color, is_external')
+        .select('id, name_ru, name_en, name_hi, short_name, start_date, end_date, color, is_external')
         .gte('end_date', formatDateYMD(threeMonthsBefore))
         .order('start_date');
     allRetreats = selectableRetreats || retreats;

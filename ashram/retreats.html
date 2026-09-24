@@ -183,6 +183,13 @@
                     <input type="text" name="name_en" class="input input-bordered w-full" />
                 </div>
 
+                <!-- Свои буквы ретрита для шахматки (ШБ, БВП): одинаковые первые буквы у разных ретритов путают -->
+                <div>
+                    <label class="label"><span class="label-text font-medium" data-i18n="retreats_short_name">Буквы ретрита</span></label>
+                    <input type="text" name="short_name" maxlength="5" class="input input-bordered w-32 uppercase" />
+                    <p class="text-xs opacity-50 mt-1" data-i18n="retreats_short_name_hint">2–3 буквы, например ШБ. Видны в шахматке перед именем гостя, когда ретриты идут одновременно. Пусто — возьмутся первые буквы названия</p>
+                </div>
+
                 <!-- Description RU -->
                 <div>
                     <label class="label"><span class="label-text font-medium" data-i18n="retreats_description_ru">Описание (RU)</span></label>
@@ -517,6 +524,7 @@
                         <div class="flex-1 min-w-0">
                             <div class="flex items-center gap-2 mb-1">
                                 <h3 class="font-bold text-lg">${name}</h3>
+                                ${r.short_name ? `<span class="badge badge-sm badge-ghost">${Layout.escapeHtml(r.short_name)}</span>` : ''}
                                 ${isActive ? `<span class="badge badge-sm" style="background-color: ${r.color}; color: white;">${t('now')}</span>` : ''}
                                 ${r.is_external ? `<span class="badge badge-sm badge-outline">${t('retreats_is_external')}</span>` : ''}
                                 ${r.registration_open ? `<span class="badge badge-sm badge-success">Регистрация</span>` : ''}
@@ -720,6 +728,7 @@
                     title.textContent = t('edit_retreat');
                     form.name_ru.value = retreat.name_ru || '';
                     form.name_en.value = retreat.name_en || '';
+                    form.short_name.value = retreat.short_name || '';
                     form.description_ru.value = retreat.description_ru || '';
                     form.description_en.value = retreat.description_en || '';
                     form.start_date.value = retreat.start_date;
@@ -866,6 +875,7 @@
             const data = {
                 name_ru: form.name_ru.value.trim(),
                 name_en: form.name_en.value.trim() || null,
+                short_name: form.short_name.value.trim().toUpperCase() || null,
                 description_ru: form.description_ru.value.trim() || null,
                 description_en: form.description_en.value.trim() || null,
                 start_date: form.start_date.value,
