@@ -277,6 +277,22 @@
             cursor: pointer;
         }
 
+        /* Сделка в CRM отменена, а бронь/заселение висит — место надо освободить руками */
+        .guest-bar.deal-cancelled { outline: 2px solid #dc2626; outline-offset: -1px; }
+        .guest-bar .cancel-badge {
+            flex: 0 0 auto;
+            margin-right: 4px;
+            padding: 0 5px;
+            border-radius: 3px;
+            background: #dc2626;
+            color: #fff;
+            font-size: 10px;
+            font-weight: 700;
+            line-height: 16px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
         /* Гость без события: человечек после «$» и «◆», на месте букв ретрита */
         .guest-bar .self-mark {
             flex: 0 0 auto;
@@ -1131,7 +1147,7 @@
         if (btn) { btn.classList.toggle('btn-active', isFS); btn.title = isFS ? Layout.t('normal_view') : Layout.t('fullscreen'); }
     }
     </script>
-    <script src="../js/pages/timeline.js?v=35"></script>
+    <script src="../js/pages/timeline.js?v=36"></script>
 
 </body>
 </html>

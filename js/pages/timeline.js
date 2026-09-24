@@ -41,6 +41,7 @@ let debtorsSet = new Set();   // `${vaishnava_id}_${retreat_id}` — участ�
 let selfAccommodated = [];        // проживающие без номера: живут вне территории, в сетку не попадают
 let periodRetreats = [];          // ретриты показанного периода — для «Сам организует» из CRM
 let periodResidents = [];         // все проживания периода — чтобы не дублировать людей из CRM
+let cancelledDealsSet = new Set(); // `${vaishnava_id}_${retreat_id}` — все сделки человека по ретриту отменены
 let specialNeedsMap = new Map();   // `${vaishnava_id}_${retreat_id}` — особые потребности из CRM
 
 // Флаг права на редактирование таймлайна
@@ -199,6 +200,23 @@ async function loadTimelineData() {
         if (!debtors.error) for (const row of (debtors.data || [])) debtorsSet.add(`${row.participant_id}_${rid}`);
         if (!creditors.error) for (const row of (creditors.data || [])) creditorsSet.add(`${row.participant_id}_${rid}`);
     }));
+
+    // Сделка отменена, а бронь в шахматке осталась: сами не снимаем (иначе не заметим, что место
+    // освободилось), а вешаем красную плашку «Отмена» — снять бронь руками. Если у человека есть
+    // другая, живая сделка по тому же ретриту, это не отмена.
+    cancelledDealsSet = new Set();
+    if (residentRetreatIds.length) {
+        const { data: dealRows } = await Layout.db.from('crm_deals')
+            .select('vaishnava_id, retreat_id, status')
+            .in('retreat_id', residentRetreatIds)
+            .not('vaishnava_id', 'is', null);
+        const alive = new Set();
+        for (const d of (dealRows || [])) {
+            const key = `${d.vaishnava_id}_${d.retreat_id}`;
+            if (d.status === 'cancelled') cancelledDealsSet.add(key); else alive.add(key);
+        }
+        alive.forEach(key => cancelledDealsSet.delete(key));
+    }
 
     // Особые потребности из сделок CRM (доп. подушка, обогреватель…) — значок
     // на баре, детали по клику в карточке (ТЗ 2.3)
@@ -386,6 +404,9 @@ async function loadTimelineData() {
                         // гости и так выделены своими категориями. В шахматке — точечная рамка.
                         isSelf: !res.retreat_id && res.category_id === GUEST_CATEGORY_ID,
                         isCheckedOut: res.status === 'checked_out',
+                        // Уже выселенных не помечаем: прожил — значит, приезжал
+                        isDealCancelled: !!(res.vaishnava_id && res.retreat_id && res.status !== 'checked_out'
+                            && cancelledDealsSet.has(`${res.vaishnava_id}_${res.retreat_id}`)),
                         hasDebt: !!(res.vaishnava_id && res.retreat_id
                             && debtorsSet.has(`${res.vaishnava_id}_${res.retreat_id}`)),
                         hasCredit: !!(res.vaishnava_id && res.retreat_id
@@ -2589,7 +2610,11 @@ function renderTable() {
                         const width = spanCells * CELL_WIDTH - 2; // минус отступы
                         const checkedOutClass = guest.isCheckedOut ? ' checked-out' : '';
 
-                        const debtClass = guest.hasDebt ? ' has-debt' : '';
+                        const debtClass = (guest.hasDebt ? ' has-debt' : '') + (guest.isDealCancelled ? ' deal-cancelled' : '');
+                        const cancelRaw = t('timeline_deal_cancelled');
+                        const cancelHtml = guest.isDealCancelled
+                            ? `<span class="cancel-badge" title="${e(t('timeline_deal_cancelled_hint') === 'timeline_deal_cancelled_hint' ? 'Сделка в CRM отменена — освободите место' : t('timeline_deal_cancelled_hint'))}">${e(cancelRaw === 'timeline_deal_cancelled' ? 'Отмена' : cancelRaw)}</span>`
+                            : '';
                         const selfLabelRaw = t('timeline_self_guest');
                         const selfLabel = selfLabelRaw === 'timeline_self_guest' ? 'Гость без события — приехал не на ретрит и не на мероприятие' : selfLabelRaw;
                         // Место после «$» и «◆» — там же, где буквы ретрита: у гостя без ретрита вместо них человечек
@@ -2610,12 +2635,12 @@ function renderTable() {
                         if (guest.isBooking) {
                             // Бронирование — штриховка
                             const bgColor = guest.color || '#3b82f6';
-                            html += `<div class="guest-bar booking${checkedOutClass}${debtClass}" style="width: ${width}px; --bar-color: ${bgColor}; border-color: ${bgColor};" data-action="open-resident-from-map" data-id="${guest.id}">${debtDot}${needsDot}${tagHtml}${selfHtml}${guest.name}</div>`;
+                            html += `<div class="guest-bar booking${checkedOutClass}${debtClass}" style="width: ${width}px; --bar-color: ${bgColor}; border-color: ${bgColor};" data-action="open-resident-from-map" data-id="${guest.id}">${cancelHtml}${debtDot}${needsDot}${tagHtml}${selfHtml}${guest.name}</div>`;
                         } else {
                             // Обычное заселение
                             const bgColor = guest.color || '#3b82f6';
                             const borderColor = guest.border || '#facc15';
-                            html += `<div class="guest-bar${checkedOutClass}${debtClass}" style="width: ${width}px; background: ${bgColor}; border-color: ${borderColor};" data-action="open-resident-from-map" data-id="${guest.id}">${debtDot}${needsDot}${tagHtml}${selfHtml}${guest.name}</div>`;
+                            html += `<div class="guest-bar${checkedOutClass}${debtClass}" style="width: ${width}px; background: ${bgColor}; border-color: ${borderColor};" data-action="open-resident-from-map" data-id="${guest.id}">${cancelHtml}${debtDot}${needsDot}${tagHtml}${selfHtml}${guest.name}</div>`;
                         }
                     }
 
