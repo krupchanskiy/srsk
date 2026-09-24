@@ -239,25 +239,36 @@ function resolveActionsHtml(a) {
         return `<div class="fin-signal-acts"><button class="fin-signal-act" ${attrs('advance')}>${t('fin_resolve_topup')}</button></div>`;
     }
     const пожертвование = `<button class="fin-signal-act${a.cancelled ? '' : ' ghost'}" ${attrs('donation')}>${t('fin_resolve_donation')}</button>`;
+    const возврат = `<button class="fin-signal-act${a.cancelled ? '' : ' ghost'}" ${attrs('refund')}>${t('fin_resolve_refund')}</button>`;
     const аванс = `<button class="fin-signal-act${a.cancelled ? ' ghost' : ''}" ${attrs('advance')}>${t('fin_resolve_advance')}</button>`;
     // Первой идёт та кнопка, которая уместна по статусу сделки
-    return `<div class="fin-signal-acts">${a.cancelled ? пожертвование + аванс : аванс + пожертвование}</div>`;
+    return `<div class="fin-signal-acts">${a.cancelled ? возврат + пожертвование + аванс : аванс + возврат + пожертвование}</div>`;
 }
 
 async function onResolveClick(ev) {
     const b = ev.currentTarget;
     const ключ = b.dataset.act === 'donation' ? 'fin_resolve_donation_confirm'
+        : b.dataset.act === 'refund' ? 'fin_resolve_refund_confirm'
         : b.dataset.mode === 'topup' ? 'fin_resolve_topup_confirm'
         : 'fin_resolve_advance_confirm';
     const вопрос = t(ключ).replace('{0}', b.dataset.who).replace('{1}', b.dataset.amount);
     if (!confirm(вопрос)) return;
+
+    let occurred_on = null;
+    if (b.dataset.act === 'donation' || b.dataset.act === 'refund') {
+        const ввод = prompt(t('fin_resolve_occurred_on_prompt'), FinUtils.todayISO());
+        if (ввод === null) return;
+        occurred_on = ввод.trim() || null;
+    }
+
     b.disabled = true;
     const { data, error } = await Layout.db.rpc('fin_resolve_missing_advance', {
         payload: {
             request_id: FinUtils.newRequestId(),
             participant_id: b.dataset.pid,
             retreat_id: b.dataset.rid,
-            action: b.dataset.act
+            action: b.dataset.act,
+            occurred_on
         }
     });
     if (error || !data?.ok) {
