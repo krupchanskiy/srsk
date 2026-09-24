@@ -268,7 +268,7 @@ function renderKits() {
         const add = caps.edit && free.length ? `<div class="flex items-center gap-2 mt-2">
             <select class="select select-bordered select-xs flex-1" data-kit-add-product="${meal}">${free.map(p => `<option value="${p.id}">${e(productLabel(p.id))}</option>`).join('')}</select>
             <button class="btn btn-xs btn-outline" data-action="kit-add" data-meal="${meal}">+ ${e(tr('cost_kit_add', 'Добавить'))}</button>
-        </div>` : '';
+        </div>` : (caps.edit ? `<div class="text-xs opacity-60 mt-2">${e(tr('cost_kit_all_added', 'Все позиции категории «Одноразовая посуда» уже в наборе. Новый вид посуды заведите как продукт в этой категории:'))} <a class="link" href="products.html">${e(tr('nav_products', 'Продукты'))}</a></div>` : '');
         return `<div><div class="font-medium mb-1">${e(MEAL_LABELS[meal]())}</div>${rows || `<div class="text-sm opacity-60">${e(tr('cost_kit_empty', 'Набор пуст'))}</div>`}${add}</div>`;
     }).join('');
 }
