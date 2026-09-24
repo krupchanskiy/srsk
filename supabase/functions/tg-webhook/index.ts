@@ -632,12 +632,23 @@ Deno.serve(async (req) => {
   // риса 340» — тоже два числа, а сумма одна), а брать последнюю неверно — так
   // «навоз 1400р, удобрения 580р, топливо 200р» уходило в учёт как 200.
   if (looksLikeList(text)) {
-    await tg("sendMessage", {
-      chat_id: m.chat.id, reply_to_message_id: m.message_id,
-      text: "⚠️ Вижу в сообщении несколько сумм — такую заявку я не завожу, чтобы"
-          + " не записать не ту сумму.\nПришлите каждую трату отдельным сообщением:"
-          + " «Навоз 1400 ₹», «Удобрения 580 ₹», «Топливо 200 ₹».",
+    // Уточнение ВГ 24.09.2026: предупреждение приходило на любой текст с числами, даже в общем
+    // чате переписки (приветствие с «1000», «300»). Теперь — только в финансовой теме «Счёт»,
+    // с кнопкой «Понял» и самоудалением через 5 минут; в остальных темах бот молчит.
+    const { data: gl } = await supa.rpc("tg_finance_topic_check", {
+      p_chat: m.chat.id, p_thread: m.message_thread_id ?? null,
     });
+    if (gl && gl.allowed !== false && !gl.hint) {
+      const sent = await tg("sendMessage", {
+        chat_id: m.chat.id, reply_to_message_id: m.message_id,
+        text: "⚠️ Вижу в сообщении несколько сумм — такую заявку я не завожу, чтобы"
+            + " не записать не ту сумму.\nПришлите каждую трату отдельным сообщением:"
+            + " «Навоз 1400 ₹», «Удобрения 580 ₹», «Топливо 200 ₹».",
+        reply_markup: { inline_keyboard: [[{ text: "✅ Понял, перепишу", callback_data: "ack" }]] },
+      });
+      const warnId = sent?.result?.message_id;
+      if (warnId) await supa.rpc("tg_schedule_delete", { p_chat: m.chat.id, p_message: warnId, p_delay_seconds: 300 });
+    }
     return new Response("ok");
   }
 
