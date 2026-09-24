@@ -648,6 +648,11 @@ Deno.serve(async (req) => {
       });
       const warnId = sent?.result?.message_id;
       if (warnId) await supa.rpc("tg_schedule_delete", { p_chat: m.chat.id, p_message: warnId, p_delay_seconds: 300 });
+      // 👎 на самом сообщении: заявка не принята — видно и после удаления подсказки (просьба ВГ 24.09.2026)
+      await tg("setMessageReaction", {
+        chat_id: m.chat.id, message_id: m.message_id,
+        reaction: [{ type: "emoji", emoji: "👎" }],
+      });
     }
     return new Response("ok");
   }
