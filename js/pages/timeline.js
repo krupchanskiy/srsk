@@ -168,8 +168,11 @@ async function loadTimelineData() {
         console.error('CRM self accommodation:', err);
         return [];
     });
+    // Сверху питающиеся, ниже не питающиеся, внутри — по алфавиту
+    const selfName = r => (r.vaishnavas ? getVaishnavName(r.vaishnavas, '') : '') || r.guest_name || r.bookings?.name || '';
     selfStays = [...selfAccommodated, ...fromCrm].sort((a, b) =>
-        (a.check_in || '').localeCompare(b.check_in || ''));
+        (a.has_meals === false) - (b.has_meals === false)
+        || selfName(a).localeCompare(selfName(b), 'ru'));
     if (selfStays.length) collapsedBuildings.delete(SELF_GROUP_ID);
     else collapsedBuildings.add(SELF_GROUP_ID);
     const cleanings = cleaningsRes.data || [];
