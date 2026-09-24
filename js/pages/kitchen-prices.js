@@ -115,7 +115,7 @@ async function loadPrices() {
     while (true) {
         const { data, error } = await Layout.db
             .from('kitchen_prices')
-            .select('id, product_id, price, valid_from, valid_to, reason_category, comment, created_at')
+            .select('id, product_id, price, valid_from, valid_to, reason_category, comment, created_at, created_by')
             .eq('location_id', locationId)
             .order('valid_from', { ascending: false })
             .range(from, from + size - 1);
@@ -284,18 +284,28 @@ async function openHistory(productId) {
     if (rows.length) {
         const { data } = await Layout.db
             .from('kitchen_price_corrections')
-            .select('price_id, old_price, new_price, reason, corrected_at')
+            .select('price_id, old_price, new_price, reason, corrected_at, corrected_by')
             .in('price_id', rows.map(r => r.id))
             .order('corrected_at');
         corrections = data || [];
     }
+
+    // Кто внёс цену / исправил — чтобы было с кого спросить
+    const userIds = [...new Set([...rows.map(r => r.created_by), ...corrections.map(c => c.corrected_by)].filter(Boolean))];
+    const names = {};
+    if (userIds.length) {
+        const { data } = await Layout.db.from('vaishnavas')
+            .select('user_id, spiritual_name, first_name, last_name').in('user_id', userIds);
+        (data || []).forEach(v => (names[v.user_id] = v.spiritual_name || `${v.first_name || ''} ${v.last_name || ''}`.trim()));
+    }
+    const who = (userId, at) => [names[userId], at ? DateUtils.formatDisplay(new Date(at)) : ''].filter(Boolean).join(', ');
 
     Layout.$('#historyBody').innerHTML = rows.map(r => {
         const period = r.valid_to
             ? `${fmtDate(r.valid_from)} — ${fmtDate(r.valid_to)}`
             : `${t('prices_col_since')} ${fmtDate(r.valid_from)}`;
         const log = corrections.filter(c => c.price_id === r.id).map(c =>
-            `<div class="text-xs opacity-60">${t('prices_was')} ${e(money(c.old_price))} → ${t('prices_became')} ${e(money(c.new_price))}: ${e(c.reason)}</div>`).join('');
+            `<div class="text-xs opacity-60">${t('prices_was')} ${e(money(c.old_price))} → ${t('prices_became')} ${e(money(c.new_price))}: ${e(c.reason)}${who(c.corrected_by, c.corrected_at) ? ` (${e(who(c.corrected_by, c.corrected_at))})` : ''}</div>`).join('');
         return `
             <div class="border border-base-200 rounded-lg p-3 flex justify-between items-start gap-3 ${r.valid_to ? '' : 'bg-base-200/40'}">
                 <div>
@@ -303,6 +313,7 @@ async function openHistory(productId) {
                         ${r.valid_to ? '' : `<span class="badge badge-success badge-sm ml-1">${t('prices_current')}</span>`}</div>
                     <div class="text-sm opacity-70">${e(period)}</div>
                     <div class="text-xs opacity-60">${e(reasonLabel(r.reason_category))}${r.comment ? ' · ' + e(r.comment) : ''}</div>
+                    ${who(r.created_by, r.created_at) ? `<div class="text-xs opacity-60">${t('prices_entered_by')}: ${e(who(r.created_by, r.created_at))}</div>` : ''}
                     ${log}
                 </div>
                 ${caps.correct ? `<button class="btn btn-ghost btn-xs" data-action="correct" data-id="${r.id}" data-product="${productId}">${t('prices_correct')}</button>` : ''}
