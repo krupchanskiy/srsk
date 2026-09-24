@@ -1,0 +1,6 @@
+-- Фильтр «Не уточнена плотность или вес» и значок на карточке в списке рецептов (kitchen/recipes.html)
+insert into translations (key, ru, en, hi, context) values
+('recipes_filter_unit_issue', 'Не уточнена плотность или вес', 'Density or weight not specified', 'घनत्व या वज़न निर्दिष्ट नहीं', 'Кухня → Рецепты'),
+('recipes_unit_issue', 'уточнить плотность / вес', 'specify density / weight', 'घनत्व / वज़न बताएं', 'Кухня → Рецепты'),
+('recipes_unit_issue_hint', 'У части ингредиентов единица рецепта не переводится в закупочную: не указана плотность (граммы в ложке/стакане) или вес 1 шт в карточке продукта. Себестоимость по ним не посчитается или будет приблизительной. Какие именно — видно в рецепте по жёлтым значкам.', 'For some ingredients the recipe unit cannot be converted to the purchase unit: density (grams per spoon/cup) or the weight of 1 piece is not set in the product card. Their cost will not be calculated or will be approximate. Which ones — see the yellow badges in the recipe.', 'कुछ सामग्रियों की व्यंजन इकाई खरीद इकाई में परिवर्तित नहीं होती: उत्पाद कार्ड में घनत्व (चम्मच/कप में ग्राम) या 1 नग का वज़न नहीं दिया गया है। उनकी लागत की गणना नहीं होगी या अनुमानित होगी। कौन-सी — व्यंजन में पीले बैज देखें।', 'Кухня → Рецепты')
+on conflict (key) do nothing;

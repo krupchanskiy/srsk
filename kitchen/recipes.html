@@ -69,6 +69,11 @@
                 </button>
             </div>
             <label class="flex items-center gap-2 cursor-pointer">
+                <input type="checkbox" id="onlyUnitIssue" class="checkbox checkbox-sm checkbox-warning" />
+                <span class="text-sm" data-i18n="recipes_filter_unit_issue">Не уточнена плотность или вес</span>
+                <span id="unitIssueCount" class="badge badge-warning badge-sm"></span>
+            </label>
+            <label class="flex items-center gap-2 cursor-pointer">
                 <input type="checkbox" id="showPhotosToggle" class="toggle toggle-primary toggle-sm" checked />
                 <span class="text-sm" data-i18n="show_photos">Показывать фото</span>
             </label>
@@ -120,6 +125,8 @@
         let locationId = null;
         let totalCount = 0;
         let currentPage = 1;
+        let onlyUnitIssue = false;
+        let unitIssueIds = new Set();   // рецепты, где единица ингредиента не переводится в закупочную
 
         // Алиасы для удобства
         const t = key => Layout.t(key);
@@ -167,56 +174,124 @@
         }
 
         async function loadRecipes() {
-            let query = Layout.db
-                .from('recipes')
-                .select('*, recipe_categories(slug, name_ru, name_en, name_hi, color, emoji)', { count: 'exact' });
-
-            // Фильтруем по локации
-            if (locationId) {
-                query = query.eq('location_id', locationId);
-            }
-
-            // Фильтр по категории (серверный)
-            if (currentCategory !== 'all') {
-                const cat = categories.find(c => c.slug === currentCategory);
-                if (cat) {
-                    query = query.eq('category_id', cat.id);
-                }
-            }
-
-            // Серверный поиск
-            if (searchQuery) {
-                const q = `%${searchQuery}%`;
-                query = query.or(`name_ru.ilike.${q},name_en.ilike.${q},name_hi.ilike.${q}`);
-            }
-
-            // Серверная сортировка
+            // Собирается функцией: при фильтре «не уточнена плотность» нужен новый запрос на каждый кусок id
             const SORT_MAP = { name: 'name_ru', category: 'category_id', time: 'cooking_time' };
             const dbField = SORT_MAP[sortColumn] || 'name_ru';
-            query = query.order(dbField, { ascending: sortDirection === 'asc' });
+            const buildQuery = () => {
+                let query = Layout.db
+                    .from('recipes')
+                    .select('*, recipe_categories(slug, name_ru, name_en, name_hi, color, emoji)', { count: 'exact' });
+
+                // Фильтруем по локации
+                if (locationId) {
+                    query = query.eq('location_id', locationId);
+                }
+
+                // Фильтр по категории (серверный)
+                if (currentCategory !== 'all') {
+                    const cat = categories.find(c => c.slug === currentCategory);
+                    if (cat) {
+                        query = query.eq('category_id', cat.id);
+                    }
+                }
+
+                // Серверный поиск
+                if (searchQuery) {
+                    const q = `%${searchQuery}%`;
+                    query = query.or(`name_ru.ilike.${q},name_en.ilike.${q},name_hi.ilike.${q}`);
+                }
+
+                // Серверная сортировка
+                return query.order(dbField, { ascending: sortDirection === 'asc' });
+            };
 
             // Пагинация
             const from = (currentPage - 1) * PAGE_SIZE;
             const to = from + PAGE_SIZE - 1;
-            query = query.range(from, to);
 
-            const { data, error, count } = await query;
-            if (error) { console.error('Error loading recipes:', error); return; }
-            recipes = data || [];
-            totalCount = count || 0;
+            if (onlyUnitIssue) {
+                // id может быть пара сотен — в один адрес запроса не влезают: берём кусками, страницу режем здесь
+                const { data, error } = await byIssueIds(buildQuery);
+                if (error) { console.error('Error loading recipes:', error); return; }
+                const dir = sortDirection === 'asc' ? 1 : -1;
+                const all = (data || []).sort((a, b) => {
+                    const x = a[dbField] ?? '', y = b[dbField] ?? '';
+                    return (typeof x === 'number' && typeof y === 'number' ? x - y : String(x).localeCompare(String(y), 'ru')) * dir;
+                });
+                recipes = all.slice(from, to + 1);
+                totalCount = all.length;
+            } else {
+                const { data, error, count } = await buildQuery().range(from, to);
+                if (error) { console.error('Error loading recipes:', error); return; }
+                recipes = data || [];
+                totalCount = count || 0;
+            }
             renderRecipes();
             renderCategoryFilters();
         }
 
+        // Рецепты, у которых себестоимость не посчитается или посчитается приблизительно:
+        // та же проверка, что значки «нет плотности» / «нет веса 1 шт» / «не в весе» в редакторе рецепта.
+        const SPOON_FIELD = { tsp: 'tsp_grams', tbsp: 'tbsp_grams', cup: 'cup_grams', l: 'liter_grams', ml: 'liter_grams', pcs: 'piece_grams' };
+
+        function ingredientUnitIssue(productUnit, recipeUnit, density) {
+            const typeOf = code => units.find(u => u.code === code)?.type;
+            const pt = typeOf(productUnit || 'g'), rt = typeOf(recipeUnit);
+            if (!pt || !rt || pt === rt) return false;
+            if (pt === 'count' || rt === 'count') {
+                const pieceWeight = (productUnit === 'pcs' && rt === 'weight') || (recipeUnit === 'pcs' && pt === 'weight');
+                return pieceWeight ? !density?.piece_grams : true;
+            }
+            const field = SPOON_FIELD[recipeUnit] || SPOON_FIELD[productUnit];
+            return !!field && density?.[field] == null;
+        }
+
+        async function loadUnitIssues() {
+            unitIssueIds = new Set();
+            if (!locationId) return;
+            const { data: dens } = await Layout.db.from('product_densities').select('*');
+            const densities = Object.fromEntries((dens || []).map(d => [d.product_id, d]));
+            const size = 1000;
+            for (let from = 0; ; from += size) {
+                const { data, error } = await Layout.db.from('recipe_ingredients')
+                    .select('recipe_id, unit, product_id, products(unit), recipes!inner(location_id)')
+                    .eq('recipes.location_id', locationId)
+                    .not('product_id', 'is', null)
+                    .order('id').range(from, from + size - 1);
+                if (error) { console.error('Error loading recipe units:', error); return; }
+                (data || []).forEach(r => {
+                    if (ingredientUnitIssue(r.products?.unit, r.unit, densities[r.product_id])) unitIssueIds.add(r.recipe_id);
+                });
+                if (!data || data.length < size) break;
+            }
+            Layout.$('#unitIssueCount').textContent = unitIssueIds.size;
+        }
+
+        // Тот же запрос, ограниченный рецептами из unitIssueIds, кусками по 100 id.
+        // build() должен каждый раз возвращать новый запрос (запрос Supabase одноразовый).
+        async function byIssueIds(build) {
+            const ids = [...unitIssueIds];
+            const out = [];
+            for (let i = 0; i < ids.length; i += 100) {
+                const { data, error } = await build().in('id', ids.slice(i, i + 100));
+                if (error) return { data: null, error };
+                out.push(...(data || []));
+            }
+            return { data: out, error: null };
+        }
+
         // Загрузка счётчиков категорий
         async function loadCategoryCounts() {
-            let baseQuery = Layout.db.from('recipes').select('category_id');
-            if (locationId) baseQuery = baseQuery.eq('location_id', locationId);
-            if (searchQuery) {
-                const q = `%${searchQuery}%`;
-                baseQuery = baseQuery.or(`name_ru.ilike.${q},name_en.ilike.${q},name_hi.ilike.${q}`);
-            }
-            const { data } = await baseQuery;
+            const buildBase = () => {
+                let baseQuery = Layout.db.from('recipes').select('category_id');
+                if (locationId) baseQuery = baseQuery.eq('location_id', locationId);
+                if (searchQuery) {
+                    const q = `%${searchQuery}%`;
+                    baseQuery = baseQuery.or(`name_ru.ilike.${q},name_en.ilike.${q},name_hi.ilike.${q}`);
+                }
+                return baseQuery;
+            };
+            const { data } = onlyUnitIssue ? await byIssueIds(buildBase) : await buildBase();
             const counts = { all: (data || []).length };
             (data || []).forEach(r => {
                 const cat = categories.find(c => c.id === r.category_id);
@@ -310,6 +385,7 @@
                                 ${recipe.cooking_time ? `<span class="text-xs opacity-50">${recipe.cooking_time} ${t('minutes')}</span>` : ''}
                             </div>
                             <h3 class="card-title text-base leading-tight mb-0">${Layout.getName(recipe)}</h3>
+                            ${unitIssueIds.has(recipe.id) ? `<span class="badge badge-warning badge-sm" title="${t('recipes_unit_issue_hint')}">${t('recipes_unit_issue')}</span>` : ''}
                             <p class="sub-text">${recipe[`name_${secondaryLang}`] || ''}</p>
                             ${lang !== 'hi' && (recipe.name_hi || recipe.translit) ? `<p class="sub-text">${[recipe.name_hi, recipe.translit].filter(Boolean).join(' · ')}</p>` : ''}
                             ${recipe.output_amount || recipe.portion_amount ? `
@@ -401,6 +477,12 @@
                 searchInput.focus();
             });
 
+            Layout.$('#onlyUnitIssue')?.addEventListener('change', e => {
+                onlyUnitIssue = e.target.checked;
+                currentPage = 1;
+                loadRecipes();
+            });
+
             // Переключатель фото
             Layout.$('#showPhotosToggle')?.addEventListener('change', e => {
                 showPhotos = e.target.checked;
@@ -417,6 +499,7 @@
         window.onLocationChange = async function() {
             await loadLocationId();
             currentPage = 1;
+            await loadUnitIssues();
             await loadRecipes();
         };
 
@@ -428,6 +511,7 @@
             // Загружаем данные страницы
             await loadLocationId();
             await Promise.all([loadUnits(), loadCategories()]);
+            await loadUnitIssues();
             await loadRecipes();
             updateSortIcons();
         }
