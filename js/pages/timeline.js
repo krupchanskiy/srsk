@@ -1403,6 +1403,12 @@ function openResidentModal(guestData, buildingName, roomName) {
                 </svg>
                 ${t('timeline_checkin_action')}
             </button>`;
+            actionsHtml += `<button class="btn btn-outline" data-action="show-edit-dates-screen">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                </svg>
+                ${t('timeline_dates')}
+            </button>`;
             actionsHtml += `<button class="btn btn-info btn-outline" data-action="show-move-screen">
                 <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4" />
@@ -1710,6 +1716,24 @@ async function saveDates() {
     if (error) {
         alert(Layout.t('error') + ': ' + error.message);
         return;
+    }
+
+    // Даты брони — охват всех её мест, иначе список броней покажет старые даты
+    const bookingId = currentResident.rawData.booking_id;
+    if (bookingId) {
+        const { data: beds } = await Layout.db
+            .from('residents')
+            .select('check_in, check_out')
+            .eq('booking_id', bookingId)
+            .neq('status', 'cancelled');
+        if (beds?.length) {
+            const ins = beds.map(b => b.check_in).filter(Boolean).sort();
+            const outs = beds.map(b => b.check_out).filter(Boolean).sort();
+            await Layout.db
+                .from('bookings')
+                .update({ check_in: ins[0], ...(outs.length ? { check_out: outs[outs.length - 1] } : {}) })
+                .eq('id', bookingId);
+        }
     }
 
     document.getElementById('residentModal').close();
