@@ -64,7 +64,7 @@ function renderEventSelect() {
     const optgroup = (label, items) => items.length
         ? `<optgroup label="${e(label)}">` + items.map(option).join('') + '</optgroup>'
         : '';
-    sel.innerHTML = `<option value="">${e(tr('group_event_none', 'Без события (самостоятельные гости)'))}</option>`
+    sel.innerHTML = `<option value="">${e(tr('group_event_none', 'Без события'))}</option>`
         + optgroup(tr('group_event_retreat', 'Наш ретрит'), list.filter(r => !r.is_external))
         + optgroup(tr('retreats_is_external', 'Стороннее мероприятие'), list.filter(r => r.is_external));
     sel.value = selectedId;

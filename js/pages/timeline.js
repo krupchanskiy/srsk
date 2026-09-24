@@ -378,7 +378,7 @@ async function loadTimelineData() {
                         border,
                         isBooking,
                         retreatTag: res.retreat_id ? (retreatTags.get(res.retreat_id) || null) : null,
-                        // Самостоятельный гость: обычный «Гость» без ретрита. Команда, волонтёры и важные
+                        // Гость без события: обычный «Гость» без ретрита. Команда, волонтёры и важные
                         // гости и так выделены своими категориями. В шахматке — точечная рамка.
                         isSelf: !res.retreat_id && res.category_id === GUEST_CATEGORY_ID,
                         isCheckedOut: res.status === 'checked_out',
@@ -731,10 +731,10 @@ function renderLegend() {
         <span class="text-xs text-gray-600">${t('timeline_done')}</span>
     </div>`;
 
-    // Самостоятельный гость — человечек перед именем (компактная легенда, как у остальных)
+    // Гость без события — человечек перед именем (компактная легенда, как у остальных)
     const selfLabelRaw = t('timeline_self_guest');
-    const selfLabel = selfLabelRaw === 'timeline_self_guest' ? 'Самостоятельный гость' : selfLabelRaw;
-    const selfHtml = `<div class="flex items-center gap-1 whitespace-nowrap" title="Самостоятельный гость — приехал не на ретрит">
+    const selfLabel = selfLabelRaw === 'timeline_self_guest' ? 'Гость без события' : selfLabelRaw;
+    const selfHtml = `<div class="flex items-center gap-1 whitespace-nowrap" title="Гость без события — приехал не на ретрит и не на мероприятие">
         <span class="w-3 h-3 rounded shrink-0 flex items-center justify-center" style="background: #3b82f6; color: #fff;">${SELF_ICON}</span>
         <span class="text-xs text-gray-600">${selfLabel}</span>
     </div>`;
@@ -2587,7 +2587,7 @@ function renderTable() {
 
                         const debtClass = guest.hasDebt ? ' has-debt' : '';
                         const selfLabelRaw = t('timeline_self_guest');
-                        const selfLabel = selfLabelRaw === 'timeline_self_guest' ? 'Самостоятельный гость — приехал не на ретрит' : selfLabelRaw;
+                        const selfLabel = selfLabelRaw === 'timeline_self_guest' ? 'Гость без события — приехал не на ретрит и не на мероприятие' : selfLabelRaw;
                         // Место после «$» и «◆» — там же, где буквы ретрита: у гостя без ретрита вместо них человечек
                         const selfHtml = guest.isSelf
                             ? `<span class="self-mark" title="${Layout.escapeHtml(selfLabel)}">${SELF_ICON}</span>`
@@ -2774,7 +2774,10 @@ async function renderSelfAccommodation() {
         (a.check_in || '').localeCompare(b.check_in || ''));
     if (!list.length) { box.classList.add('hidden'); return; }
 
-    document.getElementById('selfSummary').textContent = `${t('self_accommodation')}: ${list.length}`;
+    // Своя подпись, а не общий self_accommodation («Самостоятельно»): рядом «Гость без события», нужно полное слово
+    const blockRaw = t('timeline_self_block');
+    const blockLabel = blockRaw === 'timeline_self_block' ? 'Самостоятельное проживание' : blockRaw;
+    document.getElementById('selfSummary').textContent = `${blockLabel}: ${list.length}`;
     document.getElementById('selfList').innerHTML = list.map(res => {
         let name = res.guest_name || '';
         if (res.vaishnavas) name = getVaishnavName(res.vaishnavas, '');
