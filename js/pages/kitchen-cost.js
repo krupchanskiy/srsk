@@ -47,7 +47,8 @@ let reconcileActuals = [];
 const retreatSpanCache = new Map();   // retreat_id → { from, to, pm } — где реально ели люди ретрита
 let departments = [];                 // справочник департаментов людей (vaishnavas.department_id)
 const personDept = new Map();         // vaishnava_id → department_id | null
-const personName = new Map();         // vaishnava_id → имя (для списка «без департамента»)
+const personName = new Map();         // vaishnava_id → имя (для списков людей)
+const groupNames = new Map();         // meal_groups.id → название группы
 
 // ==================== HELPERS ====================
 const locale = () => Layout.currentLang === 'hi' ? 'hi-IN' : Layout.currentLang === 'en' ? 'en-US' : 'ru-RU';
@@ -188,13 +189,22 @@ async function loadPersonDepts(ids) {
     }
 }
 
+async function loadGroupNames(ids) {
+    const missing = [...new Set(ids)].filter(id => id && !groupNames.has(id));
+    if (!missing.length) return;
+    const { data } = await Layout.db.from('meal_groups').select('id, name').in('id', missing);
+    (data || []).forEach(g => groupNames.set(g.id, g.name));
+}
+
 // Доход прасада ретрита — из отчёта по ретриту в финансах (блок «Прасад»). Нет прав — не показываем.
 const incomeCache = new Map();
 async function retreatIncome(retreatId) {
     if (incomeCache.has(retreatId)) return incomeCache.get(retreatId);
     const { data, error } = await Layout.db.rpc('fin_get_retreat_report', { p_retreat: retreatId });
-    const inc = error ? null : data?.result?.report?.prasad?.totals?.income_base;
-    const v = inc === undefined || inc === null ? null : Number(inc);
+    const res = error ? null : data?.result;
+    const inc = res?.report?.prasad?.totals?.income_base;
+    const v = inc === undefined || inc === null ? null
+        : { amount: Number(inc), objectId: res.object_id, groups: (res.report.prasad.income_by_category || []).map(c => c.category_id) };
     incomeCache.set(retreatId, v);
     return v;
 }
@@ -218,7 +228,8 @@ async function calculate() {
             loadReconcile(from, to)
         ]);
         if (token !== calcToken) return;
-        await loadPersonDepts(detail.map(x => x.vaishnava_id));
+        await Promise.all([loadPersonDepts(detail.map(x => x.vaishnava_id)),
+                           loadGroupNames(detail.filter(x => x.kind === 'group').map(x => x.ref_id))]);
 
         // доход прасада ретритов: доля по дням питания (человеко-приёмы в окне / за весь ретрит)
         const incomes = {};
@@ -229,11 +240,21 @@ async function calculate() {
             const [income, span] = await Promise.all([retreatIncome(id), retreatSpan(r)]);
             const pmWindow = aggregate(result.cells, `retreat:${id}`, ALL_BUCKETS).pm;
             incomes[id] = income === null ? null
-                : { full: income, share: span.pm ? Math.min(1, pmWindow / span.pm) : 1 };
+                : { full: income.amount, objectId: income.objectId, groups: income.groups,
+                    share: span.pm ? Math.min(1, pmWindow / span.pm) : 1 };
         }));
         if (token !== calcToken) return;
 
-        view = { from, to, result, detail, incomes };
+        const postingIds = result.overheadLines.map(l => l.postingId).filter(Boolean);
+        const opByPosting = new Map();
+        if (postingIds.length) {
+            const { data: ops } = await Layout.db.rpc('fin_kitchen_posting_operations', { p_posting_ids: postingIds });
+            (ops || []).forEach(o => opByPosting.set(o.posting_id, o.operation_id));
+        }
+        if (token !== calcToken) return;
+
+        view = { from, to, result, detail, incomes, opByPosting, directPostings: null, incomeOps: {} };
+        expanded.clear();
         render();
     } catch (err) {
         console.error('Cost calculation:', err);
@@ -345,8 +366,9 @@ function renderSummary() {
         const perPart = row.retreatId && st.participants ? total(x) / st.participants : null;
         const days = isPeriod ? daysOf(row) : null;
         const cls = row.sub ? 'text-sm' : 'font-medium';
-        return `<tr class="${row.main ? 'bg-base-200/60 font-semibold' : ''}">
-            <td class="${cls} ${row.sub ? 'pl-8' : ''}">${e(row.label)}${inc && inc.share < 0.999 ? ` <span class="text-xs opacity-60">(${Math.round(inc.share * 100)}% ${e(tr('cost_of_retreat', 'ретрита'))})</span>` : ''}</td>
+        const deptBucket = row.ev === 'none' && (row.buckets[0] === 'team' || row.buckets[0] === 'volunteers') ? row.buckets[0] : null;
+        return `<tr class="${row.main ? 'bg-base-200/60 font-semibold' : ''} ${deptBucket ? 'cursor-pointer hover:bg-base-200/50' : ''}" ${deptBucket ? `data-action="open-dept" data-bucket="${deptBucket}" title="${e(tr('cost_to_departments', 'По департаментам →'))}"` : ''}>
+            <td class="${cls} ${row.sub ? 'pl-8' : ''}">${deptBucket ? `<span class="link link-hover">${e(row.label)}</span>` : e(row.label)}${inc && inc.share < 0.999 ? ` <span class="text-xs opacity-60">(${Math.round(inc.share * 100)}% ${e(tr('cost_of_retreat', 'ретрита'))})</span>` : ''}</td>
             ${isPeriod ? `<td class="text-right text-sm">${days}</td>` : ''}
             <td class="text-right">${st.people ? num(st.people) : '—'}</td>
             <td class="text-right">${num(x.pm)}</td>
@@ -355,9 +377,12 @@ function renderSummary() {
             <td class="text-right font-medium">${money(total(x))}</td>
             <td class="text-right">${x.pm ? money2(total(x) / x.pm) : '—'}</td>
             <td class="text-right">${perPart !== null && !row.sub ? money(perPart) : '—'}</td>
-            <td class="text-right">${income !== null && !row.sub ? money(income) : '—'}</td>
+            <td class="text-right">${income !== null && !row.sub
+                ? `<span class="link link-hover" data-action="toggle-income" data-retreat="${row.retreatId}" title="${e(tr('cost_show_income', 'Показать приходы'))}">${money(income)}</span>` : '—'}</td>
             <td class="text-right">${resultCell(income, x, row.sub, ps)}</td>
-        </tr>`;
+        </tr>${row.retreatId && !row.sub && expanded.has(`income:${row.retreatId}`) ? `<tr><td colspan="11" class="bg-base-200/40 pl-8">
+            <div class="text-sm font-medium mb-1">${e(tr('cost_income_ops', 'Приходы прасада ретрита'))}${inc && inc.share < 0.999 ? ` <span class="opacity-60">(${e(tr('cost_income_whole', 'весь ретрит; в период входит'))} ${Math.round(inc.share * 100)}%)</span>` : ''}</div>
+            ${opsTable(view.incomeOps[row.retreatId])}</td></tr>` : ''}`;
     }).join('');
 
     const showGrand = isPeriod && rows.length > 1;
@@ -442,6 +467,7 @@ function tabList() {
     const multiMonth = view.from.slice(0, 7) !== view.to.slice(0, 7);
     return [
         { id: 'eaters', label: tr('cost_tab_eaters', 'Вкушающие') },
+        { id: 'departments', label: tr('cost_tab_departments', 'Команда и волонтёры') },
         { id: 'direct', label: tr('cost_tab_direct', 'Прямые затраты') },
         { id: 'overhead', label: tr('cost_tab_overhead', 'Накладные') },
         multiMonth ? { id: 'months', label: tr('cost_tab_months', 'По месяцам') } : null,
@@ -458,7 +484,7 @@ function renderTabs() {
         `<a role="tab" class="tab ${x.id === state.tab ? 'tab-active [--tab-bg:oklch(var(--b1))]' : ''} ${x.warn ? 'text-warning' : ''}" data-action="tab" data-tab="${x.id}">${e(x.label)}</a>`).join('');
     document.querySelectorAll('[data-panel]').forEach(p => p.classList.toggle('hidden', p.dataset.panel !== state.tab));
     Layout.$('#tabsBox').classList.remove('hidden');
-    ({ eaters: renderEaters, direct: renderDirect, overhead: renderOverhead, months: renderMonths,
+    ({ eaters: renderEaters, departments: renderDepartments, direct: renderDirect, overhead: renderOverhead, months: renderMonths,
        reconcile: renderReconcile, settings: () => { renderKits(); renderGroups(); }, problems: renderWarnings })[state.tab]?.();
 }
 
@@ -466,6 +492,101 @@ function renderTabs() {
 function scopeEvents() {
     return state.mode === 'retreat' ? [`retreat:${state.retreatId}`] : null;   // null — все события
 }
+
+// Люди по строкам детализации: кто, сколько дней ел, завтраков, обедов, приёмов пищи и во что обошёлся.
+// Стоимость человека = его приёмы пищи из меню × стоимость одного приёма пищи его ячейки
+// (ретрит или «без события» × категория), поэтому сумма по людям = итог сводки.
+function personRows(match) {
+    const cells = view.result.cells;
+    const rate = {};
+    const rateOf = (ev, bucket) => {
+        const k = `${ev}|${bucket}`;
+        if (!(k in rate)) { const x = aggregate(cells, ev, [bucket]); rate[k] = x.pm ? total(x) / x.pm : 0; }
+        return rate[k];
+    };
+    // стоимость есть только у приёмов пищи из меню — дни без меню не считаем, иначе сумма разойдётся с итогом
+    const served = view.served || (view.served = new Set(view.result.mealRecords.filter(r => !r.unallocated).map(r => `${r.date}|${r.meal}`)));
+    const people = new Map();
+    for (const x of view.detail) {
+        const ev = x.retreat_id ? `retreat:${x.retreat_id}` : 'none';
+        if (!match(x, ev)) continue;
+        const key = x.vaishnava_id || x.ref_id;
+        const n = x.kind === 'group' ? (Number(x.people) || 1) : 1;
+        const p = people.get(key) || { key, vaishnavaId: x.vaishnava_id, kind: x.kind, refId: x.ref_id, bucket: x.bucket,
+                                       n, days: new Set(), bf: 0, ln: 0, pm: 0, cost: 0 };
+        p.n = Math.max(p.n, n);
+        if (x.breakfast || x.lunch) p.days.add(x.d);
+        if (x.breakfast) p.bf += n;
+        if (x.lunch) p.ln += n;
+        const meals = (x.breakfast && served.has(`${x.d}|breakfast`) ? 1 : 0) + (x.lunch && served.has(`${x.d}|lunch`) ? 1 : 0);
+        p.pm += meals * n;
+        p.cost += meals * n * rateOf(ev, x.bucket);
+        people.set(key, p);
+    }
+    return [...people.values()];
+}
+
+function personLabel(p) {
+    if (p.vaishnavaId) return personName.get(p.vaishnavaId) || '—';
+    if (p.kind === 'group') return `${groupNames.get(p.refId) || tr('nav_groups', 'Группа')} (${p.n} ${tr('cost_people_short', 'чел.')})`;
+    return tr('cost_unnamed_booking', 'Бронь без имени');
+}
+
+// Вложенная таблица людей для раскрытой строки
+function peopleTable(list, withBucket) {
+    if (!list.length) return `<div class="text-sm opacity-60 py-2">${e(tr('cost_nothing', 'За период нет данных'))}</div>`;
+    const ps = pricesState();
+    list.sort((a, b) => b.pm - a.pm || personLabel(a).localeCompare(personLabel(b), 'ru'));
+    return `<table class="table table-xs w-full cost-table bg-base-100">
+        <thead><tr><th>${e(tr('name', 'Имя'))}</th>${withBucket ? `<th></th>` : ''}
+            <th class="text-right">${e(tr('cost_days', 'Дней'))}</th>
+            <th class="text-right">${e(tr('breakfast', 'Завтраков'))}</th>
+            <th class="text-right">${e(tr('lunch', 'Обедов'))}</th>
+            <th class="text-right">${e(tr('cost_person_meals', 'Приёмов пищи'))}</th>
+            <th class="text-right">${e(tr('cost_total', 'Всего'))}</th></tr></thead>
+        <tbody>${list.map(p => `<tr class="${p.pm ? '' : 'opacity-50'}">
+            <td>${p.vaishnavaId ? `<a class="link link-hover" href="../vaishnavas/person.html?id=${p.vaishnavaId}">${e(personLabel(p))}</a>` : e(personLabel(p))}</td>
+            ${withBucket ? `<td class="text-xs opacity-70">${e(BUCKET_LABELS[p.bucket]())}</td>` : ''}
+            <td class="text-right">${p.days.size}</td><td class="text-right">${p.bf}</td><td class="text-right">${p.ln}</td>
+            <td class="text-right">${p.pm}</td>
+            <td class="text-right">${money(p.cost)}${ps !== 'ok' ? ' <span class="text-warning">⚠</span>' : ''}</td></tr>`).join('')}</tbody></table>`;
+}
+
+const expanded = new Set();   // раскрытые строки: 'eaters:<key>' | 'dept:<id>' | 'income:<retreat>' | 'recon:<code>'
+const DDS_URL = id => `../finance/dds.html?op=${encodeURIComponent(id)}`;
+
+// Список операций ДДС (приходы или расходы) — строка ведёт в ДДС на эту операцию
+function opsTable(ops) {
+    if (!ops) return `<div class="py-2"><span class="loading loading-spinner loading-xs"></span></div>`;
+    if (!ops.length) return `<div class="text-sm opacity-60 py-2">${e(tr('fin_drill_empty', 'Операций нет'))}</div>`;
+    return `<table class="table table-xs w-full cost-table bg-base-100"><tbody>${ops.map(o => `
+        <tr class="hover:bg-base-200/60">
+            <td class="whitespace-nowrap w-24">${e(fmtDay(o.date))}</td>
+            <td>${o.opId ? `<a class="link link-hover" href="${DDS_URL(o.opId)}" target="_blank" rel="noopener" title="${e(tr('fin_open_in_dds', 'Открыть в ДДС'))}">${e(o.title || '—')}</a>` : e(o.title || '—')}
+                ${o.meta ? `<div class="text-xs opacity-60">${e(o.meta)}</div>` : ''}</td>
+            <td class="text-right">${o.foreign ? `<span class="text-xs opacity-60">${e(o.foreign)}</span> ` : ''}${money(o.amount)}</td>
+        </tr>`).join('')}</tbody></table>`;
+}
+
+// Приходы прасада ретрита (операции из отчёта по ретриту) — по всем статьям блока «Прасад»
+async function loadIncomeOps(retreatId) {
+    const inc = view.incomes[retreatId];
+    if (!inc || view.incomeOps[retreatId]) return;
+    const parts = await Promise.all(inc.groups.map(g => Layout.db.rpc('fin_get_report_drilldown',
+        { p_object: inc.objectId, p_unit: 'prasad', p_direction: 'in', p_group: g })));
+    view.incomeOps[retreatId] = parts.flatMap(({ data }) => data?.ok ? data.result.rows : []).map(r => ({
+        date: r.occurred_on, opId: r.operation_id, title: r.description || r.participant || r.reason || '—',
+        meta: [r.description && r.participant ? r.participant : '', r.account].filter(Boolean).join(' · '),
+        amount: Number(r.amount_base), foreign: r.currency !== 'INR' ? `${Number(r.amount).toLocaleString(locale())} ${r.currency}` : ''
+    })).sort((a, b) => a.date.localeCompare(b.date));
+}
+
+async function loadDirectPostings() {
+    if (view.directPostings) return;
+    const { data, error } = await Layout.db.rpc('fin_kitchen_direct_postings', { p_from: view.from, p_to: view.to });
+    view.directPostings = error ? [] : (data || []);
+}
+const toggleCell = key => `<span class="inline-block w-4 opacity-60">${expanded.has(key) ? '▾' : '▸'}</span>`;
 
 function renderEaters() {
     const rows = rowDefs();
@@ -479,15 +600,18 @@ function renderEaters() {
     Layout.$('#eatersBody').innerHTML = rows.map(row => {
         const s = peopleStats(row);
         const x = aggregate(view.result.cells, row.ev, row.buckets);
-        return `<tr class="${row.main ? 'bg-base-200/60 font-semibold' : ''}">
-            <td class="${row.sub ? 'pl-8 text-sm' : ''}">${e(row.label)}</td>
+        const key = `eaters:${row.key}`;
+        const deptBucket = row.ev === 'none' && (row.buckets[0] === 'team' || row.buckets[0] === 'volunteers') ? row.buckets[0] : null;
+        const deptLink = deptBucket ? ` <button class="btn btn-ghost btn-xs text-primary" data-action="open-dept" data-bucket="${deptBucket}">${e(tr('cost_to_departments', 'По департаментам →'))}</button>` : '';
+        const open = expanded.has(key)
+            ? `<tr><td colspan="7" class="bg-base-200/40 pl-8">${peopleTable(personRows((xr, ev) => ev === row.ev && row.buckets.includes(xr.bucket)), row.buckets.length > 1)}</td></tr>` : '';
+        return `<tr class="${row.main ? 'bg-base-200/60 font-semibold' : ''} cursor-pointer hover:bg-base-200/50" data-action="toggle-row" data-key="${key}">
+            <td class="${row.sub ? 'pl-8 text-sm' : ''}">${toggleCell(key)}${e(row.label)}${deptLink}</td>
             <td class="text-right">${num(s.people)}</td><td class="text-right">${num(s.both)}</td>
             <td class="text-right">${num(s.bfOnly)}</td><td class="text-right">${num(s.lnOnly)}</td>
             <td class="text-right ${s.none ? '' : 'opacity-40'}">${num(s.none)}</td>
-            <td class="text-right">${num(x.pm)}</td></tr>`;
+            <td class="text-right">${num(x.pm)}</td></tr>${open}`;
     }).join('');
-
-    renderDepartments();
 
     const scope = scopeEvents();
     const cols = ALL_BUCKETS;
@@ -514,60 +638,53 @@ function renderEaters() {
     Layout.$('#daysBody').innerHTML = out.join('') || `<tr><td colspan="9" class="text-center opacity-60">${e(tr('cost_nothing', 'За период нет данных'))}</td></tr>`;
 }
 
-// По департаментам: команда, волонтёры и гости каждого департамента. Стоимость человека —
-// его приёмы пищи × стоимость одного приёма пищи в его ячейке (ретрит или «без события» × категория).
+// ---------- Команда и волонтёры по департаментам ----------
+// Правило ВГ: у каждого в команде и каждого волонтёра есть департамент; расход на их питание
+// по смыслу лежит на департаменте. Фильтр: все / команда / волонтёры.
+let deptFilter = 'all';
+
 function renderDepartments() {
     const scope = scopeEvents();
-    const cells = view.result.cells;
-    const rate = {};
-    const rateOf = (ev, bucket) => {
-        const k = `${ev}|${bucket}`;
-        if (!(k in rate)) { const x = aggregate(cells, ev, [bucket]); rate[k] = x.pm ? total(x) / x.pm : 0; }
-        return rate[k];
-    };
-    const kindOf = b => b === 'team' ? 'team' : b === 'volunteers' ? 'volunteers' : 'guests';
-    const rows = new Map();   // dept_id | '' → { team:Set, volunteers:Set, guests:Set/число, pm, cost }
-    const row = id => rows.get(id) || (rows.set(id, { team: new Set(), volunteers: new Set(), guests: new Set(), groupPeople: 0, pm: 0, cost: 0 }), rows.get(id));
-    const groupsSeen = new Map();
-    // стоимость есть только у приёмов пищи из меню — дни без меню не считаем, иначе сумма разойдётся с итогом
-    const served = new Set(view.result.mealRecords.filter(r => !r.unallocated).map(r => `${r.date}|${r.meal}`));
-    for (const x of view.detail) {
-        const ev = x.retreat_id ? `retreat:${x.retreat_id}` : 'none';
-        if (scope && !scope.includes(ev)) continue;
-        const meals = (x.breakfast && served.has(`${x.d}|breakfast`) ? 1 : 0) + (x.lunch && served.has(`${x.d}|lunch`) ? 1 : 0);
-        if (!meals) continue;
-        const n = x.kind === 'group' ? (Number(x.people) || 1) : 1;
-        const r = row(x.vaishnava_id ? (personDept.get(x.vaishnava_id) || '') : '');
-        if (x.kind === 'group') groupsSeen.set(x.ref_id, Math.max(groupsSeen.get(x.ref_id) || 0, n));
-        else r[kindOf(x.bucket)].add(x.vaishnava_id || x.ref_id);
-        r.pm += meals * n;
-        r.cost += meals * n * rateOf(ev, x.bucket);
+    const buckets = deptFilter === 'team' ? ['team'] : deptFilter === 'volunteers' ? ['volunteers'] : ['team', 'volunteers'];
+    const people = personRows((x, ev) => (!scope || scope.includes(ev)) && buckets.includes(x.bucket));
+    const byDept = new Map();
+    for (const p of people) {
+        if (!p.pm && !p.days.size) continue;
+        const id = (p.vaishnavaId && personDept.get(p.vaishnavaId)) || '';
+        const list = byDept.get(id) || [];
+        list.push(p);
+        byDept.set(id, list);
     }
-    if (groupsSeen.size) row('').groupPeople = [...groupsSeen.values()].reduce((s, n) => s + n, 0);
-
     const name = id => id ? (Layout.getName(departments.find(d => d.id === id) || {}) || '—') : tr('cost_no_department', 'Без департамента');
-    const list = [...rows.entries()].sort(([a, x], [b, y]) => (a === '') - (b === '') || y.cost - x.cost || name(a).localeCompare(name(b)));
+    const sumOf = list => list.reduce((acc, p) => ({ team: acc.team + (p.bucket === 'team' ? 1 : 0), vol: acc.vol + (p.bucket === 'volunteers' ? 1 : 0),
+                                                     pm: acc.pm + p.pm, cost: acc.cost + p.cost }), { team: 0, vol: 0, pm: 0, cost: 0 });
+    const list = [...byDept.entries()].map(([id, ppl]) => ({ id, ppl, s: sumOf(ppl) }))
+        .sort((a, b) => (a.id === '') - (b.id === '') || b.s.cost - a.s.cost || name(a.id).localeCompare(name(b.id)));
     const months = Math.max(1, (DateUtils.parseDate(view.to) - DateUtils.parseDate(view.from)) / 86400000 / 30.44);
+    const ps = pricesState();
+
+    document.querySelectorAll('[data-action="dept-filter"]').forEach(b => b.classList.toggle('btn-active', b.dataset.filter === deptFilter));
     Layout.$('#deptHead').innerHTML = `<tr><th>${e(tr('cost_department', 'Департамент'))}</th>
         <th class="text-right">${e(tr('status_team', 'Команда'))}</th>
         <th class="text-right">${e(tr('category_volunteer', 'Волонтёры'))}</th>
-        <th class="text-right">${e(tr('cost_dept_guests', 'Гости'))}</th>
         <th class="text-right">${e(tr('cost_person_meals', 'Приёмов пищи'))}</th>
         <th class="text-right">${e(tr('cost_total', 'Всего'))}</th>
         <th class="text-right">${e(tr('cost_per_month', 'В месяц'))}</th></tr>`;
-    const ps = pricesState();
-    const sum = { team: 0, vol: 0, guests: 0, pm: 0, cost: 0 };
-    Layout.$('#deptBody').innerHTML = list.map(([id, r]) => {
-        const guests = r.guests.size + r.groupPeople;
-        sum.team += r.team.size; sum.vol += r.volunteers.size; sum.guests += guests; sum.pm += r.pm; sum.cost += r.cost;
-        return `<tr class="${id ? '' : 'opacity-70'}"><td>${e(name(id))}</td>
-            <td class="text-right">${r.team.size || '—'}</td><td class="text-right">${r.volunteers.size || '—'}</td>
-            <td class="text-right">${guests || '—'}</td><td class="text-right">${num(r.pm)}</td>
-            <td class="text-right font-medium">${money(r.cost)}${ps !== 'ok' ? ' <span class="text-warning">⚠</span>' : ''}</td>
-            <td class="text-right">${money(r.cost / months)}</td></tr>`;
+    const grand = { team: 0, vol: 0, pm: 0, cost: 0 };
+    Layout.$('#deptBody').innerHTML = list.map(({ id, ppl, s }) => {
+        Object.keys(grand).forEach(k => grand[k] += s[k]);
+        const key = `dept:${id}`;
+        const open = expanded.has(key) ? `<tr><td colspan="6" class="bg-base-200/40 pl-8">${peopleTable(ppl, true)}</td></tr>` : '';
+        return `<tr class="cursor-pointer hover:bg-base-200/50 ${id ? '' : 'text-warning'}" data-action="toggle-row" data-key="${key}">
+            <td>${toggleCell(key)}${e(name(id))}</td>
+            <td class="text-right">${s.team || '—'}</td><td class="text-right">${s.vol || '—'}</td>
+            <td class="text-right">${num(s.pm)}</td>
+            <td class="text-right font-medium">${money(s.cost)}${ps !== 'ok' ? ' <span class="text-warning">⚠</span>' : ''}</td>
+            <td class="text-right">${money(s.cost / months)}</td></tr>${open}`;
     }).join('') + (list.length ? `<tr class="font-semibold border-t-2 border-base-300"><td>${e(tr('cost_total', 'Всего'))}</td>
-        <td class="text-right">${sum.team}</td><td class="text-right">${sum.vol}</td><td class="text-right">${sum.guests}</td>
-        <td class="text-right">${num(sum.pm)}</td><td class="text-right">${money(sum.cost)}</td><td class="text-right">${money(sum.cost / months)}</td></tr>` : '');
+        <td class="text-right">${grand.team}</td><td class="text-right">${grand.vol}</td><td class="text-right">${num(grand.pm)}</td>
+        <td class="text-right">${money(grand.cost)}</td><td class="text-right">${money(grand.cost / months)}</td></tr>`
+        : `<tr><td colspan="6" class="text-center opacity-60">${e(tr('cost_nothing', 'За период нет данных'))}</td></tr>`);
 }
 
 // ---------- Прямые затраты ----------
@@ -638,8 +755,10 @@ function renderOverhead() {
             : l.kind === 'retreat_period' ? tr('cost_ov_retreats_of_period', 'на ретриты своего периода')
             : l.group === 'general' && l.kind !== 'general' ? `${GROUP_LABELS.general()} (${tr('cost_ov_no_retreat_eaters', 'людей ретрита не было')})`
             : GROUP_LABELS.general();
+        const opId = l.postingId ? view.opByPosting.get(l.postingId) : null;
+        const labelHtml = opId ? `<a class="link link-hover" href="${DDS_URL(opId)}" target="_blank" rel="noopener" title="${e(tr('fin_open_in_dds', 'Открыть в ДДС'))}">${e(label)}</a>` : e(label);
         return { from: l.from, html: `<tr class="${l.unallocated ? 'text-warning' : ''}">
-            <td class="text-sm">${e(label)}${l.estimate ? ` <span class="badge badge-warning badge-xs">${e(tr('cost_estimate', 'оценка'))}</span>` : ''}${l.comment ? `<div class="text-xs opacity-60">${e(l.comment)}</div>` : ''}</td>
+            <td class="text-sm">${labelHtml}${l.estimate ? ` <span class="badge badge-warning badge-xs">${e(tr('cost_estimate', 'оценка'))}</span>` : ''}${l.comment ? `<div class="text-xs opacity-60">${e(l.comment)}</div>` : ''}</td>
             <td class="text-sm whitespace-nowrap">${e(DateUtils.formatRange(l.from, l.to))}</td>
             <td class="text-sm">${e(how)}</td>
             <td class="text-right">${money(l.amount)}</td>
@@ -813,12 +932,16 @@ function renderReconcile() {
         const name = actual?.category_name || tr('cost_cat_' + r.code, r.code);
         const diff = model === null ? null : model - fact;
         if (model !== null) { modelSum += model; factSum += fact; }
-        return `<tr>
-            <td class="text-sm">${e(name)}</td>
+        const key = `recon:${r.code}`;
+        const open = expanded.has(key) ? `<tr><td colspan="4" class="bg-base-200/40 pl-8">${opsTable(view.directPostings
+            ? view.directPostings.filter(p => p.category_code === r.code).map(p => ({ date: p.occurred_on, opId: p.operation_id,
+                title: p.comment || p.category_name, amount: Number(p.amount_base) })) : null)}</td></tr>` : '';
+        return `<tr class="${fact ? 'cursor-pointer hover:bg-base-200/50' : ''}" ${fact ? `data-action="toggle-recon" data-key="${key}"` : ''}>
+            <td class="text-sm">${fact ? toggleCell(key) : '<span class="inline-block w-4"></span>'}${e(name)}</td>
             <td class="text-right">${model === null ? '—' : money(model)}</td>
             <td class="text-right">${money(fact)}</td>
             <td class="text-right ${diff !== null && Math.abs(diff) > Math.max(fact, model || 0) * 0.15 ? 'text-warning font-medium' : ''}">${diff === null ? e(tr('cost_reconcile_na', 'нет в модели')) : money(diff)}</td>
-        </tr>`;
+        </tr>${open}`;
     }).join('') + `<tr class="font-semibold border-t-2 border-base-300">
         <td class="text-sm">${e(tr('cost_reconcile_total', 'Итого сопоставимых'))}</td>
         <td class="text-right">${money(modelSum)}</td>
@@ -936,6 +1059,36 @@ document.addEventListener('click', ev => {
         case 'shift':
             shiftPeriod(Number(btn.dataset.dir));
             renderControls(); calculate();
+            break;
+        case 'toggle-row':
+            if (ev.target.closest('a, button')) break;
+            if (expanded.has(btn.dataset.key)) expanded.delete(btn.dataset.key); else expanded.add(btn.dataset.key);
+            if (view) renderTabs();
+            break;
+        case 'toggle-income': {
+            const key = `income:${btn.dataset.retreat}`;
+            if (expanded.has(key)) expanded.delete(key); else expanded.add(key);
+            renderSummary();
+            if (expanded.has(key)) loadIncomeOps(btn.dataset.retreat).then(() => view && renderSummary());
+            ev.stopPropagation();
+            break;
+        }
+        case 'toggle-recon': {
+            const key = btn.dataset.key;
+            if (expanded.has(key)) expanded.delete(key); else expanded.add(key);
+            renderReconcile();
+            if (expanded.has(key)) loadDirectPostings().then(() => view && renderReconcile());
+            break;
+        }
+        case 'open-dept':
+            deptFilter = btn.dataset.bucket || 'all';
+            state.tab = 'departments';
+            saveState();
+            if (view) renderTabs();
+            break;
+        case 'dept-filter':
+            deptFilter = btn.dataset.filter;
+            if (view) renderDepartments();
             break;
         case 'tab':
             state.tab = btn.dataset.tab;

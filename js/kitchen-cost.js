@@ -257,7 +257,7 @@ function allocateOverhead(input, mealRecords, cell, totals, warn, lines) {
         if (x.labor_unlinked) warn.laborUnlinked.push(`${x.category_name} ${x.occurred_on}`);
         items.push({ amount: Number(x.amount_base), kind, from: x.eff_from, to: x.eff_to,
                      retreatId: x.retreat_id, provisional: x.eff_to >= today, label: `${x.category_name} ${x.occurred_on}`,
-                     category: x.category_name, occurredOn: x.occurred_on, comment: x.comment || null });
+                     category: x.category_name, occurredOn: x.occurred_on, comment: x.comment || null, postingId: x.posting_id || null });
     }
 
     const passAll = () => true;
@@ -270,6 +270,7 @@ function allocateOverhead(input, mealRecords, cell, totals, warn, lines) {
                  : it.kind === 'retreat_period' ? passNoNone : passAll;
         let base = pmIn(it.from, it.to, pass);
         const line = { label: it.label, category: it.category, occurredOn: it.occurredOn || null, comment: it.comment || null,
+                       postingId: it.postingId || null,
                        estimate: !!it.estimate, kind: it.kind, retreatId: it.retreatId || null, amount: it.amount,
                        from: it.from, to: it.to, group: null, allocated: 0, byEvent: {} };
         lines.push(line);
