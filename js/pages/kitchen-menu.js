@@ -457,7 +457,7 @@ function formatEatingDetailed(dateStr) {
 }
 
 // ==================== EATING COUNT CHANGE ALERT ====================
-const EATING_ALERT_THRESHOLD = 5;   // порог: ±5 человек
+const EATING_ALERT_THRESHOLD = 1;   // любое изменение подсчёта, как у бота (число повара не сравниваем)
 const EATING_ALERT_COOLDOWN = 3600000; // 1 час в мс
 
 function getEatingTotalForDate(dateStr) {
