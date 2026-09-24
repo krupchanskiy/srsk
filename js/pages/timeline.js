@@ -2905,9 +2905,10 @@ function renderSelfGroupHtml() {
             res.fromCrm ? crmHint : ''].filter(Boolean).join(' · ');
         const inner = `${tag ? `<span class="retreat-tag">${e(tag.tag)}</span>` : ''}${e(name || '—')}&nbsp;<span class="opacity-70">(${e(meals.toLowerCase())})</span>`
             + (res.fromCrm ? '<span class="self-crm">CRM</span>' : '');
+        const mealsClass = res.has_meals === true ? ' meals-yes' : res.has_meals === false ? ' meals-no' : '';
         const bar = res.vaishnava_id
-            ? `<a class="guest-bar self-stay" href="../vaishnavas/person.html?id=${res.vaishnava_id}" style="width: ${width}px; --cat-color: ${catColor};" title="${e(title)}">${inner}</a>`
-            : `<div class="guest-bar self-stay" style="width: ${width}px; --cat-color: ${catColor};" title="${e(title)}">${inner}</div>`;
+            ? `<a class="guest-bar self-stay${mealsClass}" href="../vaishnavas/person.html?id=${res.vaishnava_id}" style="width: ${width}px; --cat-color: ${catColor};" title="${e(title)}">${inner}</a>`
+            : `<div class="guest-bar self-stay${mealsClass}" style="width: ${width}px; --cat-color: ${catColor};" title="${e(title)}">${inner}</div>`;
 
         html += `<tr class="row-bed ${collapsed ? 'collapsed' : ''}"><td class="sticky-col text-xs opacity-70 truncate" title="${e(retreat ? Layout.getName(retreat) : '')}">${e(retreat ? Layout.getName(retreat) : '')}</td>`;
         for (let col = 0; col < DAYS_TO_SHOW * 2; col++) {
