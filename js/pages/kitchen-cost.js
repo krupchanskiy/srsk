@@ -45,6 +45,9 @@ let unassigned = [];
 let costGroups = [];
 let reconcileActuals = [];
 const retreatSpanCache = new Map();   // retreat_id → { from, to, pm } — где реально ели люди ретрита
+let departments = [];                 // справочник департаментов людей (vaishnavas.department_id)
+const personDept = new Map();         // vaishnava_id → department_id | null
+const personName = new Map();         // vaishnava_id → имя (для списка «без департамента»)
 
 // ==================== HELPERS ====================
 const locale = () => Layout.currentLang === 'hi' ? 'hi-IN' : Layout.currentLang === 'en' ? 'en-US' : 'ru-RU';
@@ -169,6 +172,22 @@ async function loadDetail(from, to) {
     return parts.flat();
 }
 
+// Департамент людей из карточек — для разбивки вкушающих по департаментам
+async function loadPersonDepts(ids) {
+    const missing = [...new Set(ids)].filter(id => id && !personDept.has(id));
+    for (let i = 0; i < missing.length; i += 150) {
+        const part = missing.slice(i, i + 150);
+        const { data, error } = await Layout.db.from('vaishnavas')
+            .select('id, department_id, spiritual_name, first_name, last_name').in('id', part);
+        if (error) { console.error('vaishnavas departments:', error); return; }
+        part.forEach(id => personDept.set(id, null));
+        (data || []).forEach(v => {
+            personDept.set(v.id, v.department_id || null);
+            personName.set(v.id, v.spiritual_name || `${v.first_name || ''} ${v.last_name || ''}`.trim() || '—');
+        });
+    }
+}
+
 // Доход прасада ретрита — из отчёта по ретриту в финансах (блок «Прасад»). Нет прав — не показываем.
 const incomeCache = new Map();
 async function retreatIncome(retreatId) {
@@ -199,6 +218,7 @@ async function calculate() {
             loadReconcile(from, to)
         ]);
         if (token !== calcToken) return;
+        await loadPersonDepts(detail.map(x => x.vaishnava_id));
 
         // доход прасада ретритов: доля по дням питания (человеко-приёмы в окне / за весь ретрит)
         const incomes = {};
@@ -401,11 +421,24 @@ function peopleTotal() {
 }
 
 // ==================== TABS ====================
+// Правило (ВГ 24.09.2026): каждый в команде и каждый волонтёр принадлежит департаменту
+function noDeptPeople() {
+    const seen = new Map();
+    for (const x of view.detail) {
+        if (!x.vaishnava_id || (x.bucket !== 'team' && x.bucket !== 'volunteers')) continue;
+        if (!x.breakfast && !x.lunch) continue;
+        if (personDept.get(x.vaishnava_id)) continue;
+        seen.set(x.vaishnava_id, x.bucket);
+    }
+    return [...seen.entries()].map(([id, b]) => `${personName.get(id) || '—'} (${BUCKET_LABELS[b]().toLowerCase()})`)
+        .sort((a, b) => a.localeCompare(b, 'ru'));
+}
+
 function tabList() {
     const w = view.result.warnings;
     const problems = w.missingPrices.size + w.unresolvedUnits.size + w.noMenu.length + w.noEaters.length
         + w.overheadNoBase.length + w.overheadUnallocated.length + w.laborUnlinked.length + w.recipesNoOutput.size
-        + (w.overheadError ? 1 : 0) + (w.payrollEstimated.length ? 1 : 0);
+        + (w.overheadError ? 1 : 0) + (w.payrollEstimated.length ? 1 : 0) + (noDeptPeople().length ? 1 : 0);
     const multiMonth = view.from.slice(0, 7) !== view.to.slice(0, 7);
     return [
         { id: 'eaters', label: tr('cost_tab_eaters', 'Вкушающие') },
@@ -454,6 +487,8 @@ function renderEaters() {
             <td class="text-right">${num(x.pm)}</td></tr>`;
     }).join('');
 
+    renderDepartments();
+
     const scope = scopeEvents();
     const cols = ALL_BUCKETS;
     Layout.$('#daysHead').innerHTML = `<tr><th>${e(tr('date', 'Дата'))}</th><th></th>
@@ -477,6 +512,62 @@ function renderEaters() {
         }
     }
     Layout.$('#daysBody').innerHTML = out.join('') || `<tr><td colspan="9" class="text-center opacity-60">${e(tr('cost_nothing', 'За период нет данных'))}</td></tr>`;
+}
+
+// По департаментам: команда, волонтёры и гости каждого департамента. Стоимость человека —
+// его приёмы пищи × стоимость одного приёма пищи в его ячейке (ретрит или «без события» × категория).
+function renderDepartments() {
+    const scope = scopeEvents();
+    const cells = view.result.cells;
+    const rate = {};
+    const rateOf = (ev, bucket) => {
+        const k = `${ev}|${bucket}`;
+        if (!(k in rate)) { const x = aggregate(cells, ev, [bucket]); rate[k] = x.pm ? total(x) / x.pm : 0; }
+        return rate[k];
+    };
+    const kindOf = b => b === 'team' ? 'team' : b === 'volunteers' ? 'volunteers' : 'guests';
+    const rows = new Map();   // dept_id | '' → { team:Set, volunteers:Set, guests:Set/число, pm, cost }
+    const row = id => rows.get(id) || (rows.set(id, { team: new Set(), volunteers: new Set(), guests: new Set(), groupPeople: 0, pm: 0, cost: 0 }), rows.get(id));
+    const groupsSeen = new Map();
+    // стоимость есть только у приёмов пищи из меню — дни без меню не считаем, иначе сумма разойдётся с итогом
+    const served = new Set(view.result.mealRecords.filter(r => !r.unallocated).map(r => `${r.date}|${r.meal}`));
+    for (const x of view.detail) {
+        const ev = x.retreat_id ? `retreat:${x.retreat_id}` : 'none';
+        if (scope && !scope.includes(ev)) continue;
+        const meals = (x.breakfast && served.has(`${x.d}|breakfast`) ? 1 : 0) + (x.lunch && served.has(`${x.d}|lunch`) ? 1 : 0);
+        if (!meals) continue;
+        const n = x.kind === 'group' ? (Number(x.people) || 1) : 1;
+        const r = row(x.vaishnava_id ? (personDept.get(x.vaishnava_id) || '') : '');
+        if (x.kind === 'group') groupsSeen.set(x.ref_id, Math.max(groupsSeen.get(x.ref_id) || 0, n));
+        else r[kindOf(x.bucket)].add(x.vaishnava_id || x.ref_id);
+        r.pm += meals * n;
+        r.cost += meals * n * rateOf(ev, x.bucket);
+    }
+    if (groupsSeen.size) row('').groupPeople = [...groupsSeen.values()].reduce((s, n) => s + n, 0);
+
+    const name = id => id ? (Layout.getName(departments.find(d => d.id === id) || {}) || '—') : tr('cost_no_department', 'Без департамента');
+    const list = [...rows.entries()].sort(([a, x], [b, y]) => (a === '') - (b === '') || y.cost - x.cost || name(a).localeCompare(name(b)));
+    const months = Math.max(1, (DateUtils.parseDate(view.to) - DateUtils.parseDate(view.from)) / 86400000 / 30.44);
+    Layout.$('#deptHead').innerHTML = `<tr><th>${e(tr('cost_department', 'Департамент'))}</th>
+        <th class="text-right">${e(tr('status_team', 'Команда'))}</th>
+        <th class="text-right">${e(tr('category_volunteer', 'Волонтёры'))}</th>
+        <th class="text-right">${e(tr('cost_dept_guests', 'Гости'))}</th>
+        <th class="text-right">${e(tr('cost_person_meals', 'Приёмов пищи'))}</th>
+        <th class="text-right">${e(tr('cost_total', 'Всего'))}</th>
+        <th class="text-right">${e(tr('cost_per_month', 'В месяц'))}</th></tr>`;
+    const ps = pricesState();
+    const sum = { team: 0, vol: 0, guests: 0, pm: 0, cost: 0 };
+    Layout.$('#deptBody').innerHTML = list.map(([id, r]) => {
+        const guests = r.guests.size + r.groupPeople;
+        sum.team += r.team.size; sum.vol += r.volunteers.size; sum.guests += guests; sum.pm += r.pm; sum.cost += r.cost;
+        return `<tr class="${id ? '' : 'opacity-70'}"><td>${e(name(id))}</td>
+            <td class="text-right">${r.team.size || '—'}</td><td class="text-right">${r.volunteers.size || '—'}</td>
+            <td class="text-right">${guests || '—'}</td><td class="text-right">${num(r.pm)}</td>
+            <td class="text-right font-medium">${money(r.cost)}${ps !== 'ok' ? ' <span class="text-warning">⚠</span>' : ''}</td>
+            <td class="text-right">${money(r.cost / months)}</td></tr>`;
+    }).join('') + (list.length ? `<tr class="font-semibold border-t-2 border-base-300"><td>${e(tr('cost_total', 'Всего'))}</td>
+        <td class="text-right">${sum.team}</td><td class="text-right">${sum.vol}</td><td class="text-right">${sum.guests}</td>
+        <td class="text-right">${num(sum.pm)}</td><td class="text-right">${money(sum.cost)}</td><td class="text-right">${money(sum.cost / months)}</td></tr>` : '');
 }
 
 // ---------- Прямые затраты ----------
@@ -628,6 +719,7 @@ function renderWarnings() {
     if (w.overheadUnassigned) parts.push(warningBox(`${tr('cost_w_ov_unassigned', 'Расходы «на ретрит» без ретрита и назначения считаются общими, назначьте их во вкладке «Накладные»')}: ${w.overheadUnassigned}`, [], 'alert-info'));
     parts.push(nonEmpty(tr('cost_w_labor', 'Выплата по статье «Зарплата» не связана с ведомостью: возможен двойной счёт с начислениями'), w.laborUnlinked));
     if (w.overheadForeign) parts.push(warningBox(`${tr('cost_w_foreign', 'Зарплата не в рупиях, не учтена')}: ${w.overheadForeign}`, []));
+    parts.push(nonEmpty(tr('cost_w_no_department', 'Команда и волонтёры без департамента — укажите департамент в карточке человека'), noDeptPeople()));
     const html = parts.join('');
     Layout.$('#warnings').innerHTML = html || `<div class="text-sm opacity-60">${e(tr('cost_no_problems', 'Проблем в данных нет'))}</div>`;
 }
@@ -907,9 +999,12 @@ async function init() {
     locationId = (Layout.locations || []).find(l => l.slug === 'main')?.id || null;
     if (!locationId) { Layout.showNotification(t('error'), 'error'); return; }
 
-    const { data } = await Layout.db.from('retreats')
-        .select('id, name_ru, name_en, name_hi, start_date, end_date').order('start_date', { ascending: false });
+    const [{ data }, { data: deps }] = await Promise.all([
+        Layout.db.from('retreats').select('id, name_ru, name_en, name_hi, start_date, end_date').order('start_date', { ascending: false }),
+        Layout.db.from('departments').select('*')
+    ]);
     retreats = data || [];
+    departments = deps || [];
 
     // по умолчанию — ретрит, который идёт сейчас или закончился последним
     const today = DateUtils.toISO(new Date());
