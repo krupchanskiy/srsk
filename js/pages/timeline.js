@@ -2809,10 +2809,12 @@ async function loadCrmSelfAccommodated() {
     const ids = periodRetreats.map(r => r.id);
     if (!ids.length) return [];
     const { data: deals, error } = await Layout.db.from('crm_deals')
-        .select('vaishnava_id, retreat_id, vaishnavas(id, first_name, last_name, spiritual_name)')
+        .select('vaishnava_id, retreat_id, vaishnavas!crm_deals_vaishnava_id_fkey(id, first_name, last_name, spiritual_name)')
         .eq('checklist_accommodation', 'self')
         .neq('status', 'cancelled')
         .in('retreat_id', ids);
+    // У сделки три ссылки на vaishnavas (гость, менеджер, рекомендатель) — связь указана явно
+    if (error) console.error('CRM self accommodation:', error);
     if (error || !deals?.length) return [];
 
     const vIds = [...new Set(deals.map(d => d.vaishnava_id).filter(Boolean))];
