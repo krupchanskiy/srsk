@@ -733,7 +733,7 @@ function renderLegend() {
 
     // Самостоятельный гость — человечек перед именем (компактная легенда, как у остальных)
     const selfLabelRaw = t('timeline_self_guest');
-    const selfLabel = selfLabelRaw === 'timeline_self_guest' ? 'Вне ретрита' : selfLabelRaw;
+    const selfLabel = selfLabelRaw === 'timeline_self_guest' ? 'Самостоятельный гость' : selfLabelRaw;
     const selfHtml = `<div class="flex items-center gap-1 whitespace-nowrap" title="Самостоятельный гость — приехал не на ретрит">
         <span class="w-3 h-3 rounded shrink-0 flex items-center justify-center" style="background: #3b82f6; color: #fff;">${SELF_ICON}</span>
         <span class="text-xs text-gray-600">${selfLabel}</span>
