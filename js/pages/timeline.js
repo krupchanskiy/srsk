@@ -32,7 +32,9 @@ let ekadashiDays = new Set();
 
 // Фактическое время прибытия/отъезда из retreat_registrations
 let retreatTimesMap = new Map();
+const GUEST_CATEGORY_ID = '6ad3bfdd-cb95-453a-b589-986717615736'; // resident_categories: «Гость»
 let allRetreats = [];         // для выбора ретрита при заселении (наши и сторонние мероприятия)
+let retreatTags = new Map();  // retreat_id → { tag, name } только для ретритов, пересекающихся с другими в периоде
 let creditorsSet = new Set(); // `${vaishnava_id}_${retreat_id}` — ашрам должен участнику (переплата при начисленной карточке)
 let debtorsSet = new Set();   // `${vaishnava_id}_${retreat_id}` — участники с долгом по финмодулю
 let selfAccommodated = [];        // проживающие без номера: живут вне территории, в сетку не попадают
@@ -55,6 +57,32 @@ function dateToDayIndex(dateStr) {
     date.setHours(0, 0, 0, 0);
     const diff = date - baseDate;
     return Math.floor(diff / (1000 * 60 * 60 * 24));
+}
+
+// Буквенная метка ретрита в полосе гостя: «(СР) Иван». Нужна только там, где ретриты идут
+// одновременно, — иначе непонятно, кто к какому относится; у непересекающихся метки нет.
+// Буквы — первые буквы двух первых слов названия (без предлогов и годов); при совпадении у пересекающихся
+// ретритов добавляется номер.
+const TAG_STOPWORDS = new Set(['для', 'и', 'в', 'на', 'с', 'по', 'of', 'the', 'for', 'and', 'in']);
+function retreatInitials(name) {
+    const words = (name || '').split(/[\s\-–—.,:()]+/).filter(w => w && !/^\d+$/.test(w) && !TAG_STOPWORDS.has(w.toLowerCase()));
+    return words.slice(0, 2).map(w => w[0]).join('').toUpperCase();
+}
+
+function computeRetreatTags(list) {
+    const overlaps = (a, b) => a.start_date <= b.end_date && a.end_date >= b.start_date;
+    const inOverlap = list.filter(r => list.some(o => o.id !== r.id && overlaps(r, o)));
+    const used = new Map();
+    const tags = new Map();
+    inOverlap.forEach(r => {
+        const name = Layout.getName(r);
+        let tag = retreatInitials(name) || '?';
+        const n = (used.get(tag) || 0) + 1;
+        used.set(tag, n);
+        if (n > 1) tag += n;
+        tags.set(r.id, { tag, name });
+    });
+    return tags;
 }
 
 // Загрузка данных из БД
@@ -115,6 +143,7 @@ async function loadTimelineData() {
     const residents = residentsRes.data || [];
     selfAccommodated = residents.filter(r => !r.room_id);
     const retreats = retreatsRes.data || [];
+    retreatTags = computeRetreatTags(retreats);
     // Для выбора при брони/заселении нужны не только ретриты просматриваемого периода:
     // бронируют и на будущие (и стороннее мероприятие через год тоже). Берём всё, что
     // закончилось не раньше 3 месяцев до начала периода (старые для брони не нужны).
@@ -346,6 +375,10 @@ async function loadTimelineData() {
                         color,
                         border,
                         isBooking,
+                        retreatTag: res.retreat_id ? (retreatTags.get(res.retreat_id) || null) : null,
+                        // Самостоятельный гость: обычный «Гость» без ретрита. Команда, волонтёры и важные
+                        // гости и так выделены своими категориями. В шахматке — точечная рамка.
+                        isSelf: !res.retreat_id && res.category_id === GUEST_CATEGORY_ID,
                         isCheckedOut: res.status === 'checked_out',
                         hasDebt: !!(res.vaishnava_id && res.retreat_id
                             && debtorsSet.has(`${res.vaishnava_id}_${res.retreat_id}`)),
@@ -696,7 +729,15 @@ function renderLegend() {
         <span class="text-sm text-gray-600">${t('timeline_done')}</span>
     </div>`;
 
-    legend.innerHTML = categoriesHtml + bookingHtml + cleaningHtml;
+    // Самостоятельный гость — точечная рамка вокруг полосы
+    const selfLabelRaw = t('timeline_self_guest');
+    const selfLabel = selfLabelRaw === 'timeline_self_guest' ? 'Самостоятельный гость' : selfLabelRaw;
+    const selfHtml = `<div class="flex items-center gap-1.5">
+        <span class="w-4 h-4 rounded" style="background: #f3f4f6; outline: 2px dotted #ea580c; outline-offset: 1px;"></span>
+        <span class="text-sm text-gray-600">${selfLabel}</span>
+    </div>`;
+
+    legend.innerHTML = categoriesHtml + selfHtml + bookingHtml + cleaningHtml;
 }
 
 // Переключение экранов
@@ -2513,6 +2554,7 @@ function renderTable() {
                         const checkedOutClass = guest.isCheckedOut ? ' checked-out' : '';
 
                         const debtClass = guest.hasDebt ? ' has-debt' : '';
+                        const selfClass = guest.isSelf ? ' self-guest' : '';
                         // Значок «$»: красный — участник должен, зелёный — должны мы.
                         // Клик ведёт в финансы участника (суммы шахматке недоступны)
                         const balanceKind = guest.hasDebt ? 'debt' : (guest.hasCredit ? 'credit' : '');
@@ -2521,15 +2563,18 @@ function renderTable() {
                             : '';
                         // Бытовые потребности — не финансовый маркер: ромбик с подсказкой (ТЗ 2.3)
                         const needsDot = guest.specialNeeds ? `<span class="needs-dot" title="${Layout.escapeHtml(guest.specialNeeds)}">◆</span>` : '';
+                        const tagHtml = guest.retreatTag
+                            ? `<span class="retreat-tag" title="${Layout.escapeHtml(guest.retreatTag.name)}">(${Layout.escapeHtml(guest.retreatTag.tag)})</span> `
+                            : '';
                         if (guest.isBooking) {
                             // Бронирование — штриховка
                             const bgColor = guest.color || '#3b82f6';
-                            html += `<div class="guest-bar booking${checkedOutClass}${debtClass}" style="width: ${width}px; --bar-color: ${bgColor}; border-color: ${bgColor};" data-action="open-resident-from-map" data-id="${guest.id}">${debtDot}${needsDot}${guest.name}</div>`;
+                            html += `<div class="guest-bar booking${checkedOutClass}${debtClass}${selfClass}" style="width: ${width}px; --bar-color: ${bgColor}; border-color: ${bgColor};" data-action="open-resident-from-map" data-id="${guest.id}">${debtDot}${needsDot}${tagHtml}${guest.name}</div>`;
                         } else {
                             // Обычное заселение
                             const bgColor = guest.color || '#3b82f6';
                             const borderColor = guest.border || '#facc15';
-                            html += `<div class="guest-bar${checkedOutClass}${debtClass}" style="width: ${width}px; background: ${bgColor}; border-color: ${borderColor};" data-action="open-resident-from-map" data-id="${guest.id}">${debtDot}${needsDot}${guest.name}</div>`;
+                            html += `<div class="guest-bar${checkedOutClass}${debtClass}${selfClass}" style="width: ${width}px; background: ${bgColor}; border-color: ${borderColor};" data-action="open-resident-from-map" data-id="${guest.id}">${debtDot}${needsDot}${tagHtml}${guest.name}</div>`;
                         }
                     }
 
