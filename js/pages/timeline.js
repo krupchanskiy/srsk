@@ -703,38 +703,38 @@ function renderLegend() {
     // Категории заселений
     const categoriesHtml = categories.map(c => {
         const color = c.color || '#3b82f6';
-        return `<div class="flex items-center gap-1.5 whitespace-nowrap">
-            <span class="w-4 h-4 rounded shrink-0" style="background: ${color}; border: 1px solid rgba(0,0,0,0.15);"></span>
-            <span class="text-sm text-gray-600">${Layout.getName(c)}</span>
+        return `<div class="flex items-center gap-1 whitespace-nowrap">
+            <span class="w-3 h-3 rounded shrink-0" style="background: ${color}; border: 1px solid rgba(0,0,0,0.15);"></span>
+            <span class="text-xs text-gray-600">${Layout.getName(c)}</span>
         </div>`;
     }).join('');
 
     // Бронирования (штриховка)
-    const bookingHtml = `<div class="flex items-center gap-1.5 whitespace-nowrap">
-        <span class="w-4 h-4 rounded" style="background: repeating-linear-gradient(45deg, #9dc1f7, #9dc1f7 2px, #e3edfd 2px, #e3edfd 4px); border: 1px dashed #1e40af;"></span>
-        <span class="text-sm text-gray-600">${t('timeline_booking')}</span>
+    const bookingHtml = `<div class="flex items-center gap-1 whitespace-nowrap">
+        <span class="w-3 h-3 rounded" style="background: repeating-linear-gradient(45deg, #9dc1f7, #9dc1f7 2px, #e3edfd 2px, #e3edfd 4px); border: 1px dashed #1e40af;"></span>
+        <span class="text-xs text-gray-600">${t('timeline_booking')}</span>
     </div>`;
 
     // Уборка и бельё
-    const cleaningHtml = `<div class="flex items-center gap-1.5 whitespace-nowrap">
-        <span class="w-4 h-4 rounded" style="background: #9ca3af;"></span>
-        <span class="text-sm text-gray-600">${t('timeline_cleaning')}</span>
+    const cleaningHtml = `<div class="flex items-center gap-1 whitespace-nowrap">
+        <span class="w-3 h-3 rounded" style="background: #9ca3af;"></span>
+        <span class="text-xs text-gray-600">${t('timeline_cleaning')}</span>
     </div>
-    <div class="flex items-center gap-1.5 whitespace-nowrap">
-        <span class="w-4 h-4 rounded" style="background: #06b6d4;"></span>
-        <span class="text-sm text-gray-600">${t('timeline_bedding')}</span>
+    <div class="flex items-center gap-1 whitespace-nowrap">
+        <span class="w-3 h-3 rounded" style="background: #06b6d4;"></span>
+        <span class="text-xs text-gray-600">${t('timeline_bedding')}</span>
     </div>
-    <div class="flex items-center gap-1.5 whitespace-nowrap">
-        <span class="w-4 h-4 rounded" style="background: #22c55e;"></span>
-        <span class="text-sm text-gray-600">${t('timeline_done')}</span>
+    <div class="flex items-center gap-1 whitespace-nowrap">
+        <span class="w-3 h-3 rounded" style="background: #22c55e;"></span>
+        <span class="text-xs text-gray-600">${t('timeline_done')}</span>
     </div>`;
 
     // Самостоятельный гость — точечная рамка вокруг полосы
     const selfLabelRaw = t('timeline_self_guest');
     const selfLabel = selfLabelRaw === 'timeline_self_guest' ? 'Вне ретрита' : selfLabelRaw;
-    const selfHtml = `<div class="flex items-center gap-1.5 whitespace-nowrap" title="Самостоятельный гость — приехал не на ретрит">
-        <span class="w-4 h-4 rounded shrink-0" style="background: #f3f4f6; outline: 2px dotted #ea580c; outline-offset: 1px;"></span>
-        <span class="text-sm text-gray-600">${selfLabel}</span>
+    const selfHtml = `<div class="flex items-center gap-1 whitespace-nowrap" title="Самостоятельный гость — приехал не на ретрит">
+        <span class="w-3 h-3 rounded shrink-0" style="background: #f3f4f6; outline: 2px dotted #ea580c; outline-offset: 1px;"></span>
+        <span class="text-xs text-gray-600">${selfLabel}</span>
     </div>`;
 
     legend.innerHTML = categoriesHtml + selfHtml + bookingHtml + cleaningHtml;
