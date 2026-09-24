@@ -39,6 +39,8 @@ let retreatTags = new Map();  // retreat_id → { tag, name } только дл�
 let creditorsSet = new Set(); // `${vaishnava_id}_${retreat_id}` — ашрам должен участнику (переплата при начисленной карточке)
 let debtorsSet = new Set();   // `${vaishnava_id}_${retreat_id}` — участники с долгом по финмодулю
 let selfAccommodated = [];        // проживающие без номера: живут вне территории, в сетку не попадают
+let selfStays = [];               // группа «Самостоятельное проживание» внизу шахматки
+const SELF_GROUP_ID = '__self';   // её ключ в collapsedBuildings
 let periodRetreats = [];          // ретриты показанного периода — для «Сам организует» из CRM
 let periodResidents = [];         // все проживания периода — чтобы не дублировать людей из CRM
 let cancelledDealsSet = new Set(); // `${vaishnava_id}_${retreat_id}` — все сделки человека по ретриту отменены
@@ -160,7 +162,16 @@ async function loadTimelineData() {
         .gte('end_date', formatDateYMD(threeMonthsBefore))
         .order('start_date');
     allRetreats = selectableRetreats || retreats;
-    renderSelfAccommodation().catch(err => console.error('Self accommodation block:', err));
+    // Самостоятельное проживание — отдельной группой внизу шахматки: без номера + «Сам организует»
+    // из CRM. Раскрыта, если в периоде кто-то есть, свёрнута — если никого
+    const fromCrm = await loadCrmSelfAccommodated().catch(err => {
+        console.error('CRM self accommodation:', err);
+        return [];
+    });
+    selfStays = [...selfAccommodated, ...fromCrm].sort((a, b) =>
+        (a.check_in || '').localeCompare(b.check_in || ''));
+    if (selfStays.length) collapsedBuildings.delete(SELF_GROUP_ID);
+    else collapsedBuildings.add(SELF_GROUP_ID);
     const cleanings = cleaningsRes.data || [];
 
     // Строим Set dayIndex-ов для Экадаши
@@ -646,6 +657,7 @@ function collapseAllRooms() {
 function collapseAllBuildings() {
     collapsedBuildings.clear();
     collapsedRooms.clear();
+    collapsedBuildings.add(SELF_GROUP_ID);
     timelineData.buildings.forEach(building => {
         collapsedBuildings.add(building.id);
         building.rooms.forEach(room => {
@@ -2652,6 +2664,8 @@ function renderTable() {
         });
     });
 
+    html += renderSelfGroupHtml();
+
     html += '</tbody>';
     table.innerHTML = html;
 
@@ -2845,59 +2859,66 @@ async function loadCrmSelfAccommodated() {
             check_in: checkIn,
             check_out: checkOut,
             has_meals: reg.meal_type !== 'self',
-            resident_categories: categories.find(c => c.id === (REG_STATUS_CATEGORY[reg.status] || GUEST_CATEGORY_ID)) || null,
+            // цвет категории берётся при отрисовке: справочник грузится параллельно
+            category_id: REG_STATUS_CATEGORY[reg.status] || GUEST_CATEGORY_ID,
             fromCrm: true
         }];
     });
 }
 
-async function renderSelfAccommodation() {
-    const box = document.getElementById('selfBlock');
-    if (!box) return;
-
-    const fromCrm = await loadCrmSelfAccommodated().catch(err => {
-        console.error('CRM self accommodation:', err);
-        return [];
-    });
-    const list = [...selfAccommodated, ...fromCrm].sort((a, b) =>
-        (a.check_in || '').localeCompare(b.check_in || ''));
-    if (!list.length) { box.classList.add('hidden'); return; }
-
-    // Своя подпись, а не общий self_accommodation («Самостоятельно»): рядом «Гость без события», нужно полное слово
+// Группа «Самостоятельное проживание» — строки как у мест в номерах: полоса по датам с именем
+// и «(питается)». Цвет свой (светлый, с полоской категории слева), чтобы не путать с заселением.
+function renderSelfGroupHtml() {
+    const collapsed = collapsedBuildings.has(SELF_GROUP_ID);
     const blockRaw = t('timeline_self_block');
     const blockLabel = blockRaw === 'timeline_self_block' ? 'Самостоятельное проживание' : blockRaw;
-    document.getElementById('selfSummary').textContent = `${blockLabel}: ${list.length}`;
     const crmRaw = t('timeline_self_from_crm');
     const crmHint = crmRaw === 'timeline_self_from_crm' ? 'Из сделки в CRM: «Сам организует»' : crmRaw;
-    document.getElementById('selfList').innerHTML = list.map(res => {
+
+    let html = `<tr class="row-building row-self"><td class="sticky-col" data-action="toggle-building" data-id="${SELF_GROUP_ID}">`
+        + `<span class="toggle-arrow ${collapsed ? 'collapsed' : ''}">▼</span> ${e(blockLabel)}: ${selfStays.length}</td>`;
+    for (let col = 0; col < DAYS_TO_SHOW * 2; col++) html += `<td class="${col % 2 === 0 ? 'day-start' : ''}"></td>`;
+    html += '</tr>';
+
+    selfStays.forEach(res => {
+        let startDay = dateToDayIndex(res.check_in);
+        let endDay = res.check_out ? dateToDayIndex(res.check_out) : DAYS_TO_SHOW - 1;
+        if (startDay > DAYS_TO_SHOW - 1 || endDay < 0) return;
+        const startHalf = startDay < 0 ? 0 : 1;
+        const endHalf = endDay > DAYS_TO_SHOW - 1 ? 1 : 0;
+        startDay = Math.max(0, startDay);
+        endDay = Math.min(DAYS_TO_SHOW - 1, endDay);
+        const startCol = startDay * 2 + startHalf;
+        const width = Math.max(1, endDay * 2 + endHalf - startCol + 1) * CELL_WIDTH - 2;
+
         let name = res.guest_name || '';
         if (res.vaishnavas) name = getVaishnavName(res.vaishnavas, '');
         if (!name && res.bookings) name = res.bookings.name || res.bookings.contact_name || '';
-        const nameHtml = res.vaishnava_id
-            ? `<a href="../vaishnavas/person.html?id=${res.vaishnava_id}" class="link link-hover font-medium">${e(name || '—')}</a>`
-            : `<span class="font-medium">${e(name || '—')}</span>`;
-
-        const cat = res.resident_categories;
-        const catHtml = cat
-            ? `<span class="badge badge-sm text-white border-0" style="background: ${Utils.isValidColor(cat.color) ? cat.color : '#3b82f6'}">${e(Layout.getName(cat))}</span>`
-            : '';
-
+        const cat = res.resident_categories || categories.find(c => c.id === res.category_id);
+        const catColor = Utils.isValidColor(cat?.color) ? cat.color : '#3b82f6';
         const retreat = res.retreat_id ? allRetreats.find(r => r.id === res.retreat_id) : null;
-        const eventName = retreat ? Layout.getName(retreat) : '';
-
+        const tag = res.retreat_id ? retreatTags.get(res.retreat_id) : null;
         const meals = res.has_meals === true ? t('timeline_meals_yes')
             : res.has_meals === false ? t('timeline_meals_no') : t('timeline_meals_unknown');
         const dates = `${DateUtils.formatShort(res.check_in)} — ${res.check_out ? DateUtils.formatShort(res.check_out) : '…'}`;
+        const title = [name, cat ? Layout.getName(cat) : '', retreat ? Layout.getName(retreat) : '', dates, meals,
+            res.fromCrm ? crmHint : ''].filter(Boolean).join(' · ');
+        const inner = `${tag ? `<span class="retreat-tag">${e(tag.tag)}</span>` : ''}${e(name || '—')}&nbsp;<span class="opacity-70">(${e(meals.toLowerCase())})</span>`
+            + (res.fromCrm ? '<span class="self-crm">CRM</span>' : '');
+        const bar = res.vaishnava_id
+            ? `<a class="guest-bar self-stay" href="../vaishnavas/person.html?id=${res.vaishnava_id}" style="width: ${width}px; --cat-color: ${catColor};" title="${e(title)}">${inner}</a>`
+            : `<div class="guest-bar self-stay" style="width: ${width}px; --cat-color: ${catColor};" title="${e(title)}">${inner}</div>`;
 
-        return `<div class="py-1 border-t border-base-200 flex flex-wrap items-center gap-x-3 gap-y-1">
-            ${nameHtml} ${catHtml}
-            <span class="opacity-60">${e(eventName || '')}</span>
-            <span class="text-xs opacity-70">${e(dates)} · ${e(meals)}</span>
-            ${res.fromCrm ? `<span class="badge badge-ghost badge-sm" title="${e(crmHint)}">CRM</span>` : ''}
-        </div>`;
-    }).join('');
-
-    box.classList.remove('hidden');
+        html += `<tr class="row-bed ${collapsed ? 'collapsed' : ''}"><td class="sticky-col text-xs opacity-70 truncate" title="${e(retreat ? Layout.getName(retreat) : '')}">${e(retreat ? Layout.getName(retreat) : '')}</td>`;
+        for (let col = 0; col < DAYS_TO_SHOW * 2; col++) {
+            const dayIndex = Math.floor(col / 2);
+            const cls = [col % 2 === 0 ? 'day-start' : '', isWeekend(dayIndex) ? 'weekend' : '',
+                dayIndex === TODAY_INDEX ? 'today' : '', isEkadashi(dayIndex) ? 'ekadashi' : ''].join(' ');
+            html += `<td class="half-day ${cls}">${col === startCol ? bar : ''}</td>`;
+        }
+        html += '</tr>';
+    });
+    return html;
 }
 
 // Гость прилетает раньше начала брони или улетает позже её конца — в эти ночи ему

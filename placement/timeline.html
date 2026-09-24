@@ -293,6 +293,24 @@
             letter-spacing: 0.5px;
         }
 
+        /* Самостоятельное проживание: светлая полоса с цветом категории слева — не путать с заселением */
+        .guest-bar.self-stay {
+            background: #e2e8f0;
+            border: 1px solid #cbd5e1;
+            border-left: 4px solid var(--cat-color, #3b82f6);
+            color: #1f2937;
+            text-decoration: none;
+        }
+        .guest-bar.self-stay .retreat-tag { background: rgba(0, 0, 0, 0.1); }
+        .guest-bar.self-stay .self-crm {
+            margin-left: 6px;
+            padding: 0 4px;
+            border-radius: 3px;
+            font-size: 9px;
+            line-height: 14px;
+            background: rgba(0, 0, 0, 0.08);
+        }
+
         /* Гость без события: человечек после «$» и «◆», на месте букв ретрита */
         .guest-bar .self-mark {
             flex: 0 0 auto;
@@ -598,11 +616,6 @@
             </div>
         </div>
 
-        <!-- Живут вне территории, но питаются с нами (room_id пуст) — в сетку не попадают -->
-        <details id="selfBlock" class="hidden mt-4 bg-white rounded-lg shadow px-4 py-3">
-            <summary class="cursor-pointer text-sm font-medium" id="selfSummary"></summary>
-            <div id="selfList" class="mt-2 text-sm"></div>
-        </details>
     </main>
 
     <div id="footer-placeholder"></div>
@@ -1147,7 +1160,7 @@
         if (btn) { btn.classList.toggle('btn-active', isFS); btn.title = isFS ? Layout.t('normal_view') : Layout.t('fullscreen'); }
     }
     </script>
-    <script src="../js/pages/timeline.js?v=37"></script>
+    <script src="../js/pages/timeline.js?v=38"></script>
 
 </body>
 </html>
