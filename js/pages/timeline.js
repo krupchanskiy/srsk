@@ -703,37 +703,37 @@ function renderLegend() {
     // Категории заселений
     const categoriesHtml = categories.map(c => {
         const color = c.color || '#3b82f6';
-        return `<div class="flex items-center gap-1.5">
-            <span class="w-4 h-4 rounded" style="background: ${color}; border: 1px solid rgba(0,0,0,0.15);"></span>
+        return `<div class="flex items-center gap-1.5 whitespace-nowrap">
+            <span class="w-4 h-4 rounded shrink-0" style="background: ${color}; border: 1px solid rgba(0,0,0,0.15);"></span>
             <span class="text-sm text-gray-600">${Layout.getName(c)}</span>
         </div>`;
     }).join('');
 
     // Бронирования (штриховка)
-    const bookingHtml = `<div class="flex items-center gap-1.5">
+    const bookingHtml = `<div class="flex items-center gap-1.5 whitespace-nowrap">
         <span class="w-4 h-4 rounded" style="background: repeating-linear-gradient(45deg, #9dc1f7, #9dc1f7 2px, #e3edfd 2px, #e3edfd 4px); border: 1px dashed #1e40af;"></span>
         <span class="text-sm text-gray-600">${t('timeline_booking')}</span>
     </div>`;
 
     // Уборка и бельё
-    const cleaningHtml = `<div class="flex items-center gap-1.5">
+    const cleaningHtml = `<div class="flex items-center gap-1.5 whitespace-nowrap">
         <span class="w-4 h-4 rounded" style="background: #9ca3af;"></span>
         <span class="text-sm text-gray-600">${t('timeline_cleaning')}</span>
     </div>
-    <div class="flex items-center gap-1.5">
+    <div class="flex items-center gap-1.5 whitespace-nowrap">
         <span class="w-4 h-4 rounded" style="background: #06b6d4;"></span>
         <span class="text-sm text-gray-600">${t('timeline_bedding')}</span>
     </div>
-    <div class="flex items-center gap-1.5">
+    <div class="flex items-center gap-1.5 whitespace-nowrap">
         <span class="w-4 h-4 rounded" style="background: #22c55e;"></span>
         <span class="text-sm text-gray-600">${t('timeline_done')}</span>
     </div>`;
 
     // Самостоятельный гость — точечная рамка вокруг полосы
     const selfLabelRaw = t('timeline_self_guest');
-    const selfLabel = selfLabelRaw === 'timeline_self_guest' ? 'Самостоятельный гость' : selfLabelRaw;
-    const selfHtml = `<div class="flex items-center gap-1.5">
-        <span class="w-4 h-4 rounded" style="background: #f3f4f6; outline: 2px dotted #ea580c; outline-offset: 1px;"></span>
+    const selfLabel = selfLabelRaw === 'timeline_self_guest' ? 'Вне ретрита' : selfLabelRaw;
+    const selfHtml = `<div class="flex items-center gap-1.5 whitespace-nowrap" title="Самостоятельный гость — приехал не на ретрит">
+        <span class="w-4 h-4 rounded shrink-0" style="background: #f3f4f6; outline: 2px dotted #ea580c; outline-offset: 1px;"></span>
         <span class="text-sm text-gray-600">${selfLabel}</span>
     </div>`;
 
@@ -2623,7 +2623,8 @@ function renderMonthPicker() {
     keys.set(keyOf(current), current);
     const locale = Layout.currentLang === 'hi' ? 'hi-IN' : Layout.currentLang === 'en' ? 'en-US' : 'ru-RU';
     sel.innerHTML = [...keys.entries()].sort(([a], [b]) => a.localeCompare(b)).map(([key, d]) => {
-        const label = d.toLocaleDateString(locale, { month: 'long', year: 'numeric' });
+        const month = d.toLocaleDateString(locale, { month: 'short' }).replace('.', '');
+        const label = `${month} ${d.getFullYear()}`;
         return `<option value="${key}" ${key === keyOf(current) ? 'selected' : ''}>${label.charAt(0).toUpperCase() + label.slice(1)}</option>`;
     }).join('');
 }
