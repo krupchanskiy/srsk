@@ -115,7 +115,15 @@ async function loadTimelineData() {
     const residents = residentsRes.data || [];
     selfAccommodated = residents.filter(r => !r.room_id);
     const retreats = retreatsRes.data || [];
-    allRetreats = retreats;
+    // Для выбора при брони/заселении нужны не только ретриты просматриваемого периода:
+    // бронируют и на будущие (и стороннее мероприятие через год тоже). Берём всё, что
+    // закончилось не раньше 3 месяцев до начала периода (старые для брони не нужны).
+    const threeMonthsBefore = new Date(baseDate); threeMonthsBefore.setMonth(threeMonthsBefore.getMonth() - 3);
+    const { data: selectableRetreats } = await Layout.db.from('retreats')
+        .select('id, name_ru, name_en, name_hi, start_date, end_date, color, is_external')
+        .gte('end_date', formatDateYMD(threeMonthsBefore))
+        .order('start_date');
+    allRetreats = selectableRetreats || retreats;
     renderSelfAccommodation().catch(err => console.error('Self accommodation block:', err));
     const cleanings = cleaningsRes.data || [];
 
@@ -804,17 +812,19 @@ function selectVaishnava(id) {
 // где человек живёт, а система не знает, что он участник: ни долг при выезде
 // не проверить, ни расселение. Теперь подставляем сами, но оставляем на выбор:
 // кто-то приезжает до ретрита, а кто-то живёт в его даты волонтёром.
-function fillRetreatSelect(selectedId) {
-    const sel = document.getElementById('checkinRetreat');
-    if (!sel) return;
+// Список для заселения и брони: наши ретриты и сторонние мероприятия — двумя разделами
+function retreatSelectHtml(selectedId) {
     const option = r => `<option value="${r.id}" ${r.id === selectedId ? 'selected' : ''}>${Layout.escapeHtml(Layout.getName(r))}</option>`;
-    const own = allRetreats.filter(r => !r.is_external);
-    const external = allRetreats.filter(r => r.is_external);
     const optgroup = (label, items) => items.length
         ? `<optgroup label="${Layout.escapeHtml(label)}">` + items.map(option).join('') + '</optgroup>' : '';
-    sel.innerHTML = `<option value="">${Layout.t('timeline_no_retreat') || '— без ретрита —'}</option>`
-        + optgroup(Layout.t('group_event_retreat') || 'Наш ретрит', own)
-        + optgroup(Layout.t('retreats_is_external') || 'Стороннее мероприятие', external);
+    return `<option value="">${Layout.t('timeline_no_retreat') || '— без ретрита —'}</option>`
+        + optgroup(Layout.t('group_event_retreat') || 'Наш ретрит', allRetreats.filter(r => !r.is_external))
+        + optgroup(Layout.t('retreats_is_external') || 'Стороннее мероприятие', allRetreats.filter(r => r.is_external));
+}
+
+function fillRetreatSelect(selectedId) {
+    const sel = document.getElementById('checkinRetreat');
+    if (sel) sel.innerHTML = retreatSelectHtml(selectedId);
 }
 
 // Подсказать ретрит по человеку и датам: берём регистрацию, чей ретрит
@@ -993,11 +1003,7 @@ async function suggestBookingRetreat() {
 
 function fillBookingRetreatSelect(selectedId) {
     const sel = document.getElementById('bookingRetreat');
-    if (!sel) return;
-    sel.innerHTML = `<option value="">${Layout.t('timeline_no_retreat') || '— без ретрита —'}</option>`
-        + allRetreats.map(r =>
-            `<option value="${r.id}" ${r.id === selectedId ? 'selected' : ''}>${Layout.escapeHtml(Layout.getName(r))}</option>`
-        ).join('');
+    if (sel) sel.innerHTML = retreatSelectHtml(selectedId);
 }
 
 function clearVaishnavSelection() {
@@ -2552,7 +2558,38 @@ async function reload() {
     renderRetreats();
     renderTable();
     syncScroll();
+    renderMonthPicker();
     Layout.hideLoader();
+}
+
+// Выбор месяца: от года назад до двух лет вперёд от сегодняшнего дня; текущий месяц
+// шахматки (baseDate) всегда есть в списке, даже если ушли за эти границы стрелками
+function renderMonthPicker() {
+    const sel = document.getElementById('monthPicker');
+    if (!sel) return;
+    const keyOf = d => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+    const now = new Date();
+    const keys = new Map();
+    for (let i = -12; i <= 24; i++) {
+        const d = new Date(now.getFullYear(), now.getMonth() + i, 1);
+        keys.set(keyOf(d), d);
+    }
+    const current = new Date(baseDate.getFullYear(), baseDate.getMonth(), 1);
+    keys.set(keyOf(current), current);
+    const locale = Layout.currentLang === 'hi' ? 'hi-IN' : Layout.currentLang === 'en' ? 'en-US' : 'ru-RU';
+    sel.innerHTML = [...keys.entries()].sort(([a], [b]) => a.localeCompare(b)).map(([key, d]) => {
+        const label = d.toLocaleDateString(locale, { month: 'long', year: 'numeric' });
+        return `<option value="${key}" ${key === keyOf(current) ? 'selected' : ''}>${label.charAt(0).toUpperCase() + label.slice(1)}</option>`;
+    }).join('');
+}
+
+function pickMonth(value) {
+    const [y, m] = value.split('-').map(Number);
+    baseDate = new Date(y, m - 1, 1);
+    reload().then(() => {
+        const tableContainer = document.getElementById('tableContainer');
+        if (tableContainer) tableContainer.scrollLeft = 0;
+    });
 }
 
 // Сдвиг на месяц вперёд или назад
@@ -2733,6 +2770,7 @@ async function init() {
     renderRetreats();
     renderTable();
     syncScroll();
+    renderMonthPicker();
     setupTimelineDelegation();
     Layout.hideLoader();
 

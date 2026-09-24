@@ -508,6 +508,9 @@
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" />
                         </svg>
                     </button>
+                    <!-- Быстрый переход к месяцу: шахматка показывает 3 месяца, начиная с выбранного -->
+                    <select id="monthPicker" class="select select-bordered select-sm" onchange="pickMonth(this.value)"
+                            title="Перейти к месяцу"></select>
                 </div>
             </div>
             <!-- Поиск -->
@@ -1104,7 +1107,7 @@
         if (btn) { btn.classList.toggle('btn-active', isFS); btn.title = isFS ? Layout.t('normal_view') : Layout.t('fullscreen'); }
     }
     </script>
-    <script src="../js/pages/timeline.js?v=25"></script>
+    <script src="../js/pages/timeline.js?v=27"></script>
 
 </body>
 </html>
