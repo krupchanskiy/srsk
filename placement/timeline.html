@@ -241,8 +241,20 @@
             color: #374151;
         }
 
-        /* Буквы ретрита перед именем — только когда ретриты идут одновременно */
-        .retreat-tag { font-weight: 700; opacity: 0.85; margin-right: 3px; flex: 0 0 auto; }
+        /* Плашка с буквами ретрита перед именем — только когда ретриты идут одновременно */
+        .retreat-tag {
+            flex: 0 0 auto;
+            margin-right: 4px;
+            padding: 0 4px;
+            border-radius: 3px;
+            font-size: 10px;
+            font-weight: 600;
+            line-height: 14px;
+            background: rgba(255, 255, 255, 0.3);
+        }
+        /* На светлых полосах (бронь, выселенный) белая плашка не видна — тёмная */
+        .guest-bar.booking .retreat-tag,
+        .guest-bar.checked-out .retreat-tag { background: rgba(0, 0, 0, 0.1); }
 
         /* Полоска гостя — абсолютное позиционирование */
         .guest-bar {
@@ -1119,7 +1131,7 @@
         if (btn) { btn.classList.toggle('btn-active', isFS); btn.title = isFS ? Layout.t('normal_view') : Layout.t('fullscreen'); }
     }
     </script>
-    <script src="../js/pages/timeline.js?v=32"></script>
+    <script src="../js/pages/timeline.js?v=33"></script>
 
 </body>
 </html>

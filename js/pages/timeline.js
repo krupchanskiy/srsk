@@ -2570,7 +2570,7 @@ function renderTable() {
                         // Бытовые потребности — не финансовый маркер: ромбик с подсказкой (ТЗ 2.3)
                         const needsDot = guest.specialNeeds ? `<span class="needs-dot" title="${Layout.escapeHtml(guest.specialNeeds)}">◆</span>` : '';
                         const tagHtml = guest.retreatTag
-                            ? `<span class="retreat-tag" title="${Layout.escapeHtml(guest.retreatTag.name)}">(${Layout.escapeHtml(guest.retreatTag.tag)})</span> `
+                            ? `<span class="retreat-tag" title="${Layout.escapeHtml(guest.retreatTag.name)}">${Layout.escapeHtml(guest.retreatTag.tag)}</span>`
                             : '';
                         if (guest.isBooking) {
                             // Бронирование — штриховка
