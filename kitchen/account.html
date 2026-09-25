@@ -37,7 +37,7 @@
                     <select id="daccAccount" class="select select-bordered select-sm"></select>
                 </div>
                 <div class="join">
-                    <button class="btn btn-sm join-item" data-dacc-preset="all" data-i18n="dacc_p_all">Всё время</button>
+                    <button class="btn btn-sm join-item" data-dacc-preset="year" data-i18n="dacc_p_year">Этот год</button>
                 </div>
                 <div class="flex items-center gap-1">
                     <input type="date" id="daccFrom" class="input input-bordered input-sm w-40" title="С">
@@ -47,7 +47,7 @@
                 <div class="join">
                     <button class="btn btn-sm join-item" data-dacc-preset="month" data-i18n="dacc_p_month">Этот месяц</button>
                     <button class="btn btn-sm join-item" data-dacc-preset="prev" data-i18n="dacc_p_prev">Прошлый месяц</button>
-                    <button class="btn btn-sm join-item" data-dacc-preset="year" data-i18n="dacc_p_year">Этот год</button>
+                    <button class="btn btn-sm join-item" data-dacc-preset="all" data-i18n="dacc_p_all">Всё время</button>
                 </div>
             </div>
             <div class="flex flex-wrap items-center gap-2 mb-4">
@@ -63,6 +63,7 @@
                 <span id="daccCount" class="text-sm opacity-60 ml-auto"></span>
             </div>
 
+            <div id="daccWarn" class="hidden mb-4"></div>
             <div id="daccTotals" class="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-2"></div>
             <div id="daccPeriodLine" class="text-sm opacity-70 mb-4"></div>
 
@@ -84,7 +85,7 @@
     <script src="../js/date-utils.js?v=4"></script>
     <script src="../js/layout.js?v=81"></script>
     <script src="../js/fin-utils.js?v=14"></script>
-    <script src="../js/pages/dept-account.js?v=2"></script>
+    <script src="../js/pages/dept-account.js?v=5"></script>
     <script>
         DeptAccount.init({ department: 'Кухня', module: 'kitchen', menuId: 'kitchen', itemId: 'dept_account' });
     </script>

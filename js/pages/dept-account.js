@@ -14,7 +14,7 @@ const tr = (key, fallback) => { const v = t(key); return v === key ? fallback : 
 
 let cfg = null;
 let accounts = [];
-let rows = [];            // все проводки выбранного счёта, по возрастанию ledger_seq
+let rows = [];            // все проводки выбранного счёта, по дате (внутри дня — приходы раньше), .bal — остаток после
 const opened = new Set(); // раскрытые строки (posting_id)
 let sort = { key: 'date', dir: 'desc' };
 
@@ -39,7 +39,7 @@ function presetRange(p) {
 
 function markPreset(p) {
     document.querySelectorAll('[data-dacc-preset]').forEach(b => b.classList.toggle('btn-active', b.dataset.daccPreset === p));
-    try { localStorage.setItem('dept_account_preset', p); } catch { /* нет хранилища */ }
+    try { localStorage.setItem('dept_account_period', p); } catch { /* нет хранилища */ }
 }
 
 function setPreset(p) {
@@ -69,8 +69,14 @@ async function loadRows(accountId) {
 }
 
 async function selectAccount(id) {
-    $('daccBody').innerHTML = `<tr><td colspan="8" class="text-center py-8"><span class="loading loading-spinner loading-md"></span></td></tr>`;
-    rows = await loadRows(id);
+    $('daccBody').innerHTML = `<tr><td colspan="7" class="text-center py-8"><span class="loading loading-spinner loading-md"></span></td></tr>`;
+    // Остаток после операции — по дате операции (а не по порядку внесения): операцию, внесённую
+    // задним числом, ставим на её дату, иначе в столбце «Остаток после» скачки (замечание ВГ 25.09)
+    // в пределах одного дня сначала приходы, потом расходы — чтобы не было ложного минуса внутри дня
+    const inFirst = r => Number(r.signed_amount) >= 0 ? 0 : 1;
+    rows = (await loadRows(id)).sort((a, b) => a.occurred_on.localeCompare(b.occurred_on) || inFirst(a) - inFirst(b) || a.ledger_seq - b.ledger_seq);
+    let bal = 0;
+    rows.forEach((r, i) => { bal += Number(r.signed_amount); r.bal = Math.round(bal * 100) / 100; r.ord = i; });
     opened.clear();
     const cats = [...new Map(rows.filter(r => r.category_id).map(r => [r.category_id, r.category_name])).entries()]
         .sort((a, b) => a[1].localeCompare(b[1], 'ru'));
@@ -115,12 +121,12 @@ function renderTotals(list) {
     const cur = rows[rows.length - 1]?.currency_code || accounts.find(a => a.account_id === $('daccAccount').value)?.currency_code || 'INR';
     const from = $('daccFrom').value, to = $('daccTo').value;
     const today = DateUtils.toISO(new Date());
-    const now = rows.length ? Number(rows[rows.length - 1].running_balance) : 0;
+    const now = rows.length ? rows[rows.length - 1].bal : 0;
     // остатки — по всем проводкам счёта, без учёта фильтров по статье и поиску
     const before = from ? rows.filter(r => r.occurred_on < from) : [];
     const upto = to ? rows.filter(r => r.occurred_on <= to) : rows;
-    const opening = before.length ? Number(before[before.length - 1].running_balance) : 0;
-    const closing = upto.length ? Number(upto[upto.length - 1].running_balance) : 0;
+    const opening = before.length ? before[before.length - 1].bal : 0;
+    const closing = upto.length ? upto[upto.length - 1].bal : 0;
     // сторно и отменённая операция вместе дают ноль — в «Пришло/Ушло» их не показываем (как в ДДС)
     let inc = 0, out = 0, rev = 0;
     for (const r of list) {
@@ -177,8 +183,8 @@ function sortIcon(key) {
 
 function renderTable(list) {
     const cmp = sort.key === 'amount'
-        ? (a, b) => Number(a.signed_amount) - Number(b.signed_amount) || a.ledger_seq - b.ledger_seq
-        : (a, b) => a.occurred_on.localeCompare(b.occurred_on) || a.ledger_seq - b.ledger_seq;
+        ? (a, b) => Number(a.signed_amount) - Number(b.signed_amount) || a.ord - b.ord
+        : (a, b) => a.ord - b.ord;
     const sorted = [...list].sort(cmp);
     if (sort.dir === 'desc') sorted.reverse();
     $('daccHead').innerHTML = `<tr>
@@ -186,13 +192,12 @@ function renderTable(list) {
         <th class="cursor-pointer select-none whitespace-nowrap" data-dacc-sort="date">${e(tr('fin_occurred_on', 'Дата'))} ${sortIcon('date')}</th>
         <th>${e(tr('fin_kind', 'Вид'))}</th>
         <th>${e(tr('fin_category', 'Статья'))}</th>
-        <th>${e(tr('dacc_who', 'От кого / кому'))}</th>
         <th>${e(tr('fin_comment', 'Комментарий'))}</th>
         <th class="text-right cursor-pointer select-none whitespace-nowrap" data-dacc-sort="amount">${e(tr('fin_amount', 'Сумма'))} ${sortIcon('amount')}</th>
-        <th class="text-right whitespace-nowrap" title="${e(tr('dacc_after_hint', 'Сколько осталось на счёте после этой операции'))}">${e(tr('fin_running_balance', 'Остаток после'))}</th>
+        <th class="text-right whitespace-nowrap" title="${e(tr('dacc_after_hint', 'Сколько было на счёте после этой операции — по дате операции'))}">${e(tr('fin_running_balance', 'Остаток после'))}</th>
     </tr>`;
     if (!sorted.length) {
-        $('daccBody').innerHTML = `<tr><td colspan="8" class="text-center py-6 opacity-60">${e(tr('fin_no_operations', 'Операций нет'))}</td></tr>`;
+        $('daccBody').innerHTML = `<tr><td colspan="7" class="text-center py-6 opacity-60">${e(tr('fin_no_operations', 'Операций нет'))}</td></tr>`;
         return;
     }
     $('daccBody').innerHTML = sorted.map(r => {
@@ -203,15 +208,34 @@ function renderTable(list) {
             <td class="whitespace-nowrap">${e(fmtDay(r.occurred_on))}</td>
             <td>${kindCell(r)}</td>
             <td>${e(r.category_name || '—')}</td>
-            <td>${e(r.participant_name || r.contractor_name || '')}</td>
-            <td class="max-w-xs truncate opacity-70" title="${e(r.comment || r.reason || '')}">${e(r.comment || r.reason || '')}</td>
+            <td class="max-w-md"><div class="truncate opacity-70" title="${e(r.comment || r.reason || '')}">${e(r.comment || r.reason || '')}</div>${
+                r.participant_name || r.contractor_name ? `<div class="text-xs opacity-60 truncate">${e(r.participant_name || r.contractor_name)}</div>` : ''}</td>
             <td class="text-right font-mono whitespace-nowrap ${v < 0 ? 'text-red-600' : 'text-blue-600'}">${signed(v, r.currency_code)}</td>
-            <td class="text-right font-mono whitespace-nowrap ${Number(r.running_balance) < 0 ? 'text-error' : ''}">${money(r.running_balance, r.currency_code)}</td>
-        </tr>${open ? `<tr class="bg-base-200/40"><td></td><td colspan="7">${detailHtml(r)}</td></tr>` : ''}`;
+            <td class="text-right font-mono whitespace-nowrap ${r.bal < 0 ? 'text-error' : ''}">${money(r.bal, r.currency_code)}</td>
+        </tr>${open ? `<tr class="bg-base-200/40"><td></td><td colspan="6">${detailHtml(r)}</td></tr>` : ''}`;
     }).join('');
 }
 
+// ⚠ По датам счёт уходил в минус — значит, траты проведены раньше, чем деньги пришли на счёт
+// (перевод записан более поздней датой или не внесён). Правило ВГ: о любом пропуске — сверху, со ссылкой.
+function renderWarn() {
+    const neg = rows.filter(r => r.bal < -0.005);
+    const box = $('daccWarn');
+    if (!neg.length) { box.classList.add('hidden'); return; }
+    const cur = neg[0].currency_code;
+    const min = neg.reduce((m, r) => r.bal < m.bal ? r : m, neg[0]);
+    const days = [...new Set(neg.map(r => r.occurred_on))];
+    box.innerHTML = `<div class="alert alert-warning text-sm items-start">
+        <div><div class="font-semibold">⚠ ${e(tr('dacc_neg_title', 'По датам операций счёт уходил в минус'))}</div>
+        <div>${e(DateUtils.formatRange(days[0], days[days.length - 1]))} · ${e(tr('dacc_neg_days', 'дней'))}: ${days.length} · ${e(tr('dacc_neg_min', 'ниже всего'))} ${money(min.bal, cur)} (${e(fmtDay(min.occurred_on))})</div>
+        <div class="opacity-80">${e(tr('dacc_neg_hint', 'Траты проведены раньше, чем деньги пришли на счёт: перевод на счёт записан более поздней датой или не внесён. Проверьте даты переводов в ДДС.'))}</div></div>
+        <button class="btn btn-sm shrink-0 bg-base-100 border-base-100 hover:bg-base-200" data-dacc-neg="${days[0]}|${days[days.length - 1]}">${e(tr('dacc_neg_show', 'Показать эти дни'))}</button>
+    </div>`;
+    box.classList.remove('hidden');
+}
+
 function render() {
+    renderWarn();
     const list = filtered();
     renderTotals(list);
     renderTable(list);
@@ -219,10 +243,10 @@ function render() {
 }
 
 function exportCsv() {
-    const list = filtered().sort((a, b) => a.ledger_seq - b.ledger_seq);
+    const list = filtered();
     const header = ['Дата', 'Вид', 'Другой счёт', 'Статья', 'Ретрит', 'От кого / кому', 'Комментарий', 'Сумма', 'Валюта', 'Остаток после'];
     const data = list.map(r => [r.occurred_on, FinUtils.typeLabel(r.type), r.contra_account || '', r.category_name || '', r.object_name || '',
-        r.participant_name || r.contractor_name || '', r.comment || r.reason || '', r.signed_amount, r.currency_code, r.running_balance]);
+        r.participant_name || r.contractor_name || '', r.comment || r.reason || '', r.signed_amount, r.currency_code, r.bal]);
     const csv = '﻿' + [header, ...data].map(x => x.map(c => `"${String(c ?? '').replace(/"/g, '""')}"`).join(';')).join('\n');
     const a = document.createElement('a');
     a.href = URL.createObjectURL(new Blob([csv], { type: 'text/csv;charset=utf-8' }));
@@ -238,7 +262,7 @@ async function init(options) {
     if (accounts === null) { $('daccNoAccess').classList.remove('hidden'); return; }
     $('daccContent').classList.remove('hidden');
     if (!accounts.length) {
-        $('daccBody').innerHTML = `<tr><td colspan="8" class="text-center py-6 opacity-60">${e(tr('dacc_no_accounts', 'У департамента пока нет счёта'))}</td></tr>`;
+        $('daccBody').innerHTML = `<tr><td colspan="7" class="text-center py-6 opacity-60">${e(tr('dacc_no_accounts', 'У департамента пока нет счёта'))}</td></tr>`;
         return;
     }
     $('daccAccount').innerHTML = accounts.map(a => `<option value="${a.account_id}">${e(a.name)}${a.is_active ? '' : ' (закрыт)'}</option>`).join('');
@@ -252,6 +276,14 @@ async function init(options) {
     $('daccSearch').addEventListener('input', Layout.debounce(render, 300));
     document.querySelectorAll('[data-dacc-preset]').forEach(b => b.addEventListener('click', () => setPreset(b.dataset.daccPreset)));
     $('daccCsv').addEventListener('click', exportCsv);
+    $('daccWarn').addEventListener('click', ev => {
+        const b = ev.target.closest('[data-dacc-neg]');
+        if (!b) return;
+        [$('daccFrom').value, $('daccTo').value] = b.dataset.daccNeg.split('|');
+        markPreset('custom');
+        sort = { key: 'date', dir: 'asc' };
+        render();
+    });
     $('daccHead').addEventListener('click', ev => {
         const th = ev.target.closest('[data-dacc-sort]');
         if (!th) return;
@@ -267,11 +299,12 @@ async function init(options) {
         render();
     });
 
-    // по умолчанию — всё время (решение ВГ 25.09)
-    let preset = 'all';
-    try { preset = localStorage.getItem('dept_account_preset') || 'all'; } catch { /* нет хранилища */ }
-    const r = presetRange(preset);
-    if (r) { $('daccFrom').value = r[0]; $('daccTo').value = r[1]; } else preset = 'all';
+    // по умолчанию — этот год (решение ВГ 25.09: за всё время суммы копятся годами и пугают)
+    let preset = 'year';
+    try { preset = localStorage.getItem('dept_account_period') || 'year'; } catch { /* нет хранилища */ }
+    let r = presetRange(preset);
+    if (!r) { preset = 'year'; r = presetRange(preset); }
+    $('daccFrom').value = r[0]; $('daccTo').value = r[1];
     markPreset(preset);
     await selectAccount(accounts[0].account_id);
 }
