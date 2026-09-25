@@ -832,7 +832,8 @@ async function renderCharts() {
     const scope = scopeEvents();
     const ps = pricesState();
     const monthKeys = Object.keys(view.result.months || {}).sort();
-    const monthLabel = ym => { const l = DateUtils.parseDate(ym + '-01').toLocaleDateString(locale(), { month: 'short', year: '2-digit' }); return l.replace(' г.', ''); };
+    // «Август 2026», а не «авг. 26» — иначе 26 читается как число месяца
+    const monthLabel = ym => { const l = DateUtils.parseDate(ym + '-01').toLocaleDateString(locale(), { month: 'long', year: 'numeric' }).replace(' г.', ''); return l.charAt(0).toUpperCase() + l.slice(1); };
     const inScope = ev => !scope || scope.includes(ev);
     const parts = [];
 
@@ -845,8 +846,8 @@ async function renderCharts() {
         }
         return acc;
     });
-    parts.push(monthKeys.length > 1 ? chartCard('chMonths', tr('cost_ch_months', 'Стоимость приёма пищи по месяцам'), tr('cost_ch_months_note', 'Столбики — из чего складываются расходы месяца, линия — стоимость одного приёма пищи'))
-        : emptyCard(tr('cost_ch_months', 'Стоимость приёма пищи по месяцам'), tr('cost_ch_need_months', 'Выберите период длиннее месяца — квартал или год')));
+    parts.push(monthKeys.length > 1 ? chartCard('chMonths', tr('cost_ch_months', 'Расходы на питание по месяцам'), tr('cost_ch_months_note', 'Столбик — сколько потрачено за месяц и из чего (цвета — в подписи снизу). Под месяцем — стоимость одного приёма пищи: расход месяца ÷ число приёмов пищи. Наведите на столбик — подробности.'))
+        : emptyCard(tr('cost_ch_months', 'Расходы на питание по месяцам'), tr('cost_ch_need_months', 'Выберите период длиннее месяца — квартал или год')));
 
     // 2. Вкушающие по дням
     parts.push(chartCard('chDays', tr('cost_ch_days', 'Вкушающие по дням'), tr('cost_ch_days_note', 'Сколько человек ело в день (больше из завтрака и обеда)')));
@@ -889,17 +890,20 @@ async function renderCharts() {
     const base = { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'bottom', labels: { boxWidth: 12 } } } };
     const moneyTip = { callbacks: { label: c => `${c.dataset.label}: ${money0(c.parsed.y ?? c.parsed.x)}` } };
 
+    // стоимость приёма пищи — второй строкой подписи под столбиком (линия между месяцами путала)
+    const perMealText = x => x.pm ? `${money2(total(x) / x.pm)} ${tr('cost_ch_per_meal_short', 'за приём пищи')}` : '';
     if (monthKeys.length > 1) charts.push(new Chart(document.getElementById('chMonths'), {
-        data: { labels: monthKeys.map(monthLabel), datasets: [
-            { type: 'line', label: tr('cost_per_meal', 'На приём пищи'), data: mData.map(x => x.pm ? total(x) / x.pm : null), borderColor: '#111827', backgroundColor: '#111827', yAxisID: 'y1', tension: 0.3 },
+        type: 'bar',
+        data: { labels: monthKeys.map((ym, i) => [monthLabel(ym), perMealText(mData[i])]), datasets: [
             { type: 'bar', label: tr('cost_food', 'Продукты'), data: mData.map(x => x.food), backgroundColor: PART_COLORS.food, stack: 's' },
             { type: 'bar', label: tr('cost_dishware', 'Посуда'), data: mData.map(x => x.dish), backgroundColor: PART_COLORS.dish, stack: 's' },
             { type: 'bar', label: tr('cost_external', 'Готовое'), data: mData.map(x => x.ext), backgroundColor: PART_COLORS.ext, stack: 's' },
             { type: 'bar', label: tr('cost_overhead', 'Накладные'), data: mData.map(x => overhead(x)), backgroundColor: PART_COLORS.ov, stack: 's' }
         ] },
-        options: { ...base, plugins: { ...base.plugins, tooltip: moneyTip },
-            scales: { x: { stacked: true }, y: { stacked: true, ticks: { callback: money0 } },
-                      y1: { position: 'right', grid: { drawOnChartArea: false }, ticks: { callback: v => money0(v) } } } }
+        options: { ...base, plugins: { ...base.plugins, tooltip: { callbacks: { ...moneyTip.callbacks,
+                footer: items => { const x = mData[items[0].dataIndex];
+                    return [`${tr('cost_total', 'Всего')}: ${money0(total(x))}`, `${num(x.pm)} ${tr('cost_person_meals', 'приёмов пищи').toLowerCase()}`, perMealText(x)]; } } } },
+            scales: { x: { stacked: true }, y: { stacked: true, ticks: { callback: money0 } } } }
     }));
 
     // вкушающие по дням: ряды — ретриты (каждый своим цветом) и категории людей без события
