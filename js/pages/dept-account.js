@@ -216,26 +216,7 @@ function renderTable(list) {
     }).join('');
 }
 
-// ⚠ По датам счёт уходил в минус — значит, траты проведены раньше, чем деньги пришли на счёт
-// (перевод записан более поздней датой или не внесён). Правило ВГ: о любом пропуске — сверху, со ссылкой.
-function renderWarn() {
-    const neg = rows.filter(r => r.bal < -0.005);
-    const box = $('daccWarn');
-    if (!neg.length) { box.classList.add('hidden'); return; }
-    const cur = neg[0].currency_code;
-    const min = neg.reduce((m, r) => r.bal < m.bal ? r : m, neg[0]);
-    const days = [...new Set(neg.map(r => r.occurred_on))];
-    box.innerHTML = `<div class="alert alert-warning text-sm items-start">
-        <div><div class="font-semibold">⚠ ${e(tr('dacc_neg_title', 'По датам операций счёт уходил в минус'))}</div>
-        <div>${e(DateUtils.formatRange(days[0], days[days.length - 1]))} · ${e(tr('dacc_neg_days', 'дней'))}: ${days.length} · ${e(tr('dacc_neg_min', 'ниже всего'))} ${money(min.bal, cur)} (${e(fmtDay(min.occurred_on))})</div>
-        <div class="opacity-80">${e(tr('dacc_neg_hint', 'Траты проведены раньше, чем деньги пришли на счёт: перевод на счёт записан более поздней датой или не внесён. Проверьте даты переводов в ДДС.'))}</div></div>
-        <button class="btn btn-sm shrink-0 bg-base-100 border-base-100 hover:bg-base-200" data-dacc-neg="${days[0]}|${days[days.length - 1]}">${e(tr('dacc_neg_show', 'Показать эти дни'))}</button>
-    </div>`;
-    box.classList.remove('hidden');
-}
-
 function render() {
-    renderWarn();
     const list = filtered();
     renderTotals(list);
     renderTable(list);
@@ -276,14 +257,6 @@ async function init(options) {
     $('daccSearch').addEventListener('input', Layout.debounce(render, 300));
     document.querySelectorAll('[data-dacc-preset]').forEach(b => b.addEventListener('click', () => setPreset(b.dataset.daccPreset)));
     $('daccCsv').addEventListener('click', exportCsv);
-    $('daccWarn').addEventListener('click', ev => {
-        const b = ev.target.closest('[data-dacc-neg]');
-        if (!b) return;
-        [$('daccFrom').value, $('daccTo').value] = b.dataset.daccNeg.split('|');
-        markPreset('custom');
-        sort = { key: 'date', dir: 'asc' };
-        render();
-    });
     $('daccHead').addEventListener('click', ev => {
         const th = ev.target.closest('[data-dacc-sort]');
         if (!th) return;
