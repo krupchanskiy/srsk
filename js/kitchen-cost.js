@@ -252,7 +252,7 @@ function allocateOverhead(input, mealRecords, cell, totals, warn, lines) {
         const estimate = p.source === 'estimate';
         if (estimate && !warn.payrollEstimated.includes(from.slice(0, 7))) warn.payrollEstimated.push(from.slice(0, 7));
         items.push({ amount: Number(p.amount), kind: 'general', from, to, provisional: estimate || to >= today, label: p.position_title,
-                     category: 'payroll', estimate, personId: p.vaishnava_id || null, personName: p.person_name || null });
+                     category: 'payroll', estimate, estimateBasis: p.estimate_basis || null, personId: p.vaishnava_id || null, personName: p.person_name || null });
     }
     for (const x of (ov.items || [])) {
         let kind = x.kind;
@@ -275,7 +275,7 @@ function allocateOverhead(input, mealRecords, cell, totals, warn, lines) {
         const line = { label: it.label, category: it.category, occurredOn: it.occurredOn || null, comment: it.comment || null,
                        postingId: it.postingId || null,
                        estimate: !!it.estimate, kind: it.kind, retreatId: it.retreatId || null, amount: it.amount,
-                       personId: it.personId || null, personName: it.personName || null,
+                       personId: it.personId || null, personName: it.personName || null, estimateBasis: it.estimateBasis || null,
                        from: it.from, to: it.to, group: null, allocated: 0, byEvent: {},
                        // для пояснения «как посчитано»: ставка = сумма / base; pmByEvent — приёмы пищи,
                        // на которые разложено (только с меню), pmAllByEvent — все приёмы пищи события в окне

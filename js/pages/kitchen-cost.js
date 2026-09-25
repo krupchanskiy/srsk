@@ -1346,6 +1346,19 @@ function overheadExplain(l, part) {
     return text;
 }
 
+// Зарплата за месяц ещё не начислена — сумма ориентировочная: откуда взята и когда станет точной
+function estimateHint(l) {
+    const month = DateUtils.parseDate(l.from).toLocaleDateString(locale(), { month: 'long', year: 'numeric' }).replace(' г.', '');
+    const b = l.estimateBasis || '';
+    const basis = b === 'salary'
+        ? `${tr('cost_est_from_salary', 'оклад, указанный у должности')} — ${money(l.amount)}`
+        : b.startsWith('accrual:')
+            ? `${tr('cost_est_from_last', 'последнее начисление за')} ${DateUtils.parseDate(b.slice(8) + '-01').toLocaleDateString(locale(), { month: 'long', year: 'numeric' }).replace(' г.', '')} — ${money(l.amount)}`
+            : money(l.amount);
+    return `${tr('cost_est_hint1', 'Ориентировочная сумма: зарплата за')} ${month} ${tr('cost_est_hint2', 'ещё не начислена в финансах. Взято:')} ${basis}. `
+        + tr('cost_est_hint3', 'Как только зарплату начислят (Финансы → Зарплата), здесь сама встанет настоящая сумма, и доля ретрита пересчитается.');
+}
+
 // Накладные: группы раскрываются на месте (правило ВГ) — Зарплаты → должность с именем → месяцы;
 // остальные статьи → отдельные расходы со ссылкой в ДДС
 function renderOverhead() {
@@ -1376,13 +1389,13 @@ function renderOverhead() {
     const groupRow = (key, labelHtml, list, depth, cls = '') => {
         const s = sumOf(list);
         return `<tr class="cursor-pointer hover:bg-base-200/50 ${cls}" data-action="toggle-row" data-key="${key}">
-            <td class="${depth ? 'pl-8' : ''}">${toggleCell(key)}${labelHtml} <span class="text-xs opacity-60">(${list.length})</span></td>
+            <td class="${depth ? 'pl-8' : ''}">${toggleCell(key)}${labelHtml} <span class="text-xs opacity-60">(${list.length})</span>${list.some(x => x.l.estimate) ? ` <span class="badge badge-warning badge-xs cursor-help" title="${e(tr('cost_est_group_hint', 'Часть месяцев — ориентировочно: зарплата ещё не начислена. Раскройте, наведите на пометку — откуда взята сумма.'))}">${e(tr('cost_estimate_approx', 'ориентировочно'))}</span>` : ''}</td>
             <td class="text-sm whitespace-nowrap">${e(range(list))}</td><td></td>
             <td class="text-right">${money(s.amount)}</td>
             <td class="text-right font-medium">${money(s.part)}</td></tr>`;
     };
     const itemRow = ({ l, part }, labelHtml, pad) => `<tr class="${l.unallocated ? 'text-warning' : ''} text-sm">
-        <td class="${pad}">${labelHtml}${l.estimate ? ` <span class="badge badge-warning badge-xs">${e(tr('cost_estimate', 'оценка'))}</span>` : ''}${l.comment ? `<div class="text-xs opacity-60">${e(l.comment)}</div>` : ''}</td>
+        <td class="${pad}">${labelHtml}${l.estimate ? ` <span class="badge badge-warning badge-xs cursor-help" title="${e(estimateHint(l))}">${e(tr('cost_estimate_approx', 'ориентировочно'))}</span>` : ''}${l.comment ? `<div class="text-xs opacity-60">${e(l.comment)}</div>` : ''}</td>
         <td class="whitespace-nowrap">${e(DateUtils.formatRange(l.from, l.to))}</td>
         <td>${e(howOf(l))}</td>
         <td class="text-right">${money(l.amount)}</td>
