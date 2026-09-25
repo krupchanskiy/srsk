@@ -353,18 +353,17 @@ function statusOf() {
 const rowMatch = (row, x) => !row.status || statusOf().get(x.vaishnava_id || x.ref_id) === row.status;
 
 // Затраты строки: обычная строка — готовые ячейки; строка статуса — по людям,
-// приёмы пищи из меню × стоимость приёма пищи их категории (по статьям), сумма строк = итог
+// все приёмы пищи × стоимость приёма пищи их категории (по статьям), сумма строк = итог
 function rowAgg(row) {
     const cells = view.result.cells;
     if (!row.status) return aggregate(cells, row.ev, row.buckets);
-    const served = view.served || (view.served = new Set(view.result.mealRecords.filter(r => !r.unallocated).map(r => `${r.date}|${r.meal}`)));
     const acc = zero();
     for (const x of view.detail) {
         if (`retreat:${x.retreat_id}` !== row.ev || !row.buckets.includes(x.bucket) || !rowMatch(row, x)) continue;
         const c = cells[row.ev]?.[x.bucket];
         if (!c || !c.personMeals) continue;
         const n = x.kind === 'group' ? (Number(x.people) || 1) : 1;
-        const meals = ((x.breakfast && served.has(`${x.d}|breakfast`) ? 1 : 0) + (x.lunch && served.has(`${x.d}|lunch`) ? 1 : 0)) * n;
+        const meals = ((x.breakfast ? 1 : 0) + (x.lunch ? 1 : 0)) * n;
         if (!meals) continue;
         const k = meals / c.personMeals;
         acc.pm += meals; acc.food += c.food * k; acc.dish += c.dishware * k; acc.ext += c.external * k;
@@ -573,7 +572,7 @@ function renderSummary() {
     const t2 = view.result.totals;
     const lost = [];
     if (t2.unallocated > 0.5) lost.push(`${tr('cost_unallocated', 'Расходы приёмов пищи без вкушающих (не распределены)')}: ${money(t2.unallocated)}`);
-    if (t2.overheadUnallocated > 0.5) lost.push(`${tr('cost_overhead_unallocated', 'Накладные расходы без вкушающих или без приёма пищи в меню (не распределены)')}: ${money(t2.overheadUnallocated)}`);
+    if (t2.overheadUnallocated > 0.5) lost.push(`${tr('cost_overhead_unallocated2', 'Накладные расходы за период, где не было ни одного вкушающего (не распределены)')}: ${money(t2.overheadUnallocated)}`);
     const lostHtml = lost.length && isPeriod
         ? lost.map(l => `<tr class="text-warning text-sm"><td colspan="11">${e(l)}</td></tr>`).join('') : '';
 
@@ -702,7 +701,7 @@ function renderTabs() {
     const cur = state.section === 'data' ? 'dataTab' : 'tab';
     if (tabs.length && !tabs.some(x => x.id === state[cur])) state[cur] = tabs[0].id;
     Layout.$('#tabBar').innerHTML = tabs.map(x =>
-        `<a role="tab" class="tab ${x.id === state[cur] ? 'tab-active [--tab-bg:oklch(var(--b1))]' : ''} ${x.warn ? 'text-warning' : ''}" data-action="tab" data-tab="${x.id}">${e(x.label)}</a>`).join('');
+        `<a role="tab" class="tab ${x.id === state[cur] ? 'tab-active [--tab-bg:oklch(var(--b1))]' : ''} ${x.warn ? 'text-warning' : ''}" data-action="tab" data-tab="${x.id}">${e(x.label)}${HOW_SECTIONS[x.id] ? `<span class="how-q" data-action="how" data-sec="${HOW_SECTIONS[x.id]}" title="${e(tr('cost_how_title', 'Как считается'))}">?</span>` : ''}</a>`).join('');
     Layout.$('#tabBar').classList.toggle('hidden', !tabs.length);
     const panel = state.section === 'calc' ? state.tab : state.section === 'data' ? state.dataTab : state.section;
     document.querySelectorAll('[data-panel]').forEach(p => p.classList.toggle('hidden', p.dataset.panel !== panel));
@@ -1023,7 +1022,7 @@ function scopeEvents() {
 }
 
 // Люди по строкам детализации: кто, сколько дней ел, завтраков, обедов, приёмов пищи и во что обошёлся.
-// Стоимость человека = его приёмы пищи из меню × стоимость одного приёма пищи его ячейки
+// Стоимость человека = все его приёмы пищи × стоимость одного приёма пищи его ячейки
 // (ретрит или «без события» × категория), поэтому сумма по людям = итог сводки.
 function personRows(match) {
     const cells = view.result.cells;
@@ -1033,8 +1032,6 @@ function personRows(match) {
         if (!(k in rate)) { const x = aggregate(cells, ev, [bucket]); rate[k] = x.pm ? total(x) / x.pm : 0; }
         return rate[k];
     };
-    // стоимость есть только у приёмов пищи из меню — дни без меню не считаем, иначе сумма разойдётся с итогом
-    const served = view.served || (view.served = new Set(view.result.mealRecords.filter(r => !r.unallocated).map(r => `${r.date}|${r.meal}`)));
     const people = new Map();
     for (const x of view.detail) {
         const ev = x.retreat_id ? `retreat:${x.retreat_id}` : 'none';
@@ -1047,7 +1044,7 @@ function personRows(match) {
         if (x.breakfast || x.lunch) p.days.add(x.d);
         if (x.breakfast) p.bf += n;
         if (x.lunch) p.ln += n;
-        const meals = (x.breakfast && served.has(`${x.d}|breakfast`) ? 1 : 0) + (x.lunch && served.has(`${x.d}|lunch`) ? 1 : 0);
+        const meals = (x.breakfast ? 1 : 0) + (x.lunch ? 1 : 0);
         p.pm += meals * n;
         p.cost += meals * n * rateOf(ev, x.bucket);
         people.set(key, p);
@@ -1335,15 +1332,13 @@ function overheadExplain(l, part) {
     if (l.unallocated) return tr('cost_ov_x_unallocated', 'За период расхода нет ни одного вкушающего — делить не на кого, расход не распределён.');
     const scope = scopeEvents();
     const pick = obj => scope ? scope.reduce((s, ev) => s + (obj[ev] || 0), 0) : Object.values(obj).reduce((s, v) => s + v, 0);
-    const pm = pick(l.pmByEvent), pmAll = pick(l.pmAllByEvent);
+    const pm = pick(l.pmByEvent);
     const whoBase = l.kind === 'retreat_event' ? tr('cost_ov_x_base_retreat', 'приёмов пищи участников этого ретрита')
         : l.kind === 'retreat_period' && l.group === 'retreat' ? tr('cost_ov_x_base_retreats', 'приёмов пищи участников всех ретритов')
         : tr('cost_ov_x_base_all', 'приёмов пищи всех вкушающих (команда, волонтёры, гости, участники)');
     const whoPart = scope ? tr('cost_ov_x_part_retreat', 'приёмов пищи участников этого ретрита') : tr('cost_ov_x_part_period', 'приёмов пищи в выбранном периоде');
-    let text = `${money(l.amount)} (${DateUtils.formatRange(l.from, l.to)}) ÷ ${num(l.base)} ${whoBase} = ${money2(l.rate)} ${tr('cost_ov_x_per_meal', 'за один приём пищи')}. `
-        + `× ${num(pm)} ${whoPart} ${tr('cost_ov_x_with_menu', '(только приёмы пищи, где внесено меню)')} = ${money(part)}.`;
-    if (pmAll > pm) text += ` ⚠ ${tr('cost_ov_x_no_menu', 'Ещё')} ${num(pmAll - pm)} ${tr('cost_ov_x_no_menu2', 'приёмов пищи — без меню: на них')} ${money(l.rate * (pmAll - pm))} ${tr('cost_ov_x_no_menu3', 'не разложено.')}`;
-    return text;
+    return `${money(l.amount)} (${DateUtils.formatRange(l.from, l.to)}) ÷ ${num(l.base)} ${whoBase} = ${money2(l.rate)} ${tr('cost_ov_x_per_meal', 'за один приём пищи')}. `
+        + `× ${num(pm)} ${whoPart} = ${money(part)}.`;
 }
 
 // Зарплата за месяц ещё не начислена — сумма ориентировочная: откуда взята и когда станет точной
@@ -1444,6 +1439,19 @@ function renderOverhead() {
             out.push(itemRow(x, labelHtml, 'pl-8'));
         });
     }
+
+    // Пропуски меню: накладные на эти приёмы пищи разложены, продуктов по ним нет (правило ВГ — предупреждать)
+    const counts = view.result.counts || {};
+    const noMenu = view.result.warnings.noMenu.filter(x => {
+        const [d, m] = x.split(' ');
+        if (d < view.from || d > view.to) return false;
+        return !scope || scope.some(ev => ALL_BUCKETS.some(k => counts[d]?.byEvent?.[m]?.[ev]?.[k]));
+    });
+    const warnBox = Layout.$('#overheadWarn');
+    warnBox.innerHTML = noMenu.length ? `<span><b>⚠ ${e(tr('cost_no_menu_title', 'Нет меню'))}: ${noMenu.length} ${e(tr('cost_meals_short', 'приёмов пищи'))}, ${new Set(noMenu.map(x => x.split(' ')[0])).size} ${e(tr('cost_days_short', 'дн.'))}</b>
+        — ${e(tr('cost_ov_no_menu_note', 'люди ели, поэтому накладные на эти приёмы пищи разложены, но продукты по ним не посчитаны. Какие именно дни — на вкладке «Прямые затраты».'))}</span>
+        <button class="btn btn-sm btn-outline" data-action="open-no-menu">${e(tr('cost_open_no_menu', 'Показать дни без меню'))}</button>` : '';
+    warnBox.classList.toggle('hidden', !noMenu.length);
 
     const total = sumOf(items);
     Layout.$('#overheadBody').innerHTML = out.length
@@ -1745,6 +1753,31 @@ function saveState() {
         section: state.section, tab: state.tab, dataTab: state.dataTab })); } catch { /* нет хранилища */ }
 }
 
+// ==================== ПАМЯТКА «КАК СЧИТАЕТСЯ» ====================
+// «?» у вкладки открывает памятку на своём разделе
+const HOW_SECTIONS = { eaters: 'eaters', departments: 'team', direct: 'direct', overhead: 'overhead', months: 'retreat',
+                       reconcile: 'gaps', completeness: 'gaps', problems: 'gaps', settings: 'direct' };
+
+function openHow(sec) {
+    const panel = Layout.$('#howPanel');
+    Layout.$('#howBackdrop').classList.remove('hidden');
+    panel.classList.remove('translate-x-full');
+    panel.setAttribute('aria-hidden', 'false');
+    const target = sec && document.getElementById(`how-${sec}`);
+    if (target) {
+        target.open = true;
+        setTimeout(() => target.scrollIntoView({ behavior: 'smooth', block: 'start' }), 220);
+    }
+}
+
+function closeHow() {
+    Layout.$('#howBackdrop').classList.add('hidden');
+    Layout.$('#howPanel').classList.add('translate-x-full');
+    Layout.$('#howPanel').setAttribute('aria-hidden', 'true');
+}
+
+document.addEventListener('keydown', ev => { if (ev.key === 'Escape') closeHow(); });
+
 // ==================== EVENTS ====================
 document.addEventListener('click', ev => {
     const btn = ev.target.closest('[data-action]');
@@ -1783,6 +1816,20 @@ document.addEventListener('click', ev => {
             if (expanded.has(key)) loadDirectPostings().then(() => view && renderReconcile());
             break;
         }
+        case 'how':
+            ev.preventDefault();
+            openHow(btn.dataset.sec);
+            break;
+        case 'how-close':
+            closeHow();
+            break;
+        case 'open-no-menu':
+            directOnlyNoMenu = true;
+            state.section = 'calc';
+            state.tab = 'direct';
+            saveState();
+            if (view) renderTabs();
+            break;
         case 'direct-only-nomenu':
             directOnlyNoMenu = !directOnlyNoMenu;
             renderDirect();

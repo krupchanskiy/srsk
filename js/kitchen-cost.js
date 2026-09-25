@@ -190,23 +190,31 @@ function computeCosts(input) {
         totals.external += external;
     }
 
-    // вкушающие есть, а приёма пищи в меню нет
+    // вкушающие есть, а приёма пищи в меню нет: люди ели — приём пищи считается (на него ложатся
+    // накладные), только продукты по нему не посчитаны; об этом — предупреждение (решение ВГ 25.09)
     for (const [date, day] of Object.entries(counts || {})) {
         if (date < input.from || date > input.to) continue;
         for (const m of MEALS) {
-            const n = Object.values(day.byEvent?.[m] || {}).reduce((s, b) => s + BUCKETS.reduce((x, k) => x + (b[k] || 0), 0), 0);
-            if (n > 0 && !seen.has(`${date}|${m}`)) warn.noMenu.push(`${date} ${m}`);
+            const byEvent = day.byEvent?.[m] || {};
+            const n = Object.values(byEvent).reduce((s, b) => s + BUCKETS.reduce((x, k) => x + (b[k] || 0), 0), 0);
+            if (!(n > 0) || seen.has(`${date}|${m}`)) continue;
+            warn.noMenu.push(`${date} ${m}`);
+            for (const [ev, b] of Object.entries(byEvent)) {
+                for (const k of BUCKETS) if (b[k]) cell(ev, k, date).add('personMeals', b[k]);
+            }
+            totals.personMeals += n;
         }
     }
 
-    allocateOverhead(input, mealRecords.filter(r => !r.unallocated), cell, totals, warn, overheadLines);
+    allocateOverhead(input, cell, totals, warn, overheadLines);
 
     return { cells, months, totals, warnings: warn, mealRecords, overheadLines };
 }
 
 // ---------- накладные расходы: зарплаты, общие расходы, билеты ----------
 // Ставка = сумма расхода / человеко-приёмов периода расхода (завтраки + обеды по данным
-// вкушающих, независимо от меню). В ячейки периода расчёта попадает ставка × их человеко-приёмы.
+// вкушающих, независимо от меню). В ячейки периода расчёта попадает ставка × их человеко-приёмы —
+// тоже независимо от меню (ВГ 25.09: повар работал и в день без меню; пропуск меню — предупреждение).
 //   general        — все события, включая «без события»
 //   retreat_event  — только вкушающие ретрита, к которому привязан расход
 //   retreat_period — все события кроме «без события» (билет повара: делится между ретритами периода)
@@ -217,7 +225,7 @@ function lastDayOfMonth(iso) {
     return `${iso.slice(0, 7)}-${String(d).padStart(2, '0')}`;
 }
 
-function allocateOverhead(input, mealRecords, cell, totals, warn, lines) {
+function allocateOverhead(input, cell, totals, warn, lines) {
     const ov = input.overhead;
     if (!ov) return;
     if (ov.error) { warn.overheadError = ov.error; return; }
@@ -277,9 +285,9 @@ function allocateOverhead(input, mealRecords, cell, totals, warn, lines) {
                        estimate: !!it.estimate, kind: it.kind, retreatId: it.retreatId || null, amount: it.amount,
                        personId: it.personId || null, personName: it.personName || null, estimateBasis: it.estimateBasis || null,
                        from: it.from, to: it.to, group: null, allocated: 0, byEvent: {},
-                       // для пояснения «как посчитано»: ставка = сумма / base; pmByEvent — приёмы пищи,
-                       // на которые разложено (только с меню), pmAllByEvent — все приёмы пищи события в окне
-                       rate: 0, base: 0, pmByEvent: {}, pmAllByEvent: {} };
+                       // для пояснения «как посчитано»: ставка = сумма / base; pmByEvent — приёмы пищи
+                       // события в периоде расчёта, на которые разложен расход
+                       rate: 0, base: 0, pmByEvent: {} };
         lines.push(line);
         if (base === 0 && group === 'retreat') {
             warn.overheadNoBase.push(it.label);
@@ -294,20 +302,16 @@ function allocateOverhead(input, mealRecords, cell, totals, warn, lines) {
         const wFrom = it.from > input.from ? it.from : input.from;
         const wTo = it.to < input.to ? it.to : input.to;
         if (wFrom > wTo) continue;
-        for (const [date, evs] of Object.entries(pmDay)) {
-            if (date < wFrom || date > wTo) continue;
-            for (const [ev, n] of Object.entries(evs)) if (pass(ev)) line.pmAllByEvent[ev] = (line.pmAllByEvent[ev] || 0) + n;
-        }
 
         let allocated = 0;
-        for (const rec of mealRecords) {
-            if (rec.date < wFrom || rec.date > wTo) continue;
-            for (const [ev, b] of Object.entries(rec.byEvent)) {
+        for (const [date, day] of Object.entries(counts)) {
+            if (date < wFrom || date > wTo) continue;
+            for (const m of MEALS) for (const [ev, b] of Object.entries(day.byEvent?.[m] || {})) {
                 if (!pass(ev)) continue;
                 for (const k of BUCKETS) {
                     const n = b[k] || 0;
                     if (!n) continue;
-                    const c = cell(ev, k, rec.date);
+                    const c = cell(ev, k, date);
                     c.add(group === 'retreat' ? 'overheadRetreat' : 'overheadGeneral', rate * n);
                     if (it.provisional) { c.mark(); totals.provisional = true; }
                     allocated += rate * n;
@@ -318,8 +322,6 @@ function allocateOverhead(input, mealRecords, cell, totals, warn, lines) {
         }
         line.allocated = allocated;
         if (group === 'retreat') totals.overheadRetreat += allocated; else totals.overheadGeneral += allocated;
-        // доля периода расчёта, которую не на кого распределить (вкушающие есть, а приёма пищи в меню нет)
-        totals.overheadUnallocated += Math.max(0, rate * pmIn(wFrom, wTo, pass) - allocated);
     }
 }
 
