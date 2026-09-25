@@ -1383,7 +1383,7 @@ function renderOverhead() {
     const sumOf = list => list.reduce((a, x) => ({ amount: a.amount + x.l.amount, part: a.part + x.part }), { amount: 0, part: 0 });
     const groupRow = (key, labelHtml, list, depth, cls = '') => {
         const s = sumOf(list);
-        const rowCls = [expanded.has(key) && 'row-open', depth && 'row-child', cls].filter(Boolean).join(' ');
+        const rowCls = [expanded.has(key) && 'row-open', depth ? 'row-child' : 'row-top', cls].filter(Boolean).join(' ');
         return `<tr class="cursor-pointer hover:bg-base-200/50 ${rowCls}" data-action="toggle-row" data-key="${key}">
             <td class="${depth ? 'pl-8' : ''}">${toggleCell(key)}${labelHtml} <span class="text-xs opacity-60">(${list.length})</span>${list.some(x => x.l.estimate) ? ` <span class="badge badge-warning badge-xs cursor-help" title="${e(tr('cost_est_group_hint', 'Часть месяцев — предварительно: зарплата ещё не начислена. Раскройте, наведите на пометку — откуда взята сумма.'))}">${e(tr('cost_estimate_approx', 'предварительно'))}</span>` : ''}</td>
             <td class="text-sm whitespace-nowrap ${depth ? 'row-muted' : ''}">${e(range(list))}</td><td></td>

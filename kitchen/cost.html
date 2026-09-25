@@ -26,6 +26,9 @@
         /* раскрытая группа — серым, её строки — светлее, даты и «как делится» у них приглушены */
         .cost-table tr.row-child > td { background: oklch(var(--b2) / 0.4); }
         .cost-table tr.row-open > td { background: oklch(var(--b2)); }
+        /* статья верхнего уровня — вся строка жирным: даты и суммы тоже, чтобы заголовок отличался от детализации */
+        .cost-table tr.row-top > td { font-weight: 700; }
+        .cost-table tr.row-top .text-xs, .cost-table tr.row-top .badge { font-weight: 400; }
         .cost-table tr.row-child > td.row-muted { color: oklch(var(--bc) / 0.6); }
     </style>
     <style>
@@ -318,6 +321,6 @@
     <script src="../js/layout.js?v=80"></script>
     <script src="../js/eating-utils.js?v=11"></script>
     <script src="../js/kitchen-cost.js?v=8"></script>
-    <script src="../js/pages/kitchen-cost.js?v=22"></script>
+    <script src="../js/pages/kitchen-cost.js?v=23"></script>
 </body>
 </html>
