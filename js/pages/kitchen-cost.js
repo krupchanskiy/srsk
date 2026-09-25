@@ -678,15 +678,13 @@ function tabList() {
         ];
     }
     if (state.section !== 'calc') return [];
-    const multiMonth = view.from.slice(0, 7) !== view.to.slice(0, 7);
     return [
         { id: 'eaters', label: tr('cost_tab_eaters', 'Вкушающие') },
         { id: 'departments', label: tr('cost_tab_departments', 'Команда и волонтёры') },
         { id: 'direct', label: tr('cost_tab_direct', 'Прямые затраты') },
         { id: 'overhead', label: tr('cost_tab_overhead', 'Накладные') },
-        multiMonth ? { id: 'months', label: tr('cost_tab_months', 'По месяцам') } : null,
         { id: 'reconcile', label: tr('cost_reconcile_title', 'Сверка с ДДС') }
-    ].filter(Boolean);
+    ];
 }
 
 function renderTabs() {
@@ -706,7 +704,7 @@ function renderTabs() {
     const panel = state.section === 'calc' ? state.tab : state.section === 'data' ? state.dataTab : state.section;
     document.querySelectorAll('[data-panel]').forEach(p => p.classList.toggle('hidden', p.dataset.panel !== panel));
     Layout.$('#tabsBox').classList.remove('hidden');
-    ({ eaters: renderEaters, departments: renderDepartments, direct: renderDirect, overhead: renderOverhead, months: renderMonths,
+    ({ eaters: renderEaters, departments: renderDepartments, direct: renderDirect, overhead: renderOverhead,
        reconcile: renderReconcile, settings: () => { renderKits(); renderThreshold(); renderGroups(); }, problems: renderWarnings,
        completeness: renderCompleteness, now: renderNow, charts: renderCharts })[panel]?.();
 }
@@ -1461,39 +1459,6 @@ function renderOverhead() {
     renderUnassigned();
 }
 
-// ---------- По месяцам ----------
-function renderMonths() {
-    const months = view.result.months || {};
-    const keys = Object.keys(months).sort();
-    // колонки: в режиме «Ретрит» — только ретрит; в «Периоде» — ретриты вместе и люди без события
-    const colDefs = state.mode === 'retreat'
-        ? [{ label: retreatName(state.retreatId), pick: (m) => aggregate(m, `retreat:${state.retreatId}`, ALL_BUCKETS) }]
-        : [{ label: tr('cost_retreats', 'Ретриты'), pick: (m) => Object.keys(m).filter(k => k.startsWith('retreat:'))
-                .reduce((acc, ev) => { const x = aggregate(m, ev, ALL_BUCKETS); Object.keys(acc).forEach(k => { if (k !== 'prov') acc[k] += x[k]; }); return acc; }, zero()) },
-           ...NONE_ROWS.map(r => ({ label: r.label(), pick: (m) => aggregate(m, 'none', r.buckets) }))];
-    Layout.$('#monthsHead').innerHTML = `<tr><th>${e(tr('cost_month', 'Месяц'))}</th>
-        ${colDefs.map(c => `<th class="text-right">${e(c.label)}</th>`).join('')}
-        <th class="text-right">${e(tr('cost_total', 'Всего'))}</th>
-        <th class="text-right">${e(tr('cost_person_meals', 'Приёмов пищи'))}</th>
-        <th class="text-right">${e(tr('cost_per_meal', 'На приём пищи'))}</th></tr>`;
-    const grand = colDefs.map(() => zero());
-    const body = keys.map(ym => {
-        const vals = colDefs.map(c => c.pick(months[ym]));
-        vals.forEach((v, i) => Object.keys(v).forEach(k => { if (k !== 'prov') grand[i][k] += v[k]; }));
-        const tot = vals.reduce((s, v) => s + total(v), 0), pm = vals.reduce((s, v) => s + v.pm, 0);
-        const label = DateUtils.parseDate(ym + '-01').toLocaleDateString(locale(), { month: 'long', year: 'numeric' }).replace(' г.', '');
-        return `<tr><td>${e(label.charAt(0).toUpperCase() + label.slice(1))}</td>
-            ${vals.map(v => `<td class="text-right">${v.pm ? money(total(v)) : '—'}</td>`).join('')}
-            <td class="text-right font-medium">${money(tot)}</td><td class="text-right">${num(pm)}</td>
-            <td class="text-right">${pm ? money2(tot / pm) : '—'}</td></tr>`;
-    }).join('');
-    const gTot = grand.reduce((s, v) => s + total(v), 0), gPm = grand.reduce((s, v) => s + v.pm, 0);
-    Layout.$('#monthsBody').innerHTML = body + `<tr class="font-bold border-t-2 border-base-300"><td>${e(tr('cost_total', 'Всего'))}</td>
-        ${grand.map(v => `<td class="text-right">${v.pm ? money(total(v)) : '—'}</td>`).join('')}
-        <td class="text-right">${money(gTot)}</td><td class="text-right">${num(gPm)}</td>
-        <td class="text-right">${gPm ? money2(gTot / gPm) : '—'}</td></tr>`;
-}
-
 // ---------- Проблемы ----------
 function warningBox(title, items, cls = 'alert-warning') {
     if (!items) return '';
@@ -1756,7 +1721,7 @@ function saveState() {
 
 // ==================== ПАМЯТКА «КАК СЧИТАЕТСЯ» ====================
 // «?» у вкладки открывает памятку на своём разделе
-const HOW_SECTIONS = { eaters: 'eaters', departments: 'team', direct: 'direct', overhead: 'overhead', months: 'retreat',
+const HOW_SECTIONS = { eaters: 'eaters', departments: 'team', direct: 'direct', overhead: 'overhead',
                        reconcile: 'gaps', completeness: 'gaps', problems: 'gaps', settings: 'direct' };
 
 function openHow(sec) {
