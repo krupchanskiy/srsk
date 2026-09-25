@@ -1330,35 +1330,111 @@ const GROUP_LABELS = {
     excluded: () => tr('cost_group_excluded', 'Не учитывать')
 };
 
+// Как посчитана доля строки накладных — текст подсказки на сумме (ВГ 25.09: «почему так посчитано»)
+function overheadExplain(l, part) {
+    if (l.unallocated) return tr('cost_ov_x_unallocated', 'За период расхода нет ни одного вкушающего — делить не на кого, расход не распределён.');
+    const scope = scopeEvents();
+    const pick = obj => scope ? scope.reduce((s, ev) => s + (obj[ev] || 0), 0) : Object.values(obj).reduce((s, v) => s + v, 0);
+    const pm = pick(l.pmByEvent), pmAll = pick(l.pmAllByEvent);
+    const whoBase = l.kind === 'retreat_event' ? tr('cost_ov_x_base_retreat', 'приёмов пищи участников этого ретрита')
+        : l.kind === 'retreat_period' && l.group === 'retreat' ? tr('cost_ov_x_base_retreats', 'приёмов пищи участников всех ретритов')
+        : tr('cost_ov_x_base_all', 'приёмов пищи всех вкушающих (команда, волонтёры, гости, участники)');
+    const whoPart = scope ? tr('cost_ov_x_part_retreat', 'приёмов пищи участников этого ретрита') : tr('cost_ov_x_part_period', 'приёмов пищи в выбранном периоде');
+    let text = `${money(l.amount)} (${DateUtils.formatRange(l.from, l.to)}) ÷ ${num(l.base)} ${whoBase} = ${money2(l.rate)} ${tr('cost_ov_x_per_meal', 'за один приём пищи')}. `
+        + `× ${num(pm)} ${whoPart} ${tr('cost_ov_x_with_menu', '(только приёмы пищи, где внесено меню)')} = ${money(part)}.`;
+    if (pmAll > pm) text += ` ⚠ ${tr('cost_ov_x_no_menu', 'Ещё')} ${num(pmAll - pm)} ${tr('cost_ov_x_no_menu2', 'приёмов пищи — без меню: на них')} ${money(l.rate * (pmAll - pm))} ${tr('cost_ov_x_no_menu3', 'не разложено.')}`;
+    return text;
+}
+
+// Накладные: группы раскрываются на месте (правило ВГ) — Зарплаты → должность с именем → месяцы;
+// остальные статьи → отдельные расходы со ссылкой в ДДС
 function renderOverhead() {
     const scope = scopeEvents();
+    const partHint = scope
+        ? tr('cost_ov_part_hint_retreat', 'Каждый расход делится поровну на все приёмы пищи за свой период (зарплата — за месяц): сумма ÷ число приёмов пищи = ставка. Ретриту достаётся ставка × приёмы пищи его участников. Наведите на сумму — расчёт по строке.')
+        : tr('cost_ov_part_hint_period', 'Каждый расход делится поровну на все приёмы пищи за свой период (зарплата — за месяц). Выбранному периоду достаётся ставка × его приёмы пищи. Наведите на сумму — расчёт по строке.');
     Layout.$('#overheadHead').innerHTML = `<tr><th>${e(tr('cost_reconcile_category', 'Статья'))}</th>
         <th>${e(tr('cost_ov_period', 'Период расхода'))}</th>
         <th>${e(tr('cost_ov_group', 'Как делится'))}</th>
         <th class="text-right">${e(tr('cost_ov_amount', 'Сумма'))}</th>
-        <th class="text-right">${e(scope ? tr('cost_ov_to_retreat', 'На этот ретрит') : tr('cost_ov_to_period', 'В этот период'))}</th></tr>`;
-    let sum = 0;
-    const lines = view.result.overheadLines.map(l => {
+        <th class="text-right"><span class="underline decoration-dotted cursor-help" title="${e(partHint)}">${e(scope ? tr('cost_ov_to_retreat', 'На этот ретрит') : tr('cost_ov_to_period', 'В этот период'))}</span></th></tr>`;
+
+    const items = view.result.overheadLines.map(l => {
         const part = scope ? scope.reduce((s, ev) => s + (l.byEvent[ev] || 0), 0) : l.allocated;
         if (!(part > 0.5) && !l.unallocated) return null;
-        sum += part;
-        const label = l.category === 'payroll' ? `${tr('cost_payroll', 'Зарплата')}: ${l.label}` : l.category;
-        const how = l.unallocated ? tr('cost_ov_unallocated_short', 'не распределено — нет вкушающих')
-            : l.kind === 'retreat_event' ? `${GROUP_LABELS.retreat()}: ${retreatName(l.retreatId)}`
-            : l.kind === 'retreat_period' ? tr('cost_ov_retreats_of_period', 'на ретриты своего периода')
-            : l.group === 'general' && l.kind !== 'general' ? `${GROUP_LABELS.general()} (${tr('cost_ov_no_retreat_eaters', 'людей ретрита не было')})`
-            : GROUP_LABELS.general();
-        const opId = l.postingId ? view.opByPosting.get(l.postingId) : null;
-        const labelHtml = opId ? `<a class="link link-hover" href="${DDS_URL(opId)}" target="_blank" rel="noopener" title="${e(tr('fin_open_in_dds', 'Открыть в ДДС'))}">${e(label)}</a>` : e(label);
-        return { from: l.from, html: `<tr class="${l.unallocated ? 'text-warning' : ''}">
-            <td class="text-sm">${labelHtml}${l.estimate ? ` <span class="badge badge-warning badge-xs">${e(tr('cost_estimate', 'оценка'))}</span>` : ''}${l.comment ? `<div class="text-xs opacity-60">${e(l.comment)}</div>` : ''}</td>
-            <td class="text-sm whitespace-nowrap">${e(DateUtils.formatRange(l.from, l.to))}</td>
-            <td class="text-sm">${e(how)}</td>
-            <td class="text-right">${money(l.amount)}</td>
-            <td class="text-right font-medium">${money(part)}</td></tr>` };
-    }).filter(Boolean).sort((a, b) => a.from.localeCompare(b.from)).map(x => x.html).join('');
-    Layout.$('#overheadBody').innerHTML = lines
-        ? lines + `<tr class="font-semibold border-t-2 border-base-300"><td colspan="4">${e(tr('cost_total', 'Всего'))}</td><td class="text-right">${money(sum)}</td></tr>`
+        return { l, part };
+    }).filter(Boolean);
+
+    const howOf = l => l.unallocated ? tr('cost_ov_unallocated_short', 'не распределено — нет вкушающих')
+        : l.kind === 'retreat_event' ? `${GROUP_LABELS.retreat()}: ${retreatName(l.retreatId)}`
+        : l.kind === 'retreat_period' ? tr('cost_ov_retreats_of_period', 'на ретриты своего периода')
+        : l.group === 'general' && l.kind !== 'general' ? `${GROUP_LABELS.general()} (${tr('cost_ov_no_retreat_eaters', 'людей ретрита не было')})`
+        : GROUP_LABELS.general();
+    const partCell = (l, part) => `<td class="text-right font-medium"><span class="underline decoration-dotted cursor-help" title="${e(overheadExplain(l, part))}">${money(part)}</span></td>`;
+    const range = list => DateUtils.formatRange(list.reduce((m, x) => x.l.from < m ? x.l.from : m, list[0].l.from), list.reduce((m, x) => x.l.to > m ? x.l.to : m, list[0].l.to));
+    const sumOf = list => list.reduce((a, x) => ({ amount: a.amount + x.l.amount, part: a.part + x.part }), { amount: 0, part: 0 });
+    const groupRow = (key, labelHtml, list, depth, cls = '') => {
+        const s = sumOf(list);
+        return `<tr class="cursor-pointer hover:bg-base-200/50 ${cls}" data-action="toggle-row" data-key="${key}">
+            <td class="${depth ? 'pl-8' : ''}">${toggleCell(key)}${labelHtml} <span class="text-xs opacity-60">(${list.length})</span></td>
+            <td class="text-sm whitespace-nowrap">${e(range(list))}</td><td></td>
+            <td class="text-right">${money(s.amount)}</td>
+            <td class="text-right font-medium">${money(s.part)}</td></tr>`;
+    };
+    const itemRow = ({ l, part }, labelHtml, pad) => `<tr class="${l.unallocated ? 'text-warning' : ''} text-sm">
+        <td class="${pad}">${labelHtml}${l.estimate ? ` <span class="badge badge-warning badge-xs">${e(tr('cost_estimate', 'оценка'))}</span>` : ''}${l.comment ? `<div class="text-xs opacity-60">${e(l.comment)}</div>` : ''}</td>
+        <td class="whitespace-nowrap">${e(DateUtils.formatRange(l.from, l.to))}</td>
+        <td>${e(howOf(l))}</td>
+        <td class="text-right">${money(l.amount)}</td>
+        ${partCell(l, part)}</tr>`;
+
+    const out = [];
+    // 1. Зарплаты: должность (с именем) → месяцы
+    const pay = items.filter(x => x.l.category === 'payroll');
+    if (pay.length) {
+        out.push(groupRow('ov:payroll', `<b>${e(tr('cost_ov_salaries', 'Зарплаты'))}</b>`, pay, 0));
+        if (expanded.has('ov:payroll')) {
+            const byPos = new Map();
+            for (const x of pay) {
+                const k = `${x.l.label}|${x.l.personId || ''}`;
+                (byPos.get(k) || byPos.set(k, []).get(k)).push(x);
+            }
+            // сначала старшие должности (больше оклад)
+            const positions = [...byPos.entries()].sort((a, b) => Math.max(...b[1].map(x => x.l.amount)) - Math.max(...a[1].map(x => x.l.amount)));
+            for (const [k, list] of positions) {
+                const l0 = list[0].l;
+                const who = l0.personName
+                    ? ` — <a class="link link-hover" href="../vaishnavas/person.html?id=${e(l0.personId)}" target="_blank" rel="noopener">${e(l0.personName)}</a>` : '';
+                const key = `ov:pos:${k}`;
+                out.push(groupRow(key, `${e(l0.label)}${who}`, list, 1));
+                if (expanded.has(key)) list.sort((a, b) => a.l.from.localeCompare(b.l.from))
+                    .forEach(x => out.push(itemRow(x, e(DateUtils.parseDate(x.l.from).toLocaleDateString(locale(), { month: 'long', year: 'numeric' }).replace(' г.', '')), 'pl-16')));
+            }
+        }
+    }
+    // 2. Остальные статьи: по сумме на ретрит, «Прочее» — в конце
+    const byCat = new Map();
+    for (const x of items.filter(x => x.l.category !== 'payroll')) {
+        const c = x.l.category || tr('cost_ov_other', 'Прочее');
+        (byCat.get(c) || byCat.set(c, []).get(c)).push(x);
+    }
+    const isOther = c => /^проч/i.test(c);
+    const cats = [...byCat.entries()].sort((a, b) => isOther(a[0]) - isOther(b[0]) || sumOf(b[1]).part - sumOf(a[1]).part);
+    for (const [c, list] of cats) {
+        const key = `ov:cat:${c}`;
+        out.push(groupRow(key, `<b>${e(c)}</b>`, list, 0, list.some(x => x.l.unallocated) ? 'text-warning' : ''));
+        if (!expanded.has(key)) continue;
+        list.sort((a, b) => (a.l.occurredOn || a.l.from).localeCompare(b.l.occurredOn || b.l.from)).forEach(x => {
+            const opId = x.l.postingId ? view.opByPosting.get(x.l.postingId) : null;
+            const text = x.l.occurredOn ? fmtDay(x.l.occurredOn) : c;
+            const labelHtml = opId ? `<a class="link link-hover" href="${DDS_URL(opId)}" target="_blank" rel="noopener" title="${e(tr('fin_open_in_dds', 'Открыть в ДДС'))}">${e(text)}</a>` : e(text);
+            out.push(itemRow(x, labelHtml, 'pl-8'));
+        });
+    }
+
+    const total = sumOf(items);
+    Layout.$('#overheadBody').innerHTML = out.length
+        ? out.join('') + `<tr class="font-semibold border-t-2 border-base-300"><td colspan="3">${e(tr('cost_total', 'Всего'))}</td><td class="text-right">${money(total.amount)}</td><td class="text-right">${money(total.part)}</td></tr>`
         : `<tr><td colspan="5" class="text-center opacity-60">${e(tr('cost_ov_none', 'Накладных расходов в периоде нет'))}</td></tr>`;
     renderUnassigned();
 }

@@ -252,7 +252,7 @@ function allocateOverhead(input, mealRecords, cell, totals, warn, lines) {
         const estimate = p.source === 'estimate';
         if (estimate && !warn.payrollEstimated.includes(from.slice(0, 7))) warn.payrollEstimated.push(from.slice(0, 7));
         items.push({ amount: Number(p.amount), kind: 'general', from, to, provisional: estimate || to >= today, label: p.position_title,
-                     category: 'payroll', estimate });
+                     category: 'payroll', estimate, personId: p.vaishnava_id || null, personName: p.person_name || null });
     }
     for (const x of (ov.items || [])) {
         let kind = x.kind;
@@ -275,7 +275,11 @@ function allocateOverhead(input, mealRecords, cell, totals, warn, lines) {
         const line = { label: it.label, category: it.category, occurredOn: it.occurredOn || null, comment: it.comment || null,
                        postingId: it.postingId || null,
                        estimate: !!it.estimate, kind: it.kind, retreatId: it.retreatId || null, amount: it.amount,
-                       from: it.from, to: it.to, group: null, allocated: 0, byEvent: {} };
+                       personId: it.personId || null, personName: it.personName || null,
+                       from: it.from, to: it.to, group: null, allocated: 0, byEvent: {},
+                       // для пояснения «как посчитано»: ставка = сумма / base; pmByEvent — приёмы пищи,
+                       // на которые разложено (только с меню), pmAllByEvent — все приёмы пищи события в окне
+                       rate: 0, base: 0, pmByEvent: {}, pmAllByEvent: {} };
         lines.push(line);
         if (base === 0 && group === 'retreat') {
             warn.overheadNoBase.push(it.label);
@@ -286,9 +290,14 @@ function allocateOverhead(input, mealRecords, cell, totals, warn, lines) {
         if (base === 0) { warn.overheadUnallocated.push(it.label); totals.overheadUnallocated += it.amount; line.unallocated = true; continue; }
 
         const rate = it.amount / base;
+        line.rate = rate; line.base = base;
         const wFrom = it.from > input.from ? it.from : input.from;
         const wTo = it.to < input.to ? it.to : input.to;
         if (wFrom > wTo) continue;
+        for (const [date, evs] of Object.entries(pmDay)) {
+            if (date < wFrom || date > wTo) continue;
+            for (const [ev, n] of Object.entries(evs)) if (pass(ev)) line.pmAllByEvent[ev] = (line.pmAllByEvent[ev] || 0) + n;
+        }
 
         let allocated = 0;
         for (const rec of mealRecords) {
@@ -303,6 +312,7 @@ function allocateOverhead(input, mealRecords, cell, totals, warn, lines) {
                     if (it.provisional) { c.mark(); totals.provisional = true; }
                     allocated += rate * n;
                     line.byEvent[ev] = (line.byEvent[ev] || 0) + rate * n;
+                    line.pmByEvent[ev] = (line.pmByEvent[ev] || 0) + n;
                 }
             }
         }
