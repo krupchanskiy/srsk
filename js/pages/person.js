@@ -164,18 +164,22 @@ async function loadRegistrations(personId) {
         if (retreatIds.length > 0) {
             const { data: residentsData } = await Layout.db
                 .from('residents')
-                .select('id, retreat_id, room_id, check_in, check_out, has_meals, breakfast, lunch, meal_start_date, meal_end_date, category_id, resident_categories:category_id(id, slug, color, name_ru, name_en, name_hi), rooms(number, buildings(name_ru, name_en, name_hi))')
+                .select('id, retreat_id, room_id, check_in, check_out, status, has_meals, breakfast, lunch, meal_start_date, meal_end_date, category_id, resident_categories:category_id(id, slug, color, name_ru, name_en, name_hi), rooms(number, buildings(name_ru, name_en, name_hi))')
                 .eq('vaishnava_id', personId)
                 .in('retreat_id', retreatIds)
-                .eq('status', 'confirmed');
+                .in('status', ['confirmed', 'checked_out'])
+                .order('check_in');
 
-            // Map residents to registrations
+            // Брони ретрита: у человека их может быть несколько (переезд, повторный приезд) —
+            // показываем все. reg.resident — главная: текущая, иначе ближайшая, иначе последняя
             if (residentsData) {
-                residentsData.forEach(res => {
-                    const reg = registrations.find(r => r.retreat_id === res.retreat_id);
-                    if (reg) {
-                        reg.resident = res;
-                    }
+                const today = DateUtils.toISO(new Date());
+                registrations.forEach(reg => {
+                    reg.residents = residentsData.filter(res => res.retreat_id === reg.retreat_id);
+                    const active = reg.residents.filter(res => res.status === 'confirmed');
+                    reg.resident = active.find(res => res.check_in <= today && (!res.check_out || res.check_out >= today))
+                        || active.find(res => res.check_in > today)
+                        || reg.residents[reg.residents.length - 1] || null;
                 });
             }
 
@@ -1315,10 +1319,13 @@ async function changeResidentDate(residentId, field, value) {
         if (error) throw error;
 
         // Обновить локальные данные и синхронизировать обратно в регистрацию
+        // Даты брони переносятся в регистрацию, только если бронь у ретрита одна:
+        // при нескольких бронях даты одной не равны датам участия в ретрите
         for (const reg of registrations) {
-            if (reg.resident?.id === residentId) {
-                reg.resident[field] = value;
-                await syncResidentDateToRegistration(reg, field, value);
+            const res = reg.residents?.find(x => x.id === residentId);
+            if (res) {
+                res[field] = value;
+                if (reg.residents.length === 1) await syncResidentDateToRegistration(reg, field, value);
                 break;
             }
         }
@@ -1417,10 +1424,8 @@ async function changeResidentMeals(residentId, hasMeals) {
 
         // Обновить локальные данные без полной перезагрузки
         for (const reg of registrations) {
-            if (reg.resident?.id === residentId) {
-                reg.resident.has_meals = hasMeals;
-                break;
-            }
+            const res = reg.residents?.find(x => x.id === residentId);
+            if (res) { res.has_meals = hasMeals; break; }
         }
     } catch (err) {
         console.error('Error changing meals:', err);
@@ -1439,10 +1444,8 @@ async function changeResidentMealDetail(residentId, field, checked) {
         if (error) throw error;
 
         for (const reg of registrations) {
-            if (reg.resident?.id === residentId) {
-                reg.resident[field] = checked;
-                break;
-            }
+            const res = reg.residents?.find(x => x.id === residentId);
+            if (res) { res[field] = checked; break; }
         }
     } catch (err) {
         console.error('Error changing meal detail:', err);
@@ -1462,10 +1465,8 @@ async function changeResidentMealDate(residentId, field, value) {
         if (error) throw error;
 
         for (const reg of registrations) {
-            if (reg.resident?.id === residentId) {
-                reg.resident[field] = dateValue;
-                break;
-            }
+            const res = reg.residents?.find(x => x.id === residentId);
+            if (res) { res[field] = dateValue; break; }
         }
     } catch (err) {
         console.error('Error saving meal date:', err);
@@ -1638,7 +1639,7 @@ async function saveRegistration() {
         if (regError) throw regError;
 
         // Синхронизируем residents.check_in/check_out (fallback: arrival_datetime → flight → ретрит)
-        if (reg.resident?.id) {
+        if (reg.resident?.id && reg.residents?.length === 1 && reg.resident.status === 'confirmed') {
             const arrivalFlightDt = document.getElementById('editArrivalDatetime').value;
             const departureFlightDt = document.getElementById('editDepartureDatetime').value;
             const computedCheckIn = origArrival?.slice(0, 10)
@@ -2162,98 +2163,108 @@ function renderRegistrations() {
             `;
         }
 
-        // Размещение (из residents или из guest_accommodations для старых данных)
-        const resident = reg.resident;
+        // Размещение: все брони ретрита (из residents) или guest_accommodations для старых данных
+        const stays = reg.residents || [];
         const accommodation = reg.guest_accommodations?.[0];
 
-        if (resident) {
-            // Self-accommodation (NULL room_id)
-            if (!resident.room_id) {
+        if (stays.length) {
+            const today = DateUtils.toISO(new Date());
+            for (const resident of stays) {
+                // Несколько броней — у каждой заголовок: где и в каком статусе
+                if (stays.length > 1) {
+                    const place = !resident.room_id ? t('self_accommodation')
+                        : resident.rooms ? `${resident.rooms.buildings ? Layout.getName(resident.rooms.buildings) + ', ' : ''}${resident.rooms.number || ''}` : '';
+                    const state = resident.status === 'checked_out' || (resident.check_out && resident.check_out < today)
+                        ? (Layout.t('person_stay_left') === 'person_stay_left' ? 'выехал(а)' : Layout.t('person_stay_left'))
+                        : resident.check_in > today
+                            ? (Layout.t('expected_guests') === 'expected_guests' ? 'ожидается' : Layout.t('expected_guests').toLowerCase())
+                            : (Layout.t('person_stay_now') === 'person_stay_now' ? 'живёт сейчас' : Layout.t('person_stay_now'));
+                    detailsHtml += `<div class="mt-3 pt-2 border-t border-base-300 text-sm font-semibold">${e(place)} · ${formatDate(resident.check_in)} — ${formatDate(resident.check_out)} <span class="font-normal opacity-60">· ${e(state)}</span></div>`;
+                }
+                // Self-accommodation (NULL room_id)
+                if (!resident.room_id) {
+                    detailsHtml += `
+                        <div class="detail-section">
+                            <div class="detail-label">🏠 ${t('person_accommodation')}</div>
+                            <div class="text-sm font-medium text-error bg-error/20 px-2 py-1 rounded inline-block">${t('self_accommodation')}</div>
+                        </div>
+                    `;
+                } else if (resident.rooms) {
+                    // Regular accommodation
+                    const buildingName = resident.rooms.buildings ? Layout.getName(resident.rooms.buildings) : '';
+                    const roomNumber = resident.rooms.number || '';
+                    detailsHtml += `
+                        <div class="detail-section">
+                            <div class="detail-label">🏠 ${t('person_accommodation')}</div>
+                            <div class="text-sm font-medium text-success">${buildingName ? buildingName + ', ' : ''}${roomNumber}</div>
+                        </div>
+                    `;
+                }
+                // Даты заезда/выезда для ретритного resident
                 detailsHtml += `
                     <div class="detail-section">
-                        <div class="detail-label">🏠 ${t('person_accommodation')}</div>
-                        <div class="text-sm font-medium text-error bg-error/20 px-2 py-1 rounded inline-block">${t('self_accommodation')}</div>
+                        <div class="detail-label">📅 ${t('person_stay_dates')}</div>
+                        <div class="grid grid-cols-2 gap-2" style="max-width: 320px;">
+                            <div>
+                                <span class="text-xs opacity-60">${t('person_check_in')}</span>
+                                <input type="date" class="input input-bordered input-xs w-full" value="${resident.check_in || ''}" data-action="change-resident-dates" data-resident-id="${resident.id}" data-field="check_in" />
+                            </div>
+                            <div>
+                                <span class="text-xs opacity-60">${t('person_check_out')}</span>
+                                <input type="date" class="input input-bordered input-xs w-full" value="${resident.check_out || ''}" data-action="change-resident-dates" data-resident-id="${resident.id}" data-field="check_out" />
+                            </div>
+                        </div>
                     </div>
                 `;
-            } else if (resident.rooms) {
-                // Regular accommodation
-                const buildingName = resident.rooms.buildings ? Layout.getName(resident.rooms.buildings) : '';
-                const roomNumber = resident.rooms.number || '';
+                const cat = resident.resident_categories;
+                const catOptionsHtml = residentCategories.map(c =>
+                    `<option value="${c.id}" ${c.id === resident.category_id ? 'selected' : ''}>${Layout.getName(c)}</option>`
+                ).join('');
                 detailsHtml += `
                     <div class="detail-section">
-                        <div class="detail-label">🏠 ${t('person_accommodation')}</div>
-                        <div class="text-sm font-medium text-success">${buildingName ? buildingName + ', ' : ''}${roomNumber}</div>
+                        <div class="detail-label" data-i18n="category">${t('category')}</div>
+                        <div class="flex items-center gap-2">
+                            ${cat ? (() => { const c = Utils.safeColor(cat.color); return `<span class="badge badge-sm" style="background-color: ${c}20; color: ${c}; border-color: ${c}">${Layout.getName(cat)}</span>`; })() : ''}
+                            <select class="select select-xs select-bordered" data-action="change-category" data-resident-id="${resident.id}">
+                                ${catOptionsHtml}
+                            </select>
+                        </div>
+                    </div>
+                `;
+                detailsHtml += `
+                    <div class="detail-section">
+                        <div class="detail-label">${t('meal_type')}</div>
+                        <label class="flex items-center gap-2 cursor-pointer">
+                            <input type="checkbox" class="checkbox checkbox-xs checkbox-success" data-action="change-meals" data-resident-id="${resident.id}" ${resident.has_meals ? 'checked' : ''} />
+                            <span class="text-sm">${t('meal_type_prasad')}</span>
+                        </label>
+                        <div data-meal-details="${resident.id}" class="${resident.has_meals ? '' : 'hidden'}">
+                            <div class="flex items-center gap-3 mt-1">
+                                <label class="flex items-center gap-1 cursor-pointer">
+                                    <input type="checkbox" class="checkbox checkbox-xs" data-action="change-meal-detail" data-resident-id="${resident.id}" data-field="breakfast" ${resident.breakfast !== false ? 'checked' : ''} />
+                                    <span class="text-xs">${t('breakfast')}</span>
+                                </label>
+                                <label class="flex items-center gap-1 cursor-pointer">
+                                    <input type="checkbox" class="checkbox checkbox-xs" data-action="change-meal-detail" data-resident-id="${resident.id}" data-field="lunch" ${resident.lunch !== false ? 'checked' : ''} />
+                                    <span class="text-xs">${t('lunch')}</span>
+                                </label>
+                            </div>
+                            <div class="flex items-center gap-2 mt-1">
+                                <span class="opacity-60 text-xs">${t('person_meal_period')}</span>
+                                <input type="date" class="input input-bordered input-xs" data-action="change-meal-date" data-resident-id="${resident.id}" data-field="meal_start_date" value="${resident.meal_start_date || resident.check_in || ''}" />
+                                <span class="opacity-60 text-xs">—</span>
+                                <input type="date" class="input input-bordered input-xs" data-action="change-meal-date" data-resident-id="${resident.id}" data-field="meal_end_date" value="${resident.meal_end_date || resident.check_out || ''}" />
+                            </div>
+                        </div>
                     </div>
                 `;
             }
-            // Даты заезда/выезда для ретритного resident
-            detailsHtml += `
-                <div class="detail-section">
-                    <div class="detail-label">📅 ${t('person_stay_dates')}</div>
-                    <div class="grid grid-cols-2 gap-2" style="max-width: 320px;">
-                        <div>
-                            <span class="text-xs opacity-60">${t('person_check_in')}</span>
-                            <input type="date" class="input input-bordered input-xs w-full" value="${resident.check_in || ''}" data-action="change-resident-dates" data-resident-id="${resident.id}" data-field="check_in" />
-                        </div>
-                        <div>
-                            <span class="text-xs opacity-60">${t('person_check_out')}</span>
-                            <input type="date" class="input input-bordered input-xs w-full" value="${resident.check_out || ''}" data-action="change-resident-dates" data-resident-id="${resident.id}" data-field="check_out" />
-                        </div>
-                    </div>
-                </div>
-            `;
         } else if (accommodation?.room_number) {
             // Legacy accommodation data
             detailsHtml += `
                 <div class="detail-section">
                     <div class="detail-label">🏠 ${t('person_accommodation')}</div>
                     <div class="text-sm font-medium text-success">${accommodation.building_name ? accommodation.building_name + ', ' : ''}${accommodation.room_number}</div>
-                </div>
-            `;
-        }
-
-        // Категория проживающего
-        if (resident) {
-            const cat = resident.resident_categories;
-            const catOptionsHtml = residentCategories.map(c =>
-                `<option value="${c.id}" ${c.id === resident.category_id ? 'selected' : ''}>${Layout.getName(c)}</option>`
-            ).join('');
-            detailsHtml += `
-                <div class="detail-section">
-                    <div class="detail-label" data-i18n="category">${t('category')}</div>
-                    <div class="flex items-center gap-2">
-                        ${cat ? (() => { const c = Utils.safeColor(cat.color); return `<span class="badge badge-sm" style="background-color: ${c}20; color: ${c}; border-color: ${c}">${Layout.getName(cat)}</span>`; })() : ''}
-                        <select class="select select-xs select-bordered" data-action="change-category" data-resident-id="${resident.id}">
-                            ${catOptionsHtml}
-                        </select>
-                    </div>
-                </div>
-            `;
-            detailsHtml += `
-                <div class="detail-section">
-                    <div class="detail-label">${t('meal_type')}</div>
-                    <label class="flex items-center gap-2 cursor-pointer">
-                        <input type="checkbox" class="checkbox checkbox-xs checkbox-success" data-action="change-meals" data-resident-id="${resident.id}" ${resident.has_meals ? 'checked' : ''} />
-                        <span class="text-sm">${t('meal_type_prasad')}</span>
-                    </label>
-                    <div data-meal-details="${resident.id}" class="${resident.has_meals ? '' : 'hidden'}">
-                        <div class="flex items-center gap-3 mt-1">
-                            <label class="flex items-center gap-1 cursor-pointer">
-                                <input type="checkbox" class="checkbox checkbox-xs" data-action="change-meal-detail" data-resident-id="${resident.id}" data-field="breakfast" ${resident.breakfast !== false ? 'checked' : ''} />
-                                <span class="text-xs">${t('breakfast')}</span>
-                            </label>
-                            <label class="flex items-center gap-1 cursor-pointer">
-                                <input type="checkbox" class="checkbox checkbox-xs" data-action="change-meal-detail" data-resident-id="${resident.id}" data-field="lunch" ${resident.lunch !== false ? 'checked' : ''} />
-                                <span class="text-xs">${t('lunch')}</span>
-                            </label>
-                        </div>
-                        <div class="flex items-center gap-2 mt-1">
-                            <span class="opacity-60 text-xs">${t('person_meal_period')}</span>
-                            <input type="date" class="input input-bordered input-xs" data-action="change-meal-date" data-resident-id="${resident.id}" data-field="meal_start_date" value="${resident.meal_start_date || resident.check_in || ''}" />
-                            <span class="opacity-60 text-xs">—</span>
-                            <input type="date" class="input input-bordered input-xs" data-action="change-meal-date" data-resident-id="${resident.id}" data-field="meal_end_date" value="${resident.meal_end_date || resident.check_out || ''}" />
-                        </div>
-                    </div>
                 </div>
             `;
         }
