@@ -683,8 +683,9 @@ function tabList() {
         { id: 'departments', label: tr('cost_tab_departments', 'Команда и волонтёры') },
         { id: 'direct', label: tr('cost_tab_direct', 'Прямые затраты') },
         { id: 'overhead', label: tr('cost_tab_overhead', 'Накладные') },
-        { id: 'reconcile', label: tr('cost_reconcile_title', 'Сверка с ДДС') }
-    ];
+        // сверка — проверка всей кухни: закупки в ДДС не помечены ретритом, поэтому только в «Периоде»
+        state.mode === 'period' ? { id: 'reconcile', label: tr('cost_reconcile_title', 'Сверка с ДДС') } : null
+    ].filter(Boolean);
 }
 
 function renderTabs() {
@@ -1600,6 +1601,14 @@ async function saveThreshold(pct) {
 
 function renderReconcile() {
     const totals = view.result.totals;
+    const noPrices = !view.result.pricesLoaded;
+    Layout.$('#reconcileScope').innerHTML = `<b>${e(tr('cost_reconcile_scope', 'Вся кухня за'))} ${e(DateUtils.formatRange(view.from, view.to))}</b>
+        <span class="opacity-60">— ${e(tr('cost_reconcile_scope_note', 'все, кто ел, и все закупки кухни — не только ретриты'))}</span>`;
+    // Правило ВГ о пропусках: без цен расчёт = 0, разница ничего не значит — предупреждаем и не показываем её
+    const warnBox = Layout.$('#reconcileWarn');
+    warnBox.innerHTML = noPrices ? `<span><b>⚠ ${e(tr('cost_reconcile_no_prices', 'Цены не внесены — «Траты по меню» пока 0, сверка заработает после внесения цен'))}</b></span>
+        <a class="btn btn-sm shrink-0 whitespace-nowrap bg-base-100 border-base-100 hover:bg-base-200" href="prices.html">${e(tr('nav_prices', 'Цены'))} →</a>` : '';
+    warnBox.classList.toggle('hidden', !noPrices);
     let modelSum = 0, factSum = 0;
     const rows = RECONCILE_ROWS.map(r => {
         const actual = reconcileActuals.find(x => x.category_code === r.code);
@@ -1616,13 +1625,13 @@ function renderReconcile() {
             <td class="text-sm">${fact ? toggleCell(key) : '<span class="inline-block w-4"></span>'}${e(name)}</td>
             <td class="text-right">${model === null ? '—' : money(model)}</td>
             <td class="text-right">${money(fact)}</td>
-            <td class="text-right ${diff !== null && Math.abs(diff) > Math.max(fact, model || 0) * reconcileThreshold / 100 ? 'text-warning font-medium' : ''}">${diff === null ? e(tr('cost_reconcile_na', 'нет в модели')) : money(diff)}</td>
+            <td class="text-right ${!noPrices && diff !== null && Math.abs(diff) > Math.max(fact, model || 0) * reconcileThreshold / 100 ? 'text-warning font-medium' : ''}">${diff === null ? `<span class="text-sm opacity-60">${e(tr('cost_reconcile_na', 'не сравнивается — закупка впрок'))}</span>` : noPrices ? '—' : money(diff)}</td>
         </tr>${open}`;
     }).join('') + `<tr class="font-semibold border-t-2 border-base-300">
         <td class="text-sm">${e(tr('cost_reconcile_total', 'Итого сопоставимых'))}</td>
         <td class="text-right">${money(modelSum)}</td>
         <td class="text-right">${money(factSum)}</td>
-        <td class="text-right ${Math.abs(modelSum - factSum) > Math.max(factSum, modelSum) * reconcileThreshold / 100 ? 'text-warning' : ''}">${money(modelSum - factSum)}</td>
+        <td class="text-right ${!noPrices && Math.abs(modelSum - factSum) > Math.max(factSum, modelSum) * reconcileThreshold / 100 ? 'text-warning' : ''}">${noPrices ? '—' : money(modelSum - factSum)}</td>
     </tr>`;
     Layout.$('#reconcileBody').innerHTML = rows;
 }

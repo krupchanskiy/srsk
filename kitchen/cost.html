@@ -170,13 +170,15 @@
                     </div>
 
                     <div data-panel="reconcile" class="hidden">
-                        <p class="text-sm opacity-60 mb-3" data-i18n="cost_reconcile_hint">Расчёт — что должно было потратиться по рецептам, ценам и вкушающим этого периода. Факт — что реально прошло по кассе на прямых статьях кухни за те же даты. Расхождение — не обязательно ошибка: закупка «про запас» попадает в кассу раньше, чем блюдо будет приготовлено.</p>
+                        <div id="reconcileWarn" class="alert alert-warning text-sm mb-3 hidden"></div>
+                        <div id="reconcileScope" class="mb-1"></div>
+                        <p class="text-sm opacity-60 mb-3" data-i18n="cost_reconcile_hint">Проверка кухни: сколько продуктов и посуды должно было уйти по меню (рецепты × цены × вкушающие) и сколько реально купили по кассе за те же даты. Зарплаты, билеты и оборудование здесь не сверяются — они и так берутся из ДДС. Расхождение не обязательно ошибка: закупка про запас попадает в кассу раньше, чем блюдо приготовлено.</p>
                         <div class="overflow-x-auto"><table class="table table-sm w-full cost-table">
                             <thead><tr>
                                 <th data-i18n="cost_reconcile_category">Статья</th>
-                                <th class="text-right" data-i18n="cost_reconcile_model">Расчёт</th>
-                                <th class="text-right" data-i18n="cost_reconcile_actual">Факт по ДДС</th>
-                                <th class="text-right" data-i18n="cost_reconcile_diff">Разница</th>
+                                <th class="text-right" data-i18n="cost_reconcile_model">Траты по меню (расчёт)</th>
+                                <th class="text-right" data-i18n="cost_reconcile_actual">Куплено (ДДС)</th>
+                                <th class="text-right"><span class="underline decoration-dotted cursor-help" data-i18n-title="cost_reconcile_diff_hint" title="Траты по меню минус куплено. Минус — купили больше, чем ушло по меню; плюс — меньше." data-i18n="cost_reconcile_diff">Разница</span></th>
                             </tr></thead>
                             <tbody id="reconcileBody"></tbody>
                         </table></div>
@@ -297,7 +299,7 @@
             <details id="how-gaps" class="how-sec">
                 <summary>6. Сверка с ДДС и предупреждения ⚠</summary>
                 <ul>
-                    <li><b>Сверка с ДДС</b>: «Расчёт» — сколько должно было уйти по рецептам, ценам и вкушающим; «Факт» — сколько реально прошло по кассе на прямых статьях кухни за те же даты. Расхождение — не обязательно ошибка: закупка про запас попадает в кассу раньше блюда. Порог подсветки настраивает финансовый администратор.</li>
+                    <li><b>Сверка с ДДС</b> (только в режиме «Период»): «Траты по меню» — сколько продуктов и посуды должно было уйти по рецептам, ценам и вкушающим; «Куплено» — сколько реально прошло по кассе на прямых статьях кухни за те же даты. Это проверка всей кухни, а не ретрита: в ДДС закупки не помечены ретритом — один мешок риса кормит всех. Зарплаты, билеты и оборудование не сверяются — они и так берутся из ДДС. Расхождение — не обязательно ошибка: закупка про запас попадает в кассу раньше блюда. Порог подсветки настраивает финансовый администратор.</li>
                     <li><b>⚠ — всегда пропуск данных</b>: нет меню, нет цены, нет департамента, непонятная единица. Наведите на ⚠ — будет пояснение; во вкладке «Проблемы» — полный список.</li>
                     <li>Как только данные внесут, расчёт подхватит их сам — ничего пересчитывать не нужно.</li>
                 </ul>
@@ -315,6 +317,6 @@
     <script src="../js/layout.js?v=80"></script>
     <script src="../js/eating-utils.js?v=11"></script>
     <script src="../js/kitchen-cost.js?v=8"></script>
-    <script src="../js/pages/kitchen-cost.js?v=24"></script>
+    <script src="../js/pages/kitchen-cost.js?v=25"></script>
 </body>
 </html>
