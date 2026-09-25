@@ -322,6 +322,15 @@ function peopleStats(row) {
     return s;
 }
 
+// ⚠ у суммы — всегда с подсказкой при наведении, что именно не так
+function warnMark(ps) {
+    if (ps === 'ok') return '';
+    const hint = ps === 'none'
+        ? tr('cost_w_no_prices_all', 'Цены ещё не внесены ни на один продукт — продукты и посуда считаются как 0')
+        : tr('cost_partial_hint', 'Не у всех продуктов есть цена или перевод единиц — см. «Проблемы»');
+    return ` <span class="text-warning cursor-help" title="${e(hint)}">⚠</span>`;
+}
+
 function pricesState() {
     const r = view.result;
     if (!r.pricesLoaded) return 'none';
@@ -385,7 +394,7 @@ function renderKpis() {
         <div class="text-2xl font-bold mt-1 ${cls}">${value}</div>
         ${sub ? `<div class="text-xs opacity-60 mt-1">${sub}</div>` : ''}</div>`;
     const warn = ps === 'none' ? ` <span class="text-sm text-error font-normal">${e(tr('cost_no_prices', 'нет цен'))}</span>`
-        : ps === 'partial' ? ' <span class="text-warning text-base">⚠</span>' : '';
+        : warnMark(ps);
     const result = k.income === null ? null : k.income - (state.mode === 'retreat' ? total(k.sum) : k.retreatCost);
     const cards = [
         card(tr('cost_total', 'Всего'), money(total(k.sum)) + warn,
@@ -438,7 +447,7 @@ function renderSummary() {
     </tr>`;
 
     const directCell = x => ps === 'none' ? `<span class="opacity-50">${e(tr('cost_no_prices', 'нет цен'))}</span>`
-        : `${money(direct(x))}${ps === 'partial' ? ' <span class="text-warning" title="' + e(tr('cost_partial_hint', 'Не у всех продуктов есть цена или перевод единиц — см. «Проблемы»')) + '">⚠</span>' : ''}`;
+        : `${money(direct(x))}${warnMark(ps)}`;
     const grand = zero();
     let grandIncome = 0, anyIncome = false;
     const html = rows.map(row => {
@@ -502,7 +511,7 @@ function resultCell(income, x, sub, ps) {
     if (sub || income === null) return '—';
     if (ps === 'none') return `<span class="opacity-50" title="${e(tr('cost_result_no_prices', 'Пока нет цен, себестоимость занижена — результат не показываем'))}">—</span>`;
     const r = income - total(x);
-    return `<span class="${r < 0 ? 'text-error' : 'text-success'} font-medium">${money(r)}</span>${ps === 'partial' ? ' <span class="text-warning">⚠</span>' : ''}`;
+    return `<span class="${r < 0 ? 'text-error' : 'text-success'} font-medium">${money(r)}</span>${warnMark(ps)}`;
 }
 
 function daysOf(row) {
@@ -969,7 +978,7 @@ function peopleTable(list, withBucket) {
             ${withBucket ? `<td class="text-xs opacity-70">${e(BUCKET_LABELS[p.bucket]())}</td>` : ''}
             <td class="text-right">${p.days.size}</td><td class="text-right">${p.bf}</td><td class="text-right">${p.ln}</td>
             <td class="text-right">${p.pm}</td>
-            <td class="text-right">${money(p.cost)}${ps !== 'ok' ? ' <span class="text-warning">⚠</span>' : ''}</td></tr>`).join('')}</tbody></table>`;
+            <td class="text-right">${money(p.cost)}${warnMark(ps)}</td></tr>`).join('')}</tbody></table>`;
 }
 
 const expanded = new Set();   // раскрытые строки: 'eaters:<key>' | 'dept:<id>' | 'income:<retreat>' | 'recon:<code>'
@@ -1099,7 +1108,7 @@ function renderDepartments() {
             <td>${toggleCell(key)}${e(name(id))}</td>
             <td class="text-right">${s.team || '—'}</td><td class="text-right">${s.vol || '—'}</td>
             <td class="text-right">${num(s.pm)}</td>
-            <td class="text-right font-medium">${money(s.cost)}${ps !== 'ok' ? ' <span class="text-warning">⚠</span>' : ''}</td>
+            <td class="text-right font-medium">${money(s.cost)}${warnMark(ps)}</td>
             <td class="text-right">${money(s.cost / months)}</td></tr>${open}`;
     }).join('') + (list.length ? `<tr class="font-semibold border-t-2 border-base-300"><td>${e(tr('cost_total', 'Всего'))}</td>
         <td class="text-right">${grand.team}</td><td class="text-right">${grand.vol}</td><td class="text-right">${num(grand.pm)}</td>
