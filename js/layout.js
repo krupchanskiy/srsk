@@ -18,6 +18,7 @@ const modules = {
         nameKey: 'module_kitchen',
         icon: '🍳',
         hasLocations: true,
+        centeredSubmenu: true,   // пунктов много — по центру, а не от первого пункта верхнего меню (ВГ 25.09)
         defaultLocation: 'main',
         defaultPage: 'kitchen/menu.html',
         menuConfig: [
@@ -28,7 +29,8 @@ const modules = {
                 { id: 'recipes', href: 'kitchen/recipes.html' },
                 { id: 'products', href: 'kitchen/products.html' },
                 { id: 'prices', href: 'kitchen/prices.html' },
-                { id: 'cost', href: 'kitchen/cost.html' }
+                { id: 'cost', href: 'kitchen/cost.html' },
+                { id: 'dept_account', href: 'kitchen/account.html' }
             ]},
             { id: 'stock', items: [
                 { id: 'stock_balance', href: 'stock/stock.html' },
@@ -213,6 +215,8 @@ const pagePermissions = {
     'kitchen/products.html': 'view_products',
     'kitchen/prices.html': ['view_prices', 'edit_prices', 'edit_archived_prices'],
     'kitchen/cost.html': ['view_prices', 'edit_prices', 'edit_archived_prices'],
+    // Счёт департамента — глава департамента и финансисты (сервер проверяет ещё и что департамент свой)
+    'kitchen/account.html': ['fin_admin', 'fin_observer', 'fin_dept_viewer'],
     'kitchen/dictionaries.html': 'view_kitchen_dictionaries',
 
     // Stock
@@ -1066,7 +1070,8 @@ function updateFooterLanguage() {
 const submenuMargins = {};
 
 function calcSubmenuMargin(groupId) {
-    // Выравниваем подменю по левому краю первого пункта основного меню
+    // Выравниваем подменю по левому краю первого пункта основного меню (кроме модулей с подменю по центру)
+    if (modules[currentModule]?.centeredSubmenu) return 0;
     const firstNavLink = $('#mainNav .nav-link');
     const submenuBar = $('#submenuBar');
     const group = $(`.submenu-group[data-group="${groupId}"]`);
