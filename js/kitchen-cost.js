@@ -427,7 +427,53 @@ async function calculate(db, locationId, from, to) {
     return result;
 }
 
-const api = { computeCosts, calculate, priceOn, convert, BUCKETS };
+// ---------- общее для страниц Себестоимость и Финансы → Аналитика ----------
+const isoAdd = (iso, n) => { const d = DateUtils.parseDate(iso); d.setDate(d.getDate() + n); return DateUtils.toISO(d); };
+const isoMonthEnd = iso => { const d = DateUtils.parseDate(iso); return DateUtils.toISO(new Date(d.getFullYear(), d.getMonth() + 1, 0)); };
+
+// Ретрит целиком: его даты, расширенные на дни, когда люди ретрита реально ели
+// (ранний заезд, задержались после) — чтобы «ретрит целиком» = сумма его месяцев.
+const spanCache = new Map();
+async function retreatSpan(r) {
+    if (spanCache.has(r.id)) return spanCache.get(r.id);
+    const counts = await EatingUtils.loadCounts(isoAdd(r.start_date, -31), isoAdd(r.end_date, 31));
+    const key = `retreat:${r.id}`;
+    let from = r.start_date, to = r.end_date, pm = 0;
+    for (const [date, day] of Object.entries(counts)) {
+        let n = 0;
+        for (const m of MEALS) {
+            const b = day.byEvent?.[m]?.[key];
+            if (b) n += BUCKETS.reduce((s, k) => s + (b[k] || 0), 0);
+        }
+        if (!n) continue;
+        pm += n;
+        if (date < from) from = date;
+        if (date > to) to = date;
+    }
+    const span = { from, to, pm };
+    spanCache.set(r.id, span);
+    return span;
+}
+
+// Кто и что ел — построчно по людям и дням (eating_detail). За год это десятки тысяч строк: грузим месяцами параллельно.
+async function loadDetail(db, from, to) {
+    const chunks = [];
+    for (let f = from; f <= to; f = isoAdd(isoMonthEnd(f), 1)) chunks.push([f, isoMonthEnd(f) < to ? isoMonthEnd(f) : to]);
+    const parts = await Promise.all(chunks.map(async ([f, t2]) => {
+        const rows = [];
+        for (let off = 0; ; off += 1000) {
+            const { data, error } = await db.rpc('eating_detail', { p_from: f, p_to: t2 })
+                .order('d').order('ref_id').range(off, off + 999);
+            if (error) { console.error('eating_detail:', error); break; }
+            rows.push(...(data || []));
+            if (!data || data.length < 1000) break;
+        }
+        return rows;
+    }));
+    return parts.flat();
+}
+
+const api = { computeCosts, calculate, priceOn, convert, BUCKETS, retreatSpan, loadDetail };
 if (typeof module !== 'undefined') module.exports = api;
 return api;
 

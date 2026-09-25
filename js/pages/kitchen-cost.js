@@ -54,7 +54,6 @@ let unassigned = [];
 let costGroups = [];
 let reconcileActuals = [];
 let reconcileThreshold = 15;  // % — порог подсветки расхождений в сверке (fin_settings, меняет fin_admin)
-const retreatSpanCache = new Map();   // retreat_id → { from, to, pm } — где реально ели люди ретрита
 let departments = [];                 // справочник департаментов людей (vaishnavas.department_id)
 const personDept = new Map();         // vaishnava_id → department_id | null
 const personName = new Map();         // vaishnava_id → имя (для списков людей)
@@ -141,28 +140,8 @@ function periodLabel(from, to) {
     return DateUtils.formatRange(from, to);
 }
 
-// Ретрит целиком: его даты, расширенные на дни, когда люди ретрита реально ели
-// (ранний заезд, задержались после) — чтобы «ретрит целиком» = сумма его месяцев.
-async function retreatSpan(r) {
-    if (retreatSpanCache.has(r.id)) return retreatSpanCache.get(r.id);
-    const counts = await EatingUtils.loadCounts(addDays(r.start_date, -31), addDays(r.end_date, 31));
-    const key = `retreat:${r.id}`;
-    let from = r.start_date, to = r.end_date, pm = 0;
-    for (const [date, day] of Object.entries(counts)) {
-        let n = 0;
-        for (const m of ['breakfast', 'lunch']) {
-            const b = day.byEvent?.[m]?.[key];
-            if (b) n += ALL_BUCKETS.reduce((s, k) => s + (b[k] || 0), 0);
-        }
-        if (!n) continue;
-        pm += n;
-        if (date < from) from = date;
-        if (date > to) to = date;
-    }
-    const span = { from, to, pm };
-    retreatSpanCache.set(r.id, span);
-    return span;
-}
+// Ретрит целиком (с ранним заездом и поздним выездом) — общий расчёт с Финансами, см. js/kitchen-cost.js
+const retreatSpan = r => KitchenCost.retreatSpan(r);
 
 // Под заголовком ретрита: фактические даты (первый заезд — последний выезд по броням)
 // и насколько данные окончательные — что уже прошло, а что прогноз по броням.
@@ -185,23 +164,8 @@ function retreatStatusLine(r) {
 }
 
 // ==================== LOADING ====================
-// Кто и что ел — построчно по людям и дням. За год это десятки тысяч строк: грузим месяцами параллельно.
-async function loadDetail(from, to) {
-    const chunks = [];
-    for (let f = from; f <= to; f = addDays(monthEnd(f), 1)) chunks.push([f, monthEnd(f) < to ? monthEnd(f) : to]);
-    const parts = await Promise.all(chunks.map(async ([f, t2]) => {
-        const rows = [];
-        for (let off = 0; ; off += 1000) {
-            const { data, error } = await Layout.db.rpc('eating_detail', { p_from: f, p_to: t2 })
-                .order('d').order('ref_id').range(off, off + 999);
-            if (error) { console.error('eating_detail:', error); break; }
-            rows.push(...(data || []));
-            if (!data || data.length < 1000) break;
-        }
-        return rows;
-    }));
-    return parts.flat();
-}
+// Кто и что ел — построчно по людям и дням (общая загрузка, см. js/kitchen-cost.js)
+const loadDetail = (from, to) => KitchenCost.loadDetail(Layout.db, from, to);
 
 // Департамент людей из карточек — для разбивки вкушающих по департаментам
 async function loadPersonDepts(ids) {
@@ -1749,6 +1713,33 @@ function renderControls() {
     Layout.$('#dateFrom').value = state.from;
     Layout.$('#dateTo').value = state.to;
     Layout.$('#periodLabel').textContent = state.from && state.to ? periodLabel(state.from, state.to) : '';
+    renderPeriodSelect();
+}
+
+// Выпадающий список периодов вместо листания стрелками (просьба ВГ 25.09): месяцы / кварталы / годы
+// от первого ретрита до следующего года; «Свои даты» — обычной надписью
+function renderPeriodSelect() {
+    const sel = Layout.$('#periodSelect');
+    const custom = state.step === 'custom';
+    sel.classList.toggle('hidden', custom);
+    Layout.$('#periodLabel').classList.toggle('hidden', !custom);
+    if (custom) return;
+    const nowY = new Date().getFullYear();
+    const years = retreats.map(r => Number(r.start_date.slice(0, 4)));
+    const y1 = Math.min(nowY, ...years), y2 = Math.max(nowY + 1, ...years);
+    const opts = [];
+    for (let y = y2; y >= y1; y--) {
+        if (state.step === 'year') { opts.push([`${y}-01-01`, String(y)]); continue; }
+        const n = state.step === 'quarter' ? 4 : 12;
+        for (let i = n - 1; i >= 0; i--) {
+            const m = state.step === 'quarter' ? i * 3 : i;
+            const from = DateUtils.toISO(new Date(y, m, 1));
+            const label = state.step === 'quarter' ? `${i + 1} ${tr('cost_quarter_short', 'кв.')} ${y}`
+                : (l => l.charAt(0).toUpperCase() + l.slice(1))(new Date(y, m, 1).toLocaleDateString(locale(), { month: 'long', year: 'numeric' }).replace(' г.', ''));
+            opts.push([from, label]);
+        }
+    }
+    sel.innerHTML = opts.map(([v, l]) => `<option value="${v}" ${v === state.from ? 'selected' : ''}>${e(l)}</option>`).join('');
 }
 
 function saveState() {
@@ -1791,10 +1782,13 @@ document.addEventListener('click', ev => {
             saveState(); renderControls();
             if (state.mode === 'retreat' && !state.retreatId) hideResult(); else calculate();
             break;
-        case 'step':
-            setStep(btn.dataset.step, state.step === 'custom' ? state.from : state.from);
+        case 'step': {
+            // смена шага: если сегодня внутри текущего периода — на период с сегодняшним днём (с «Год» на «Месяц» — текущий месяц)
+            const today = DateUtils.toISO(new Date());
+            setStep(btn.dataset.step, state.from <= today && today <= state.to ? today : state.from);
             saveState(); renderControls(); calculate();
             break;
+        }
         case 'shift':
             shiftPeriod(Number(btn.dataset.dir));
             renderControls(); calculate();
@@ -1900,6 +1894,11 @@ document.addEventListener('click', ev => {
 document.addEventListener('change', ev => {
     const groupSelect = ev.target.closest('[data-group-cat]');
     if (groupSelect) { saveGroup(groupSelect.dataset.groupCat, groupSelect.value); return; }
+    if (ev.target.id === 'periodSelect') {
+        setStep(state.step, ev.target.value);
+        renderControls(); calculate();
+        return;
+    }
     if (ev.target.id === 'thresholdInput') {
         const pct = parseFloat(ev.target.value);
         if (pct >= 1 && pct <= 100) saveThreshold(pct); else renderThreshold();
