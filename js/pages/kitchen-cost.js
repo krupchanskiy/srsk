@@ -423,18 +423,21 @@ function renderQuality() {
     const today = DateUtils.toISO(new Date());
     const noMenuPast = w.noMenu.filter(x => x.split(' ')[0] <= today).length;
     const noMenuFuture = w.noMenu.length - noMenuPast;
+    // Правило ВГ: каждый пропуск — ссылкой туда, где его исправить
     const reasons = [];
-    if (!view.result.pricesLoaded) reasons.push(tr('cost_q_no_prices', 'цены ещё не внесены — продукты и посуда считаются как 0'));
-    else if (w.missingPrices.size) reasons.push(`${tr('cost_q_some_prices', 'нет цены у продуктов')}: ${w.missingPrices.size}`);
-    if (noMenuPast) reasons.push(`${tr('cost_q_menu_past', 'меню не заведено на прошедшие приёмы пищи')}: ${noMenuPast}`);
-    if (noMenuFuture) reasons.push(`${tr('cost_q_menu_future', 'меню ещё не заведено на предстоящие приёмы пищи')}: ${noMenuFuture}`);
-    if (w.payrollEstimated.length) reasons.push(`${tr('cost_q_payroll', 'зарплата взята оценкой')}: ${w.payrollEstimated.join(', ')}`);
+    const link = (text, attrs) => `<a class="link" ${attrs}>${e(text)}</a>`;
+    if (!view.result.pricesLoaded) reasons.push(link(tr('cost_q_no_prices', 'цены ещё не внесены — продукты и посуда считаются как 0'), 'href="prices.html"'));
+    else if (w.missingPrices.size) reasons.push(link(`${tr('cost_q_some_prices', 'нет цены у продуктов')}: ${w.missingPrices.size}`, 'data-action="tab" data-tab="problems"'));
+    if (noMenuPast) reasons.push(link(`${tr('cost_q_menu_past', 'меню не заведено на прошедшие приёмы пищи')}: ${noMenuPast}`, 'data-action="open-no-menu"'));
+    if (noMenuFuture) reasons.push(link(`${tr('cost_q_menu_future', 'меню ещё не заведено на предстоящие приёмы пищи')}: ${noMenuFuture}`, 'data-action="open-no-menu"'));
+    const monthName = ym => DateUtils.parseDate(ym + '-01').toLocaleDateString(locale(), { month: 'long', year: 'numeric' }).replace(' г.', '');
+    if (w.payrollEstimated.length) reasons.push(link(`${tr('cost_q_payroll', 'зарплата предварительная, ещё не начислена')}: ${w.payrollEstimated.map(monthName).join(', ')}`, 'data-action="tab" data-tab="overhead"'));
     const box = Layout.$('#qualityBanner');
     if (!reasons.length) { box.classList.add('hidden'); return; }
     box.innerHTML = `<div class="alert alert-warning text-sm items-start">
-        <div><div class="font-semibold">${e(tr('cost_q_title', 'Данные могут быть неточными'))}</div>
-        <ul class="list-disc ml-5 mt-1">${reasons.map(r => `<li>${e(r)}</li>`).join('')}</ul></div>
-        <a class="btn btn-sm btn-ghost" data-action="tab" data-tab="completeness">${e(tr('cost_tab_completeness', 'Полнота данных'))} →</a>
+        <div><div class="font-semibold">⚠ ${e(tr('cost_q_title', 'Данные могут быть неточными'))}</div>
+        <ul class="list-disc ml-5 mt-1">${reasons.map(r => `<li>${r}</li>`).join('')}</ul></div>
+        <a class="btn btn-sm shrink-0 whitespace-nowrap justify-self-end bg-base-100 border-base-100 hover:bg-base-200" data-action="tab" data-tab="completeness">${e(tr('cost_tab_completeness', 'Полнота данных'))} →</a>
     </div>`;
     box.classList.remove('hidden');
 }
