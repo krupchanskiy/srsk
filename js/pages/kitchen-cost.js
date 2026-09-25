@@ -46,7 +46,7 @@ let kitPrices = {};
 let unassigned = [];
 let costGroups = [];
 let reconcileActuals = [];
-let reconcileThreshold = 15;  // % — порог подсветки расхождений в сверке (fin_settings, меняет суперпользователь)
+let reconcileThreshold = 15;  // % — порог подсветки расхождений в сверке (fin_settings, меняет fin_admin)
 const retreatSpanCache = new Map();   // retreat_id → { from, to, pm } — где реально ели люди ретрита
 let departments = [];                 // справочник департаментов людей (vaishnavas.department_id)
 const personDept = new Map();         // vaishnava_id → department_id | null
@@ -1350,7 +1350,8 @@ async function loadThreshold() {
 function renderThreshold() {
     const input = Layout.$('#thresholdInput');
     input.value = reconcileThreshold;
-    input.disabled = !window.currentUser?.is_superuser;
+    // суперпользователю fin_* не выдаются автоматически — смотрим явное право
+    input.disabled = !window.currentUser?.permissions?.includes('fin_admin');
 }
 
 async function saveThreshold(pct) {
