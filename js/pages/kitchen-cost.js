@@ -524,7 +524,7 @@ function renderKitchenCash() {
             e(first ? `${tr('cost_kcash_on', 'на')} ${fmtDay(view.from)} · ${tr('cost_kcash_since', 'с начала учёта')} (${monthTitle(first).toLowerCase()})` : tr('cost_kcash_no_data', 'в Финансах ещё нет операций')),
             signCls(c.opening)),
         opsCard('in', tr('cost_kcash_in', 'Пришло за прасад'), c.income, 'text-blue-600', e(tr('cost_kcash_in_hint', 'оплаты за питание и пожертвования на прасад'))),
-        opsCard('out', tr('cost_kcash_out', 'Ушло с кухни'), c.expense, 'text-red-600', e(tr('cost_kcash_out_hint', 'счета департамента «Кухня» и готовый прасад с любого счёта; прочие расходы кафе не входят'))),
+        opsCard('out', tr('cost_kcash_out', 'Ушло с кухни'), c.expense, 'text-red-600', e(tr('cost_kcash_out_hint', 'всё со счетов департамента «Кухня»; траты других департаментов не входят'))),
         card(tr('cost_kcash_closing', 'Остаток на конец'), `<span class="cursor-help" title="${e(teamNote)}">${signed(closing)}</span>`,
             `${e(tr('cost_kcash_for_period', 'за период'))} <span class="${signCls(c.income - c.expense)}">${signed(c.income - c.expense)}</span> · <a class="link" data-action="section" data-section="cash">${e(tr('cost_kcash_movement', 'движение денег'))} →</a>`,
             signCls(closing))
