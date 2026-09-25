@@ -14,6 +14,7 @@ const tr = (key, fallback) => { const v = t(key); return v === key ? fallback : 
 
 let cfg = null;
 let accounts = [];
+let currentAccount = null;
 let rows = [];            // все проводки выбранного счёта, по дате (внутри дня — приходы раньше), .bal — остаток после
 const opened = new Set(); // раскрытые строки (posting_id)
 let sort = { key: 'date', dir: 'desc' };
@@ -69,6 +70,10 @@ async function loadRows(accountId) {
 }
 
 async function selectAccount(id) {
+    currentAccount = id;
+    const acc = accounts.find(a => a.account_id === id);
+    $('daccAccountName').textContent = acc?.name || '';
+    document.querySelectorAll('[data-dacc-account]').forEach(b => b.classList.toggle('tab-active', b.dataset.daccAccount === id));
     $('daccBody').innerHTML = `<tr><td colspan="7" class="text-center py-8"><span class="loading loading-spinner loading-md"></span></td></tr>`;
     // Остаток после операции — по дате операции (а не по порядку внесения): операцию, внесённую
     // задним числом, ставим на её дату, иначе в столбце «Остаток после» скачки (замечание ВГ 25.09)
@@ -147,7 +152,7 @@ function chip(label, value, cls = '', hint = '') {
 }
 
 function renderTotals(list) {
-    const cur = rows[rows.length - 1]?.currency_code || accounts.find(a => a.account_id === $('daccAccount').value)?.currency_code || 'INR';
+    const cur = rows[rows.length - 1]?.currency_code || accounts.find(a => a.account_id === currentAccount)?.currency_code || 'INR';
     const from = $('daccFrom').value, to = $('daccTo').value;
     const today = DateUtils.toISO(new Date());
     const now = rows.length ? rows[rows.length - 1].bal : 0;
@@ -277,11 +282,14 @@ async function init(options) {
         $('daccBody').innerHTML = `<tr><td colspan="7" class="text-center py-6 opacity-60">${e(tr('dacc_no_accounts', 'У департамента пока нет счёта'))}</td></tr>`;
         return;
     }
-    $('daccAccount').innerHTML = accounts.map(a => `<option value="${a.account_id}">${e(a.name)}${a.is_active ? '' : ' (закрыт)'}</option>`).join('');
-    $('daccAccountWrap').classList.toggle('hidden', accounts.length < 2);
-    $('daccAccountName').textContent = accounts.length === 1 ? accounts[0].name : '';
+    // у каждого счёта (валюты) — своя вкладка со своими «на счёте / пришло / ушло»; валюты не смешиваются
+    $('daccTabs').innerHTML = accounts.map(a => `<a role="tab" class="tab" data-dacc-account="${a.account_id}">${e(a.name)}${a.is_active ? '' : ` <span class="opacity-60">(${e(tr('dacc_closed', 'закрыт'))})</span>`}</a>`).join('');
+    $('daccTabs').classList.toggle('hidden', accounts.length < 2);
 
-    $('daccAccount').addEventListener('change', ev => selectAccount(ev.target.value));
+    $('daccTabs').addEventListener('click', ev => {
+        const tab = ev.target.closest('[data-dacc-account]');
+        if (tab && tab.dataset.daccAccount !== currentAccount) selectAccount(tab.dataset.daccAccount);
+    });
     ['daccDir', 'daccCategory'].forEach(id => $(id).addEventListener('change', render));
     // свои даты — сразу полями: ввели дату, подсветка пресета снимается
     ['daccFrom', 'daccTo'].forEach(id => $(id).addEventListener('change', () => { markPreset('custom'); render(); }));
