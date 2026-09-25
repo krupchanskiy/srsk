@@ -282,7 +282,7 @@ async function calculate() {
             }
             const share = state.mode === 'retreat' || !span.pm ? 1 : Math.min(1, pmWindow / span.pm);
             incomes[id] = income === null ? null
-                : { full: income.amount, objectId: income.objectId, groups: income.groups, expense: income.expense, share };
+                : { full: income.amount, objectId: income.objectId, groups: income.groups, expense: income.expense, expenseGroups: income.expenseGroups, share };
         }));
         if (token !== calcToken) return;
 
@@ -1740,7 +1740,11 @@ document.addEventListener('click', ev => {
             expanded.delete('cash:in'); expanded.delete('cash:out');
             if (!was) expanded.add(key);
             renderCash();
-            if (!was) loadIncomeOps(state.retreatId, dir).then(() => view && renderCash());
+            if (!was) loadIncomeOps(state.retreatId, dir).then(() => view && renderCash()).catch(err => {
+                console.error('Операции кассы:', err);
+                (dir === 'in' ? view.incomeOps : view.expenseOps)[state.retreatId] = [];
+                renderCash();
+            });
             break;
         }
         case 'toggle-recon': {
