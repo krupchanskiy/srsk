@@ -36,7 +36,7 @@
         </div>
 
         <div id="daccContent" class="hidden">
-            <!-- вкладки счетов департамента (по валютам) — всегда, в порядке ₹ → ₽ → $ → € -->
+            <!-- вкладки счетов департамента (по валютам) — у счетов с операциями, в порядке ₹ → ₽ → $ → € -->
             <div id="daccTabs" role="tablist" class="tabs tabs-boxed w-fit mb-4 hidden"></div>
             <div class="flex flex-wrap items-end gap-2 mb-4">
                 <div class="join">
@@ -87,7 +87,7 @@
     <script src="../js/date-utils.js?v=4"></script>
     <script src="../js/layout.js?v=81"></script>
     <script src="../js/fin-utils.js?v=14"></script>
-    <script src="../js/pages/dept-account.js?v=9"></script>
+    <script src="../js/pages/dept-account.js?v=10"></script>
     <script>
         DeptAccount.init({ department: 'Кухня', module: 'kitchen', menuId: 'kitchen', itemId: 'dept_account' });
     </script>

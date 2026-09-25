@@ -54,7 +54,12 @@ function setPreset(p) {
 async function loadAccounts() {
     const { data, error } = await Layout.db.rpc('fin_department_accounts', { p_department: cfg.department });
     if (error) return null;
-    return data || [];
+    // вкладка — только у счёта, по которому уже есть операции: пустой счёт не засоряет (ВГ 25.09)
+    const withOps = await Promise.all((data || []).map(async a => {
+        const { count } = await Layout.db.from('fin_v_account_ledger').select('posting_id', { count: 'exact', head: true }).eq('account_id', a.account_id);
+        return count ? a : null;
+    }));
+    return withOps.filter(Boolean);
 }
 
 async function loadRows(accountId) {
@@ -283,7 +288,7 @@ async function init(options) {
         return;
     }
     // у каждого счёта (валюты) — своя вкладка со своими «на счёте / пришло / ушло»; валюты не смешиваются.
-    // Вкладки всегда видны и стоят в одном порядке у всех департаментов: ₹ → ₽ → $ → € → остальные (ВГ 25.09)
+    // Вкладка появляется вместе с первой операцией по счёту; порядок у всех департаментов один: ₹ → ₽ → $ → € → остальные (ВГ 25.09)
     const CUR_ORDER = ['INR', 'RUB', 'USD', 'EUR'];
     const rank = c => { const i = CUR_ORDER.indexOf(c); return i < 0 ? CUR_ORDER.length : i; };
     accounts.sort((a, b) => rank(a.currency_code) - rank(b.currency_code) || a.currency_code.localeCompare(b.currency_code)
