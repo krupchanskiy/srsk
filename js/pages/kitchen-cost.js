@@ -29,6 +29,13 @@ const NONE_ROWS = [
     { key: 'none:groups', buckets: ['groups'], label: () => tr('cost_groups_no_event', 'Группы без события') },
     { key: 'none:expected', buckets: ['expected'], label: () => tr('expected_guests', 'Ожидаются') }
 ];
+// Режим «Ретрит»: участники делятся по статусу на сегодня — уехали / здесь / ожидаются
+const PART_BUCKETS = ['guests', 'vips', 'expected'];
+const STATUS_ROWS = [
+    { status: 'left', label: () => tr('cost_st_left', 'Уже уехали') },
+    { status: 'here', label: () => tr('cost_st_here', 'Сейчас на ретрите') },
+    { status: 'expected', label: () => tr('expected_guests', 'Ожидаются') }
+];
 const MEAL_LABELS = { breakfast: () => tr('breakfast', 'Завтрак'), lunch: () => tr('lunch', 'Обед') };
 const ALL_BUCKETS = ['team', 'volunteers', 'vips', 'guests', 'groups', 'expected'];
 
@@ -288,9 +295,12 @@ function rowDefs() {
     const cells = view.result.cells;
     if (state.mode === 'retreat') {
         const ev = `retreat:${state.retreatId}`;
-        const subs = ALL_BUCKETS.filter(b => cells[ev]?.[b]?.personMeals)
+        const statuses = new Set(statusOf().values());
+        const statusRows = STATUS_ROWS.filter(r => statuses.has(r.status))
+            .map(r => ({ key: `${ev}:st:${r.status}`, label: r.label(), ev, buckets: PART_BUCKETS, status: r.status, sub: true }));
+        const subs = ALL_BUCKETS.filter(b => !PART_BUCKETS.includes(b) && cells[ev]?.[b]?.personMeals)
             .map(b => ({ key: `${ev}:${b}`, label: BUCKET_LABELS[b](), ev, buckets: [b], sub: true }));
-        return [{ key: ev, label: retreatName(state.retreatId), ev, buckets: ALL_BUCKETS, retreatId: state.retreatId, main: true }, ...subs];
+        return [{ key: ev, label: retreatName(state.retreatId), ev, buckets: ALL_BUCKETS, retreatId: state.retreatId, main: true }, ...statusRows, ...subs];
     }
     const retreatRows = Object.keys(cells).filter(k => k.startsWith('retreat:'))
         .map(ev => ({ key: ev, label: retreatName(ev.slice(8)), ev, buckets: ALL_BUCKETS, retreatId: ev.slice(8) }))
@@ -300,12 +310,55 @@ function rowDefs() {
     return [...retreatRows, ...noneRows];
 }
 
+// Статус участника выбранного ретрита на сегодня: есть строка на сегодня — здесь
+// (или «ожидается», если заезд не отмечен); все дни в прошлом — уехал; иначе — ожидается.
+function statusOf() {
+    if (view.statusOf) return view.statusOf;
+    const today = DateUtils.toISO(new Date());
+    const ev = `retreat:${state.retreatId}`;
+    const span = new Map();   // key → { min, max, today: bucket | null }
+    for (const x of view.detail) {
+        if (`retreat:${x.retreat_id}` !== ev || !PART_BUCKETS.includes(x.bucket)) continue;
+        const key = x.vaishnava_id || x.ref_id;
+        const p = span.get(key) || { min: x.d, max: x.d, today: null };
+        if (x.d < p.min) p.min = x.d;
+        if (x.d > p.max) p.max = x.d;
+        if (x.d === today) p.today = x.bucket;
+        span.set(key, p);
+    }
+    view.statusOf = new Map([...span].map(([key, p]) => [key,
+        p.today ? (p.today === 'expected' ? 'expected' : 'here') : p.max < today ? 'left' : 'expected']));
+    return view.statusOf;
+}
+const rowMatch = (row, x) => !row.status || statusOf().get(x.vaishnava_id || x.ref_id) === row.status;
+
+// Затраты строки: обычная строка — готовые ячейки; строка статуса — по людям,
+// приёмы пищи из меню × стоимость приёма пищи их категории (по статьям), сумма строк = итог
+function rowAgg(row) {
+    const cells = view.result.cells;
+    if (!row.status) return aggregate(cells, row.ev, row.buckets);
+    const served = view.served || (view.served = new Set(view.result.mealRecords.filter(r => !r.unallocated).map(r => `${r.date}|${r.meal}`)));
+    const acc = zero();
+    for (const x of view.detail) {
+        if (`retreat:${x.retreat_id}` !== row.ev || !row.buckets.includes(x.bucket) || !rowMatch(row, x)) continue;
+        const c = cells[row.ev]?.[x.bucket];
+        if (!c || !c.personMeals) continue;
+        const n = x.kind === 'group' ? (Number(x.people) || 1) : 1;
+        const meals = ((x.breakfast && served.has(`${x.d}|breakfast`) ? 1 : 0) + (x.lunch && served.has(`${x.d}|lunch`) ? 1 : 0)) * n;
+        if (!meals) continue;
+        const k = meals / c.personMeals;
+        acc.pm += meals; acc.food += c.food * k; acc.dish += c.dishware * k; acc.ext += c.external * k;
+        acc.ovR += c.overheadRetreat * k; acc.ovG += c.overheadGeneral * k; acc.prov = acc.prov || c.provisional;
+    }
+    return acc;
+}
+
 // люди строки по данным eating_detail: кто ел, только завтраки/обеды, не питался
 function peopleStats(row) {
     const persons = new Map();   // key → { bf, ln, n }
     for (const x of view.detail) {
         const ev = x.retreat_id ? `retreat:${x.retreat_id}` : 'none';
-        if (ev !== row.ev || !row.buckets.includes(x.bucket)) continue;
+        if (ev !== row.ev || !row.buckets.includes(x.bucket) || !rowMatch(row, x)) continue;
         const key = x.vaishnava_id || x.ref_id;
         const p = persons.get(key) || { bf: false, ln: false, n: 1, bucket: x.bucket };
         p.bf = p.bf || x.breakfast; p.ln = p.ln || x.lunch;
@@ -451,7 +504,7 @@ function renderSummary() {
     const grand = zero();
     let grandIncome = 0, anyIncome = false;
     const html = rows.map(row => {
-        const x = aggregate(cells, row.ev, row.buckets);
+        const x = rowAgg(row);
         if (!row.sub) Object.keys(grand).forEach(k => { if (k !== 'prov') grand[k] += x[k]; });
         const st = peopleStats(row);
         const inc = row.retreatId ? view.incomes[row.retreatId] : undefined;
@@ -1028,12 +1081,12 @@ function renderEaters() {
         <th class="text-right">${e(tr('cost_person_meals', 'Приёмов пищи'))}</th></tr>`;
     Layout.$('#eatersBody').innerHTML = rows.map(row => {
         const s = peopleStats(row);
-        const x = aggregate(view.result.cells, row.ev, row.buckets);
+        const x = rowAgg(row);
         const key = `eaters:${row.key}`;
         const deptBucket = row.ev === 'none' && (row.buckets[0] === 'team' || row.buckets[0] === 'volunteers') ? row.buckets[0] : null;
         const deptLink = deptBucket ? ` <button class="btn btn-ghost btn-xs text-primary" data-action="open-dept" data-bucket="${deptBucket}">${e(tr('cost_to_departments', 'По департаментам →'))}</button>` : '';
         const open = expanded.has(key)
-            ? `<tr><td colspan="7" class="bg-base-200/40 pl-8">${peopleTable(personRows((xr, ev) => ev === row.ev && row.buckets.includes(xr.bucket)), row.buckets.length > 1)}</td></tr>` : '';
+            ? `<tr><td colspan="7" class="bg-base-200/40 pl-8">${peopleTable(personRows((xr, ev) => ev === row.ev && row.buckets.includes(xr.bucket) && rowMatch(row, xr)), row.buckets.length > 1)}</td></tr>` : '';
         return `<tr class="${row.main ? 'bg-base-200/60 font-semibold' : ''} cursor-pointer hover:bg-base-200/50" data-action="toggle-row" data-key="${key}">
             <td class="${row.sub ? 'pl-8 text-sm' : ''}">${toggleCell(key)}${e(row.label)}${deptLink}</td>
             <td class="text-right">${num(s.people)}</td><td class="text-right">${num(s.both)}</td>
