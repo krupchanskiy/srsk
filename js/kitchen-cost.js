@@ -127,6 +127,7 @@ function computeCosts(input) {
 
         // --- продукты по рецептам на приготовленные порции ---
         let food = 0;
+        const foodByProduct = {};   // для графика «куда уходят деньги на продукты»
         for (const dish of (meal.dishes || [])) {
             const recipe = recipes[dish.recipe_id];
             if (!recipe) continue;
@@ -140,7 +141,9 @@ function computeCosts(input) {
                 const p = products[ing.product_id];
                 const qty = convert((Number(ing.amount) || 0) * multiplier, ing.unit, p.unit, densities[ing.product_id], units);
                 if (qty === null) { note(warn.unresolvedUnits, `${p.name}|${ing.unit}|${p.unit}`); continue; }
-                food += productCost(ing.product_id, qty, meal.date);
+                const c = productCost(ing.product_id, qty, meal.date);
+                food += c;
+                if (c) foodByProduct[ing.product_id] = (foodByProduct[ing.product_id] || 0) + c;
             }
         }
 
@@ -156,7 +159,7 @@ function computeCosts(input) {
         const extRows = externals[meal.id] || [];
         const external = extRows.reduce((s, x) => s + Number(x.amount), 0);
         const record = { date: meal.date, meal: meal.meal_type, portions: meal.portions || null, eaters,
-                         food, dishwarePerEater, external, externalNames: extRows.map(x => x.name),
+                         food, foodByProduct, dishwarePerEater, external, externalNames: extRows.map(x => x.name),
                          ownDishes: (meal.dishes || []).length, byEvent };
 
         if (eaters === 0) {
@@ -407,6 +410,7 @@ async function calculate(db, locationId, from, to) {
     const result = computeCosts(input);
     result.productNames = Object.fromEntries(Object.entries(input.products).map(([id, p]) => [id, p.name]));
     result.counts = input.counts;
+    result.recipesUsed = Object.keys(input.recipes).length;
     result.pricesLoaded = Object.keys(input.prices).length;
     return result;
 }

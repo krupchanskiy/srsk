@@ -35,7 +35,9 @@ const ALL_BUCKETS = ['team', 'volunteers', 'vips', 'guests', 'groups', 'expected
 let locationId = null;
 let caps = { view: false, edit: false };
 let retreats = [];
-let state = { mode: 'retreat', step: 'month', retreatId: '', from: '', to: '', tab: 'eaters' };
+// section: calc | now | charts | data; tab — вкладка «Расчёта», dataTab — вкладка «Данных»
+let state = { mode: 'retreat', step: 'month', retreatId: '', from: '', to: '', section: 'calc', tab: 'eaters', dataTab: 'completeness' };
+const DATA_TABS = ['completeness', 'problems', 'settings'];
 let view = null;          // { from, to, result, detail, incomes }
 let calcToken = 0;
 let kits = { breakfast: [], lunch: [] };
@@ -204,7 +206,8 @@ async function retreatIncome(retreatId) {
     const res = error ? null : data?.result;
     const inc = res?.report?.prasad?.totals?.income_base;
     const v = inc === undefined || inc === null ? null
-        : { amount: Number(inc), objectId: res.object_id, groups: (res.report.prasad.income_by_category || []).map(c => c.category_id) };
+        : { amount: Number(inc), objectId: res.object_id, groups: (res.report.prasad.income_by_category || []).map(c => c.category_id),
+            expense: Number(res.report.prasad.totals.expense_base || 0) };
     incomeCache.set(retreatId, v);
     return v;
 }
@@ -238,10 +241,19 @@ async function calculate() {
             const r = retreats.find(x => x.id === id);
             if (!r) return;
             const [income, span] = await Promise.all([retreatIncome(id), retreatSpan(r)]);
-            const pmWindow = aggregate(result.cells, `retreat:${id}`, ALL_BUCKETS).pm;
+            // доля — по вкушающим ретрита в окне (не по меню: на будущие дни меню может ещё не быть);
+            // в режиме «Ретрит» окно = весь ретрит, доход целиком
+            let pmWindow = 0;
+            for (const [d, day] of Object.entries(result.counts || {})) {
+                if (d < from || d > to) continue;
+                for (const m of ['breakfast', 'lunch']) {
+                    const b = day.byEvent?.[m]?.[`retreat:${id}`];
+                    if (b) pmWindow += ALL_BUCKETS.reduce((s2, k) => s2 + (b[k] || 0), 0);
+                }
+            }
+            const share = state.mode === 'retreat' || !span.pm ? 1 : Math.min(1, pmWindow / span.pm);
             incomes[id] = income === null ? null
-                : { full: income.amount, objectId: income.objectId, groups: income.groups,
-                    share: span.pm ? Math.min(1, pmWindow / span.pm) : 1 };
+                : { full: income.amount, objectId: income.objectId, groups: income.groups, expense: income.expense, share };
         }));
         if (token !== calcToken) return;
 
@@ -253,7 +265,7 @@ async function calculate() {
         }
         if (token !== calcToken) return;
 
-        view = { from, to, result, detail, incomes, opByPosting, directPostings: null, incomeOps: {} };
+        view = { from, to, result, detail, incomes, opByPosting, directPostings: null, incomeOps: {}, now: null };
         expanded.clear();
         render();
     } catch (err) {
@@ -266,8 +278,7 @@ async function calculate() {
 
 function hideResult() {
     view = null;
-    Layout.$('#summaryBox').classList.add('hidden');
-    Layout.$('#tabsBox').classList.add('hidden');
+    ['#summaryBox', '#tabsBox', '#kpiBox', '#sectionBar', '#qualityBanner'].forEach(sel => Layout.$(sel).classList.add('hidden'));
 }
 
 // ==================== ROWS ====================
@@ -318,8 +329,81 @@ function pricesState() {
 
 // ==================== RENDER ====================
 function render() {
+    renderQuality();
+    renderKpis();
     renderSummary();
     renderTabs();
+}
+
+// ---------- Плашка «данные могут быть неточными» ----------
+function renderQuality() {
+    const w = view.result.warnings;
+    const today = DateUtils.toISO(new Date());
+    const noMenuPast = w.noMenu.filter(x => x.split(' ')[0] <= today).length;
+    const noMenuFuture = w.noMenu.length - noMenuPast;
+    const reasons = [];
+    if (!view.result.pricesLoaded) reasons.push(tr('cost_q_no_prices', 'цены ещё не внесены — продукты и посуда считаются как 0'));
+    else if (w.missingPrices.size) reasons.push(`${tr('cost_q_some_prices', 'нет цены у продуктов')}: ${w.missingPrices.size}`);
+    if (noMenuPast) reasons.push(`${tr('cost_q_menu_past', 'меню не заведено на прошедшие приёмы пищи')}: ${noMenuPast}`);
+    if (noMenuFuture) reasons.push(`${tr('cost_q_menu_future', 'меню ещё не заведено на предстоящие приёмы пищи')}: ${noMenuFuture}`);
+    if (w.payrollEstimated.length) reasons.push(`${tr('cost_q_payroll', 'зарплата взята оценкой')}: ${w.payrollEstimated.join(', ')}`);
+    const box = Layout.$('#qualityBanner');
+    if (!reasons.length) { box.classList.add('hidden'); return; }
+    box.innerHTML = `<div class="alert alert-warning text-sm items-start">
+        <div><div class="font-semibold">${e(tr('cost_q_title', 'Данные могут быть неточными'))}</div>
+        <ul class="list-disc ml-5 mt-1">${reasons.map(r => `<li>${e(r)}</li>`).join('')}</ul></div>
+        <a class="btn btn-sm btn-ghost" data-action="tab" data-tab="completeness">${e(tr('cost_tab_completeness', 'Полнота данных'))} →</a>
+    </div>`;
+    box.classList.remove('hidden');
+}
+
+// ---------- Главные цифры ----------
+// Режим «Ретрит» — по ретриту; «Период» — итог периода (доход и результат — по ретритам периода).
+function kpiNumbers() {
+    const cells = view.result.cells;
+    const rows = rowDefs().filter(r => !r.sub);
+    const sum = zero();
+    let income = 0, anyIncome = false, participants = 0;
+    for (const row of rows) {
+        const x = aggregate(cells, row.ev, row.buckets);
+        Object.keys(sum).forEach(k => { if (k !== 'prov') sum[k] += x[k]; });
+        const inc = row.retreatId ? view.incomes[row.retreatId] : null;
+        if (inc) { income += inc.full * inc.share; anyIncome = true; }
+        if (row.retreatId) participants += peopleStats(row).participants;
+    }
+    const retreatCost = rows.filter(r => r.retreatId).reduce((s, r) => s + total(aggregate(cells, r.ev, r.buckets)), 0);
+    return { sum, income: anyIncome ? income : null, participants, retreatCost,
+             people: state.mode === 'retreat' ? peopleStats(rows[0]).people : peopleTotal() };
+}
+
+function renderKpis() {
+    const k = kpiNumbers();
+    const ps = pricesState();
+    const card = (label, value, sub, cls = '') => `<div class="bg-base-100 rounded-xl shadow-sm p-4">
+        <div class="text-xs uppercase tracking-wide opacity-60">${e(label)}</div>
+        <div class="text-2xl font-bold mt-1 ${cls}">${value}</div>
+        ${sub ? `<div class="text-xs opacity-60 mt-1">${sub}</div>` : ''}</div>`;
+    const warn = ps === 'none' ? ` <span class="text-sm text-error font-normal">${e(tr('cost_no_prices', 'нет цен'))}</span>`
+        : ps === 'partial' ? ' <span class="text-warning text-base">⚠</span>' : '';
+    const result = k.income === null ? null : k.income - (state.mode === 'retreat' ? total(k.sum) : k.retreatCost);
+    const cards = [
+        card(tr('cost_total', 'Всего'), money(total(k.sum)) + warn,
+            `${e(tr('cost_direct', 'Прямые'))} ${money(direct(k.sum))} · ${e(tr('cost_overhead', 'Накладные'))} ${money(overhead(k.sum))}`),
+        card(tr('cost_per_meal', 'На приём пищи'), k.sum.pm ? money2(total(k.sum) / k.sum.pm) : '—', `${num(k.sum.pm)} ${e(tr('cost_person_meals', 'приёмов пищи').toLowerCase())}`),
+        card(tr('cost_per_participant', 'На участника'), k.participants ? money(k.retreatCost / k.participants) : '—',
+            k.participants ? `${num(k.participants)} ${e(tr('cost_participants', 'участников').toLowerCase())}` : e(tr('cost_kpi_no_retreat', 'в периоде нет ретритов'))),
+        card(tr('cost_income', 'Доход прасада'), k.income === null ? '—' : money(k.income),
+            state.mode === 'period' && k.income !== null ? e(tr('cost_kpi_income_share', 'ретриты своей долей')) : ''),
+        // ретрит ещё идёт: доход уже весь, а расход — только за прошедшие дни; итог — в прогнозе
+        state.mode === 'retreat' && view.to >= DateUtils.toISO(new Date())
+            ? card(tr('cost_result', 'Результат'), '—', `<a class="link" data-action="section" data-section="now">${e(tr('cost_kpi_see_forecast', 'ретрит идёт — прогноз в «Ретрит сейчас»'))}</a>`)
+            : card(tr('cost_result', 'Результат'), result === null || ps === 'none' ? '—' : money(result),
+                ps === 'none' ? e(tr('cost_result_no_prices', 'Пока нет цен, себестоимость занижена — результат не показываем')) : '',
+                result === null || ps === 'none' ? '' : result < 0 ? 'text-error' : 'text-success'),
+        card(tr('cost_people', 'Людей'), num(k.people), '')
+    ];
+    Layout.$('#kpiBox').innerHTML = cards.join('');
+    Layout.$('#kpiBox').classList.remove('hidden');
 }
 
 function renderSummary() {
@@ -459,11 +543,33 @@ function noDeptPeople() {
         .sort((a, b) => a.localeCompare(b, 'ru'));
 }
 
-function tabList() {
+function problemCount() {
     const w = view.result.warnings;
-    const problems = w.missingPrices.size + w.unresolvedUnits.size + w.noMenu.length + w.noEaters.length
+    return w.missingPrices.size + w.unresolvedUnits.size + w.noMenu.length + w.noEaters.length
         + w.overheadNoBase.length + w.overheadUnallocated.length + w.laborUnlinked.length + w.recipesNoOutput.size
         + (w.overheadError ? 1 : 0) + (w.payrollEstimated.length ? 1 : 0) + (noDeptPeople().length ? 1 : 0);
+}
+
+function sectionList() {
+    const problems = problemCount();
+    return [
+        { id: 'calc', label: tr('cost_section_calc', 'Расчёт') },
+        state.mode === 'retreat' ? { id: 'now', label: tr('cost_section_now', 'Ретрит сейчас') } : null,
+        { id: 'charts', label: tr('cost_section_charts', 'Графики') },
+        { id: 'data', label: `${tr('cost_section_data', 'Данные')}${problems ? ` (${problems})` : ''}`, warn: problems > 0 }
+    ].filter(Boolean);
+}
+
+function tabList() {
+    if (state.section === 'data') {
+        const problems = problemCount();
+        return [
+            { id: 'completeness', label: tr('cost_tab_completeness', 'Полнота данных') },
+            { id: 'problems', label: `${tr('cost_tab_problems', 'Проблемы')}${problems ? ` (${problems})` : ''}`, warn: problems > 0 },
+            { id: 'settings', label: tr('cost_tab_settings', 'Настройки расчёта') }
+        ];
+    }
+    if (state.section !== 'calc') return [];
     const multiMonth = view.from.slice(0, 7) !== view.to.slice(0, 7);
     return [
         { id: 'eaters', label: tr('cost_tab_eaters', 'Вкушающие') },
@@ -471,21 +577,334 @@ function tabList() {
         { id: 'direct', label: tr('cost_tab_direct', 'Прямые затраты') },
         { id: 'overhead', label: tr('cost_tab_overhead', 'Накладные') },
         multiMonth ? { id: 'months', label: tr('cost_tab_months', 'По месяцам') } : null,
-        { id: 'reconcile', label: tr('cost_reconcile_title', 'Сверка с ДДС') },
-        { id: 'settings', label: tr('cost_tab_settings', 'Настройки расчёта') },
-        { id: 'problems', label: `${tr('cost_tab_problems', 'Проблемы')}${problems ? ` (${problems})` : ''}`, warn: problems > 0 }
+        { id: 'reconcile', label: tr('cost_reconcile_title', 'Сверка с ДДС') }
     ].filter(Boolean);
 }
 
 function renderTabs() {
+    const sections = sectionList();
+    if (!sections.some(x => x.id === state.section)) state.section = 'calc';
+    Layout.$('#sectionBar').innerHTML = sections.map(x =>
+        `<a role="tab" class="tab ${x.id === state.section ? 'tab-active' : ''} ${x.warn && x.id !== state.section ? 'text-warning' : ''}" data-action="section" data-section="${x.id}">${e(x.label)}</a>`).join('');
+    Layout.$('#sectionBar').classList.remove('hidden');
+    Layout.$('#summaryBox').classList.toggle('hidden', state.section !== 'calc');
+
     const tabs = tabList();
-    if (!tabs.some(x => x.id === state.tab)) state.tab = 'eaters';
+    const cur = state.section === 'data' ? 'dataTab' : 'tab';
+    if (tabs.length && !tabs.some(x => x.id === state[cur])) state[cur] = tabs[0].id;
     Layout.$('#tabBar').innerHTML = tabs.map(x =>
-        `<a role="tab" class="tab ${x.id === state.tab ? 'tab-active [--tab-bg:oklch(var(--b1))]' : ''} ${x.warn ? 'text-warning' : ''}" data-action="tab" data-tab="${x.id}">${e(x.label)}</a>`).join('');
-    document.querySelectorAll('[data-panel]').forEach(p => p.classList.toggle('hidden', p.dataset.panel !== state.tab));
+        `<a role="tab" class="tab ${x.id === state[cur] ? 'tab-active [--tab-bg:oklch(var(--b1))]' : ''} ${x.warn ? 'text-warning' : ''}" data-action="tab" data-tab="${x.id}">${e(x.label)}</a>`).join('');
+    Layout.$('#tabBar').classList.toggle('hidden', !tabs.length);
+    const panel = state.section === 'calc' ? state.tab : state.section === 'data' ? state.dataTab : state.section;
+    document.querySelectorAll('[data-panel]').forEach(p => p.classList.toggle('hidden', p.dataset.panel !== panel));
     Layout.$('#tabsBox').classList.remove('hidden');
     ({ eaters: renderEaters, departments: renderDepartments, direct: renderDirect, overhead: renderOverhead, months: renderMonths,
-       reconcile: renderReconcile, settings: () => { renderKits(); renderGroups(); }, problems: renderWarnings })[state.tab]?.();
+       reconcile: renderReconcile, settings: () => { renderKits(); renderGroups(); }, problems: renderWarnings,
+       completeness: renderCompleteness, now: renderNow, charts: renderCharts })[panel]?.();
+}
+
+// ---------- Полнота данных ----------
+// Насколько можно доверять цифрам: что заполнено и что ещё нет. Каждая строка ведёт туда, где заполняют.
+function renderCompleteness() {
+    const r = view.result, w = r.warnings;
+    const usedProducts = Object.keys(r.productNames || {}).length;
+    const served = r.mealRecords.filter(m => !m.unallocated).length;
+    const teamVol = new Map();
+    for (const x of view.detail) {
+        if (!x.vaishnava_id || (x.bucket !== 'team' && x.bucket !== 'volunteers') || (!x.breakfast && !x.lunch)) continue;
+        teamVol.set(x.vaishnava_id, !!personDept.get(x.vaishnava_id));
+    }
+    const months = new Set();
+    for (let f = view.from.slice(0, 7) + '-01'; f <= view.to; f = addDays(monthEnd(f), 1)) months.add(f.slice(0, 7));
+    const confirmed = costGroups.filter(g => g.cost_group).length;
+    const items = [
+        { label: tr('cost_c_prices', 'Цены продуктов из меню и посуды'), ok: usedProducts - w.missingPrices.size, total: usedProducts,
+          href: 'prices.html', link: tr('nav_prices', 'Цены') },
+        { label: tr('cost_c_units', 'Продукты, у которых сходятся единицы (плотность, вес штуки)'), ok: usedProducts - w.unresolvedUnits.size, total: usedProducts,
+          href: 'products.html', link: tr('nav_products', 'Продукты') },
+        { label: tr('cost_c_output', 'Рецепты с указанным выходом'), ok: (r.recipesUsed || 0) - w.recipesNoOutput.size, total: r.recipesUsed || 0,
+          href: 'recipes.html', link: tr('nav_recipes', 'Рецепты') },
+        { label: tr('cost_c_menu', 'Приёмы пищи, заведённые в меню'), ok: served, total: served + w.noMenu.length,
+          href: 'menu.html', link: tr('nav_menu', 'Меню') },
+        { label: tr('cost_c_depts', 'Команда и волонтёры с департаментом'), ok: [...teamVol.values()].filter(Boolean).length, total: teamVol.size,
+          tab: 'problems', link: tr('cost_tab_problems', 'Проблемы') },
+        { label: tr('cost_c_groups', 'Статьи расходов кухни с подтверждённой группой'), ok: confirmed, total: costGroups.length,
+          tab: 'settings', link: tr('cost_tab_settings', 'Настройки расчёта') },
+        { label: tr('cost_c_payroll', 'Месяцы с начисленной зарплатой (не оценкой)'), ok: months.size - w.payrollEstimated.filter(m => months.has(m)).length, total: months.size,
+          href: '../finance/payroll.html', link: tr('fin_payroll', 'Зарплаты') },
+        { label: tr('cost_c_unassigned', 'Расходы «на ретрит» с назначением'), ok: unassigned.length ? 0 : 1, total: 1, count: unassigned.length,
+          tab: 'overhead', link: tr('cost_tab_overhead', 'Накладные') }
+    ];
+    Layout.$('#completenessBody').innerHTML = items.map(it => {
+        const pct = it.total ? Math.round(it.ok / it.total * 100) : 100;
+        const cls = pct >= 95 ? 'progress-success' : pct >= 60 ? 'progress-warning' : 'progress-error';
+        const figure = it.count !== undefined ? (it.count ? `${it.count} ${tr('cost_c_without', 'без назначения')}` : tr('cost_c_all_ok', 'всё назначено'))
+            : `${num(it.ok)} ${tr('cost_c_of', 'из')} ${num(it.total)}`;
+        const go = it.href ? `<a class="link text-sm" href="${it.href}">${e(it.link)} →</a>`
+            : `<a class="link text-sm" data-action="tab" data-tab="${it.tab}">${e(it.link)} →</a>`;
+        return `<div class="grid grid-cols-1 md:grid-cols-[1fr_12rem_6rem_9rem] items-center gap-2 md:gap-4 py-2 border-b border-base-200">
+            <div class="text-sm">${e(it.label)}</div>
+            <progress class="progress ${cls} w-full" value="${pct}" max="100"></progress>
+            <div class="text-sm font-medium md:text-right">${pct}% <span class="opacity-60 font-normal">· ${e(figure)}</span></div>
+            <div class="md:text-right">${pct < 100 ? go : ''}</div>
+        </div>`;
+    }).join('');
+}
+
+// ---------- Ретрит сейчас ----------
+// Потрачено на сегодня (расчёт с начала по сегодня) и прогноз до конца: оставшиеся приёмы пищи
+// людей ретрита (по броням и регистрациям) × стоимость приёма пищи на сегодня.
+async function loadNow() {
+    if (view.now || state.mode !== 'retreat') return;
+    const today = DateUtils.toISO(new Date());
+    const ev = `retreat:${state.retreatId}`;
+    const pmOf = (from, to) => {
+        let n = 0;
+        for (const [d, day] of Object.entries(view.result.counts || {})) {
+            if (d < from || d > to) continue;
+            for (const m of ['breakfast', 'lunch']) { const b = day.byEvent?.[m]?.[ev]; if (b) n += ALL_BUCKETS.reduce((s, k) => s + (b[k] || 0), 0); }
+        }
+        return n;
+    };
+    const status = today < view.from ? 'before' : today > view.to ? 'after' : 'running';
+    let toDate = null;
+    if (status === 'running') {
+        const res = await KitchenCost.calculate(Layout.db, locationId, view.from, today);
+        toDate = aggregate(res.cells, ev, ALL_BUCKETS);
+    }
+    view.now = { status, today, toDate, remainingPm: status === 'running' ? pmOf(addDays(today, 1), view.to) : 0 };
+}
+
+function renderNow() {
+    const box = Layout.$('#nowBody');
+    if (!view.now) {
+        box.innerHTML = `<div class="py-6 text-center"><span class="loading loading-spinner"></span></div>`;
+        loadNow().then(() => view && state.section === 'now' && renderNow()).catch(err => {
+            console.error('Ретрит сейчас:', err);
+            box.innerHTML = `<div class="alert alert-error text-sm">${e(errorText(err))}</div>`;
+        });
+        return;
+    }
+    const n = view.now;
+    const whole = aggregate(view.result.cells, `retreat:${state.retreatId}`, ALL_BUCKETS);
+    const inc = view.incomes[state.retreatId];
+    const ps = pricesState();
+    const days = (a, b) => Math.round((DateUtils.parseDate(b) - DateUtils.parseDate(a)) / 86400000) + 1;
+    const total_days = days(view.from, view.to);
+    const card = (label, value, sub, cls = '') => `<div class="bg-base-200/50 rounded-xl p-4">
+        <div class="text-xs uppercase tracking-wide opacity-60">${e(label)}</div>
+        <div class="text-xl font-bold mt-1 ${cls}">${value}</div>${sub ? `<div class="text-xs opacity-60 mt-1">${sub}</div>` : ''}</div>`;
+    const resCls = v => v < 0 ? 'text-error' : 'text-success';
+
+    let head, cards;
+    if (n.status === 'before') {
+        head = `${tr('cost_now_before', 'Ретрит ещё не начался')} · ${tr('cost_now_starts_in', 'до начала')} ${days(n.today, view.from) - 1} ${tr('cost_days_short', 'дн.')}`;
+        cards = [
+            card(tr('cost_now_forecast_total', 'Прогноз себестоимости'), money(total(whole)), e(tr('cost_now_by_bookings', 'по броням и регистрациям'))),
+            card(tr('cost_income', 'Доход прасада'), inc ? money(inc.full) : '—', ''),
+            card(tr('cost_now_forecast_result', 'Прогноз результата'), inc && ps !== 'none' ? money(inc.full - total(whole)) : '—', '', inc && ps !== 'none' ? resCls(inc.full - total(whole)) : '')
+        ];
+    } else if (n.status === 'after') {
+        head = tr('cost_now_after', 'Ретрит завершён — итог');
+        cards = [
+            card(tr('cost_total', 'Себестоимость'), money(total(whole)), `${num(whole.pm)} ${e(tr('cost_person_meals', 'приёмов пищи').toLowerCase())}`),
+            card(tr('cost_now_dds', 'Расход прасада по кассе'), inc ? money(inc.expense) : '—', e(tr('cost_now_dds_hint', 'то, что в финансах отнесено на прасад ретрита'))),
+            card(tr('cost_income', 'Доход прасада'), inc ? money(inc.full) : '—', ''),
+            card(tr('cost_result', 'Результат'), inc && ps !== 'none' ? money(inc.full - total(whole)) : '—', '', inc && ps !== 'none' ? resCls(inc.full - total(whole)) : '')
+        ];
+    } else {
+        const passed = days(view.from, n.today);
+        const t0 = n.toDate ? total(n.toDate) : 0;
+        const perMeal = n.toDate?.pm ? t0 / n.toDate.pm : 0;
+        const forecastRest = n.remainingPm * perMeal;
+        const forecast = t0 + forecastRest;
+        head = `${tr('cost_now_running', 'Идёт')} ${passed}-${tr('cost_now_day', 'й день из')} ${total_days}`;
+        cards = [
+            card(tr('cost_now_spent', 'Потрачено на сегодня'), money(t0), `${num(n.toDate?.pm || 0)} ${e(tr('cost_person_meals', 'приёмов пищи').toLowerCase())} · ${money2(perMeal)} ${e(tr('cost_now_per_meal', 'за приём'))}`),
+            card(tr('cost_now_dds', 'Расход прасада по кассе'), inc ? money(inc.expense) : '—', e(tr('cost_now_dds_hint', 'то, что в финансах отнесено на прасад ретрита'))),
+            card(tr('cost_now_remaining', 'Осталось приёмов пищи'), num(n.remainingPm), `${e(tr('cost_now_forecast_rest', 'прогноз'))} ${money(forecastRest)}`),
+            card(tr('cost_now_forecast_total', 'Прогноз себестоимости'), money(forecast), e(tr('cost_now_forecast_hint', 'потрачено + оставшиеся приёмы × стоимость приёма на сегодня'))),
+            card(tr('cost_income', 'Доход прасада'), inc ? money(inc.full) : '—', e(tr('cost_now_income_hint', 'пришло за ретрит на сегодня'))),
+            card(tr('cost_now_forecast_result', 'Прогноз результата'), inc && ps !== 'none' ? money(inc.full - forecast) : '—', '', inc && ps !== 'none' ? resCls(inc.full - forecast) : '')
+        ];
+    }
+    const pct = n.status === 'after' ? 100 : n.status === 'before' ? 0 : Math.round(days(view.from, n.today) / total_days * 100);
+    box.innerHTML = `<div class="flex flex-wrap items-center gap-3 mb-4">
+            <div class="font-semibold">${e(head)}</div>
+            <progress class="progress progress-primary w-56" value="${pct}" max="100"></progress>
+            <span class="text-sm opacity-60">${e(DateUtils.formatRange(view.from, view.to))}</span>
+        </div>
+        ${ps === 'none' ? `<div class="alert alert-warning text-sm mb-4">${e(tr('cost_w_no_prices_all', 'Цены ещё не внесены ни на один продукт — продукты и посуда считаются как 0'))}</div>` : ''}
+        <div class="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-3">${cards.join('')}</div>`;
+}
+
+// ---------- Графики ----------
+const CHART_JS = 'https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js';
+let chartLib = null;
+const charts = [];
+const BUCKET_COLORS = { team: '#10b981', volunteers: '#f59e0b', vips: '#f76a3b', guests: '#3b82f6', groups: '#8b5cf6', expected: '#94a3b8' };
+const RETREAT_COLORS = ['#8b5cf6', '#ec4899', '#14b8a6', '#6366f1', '#84cc16', '#0ea5e9'];
+const PART_COLORS = { food: '#f49800', dish: '#fbbf24', ext: '#fb7185', ov: '#64748b' };
+
+function loadChartLib() {
+    if (window.Chart) return Promise.resolve(window.Chart);
+    if (chartLib) return chartLib;
+    chartLib = new Promise((res, rej) => {
+        const sc = document.createElement('script');
+        sc.src = CHART_JS; sc.onload = () => res(window.Chart); sc.onerror = rej;
+        document.head.appendChild(sc);
+    });
+    return chartLib;
+}
+
+function chartCard(id, title, note) {
+    return `<div class="bg-base-100 border border-base-200 rounded-xl p-4">
+        <div class="font-semibold mb-1">${e(title)}</div>
+        ${note ? `<div class="text-xs opacity-60 mb-2">${e(note)}</div>` : ''}
+        <div class="relative h-72"><canvas id="${id}"></canvas></div></div>`;
+}
+const emptyCard = (title, text) => `<div class="bg-base-100 border border-base-200 rounded-xl p-4">
+    <div class="font-semibold mb-1">${e(title)}</div><div class="h-72 flex items-center justify-center text-sm opacity-60 text-center px-6">${e(text)}</div></div>`;
+
+async function renderCharts() {
+    const box = Layout.$('#chartsBody');
+    box.innerHTML = `<div class="py-6 text-center col-span-full"><span class="loading loading-spinner"></span></div>`;
+    let Chart;
+    try { Chart = await loadChartLib(); } catch { box.innerHTML = `<div class="alert alert-error text-sm">${e(tr('cost_charts_load_error', 'Не удалось загрузить графики'))}</div>`; return; }
+    if (!view || state.section !== 'charts') return;
+    charts.splice(0).forEach(c => c.destroy());
+
+    const scope = scopeEvents();
+    const ps = pricesState();
+    const monthKeys = Object.keys(view.result.months || {}).sort();
+    const monthLabel = ym => { const l = DateUtils.parseDate(ym + '-01').toLocaleDateString(locale(), { month: 'short', year: '2-digit' }); return l.replace(' г.', ''); };
+    const inScope = ev => !scope || scope.includes(ev);
+    const parts = [];
+
+    // 1. Стоимость приёма пищи по месяцам
+    const mData = monthKeys.map(ym => {
+        const acc = zero();
+        for (const [ev, byB] of Object.entries(view.result.months[ym])) {
+            if (!inScope(ev)) continue;
+            for (const c of Object.values(byB)) addCell(acc, c);
+        }
+        return acc;
+    });
+    parts.push(monthKeys.length > 1 ? chartCard('chMonths', tr('cost_ch_months', 'Стоимость приёма пищи по месяцам'), tr('cost_ch_months_note', 'Столбики — из чего складываются расходы месяца, линия — стоимость одного приёма пищи'))
+        : emptyCard(tr('cost_ch_months', 'Стоимость приёма пищи по месяцам'), tr('cost_ch_need_months', 'Выберите период длиннее месяца — квартал или год')));
+
+    // 2. Вкушающие по дням
+    parts.push(chartCard('chDays', tr('cost_ch_days', 'Вкушающие по дням'), tr('cost_ch_days_note', 'Сколько человек ело в день (больше из завтрака и обеда)')));
+
+    // 3. Топ-10 продуктов
+    const byProduct = {};
+    for (const rec of view.result.mealRecords) {
+        if (rec.date < view.from || rec.date > view.to || !rec.eaters) continue;
+        let share = 1;
+        if (scope) share = Object.entries(rec.byEvent).filter(([ev]) => scope.includes(ev))
+            .reduce((s, [, b]) => s + ALL_BUCKETS.reduce((x, k) => x + (b[k] || 0), 0), 0) / rec.eaters;
+        for (const [pid, c] of Object.entries(rec.foodByProduct || {})) byProduct[pid] = (byProduct[pid] || 0) + c * share;
+    }
+    const top = Object.entries(byProduct).sort((a, b) => b[1] - a[1]).slice(0, 10);
+    parts.push(top.length ? chartCard('chTop', tr('cost_ch_top', 'Топ-10 продуктов по деньгам'), tr('cost_ch_top_note', 'Сколько ушло на продукт по рецептам меню'))
+        : emptyCard(tr('cost_ch_top', 'Топ-10 продуктов по деньгам'), ps === 'none' ? tr('cost_ch_need_prices', 'Появится, когда будут внесены цены') : tr('cost_nothing', 'За период нет данных')));
+
+    // 4. Окупаемость ретритов
+    const payRows = rowDefs().filter(r => r.retreatId && !r.sub).map(r => {
+        const inc = view.incomes[r.retreatId];
+        return { label: r.label, cost: total(aggregate(view.result.cells, r.ev, r.buckets)), income: inc ? inc.full * inc.share : null };
+    }).filter(r => r.income !== null);
+    parts.push(payRows.length ? chartCard('chPay', tr('cost_ch_payback', 'Окупаемость ретритов'), ps === 'none' ? tr('cost_ch_payback_noprices', 'Пока нет цен — себестоимость занижена') : tr('cost_ch_payback_note', 'Доход прасада против себестоимости'))
+        : emptyCard(tr('cost_ch_payback', 'Окупаемость ретритов'), tr('cost_ch_no_retreat_income', 'В периоде нет ретритов с доходом прасада')));
+
+    // 5. Закупки оборудования и инвентаря по месяцам
+    const eq = {};
+    for (const l of view.result.overheadLines) {
+        if (!l.occurredOn || !/оборуд|инвентар/i.test(l.category || '')) continue;
+        if (l.occurredOn < view.from || l.occurredOn > view.to) continue;
+        const ym = l.occurredOn.slice(0, 7);
+        (eq[ym] = eq[ym] || {})[l.category] = ((eq[ym] || {})[l.category] || 0) + l.amount;
+    }
+    const eqMonths = Object.keys(eq).sort();
+    parts.push(eqMonths.length ? chartCard('chEquip', tr('cost_ch_equipment', 'Закупки оборудования и инвентаря'), tr('cost_ch_equipment_note', 'Покупки кухни по месяцам, по статьям'))
+        : emptyCard(tr('cost_ch_equipment', 'Закупки оборудования и инвентаря'), tr('cost_ch_no_equipment', 'В периоде закупок оборудования нет')));
+
+    box.innerHTML = parts.join('');
+    const money0 = v => Number(v).toLocaleString(locale(), { maximumFractionDigits: 0 }) + ' ₹';
+    const base = { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'bottom', labels: { boxWidth: 12 } } } };
+    const moneyTip = { callbacks: { label: c => `${c.dataset.label}: ${money0(c.parsed.y ?? c.parsed.x)}` } };
+
+    if (monthKeys.length > 1) charts.push(new Chart(document.getElementById('chMonths'), {
+        data: { labels: monthKeys.map(monthLabel), datasets: [
+            { type: 'line', label: tr('cost_per_meal', 'На приём пищи'), data: mData.map(x => x.pm ? total(x) / x.pm : null), borderColor: '#111827', backgroundColor: '#111827', yAxisID: 'y1', tension: 0.3 },
+            { type: 'bar', label: tr('cost_food', 'Продукты'), data: mData.map(x => x.food), backgroundColor: PART_COLORS.food, stack: 's' },
+            { type: 'bar', label: tr('cost_dishware', 'Посуда'), data: mData.map(x => x.dish), backgroundColor: PART_COLORS.dish, stack: 's' },
+            { type: 'bar', label: tr('cost_external', 'Готовое'), data: mData.map(x => x.ext), backgroundColor: PART_COLORS.ext, stack: 's' },
+            { type: 'bar', label: tr('cost_overhead', 'Накладные'), data: mData.map(x => overhead(x)), backgroundColor: PART_COLORS.ov, stack: 's' }
+        ] },
+        options: { ...base, plugins: { ...base.plugins, tooltip: moneyTip },
+            scales: { x: { stacked: true }, y: { stacked: true, ticks: { callback: money0 } },
+                      y1: { position: 'right', grid: { drawOnChartArea: false }, ticks: { callback: v => money0(v) } } } }
+    }));
+
+    // вкушающие по дням: ряды — ретриты (каждый своим цветом) и категории людей без события
+    const dayKeys = Object.keys(view.result.counts || {}).filter(d => d >= view.from && d <= view.to).sort();
+    const series = new Map();
+    const addPoint = (key, label, color, i, v) => {
+        const sr = series.get(key) || (series.set(key, { label, color, data: dayKeys.map(() => 0) }), series.get(key));
+        sr.data[i] += v;
+    };
+    const retreatKeys = [...new Set(dayKeys.flatMap(d => Object.keys(view.result.counts[d].byEvent?.lunch || {}).concat(Object.keys(view.result.counts[d].byEvent?.breakfast || {}))))]
+        .filter(k => k.startsWith('retreat:') && inScope(k));
+    dayKeys.forEach((d, i) => {
+        const day = view.result.counts[d].byEvent || {};
+        const evs = new Set([...Object.keys(day.breakfast || {}), ...Object.keys(day.lunch || {})]);
+        for (const ev of evs) {
+            if (!inScope(ev)) continue;
+            const bf = day.breakfast?.[ev] || {}, ln = day.lunch?.[ev] || {};
+            if (ev === 'none' || scope) {
+                for (const k of ALL_BUCKETS) {
+                    const v = Math.max(bf[k] || 0, ln[k] || 0);
+                    if (!v) continue;
+                    const label = ev === 'none' ? (NONE_ROWS.find(r => r.buckets.includes(k))?.label() || k) : BUCKET_LABELS[k]();
+                    addPoint(`${ev}|${k === 'vips' && ev === 'none' ? 'guests' : k}`, label, BUCKET_COLORS[k], i, v);
+                }
+            } else {
+                const v = Math.max(ALL_BUCKETS.reduce((s, k) => s + (bf[k] || 0), 0), ALL_BUCKETS.reduce((s, k) => s + (ln[k] || 0), 0));
+                addPoint(ev, retreatName(ev.slice(8)), RETREAT_COLORS[retreatKeys.indexOf(ev) % RETREAT_COLORS.length], i, v);
+            }
+        }
+    });
+    charts.push(new Chart(document.getElementById('chDays'), {
+        type: 'bar',
+        data: { labels: dayKeys.map(d => fmtDay(d).replace(/ \d{4}$/, '')), datasets: [...series.values()].map(sr => ({ label: sr.label, data: sr.data, backgroundColor: sr.color, stack: 's' })) },
+        options: { ...base, scales: { x: { stacked: true, ticks: { maxTicksLimit: 12 } }, y: { stacked: true } } }
+    }));
+
+    if (top.length) charts.push(new Chart(document.getElementById('chTop'), {
+        type: 'bar',
+        data: { labels: top.map(([pid]) => view.result.productNames[pid] || pid), datasets: [{ label: tr('cost_food', 'Продукты'), data: top.map(([, v]) => v), backgroundColor: PART_COLORS.food }] },
+        options: { ...base, indexAxis: 'y', plugins: { legend: { display: false }, tooltip: moneyTip }, scales: { x: { ticks: { callback: money0 } } } }
+    }));
+
+    if (payRows.length) charts.push(new Chart(document.getElementById('chPay'), {
+        type: 'bar',
+        data: { labels: payRows.map(r => r.label), datasets: [
+            { label: tr('cost_income', 'Доход прасада'), data: payRows.map(r => r.income), backgroundColor: '#10b981' },
+            { label: tr('cost_total', 'Себестоимость'), data: payRows.map(r => r.cost), backgroundColor: PART_COLORS.food }
+        ] },
+        options: { ...base, plugins: { ...base.plugins, tooltip: moneyTip }, scales: { y: { ticks: { callback: money0 } } } }
+    }));
+
+    if (eqMonths.length) {
+        const cats = [...new Set(eqMonths.flatMap(ym => Object.keys(eq[ym])))];
+        const catColors = ['#475569', '#0ea5e9', '#a855f7', '#f97316'];
+        charts.push(new Chart(document.getElementById('chEquip'), {
+            type: 'bar',
+            data: { labels: eqMonths.map(monthLabel), datasets: cats.map((c, i) => ({ label: c, data: eqMonths.map(ym => eq[ym][c] || 0), backgroundColor: catColors[i % catColors.length], stack: 's' })) },
+            options: { ...base, plugins: { ...base.plugins, tooltip: moneyTip }, scales: { x: { stacked: true }, y: { stacked: true, ticks: { callback: money0 } } } }
+        }));
+    }
 }
 
 // ---------- Вкушающие ----------
@@ -1039,7 +1458,8 @@ function renderControls() {
 }
 
 function saveState() {
-    try { localStorage.setItem('kitchen_cost_view', JSON.stringify({ mode: state.mode, step: state.step, retreatId: state.retreatId, tab: state.tab })); } catch { /* нет хранилища */ }
+    try { localStorage.setItem('kitchen_cost_view', JSON.stringify({ mode: state.mode, step: state.step, retreatId: state.retreatId,
+        section: state.section, tab: state.tab, dataTab: state.dataTab })); } catch { /* нет хранилища */ }
 }
 
 // ==================== EVENTS ====================
@@ -1082,6 +1502,7 @@ document.addEventListener('click', ev => {
         }
         case 'open-dept':
             deptFilter = btn.dataset.bucket || 'all';
+            state.section = 'calc';
             state.tab = 'departments';
             saveState();
             if (view) renderTabs();
@@ -1090,8 +1511,14 @@ document.addEventListener('click', ev => {
             deptFilter = btn.dataset.filter;
             if (view) renderDepartments();
             break;
+        case 'section':
+            state.section = btn.dataset.section;
+            saveState();
+            if (view) renderTabs();
+            break;
         case 'tab':
-            state.tab = btn.dataset.tab;
+            if (DATA_TABS.includes(btn.dataset.tab)) { state.section = 'data'; state.dataTab = btn.dataset.tab; }
+            else { if (state.section !== 'calc') state.section = 'calc'; state.tab = btn.dataset.tab; }
             saveState();
             if (view) renderTabs();
             break;
@@ -1164,7 +1591,9 @@ async function init() {
     let saved = {};
     try { saved = JSON.parse(localStorage.getItem('kitchen_cost_view') || '{}'); } catch { saved = {}; }
     state.mode = saved.mode === 'period' ? 'period' : 'retreat';
+    state.section = ['calc', 'now', 'charts', 'data'].includes(saved.section) ? saved.section : 'calc';
     state.tab = saved.tab || 'eaters';
+    state.dataTab = DATA_TABS.includes(saved.dataTab) ? saved.dataTab : 'completeness';
     const current = retreats.find(r => r.start_date <= today && r.end_date >= today)
         || retreats.find(r => r.end_date < today);
     state.retreatId = retreats.some(r => r.id === saved.retreatId) ? saved.retreatId : (current?.id || '');

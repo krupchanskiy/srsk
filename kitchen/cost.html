@@ -66,7 +66,16 @@
                 </div>
             </div>
 
-            <!-- Сводка с итогом -->
+            <!-- Предупреждение о неточности данных: нет меню, нет цен, зарплата оценкой -->
+            <div id="qualityBanner" class="hidden mb-4"></div>
+
+            <!-- Главные цифры — видны всегда -->
+            <div id="kpiBox" class="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-6 gap-3 mb-4 hidden"></div>
+
+            <!-- Разделы: Расчёт / Ретрит сейчас / Графики / Данные -->
+            <div id="sectionBar" role="tablist" class="tabs tabs-boxed w-fit mb-4 hidden"></div>
+
+            <!-- Сводка с итогом (раздел «Расчёт») -->
             <div id="summaryBox" class="bg-base-100 rounded-xl shadow-sm overflow-hidden mb-4 hidden">
                 <div class="px-4 pt-4 flex flex-wrap items-center gap-2">
                     <h2 id="summaryTitle" class="text-lg font-semibold"></h2>
@@ -148,6 +157,19 @@
                         </table></div>
                     </div>
 
+                    <div data-panel="now" class="hidden space-y-4">
+                        <div id="nowBody"></div>
+                    </div>
+
+                    <div data-panel="charts" class="hidden">
+                        <div id="chartsBody" class="grid grid-cols-1 xl:grid-cols-2 gap-6"></div>
+                    </div>
+
+                    <div data-panel="completeness" class="hidden space-y-3">
+                        <p class="text-sm opacity-60" data-i18n="cost_completeness_hint">Насколько полны данные для расчёта. Чем ближе к 100%, тем точнее себестоимость. Каждая строка ведёт туда, где это заполняется.</p>
+                        <div id="completenessBody" class="space-y-3"></div>
+                    </div>
+
                     <div data-panel="settings" class="hidden space-y-6">
                         <div>
                             <h3 class="font-semibold" data-i18n="cost_kit_title">Набор одноразовой посуды на порцию</h3>
@@ -180,7 +202,7 @@
     <script src="../js/date-utils.js?v=4"></script>
     <script src="../js/layout.js?v=80"></script>
     <script src="../js/eating-utils.js?v=11"></script>
-    <script src="../js/kitchen-cost.js?v=4"></script>
-    <script src="../js/pages/kitchen-cost.js?v=9"></script>
+    <script src="../js/kitchen-cost.js?v=5"></script>
+    <script src="../js/pages/kitchen-cost.js?v=10"></script>
 </body>
 </html>
