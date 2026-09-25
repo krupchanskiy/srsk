@@ -164,6 +164,26 @@ async function retreatSpan(r) {
     return span;
 }
 
+// Под заголовком ретрита: фактические даты (первый заезд — последний выезд по броням)
+// и насколько данные окончательные — что уже прошло, а что прогноз по броням.
+function retreatStatusLine(r) {
+    const today = DateUtils.toISO(new Date());
+    const day = d => DateUtils.parseDate(d).toLocaleDateString(locale(), { day: 'numeric', month: 'long' });
+    const daysBetween = (a, b) => Math.round((DateUtils.parseDate(b) - DateUtils.parseDate(a)) / 86400000);
+    const parts = [];
+    if (view.from !== r.start_date || view.to !== r.end_date)
+        parts.push(`${tr('cost_actual_dates', 'фактически')} ${DateUtils.formatRange(view.from, view.to)} (${tr('cost_actual_dates_hint', 'первый заезд — последний выезд по броням')})`);
+    if (today < view.from) parts.push(tr('cost_status_future', 'ещё не начался — всё прогноз по броням'));
+    else if (today > view.to) parts.push(tr('cost_status_done', 'завершён — данные окончательные'));
+    else {
+        if (today < r.start_date) parts.push(`${tr('cost_status_early', 'ранние заезды, ретрит начнётся')} ${day(r.start_date)}`);
+        else if (today > r.end_date) parts.push(tr('cost_status_late', 'ретрит закончился, ещё едят задержавшиеся'));
+        else parts.push(`${tr('cost_status_day', 'идёт день')} ${daysBetween(r.start_date, today) + 1} ${tr('cost_status_of', 'из')} ${daysBetween(r.start_date, r.end_date) + 1}`);
+        parts.push(`${tr('cost_status_forecast_from', 'с')} ${day(addDays(today, 1))} — ${tr('cost_status_forecast', 'прогноз по броням')}`);
+    }
+    return parts.join(' · ');
+}
+
 // ==================== LOADING ====================
 // Кто и что ел — построчно по людям и дням. За год это десятки тысяч строк: грузим месяцами параллельно.
 async function loadDetail(from, to) {
@@ -473,10 +493,14 @@ function renderSummary() {
     const cells = view.result.cells;
     const ps = pricesState();
     const rows = rowDefs();
-    const title = state.mode === 'retreat'
-        ? `${retreatName(state.retreatId)} · ${DateUtils.formatRange(view.from, view.to)}`
+    const r = state.mode === 'retreat' ? retreats.find(x => x.id === state.retreatId) : null;
+    const title = r
+        ? `${retreatName(state.retreatId)} · ${DateUtils.formatRange(r.start_date, r.end_date)}`
         : periodLabel(view.from, view.to);
     Layout.$('#summaryTitle').textContent = title;
+    const sub = r ? retreatStatusLine(r) : '';
+    Layout.$('#summarySub').textContent = sub;
+    Layout.$('#summarySub').classList.toggle('hidden', !sub);
 
     const badges = [];
     if (view.result.totals.provisional) badges.push(`<span class="badge badge-warning badge-sm" title="${e(tr('cost_provisional_hint', 'Период расходов ещё не закончился или зарплата взята оценкой'))}">${e(tr('cost_provisional', 'предварительно'))}</span>`);
@@ -561,8 +585,8 @@ function renderSummary() {
         const team = peopleStats({ ev: 'none', buckets: ['team'] }).people;
         const vol = peopleStats({ ev: 'none', buckets: ['volunteers'] }).people;
         const x = aggregate(cells, 'none', ['team', 'volunteers']);
-        if (team + vol) asideHtml = `<tr class="text-sm opacity-60 border-t border-dashed border-base-300">
-            <td class="pl-8"><div>${e(tr('cost_aside_title', 'Для сведения: в эти же дни ели'))} ${e(tr('status_team', 'Команда').toLowerCase())} ${team}, ${e(tr('category_volunteer', 'Волонтёры').toLowerCase())} ${vol}</div>
+        if (team + vol) asideHtml = `<tr class="text-sm opacity-60 border-t border-dashed border-base-300 cursor-pointer hover:bg-base-200/50" data-action="open-dept" data-bucket="all" title="${e(tr('cost_to_departments', 'По департаментам →'))}">
+            <td class="pl-8"><div class="link link-hover">${e(tr('cost_aside_title', 'Для сведения: в эти же дни ели'))} ${e(tr('status_team', 'Команда').toLowerCase())} ${team}, ${e(tr('category_volunteer', 'Волонтёры').toLowerCase())} ${vol}</div>
                 <div class="text-xs">${e(tr('cost_aside_note', 'за счёт департаментов, в итог ретрита не входит'))}</div></td>
             <td class="text-right">${num(team + vol)}</td>
             <td class="text-right">${num(x.pm)}</td>
@@ -619,6 +643,7 @@ function noDeptPeople() {
     const seen = new Map();
     for (const x of view.detail) {
         if (!x.vaishnava_id || (x.bucket !== 'team' && x.bucket !== 'volunteers')) continue;
+        if (x.retreat_id) continue;   // приехал под ретрит — питание на ретрите, департамент не нужен
         if (!x.breakfast && !x.lunch) continue;
         if (personDept.get(x.vaishnava_id)) continue;
         seen.set(x.vaishnava_id, x.bucket);
@@ -696,6 +721,7 @@ function renderCompleteness() {
     const teamVol = new Map();
     for (const x of view.detail) {
         if (!x.vaishnava_id || (x.bucket !== 'team' && x.bucket !== 'volunteers') || (!x.breakfast && !x.lunch)) continue;
+        if (x.retreat_id) continue;   // приехал под ретрит — департамент не нужен
         teamVol.set(x.vaishnava_id, !!personDept.get(x.vaishnava_id));
     }
     const months = new Set();
@@ -1147,9 +1173,12 @@ function renderEaters() {
 let deptFilter = 'all';
 
 function renderDepartments() {
-    const scope = scopeEvents();
+    // В режиме «Ретрит» — не люди ретрита (они на «Вкушающих»), а постоянные команда и волонтёры,
+    // евшие в те же дни: для сведения, в себестоимость ретрита не входят (решение ВГ 25.09).
+    const isRetreat = state.mode === 'retreat';
     const buckets = deptFilter === 'team' ? ['team'] : deptFilter === 'volunteers' ? ['volunteers'] : ['team', 'volunteers'];
-    const people = personRows((x, ev) => (!scope || scope.includes(ev)) && buckets.includes(x.bucket));
+    const people = personRows((x, ev) => (!isRetreat || ev === 'none') && buckets.includes(x.bucket));
+    Layout.$('#deptRetreatNote').classList.toggle('hidden', !isRetreat);
     const byDept = new Map();
     for (const p of people) {
         if (!p.pm && !p.days.size) continue;

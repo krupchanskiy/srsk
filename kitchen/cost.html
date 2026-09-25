@@ -81,6 +81,7 @@
                     <h2 id="summaryTitle" class="text-lg font-semibold"></h2>
                     <span id="summaryBadges" class="flex flex-wrap gap-1"></span>
                 </div>
+                <p id="summarySub" class="px-4 text-xs opacity-60 hidden"></p>
                 <div class="overflow-x-auto">
                     <table class="table table-sm w-full cost-table">
                         <thead id="summaryHead"></thead>
@@ -112,6 +113,7 @@
                                 <button class="btn btn-sm join-item" data-action="dept-filter" data-filter="team" data-i18n="status_team">Команда</button>
                                 <button class="btn btn-sm join-item" data-action="dept-filter" data-filter="volunteers" data-i18n="category_volunteer">Волонтёры</button>
                             </div>
+                            <p id="deptRetreatNote" class="text-sm text-info w-full hidden" data-i18n="cost_dept_retreat_note">Для сведения: постоянные команда и волонтёры, евшие в дни ретрита. В себестоимость ретрита не входят — за счёт департаментов. Кто приехал под ретрит — на вкладке «Вкушающие».</p>
                             <p class="text-sm opacity-60" data-i18n="cost_by_department_hint">Департамент — из карточки человека. Стоимость — приёмы пищи человека по стоимости приёма пищи его ретрита или категории.</p>
                         </div>
                         <div class="overflow-x-auto"><table class="table table-sm w-full cost-table">
@@ -211,6 +213,6 @@
     <script src="../js/layout.js?v=80"></script>
     <script src="../js/eating-utils.js?v=11"></script>
     <script src="../js/kitchen-cost.js?v=5"></script>
-    <script src="../js/pages/kitchen-cost.js?v=14"></script>
+    <script src="../js/pages/kitchen-cost.js?v=15"></script>
 </body>
 </html>
