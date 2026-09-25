@@ -553,7 +553,28 @@ function renderSummary() {
     const lostHtml = lost.length && isPeriod
         ? lost.map(l => `<tr class="text-warning text-sm"><td colspan="11">${e(l)}</td></tr>`).join('') : '';
 
-    Layout.$('#summaryBody').innerHTML = (html || `<tr><td colspan="11" class="text-center opacity-60 py-6">${e(tr('cost_nothing', 'За период нет данных'))}</td></tr>`) + grandHtml + lostHtml;
+    // Режим «Ретрит»: для сведения — постоянные команда и волонтёры, евшие в те же дни.
+    // Они не участники ретрита (решение ВГ 25.09: вариант А), в итог ретрита не входят,
+    // их питание — на департаментах. Показывают, на сколько человек реально готовила кухня.
+    let asideHtml = '';
+    if (!isPeriod) {
+        const team = peopleStats({ ev: 'none', buckets: ['team'] }).people;
+        const vol = peopleStats({ ev: 'none', buckets: ['volunteers'] }).people;
+        const x = aggregate(cells, 'none', ['team', 'volunteers']);
+        if (team + vol) asideHtml = `<tr class="text-sm opacity-60 border-t border-dashed border-base-300">
+            <td class="pl-8"><div>${e(tr('cost_aside_title', 'Для сведения: в эти же дни ели'))} ${e(tr('status_team', 'Команда').toLowerCase())} ${team}, ${e(tr('category_volunteer', 'Волонтёры').toLowerCase())} ${vol}</div>
+                <div class="text-xs">${e(tr('cost_aside_note', 'за счёт департаментов, в итог ретрита не входит'))}</div></td>
+            <td class="text-right">${num(team + vol)}</td>
+            <td class="text-right">${num(x.pm)}</td>
+            <td class="text-right">${ps === 'none' ? '—' : money(direct(x))}</td>
+            <td class="text-right">${money(overhead(x))}</td>
+            <td class="text-right">${money(total(x))}</td>
+            <td class="text-right">${x.pm ? money2(total(x) / x.pm) : '—'}</td>
+            <td></td><td></td><td></td>
+        </tr>`;
+    }
+
+    Layout.$('#summaryBody').innerHTML = (html || `<tr><td colspan="11" class="text-center opacity-60 py-6">${e(tr('cost_nothing', 'За период нет данных'))}</td></tr>`) + grandHtml + asideHtml + lostHtml;
     Layout.$('#summaryNote').textContent = isPeriod
         ? tr('cost_summary_note_period', 'Ретрит, который захватывает несколько месяцев, входит в период своей долей: расходы — по дням, доход прасада — по доле приёмов пищи. «На участника» — стоимость ретрита на одного участника без команды и волонтёров.')
         : tr('cost_summary_note_retreat', 'Ретрит целиком, включая дни раннего заезда и позднего выезда его участников. «На участника» — вся стоимость ретрита на одного участника без команды и волонтёров. Доход прасада — из отчёта по ретриту в финансах.');
