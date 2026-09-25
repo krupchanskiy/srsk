@@ -99,7 +99,7 @@
             <!-- Главные цифры — видны всегда -->
             <div id="kpiBox" class="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-6 gap-3 mb-4 hidden"></div>
 
-            <!-- Разделы: Расчёт / Графики / Данные -->
+            <!-- Разделы: Расчёт / Касса (только «Период») / Графики / Данные -->
             <div id="sectionBar" role="tablist" class="tabs tabs-boxed w-fit mb-4 hidden"></div>
 
             <!-- Сводка с итогом (раздел «Расчёт») -->
@@ -183,6 +183,30 @@
                                 <th class="text-right"><span class="underline decoration-dotted cursor-help" data-i18n-title="cost_reconcile_diff_hint" title="Траты по меню минус куплено. Минус — купили больше, чем ушло по меню; плюс — меньше." data-i18n="cost_reconcile_diff">Разница</span></th>
                             </tr></thead>
                             <tbody id="reconcileBody"></tbody>
+                        </table></div>
+                    </div>
+
+                    <div data-panel="cashMonths" class="hidden">
+                        <p class="text-sm opacity-60 mb-3" data-i18n="cost_kcash_note">Реальные деньги по датам: пришло — оплаты за питание и пожертвования на прасад, ушло — всё со счетов департамента «Кухня» (кафе не входит). Остаток переходит из месяца в месяц и из года в год. Минус — не обязательно убыток: из этих денег питаются и постоянная команда с волонтёрами. Выбранный период выделен серым.</p>
+                        <div class="overflow-x-auto"><table class="table table-sm w-full cost-table">
+                            <thead><tr><th><span data-i18n="cost_month">Месяц</span></th>
+                                <th class="text-right" data-i18n="cost_kcash_opening">Остаток на начало</th>
+                                <th class="text-right" data-i18n="cost_kcash_in">Пришло за прасад</th>
+                                <th class="text-right" data-i18n="cost_kcash_out">Ушло с кухни</th>
+                                <th class="text-right" data-i18n="cost_kcash_net">За период</th>
+                                <th class="text-right" data-i18n="cost_kcash_closing">Остаток на конец</th></tr></thead><tbody id="cashMonthsBody"></tbody>
+                        </table></div>
+                    </div>
+
+                    <div data-panel="cashYears" class="hidden">
+                        <p class="text-sm opacity-60 mb-3" data-i18n="cost_kcash_note">Реальные деньги по датам: пришло — оплаты за питание и пожертвования на прасад, ушло — всё со счетов департамента «Кухня» (кафе не входит). Остаток переходит из месяца в месяц и из года в год. Минус — не обязательно убыток: из этих денег питаются и постоянная команда с волонтёрами. Выбранный период выделен серым.</p>
+                        <div class="overflow-x-auto"><table class="table table-sm w-full cost-table">
+                            <thead><tr><th><span data-i18n="cost_year">Год</span></th>
+                                <th class="text-right" data-i18n="cost_kcash_opening">Остаток на начало</th>
+                                <th class="text-right" data-i18n="cost_kcash_in">Пришло за прасад</th>
+                                <th class="text-right" data-i18n="cost_kcash_out">Ушло с кухни</th>
+                                <th class="text-right" data-i18n="cost_kcash_net">За период</th>
+                                <th class="text-right" data-i18n="cost_kcash_closing">Остаток на конец</th></tr></thead><tbody id="cashYearsBody"></tbody>
                         </table></div>
                     </div>
 
@@ -315,6 +339,6 @@
     <script src="../js/layout.js?v=80"></script>
     <script src="../js/eating-utils.js?v=11"></script>
     <script src="../js/kitchen-cost.js?v=8"></script>
-    <script src="../js/pages/kitchen-cost.js?v=31"></script>
+    <script src="../js/pages/kitchen-cost.js?v=32"></script>
 </body>
 </html>

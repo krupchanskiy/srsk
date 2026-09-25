@@ -43,7 +43,7 @@ let locationId = null;
 let caps = { view: false, edit: false };
 let retreats = [];
 // section: calc | now | charts | data; tab — вкладка «Расчёта», dataTab — вкладка «Данных»
-let state = { mode: 'retreat', step: 'month', retreatId: '', from: '', to: '', section: 'calc', tab: 'eaters', dataTab: 'completeness' };
+let state = { mode: 'retreat', step: 'month', retreatId: '', from: '', to: '', section: 'calc', tab: 'eaters', dataTab: 'completeness', cashTab: 'cashMonths' };
 const DATA_TABS = ['completeness', 'problems', 'settings'];
 let view = null;          // { from, to, result, detail, incomes }
 let calcToken = 0;
@@ -254,10 +254,11 @@ async function calculate() {
 
     Layout.showLoader();
     try {
-        const [result, detail] = await Promise.all([
+        const [result, detail, , cash] = await Promise.all([
             KitchenCost.calculate(Layout.db, locationId, from, to),
             loadDetail(from, to),
-            loadReconcile(from, to)
+            loadReconcile(from, to),
+            state.mode === 'period' ? loadKitchenCash(from, to) : null
         ]);
         if (token !== calcToken) return;
         await Promise.all([loadPersonDepts(detail.map(x => x.vaishnava_id)),
@@ -294,7 +295,7 @@ async function calculate() {
         }
         if (token !== calcToken) return;
 
-        view = { from, to, result, detail, incomes, opByPosting, directPostings: null, incomeOps: {}, expenseOps: {}, now: null };
+        view = { from, to, result, detail, incomes, opByPosting, directPostings: null, incomeOps: {}, expenseOps: {}, now: null, cash };
         expanded.clear();
         render();
     } catch (err) {
@@ -443,25 +444,6 @@ function renderQuality() {
     box.classList.remove('hidden');
 }
 
-// ---------- Главные цифры ----------
-// Режим «Ретрит» — по ретриту; «Период» — итог периода (доход и результат — по ретритам периода).
-function kpiNumbers() {
-    const cells = view.result.cells;
-    const rows = rowDefs().filter(r => !r.sub);
-    const sum = zero();
-    let income = 0, anyIncome = false, participants = 0;
-    for (const row of rows) {
-        const x = aggregate(cells, row.ev, row.buckets);
-        Object.keys(sum).forEach(k => { if (k !== 'prov') sum[k] += x[k]; });
-        const inc = row.retreatId ? view.incomes[row.retreatId] : null;
-        if (inc) { income += inc.full * inc.share; anyIncome = true; }
-        if (row.retreatId) participants += peopleStats(row).participants;
-    }
-    const retreatCost = rows.filter(r => r.retreatId).reduce((s, r) => s + total(aggregate(cells, r.ev, r.buckets)), 0);
-    return { sum, income: anyIncome ? income : null, participants, retreatCost,
-             people: state.mode === 'retreat' ? peopleStats(rows[0]).people : peopleTotal() };
-}
-
 // Режим «Ретрит»: касса прасада (реальные деньги) + результат. Себестоимость — в таблице сводки ниже.
 function renderCash() {
     const box = Layout.$('#kpiBox');
@@ -496,32 +478,116 @@ function renderCash() {
 }
 
 function renderKpis() {
-    if (state.mode === 'retreat') { renderCash(); return; }
-    Layout.$('#kpiBox').className = 'grid grid-cols-2 md:grid-cols-3 xl:grid-cols-6 gap-3 mb-4';
-    const k = kpiNumbers();
-    const ps = pricesState();
-    const card = (label, value, sub, cls = '') => `<div class="bg-base-100 rounded-xl shadow-sm p-4">
+    if (state.mode === 'retreat') renderCash(); else renderKitchenCash();
+}
+
+// ---------- Касса кухни (режим «Период») ----------
+// Реальные деньги по датам: пришло за прасад, ушло со счетов «Кухни» (кафе не входит — решение ВГ).
+// Остаток переходит из месяца в месяц и из года в год, считается от начала учёта в Финансах.
+const CASH_TABS = ['cashMonths', 'cashYears'];
+const monthTitle = ym => { const l = DateUtils.parseDate(ym + '-01').toLocaleDateString(locale(), { month: 'long', year: 'numeric' }).replace(' г.', ''); return l.charAt(0).toUpperCase() + l.slice(1); };
+const signed = v => `${v > 0 ? '+' : ''}${money(v)}`;
+const signCls = v => v < 0 ? 'text-error' : v > 0 ? 'text-success' : '';
+
+async function loadKitchenCash(from, to) {
+    const today = DateUtils.toISO(new Date());
+    const [all, before, ops] = await Promise.all([
+        Layout.db.rpc('fin_kitchen_cash_months', { p_to: to > today ? to : today }),
+        Layout.db.rpc('fin_kitchen_cash_months', { p_to: addDays(from, -1) }),
+        Layout.db.rpc('fin_kitchen_cash_ops', { p_from: from, p_to: to })
+    ]);
+    if (all.error || before.error || ops.error) { console.error('Касса кухни:', all.error || before.error || ops.error); return null; }
+    const rows = x => (x.data || []).map(m => ({ ym: m.month.slice(0, 7), income: Number(m.income), expense: Number(m.expense) }));
+    const list = (ops.data || []).map(o => ({ ...o, amount: Number(o.amount_base) }));
+    const sum = dir => list.filter(o => o.dir === dir).reduce((a, o) => a + o.amount, 0);
+    const opening = rows(before).reduce((a, m) => a + m.income - m.expense, 0);
+    return { months: rows(all), ops: list, opening, income: sum('in'), expense: sum('out') };
+}
+
+function renderKitchenCash() {
+    const box = Layout.$('#kpiBox');
+    const c = view.cash;
+    if (!c) { box.classList.add('hidden'); return; }
+    box.className = 'grid grid-cols-2 xl:grid-cols-4 gap-3 mb-4';
+    const first = c.months[0]?.ym;
+    const closing = c.opening + c.income - c.expense;
+    const card = (label, value, sub, cls = '', action = '') => `<div class="bg-base-100 rounded-xl shadow-sm p-4 ${action ? 'cursor-pointer hover:shadow-md' : ''}" ${action}>
         <div class="text-xs uppercase tracking-wide opacity-60">${e(label)}</div>
         <div class="text-2xl font-bold mt-1 ${cls}">${value}</div>
         ${sub ? `<div class="text-xs opacity-60 mt-1">${sub}</div>` : ''}</div>`;
-    const warn = ps === 'none' ? ` <span class="text-sm text-error font-normal">${e(tr('cost_no_prices', 'нет цен'))}</span>`
-        : warnMark(ps);
-    const result = k.income === null ? null : k.income - (state.mode === 'retreat' ? total(k.sum) : k.retreatCost);
+    const opsCard = (dir, label, amount, cls, sub) => card(label,
+        `<span class="inline-block w-4 text-base opacity-60">${expanded.has(`kcash:${dir}`) ? '▾' : '▸'}</span>${money(amount)}`,
+        sub, cls, `data-action="toggle-kcash" data-dir="${dir}"`);
+    const teamNote = tr('cost_kcash_team_note', 'Минус — не обязательно убыток: из этих денег питаются и постоянная команда с волонтёрами, их питание прасадом не оплачивается.');
     const cards = [
-        card(tr('cost_total', 'Всего'), money(total(k.sum)) + warn,
-            `${e(tr('cost_direct', 'Прямые'))} ${money(direct(k.sum))} · ${e(tr('cost_overhead', 'Накладные'))} ${money(overhead(k.sum))}`),
-        card(tr('cost_per_meal', 'На приём пищи'), k.sum.pm ? money2(total(k.sum) / k.sum.pm) : '—', `${num(k.sum.pm)} ${e(tr('cost_person_meals', 'приёмов пищи').toLowerCase())}`),
-        card(tr('cost_per_participant', 'На участника'), k.participants ? money(k.retreatCost / k.participants) : '—',
-            k.participants ? `${num(k.participants)} ${e(tr('cost_participants', 'участников').toLowerCase())}` : e(tr('cost_kpi_no_retreat', 'в периоде нет ретритов'))),
-        card(tr('cost_income', 'Доход прасада'), k.income === null ? '—' : money(k.income),
-            state.mode === 'period' && k.income !== null ? e(tr('cost_kpi_income_share', 'ретриты своей долей')) : ''),
-        card(tr('cost_result', 'Результат'), result === null || ps === 'none' ? '—' : money(result),
-                ps === 'none' ? e(tr('cost_result_no_prices', 'Пока нет цен, себестоимость занижена — результат не показываем')) : '',
-                result === null || ps === 'none' ? '' : result < 0 ? 'text-error' : 'text-success'),
-        card(tr('cost_people', 'Людей'), num(k.people), '')
+        card(tr('cost_kcash_opening', 'Остаток на начало'), signed(c.opening),
+            e(first ? `${tr('cost_kcash_on', 'на')} ${fmtDay(view.from)} · ${tr('cost_kcash_since', 'с начала учёта')} (${monthTitle(first).toLowerCase()})` : tr('cost_kcash_no_data', 'в Финансах ещё нет операций')),
+            signCls(c.opening)),
+        opsCard('in', tr('cost_kcash_in', 'Пришло за прасад'), c.income, 'text-blue-600', e(tr('cost_kcash_in_hint', 'оплаты за питание и пожертвования на прасад'))),
+        opsCard('out', tr('cost_kcash_out', 'Ушло с кухни'), c.expense, 'text-red-600', e(tr('cost_kcash_out_hint', 'всё со счетов департамента «Кухня»; кафе не входит'))),
+        card(tr('cost_kcash_closing', 'Остаток на конец'), `<span class="cursor-help" title="${e(teamNote)}">${signed(closing)}</span>`,
+            `${e(tr('cost_kcash_for_period', 'за период'))} <span class="${signCls(c.income - c.expense)}">${signed(c.income - c.expense)}</span> · <a class="link" data-action="section" data-section="cash">${e(tr('cost_kcash_movement', 'движение денег'))} →</a>`,
+            signCls(closing))
     ];
-    Layout.$('#kpiBox').innerHTML = cards.join('');
-    Layout.$('#kpiBox').classList.remove('hidden');
+    const open = ['in', 'out'].find(d => expanded.has(`kcash:${d}`));
+    box.innerHTML = `<div class="col-span-full text-sm font-semibold uppercase tracking-wide opacity-60 -mb-1">${e(tr('cost_kcash_title', 'Касса кухни — реальные деньги по датам поступления и оплаты'))}</div>
+        ${cards.join('')}
+        ${open ? `<div class="col-span-full bg-base-100 rounded-xl shadow-sm p-3">${kitchenCashOps(open)}</div>` : ''}`;
+}
+
+// Раскрытие «ёлочкой»: статья → операции со ссылкой в ДДС
+function kitchenCashOps(dir) {
+    const byCat = new Map();
+    for (const o of view.cash.ops.filter(o => o.dir === dir)) (byCat.get(o.category_name) || byCat.set(o.category_name, []).get(o.category_name)).push(o);
+    const cats = [...byCat.entries()].map(([name, list]) => ({ name, list, sum: list.reduce((a, o) => a + o.amount, 0) })).sort((a, b) => b.sum - a.sum);
+    if (!cats.length) return `<div class="text-sm opacity-60 py-2">${e(tr('fin_drill_empty', 'Операций нет'))}</div>`;
+    const rows = cats.map(cat => {
+        const key = `kcat:${dir}:${cat.name}`;
+        const isOpen = expanded.has(key);
+        return `<tr class="cursor-pointer hover:bg-base-200/50 row-top ${isOpen ? 'row-open' : ''}" data-action="toggle-row" data-key="${e(key)}">
+            <td>${toggleCell(key)}${e(cat.name)} <span class="text-xs opacity-60">(${cat.list.length})</span></td><td></td>
+            <td class="text-right">${money(cat.sum)}</td></tr>${isOpen ? cat.list.map(o => `<tr class="text-sm row-child">
+            <td class="pl-8">${o.operation_id ? `<a class="link link-hover" href="${DDS_URL(o.operation_id)}" target="_blank" rel="noopener" title="${e(tr('fin_open_in_dds', 'Открыть в ДДС'))}">${e(o.comment || o.participant || '—')}</a>` : e(o.comment || o.participant || '—')}
+                ${o.comment && o.participant ? `<div class="text-xs opacity-60">${e(o.participant)}</div>` : ''}</td>
+            <td class="whitespace-nowrap row-muted">${e(fmtDay(o.occurred_on))} · ${e(o.account_name)}</td>
+            <td class="text-right">${money(o.amount)}</td></tr>`).join('') : ''}`;
+    }).join('');
+    return `<div class="text-sm font-medium mb-1">${e(dir === 'in' ? tr('cost_kcash_in', 'Пришло за прасад') : tr('cost_kcash_out', 'Ушло с кухни'))} · ${e(DateUtils.formatRange(view.from, view.to))}</div>
+        <div class="overflow-x-auto"><table class="table table-sm w-full cost-table"><tbody>${rows}</tbody></table></div>`;
+}
+
+// Раздел «Касса»: движение денег по месяцам (годы выбранного периода) и по годам (все)
+function renderCashMovement(byYear) {
+    const c = view.cash;
+    const body = Layout.$(byYear ? '#cashYearsBody' : '#cashMonthsBody');
+    if (!c || !c.months.length) { body.innerHTML = `<tr><td colspan="6" class="text-center opacity-60 py-6">${e(tr('cost_kcash_no_data', 'в Финансах ещё нет операций'))}</td></tr>`; return; }
+    // все месяцы подряд от начала учёта (пустые — нулём), остаток нарастающим итогом
+    const map = new Map(c.months.map(m => [m.ym, m]));
+    const seq = [];
+    for (let ym = c.months[0].ym; ym <= c.months[c.months.length - 1].ym; ym = addDays(ym + '-01', 32).slice(0, 7)) seq.push(map.get(ym) || { ym, income: 0, expense: 0 });
+    let bal = 0;
+    const rows = seq.map(m => { const r = { key: m.ym, open: bal, income: m.income, expense: m.expense }; bal += m.income - m.expense; r.close = bal; return r; });
+    let list = rows;
+    if (byYear) {
+        const ys = new Map();
+        for (const r of rows) {
+            const y = r.key.slice(0, 4);
+            const a = ys.get(y) || ys.set(y, { key: y, open: r.open, income: 0, expense: 0, close: 0 }).get(y);
+            a.income += r.income; a.expense += r.expense; a.close = r.close;
+        }
+        list = [...ys.values()];
+    } else {
+        const y1 = view.from.slice(0, 4), y2 = view.to.slice(0, 4);
+        list = rows.filter(r => r.key.slice(0, 4) >= y1 && r.key.slice(0, 4) <= y2);
+    }
+    const inPeriod = r => byYear ? r.key >= view.from.slice(0, 4) && r.key <= view.to.slice(0, 4) : r.key >= view.from.slice(0, 7) && r.key <= view.to.slice(0, 7);
+    body.innerHTML = list.map(r => `<tr class="${inPeriod(r) ? 'row-open' : ''}">
+        <td class="font-medium">${e(byYear ? r.key : monthTitle(r.key))}</td>
+        <td class="text-right ${signCls(r.open)}">${signed(r.open)}</td>
+        <td class="text-right text-blue-600">${money(r.income)}</td>
+        <td class="text-right text-red-600">${money(r.expense)}</td>
+        <td class="text-right ${signCls(r.income - r.expense)}">${signed(r.income - r.expense)}</td>
+        <td class="text-right font-semibold ${signCls(r.close)}">${signed(r.close)}</td></tr>`).join('');
 }
 
 function renderSummary() {
@@ -685,6 +751,7 @@ function sectionList() {
     const problems = problemCount();
     return [
         { id: 'calc', label: tr('cost_section_calc', 'Расчёт') },
+        state.mode === 'period' ? { id: 'cash', label: tr('cost_section_cash', 'Касса') } : null,
         { id: 'charts', label: tr('cost_section_charts', 'Графики') },
         { id: 'data', label: `${tr('cost_section_data', 'Данные')}${problems ? ` (${problems})` : ''}`, warn: problems > 0 }
     ].filter(Boolean);
@@ -699,6 +766,10 @@ function tabList() {
             { id: 'settings', label: tr('cost_tab_settings', 'Настройки расчёта') }
         ];
     }
+    if (state.section === 'cash') return [
+        { id: 'cashMonths', label: tr('cost_tab_cash_months', 'По месяцам') },
+        { id: 'cashYears', label: tr('cost_tab_cash_years', 'По годам') }
+    ];
     if (state.section !== 'calc') return [];
     return [
         { id: 'eaters', label: tr('cost_tab_eaters', 'Вкушающие') },
@@ -719,17 +790,18 @@ function renderTabs() {
     Layout.$('#summaryBox').classList.toggle('hidden', state.section !== 'calc');
 
     const tabs = tabList();
-    const cur = state.section === 'data' ? 'dataTab' : 'tab';
+    const cur = state.section === 'data' ? 'dataTab' : state.section === 'cash' ? 'cashTab' : 'tab';
     if (tabs.length && !tabs.some(x => x.id === state[cur])) state[cur] = tabs[0].id;
     Layout.$('#tabBar').innerHTML = tabs.map(x =>
         `<a role="tab" class="tab ${x.id === state[cur] ? 'tab-active [--tab-bg:oklch(var(--b1))]' : ''} ${x.warn ? 'text-warning' : ''}" data-action="tab" data-tab="${x.id}">${e(x.label)}${HOW_SECTIONS[x.id] ? `<span class="how-q" data-action="how" data-sec="${HOW_SECTIONS[x.id]}" title="${e(tr('cost_how_q_hint', 'Нажмите, чтобы открыть подсказку: как считается'))}">?</span>` : ''}</a>`).join('');
     Layout.$('#tabBar').classList.toggle('hidden', !tabs.length);
-    const panel = state.section === 'calc' ? state.tab : state.section === 'data' ? state.dataTab : state.section;
+    const panel = state.section === 'calc' ? state.tab : state.section === 'data' ? state.dataTab : state.section === 'cash' ? state.cashTab : state.section;
     document.querySelectorAll('[data-panel]').forEach(p => p.classList.toggle('hidden', p.dataset.panel !== panel));
     Layout.$('#tabsBox').classList.remove('hidden');
     ({ eaters: renderEaters, departments: renderDepartments, direct: renderDirect, overhead: renderOverhead,
        reconcile: renderReconcile, settings: () => { renderKits(); renderThreshold(); renderGroups(); }, problems: renderWarnings,
-       completeness: renderCompleteness, charts: renderCharts })[panel]?.();
+       completeness: renderCompleteness, charts: renderCharts,
+       cashMonths: () => renderCashMovement(false), cashYears: () => renderCashMovement(true) })[panel]?.();
 }
 
 // ---------- Полнота данных ----------
@@ -1681,7 +1753,7 @@ function renderControls() {
 
 function saveState() {
     try { localStorage.setItem('kitchen_cost_view', JSON.stringify({ mode: state.mode, step: state.step, retreatId: state.retreatId,
-        section: state.section, tab: state.tab, dataTab: state.dataTab })); } catch { /* нет хранилища */ }
+        section: state.section, tab: state.tab, dataTab: state.dataTab, cashTab: state.cashTab })); } catch { /* нет хранилища */ }
 }
 
 // ==================== ПАМЯТКА «КАК СЧИТАЕТСЯ» ====================
@@ -1730,6 +1802,7 @@ document.addEventListener('click', ev => {
         case 'toggle-row':
             if (ev.target.closest('a, button')) break;
             if (expanded.has(btn.dataset.key)) expanded.delete(btn.dataset.key); else expanded.add(btn.dataset.key);
+            if (view && btn.dataset.key.startsWith('kcat:')) { renderKpis(); break; }
             if (view) renderTabs();
             break;
         case 'toggle-income': {
@@ -1751,6 +1824,13 @@ document.addEventListener('click', ev => {
                 (dir === 'in' ? view.incomeOps : view.expenseOps)[state.retreatId] = [];
                 renderCash();
             });
+            break;
+        }
+        case 'toggle-kcash': {
+            const key = `kcash:${btn.dataset.dir}`, was = expanded.has(key);
+            expanded.delete('kcash:in'); expanded.delete('kcash:out');
+            if (!was) expanded.add(key);
+            renderKpis();
             break;
         }
         case 'toggle-recon': {
@@ -1796,6 +1876,7 @@ document.addEventListener('click', ev => {
             break;
         case 'tab':
             if (DATA_TABS.includes(btn.dataset.tab)) { state.section = 'data'; state.dataTab = btn.dataset.tab; }
+            else if (CASH_TABS.includes(btn.dataset.tab)) { state.section = 'cash'; state.cashTab = btn.dataset.tab; }
             else { if (state.section !== 'calc') state.section = 'calc'; state.tab = btn.dataset.tab; }
             saveState();
             if (view) renderTabs();
@@ -1874,7 +1955,8 @@ async function init() {
     let saved = {};
     try { saved = JSON.parse(localStorage.getItem('kitchen_cost_view') || '{}'); } catch { saved = {}; }
     state.mode = saved.mode === 'period' ? 'period' : 'retreat';
-    state.section = ['calc', 'charts', 'data'].includes(saved.section) ? saved.section : 'calc';
+    state.section = ['calc', 'cash', 'charts', 'data'].includes(saved.section) ? saved.section : 'calc';
+    state.cashTab = CASH_TABS.includes(saved.cashTab) ? saved.cashTab : 'cashMonths';
     state.tab = saved.tab || 'eaters';
     state.dataTab = DATA_TABS.includes(saved.dataTab) ? saved.dataTab : 'completeness';
     const current = retreats.find(r => r.start_date <= today && r.end_date >= today)
