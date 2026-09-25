@@ -37,12 +37,15 @@ function presetRange(p) {
     }
 }
 
-function setPreset(p) {
+function markPreset(p) {
     document.querySelectorAll('[data-dacc-preset]').forEach(b => b.classList.toggle('btn-active', b.dataset.daccPreset === p));
-    $('daccCustom').classList.toggle('hidden', p !== 'custom');
+    try { localStorage.setItem('dept_account_preset', p); } catch { /* нет хранилища */ }
+}
+
+function setPreset(p) {
     const r = presetRange(p);
     if (r) { $('daccFrom').value = r[0]; $('daccTo').value = r[1]; }
-    try { localStorage.setItem('dept_account_preset', p); } catch { /* нет хранилища */ }
+    markPreset(p);
     render();
 }
 
@@ -111,6 +114,7 @@ function chip(label, value, cls = '', hint = '') {
 function renderTotals(list) {
     const cur = rows[rows.length - 1]?.currency_code || accounts.find(a => a.account_id === $('daccAccount').value)?.currency_code || 'INR';
     const from = $('daccFrom').value, to = $('daccTo').value;
+    const today = DateUtils.toISO(new Date());
     const now = rows.length ? Number(rows[rows.length - 1].running_balance) : 0;
     // остатки — по всем проводкам счёта, без учёта фильтров по статье и поиску
     const before = from ? rows.filter(r => r.occurred_on < from) : [];
@@ -123,20 +127,19 @@ function renderTotals(list) {
         const v = Number(r.signed_amount);
         if (isStorno(r)) rev += Math.abs(v); else if (v >= 0) inc += v; else out -= v;
     }
-    const cls = v => v < 0 ? 'text-error' : '';
     const filteredNote = $('daccCategory').value || $('daccSearch').value.trim() || $('daccDir').value
         ? ` <span class="text-xs font-normal opacity-60">${e(tr('dacc_by_filter', 'по фильтру'))}</span>` : '';
-    const chips = [
-        chip(tr('dacc_balance_now', 'Сейчас на счёте'), money(now, cur), cls(now)),
-        from ? chip(`${tr('dacc_opening', 'На начало')} ${fmtDay(from)}`, money(opening, cur), cls(opening)) : '',
+    $('daccTotals').innerHTML = [
+        chip(tr('dacc_balance_now', 'Сейчас на счёте'), money(now, cur), now < 0 ? 'text-error' : ''),
         chip(tr('dacc_in', 'Пришло'), `<span class="text-blue-600">${money(inc, cur)}</span>${filteredNote}`),
-        chip(tr('dacc_out', 'Ушло'), `<span class="text-red-600">${money(out, cur)}</span>${filteredNote}`),
-        to ? chip(`${tr('dacc_closing', 'На конец')} ${fmtDay(to)}`, money(closing, cur), cls(closing)) : '',
-        rev ? chip(tr('fin_totals_reversed', 'Сторнировано'), `<span class="opacity-60">${money(rev, cur)}</span>`, '',
-            tr('dacc_storno_hint', 'Отменённые операции и их отмены — вместе дают ноль, в «Пришло» и «Ушло» не входят')) : ''
-    ].filter(Boolean);
-    $('daccTotals').className = `grid grid-cols-2 ${chips.length > 4 ? 'xl:grid-cols-5' : 'xl:grid-cols-4'} gap-3 mb-4`;
-    $('daccTotals').innerHTML = chips.join('');
+        chip(tr('dacc_out', 'Ушло'), `<span class="text-red-600">${money(out, cur)}</span>${filteredNote}`)
+    ].join('');
+    // «было → стало» — только для прошлых периодов: если период доходит до сегодня, «стало» = «сейчас на счёте»
+    const parts = [];
+    if (from && to && to < today) parts.push(`${fmtDay(from)}: ${money(opening, cur)} → ${fmtDay(to)}: <b>${money(closing, cur)}</b>`);
+    else if (from) parts.push(`${tr('dacc_opening', 'На начало')} ${fmtDay(from)}: ${money(opening, cur)}`);
+    if (rev) parts.push(`<span title="${e(tr('dacc_storno_hint', 'Отменённые операции и их отмены — вместе дают ноль, в «Пришло» и «Ушло» не входят'))}" class="cursor-help">${e(tr('fin_totals_reversed', 'Сторнировано'))}: ${money(rev, cur)}</span>`);
+    $('daccPeriodLine').innerHTML = parts.join(' · ');
 }
 
 function kindCell(r) {
@@ -243,7 +246,9 @@ async function init(options) {
     $('daccAccountName').textContent = accounts.length === 1 ? accounts[0].name : '';
 
     $('daccAccount').addEventListener('change', ev => selectAccount(ev.target.value));
-    ['daccFrom', 'daccTo', 'daccDir', 'daccCategory'].forEach(id => $(id).addEventListener('change', render));
+    ['daccDir', 'daccCategory'].forEach(id => $(id).addEventListener('change', render));
+    // свои даты — сразу полями: ввели дату, подсветка пресета снимается
+    ['daccFrom', 'daccTo'].forEach(id => $(id).addEventListener('change', () => { markPreset('custom'); render(); }));
     $('daccSearch').addEventListener('input', Layout.debounce(render, 300));
     document.querySelectorAll('[data-dacc-preset]').forEach(b => b.addEventListener('click', () => setPreset(b.dataset.daccPreset)));
     $('daccCsv').addEventListener('click', exportCsv);
@@ -262,12 +267,12 @@ async function init(options) {
         render();
     });
 
-    let preset = 'month';
-    try { preset = localStorage.getItem('dept_account_preset') || 'month'; } catch { /* нет хранилища */ }
-    document.querySelectorAll('[data-dacc-preset]').forEach(b => b.classList.toggle('btn-active', b.dataset.daccPreset === preset));
-    $('daccCustom').classList.toggle('hidden', preset !== 'custom');
+    // по умолчанию — всё время (решение ВГ 25.09)
+    let preset = 'all';
+    try { preset = localStorage.getItem('dept_account_preset') || 'all'; } catch { /* нет хранилища */ }
     const r = presetRange(preset);
-    if (r) { $('daccFrom').value = r[0]; $('daccTo').value = r[1]; }
+    if (r) { $('daccFrom').value = r[0]; $('daccTo').value = r[1]; } else preset = 'all';
+    markPreset(preset);
     await selectAccount(accounts[0].account_id);
 }
 
