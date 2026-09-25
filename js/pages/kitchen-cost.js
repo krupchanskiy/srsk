@@ -46,6 +46,7 @@ let kitPrices = {};
 let unassigned = [];
 let costGroups = [];
 let reconcileActuals = [];
+let reconcileThreshold = 15;  // % — порог подсветки расхождений в сверке (fin_settings, меняет суперпользователь)
 const retreatSpanCache = new Map();   // retreat_id → { from, to, pm } — где реально ели люди ретрита
 let departments = [];                 // справочник департаментов людей (vaishnavas.department_id)
 const personDept = new Map();         // vaishnava_id → department_id | null
@@ -599,7 +600,7 @@ function renderTabs() {
     document.querySelectorAll('[data-panel]').forEach(p => p.classList.toggle('hidden', p.dataset.panel !== panel));
     Layout.$('#tabsBox').classList.remove('hidden');
     ({ eaters: renderEaters, departments: renderDepartments, direct: renderDirect, overhead: renderOverhead, months: renderMonths,
-       reconcile: renderReconcile, settings: () => { renderKits(); renderGroups(); }, problems: renderWarnings,
+       reconcile: renderReconcile, settings: () => { renderKits(); renderThreshold(); renderGroups(); }, problems: renderWarnings,
        completeness: renderCompleteness, now: renderNow, charts: renderCharts })[panel]?.();
 }
 
@@ -1341,6 +1342,25 @@ async function loadReconcile(from, to) {
     reconcileActuals = error ? [] : (data || []);
 }
 
+async function loadThreshold() {
+    const { data, error } = await Layout.db.rpc('kitchen_reconcile_threshold');
+    if (!error && data !== null) reconcileThreshold = Number(data);
+}
+
+function renderThreshold() {
+    const input = Layout.$('#thresholdInput');
+    input.value = reconcileThreshold;
+    input.disabled = !window.currentUser?.is_superuser;
+}
+
+async function saveThreshold(pct) {
+    const { error } = await Layout.db.rpc('kitchen_set_reconcile_threshold', { p_pct: pct });
+    if (error) { Layout.showNotification(errorText(error), 'error'); renderThreshold(); return; }
+    reconcileThreshold = pct;
+    Layout.showNotification(t('saved'), 'success');
+    if (view) renderReconcile();
+}
+
 function renderReconcile() {
     const totals = view.result.totals;
     let modelSum = 0, factSum = 0;
@@ -1359,13 +1379,13 @@ function renderReconcile() {
             <td class="text-sm">${fact ? toggleCell(key) : '<span class="inline-block w-4"></span>'}${e(name)}</td>
             <td class="text-right">${model === null ? '—' : money(model)}</td>
             <td class="text-right">${money(fact)}</td>
-            <td class="text-right ${diff !== null && Math.abs(diff) > Math.max(fact, model || 0) * 0.15 ? 'text-warning font-medium' : ''}">${diff === null ? e(tr('cost_reconcile_na', 'нет в модели')) : money(diff)}</td>
+            <td class="text-right ${diff !== null && Math.abs(diff) > Math.max(fact, model || 0) * reconcileThreshold / 100 ? 'text-warning font-medium' : ''}">${diff === null ? e(tr('cost_reconcile_na', 'нет в модели')) : money(diff)}</td>
         </tr>${open}`;
     }).join('') + `<tr class="font-semibold border-t-2 border-base-300">
         <td class="text-sm">${e(tr('cost_reconcile_total', 'Итого сопоставимых'))}</td>
         <td class="text-right">${money(modelSum)}</td>
         <td class="text-right">${money(factSum)}</td>
-        <td class="text-right ${Math.abs(modelSum - factSum) > Math.max(factSum, modelSum) * 0.15 ? 'text-warning' : ''}">${money(modelSum - factSum)}</td>
+        <td class="text-right ${Math.abs(modelSum - factSum) > Math.max(factSum, modelSum) * reconcileThreshold / 100 ? 'text-warning' : ''}">${money(modelSum - factSum)}</td>
     </tr>`;
     Layout.$('#reconcileBody').innerHTML = rows;
 }
@@ -1541,6 +1561,11 @@ document.addEventListener('click', ev => {
 document.addEventListener('change', ev => {
     const groupSelect = ev.target.closest('[data-group-cat]');
     if (groupSelect) { saveGroup(groupSelect.dataset.groupCat, groupSelect.value); return; }
+    if (ev.target.id === 'thresholdInput') {
+        const pct = parseFloat(ev.target.value);
+        if (pct >= 1 && pct <= 100) saveThreshold(pct); else renderThreshold();
+        return;
+    }
     const input = ev.target.closest('[data-kit-qty]');
     if (input) {
         const qty = parseFloat(input.value);
@@ -1600,7 +1625,7 @@ async function init() {
     setStep(['month', 'quarter', 'year'].includes(saved.step) ? saved.step : 'month', today);
 
     Layout.$('#costContent').classList.remove('hidden');
-    await Promise.all([loadKits(), loadUnassigned(), loadGroups()]);
+    await Promise.all([loadKits(), loadUnassigned(), loadGroups(), loadThreshold()]);
     updateUI();
     if (state.mode === 'period' || state.retreatId) calculate();
 }

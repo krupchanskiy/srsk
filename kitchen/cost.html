@@ -176,6 +176,14 @@
                             <p class="text-sm opacity-60 mt-1 mb-3" data-i18n="cost_kit_hint">Сколько штук каждой позиции уходит на одного вкушающего. Коэффициент подбирается по замеру за ретритный день (например, 1,1 стаканчика).</p>
                             <div id="kitBody" class="grid grid-cols-1 md:grid-cols-2 gap-6"></div>
                         </div>
+                        <div>
+                            <h3 class="font-semibold" data-i18n="cost_threshold_title">Порог сверки с ДДС</h3>
+                            <p class="text-sm opacity-60 mt-1 mb-3" data-i18n="cost_threshold_hint">В сверке с ДДС разница подсвечивается, если расчёт и факт расходятся больше чем на этот процент. Менять может только суперпользователь.</p>
+                            <div class="flex items-center gap-2">
+                                <input type="number" id="thresholdInput" min="1" max="100" step="1" class="input input-bordered input-sm w-24 text-right" />
+                                <span class="text-sm">%</span>
+                            </div>
+                        </div>
                         <div id="groupsBlock" class="hidden">
                             <h3 class="font-semibold" id="groupsSummary" data-i18n="cost_groups_title">Группы статей расходов кухни</h3>
                             <p class="text-sm opacity-60 mt-1 mb-3" data-i18n="cost_groups_hint">Как статья попадает в себестоимость. Статья без подтверждённой группы считается «общей» и помечена: подтвердите группу.</p>
@@ -203,6 +211,6 @@
     <script src="../js/layout.js?v=80"></script>
     <script src="../js/eating-utils.js?v=11"></script>
     <script src="../js/kitchen-cost.js?v=5"></script>
-    <script src="../js/pages/kitchen-cost.js?v=10"></script>
+    <script src="../js/pages/kitchen-cost.js?v=11"></script>
 </body>
 </html>
