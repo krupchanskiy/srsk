@@ -693,8 +693,8 @@
             <!-- Экран 2: Форма заселения -->
             <div id="checkinScreen" class="hidden">
                 <div class="flex items-center gap-2 mb-4">
-                    <button class="btn btn-ghost btn-sm btn-circle" onclick="showActionScreen()">←</button>
-                    <h3 class="font-bold text-lg" data-i18n="timeline_checkin_title">Заселение</h3>
+                    <button class="btn btn-ghost btn-sm btn-circle" id="checkinBack" onclick="showActionScreen()">←</button>
+                    <h3 class="font-bold text-lg" id="checkinTitle" data-i18n="timeline_checkin_title">Заселение</h3>
                 </div>
 
                 <div class="text-sm text-gray-500 mb-4" id="checkinLocation"></div>
@@ -818,8 +818,8 @@
                     </div>
 
                     <div class="modal-action">
-                        <button type="button" class="btn btn-ghost" onclick="showActionScreen()" data-i18n="back">Назад</button>
-                        <button type="submit" class="btn btn-primary" data-i18n="timeline_checkin">Заселить</button>
+                        <button type="button" class="btn btn-ghost" id="checkinBackBtn" onclick="showActionScreen()" data-i18n="back">Назад</button>
+                        <button type="submit" class="btn btn-primary" id="checkinSubmit" data-i18n="timeline_checkin">Заселить</button>
                     </div>
                 </form>
             </div>
@@ -1163,7 +1163,7 @@
         if (btn) { btn.classList.toggle('btn-active', isFS); btn.title = isFS ? Layout.t('normal_view') : Layout.t('fullscreen'); }
     }
     </script>
-    <script src="../js/pages/timeline.js?v=43"></script>
+    <script src="../js/pages/timeline.js?v=44"></script>
 
 </body>
 </html>

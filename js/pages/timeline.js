@@ -811,6 +811,51 @@ function showCheckinForm() {
 
     // Сбрасываем выбор вайшнава
     clearVaishnavSelection();
+
+    // «+ Добавить» в блоке «Самостоятельное проживание» — та же форма, но без номера
+    const isSelf = !!modalContext.isSelf;
+    document.getElementById('checkinBack').classList.toggle('hidden', isSelf);
+    document.getElementById('checkinBackBtn').classList.toggle('hidden', isSelf);
+    document.getElementById('checkinTitle').textContent = isSelf ? selfBlockLabel() : t('timeline_checkin_title');
+    document.getElementById('checkinSubmit').textContent = isSelf ? tf('timeline_self_add', 'Добавить') : t('timeline_checkin');
+}
+
+// Перевод с запасным русским текстом, пока ключа нет в словаре
+function tf(key, fallback) {
+    const v = t(key);
+    return v === key ? fallback : v;
+}
+
+function selfBlockLabel() {
+    return tf('timeline_self_block', 'Самостоятельное проживание');
+}
+
+// Открыть форму добавления в «Самостоятельное проживание» (живёт вне ашрама, может питаться с нами)
+function openSelfStayModal() {
+    if (!canEditTimeline()) return;
+    modalContext = { roomId: null, isSelf: true, isConversion: false };
+    const today = new Date();
+    const tomorrow = new Date(today);
+    tomorrow.setDate(tomorrow.getDate() + 1);
+    const hint = tf('timeline_self_add_hint', 'без номера — живёт вне ашрама');
+    document.getElementById('modalLocation').textContent = `${selfBlockLabel()} (${hint})`;
+    document.getElementById('modalCheckIn').value = formatDateForInput(today);
+    document.getElementById('modalCheckOut').value = formatDateForInput(tomorrow);
+    showCheckinForm();
+    document.getElementById('actionModal').showModal();
+}
+
+// Окно проживания для записи из блока «Самостоятельное проживание»
+function openSelfStay(id) {
+    const res = selfStays.find(r => r.id === id && !r.fromCrm);
+    if (!res) return;
+    const name = (res.vaishnavas ? getVaishnavName(res.vaishnavas, '') : '') || res.guest_name || '—';
+    const key = `${res.vaishnava_id}_${res.retreat_id}`;
+    openResidentModal({
+        id: res.id, name, isBooking: false, rawData: res,
+        hasDebt: !!(res.vaishnava_id && res.retreat_id && debtorsSet.has(key)),
+        hasCredit: !!(res.vaishnava_id && res.retreat_id && creditorsSet.has(key))
+    }, selfBlockLabel(), '');
 }
 
 function showBookingForm() {
@@ -1202,7 +1247,8 @@ async function saveCheckin(e) {
         // Заранее место держат через «Забронировать» или расселение ретрита.
         arrived_at: new Date().toISOString(),
         meal_type: mealTypeVal,
-        has_housing: true,
+        // Самостоятельное проживание: без номера, живёт вне ашрама
+        has_housing: !modalContext.isSelf,
         has_meals: mealTypeVal !== 'self',
         // Галочки «Прасад» — основа расчёта порций на кухне
         breakfast: form.breakfast?.checked ?? true,
@@ -1421,8 +1467,9 @@ function openResidentModal(guestData, buildingName, roomName) {
     document.getElementById('residentModalTitle').textContent = title;
 
     // Локация
-    document.getElementById('residentModalLocation').textContent =
-        `${buildingName} → ${t('timeline_room')} ${roomName}`;
+    document.getElementById('residentModalLocation').textContent = res.room_id
+        ? `${buildingName} → ${t('timeline_room')} ${roomName}`
+        : selfBlockLabel();
 
     // Информация
     let infoHtml = '';
@@ -2081,7 +2128,7 @@ async function moveToRoom(newRoomId) {
 
     const { error } = await Layout.db
         .from('residents')
-        .update({ room_id: newRoomId })
+        .update({ room_id: newRoomId, has_housing: true })
         .eq('id', currentResident.id);
 
     if (error) {
@@ -2864,6 +2911,8 @@ function setupTimelineDelegation() {
                     );
                     break;
                 case 'open-resident-from-map': openResidentFromMap(id, ev); break;
+                case 'add-self-stay': openSelfStayModal(); break;
+                case 'open-self-stay': openSelfStay(id); break;
                 case 'open-finance':
                     window.open(`../finance/participants.html?retreat=${el.dataset.retreat}&open=${el.dataset.person}`, '_blank');
                     break;
@@ -2964,13 +3013,15 @@ async function loadCrmSelfAccommodated() {
 // и «(питается)». Цвет свой (светлый, с полоской категории слева), чтобы не путать с заселением.
 function renderSelfGroupHtml() {
     const collapsed = collapsedBuildings.has(SELF_GROUP_ID);
-    const blockRaw = t('timeline_self_block');
-    const blockLabel = blockRaw === 'timeline_self_block' ? 'Самостоятельное проживание' : blockRaw;
+    const blockLabel = selfBlockLabel();
+    const canEdit = canEditTimeline();
     const crmRaw = t('timeline_self_from_crm');
     const crmHint = crmRaw === 'timeline_self_from_crm' ? 'Из сделки в CRM: «Сам организует»' : crmRaw;
 
     let html = `<tr class="row-building row-self"><td class="sticky-col" data-action="toggle-building" data-id="${SELF_GROUP_ID}">`
-        + `<span class="toggle-arrow ${collapsed ? 'collapsed' : ''}">▼</span> ${e(blockLabel)}: ${selfStays.length}</td>`;
+        + `<span class="toggle-arrow ${collapsed ? 'collapsed' : ''}">▼</span> ${e(blockLabel)}: ${selfStays.length}`
+        + (canEdit ? ` <button type="button" class="btn btn-xs btn-ghost text-primary ml-1" data-action="add-self-stay">+ ${e(tf('timeline_self_add', 'Добавить'))}</button>` : '')
+        + '</td>';
     for (let col = 0; col < DAYS_TO_SHOW * 2; col++) html += `<td class="${col % 2 === 0 ? 'day-start' : ''}"></td>`;
     html += '</tr>';
 
@@ -3000,7 +3051,11 @@ function renderSelfGroupHtml() {
         const inner = `${tag ? `<span class="retreat-tag">${e(tag.tag)}</span>` : ''}${e(name || '—')}&nbsp;<span class="opacity-70">(${e(meals.toLowerCase())})</span>`
             + (res.fromCrm ? '<span class="self-crm">CRM</span>' : '');
         const mealsClass = res.has_meals === true ? ' meals-yes' : res.has_meals === false ? ' meals-no' : '';
-        const bar = res.vaishnava_id
+        // Своя запись — клик открывает окно проживания (даты, выселить, переселить в номер, удалить);
+        // запись из CRM и без прав — карточка человека
+        const bar = canEdit && !res.fromCrm
+            ? `<div class="guest-bar self-stay${mealsClass} cursor-pointer" data-action="open-self-stay" data-id="${res.id}" style="width: ${width}px; --cat-color: ${catColor};" title="${e(title)}">${inner}</div>`
+            : res.vaishnava_id
             ? `<a class="guest-bar self-stay${mealsClass}" href="../vaishnavas/person.html?id=${res.vaishnava_id}" style="width: ${width}px; --cat-color: ${catColor};" title="${e(title)}">${inner}</a>`
             : `<div class="guest-bar self-stay${mealsClass}" style="width: ${width}px; --cat-color: ${catColor};" title="${e(title)}">${inner}</div>`;
 
