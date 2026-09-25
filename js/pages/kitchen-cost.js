@@ -722,7 +722,7 @@ function renderTabs() {
     const cur = state.section === 'data' ? 'dataTab' : 'tab';
     if (tabs.length && !tabs.some(x => x.id === state[cur])) state[cur] = tabs[0].id;
     Layout.$('#tabBar').innerHTML = tabs.map(x =>
-        `<a role="tab" class="tab ${x.id === state[cur] ? 'tab-active [--tab-bg:oklch(var(--b1))]' : ''} ${x.warn ? 'text-warning' : ''}" data-action="tab" data-tab="${x.id}">${e(x.label)}${HOW_SECTIONS[x.id] ? `<span class="how-q" data-action="how" data-sec="${HOW_SECTIONS[x.id]}" title="${e(tr('cost_how_title', 'Как считается'))}">?</span>` : ''}</a>`).join('');
+        `<a role="tab" class="tab ${x.id === state[cur] ? 'tab-active [--tab-bg:oklch(var(--b1))]' : ''} ${x.warn ? 'text-warning' : ''}" data-action="tab" data-tab="${x.id}">${e(x.label)}${HOW_SECTIONS[x.id] ? `<span class="how-q" data-action="how" data-sec="${HOW_SECTIONS[x.id]}" title="${e(tr('cost_how_q_hint', 'Нажмите, чтобы открыть подсказку: как считается'))}">?</span>` : ''}</a>`).join('');
     Layout.$('#tabBar').classList.toggle('hidden', !tabs.length);
     const panel = state.section === 'calc' ? state.tab : state.section === 'data' ? state.dataTab : state.section;
     document.querySelectorAll('[data-panel]').forEach(p => p.classList.toggle('hidden', p.dataset.panel !== panel));
