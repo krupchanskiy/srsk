@@ -917,6 +917,38 @@ function retreatDatesMismatchText() {
     return v === 'retreat_dates_mismatch' ? 'Даты не пересекаются с датами выбранного ретрита' : v;
 }
 
+// Переезд встык (решение ВГ 25.09, случай Гокула-рани): у соседней брони того же человека,
+// которая кончается в день заезда (или накануне) либо начинается в день выезда (или назавтра),
+// другой ретрит или его нет — предложить поставить тот же. Молча не переносим:
+// бывает законно (остался с фестиваля на следующий ретрит).
+async function offerRetreatOnAdjacent(vaishnavaId, checkIn, checkOut, retreatId) {
+    if (!vaishnavaId || !retreatId || !checkIn) return;
+    const shift = (d, n) => { const x = DateUtils.parseDate(d); x.setDate(x.getDate() + n); return DateUtils.toISO(x); };
+    const { data, error } = await Layout.db.from('residents')
+        .select('id, check_in, check_out, retreat_id')
+        .eq('vaishnava_id', vaishnavaId)
+        .in('status', ['confirmed', 'checked_out']);
+    if (error) { console.error('adjacent residents:', error); return; }
+    const out = checkOut || checkIn;
+    const adjacent = (data || []).filter(r => r.retreat_id !== retreatId && (
+        (r.check_in < checkIn && r.check_out && r.check_out >= shift(checkIn, -1) && r.check_out <= checkIn) ||
+        (r.check_in > out && r.check_in <= shift(out, 1))));
+    if (!adjacent.length) return;
+    const retreatLabel = id => { const r = allRetreats.find(x => x.id === id); return r ? Layout.getName(r) : '—'; };
+    const noRetreat = Layout.t('timeline_adjacent_no_retreat') === 'timeline_adjacent_no_retreat' ? 'без ретрита' : Layout.t('timeline_adjacent_no_retreat');
+    const q = Layout.t('timeline_adjacent_retreat_q');
+    for (const r of adjacent) {
+        const range = DateUtils.formatRangeShort(r.check_in, r.check_out || r.check_in);
+        const cur = r.retreat_id ? `«${retreatLabel(r.retreat_id)}»` : noRetreat;
+        const text = (q === 'timeline_adjacent_retreat_q'
+            ? 'Соседняя бронь этого человека встык ({range}) — {cur}. Поставить и на неё «{retreat}»?'
+            : q).replace('{range}', range).replace('{cur}', cur).replace('{retreat}', retreatLabel(retreatId));
+        if (!confirm(text)) continue;
+        const { error: upErr } = await Layout.db.from('residents').update({ retreat_id: retreatId }).eq('id', r.id);
+        if (upErr) Layout.handleError(upErr, Layout.t('nav_retreats') || 'Ретрит');
+    }
+}
+
 function retreatDatesMismatch(retreatId, from, to) {
     const r = retreatId && allRetreats.find(x => x.id === retreatId);
     return !!r && !retreatFitsDates(r, from, to);
@@ -1206,6 +1238,7 @@ async function saveCheckin(e) {
         return;
     }
 
+    await offerRetreatOnAdjacent(data.vaishnava_id, data.check_in, data.check_out, data.retreat_id);
     document.getElementById('actionModal').close();
     showActionScreen();
     await loadTimelineData();
@@ -1291,6 +1324,8 @@ async function saveBooking(e) {
 
     if (residentsError) {
         console.error('Error saving booking residents:', residentsError);
+    } else {
+        await offerRetreatOnAdjacent(bookingVaishnavaId, form.check_in.value, form.check_out.value, bookingRetreatId);
     }
 
     document.getElementById('actionModal').close();
@@ -1746,6 +1781,7 @@ async function setResidentRetreat(sel) {
         return;
     }
     res.retreat_id = retreatId;
+    await offerRetreatOnAdjacent(res.vaishnava_id, res.check_in, res.check_out, retreatId);
     const msg = Layout.t('timeline_retreat_saved');
     Layout.showNotification(msg === 'timeline_retreat_saved' ? 'Ретрит брони изменён' : msg, 'success');
     await loadTimelineData();
