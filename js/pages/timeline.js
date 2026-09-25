@@ -1443,6 +1443,26 @@ function openResidentModal(guestData, buildingName, roomName) {
         </div>`;
     }
 
+    // Ретрит брони — виден всегда, при правах меняется на месте. Бронь с ретритом
+    // делает человека участником (регистрацию создаёт база, миграция 524)
+    if (res.vaishnava_id || res.retreat_id) {
+        const known = allRetreats.find(r => r.id === res.retreat_id) || periodRetreats.find(r => r.id === res.retreat_id);
+        let control;
+        if (canEditTimeline()) {
+            let options = retreatSelectHtml(res.retreat_id || '', res.check_in, res.check_out || res.check_in);
+            if (res.retreat_id && !allRetreats.some(r => r.id === res.retreat_id)) {
+                options += `<option value="${res.retreat_id}" selected>${e(known ? Layout.getName(known) : '—')}</option>`;
+            }
+            control = `<select class="select select-bordered select-sm max-w-[16rem]" onchange="setResidentRetreat(this)">${options}</select>`;
+        } else {
+            control = `<span class="font-medium">${known ? e(Layout.getName(known)) : (Layout.t('timeline_no_retreat') || '— без ретрита —')}</span>`;
+        }
+        infoHtml += `<div class="flex justify-between items-center gap-2 py-1 border-b">
+            <span class="text-gray-500">${Layout.t('nav_retreats') || 'Ретрит'}:</span>
+            ${control}
+        </div>`;
+    }
+
     // Даты
     infoHtml += `<div class="flex justify-between py-1 border-b">
         <span class="text-gray-500">${t('timeline_checkin')}:</span>
@@ -1702,6 +1722,32 @@ async function deleteResident() {
     }
 
     document.getElementById('residentModal').close();
+    await loadTimelineData();
+    renderTable();
+}
+
+// Сменить ретрит брони прямо из окна проживания
+async function setResidentRetreat(sel) {
+    if (!currentResident || !canEditTimeline()) return;
+    const res = currentResident.rawData;
+    const retreatId = sel.value || null;
+    if (retreatId === (res.retreat_id || null)) return;
+    if (retreatId && retreatDatesMismatch(retreatId, res.check_in, res.check_out || res.check_in)
+        && !confirm(retreatDatesMismatchText() + '. ' + (Layout.t('continue') || 'Продолжить?'))) {
+        sel.value = res.retreat_id || '';
+        return;
+    }
+    sel.disabled = true;
+    const { error } = await Layout.db.from('residents').update({ retreat_id: retreatId }).eq('id', currentResident.id);
+    sel.disabled = false;
+    if (error) {
+        sel.value = res.retreat_id || '';
+        Layout.handleError(error, Layout.t('nav_retreats') || 'Ретрит');
+        return;
+    }
+    res.retreat_id = retreatId;
+    const msg = Layout.t('timeline_retreat_saved');
+    Layout.showNotification(msg === 'timeline_retreat_saved' ? 'Ретрит брони изменён' : msg, 'success');
     await loadTimelineData();
     renderTable();
 }
