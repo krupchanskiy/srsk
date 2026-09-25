@@ -318,7 +318,7 @@ function rowDefs() {
         const ev = `retreat:${state.retreatId}`;
         const statuses = new Set(statusOf().values());
         const statusRows = STATUS_ROWS.filter(r => statuses.has(r.status))
-            .map(r => ({ key: `${ev}:st:${r.status}`, label: r.label(), ev, buckets: PART_BUCKETS, status: r.status, sub: true }));
+            .map(r => ({ key: `${ev}:st:${r.status}`, label: r.label(), ev, buckets: ALL_BUCKETS, status: r.status, sub: true }));
         const subs = ALL_BUCKETS.filter(b => !PART_BUCKETS.includes(b) && cells[ev]?.[b]?.personMeals)
             .map(b => ({ key: `${ev}:${b}`, label: BUCKET_LABELS[b](), ev, buckets: [b], sub: true }));
         return [{ key: ev, label: retreatName(state.retreatId), ev, buckets: ALL_BUCKETS, retreatId: state.retreatId, main: true }, ...statusRows, ...subs];
@@ -339,7 +339,7 @@ function statusOf() {
     const ev = `retreat:${state.retreatId}`;
     const span = new Map();   // key → { min, max, today: bucket | null }
     for (const x of view.detail) {
-        if (`retreat:${x.retreat_id}` !== ev || !PART_BUCKETS.includes(x.bucket)) continue;
+        if (`retreat:${x.retreat_id}` !== ev) continue;
         const key = x.vaishnava_id || x.ref_id;
         const p = span.get(key) || { min: x.d, max: x.d, today: null };
         if (x.d < p.min) p.min = x.d;
@@ -1018,7 +1018,9 @@ function peopleTable(list, withBucket) {
             <th class="text-right">${e(tr('cost_total', 'Всего'))}</th></tr></thead>
         <tbody>${list.map(p => `<tr class="${p.pm ? '' : 'opacity-50'}">
             <td>${p.vaishnavaId ? `<a class="link link-hover" href="../vaishnavas/person.html?id=${p.vaishnavaId}">${e(personLabel(p))}</a>` : e(personLabel(p))}</td>
-            ${withBucket ? `<td class="text-xs opacity-70">${e(BUCKET_LABELS[p.bucket]())}</td>` : ''}
+            ${withBucket ? `<td class="text-xs">${p.bucket === 'team' || p.bucket === 'volunteers'
+                ? `<span class="badge badge-sm border-0 text-white" style="background:${BUCKET_COLORS[p.bucket]}">${e(BUCKET_LABELS[p.bucket]())}</span>`
+                : `<span class="opacity-70">${e(BUCKET_LABELS[p.bucket]())}</span>`}</td>` : ''}
             <td class="text-right">${p.days.size}</td><td class="text-right">${p.bf}</td><td class="text-right">${p.ln}</td>
             <td class="text-right">${p.pm}</td>
             <td class="text-right">${money(p.cost)}${warnMark(ps)}</td></tr>`).join('')}</tbody></table>`;
@@ -1063,7 +1065,7 @@ async function loadDirectPostings() {
 const toggleCell = key => `<span class="inline-block w-4 opacity-60">${expanded.has(key) ? '▾' : '▸'}</span>`;
 
 function renderEaters() {
-    const rows = rowDefs();
+    const rows = rowDefs().filter(r => !r.sub || r.status || state.mode !== 'retreat');
     Layout.$('#eatersNote').classList.toggle('hidden', state.mode !== 'retreat');
     Layout.$('#eatersHead').innerHTML = `<tr><th></th>
         <th class="text-right">${e(tr('cost_people', 'Людей'))}</th>
