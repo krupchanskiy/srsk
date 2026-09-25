@@ -1868,14 +1868,23 @@ async function saveDates() {
         return;
     }
 
+    // Новые даты совсем не пересекаются с ретритом брони — ретрит уже не тот.
+    // Предлагаем снять его (другой ретрит выбирается потом в окне брони), иначе не сохраняем
+    const update = { check_in: checkIn, check_out: checkOut || null, early_checkin: earlyCheckin, late_checkout: lateCheckout };
+    const oldRetreatId = currentResident.rawData.retreat_id;
+    if (retreatDatesMismatch(oldRetreatId, checkIn, checkOut || checkIn)) {
+        const r = allRetreats.find(x => x.id === oldRetreatId);
+        const q = Layout.t('timeline_dates_retreat_clear');
+        const text = (q === 'timeline_dates_retreat_clear'
+            ? 'Новые даты не пересекаются с ретритом «{retreat}» ({dates}). Снять ретрит с брони? Другой ретрит можно выбрать потом в окне брони.'
+            : q).replace('{retreat}', Layout.getName(r)).replace('{dates}', DateUtils.formatRange(r.start_date, r.end_date));
+        if (!confirm(text)) return;
+        update.retreat_id = null;
+    }
+
     const { error } = await Layout.db
         .from('residents')
-        .update({
-            check_in: checkIn,
-            check_out: checkOut || null,
-            early_checkin: earlyCheckin,
-            late_checkout: lateCheckout
-        })
+        .update(update)
         .eq('id', currentResident.id);
 
     if (error) {
