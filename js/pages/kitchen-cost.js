@@ -1308,7 +1308,7 @@ function renderDirect() {
         warnBox.innerHTML = `<span><b>⚠ ${e(tr('cost_no_menu_title', 'Нет меню'))}: ${noMenu.length} ${e(tr('cost_meals_short', 'приёмов пищи'))}, ${days} ${e(tr('cost_days_short', 'дн.'))}</b>
             — ${e(tr('cost_no_menu_note', 'люди ели, но затраты на продукты по этим приёмам не посчитаны. Внесите меню на странице Меню.'))}
             <details class="mt-1"><summary class="cursor-pointer">${e(tr('cost_show_dates', 'Показать даты'))}</summary>${list.join(', ')}</details></span>
-            <button class="btn btn-sm ${directOnlyNoMenu ? 'btn-active' : 'btn-outline'}" data-action="direct-only-nomenu">${e(directOnlyNoMenu ? tr('cost_show_all_meals', 'Показать все') : tr('cost_only_no_menu', 'Только без меню'))}</button>`;
+            <button class="btn btn-sm shrink-0 whitespace-nowrap ${directOnlyNoMenu ? 'btn-neutral' : 'bg-base-100 border-base-100 hover:bg-base-200'}" data-action="direct-only-nomenu">${e(directOnlyNoMenu ? tr('cost_show_all_meals', 'Показать все') : tr('cost_only_no_menu', 'Только без меню'))}</button>`;
     }
     warnBox.classList.toggle('hidden', !noMenu.length);
 
@@ -1450,7 +1450,7 @@ function renderOverhead() {
     const warnBox = Layout.$('#overheadWarn');
     warnBox.innerHTML = noMenu.length ? `<span><b>⚠ ${e(tr('cost_no_menu_title', 'Нет меню'))}: ${noMenu.length} ${e(tr('cost_meals_short', 'приёмов пищи'))}, ${new Set(noMenu.map(x => x.split(' ')[0])).size} ${e(tr('cost_days_short', 'дн.'))}</b>
         — ${e(tr('cost_ov_no_menu_note', 'люди ели, поэтому накладные на эти приёмы пищи разложены, но продукты по ним не посчитаны. Какие именно дни — на вкладке «Прямые затраты».'))}</span>
-        <button class="btn btn-sm btn-outline" data-action="open-no-menu">${e(tr('cost_open_no_menu', 'Показать дни без меню'))}</button>` : '';
+        <button class="btn btn-sm shrink-0 whitespace-nowrap bg-base-100 border-base-100 hover:bg-base-200" data-action="open-no-menu">${e(tr('cost_open_no_menu', 'Показать дни без меню'))}</button>` : '';
     warnBox.classList.toggle('hidden', !noMenu.length);
 
     const total = sumOf(items);
