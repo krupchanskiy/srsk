@@ -282,9 +282,14 @@ async function init(options) {
         $('daccBody').innerHTML = `<tr><td colspan="7" class="text-center py-6 opacity-60">${e(tr('dacc_no_accounts', 'У департамента пока нет счёта'))}</td></tr>`;
         return;
     }
-    // у каждого счёта (валюты) — своя вкладка со своими «на счёте / пришло / ушло»; валюты не смешиваются
+    // у каждого счёта (валюты) — своя вкладка со своими «на счёте / пришло / ушло»; валюты не смешиваются.
+    // Вкладки всегда видны и стоят в одном порядке у всех департаментов: ₹ → ₽ → $ → € → остальные (ВГ 25.09)
+    const CUR_ORDER = ['INR', 'RUB', 'USD', 'EUR'];
+    const rank = c => { const i = CUR_ORDER.indexOf(c); return i < 0 ? CUR_ORDER.length : i; };
+    accounts.sort((a, b) => rank(a.currency_code) - rank(b.currency_code) || a.currency_code.localeCompare(b.currency_code)
+        || Number(b.is_active) - Number(a.is_active) || a.name.localeCompare(b.name, 'ru'));
     $('daccTabs').innerHTML = accounts.map(a => `<a role="tab" class="tab" data-dacc-account="${a.account_id}">${e(a.name)}${a.is_active ? '' : ` <span class="opacity-60">(${e(tr('dacc_closed', 'закрыт'))})</span>`}</a>`).join('');
-    $('daccTabs').classList.toggle('hidden', accounts.length < 2);
+    $('daccTabs').classList.remove('hidden');
 
     $('daccTabs').addEventListener('click', ev => {
         const tab = ev.target.closest('[data-dacc-account]');
