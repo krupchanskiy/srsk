@@ -19,6 +19,14 @@
         /* суммы и даты в таблицах не переносим — таблица прокручивается вбок */
         .cost-table td.text-right, .cost-table th.text-right { white-space: nowrap; }
         .cost-table td:first-child { min-width: 9rem; }
+        /* «ёлочка» раскрытия: common.css задаёт отступ ячеек с !important — перебиваем уровни здесь.
+           Стрелка вложенной строки встаёт под первую букву родителя (1rem отступа + 1rem стрелки на уровень) */
+        .cost-table td.pl-8 { padding-left: 2rem !important; }
+        .cost-table td.pl-16 { padding-left: 3rem !important; }
+        /* раскрытая группа — серым, её строки — светлее, даты и «как делится» у них приглушены */
+        .cost-table tr.row-child > td { background: oklch(var(--b2) / 0.4); }
+        .cost-table tr.row-open > td { background: oklch(var(--b2)); }
+        .cost-table tr.row-child > td.row-muted { color: oklch(var(--bc) / 0.6); }
     </style>
     <style>
         .how-memo { font-size: 16px; line-height: 1.6; }
@@ -310,6 +318,6 @@
     <script src="../js/layout.js?v=80"></script>
     <script src="../js/eating-utils.js?v=11"></script>
     <script src="../js/kitchen-cost.js?v=8"></script>
-    <script src="../js/pages/kitchen-cost.js?v=21"></script>
+    <script src="../js/pages/kitchen-cost.js?v=22"></script>
 </body>
 </html>
