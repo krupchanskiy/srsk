@@ -15,6 +15,10 @@
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Noto+Sans:wght@400;500;600;700&family=Noto+Sans+Devanagari:wght@400;500;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="../css/common.css?v=3">
+    <style>
+        /* трата, сделанная сразу из перевода, — вплотную к нему, без разделителя */
+        tr.dacc-paired > td { border-top: none !important; padding-top: 0.15rem !important; }
+    </style>
 </head>
 <body class="bg-base-200 min-h-screen flex flex-col">
 
@@ -84,7 +88,7 @@
     <script src="../js/date-utils.js?v=4"></script>
     <script src="../js/layout.js?v=81"></script>
     <script src="../js/fin-utils.js?v=14"></script>
-    <script src="../js/pages/dept-account.js?v=6"></script>
+    <script src="../js/pages/dept-account.js?v=7"></script>
     <script>
         DeptAccount.init({ department: 'Кухня', module: 'kitchen', menuId: 'kitchen', itemId: 'dept_account' });
     </script>

@@ -225,6 +225,38 @@ function renderTotals() {
     el.innerHTML = `<div class="flex flex-wrap gap-2 items-stretch text-sm">${chips.join('')}</div>`;
 }
 
+// Перевод и трата, сделанные одним действием («выдано … и сразу потрачено»), — рядом:
+// перевод, сразу под ним трата со значком ↳ (решение ВГ 25.09.2026, как на странице «Счёт»).
+// Пары из чата — по заявке (fin_operation_groups); пары из формы «перевод + сразу потрачено»
+// связи не имеют — узнаём соседние строки с той же датой и тем же комментарием.
+async function pairTransfers(list) {
+    const ids = [...new Set(list.map(x => x.operation_id))];
+    const { data } = ids.length ? await Layout.db.rpc('fin_operation_groups', { p_operation_ids: ids }) : { data: [] };
+    const gidOf = new Map((data || []).map(g => [g.operation_id, g.group_id]));
+    const norm = x => (x || '').trim();
+    for (let i = 0; i + 1 < list.length; i++) {
+        const a = list[i], b = list[i + 1];
+        if (gidOf.has(a.operation_id) || gidOf.has(b.operation_id)) continue;
+        if ([a.type, b.type].sort().join() === 'expense,transfer' && a.occurred_on === b.occurred_on && norm(a.comment) === norm(b.comment)) {
+            gidOf.set(a.operation_id, `m${a.operation_id}`); gidOf.set(b.operation_id, `m${a.operation_id}`); i++;
+        }
+    }
+    const members = new Map();
+    list.forEach(x => { const g = gidOf.get(x.operation_id); if (g) (members.get(g) || members.set(g, []).get(g)).push(x); });
+    const out = [], placed = new Set();
+    for (const x of list) {
+        const g = gidOf.get(x.operation_id);
+        if (!g || members.get(g).length < 2) { out.push(x); continue; }
+        if (placed.has(g)) continue;
+        placed.add(g);
+        const m = members.get(g).sort((a, b) => (a.type === 'transfer' ? 0 : 1) - (b.type === 'transfer' ? 0 : 1));
+        m.forEach((r, i) => { r._paired = i > 0; });
+        out.push(...m);
+    }
+    return out;
+}
+const pairMark = x => x._paired ? `<span class="opacity-50" title="${e(t('dacc_paired_hint'))}">↳ </span>` : '';
+
 async function loadTable(append = false) {
     const f = filterValues();
     syncFiltersToUrl();
@@ -267,12 +299,13 @@ async function loadTable(append = false) {
         if (f.to) q = q.lte('occurred_on', f.to);
         if (amt !== null) q = q.or(`comment.ilike.%${f.q}%,reason.ilike.%${f.q}%,signed_amount.eq.${amt},signed_amount.eq.${-amt}`);
         else if (f.q) q = q.or(`comment.ilike.%${f.q}%,reason.ilike.%${f.q}%`);
-        const { data, error } = await q;
+        const { data: raw, error } = await q;
         if (error) { Layout.handleError(error, 'ДДС'); return; }
-        if (!data.length && !append) {
+        if (!raw.length && !append) {
             body.innerHTML = `<tr><td colspan="8" class="text-center py-6 opacity-60">${t('fin_no_operations')}</td></tr>`;
             renderPager(false); renderTotals(); return;
         }
+        const data = await pairTransfers(raw);
         for (const p of data) {
             const c = (totalsAcc[p.currency_code] = totalsAcc[p.currency_code] || { inc: 0, exp: 0, rev: 0 });
             const v = Number(p.signed_amount);
@@ -299,7 +332,7 @@ async function loadTable(append = false) {
                 data-op="${p.operation_id}" data-key="p${p.posting_id}" tabindex="0">
                 <td class="fin-chev-cell"><span class="fin-chev"></span></td>
                 <td class="whitespace-nowrap">${DateUtils.formatShort(DateUtils.parseDate(p.occurred_on))}</td>
-                <td>${e(FinUtils.typeLabel(p.type))}${
+                <td>${pairMark(p)}${e(FinUtils.typeLabel(p.type))}${
                     // Вторая сторона операции: в режиме одного счёта её не было
                     // видно вовсе — уходило 50 000, а куда, journal не говорил.
                     // Стрелка показывает направление относительно этого счёта.
@@ -342,19 +375,20 @@ async function loadTable(append = false) {
         if (f.from) q = q.gte('occurred_on', f.from);
         if (f.to) q = q.lte('occurred_on', f.to);
         if (f.q) q = q.or(`comment.ilike.%${f.q}%,reason.ilike.%${f.q}%,payer_name.ilike.%${f.q}%`);
-        const { data, error } = await q;
+        const { data: raw, error } = await q;
         if (error) { Layout.handleError(error, 'ДДС'); return; }
-        if (!data.length && !append) {
+        if (!raw.length && !append) {
             body.innerHTML = `<tr><td colspan="8" class="text-center py-6 opacity-60">${t('fin_no_operations')}</td></tr>`;
             renderPager(false); renderTotals(); return;
         }
+        const data = await pairTransfers(raw);
         opsById = append ? { ...opsById, ...Object.fromEntries(data.map(op => [op.operation_id, op])) }
                          : Object.fromEntries(data.map(op => [op.operation_id, op]));
         const html = data.map(op => `
             <tr class="cursor-pointer hover:bg-base-200 ${op.is_reversed ? 'opacity-60' : ''}" data-op="${op.operation_id}" data-key="${op.operation_id}" tabindex="0">
                 <td class="fin-chev-cell"><span class="fin-chev"></span></td>
                 <td class="whitespace-nowrap">${DateUtils.formatShort(DateUtils.parseDate(op.occurred_on))}</td>
-                <td>${e(FinUtils.typeLabel(op.type))}${badges(op)}</td>
+                <td>${pairMark(op)}${e(FinUtils.typeLabel(op.type))}${badges(op)}</td>
                 <td class="whitespace-nowrap">${e(op.accounts || '—')}</td>
                 <td class="whitespace-nowrap ${op.objects ? '' : 'fin-dim'}">${e(op.objects || '—')}</td>
                 <td class="text-right font-mono whitespace-nowrap">${FinUtils.fmtAmountsByCurrencyColored(op.amounts_by_currency)}</td>

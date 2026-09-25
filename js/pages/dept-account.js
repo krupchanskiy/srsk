@@ -74,15 +74,44 @@ async function selectAccount(id) {
     // задним числом, ставим на её дату, иначе в столбце «Остаток после» скачки (замечание ВГ 25.09)
     // в пределах одного дня сначала приходы, потом расходы — чтобы не было ложного минуса внутри дня
     const inFirst = r => Number(r.signed_amount) >= 0 ? 0 : 1;
-    rows = (await loadRows(id)).sort((a, b) => a.occurred_on.localeCompare(b.occurred_on) || inFirst(a) - inFirst(b) || a.ledger_seq - b.ledger_seq);
+    const [loaded, groups] = await Promise.all([loadRows(id), Layout.db.rpc('fin_account_op_groups', { p_account: id })]);
+    const base = loaded.sort((a, b) => a.occurred_on.localeCompare(b.occurred_on) || inFirst(a) - inFirst(b) || a.ledger_seq - b.ledger_seq);
+    rows = pairUp(base, groups.data || []);
     let bal = 0;
     rows.forEach((r, i) => { bal += Number(r.signed_amount); r.bal = Math.round(bal * 100) / 100; r.ord = i; });
+    // пара «перевод + трата» — одна позиция в ленте: grp — место пары, sub — порядок внутри (перевод, потом трата)
+    const first = new Map();
+    rows.forEach(r => { const k = r.gid || r.posting_id; if (!first.has(k)) first.set(k, r.ord); r.grp = first.get(k); r.sub = r.ord - r.grp; });
     opened.clear();
     const cats = [...new Map(rows.filter(r => r.category_id).map(r => [r.category_id, r.category_name])).entries()]
         .sort((a, b) => a[1].localeCompare(b[1], 'ru'));
     $('daccCategory').innerHTML = `<option value="">${e(tr('fin_filter_all_categories', 'Все статьи'))}</option>` +
         cats.map(([cid, name]) => `<option value="${cid}">${e(name)}</option>`).join('');
     render();
+}
+
+// Перевод на счёт и трата с него, сделанные одним действием («выдано Кухне на … и сразу потрачено»),
+// ставим рядом: сначала перевод, сразу под ним трата (решение ВГ 25.09). Пары из чата — по заявке
+// (fin_account_op_groups), пары из формы ДДС «перевод + сразу потрачено» — по той же дате, сумме и комментарию.
+function pairUp(base, groups) {
+    const gidOf = new Map(groups.map(g => [g.operation_id, g.group_id]));
+    base.forEach(r => { r.gid = gidOf.get(r.operation_id) || null; });
+    const norm = x => (x || '').trim();
+    for (const trf of base.filter(r => !r.gid && r.type === 'transfer' && r.direction === 'in')) {
+        const ex = base.find(r => !r.gid && r.type === 'expense' && r.occurred_on === trf.occurred_on
+            && Number(r.amount) === Number(trf.amount) && norm(r.comment) === norm(trf.comment));
+        if (ex) { trf.gid = ex.gid = `m:${trf.operation_id}`; }
+    }
+    const byGid = new Map();
+    base.forEach(r => { if (r.gid) (byGid.get(r.gid) || byGid.set(r.gid, []).get(r.gid)).push(r); });
+    const out = [], placed = new Set();
+    for (const r of base) {
+        if (!r.gid) { out.push(r); continue; }
+        if (placed.has(r.gid)) continue;
+        placed.add(r.gid);
+        out.push(...byGid.get(r.gid).sort((a, b) => (a.direction === 'in' ? 0 : 1) - (b.direction === 'in' ? 0 : 1)));
+    }
+    return out;
 }
 
 // ---------- фильтры ----------
@@ -184,9 +213,10 @@ function sortIcon(key) {
 function renderTable(list) {
     const cmp = sort.key === 'amount'
         ? (a, b) => Number(a.signed_amount) - Number(b.signed_amount) || a.ord - b.ord
-        : (a, b) => a.ord - b.ord;
-    const sorted = [...list].sort(cmp);
-    if (sort.dir === 'desc') sorted.reverse();
+        : null;
+    // по дате пара не разрывается: перевод сверху, трата сразу под ним в обоих направлениях
+    const sorted = cmp ? [...list].sort(cmp) : [...list].sort((a, b) => (sort.dir === 'desc' ? b.grp - a.grp : a.grp - b.grp) || a.sub - b.sub);
+    if (cmp && sort.dir === 'desc') sorted.reverse();
     $('daccHead').innerHTML = `<tr>
         <th class="w-6"></th>
         <th class="cursor-pointer select-none whitespace-nowrap" data-dacc-sort="date">${e(tr('fin_occurred_on', 'Дата'))} ${sortIcon('date')}</th>
@@ -203,10 +233,11 @@ function renderTable(list) {
     $('daccBody').innerHTML = sorted.map(r => {
         const open = opened.has(r.posting_id);
         const v = Number(r.signed_amount);
-        return `<tr class="cursor-pointer hover:bg-base-200 ${r.is_reversed || r.type === 'reversal' ? 'opacity-60' : ''} ${open ? 'bg-base-200' : ''}" data-dacc-row="${r.posting_id}">
+        const paired = r.gid && r.sub > 0 && !cmp;
+        return `<tr class="cursor-pointer hover:bg-base-200 ${r.is_reversed || r.type === 'reversal' ? 'opacity-60' : ''} ${open ? 'bg-base-200' : ''} ${paired ? 'dacc-paired' : ''}" data-dacc-row="${r.posting_id}">
             <td class="opacity-60">${open ? '▾' : '▸'}</td>
             <td class="whitespace-nowrap">${e(fmtDay(r.occurred_on))}</td>
-            <td>${kindCell(r)}</td>
+            <td>${paired ? `<span class="opacity-50" title="${e(tr('dacc_paired_hint', 'Потрачено сразу из этого перевода'))}">↳ </span>` : ''}${kindCell(r)}</td>
             <td>${e(r.category_name || '—')}</td>
             <td class="max-w-md"><div class="truncate opacity-70" title="${e(r.comment || r.reason || '')}">${e(r.comment || r.reason || '')}</div>${
                 r.participant_name || r.contractor_name ? `<div class="text-xs opacity-60 truncate">${e(r.participant_name || r.contractor_name)}</div>` : ''}</td>
