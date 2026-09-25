@@ -99,11 +99,12 @@
             <!-- Главные цифры — видны всегда -->
             <div id="kpiBox" class="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-6 gap-3 mb-4 hidden"></div>
 
-            <!-- Разделы: Расчёт / Ретрит сейчас / Графики / Данные -->
+            <!-- Разделы: Расчёт / Графики / Данные -->
             <div id="sectionBar" role="tablist" class="tabs tabs-boxed w-fit mb-4 hidden"></div>
 
             <!-- Сводка с итогом (раздел «Расчёт») -->
             <div id="summaryBox" class="bg-base-100 rounded-xl shadow-sm overflow-hidden mb-4 hidden">
+                <div id="summaryKicker" class="px-4 pt-3 text-sm font-semibold uppercase tracking-wide opacity-60 hidden" data-i18n="cost_summary_kicker">Себестоимость — расчёт по меню</div>
                 <div class="px-4 pt-4 flex flex-wrap items-center gap-2">
                     <h2 id="summaryTitle" class="text-lg font-semibold"></h2>
                     <span id="summaryBadges" class="flex flex-wrap gap-1"></span>
@@ -124,6 +125,7 @@
                 <div class="bg-base-100 rounded-b-xl rounded-tr-xl shadow-sm p-4 mb-6">
 
                     <div data-panel="eaters" class="space-y-4">
+                        <p id="eatersNote" class="text-sm opacity-60 hidden" data-i18n="cost_eaters_note_retreat">Люди ретрита: участники и приехавшие под ретрит. Постоянная команда и волонтёры — на вкладке «Команда и волонтёры».</p>
                         <div class="overflow-x-auto"><table class="table table-sm w-full cost-table">
                             <thead id="eatersHead"></thead><tbody id="eatersBody"></tbody>
                         </table></div>
@@ -182,10 +184,6 @@
                             </tr></thead>
                             <tbody id="reconcileBody"></tbody>
                         </table></div>
-                    </div>
-
-                    <div data-panel="now" class="hidden space-y-4">
-                        <div id="nowBody"></div>
                     </div>
 
                     <div data-panel="charts" class="hidden">
@@ -317,6 +315,6 @@
     <script src="../js/layout.js?v=80"></script>
     <script src="../js/eating-utils.js?v=11"></script>
     <script src="../js/kitchen-cost.js?v=8"></script>
-    <script src="../js/pages/kitchen-cost.js?v=26"></script>
+    <script src="../js/pages/kitchen-cost.js?v=27"></script>
 </body>
 </html>

@@ -235,7 +235,8 @@ async function retreatIncome(retreatId) {
     const inc = res?.report?.prasad?.totals?.income_base;
     const v = inc === undefined || inc === null ? null
         : { amount: Number(inc), objectId: res.object_id, groups: (res.report.prasad.income_by_category || []).map(c => c.category_id),
-            expense: Number(res.report.prasad.totals.expense_base || 0) };
+            expense: Number(res.report.prasad.totals.expense_base || 0),
+            expenseGroups: (res.report.prasad.expense_by_category || []).map(c => c.category_id) };
     incomeCache.set(retreatId, v);
     return v;
 }
@@ -293,7 +294,7 @@ async function calculate() {
         }
         if (token !== calcToken) return;
 
-        view = { from, to, result, detail, incomes, opByPosting, directPostings: null, incomeOps: {}, now: null };
+        view = { from, to, result, detail, incomes, opByPosting, directPostings: null, incomeOps: {}, expenseOps: {}, now: null };
         expanded.clear();
         render();
     } catch (err) {
@@ -461,7 +462,42 @@ function kpiNumbers() {
              people: state.mode === 'retreat' ? peopleStats(rows[0]).people : peopleTotal() };
 }
 
+// Режим «Ретрит»: касса прасада (реальные деньги) + результат. Себестоимость — в таблице сводки ниже.
+function renderCash() {
+    const box = Layout.$('#kpiBox');
+    box.className = 'grid grid-cols-2 xl:grid-cols-4 gap-3 mb-4';
+    const inc = view.incomes[state.retreatId];
+    const whole = aggregate(view.result.cells, `retreat:${state.retreatId}`, ALL_BUCKETS);
+    const ps = pricesState();
+    const card = (label, value, sub, cls = '', action = '') => `<div class="bg-base-100 rounded-xl shadow-sm p-4 ${action ? 'cursor-pointer hover:shadow-md' : ''}" ${action}>
+        <div class="text-xs uppercase tracking-wide opacity-60">${e(label)}</div>
+        <div class="text-2xl font-bold mt-1 ${cls}">${value}</div>
+        ${sub ? `<div class="text-xs opacity-60 mt-1">${sub}</div>` : ''}</div>`;
+    const opsCard = (dir, label, amount, cls, sub) => card(label,
+        inc ? `<span class="inline-block w-4 text-base opacity-60">${expanded.has(`cash:${dir}`) ? '▾' : '▸'}</span>${money(amount)}` : '—',
+        sub, cls, inc ? `data-action="toggle-cash" data-dir="${dir}"` : '');
+    const result = inc ? inc.full - total(whole) : null;
+    const cards = [
+        opsCard('in', tr('cost_cash_in', 'Получено за прасад'), inc?.full, 'text-blue-600', e(tr('cost_cash_in_hint', 'оплаты участников, по Финансам'))),
+        opsCard('out', tr('cost_cash_out', 'Потрачено из кассы на прасад'), inc?.expense, 'text-red-600', e(tr('cost_cash_out_hint', 'расходы, отнесённые в Финансах на прасад ретрита'))),
+        card(tr('cost_cash_balance', 'Сальдо'), inc ? money(inc.full - inc.expense) : '—', e(tr('cost_cash_balance_hint', 'получено − потрачено'))),
+        card(tr('cost_result', 'Результат'), result === null || ps === 'none' ? '—' : money(result),
+            ps === 'none' ? `⚠ <a class="link" href="prices.html">${e(tr('cost_result_after_prices', 'появится после внесения цен'))} →</a>`
+                : e(tr('cost_result_hint', 'получено − себестоимость ретрита')),
+            result === null || ps === 'none' ? '' : result < 0 ? 'text-error' : 'text-success')
+    ];
+    const open = ['in', 'out'].find(d => expanded.has(`cash:${d}`));
+    const ops = open ? (open === 'in' ? view.incomeOps : view.expenseOps)[state.retreatId] : null;
+    box.innerHTML = `<div class="col-span-full text-sm font-semibold uppercase tracking-wide opacity-60 -mb-1">${e(tr('cost_cash_title', 'Касса прасада — реальные деньги'))}</div>
+        ${cards.join('')}
+        ${open ? `<div class="col-span-full bg-base-100 rounded-xl shadow-sm p-3">
+            <div class="text-sm font-medium mb-1">${e(open === 'in' ? tr('cost_income_ops', 'Приходы прасада ретрита') : tr('cost_expense_ops', 'Расходы прасада ретрита'))}</div>
+            ${opsTable(ops)}</div>` : ''}`;
+}
+
 function renderKpis() {
+    if (state.mode === 'retreat') { renderCash(); return; }
+    Layout.$('#kpiBox').className = 'grid grid-cols-2 md:grid-cols-3 xl:grid-cols-6 gap-3 mb-4';
     const k = kpiNumbers();
     const ps = pricesState();
     const card = (label, value, sub, cls = '') => `<div class="bg-base-100 rounded-xl shadow-sm p-4">
@@ -479,10 +515,7 @@ function renderKpis() {
             k.participants ? `${num(k.participants)} ${e(tr('cost_participants', 'участников').toLowerCase())}` : e(tr('cost_kpi_no_retreat', 'в периоде нет ретритов'))),
         card(tr('cost_income', 'Доход прасада'), k.income === null ? '—' : money(k.income),
             state.mode === 'period' && k.income !== null ? e(tr('cost_kpi_income_share', 'ретриты своей долей')) : ''),
-        // ретрит ещё идёт: доход уже весь, а расход — только за прошедшие дни; итог — в прогнозе
-        state.mode === 'retreat' && view.to >= DateUtils.toISO(new Date())
-            ? card(tr('cost_result', 'Результат'), '—', `<a class="link" data-action="section" data-section="now">${e(tr('cost_kpi_see_forecast', 'ретрит идёт — прогноз в «Ретрит сейчас»'))}</a>`)
-            : card(tr('cost_result', 'Результат'), result === null || ps === 'none' ? '—' : money(result),
+        card(tr('cost_result', 'Результат'), result === null || ps === 'none' ? '—' : money(result),
                 ps === 'none' ? e(tr('cost_result_no_prices', 'Пока нет цен, себестоимость занижена — результат не показываем')) : '',
                 result === null || ps === 'none' ? '' : result < 0 ? 'text-error' : 'text-success'),
         card(tr('cost_people', 'Людей'), num(k.people), '')
@@ -494,8 +527,15 @@ function renderKpis() {
 function renderSummary() {
     const cells = view.result.cells;
     const ps = pricesState();
-    const rows = rowDefs();
     const r = state.mode === 'retreat' ? retreats.find(x => x.id === state.retreatId) : null;
+    // «Ретрит»: вместо строк статуса (они — на «Вкушающих») одна строка «Участники», если есть команда/волонтёры ретрита
+    const rows = rowDefs().filter(x => !x.status);
+    if (r && rows.length > 1) rows.splice(1, 0, { key: `${rows[0].ev}:part`, label: tr('cost_row_participants', 'Участники'),
+        ev: rows[0].ev, buckets: PART_BUCKETS, sub: true });
+    Layout.$('#summaryKicker').classList.toggle('hidden', !r);
+    // ретрит идёт — под «Всего» показываем, сколько съедено на сегодня
+    const running = r && view.from <= DateUtils.toISO(new Date()) && DateUtils.toISO(new Date()) <= view.to;
+    if (running && !view.now) loadNow().then(() => view && renderSummary()).catch(err => console.error('На сегодня:', err));
     const title = r
         ? `${retreatName(state.retreatId)} · ${DateUtils.formatRange(r.start_date, r.end_date)}`
         : periodLabel(view.from, view.to);
@@ -521,8 +561,8 @@ function renderSummary() {
         <th class="text-right">${e(tr('cost_total', 'Всего'))}</th>
         <th class="text-right">${e(tr('cost_per_meal', 'На приём пищи'))}</th>
         <th class="text-right">${e(tr('cost_per_participant', 'На участника'))}</th>
-        <th class="text-right">${e(tr('cost_income', 'Доход прасада'))}</th>
-        <th class="text-right">${e(tr('cost_result', 'Результат'))}</th>
+        ${isPeriod ? `<th class="text-right">${e(tr('cost_income', 'Доход прасада'))}</th>
+        <th class="text-right">${e(tr('cost_result', 'Результат'))}</th>` : ''}
     </tr>`;
 
     const directCell = x => ps === 'none' ? `<span class="opacity-50">${e(tr('cost_no_prices', 'нет цен'))}</span>`
@@ -547,12 +587,13 @@ function renderSummary() {
             <td class="text-right">${num(x.pm)}</td>
             <td class="text-right">${directCell(x)}</td>
             <td class="text-right">${money(overhead(x))}</td>
-            <td class="text-right font-medium">${money(total(x))}</td>
+            <td class="text-right font-medium">${money(total(x))}${row.main && running && view.now?.toDate
+                ? `<div class="text-xs font-normal opacity-60">${e(tr('cost_eaten_today', 'съедено на сегодня'))}: ${money(total(view.now.toDate))}</div>` : ''}</td>
             <td class="text-right">${x.pm ? money2(total(x) / x.pm) : '—'}</td>
             <td class="text-right">${perPart !== null && !row.sub ? money(perPart) : '—'}</td>
-            <td class="text-right">${income !== null && !row.sub
+            ${isPeriod ? `<td class="text-right">${income !== null && !row.sub
                 ? `<span class="link link-hover" data-action="toggle-income" data-retreat="${row.retreatId}" title="${e(tr('cost_show_income', 'Показать приходы'))}">${money(income)}</span>` : '—'}</td>
-            <td class="text-right">${resultCell(income, x, row.sub, ps)}</td>
+            <td class="text-right">${resultCell(income, x, row.sub, ps)}</td>` : ''}
         </tr>${row.retreatId && !row.sub && expanded.has(`income:${row.retreatId}`) ? `<tr><td colspan="11" class="bg-base-200/40 pl-8">
             <div class="text-sm font-medium mb-1">${e(tr('cost_income_ops', 'Приходы прасада ретрита'))}${inc && inc.share < 0.999 ? ` <span class="opacity-60">(${e(tr('cost_income_whole', 'весь ретрит; в период входит'))} ${Math.round(inc.share * 100)}%)</span>` : ''}</div>
             ${opsTable(view.incomeOps[row.retreatId])}</td></tr>` : ''}`;
@@ -579,31 +620,10 @@ function renderSummary() {
     const lostHtml = lost.length && isPeriod
         ? lost.map(l => `<tr class="text-warning text-sm"><td colspan="11">${e(l)}</td></tr>`).join('') : '';
 
-    // Режим «Ретрит»: для сведения — постоянные команда и волонтёры, евшие в те же дни.
-    // Они не участники ретрита (решение ВГ 25.09: вариант А), в итог ретрита не входят,
-    // их питание — на департаментах. Показывают, на сколько человек реально готовила кухня.
-    let asideHtml = '';
-    if (!isPeriod) {
-        const team = peopleStats({ ev: 'none', buckets: ['team'] }).people;
-        const vol = peopleStats({ ev: 'none', buckets: ['volunteers'] }).people;
-        const x = aggregate(cells, 'none', ['team', 'volunteers']);
-        if (team + vol) asideHtml = `<tr class="text-sm opacity-60 border-t border-dashed border-base-300 cursor-pointer hover:bg-base-200/50" data-action="open-dept" data-bucket="all" title="${e(tr('cost_to_departments', 'По департаментам →'))}">
-            <td class="pl-8"><div class="link link-hover">${e(tr('cost_aside_title', 'Для сведения: в эти же дни ели'))} ${e(tr('status_team', 'Команда').toLowerCase())} ${team}, ${e(tr('category_volunteer', 'Волонтёры').toLowerCase())} ${vol}</div>
-                <div class="text-xs">${e(tr('cost_aside_note', 'за счёт департаментов, в итог ретрита не входит'))}</div></td>
-            <td class="text-right">${num(team + vol)}</td>
-            <td class="text-right">${num(x.pm)}</td>
-            <td class="text-right">${ps === 'none' ? '—' : money(direct(x))}</td>
-            <td class="text-right">${money(overhead(x))}</td>
-            <td class="text-right">${money(total(x))}</td>
-            <td class="text-right">${x.pm ? money2(total(x) / x.pm) : '—'}</td>
-            <td></td><td></td><td></td>
-        </tr>`;
-    }
-
-    Layout.$('#summaryBody').innerHTML = (html || `<tr><td colspan="11" class="text-center opacity-60 py-6">${e(tr('cost_nothing', 'За период нет данных'))}</td></tr>`) + grandHtml + asideHtml + lostHtml;
+    Layout.$('#summaryBody').innerHTML = (html || `<tr><td colspan="11" class="text-center opacity-60 py-6">${e(tr('cost_nothing', 'За период нет данных'))}</td></tr>`) + grandHtml + lostHtml;
     Layout.$('#summaryNote').textContent = isPeriod
         ? tr('cost_summary_note_period', 'Ретрит, который захватывает несколько месяцев, входит в период своей долей: расходы — по дням, доход прасада — по доле приёмов пищи. «На участника» — стоимость ретрита на одного участника без команды и волонтёров.')
-        : tr('cost_summary_note_retreat', 'Ретрит целиком, включая дни раннего заезда и позднего выезда его участников. «На участника» — вся стоимость ретрита на одного участника без команды и волонтёров. Доход прасада — из отчёта по ретриту в финансах.');
+        : tr('cost_summary_note_retreat', 'Ретрит целиком, включая дни раннего заезда и позднего выезда его участников, до конца — по броням. «На участника» — вся стоимость ретрита на одного участника без постоянной команды и волонтёров (они — на вкладке «Команда и волонтёры»).');
     Layout.$('#summaryBox').classList.remove('hidden');
 }
 
@@ -665,7 +685,6 @@ function sectionList() {
     const problems = problemCount();
     return [
         { id: 'calc', label: tr('cost_section_calc', 'Расчёт') },
-        state.mode === 'retreat' ? { id: 'now', label: tr('cost_section_now', 'Ретрит сейчас') } : null,
         { id: 'charts', label: tr('cost_section_charts', 'Графики') },
         { id: 'data', label: `${tr('cost_section_data', 'Данные')}${problems ? ` (${problems})` : ''}`, warn: problems > 0 }
     ].filter(Boolean);
@@ -710,7 +729,7 @@ function renderTabs() {
     Layout.$('#tabsBox').classList.remove('hidden');
     ({ eaters: renderEaters, departments: renderDepartments, direct: renderDirect, overhead: renderOverhead,
        reconcile: renderReconcile, settings: () => { renderKits(); renderThreshold(); renderGroups(); }, problems: renderWarnings,
-       completeness: renderCompleteness, now: renderNow, charts: renderCharts })[panel]?.();
+       completeness: renderCompleteness, charts: renderCharts })[panel]?.();
 }
 
 // ---------- Полнота данных ----------
@@ -765,88 +784,13 @@ function renderCompleteness() {
 // ---------- Ретрит сейчас ----------
 // Потрачено на сегодня (расчёт с начала по сегодня) и прогноз до конца: оставшиеся приёмы пищи
 // людей ретрита (по броням и регистрациям) × стоимость приёма пищи на сегодня.
-async function loadNow() {
-    if (view.now || state.mode !== 'retreat') return;
-    const today = DateUtils.toISO(new Date());
-    const ev = `retreat:${state.retreatId}`;
-    const pmOf = (from, to) => {
-        let n = 0;
-        for (const [d, day] of Object.entries(view.result.counts || {})) {
-            if (d < from || d > to) continue;
-            for (const m of ['breakfast', 'lunch']) { const b = day.byEvent?.[m]?.[ev]; if (b) n += ALL_BUCKETS.reduce((s, k) => s + (b[k] || 0), 0); }
-        }
-        return n;
-    };
-    const status = today < view.from ? 'before' : today > view.to ? 'after' : 'running';
-    let toDate = null;
-    if (status === 'running') {
-        const res = await KitchenCost.calculate(Layout.db, locationId, view.from, today);
-        toDate = aggregate(res.cells, ev, ALL_BUCKETS);
-    }
-    view.now = { status, today, toDate, remainingPm: status === 'running' ? pmOf(addDays(today, 1), view.to) : 0 };
-}
-
-function renderNow() {
-    const box = Layout.$('#nowBody');
-    if (!view.now) {
-        box.innerHTML = `<div class="py-6 text-center"><span class="loading loading-spinner"></span></div>`;
-        loadNow().then(() => view && state.section === 'now' && renderNow()).catch(err => {
-            console.error('Ретрит сейчас:', err);
-            box.innerHTML = `<div class="alert alert-error text-sm">${e(errorText(err))}</div>`;
-        });
-        return;
-    }
-    const n = view.now;
-    const whole = aggregate(view.result.cells, `retreat:${state.retreatId}`, ALL_BUCKETS);
-    const inc = view.incomes[state.retreatId];
-    const ps = pricesState();
-    const days = (a, b) => Math.round((DateUtils.parseDate(b) - DateUtils.parseDate(a)) / 86400000) + 1;
-    const total_days = days(view.from, view.to);
-    const card = (label, value, sub, cls = '') => `<div class="bg-base-200/50 rounded-xl p-4">
-        <div class="text-xs uppercase tracking-wide opacity-60">${e(label)}</div>
-        <div class="text-xl font-bold mt-1 ${cls}">${value}</div>${sub ? `<div class="text-xs opacity-60 mt-1">${sub}</div>` : ''}</div>`;
-    const resCls = v => v < 0 ? 'text-error' : 'text-success';
-
-    let head, cards;
-    if (n.status === 'before') {
-        head = `${tr('cost_now_before', 'Ретрит ещё не начался')} · ${tr('cost_now_starts_in', 'до начала')} ${days(n.today, view.from) - 1} ${tr('cost_days_short', 'дн.')}`;
-        cards = [
-            card(tr('cost_now_forecast_total', 'Прогноз себестоимости'), money(total(whole)), e(tr('cost_now_by_bookings', 'по броням и регистрациям'))),
-            card(tr('cost_income', 'Доход прасада'), inc ? money(inc.full) : '—', ''),
-            card(tr('cost_now_forecast_result', 'Прогноз результата'), inc && ps !== 'none' ? money(inc.full - total(whole)) : '—', '', inc && ps !== 'none' ? resCls(inc.full - total(whole)) : '')
-        ];
-    } else if (n.status === 'after') {
-        head = tr('cost_now_after', 'Ретрит завершён — итог');
-        cards = [
-            card(tr('cost_total', 'Себестоимость'), money(total(whole)), `${num(whole.pm)} ${e(tr('cost_person_meals', 'приёмов пищи').toLowerCase())}`),
-            card(tr('cost_now_dds', 'Расход прасада по кассе'), inc ? money(inc.expense) : '—', e(tr('cost_now_dds_hint', 'то, что в финансах отнесено на прасад ретрита'))),
-            card(tr('cost_income', 'Доход прасада'), inc ? money(inc.full) : '—', ''),
-            card(tr('cost_result', 'Результат'), inc && ps !== 'none' ? money(inc.full - total(whole)) : '—', '', inc && ps !== 'none' ? resCls(inc.full - total(whole)) : '')
-        ];
-    } else {
-        const passed = days(view.from, n.today);
-        const t0 = n.toDate ? total(n.toDate) : 0;
-        const perMeal = n.toDate?.pm ? t0 / n.toDate.pm : 0;
-        const forecastRest = n.remainingPm * perMeal;
-        const forecast = t0 + forecastRest;
-        head = `${tr('cost_now_running', 'Идёт')} ${passed}-${tr('cost_now_day', 'й день из')} ${total_days}`;
-        cards = [
-            card(tr('cost_now_spent', 'Потрачено на сегодня'), money(t0), `${num(n.toDate?.pm || 0)} ${e(tr('cost_person_meals', 'приёмов пищи').toLowerCase())} · ${money2(perMeal)} ${e(tr('cost_now_per_meal', 'за приём'))}`),
-            card(tr('cost_now_dds', 'Расход прасада по кассе'), inc ? money(inc.expense) : '—', e(tr('cost_now_dds_hint', 'то, что в финансах отнесено на прасад ретрита'))),
-            card(tr('cost_now_remaining', 'Осталось приёмов пищи'), num(n.remainingPm), `${e(tr('cost_now_forecast_rest', 'прогноз'))} ${money(forecastRest)}`),
-            card(tr('cost_now_forecast_total', 'Прогноз себестоимости'), money(forecast), e(tr('cost_now_forecast_hint', 'потрачено + оставшиеся приёмы × стоимость приёма на сегодня'))),
-            card(tr('cost_income', 'Доход прасада'), inc ? money(inc.full) : '—', e(tr('cost_now_income_hint', 'пришло за ретрит на сегодня'))),
-            card(tr('cost_now_forecast_result', 'Прогноз результата'), inc && ps !== 'none' ? money(inc.full - forecast) : '—', '', inc && ps !== 'none' ? resCls(inc.full - forecast) : '')
-        ];
-    }
-    const pct = n.status === 'after' ? 100 : n.status === 'before' ? 0 : Math.round(days(view.from, n.today) / total_days * 100);
-    box.innerHTML = `<div class="flex flex-wrap items-center gap-3 mb-4">
-            <div class="font-semibold">${e(head)}</div>
-            <progress class="progress progress-primary w-56" value="${pct}" max="100"></progress>
-            <span class="text-sm opacity-60">${e(DateUtils.formatRange(view.from, view.to))}</span>
-        </div>
-        ${ps === 'none' ? `<div class="alert alert-warning text-sm mb-4">${e(tr('cost_w_no_prices_all', 'Цены ещё не внесены ни на один продукт — продукты и посуда считаются как 0'))}</div>` : ''}
-        <div class="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-3">${cards.join('')}</div>`;
+// Ретрит идёт: себестоимость с начала ретрита по сегодня (для «съедено на сегодня» в сводке)
+function loadNow() {
+    if (view.nowLoading) return view.nowLoading;
+    const v = view, today = DateUtils.toISO(new Date());
+    v.nowLoading = KitchenCost.calculate(Layout.db, locationId, v.from, today)
+        .then(res => { v.now = { toDate: aggregate(res.cells, `retreat:${state.retreatId}`, ALL_BUCKETS) }; });
+    return v.nowLoading;
 }
 
 // ---------- Графики ----------
@@ -1096,13 +1040,15 @@ function opsTable(ops) {
         </tr>`).join('')}</tbody></table>`;
 }
 
-// Приходы прасада ретрита (операции из отчёта по ретриту) — по всем статьям блока «Прасад»
-async function loadIncomeOps(retreatId) {
+// Операции кассы прасада ретрита (из отчёта по ретриту) — по всем статьям блока «Прасад»:
+// dir 'in' — приходы, 'out' — расходы
+async function loadIncomeOps(retreatId, dir = 'in') {
     const inc = view.incomes[retreatId];
-    if (!inc || view.incomeOps[retreatId]) return;
-    const parts = await Promise.all(inc.groups.map(g => Layout.db.rpc('fin_get_report_drilldown',
-        { p_object: inc.objectId, p_unit: 'prasad', p_direction: 'in', p_group: g })));
-    view.incomeOps[retreatId] = parts.flatMap(({ data }) => data?.ok ? data.result.rows : []).map(r => ({
+    const store = dir === 'in' ? view.incomeOps : view.expenseOps;
+    if (!inc || store[retreatId]) return;
+    const parts = await Promise.all((dir === 'in' ? inc.groups : inc.expenseGroups).map(g => Layout.db.rpc('fin_get_report_drilldown',
+        { p_object: inc.objectId, p_unit: 'prasad', p_direction: dir, p_group: g })));
+    store[retreatId] = parts.flatMap(({ data }) => data?.ok ? data.result.rows : []).map(r => ({
         date: r.occurred_on, opId: r.operation_id, title: r.description || r.participant || r.reason || '—',
         meta: [r.description && r.participant ? r.participant : '', r.account].filter(Boolean).join(' · '),
         amount: Number(r.amount_base), foreign: r.currency !== 'INR' ? `${Number(r.amount).toLocaleString(locale())} ${r.currency}` : ''
@@ -1118,6 +1064,7 @@ const toggleCell = key => `<span class="inline-block w-4 opacity-60">${expanded.
 
 function renderEaters() {
     const rows = rowDefs();
+    Layout.$('#eatersNote').classList.toggle('hidden', state.mode !== 'retreat');
     Layout.$('#eatersHead').innerHTML = `<tr><th></th>
         <th class="text-right">${e(tr('cost_people', 'Людей'))}</th>
         <th class="text-right">${e(tr('cost_ate_both', 'Завтраки и обеды'))}</th>
@@ -1787,6 +1734,15 @@ document.addEventListener('click', ev => {
             ev.stopPropagation();
             break;
         }
+        case 'toggle-cash': {
+            // одна раскрытая сумма за раз: приходы или расходы
+            const dir = btn.dataset.dir, key = `cash:${dir}`, was = expanded.has(key);
+            expanded.delete('cash:in'); expanded.delete('cash:out');
+            if (!was) expanded.add(key);
+            renderCash();
+            if (!was) loadIncomeOps(state.retreatId, dir).then(() => view && renderCash());
+            break;
+        }
         case 'toggle-recon': {
             const key = btn.dataset.key;
             if (expanded.has(key)) expanded.delete(key); else expanded.add(key);
@@ -1908,7 +1864,7 @@ async function init() {
     let saved = {};
     try { saved = JSON.parse(localStorage.getItem('kitchen_cost_view') || '{}'); } catch { saved = {}; }
     state.mode = saved.mode === 'period' ? 'period' : 'retreat';
-    state.section = ['calc', 'now', 'charts', 'data'].includes(saved.section) ? saved.section : 'calc';
+    state.section = ['calc', 'charts', 'data'].includes(saved.section) ? saved.section : 'calc';
     state.tab = saved.tab || 'eaters';
     state.dataTab = DATA_TABS.includes(saved.dataTab) ? saved.dataTab : 'completeness';
     const current = retreats.find(r => r.start_date <= today && r.end_date >= today)
