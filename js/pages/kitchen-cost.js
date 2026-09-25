@@ -1220,42 +1220,103 @@ function renderDepartments() {
 }
 
 // ---------- Прямые затраты ----------
+let directOnlyNoMenu = false;   // «Прямые затраты»: показать только приёмы пищи без меню
+
 function renderDirect() {
     const scope = scopeEvents();
     const ps = pricesState();
+    // Заголовок с подсказкой: пунктир — наведите, будет пояснение
+    const hintTh = (label, hint) => `<th class="text-right"><span class="underline decoration-dotted cursor-help" title="${e(hint)}">${e(label)}</span></th>`;
     Layout.$('#directHead').innerHTML = `<tr><th>${e(tr('date', 'Дата'))}</th><th></th>
-        <th class="text-right">${e(tr('cost_cook_portions', 'Порций (повар)'))}</th>
-        <th class="text-right">${e(tr('cost_eaters', 'Вкушающих'))}</th>
-        ${scope ? `<th class="text-right">${e(tr('cost_of_them_retreat', 'из них ретрит'))}</th>` : ''}
+        ${scope ? hintTh(tr('cost_retreat_eaters', 'Ретрит'), tr('cost_retreat_eaters_hint', 'Сколько участников этого ретрита ело в этот приём пищи: гости, важные гости, волонтёры и команда, приехавшие под ретрит. Наведите на число — разбивка.')) : ''}
+        ${hintTh(scope ? tr('cost_eaters_all', 'Вкушающих всего') : tr('cost_eaters', 'Вкушающих'), tr('cost_eaters_hint', 'Все, кто ел, по подсчёту из размещения — вместе с участниками ретрита, командой, волонтёрами и гостями. Наведите на число — разбивка.'))}
+        ${hintTh(tr('cost_cook_portions', 'Порций (повар)'), tr('cost_cook_portions_hint', 'Число порций, которое повар сам внёс в меню. Продукты считаются на это число, а делятся между вкушающими.'))}
         <th class="text-right">${e(tr('cost_food', 'Продукты'))}</th>
         <th class="text-right">${e(tr('cost_dishware', 'Посуда'))}</th>
         <th class="text-right">${e(tr('cost_external', 'Готовое'))}</th>
         <th class="text-right">${e(tr('cost_total', 'Всего'))}</th></tr>`;
+
+    // Разбивка вкушающих для подсказки: «Ретрит Художников: участники 1 · без события: волонтёры 20, команда 12»
+    const breakdown = (byEvent, onlyScope) => Object.entries(byEvent || {})
+        .filter(([ev]) => !onlyScope || !scope || scope.includes(ev))
+        .map(([ev, b]) => {
+            const parts = ALL_BUCKETS.filter(k => b[k]).map(k => `${(ev === 'none' ? (NONE_ROWS.find(r => r.buckets.includes(k))?.label() || k) : BUCKET_LABELS[k]()).toLowerCase()} ${b[k]}`);
+            if (!parts.length) return '';
+            return `${ev === 'none' ? tr('cost_no_event', 'без события') : retreatName(ev.slice(8))}: ${parts.join(', ')}`;
+        }).filter(Boolean).join(' · ');
+    const countOf = (byEvent, onlyScope) => Object.entries(byEvent || {})
+        .filter(([ev]) => !onlyScope || !scope || scope.includes(ev))
+        .reduce((s, [, b]) => s + ALL_BUCKETS.reduce((x, k) => x + (b[k] || 0), 0), 0);
+
+    // Клик по «Завтрак»/«Обед» — меню этого дня, прокрутка к приёму пищи
+    const menuLink = (d, meal) => `<a class="link link-hover" href="menu.html#day/${d}/${meal}" title="${e(tr('cost_open_menu', 'Открыть меню этого дня'))}">${e(MEAL_LABELS[meal]())}</a>`;
+
+    // Все дни периода подряд: приём пищи без меню — серой строкой, чтобы пропуск был виден
+    const byKey = new Map();
+    for (const r of view.result.mealRecords) {
+        const k = `${r.date}|${r.meal}`;
+        (byKey.get(k) || byKey.set(k, []).get(k)).push(r);
+    }
+    const counts = view.result.counts || {};
     const sum = { food: 0, dish: 0, ext: 0 };
-    const rows = view.result.mealRecords.filter(r => r.date >= view.from && r.date <= view.to)
-        .sort((a, b) => a.date.localeCompare(b.date) || a.meal.localeCompare(b.meal)).map(r => {
-        let n = r.eaters;
-        if (scope) n = Object.entries(r.byEvent).filter(([ev]) => scope.includes(ev))
-            .reduce((s, [, b]) => s + ALL_BUCKETS.reduce((x, k) => x + (b[k] || 0), 0), 0);
-        if (scope && !n) return '';
-        const share = r.eaters ? n / r.eaters : 0;
-        const food = r.food * share, dish = r.dishwarePerEater * n, ext = r.external * share;
-        sum.food += food; sum.dish += dish; sum.ext += ext;
-        const fullyExternal = !r.ownDishes && r.external > 0;
-        const extTitle = r.externalNames.length ? r.externalNames.join(', ') : '';
-        return `<tr class="${r.unallocated ? 'text-warning' : ''}">
-            <td class="whitespace-nowrap">${e(fmtDay(r.date))}</td>
-            <td class="text-sm">${e(MEAL_LABELS[r.meal]())}${fullyExternal ? ` <span class="badge badge-info badge-xs">${e(tr('cost_fully_external', 'целиком со стороны'))}</span>` : ''}</td>
-            <td class="text-right">${r.portions ?? '—'}</td>
-            <td class="text-right">${r.eaters || '—'}</td>
-            ${scope ? `<td class="text-right">${n}</td>` : ''}
-            <td class="text-right">${ps === 'none' ? '—' : money(food)}</td>
-            <td class="text-right">${ps === 'none' ? '—' : money(dish)}</td>
-            <td class="text-right" title="${e(extTitle)}">${ext ? money(ext) : '—'}</td>
-            <td class="text-right font-medium">${money(food + dish + ext)}</td></tr>`;
-    }).join('');
-    Layout.$('#directBody').innerHTML = rows
-        ? rows + `<tr class="font-semibold border-t-2 border-base-300"><td colspan="${scope ? 5 : 4}">${e(tr('cost_total', 'Всего'))}</td>
+    const noMenu = [];
+    const out = [];
+    for (let d = view.from; d <= view.to; d = addDays(d, 1)) {
+        for (const meal of ['breakfast', 'lunch']) {
+            const recs = byKey.get(`${d}|${meal}`);
+            if (!recs) {
+                const byEvent = counts[d]?.byEvent?.[meal];
+                const total = countOf(byEvent, false), n = countOf(byEvent, true);
+                if (!(scope ? n : total)) continue;
+                noMenu.push({ d, meal });
+                out.push(`<tr class="opacity-60">
+                    <td class="whitespace-nowrap">${e(fmtDay(d))}</td>
+                    <td class="text-sm">${menuLink(d, meal)} <span class="badge badge-warning badge-xs">${e(tr('cost_no_menu', 'меню не внесено'))}</span></td>
+                    ${scope ? `<td class="text-right" title="${e(breakdown(byEvent, true))}">${n}</td>` : ''}
+                    <td class="text-right" title="${e(breakdown(byEvent, false))}">${total}</td>
+                    <td class="text-right">—</td><td class="text-right">—</td><td class="text-right">—</td><td class="text-right">—</td><td class="text-right">—</td></tr>`);
+                continue;
+            }
+            if (directOnlyNoMenu) continue;
+            for (const r of recs) {
+                const n = scope ? countOf(r.byEvent, true) : r.eaters;
+                if (scope && !n) continue;
+                const share = r.eaters ? n / r.eaters : 0;
+                const food = r.food * share, dish = r.dishwarePerEater * n, ext = r.external * share;
+                sum.food += food; sum.dish += dish; sum.ext += ext;
+                const fullyExternal = !r.ownDishes && r.external > 0;
+                const extTitle = r.externalNames.length ? r.externalNames.join(', ') : '';
+                out.push(`<tr class="${r.unallocated ? 'text-warning' : ''}">
+                    <td class="whitespace-nowrap">${e(fmtDay(r.date))}</td>
+                    <td class="text-sm">${menuLink(r.date, r.meal)}${fullyExternal ? ` <span class="badge badge-info badge-xs">${e(tr('cost_fully_external', 'целиком со стороны'))}</span>` : ''}</td>
+                    ${scope ? `<td class="text-right" title="${e(breakdown(r.byEvent, true))}">${n}</td>` : ''}
+                    <td class="text-right" title="${e(breakdown(r.byEvent, false))}">${r.eaters || '—'}</td>
+                    <td class="text-right">${r.portions ?? '—'}</td>
+                    <td class="text-right">${ps === 'none' ? '—' : money(food)}</td>
+                    <td class="text-right">${ps === 'none' ? '—' : money(dish)}</td>
+                    <td class="text-right" title="${e(extTitle)}">${ext ? money(ext) : '—'}</td>
+                    <td class="text-right font-medium">${money(food + dish + ext)}</td></tr>`);
+            }
+        }
+    }
+
+    // Пропусков нет (сменили ретрит/период) — фильтр «только без меню» снимаем, иначе таблица пустая
+    if (!noMenu.length && directOnlyNoMenu) { directOnlyNoMenu = false; return renderDirect(); }
+
+    // Правило ВГ: о любом пропуске данных — предупреждение сверху
+    const warnBox = Layout.$('#directWarn');
+    if (noMenu.length) {
+        const days = new Set(noMenu.map(x => x.d)).size;
+        const list = noMenu.map(x => `<a class="link" href="menu.html#day/${x.d}/${x.meal}">${e(fmtDay(x.d).replace(/ \d{4}$/, ''))} ${e(MEAL_LABELS[x.meal]().toLowerCase())}</a>`);
+        warnBox.innerHTML = `<span><b>⚠ ${e(tr('cost_no_menu_title', 'Нет меню'))}: ${noMenu.length} ${e(tr('cost_meals_short', 'приёмов пищи'))}, ${days} ${e(tr('cost_days_short', 'дн.'))}</b>
+            — ${e(tr('cost_no_menu_note', 'люди ели, но затраты на продукты по этим приёмам не посчитаны. Внесите меню на странице Меню.'))}
+            <details class="mt-1"><summary class="cursor-pointer">${e(tr('cost_show_dates', 'Показать даты'))}</summary>${list.join(', ')}</details></span>
+            <button class="btn btn-sm ${directOnlyNoMenu ? 'btn-active' : 'btn-outline'}" data-action="direct-only-nomenu">${e(directOnlyNoMenu ? tr('cost_show_all_meals', 'Показать все') : tr('cost_only_no_menu', 'Только без меню'))}</button>`;
+    }
+    warnBox.classList.toggle('hidden', !noMenu.length);
+
+    Layout.$('#directBody').innerHTML = out.length
+        ? out.join('') + `<tr class="font-semibold border-t-2 border-base-300"><td colspan="${scope ? 5 : 4}">${e(tr('cost_total', 'Всего'))}</td>
             <td class="text-right">${money(sum.food)}</td><td class="text-right">${money(sum.dish)}</td>
             <td class="text-right">${money(sum.ext)}</td><td class="text-right">${money(sum.food + sum.dish + sum.ext)}</td></tr>`
         : `<tr><td colspan="9" class="text-center opacity-60">${e(tr('cost_nothing', 'За период нет данных'))}</td></tr>`;
@@ -1633,6 +1694,10 @@ document.addEventListener('click', ev => {
             if (expanded.has(key)) loadDirectPostings().then(() => view && renderReconcile());
             break;
         }
+        case 'direct-only-nomenu':
+            directOnlyNoMenu = !directOnlyNoMenu;
+            renderDirect();
+            break;
         case 'open-dept':
             deptFilter = btn.dataset.bucket || 'all';
             state.section = 'calc';

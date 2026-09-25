@@ -150,6 +150,21 @@ function updateHash() {
     history.replaceState(null, '', hash);
 }
 
+// #day/ГГГГ-ММ-ДД/lunch — приём пищи, к которому прокрутить после загрузки
+// (ссылки со страницы Себестоимость → Прямые затраты)
+let pendingMeal = null;
+
+function scrollToPendingMeal() {
+    if (!pendingMeal || currentView !== 'day') return;
+    const el = Layout.$('#dayContent')?.querySelector(`[data-meal-type="${CSS.escape(pendingMeal)}"]`);
+    pendingMeal = null;
+    if (!el) return;
+    el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    const box = el.closest('.rounded-lg') || el;
+    box.classList.add('ring-2', 'ring-warning');
+    setTimeout(() => box.classList.remove('ring-2', 'ring-warning'), 2500);
+}
+
 function restoreFromHash() {
     const hash = location.hash.slice(1); // убираем #
     if (!hash) return;
@@ -158,6 +173,7 @@ function restoreFromHash() {
     if (view === 'day' && parts[1]) {
         currentView = 'day';
         currentDate = parseLocalDate(parts[1]);
+        pendingMeal = parts[2] || null;
     } else if (view === 'week' && parts[1]) {
         currentView = 'week';
         currentWeekStart = parseLocalDate(parts[1]);
@@ -2359,6 +2375,7 @@ async function init() {
     Layout.showLoader();
     await loadData();
     Layout.hideLoader();
+    scrollToPendingMeal();
 
     // Проверка изменения количества едоков (async, не блокируем UI)
     checkEatingCountChanges();
