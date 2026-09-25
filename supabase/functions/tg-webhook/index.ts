@@ -171,6 +171,18 @@ function looksLikeList(rawText: string): boolean {
   return bigNumbers.length >= 3;
 }
 
+// Вкушающие и заезды/выезды: детализация скрыта целиком и раскрывается кнопкой
+// (просьба ВГ 25.09.2026 — свёрнутая цитата Телеграма оставляла видными 3 строки).
+// Формат совпадает с утренними/вечерними сводками в базе:
+//   eat:<1|0>:<дата>:<p|s>        — кухня (tg_kitchen_morning, /сколько);
+//   arr:<1|0>:<дата>:<plan|in|out> — ресепшен (tg_reception_evening, /приезд, /выезд).
+const detailKeyboard = (action: string, expand: boolean, iso: string, kind: string) => ({
+  inline_keyboard: [[{
+    text: expand ? "Подробнее" : "Свернуть",
+    callback_data: `${action}:${expand ? 1 : 0}:${iso}:${kind}`,
+  }]],
+});
+
 Deno.serve(async (req) => {
   const supa = createClient(
     Deno.env.get("SUPABASE_URL")!,
@@ -376,6 +388,30 @@ Deno.serve(async (req) => {
       }
       const { data: st } = await supa.rpc("tg_patch_draft", { p_id: draftId, p: patch });
       if (st?.ok) await renderCard(msg.chat.id, msg.message_id, draftId, st);
+    } else if (action === "eat") {
+      // «Подробнее» / «Свернуть» под вкушающими: перерисовываем то же сообщение.
+      // p — утренний «План на завтра» (шапка сверху), s — ответ на /сколько.
+      const detail = parts[1] === "1";
+      const { data: txt } = await supa.rpc("tg_eating_text", { p_date: parts[2], p_detail: detail });
+      if (txt) {
+        await tg("editMessageText", {
+          chat_id: msg.chat.id, message_id: msg.message_id, parse_mode: "HTML",
+          text: (parts[3] === "p" ? "📋 <b>План на завтра</b>\n" : "") + txt,
+          reply_markup: detailKeyboard("eat", !detail, parts[2], parts[3]),
+        });
+      }
+    } else if (action === "arr") {
+      // То же для ресепшена: plan — вечерний «План на завтра», in/out — /приезд и /выезд
+      const detail = parts[1] === "1";
+      const { data: txt } = parts[3] === "plan"
+        ? await supa.rpc("tg_reception_plan_text", { p_day: parts[2], p_detail: detail })
+        : await supa.rpc("tg_arrivals_text", { p_date: parts[2], p_direction: parts[3], p_detail: detail });
+      if (txt) {
+        await tg("editMessageText", {
+          chat_id: msg.chat.id, message_id: msg.message_id, parse_mode: "HTML", text: txt,
+          reply_markup: detailKeyboard("arr", !detail, parts[2], parts[3]),
+        });
+      }
     } else if (action === "hy" || action === "hn") {
       // Передача между держателями: подтвердить может только получатель —
       // по его Telegram-id, а не по имени в тексте. Карточка видна всем в чате,
@@ -537,10 +573,11 @@ Deno.serve(async (req) => {
   // Считает та же функция, что и меню на сайте, — расхождения быть не может.
   if (/^\/(сколько|вкушающие|питание|eaters)(\s|$)/i.test(text)) {
     const iso = askedDate(text.replace(/^\/\S+\s*/, "").trim().toLowerCase());
-    const { data: txt } = await supa.rpc("tg_eating_text", { p_date: iso });
+    const { data: txt } = await supa.rpc("tg_eating_text", { p_date: iso, p_detail: false });
     await tg("sendMessage", {
       chat_id: m.chat.id, reply_to_message_id: m.message_id, parse_mode: "HTML",
       text: txt ?? "На эту дату данных нет. Напишите «/сколько завтра» или «/сколько 5.08».",
+      ...(txt ? { reply_markup: detailKeyboard("eat", true, iso, "s") } : {}),
     });
     return new Response("ok");
   }
@@ -549,10 +586,12 @@ Deno.serve(async (req) => {
   if (/^\/(приезд|заезд|выезд|отъезд|arrivals|departures)(\s|$)/i.test(text)) {
     const dir = /выезд|отъезд|departures/i.test(text) ? "out" : "in";
     const iso = askedDate(text.replace(/^\/\S+\s*/, "").trim().toLowerCase());
-    const { data: txt } = await supa.rpc("tg_arrivals_text", { p_date: iso, p_direction: dir });
+    const { data: txt } = await supa.rpc("tg_arrivals_text", { p_date: iso, p_direction: dir, p_detail: false });
     await tg("sendMessage", {
       chat_id: m.chat.id, reply_to_message_id: m.message_id, parse_mode: "HTML",
       text: txt ?? "Не получилось собрать список.",
+      // «: 0» — раскрывать нечего, кнопка не нужна
+      ...(txt && !/: 0<\/b>$/.test(txt) ? { reply_markup: detailKeyboard("arr", true, iso, dir) } : {}),
     });
     return new Response("ok");
   }
