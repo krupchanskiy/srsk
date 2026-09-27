@@ -248,6 +248,12 @@ function renderCardRates() {
     const parts = Object.entries(retreatRates)
         .filter(([c]) => c !== 'INR')
         .map(([c, r]) => `1 ${FinUtils.symbol(c)} = ${Number(r).toLocaleString('ru-RU', { maximumFractionDigits: 2 })} ₹`);
+    // У событий новой системы общий курс не подставляется (561) — без курса
+    // события смена валюты и приём в другой валюте не пройдут, говорим сразу
+    if (!parts.length && новаяСистема(балансКарточки())) {
+        el.innerHTML = `<span class="text-warning">${e(t('fin_retreat_rate_missing'))}</span>`;
+        return;
+    }
     el.textContent = parts.length ? `${t('fin_rates_header')}: ${parts.join(' · ')}` : '';
 }
 
