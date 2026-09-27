@@ -863,14 +863,43 @@ function updateExpenseRecap() {
 // Ретрит для «Касса кафе» подсказываем по дате, пока казначей не поправит поле сам
 let incObjectAuto = true;
 
+// «Прасад - пожертвование»: в даты нашего общего ретрита — этот ретрит (ВГ 27.09.2026, правило как в
+// отчётах: fin_private_common_retreat_on), с пояснением под полем; вне ретритов — без ретрита
+let incPrasadAutoObject = null;   // что поставили сами — чтобы при смене даты снять, а выбор казначея не трогать
+let incHintToken = 0;
+const PRASAD_DONATION_NAME = 'Прасад - пожертвование';
+
 async function maybeSuggestIncomeObject() {
+    const hint = document.getElementById('incObjectHint');
+    const objSel = document.getElementById('incObject');
+    const catId = document.getElementById('incCategory').value;
+    const isPrasad = FinUtils.refs.categories.find(c => c.id === catId)?.name === PRASAD_DONATION_NAME;
+    if (hint && !isPrasad) hint.textContent = '';
     if (!incObjectAuto) return;
-    if (!FinUtils.isCafeCategory(document.getElementById('incCategory').value)) return;
+    if (isPrasad) {
+        const token = ++incHintToken;
+        const date = document.getElementById('incDate').value;
+        const { data } = date ? await Layout.db.rpc('fin_prasad_donation_object', { p_date: date }) : { data: null };
+        if (token !== incHintToken || !incObjectAuto) return;
+        if (data?.object_id && !data.is_closed) {
+            objSel.value = data.object_id;
+            incPrasadAutoObject = data.object_id;
+            if (hint) hint.textContent = `В эти даты идёт «${data.retreat_name}» — пожертвование отнесено к нему. Не так — выберите «Без ретрита».`;
+        } else {
+            if (incPrasadAutoObject && objSel.value === incPrasadAutoObject) objSel.value = '';
+            incPrasadAutoObject = null;
+            if (hint) hint.textContent = data?.is_closed ? `«${data.retreat_name}» уже закрыт — пожертвование пойдёт без ретрита.` : '';
+        }
+        return;
+    }
+    if (!FinUtils.isCafeCategory(catId)) return;
     const objId = await FinUtils.nearestRetreatObject(document.getElementById('incDate').value);
-    if (objId) document.getElementById('incObject').value = objId;
+    if (objId) objSel.value = objId;
 }
 
 function openIncome() {
+    incPrasadAutoObject = null;
+    if (document.getElementById('incObjectHint')) document.getElementById('incObjectHint').textContent = '';
     requestIds.income = requestIds.income || FinUtils.newRequestId();
     incObjectAuto = true;
     document.getElementById('incDate').value = FinUtils.todayISO();
