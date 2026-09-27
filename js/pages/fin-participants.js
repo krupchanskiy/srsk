@@ -1759,6 +1759,25 @@ async function submitPayment(ev) {
         `\n${t('fin_pay_confirm_q')}`;
     if (!confirm(вопрос)) return;
 
+    // Излишек, оставленный как пожертвование (п.3): отдельная операция на тот же
+    // счёт, но проводится сервером в одной транзакции с платежом — раньше её
+    // слали вторым запросом, и при сбое излишек не попадал в кассу (ВГ, 27.09)
+    const статья = FinUtils.refs.categories.find(c => c.code === 'participant_donation');
+    // по строке на каждую валюту излишка, счёт — та же касса, что в платеже
+    const строкиДара = Object.entries(payDonation || {}).map(([cur, сумма]) => {
+        const строка = [...document.querySelectorAll('#payRows .pay-row')]
+            .find(r => r.querySelector('.pay-currency').value === cur);
+        return {
+            id: FinUtils.newRequestId(),
+            account_id: строка?.querySelector('.pay-account').value,
+            amount: сумма,
+            category_id: статья?.id,
+            object_id: objectId,
+            participant_id: payer,
+            payment_channel: 'cash'
+        };
+    }).filter(x => x.account_id);
+
     const res = await FinUtils.rpc('fin_create_payment', {
         request_id: requestIds.payment,
         occurred_on: document.getElementById('payDate').value,
@@ -1766,7 +1785,11 @@ async function submitPayment(ev) {
         comment: document.getElementById('payComment').value || null,
         rows,
         change: change.length ? change : null,
-        ...(обмен.length ? { exchange: обмен.map(({ cur, ...x }) => x) } : {})
+        ...(обмен.length ? { exchange: обмен.map(({ cur, ...x }) => x) } : {}),
+        ...(строкиДара.length ? { donation: {
+            comment: `Излишек при оплате (${card.name}) — оставлен как пожертвование`,
+            rows: строкиДара
+        } } : {})
     });
     if (FinUtils.handleResult(res)) {
         // Комментарий к приёму — в историю сделки каждого, за кого платили,
@@ -1778,35 +1801,6 @@ async function submitPayment(ev) {
                 .eq('retreat_id', currentRetreat).neq('status', 'cancelled');
             for (const s of сделки || []) {
                 await addDealNote(s.id, `Оплата в кассу: ${итог}`, комментарий);
-            }
-        }
-        // Излишек, оставленный как пожертвование (п.3): отдельная операция на тот же
-        // счёт — платёж закрывает ровно долг, разница проведена как пожертвование
-        if (payDonation) {
-            const статья = FinUtils.refs.categories.find(c => c.code === 'participant_donation');
-            // по строке на каждую валюту излишка, счёт — та же касса, что в платеже
-            const строкиДара = Object.entries(payDonation).map(([cur, сумма]) => {
-                const строка = [...document.querySelectorAll('#payRows .pay-row')]
-                    .find(r => r.querySelector('.pay-currency').value === cur);
-                return {
-                    id: FinUtils.newRequestId(),
-                    account_id: строка?.querySelector('.pay-account').value,
-                    amount: сумма,
-                    category_id: статья?.id,
-                    object_id: objectId,
-                    participant_id: payer,
-                    payment_channel: 'cash'
-                };
-            }).filter(x => x.account_id);
-            if (строкиДара.length) {
-                const донат = await FinUtils.rpc('fin_create_donation', {
-                    request_id: FinUtils.newRequestId(),
-                    occurred_on: document.getElementById('payDate').value,
-                    payer_contact_id: payer,
-                    comment: `Излишек при оплате (${card.name}) — оставлен как пожертвование`,
-                    rows: строкиДара
-                });
-                if (!донат?.ok) Layout.showNotification(`${t('fin_donation_excess')}: ${донат?.error?.message || 'ошибка'}`, 'error');
             }
         }
         requestIds.payment = null;
