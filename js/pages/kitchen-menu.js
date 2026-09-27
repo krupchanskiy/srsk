@@ -322,7 +322,7 @@ async function loadMenuData() {
             *,
             cook:vaishnavas(*),
             dishes:menu_dishes(*, recipe:recipes(*, category:recipe_categories(*))),
-            external:menu_external_items(id, name, amount)
+            external:menu_external_items(id, name, amount, kind, per_person)
         `)
         .eq('location_id', locationId)
         .gte('date', startDate)
@@ -712,7 +712,8 @@ function renderMealSection(dateStr, mealType, index, mealData, isEkadashiDay) {
                         <span class="text-xl font-medium">${mealTitle}</span>
                     </div>
                 </div>
-                ${canEdit && !isCafe ? `<div class="text-center"><button class="btn btn-ghost btn-xs" data-action="open-external-modal" data-date="${dateStr}" data-meal-type="${mealType}">+ ${tr('menu_external_add', 'Готовое со стороны')}</button></div>` : ''}
+                ${canEdit && !isCafe ? `<div class="text-center"><button class="btn btn-ghost btn-xs" data-action="open-external-modal" data-date="${dateStr}" data-meal-type="${mealType}">+ ${tr('menu_external_add', 'Готовое со стороны')}</button>
+                    <button class="btn btn-ghost btn-xs" data-action="open-own-cook-modal" data-date="${dateStr}" data-meal-type="${mealType}">+ ${tr('menu_own_cook_add', 'Готовил Бридж Кишор')}</button></div>` : ''}
             </div>
         `;
     }
@@ -839,17 +840,25 @@ function renderMealSection(dateStr, mealType, index, mealData, isEkadashiDay) {
 }
 
 // Строки «Готовое со стороны»: обед или блюдо, купленное целиком. Сумму видят те, кто правит меню.
-function renderExternalItems(dateStr, mealType, items, canAdd, showAmount) {
-    if (!items.length && !canAdd) return '';
-    const rows = items.map(x => `
+function renderExternalItems(dateStr, mealType, allItems, canAdd, showAmount) {
+    // «Готовил из наших продуктов» (own_cook) — отдельным блоком: ничего не куплено, цена на одного (ВГ 27.09)
+    const own = allItems.filter(x => x.kind === 'own_cook');
+    const items = allItems.filter(x => x.kind !== 'own_cook');
+    const row = (x, amountText) => `
         <div class="flex justify-between items-center py-1">
             <span>${Layout.escapeHtml(x.name)}</span>
             <span class="flex items-center gap-2">
-                ${showAmount ? `<span class="text-sm opacity-60 no-print">${Number(x.amount).toLocaleString()} ₹</span>` : ''}
+                ${showAmount ? `<span class="text-sm opacity-60 no-print">${amountText}</span>` : ''}
                 ${canAdd ? `<button class="btn btn-ghost btn-xs btn-square text-error/60 no-print" data-action="remove-external" data-date="${dateStr}" data-meal-type="${mealType}" data-id="${x.id}">✕</button>` : ''}
             </span>
-        </div>`).join('');
-    return `<div class="mt-3 pt-2 border-t border-base-300/50">
+        </div>`;
+    const ownHtml = own.length ? `<div class="mt-3 pt-2 border-t border-base-300/50">
+        <div class="text-sm font-medium opacity-70">${tr('menu_own_cook_title', 'Готовил из наших продуктов')}</div>
+        ${own.map(x => row(x, `${Number(x.per_person).toLocaleString()} ₹ / ${tr('menu_per_person_short', 'чел.')}`)).join('')}
+    </div>` : '';
+    if (!items.length && !canAdd) return ownHtml;
+    const rows = items.map(x => row(x, `${Number(x.amount).toLocaleString()} ₹`)).join('');
+    return ownHtml + `<div class="mt-3 pt-2 border-t border-base-300/50">
         <div class="text-sm font-medium opacity-70">${tr('menu_external_title', 'Готовое со стороны')}</div>
         ${rows}
         ${canAdd ? `<button class="btn btn-ghost btn-xs no-print" data-action="open-external-modal" data-date="${dateStr}" data-meal-type="${mealType}">+ ${tr('menu_external_add', 'Готовое со стороны')}</button>` : ''}
@@ -858,10 +867,21 @@ function renderExternalItems(dateStr, mealType, items, canAdd, showAmount) {
 
 let externalContext = null;
 
-function openExternalModal(date, mealType) {
-    externalContext = { date, mealType };
+// Ориентировочная цена «Готовил Бридж Кишор» на одного: завтрак 60 ₹, обед 160 ₹ — всего 220 ₹ в день (ВГ 27.09)
+const OWN_COOK_RATE = { breakfast: 60, lunch: 160 };
+
+function openExternalModal(date, mealType, own = false) {
+    externalContext = { date, mealType, own };
     const form = Layout.$('#externalForm');
     form.reset();
+    Layout.$('#externalModalTitle').textContent = own ? tr('menu_own_cook_title', 'Готовил из наших продуктов') : tr('menu_external_title', 'Готовое со стороны');
+    Layout.$('#externalNameLabel').textContent = own ? tr('menu_own_cook_name', 'Кто готовил') : tr('menu_external_name', 'Что куплено');
+    Layout.$('#externalAmountLabel').textContent = own ? tr('menu_own_cook_rate', 'Стоимость на одного вкушающего, ₹') : tr('menu_external_amount', 'Сумма по факту оплаты, ₹');
+    Layout.$('#externalOwnHint').classList.toggle('hidden', !own);
+    if (own) {
+        form.name.value = tr('menu_own_cook_add', 'Готовил Бридж Кишор');
+        form.amount.value = OWN_COOK_RATE[mealType] ?? '';
+    }
     Layout.$('#externalModal').showModal();
 }
 
@@ -885,9 +905,12 @@ async function saveExternal(ev) {
         mealId = newMeal.id;
     }
 
+    const own = !!externalContext.own;
     const { data, error } = await Layout.db.from('menu_external_items')
-        .insert({ meal_id: mealId, name, amount, comment: form.comment.value.trim() || null })
-        .select('id, name, amount').single();
+        .insert(own
+            ? { meal_id: mealId, name, amount: 0, kind: 'own_cook', per_person: amount, comment: form.comment.value.trim() || null }
+            : { meal_id: mealId, name, amount, comment: form.comment.value.trim() || null })
+        .select('id, name, amount, kind, per_person').single();
     if (error) {
         console.error('Error adding external item:', error);
         Layout.showNotification(t('error'), 'error');
@@ -2286,6 +2309,7 @@ function setupViewDelegation(el) {
             case 'open-meal-details-modal': openMealDetailsModal(date, mealType); break;
             case 'remove-dish': removeDish(date, mealType, dishId); break;
             case 'open-external-modal': openExternalModal(date, mealType); break;
+            case 'open-own-cook-modal': openExternalModal(date, mealType, true); break;
             case 'remove-external': removeExternal(date, mealType, id); break;
             case 'open-day-detail': openDayDetail(date); break;
         }

@@ -595,7 +595,7 @@ function renderSummary() {
         <th class="text-right">${e(tr('cost_result', 'Результат'))}</th>` : ''}
     </tr>`;
 
-    const directCell = x => ps === 'none' ? `<span class="opacity-50">${e(tr('cost_no_prices', 'нет цен'))}</span>`
+    const directCell = x => ps === 'none' && !direct(x) ? `<span class="opacity-50">${e(tr('cost_no_prices', 'нет цен'))}</span>`
         : `${money(direct(x))}${warnMark(ps)}`;
     const grand = zero();
     let grandIncome = 0, anyIncome = false;
@@ -978,7 +978,7 @@ async function renderCharts() {
 
     if (top.length) charts.push(new Chart(document.getElementById('chTop'), {
         type: 'bar',
-        data: { labels: top.map(([pid]) => view.result.productNames[pid] || pid), datasets: [{ label: tr('cost_food', 'Продукты'), data: top.map(([, v]) => v), backgroundColor: PART_COLORS.food }] },
+        data: { labels: top.map(([pid]) => view.result.productNames[pid] || (pid === 'own_cook' ? tr('menu_own_cook_title', 'Готовил из наших продуктов') : pid)), datasets: [{ label: tr('cost_food', 'Продукты'), data: top.map(([, v]) => v), backgroundColor: PART_COLORS.food }] },
         options: { ...base, indexAxis: 'y', plugins: { legend: { display: false }, tooltip: moneyTip }, scales: { x: { ticks: { callback: money0 } } } }
     }));
 
@@ -1274,13 +1274,14 @@ function renderDirect() {
                 sum.food += food; sum.dish += dish; sum.ext += ext;
                 const fullyExternal = !r.ownDishes && r.external > 0;
                 const extTitle = r.externalNames.length ? r.externalNames.join(', ') : '';
+                const ownCook = (r.ownCookNames || []).length;   // «Готовил Бридж Кишор» — цена на одного, от цен продуктов не зависит
                 out.push(`<tr class="${r.unallocated ? 'text-warning' : ''}">
                     <td class="whitespace-nowrap">${e(fmtDay(r.date))}</td>
-                    <td class="text-sm">${menuLink(r.date, r.meal)}${fullyExternal ? ` <span class="badge badge-info badge-xs">${e(tr('cost_fully_external', 'целиком со стороны'))}</span>` : ''}</td>
+                    <td class="text-sm">${menuLink(r.date, r.meal)}${fullyExternal ? ` <span class="badge badge-info badge-xs">${e(tr('cost_fully_external', 'целиком со стороны'))}</span>` : ''}${ownCook ? ` <span class="badge badge-ghost badge-xs" title="${e(tr('menu_own_cook_hint', 'Продукты не покупаются — берутся из наших закупок. Цена ориентировочная: в себестоимости она умножается на число вкушающих.'))}">${e(r.ownCookNames.join(', '))}</span>` : ''}</td>
                     ${scope ? `<td class="text-right" title="${e(breakdown(r.byEvent, true))}">${n}</td>` : ''}
                     <td class="text-right" title="${e(breakdown(r.byEvent, false))}">${r.eaters || '—'}</td>
                     <td class="text-right">${r.portions ?? '—'}</td>
-                    <td class="text-right">${ps === 'none' ? '—' : money(food)}</td>
+                    <td class="text-right">${ps === 'none' && !ownCook ? '—' : money(food)}</td>
                     <td class="text-right">${ps === 'none' ? '—' : money(dish)}</td>
                     <td class="text-right" title="${e(extTitle)}">${ext ? money(ext) : '—'}</td>
                     <td class="text-right font-medium">${money(food + dish + ext)}</td></tr>`);

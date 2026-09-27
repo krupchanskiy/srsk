@@ -449,15 +449,16 @@
     <dialog id="externalModal" class="modal">
         <div class="modal-box max-w-md relative">
             <button type="button" class="btn btn-sm btn-circle btn-ghost absolute right-2 top-2" onclick="externalModal.close()">✕</button>
-            <h3 class="font-bold text-lg mb-4" data-i18n="menu_external_title">Готовое со стороны</h3>
+            <h3 id="externalModalTitle" class="font-bold text-lg mb-4">Готовое со стороны</h3>
             <form id="externalForm" class="space-y-4">
                 <div>
-                    <label class="label"><span class="label-text font-medium" data-i18n="menu_external_name">Что куплено</span></label>
+                    <label class="label"><span id="externalNameLabel" class="label-text font-medium">Что куплено</span></label>
                     <input type="text" name="name" class="input input-bordered w-full" required maxlength="200" />
                 </div>
                 <div>
-                    <label class="label"><span class="label-text font-medium" data-i18n="menu_external_amount">Сумма по факту оплаты, ₹</span></label>
+                    <label class="label"><span id="externalAmountLabel" class="label-text font-medium">Сумма по факту оплаты, ₹</span></label>
                     <input type="number" name="amount" min="0" step="0.01" class="input input-bordered w-full" required />
+                    <p id="externalOwnHint" class="text-xs opacity-60 mt-1 hidden">Продукты не покупаются — берутся из наших закупок. Цена ориентировочная: в себестоимости она умножается на число вкушающих.</p>
                 </div>
                 <div>
                     <label class="label"><span class="label-text font-medium" data-i18n="prices_field_comment">Комментарий</span></label>
@@ -525,6 +526,6 @@
     <script src="../js/auto-translate.js"></script>
     <script src="../js/layout.js?v=81"></script>
     <script src="../js/eating-utils.js?v=11"></script>
-    <script src="../js/pages/kitchen-menu.js?v=27"></script>
+    <script src="../js/pages/kitchen-menu.js?v=28"></script>
 </body>
 </html>

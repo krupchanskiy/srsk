@@ -65,7 +65,7 @@ function convert(amount, ingUnit, productUnit, density, units) {
 //   units:      { [code]: {type, ratio} }
 //   prices:     { [product_id]: [{price, valid_from, valid_to}] }
 //   kits:       { breakfast: [{product_id, quantity}], lunch: [...] }
-//   externals:  { [meal_id]: [{name, amount}] }
+//   externals:  { [meal_id]: [{name, amount, kind, per_person}] }  kind own_cook — готовил повар из наших продуктов
 //   counts:     результат EatingUtils.loadCounts
 function computeCosts(input) {
     const { meals, recipes, products, densities, units, prices, kits, externals, counts } = input;
@@ -155,11 +155,19 @@ function computeCosts(input) {
             dishwarePerEater += Number(k.quantity) * price;
         }
 
-        // --- готовое со стороны ---
-        const extRows = externals[meal.id] || [];
+        // --- готовое со стороны (куплено) и «готовил повар из наших продуктов» ---
+        // own_cook: продукты не покупались, берутся из закупок — ориентировочно цена × вкушающие, идёт в «Продукты» (ВГ 27.09)
+        const allExt = externals[meal.id] || [];
+        const extRows = allExt.filter(x => x.kind !== 'own_cook');
         const external = extRows.reduce((s, x) => s + Number(x.amount), 0);
+        const ownCook = allExt.filter(x => x.kind === 'own_cook');
+        if (ownCook.length) {
+            const add = ownCook.reduce((s, x) => s + Number(x.per_person || 0), 0) * eaters;
+            food += add;
+            foodByProduct.own_cook = (foodByProduct.own_cook || 0) + add;
+        }
         const record = { date: meal.date, meal: meal.meal_type, portions: meal.portions || null, eaters,
-                         food, foodByProduct, dishwarePerEater, external, externalNames: extRows.map(x => x.name),
+                         food, foodByProduct, dishwarePerEater, external, externalNames: extRows.map(x => x.name), ownCookNames: ownCook.map(x => x.name),
                          ownDishes: (meal.dishes || []).length, byEvent };
 
         if (eaters === 0) {
@@ -344,7 +352,7 @@ async function load(db, locationId, from, to) {
 
     const mealIds = meals.map(m => m.id);
     const externalRows = mealIds.length
-        ? await fetchAll(() => db.from('menu_external_items').select('id, meal_id, name, amount').in('meal_id', mealIds))
+        ? await fetchAll(() => db.from('menu_external_items').select('id, meal_id, name, amount, kind, per_person').in('meal_id', mealIds))
         : [];
     const externals = {};
     externalRows.forEach(x => (externals[x.meal_id] = externals[x.meal_id] || []).push(x));
