@@ -129,7 +129,8 @@ function computeCosts(input) {
         let food = 0;
         const foodByProduct = {};   // для графика «куда уходят деньги на продукты»
         for (const dish of (meal.dishes || [])) {
-            const recipe = recipes[dish.recipe_id];
+            // прошедший день — состав блюда из снимка на тот день (правка рецепта прошлое не меняет, ВГ 27.09)
+            const recipe = recipes[dish.snap_key || dish.recipe_id];
             if (!recipe) continue;
             const portionSize = Number(dish.portion_size) || Number(recipe.portion_amount) || 100;
             const output = (Number(recipe.output_amount) || 0) * (recipe.output_unit === 'kg' ? 1000 : 1);
@@ -368,6 +369,19 @@ async function load(db, locationId, from, to) {
     recipeRows.forEach(r => (recipes[r.id] = { ...r, ingredients: [] }));
     ingRows.forEach(i => recipes[i.recipe_id]?.ingredients.push(i));
 
+    // снимки рецептов за блюдами прошедших дней (menu_dish_recipe_snapshots, мигр. 562)
+    const snapRows = await fetchAll(() => db.from('kitchen_v_dish_snapshots')
+        .select('menu_dish_id, output_amount, output_unit, portion_amount, ingredients')
+        .eq('location_id', locationId).gte('date', from).lte('date', to));
+    const snapIngredients = [];
+    snapRows.forEach(sn => {
+        const ingredients = (sn.ingredients || []).map(i => ({ product_id: i.product_id, amount: i.amount, unit: i.unit }));
+        recipes[`snap:${sn.menu_dish_id}`] = { output_amount: sn.output_amount, output_unit: sn.output_unit, portion_amount: sn.portion_amount, ingredients };
+        snapIngredients.push(...ingredients);
+    });
+    const snapped = new Set(snapRows.map(sn => sn.menu_dish_id));
+    meals.forEach(m => (m.dishes || []).forEach(d => { if (snapped.has(d.id)) d.snap_key = `snap:${d.id}`; }));
+
     const { data: kitRows, error: kitErr } = await db.from('kitchen_portion_kits')
         .select('meal_type, product_id, quantity').eq('location_id', locationId);
     if (kitErr) throw kitErr;
@@ -375,7 +389,7 @@ async function load(db, locationId, from, to) {
     (kitRows || []).forEach(k => kits[k.meal_type]?.push(k));
 
     const productIds = [...new Set([
-        ...ingRows.map(i => i.product_id), ...(kitRows || []).map(k => k.product_id)].filter(Boolean))];
+        ...ingRows.map(i => i.product_id), ...snapIngredients.map(i => i.product_id), ...(kitRows || []).map(k => k.product_id)].filter(Boolean))];
     const productRows = productIds.length
         ? await fetchAll(() => db.from('products').select('id, name_ru, unit, waste_percent').in('id', productIds))
         : [];
