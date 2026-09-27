@@ -654,16 +654,17 @@
                 available = [baseUnit];
             }
 
-            // Если есть плотность — добавляем объёмные единицы
+            // Ложки и стакан — всегда, штуки у весовых продуктов — всегда (замечание Сундары Рупы 27.09:
+            // после сброса плотностей 24.09 они пропали у всех). Нет плотности или веса штуки —
+            // у строки ингредиента предупреждение «внесите плотность» (isDensityIssue).
+            available = [...available, 'tsp', 'tbsp', 'cup'];
+            if (baseUnit === 'g' || baseUnit === 'kg') available.push('pcs');
             const density = densities[productId];
             if (density) {
-                available = [...available, 'tsp', 'tbsp', 'cup'];
                 // Если есть liter_grams — добавляем литр для весовых продуктов
                 if (density.liter_grams && (baseUnit === 'g' || baseUnit === 'kg')) {
                     available.push('l');
                 }
-                // Известен вес одной штуки — весовой продукт можно указывать в штуках и наоборот
-                if (density.piece_grams && (baseUnit === 'g' || baseUnit === 'kg')) available.push('pcs');
                 if (density.piece_grams && baseUnit === 'pcs') available.push('g', 'kg');
             }
 
