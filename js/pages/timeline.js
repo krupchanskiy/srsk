@@ -1224,6 +1224,10 @@ async function saveCheckin(e) {
     if (!canEditTimeline()) return;
     const form = e.target;
 
+    if (form.check_out.value && form.check_out.value < form.check_in.value) {
+        Layout.showNotification(tf('timeline_checkout_before_checkin', 'Выезд не может быть раньше заезда'), 'error');
+        return;
+    }
     if (retreatDatesMismatch(form.retreat_id?.value, form.check_in.value, form.check_out.value)) {
         Layout.showNotification(retreatDatesMismatchText(), 'error');
         return;
@@ -1307,6 +1311,10 @@ async function saveBooking(e) {
     const bookingName = form.name.value.trim() || null;
 
     const bookingRetreatId = form.retreat_id?.value || null;
+    if (form.check_out.value && form.check_out.value < form.check_in.value) {
+        Layout.showNotification(tf('timeline_checkout_before_checkin', 'Выезд не может быть раньше заезда'), 'error');
+        return;
+    }
     if (retreatDatesMismatch(bookingRetreatId, form.check_in.value, form.check_out.value)) {
         Layout.showNotification(retreatDatesMismatchText(), 'error');
         return;
@@ -1636,11 +1644,11 @@ function openResidentModal(guestData, buildingName, roomName) {
                 </svg>
                 ${t('timeline_move')}
             </button>`;
-            actionsHtml += `<button class="btn btn-error btn-outline" data-action="cancel-booking">
+            actionsHtml += `<button class="btn btn-error btn-outline" data-action="no-show">
                 <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
                 </svg>
-                ${t('timeline_cancel')}
+                ${e(tf('timeline_no_show', 'Не приехал / отказ'))}
             </button>`;
         } else if (!isCheckedOut) {
             // Действия для заселённого гостя (не выселенного)
@@ -1835,62 +1843,83 @@ async function setResidentRetreat(sel) {
     renderTable();
 }
 
-// Отменить бронирование
-async function cancelBooking() {
-    if (!currentResident) return;
-    if (!canEditTimeline()) return;
-    if (!confirm(Layout.t('confirm_cancel_booking'))) return;
+// «Не приехал / отказ»: экран с тем, что произойдёт, причиной и комментарием.
+// Само действие — одна функция в базе (миграция 570): бронь, регистрация и сделка
+// снимаются вместе и без удаления, человек перестаёт считаться вкушающим.
+let cancellationReasons = null;
 
+async function showNoShowScreen() {
+    if (!currentResident || !canEditTimeline()) return;
     const res = currentResident.rawData;
 
-    if (res.status === 'booked') {
-        // Бронирование с привязанным человеком — меняем статус на cancelled
-        const { error } = await Layout.db
-            .from('residents')
-            .update({ status: 'cancelled' })
-            .eq('id', currentResident.id);
+    document.getElementById('residentInfoScreen').classList.add('hidden');
+    document.getElementById('noShowScreen').classList.remove('hidden');
+    document.getElementById('noShowGuestName').textContent = currentResident.name;
+    document.getElementById('noShowNote').value = '';
+    const list = document.getElementById('noShowWill');
+    list.innerHTML = '<span class="loading loading-spinner loading-sm"></span>';
 
-        if (error) {
-            alert(Layout.t('error') + ': ' + error.message);
-            return;
-        }
-    } else {
-        // Групповое бронирование без человека — удаляем резидента
-        const { error: resError } = await Layout.db
-            .from('residents')
-            .delete()
-            .eq('id', currentResident.id);
+    const withRetreat = res.vaishnava_id && res.retreat_id;
+    const [reasonsRes, otherRes, dealsRes] = await Promise.all([
+        cancellationReasons ? { data: cancellationReasons }
+            : Layout.db.from('crm_cancellation_reasons').select('id, code, name_ru, name_en, name_hi').order('sort_order'),
+        withRetreat ? Layout.db.from('residents').select('id', { count: 'exact', head: true })
+            .eq('vaishnava_id', res.vaishnava_id).eq('retreat_id', res.retreat_id)
+            .neq('id', res.id).neq('status', 'cancelled') : { count: 0 },
+        withRetreat ? Layout.db.from('crm_deals').select('status, total_paid')
+            .eq('vaishnava_id', res.vaishnava_id).eq('retreat_id', res.retreat_id)
+            .not('status', 'in', '(cancelled,completed)') : { data: [] }
+    ]);
+    cancellationReasons = reasonsRes.data || [];
 
-        if (resError) {
-            alert(Layout.t('error') + ': ' + resError.message);
-            return;
-        }
-    }
-
-    // Бронь снимаем целиком только когда освободили её последнее место —
-    // иначе у отменённой брони остаются занятые комнаты и лишние едоки.
-    if (res.booking_id) {
-        const { count } = await Layout.db
-            .from('residents')
-            .select('id', { count: 'exact', head: true })
-            .eq('booking_id', res.booking_id)
-            .neq('status', 'cancelled');
-
-        if (!count) {
-            await Layout.db
-                .from('bookings')
-                .update({ status: 'cancelled' })
-                .eq('id', res.booking_id);
+    const items = [tf('timeline_no_show_booking', 'Бронь снимается (остаётся в истории)')];
+    const deals = dealsRes.data || [];
+    if (withRetreat) {
+        if (otherRes.count) {
+            items.push(tf('timeline_no_show_reg_kept', 'Регистрация остаётся — есть другая бронь на этот ретрит'));
+        } else {
+            items.push(tf('timeline_no_show_reg', 'Регистрация на ретрит отменяется'));
+            if (deals.length) items.push(tf('timeline_no_show_deal', 'Сделка в CRM → «Отменена»'));
         }
     }
+    items.push(tf('timeline_no_show_eating', 'Больше не считается вкушающим'));
+    let html = items.map(s => `<li>${e(s)}</li>`).join('');
+    if (!otherRes.count && deals.some(d => Number(d.total_paid) > 0)) {
+        html += `<li class="text-warning font-medium">${e(tf('timeline_no_show_paid', 'По сделке оплачено — возврат или перенос оформляется в финансах'))}</li>`;
+    }
+    list.innerHTML = html;
 
+    // Причина нужна только для сделки в CRM
+    const showReason = withRetreat && !otherRes.count && deals.length > 0;
+    document.getElementById('noShowReasonWrap').classList.toggle('hidden', !showReason);
+    document.getElementById('noShowReason').innerHTML = cancellationReasons
+        .map(r => `<option value="${r.id}" ${r.code === 'no_show' ? 'selected' : ''}>${e(Layout.getName(r))}</option>`).join('');
+}
+
+async function submitNoShow(btn) {
+    if (!currentResident || !canEditTimeline()) return;
+    const reasonWrap = document.getElementById('noShowReasonWrap');
+    btn.disabled = true;
+    const { error } = await Layout.db.rpc('resident_no_show', {
+        p_resident_id: currentResident.id,
+        p_reason_id: reasonWrap.classList.contains('hidden') ? null : (document.getElementById('noShowReason').value || null),
+        p_note: document.getElementById('noShowNote').value.trim() || null
+    });
+    btn.disabled = false;
+    if (error) {
+        Layout.handleError(error, tf('timeline_no_show', 'Не приехал / отказ'));
+        return;
+    }
+    Layout.showNotification(tf('timeline_no_show_done', 'Отмечено: не приехал'), 'success');
     document.getElementById('residentModal').close();
     await loadTimelineData();
     renderTable();
+    loadStayAlerts();
 }
 
 // Показать экран информации о резиденте
 function showResidentInfoScreen() {
+    document.getElementById('noShowScreen').classList.add('hidden');
     document.getElementById('residentInfoScreen').classList.remove('hidden');
     document.getElementById('moveScreen').classList.add('hidden');
     document.getElementById('editDatesScreen').classList.add('hidden');
@@ -1948,6 +1977,11 @@ async function saveDates() {
 
     if (!checkIn) {
         alert(Layout.t('specify_checkin_date'));
+        return;
+    }
+    // Выезд раньше заезда — бронь пропадает из шахматки и из подсчёта вкушающих
+    if (checkOut && checkOut < checkIn) {
+        alert(tf('timeline_checkout_before_checkin', 'Выезд не может быть раньше заезда'));
         return;
     }
 
@@ -2307,9 +2341,20 @@ async function convertToCheckin() {
     // Человек в броне уже назван — заселение сводится к отметке о приезде,
     // переспрашивать имя незачем.
     if (!res.arrived_at && (res.vaishnava_id || res.guest_name)) {
+        const update = { status: 'confirmed', arrived_at: new Date().toISOString() };
+        // Приехал позже брони — дни до приезда он не жил и не ел: предлагаем сдвинуть начало
+        const today = DateUtils.toISO(new Date());
+        if (res.check_in < today && (!res.check_out || res.check_out >= today)) {
+            const q = tf('timeline_late_arrival_shift', 'По плану заезд %s. Сдвинуть начало проживания на сегодня?')
+                .replace('%s', formatDisplayDate(res.check_in));
+            if (confirm(q)) {
+                update.check_in = today;
+                if (res.meal_start_date && res.meal_start_date < today) update.meal_start_date = today;
+            }
+        }
         const { error } = await Layout.db
             .from('residents')
-            .update({ status: 'confirmed', arrived_at: new Date().toISOString() })
+            .update(update)
             .eq('id', currentResident.id);
 
         if (error) {
@@ -2345,7 +2390,10 @@ async function convertToCheckin() {
 
     // Сбрасываем форму
     document.getElementById('checkinForm').reset();
-    document.getElementById('checkinDateIn').value = res.check_in;
+    // Заселяют позже брони — начало с сегодняшнего дня (дата в форме видна и правится)
+    const todayIso = DateUtils.toISO(new Date());
+    document.getElementById('checkinDateIn').value =
+        res.check_in < todayIso && (!res.check_out || res.check_out >= todayIso) ? todayIso : res.check_in;
     document.getElementById('checkinDateOut').value = res.check_out || '';
     delete document.getElementById('checkinRetreat').dataset.touched;
     fillRetreatSelect(res.retreat_id || '');
@@ -2931,7 +2979,7 @@ function setupTimelineDelegation() {
             switch (btn.dataset.action) {
                 case 'convert-to-checkin': convertToCheckin(); break;
                 case 'show-move-screen': showMoveScreen(); break;
-                case 'cancel-booking': cancelBooking(); break;
+                case 'no-show': showNoShowScreen(); break;
                 case 'checkout-resident': showCheckoutScreen(); break;
                 case 'show-edit-dates-screen': showEditDatesScreen(); break;
                 case 'delete-resident': deleteResident(); break;
@@ -3109,6 +3157,76 @@ async function loadUncoveredNights() {
     banner.classList.remove('hidden');
 }
 
+// Оповещение сверху: брони без отметки заезда после даты заезда (кухня считает их съевшими)
+// и заселённые без выселения после даты выезда. Клик по имени — к брони в шахматке.
+const ALERT_ICON = '<svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4 inline -mt-0.5 text-warning" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 9v3.75m0 3.75h.008M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z"/></svg>';
+
+async function loadStayAlerts() {
+    const banner = document.getElementById('stayAlertsBanner');
+    if (!banner) return;
+    const today = DateUtils.toISO(new Date());
+    const cols = 'id, vaishnava_id, check_in, check_out, room_id, guest_name, rooms(number), vaishnavas(first_name, last_name, spiritual_name), bookings(name, contact_name)';
+
+    const [notArrivedRes, notOutRes] = await Promise.all([
+        Layout.db.from('residents').select(cols)
+            .in('status', ['confirmed', 'booked']).is('arrived_at', null)
+            .lt('check_in', today).order('check_in'),
+        Layout.db.from('residents').select(cols)
+            .eq('status', 'confirmed').not('arrived_at', 'is', null)
+            .lt('check_out', today).order('check_out')
+    ]);
+    // Молча выходим: шахматка важнее сигнала
+    if (notArrivedRes.error || notOutRes.error) return;
+    let notArrived = notArrivedRes.data || [];
+
+    // Переезд новой бронью: человек уже живёт по предыдущей брони с отметкой заезда — это не «не заселён»
+    const ids = [...new Set(notArrived.map(r => r.vaishnava_id).filter(Boolean))];
+    if (ids.length) {
+        const { data: lived } = await Layout.db.from('residents')
+            .select('vaishnava_id, check_in, check_out')
+            .in('vaishnava_id', ids).in('status', ['confirmed', 'checked_out'])
+            .not('arrived_at', 'is', null);
+        notArrived = notArrived.filter(r => !(lived || []).some(l => l.vaishnava_id === r.vaishnava_id
+            && l.check_in < r.check_in && (!l.check_out || l.check_out >= r.check_in)));
+    }
+    const notOut = notOutRes.data || [];
+
+    const person = (r, date, label) => {
+        const name = (r.vaishnavas ? getVaishnavName(r.vaishnavas, '') : '') || r.guest_name
+            || r.bookings?.name || r.bookings?.contact_name || tf('timeline_no_name', 'Без имени');
+        const room = r.rooms?.number ? `, ${t('timeline_room')} ${e(r.rooms.number)}` : '';
+        return `<a class="link link-hover font-medium" data-action="open-stay-alert" data-id="${r.id}" data-date="${date}">${e(name)}</a>`
+            + `<span class="opacity-60"> (${e(label)} ${DateUtils.formatShort(date)}${room})</span>`;
+    };
+    const line = (title, rows, dateOf, label) => rows.length
+        ? `<div>${ALERT_ICON} <span class="font-medium">${e(title)}: ${rows.length}</span> — `
+            + rows.map(r => person(r, dateOf(r), label)).join(' · ') + '</div>'
+        : '';
+
+    banner.innerHTML =
+        line(tf('timeline_not_arrived_title', 'Не заселены'), notArrived, r => r.check_in, tf('timeline_not_arrived_since', 'заезд с'))
+        + line(tf('timeline_not_checked_out_title', 'Не выселены'), notOut, r => r.check_out, tf('timeline_not_checked_out_since', 'выезд был'));
+    banner.classList.toggle('hidden', !notArrived.length && !notOut.length);
+
+    if (!banner._delegated) {
+        banner._delegated = true;
+        banner.addEventListener('click', ev => {
+            const a = ev.target.closest('[data-action="open-stay-alert"]');
+            if (a) openStayAlert(a.dataset.id, a.dataset.date);
+        });
+    }
+}
+
+// Перейти в шахматке к дате брони и открыть её окно
+async function openStayAlert(id, date) {
+    const d = DateUtils.parseDate(date);
+    d.setDate(d.getDate() - 2);
+    baseDate = d;
+    await reload();
+    if (guestsMap.has(id)) openResidentFromMap(id);
+    else openSelfStay(id);
+}
+
 async function init() {
     await Layout.init({ module: 'housing', menuId: 'reception', itemId: 'timeline' });
     Layout.showLoader();
@@ -3124,6 +3242,7 @@ async function init() {
     Layout.hideLoader();
 
     loadUncoveredNights();   // не задерживает отрисовку шахматки
+    loadStayAlerts();
 
     // Подписка на изменения в реальном времени
     subscribeToRealtime();
@@ -3168,6 +3287,7 @@ function handleRealtimeChange(payload) {
     realtimeTimeout = setTimeout(async () => {
         await loadTimelineData();
         renderTable();
+        loadStayAlerts();
         Layout.showNotification(t('timeline_data_updated'), 'info');
     }, 500);
 }

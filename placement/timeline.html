@@ -596,6 +596,9 @@
             </div>
         </div>
 
+        <!-- Брони без отметки заезда после даты заезда и невыселенные после даты выезда -->
+        <div id="stayAlertsBanner" class="hidden mb-4 bg-warning/10 border border-warning/40 rounded-lg px-4 py-3 text-sm space-y-1"></div>
+
         <!-- Гости, у которых бронь не покрывает даты их рейсов -->
         <details id="uncoveredBanner" class="hidden mb-4 bg-warning/10 border border-warning/40 rounded-lg px-4 py-3">
             <summary class="cursor-pointer text-sm font-medium" id="uncoveredSummary"></summary>
@@ -1116,6 +1119,35 @@
                 </div>
             </div>
 
+            <!-- Экран «Не приехал / отказ» -->
+            <div id="noShowScreen" class="hidden">
+                <div class="flex items-center gap-2 mb-4">
+                    <button class="btn btn-ghost btn-sm btn-circle" onclick="showResidentInfoScreen()">←</button>
+                    <h3 class="font-bold text-lg" data-i18n="timeline_no_show">Не приехал / отказ</h3>
+                </div>
+
+                <div class="text-sm text-gray-500 mb-3">
+                    <span id="noShowGuestName" class="font-medium"></span>
+                </div>
+
+                <div class="text-sm font-medium mb-1" data-i18n="timeline_no_show_will">Что произойдёт</div>
+                <ul id="noShowWill" class="list-disc pl-5 text-sm space-y-1 mb-4"></ul>
+
+                <div id="noShowReasonWrap" class="form-control mb-3 hidden">
+                    <label class="label"><span class="label-text" data-i18n="timeline_no_show_reason">Причина</span></label>
+                    <select id="noShowReason" class="select select-bordered select-sm"></select>
+                </div>
+                <div class="form-control mb-4">
+                    <label class="label"><span class="label-text" data-i18n="timeline_no_show_note">Комментарий</span></label>
+                    <textarea id="noShowNote" class="textarea textarea-bordered textarea-sm" rows="2"></textarea>
+                </div>
+
+                <div class="modal-action">
+                    <button class="btn btn-ghost" onclick="showResidentInfoScreen()" data-i18n="cancel">Отмена</button>
+                    <button class="btn btn-error" onclick="submitNoShow(this)" data-i18n="timeline_no_show">Не приехал / отказ</button>
+                </div>
+            </div>
+
             <!-- Экран выселения -->
             <div id="checkoutScreen" class="hidden">
                 <div class="flex items-center gap-2 mb-4">
@@ -1163,7 +1195,7 @@
         if (btn) { btn.classList.toggle('btn-active', isFS); btn.title = isFS ? Layout.t('normal_view') : Layout.t('fullscreen'); }
     }
     </script>
-    <script src="../js/pages/timeline.js?v=44"></script>
+    <script src="../js/pages/timeline.js?v=45"></script>
 
 </body>
 </html>
