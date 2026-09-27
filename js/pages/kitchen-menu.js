@@ -35,6 +35,13 @@ let ingredientsCache = {};
 const canEditMenu = () => window.hasPermission?.('edit_menu') ?? false;
 
 let pastMenuRight = false;
+let dishCooks = [];   // повара у блюд (kitchen_cooks): буквы и цвет, как в Планировщике
+function cookBadge(cookRef) {
+    const c = cookRef ? dishCooks.find(x => x.id === cookRef) : null;
+    if (!c) return '';
+    const color = Utils.isValidColor?.(c.color) ? c.color : '#888';
+    return `<span class="text-sm font-bold ml-2" style="color:${color}" title="${Layout.escapeHtml(c.name)}">${Layout.escapeHtml(c.short)}</span>`;
+}
 // Прошедший день закрыт, если в нём есть что-то, внесённое не сегодня, и нет права «Правка прошлого меню»
 // (то же правило проверяет база — kitchen_past_menu_allowed, мигр. 566)
 function isPastMenuLocked(dateStr, mealData) {
@@ -356,7 +363,8 @@ async function loadMenuData() {
                 recipe: d.recipe,
                 portion_size: d.portion_size,
                 portion_unit: d.portion_unit,
-                created_at: d.created_at
+                created_at: d.created_at,
+                cook_ref: d.cook_ref || null
             }))
         };
     });
@@ -835,7 +843,7 @@ function renderMealSection(dateStr, mealType, index, mealData, isEkadashiDay) {
                     return `
                         <div class="flex justify-between items-center py-2 border-b border-base-300 last:border-0 ${notEkadashiWarning ? 'bg-error/10 -mx-2 px-2 rounded' : ''}">
                             <div>
-                                <a href="recipe.html?id=${recipe.id}" class="hover:text-primary font-medium text-base">${getName(recipe)}</a>
+                                <a href="recipe.html?id=${recipe.id}" class="hover:text-primary font-medium text-base">${getName(recipe)}</a>${cookBadge(dish.cook_ref)}
                                 <span class="text-xs opacity-40 ml-2">${categoryName}</span>
                                 ${notEkadashiWarning ? `<span class="text-xs text-error ml-2">⚠ ${t('ekadashi_warning')}</span>` : ''}
                             </div>
@@ -2403,6 +2411,8 @@ async function init() {
         const uid = window.currentUser?.id;
         if (uid) pastMenuRight = (await Layout.db.rpc('kitchen_has_permission', { p_user: uid, p_code: 'edit_past_menu' })).data === true;
     } catch { pastMenuRight = false; }
+    const { data: dc } = await Layout.db.from('kitchen_cooks').select('id, name, short, color').order('sort_order');
+    dishCooks = dc || [];
 
     Layout.$('#externalForm')?.addEventListener('submit', saveExternal);
 

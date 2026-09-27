@@ -59,6 +59,7 @@
             <button class="tab" data-tab="product_categories" data-i18n="dict_product_categories">Категории продуктов</button>
             <button class="tab" data-tab="units" data-i18n="dict_units">Единицы измерения</button>
             <button class="tab" data-tab="product_densities" data-i18n="dict_product_densities">Плотности продуктов</button>
+            <button class="tab" data-tab="kitchen_cooks" data-i18n="dict_kitchen_cooks">Повара</button>
         </div>
 
         <!-- Tab Content -->
@@ -103,7 +104,8 @@
             recipe_categories: [],
             product_categories: [],
             units: [],
-            product_densities: []
+            product_densities: [],
+            kitchen_cooks: []
         };
         let allProducts = []; // Для выбора продукта в плотностях
         let densityFilter = ''; // Фильтр поиска для плотностей
@@ -196,8 +198,62 @@
                 ],
                 orderBy: 'product_id',
                 noSortOrder: true
+            },
+            // Повара у блюд меню (просьба Сундары Рупы 27.09): человек из базы, буквы (правятся) и свой цвет
+            kitchen_cooks: {
+                table: 'kitchen_cooks',
+                titleKey: 'dict_kitchen_cooks',
+                columns: [
+                    { key: 'color', label: '', width: 'w-12', type: 'color' },
+                    { key: 'short', label: 'cook_short', width: 'w-20' },
+                    { key: 'name', label: 'cook_name' }
+                ],
+                fields: [
+                    { name: 'vaishnava_id', label: 'cook_name', type: 'person_select', required: true },
+                    { name: 'name', type: 'person_name' },
+                    { name: 'short', label: 'cook_short', type: 'text', required: true, placeholder: 'БК' },
+                    { name: 'color', label: 'color', type: 'color', defaultValue: '#16a34a' }
+                ],
+                orderBy: 'sort_order'
             }
         };
+
+        // ---------- повара: выбор человека из базы, буквы, цвет ----------
+        const COOK_COLORS = ['#16a34a', '#2563eb', '#9333ea', '#ea580c', '#0891b2', '#db2777', '#ca8a04', '#dc2626', '#4f46e5', '#0d9488'];
+        const personLabel = v => v.spiritual_name || `${v.first_name || ''} ${v.last_name || ''}`.trim();
+        // «Садху-санга дас» → СС, «Бридж Кишор» → БК: первые буквы двух первых слов, без «дас/даси/деви/дд»
+        function cookInitials(name) {
+            const words = (name || '').replace(/\(.*?\)/g, ' ').split(/[\s-]+/)
+                .filter(w => w && !/^(дас|даси|деви|дд|д\.д\.|das|dasi|devi)$/i.test(w));
+            return words.slice(0, 2).map(w => w[0].toUpperCase()).join('');
+        }
+        let personSearchTimer = null;
+        async function searchPeople(q) {
+            const list = Layout.$('#personOptions');
+            if (!list || q.trim().length < 2) return;
+            const like = `%${q.trim()}%`;
+            const { data: rows } = await Layout.db.from('vaishnavas').select('id, spiritual_name, first_name, last_name')
+                .eq('is_deleted', false).or(`spiritual_name.ilike.${like},first_name.ilike.${like},last_name.ilike.${like}`).limit(20);
+            list.innerHTML = (rows || []).map(v => `<option data-id="${v.id}" value="${Layout.escapeHtml(personLabel(v))}"></option>`).join('');
+        }
+        function pickPerson(input) {
+            const opt = [...Layout.$('#personOptions').options].find(o => o.value === input.value);
+            Layout.$('input[name="vaishnava_id"]').value = opt ? opt.dataset.id : '';
+            Layout.$('input[name="name"]').value = opt ? opt.value : '';
+            Layout.$('#personNew').classList.toggle('hidden', !!opt || input.value.trim().length < 2);
+            const short = Layout.$('input[name="short"]');
+            if (opt && (!short.value || short.dataset.auto === '1')) { short.value = cookInitials(opt.value); short.dataset.auto = '1'; }
+        }
+        async function createPerson() {
+            const name = Layout.$('#personSearch').value.trim();
+            if (name.length < 2) return;
+            if (!confirm(`${t('cook_create_confirm') === 'cook_create_confirm' ? 'Завести в базу нового человека' : t('cook_create_confirm')}: «${name}»?`)) return;
+            const { data: row, error } = await Layout.db.from('vaishnavas').insert({ first_name: name, is_team_member: true }).select('id, spiritual_name, first_name, last_name').single();
+            if (error) { Layout.handleError(error, t('dict_kitchen_cooks')); return; }
+            Layout.$('#personOptions').innerHTML = `<option data-id="${row.id}" value="${Layout.escapeHtml(personLabel(row))}"></option>`;
+            Layout.$('#personSearch').value = personLabel(row);
+            pickPerson(Layout.$('#personSearch'));
+        }
 
         // ==================== DATA LOADING ====================
         async function loadProducts() {
@@ -381,11 +437,31 @@
                     `;
                 }
 
+                if (field.type === 'person_name') return '';
+                if (field.type === 'person_select') {
+                    const shown = item ? (item.name || '') : '';
+                    return `
+                        <div>
+                            <label class="label"><span class="label-text font-medium">${label}</span></label>
+                            <input type="text" id="personSearch" list="personOptions" class="input input-bordered w-full" autocomplete="off"
+                                   value="${Layout.escapeHtml(shown)}" placeholder="${t('search') === 'search' ? 'Начните вводить имя' : t('search')}"
+                                   oninput="clearTimeout(personSearchTimer); personSearchTimer = setTimeout(() => searchPeople(this.value), 250); pickPerson(this)" onchange="pickPerson(this)" />
+                            <datalist id="personOptions">${item ? `<option data-id="${item.vaishnava_id}" value="${Layout.escapeHtml(shown)}"></option>` : ''}</datalist>
+                            <input type="hidden" name="vaishnava_id" value="${item?.vaishnava_id || ''}" />
+                            <input type="hidden" name="name" value="${Layout.escapeHtml(shown)}" />
+                            <button type="button" id="personNew" class="btn btn-ghost btn-xs mt-1 hidden" onclick="createPerson()">+ ${t('cook_create') === 'cook_create' ? 'Нет в базе — завести' : t('cook_create')}</button>
+                        </div>
+                    `;
+                }
+
                 if (field.type === 'color') {
+                    const swatches = currentTab === 'kitchen_cooks' ? `<div class="flex flex-wrap gap-1 mt-1">${COOK_COLORS.map(c =>
+                        `<button type="button" class="w-6 h-6 rounded-full border border-base-300" style="background:${c}" onclick="this.closest('div').previousElementSibling.value='${c}'"></button>`).join('')}</div>` : '';
                     return `
                         <div>
                             <label class="label"><span class="label-text font-medium">${label}</span></label>
                             <input type="color" name="${field.name}" class="w-full h-10 rounded cursor-pointer" value="${value}" />
+                            ${swatches}
                         </div>
                     `;
                 }
@@ -469,6 +545,13 @@
                     itemData[field.name] = value;
                 }
             });
+
+            if (currentTab === 'kitchen_cooks') {
+                if (!itemData.vaishnava_id) { Layout.showNotification(t('cook_pick_person') === 'cook_pick_person' ? 'Выберите человека из базы или заведите нового' : t('cook_pick_person'), 'error'); return; }
+                itemData.short = (itemData.short || '').trim().toUpperCase().slice(0, 4);
+                const same = data.kitchen_cooks.find(c => c.short === itemData.short && c.id !== id);
+                if (same && !confirm(`Буквы «${itemData.short}» уже у повара «${same.name}». Оставить так?`)) return;
+            }
 
             // Для новых записей добавляем sort_order (если таблица использует его)
             if (isNew && !config.noSortOrder) {

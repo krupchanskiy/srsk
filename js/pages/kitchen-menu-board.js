@@ -36,6 +36,9 @@ let retreats = [];
 let holidays = [];
 let eatingCounts = {};
 let cooks = [];
+// Пока кэш переводов не обновился — русский текст, а не имя ключа
+const tr = (key, fallback) => { const v = Layout.t(key); return v === key ? fallback : v; };
+let dishCooks = [];       // справочник поваров у блюд (kitchen_cooks): буквы и цвет — Кухня → Справочники → «Повара»
 
 let dragData = null;
 
@@ -148,6 +151,8 @@ async function loadData() {
     retreats = retreatsResult.data || [];
     holidays = holidaysResult.data || [];
     cooks = cooksResult.data || [];
+    const { data: dc } = await Layout.db.from('kitchen_cooks').select('id, name, short, color, is_active').order('sort_order');
+    dishCooks = dc || [];
     units = unitsResult || [];
 
     await loadMenuData();
@@ -188,7 +193,8 @@ async function loadMenuData() {
                 recipe_id: d.recipe_id,
                 recipe: d.recipe,
                 portion_size: d.portion_size,
-                portion_unit: d.portion_unit
+                portion_unit: d.portion_unit,
+                cook_ref: d.cook_ref || null
             }))
         };
     });
@@ -231,7 +237,8 @@ async function loadMenuDataForRange(from, to) {
                 recipe_id: d.recipe_id,
                 recipe: d.recipe,
                 portion_size: d.portion_size,
-                portion_unit: d.portion_unit
+                portion_unit: d.portion_unit,
+                cook_ref: d.cook_ref || null
             }))
         };
     });
@@ -325,7 +332,7 @@ function renderBoard() {
                 dishesHtml += `<div class="dish-chip" style="background-color: ${color}22; border-left-color: ${color};"
                     data-action="edit-dish" data-dish-id="${dish.id}" data-date="${dateStr}" data-meal-type="${mt}"
                     data-recipe-id="${dish.recipe_id}"
-                    ${draggable}>${emoji} ${e(recipeName)}</div>`;
+                    ${draggable}>${emoji} ${e(recipeName)}${cookBadge(dish.cook_ref)}</div>`;
             }
 
             // Кнопка «+»
@@ -677,6 +684,10 @@ function openDishModal(dateStr, mealType) {
 
     document.getElementById('dishModalTitle').textContent =
         `${t(mealType) || mealType} \u00b7 ${dayNames[date.getDay()]}, ${date.getDate()} ${monthNames[date.getMonth()]}`;
+    let lastCook = '';
+    try { lastCook = localStorage.getItem('menu_board_last_cook') || ''; } catch { lastCook = ''; }
+    const dishCookSel = document.getElementById('dishCook');
+    if (dishCookSel) dishCookSel.innerHTML = cookOptions(lastCook);
 
     // Сброс формы
     document.getElementById('recipeSearch').value = '';
@@ -884,7 +895,8 @@ async function saveDish() {
             meal_id: mealId,
             recipe_id: selectedRecipe.id,
             portion_size: portionSize,
-            portion_unit: portionUnit
+            portion_unit: portionUnit,
+            cook_ref: document.getElementById('dishCook')?.value || null
         })
         .select('*, recipe:recipes(*, category:recipe_categories(*))')
         .single();
@@ -904,14 +916,28 @@ async function saveDish() {
         recipe_id: newDish.recipe_id,
         recipe: newDish.recipe,
         portion_size: newDish.portion_size,
-        portion_unit: newDish.portion_unit
+        portion_unit: newDish.portion_unit,
+        cook_ref: newDish.cook_ref || null
     });
+    try { localStorage.setItem('menu_board_last_cook', newDish.cook_ref || ''); } catch { /* нет хранилища */ }
 
     dishModal.close();
     renderBoard();
 }
 
 // ==================== DISH MODAL (EDIT) ====================
+// Буквы повара у блюда его цветом (просьба Сундары Рупы 27.09)
+function cookBadge(cookRef) {
+    const c = cookRef ? dishCooks.find(x => x.id === cookRef) : null;
+    if (!c) return '';
+    const color = Utils.isValidColor?.(c.color) ? c.color : '#888';
+    return ` <span class="cook-badge" style="color:${color}" title="${e(c.name)}">${e(c.short)}</span>`;
+}
+function cookOptions(selected) {
+    return `<option value="">${e(tr('dish_cook_none', '— не указан —'))}</option>` + dishCooks.filter(c => c.is_active || c.id === selected)
+        .map(c => `<option value="${c.id}" ${c.id === selected ? 'selected' : ''}>${e(c.short)} — ${e(c.name)}</option>`).join('');
+}
+
 function openEditDishModal(dishId, dateStr, mealType) {
     editingDish = null;
     editingDate = dateStr;
@@ -927,6 +953,7 @@ function openEditDishModal(dishId, dateStr, mealType) {
     document.getElementById('editDishTitle').textContent = recipe ? getName(recipe) : '';
     document.getElementById('editPortionSize').value = dish.portion_size || '';
     document.getElementById('editPortionUnit').textContent = getUnitShort(dish.portion_unit || 'g');
+    document.getElementById('editDishCook').innerHTML = cookOptions(dish.cook_ref);
 
     editDishModal.showModal();
 }
@@ -938,14 +965,17 @@ async function saveEditDish() {
     if (!mealData?.id || !mealData.dishes?.some(dish => dish.id === editingDish.id)) return;
 
     const newSize = parseFloat(document.getElementById('editPortionSize').value) || 0;
+    const newCook = document.getElementById('editDishCook').value || null;
 
-    await Layout.db
+    const { error } = await Layout.db
         .from('menu_dishes')
-        .update({ portion_size: newSize })
+        .update({ portion_size: newSize, cook_ref: newCook })
         .eq('id', editingDish.id)
         .eq('meal_id', mealData.id);
+    if (error) { Layout.handleError(error, t('dish_cook')); return; }
 
     editingDish.portion_size = newSize;
+    editingDish.cook_ref = newCook;
     editDishModal.close();
     renderBoard();
 }

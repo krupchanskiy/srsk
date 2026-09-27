@@ -114,6 +114,8 @@
             transition: opacity 0.15s;
             word-break: break-word;
         }
+        /* буквы повара у блюда — справа, его цветом */
+        .dish-chip .cook-badge { float: right; font-weight: 700; font-size: 12px; margin-left: 4px; letter-spacing: 0.5px; }
         .dish-chip:hover {
             opacity: 0.8;
         }
@@ -313,6 +315,10 @@
                     </div>
                 </div>
 
+                <div>
+                    <label class="label"><span class="label-text font-medium" data-i18n="dish_cook">Повар блюда</span></label>
+                    <select id="dishCook" class="select select-bordered w-full"></select>
+                </div>
                 <div class="text-lg font-semibold" id="totalCalculation">&mdash;</div>
             </div>
 
@@ -337,6 +343,10 @@
                         <input type="number" id="editPortionSize" class="input input-bordered join-item w-full" min="1" />
                         <span id="editPortionUnit" class="btn join-item no-animation pointer-events-none bg-base-200" data-i18n="unit_g">г</span>
                     </div>
+                </div>
+                <div>
+                    <label class="label"><span class="label-text font-medium" data-i18n="dish_cook">Повар блюда</span></label>
+                    <select id="editDishCook" class="select select-bordered w-full"></select>
                 </div>
             </div>
 
@@ -396,6 +406,6 @@
     <script src="../js/date-utils.js?v=4"></script>
     <script src="../js/layout.js?v=81"></script>
     <script src="../js/eating-utils.js?v=11"></script>
-    <script src="../js/pages/kitchen-menu-board.js?v=5"></script>
+    <script src="../js/pages/kitchen-menu-board.js?v=6"></script>
 </body>
 </html>
