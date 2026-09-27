@@ -495,6 +495,18 @@ async function loadDetail(db, from, to) {
     return parts.flat();
 }
 
+// Составляющие себестоимости (галочки внутреннего ретрита, fin_prasad_settings):
+// накладная строка → зарплаты / оборудование / коммунальные / расходы на ретрит / хозтовары и прочее
+const COMPONENTS = ['food', 'dish', 'ext', 'payroll', 'equipment', 'utilities', 'household', 'retreat'];
+function overheadComponent(l) {
+    if (l.group === 'retreat') return 'retreat';
+    const c = l.category || '';
+    if (c === 'payroll' || c === 'Оплата труда') return 'payroll';
+    if (/оборудован|инвентар/i.test(c)) return 'equipment';
+    if (/электр|вода|газ/i.test(c)) return 'utilities';
+    return 'household';
+}
+
 // Итоги ретрита целиком — одна таблица для Себестоимости и Финансов (решение ВГ 27.09):
 // весь ретрит, участники (гости, важные, ожидаются), команда / волонтёры / группы ретрита.
 // Люди — кто ел хоть раз (eating_detail), «на участника» — без команды и волонтёров.
@@ -527,10 +539,20 @@ function summarizeRetreat(result, detail, retreatId, span) {
     const w = result.warnings;
     const round = v => Math.round(v * 100) / 100;
     rows.forEach(r => ['food', 'dish', 'ext', 'ovR', 'ovG', 'total'].forEach(k => { r[k] = round(r[k]); }));
+    // состав себестоимости ретрита — для «внутреннего ретрита» с галочками (ВГ 27.09)
+    const components = { food: rows[0].food, dish: rows[0].dish, ext: rows[0].ext, payroll: 0, equipment: 0, utilities: 0, household: 0, retreat: 0 };
+    for (const l of result.overheadLines || []) {
+        const v = l.byEvent?.[ev] || 0;
+        if (!v) continue;
+        components[overheadComponent(l)] += v;
+    }
+    Object.keys(components).forEach(k => { components[k] = round(components[k]); });
+    const nPart = people(BUCKETS.filter(b => b !== 'team' && b !== 'volunteers'));
     return {
-        from: span.from, to: span.to, rows,
+        from: span.from, to: span.to, rows, components,
         // как на Себестоимости: «на участника» — все, кроме команды и волонтёров (группы входят)
-        perParticipant: (n => n ? round(rows[0].total / n) : null)(people(BUCKETS.filter(b => b !== 'team' && b !== 'volunteers'))),
+        participants: nPart,
+        perParticipant: nPart ? round(rows[0].total / nPart) : null,
         perMeal: rows[0].pm ? round(rows[0].total / rows[0].pm) : null,
         pricesLoaded: !!result.pricesLoaded,
         gaps: { missingPrices: w.missingPrices.size, noMenu: w.noMenu.length, payrollEstimated: w.payrollEstimated.length },
@@ -538,13 +560,28 @@ function summarizeRetreat(result, detail, retreatId, span) {
     };
 }
 
+// Настройка «внутренний ретрит» → что входит в стоимость ретрита (sum.settings, sum.included)
+function applySettings(sum, settings) {
+    const internal = !!settings?.is_internal;
+    const on = k => !internal || (settings.components || []).includes(k);
+    sum.settings = { is_internal: internal, components: COMPONENTS.filter(on) };
+    sum.included = Math.round(COMPONENTS.reduce((a, k) => a + (on(k) ? sum.components[k] : 0), 0) * 100) / 100;
+    sum.includedPerParticipant = sum.participants ? Math.round(sum.included / sum.participants * 100) / 100 : null;
+    return sum;
+}
+
 async function saveRetreatCost(db, retreatId, summary) {
+    // кто бы ни сохранял (Себестоимость или Финансы) — с учётом галочек внутреннего ретрита
+    if (!summary.settings) {
+        const { data } = await db.rpc('fin_get_prasad_settings', { p_retreat: retreatId });
+        applySettings(summary, data);
+    }
     const { error } = await db.rpc('fin_save_prasad_cost', { p_retreat: retreatId, p_from: summary.from, p_to: summary.to,
         p_data: summary, p_provisional: summary.provisional });
     if (error) console.error('fin_save_prasad_cost:', error);
 }
 
-const api = { computeCosts, calculate, priceOn, convert, BUCKETS, retreatSpan, loadDetail, summarizeRetreat, saveRetreatCost };
+const api = { computeCosts, calculate, priceOn, convert, BUCKETS, COMPONENTS, retreatSpan, loadDetail, summarizeRetreat, applySettings, saveRetreatCost };
 if (typeof module !== 'undefined') module.exports = api;
 return api;
 

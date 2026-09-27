@@ -323,6 +323,66 @@ async function fillDeptPrasadCost(from, to) {
     }
 }
 
+// ---- Состав себестоимости и «внутренний ретрит» (ВГ 27.09) ----
+// Обычный ретрит — полная себестоимость. Внутренний — в стоимость ретрита входят только
+// отмеченные составляющие (fin_prasad_settings; меняет администратор финансов).
+let prasadCostState = null;
+const COMPONENT_LABELS = {
+    food: () => tr('fin_pc_food', 'Продукты (по меню, «Готовил Бридж Кишор»)'),
+    dish: () => tr('fin_pc_dish', 'Одноразовая посуда'),
+    ext: () => tr('fin_pc_ext', 'Готовое со стороны'),
+    payroll: () => tr('fin_pc_payroll', 'Зарплаты кухни'),
+    equipment: () => tr('fin_pc_equipment', 'Оборудование и инвентарь'),
+    utilities: () => tr('fin_pc_utilities', 'Электричество, вода, газ'),
+    household: () => tr('fin_pc_household', 'Хозтовары и прочее'),
+    retreat: () => tr('fin_pc_retreat', 'Расходы на ретрит (гонорары, билеты, такси, «Программа»)')
+};
+
+// включённое по настройке → в сохраняемый расчёт (он же уходит в снимок закрытия)
+function applyPrasadSettings() {
+    KitchenCost.applySettings(prasadCostState.sum, prasadCostState.settings);
+}
+
+function componentsPanel() {
+    const { sum, settings } = prasadCostState;
+    const admin = window.hasPermission?.('fin_admin');
+    const internal = !!settings.is_internal;
+    const on = k => !internal || (settings.components || []).includes(k);
+    const rows = KitchenCost.COMPONENTS.map(k => `<tr class="${on(k) ? '' : 'opacity-40'}">
+        <td>${internal ? `<label class="flex items-center gap-2 ${admin ? 'cursor-pointer' : ''}"><input type="checkbox" class="checkbox checkbox-xs" data-prasad-comp="${k}" ${on(k) ? 'checked' : ''} ${admin ? '' : 'disabled'}>${e(COMPONENT_LABELS[k]())}</label>` : e(COMPONENT_LABELS[k]())}
+            ${on(k) ? '' : ` <span class="text-xs">(${e(tr('fin_pc_excluded', 'не входит'))})</span>`}</td>
+        <td class="text-right font-mono">${fmtB(sum.components[k])}</td></tr>`).join('');
+    return `<div class="border border-base-300 rounded-xl p-3 space-y-2">
+        <div class="flex items-center gap-3 flex-wrap">
+            <div class="text-sm font-medium">${e(tr('fin_pc_title', 'Состав себестоимости'))}</div>
+            <label class="flex items-center gap-2 ml-auto text-sm ${admin ? 'cursor-pointer' : ''}" title="${e(tr('fin_pc_internal_hint', 'Внутренний ретрит: в его стоимость входят только отмеченные составляющие. Ничего не отмечено — питание в стоимость ретрита не входит.'))}">
+                <input type="checkbox" class="toggle toggle-sm" data-prasad-internal ${internal ? 'checked' : ''} ${admin ? '' : 'disabled'}>
+                ${e(tr('fin_pc_internal', 'Внутренний ретрит'))}</label>
+        </div>
+        <table class="table table-xs"><tbody>${rows}
+            <tr class="font-semibold border-t-2 border-base-300"><td>${e(internal ? tr('fin_prasad_included', 'Входит в стоимость ретрита') : tr('cost_total', 'Всего'))}</td>
+                <td class="text-right font-mono">${fmtB(sum.included)}</td></tr></tbody></table>
+        ${internal && !sum.settings.components.length ? `<div class="text-xs text-warning">⚠ ${e(tr('fin_pc_nothing', 'Ничего не отмечено — питание в стоимость ретрита не входит'))}</div>` : ''}
+    </div>`;
+}
+
+async function onPrasadSettingChange(input) {
+    if (!prasadCostState || !window.hasPermission?.('fin_admin')) return;
+    const st = prasadCostState.settings;
+    if (input.hasAttribute('data-prasad-internal')) {
+        st.is_internal = input.checked;
+        if (st.is_internal) st.components = [...KitchenCost.COMPONENTS];   // при включении отмечено всё (решение ВГ)
+    } else {
+        const k = input.dataset.prasadComp;
+        const set = new Set(st.components || []);
+        if (input.checked) set.add(k); else set.delete(k);
+        st.components = KitchenCost.COMPONENTS.filter(x => set.has(x));
+    }
+    const { error } = await Layout.db.rpc('fin_set_prasad_settings', { p_retreat: prasadCostState.retreatId, p_is_internal: st.is_internal, p_components: st.components });
+    if (error) { Layout.handleError(error, 'Прасад'); return; }
+    fillPrasadCost(prasadCostState.retreatId, prasadCostState.prasadTotals);
+}
+
 // Отчёт по ретриту → «Прасад»: себестоимость ретрита целиком (фактические даты, как на Себестоимости),
 // получено − себестоимость = результат. Расчёт сохраняется в Финансы (fin_prasad_cost) и фиксируется при закрытии.
 async function fillPrasadCost(retreatId, prasadTotals) {
@@ -343,12 +403,16 @@ async function fillPrasadCost(retreatId, prasadTotals) {
         ]);
         if (token !== prasadCostToken) return;
         const sum = KitchenCost.summarizeRetreat(res, detail, retreatId, span);
+        const { data: settings } = await Layout.db.rpc('fin_get_prasad_settings', { p_retreat: retreatId });
+        if (token !== prasadCostToken) return;
+        prasadCostState = { retreatId, sum, settings: settings || { is_internal: false, components: KitchenCost.COMPONENTS }, prasadTotals };
+        applyPrasadSettings();
         KitchenCost.saveRetreatCost(Layout.db, retreatId, sum);
 
         const all = sum.rows[0];
         const income = Number(prasadTotals?.income_base || 0);
         const expenseDds = Number(prasadTotals?.expense_base || 0);
-        const result = income - all.total;
+        const result = income - sum.included;
         const LABELS = { all: Layout.getName(retreat), participants: tr('cost_row_participants', 'Участники'),
             team: tr('cost_row_team_retreat', 'Команда ретрита'), volunteers: tr('cost_row_vol_retreat', 'Волонтёры ретрита'), groups: tr('nav_groups', 'Группы') };
         const today = DateUtils.toISO(new Date());
@@ -372,10 +436,13 @@ async function fillPrasadCost(retreatId, prasadTotals) {
             ${costGaps(res, retreatId)}
             <div class="grid grid-cols-1 sm:grid-cols-3 gap-2">
                 ${kv(tr('cost_cash_in', 'Получено за прасад'), `<span class="text-blue-600">${fmtB(income)}</span>`, '', e(tr('cost_cash_in_hint', 'оплаты участников, по Финансам')))}
-                ${kv(tr('cost_total', 'Себестоимость'), fmtB(all.total), '', `${e(tr('cost_per_participant', 'На участника'))}: ${sum.perParticipant !== null ? fmtB(sum.perParticipant) : '—'}`)}
+                ${kv(sum.settings.is_internal ? tr('fin_prasad_included', 'Входит в стоимость ретрита') : tr('cost_total', 'Себестоимость'), fmtB(sum.included), '',
+                    `${e(tr('cost_per_participant', 'На участника'))}: ${sum.includedPerParticipant !== null ? fmtB(sum.includedPerParticipant) : '—'}${sum.settings.is_internal ? ` · ${e(tr('fin_prasad_full', 'полная'))} ${fmtB(all.total)}` : ''}`)}
                 ${kv(tr('cost_result', 'Результат'), noPrices ? '—' : fmtB(result), noPrices ? '' : result < 0 ? 'text-error' : 'text-success',
                     noPrices ? `⚠ <a class="link" href="../kitchen/prices.html">${e(tr('cost_result_after_prices', 'появится после внесения цен'))} →</a>` : e(tr('cost_result_hint', 'получено − себестоимость ретрита')))}
             </div>
+            ${componentsPanel()}
+            <div class="text-sm font-medium opacity-70">${e(tr('fin_prasad_by_people', 'Полная себестоимость по людям'))}</div>
             <div class="overflow-x-auto"><table class="table table-sm">
                 <thead>${costHead()}</thead>
                 <tbody>${sum.rows.map((r, i) => costRow(LABELS[r.key] || r.key, r, i === 0 ? 'bg-base-200/60' : '', i > 0)).join('')}</tbody>
@@ -709,8 +776,13 @@ async function renderClosurePdf(snap, version) {
         line('Себестоимость прасада (расчёт по меню)', 13, { gap: 6 });
         line(`Период: ${pc.from} — ${pc.to}   приёмов пищи: ${all.pm}   людей: ${all.people}${part ? `   участников: ${part.people}` : ''}`, 10, { gap: 4 });
         line(`Прямые: ${money(Math.round(all.food + all.dish + all.ext))}   накладные: ${money(Math.round(all.ovR + all.ovG))}   всего: ${money(Math.round(all.total))}`, 10, { gap: 4 });
-        if (pc.perParticipant !== null && pc.perParticipant !== undefined) line(`На участника: ${money(Math.round(pc.perParticipant))}   на приём пищи: ${money(Math.round(pc.perMeal || 0))}`, 10, { gap: 4 });
-        if (prasad) line(`Прасад — получено ${money(prasad.income_base)} − себестоимость ${money(Math.round(all.total))} = ${money(Math.round(Number(prasad.income_base) - all.total))}${pc.pricesLoaded ? '' : '   (цены продуктов ещё не внесены — себестоимость занижена)'}`, 10, { gap: 4 });
+        const included = pc.included ?? all.total;
+        if (pc.settings?.is_internal) {
+            const names = { food: 'продукты', dish: 'посуда', ext: 'готовое со стороны', payroll: 'зарплаты кухни', equipment: 'оборудование', utilities: 'коммунальные', household: 'хозтовары и прочее', retreat: 'расходы на ретрит' };
+            line(`Внутренний ретрит — входит: ${(pc.settings.components || []).map(k => names[k] || k).join(', ') || 'ничего'}   итого ${money(Math.round(included))}`, 10, { gap: 4 });
+        }
+        if (pc.participants) line(`На участника: ${money(Math.round(included / pc.participants))}   на приём пищи: ${money(Math.round(pc.perMeal || 0))}`, 10, { gap: 4 });
+        if (prasad) line(`Прасад — получено ${money(prasad.income_base)} − себестоимость ${money(Math.round(included))} = ${money(Math.round(Number(prasad.income_base) - included))}${pc.pricesLoaded ? '' : '   (цены продуктов ещё не внесены — себестоимость занижена)'}`, 10, { gap: 4 });
         line(`Посчитано: ${new Date(snap.prasad_cost.computed_at).toLocaleString('ru-RU')}${snap.prasad_cost.provisional ? ' · предварительно' : ''}`, 9, { color: rgb(0.45, 0.45, 0.45), gap: 16 });
     }
 
@@ -1066,6 +1138,10 @@ async function init() {
 
     document.getElementById('reissueForm').addEventListener('submit', submitReissue);
     document.getElementById('retreatReport').addEventListener('click', onReportClick);
+    document.getElementById('retreatReport').addEventListener('change', ev => {
+        const input = ev.target.closest('[data-prasad-internal], [data-prasad-comp]');
+        if (input) onPrasadSettingChange(input);
+    });
     document.addEventListener('click', ev => {
         const att = ev.target.closest('[data-attachment-path]');
         if (att) FinUtils.openAttachment(att.dataset.attachmentPath);
