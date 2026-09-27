@@ -478,6 +478,7 @@ async function fillPrasadCost(retreatId, prasadTotals, retreatOnly = null) {
         applyPrasadSettings();
         sum.income = KitchenCost.incomeSummary(inc);
         KitchenCost.saveRetreatCost(Layout.db, retreatId, sum);
+        renderMovement(retreat, span, detail, token);
 
         const all = sum.rows[0];
         const received = Number(prasadTotals?.income_base || 0);
@@ -543,6 +544,145 @@ async function fillPrasadCost(retreatId, prasadTotals, retreatOnly = null) {
     }
 }
 
+// ==================== ДВИЖЕНИЕ УЧАСТНИКОВ ПО ДНЯМ ====================
+// Решение ВГ 25.09: сколько человек ретрита в день, заезды/выезды, пик, официальные и фактические даты.
+// Источник — тот же eating_detail, что у себестоимости: человек «на ретрите» в день, когда ел по ретриту.
+// Заезд — первый день подряд, выезд — последний (уехал и вернулся — два заезда).
+const CHART_JS = 'https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js';
+let chartLib = null;
+let moveChart = null;
+function loadChartLib() {
+    if (window.Chart) return Promise.resolve(window.Chart);
+    if (!chartLib) chartLib = new Promise((res, rej) => {
+        const sc = document.createElement('script');
+        sc.src = CHART_JS; sc.onload = () => res(window.Chart); sc.onerror = () => { chartLib = null; rej(); };
+        document.head.appendChild(sc);
+    });
+    return chartLib;
+}
+const isoShift = (iso, n) => { const d = DateUtils.parseDate(iso); d.setDate(d.getDate() + n); return DateUtils.toISO(d); };
+const MOVE_CATS = [
+    ['part', ['guests', 'vips', 'expected'], '#8b5cf6', () => tr('cost_row_participants', 'Участники')],
+    ['team', ['team'], '#10b981', () => tr('cost_row_team_retreat', 'Команда ретрита')],
+    ['volunteers', ['volunteers'], '#f59e0b', () => tr('cost_row_vol_retreat', 'Волонтёры ретрита')],
+    ['groups', ['groups'], '#3b82f6', () => tr('nav_groups', 'Группы')]
+];
+
+function movementData(retreatId, span, detail) {
+    const days = [];
+    for (let d = span.from; d <= span.to; d = isoShift(d, 1)) days.push(d);
+    const present = new Map();   // человек/группа → Map(день → {n, cat})
+    for (const x of detail) {
+        if (x.retreat_id !== retreatId || !(x.breakfast || x.lunch)) continue;
+        const cat = MOVE_CATS.find(c => c[1].includes(x.bucket))?.[0];
+        if (!cat) continue;
+        const key = x.kind === 'group' ? 'g:' + x.ref_id : (x.vaishnava_id || x.ref_id);
+        if (!present.has(key)) present.set(key, { id: x.vaishnava_id, group: x.kind === 'group', days: new Map() });
+        present.get(key).days.set(x.d, { n: x.kind === 'group' ? (Number(x.people) || 1) : 1, cat });
+    }
+    const byDay = new Map(days.map(d => [d, { cats: {}, total: 0, inN: 0, outN: 0, inIds: [], outIds: [] }]));
+    for (const p of present.values()) {
+        for (const [d, v] of p.days) {
+            const b = byDay.get(d);
+            if (!b) continue;
+            b.cats[v.cat] = (b.cats[v.cat] || 0) + v.n;
+            b.total += v.n;
+            if (!p.days.has(isoShift(d, -1))) { b.inN += v.n; b.inIds.push(p); }
+            if (!p.days.has(isoShift(d, 1))) { b.outN += v.n; b.outIds.push(p); }
+        }
+    }
+    let peak = null;
+    for (const [d, b] of byDay) if (!peak || b.total > peak.total) peak = { d, total: b.total };
+    const people = [...present.values()].reduce((a, p) => a + Math.max(...[...p.days.values()].map(v => v.n)), 0);
+    return { days, byDay, peak, people, present };
+}
+
+async function renderMovement(retreat, span, detail, token) {
+    const box = document.getElementById('retreatMoveBox');
+    if (!box) return;
+    const m = movementData(retreat.id, span, detail);
+    if (!m.people) { box.innerHTML = ''; return; }
+    const today = DateUtils.toISO(new Date());
+    const short = d => DateUtils.formatShort(d).replace(/ \d{4}$/, '');
+    const avg = Math.round(m.days.reduce((a, d) => a + m.byDay.get(d).total, 0) / m.days.length);
+    const official = `${e(tr('fin_official_dates', 'официально'))} ${e(DateUtils.formatRange(retreat.start_date, retreat.end_date))}`;
+    const actual = span.from !== retreat.start_date || span.to !== retreat.end_date
+        ? ` · ${e(tr('cost_actual_dates', 'фактически'))} ${e(DateUtils.formatRange(span.from, span.to))}` : '';
+    box.innerHTML = `
+    <div class="card bg-base-100 shadow-sm"><div class="card-body py-4 space-y-2">
+        <div class="flex items-center gap-2 flex-wrap">
+            <h2 class="card-title text-base">${e(tr('fin_move_title', 'Движение участников по дням'))}</h2>
+            <span class="text-xs opacity-60">${official}${actual}${today >= span.from && today <= span.to ? ` · ${e(tr('fin_move_future', 'после сегодня — по броням'))}` : ''}</span>
+        </div>
+        <div class="flex flex-wrap gap-x-6 gap-y-1 text-sm">
+            <span>${e(tr('fin_move_people', 'Всего людей'))}: <b>${m.people}</b></span>
+            <span>${e(tr('fin_move_peak', 'Пик'))}: <b>${m.peak.total}</b> — ${e(short(m.peak.d))}</span>
+            <span>${e(tr('fin_move_avg', 'В среднем в день'))}: <b>${avg}</b></span>
+        </div>
+        <div class="relative h-72"><canvas id="moveChart"></canvas></div>
+        <p class="text-xs opacity-60">${e(tr('fin_move_hint', 'Столбцы — сколько человек ретрита ели в этот день; линии — заезды и выезды за день. Пунктир — официальные даты начала и конца. Считается по подсчёту вкушающих (брони и отметки заезда), как себестоимость.'))}</p>
+        <details class="text-sm" data-move-days><summary class="cursor-pointer opacity-80">${e(tr('fin_move_by_day', 'По дням — кто заехал и уехал'))}</summary>
+            <div class="overflow-x-auto mt-2" data-move-table><span class="loading loading-spinner loading-sm"></span></div></details>
+    </div></div>`;
+    box.querySelector('[data-move-days]').addEventListener('toggle', ev => { if (ev.target.open) fillMoveTable(box, m, short); }, { once: true });
+
+    let Chart;
+    try { Chart = await loadChartLib(); } catch { box.querySelector('canvas').replaceWith(Object.assign(document.createElement('div'), { className: 'text-sm text-error', textContent: tr('cost_charts_load_error', 'Не удалось загрузить графики') })); return; }
+    if (token !== prasadCostToken || !document.getElementById('moveChart')) return;
+    if (moveChart) moveChart.destroy();
+    const idx = d => m.days.indexOf(d);
+    // пунктир официальных дат и «сегодня» — свой маленький плагин, без annotation
+    const marks = [[retreat.start_date, '#6b7280', tr('fin_move_start', 'начало')], [retreat.end_date, '#6b7280', tr('fin_move_end', 'конец')],
+                   [today, '#ef4444', tr('today', 'сегодня')]].filter(([d]) => idx(d) >= 0);
+    const markPlugin = { id: 'moveMarks', afterDatasetsDraw(c) {
+        const { ctx, chartArea: a, scales: { x } } = c;
+        ctx.save(); ctx.setLineDash([4, 4]); ctx.font = '11px sans-serif';
+        for (const [d, color, label] of marks) {
+            const px = x.getPixelForValue(idx(d));
+            ctx.strokeStyle = color; ctx.fillStyle = color;
+            ctx.beginPath(); ctx.moveTo(px, a.top); ctx.lineTo(px, a.bottom); ctx.stroke();
+            ctx.fillText(label, px + 3, a.top + 10);
+        }
+        ctx.restore();
+    } };
+    const cats = MOVE_CATS.filter(([k]) => m.days.some(d => m.byDay.get(d).cats[k]));
+    moveChart = new Chart(document.getElementById('moveChart'), {
+        type: 'bar',
+        data: { labels: m.days.map(short), datasets: [
+            ...cats.map(([k, , color, label]) => ({ label: label(), data: m.days.map(d => m.byDay.get(d).cats[k] || 0), backgroundColor: color, stack: 's', order: 2 })),
+            { type: 'line', label: tr('fin_move_in', 'Заехали'), data: m.days.map(d => m.byDay.get(d).inN), borderColor: '#16a34a', backgroundColor: '#16a34a', pointRadius: 2, borderWidth: 2, order: 1, stack: 'in' },
+            { type: 'line', label: tr('fin_move_out', 'Уехали'), data: m.days.map(d => m.byDay.get(d).outN), borderColor: '#dc2626', backgroundColor: '#dc2626', pointRadius: 2, borderWidth: 2, order: 1, stack: 'out' }
+        ] },
+        options: { responsive: true, maintainAspectRatio: false, interaction: { mode: 'index', intersect: false },
+            plugins: { legend: { position: 'bottom', labels: { boxWidth: 12 } },
+                tooltip: { callbacks: { footer: items => `${tr('cost_total', 'Всего')}: ${m.byDay.get(m.days[items[0].dataIndex]).total}` } } },
+            scales: { x: { stacked: true, ticks: { maxTicksLimit: 16 } }, y: { stacked: true, beginAtZero: true, ticks: { precision: 0 } } } },
+        plugins: [markPlugin]
+    });
+}
+
+// Раскрытие «по дням» — имена заехавших и уехавших (грузим один раз, когда открыли)
+async function fillMoveTable(box, m, short) {
+    const cell = box.querySelector('[data-move-table]');
+    const ids = [...new Set([...m.present.values()].filter(p => !p.group && p.id).map(p => p.id))];
+    const names = new Map();
+    for (let i = 0; i < ids.length; i += 100) {
+        const { data } = await Layout.db.from('vaishnavas').select('id, spiritual_name, first_name, last_name').in('id', ids.slice(i, i + 100));
+        (data || []).forEach(v => names.set(v.id, v.spiritual_name || `${v.first_name || ''} ${v.last_name || ''}`.trim()));
+    }
+    const who = list => list.map(p => p.group ? tr('nav_groups', 'Группа') : (names.get(p.id) || '—')).sort((a, b) => a.localeCompare(b, 'ru')).map(e).join(', ');
+    const rows = m.days.map(d => {
+        const b = m.byDay.get(d);
+        return `<tr class="${d === m.peak.d ? 'font-semibold' : ''}">
+            <td class="whitespace-nowrap">${e(short(d))}</td><td class="text-right">${b.total}</td>
+            <td class="text-right text-success">${b.inN ? '+' + b.inN : ''}</td><td class="text-right text-error">${b.outN ? '−' + b.outN : ''}</td>
+            <td class="text-xs">${b.inN ? `<span class="text-success">${who(b.inIds)}</span>` : ''}${b.inN && b.outN ? '<br>' : ''}${b.outN ? `<span class="text-error">${who(b.outIds)}</span>` : ''}</td></tr>`;
+    }).join('');
+    cell.innerHTML = `<table class="table table-xs"><thead><tr><th>${e(tr('date', 'Дата'))}</th><th class="text-right">${e(tr('fin_move_on', 'Ели'))}</th>
+        <th class="text-right">${e(tr('fin_move_in', 'Заехали'))}</th><th class="text-right">${e(tr('fin_move_out', 'Уехали'))}</th><th>${e(tr('fin_move_names', 'Кто'))}</th></tr></thead>
+        <tbody>${rows}</tbody></table>`;
+}
+
 async function loadReport() {
     const box = document.getElementById('retreatReport');
     box.innerHTML = `<div class="text-center py-8"><span class="loading loading-spinner loading-md"></span></div>`;
@@ -593,6 +733,7 @@ async function loadReport() {
                 ${kpi('is-error', icDown, t('fin_expense'), `<span class="text-error">${fmtB(pt.expense_base || 0)}</span>`)}
                 ${kpi(Number(pt.net_base) < 0 ? 'is-error' : '', icNet, t('fin_net'), `<span class="${Number(pt.net_base) < 0 ? 'text-error' : ''}">${fmtB(pt.net_base || 0)}</span>`)}
             </div>
+            <div id="retreatMoveBox"></div>
             <div class="grid grid-cols-1 lg:grid-cols-2 gap-4 items-start">
                 <div class="min-w-0 space-y-4">
                     <h2 class="text-lg font-semibold">${t('retreat_report_finance_prasad')}</h2>
@@ -697,6 +838,7 @@ async function loadReport() {
 
         ${closureBlock(currentData)}
         ${splitTotalsTable}
+        <div id="retreatMoveBox"></div>
         <div class="grid grid-cols-1 lg:grid-cols-2 gap-4 items-start">
             <div class="min-w-0 space-y-4">${unitTabs}</div>
             <div id="finDrill" class="card bg-base-100 shadow-sm lg:sticky lg:top-4 flex flex-col overflow-hidden"
