@@ -34,6 +34,16 @@ let ingredientsCache = {};
 // Флаг права на редактирование меню
 const canEditMenu = () => window.hasPermission?.('edit_menu') ?? false;
 
+let pastMenuRight = false;
+// Прошедший день закрыт, если в нём есть что-то, внесённое не сегодня, и нет права «Правка прошлого меню»
+// (то же правило проверяет база — kitchen_past_menu_allowed, мигр. 566)
+function isPastMenuLocked(dateStr, mealData) {
+    const today = DateUtils.toISO(new Date());
+    if (dateStr >= today || pastMenuRight) return false;
+    const rows = [...(mealData?.dishes || []), ...(mealData?.external || [])];
+    return rows.some(x => x.created_at && DateUtils.toISO(new Date(x.created_at)) < today);
+}
+
 // Склонение дней
 const DAY_FORMS = { ru: ['день', 'дня', 'дней'], en: ['day', 'days'], hi: 'दिन' };
 const pluralizeDays = n => Layout.pluralize(n, DAY_FORMS);
@@ -322,7 +332,7 @@ async function loadMenuData() {
             *,
             cook:vaishnavas(*),
             dishes:menu_dishes(*, recipe:recipes(*, category:recipe_categories(*))),
-            external:menu_external_items(id, name, amount, kind, per_person)
+            external:menu_external_items(id, name, amount, kind, per_person, created_at)
         `)
         .eq('location_id', locationId)
         .gte('date', startDate)
@@ -345,7 +355,8 @@ async function loadMenuData() {
                 recipe_id: d.recipe_id,
                 recipe: d.recipe,
                 portion_size: d.portion_size,
-                portion_unit: d.portion_unit
+                portion_unit: d.portion_unit,
+                created_at: d.created_at
             }))
         };
     });
@@ -719,9 +730,16 @@ function renderMealSection(dateStr, mealType, index, mealData, isEkadashiDay) {
         `;
     }
 
+    // Прошедший день закрыт (ВГ 27.09, защита в базе — мигр. 566): менять можно только в тот день,
+    // когда его заполняли, дальше — с правом «Правка прошлого меню»
+    const locked = canEditMenu() && isPastMenuLocked(dateStr, mealData);
+
     // Блок повара и порций (для кафе - ничего не показываем, без права edit_menu - только чтение)
-    const canEdit = canEditMenu();
-    const controlsHtml = isCafe ? `` : (canEdit ? `
+    const canEdit = canEditMenu() && !locked;
+    const lockHtml = locked ? `<div class="flex items-center gap-2 text-xs opacity-60 mb-2 no-print" title="${tr('menu_past_locked_hint', 'Меню прошедшего дня закрыто: менять его можно только с правом «Правка прошлого меню». Пустой прошедший приём пищи заполнить можно.')}">
+            <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M16.5 10.5V6.75a4.5 4.5 0 10-9 0v3.75m-.75 11.25h10.5a2.25 2.25 0 002.25-2.25v-6.75a2.25 2.25 0 00-2.25-2.25H6.75a2.25 2.25 0 00-2.25 2.25v6.75a2.25 2.25 0 002.25 2.25z"/></svg>
+            ${tr('menu_past_locked', 'Прошедший день закрыт')}</div>` : '';
+    const controlsHtml = lockHtml + (isCafe ? `` : (canEdit ? `
             <div class="flex items-center gap-4 mb-3 p-2 bg-base-100 rounded-lg no-print">
                 <div class="flex items-center gap-2 flex-1">
                     <span class="text-sm opacity-60">${t('cook')}:</span>
@@ -750,7 +768,7 @@ function renderMealSection(dateStr, mealType, index, mealData, isEkadashiDay) {
                 <span>${t('portions')}: <strong>${portions}</strong></span>
                 ${totalG > 0 ? `<span>х${totalG} ${getUnitShort('g')}</span>` : ''}
             </div>
-    `);
+    `));
 
     return `
         <div class="p-4 rounded-lg bg-white/70">
@@ -2380,6 +2398,11 @@ function setupRecipeDelegation() {
 
 async function init() {
     await Layout.init({ module: 'kitchen', menuId: 'kitchen', itemId: 'menu' });
+    // право «Правка прошлого меню» строгое (без обхода для суперпользователей) — спрашиваем у базы
+    try {
+        const uid = window.currentUser?.id;
+        if (uid) pastMenuRight = (await Layout.db.rpc('kitchen_has_permission', { p_user: uid, p_code: 'edit_past_menu' })).data === true;
+    } catch { pastMenuRight = false; }
 
     Layout.$('#externalForm')?.addEventListener('submit', saveExternal);
 
