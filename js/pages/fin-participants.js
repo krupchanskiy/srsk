@@ -229,13 +229,63 @@ function renderCardRates() {
 
 // Условия и даты из CRM — администратор видит договорённость в момент приёма денег (ТЗ 4.5)
 let cardCalc = null;
+// ==================== ЗАМЕТКИ СДЕЛКИ ====================
+// Договорённость «доплатит позже» жила только в переписке: в карточке и в CRM
+// долг висел без объяснения (Вринда-кишори, ВГ 27.09). Заметки пишутся прямо
+// в историю сделки CRM — одна история на обе стороны.
+async function loadCardNotes() {
+    const dealId = card.dealId;
+    const { data } = await Layout.db.from('crm_communications')
+        .select('summary, content, created_at, created_by:vaishnavas(spiritual_name, first_name)')
+        .eq('deal_id', dealId).eq('type', 'note')
+        .order('created_at', { ascending: false }).limit(20);
+    if (card.dealId === dealId) renderCardNotes(data || []);
+}
+
+function renderCardNotes(notes) {
+    const el = document.getElementById('cardNotes');
+    if (!el) return;
+    if (!card.dealId) { el.innerHTML = ''; return; }
+    el.innerHTML = `
+        <div class="text-xs font-semibold opacity-70 mb-1">${t('crm_notes')}</div>
+        ${notes.map(n => `<div class="text-xs py-0.5 border-b border-base-200/60">
+            <span class="opacity-50">${DateUtils.formatShort(new Date(n.created_at))}${n.created_by ? ' · ' + e(n.created_by.spiritual_name || n.created_by.first_name || '') : ''}</span>
+            ${e(n.summary)}${n.content ? ` <span class="opacity-70">— ${e(n.content)}</span>` : ''}
+        </div>`).join('')}
+        <form id="cardNoteForm" class="flex gap-1 mt-1">
+            <input type="text" id="cardNoteText" class="input input-bordered input-xs flex-1" placeholder="Договорённость по оплате — уйдёт в историю сделки CRM">
+            <button type="submit" class="btn btn-xs">+ ${t('crm_note')}</button>
+        </form>`;
+    document.getElementById('cardNoteForm').addEventListener('submit', async ev => {
+        ev.preventDefault();
+        const текст = document.getElementById('cardNoteText').value.trim();
+        if (!текст) return;
+        if (await addDealNote(card.dealId, текст)) loadCardNotes();
+    });
+}
+
+async function addDealNote(dealId, summary, content = null) {
+    const { error } = await Layout.db.from('crm_communications').insert({
+        deal_id: dealId, type: 'note', direction: 'internal',
+        summary, content, created_by: window.currentUser?.vaishnava_id || null
+    });
+    if (error) { Layout.handleError(error, t('crm_note')); return false; }
+    return true;
+}
+
 async function loadCardCrmInfo() {
     const el = document.getElementById('cardCrmInfo');
     if (el) el.innerHTML = '';
     cardCalc = null;
+    card.dealId = null;
+    renderCardNotes([]);
     const { data: deal } = await Layout.db.from('crm_deals')
         .select('id').eq('vaishnava_id', card.id).eq('retreat_id', currentRetreat)
         .neq('status', 'cancelled').order('updated_at', { ascending: false }).limit(1).maybeSingle();
+    if (deal) {
+        card.dealId = deal.id;
+        loadCardNotes();
+    }
     if (!deal) {
         // Активной сделки нет — если была и её отменили, это должно быть видно
         // сразу вверху карточки, а не пустым местом там, где обычно условия из
@@ -1719,6 +1769,17 @@ async function submitPayment(ev) {
         ...(обмен.length ? { exchange: обмен.map(({ cur, ...x }) => x) } : {})
     });
     if (FinUtils.handleResult(res)) {
+        // Комментарий к приёму — в историю сделки каждого, за кого платили,
+        // чтобы договорённость была видна и в CRM (ВГ, 27.09)
+        const комментарий = document.getElementById('payComment').value.trim();
+        if (комментарий) {
+            const { data: сделки } = await Layout.db.from('crm_deals').select('id')
+                .in('vaishnava_id', [...new Set(rows.map(r => r.participant_id))])
+                .eq('retreat_id', currentRetreat).neq('status', 'cancelled');
+            for (const s of сделки || []) {
+                await addDealNote(s.id, `Оплата в кассу: ${итог}`, комментарий);
+            }
+        }
         // Излишек, оставленный как пожертвование (п.3): отдельная операция на тот же
         // счёт — платёж закрывает ровно долг, разница проведена как пожертвование
         if (payDonation) {
