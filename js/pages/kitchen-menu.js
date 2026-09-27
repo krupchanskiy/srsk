@@ -712,8 +712,9 @@ function renderMealSection(dateStr, mealType, index, mealData, isEkadashiDay) {
                         <span class="text-xl font-medium">${mealTitle}</span>
                     </div>
                 </div>
-                ${canEdit && !isCafe ? `<div class="text-center"><button class="btn btn-ghost btn-xs" data-action="open-external-modal" data-date="${dateStr}" data-meal-type="${mealType}">+ ${tr('menu_external_add', 'Готовое со стороны')}</button>
-                    <button class="btn btn-ghost btn-xs" data-action="open-own-cook-modal" data-date="${dateStr}" data-meal-type="${mealType}">+ ${tr('menu_own_cook_add', 'Готовил Бридж Кишор')}</button></div>` : ''}
+                ${canEdit && !isCafe ? `<div class="flex flex-wrap justify-center gap-2">
+                    <button class="btn btn-sm btn-outline border-current" style="color: var(--current-color)" data-action="open-own-cook-modal" data-date="${dateStr}" data-meal-type="${mealType}">+ ${tr('menu_own_cook_add', 'Готовил Бридж Кишор')}</button>
+                    <button class="btn btn-ghost btn-sm opacity-70" data-action="open-external-modal" data-date="${dateStr}" data-meal-type="${mealType}">+ ${tr('menu_external_add', 'Готовое со стороны')}</button></div>` : ''}
             </div>
         `;
     }
