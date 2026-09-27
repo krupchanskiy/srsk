@@ -228,13 +228,17 @@ async function calculate() {
         await Promise.all([loadPersonDepts(detail.map(x => x.vaishnava_id)),
                            loadGroupNames(detail.filter(x => x.kind === 'group').map(x => x.ref_id))]);
 
-        // доход прасада ретритов: доля по дням питания (человеко-приёмы в окне / за весь ретрит)
+        // доход прасада ретритов: доля по дням питания (человеко-приёмы в окне / за весь ретрит).
+        // «Период» — по начисленному (ТЗ 3.7, ВГ 27.09): питание со скидками без отмен + пожертвования ретрита
+        // (отмеченные и неотмеченные в даты нашего общего ретрита — fin_prasad_income)
         const incomes = {};
+        const isPeriod = state.mode === 'period';
         const retreatIds = Object.keys(result.cells).filter(k => k.startsWith('retreat:')).map(k => k.slice(8));
         await Promise.all(retreatIds.map(async id => {
             const r = retreats.find(x => x.id === id);
             if (!r) return;
-            const [income, span] = await Promise.all([retreatIncome(id), retreatSpan(r)]);
+            const [income, span, charged] = await Promise.all([retreatIncome(id), retreatSpan(r),
+                isPeriod ? KitchenCost.loadIncome(Layout.db, id) : null]);
             // доля — по вкушающим ретрита в окне (не по меню: на будущие дни меню может ещё не быть);
             // в режиме «Ретрит» окно = весь ретрит, доход целиком
             let pmWindow = 0;
@@ -247,8 +251,25 @@ async function calculate() {
             }
             const share = state.mode === 'retreat' || !span.pm ? 1 : Math.min(1, pmWindow / span.pm);
             incomes[id] = income === null ? null
-                : { full: income.amount, objectId: income.objectId, groups: income.groups, expense: income.expense, expenseGroups: income.expenseGroups, share };
+                : { full: income.amount, objectId: income.objectId, groups: income.groups, expense: income.expense, expenseGroups: income.expenseGroups, share,
+                    charged: charged ? KitchenCost.incomeSummary(charged) : null, autoN: Number(charged?.donations_auto_n || 0),
+                    autoSum: Number(charged?.donations_auto || 0), external: !!r.is_external };
         }));
+        // пожертвования на прасад без ретрита (не отмечены и не в даты нашего общего ретрита) → «Гости без события»
+        let noEvent = null;
+        if (isPeriod) {
+            const { data: dons, error: donErr } = await Layout.db.rpc('fin_prasad_donations', { p_from: from, p_to: to });
+            if (donErr) console.error('fin_prasad_donations:', donErr);
+            const list = (dons || []).filter(d => !d.tagged_retreat_id && !d.auto_retreat_id);
+            const ops = new Map();
+            if (list.length) {
+                const { data: o } = await Layout.db.rpc('fin_kitchen_posting_operations', { p_posting_ids: list.map(d => d.posting_id) });
+                (o || []).forEach(x => ops.set(x.posting_id, x.operation_id));
+            }
+            noEvent = { ok: !donErr, ambiguous: list.filter(d => d.ambiguous).length,
+                ops: list.map(d => ({ date: d.occurred_on, opId: ops.get(d.posting_id), title: d.comment || tr('cost_donation', 'Пожертвование на прасад'),
+                    meta: d.ambiguous ? tr('cost_donation_ambiguous', '⚠ в эти даты два общих ретрита — отметьте ретрит в ДДС') : '', amount: Number(d.amount_base) })) };
+        }
         if (token !== calcToken) return;
 
         const postingIds = result.overheadLines.map(l => l.postingId).filter(Boolean);
@@ -259,7 +280,7 @@ async function calculate() {
         }
         if (token !== calcToken) return;
 
-        view = { from, to, result, detail, incomes, opByPosting, directPostings: null, incomeOps: {}, expenseOps: {}, now: null, cash };
+        view = { from, to, result, detail, incomes, noEvent, opByPosting, directPostings: null, incomeOps: {}, expenseOps: {}, now: null, cash };
         expanded.clear();
         render();
         // тот же расчёт ретрита сохраняем в Финансы (fin_prasad_cost) — одно число на обеих страницах
@@ -594,7 +615,7 @@ function renderSummary() {
         <th class="text-right">${e(tr('cost_total', 'Всего'))}</th>
         <th class="text-right">${e(tr('cost_per_meal', 'На приём пищи'))}</th>
         <th class="text-right">${e(tr('cost_per_participant', 'На участника'))}</th>
-        ${isPeriod ? `<th class="text-right">${e(tr('cost_income', 'Доход прасада'))}</th>
+        ${isPeriod ? `<th class="text-right" title="${e(tr('cost_income_hint_period', 'Начислено за питание (со скидками, без отмен) плюс пожертвования на прасад. Ретрит — своей долей по дням; пожертвования без ретрита и приход сторонних ретритов — в «Гостях без события»'))}">${e(tr('cost_income_charged', 'Доход прасада (начислено)'))}</th>
         <th class="text-right">${e(tr('cost_result', 'Результат'))}</th>` : ''}
     </tr>`;
 
@@ -607,7 +628,7 @@ function renderSummary() {
         if (!row.sub) Object.keys(grand).forEach(k => { if (k !== 'prov') grand[k] += x[k]; });
         const st = peopleStats(row);
         const inc = row.retreatId ? view.incomes[row.retreatId] : undefined;
-        const income = inc ? inc.full * inc.share : null;
+        const income = isPeriod ? periodIncome(row) : inc ? inc.full * inc.share : null;
         if (income !== null && !row.sub) { grandIncome += income; anyIncome = true; }
         const perPart = row.retreatId && st.participants ? total(x) / st.participants : null;
         const days = isPeriod ? daysOf(row) : null;
@@ -625,11 +646,10 @@ function renderSummary() {
             <td class="text-right">${x.pm ? money2(total(x) / x.pm) : '—'}</td>
             <td class="text-right">${perPart !== null && !row.sub ? money(perPart) : '—'}</td>
             ${isPeriod ? `<td class="text-right">${income !== null && !row.sub
-                ? `<span class="link link-hover" data-action="toggle-income" data-retreat="${row.retreatId}" title="${e(tr('cost_show_income', 'Показать приходы'))}">${money(income)}</span>` : '—'}</td>
+                ? `<span class="link link-hover" data-action="toggle-income" data-retreat="${row.retreatId || 'none'}" title="${e(tr('cost_show_income', 'Показать приходы'))}">${money(income)}</span>`
+                : inc?.external ? `<span class="text-xs opacity-60" title="${e(tr('cost_external_income_hint', 'Сторонний ретрит: приход за прасад — в строке «Гости без события»'))}">${e(tr('cost_external_short', 'в гостях'))}</span>` : '—'}</td>
             <td class="text-right">${resultCell(income, x, row.sub, ps)}</td>` : ''}
-        </tr>${row.retreatId && !row.sub && expanded.has(`income:${row.retreatId}`) ? `<tr><td colspan="11" class="bg-base-200/40 pl-8">
-            <div class="text-sm font-medium mb-1">${e(tr('cost_income_ops', 'Приходы прасада ретрита'))}${inc && inc.share < 0.999 ? ` <span class="opacity-60">(${e(tr('cost_income_whole', 'весь ретрит; в период входит'))} ${Math.round(inc.share * 100)}%)</span>` : ''}</div>
-            ${opsTable(view.incomeOps[row.retreatId])}</td></tr>` : ''}`;
+        </tr>${isPeriod && !row.sub && (row.retreatId || row.key === 'none:guests') && expanded.has(`income:${row.retreatId || 'none'}`) ? incomeDrill(row, inc) : ''}`;
     }).join('');
 
     const showGrand = isPeriod && rows.length > 1;
@@ -650,14 +670,48 @@ function renderSummary() {
     const lost = [];
     if (t2.unallocated > 0.5) lost.push(`${tr('cost_unallocated', 'Расходы приёмов пищи без вкушающих (не распределены)')}: ${money(t2.unallocated)}`);
     if (t2.overheadUnallocated > 0.5) lost.push(`${tr('cost_overhead_unallocated2', 'Накладные расходы за период, где не было ни одного вкушающего (не распределены)')}: ${money(t2.overheadUnallocated)}`);
+    if (isPeriod && view.noEvent && !view.noEvent.ok) lost.push(tr('cost_donations_err', '⚠ Не удалось загрузить пожертвования на прасад — доход «Гостей без события» неполный'));
+    if (isPeriod && view.noEvent?.ambiguous) lost.push(`⚠ ${tr('cost_donations_amb', 'Пожертвования в даты двух общих ретритов — отнесены к «Гостям без события», отметьте ретрит в ДДС')}: ${view.noEvent.ambiguous}`);
     const lostHtml = lost.length && isPeriod
         ? lost.map(l => `<tr class="text-warning text-sm"><td colspan="11">${e(l)}</td></tr>`).join('') : '';
 
     Layout.$('#summaryBody').innerHTML = (html || `<tr><td colspan="11" class="text-center opacity-60 py-6">${e(tr('cost_nothing', 'За период нет данных'))}</td></tr>`) + grandHtml + lostHtml;
     Layout.$('#summaryNote').textContent = isPeriod
-        ? tr('cost_summary_note_period', 'Ретрит, который захватывает несколько месяцев, входит в период своей долей: расходы — по дням, доход прасада — по доле приёмов пищи. «На участника» — стоимость ретрита на одного участника без команды и волонтёров.')
+        ? tr('cost_summary_note_period2', 'Ретрит, который захватывает несколько месяцев, входит в период своей долей: расходы — по дням, доход прасада — по доле приёмов пищи. Доход — начисленное за питание плюс пожертвования на прасад; неотмеченное пожертвование в даты нашего общего ретрита идёт ретриту, остальные и приход сторонних ретритов — «Гостям без события». Итог — весь доход минус вся себестоимость кухни, включая команду. «На участника» — стоимость ретрита на одного участника без команды и волонтёров.')
         : tr('cost_summary_note_retreat', 'Ретрит целиком, включая дни раннего заезда и позднего выезда его участников, до конца — по броням. «На участника» — вся стоимость ретрита на одного участника без постоянной команды и волонтёров (они — на вкладке «Команда и волонтёры»).');
     Layout.$('#summaryBox').classList.remove('hidden');
+}
+
+// Доход строки «Периода»: наш ретрит — начислено × доля; «Гости без события» — пожертвования без ретрита
+// + приход сторонних ретритов (ВГ 27.09: только наши ретриты считаются приходом ретрита)
+function periodIncome(row) {
+    if (row.sub) return null;
+    if (row.retreatId) {
+        const inc = view.incomes[row.retreatId];
+        if (!inc || inc.external || !inc.charged) return null;
+        return inc.charged.charged * inc.share;
+    }
+    if (row.key !== 'none:guests' || !view.noEvent) return null;
+    const ext = Object.values(view.incomes).filter(i => i?.external && i.charged).reduce((a, i) => a + i.charged.charged * i.share, 0);
+    return view.noEvent.ops.reduce((a, o) => a + o.amount, 0) + ext;
+}
+
+function incomeDrill(row, inc) {
+    if (!row.retreatId) {
+        const ext = Object.entries(view.incomes).filter(([, i]) => i?.external && i.charged);
+        return `<tr><td colspan="11" class="bg-base-200/40 pl-8">
+            <div class="text-sm font-medium mb-1">${e(tr('cost_noevent_donations', 'Пожертвования на прасад без ретрита'))}</div>
+            ${opsTable(view.noEvent.ops)}
+            ${ext.map(([id, i]) => `<div class="text-sm mt-1">${e(retreatName(id))} (${e(tr('cost_external', 'сторонний'))}): ${money(i.charged.charged * i.share)}${i.share < 0.999 ? ` <span class="opacity-60">(${Math.round(i.share * 100)}%)</span>` : ''}</div>`).join('')}</td></tr>`;
+    }
+    const c = inc?.charged;
+    return `<tr><td colspan="11" class="bg-base-200/40 pl-8">
+        ${c ? `<div class="text-sm mb-2">${e(tr('fin_prasad_charged', 'Начислено за прасад'))}: <b>${money(c.charged)}</b> =
+            ${e(tr('fin_prasad_meals', 'питание'))} ${money(c.meals)}${c.discount ? ` (${e(tr('fin_prasad_after_disc', 'со скидками'))} −${money(c.discount)})` : ''}
+            + ${e(tr('fin_prasad_donations', 'пожертвования'))} ${money(c.donations)}${inc.autoN ? ` <span class="opacity-60">(${e(tr('cost_donations_auto', 'из них не отмечены, отнесены по дате'))}: ${inc.autoN} · ${money(inc.autoSum)})</span>` : ''}
+            ${inc.share < 0.999 ? ` <span class="opacity-60">· ${e(tr('cost_income_whole', 'весь ретрит; в период входит'))} ${Math.round(inc.share * 100)}%</span>` : ''}</div>` : ''}
+        <div class="text-sm font-medium mb-1">${e(tr('cost_income_ops_received', 'Получено — операции прасада ретрита'))}</div>
+        ${opsTable(view.incomeOps[row.retreatId])}</td></tr>`;
 }
 
 function resultCell(income, x, sub, ps) {
@@ -1807,7 +1861,7 @@ document.addEventListener('click', ev => {
             const key = `income:${btn.dataset.retreat}`;
             if (expanded.has(key)) expanded.delete(key); else expanded.add(key);
             renderSummary();
-            if (expanded.has(key)) loadIncomeOps(btn.dataset.retreat).then(() => view && renderSummary());
+            if (expanded.has(key) && btn.dataset.retreat !== 'none') loadIncomeOps(btn.dataset.retreat).then(() => view && renderSummary());
             ev.stopPropagation();
             break;
         }
@@ -1947,7 +2001,7 @@ async function init() {
     if (!locationId) { Layout.showNotification(t('error'), 'error'); return; }
 
     const [{ data }, { data: deps }] = await Promise.all([
-        Layout.db.from('retreats').select('id, name_ru, name_en, name_hi, start_date, end_date').order('start_date', { ascending: false }),
+        Layout.db.from('retreats').select('id, name_ru, name_en, name_hi, start_date, end_date, is_external').order('start_date', { ascending: false }),
         Layout.db.from('departments').select('*')
     ]);
     retreats = data || [];
