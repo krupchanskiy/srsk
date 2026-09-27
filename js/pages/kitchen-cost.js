@@ -262,6 +262,9 @@ async function calculate() {
         view = { from, to, result, detail, incomes, opByPosting, directPostings: null, incomeOps: {}, expenseOps: {}, now: null, cash };
         expanded.clear();
         render();
+        // тот же расчёт ретрита сохраняем в Финансы (fin_prasad_cost) — одно число на обеих страницах
+        if (state.mode === 'retreat') KitchenCost.saveRetreatCost(Layout.db, state.retreatId,
+            KitchenCost.summarizeRetreat(result, detail, state.retreatId, { from, to }));
     } catch (err) {
         console.error('Cost calculation:', err);
         Layout.showNotification(errorText(err), 'error');
@@ -1962,6 +1965,9 @@ async function init() {
     const current = retreats.find(r => r.start_date <= today && r.end_date >= today)
         || retreats.find(r => r.end_date < today);
     state.retreatId = retreats.some(r => r.id === saved.retreatId) ? saved.retreatId : (current?.id || '');
+    // ссылка «Подробно →» из Финансов: ?retreat=<id> — сразу этот ретрит
+    const urlRetreat = new URLSearchParams(location.search).get('retreat');
+    if (urlRetreat && retreats.some(r => r.id === urlRetreat)) { state.mode = 'retreat'; state.retreatId = urlRetreat; state.section = 'calc'; }
     setStep(['month', 'quarter', 'year'].includes(saved.step) ? saved.step : 'month', today);
 
     Layout.$('#costContent').classList.remove('hidden');

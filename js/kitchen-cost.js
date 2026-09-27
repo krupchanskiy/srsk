@@ -481,7 +481,56 @@ async function loadDetail(db, from, to) {
     return parts.flat();
 }
 
-const api = { computeCosts, calculate, priceOn, convert, BUCKETS, retreatSpan, loadDetail };
+// Итоги ретрита целиком — одна таблица для Себестоимости и Финансов (решение ВГ 27.09):
+// весь ретрит, участники (гости, важные, ожидаются), команда / волонтёры / группы ретрита.
+// Люди — кто ел хоть раз (eating_detail), «на участника» — без команды и волонтёров.
+const PART = ['guests', 'vips', 'expected'];
+function summarizeRetreat(result, detail, retreatId, span) {
+    const ev = `retreat:${retreatId}`;
+    const agg = buckets => {
+        const a = { pm: 0, food: 0, dish: 0, ext: 0, ovR: 0, ovG: 0 };
+        for (const b of buckets) {
+            const c = result.cells?.[ev]?.[b];
+            if (!c) continue;
+            a.pm += c.personMeals; a.food += c.food; a.dish += c.dishware; a.ext += c.external;
+            a.ovR += c.overheadRetreat; a.ovG += c.overheadGeneral;
+        }
+        a.total = a.food + a.dish + a.ext + a.ovR + a.ovG;
+        return a;
+    };
+    const people = buckets => {
+        const seen = new Map();
+        for (const x of detail) {
+            if (x.retreat_id !== retreatId || !buckets.includes(x.bucket) || !(x.breakfast || x.lunch)) continue;
+            const key = x.vaishnava_id || x.ref_id;
+            seen.set(key, Math.max(seen.get(key) || 0, x.kind === 'group' ? (Number(x.people) || 1) : 1));
+        }
+        return [...seen.values()].reduce((s, n) => s + n, 0);
+    };
+    const row = (key, buckets) => ({ key, ...agg(buckets), people: people(buckets) });
+    const rows = [row('all', BUCKETS), row('participants', PART)];
+    for (const b of ['team', 'volunteers', 'groups']) { const r = row(b, [b]); if (r.pm) rows.push(r); }
+    const w = result.warnings;
+    const round = v => Math.round(v * 100) / 100;
+    rows.forEach(r => ['food', 'dish', 'ext', 'ovR', 'ovG', 'total'].forEach(k => { r[k] = round(r[k]); }));
+    return {
+        from: span.from, to: span.to, rows,
+        // как на Себестоимости: «на участника» — все, кроме команды и волонтёров (группы входят)
+        perParticipant: (n => n ? round(rows[0].total / n) : null)(people(BUCKETS.filter(b => b !== 'team' && b !== 'volunteers'))),
+        perMeal: rows[0].pm ? round(rows[0].total / rows[0].pm) : null,
+        pricesLoaded: !!result.pricesLoaded,
+        gaps: { missingPrices: w.missingPrices.size, noMenu: w.noMenu.length, payrollEstimated: w.payrollEstimated.length },
+        provisional: !!result.totals.provisional || DateUtils.toISO(new Date()) <= span.to
+    };
+}
+
+async function saveRetreatCost(db, retreatId, summary) {
+    const { error } = await db.rpc('fin_save_prasad_cost', { p_retreat: retreatId, p_from: summary.from, p_to: summary.to,
+        p_data: summary, p_provisional: summary.provisional });
+    if (error) console.error('fin_save_prasad_cost:', error);
+}
+
+const api = { computeCosts, calculate, priceOn, convert, BUCKETS, retreatSpan, loadDetail, summarizeRetreat, saveRetreatCost };
 if (typeof module !== 'undefined') module.exports = api;
 return api;
 

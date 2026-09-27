@@ -37,7 +37,8 @@ async function selectRetreat(id) {
         return;
     }
     fullReportLink.href = `retreat-report.html?id=${id}`;
-    fullReportLink.classList.remove('hidden');
+    // полный отчёт ретрита — только финансистам; главе кухни он закрыт (там оргвзнос, проживание, долги)
+    fullReportLink.classList.toggle('hidden', !canReadAllFin());
     await loadReport();
 }
 
@@ -222,40 +223,99 @@ async function canViewKitchenCost() {
     return kitchenCostAllowed;
 }
 
-// Карточка в отчёте по департаментам: расчётная себестоимость прасада за период (только для «Кухни»)
+// Пока кэш переводов не обновился — русский текст, а не имя ключа
+const tr = (key, fallback) => { const v = t(key); return v === key ? fallback : v; };
+const mainLocationId = () => (Layout.locations || []).find(l => l.slug === 'main')?.id;
+const COST_PAGE = '../kitchen/cost.html';
+
+// ⚠ пропуски данных — каждый ссылкой туда, где исправить (правило ВГ)
+function costGaps(res, retreatId) {
+    const w = res.warnings;
+    const today = DateUtils.toISO(new Date());
+    const past = w.noMenu.filter(x => x.split(' ')[0] <= today).length;
+    const link = retreatId ? `${COST_PAGE}?retreat=${retreatId}` : COST_PAGE;
+    const items = [];
+    if (!res.pricesLoaded) items.push(`<a class="link" href="../kitchen/prices.html">${e(tr('cost_q_no_prices', 'цены ещё не внесены — продукты и посуда считаются как 0'))}</a>`);
+    else if (w.missingPrices.size) items.push(`<a class="link" href="${link}">${e(tr('cost_q_some_prices', 'нет цены у продуктов'))}: ${w.missingPrices.size}</a>`);
+    if (past) items.push(`<a class="link" href="${link}">${e(tr('cost_q_menu_past', 'меню не заведено на прошедшие приёмы пищи'))}: ${past}</a>`);
+    if (w.noMenu.length - past) items.push(`<a class="link" href="${link}">${e(tr('cost_q_menu_future', 'меню ещё не заведено на предстоящие приёмы пищи'))}: ${w.noMenu.length - past}</a>`);
+    if (w.payrollEstimated.length) items.push(`<a class="link" href="${link}">${e(tr('cost_q_payroll', 'зарплата предварительная, ещё не начислена'))}: ${w.payrollEstimated.length}</a>`);
+    return items.length ? `<div class="alert alert-warning text-sm items-start py-2"><div>
+        <div class="font-semibold">⚠ ${e(tr('cost_q_title', 'Данные могут быть неточными'))}</div>
+        <ul class="list-disc ml-5">${items.map(x => `<li>${x}</li>`).join('')}</ul></div></div>` : '';
+}
+
+const costHead = () => `<tr><th></th>
+    <th class="text-right">${e(tr('cost_people', 'Людей'))}</th>
+    <th class="text-right">${e(tr('cost_person_meals', 'Приёмов пищи'))}</th>
+    <th class="text-right">${e(tr('cost_direct', 'Прямые'))}</th>
+    <th class="text-right">${e(tr('cost_overhead', 'Накладные'))}</th>
+    <th class="text-right">${e(tr('cost_total', 'Всего'))}</th>
+    <th class="text-right">${e(tr('cost_per_meal', 'На приём пищи'))}</th></tr>`;
+const costRow = (label, r, cls = '', sub = false) => `<tr class="${cls}">
+    <td class="${sub ? 'pl-6 text-sm' : 'font-medium'}">${e(label)}</td>
+    <td class="text-right">${r.people ?? '—'}</td>
+    <td class="text-right">${r.pm.toLocaleString('ru-RU')}</td>
+    <td class="text-right font-mono">${fmtB(r.food + r.dish + r.ext)}</td>
+    <td class="text-right font-mono">${fmtB(r.ovR + r.ovG)}</td>
+    <td class="text-right font-mono font-semibold">${fmtB(r.total)}</td>
+    <td class="text-right font-mono">${r.pm ? fmtB(r.total / r.pm) : '—'}</td></tr>`;
+
+// Отчёт по департаментам («Кухня»): расчётная себестоимость за период с разбивкой —
+// ретриты (своей долей по дням), команда, волонтёры, гости и группы без события
+const NONE_ROWS = [
+    ['team', ['team'], () => tr('status_team', 'Команда')],
+    ['volunteers', ['volunteers'], () => tr('category_volunteer', 'Волонтёры')],
+    ['guests', ['guests', 'vips'], () => tr('cost_guests_no_event', 'Гости без события')],
+    ['groups', ['groups'], () => tr('cost_groups_no_event', 'Группы без события')],
+    ['expected', ['expected'], () => tr('expected_guests', 'Ожидаются')]
+];
+function cellsRow(cells, ev, buckets) {
+    const a = { pm: 0, food: 0, dish: 0, ext: 0, ovR: 0, ovG: 0, people: null };
+    for (const b of buckets) {
+        const c = cells?.[ev]?.[b];
+        if (!c) continue;
+        a.pm += c.personMeals; a.food += c.food; a.dish += c.dishware; a.ext += c.external; a.ovR += c.overheadRetreat; a.ovG += c.overheadGeneral;
+    }
+    a.total = a.food + a.dish + a.ext + a.ovR + a.ovG;
+    return a;
+}
+
 async function fillDeptPrasadCost(from, to) {
     const box = document.getElementById('deptPrasadCostBox');
     if (!box || typeof KitchenCost === 'undefined') return;
     try {
         if (!await canViewKitchenCost()) return;
-        const locationId = (Layout.locations || []).find(l => l.slug === 'main')?.id;
+        const locationId = mainLocationId();
         if (!locationId) return;
-        if ((DateUtils.parseDate(to) - DateUtils.parseDate(from)) / 86400000 > 92) {
-            box.innerHTML = `<p class="text-xs opacity-60">${t('fin_prasad_cost_long')}</p>`;
-            return;
-        }
+        box.innerHTML = `<div class="text-center py-4"><span class="loading loading-spinner loading-sm"></span></div>`;
         const res = await KitchenCost.calculate(Layout.db, locationId, from, to);
         if (!document.getElementById('deptPrasadCostBox')) return;
-        const cs = Object.values(res.cells).flatMap(ev => Object.values(ev));
-        const sum = f => cs.reduce((a, c) => a + f(c), 0);
-        const direct = sum(c => c.food + c.dishware + c.external);
-        const overhead = sum(c => c.overheadRetreat + c.overheadGeneral);
-        const pm = sum(c => c.personMeals);
-        const total = direct + overhead;
+        const B = KitchenCost.BUCKETS;
+        const rows = Object.keys(res.cells).filter(k => k.startsWith('retreat:')).map(ev => {
+            const r = retreats.find(x => x.id === ev.slice(8));
+            return { label: r ? Layout.getName(r) : '—', r: cellsRow(res.cells, ev, B) };
+        }).sort((a, b) => a.label.localeCompare(b.label, 'ru'));
+        for (const [, buckets, label] of NONE_ROWS) {
+            const r = cellsRow(res.cells, 'none', buckets);
+            if (r.pm) rows.push({ label: label(), r, none: true });
+        }
+        const sum = rows.reduce((a, x) => { ['pm', 'food', 'dish', 'ext', 'ovR', 'ovG', 'total'].forEach(k => a[k] += x.r[k]); return a; },
+            { pm: 0, food: 0, dish: 0, ext: 0, ovR: 0, ovG: 0, total: 0, people: null });
         box.innerHTML = `
-        <div class="card bg-base-100 shadow-sm"><div class="card-body py-4">
+        <div class="card bg-base-100 shadow-sm"><div class="card-body py-4 space-y-2">
             <div class="flex items-center gap-2 flex-wrap">
-                <h2 class="card-title text-base">${t('fin_prasad_cost_title')}</h2>
-                ${res.totals.provisional ? `<span class="badge badge-warning badge-sm" title="${e(t('fin_prasad_cost_prov_hint'))}">${t('fin_prasad_cost_prov')}</span>` : ''}
-                <a class="badge badge-outline badge-sm ml-auto" href="../kitchen/cost.html">${t('fin_prasad_cost_details')}</a>
+                <h2 class="card-title text-base">${e(tr('fin_prasad_cost_title', 'Себестоимость прасада — расчёт по меню'))} · ${e(DateUtils.formatRange(from, to))}</h2>
+                ${res.totals.provisional ? `<span class="badge badge-warning badge-sm" title="${e(t('fin_prasad_cost_prov_hint'))}">${e(tr('cost_provisional', 'предварительно'))}</span>` : ''}
+                <a class="link link-primary text-sm ml-auto" href="${COST_PAGE}">${e(tr('fin_prasad_cost_details', 'Подробно'))} →</a>
             </div>
-            <div class="grid grid-cols-2 md:grid-cols-4 gap-3 text-sm">
-                <div><div class="opacity-60 text-xs">${t('fin_prasad_cost_direct')}</div><div class="font-mono">${fmtB(direct)}</div></div>
-                <div><div class="opacity-60 text-xs">${t('fin_prasad_cost_overhead')}</div><div class="font-mono">${fmtB(overhead)}</div></div>
-                <div><div class="opacity-60 text-xs">${t('fin_prasad_cost_total')}</div><div class="font-mono font-semibold">${fmtB(total)}</div></div>
-                <div><div class="opacity-60 text-xs">${t('fin_prasad_cost_per_person')}</div><div class="font-mono">${pm ? fmtB(total / pm) : '—'}</div></div>
-            </div>
-            <p class="text-xs opacity-60">${t('fin_prasad_cost_note')}</p>
+            ${costGaps(res)}
+            <div class="overflow-x-auto"><table class="table table-sm">
+                <thead>${costHead()}</thead>
+                <tbody>${rows.map(x => costRow(x.label, x.r)).join('')}
+                    ${rows.length > 1 ? costRow(tr('cost_grand_total', 'Итого за период'), sum, 'border-t-2 border-base-300 font-semibold') : ''}</tbody>
+            </table></div>
+            <p class="text-xs opacity-60">${e(tr('fin_prasad_cost_dept_note', 'Ретрит, захватывающий несколько месяцев, входит в период своей долей по дням. Команда, волонтёры, гости и группы без события — дни, когда человек ел не по ретриту. Это расчёт по меню и подсчёту вкушающих, не деньги: реальные деньги — в строке «Кухня» выше.'))}</p>
         </div></div>`;
     } catch (err) {
         console.error('Dept prasad cost:', err);
@@ -263,6 +323,8 @@ async function fillDeptPrasadCost(from, to) {
     }
 }
 
+// Отчёт по ретриту → «Прасад»: себестоимость ретрита целиком (фактические даты, как на Себестоимости),
+// получено − себестоимость = результат. Расчёт сохраняется в Финансы (fin_prasad_cost) и фиксируется при закрытии.
 async function fillPrasadCost(retreatId, prasadTotals) {
     const box = document.getElementById('prasadCostBox');
     if (!box || typeof KitchenCost === 'undefined') return;
@@ -270,46 +332,56 @@ async function fillPrasadCost(retreatId, prasadTotals) {
     try {
         if (!await canViewKitchenCost()) return;
         const retreat = retreats.find(x => x.id === retreatId);
-        const locationId = (Layout.locations || []).find(l => l.slug === 'main')?.id;
+        const locationId = mainLocationId();
         if (!retreat?.start_date || !retreat?.end_date || !locationId) return;
 
         box.innerHTML = `<div class="text-center py-4"><span class="loading loading-spinner loading-sm"></span></div>`;
-        const res = await KitchenCost.calculate(Layout.db, locationId, retreat.start_date, retreat.end_date);
+        const span = await KitchenCost.retreatSpan(retreat);
+        const [res, detail] = await Promise.all([
+            KitchenCost.calculate(Layout.db, locationId, span.from, span.to),
+            KitchenCost.loadDetail(Layout.db, span.from, span.to)
+        ]);
         if (token !== prasadCostToken) return;
+        const sum = KitchenCost.summarizeRetreat(res, detail, retreatId, span);
+        KitchenCost.saveRetreatCost(Layout.db, retreatId, sum);
 
-        const evCells = Object.values(res.cells[`retreat:${retreatId}`] || {});
-        const sum = f => evCells.reduce((a, c) => a + f(c), 0);
-        const x = { pm: sum(c => c.personMeals), food: sum(c => c.food), dish: sum(c => c.dishware), ext: sum(c => c.external),
-                    ovR: sum(c => c.overheadRetreat), ovG: sum(c => c.overheadGeneral) };
-        const total = x.food + x.dish + x.ext + x.ovR + x.ovG;
-        const provisional = evCells.some(c => c.provisional) || DateUtils.toISO(new Date()) < retreat.end_date;
-        const w = res.warnings;
-        const gaps = w.missingPrices.size + w.unresolvedUnits.size + w.noMenu.length + w.overheadNoBase.length + w.overheadUnallocated.length + (w.overheadError ? 1 : 0);
+        const all = sum.rows[0];
         const income = Number(prasadTotals?.income_base || 0);
         const expenseDds = Number(prasadTotals?.expense_base || 0);
-        const result = income - total;
-        const row = (label, val, cls = '') => `<tr class="${cls}"><td>${label}</td><td class="text-right font-mono w-36">${fmtB(val)}</td></tr>`;
+        const result = income - all.total;
+        const LABELS = { all: Layout.getName(retreat), participants: tr('cost_row_participants', 'Участники'),
+            team: tr('cost_row_team_retreat', 'Команда ретрита'), volunteers: tr('cost_row_vol_retreat', 'Волонтёры ретрита'), groups: tr('nav_groups', 'Группы') };
+        const today = DateUtils.toISO(new Date());
+        const status = today > span.to ? tr('cost_status_done', 'завершён — данные окончательные')
+            : `${tr('cost_status_forecast', 'прогноз по броням')} ${tr('cost_status_forecast_from', 'с')} ${DateUtils.formatShort(DateUtils.parseDate(today))}`;
+        const actual = span.from !== retreat.start_date || span.to !== retreat.end_date
+            ? ` · ${tr('cost_actual_dates', 'фактически')} ${DateUtils.formatRange(span.from, span.to)} (${tr('cost_actual_dates_hint', 'первый заезд — последний выезд по броням')})` : '';
+        const noPrices = !sum.pricesLoaded;
+        const kv = (label, value, cls = '', sub = '') => `<div class="bg-base-200/60 rounded-xl p-3">
+            <div class="text-xs uppercase tracking-wide opacity-60">${e(label)}</div>
+            <div class="text-xl font-bold mt-1 ${cls}">${value}</div>${sub ? `<div class="text-xs opacity-60 mt-1">${sub}</div>` : ''}</div>`;
 
         box.innerHTML = `
-        <div class="card bg-base-100 shadow-sm"><div class="card-body py-4">
+        <div class="card bg-base-100 shadow-sm"><div class="card-body py-4 space-y-3">
             <div class="flex items-center gap-2 flex-wrap">
-                <h2 class="card-title text-base">${t('fin_prasad_cost_title')}</h2>
-                ${provisional ? `<span class="badge badge-warning badge-sm" title="${e(t('fin_prasad_cost_prov_hint'))}">${t('fin_prasad_cost_prov')}</span>` : ''}
-                ${gaps ? `<a class="badge badge-outline badge-sm ml-auto" href="../kitchen/cost.html">${t('fin_prasad_cost_gaps')}: ${gaps}</a>` : ''}
+                <h2 class="card-title text-base">${e(tr('fin_prasad_cost_title', 'Себестоимость прасада — расчёт по меню'))}</h2>
+                ${sum.provisional ? `<span class="badge badge-warning badge-sm" title="${e(t('fin_prasad_cost_prov_hint'))}">${e(tr('cost_provisional', 'предварительно'))}</span>` : ''}
+                <a class="link link-primary text-sm ml-auto" href="${COST_PAGE}?retreat=${retreatId}">${e(tr('fin_prasad_cost_details', 'Подробно'))} →</a>
+            </div>
+            <div class="text-xs opacity-60">${e(tr('fin_official_dates', 'официально'))} ${e(DateUtils.formatRange(retreat.start_date, retreat.end_date))}${e(actual)} · ${e(status)}</div>
+            ${costGaps(res, retreatId)}
+            <div class="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                ${kv(tr('cost_cash_in', 'Получено за прасад'), `<span class="text-blue-600">${fmtB(income)}</span>`, '', e(tr('cost_cash_in_hint', 'оплаты участников, по Финансам')))}
+                ${kv(tr('cost_total', 'Себестоимость'), fmtB(all.total), '', `${e(tr('cost_per_participant', 'На участника'))}: ${sum.perParticipant !== null ? fmtB(sum.perParticipant) : '—'}`)}
+                ${kv(tr('cost_result', 'Результат'), noPrices ? '—' : fmtB(result), noPrices ? '' : result < 0 ? 'text-error' : 'text-success',
+                    noPrices ? `⚠ <a class="link" href="../kitchen/prices.html">${e(tr('cost_result_after_prices', 'появится после внесения цен'))} →</a>` : e(tr('cost_result_hint', 'получено − себестоимость ретрита')))}
             </div>
             <div class="overflow-x-auto"><table class="table table-sm">
-                <tbody>
-                    ${row(t('cost_food'), x.food)}${row(t('cost_dishware'), x.dish)}${row(t('cost_external'), x.ext)}
-                    ${row(t('cost_overhead_retreat'), x.ovR)}${row(t('cost_overhead_general'), x.ovG)}
-                    ${row(t('fin_prasad_cost_total'), total, 'font-semibold border-t-2 border-base-300')}
-                    <tr><td>${t('fin_prasad_cost_per_person')} (${x.pm} ${t('fin_prasad_cost_person_meals')})</td>
-                        <td class="text-right font-mono">${x.pm ? fmtB(total / x.pm) : '—'}</td></tr>
-                    ${row(t('fin_prasad_cost_income'), income, 'border-t border-base-300')}
-                    ${row(t('fin_prasad_cost_result'), result, `font-semibold ${result < 0 ? 'text-error' : 'text-success'}`)}
-                    <tr class="opacity-60 text-xs"><td>${t('fin_prasad_cost_dds')}</td><td class="text-right font-mono">${fmtB(expenseDds)}</td></tr>
-                </tbody>
+                <thead>${costHead()}</thead>
+                <tbody>${sum.rows.map((r, i) => costRow(LABELS[r.key] || r.key, r, i === 0 ? 'bg-base-200/60' : '', i > 0)).join('')}</tbody>
             </table></div>
-            <p class="text-xs opacity-60">${t('fin_prasad_cost_note')}</p>
+            <p class="text-xs opacity-60">${e(tr('fin_prasad_cost_note2', 'Расчёт по меню и подсчёту вкушающих, включая ранний заезд и поздний выезд; «На участника» — без команды и волонтёров. Сохраняется в Финансы и фиксируется при закрытии ретрита. Деньги не двигает.'))}
+                ${expenseDds ? ` ${e(tr('fin_prasad_cost_dds', 'Потрачено из кассы на прасад ретрита (ДДС)'))}: ${fmtB(expenseDds)}.` : ''}</p>
         </div></div>`;
     } catch (err) {
         console.error('Prasad cost:', err);
@@ -629,6 +701,19 @@ async function renderClosurePdf(snap, version) {
     }
     line(`Итого — приход: ${money(tot.income_base)}   расход: ${money(tot.expense_base)}   сальдо: ${money(tot.net_base)}`, 12, { gap: 16 });
 
+    // Себестоимость прасада — расчёт по меню, зафиксированный в снимке закрытия (fin_prasad_cost)
+    const pc = snap.prasad_cost?.data;
+    if (pc?.rows?.length) {
+        const all = pc.rows[0];
+        const part = pc.rows.find(r => r.key === 'participants');
+        line('Себестоимость прасада (расчёт по меню)', 13, { gap: 6 });
+        line(`Период: ${pc.from} — ${pc.to}   приёмов пищи: ${all.pm}   людей: ${all.people}${part ? `   участников: ${part.people}` : ''}`, 10, { gap: 4 });
+        line(`Прямые: ${money(Math.round(all.food + all.dish + all.ext))}   накладные: ${money(Math.round(all.ovR + all.ovG))}   всего: ${money(Math.round(all.total))}`, 10, { gap: 4 });
+        if (pc.perParticipant !== null && pc.perParticipant !== undefined) line(`На участника: ${money(Math.round(pc.perParticipant))}   на приём пищи: ${money(Math.round(pc.perMeal || 0))}`, 10, { gap: 4 });
+        if (prasad) line(`Прасад — получено ${money(prasad.income_base)} − себестоимость ${money(Math.round(all.total))} = ${money(Math.round(Number(prasad.income_base) - all.total))}${pc.pricesLoaded ? '' : '   (цены продуктов ещё не внесены — себестоимость занижена)'}`, 10, { gap: 4 });
+        line(`Посчитано: ${new Date(snap.prasad_cost.computed_at).toLocaleString('ru-RU')}${snap.prasad_cost.provisional ? ' · предварительно' : ''}`, 9, { color: rgb(0.45, 0.45, 0.45), gap: 16 });
+    }
+
     if (p.debtors?.length) {
         line('Должники', 13, { gap: 6 });
         for (const d of p.debtors) {
@@ -643,9 +728,25 @@ async function renderClosurePdf(snap, version) {
 }
 
 // ==================== CSV ====================
+const canReadAllFin = () => window.hasPermission?.('fin_admin') || window.hasPermission?.('fin_observer');
+
 function exportCsv() {
     if (!currentData?.exists) return;
     const r = currentData.report;
+    // глава департамента (просмотр) видит только блок «Прасад» — его и выгружаем
+    if (currentData.restricted) {
+        const pr = r.prasad || {};
+        const rows = [['Раздел', 'Название', 'Сумма (₹)']];
+        for (const x of pr.income_by_category || []) rows.push(['Приход', x.name, x.base_total]);
+        for (const x of pr.expense_by_category || []) rows.push(['Расход', x.name, x.base_total]);
+        rows.push(['Итог', 'Приход', pr.totals?.income_base ?? 0], ['Итог', 'Расход', pr.totals?.expense_base ?? 0], ['Итог', 'Сальдо', pr.totals?.net_base ?? 0]);
+        const csv = '\ufeff' + rows.map(row => row.map(c => `"${String(c ?? '').replace(/"/g, '""')}"`).join(';')).join('\n');
+        const a = document.createElement('a');
+        a.href = URL.createObjectURL(new Blob([csv], { type: 'text/csv;charset=utf-8' }));
+        a.download = 'retreat-prasad.csv';
+        a.click();
+        return;
+    }
     const cafe = r.cafe?.totals;
     const prasad = r.prasad?.totals;
     const hasCafeActivity = cafe && (Number(cafe.income_base) || Number(cafe.expense_base));
@@ -946,6 +1047,8 @@ async function init() {
     await Layout.init({ module: 'finance', menuId: 'fin_analytics', itemId: 'fin_analytics' });
     await FinUtils.loadRefs();
     await loadRetreats();
+    // «Общая» — финансы всего ашрама: главе департамента (просмотр) не открыта, вкладку не показываем
+    if (!canReadAllFin()) document.querySelector('[data-tab="summary"]')?.classList.add('hidden');
 
     document.querySelectorAll('[data-tab]').forEach(tab =>
         tab.addEventListener('click', () => {
