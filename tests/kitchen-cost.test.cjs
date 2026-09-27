@@ -1,6 +1,7 @@
 const assert = require('node:assert/strict');
 const test = require('node:test');
-const { computeCosts, convert, priceOn } = require('../js/kitchen-cost.js');
+global.DateUtils = { toISO: d => d.toISOString().slice(0, 10) };
+const { computeCosts, convert, priceOn, summarizeRetreat } = require('../js/kitchen-cost.js');
 
 const UNITS = {
     kg: { type: 'weight', ratio: 1000 }, g: { type: 'weight', ratio: 1 },
@@ -125,11 +126,9 @@ test('готовое со стороны: сумма делится на все�
     near(sumCells(r), 10000);
 });
 
-test('предупреждение о расхождении порций и вкушающих (порог 5)', () => {
-    const r1 = computeCosts(base({ meals: [{ id: 'm1', date: D, meal_type: 'lunch', portions: 110, dishes: [] }] }));
-    assert.equal(r1.warnings.mismatch.length, 1);
-    const r2 = computeCosts(base({ meals: [{ id: 'm1', date: D, meal_type: 'lunch', portions: 103, dishes: [] }] }));
-    assert.equal(r2.warnings.mismatch.length, 0);
+test('число порций повара с вкушающими не сравнивается (правило «±5» отменено ВГ 24.09)', () => {
+    const r = computeCosts(base({ meals: [{ id: 'm1', date: D, meal_type: 'lunch', portions: 110, dishes: [] }] }));
+    assert.ok(!r.warnings.mismatch?.length);
 });
 
 test('вкушающие есть, приёма пищи в меню нет', () => {
@@ -229,11 +228,11 @@ test('зарплата: оценка помечается, начисление 
     assert.equal(r.warnings.overheadForeign, 1);
 });
 
-test('вкушающие есть, а меню нет: доля расхода уходит в нераспределённое, сумма сходится', () => {
+test('вкушающие есть, а меню нет: накладные всё равно ложатся на всех (ВГ 25.09), нераспределённого нет', () => {
     const r = computeCosts(ovInput({ items: [ovItem({ amount_base: 2000, eff_from: D, eff_to: '2026-09-11' })] },
         otherDay('2026-09-11', { 'retreat:R': bucket({ guests: 100 }) }), { to: '2026-09-11' }));
-    near(r.totals.overheadGeneral + r.totals.overheadUnallocated, 2000);
-    near(r.totals.overheadGeneral, 1000);
+    near(r.totals.overheadGeneral, 2000);
+    near(r.totals.overheadUnallocated, 0);
 });
 
 test('«на ретрит» без ретрита и назначения считается общим и отмечается; выплата вне ведомости отмечается', () => {
@@ -257,4 +256,19 @@ test('инвариант: распределённое накладное + не
         meals: [{ id: 'm1', date: D, meal_type: 'lunch', portions: 110, dishes: [] }] }));
     near(cellSum(r, x => x.overheadRetreat + x.overheadGeneral) + r.totals.overheadUnallocated, 1234.5 + 999 + 321);
     near(cellSum(r, x => x.overheadRetreat + x.overheadGeneral), r.totals.overheadRetreat + r.totals.overheadGeneral);
+});
+
+test('итог ретрита: ВИП отдельной строкой, гости — остальные участники', () => {
+    const r = computeCosts(base({ counts: counts({ 'retreat:R': bucket({ guests: 20, vips: 5, team: 5 }) }) }));
+    const detail = [
+        ...Array.from({ length: 20 }, (_, i) => ({ retreat_id: 'R', bucket: 'guests', vaishnava_id: 'g' + i, lunch: true })),
+        ...Array.from({ length: 5 }, (_, i) => ({ retreat_id: 'R', bucket: 'vips', vaishnava_id: 'v' + i, lunch: true }))];
+    const sum = summarizeRetreat(r, detail, 'R', { from: D, to: D });
+    const row = k => sum.rows.find(x => x.key === k);
+    assert.deepEqual(sum.rows.map(x => x.key), ['all', 'participants', 'guests', 'vips', 'team']);
+    assert.equal(row('vips').people, 5);
+    near(row('guests').total + row('vips').total, row('participants').total);
+    // без ВИП строк «Гости»/«ВИП» нет — они повторяли бы «Участники»
+    const r2 = computeCosts(base({ counts: counts({ 'retreat:R': bucket({ guests: 20 }) }) }));
+    assert.deepEqual(summarizeRetreat(r2, [], 'R', { from: D, to: D }).rows.map(x => x.key), ['all', 'participants']);
 });

@@ -535,6 +535,9 @@ function summarizeRetreat(result, detail, retreatId, span) {
     };
     const row = (key, buckets) => ({ key, ...agg(buckets), people: people(buckets) });
     const rows = [row('all', BUCKETS), row('participants', PART)];
+    // ВИП отдельной строкой (ТЗ 3.7), гости — остальные участники; без ВИП строки повторяли бы «Участники»
+    const vips = row('vips', ['vips']);
+    if (vips.pm) rows.push(row('guests', PART.filter(b => b !== 'vips')), vips);
     for (const b of ['team', 'volunteers', 'groups']) { const r = row(b, [b]); if (r.pm) rows.push(r); }
     const w = result.warnings;
     const round = v => Math.round(v * 100) / 100;
@@ -570,18 +573,30 @@ function applySettings(sum, settings) {
     return sum;
 }
 
+// Приход прасада по ТЗ 3.7: начислено за питание (без отмен, минус скидки) + пожертвования на прасад
+async function loadIncome(db, retreatId) {
+    const { data, error } = await db.rpc('fin_prasad_income', { p_retreat: retreatId });
+    if (error) { console.error('fin_prasad_income:', error); return null; }
+    return data;
+}
+const incomeSummary = d => d && { charged: Math.round((Number(d.charged) + Number(d.donations)) * 100) / 100,
+    meals: Number(d.charged), donations: Number(d.donations), discount: Number(d.discount), byStatus: d.by_status || {} };
+
 async function saveRetreatCost(db, retreatId, summary) {
     // кто бы ни сохранял (Себестоимость или Финансы) — с учётом галочек внутреннего ретрита
     if (!summary.settings) {
         const { data } = await db.rpc('fin_get_prasad_settings', { p_retreat: retreatId });
         applySettings(summary, data);
     }
+    // начислено — в снимок закрытия и PDF (окупаемость по начисленному)
+    if (!summary.income) summary.income = incomeSummary(await loadIncome(db, retreatId));
     const { error } = await db.rpc('fin_save_prasad_cost', { p_retreat: retreatId, p_from: summary.from, p_to: summary.to,
         p_data: summary, p_provisional: summary.provisional });
     if (error) console.error('fin_save_prasad_cost:', error);
 }
 
-const api = { computeCosts, calculate, priceOn, convert, BUCKETS, COMPONENTS, retreatSpan, loadDetail, summarizeRetreat, applySettings, saveRetreatCost };
+const api = { computeCosts, calculate, priceOn, convert, BUCKETS, COMPONENTS, retreatSpan, loadDetail, summarizeRetreat, applySettings, saveRetreatCost,
+              loadIncome, incomeSummary, overheadComponent };
 if (typeof module !== 'undefined') module.exports = api;
 return api;
 

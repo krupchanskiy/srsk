@@ -245,21 +245,70 @@ function costGaps(res, retreatId) {
         <ul class="list-disc ml-5">${items.map(x => `<li>${x}</li>`).join('')}</ul></div></div>` : '';
 }
 
-const costHead = () => `<tr><th></th>
+// withCharged — отчёт ретрита: «На человека» и «Начислено» (питание по статусу регистрации)
+const costHead = (withCharged = false) => `<tr><th></th>
     <th class="text-right">${e(tr('cost_people', 'Людей'))}</th>
     <th class="text-right">${e(tr('cost_person_meals', 'Приёмов пищи'))}</th>
     <th class="text-right">${e(tr('cost_direct', 'Прямые'))}</th>
     <th class="text-right">${e(tr('cost_overhead', 'Накладные'))}</th>
     <th class="text-right">${e(tr('cost_total', 'Всего'))}</th>
-    <th class="text-right">${e(tr('cost_per_meal', 'На приём пищи'))}</th></tr>`;
-const costRow = (label, r, cls = '', sub = false) => `<tr class="${cls}">
+    <th class="text-right">${e(tr('cost_per_meal', 'На приём пищи'))}</th>
+    ${withCharged ? `<th class="text-right">${e(tr('cost_per_person', 'На человека'))}</th>
+    <th class="text-right" title="${e(tr('fin_prasad_charged_col_hint', 'Начислено за питание (со скидками, без отмен) — по статусу регистрации; пожертвования на прасад — только в итоге сверху'))}">${e(tr('fin_prasad_charged_col', 'Начислено'))}</th>` : ''}</tr>`;
+const costRow = (label, r, cls = '', sub = false, charged) => `<tr class="${cls}">
     <td class="${sub ? 'pl-6 text-sm' : 'font-medium'}">${e(label)}</td>
     <td class="text-right">${r.people ?? '—'}</td>
     <td class="text-right">${r.pm.toLocaleString('ru-RU')}</td>
     <td class="text-right font-mono">${fmtB(r.food + r.dish + r.ext)}</td>
     <td class="text-right font-mono">${fmtB(r.ovR + r.ovG)}</td>
     <td class="text-right font-mono font-semibold">${fmtB(r.total)}</td>
-    <td class="text-right font-mono">${r.pm ? fmtB(r.total / r.pm) : '—'}</td></tr>`;
+    <td class="text-right font-mono">${r.pm ? fmtB(r.total / r.pm) : '—'}</td>
+    ${charged !== undefined ? `<td class="text-right font-mono">${r.people ? fmtB(r.total / r.people) : '—'}</td>
+    <td class="text-right font-mono">${charged === null ? '—' : fmtB(charged)}</td>` : ''}</tr>`;
+
+// ⚠ начисления без курса — не вошли в «Начислено» (правило ВГ: о каждом пропуске)
+function incomeGaps(inc, charged) {
+    if (charged === null) return `<div class="alert alert-warning text-sm py-2">⚠ ${e(tr('fin_prasad_income_err', 'Не удалось получить начисления за питание — окупаемость не посчитана'))}</div>`;
+    const nr = inc?.no_rate || [];
+    if (!nr.length) return '';
+    const by = {};
+    nr.forEach(x => { by[x.currency] = (by[x.currency] || 0) + Number(x.amount); });
+    return `<div class="alert alert-warning text-sm py-2">⚠ ${e(tr('fin_prasad_no_rate', 'Нет курса ретрита — начисления не вошли в «Начислено»'))}: ${nr.length} ·
+        ${Object.entries(by).map(([c, a]) => `${a.toLocaleString('ru-RU')} ${e(c)}`).join(', ')} ·
+        <a class="link" href="dictionaries.html">${e(tr('fin_prasad_add_rate', 'завести курс'))} →</a></div>`;
+}
+
+// «Один расход — один раз» + управленческий итог ретрита (ретрит + прасад), ТЗ 3.7
+function onceBlock(shared, sharedTotal, retreatOnly, charged, included, noPrices) {
+    const rows = shared.map(x => `<tr class="${x.inCost ? '' : 'opacity-50'}">
+        <td>${e(x.category)}</td><td class="text-sm opacity-70">${e(DateUtils.formatShort(DateUtils.parseDate(x.occurred_on)))}</td>
+        <td class="text-right font-mono">${fmtB(x.amount)}</td>
+        <td class="text-right font-mono">${x.inCost ? fmtB(x.inCost) : `<span class="text-xs">${e(tr('fin_once_not_in', 'не вошло'))}</span>`}</td></tr>`).join('');
+    const ownExp = round2(Number(retreatOnly.expense_base) - sharedTotal);
+    const retreatNet = round2(Number(retreatOnly.income_base) - ownExp);
+    const prasadNet = round2((charged ?? 0) - included);
+    const line = (label, inc, exp, net, cls = '') => `<tr class="${cls}"><td>${label}</td>
+        <td class="text-right font-mono text-success">${inc}</td><td class="text-right font-mono text-error">${exp}</td>
+        <td class="text-right font-mono ${net < 0 ? 'text-error' : 'text-success'}">${fmtB(net)}</td></tr>`;
+    return `<div class="border border-base-300 rounded-xl p-3 space-y-2">
+        <div class="text-sm font-medium">${e(tr('fin_once_title', 'Итог ретрита — ретрит плюс прасад'))}</div>
+        <div class="overflow-x-auto"><table class="table table-sm">
+            <thead><tr><th></th><th class="text-right">${t('fin_income')}</th><th class="text-right">${t('fin_expense')}</th><th class="text-right">${t('fin_net')}</th></tr></thead>
+            <tbody>
+                ${line(e(tr('fin_once_retreat', 'Ретрит — по кассе, без расходов кухни, вошедших в прасад')), fmtB(retreatOnly.income_base),
+                    sharedTotal ? `${fmtB(ownExp)}<div class="text-xs opacity-60 whitespace-nowrap">${fmtB(retreatOnly.expense_base)} − ${fmtB(sharedTotal)}</div>` : fmtB(ownExp), retreatNet)}
+                ${line(e(tr('fin_once_prasad', 'Прасад — начислено − себестоимость')), charged === null ? '—' : fmtB(charged), fmtB(included), prasadNet)}
+                ${line(`<b>${e(tr('fin_once_total', 'Итог ретрита'))}</b>`, '', '', round2(retreatNet + prasadNet), 'font-semibold border-t-2 border-base-300')}
+            </tbody></table></div>
+        ${noPrices ? `<div class="text-xs text-warning">⚠ ${e(tr('cost_q_no_prices', 'цены ещё не внесены — продукты и посуда считаются как 0'))}</div>` : ''}
+        ${shared.length ? `<details class="text-sm"><summary class="cursor-pointer opacity-80">${e(tr('fin_once_list', 'Расходы кухни на ретрит — один расход считается один раз'))}: ${fmtB(sharedTotal)}</summary>
+            <table class="table table-xs mt-1"><thead><tr><th>${e(tr('fin_category', 'Статья'))}</th><th></th>
+                <th class="text-right">${e(tr('fin_once_amount', 'Сумма'))}</th><th class="text-right">${e(tr('fin_once_in_cost', 'Вошло в себестоимость прасада'))}</th></tr></thead>
+            <tbody>${rows}</tbody></table>
+            <p class="text-xs opacity-60 mt-1">${e(tr('fin_once_hint', 'Проведены со счёта Кухни на этот ретрит. Продукты уже посчитаны через меню, гонорар, такси, «Программа» и прочее — своей долей в накладных; вошедшее вычитается из расходов ретрита, чтобы не считать дважды. Кассовые итоги и закрытие не меняются.'))}</p>
+        </details>` : `<p class="text-xs opacity-60">${e(tr('fin_once_none', 'Расходов со счёта Кухни на этот ретрит нет — вычитать нечего.'))}</p>`}
+    </div>`;
+}
 
 // Отчёт по департаментам («Кухня»): расчётная себестоимость за период с разбивкой —
 // ретриты (своей долей по дням), команда, волонтёры, гости и группы без события
@@ -380,12 +429,31 @@ async function onPrasadSettingChange(input) {
     }
     const { error } = await Layout.db.rpc('fin_set_prasad_settings', { p_retreat: prasadCostState.retreatId, p_is_internal: st.is_internal, p_components: st.components });
     if (error) { Layout.handleError(error, 'Прасад'); return; }
-    fillPrasadCost(prasadCostState.retreatId, prasadCostState.prasadTotals);
+    fillPrasadCost(prasadCostState.retreatId, prasadCostState.prasadTotals, prasadCostState.retreatOnly);
 }
 
-// Отчёт по ретриту → «Прасад»: себестоимость ретрита целиком (фактические даты, как на Себестоимости),
-// получено − себестоимость = результат. Расчёт сохраняется в Финансы (fin_prasad_cost) и фиксируется при закрытии.
-async function fillPrasadCost(retreatId, prasadTotals) {
+// «Один расход — один раз» (ТЗ 3.7): расходы со счёта Кухни, проведённые на ретрит, уже сидят
+// в себестоимости прасада — продукты через меню, гонорар/такси/«Программа» и прочее своей долей.
+// Сколько из каждого вошло (с учётом галочек внутреннего ретрита) — столько вычитаем из расходов ретрита.
+function sharedKitchenCosts(postings, res, retreatId, settings) {
+    const ev = `retreat:${retreatId}`;
+    const on = k => !settings.is_internal || (settings.components || []).includes(k);
+    return (postings || []).map(p => {
+        const amount = Number(p.amount_base) || 0;
+        let inCost = 0;
+        if (p.cost_group === 'direct') inCost = on('food') ? amount : 0;
+        else {
+            const line = (res.overheadLines || []).find(l => l.postingId === p.posting_id);
+            if (line && on(KitchenCost.overheadComponent(line))) inCost = Math.min(amount, line.byEvent?.[ev] || 0);
+        }
+        return { ...p, amount, inCost: round2(inCost) };
+    });
+}
+
+// Отчёт по ретриту → «Прасад» по ТЗ 3.7: приход (начислено и получено) против себестоимости по расчёту,
+// окупаемость по начисленному. Расчёт сохраняется в Финансы (fin_prasad_cost) и фиксируется при закрытии.
+// retreatOnly — собственные приход/расход ретрита (без прасада и кафе); у главы кухни его нет.
+async function fillPrasadCost(retreatId, prasadTotals, retreatOnly = null) {
     const box = document.getElementById('prasadCostBox');
     if (!box || typeof KitchenCost === 'undefined') return;
     const token = ++prasadCostToken;
@@ -397,24 +465,37 @@ async function fillPrasadCost(retreatId, prasadTotals) {
 
         box.innerHTML = `<div class="text-center py-4"><span class="loading loading-spinner loading-sm"></span></div>`;
         const span = await KitchenCost.retreatSpan(retreat);
-        const [res, detail] = await Promise.all([
+        const [res, detail, inc] = await Promise.all([
             KitchenCost.calculate(Layout.db, locationId, span.from, span.to),
-            KitchenCost.loadDetail(Layout.db, span.from, span.to)
+            KitchenCost.loadDetail(Layout.db, span.from, span.to),
+            KitchenCost.loadIncome(Layout.db, retreatId)
         ]);
         if (token !== prasadCostToken) return;
         const sum = KitchenCost.summarizeRetreat(res, detail, retreatId, span);
         const { data: settings } = await Layout.db.rpc('fin_get_prasad_settings', { p_retreat: retreatId });
         if (token !== prasadCostToken) return;
-        prasadCostState = { retreatId, sum, settings: settings || { is_internal: false, components: KitchenCost.COMPONENTS }, prasadTotals };
+        prasadCostState = { retreatId, sum, settings: settings || { is_internal: false, components: KitchenCost.COMPONENTS }, prasadTotals, retreatOnly };
         applyPrasadSettings();
+        sum.income = KitchenCost.incomeSummary(inc);
         KitchenCost.saveRetreatCost(Layout.db, retreatId, sum);
 
         const all = sum.rows[0];
-        const income = Number(prasadTotals?.income_base || 0);
+        const received = Number(prasadTotals?.income_base || 0);
+        const charged = sum.income?.charged ?? null;
         const expenseDds = Number(prasadTotals?.expense_base || 0);
-        const result = income - sum.included;
+        const result = (charged ?? 0) - sum.included;
+        const payback = sum.included > 0 && charged !== null ? Math.round(charged / sum.included * 100) : null;
         const LABELS = { all: Layout.getName(retreat), participants: tr('cost_row_participants', 'Участники'),
+            guests: tr('cost_row_guests', 'Гости'), vips: tr('cost_row_vips', 'ВИП'),
             team: tr('cost_row_team_retreat', 'Команда ретрита'), volunteers: tr('cost_row_vol_retreat', 'Волонтёры ретрита'), groups: tr('nav_groups', 'Группы') };
+        // начислено за питание по статусу регистрации → строки таблицы
+        const bs = sum.income?.byStatus || {};
+        const st = (...k) => k.reduce((a, x) => a + Number(bs[x] || 0), 0);
+        const chargedByRow = { all: sum.income?.meals, participants: st('guest', 'vip', 'none'), guests: st('guest', 'none'),
+            vips: st('vip'), team: st('team'), volunteers: st('volunteer'), groups: null };
+        const shared = retreatOnly ? sharedKitchenCosts(inc?.kitchen_postings, res, retreatId, sum.settings) : [];
+        const sharedTotal = round2(shared.reduce((a, x) => a + x.inCost, 0));
+        const noRate = inc?.no_rate || [];
         const today = DateUtils.toISO(new Date());
         const status = today > span.to ? tr('cost_status_done', 'завершён — данные окончательные')
             : `${tr('cost_status_forecast', 'прогноз по броням')} ${tr('cost_status_forecast_from', 'с')} ${DateUtils.formatShort(DateUtils.parseDate(today))}`;
@@ -434,21 +515,27 @@ async function fillPrasadCost(retreatId, prasadTotals) {
             </div>
             <div class="text-xs opacity-60">${e(tr('fin_official_dates', 'официально'))} ${e(DateUtils.formatRange(retreat.start_date, retreat.end_date))}${e(actual)} · ${e(status)}</div>
             ${costGaps(res, retreatId)}
-            <div class="grid grid-cols-1 sm:grid-cols-3 gap-2">
-                ${kv(tr('cost_cash_in', 'Получено за прасад'), `<span class="text-blue-600">${fmtB(income)}</span>`, '', e(tr('cost_cash_in_hint', 'оплаты участников, по Финансам')))}
+            ${incomeGaps(inc, charged)}
+            <div class="grid grid-cols-2 lg:grid-cols-4 gap-2">
+                ${kv(tr('fin_prasad_charged', 'Начислено за прасад'), charged === null ? '—' : fmtB(charged), '',
+                    charged === null ? '' : `${e(tr('fin_prasad_meals', 'питание'))} ${fmtB(sum.income.meals)}${sum.income.discount ? ` (${e(tr('fin_prasad_after_disc', 'со скидками'))} −${fmtB(sum.income.discount)})` : ''}${sum.income.donations ? ` + ${e(tr('fin_prasad_donations', 'пожертвования'))} ${fmtB(sum.income.donations)}` : ''}${Number(inc?.cancelled) ? ` · ${e(tr('fin_prasad_cancelled', 'отменённые не входят'))}: ${inc.cancelled}` : ''}`)}
+                ${kv(tr('fin_prasad_received', 'Получено'), `<span class="text-blue-600">${fmtB(received)}</span>`, '',
+                    charged !== null && charged - received > 0.5 ? `${e(tr('fin_prasad_not_received', 'ещё не получено'))} ${fmtB(charged - received)}` : e(tr('cost_cash_in_hint', 'оплаты участников, по Финансам')))}
                 ${kv(sum.settings.is_internal ? tr('fin_prasad_included', 'Входит в стоимость ретрита') : tr('cost_total', 'Себестоимость'), fmtB(sum.included), '',
                     `${e(tr('cost_per_participant', 'На участника'))}: ${sum.includedPerParticipant !== null ? fmtB(sum.includedPerParticipant) : '—'}${sum.settings.is_internal ? ` · ${e(tr('fin_prasad_full', 'полная'))} ${fmtB(all.total)}` : ''}`)}
-                ${kv(tr('cost_result', 'Результат'), noPrices ? '—' : fmtB(result), noPrices ? '' : result < 0 ? 'text-error' : 'text-success',
-                    noPrices ? `⚠ <a class="link" href="../kitchen/prices.html">${e(tr('cost_result_after_prices', 'появится после внесения цен'))} →</a>` : e(tr('cost_result_hint', 'получено − себестоимость ретрита')))}
+                ${kv(tr('fin_prasad_payback', 'Окупаемость'), noPrices || payback === null ? '—' : `${payback}%`, noPrices ? '' : result < 0 ? 'text-error' : 'text-success',
+                    noPrices ? `⚠ <a class="link" href="../kitchen/prices.html">${e(tr('cost_result_after_prices', 'появится после внесения цен'))} →</a>`
+                        : `${e(tr('fin_prasad_result', 'начислено − себестоимость'))}: <span class="${result < 0 ? 'text-error' : 'text-success'}">${fmtB(result)}</span>`)}
             </div>
             ${componentsPanel()}
             <div class="text-sm font-medium opacity-70">${e(tr('fin_prasad_by_people', 'Полная себестоимость по людям'))}</div>
             <div class="overflow-x-auto"><table class="table table-sm">
-                <thead>${costHead()}</thead>
-                <tbody>${sum.rows.map((r, i) => costRow(LABELS[r.key] || r.key, r, i === 0 ? 'bg-base-200/60' : '', i > 0)).join('')}</tbody>
+                <thead>${costHead(true)}</thead>
+                <tbody>${sum.rows.map((r, i) => costRow(LABELS[r.key] || r.key, r, i === 0 ? 'bg-base-200/60' : '', i > 0, chargedByRow[r.key] ?? null)).join('')}</tbody>
             </table></div>
-            <p class="text-xs opacity-60">${e(tr('fin_prasad_cost_note2', 'Расчёт по меню и подсчёту вкушающих, включая ранний заезд и поздний выезд; «На участника» — без команды и волонтёров. Сохраняется в Финансы и фиксируется при закрытии ретрита. Деньги не двигает.'))}
-                ${expenseDds ? ` ${e(tr('fin_prasad_cost_dds', 'Потрачено из кассы на прасад ретрита (ДДС)'))}: ${fmtB(expenseDds)}.` : ''}</p>
+            ${retreatOnly ? onceBlock(shared, sharedTotal, retreatOnly, charged, sum.included, noPrices) : ''}
+            <p class="text-xs opacity-60">${e(tr('fin_prasad_cost_note3', 'Себестоимость — расчёт по меню и подсчёту вкушающих, включая ранний заезд и поздний выезд; «На участника» — без команды и волонтёров. Окупаемость — по начисленному (питание со скидками, без отмен, плюс пожертвования на прасад), полученное — рядом. Сохраняется в Финансы и фиксируется при закрытии ретрита. Деньги не двигает.'))}
+                ${expenseDds ? ` ${e(tr('fin_prasad_cost_dds', 'Потрачено из кассы на прасад ретрита (ДДС)'))}: ${fmtB(expenseDds)} — ${e(tr('fin_prasad_dds_ref', 'для сверки с расчётом'))}.` : ''}</p>
         </div></div>`;
     } catch (err) {
         console.error('Prasad cost:', err);
@@ -475,6 +562,9 @@ async function loadReport() {
     const prasad = r.prasad?.totals;
     const hasCafeActivity = cafe && (Number(cafe.income_base) || Number(cafe.expense_base));
     const hasPrasadActivity = prasad && (Number(prasad.income_base) || Number(prasad.expense_base));
+    // Вкладка «Прасад» видна всегда тем, кто видит себестоимость: кормим каждый ретрит,
+    // даже если за питание не начисляли и по кассе прасада ничего не прошло (Художники)
+    const showPrasad = hasPrasadActivity || await canViewKitchenCost();
 
     const kpi = (chip, icon, label, value, sub) => `
         <div class="card bg-base-100 fin-kpi"><div class="card-body">
@@ -574,7 +664,7 @@ async function loadReport() {
         </div></div>` : ''}
         ${Number(p.advance_total) > 0 ? `<div class="text-sm opacity-70">${t('fin_advance')}: ${fmtB(p.advance_total)}</div>` : ''}`;
 
-    const unitTabs = (hasCafeActivity || hasPrasadActivity) ? `
+    const unitTabs = (hasCafeActivity || showPrasad) ? `
         <div role="tablist" class="tabs tabs-boxed w-fit">
             <input type="radio" name="fin_unit_tabs" role="tab" class="tab" aria-label="${t('retreat_report_finance_retreat_only')}" checked />
             <div role="tabpanel" class="tab-content pt-4 space-y-4">
@@ -582,11 +672,11 @@ async function loadReport() {
                 ${catTable(retreatExpenseRows, 'fin_expense_by_category', 'retreat')}
                 ${debtorsHtml}
             </div>
-            ${hasPrasadActivity ? `
+            ${showPrasad ? `
             <input type="radio" name="fin_unit_tabs" role="tab" class="tab" aria-label="${t('retreat_report_finance_prasad')}" />
             <div role="tabpanel" class="tab-content pt-4 space-y-4">
-                ${catTable(r.prasad.income_by_category, 'fin_income_by_category', 'prasad')}
-                ${catTable(r.prasad.expense_by_category, 'fin_expense_by_category', 'prasad')}
+                ${catTable(r.prasad?.income_by_category || [], 'fin_income_by_category', 'prasad')}
+                ${catTable(r.prasad?.expense_by_category || [], 'fin_expense_by_category', 'prasad')}
                 <div id="prasadCostBox"></div>
             </div>` : ''}
             ${hasCafeActivity ? `
@@ -615,7 +705,7 @@ async function loadReport() {
     `;
     // Панель относится к юниту — при смене вкладки сбрасываем
     box.querySelectorAll('input[name="fin_unit_tabs"]').forEach(i => i.addEventListener('change', resetDrill));
-    if (hasPrasadActivity) fillPrasadCost(currentRetreat, prasad);
+    if (showPrasad) fillPrasadCost(currentRetreat, prasad || {}, retreatOnlyTotals);
 }
 
 // ==================== ЗАКРЫТИЕ ====================
@@ -782,7 +872,13 @@ async function renderClosurePdf(snap, version) {
             line(`Внутренний ретрит — входит: ${(pc.settings.components || []).map(k => names[k] || k).join(', ') || 'ничего'}   итого ${money(Math.round(included))}`, 10, { gap: 4 });
         }
         if (pc.participants) line(`На участника: ${money(Math.round(included / pc.participants))}   на приём пищи: ${money(Math.round(pc.perMeal || 0))}`, 10, { gap: 4 });
-        if (prasad) line(`Прасад — получено ${money(prasad.income_base)} − себестоимость ${money(Math.round(included))} = ${money(Math.round(Number(prasad.income_base) - included))}${pc.pricesLoaded ? '' : '   (цены продуктов ещё не внесены — себестоимость занижена)'}`, 10, { gap: 4 });
+        const noPr = pc.pricesLoaded ? '' : '   (цены продуктов ещё не внесены — себестоимость занижена)';
+        if (pc.income) {
+            // ТЗ 3.7: окупаемость по начисленному, полученное рядом
+            const ch = Number(pc.income.charged);
+            line(`Прасад — начислено ${money(ch)}   получено ${money(prasad?.income_base || 0)}`, 10, { gap: 4 });
+            line(`Начислено ${money(ch)} − себестоимость ${money(Math.round(included))} = ${money(Math.round(ch - included))}${included > 0 ? `   окупаемость ${Math.round(ch / included * 100)}%` : ''}${noPr}`, 10, { gap: 4 });
+        } else if (prasad) line(`Прасад — получено ${money(prasad.income_base)} − себестоимость ${money(Math.round(included))} = ${money(Math.round(Number(prasad.income_base) - included))}${noPr}`, 10, { gap: 4 });
         line(`Посчитано: ${new Date(snap.prasad_cost.computed_at).toLocaleString('ru-RU')}${snap.prasad_cost.provisional ? ' · предварительно' : ''}`, 9, { color: rgb(0.45, 0.45, 0.45), gap: 16 });
     }
 
