@@ -1606,6 +1606,24 @@ async function submitPayment(ev) {
     const objectId = await ensureObjectId();
     if (!objectId) return;
 
+    // Наличные с копейками не приносят и не выдают: без целого «Получено» излишек
+    // не уходит ни в дар, ни в кассу — так появились хвосты €251,33 (ВГ, 27.09)
+    const получено = полученоПоВалютам();
+    const наличныеВалюты = new Set([...document.querySelectorAll('#payRows .pay-row')]
+        .filter(row => row.querySelector('.pay-channel').value === 'cash'
+                    && Number(row.querySelector('.pay-amount').value) > 0)
+        .map(row => row.querySelector('.pay-currency').value));
+    for (const cur of наличныеВалюты) {
+        if (!(получено[cur] > 0) || !Number.isInteger(получено[cur])) {
+            Layout.showNotification(`Наличными: укажите, сколько получено от гостя в ${FinUtils.symbol(cur)} — целой суммой`, 'warning');
+            return;
+        }
+    }
+    if (Object.values(сдачаПоВалютам()).some(v => !Number.isInteger(v))) {
+        Layout.showNotification('Сдача наличными — целой суммой', 'warning');
+        return;
+    }
+
     // В кассу проводим ровно принятое: если денег принесли меньше расчёта,
     // строки урезаются, а разница остаётся долгом участника (ВГ, 25.08)
     const { правки, долг } = урезкаПоПолученному();
@@ -1649,6 +1667,28 @@ async function submitPayment(ev) {
         return;
     }
 
+    // Принято под сдачу: часть денег гостя, которую вернули сдачей, тоже легла
+    // в кассу. Без этой строки в кассу шло «получено − сдача», а потом сдача
+    // списывалась ещё раз: €500 − €60 сдачи проводились как €380 вместо €440,
+    // €350 при сдаче ₹300 — как €347,25 (ВГ, 27.09)
+    const сдача = сдачаПоВалютам();
+    const распределено = распределеноПоВалютам();
+    const обмен = Object.entries(получено).map(([cur, v]) => {
+        const сумма = Math.round((v - (распределено[cur] || 0) - (payDonation?.[cur] || 0)) * 100) / 100;
+        if (сумма <= 0.005 || !Object.keys(сдача).length) return null;
+        const строка = [...document.querySelectorAll('#payRows .pay-row')]
+            .find(r => r.querySelector('.pay-currency').value === cur);
+        return {
+            id: FinUtils.newRequestId(),
+            account_id: строка?.querySelector('.pay-account').value,
+            amount: сумма,
+            participant_id: payer,
+            object_id: objectId,
+            payment_channel: 'cash',
+            cur
+        };
+    }).filter(x => x && x.account_id);
+
     // Финальная сверка перед записью (ТЗ 3.1): итог по валютам и людям
     const поВалютам = {};
     document.querySelectorAll('#payRows .pay-row').forEach(row => {
@@ -1664,6 +1704,7 @@ async function submitPayment(ev) {
         (поИменам.length > 1 ? `\n${поИменам.join('\n')}` : '') +
         `\n${t('fin_received_from_guest')}: ${Object.entries(полученоПоВалютам()).map(([c, v]) => FinUtils.fmtMoney(v, c)).join(' + ') || '—'}` +
         (change.length ? `\n${t('fin_change')}: ${change.map(x => FinUtils.fmtMoney(x.amount, [...document.querySelectorAll('#payChangeRows .chgline-currency')][change.indexOf(x)]?.value || 'INR')).join(' + ')}` : '') +
+        (обмен.length ? `\nПринято под сдачу: ${обмен.map(x => FinUtils.fmtMoney(x.amount, x.cur)).join(' + ')}` : '') +
         (payDonation ? `\n${t('fin_donation_excess')}: ${Object.entries(payDonation).map(([c, v]) => FinUtils.fmtMoney(v, c)).join(' + ')}` : '') +
         `\n${t('fin_pay_confirm_q')}`;
     if (!confirm(вопрос)) return;
@@ -1674,7 +1715,8 @@ async function submitPayment(ev) {
         payer_contact_id: payer,
         comment: document.getElementById('payComment').value || null,
         rows,
-        change: change.length ? change : null
+        change: change.length ? change : null,
+        ...(обмен.length ? { exchange: обмен.map(({ cur, ...x }) => x) } : {})
     });
     if (FinUtils.handleResult(res)) {
         // Излишек, оставленный как пожертвование (п.3): отдельная операция на тот же
