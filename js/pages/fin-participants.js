@@ -55,7 +55,7 @@ const round2 = v => Math.round(v * 100) / 100;
 // ==================== СПИСОК ====================
 async function loadRetreats() {
     const { data, error } = await Layout.db.from('retreats')
-        .select('id, name_ru, name_en, name_hi, start_date')
+        .select('id, name_ru, name_en, name_hi, start_date, is_external')
         .order('start_date', { ascending: false });
     if (error) { Layout.handleError(error, 'Ретриты'); return; }
     retreats = data || [];
@@ -95,6 +95,9 @@ async function enterNoEvent() {
 async function selectRetreat(retreatId) {
     currentRetreat = retreatId;
     currentObjectId = null;
+    // группа — стороннее мероприятие: платит организатор за все места (js/pages/fin-group.js)
+    document.getElementById('groupChargeBtn')?.classList.toggle('hidden',
+        noEventMode || !retreats.find(r => r.id === retreatId)?.is_external);
     if (!retreatId) {
         // пустое состояние ведёт к действию, а не просто констатирует
         document.getElementById('participantsBody').innerHTML =
@@ -3085,6 +3088,6 @@ async function openCardById(pid) {
     openCard(pid);
 }
 
-window.FinParticipants = { noEventRetreatId, reload: loadParticipants, openCardById, rates: () => retreatRates, openCharge, closeCharge, openPayment, closePayment, addChargeRow, addPayRow, addOtherParticipantRow, syncFromCrm, copySummary, openRecalc, onBaseCurrencyChange, removeChange, removeDonation, addChangeRow, keepAsDonation, openWithdraw, openOtherCurrencyPicker, acceptInOtherCurrency };
+window.FinParticipants = { currentRetreat: () => currentRetreat, ensureObjectId, reloadRates: loadRetreatRates, noEventRetreatId, reload: loadParticipants, openCardById, rates: () => retreatRates, openCharge, closeCharge, openPayment, closePayment, addChargeRow, addPayRow, addOtherParticipantRow, syncFromCrm, copySummary, openRecalc, onBaseCurrencyChange, removeChange, removeDonation, addChangeRow, keepAsDonation, openWithdraw, openOtherCurrencyPicker, acceptInOtherCurrency };
 init();
 })();

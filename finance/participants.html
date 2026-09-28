@@ -16,6 +16,11 @@
         /* «Гости без события»: без оргвзноса и CRM, свои кнопки */
         body.no-event-mode .col-org-fee, body.no-event-mode .hide-no-event { display: none !important; }
         body:not(.no-event-mode) .only-no-event { display: none !important; }
+        /* сводка организатору группы — та же вёрстка, что уходит в PDF */
+        #grSummaryBody h2 { font-size: 1.15rem; font-weight: 700; }
+        .gr-sum { border-collapse: collapse; width: 100%; }
+        .gr-sum td, .gr-sum th { border-bottom: 1px solid oklch(var(--b3)); padding: 4px 6px; text-align: left; vertical-align: top; }
+        .gr-sum th { font-size: 11px; text-transform: uppercase; opacity: .7; }
     </style>
 </head>
 <body class="fin-page bg-base-200 min-h-screen flex flex-col">
@@ -30,6 +35,8 @@
             <button type="button" id="noEventBackBtn" class="btn btn-sm btn-ghost only-no-event">← К ретритам</button>
             <button type="button" id="noEventBtn" class="btn btn-sm btn-outline hide-no-event" data-i18n="fin_no_event_guests">Гости без события</button>
             <select id="retreatSelect" class="select select-bordered select-sm w-64 hide-no-event"></select>
+            <!-- группа (стороннее мероприятие): платит организатор за все места брони (ВГ, 28.09) -->
+            <button type="button" id="groupChargeBtn" class="btn btn-sm btn-primary hidden" data-permission="fin_admin" onclick="FinGroup.open()">+ <span data-i18n="fin_group_charge">Начислить группе</span></button>
             <div class="only-no-event flex gap-2">
                 <button type="button" class="btn btn-sm btn-primary" data-permission="fin_admin" onclick="FinGuests.open()">+ <span data-i18n="fin_new_guest_charge">Начислить гостю</span></button>
                 <button type="button" class="btn btn-sm" data-permission="fin_admin" onclick="FinGuests.openTariffs()" data-i18n="fin_stay_tariffs">Тарифы</button>
@@ -390,6 +397,60 @@
     <form method="dialog" class="modal-backdrop"><button>close</button></form>
 </dialog>
 
+<!-- Модалка: начисление группе — таблица всех мест брони, платит организатор (js/pages/fin-group.js) -->
+<dialog id="groupChargeModal" class="modal">
+    <div class="modal-box max-w-7xl">
+        <h3 class="font-bold text-lg mb-1">Начислить группе · <span id="grTitle"></span></h3>
+        <div class="text-xs opacity-60 mb-2">Места из шахматки. Ночи, цена номера ÷ жильцов и питание (как считает кухня) подставлены по тарифам — правьте строку или сразу всем. Пересчитать можно в любой момент, даже при оплате</div>
+        <div id="grPayer" class="text-sm mb-2"></div>
+        <div id="grRates" class="text-sm mb-2 flex flex-wrap items-center gap-2"></div>
+        <div class="border border-base-300 rounded-lg p-2 mb-2 text-sm">
+            <div class="font-semibold text-xs uppercase opacity-60 mb-1">Сразу <span id="grBulkWho"></span></div>
+            <div class="flex flex-wrap items-center gap-1 mb-2">
+                номер 2-мест. <input type="number" id="grB2" min="0" step="50" class="input input-bordered input-xs w-20" placeholder="₹">
+                4-мест. <input type="number" id="grB4" min="0" step="50" class="input input-bordered input-xs w-20" placeholder="₹">
+                завтрак <input type="number" id="grBB" min="0" step="10" class="input input-bordered input-xs w-16" placeholder="₹">
+                обед <input type="number" id="grBL" min="0" step="10" class="input input-bordered input-xs w-16" placeholder="₹">
+                <button type="button" id="grBulkApply" class="btn btn-xs">Применить цены</button>
+                <button type="button" id="grBulkFresh" class="btn btn-ghost btn-xs ml-auto" title="Ночи, жильцы и питание — заново из шахматки; цены остаются">Вернуть по шахматке</button>
+            </div>
+            <div class="text-xs opacity-60 mb-1">Питание по дням — снимите день, если группа не ела:</div>
+            <div id="grBulkDays" class="flex flex-wrap gap-1"></div>
+        </div>
+        <div class="overflow-x-auto max-h-[50vh] overflow-y-auto border border-base-300 rounded-lg">
+            <table class="table table-xs">
+                <thead class="sticky top-0 bg-base-100 z-10"><tr>
+                    <th><input type="checkbox" id="grMarkAll" class="checkbox checkbox-xs" title="Отметить все"></th>
+                    <th>Номер</th><th>Место / имя</th><th>Даты</th><th>Ночей</th><th>Номер ₹ ÷ чел.</th>
+                    <th class="text-right">Проживание</th><th class="text-right">Завтр.</th><th class="text-right">Обеды</th>
+                    <th class="text-right">Питание</th><th>Доп. ₹</th><th class="text-right">Итого</th><th></th>
+                </tr></thead>
+                <tbody id="grBody"></tbody>
+            </table>
+        </div>
+        <div class="modal-action items-center">
+            <div id="grTotal" class="mr-auto text-sm"></div>
+            <button type="button" class="btn btn-sm" onclick="FinGroup.openSummary()">Сводка организатору</button>
+            <button type="button" class="btn btn-sm" onclick="FinGroup.close()">Закрыть</button>
+            <button type="button" id="grSave" class="btn btn-sm btn-primary">Начислить организатору</button>
+        </div>
+    </div>
+</dialog>
+
+<!-- Модалка: сводка для организатора группы — копия текстом или PDF -->
+<dialog id="groupSummaryModal" class="modal">
+    <div class="modal-box max-w-4xl">
+        <div id="grSummaryBody" class="text-sm"></div>
+        <textarea id="grSummaryText" class="hidden"></textarea>
+        <div class="modal-action">
+            <button type="button" class="btn btn-sm" onclick="FinGroup.copySummary()">Копировать текстом</button>
+            <button type="button" class="btn btn-sm" onclick="FinGroup.printSummary()">PDF / печать</button>
+            <button type="button" class="btn btn-sm btn-primary" onclick="document.getElementById('groupSummaryModal').close()">Закрыть</button>
+        </div>
+    </div>
+    <form method="dialog" class="modal-backdrop"><button>close</button></form>
+</dialog>
+
 <!-- Модалка: тарифы для гостей без события (действуют с даты) -->
 <dialog id="tariffsModal" class="modal">
     <div class="modal-box max-w-lg">
@@ -428,8 +489,9 @@
 <script src="../js/layout.js?v=81"></script>
 <script src="../js/date-utils.js?v=4"></script>
 <script src="../js/fin-utils.js?v=17"></script>
-<script src="../js/pages/fin-participants.js?v=67"></script>
+<script src="../js/pages/fin-participants.js?v=68"></script>
 <script src="../js/pages/fin-guests.js?v=4"></script>
+<script src="../js/pages/fin-group.js?v=1"></script>
 
 </body>
 </html>
