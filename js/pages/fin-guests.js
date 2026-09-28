@@ -287,7 +287,8 @@ function renderForms() {
                 = <span class="font-mono">${inr(r.заНочь)}</span>)
                 = <b class="font-mono">${inr(r.проживание)}</b>
             </div>
-            ${v.has_meals === false ? '<div class="text-xs opacity-60 mb-3">Питание в шахматке выключено</div>' : `
+            ${v.has_meals === false && !f.mealsOn ? `<div class="text-xs mb-3"><span class="opacity-60">Питание в шахматке выключено</span>
+                <button type="button" class="btn btn-ghost btn-xs text-primary" data-gc-meals-on="${rid}" title="Если выключено по ошибке — включится и в шахматке, кухня посчитает его">включить питание</button></div>` : `
             <div class="text-xs font-semibold uppercase opacity-60 mb-1 flex items-center gap-2">Питание
                 <button type="button" class="btn btn-ghost btn-xs normal-case font-normal" data-gc-all="${rid}" data-on="1">все</button>
                 <button type="button" class="btn btn-ghost btn-xs normal-case font-normal" data-gc-all="${rid}" data-on="0">ничего</button>
@@ -349,6 +350,7 @@ async function save() {
         const payload = { resident_id: rid };
         if (f.person.mode === 'linked' || f.person.mode === 'existing') payload.vaishnava_id = f.person.id;
         else payload.new_person = Object.fromEntries(Object.entries(f.person.np).map(([k, x]) => [k, (x || '').trim()]));
+        if (f.mealsOn) payload.has_meals = true;
         // края питания → шахматка, чтобы цифра кухни совпала с начислением
         if (f.meals.length) {
             const ранний = f.meals[0].b, поздний = f.meals[f.meals.length - 1].l;
@@ -416,6 +418,20 @@ function init() {
     const forms_ = document.getElementById('gcForms');
     // «все / ничего» по питанию — для долгих проживаний
     forms_?.addEventListener('click', ev => {
+        // питание было выключено в шахматке по ошибке — включаем по датам визита,
+        // при сохранении включится и в шахматке (ВГ, 28.09)
+        const вкл = ev.target.closest('[data-gc-meals-on]');
+        if (вкл) {
+            const f = forms[вкл.dataset.gcMealsOn];
+            f.mealsOn = true;
+            f.meals = [];
+            for (let d = DateUtils.parseDate(f.v.check_in); f.v.check_out && d <= DateUtils.parseDate(f.v.check_out); d.setDate(d.getDate() + 1)) {
+                const iso = DateUtils.toISO(d);
+                f.meals.push({ d: iso, b: iso !== f.v.check_in || !!f.v.early_checkin, l: iso !== f.v.check_out || !!f.v.late_checkout });
+            }
+            renderForms();
+            return;
+        }
         const btn = ev.target.closest('[data-gc-all]');
         if (!btn) return;
         const on = btn.dataset.on === '1';

@@ -24,6 +24,25 @@ let marked = new Set();   // отмеченные строки — для «ср
 let expanded = null;      // строка, раскрытая по дням
 let dirty = false;        // есть несохранённые правки
 let tariff = null;
+let bookings = [];        // брони события: мест в брони / в шахматке
+const ПРИЧИНА = 'за счёт ашрама';
+
+// Питание по умолчанию, когда в шахматке оно было выключено: как у кухни без времени
+// приезда — в день заезда без завтрака, в день выезда без обеда (ранний/поздний — с ними)
+function питаниеПоДатам(p) {
+    const out = [];
+    if (!p.check_out) return out;
+    for (let d = DateUtils.parseDate(p.check_in); d <= DateUtils.parseDate(p.check_out); d.setDate(d.getDate() + 1)) {
+        const iso = DateUtils.toISO(d);
+        out.push({ d: iso, b: iso !== p.check_in || !!p.early_checkin, l: iso !== p.check_out || !!p.late_checkout });
+    }
+    return out;
+}
+
+// Имена из заметки брони («Devadeva\nKarunamayi…»): в шахматке места без имён
+function именаБрони(notes) {
+    return (notes || '').split(/\n|\s{2,}|,/).map(x => x.trim()).filter(Boolean);
+}
 
 // ==================== РАСЧЁТ ====================
 function расчёт(l) {
@@ -36,7 +55,7 @@ function расчёт(l) {
     return { заНочь, завтраков, обедов, проживание, питание, доп, итого: round2(проживание + питание + доп) };
 }
 
-function итоги(list = lines) {
+function итоги(list = lines.filter(l => l.included)) {
     return list.reduce((a, l) => {
         const r = расчёт(l);
         a.проживание += r.проживание; a.питание += r.питание; a.доп += r.доп;
@@ -87,8 +106,18 @@ async function buildLines(data) {
         поДням.forEach(a => a.sort((x, y) => x.d.localeCompare(y.d)));
     }
     const ключи = new Set();
+    bookings = data.bookings || [];
+    const именаПоБрони = new Map();
     lines = [];
     for (const p of places) {
+        // имя из заметки брони — по порядку мест брони; правится в строке. Только если имён
+        // ровно столько, сколько мест: иначе в заметке описание («Махарадж и двое слуг»)
+        if (p.booking_id && !именаПоБрони.has(p.booking_id)) {
+            const имена = именаБрони(p.booking_notes);
+            const мест = places.filter(x => x.booking_id === p.booking_id).length;
+            именаПоБрони.set(p.booking_id, имена.length === мест ? имена : []);
+        }
+        const изБрони = !p.name && p.booking_id ? именаПоБрони.get(p.booking_id).shift() : null;
         const key = 'r:' + p.resident_id;
         ключи.add(key);
         const cap = Number(p.capacity) || 2;
@@ -101,14 +130,17 @@ async function buildLines(data) {
         const тотЖе = s && s.check_in === p.check_in && s.check_out === p.check_out;
         lines.push({
             key, place: p, resident_id: p.resident_id, persons: 1,
-            label: s?.label || p.name || '',
+            label: s?.label || p.name || изБрони || '',
+            included: s ? s.included !== false : true,
+            excludeReason: s?.exclude_reason || '',
+            mealsOn: false,   // питание включили здесь — уйдёт в шахматку
             roomPrice: s ? Number(s.room_price) : Number(cap <= 2 ? tariff.room2_price : tariff.room4_price),
             bPrice: s ? Number(s.b_price) : Number(tariff.breakfast_price),
             lPrice: s ? Number(s.l_price) : Number(tariff.lunch_price),
             extra: s ? Number(s.extra) || 0 : 0,
             nights: тотЖе ? Number(s.nights) : fresh.nights,
             people: тотЖе ? Number(s.people) : fresh.people,
-            meals: тотЖе && Array.isArray(s.meals) ? s.meals.map(m => ({ ...m })) : fresh.meals,
+            meals: тотЖе && Array.isArray(s.meals) ? s.meals.map(m => ({ ...m })) : fresh.meals.map(m => ({ ...m })),
             fresh,
             changed: !!s && !тотЖе
         });
@@ -122,11 +154,13 @@ async function buildLines(data) {
         lines.push({
             key, eater: g, meal_group_id: g.meal_group_id, persons: Number(g.people_count) || 1,
             label: s?.label || g.name || '',
+            included: s ? s.included !== false : true,
+            excludeReason: s?.exclude_reason || '',
             roomPrice: 0, nights: 0, people: 1,
             bPrice: s ? Number(s.b_price) : Number(tariff.breakfast_price),
             lPrice: s ? Number(s.l_price) : Number(tariff.lunch_price),
             extra: s ? Number(s.extra) || 0 : 0,
-            meals: тотЖе && Array.isArray(s.meals) ? s.meals.map(m => ({ ...m })) : fresh.meals,
+            meals: тотЖе && Array.isArray(s.meals) ? s.meals.map(m => ({ ...m })) : fresh.meals.map(m => ({ ...m })),
             fresh,
             changed: !!s && !тотЖе
         });
@@ -193,38 +227,83 @@ async function saveRate() {
 // ==================== ТАБЛИЦА ====================
 const цели = () => marked.size ? lines.filter(l => marked.has(l.key)) : lines;
 
+// Комната + период — одна группа строк: у группы разные заезды по номерам (ВГ, 28.09)
+const ключКомнаты = l => l.place ? `${l.place.room_id}|${l.place.check_in}|${l.place.check_out}` : l.key;
+
 function render() {
     const body = document.getElementById('grBody');
-    let прежняяКомната = null;
-    body.innerHTML = lines.map((l, i) => {
-        const r = расчёт(l);
-        const p = l.place;
-        const комната = p ? `${p.building || ''} №${p.room || '—'}` : 'Питание';
-        const первая = комната !== прежняяКомната;
-        прежняяКомната = комната;
-        const даты = p ? `${дата(p.check_in)}–${p.check_out ? дата(p.check_out) : '…'}` : `${дата(l.eater.start_date)}–${дата(l.eater.end_date)}`;
-        const числа = (k, v, w, step = 1, title = '') => `<input type="number" min="0" step="${step}" class="input input-bordered input-xs ${w} px-1 text-right" data-gr-f="${i}" data-k="${k}" value="${v}" ${title ? `title="${title}"` : ''}>`;
-        const row = `<tr class="${marked.has(l.key) ? 'bg-primary/5' : ''} ${первая && i ? 'border-t-2 border-base-300' : ''}">
-            <td><input type="checkbox" class="checkbox checkbox-xs" data-gr-mark="${l.key}" ${marked.has(l.key) ? 'checked' : ''}></td>
-            <td class="whitespace-nowrap ${первая ? 'font-medium' : 'opacity-30'}">${e(комната)}${p && первая ? ` <span class="opacity-50 text-[10px]">${p.capacity}-м.</span>` : ''}</td>
-            <td><input type="text" class="input input-ghost input-xs w-36 px-1" data-gr-f="${i}" data-k="label" value="${e(l.label)}" placeholder="${p ? 'место' : ''}">
-                ${l.changed ? '<span class="badge badge-warning badge-xs" title="Даты в шахматке изменились — ночи и питание пересчитаны заново">шахматка</span>' : ''}
-                ${l.eater ? `<span class="badge badge-ghost badge-xs">${l.persons} чел.</span>` : ''}</td>
-            <td class="whitespace-nowrap text-xs">${даты}</td>
-            <td>${p ? числа('nights', l.nights, 'w-12') : ''}</td>
-            <td class="whitespace-nowrap">${p ? `${числа('roomPrice', l.roomPrice, 'w-16', 50, 'Цена номера за сутки')} ÷ ${числа('people', l.people, 'w-10', 1, 'Сколько человек делят номер')}` : ''}</td>
-            <td class="text-right font-mono">${p ? inr(r.проживание) : ''}</td>
-            <td class="text-right">${r.завтраков}</td>
-            <td class="text-right">${r.обедов}</td>
-            <td class="text-right font-mono">${inr(r.питание)}</td>
-            <td>${числа('extra', l.extra || '', 'w-16', 10)}</td>
-            <td class="text-right font-mono font-semibold">${inr(r.итого)}</td>
-            <td><button type="button" class="btn btn-ghost btn-xs" data-gr-expand="${l.key}" title="Питание по дням, цены">${expanded === l.key ? '▾' : '▸'}</button></td>
-        </tr>`;
-        return row + (expanded === l.key ? detailRow(l, i) : '');
-    }).join('') || `<tr><td colspan="13" class="text-center py-6 opacity-60">В шахматке нет мест этого события</td></tr>`;
+    const группы = [];
+    for (const l of lines) {
+        const k = ключКомнаты(l);
+        let g = группы.find(x => x.k === k);
+        if (!g) { g = { k, lines: [] }; группы.push(g); }
+        g.lines.push(l);
+    }
+    body.innerHTML = группы.map(g => headRow(g) + g.lines.map(l => placeRow(l, lines.indexOf(l))).join('')).join('')
+        || `<tr><td colspan="13" class="text-center py-6 opacity-60">В шахматке нет мест этого события</td></tr>`;
+    document.querySelectorAll('#grBody [data-mixed]').forEach(el => { el.indeterminate = true; });
+    renderUnplaced();
     renderBulk();
     renderTotal();
+}
+
+// Шапка комнаты: отметить всю комнату, начислять/не начислять её, подытог
+function headRow(g) {
+    const l0 = g.lines[0], p = l0.place;
+    const вкл = g.lines.filter(l => l.included).length;
+    const отм = g.lines.filter(l => marked.has(l.key)).length;
+    const сумма = g.lines.filter(l => l.included).reduce((a, l) => a + расчёт(l).итого, 0);
+    const tri = (n, all) => n === 0 ? '' : n === all ? 'checked' : 'data-mixed="1"';
+    const имя = p ? `${p.building || ''} №${p.room || '—'}` : `Питание: ${l0.label || 'группа'}`;
+    const даты = p ? `${дата(p.check_in)}–${дата(p.check_out)} · ${Math.max(днейМежду(p.check_in, p.check_out || p.check_in), 0)} ноч.`
+        : `${дата(l0.eater.start_date)}–${дата(l0.eater.end_date)}`;
+    return `<tr class="bg-base-200 border-t-2 border-base-300">
+        <td><input type="checkbox" class="checkbox checkbox-xs" data-gr-markroom="${g.k}" ${tri(отм, g.lines.length)} title="Отметить комнату — для правок «сразу»"></td>
+        <td><input type="checkbox" class="checkbox checkbox-xs checkbox-success" data-gr-incroom="${g.k}" ${tri(вкл, g.lines.length)} title="Начисляем за комнату"></td>
+        <td colspan="9" class="font-semibold">${e(имя)}${p ? ` <span class="font-normal opacity-60">${p.capacity}-мест.</span>` : ''}
+            <span class="font-normal opacity-70">· ${даты} · ${p ? `мест ${g.lines.length}` : `${l0.persons} чел.`}${вкл < g.lines.length ? ` · начисляем ${вкл}` : ''}</span>
+            ${p?.booking_name ? `<span class="font-normal text-xs opacity-50">· ${e(p.booking_name)}</span>` : ''}</td>
+        <td class="text-right font-mono font-semibold">${inr(сумма)}</td><td></td>
+    </tr>`;
+}
+
+function placeRow(l, i) {
+    const r = расчёт(l);
+    const p = l.place;
+    const выкл = !l.included;
+    const числа = (k, v, w, step = 1, title = '') => `<input type="number" min="0" step="${step}" class="input input-bordered input-xs ${w} px-1 text-right" data-gr-f="${i}" data-k="${k}" value="${v}" ${title ? `title="${title}"` : ''} ${выкл ? 'disabled' : ''}>`;
+    const питаниеВыкл = p && p.has_meals === false && !l.mealsOn;
+    return `<tr class="${marked.has(l.key) ? 'bg-primary/5' : ''} ${выкл ? 'opacity-50' : ''}">
+        <td><input type="checkbox" class="checkbox checkbox-xs" data-gr-mark="${l.key}" ${marked.has(l.key) ? 'checked' : ''}></td>
+        <td><input type="checkbox" class="checkbox checkbox-xs checkbox-success" data-gr-inc="${i}" ${l.included ? 'checked' : ''} title="Начисляем"></td>
+        <td><input type="text" class="input input-ghost input-xs w-40 px-1" data-gr-f="${i}" data-k="label" value="${e(l.label)}" placeholder="${p ? 'имя / место' : ''}">
+            ${выкл ? `<input type="text" class="input input-bordered input-xs w-40 px-1 mt-0.5" data-gr-f="${i}" data-k="excludeReason" value="${e(l.excludeReason)}" placeholder="почему не начисляем">` : ''}
+            ${l.changed ? '<span class="badge badge-warning badge-xs" title="Даты в шахматке изменились — ночи и питание пересчитаны заново">шахматка</span>' : ''}
+            ${l.mealsOn ? '<span class="badge badge-info badge-xs" title="Питание включено здесь — при сохранении включится и в шахматке">питание вкл.</span>' : ''}</td>
+        <td class="whitespace-nowrap text-xs">${p ? `${дата(p.check_in)}–${p.check_out ? дата(p.check_out) : '…'}` : `${дата(l.eater.start_date)}–${дата(l.eater.end_date)}`}</td>
+        <td>${p ? числа('nights', l.nights, 'w-12') : ''}</td>
+        <td class="whitespace-nowrap">${p ? `${числа('roomPrice', l.roomPrice, 'w-16', 50, 'Цена номера за сутки')} ÷ ${числа('people', l.people, 'w-10', 1, 'Сколько человек делят номер')}` : ''}</td>
+        <td class="text-right font-mono">${p ? inr(r.проживание) : ''}</td>
+        ${питаниеВыкл
+            ? `<td colspan="3" class="text-xs"><span class="opacity-60">питание в шахматке выключено</span>
+                <button type="button" class="btn btn-ghost btn-xs text-primary" data-gr-meals-on="${i}" ${выкл ? 'disabled' : ''}>включить</button></td>`
+            : `<td class="text-right">${r.завтраков}</td><td class="text-right">${r.обедов}</td><td class="text-right font-mono">${inr(r.питание)}</td>`}
+        <td>${числа('extra', l.extra || '', 'w-16', 10)}</td>
+        <td class="text-right font-mono font-semibold ${выкл ? 'line-through' : ''}">${inr(r.итого)}</td>
+        <td><button type="button" class="btn btn-ghost btn-xs" data-gr-expand="${l.key}" title="Питание по дням, цены">${expanded === l.key ? '▾' : '▸'}</button></td>
+    </tr>` + (expanded === l.key ? detailRow(l, i) : '');
+}
+
+// Брони события, где мест больше, чем стоит в шахматке: этих людей не начислить,
+// пока их не расселят (ВГ: «список перед глазами — кого считаем»)
+function renderUnplaced() {
+    const el = document.getElementById('grUnplaced');
+    const нехватка = bookings.filter(b => Number(b.placed) < Number(b.beds));
+    el.innerHTML = нехватка.length ? `<div class="alert alert-warning py-2 px-3 text-sm block">
+        <b>⚠ Не расселены в шахматке — ${нехватка.reduce((a, b) => a + b.beds - b.placed, 0)} мест(а) в ${нехватка.length} бронях.</b> Пока их нет в шахматке, они не начисляются и кухня их не видит:
+        <ul class="list-disc ml-5 mt-1">${нехватка.map(b => `<li>${e(b.name || 'Бронь')} · ${дата(b.check_in)}–${дата(b.check_out)} · в брони ${b.beds}, в шахматке ${b.placed}${
+            именаБрони(b.notes).length ? ` <span class="opacity-70">(${e(именаБрони(b.notes).join(', '))})</span>` : ''}</li>`).join('')}</ul>
+    </div>` : '';
 }
 
 // Раскрытая строка: завтраки/обеды по дням и цены
@@ -235,7 +314,7 @@ function detailRow(l, i) {
                 <div class="font-medium">${дата(m.d)}</div>
                 <label class="flex items-center gap-1"><input type="checkbox" class="checkbox checkbox-xs" data-gr-meal="${i}" data-j="${j}" data-m="b" ${m.b ? 'checked' : ''}> завтрак</label>
                 <label class="flex items-center gap-1"><input type="checkbox" class="checkbox checkbox-xs" data-gr-meal="${i}" data-j="${j}" data-m="l" ${m.l ? 'checked' : ''}> обед</label>
-            </div>`).join('') || '<span class="text-xs opacity-60">Питание в шахматке выключено</span>'}
+            </div>`).join('') || `<span class="text-xs opacity-60">Питание в шахматке выключено</span>${l.place ? ` <button type="button" class="btn btn-ghost btn-xs text-primary" data-gr-meals-on="${i}">включить</button>` : ''}`}
         </div>
         <div class="flex flex-wrap items-center gap-1 text-xs">
             завтрак <input type="number" min="0" step="10" class="input input-bordered input-xs w-20" data-gr-f="${i}" data-k="bPrice" value="${l.bPrice}">
@@ -304,6 +383,8 @@ function renderTotal() {
 
 // ==================== СОХРАНЕНИЕ ====================
 async function save() {
+    const безПричины = lines.filter(l => !l.included && !(l.excludeReason || '').trim());
+    if (безПричины.length) { Layout.showNotification(`Укажите, почему не начисляем: ${безПричины.map(l => l.label || 'место').join(', ')}`, 'warning'); return; }
     const payload = { retreat_id: ret.id, lines: lines.map(toLine) };
     if (!payer) {
         const pid = document.getElementById('grPayerId')?.value;
@@ -333,8 +414,10 @@ function toLine(l) {
     const o = {
         key: l.key, label: l.label || null, nights: l.nights, room_price: l.roomPrice, people: l.people,
         breakfasts: r.завтраков, lunches: r.обедов, b_price: l.bPrice, l_price: l.lPrice, extra: Number(l.extra) || 0,
-        meals: l.meals, persons: l.persons
+        meals: l.meals, persons: l.persons,
+        included: l.included, exclude_reason: l.included ? null : (l.excludeReason || '').trim() || null
     };
+    if (l.mealsOn) o.has_meals = true;
     if (l.place) {
         Object.assign(o, { resident_id: l.resident_id, check_in: l.place.check_in, check_out: l.place.check_out });
         // края питания → шахматка, только если дни заезда/выезда есть в расчёте
@@ -348,20 +431,44 @@ function toLine(l) {
 }
 
 // ==================== СВОДКА ОРГАНИЗАТОРУ ====================
-// По комнатам: места, даты, ночи, проживание, питание; итог, валюта, курс, оплачено, остаток
+// По комнатам и периодам: места и имена, ночи, цена номера, проживание, завтраки/обеды,
+// дни без питания; отдельно — кого не начисляем и почему; итог, валюта, курс, оплачено, остаток
+function пропуски(list) {
+    const без = new Map();   // d → {b, l}
+    for (const l of list) for (const f of l.fresh.meals) {
+        const m = l.meals.find(x => x.d === f.d);
+        const x = без.get(f.d) || { b: false, l: false };
+        if (f.b && !m?.b) x.b = true;
+        if (f.l && !m?.l) x.l = true;
+        без.set(f.d, x);
+    }
+    return [...без.entries()].filter(([, x]) => x.b || x.l).sort()
+        .map(([d, x]) => `${дата(d)} без ${x.b && x.l ? 'питания' : x.b ? 'завтрака' : 'обеда'}`);
+}
+
 async function summaryData() {
     const комнаты = [];
-    for (const l of lines) {
+    for (const l of lines.filter(x => x.included)) {
+        const k = ключКомнаты(l);
+        let g = комнаты.find(x => x.k === k);
+        if (!g) {
+            const p = l.place;
+            g = { k, place: !!p, имя: p ? `${p.building || ''} №${p.room || '—'}` : `Питание: ${l.label || 'группа'}`, cap: p?.capacity,
+                  период: p ? `${дата(p.check_in)}–${дата(p.check_out)}` : `${дата(l.eater.start_date)}–${дата(l.eater.end_date)}`,
+                  lines: [], мест: 0, имена: [], ночи: new Set(), цены: new Set(), проживание: 0, завтраков: 0, обедов: 0, питание: 0, доп: 0 };
+            комнаты.push(g);
+        }
         const r = расчёт(l);
-        const имя = l.place ? `${l.place.building || ''} №${l.place.room || '—'}` : `Питание: ${l.label || 'группа'}`;
-        let k = комнаты.find(x => x.имя === имя && x.place === !!l.place);
-        if (!k) { k = { имя, place: !!l.place, cap: l.place?.capacity, мест: 0, имена: [], ночи: new Set(), даты: new Set(), проживание: 0, завтраков: 0, обедов: 0, питание: 0, доп: 0 }; комнаты.push(k); }
-        k.мест += l.place ? 1 : l.persons;
-        if (l.place && l.label) k.имена.push(l.label);
-        if (l.place) { k.ночи.add(l.nights); k.даты.add(`${дата(l.place.check_in)}–${l.place.check_out ? дата(l.place.check_out) : '…'}`); }
-        else k.даты.add(`${дата(l.eater.start_date)}–${дата(l.eater.end_date)}`);
-        k.проживание += r.проживание; k.завтраков += r.завтраков; k.обедов += r.обедов; k.питание += r.питание; k.доп += r.доп;
+        g.lines.push(l);
+        g.мест += l.place ? 1 : l.persons;
+        if (l.place && l.label) g.имена.push(l.label);
+        if (l.place) { g.ночи.add(l.nights); g.цены.add(l.roomPrice); }
+        g.проживание += r.проживание; g.завтраков += r.завтраков; g.обедов += r.обедов; g.питание += r.питание; g.доп += r.доп;
     }
+    комнаты.forEach(g => { g.пропуски = пропуски(g.lines); g.итого = round2(g.проживание + g.питание + g.доп); });
+    const исключены = lines.filter(l => !l.included).map(l => ({
+        имя: l.label || 'место', где: l.place ? `${l.place.building || ''} №${l.place.room || '—'}, ${дата(l.place.check_in)}–${дата(l.place.check_out)}` : 'питание',
+        причина: l.excludeReason, было: расчёт(l).итого }));
     let bal = null;
     if (payer) {
         const { data } = await Layout.db.rpc('fin_get_participant_balance', { p_participant: payer.id, p_retreat: ret.id });
@@ -370,7 +477,7 @@ async function summaryData() {
     const cur = bal?.system === 'settlement_currency' ? bal.currency : 'INR';
     const rate = cur === 'INR' ? 1 : Number(FinParticipants.rates()[cur]) || null;
     const сум = k => Object.values(bal?.blocks || {}).reduce((a, b) => a + (Number(b[k]) || 0), 0);
-    return { комнаты, s: итоги(), bal, cur, rate, начислено: сум('charged'), оплачено: сум('paid'), остаток: Number(bal?.net) || 0 };
+    return { комнаты, исключены, s: итоги(), bal, cur, rate, начислено: сум('charged'), оплачено: сум('paid'), остаток: Number(bal?.net) || 0 };
 }
 
 async function openSummary() {
@@ -378,31 +485,36 @@ async function openSummary() {
     const всего = round2(d.s.проживание + d.s.питание + d.s.доп);
     const m = v => FinUtils.fmtMoney(v, d.cur);
     const курс = d.cur !== 'INR' && d.rate ? `1 ${FinUtils.symbol(d.cur)} = ${d.rate.toLocaleString('ru-RU', { maximumFractionDigits: 4 })} ₹` : '';
+    const R = 'style="text-align:right"';
     const строки = d.комнаты.map(k => `<tr>
-        <td>${e(k.имя)}${k.cap ? ` <span style="opacity:.6">(${k.cap}-мест.)</span>` : ''}${k.имена.length ? `<br><span style="opacity:.6;font-size:11px">${e(k.имена.join(', '))}</span>` : ''}</td>
-        <td style="text-align:right">${k.мест}</td>
-        <td>${[...k.даты].join(', ')}</td>
-        <td style="text-align:right">${k.place ? [...k.ночи].join('/') : ''}</td>
-        <td style="text-align:right">${k.place ? inr(k.проживание) : ''}</td>
-        <td style="text-align:right">${k.завтраков} / ${k.обедов}</td>
-        <td style="text-align:right">${inr(k.питание)}</td>
-        <td style="text-align:right"><b>${inr(k.проживание + k.питание + k.доп)}</b></td>
+        <td><b>${e(k.имя)}</b>${k.cap ? ` <span style="opacity:.6">(${k.cap}-мест.)</span>` : ''}${k.имена.length ? `<br><span style="opacity:.7;font-size:11px">${e(k.имена.join(', '))}</span>` : ''}</td>
+        <td>${k.период}</td>
+        <td ${R}>${k.place ? [...k.ночи].join('/') : ''}</td>
+        <td ${R}>${k.мест}</td>
+        <td ${R}>${k.place ? [...k.цены].map(inr).join('/') : ''}</td>
+        <td ${R}>${k.place ? inr(k.проживание) : ''}</td>
+        <td ${R}>${k.завтраков}</td>
+        <td ${R}>${k.обедов}</td>
+        <td ${R}>${inr(k.питание)}${k.пропуски.length ? `<br><span style="opacity:.7;font-size:11px">${k.пропуски.join(', ')}</span>` : ''}</td>
+        <td ${R}><b>${inr(k.итого)}</b></td>
     </tr>`).join('');
     const html = `<h2 style="margin:0 0 4px">${e(ret.name)}</h2>
         <div style="opacity:.7;margin-bottom:10px">${датаГод(ret.start_date)} – ${датаГод(ret.end_date)}${payer ? ` · организатор: ${e(payer.name)}` : ''}</div>
         <table class="gr-sum">
-            <thead><tr><th>Комната</th><th style="text-align:right">Мест</th><th>Даты</th><th style="text-align:right">Ночей</th><th style="text-align:right">Проживание</th><th style="text-align:right">Завтр. / обеды</th><th style="text-align:right">Питание</th><th style="text-align:right">Итого</th></tr></thead>
+            <thead><tr><th>Комната</th><th>Период</th><th ${R}>Ночей</th><th ${R}>Мест</th><th ${R}>Номер/сутки</th><th ${R}>Проживание</th><th ${R}>Завтраков</th><th ${R}>Обедов</th><th ${R}>Питание</th><th ${R}>Итого</th></tr></thead>
             <tbody>${строки}</tbody>
         </table>
-        <table class="gr-sum" style="margin-top:12px;max-width:420px">
-            <tr><td>Проживание</td><td style="text-align:right">${inr(d.s.проживание)}</td></tr>
-            <tr><td>Питание (завтраков ${d.s.завтраков}, обедов ${d.s.обедов})</td><td style="text-align:right">${inr(d.s.питание)}</td></tr>
-            ${d.s.доп ? `<tr><td>Дополнительно</td><td style="text-align:right">${inr(d.s.доп)}</td></tr>` : ''}
-            <tr><td><b>Итого</b></td><td style="text-align:right"><b>${inr(всего)}</b></td></tr>
-            ${d.cur !== 'INR' ? `<tr><td>Валюта расчёта: ${d.cur}${курс ? `, курс ${курс}` : ''}</td><td style="text-align:right">${d.rate ? m(round2(всего / d.rate)) : '—'}</td></tr>` : ''}
-            ${d.bal ? `<tr><td>Начислено</td><td style="text-align:right">${m(d.начислено)}</td></tr>
-            <tr><td>Оплачено</td><td style="text-align:right">${m(d.оплачено)}</td></tr>
-            <tr><td><b>${d.остаток > 0 ? 'Осталось оплатить' : d.остаток < 0 ? 'Переплата' : 'Оплачено полностью'}</b></td><td style="text-align:right"><b>${d.остаток ? m(Math.abs(d.остаток)) : ''}</b></td></tr>` : ''}
+        ${d.исключены.length ? `<div style="margin-top:10px"><b>Не начисляем:</b><ul style="margin:4px 0 0 18px;list-style:disc">${d.исключены.map(x =>
+            `<li>${e(x.имя)} — ${e(x.где)}: ${e(x.причина || '')} <span style="opacity:.6">(по тарифу было бы ${inr(x.было)})</span></li>`).join('')}</ul></div>` : ''}
+        <table class="gr-sum" style="margin-top:12px;max-width:440px">
+            <tr><td>Проживание</td><td ${R}>${inr(d.s.проживание)}</td></tr>
+            <tr><td>Питание (завтраков ${d.s.завтраков}, обедов ${d.s.обедов})</td><td ${R}>${inr(d.s.питание)}</td></tr>
+            ${d.s.доп ? `<tr><td>Дополнительно</td><td ${R}>${inr(d.s.доп)}</td></tr>` : ''}
+            <tr><td><b>Итого</b></td><td ${R}><b>${inr(всего)}</b></td></tr>
+            ${d.cur !== 'INR' ? `<tr><td>Валюта расчёта: ${d.cur}${курс ? `, курс ${курс}` : ''}</td><td ${R}>${d.rate ? m(round2(всего / d.rate)) : '—'}</td></tr>` : ''}
+            ${d.bal ? `<tr><td>Начислено</td><td ${R}>${m(d.начислено)}</td></tr>
+            <tr><td>Оплачено</td><td ${R}>${m(d.оплачено)}</td></tr>
+            <tr><td><b>${d.остаток > 0 ? 'Осталось оплатить' : d.остаток < 0 ? 'Переплата' : 'Оплачено полностью'}</b></td><td ${R}><b>${d.остаток ? m(Math.abs(d.остаток)) : ''}</b></td></tr>` : ''}
         </table>
         ${dirty ? '<div style="color:#b45309;margin-top:8px">Внимание: в окне есть несохранённые правки — «начислено» и «осталось» по сохранённому</div>' : ''}`;
     document.getElementById('grSummaryBody').innerHTML = html;
@@ -417,11 +529,16 @@ function summaryText(d) {
     if (payer) out.push(`Организатор: ${payer.name}`);
     out.push('');
     for (const k of d.комнаты) {
-        const части = [`${k.имя}: ${k.place ? `мест ${k.мест}` : `${k.мест} чел.`}`, [...k.даты].join(', ')];
-        if (k.place) части.push(`${[...k.ночи].join('/')} ноч., проживание ${inr(k.проживание)}`);
-        if (k.питание) части.push(`завтраков ${k.завтраков}, обедов ${k.обедов} — ${inr(k.питание)}`);
-        части.push(`итого ${inr(k.проживание + k.питание + k.доп)}`);
-        out.push('• ' + части.join(' · ') + (k.имена.length ? ` (${k.имена.join(', ')})` : ''));
+        const части = [`${k.имя}, ${k.период}`];
+        if (k.place) части.push(`${[...k.ночи].join('/')} ноч. · мест ${k.мест} · номер ${[...k.цены].map(inr).join('/')}/сутки · проживание ${inr(k.проживание)}`);
+        else части.push(`${k.мест} чел.`);
+        if (k.питание) части.push(`завтраков ${k.завтраков}, обедов ${k.обедов} — ${inr(k.питание)}${k.пропуски.length ? ` (${k.пропуски.join(', ')})` : ''}`);
+        части.push(`итого ${inr(k.итого)}`);
+        out.push('• ' + части.join(' · ') + (k.имена.length ? `\n  ${k.имена.join(', ')}` : ''));
+    }
+    if (d.исключены.length) {
+        out.push('', 'Не начисляем:');
+        d.исключены.forEach(x => out.push(`• ${x.имя} — ${x.где}: ${x.причина || ''}`));
     }
     out.push('', `Проживание: ${inr(d.s.проживание)}`, `Питание: ${inr(d.s.питание)}`);
     if (d.s.доп) out.push(`Дополнительно: ${inr(d.s.доп)}`);
@@ -472,12 +589,34 @@ function init() {
         if (t.closest('[data-gr-rate-save]')) { saveRate(); return; }
         const exp = t.closest('[data-gr-expand]');
         if (exp) { expanded = expanded === exp.dataset.grExpand ? null : exp.dataset.grExpand; render(); return; }
+        const mo = t.closest('[data-gr-meals-on]');
+        if (mo) {
+            const l = lines[Number(mo.dataset.grMealsOn)];
+            l.mealsOn = true;
+            l.meals = питаниеПоДатам(l.place);
+            l.fresh.meals = l.meals.map(m => ({ ...m }));
+            dirty = true; render(); return;
+        }
         const fr = t.closest('[data-gr-fresh]');
         if (fr) { freshAll([lines[Number(fr.dataset.grFresh)]]); return; }
     });
     modal.addEventListener('change', ev => {
         const el = ev.target;
-        if (el.dataset.grMark !== undefined) {
+        if (el.dataset.grInc !== undefined) {
+            const l = lines[Number(el.dataset.grInc)];
+            l.included = el.checked;
+            if (!l.included && !l.excludeReason) l.excludeReason = ПРИЧИНА;
+            dirty = true; render();
+        } else if (el.dataset.grIncroom) {
+            for (const l of lines.filter(x => ключКомнаты(x) === el.dataset.grIncroom)) {
+                l.included = el.checked;
+                if (!l.included && !l.excludeReason) l.excludeReason = ПРИЧИНА;
+            }
+            dirty = true; render();
+        } else if (el.dataset.grMarkroom) {
+            for (const l of lines.filter(x => ключКомнаты(x) === el.dataset.grMarkroom)) el.checked ? marked.add(l.key) : marked.delete(l.key);
+            render();
+        } else if (el.dataset.grMark !== undefined) {
             el.checked ? marked.add(el.dataset.grMark) : marked.delete(el.dataset.grMark);
             render();
         } else if (el.id === 'grMarkAll') {
@@ -493,7 +632,7 @@ function init() {
         } else if (el.dataset.grF !== undefined) {
             const l = lines[Number(el.dataset.grF)];
             const k = el.dataset.k;
-            l[k] = k === 'label' ? el.value : Math.max(Number(el.value) || 0, k === 'people' ? 1 : 0);
+            l[k] = k === 'label' || k === 'excludeReason' ? el.value : Math.max(Number(el.value) || 0, k === 'people' ? 1 : 0);
             dirty = true; render();
         }
     });

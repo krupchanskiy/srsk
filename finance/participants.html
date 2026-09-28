@@ -401,9 +401,10 @@
 <dialog id="groupChargeModal" class="modal">
     <div class="modal-box max-w-7xl">
         <h3 class="font-bold text-lg mb-1">Начислить группе · <span id="grTitle"></span></h3>
-        <div class="text-xs opacity-60 mb-2">Места из шахматки. Ночи, цена номера ÷ жильцов и питание (как считает кухня) подставлены по тарифам — правьте строку или сразу всем. Пересчитать можно в любой момент, даже при оплате</div>
+        <div class="text-xs opacity-60 mb-2">Места из шахматки по комнатам, у каждой — свои даты. Ночи, цена номера ÷ жильцов и питание (как считает кухня) — по тарифам; правьте строку, комнату или сразу всем. Снимите зелёную галочку — место или комната не начисляются (укажите почему). Пересчитать можно в любой момент, даже при оплате</div>
         <div id="grPayer" class="text-sm mb-2"></div>
         <div id="grRates" class="text-sm mb-2 flex flex-wrap items-center gap-2"></div>
+        <div id="grUnplaced" class="mb-2"></div>
         <div class="border border-base-300 rounded-lg p-2 mb-2 text-sm">
             <div class="font-semibold text-xs uppercase opacity-60 mb-1">Сразу <span id="grBulkWho"></span></div>
             <div class="flex flex-wrap items-center gap-1 mb-2">
@@ -421,7 +422,7 @@
             <table class="table table-xs">
                 <thead class="sticky top-0 bg-base-100 z-10"><tr>
                     <th><input type="checkbox" id="grMarkAll" class="checkbox checkbox-xs" title="Отметить все"></th>
-                    <th>Номер</th><th>Место / имя</th><th>Даты</th><th>Ночей</th><th>Номер ₹ ÷ чел.</th>
+                    <th title="Начисляем">Начисл.</th><th>Место / имя</th><th>Даты</th><th>Ночей</th><th>Номер ₹ ÷ чел.</th>
                     <th class="text-right">Проживание</th><th class="text-right">Завтр.</th><th class="text-right">Обеды</th>
                     <th class="text-right">Питание</th><th>Доп. ₹</th><th class="text-right">Итого</th><th></th>
                 </tr></thead>
@@ -490,8 +491,8 @@
 <script src="../js/date-utils.js?v=4"></script>
 <script src="../js/fin-utils.js?v=17"></script>
 <script src="../js/pages/fin-participants.js?v=68"></script>
-<script src="../js/pages/fin-guests.js?v=4"></script>
-<script src="../js/pages/fin-group.js?v=1"></script>
+<script src="../js/pages/fin-guests.js?v=5"></script>
+<script src="../js/pages/fin-group.js?v=2"></script>
 
 </body>
 </html>
