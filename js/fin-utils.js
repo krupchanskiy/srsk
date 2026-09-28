@@ -279,11 +279,10 @@ const FinUtils = {
 
     // Касса → наличные, PayPal → PayPal, USDT → USDT, остальное (ИП, карты) → карта.
     // Club108 — счёт только для передачи денег, канала у него нет.
-    // «Подушка безопасности» — спрятанные наличные, по умолчанию наличные (ВГ, 28.09.2026).
     accountChannel(accountId) {
         const a = refs.accounts.find(x => x.account_id === accountId);
         if (!a) return '';
-        if (a.reconciliation_mode === 'cash_count' || /подушка/i.test(a.name)) return 'cash';
+        if (a.reconciliation_mode === 'cash_count') return 'cash';
         if (/paypal/i.test(a.name)) return 'paypal';
         if (/usdt/i.test(a.name)) return 'usdt';
         if (/club\s*108/i.test(a.name)) return '';
