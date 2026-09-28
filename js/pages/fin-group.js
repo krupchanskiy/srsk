@@ -195,13 +195,13 @@ function renderPayer() {
 function renderRates() {
     const rates = FinParticipants.rates();
     const parts = Object.entries(rates).filter(([c]) => c !== 'INR')
-        .map(([c, r]) => `1 ${FinUtils.symbol(c)} = ${Number(r).toLocaleString('ru-RU', { maximumFractionDigits: 2 })} ₹`);
+        .map(([c, r]) => `1 ${FinUtils.symbol(c)} = ${Number(r).toLocaleString('ru-RU', { maximumFractionDigits: 2 })} ₹ <span class="opacity-60">(${FinParticipants.rateIsOwn(c) ? 'свой' : 'общий'})</span>`);
     const валюты = FinUtils.refs.currencies.filter(c => c.is_active !== false && c.code !== 'INR');
     document.getElementById('grRates').innerHTML = `
-        ${parts.length ? `<span class="opacity-60">Курс события:</span> ${parts.join(' · ')}`
-            : '<span class="text-warning">Курса события нет — оплата не в ₹ не пройдёт</span>'}
+        ${parts.length ? `<span class="opacity-60">Курс:</span> ${parts.join(' · ')}`
+            : '<span class="text-warning">Курсов нет — оплата не в ₹ не пройдёт</span>'}
         <details class="dropdown" data-permission="fin_admin">
-            <summary class="btn btn-ghost btn-xs">+ курс</summary>
+            <summary class="btn btn-ghost btn-xs" title="Договорной курс для этого события; без него действует общий">+ свой курс</summary>
             <div class="dropdown-content z-50 bg-base-100 shadow-lg rounded-lg p-2 flex items-center gap-1 w-72">
                 1 <select id="grRateCur" class="select select-bordered select-xs">${валюты.map(c => `<option value="${c.code}">${e(c.symbol)} ${c.code}</option>`).join('')}</select>
                 = <input type="number" id="grRateVal" min="0.0001" step="0.0001" class="input input-bordered input-xs w-20"> ₹

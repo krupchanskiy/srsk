@@ -282,10 +282,13 @@ async function openCard(pid) {
 
 // Кросс-курсы ретрита в шапке: 1$ = X₹ и т.д. (ТЗ 3.1)
 let retreatRates = {};   // currency -> rate к INR
+// Курс события — свой (договорной, заведён на событие) или общий на дату (579, ВГ 28.09)
+let retreatRateOwn = {}; // currency -> true, если курс свой
 async function loadRetreatRates() {
     retreatRates = { INR: 1 };
+    retreatRateOwn = {};
     const { data } = await Layout.db.rpc('fin_get_retreat_rates', { p_retreat: currentRetreat });
-    (data || []).forEach(r => { retreatRates[r.currency_code] = Number(r.rate); });
+    (data || []).forEach(r => { retreatRates[r.currency_code] = Number(r.rate); retreatRateOwn[r.currency_code] = !!r.is_own; });
 }
 
 function renderCardRates() {
@@ -293,9 +296,9 @@ function renderCardRates() {
     if (!el) return;
     const parts = Object.entries(retreatRates)
         .filter(([c]) => c !== 'INR')
-        .map(([c, r]) => `1 ${FinUtils.symbol(c)} = ${Number(r).toLocaleString('ru-RU', { maximumFractionDigits: 2 })} ₹`);
-    // У событий новой системы общий курс не подставляется (561) — без курса
-    // события смена валюты и приём в другой валюте не пройдут, говорим сразу
+        .map(([c, r]) => `1 ${FinUtils.symbol(c)} = ${Number(r).toLocaleString('ru-RU', { maximumFractionDigits: 2 })} ₹${
+            noEventMode ? '' : retreatRateOwn[c] ? ' (свой)' : ' (общий)'}`);
+    // Курсов нет совсем — ни своего, ни общего: смена валюты и приём в другой валюте не пройдут
     if (!parts.length && новаяСистема(балансКарточки())) {
         el.innerHTML = `<span class="text-warning">${e(t('fin_retreat_rate_missing'))}</span>`;
         return;
@@ -3088,6 +3091,6 @@ async function openCardById(pid) {
     openCard(pid);
 }
 
-window.FinParticipants = { currentRetreat: () => currentRetreat, ensureObjectId, reloadRates: loadRetreatRates, noEventRetreatId, reload: loadParticipants, openCardById, rates: () => retreatRates, openCharge, closeCharge, openPayment, closePayment, addChargeRow, addPayRow, addOtherParticipantRow, syncFromCrm, copySummary, openRecalc, onBaseCurrencyChange, removeChange, removeDonation, addChangeRow, keepAsDonation, openWithdraw, openOtherCurrencyPicker, acceptInOtherCurrency };
+window.FinParticipants = { currentRetreat: () => currentRetreat, ensureObjectId, reloadRates: loadRetreatRates, rateIsOwn: c => !!retreatRateOwn[c], noEventRetreatId, reload: loadParticipants, openCardById, rates: () => retreatRates, openCharge, closeCharge, openPayment, closePayment, addChargeRow, addPayRow, addOtherParticipantRow, syncFromCrm, copySummary, openRecalc, onBaseCurrencyChange, removeChange, removeDonation, addChangeRow, keepAsDonation, openWithdraw, openOtherCurrencyPicker, acceptInOtherCurrency };
 init();
 })();
