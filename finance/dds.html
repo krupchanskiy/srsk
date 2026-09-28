@@ -274,7 +274,7 @@
 
 <!-- Модалка: Приход / Пожертвование -->
 <dialog id="incomeModal" class="modal">
-    <div class="modal-box max-w-lg">
+    <div class="modal-box max-w-xl">
         <h3 class="font-bold text-lg mb-4" data-i18n="fin_new_income">Приход</h3>
         <form id="incomeForm">
             <div class="form-control mb-2">
@@ -288,32 +288,41 @@
                 <input type="text" id="incDonorSearch" class="input input-bordered input-sm" autocomplete="off">
                 <input type="hidden" id="incDonorId">
             </div>
+            <!-- Сверху — за что деньги (общее для операции), ниже — куда поступили -->
             <div class="grid grid-cols-2 gap-3 mb-2">
                 <div class="form-control">
                     <label class="label py-0"><span class="label-text" data-i18n="fin_occurred_on">Дата</span></label>
                     <input type="date" id="incDate" class="input input-bordered input-sm" required>
                 </div>
                 <div class="form-control">
-                    <label class="label py-0"><span class="label-text" data-i18n="fin_account">Счёт</span></label>
-                    <select id="incAccount" class="select select-bordered select-sm" required></select>
-                </div>
-                <div class="form-control">
-                    <label class="label py-0"><span class="label-text" data-i18n="fin_amount">Сумма</span></label>
-                    <input type="number" id="incAmount" class="input input-bordered input-sm" min="0.01" step="0.01" required>
-                </div>
-                <div class="form-control">
                     <label class="label py-0"><span class="label-text" data-i18n="fin_category">Статья</span></label>
                     <select id="incCategory" class="select select-bordered select-sm" required></select>
                 </div>
-                <div class="form-control">
+                <div class="form-control col-span-2">
                     <label class="label py-0"><span class="label-text" data-i18n="fin_retreat_object">Ретрит</span></label>
                     <select id="incObject" class="select select-bordered select-sm"></select>
                     <div id="incObjectHint" class="text-xs text-info mt-1"></div>
                 </div>
-                <div class="form-control">
-                    <label class="label py-0"><span class="label-text" data-i18n="fin_channel">Канал</span></label>
-                    <select id="incChannel" class="select select-bordered select-sm"></select>
+            </div>
+            <!-- Один приход частями в разные кассы/валюты (ВГ, 28.09.2026): первая строка
+                 такая же, как добавленные. Канал ставится сам по счёту строки. -->
+            <div class="mt-3 mb-2">
+                <div class="text-xs font-semibold uppercase tracking-wide opacity-60 mb-1">Поступило</div>
+                <div class="grid grid-cols-[minmax(0,1fr)_6.5rem_7.5rem_2rem] gap-2 text-xs opacity-70 mb-1">
+                    <span data-i18n="fin_account">Счёт</span>
+                    <span data-i18n="fin_amount">Сумма</span>
+                    <span data-i18n="fin_channel">Канал</span>
+                    <span></span>
                 </div>
+                <div id="incRows" class="flex flex-col gap-2">
+                    <div class="grid grid-cols-[minmax(0,1fr)_6.5rem_7.5rem_2rem] gap-2 items-center inc-row">
+                        <select id="incAccount" class="select select-bordered select-sm w-full min-w-0 inc-account" required></select>
+                        <input type="number" id="incAmount" class="input input-bordered input-sm inc-amount" min="0.01" step="0.01" required>
+                        <select id="incChannel" class="select select-bordered select-sm inc-channel"></select>
+                        <span></span>
+                    </div>
+                </div>
+                <button type="button" class="btn btn-ghost btn-sm mt-1" id="incAddRowBtn" onclick="FinDds.addIncomeRow()">+ Добавить счёт</button>
             </div>
             <!-- Появляется, когда выбрана статья «Оплата от участника»: без имени
                  такой приход не уменьшит долг гостя и не попадёт в его карточку -->
@@ -343,7 +352,8 @@
                 <label class="label py-0"><span class="label-text" data-i18n="fin_comment">Комментарий</span></label>
                 <input type="text" id="incComment" class="input input-bordered input-sm">
             </div>
-            <div class="modal-action">
+            <div class="modal-action items-center">
+                <span id="incRecap" class="mr-auto text-sm font-semibold"></span>
                 <button type="button" class="btn" onclick="document.getElementById('incomeModal').close()" data-i18n="cancel">Отмена</button>
                 <button type="submit" class="btn btn-primary" data-i18n="save">Сохранить</button>
             </div>
@@ -520,7 +530,7 @@
 <script src="../js/layout.js?v=81"></script>
 <script src="../js/date-utils.js?v=4"></script>
 <script src="../js/fin-utils.js?v=14"></script>
-<script src="../js/pages/fin-dds.js?v=30"></script>
+<script src="../js/pages/fin-dds.js?v=31"></script>
 
 </body>
 </html>

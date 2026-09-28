@@ -516,7 +516,8 @@ async function repeatOperation(opId) {
         updateExpenseRecap();
     } else {
         // приход / пожертвование — одна нога прихода
-        const p = (data || []).find(x => Number(x.signed_amount) > 0) || data?.[0];
+        const ins = (data || []).filter(x => Number(x.signed_amount) > 0);
+        const p = ins[0] || data?.[0];
         openIncome();
         document.getElementById('incIsDonation').checked = op.type === 'donation';
         updateIncomeCategoryList();
@@ -526,8 +527,11 @@ async function repeatOperation(opId) {
             document.getElementById('incAmount').value = Math.abs(Number(p.signed_amount));
             setSel(document.getElementById('incCategory'), p.category_id);
             setSel(document.getElementById('incObject'), p.object_id || '');
-            setSel(document.getElementById('incChannel'), p.payment_channel || '');
+            document.getElementById('incChannel').value = каналСчёта(p.account_id);
         }
+        // Приход, внесённый частями в разные кассы, повторяется со всеми частями
+        ins.slice(1).forEach(x => addIncomeRow({ account_id: x.account_id, amount: Math.abs(Number(x.signed_amount)) }));
+        updateIncomeRecap();
     }
 }
 
@@ -905,7 +909,7 @@ function openIncome() {
     document.getElementById('incDate').value = FinUtils.todayISO();
     document.getElementById('incAccount').innerHTML = счетаПоКаналу('cash');
     document.getElementById('incObject').innerHTML = FinUtils.objectOptions();
-    document.getElementById('incChannel').innerHTML = FinUtils.channelOptions('cash');
+    document.getElementById('incChannel').innerHTML = incomeChannelOptions(каналСчёта(document.getElementById('incAccount').value));
     updateIncomeCategoryList();
     document.getElementById('incAmount').value = '';
     document.getElementById('incComment').value = '';
@@ -916,8 +920,77 @@ function openIncome() {
     document.getElementById('incKind').innerHTML =
         PAY_KINDS.map(k => `<option value="${k}">${e(t('fin_block_' + k))}</option>`).join('');
     document.getElementById('incPayeeRows').innerHTML = '';   // строки прошлого платежа
+    document.querySelectorAll('#incRows .inc-row:not(:first-child)').forEach(r => r.remove());
     updateSplitRecap();
+    updateIncomeRecap();
     document.getElementById('incomeModal').showModal();
+}
+
+// ---- Канал прихода — по счёту, сам (ВГ, 28.09.2026) ----
+// Раньше канал выбирали руками и он не менялся вслед за счётом: выбрали PayPal —
+// канал так и остался «Наличные». Теперь: касса → наличные, PayPal → PayPal,
+// USDT → USDT, остальное (ИП, карты) → карта. Club108 — счёт только для передачи
+// денег, канала у него нет. «Банковский перевод» в приходе не предлагаем: для нас
+// это то же, что карта. Поле оставлено видимым — как проверка глазами.
+function каналСчёта(accountId) {
+    const a = FinUtils.refs.accounts.find(x => x.account_id === accountId);
+    if (!a) return '';
+    if (a.reconciliation_mode === 'cash_count') return 'cash';
+    if (/paypal/i.test(a.name)) return 'paypal';
+    if (/usdt/i.test(a.name)) return 'usdt';
+    if (/club\s*108/i.test(a.name)) return '';
+    return 'card';
+}
+
+function incomeChannelOptions(selected) {
+    // USDT подписан напрямую: перевод новый, а у людей кэш переводов живёт час
+    const label = c => c === 'usdt' ? 'USDT' : t('fin_channel_' + c);
+    return '<option value="">—</option>' + ['cash', 'card', 'paypal', 'usdt']
+        .map(c => `<option value="${c}" ${c === selected ? 'selected' : ''}>${e(label(c))}</option>`)
+        .join('');
+}
+
+// ---- Один приход частями в разные кассы (ВГ, 28.09.2026) ----
+// За мурти на ₹ 15 000 взяли € 100 и ₹ 400 — это одна операция с одной статьёй
+// и одним комментарием, а не два прихода. Статья и ретрит общие, у строки — счёт,
+// сумма и канал.
+function addIncomeRow(preset) {
+    const row = document.createElement('div');
+    row.className = 'grid grid-cols-[minmax(0,1fr)_6.5rem_7.5rem_2rem] gap-2 items-center inc-row';
+    row.innerHTML = `
+        <select class="select select-bordered select-sm w-full min-w-0 inc-account" required aria-label="${e(t('fin_account'))}">
+            ${счетаПоКаналу('cash', preset?.account_id)}</select>
+        <input type="number" class="input input-bordered input-sm inc-amount" min="0.01" step="0.01" required
+               aria-label="${e(t('fin_amount'))}" value="${preset?.amount ?? ''}">
+        <select class="select select-bordered select-sm inc-channel" aria-label="${e(t('fin_channel'))}"></select>
+        <button type="button" class="btn btn-ghost btn-sm btn-square text-error" aria-label="${e(t('fin_remove_row'))}">${FinUtils.ICONS.x}</button>`;
+    row.querySelector('.inc-channel').innerHTML = incomeChannelOptions(каналСчёта(row.querySelector('.inc-account').value));
+    row.querySelector('button').addEventListener('click', () => { row.remove(); updateIncomeRecap(); });
+    document.getElementById('incRows').appendChild(row);
+    updateIncomeRecap();
+}
+
+// Все части прихода: первая строка + добавленные
+function incomeParts() {
+    return [...document.querySelectorAll('#incRows .inc-row')].map(r => ({
+        account: r.querySelector('.inc-account'), amount: r.querySelector('.inc-amount'),
+        channel: r.querySelector('.inc-channel') }));
+}
+
+// Итог по валютам — показываем, только когда частей больше одной
+function updateIncomeRecap() {
+    const el = document.getElementById('incRecap');
+    if (!el) return;
+    const parts = incomeParts();
+    if (parts.length < 2) { el.textContent = ''; return; }
+    const totals = {};
+    parts.forEach(p => {
+        const amount = Number(p.amount.value);
+        const cur = p.account.selectedOptions[0]?.dataset?.currency;
+        if (amount && cur) totals[cur] = (totals[cur] || 0) + amount;
+    });
+    const list = Object.entries(totals).map(([cur, sum]) => FinUtils.fmtMoney(sum, cur));
+    el.textContent = list.length ? `${t('fin_total')}: ${list.join(' · ')}` : '';
 }
 
 // Виды начислений участника — те же, что на странице «Участники»
@@ -946,6 +1019,9 @@ function syncParticipantBlock() {
     const need = isParticipantCategory() && !document.getElementById('incIsDonation').checked;
     document.getElementById('incParticipantWrap').classList.toggle('hidden', !need);
     document.getElementById('incSplitWrap').classList.toggle('hidden', !need);
+    // Части в разные кассы — только для обычного прихода/пожертвования
+    document.getElementById('incAddRowBtn').classList.toggle('hidden', need);
+    if (need) document.querySelectorAll('#incRows .inc-row:not(:first-child)').forEach(r => r.remove());
     // Ретрит для платежа участника обязателен: без него платёж не привяжется
     // к его балансу по мероприятию
     document.getElementById('incObject').required = need;
@@ -1081,14 +1157,14 @@ async function submitIncome(ev) {
         request_id: requestIds.income,
         occurred_on: document.getElementById('incDate').value,
         comment: document.getElementById('incComment').value || null,
-        rows: [{
+        rows: incomeParts().map(p => ({
             id: FinUtils.newRequestId(),
-            account_id: document.getElementById('incAccount').value,
-            amount: document.getElementById('incAmount').value,
+            account_id: p.account.value,
+            amount: p.amount.value,
             category_id: document.getElementById('incCategory').value,
             object_id: document.getElementById('incObject').value || null,
-            payment_channel: document.getElementById('incChannel').value || null
-        }]
+            payment_channel: p.channel.value || null
+        }))
     };
     if (isDonation && document.getElementById('incDonorId').value) {
         payload.payer_contact_id = document.getElementById('incDonorId').value;
@@ -1263,10 +1339,10 @@ async function init() {
     document.getElementById('expDate').addEventListener('change', () => {
         document.querySelectorAll('#expRows .exp-row').forEach(maybeSuggestExpenseObject);
     });
-    document.getElementById('incChannel').addEventListener('change', ev => {
-        const счета = document.getElementById('incAccount');
-        счета.innerHTML = счетаПоКаналу(ev.target.value, счета.value);
-        updateSplitRecap();
+    // Сменили счёт в строке прихода — канал этой строки встаёт по счёту
+    document.getElementById('incRows').addEventListener('change', ev => {
+        if (!ev.target.classList.contains('inc-account')) return;
+        ev.target.closest('.inc-row').querySelector('.inc-channel').value = каналСчёта(ev.target.value);
     });
     FinUtils.attachPersonSearch(document.getElementById('incDonorSearch'), document.getElementById('incDonorId'));
     FinUtils.attachPersonSearch(document.getElementById('incParticipantSearch'), document.getElementById('incParticipantId'));
@@ -1277,13 +1353,15 @@ async function init() {
     // Остаток плательщика зависит от общей суммы и валюты счёта
     document.getElementById('incAmount').addEventListener('input', updateSplitRecap);
     document.getElementById('incAccount').addEventListener('change', updateSplitRecap);
+    document.getElementById('incomeModal').addEventListener('input', updateIncomeRecap);
+    document.getElementById('incomeModal').addEventListener('change', updateIncomeRecap);
 
     // Esc не должен молча терять введённые данные
     const guardDialog = (dlgId, isDirty) => document.getElementById(dlgId).addEventListener('cancel', ev => {
         if (isDirty() && !confirm(t('fin_confirm_discard'))) ev.preventDefault();
     });
     guardDialog('expenseModal', () => [...document.querySelectorAll('#expRows .exp-amount')].some(i => i.value));
-    guardDialog('incomeModal', () => !!document.getElementById('incAmount').value);
+    guardDialog('incomeModal', () => incomeParts().some(p => p.amount.value));
     guardDialog('transferModal', () => !!document.getElementById('trAmount').value);
 
     const ddsBody = document.getElementById('ddsBody');
@@ -1319,6 +1397,6 @@ async function init() {
     }
 }
 
-window.FinDds = { openExpense, openIncome, openTransfer, addExpenseRow, addPayeeRow, openReversal, openRealloc, addReallocRow, openAnalytics, attachFile, updateRecap: updateExpenseRecap, repeatOperation };
+window.FinDds = { openExpense, openIncome, openTransfer, addExpenseRow, addIncomeRow,addPayeeRow, openReversal, openRealloc, addReallocRow, openAnalytics, attachFile, updateRecap: updateExpenseRecap, repeatOperation };
 init();
 })();
