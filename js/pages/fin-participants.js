@@ -14,6 +14,11 @@ const PAY_KINDS = ['org_fee', 'accommodation', 'meals', 'extra', 'general'];
 let retreats = [];
 let currentRetreat = null;
 let currentObjectId = null;      // учётный объект текущего ретрита (для платежей)
+// «Гости без события» (ВГ, 28.09): служебный контейнер вместо ретрита — без
+// оргвзноса, CRM и курса ретрита. Окно начисления — js/pages/fin-guests.js
+let noEventMode = false;
+let noEventId = null;
+const видимыеБлоки = () => noEventMode ? BLOCKS.filter(k => k !== 'org_fee') : BLOCKS;
 let participants = [];           // [{participant_id, name, balance}]
 let card = { id: null, name: '', payments: [] };
 // request_id живёт от открытия формы до успешного сохранения
@@ -57,7 +62,33 @@ async function loadRetreats() {
     const sel = document.getElementById('retreatSelect');
     sel.innerHTML = `<option value="">${t('fin_select_retreat')}</option>` +
         retreats.map(r => `<option value="${r.id}">${e(Layout.getName(r))}</option>`).join('');
-    sel.addEventListener('change', () => selectRetreat(sel.value || null));
+    sel.addEventListener('change', () => { setNoEventMode(false); selectRetreat(sel.value || null); });
+}
+
+async function noEventRetreatId() {
+    if (noEventId) return noEventId;
+    const { data, error } = await Layout.db.rpc('fin_get_no_event_retreat');
+    if (error) { Layout.handleError(error, t('fin_no_event_guests')); return null; }
+    noEventId = data;
+    // контейнер скрыт от чтения ретритов — имя для карточки держим сами
+    if (noEventId && !retreats.some(r => r.id === noEventId)) {
+        retreats.push({ id: noEventId, name_ru: 'Гости без события', name_en: 'Guests without event', name_hi: 'बिना कार्यक्रम के अतिथि' });
+    }
+    return noEventId;
+}
+
+function setNoEventMode(on) {
+    noEventMode = on;
+    document.body.classList.toggle('no-event-mode', on);
+    document.getElementById('noEventBtn')?.classList.toggle('btn-active', on);
+}
+
+async function enterNoEvent() {
+    const id = await noEventRetreatId();
+    if (!id) return;
+    setNoEventMode(true);
+    document.getElementById('retreatSelect').value = '';
+    await selectRetreat(id);
 }
 
 async function selectRetreat(retreatId) {
@@ -74,7 +105,8 @@ async function selectRetreat(retreatId) {
         return;
     }
     const url = new URL(window.location);
-    url.searchParams.set('retreat', retreatId);
+    if (noEventMode) { url.searchParams.delete('retreat'); url.searchParams.set('guests', '1'); }
+    else { url.searchParams.delete('guests'); url.searchParams.set('retreat', retreatId); }
     history.replaceState(null, '', url);
     await Promise.all([loadParticipants(), loadRetreatRates()]);
 }
@@ -139,7 +171,7 @@ function renderParticipants() {
             ? ` <span class="badge badge-warning badge-sm" title="${e(b.problems.map(x => x.message).join('\n'))}">⚠ ${b.problems.length}</span>` : '';
         return `<tr class="cursor-pointer hover:bg-base-200" data-pid="${p.participant_id}" tabindex="0">
             <td class="font-medium">${e(p.name || '')}${пробл}</td>
-            ${BLOCKS.map(k => `<td class="text-right">${ячейка(k)}</td>`).join('')}
+            ${видимыеБлоки().map(k => `<td class="text-right">${ячейка(k)}</td>`).join('')}
             <td class="text-right">${fmtNet(Number(b.general_debt) - Number(b.general_advance), cur)}</td>
             <td class="text-right font-semibold">${fmtNetWord(b.net, cur, b)}${crmCancelledBadge(p)}</td>
         </tr>`;
@@ -219,7 +251,16 @@ async function openCard(pid) {
         renderCardCurrencyBtns();
     }
     // Начисления подтягиваются из CRM сами при открытии (ТЗ 3.1, сценарий 1);
-    // кнопка «Обновить из CRM» остаётся для принудительного пересчёта
+    // кнопка «Обновить из CRM» остаётся для принудительного пересчёта.
+    // У гостей без события CRM нет
+    if (noEventMode) {
+        document.getElementById('cardCrmInfo').innerHTML = '';
+        document.getElementById('cardNotes').innerHTML = '';
+        cardCalc = null; card.dealId = null;
+        await Promise.all([loadCardCharges(), loadCardPayments()]);
+        loadCardCompanions();
+        return;
+    }
     if (window.hasPermission?.('fin_admin')) {
         const { data: res } = await Layout.db.rpc('fin_sync_charges_from_crm',
             { p_participant: card.id, p_retreat: currentRetreat });
@@ -254,7 +295,7 @@ function renderCardRates() {
         el.innerHTML = `<span class="text-warning">${e(t('fin_retreat_rate_missing'))}</span>`;
         return;
     }
-    el.textContent = parts.length ? `${t('fin_rates_header')}: ${parts.join(' · ')}` : '';
+    el.textContent = parts.length ? `${noEventMode ? 'Общий курс' : t('fin_rates_header')}: ${parts.join(' · ')}` : '';
 }
 
 // Условия и даты из CRM — администратор видит договорённость в момент приёма денег (ТЗ 4.5)
@@ -677,8 +718,11 @@ function renderCardBlocks(b) {
             ${новая ? '' /* возврат аванса в новой системе — отдельным шагом */ : `<button type="button" class="btn btn-ghost btn-xs text-warning px-1" data-refund-advance="1" title="${t('fin_refund_advance_hint')}">${t('fin_refund')}</button>`}
            </div>`
         : '';
-    document.getElementById('cardBlocks').innerHTML =
-        BLOCKS.map(k => cell(k, b.blocks[k])).join('') +
+    const блокиEl = document.getElementById('cardBlocks');
+    блокиEl.classList.toggle('md:grid-cols-5', !noEventMode);
+    блокиEl.classList.toggle('md:grid-cols-4', noEventMode);
+    блокиEl.innerHTML =
+        видимыеБлоки().map(k => cell(k, b.blocks[k])).join('') +
         `<div class="border-2 rounded-lg p-2 ${totalNet > 0 ? 'border-error' : totalNet < 0 ? 'border-success' : 'border-base-300'}">
             <div class="text-xs font-semibold uppercase opacity-60 mb-1 flex justify-between items-start gap-1">${t('fin_total')}${списатьВсё}</div>
             <div class="text-xs flex justify-between gap-2 items-start"><span>${t('fin_debt')}</span>${фмтВалHtml(долгВал, валютаИтога)}</div>
@@ -1181,6 +1225,8 @@ function addChargeRow(presetPerson) {
 
 function openCharge() {
     if (!currentRetreat) { Layout.showNotification(t('fin_select_retreat'), 'warning'); return; }
+    // гостю без события начисляем по визиту из шахматки, а не произвольной строкой
+    if (noEventMode && window.FinGuests) { FinGuests.open({ pid: card.id }); return; }
     document.getElementById('chargeRows').innerHTML = '';
     addChargeRow(card.id ? { id: card.id, name: card.name } : null);
     document.getElementById('chargeReason').value = '';
@@ -2988,9 +3034,14 @@ async function init() {
     }));
 
     // ?retreat=<id> — прямая ссылка; ?open=<pid> — сразу открыть карточку (из аналитики)
+    document.getElementById('noEventBtn')?.addEventListener('click', enterNoEvent);
     const params = new URLSearchParams(window.location.search);
     const preset = params.get('retreat');
-    if (preset && retreats.some(r => r.id === preset)) {
+    if (params.get('guests')) {
+        await enterNoEvent();
+        const openPid = params.get('open');
+        if (openPid && participants.some(p => p.participant_id === openPid)) openCard(openPid);
+    } else if (preset && retreats.some(r => r.id === preset)) {
         document.getElementById('retreatSelect').value = preset;
         await selectRetreat(preset);
         const openPid = params.get('open');
@@ -3017,6 +3068,12 @@ async function copySummary() {
     Layout.showNotification(ok ? t('fin_copied') : t('fin_copy_failed'), ok ? 'success' : 'error');
 }
 
-window.FinParticipants = { openCharge, closeCharge, openPayment, closePayment, addChargeRow, addPayRow, addOtherParticipantRow, syncFromCrm, copySummary, openRecalc, onBaseCurrencyChange, removeChange, removeDonation, addChangeRow, keepAsDonation, openWithdraw, openOtherCurrencyPicker, acceptInOtherCurrency };
+// для окна «Гости без события» (fin-guests.js)
+async function openCardById(pid) {
+    if (!participants.some(p => p.participant_id === pid)) await loadParticipants();
+    openCard(pid);
+}
+
+window.FinParticipants = { noEventRetreatId, reload: loadParticipants, openCardById, rates: () => retreatRates, openCharge, closeCharge, openPayment, closePayment, addChargeRow, addPayRow, addOtherParticipantRow, syncFromCrm, copySummary, openRecalc, onBaseCurrencyChange, removeChange, removeDonation, addChangeRow, keepAsDonation, openWithdraw, openOtherCurrencyPicker, acceptInOtherCurrency };
 init();
 })();
