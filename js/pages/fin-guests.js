@@ -109,20 +109,39 @@ async function loadVisits() {
         p_from: document.getElementById('gcFrom').value, p_to: document.getElementById('gcTo').value });
     if (error) { Layout.handleError(error, 'Визиты'); return; }
     visits = data || [];
+    // Корпуса из визитов периода; «Гостевой дом» первым — гости без события живут в основном там
+    const sel = document.getElementById('gcBuilding');
+    const был = sel.value;
+    const корпуса = [...new Map(visits.filter(v => v.building_id).map(v => [v.building_id, v.building])).entries()]
+        .sort((a, b) => (b[1] === 'Гостевой дом') - (a[1] === 'Гостевой дом') || (a[1] || '').localeCompare(b[1] || '', 'ru'));
+    sel.innerHTML = `<option value="">Все корпуса</option>` + корпуса.map(([id, n]) => `<option value="${id}">${e(n || '—')}</option>`).join('');
+    sel.value = корпуса.some(([id]) => id === был) ? был : '';
     renderVisits();
 }
 
 function renderVisits() {
     const body = document.getElementById('gcVisits');
     const q = (document.getElementById('gcSearch').value || '').trim().toLowerCase();
-    const list = visits.filter(v => !q || (v.name || '').toLowerCase().includes(q) || selected.has(v.resident_id));
+    const корпус = document.getElementById('gcBuilding').value;
+    const комн = (document.getElementById('gcRoom').value || '').trim().toLowerCase();
+    // отмеченные видны всегда, даже если не подходят под фильтр
+    const list = visits.filter(v => selected.has(v.resident_id) || (
+        (!q || (v.name || '').toLowerCase().includes(q))
+        && (!корпус || v.building_id === корпус)
+        && (!комн || String(v.room || '').toLowerCase() === комн)))
+        .sort((a, b) => (b.building === 'Гостевой дом') - (a.building === 'Гостевой дом')
+            || (a.building || '').localeCompare(b.building || '', 'ru')
+            || (parseInt(a.room) || 0) - (parseInt(b.room) || 0)
+            || b.check_in.localeCompare(a.check_in));
     body.innerHTML = list.map(v => {
         const ночей = v.check_out ? днейМежду(v.check_in, v.check_out) : '—';
         const начислено = Number(v.charged) > 0
             ? `<span class="badge badge-ghost badge-sm whitespace-nowrap" title="Уже есть начисления по этому визиту">начислено ${FinUtils.fmtMoney(v.charged, v.charge_currency || 'INR')}</span>` : '';
         return `<tr class="cursor-pointer hover:bg-base-200 ${selected.has(v.resident_id) ? 'bg-primary/5' : ''}" data-gc-visit="${v.resident_id}">
             <td><input type="checkbox" class="checkbox checkbox-sm" ${selected.has(v.resident_id) ? 'checked' : ''} tabindex="-1"></td>
-            <td class="font-medium">${e(v.name)}${v.vaishnava_id ? '' : ' <span class="badge badge-warning badge-xs" title="В шахматке только имя — при начислении привяжем к карточке">без карточки</span>'}</td>
+            <td class="font-medium">${e(v.name)}${v.vaishnava_id ? '' : !v.guest_name && v.booking_name
+                ? ' <span class="badge badge-info badge-xs" title="Место из брони группы — имя человека впишете при начислении">место брони</span>'
+                : ' <span class="badge badge-warning badge-xs" title="В шахматке только имя — при начислении привяжем к карточке">без карточки</span>'}</td>
             <td class="whitespace-nowrap">${v.room ? `${e(v.building || '')} №${e(String(v.room))}` : '<span class="opacity-50">без номера</span>'}</td>
             <td class="whitespace-nowrap">${дата(v.check_in)} — ${v.check_out ? дата(v.check_out) : '…'}</td>
             <td class="text-right">${ночей}</td>
@@ -362,6 +381,8 @@ function init() {
     });
     document.getElementById('gcReload')?.addEventListener('click', loadVisits);
     document.getElementById('gcSearch')?.addEventListener('input', Layout.debounce(renderVisits, 200));
+    document.getElementById('gcRoom')?.addEventListener('input', Layout.debounce(renderVisits, 200));
+    document.getElementById('gcBuilding')?.addEventListener('change', renderVisits);
     document.getElementById('gcVisits')?.addEventListener('click', ev => {
         const row = ev.target.closest('[data-gc-visit]');
         if (row) toggleVisit(row.dataset.gcVisit);

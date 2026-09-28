@@ -363,7 +363,9 @@
             <span>—</span>
             <input type="date" id="gcTo" class="input input-bordered input-sm">
             <button type="button" id="gcReload" class="btn btn-sm">Показать</button>
-            <input type="search" id="gcSearch" class="input input-bordered input-sm w-48 ml-auto" placeholder="Поиск по имени…">
+            <select id="gcBuilding" class="select select-bordered select-sm ml-auto"></select>
+            <input type="search" id="gcRoom" class="input input-bordered input-sm w-24" placeholder="№ комнаты" inputmode="numeric">
+            <input type="search" id="gcSearch" class="input input-bordered input-sm w-44" placeholder="Поиск по имени…">
         </div>
         <div class="overflow-x-auto max-h-64 overflow-y-auto border border-base-300 rounded-lg mb-3">
             <table class="table table-xs">
@@ -420,7 +422,7 @@
 <script src="../js/date-utils.js?v=4"></script>
 <script src="../js/fin-utils.js?v=17"></script>
 <script src="../js/pages/fin-participants.js?v=67"></script>
-<script src="../js/pages/fin-guests.js?v=2"></script>
+<script src="../js/pages/fin-guests.js?v=3"></script>
 
 </body>
 </html>
