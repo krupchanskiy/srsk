@@ -1313,6 +1313,9 @@ function payRowHtml(idx) {
     // платит гость (ВГ, 24.08). Пока строк нет, берём опорную валюту.
     const первая = document.querySelector('#payRows .pay-row .pay-currency');
     const валюта = первая?.value || document.getElementById('payBaseCurrency')?.value || 'INR';
+    // Канал — по счёту, выбранному по умолчанию (первому в списке)
+    const счета = счетаДляСтроки(валюта, 'cash');
+    const первыйСчёт = (счета.match(/value="([^"]*)"/) || [])[1];
     return `
     <div class="border border-base-300 rounded-lg p-3 mb-2 pay-row" data-idx="${idx}">
         <!-- Три колонки, а не пять: в модалке пять полей сжимаются и подписи обрезаются -->
@@ -1327,7 +1330,7 @@ function payRowHtml(idx) {
             </div>
             <div class="form-control">
                 <label class="label py-0"><span class="label-text text-xs">${t('fin_account')}</span></label>
-                <select class="select select-bordered select-sm pay-account" required>${счетаДляСтроки(валюта, 'cash')}</select>
+                <select class="select select-bordered select-sm pay-account" required>${счета}</select>
             </div>
             <div class="form-control">
                 <label class="label py-0"><span class="label-text text-xs">${t('fin_amount')}</span></label>
@@ -1335,7 +1338,7 @@ function payRowHtml(idx) {
             </div>
             <div class="form-control">
                 <label class="label py-0"><span class="label-text text-xs">${t('fin_channel')}</span></label>
-                <select class="select select-bordered select-sm pay-channel">${FinUtils.channelOptions('cash')}</select>
+                <select class="select select-bordered select-sm pay-channel">${FinUtils.channelOptions(FinUtils.accountChannel(первыйСчёт))}</select>
             </div>
         </div>
         <div class="text-xs opacity-70 mt-1 pay-hint"></div>
@@ -1343,16 +1346,17 @@ function payRowHtml(idx) {
     </div>`;
 }
 
-// Смена валюты/канала пересобирает список счетов: показываем только те, куда эти
-// деньги физически можно принять, кассы или онлайн-счета первыми — по каналу.
+// Смена валюты пересобирает список счетов: показываем только те, куда эти
+// деньги физически можно принять, кассы первыми. Канал встаёт по счёту сам
+// (ВГ, 28.09.2026) — раньше он шёл отдельно и мог не совпасть со счётом.
 function onPayCurrencyChange(row) {
     const валюта = row.querySelector('.pay-currency').value;
-    const канал = row.querySelector('.pay-channel').value;
     const счета = row.querySelector('.pay-account');
-    счета.innerHTML = счетаДляСтроки(валюта, канал);
+    счета.innerHTML = счетаДляСтроки(валюта, 'cash');
     const пусто = !счета.options.length;
     счета.disabled = пусто;
     if (пусто) row.querySelector('.pay-hint').textContent = t('fin_no_account_in_currency');
+    row.querySelector('.pay-channel').value = FinUtils.accountChannel(счета.value);
 }
 
 // Когда в форме несколько человек, у каждой строки подписываем, за кого она:
@@ -1382,7 +1386,8 @@ function addPayRow() {
         wrap.dataset.delegated = '1';
         wrap.addEventListener('change', ev => {
             const row = ev.target.closest('.pay-row');
-            if (ev.target.classList.contains('pay-currency') || ev.target.classList.contains('pay-channel')) onPayCurrencyChange(row);
+            if (ev.target.classList.contains('pay-currency')) onPayCurrencyChange(row);
+            if (ev.target.classList.contains('pay-account')) row.querySelector('.pay-channel').value = FinUtils.accountChannel(ev.target.value);
             // Блок или валюта сменились — пересчитать подсказку остатка (п.5/6).
             // Ручной выбор валюты отменяет обмен по курсу ретрита (ВГ, 08.09)
             if (row && (ev.target.classList.contains('pay-currency') || ev.target.classList.contains('pay-kind'))) {

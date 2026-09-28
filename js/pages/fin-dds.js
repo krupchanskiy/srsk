@@ -931,27 +931,10 @@ function openIncome() {
 
 // ---- Канал прихода и расхода — по счёту, сам (ВГ, 28.09.2026) ----
 // Раньше канал выбирали руками и он не менялся вслед за счётом: выбрали PayPal —
-// канал так и остался «Наличные». Теперь: касса → наличные, PayPal → PayPal,
-// USDT → USDT, остальное (ИП, карты) → карта. Club108 — счёт только для передачи
-// денег, канала у него нет. «Банковский перевод» не предлагаем: для нас
-// это то же, что карта. Поле оставлено видимым — как проверка глазами.
-function каналСчёта(accountId) {
-    const a = FinUtils.refs.accounts.find(x => x.account_id === accountId);
-    if (!a) return '';
-    if (a.reconciliation_mode === 'cash_count') return 'cash';
-    if (/paypal/i.test(a.name)) return 'paypal';
-    if (/usdt/i.test(a.name)) return 'usdt';
-    if (/club\s*108/i.test(a.name)) return '';
-    return 'card';
-}
-
-function каналыСписком(selected) {
-    // USDT подписан напрямую: перевод новый, а у людей кэш переводов живёт час
-    const label = c => c === 'usdt' ? 'USDT' : t('fin_channel_' + c);
-    return '<option value="">—</option>' + ['cash', 'card', 'paypal', 'usdt']
-        .map(c => `<option value="${c}" ${c === selected ? 'selected' : ''}>${e(label(c))}</option>`)
-        .join('');
-}
+// канал так и остался «Наличные». Правило — FinUtils.accountChannel.
+// Поле оставлено видимым — как проверка глазами.
+const каналСчёта = id => FinUtils.accountChannel(id);
+const каналыСписком = sel => FinUtils.channelOptions(sel);
 
 // ---- Один приход частями в разные кассы (ВГ, 28.09.2026) ----
 // За мурти на ₹ 15 000 взяли € 100 и ₹ 400 — это одна операция с одной статьёй

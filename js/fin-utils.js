@@ -267,11 +267,26 @@ const FinUtils = {
             .join('');
     },
 
+    // Канал в формах ставится сам по счёту (ВГ, 28.09.2026). «Онлайн-перевод» не
+    // предлагаем — для нас это то же, что карта; в старых записях он остаётся.
+    // USDT подписан напрямую: перевод новый, а у людей кэш переводов живёт час.
     channelOptions(selected) {
-        const t = k => Layout.t(k);
-        return '<option value="">—</option>' + ['cash', 'bank_transfer', 'card', 'paypal']
-            .map(c => `<option value="${c}" ${c === selected ? 'selected' : ''}>${t('fin_channel_' + c)}</option>`)
+        const label = c => c === 'usdt' ? 'USDT' : Layout.t('fin_channel_' + c);
+        return '<option value="">—</option>' + ['cash', 'card', 'paypal', 'usdt']
+            .map(c => `<option value="${c}" ${c === selected ? 'selected' : ''}>${Layout.escapeHtml(label(c))}</option>`)
             .join('');
+    },
+
+    // Касса → наличные, PayPal → PayPal, USDT → USDT, остальное (ИП, карты) → карта.
+    // Club108 — счёт только для передачи денег, канала у него нет.
+    accountChannel(accountId) {
+        const a = refs.accounts.find(x => x.account_id === accountId);
+        if (!a) return '';
+        if (a.reconciliation_mode === 'cash_count') return 'cash';
+        if (/paypal/i.test(a.name)) return 'paypal';
+        if (/usdt/i.test(a.name)) return 'usdt';
+        if (/club\s*108/i.test(a.name)) return '';
+        return 'card';
     },
 
     todayISO() {
