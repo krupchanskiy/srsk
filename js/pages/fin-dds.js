@@ -511,7 +511,7 @@ async function repeatOperation(opId) {
             setSel(row.querySelector('.exp-cc'), p.cost_center_id || '');
             setSel(row.querySelector('.exp-object'), p.object_id || '');
             setSel(row.querySelector('.exp-contractor'), p.contractor_id || '');
-            setSel(row.querySelector('.exp-channel'), p.payment_channel || '');
+            row.querySelector('.exp-channel').value = каналСчёта(p.account_id);
         });
         updateExpenseRecap();
     } else {
@@ -753,12 +753,15 @@ function счетаПоКаналу(канал, selectedId, filter) {
 
 // ==================== ФОРМА: РАСХОД ====================
 function expenseRowHtml(idx) {
+    // Канал строки — по счёту, выбранному по умолчанию (первому в списке)
+    const счета = счетаПоКаналу('cash');
+    const первыйСчёт = (счета.match(/value="([^"]*)"/) || [])[1];
     return `
     <div class="border border-base-300 rounded-lg p-3 mb-2 exp-row" data-idx="${idx}" data-object-auto="1">
         <div class="grid grid-cols-2 md:grid-cols-3 gap-2">
             <div class="form-control">
                 <label class="label py-0"><span class="label-text text-xs">${t('fin_account')}</span></label>
-                <select class="select select-bordered select-sm exp-account" required>${счетаПоКаналу('cash')}</select>
+                <select class="select select-bordered select-sm exp-account" required>${счета}</select>
             </div>
             <div class="form-control">
                 <label class="label py-0"><span class="label-text text-xs">${t('fin_amount')}</span></label>
@@ -782,7 +785,7 @@ function expenseRowHtml(idx) {
             </div>
             <div class="form-control">
                 <label class="label py-0"><span class="label-text text-xs">${t('fin_channel')}</span></label>
-                <select class="select select-bordered select-sm exp-channel">${FinUtils.channelOptions('cash')}</select>
+                <select class="select select-bordered select-sm exp-channel">${каналыСписком(каналСчёта(первыйСчёт))}</select>
             </div>
         </div>
         ${idx > 0 ? `<button type="button" class="btn btn-ghost btn-sm text-error mt-1" aria-label="${t('fin_remove_row')}" onclick="this.closest('.exp-row').remove(); FinDds.updateRecap && FinDds.updateRecap()">${FinUtils.ICONS.x}</button>` : ''}
@@ -909,7 +912,7 @@ function openIncome() {
     document.getElementById('incDate').value = FinUtils.todayISO();
     document.getElementById('incAccount').innerHTML = счетаПоКаналу('cash');
     document.getElementById('incObject').innerHTML = FinUtils.objectOptions();
-    document.getElementById('incChannel').innerHTML = incomeChannelOptions(каналСчёта(document.getElementById('incAccount').value));
+    document.getElementById('incChannel').innerHTML = каналыСписком(каналСчёта(document.getElementById('incAccount').value));
     updateIncomeCategoryList();
     document.getElementById('incAmount').value = '';
     document.getElementById('incComment').value = '';
@@ -926,11 +929,11 @@ function openIncome() {
     document.getElementById('incomeModal').showModal();
 }
 
-// ---- Канал прихода — по счёту, сам (ВГ, 28.09.2026) ----
+// ---- Канал прихода и расхода — по счёту, сам (ВГ, 28.09.2026) ----
 // Раньше канал выбирали руками и он не менялся вслед за счётом: выбрали PayPal —
 // канал так и остался «Наличные». Теперь: касса → наличные, PayPal → PayPal,
 // USDT → USDT, остальное (ИП, карты) → карта. Club108 — счёт только для передачи
-// денег, канала у него нет. «Банковский перевод» в приходе не предлагаем: для нас
+// денег, канала у него нет. «Банковский перевод» не предлагаем: для нас
 // это то же, что карта. Поле оставлено видимым — как проверка глазами.
 function каналСчёта(accountId) {
     const a = FinUtils.refs.accounts.find(x => x.account_id === accountId);
@@ -942,7 +945,7 @@ function каналСчёта(accountId) {
     return 'card';
 }
 
-function incomeChannelOptions(selected) {
+function каналыСписком(selected) {
     // USDT подписан напрямую: перевод новый, а у людей кэш переводов живёт час
     const label = c => c === 'usdt' ? 'USDT' : t('fin_channel_' + c);
     return '<option value="">—</option>' + ['cash', 'card', 'paypal', 'usdt']
@@ -964,7 +967,7 @@ function addIncomeRow(preset) {
                aria-label="${e(t('fin_amount'))}" value="${preset?.amount ?? ''}">
         <select class="select select-bordered select-sm inc-channel" aria-label="${e(t('fin_channel'))}"></select>
         <button type="button" class="btn btn-ghost btn-sm btn-square text-error" aria-label="${e(t('fin_remove_row'))}">${FinUtils.ICONS.x}</button>`;
-    row.querySelector('.inc-channel').innerHTML = incomeChannelOptions(каналСчёта(row.querySelector('.inc-account').value));
+    row.querySelector('.inc-channel').innerHTML = каналыСписком(каналСчёта(row.querySelector('.inc-account').value));
     row.querySelector('button').addEventListener('click', () => { row.remove(); updateIncomeRecap(); });
     document.getElementById('incRows').appendChild(row);
     updateIncomeRecap();
@@ -1323,11 +1326,10 @@ async function init() {
     document.getElementById('trSpent').addEventListener('change', toggleTransferSpent);
     document.getElementById('expenseModal').addEventListener('input', updateExpenseRecap);
     document.getElementById('expenseModal').addEventListener('change', updateExpenseRecap);
-    // Смена канала пересобирает список счетов строки: кассы или безнал первыми
+    // Сменили счёт в строке расхода — канал этой строки встаёт по счёту
     document.getElementById('expenseModal').addEventListener('change', ev => {
-        if (!ev.target.classList.contains('exp-channel')) return;
-        const счета = ev.target.closest('.exp-row').querySelector('.exp-account');
-        счета.innerHTML = счетаПоКаналу(ev.target.value, счета.value);
+        if (!ev.target.classList.contains('exp-account')) return;
+        ev.target.closest('.exp-row').querySelector('.exp-channel').value = каналСчёта(ev.target.value);
     });
     document.getElementById('expenseModal').addEventListener('change', ev => {
         if (ev.target.classList.contains('exp-object')) {
