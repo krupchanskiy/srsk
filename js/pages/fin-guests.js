@@ -65,7 +65,17 @@ async function submitTariffs(ev) {
     if (!res) return;
     Layout.showNotification(tr('fin_saved', 'Сохранено'), 'success');
     document.getElementById('tariffsModal').close();
+    await showTariffLine();
+}
+
+// Действующие тарифы — строкой в шапке режима, менять — кнопкой «Тарифы» (ВГ, 28.09)
+async function showTariffLine() {
+    const el = document.getElementById('noEventTariffLine');
+    if (!el) return;
     await loadTariff();
+    el.innerHTML = tariff
+        ? `Тарифы с ${дата(tariff.effective_date)}: номер 2-мест. <b>${inr(tariff.room2_price)}</b> · 4-мест. <b>${inr(tariff.room4_price)}</b> · завтрак <b>${inr(tariff.breakfast_price)}</b> · обед <b>${inr(tariff.lunch_price)}</b> <span class="opacity-60">за сутки</span>`
+        : '<span class="text-warning">Тарифы не заведены — нажмите «Тарифы»</span>';
 }
 
 // ==================== ОКНО НАЧИСЛЕНИЯ ====================
@@ -383,6 +393,6 @@ function init() {
     });
 }
 
-window.FinGuests = { open, openTariffs };
+window.FinGuests = { open, openTariffs, showTariffLine };
 init();
 })();

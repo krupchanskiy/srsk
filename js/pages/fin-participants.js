@@ -87,6 +87,7 @@ async function enterNoEvent() {
     const id = await noEventRetreatId();
     if (!id) return;
     setNoEventMode(true);
+    window.FinGuests?.showTariffLine();
     document.getElementById('retreatSelect').value = '';
     await selectRetreat(id);
 }
@@ -133,7 +134,8 @@ async function loadParticipants() {
 function renderParticipants() {
     const body = document.getElementById('participantsBody');
     if (!participants.length) {
-        body.innerHTML = `<tr><td colspan="7" class="text-center py-6 opacity-60">${t('fin_no_participants')}</td></tr>`;
+        body.innerHTML = `<tr><td colspan="7" class="text-center py-6 opacity-60">${noEventMode
+            ? 'Пока никому не начислено — нажмите «+ Начислить гостю»' : t('fin_no_participants')}</td></tr>`;
         renderParticipantsSummary();
         return;
     }
