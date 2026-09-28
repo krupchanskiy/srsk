@@ -24,10 +24,12 @@
 
 <main class="container mx-auto px-4 py-6 flex-1">
     <div class="flex flex-wrap justify-between items-center gap-3 mb-6">
-        <h1 class="text-2xl font-bold" data-i18n="nav_fin_participants">Участники</h1>
+        <h1 class="text-2xl font-bold"><span data-i18n="nav_fin_participants">Участники</span><span class="only-no-event"> · <span data-i18n="fin_no_event_guests">Гости без события</span></span></h1>
         <div class="flex flex-wrap gap-2 items-center">
-            <button type="button" id="noEventBtn" class="btn btn-sm btn-outline" data-i18n="fin_no_event_guests">Гости без события</button>
-            <select id="retreatSelect" class="select select-bordered select-sm w-64"></select>
+            <!-- «Гости без события» — отдельный режим: выбора ретрита в нём нет, только возврат (ВГ, 28.09) -->
+            <button type="button" id="noEventBackBtn" class="btn btn-sm btn-ghost only-no-event">← К ретритам</button>
+            <button type="button" id="noEventBtn" class="btn btn-sm btn-outline hide-no-event" data-i18n="fin_no_event_guests">Гости без события</button>
+            <select id="retreatSelect" class="select select-bordered select-sm w-64 hide-no-event"></select>
             <div class="only-no-event flex gap-2">
                 <button type="button" class="btn btn-sm btn-primary" data-permission="fin_admin" onclick="FinGuests.open()">+ <span data-i18n="fin_new_guest_charge">Начислить гостю</span></button>
                 <button type="button" class="btn btn-sm" data-permission="fin_admin" onclick="FinGuests.openTariffs()" data-i18n="fin_stay_tariffs">Тарифы</button>
@@ -415,7 +417,7 @@
 <script src="../js/layout.js?v=81"></script>
 <script src="../js/date-utils.js?v=4"></script>
 <script src="../js/fin-utils.js?v=17"></script>
-<script src="../js/pages/fin-participants.js?v=65"></script>
+<script src="../js/pages/fin-participants.js?v=66"></script>
 <script src="../js/pages/fin-guests.js?v=1"></script>
 
 </body>

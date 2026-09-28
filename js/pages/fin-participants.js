@@ -3035,6 +3035,15 @@ async function init() {
 
     // ?retreat=<id> — прямая ссылка; ?open=<pid> — сразу открыть карточку (из аналитики)
     document.getElementById('noEventBtn')?.addEventListener('click', enterNoEvent);
+    document.getElementById('noEventBackBtn')?.addEventListener('click', () => {
+        setNoEventMode(false);
+        const url = new URL(window.location);
+        url.searchParams.delete('guests');
+        history.replaceState(null, '', url);
+        participants = [];
+        document.getElementById('participantsToolbar').style.display = 'none';
+        selectRetreat(null);
+    });
     const params = new URLSearchParams(window.location.search);
     const preset = params.get('retreat');
     if (params.get('guests')) {
