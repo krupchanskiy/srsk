@@ -358,6 +358,9 @@
     <div class="modal-box max-w-5xl">
         <h3 class="font-bold text-lg mb-1">Начислить гостю без события</h3>
         <div class="text-xs opacity-60 mb-3">Отметьте гостей из шахматки. Ночи, цена номера и питание подставятся по тарифам — любую цифру можно поправить</div>
+        <!-- После выбора список сворачивается в строку «Выбрано: …» (ВГ, 28.09: громоздко) -->
+        <div id="gcPicked" class="hidden flex flex-wrap items-center gap-2 mb-3 text-sm"></div>
+        <div id="gcPicker">
         <div class="flex flex-wrap items-center gap-2 mb-2">
             <input type="date" id="gcFrom" class="input input-bordered input-sm">
             <span>—</span>
@@ -372,6 +375,10 @@
                 <thead><tr><th></th><th>Гость</th><th>Номер</th><th>Даты</th><th class="text-right">Ночей</th><th></th></tr></thead>
                 <tbody id="gcVisits"></tbody>
             </table>
+        </div>
+        <div id="gcPickerDone" class="hidden flex justify-end mb-3">
+            <button type="button" class="btn btn-sm btn-primary" onclick="FinGuests.collapsePicker()">Готово — к расчёту</button>
+        </div>
         </div>
         <div id="gcForms"></div>
         <div class="modal-action items-center">
@@ -422,7 +429,7 @@
 <script src="../js/date-utils.js?v=4"></script>
 <script src="../js/fin-utils.js?v=17"></script>
 <script src="../js/pages/fin-participants.js?v=67"></script>
-<script src="../js/pages/fin-guests.js?v=3"></script>
+<script src="../js/pages/fin-guests.js?v=4"></script>
 
 </body>
 </html>

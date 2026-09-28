@@ -25,6 +25,7 @@ let tariff = null;        // действующий тариф
 let visits = [];          // визиты периода из шахматки
 let selected = new Set(); // resident_id выбранных визитов
 let forms = {};           // resident_id → состояние расчёта
+let pickerOpen = true;    // список визитов развёрнут; после выбора сворачивается
 
 // ==================== ТАРИФЫ ====================
 async function loadTariff() {
@@ -84,6 +85,7 @@ async function open(opts = {}) {
     if (!tariff) { Layout.showNotification('Сначала заведите тарифы', 'warning'); openTariffs(); return; }
     selected = new Set();
     forms = {};
+    pickerOpen = true;
     const сегодня = new Date();
     const с = new Date(сегодня); с.setDate(с.getDate() - 21);
     const по = new Date(сегодня); по.setDate(по.getDate() + 7);
@@ -98,7 +100,9 @@ async function open(opts = {}) {
         const свои = visits.filter(v => v.vaishnava_id === opts.pid);
         const новые = свои.filter(v => Number(v.charged) === 0);
         for (const v of (новые.length ? новые : свои.slice(0, 1))) await toggleVisit(v.resident_id, true, false);
+        if (selected.size) pickerOpen = false;
         renderVisits();
+        renderForms();
     }
 }
 
@@ -119,7 +123,26 @@ async function loadVisits() {
     renderVisits();
 }
 
+// Свёрнутый выбор: кто отмечен + «изменить»
+function renderPicker() {
+    const picked = document.getElementById('gcPicked');
+    const свернуть = !pickerOpen && selected.size > 0;
+    document.getElementById('gcPicker').classList.toggle('hidden', свернуть);
+    document.getElementById('gcPickerDone').classList.toggle('hidden', !selected.size);
+    picked.classList.toggle('hidden', !свернуть);
+    if (свернуть) {
+        const имена = [...selected].map(rid => forms[rid]?.v).filter(Boolean)
+            .map(v => `<span class="badge badge-ghost">${e(v.name)} · №${e(String(v.room || '—'))}</span>`).join(' ');
+        picked.innerHTML = `<span class="opacity-60">Выбрано:</span> ${имена}
+            <button type="button" class="btn btn-ghost btn-xs" onclick="FinGuests.expandPicker()">изменить / добавить</button>`;
+    }
+}
+
+function collapsePicker() { pickerOpen = false; renderPicker(); }
+function expandPicker() { pickerOpen = true; renderPicker(); }
+
 function renderVisits() {
+    renderPicker();
     const body = document.getElementById('gcVisits');
     const q = (document.getElementById('gcSearch').value || '').trim().toLowerCase();
     const корпус = document.getElementById('gcBuilding').value;
@@ -265,7 +288,10 @@ function renderForms() {
                 = <b class="font-mono">${inr(r.проживание)}</b>
             </div>
             ${v.has_meals === false ? '<div class="text-xs opacity-60 mb-3">Питание в шахматке выключено</div>' : `
-            <div class="text-xs font-semibold uppercase opacity-60 mb-1">Питание</div>
+            <div class="text-xs font-semibold uppercase opacity-60 mb-1 flex items-center gap-2">Питание
+                <button type="button" class="btn btn-ghost btn-xs normal-case font-normal" data-gc-all="${rid}" data-on="1">все</button>
+                <button type="button" class="btn btn-ghost btn-xs normal-case font-normal" data-gc-all="${rid}" data-on="0">ничего</button>
+            </div>
             <div class="flex flex-wrap gap-1 mb-1">
                 ${f.meals.map((m, i) => `<div class="border border-base-300 rounded-lg px-2 py-1 text-xs">
                     <div class="font-medium">${дата(m.d)}</div>
@@ -388,6 +414,14 @@ function init() {
         if (row) toggleVisit(row.dataset.gcVisit);
     });
     const forms_ = document.getElementById('gcForms');
+    // «все / ничего» по питанию — для долгих проживаний
+    forms_?.addEventListener('click', ev => {
+        const btn = ev.target.closest('[data-gc-all]');
+        if (!btn) return;
+        const on = btn.dataset.on === '1';
+        forms[btn.dataset.gcAll].meals.forEach(m => { m.b = on; m.l = on; });
+        renderForms();
+    });
     forms_?.addEventListener('change', ev => {
         const el = ev.target;
         if (el.dataset.gcMeal) {
@@ -414,6 +448,6 @@ function init() {
     });
 }
 
-window.FinGuests = { open, openTariffs, showTariffLine };
+window.FinGuests = { open, openTariffs, showTariffLine, collapsePicker, expandPicker };
 init();
 })();
