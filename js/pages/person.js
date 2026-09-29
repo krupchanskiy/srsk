@@ -61,6 +61,14 @@ async function init() {
         loadFamily(personId)
     ]);
     Layout.hideLoader();
+
+    // Пришли с «Прасада» по значку «⚠ без департамента» — сразу правка на нужном поле
+    if (params.get('edit') === 'department' && canEditProfile()) {
+        enterEditMode();
+        const select = document.getElementById('editDepartment');
+        select.scrollIntoView({ block: 'center' });
+        select.focus();
+    }
 }
 
 async function loadPerson(personId) {
@@ -762,6 +770,13 @@ async function savePerson() {
     document.getElementById('profileContainer').classList.remove('edit-mode');
     document.getElementById('profileContainer').classList.add('view-mode');
     renderPerson();
+
+    // Открыт с «Прасада» ради департамента — сохранили, вкладку закрываем:
+    // «Прасад» сам перечитает данные, когда к нему вернутся
+    if (new URLSearchParams(window.location.search).get('edit') === 'department' && window.opener) {
+        Layout.showNotification(t('saved'), 'success');
+        setTimeout(() => window.close(), 800);
+    }
 }
 
 async function deletePerson() {

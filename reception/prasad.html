@@ -19,7 +19,9 @@
         .sort-icon { opacity: 0.3; font-size: 0.75rem; transition: opacity 0.2s; }
         .sort-icon.active { opacity: 1; }
         th:hover .sort-icon { opacity: 0.6; }
-        .stat-card { cursor: default; transition: box-shadow 0.2s; }
+        .stat-card { cursor: pointer; transition: box-shadow 0.2s; }
+        .stat-card:hover { box-shadow: 0 0 0 2px rgba(0,0,0,0.08); }
+        .stat-card.active { box-shadow: 0 0 0 2px var(--current-color, #8b5cf6); }
         .filter-row { display: flex; flex-wrap: wrap; gap: 0.5rem; align-items: center; }
         .group-input { width: 3.5rem; text-align: center; }
     </style>
@@ -47,9 +49,6 @@
 
         <!-- Фильтры -->
         <div class="filter-row mb-4">
-            <select id="filterCategory" class="select select-bordered select-sm" onchange="applyFilters()">
-                <option value="" data-i18n="filter_all">Все категории</option>
-            </select>
             <select id="filterBuilding" class="select select-bordered select-sm" onchange="applyFilters()">
                 <option value="" data-i18n="filter_all">Все здания</option>
             </select>
@@ -86,7 +85,7 @@
 
         <!-- Счётчики: Категории -->
         <div class="mb-2 text-sm font-semibold uppercase tracking-wide opacity-60" data-i18n="col_category">Категории</div>
-        <div class="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-7 gap-3 mb-4" id="statsCategories">
+        <div class="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-6 gap-3 mb-4" id="statsCategories">
             <div class="bg-base-100 rounded-lg px-3 py-2"><div class="skeleton h-6 w-10 mb-1"></div><div class="skeleton h-3 w-16"></div></div>
             <div class="bg-base-100 rounded-lg px-3 py-2"><div class="skeleton h-6 w-10 mb-1"></div><div class="skeleton h-3 w-16"></div></div>
             <div class="bg-base-100 rounded-lg px-3 py-2"><div class="skeleton h-6 w-10 mb-1"></div><div class="skeleton h-3 w-16"></div></div>
@@ -144,6 +143,12 @@
                                 <span class="sort-icon" data-sort="category">↕</span>
                             </div>
                         </th>
+                        <th class="cursor-pointer hover:bg-base-200 select-none" onclick="toggleSort('department')">
+                            <div class="flex items-center gap-1">
+                                <span data-i18n="department">Департамент</span>
+                                <span class="sort-icon" data-sort="department">↕</span>
+                            </div>
+                        </th>
                         <th class="cursor-pointer hover:bg-base-200 select-none" onclick="toggleSort('meal')">
                             <div class="flex items-center gap-1">
                                 <span data-i18n="col_meal">Питание</span>
@@ -162,14 +167,6 @@
                                 <span class="sort-icon" data-sort="lunch">↕</span>
                             </div>
                         </th>
-                        <th class="cursor-pointer hover:bg-base-200 select-none" onclick="toggleSort('group')">
-                            <div class="flex items-center gap-1">
-                                <span data-i18n="col_group">Группа</span>
-                                <span class="sort-icon" data-sort="group">↕</span>
-                            </div>
-                        </th>
-                        <th data-i18n="col_group_breakfast">Завт. (гр.)</th>
-                        <th data-i18n="col_group_lunch">Обед (гр.)</th>
                         <th class="cursor-pointer hover:bg-base-200 select-none" onclick="toggleSort('notes')">
                             <div class="flex items-center gap-1">
                                 <span data-i18n="col_notes">Примечания</span>
@@ -179,11 +176,11 @@
                     </tr>
                 </thead>
                 <tbody id="prasadBody">
-                    <tr><td colspan="13"><div class="skeleton h-6 w-full my-1"></div></td></tr>
-                    <tr><td colspan="13"><div class="skeleton h-6 w-full my-1"></div></td></tr>
-                    <tr><td colspan="13"><div class="skeleton h-6 w-full my-1"></div></td></tr>
-                    <tr><td colspan="13"><div class="skeleton h-6 w-full my-1"></div></td></tr>
-                    <tr><td colspan="13"><div class="skeleton h-6 w-full my-1"></div></td></tr>
+                    <tr><td colspan="11"><div class="skeleton h-6 w-full my-1"></div></td></tr>
+                    <tr><td colspan="11"><div class="skeleton h-6 w-full my-1"></div></td></tr>
+                    <tr><td colspan="11"><div class="skeleton h-6 w-full my-1"></div></td></tr>
+                    <tr><td colspan="11"><div class="skeleton h-6 w-full my-1"></div></td></tr>
+                    <tr><td colspan="11"><div class="skeleton h-6 w-full my-1"></div></td></tr>
                 </tbody>
             </table>
         </div>
@@ -207,19 +204,31 @@
         let mealGroups = []; // из таблицы meal_groups
         let categories = [];
         let buildings = [];
+        let retreatsById = {};
         let currentDate = new Date();
         let quickFilter = null; // 'arrives' | 'departs' | null
         let eatingCounts = null; // данные из EatingUtils (единый источник с кухней)
+        // Построчный расчёт кухни на день (eating_detail): кто в какой корзине,
+        // есть ли у него сегодня завтрак/обед. Итоги веток берутся отсюда,
+        // поэтому совпадают с тем, что видит повар.
+        let detailRows = [];
+        let detailByRef = {};
+        let cardFilter = null;     // карточка категории: 'guest' | 'team' | 'volunteer' | 'vip' | 'group' | 'expected'
+        const deptFilter = {};     // ветка → id департамента | '_none'
+        const expanded = new Set(); // раскрытые ветки и свёрнутые «Ожидается заезд»
+        let refreshOnReturn = false; // ушли в профиль ставить департамент — по возвращении перечитать
 
         const t = key => Layout.t(key);
         const e = str => Layout.escapeHtml(str);
+        const tr = (key, fallback) => { const v = Layout.t(key); return v === key ? fallback : v; };
 
         // Сортировка
         let sortField = 'building';
         let sortDirection = 'asc';
 
-        // Порядок категорий
-        const CATEGORY_ORDER = ['guest', 'team', 'volunteer', 'vip', 'group'];
+        // Карточки категорий: slug категории → корзина eating_detail
+        const CATEGORY_ORDER = ['guest', 'team', 'volunteer', 'vip'];
+        const BUCKET_TO_CARD = { guests: 'guest', team: 'team', volunteers: 'volunteer', vips: 'vip', expected: 'expected', groups: 'group' };
 
         // Реальная сегодняшняя дата
         const realToday = DateUtils.toISO(new Date());
@@ -264,14 +273,21 @@
             applyFilters();
         }
 
+        // Карточка категории — фильтр; повторное нажатие сбрасывает
+        function setCardFilter(card) {
+            cardFilter = cardFilter === card ? null : card;
+            applyFilters();
+        }
+
         function resetFilters() {
-            document.getElementById('filterCategory').value = '';
             document.getElementById('filterBuilding').value = '';
             document.getElementById('filterMeal').value = '';
             document.getElementById('filterBreakfast').value = '';
             document.getElementById('filterLunch').value = '';
             document.getElementById('searchInput').value = '';
             quickFilter = null;
+            cardFilter = null;
+            Object.keys(deptFilter).forEach(k => delete deptFilter[k]);
             document.getElementById('btnArrives').classList.remove('btn-active');
             document.getElementById('btnDeparts').classList.remove('btn-active');
             applyFilters();
@@ -283,10 +299,31 @@
             renderStats();
         }
 
+        // Фильтры, которые относятся к отдельным людям (не к группам питания)
+        function hasPersonFilters() {
+            return !!(quickFilter
+                || document.getElementById('filterBuilding').value
+                || document.getElementById('filterMeal').value
+                || document.getElementById('filterBreakfast').value
+                || document.getElementById('filterLunch').value);
+        }
+
+        function getSearch() {
+            return document.getElementById('searchInput').value.trim().toLowerCase();
+        }
+
+        // Карточка, к которой относится строка: по корзине кухни на этот день.
+        // Нет строки в расчёте (явно «без питания») — по категории.
+        function residentCard(r) {
+            const bucket = detailByRef[r.id]?.bucket;
+            if (bucket) return BUCKET_TO_CARD[bucket];
+            const slug = r.resident_categories?.slug;
+            return ['team', 'volunteer', 'vip'].includes(slug) ? slug : 'guest';
+        }
+
         function getFilteredResidents() {
             let list = residents;
-            const search = document.getElementById('searchInput').value.trim().toLowerCase();
-            const catFilter = document.getElementById('filterCategory').value;
+            const search = getSearch();
             const buildFilter = document.getElementById('filterBuilding').value;
             const mealFilter = document.getElementById('filterMeal').value;
             const brkfFilter = document.getElementById('filterBreakfast').value;
@@ -300,12 +337,11 @@
                 list = list.filter(r => r.check_out === today);
             }
 
-            // Категория
-            if (catFilter) {
-                list = list.filter(r => {
-                    const slug = r.resident_categories?.slug || 'guest';
-                    return slug === catFilter;
-                });
+            // Карточка категории
+            if (cardFilter === 'group') {
+                list = [];
+            } else if (cardFilter) {
+                list = list.filter(r => residentCard(r) === cardFilter);
             }
 
             // Здание
@@ -346,7 +382,31 @@
             return list;
         }
 
+        function getFilteredGroups() {
+            if (cardFilter && cardFilter !== 'group') return [];
+            if (hasPersonFilters()) return [];
+            const search = getSearch();
+            return search ? mealGroups.filter(g => (g.name || '').toLowerCase().includes(search)) : mealGroups;
+        }
+
+        // Участники ретрита без размещения: строк в таблице у них нет,
+        // но кухня их кормит — показываем числом внутри ветки
+        function getFilteredRegistrations() {
+            if (hasPersonFilters() || getSearch()) return [];
+            return detailRows.filter(d => d.kind === 'registration'
+                && (!cardFilter || BUCKET_TO_CARD[d.bucket] === cardFilter));
+        }
+
         // ==================== DATA ====================
+        const RESIDENT_SELECT = `
+            id, check_in, check_out, meal_type, has_meals, breakfast, lunch,
+            status, category_id, vaishnava_id, guest_name, notes, has_housing, retreat_id,
+            vaishnavas(id, spiritual_name, first_name, last_name, department_id,
+                departments(id, name_ru, name_en, name_hi, color)),
+            rooms(id, number, floor, building_id, buildings(id, name_ru, name_en, name_hi)),
+            resident_categories(id, slug, name_ru, name_en, name_hi, color)
+        `;
+
         async function loadResidents() {
             const today = DateUtils.toISO(currentDate);
 
@@ -363,18 +423,11 @@
             }, 60000);
             buildings = buildingsData;
 
-            // Загрузка проживающих + meal_groups + EatingUtils параллельно
-            const [residentsResult, mgResult, eatingResult] = await Promise.all([
+            // Загрузка проживающих + meal_groups + EatingUtils + построчный расчёт параллельно
+            const [residentsResult, mgResult, eatingResult, detailResult] = await Promise.all([
                 Layout.db
                     .from('residents')
-                    .select(`
-                        id, check_in, check_out, meal_type, has_meals, breakfast, lunch,
-                        group_name, group_count, group_breakfast, group_lunch,
-                        status, category_id, vaishnava_id, guest_name, notes, has_housing,
-                        vaishnavas(id, spiritual_name, first_name, last_name),
-                        rooms(id, number, floor, building_id, buildings(id, name_ru, name_en, name_hi)),
-                        resident_categories(id, slug, name_ru, name_en, name_hi, color)
-                    `)
+                    .select(RESIDENT_SELECT)
                     .lte('check_in', today)
                     .gte('check_out', today)
                     .in('status', ['confirmed']),
@@ -383,17 +436,49 @@
                     .select('*')
                     .lte('start_date', today)
                     .gte('end_date', today),
-                EatingUtils.loadCounts(today, today)
+                EatingUtils.loadCounts(today, today),
+                Layout.db.rpc('eating_detail', { p_from: today, p_to: today })
             ]);
 
             if (residentsResult.error) {
                 Layout.handleError(residentsResult.error, t('error_loading_residents'));
                 return;
             }
+            if (detailResult.error) Layout.handleError(detailResult.error, 'Вкушающие');
 
             residents = residentsResult.data || [];
             mealGroups = mgResult.data || [];
             eatingCounts = eatingResult;
+            detailRows = detailResult.data || [];
+            detailByRef = {};
+            detailRows.forEach(d => { detailByRef[d.ref_id] = d; });
+
+            // Кухня кормит и тех, у кого даты питания шире проживания (уже выехал,
+            // а обедать ходит) — догружаем их, иначе итоги не сойдутся с поваром
+            const loadedIds = new Set(residents.map(r => r.id));
+            const missingIds = detailRows.filter(d => d.kind === 'resident' && !loadedIds.has(d.ref_id)).map(d => d.ref_id);
+            if (missingIds.length) {
+                const { data: extra } = await Layout.db
+                    .from('residents')
+                    .select(RESIDENT_SELECT)
+                    .in('id', missingIds);
+                residents.push(...(extra || []));
+            }
+
+            // Названия событий — для заголовков веток
+            const retreatIds = [...new Set([
+                ...residents.map(r => r.retreat_id),
+                ...mealGroups.map(g => g.retreat_id),
+                ...detailRows.map(d => d.retreat_id)
+            ].filter(Boolean))];
+            retreatsById = {};
+            if (retreatIds.length) {
+                const { data: rData } = await Layout.db
+                    .from('retreats')
+                    .select('id, name_ru, name_en, name_hi, start_date')
+                    .in('id', retreatIds);
+                (rData || []).forEach(r => { retreatsById[r.id] = r; });
+            }
 
             populateFilterOptions();
             sortResidents();
@@ -404,15 +489,6 @@
         }
 
         function populateFilterOptions() {
-            // Категории
-            const catSelect = document.getElementById('filterCategory');
-            const catVal = catSelect.value;
-            catSelect.innerHTML = `<option value="">${t('filter_all') || 'Все'}</option>`;
-            categories.forEach(c => {
-                catSelect.innerHTML += `<option value="${e(c.slug)}">${e(Layout.getName(c))}</option>`;
-            });
-            catSelect.value = catVal;
-
             // Здания
             const buildSelect = document.getElementById('filterBuilding');
             const buildVal = buildSelect.value;
@@ -455,19 +531,19 @@
             });
 
             container.innerHTML = `
-                <div class="bg-base-100 rounded-lg px-3 py-2 border-l-4 border-base-300 stat-card">
+                <div class="bg-base-100 rounded-lg px-3 py-2 border-l-4 border-base-300">
                     <div class="text-xl font-bold">${total}</div>
                     <div class="text-xs opacity-60">${t('total_people') || 'Всего'}</div>
                 </div>
-                <div class="bg-base-100 rounded-lg px-3 py-2 border-l-4 stat-card" style="border-color: #f59e0b">
+                <div class="bg-base-100 rounded-lg px-3 py-2 border-l-4" style="border-color: #f59e0b">
                     <div class="text-xl font-bold">${breakfastCount}</div>
                     <div class="text-xs opacity-60">&#9728;&#65039; ${t('breakfast') || 'Завтрак'}</div>
                 </div>
-                <div class="bg-base-100 rounded-lg px-3 py-2 border-l-4 stat-card" style="border-color: #3b82f6">
+                <div class="bg-base-100 rounded-lg px-3 py-2 border-l-4" style="border-color: #3b82f6">
                     <div class="text-xl font-bold">${lunchCount}</div>
                     <div class="text-xs opacity-60">&#127869;&#65039; ${t('lunch') || 'Обед'}</div>
                 </div>
-                <div class="bg-base-100 rounded-lg px-3 py-2 border-l-4 stat-card" style="border-color: #9ca3af">
+                <div class="bg-base-100 rounded-lg px-3 py-2 border-l-4" style="border-color: #9ca3af">
                     <div class="text-xl font-bold">${noMeals}</div>
                     <div class="text-xs opacity-60">&#9888;&#65039; ${t('without_meals') || 'Без питания'}</div>
                 </div>
@@ -491,39 +567,29 @@
                 guest: ln.guests,
                 team: ln.team,
                 volunteer: ln.volunteers,
-                vip: ln.vips,
-                group: 0
+                vip: ln.vips
             };
+
+            const card = (key, count, label, color) => `
+                <div class="bg-base-100 rounded-lg px-3 py-2 border-l-4 stat-card ${cardFilter === key ? 'active' : ''}"
+                     style="border-color: ${e(color)}" data-action="card-filter" data-card="${key}"
+                     title="${e(tr('prasad_card_filter_hint', 'Показать только их; повторное нажатие — все'))}">
+                    <div class="text-xl font-bold">${count}</div>
+                    <div class="text-xs opacity-60">${e(label)}</div>
+                </div>`;
 
             const cards = CATEGORY_ORDER.map(slug => {
                 const cat = categories.find(c => c.slug === slug);
                 const name = cat ? Layout.getName(cat) : slug;
-                const color = cat?.color || '#6366f1';
-                const count = catMap[slug] || 0;
-                return `
-                    <div class="bg-base-100 rounded-lg px-3 py-2 border-l-4 stat-card" style="border-color: ${e(color)}">
-                        <div class="text-xl font-bold">${count}</div>
-                        <div class="text-xs opacity-60">${e(name)}</div>
-                    </div>
-                `;
+                return card(slug, catMap[slug] || 0, name, Utils.isValidColor(cat?.color) ? cat.color : '#6366f1');
             });
 
             // В группах
-            cards.push(`
-                <div class="bg-base-100 rounded-lg px-3 py-2 border-l-4 border-base-300 stat-card">
-                    <div class="text-xl font-bold">${ln.groups}</div>
-                    <div class="text-xs opacity-60">${t('in_groups') || 'В группах'}</div>
-                </div>
-            `);
+            cards.push(card('group', ln.groups, t('in_groups') || 'В группах', '#f97316'));
 
             // Ожидаемые: место забронировано, «Заселить» ещё не нажимали. Порции на
             // них готовим, но повар должен видеть, что это ожидание, а не факт.
-            cards.push(`
-                <div class="bg-base-100 rounded-lg px-3 py-2 border-l-4 stat-card" style="border-color: #a855f7">
-                    <div class="text-xl font-bold">${ln.expected || 0}</div>
-                    <div class="text-xs opacity-60">${t('expected_guests') || 'Ожидаются'}</div>
-                </div>
-            `);
+            cards.push(card('expected', ln.expected || 0, t('expected_guests') || 'Ожидаются', '#a855f7'));
 
             container.innerHTML = cards.join('');
         }
@@ -553,6 +619,11 @@
                     icon.textContent = '↕';
                 }
             });
+        }
+
+        function deptName(r) {
+            const d = r.vaishnavas?.departments;
+            return d ? Layout.getName(d) : '';
         }
 
         function sortResidents() {
@@ -585,6 +656,12 @@
                         valA = a.resident_categories?.slug || '';
                         valB = b.resident_categories?.slug || '';
                         return dir * valA.localeCompare(valB);
+                    case 'department':
+                        // без департамента — в конце
+                        valA = deptName(a) || '￿';
+                        valB = deptName(b) || '￿';
+                        if (valA !== valB) return dir * valA.localeCompare(valB, 'ru');
+                        return getDisplayName(a).localeCompare(getDisplayName(b), 'ru');
                     case 'meal':
                         valA = a.meal_type || '';
                         valB = b.meal_type || '';
@@ -597,10 +674,6 @@
                         valA = a.lunch === false ? 0 : 1;
                         valB = b.lunch === false ? 0 : 1;
                         return dir * (valA - valB);
-                    case 'group':
-                        valA = a.group_name || '';
-                        valB = b.group_name || '';
-                        return dir * valA.localeCompare(valB, 'ru');
                     case 'notes':
                         valA = a.notes || '';
                         valB = b.notes || '';
@@ -622,6 +695,9 @@
             // ещё не нажали «Заселить». Называем вещи своими именами.
             return r.guest_name || (t('expected_guest_row') || 'Ожидается заезд');
         }
+
+        // Строка без имени — бронь «на место» (группа едет без списка)
+        const isUnnamed = r => !r.vaishnava_id && !r.guest_name;
 
         function formatShortDate(dateStr) {
             if (!dateStr) return '—';
@@ -651,197 +727,397 @@
             return href;
         }
 
+        // ==================== BRANCHES ====================
+        // Ветки таблицы: Команда, Волонтёры (не относятся к событиям), события
+        // (residents.retreat_id), Гости без события, Группы без события (meal_groups)
+        const TEAM_KEYS = ['team', 'volunteers'];
+
+        function branchKeyOf(r) {
+            const slug = r.resident_categories?.slug;
+            if (slug === 'team') return 'team';
+            if (slug === 'volunteer') return 'volunteers';
+            return r.retreat_id ? 'retreat:' + r.retreat_id : 'none';
+        }
+
+        function branchLabel(key) {
+            if (key === 'team') return tr('prasad_branch_team', 'Команда');
+            if (key === 'volunteers') return tr('prasad_branch_volunteers', 'Волонтёры');
+            if (key === 'none') return tr('cost_guests_no_event', 'Гости без события');
+            if (key === 'groups_none') return tr('cost_groups_no_event', 'Группы без события');
+            const ret = retreatsById[key.slice(8)];
+            return ret ? Layout.getName(ret) : '—';
+        }
+
+        function buildBranches() {
+            const map = new Map();
+            const get = key => {
+                if (!map.has(key)) map.set(key, { key, residents: [], groups: [], regs: [] });
+                return map.get(key);
+            };
+            getFilteredResidents().forEach(r => get(branchKeyOf(r)).residents.push(r));
+            getFilteredGroups().forEach(g => get(g.retreat_id ? 'retreat:' + g.retreat_id : 'groups_none').groups.push(g));
+            getFilteredRegistrations().forEach(d => get(
+                d.bucket === 'team' ? 'team' : d.bucket === 'volunteers' ? 'volunteers'
+                    : d.retreat_id ? 'retreat:' + d.retreat_id : 'none').regs.push(d));
+
+            const rank = key => key === 'team' ? 0 : key === 'volunteers' ? 1
+                : key === 'none' ? 3 : key === 'groups_none' ? 4 : 2;
+            return [...map.values()].sort((a, b) => {
+                if (rank(a.key) !== rank(b.key)) return rank(a.key) - rank(b.key);
+                const ra = retreatsById[a.key.slice(8)], rb = retreatsById[b.key.slice(8)];
+                return (ra?.start_date || '').localeCompare(rb?.start_date || '')
+                    || branchLabel(a.key).localeCompare(branchLabel(b.key), 'ru');
+            });
+        }
+
+        // Итоги ветки: люди, ожидаются, завтраки и обеды — по расчёту кухни
+        function branchTotals(br) {
+            const tot = { people: 0, expected: 0, breakfast: 0, lunch: 0, noDept: 0 };
+            br.residents.forEach(r => {
+                tot.people++;
+                const d = detailByRef[r.id];
+                if (d?.bucket === 'expected') tot.expected++;
+                if (d?.breakfast) tot.breakfast++;
+                if (d?.lunch) tot.lunch++;
+                if (TEAM_KEYS.includes(br.key) && r.vaishnava_id && !r.vaishnavas?.department_id) tot.noDept++;
+            });
+            br.groups.forEach(g => {
+                tot.people += g.people_count || 0;
+                const d = detailByRef[g.id];
+                if (d?.breakfast) tot.breakfast += d.people;
+                if (d?.lunch) tot.lunch += d.people;
+            });
+            br.regs.forEach(d => {
+                tot.people++;
+                if (d.breakfast) tot.breakfast++;
+                if (d.lunch) tot.lunch++;
+            });
+            return tot;
+        }
+
+        // Команда/волонтёры: сводка по департаментам (нажимается — фильтр внутри ветки)
+        function deptSummary(br) {
+            const counts = new Map();
+            br.residents.filter(r => r.vaishnava_id).forEach(r => {
+                const dep = r.vaishnavas?.departments;
+                const id = dep?.id || '_none';
+                if (!counts.has(id)) counts.set(id, { id, name: dep ? Layout.getName(dep) : '', n: 0 });
+                counts.get(id).n++;
+            });
+            return [...counts.values()].sort((a, b) =>
+                (a.id === '_none') - (b.id === '_none') || b.n - a.n || a.name.localeCompare(b.name, 'ru'));
+        }
+
+        function branchPeople(br) {
+            let list = br.residents;
+            const df = deptFilter[br.key];
+            if (TEAM_KEYS.includes(br.key)) {
+                if (df) list = list.filter(r => r.vaishnava_id && (r.vaishnavas?.department_id || '_none') === df);
+                // по умолчанию — по департаментам, внутри по имени
+                if (sortField === 'building') {
+                    list = [...list].sort((a, b) => (deptName(a) || '￿').localeCompare(deptName(b) || '￿', 'ru')
+                        || getDisplayName(a).localeCompare(getDisplayName(b), 'ru'));
+                }
+            }
+            return {
+                named: list.filter(r => !isUnnamed(r)),
+                unnamed: list.filter(isUnnamed)
+            };
+        }
+
+        // Строки без имени по броням: здание + комната + даты
+        function unnamedLots(unnamed) {
+            const lots = new Map();
+            unnamed.forEach(r => {
+                const key = [r.rooms?.buildings?.id || '', r.rooms?.number || '', r.check_in, r.check_out].join('|');
+                if (!lots.has(key)) lots.set(key, []);
+                lots.get(key).push(r);
+            });
+            return [...lots.values()];
+        }
+
+        const isOpen = key => expanded.has(key) || !!cardFilter || !!getSearch();
+        const toggleMark = key => `<span class="inline-block w-4 opacity-60">${isOpen(key) ? '▾' : '▸'}</span>`;
+
+        // Поле «сколько завтраков/обедов» у строк без имени. Галочка у брони —
+        // на весь её срок, поэтому число меняет галочки у нужного числа броней.
+        function mealCountInput(rows, field, canEdit) {
+            const on = rows.filter(r => r[field] !== false).length;
+            if (!canEdit) return `<span>${on}</span>`;
+            const hint = tr('prasad_unnamed_meal_hint', 'Сколько человек из этих броней получает приём пищи — на весь срок брони');
+            return `<span class="whitespace-nowrap"><input type="number" min="0" max="${rows.length}" value="${on}"
+                class="input input-xs input-bordered group-input" title="${e(hint)}"
+                data-change="unnamed-meal" data-field="${field}" data-ids="${rows.map(r => r.id).join(',')}"><span class="text-xs opacity-50"> / ${rows.length}</span></span>`;
+        }
+
+        function deptCell(r, brKey) {
+            if (!r.vaishnava_id) return '';
+            const name = deptName(r);
+            if (name) return `<span class="text-sm">${e(name)}</span>`;
+            if (!TEAM_KEYS.includes(brKey)) return '';
+            return `<button type="button" class="badge badge-warning badge-sm gap-1 cursor-pointer whitespace-nowrap" data-action="set-dept" data-person="${e(r.vaishnava_id)}"
+                title="${e(tr('prasad_set_dept_hint', 'Открыть профиль и выбрать департамент'))}">⚠ ${e(tr('prasad_dept_not_set', 'не указан'))}</button>`;
+        }
+
         // ==================== TABLE ====================
         function renderTable() {
             const tbody = document.getElementById('prasadBody');
-            const filtered = getFilteredResidents();
+            const branches = buildBranches();
 
-            if (filtered.length === 0 && mealGroups.length === 0) {
-                tbody.innerHTML = `<tr><td colspan="13" class="text-center py-6 opacity-50">${t('no_results')}</td></tr>`;
+            if (branches.length === 0) {
+                tbody.innerHTML = `<tr><td colspan="11" class="text-center py-6 opacity-50">${t('no_results')}</td></tr>`;
                 return;
             }
 
             const canEdit = window.hasPermission && window.hasPermission('view_timeline');
+            const html = [];
 
-            // Строки резидентов
-            const residentRows = filtered.map(r => {
-                const name = getDisplayName(r);
-                const personId = r.vaishnava_id;
-                const building = r.rooms?.buildings ? Layout.getName(r.rooms.buildings) : '—';
-                const room = r.rooms?.number || '—';
-                const cat = r.resident_categories;
-                const catName = cat ? Layout.getName(cat) : '—';
-                const catColor = cat?.color || '#6366f1';
-                const meal = r.meal_type || '';
-                const hasRoom = !!r.rooms?.buildings;
-                const rowColor = hasRoom ? catColor : '#9ca3af';
-
-                const nameCell = personId
-                    ? `<a href="${adjustHref('vaishnavas/person.html?id=' + personId)}" class="link link-hover font-medium">${e(name)}</a>`
-                    : `<span class="font-medium">${e(name)}</span>`;
-
-                const checkinDate = formatShortDate(r.check_in);
-                const checkoutDate = formatShortDate(r.check_out);
-                const checkoutClasses = getCheckoutClasses(r.check_out);
-                const catBadge = `<span class="badge badge-sm text-white" style="background: ${e(catColor)}">${e(catName)}</span>`;
-
-                const mealCell = canEdit
-                    ? `<select class="select select-xs select-bordered" data-id="${r.id}" data-field="meal_type" onchange="updateField(this)">
-                        <option value="" ${!meal ? 'selected' : ''}>${t('meal_not_set') || '—'}</option>
-                        <option value="prasad" ${meal === 'prasad' ? 'selected' : ''}>${t('meal_prasad')}</option>
-                        <option value="self" ${meal === 'self' ? 'selected' : ''}>${t('meal_self')}</option>
-                        <option value="child" ${meal === 'child' ? 'selected' : ''}>${t('meal_child')}</option>
-                    </select>`
-                    : `<span>${meal ? t('meal_' + meal) : '—'}</span>`;
-
-                const brkfChecked = r.breakfast !== false;
-                const brkfCell = canEdit
-                    ? `<input type="checkbox" class="checkbox checkbox-xs checkbox-warning" ${brkfChecked ? 'checked' : ''} data-id="${r.id}" data-field="breakfast" onchange="updateCheckbox(this)">`
-                    : `<span>${brkfChecked ? '&#10003;' : ''}</span>`;
-
-                const lunchChecked = r.lunch !== false;
-                const lunchCell = canEdit
-                    ? `<input type="checkbox" class="checkbox checkbox-xs checkbox-info" ${lunchChecked ? 'checked' : ''} data-id="${r.id}" data-field="lunch" onchange="updateCheckbox(this)">`
-                    : `<span>${lunchChecked ? '&#10003;' : ''}</span>`;
-
-                const notesCell = r.notes ? `<span class="text-xs italic opacity-50">${e(r.notes)}</span>` : '';
-
-                return `<tr style="background: ${e(rowColor)}15">
-                    <td>${nameCell}</td>
-                    <td class="whitespace-nowrap text-sm opacity-70">${checkinDate}</td>
-                    <td class="whitespace-nowrap text-sm ${checkoutClasses}">${checkoutDate}</td>
-                    <td class="whitespace-nowrap">${e(building)}</td>
-                    <td>${e(room)}</td>
-                    <td>${catBadge}</td>
-                    <td>${mealCell}</td>
-                    <td class="text-center">${brkfCell}</td>
-                    <td class="text-center">${lunchCell}</td>
+            branches.forEach(br => {
+                const tot = branchTotals(br);
+                const open = isOpen(br.key);
+                const meta = [`${tot.people} ${t('persons_short') || 'чел.'}`];
+                if (tot.expected) meta.push(`${tr('prasad_expected_short', 'ожидаются')} ${tot.expected}`);
+                const warn = tot.noDept ? ` <span class="badge badge-warning badge-sm ml-2">⚠ ${tot.noDept} ${e(tr('prasad_no_dept', 'без департамента'))}</span>` : '';
+                html.push(`<tr class="cursor-pointer hover:bg-base-200/50 font-semibold ${open ? 'row-open' : ''}" data-action="toggle" data-key="${e(br.key)}">
+                    <td colspan="8">${toggleMark(br.key)}${e(branchLabel(br.key))} <span class="font-normal text-sm opacity-60">· ${e(meta.join(' · '))}</span>${warn}</td>
+                    <td class="text-center">${tot.breakfast}</td>
+                    <td class="text-center">${tot.lunch}</td>
                     <td></td>
-                    <td></td>
-                    <td></td>
-                    <td>${notesCell}</td>
-                </tr>`;
+                </tr>`);
+                if (!open) return;
+
+                // Сводка по департаментам
+                if (TEAM_KEYS.includes(br.key)) {
+                    const chips = deptSummary(br).map(s => {
+                        const active = deptFilter[br.key] === s.id;
+                        const label = s.id === '_none' ? `⚠ ${tr('prasad_no_dept_cap', 'Без департамента')}` : s.name;
+                        const cls = s.id === '_none' ? 'badge-warning' : active ? 'badge-neutral' : 'badge-ghost';
+                        return `<button type="button" class="badge ${cls} ${active ? 'ring-2 ring-offset-1' : ''} gap-1 cursor-pointer"
+                            data-action="dept-filter" data-branch="${e(br.key)}" data-dept="${e(s.id)}">${e(label)} ${s.n}</button>`;
+                    });
+                    if (chips.length) html.push(`<tr class="row-child"><td colspan="11" class="tbl-lvl-1"><div class="flex flex-wrap gap-1">${chips.join('')}</div></td></tr>`);
+                }
+
+                const { named, unnamed } = branchPeople(br);
+                named.forEach(r => html.push(residentRow(r, br.key, canEdit)));
+                if (unnamed.length) html.push(...unnamedRows(br.key, unnamed, canEdit));
+                br.groups.forEach(g => html.push(groupRow(g)));
+                if (br.regs.length) {
+                    html.push(`<tr class="row-child"><td colspan="8" class="tbl-lvl-1 text-sm">${e(tr('prasad_unhoused', 'Участники без размещения'))} × ${br.regs.length}</td>
+                        <td class="text-center">${br.regs.filter(d => d.breakfast).length}</td>
+                        <td class="text-center">${br.regs.filter(d => d.lunch).length}</td><td></td></tr>`);
+                }
             });
 
-            // Строки meal_groups
-            const groupRows = mealGroups.map(g => {
-                const brkf = g.breakfast ? g.people_count : 0;
-                const lnch = g.lunch ? g.people_count : 0;
-                return `<tr style="background: #f9731615">
-                    <td><span class="font-medium" style="color: #f97316">${e(g.name)}</span></td>
-                    <td class="whitespace-nowrap text-sm opacity-70">${formatShortDate(g.start_date)}</td>
-                    <td class="whitespace-nowrap text-sm">${formatShortDate(g.end_date)}</td>
-                    <td></td>
-                    <td></td>
-                    <td><span class="badge badge-sm text-white" style="background: #f97316">${t('col_group') || 'Группа'}</span></td>
-                    <td><span class="text-sm">${t('meal_prasad')}</span></td>
-                    <td class="text-center">${g.breakfast ? '&#10003;' : ''}</td>
-                    <td class="text-center">${g.lunch ? '&#10003;' : ''}</td>
-                    <td class="text-center font-semibold" style="color: #f97316">${g.people_count}</td>
-                    <td class="text-center">${brkf}</td>
-                    <td class="text-center">${lnch}</td>
-                    <td>${g.notes ? `<span class="text-xs italic opacity-50">${e(g.notes)}</span>` : ''}</td>
-                </tr>`;
-            });
+            tbody.innerHTML = html.join('');
+        }
 
-            tbody.innerHTML = residentRows.concat(groupRows).join('');
+        function residentRow(r, brKey, canEdit) {
+            const name = getDisplayName(r);
+            const personId = r.vaishnava_id;
+            const building = r.rooms?.buildings ? Layout.getName(r.rooms.buildings) : '—';
+            const room = r.rooms?.number || '—';
+            const cat = r.resident_categories;
+            const catName = cat ? Layout.getName(cat) : '—';
+            const catColor = Utils.isValidColor(cat?.color) ? cat.color : '#6366f1';
+            const meal = r.meal_type || '';
+
+            const nameCell = personId
+                ? `<a href="${adjustHref('vaishnavas/person.html?id=' + personId)}" class="link link-hover font-medium">${e(name)}</a>`
+                : `<span class="font-medium">${e(name)}</span>`;
+            // Волонтёр ретрита показывается в «Волонтёрах» — событие пометкой
+            const eventMark = TEAM_KEYS.includes(brKey) && r.retreat_id && retreatsById[r.retreat_id]
+                ? ` <span class="text-xs opacity-50">· ${e(Layout.getName(retreatsById[r.retreat_id]))}</span>` : '';
+
+            const mealCell = canEdit
+                ? `<select class="select select-xs select-bordered" data-id="${r.id}" data-field="meal_type" onchange="updateField(this)">
+                    <option value="" ${!meal ? 'selected' : ''}>${t('meal_not_set') || '—'}</option>
+                    <option value="prasad" ${meal === 'prasad' ? 'selected' : ''}>${t('meal_prasad')}</option>
+                    <option value="self" ${meal === 'self' ? 'selected' : ''}>${t('meal_self')}</option>
+                    <option value="child" ${meal === 'child' ? 'selected' : ''}>${t('meal_child')}</option>
+                </select>`
+                : `<span>${meal ? t('meal_' + meal) : '—'}</span>`;
+
+            const brkfChecked = r.breakfast !== false;
+            const brkfCell = canEdit
+                ? `<input type="checkbox" class="checkbox checkbox-xs checkbox-warning" ${brkfChecked ? 'checked' : ''} data-id="${r.id}" data-field="breakfast" onchange="updateCheckbox(this)">`
+                : `<span>${brkfChecked ? '&#10003;' : ''}</span>`;
+
+            const lunchChecked = r.lunch !== false;
+            const lunchCell = canEdit
+                ? `<input type="checkbox" class="checkbox checkbox-xs checkbox-info" ${lunchChecked ? 'checked' : ''} data-id="${r.id}" data-field="lunch" onchange="updateCheckbox(this)">`
+                : `<span>${lunchChecked ? '&#10003;' : ''}</span>`;
+
+            return `<tr class="row-child">
+                <td class="tbl-lvl-1">${nameCell}${eventMark}</td>
+                <td class="whitespace-nowrap text-sm row-muted">${formatShortDate(r.check_in)}</td>
+                <td class="whitespace-nowrap text-sm ${getCheckoutClasses(r.check_out)}">${formatShortDate(r.check_out)}</td>
+                <td class="whitespace-nowrap">${e(building)}</td>
+                <td>${e(room)}</td>
+                <td><span class="badge badge-sm text-white" style="background: ${catColor}">${e(catName)}</span></td>
+                <td>${deptCell(r, brKey)}</td>
+                <td>${mealCell}</td>
+                <td class="text-center">${brkfCell}</td>
+                <td class="text-center">${lunchCell}</td>
+                <td>${r.notes ? `<span class="text-xs italic opacity-50">${e(r.notes)}</span>` : ''}</td>
+            </tr>`;
+        }
+
+        // «Ожидается заезд × N» одной строкой; раскрывается по броням (номер + даты)
+        function unnamedRows(brKey, unnamed, canEdit) {
+            const key = 'unnamed:' + brKey;
+            const open = expanded.has(key);
+            const lots = unnamedLots(unnamed);
+            const minIn = unnamed.reduce((m, r) => r.check_in < m ? r.check_in : m, unnamed[0].check_in);
+            const maxOut = unnamed.reduce((m, r) => (r.check_out || '') > m ? r.check_out : m, unnamed[0].check_out || '');
+            const label = t('expected_guest_row') !== 'expected_guest_row' ? t('expected_guest_row') : 'Ожидается заезд';
+            const rows = [`<tr class="row-child ${open ? 'row-open' : ''}">
+                <td class="tbl-lvl-1 cursor-pointer" data-action="toggle" data-key="${e(key)}">${lots.length > 1 ? `<span class="inline-block w-4 opacity-60">${open ? '▾' : '▸'}</span>` : ''}<span class="font-medium">${e(label)} × ${unnamed.length}</span></td>
+                <td class="whitespace-nowrap text-sm row-muted">${formatShortDate(minIn)}</td>
+                <td class="whitespace-nowrap text-sm">${formatShortDate(maxOut)}</td>
+                <td colspan="4" class="text-sm row-muted">${lots.length > 1 ? `${lots.length} ${e(tr('prasad_bookings_short', 'броней'))}` : e(lotPlace(lots[0][0]))}</td>
+                <td></td>
+                <td class="text-center">${mealCountInput(unnamed, 'breakfast', canEdit)}</td>
+                <td class="text-center">${mealCountInput(unnamed, 'lunch', canEdit)}</td>
+                <td></td>
+            </tr>`];
+            if (open && lots.length > 1) {
+                lots.forEach(lot => {
+                    const r = lot[0];
+                    rows.push(`<tr class="row-child text-sm">
+                        <td class="tbl-lvl-2">× ${lot.length}</td>
+                        <td class="whitespace-nowrap row-muted">${formatShortDate(r.check_in)}</td>
+                        <td class="whitespace-nowrap ${getCheckoutClasses(r.check_out)}">${formatShortDate(r.check_out)}</td>
+                        <td class="whitespace-nowrap">${e(r.rooms?.buildings ? Layout.getName(r.rooms.buildings) : '—')}</td>
+                        <td>${e(r.rooms?.number || '—')}</td>
+                        <td colspan="3"></td>
+                        <td class="text-center">${mealCountInput(lot, 'breakfast', canEdit)}</td>
+                        <td class="text-center">${mealCountInput(lot, 'lunch', canEdit)}</td>
+                        <td></td>
+                    </tr>`);
+                });
+            }
+            return rows;
+        }
+
+        function lotPlace(r) {
+            return r.rooms?.buildings ? `${Layout.getName(r.rooms.buildings)}, ${r.rooms.number}` : '—';
+        }
+
+        function groupRow(g) {
+            const brkf = g.breakfast ? g.people_count : 0;
+            const lnch = g.lunch ? g.people_count : 0;
+            return `<tr class="row-child">
+                <td class="tbl-lvl-1"><span class="font-medium" style="color: #f97316">${e(g.name)}</span> <span class="text-sm opacity-60">× ${g.people_count}</span></td>
+                <td class="whitespace-nowrap text-sm row-muted">${formatShortDate(g.start_date)}</td>
+                <td class="whitespace-nowrap text-sm">${formatShortDate(g.end_date)}</td>
+                <td></td>
+                <td></td>
+                <td><span class="badge badge-sm text-white" style="background: #f97316">${t('col_group') || 'Группа'}</span></td>
+                <td></td>
+                <td><span class="text-sm">${t('meal_prasad')}</span></td>
+                <td class="text-center">${brkf}</td>
+                <td class="text-center">${lnch}</td>
+                <td>${g.notes ? `<span class="text-xs italic opacity-50">${e(g.notes)}</span>` : ''}</td>
+            </tr>`;
         }
 
         // ==================== CARDS (MOBILE) ====================
         function renderCards() {
             const container = document.getElementById('prasadCards');
-            const filtered = getFilteredResidents();
+            const branches = buildBranches();
 
-            if (filtered.length === 0 && mealGroups.length === 0) {
+            if (branches.length === 0) {
                 container.innerHTML = `<div class="text-center py-6 opacity-50">${t('no_results')}</div>`;
                 return;
             }
 
             const canEdit = window.hasPermission && window.hasPermission('view_timeline');
 
-            // Карточки резидентов
-            const residentCards = filtered.map(r => {
-                const name = getDisplayName(r);
-                const personId = r.vaishnava_id;
-                const building = r.rooms?.buildings ? Layout.getName(r.rooms.buildings) : '—';
-                const room = r.rooms?.number || '—';
-                const cat = r.resident_categories;
-                const catName = cat ? Layout.getName(cat) : '—';
-                const catColor = cat?.color || '#6366f1';
-                const meal = r.meal_type || '';
-
-                const nameHtml = personId
-                    ? `<a href="${adjustHref('vaishnavas/person.html?id=' + personId)}" class="link link-hover font-semibold text-base">${e(name)}</a>`
-                    : `<span class="font-semibold text-base">${e(name)}</span>`;
-
-                const catBadge = `<span class="badge badge-sm text-white" style="background: ${e(catColor)}">${e(catName)}</span>`;
-
-                const mealHtml = canEdit
-                    ? `<select class="select select-xs select-bordered" data-id="${r.id}" data-field="meal_type" onchange="updateField(this)">
-                        <option value="" ${!meal ? 'selected' : ''}>${t('meal_not_set') || '—'}</option>
-                        <option value="prasad" ${meal === 'prasad' ? 'selected' : ''}>${t('meal_prasad')}</option>
-                        <option value="self" ${meal === 'self' ? 'selected' : ''}>${t('meal_self')}</option>
-                        <option value="child" ${meal === 'child' ? 'selected' : ''}>${t('meal_child')}</option>
-                    </select>`
-                    : `<span class="text-sm">${meal ? t('meal_' + meal) : '—'}</span>`;
-
-                const brkfChecked = r.breakfast !== false;
-                const lunchChecked = r.lunch !== false;
-
-                const brkfHtml = canEdit
-                    ? `<label class="flex items-center gap-1 text-sm"><input type="checkbox" class="checkbox checkbox-xs checkbox-warning" ${brkfChecked ? 'checked' : ''} data-id="${r.id}" data-field="breakfast" onchange="updateCheckbox(this)"> &#9728;&#65039;</label>`
-                    : `<span class="text-sm">${brkfChecked ? '&#9728;&#65039;' : ''}</span>`;
-
-                const lunchHtml = canEdit
-                    ? `<label class="flex items-center gap-1 text-sm"><input type="checkbox" class="checkbox checkbox-xs checkbox-info" ${lunchChecked ? 'checked' : ''} data-id="${r.id}" data-field="lunch" onchange="updateCheckbox(this)"> &#127869;&#65039;</label>`
-                    : `<span class="text-sm">${lunchChecked ? '&#127869;&#65039;' : ''}</span>`;
-
-                const checkinDate = formatShortDate(r.check_in);
-                const checkoutDate = formatShortDate(r.check_out);
-                const checkoutClasses = getCheckoutClasses(r.check_out);
-                const notesHtml = r.notes ? `<div class="text-xs italic opacity-50 mt-1">${e(r.notes)}</div>` : '';
-
-                return `<div class="bg-base-100 rounded-lg p-3 border-l-4" style="border-color: ${e(catColor)}">
-                    <div class="flex items-center justify-between mb-1">
-                        ${nameHtml}
-                        ${catBadge}
-                    </div>
-                    <div class="flex flex-wrap items-center gap-x-4 gap-y-1 text-sm opacity-70">
-                        <span>${e(building)}, ${e(room)}</span>
-                        <span>${mealHtml}</span>
-                        ${brkfHtml}
-                        ${lunchHtml}
-                    </div>
-                    <div class="flex gap-4 text-xs opacity-50 mt-1">
-                        <span>${t('col_checkin')}: ${checkinDate}</span>
-                        <span class="${checkoutClasses}">${t('col_checkout')}: ${checkoutDate}</span>
-                    </div>
-                    ${notesHtml}
+            container.innerHTML = branches.map(br => {
+                const tot = branchTotals(br);
+                const open = isOpen(br.key);
+                const warn = tot.noDept ? ` <span class="badge badge-warning badge-sm">⚠ ${tot.noDept}</span>` : '';
+                const head = `<div class="bg-base-200 rounded-lg px-3 py-2 font-semibold cursor-pointer flex justify-between items-center" data-action="toggle" data-key="${e(br.key)}">
+                    <span>${toggleMark(br.key)}${e(branchLabel(br.key))} <span class="font-normal text-sm opacity-60">· ${tot.people}</span>${warn}</span>
+                    <span class="text-sm font-normal whitespace-nowrap">&#9728;&#65039; ${tot.breakfast} · &#127869;&#65039; ${tot.lunch}</span>
                 </div>`;
-            });
+                if (!open) return head;
 
-            // Карточки meal_groups
-            const groupCards = mealGroups.map(g => {
-                const brkf = g.breakfast ? g.people_count : 0;
-                const lnch = g.lunch ? g.people_count : 0;
-                return `<div class="bg-base-100 rounded-lg p-3 border-l-4" style="border-color: #f97316">
-                    <div class="flex items-center justify-between mb-1">
-                        <span class="font-semibold text-base" style="color: #f97316">${e(g.name)}</span>
-                        <span class="badge badge-sm text-white" style="background: #f97316">${t('col_group') || 'Группа'}</span>
-                    </div>
-                    <div class="flex flex-wrap items-center gap-x-4 gap-y-1 text-sm opacity-70">
-                        <span>${g.people_count} ${t('persons_short')}</span>
-                        <span>&#9728;&#65039; ${brkf}</span>
-                        <span>&#127869;&#65039; ${lnch}</span>
-                    </div>
-                    <div class="flex gap-4 text-xs opacity-50 mt-1">
-                        <span>${formatShortDate(g.start_date)} — ${formatShortDate(g.end_date)}</span>
-                    </div>
-                    ${g.notes ? `<div class="text-xs italic opacity-50 mt-1">${e(g.notes)}</div>` : ''}
-                </div>`;
-            });
+                const { named, unnamed } = branchPeople(br);
+                const cards = named.map(r => residentCardHtml(r, br.key, canEdit));
+                if (unnamed.length) {
+                    cards.push(`<div class="bg-base-100 rounded-lg p-3 border-l-4 border-base-300">
+                        <div class="font-semibold">${e(getDisplayName(unnamed[0]))} × ${unnamed.length}</div>
+                        <div class="flex flex-wrap gap-4 text-sm mt-1">
+                            <span>&#9728;&#65039; ${mealCountInput(unnamed, 'breakfast', canEdit)}</span>
+                            <span>&#127869;&#65039; ${mealCountInput(unnamed, 'lunch', canEdit)}</span>
+                        </div>
+                    </div>`);
+                }
+                br.groups.forEach(g => cards.push(`<div class="bg-base-100 rounded-lg p-3 border-l-4" style="border-color: #f97316">
+                    <div class="font-semibold" style="color: #f97316">${e(g.name)} × ${g.people_count}</div>
+                    <div class="text-sm opacity-70">&#9728;&#65039; ${g.breakfast ? g.people_count : 0} · &#127869;&#65039; ${g.lunch ? g.people_count : 0}
+                        · ${formatShortDate(g.start_date)} — ${formatShortDate(g.end_date)}</div>
+                </div>`));
+                return head + `<div class="space-y-2 pl-2">${cards.join('')}</div>`;
+            }).join('');
+        }
 
-            container.innerHTML = residentCards.concat(groupCards).join('');
+        function residentCardHtml(r, brKey, canEdit) {
+            const name = getDisplayName(r);
+            const personId = r.vaishnava_id;
+            const building = r.rooms?.buildings ? Layout.getName(r.rooms.buildings) : '—';
+            const room = r.rooms?.number || '—';
+            const cat = r.resident_categories;
+            const catName = cat ? Layout.getName(cat) : '—';
+            const catColor = Utils.isValidColor(cat?.color) ? cat.color : '#6366f1';
+            const meal = r.meal_type || '';
+
+            const nameHtml = personId
+                ? `<a href="${adjustHref('vaishnavas/person.html?id=' + personId)}" class="link link-hover font-semibold text-base">${e(name)}</a>`
+                : `<span class="font-semibold text-base">${e(name)}</span>`;
+
+            const mealHtml = canEdit
+                ? `<select class="select select-xs select-bordered" data-id="${r.id}" data-field="meal_type" onchange="updateField(this)">
+                    <option value="" ${!meal ? 'selected' : ''}>${t('meal_not_set') || '—'}</option>
+                    <option value="prasad" ${meal === 'prasad' ? 'selected' : ''}>${t('meal_prasad')}</option>
+                    <option value="self" ${meal === 'self' ? 'selected' : ''}>${t('meal_self')}</option>
+                    <option value="child" ${meal === 'child' ? 'selected' : ''}>${t('meal_child')}</option>
+                </select>`
+                : `<span class="text-sm">${meal ? t('meal_' + meal) : '—'}</span>`;
+
+            const brkfChecked = r.breakfast !== false;
+            const lunchChecked = r.lunch !== false;
+
+            const brkfHtml = canEdit
+                ? `<label class="flex items-center gap-1 text-sm"><input type="checkbox" class="checkbox checkbox-xs checkbox-warning" ${brkfChecked ? 'checked' : ''} data-id="${r.id}" data-field="breakfast" onchange="updateCheckbox(this)"> &#9728;&#65039;</label>`
+                : `<span class="text-sm">${brkfChecked ? '&#9728;&#65039;' : ''}</span>`;
+
+            const lunchHtml = canEdit
+                ? `<label class="flex items-center gap-1 text-sm"><input type="checkbox" class="checkbox checkbox-xs checkbox-info" ${lunchChecked ? 'checked' : ''} data-id="${r.id}" data-field="lunch" onchange="updateCheckbox(this)"> &#127869;&#65039;</label>`
+                : `<span class="text-sm">${lunchChecked ? '&#127869;&#65039;' : ''}</span>`;
+
+            const dept = deptCell(r, brKey);
+
+            return `<div class="bg-base-100 rounded-lg p-3 border-l-4" style="border-color: ${catColor}">
+                <div class="flex items-center justify-between mb-1">
+                    ${nameHtml}
+                    <span class="badge badge-sm text-white" style="background: ${catColor}">${e(catName)}</span>
+                </div>
+                ${dept ? `<div class="mb-1">${dept}</div>` : ''}
+                <div class="flex flex-wrap items-center gap-x-4 gap-y-1 text-sm opacity-70">
+                    <span>${e(building)}, ${e(room)}</span>
+                    <span>${mealHtml}</span>
+                    ${brkfHtml}
+                    ${lunchHtml}
+                </div>
+                <div class="flex gap-4 text-xs opacity-50 mt-1">
+                    <span>${t('col_checkin')}: ${formatShortDate(r.check_in)}</span>
+                    <span class="${getCheckoutClasses(r.check_out)}">${t('col_checkout')}: ${formatShortDate(r.check_out)}</span>
+                </div>
+                ${r.notes ? `<div class="text-xs italic opacity-50 mt-1">${e(r.notes)}</div>` : ''}
+            </div>`;
         }
 
         // ==================== INLINE UPDATES ====================
@@ -862,10 +1138,9 @@
                 return;
             }
 
-            const r = residents.find(r => r.id === id);
-            if (r) r[field] = value;
-            renderStats();
             Layout.showNotification(t('saved'), 'success');
+            // Итоги веток и карточек — из расчёта кухни, перечитываем
+            await loadResidents();
         }
 
         async function updateCheckbox(checkbox) {
@@ -884,33 +1159,93 @@
                 return;
             }
 
-            const r = residents.find(r => r.id === id);
-            if (r) r[field] = value;
-            renderStats();
             Layout.showNotification(t('saved'), 'success');
+            await loadResidents();
         }
 
-        async function updateNumber(input) {
-            const id = input.dataset.id;
+        // Число завтраков/обедов у строк без имени: снимаем/ставим галочку
+        // у стольких броней, сколько нужно. Уходит к поварам через eating_detail.
+        async function updateUnnamedMeal(input) {
             const field = input.dataset.field;
-            const value = parseInt(input.value) || 0;
+            const ids = input.dataset.ids.split(',');
+            const rows = ids.map(id => residents.find(r => r.id === id)).filter(Boolean);
+            const on = rows.filter(r => r[field] !== false);
+            const off = rows.filter(r => r[field] === false);
+            const target = Math.max(0, Math.min(rows.length, parseInt(input.value) || 0));
+
+            let changeIds, value;
+            if (target < on.length) {
+                changeIds = on.slice(target).map(r => r.id);
+                value = false;
+            } else if (target > on.length) {
+                changeIds = off.slice(0, target - on.length).map(r => r.id);
+                value = true;
+            } else {
+                input.value = target;
+                return;
+            }
 
             const { error } = await Layout.db
                 .from('residents')
                 .update({ [field]: value })
-                .eq('id', id);
+                .in('id', changeIds);
 
             if (error) {
                 Layout.handleError(error, t('error_updating'));
-                const r = residents.find(r => r.id === id);
-                if (r) input.value = r[field] || 0;
+                input.value = on.length;
                 return;
             }
 
-            const r = residents.find(r => r.id === id);
-            if (r) r[field] = value;
-            renderStats();
-            Layout.showNotification(t('saved'), 'success');
+            const mealLabel = field === 'breakfast' ? (t('breakfast') || 'Завтрак') : (t('lunch') || 'Обед');
+            Layout.showNotification(`${t('saved')}: ${mealLabel} — ${target} / ${rows.length}`, 'success');
+            await loadResidents();
+        }
+
+        // ==================== EVENTS ====================
+        function initEvents() {
+            document.addEventListener('click', (ev) => {
+                const el = ev.target.closest('[data-action]');
+                if (!el) return;
+                switch (el.dataset.action) {
+                    case 'toggle': {
+                        // клик по полю ввода внутри строки не сворачивает её
+                        if (ev.target.closest('input, select, a, button')) return;
+                        const key = el.dataset.key;
+                        // во время поиска/фильтра ветки раскрыты все — запоминаем, чтобы свернуть потом
+                        if (expanded.has(key)) expanded.delete(key); else expanded.add(key);
+                        renderTable();
+                        renderCards();
+                        break;
+                    }
+                    case 'card-filter':
+                        setCardFilter(el.dataset.card);
+                        break;
+                    case 'dept-filter': {
+                        const br = el.dataset.branch;
+                        deptFilter[br] = deptFilter[br] === el.dataset.dept ? null : el.dataset.dept;
+                        renderTable();
+                        renderCards();
+                        break;
+                    }
+                    case 'set-dept':
+                        // Профиль в новой вкладке: выбрал департамент, сохранил — вкладка
+                        // закрывается, а эта страница перечитывает данные
+                        refreshOnReturn = true;
+                        window.open(adjustHref('vaishnavas/person.html?id=' + el.dataset.person + '&edit=department'), '_blank');
+                        break;
+                }
+            });
+
+            document.addEventListener('change', (ev) => {
+                if (ev.target.dataset?.change === 'unnamed-meal') updateUnnamedMeal(ev.target);
+            });
+
+            document.addEventListener('visibilitychange', () => {
+                if (document.visibilityState === 'visible' && refreshOnReturn) {
+                    refreshOnReturn = false;
+                    loadResidents();
+                }
+            });
         }
 
         // ==================== SEARCH ====================
@@ -948,6 +1283,7 @@
             await loadResidents();
             initSearch();
             initKeyboard();
+            initEvents();
             Layout.hideLoader();
         }
 
