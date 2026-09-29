@@ -34,6 +34,8 @@ const statusColors = {
 };
 
 const t = key => Layout.t(key);
+// перевод с запасным текстом — новые ключи, пока у людей старый кэш переводов
+const tr = (key, fb) => { const v = Layout.t(key); return v && v !== key ? v : fb; };
 const e = str => Layout.escapeHtml(str);
 const today = DateUtils.toISO(new Date());
 
@@ -113,7 +115,7 @@ async function loadBookings() {
             .from('residents')
             .select('id, booking_id, vaishnava_id, guest_name')
             .in('booking_id', bookingIds)
-            .eq('status', 'confirmed');
+            .in('status', ['confirmed', 'checked_out']);   // выехавшие тоже стоят в шахматке
 
         // Group residents by booking_id
         const residentsByBooking = {};
@@ -131,6 +133,7 @@ async function loadBookings() {
             const pending = stats.length - filled;
             booking.beds_filled = filled;
             booking.beds_pending = pending;
+            booking.beds_placed = stats.length;   // сколько мест брони стоит в шахматке
         }
     }
 
@@ -248,6 +251,9 @@ function bookingCard(booking) {
     let statusBadge = '';
     if (isCancelled) {
         statusBadge = `<span class="badge badge-error badge-sm">${t('booking_status_cancelled')}</span>`;
+    } else if (!booking.beds_placed && (isActive || isUpcoming)) {
+        // Мест в шахматке нет совсем — раньше показывалось «Заселён» (0 из 0 свободных), ВГ 29.09
+        statusBadge = `<span class="badge badge-warning badge-sm" title="${e(tr('booking_no_places_hint', 'У брони нет ни одного места в шахматке: кухня её не считает. Поставьте места в шахматку или отмените бронь'))}">${e(tr('booking_no_places', 'Нет в шахматке'))}</span>`;
     } else if (isActive && booking.beds_pending > 0) {
         statusBadge = `<span class="badge badge-warning badge-sm">${t('bookings_filter_not_checked_in')}</span>`;
     } else if (isActive && booking.beds_pending === 0) {
@@ -295,8 +301,8 @@ function eventBlock(g) {
     const ev = g.событие;
     const мест = g.брони.reduce((a, b) => a + (Number(b.beds_count) || 0), 0);
     const тип = ev.is_external
-        ? `<span class="badge badge-outline badge-sm">${e(t('retreats_is_external'))}</span>`
-        : `<span class="badge badge-ghost badge-sm">${e(t('group_event_retreat'))}</span>`;
+        ? `<span class="badge badge-outline badge-sm">${e(tr('retreats_is_external', 'Стороннее мероприятие'))}</span>`
+        : `<span class="badge badge-ghost badge-sm">${e(tr('group_event_retreat', 'Наш ретрит'))}</span>`;
     const даты = ev.start_date ? `${DateUtils.parseDate(ev.start_date).toLocaleDateString()} — ${DateUtils.parseDate(ev.end_date).toLocaleDateString()}` : '';
     return `<details class="bg-base-200/60 rounded-xl" open>
         <summary class="cursor-pointer px-4 py-3 flex flex-wrap items-center gap-2">
