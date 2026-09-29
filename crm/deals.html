@@ -330,7 +330,7 @@ async function loadData() {
     // Загружаем ретриты для фильтров
     const { data: retreatsData } = await Layout.db
         .from('retreats')
-        .select('id, name_ru, name_en, color, start_date')
+        .select('id, name_ru, name_en, color, start_date, end_date')
         .order('start_date', { ascending: false });
     retreats = retreatsData || [];
 
@@ -339,10 +339,14 @@ async function loadData() {
     const newDealRetreatSelect = document.getElementById('newDealRetreat');
 
     retreats.forEach(r => {
-        const opt = `<option value="${r.id}">${e(Layout.getName(r))}</option>`;
-        retreatSelect.insertAdjacentHTML('beforeend', opt);
-        newDealRetreatSelect.insertAdjacentHTML('beforeend', opt);
+        retreatSelect.insertAdjacentHTML('beforeend', `<option value="${r.id}">${e(Layout.getName(r))}</option>`);
     });
+    // Новая сделка — только ретриты, которые ещё не прошли, ближайшие сверху (ВГ, 29.09)
+    const сегодня = DateUtils.toISO(new Date());
+    [...retreats].filter(r => !r.end_date || r.end_date >= сегодня)
+        .sort((a, b) => (a.start_date || '').localeCompare(b.start_date || ''))
+        .forEach(r => newDealRetreatSelect.insertAdjacentHTML('beforeend',
+            `<option value="${r.id}">${e(Layout.getName(r))} (${e(DateUtils.formatRange(r.start_date, r.end_date))})</option>`));
 
     await loadDeals();
 }
