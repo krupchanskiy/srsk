@@ -963,12 +963,11 @@ function incomeParts() {
         channel: r.querySelector('.inc-channel') }));
 }
 
-// Итог по валютам — показываем, только когда частей больше одной
+// Итог по валютам — и при одной части тоже: сверка глазами «5 000» против «50 000» (ВГ, 29.09)
 function updateIncomeRecap() {
     const el = document.getElementById('incRecap');
     if (!el) return;
     const parts = incomeParts();
-    if (parts.length < 2) { el.textContent = ''; return; }
     const totals = {};
     parts.forEach(p => {
         const amount = Number(p.amount.value);
