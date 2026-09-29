@@ -2089,7 +2089,11 @@ async function showMoveScreen() {
             .or(`check_out.is.null,check_out.gte.${checkIn}`)
     ]);
 
-    const buildings = buildingsData || [];
+    // Порядок и набор — как в сетке шахматки: сначала наши здания, потом временные,
+    // и временные — только если их аренда пересекается с датами гостя
+    const buildings = (buildingsData || [])
+        .filter(b => !b.is_temporary || (b.available_from <= checkOut && b.available_until >= checkIn))
+        .sort((a, b) => (a.is_temporary ? 1 : 0) - (b.is_temporary ? 1 : 0) || (a.sort_order || 0) - (b.sort_order || 0));
     const residents = residentsRes.data || [];
 
     if (buildings.length === 0) {
