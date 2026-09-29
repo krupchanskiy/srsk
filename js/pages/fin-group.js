@@ -46,12 +46,32 @@ function именаБрони(notes) {
 }
 
 // ==================== РАСЧЁТ ====================
+// Сняты ПОСЛЕДНИЕ дни (ни завтрака, ни обеда до конца) — человек уехал раньше (ВГ, 29.09):
+// выезд — последний день, когда он ещё ел; при сохранении уходит в шахматку, кухня
+// поправится сама. Снятые дни в середине (экскурсия) — не отъезд, шахматку не трогаем.
+// Снят один только завтрак в день выезда — уехал утром, ночь была: тоже не отъезд, только деньги.
+// Возвращает новую дату выезда или null
+function раннийВыезд(l) {
+    if (!l.place?.check_out || !l.meals.length) return null;
+    const последний = [...l.meals].reverse().find(m => m.b || m.l);
+    if (!последний || последний.d < l.place.check_in || последний.d >= l.place.check_out) return null;
+    // накануне выезда был обед, в день выезда ничего — уехал утром без завтрака, не раньше
+    if (днейМежду(последний.d, l.place.check_out) === 1 && последний.l) return null;
+    return последний.d;
+}
+
+// Ночи с учётом раннего выезда: больше, чем до новой даты выезда, не бывает
+function ночей(l) {
+    const выезд = раннийВыезд(l);
+    return выезд ? Math.min(l.nights, днейМежду(l.place.check_in, выезд)) : l.nights;
+}
+
 function расчёт(l) {
     // на доп. кровати — цена доп. кровати за ночь, иначе номер ÷ жильцов
     const заНочь = l.extraBed ? round2(l.extraBedPrice) : l.people > 0 ? round2(l.roomPrice / l.people) : 0;
     const завтраков = l.persons * l.meals.filter(m => m.b).length;
     const обедов = l.persons * l.meals.filter(m => m.l).length;
-    const проживание = round2(l.nights * заНочь);
+    const проживание = round2(ночей(l) * заНочь);
     const питание = round2(завтраков * l.bPrice + обедов * l.lPrice);
     const доп = round2(Number(l.extra) || 0);
     return { заНочь, завтраков, обедов, проживание, питание, доп, итого: round2(проживание + питание + доп) };
@@ -289,7 +309,8 @@ function placeRow(l, i) {
             ${l.changed ? '<span class="badge badge-warning badge-xs" title="Даты в шахматке изменились — ночи и питание пересчитаны заново">шахматка</span>' : ''}
             ${l.mealsOn ? '<span class="badge badge-info badge-xs" title="Питание включено здесь — при сохранении включится и в шахматке">питание вкл.</span>' : ''}</td>
         <td class="whitespace-nowrap text-xs">${p ? `${дата(p.check_in)}–${p.check_out ? дата(p.check_out) : '…'}` : `${дата(l.eater.start_date)}–${дата(l.eater.end_date)}`}</td>
-        <td>${p ? числа('nights', l.nights, 'w-12') : ''}</td>
+        <td>${p ? числа('nights', l.nights, 'w-12') : ''}${p && раннийВыезд(l) ? `<div class="text-[11px] text-warning whitespace-nowrap"
+            title="Последние дни сняты — при сохранении выезд уйдёт в шахматку, кухня поправится">выезд → ${дата(раннийВыезд(l))}${ночей(l) < l.nights ? `, ${ночей(l)} ноч.` : ''}</div>` : ''}</td>
         <td class="whitespace-nowrap">${!p ? '' : l.extraBed
             ? `<span class="text-xs">доп. кровать</span> ${числа('extraBedPrice', l.extraBedPrice, 'w-16', 50, 'Цена доп. кровати за сутки')}`
             : `${числа('roomPrice', l.roomPrice, 'w-16', 50, 'Цена номера за сутки')} ÷ ${числа('people', l.people, 'w-10', 1, 'Сколько человек делят номер')}`}
@@ -405,6 +426,9 @@ function renderTotal() {
 async function save() {
     const безПричины = lines.filter(l => !l.included && !(l.excludeReason || '').trim());
     if (безПричины.length) { Layout.showNotification(`Укажите, почему не начисляем: ${безПричины.map(l => l.label || 'место').join(', ')}`, 'warning'); return; }
+    const уехали = lines.filter(l => раннийВыезд(l));
+    if (уехали.length && !confirm(`Ранний выезд уйдёт в шахматку (кухня поправится):\n${уехали.map(l =>
+        `• ${l.label || 'место'} · ${l.place.building || ''} №${l.place.room || '—'}: ${дата(l.place.check_out)} → ${дата(раннийВыезд(l))}`).join('\n')}\n\nСохранить?`)) return;
     const payload = { retreat_id: ret.id, lines: lines.map(toLine) };
     if (!payer) {
         const pid = document.getElementById('grPayerId')?.value;
@@ -445,6 +469,12 @@ function toLine(l) {
         const first = l.meals[0], last = l.meals[l.meals.length - 1];
         if (first && first.d === l.place.check_in) o.early_checkin = !!first.b;
         if (last && last.d === l.place.check_out) o.late_checkout = !!last.l;
+        // уехал раньше: новый выезд — в шахматку; обед в последний день = поздний выезд
+        const выезд = раннийВыезд(l);
+        if (выезд) {
+            const день = l.meals.find(m => m.d === выезд);
+            Object.assign(o, { check_out: выезд, depart_on: выезд, nights: ночей(l), late_checkout: !!день?.l });
+        }
     } else {
         Object.assign(o, { meal_group_id: l.meal_group_id, check_in: l.eater.start_date, check_out: l.eater.end_date });
     }
@@ -457,6 +487,8 @@ function toLine(l) {
 function пропуски(list) {
     const без = new Map();   // d → {b, l}
     for (const l of list) for (const f of l.fresh.meals) {
+        // после раннего выезда дни не «пропущены» — человека уже нет
+        if (раннийВыезд(l) && f.d > раннийВыезд(l)) continue;
         const m = l.meals.find(x => x.d === f.d);
         const x = без.get(f.d) || { b: false, l: false };
         if (f.b && !m?.b) x.b = true;
@@ -483,7 +515,7 @@ async function summaryData() {
         g.lines.push(l);
         g.мест += l.place ? 1 : l.persons;
         if (l.place && l.label) g.имена.push(l.label);
-        if (l.place) { g.ночи.add(l.nights); g.цены.add(l.roomPrice); }
+        if (l.place) { g.ночи.add(ночей(l)); g.цены.add(l.roomPrice); }
         if (l.extraBed) { g.допКроватей = (g.допКроватей || 0) + 1; g.ценаДоп = l.extraBedPrice; }
         g.проживание += r.проживание; g.завтраков += r.завтраков; g.обедов += r.обедов; g.питание += r.питание; g.доп += r.доп;
     }
