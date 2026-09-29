@@ -986,7 +986,7 @@ async function loadReport() {
             <h2 class="card-title text-base">${t('fin_debtors')} <span class="badge badge-error badge-sm">${p.debtors.length}</span>
                 <span class="ml-auto font-mono text-error text-base">${fmtB(p.debt_total)}</span></h2>
             <div class="overflow-x-auto"><table class="table table-sm"><tbody>
-                ${p.debtors.map(x => `<tr class="cursor-pointer hover:bg-base-200" onclick="location.href='participants.html?retreat=${currentRetreat}&open=${x.participant_id}'"><td class="hover:underline">${e(x.name || '')}</td><td class="text-right font-mono text-error w-36">${fmtB(x.debt)}</td></tr>`).join('')}
+                ${p.debtors.map(x => `<tr class="cursor-pointer hover:bg-base-200" onclick="location.href='participants.html?retreat=${currentRetreat}&open=${x.participant_id}'"><td><span class="hover:underline">${e(x.name || '')}</span><div data-debtor-note="${x.participant_id}"></div></td><td class="text-right font-mono text-error w-36 align-top">${fmtB(x.debt)}</td></tr>`).join('')}
             </tbody></table></div>
         </div></div>` : ''}
         ${Number(p.advance_total) > 0 ? `<div class="text-sm opacity-70">${t('fin_advance')}: ${fmtB(p.advance_total)}</div>` : ''}`;
@@ -1040,6 +1040,41 @@ async function loadReport() {
     box.querySelectorAll('input[name="fin_unit_tabs"]').forEach(i => i.addEventListener('change', resetDrill));
     renderMoneyByDay(retreats.find(x => x.id === currentRetreat), token);
     if (showPrasad) fillPrasadCost(currentRetreat, prasad || {}, retreatOnlyTotals);
+    fillDebtorNotes(currentRetreat, p.debtors || [], token);
+}
+
+// Должник — вместе с причиной: последняя заметка кассира из истории сделки
+// CRM и срок «принесёт до»; срок прошёл — красным, договорённости нет —
+// жёлтым (фаза 2, шаг 6, ВГ 29.09). Заметки импорта — не договорённость
+async function fillDebtorNotes(retreat, debtors, token) {
+    if (!debtors.length) return;
+    const pids = debtors.map(x => x.participant_id);
+    const { data: deals } = await Layout.db.from('crm_deals').select('id, vaishnava_id')
+        .eq('retreat_id', retreat).in('vaishnava_id', pids).neq('status', 'cancelled');
+    const dealPid = {};
+    const заметка = {};
+    (deals || []).forEach(d => { dealPid[d.id] = d.vaishnava_id; заметка[d.vaishnava_id] = null; });
+    const ids = Object.keys(dealPid);
+    if (ids.length) {
+        const { data } = await Layout.db.from('crm_communications')
+            .select('deal_id, summary, content, due_date, created_at')
+            .in('deal_id', ids).eq('type', 'note').not('summary', 'like', '[ИМПОРТ]%')
+            .order('created_at', { ascending: false });
+        (data || []).forEach(n => { const pid = dealPid[n.deal_id]; if (заметка[pid] === null) заметка[pid] = n; });
+    }
+    if (token !== reportToken) return;
+    const сегодня = new Date(); сегодня.setHours(0, 0, 0, 0);
+    document.querySelectorAll('[data-debtor-note]').forEach(el => {
+        const pid = el.dataset.debtorNote;
+        if (!(pid in заметка)) return; // нет сделки CRM — заметку писать некуда
+        const n = заметка[pid];
+        if (!n) { el.innerHTML = `<div class="text-xs text-warning">Нет договорённости — добавьте заметку в карточке</div>`; return; }
+        const срок = n.due_date ? DateUtils.parseDate(n.due_date) : null;
+        const срокHtml = !срок ? ''
+            : срок < сегодня ? ` · <span class="text-error">срок прошёл ${DateUtils.formatShort(срок)}</span>`
+            : ` · срок ${DateUtils.formatShort(срок)}`;
+        el.innerHTML = `<div class="text-xs opacity-70">${DateUtils.formatShort(new Date(n.created_at))} · ${e(n.summary)}${n.content ? ` — ${e(n.content)}` : ''}${срокHtml}</div>`;
+    });
 }
 
 // ==================== ЗАКРЫТИЕ ====================
