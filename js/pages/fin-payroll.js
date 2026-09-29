@@ -115,7 +115,7 @@ function rowHtml(g) {
     const hasSalary = g.salary_amount != null;
     const tracks = tracksBalance(g);
     const isOpen = detailOpen.has(g.key);
-    return `<tr class="${g.is_current ? '' : 'opacity-60'}">
+    return `<tr class="${g.is_current ? '' : 'opacity-60'} ${isOpen ? 'row-open' : ''}">
         <td>
             <button type="button" class="inline-flex items-center gap-1 hover:underline" data-toggle="${g.key}">
                 <span class="${isOpen ? 'rotate-90' : ''}">${chevron}</span>${e(g.employee_name)}
@@ -134,8 +134,8 @@ function rowHtml(g) {
             </div>
         </td>
     </tr>
-    <tr class="${isOpen ? '' : 'hidden'}">
-        <td colspan="7" class="bg-base-200/50 py-2">
+    <tr class="row-child ${isOpen ? '' : 'hidden'}">
+        <td colspan="7" class="tbl-lvl-1 py-2">
             <div class="text-xs">${isOpen ? detailBodyHtml(g) : ''}</div>
         </td>
     </tr>`;

@@ -10,7 +10,7 @@
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <script>tailwind.config = { theme: { extend: { screens: { 'desktop': '1200px' } } } }</script>
     <link href="https://fonts.googleapis.com/css2?family=Noto+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="../css/common.css?v=3">
+    <link rel="stylesheet" href="../css/common.css?v=4">
     <style>
         .prepayment-row td { vertical-align: middle; }
         .status-chip {
@@ -428,16 +428,16 @@ function renderTable() {
             : '';
 
         const opsRow = (isExpanded && ops.length > 0)
-            ? `<tr class="bg-base-200/30">
+            ? `<tr class="row-child">
                  <td></td>
-                 <td colspan="8" class="py-2">
+                 <td colspan="8" class="tbl-lvl-1 py-2">
                    ${PrepaymentOps.renderOperationsList(ops, { withActions: true, compact: true })}
                  </td>
                </tr>`
             : '';
 
         return `
-            <tr class="prepayment-row" data-id="${p.id}">
+            <tr class="prepayment-row ${isExpanded && ops.length > 0 ? 'row-open' : ''}" data-id="${p.id}">
                 <td>${chevron}</td>
                 <td>
                     <a href="deal.html?id=${p.deal?.id}" class="hover:underline">

@@ -281,6 +281,17 @@ main .table th {
     padding: 0.875rem 1rem !important;
 }
 
+/* «Ёлочка» раскрывающихся строк — единый вид на всём сайте (образец: Кухня → Себестоимость → Накладные).
+   Отступ уровня перебивает правило выше (pl-8 и т.п. в ячейках не работают из-за !important):
+   стрелка вложенной строки встаёт под первую букву родителя. */
+main .table td.tbl-lvl-1 { padding-left: 2rem !important; }
+main .table td.tbl-lvl-2 { padding-left: 3rem !important; }
+/* раскрытая строка — серым, строки под ней — светлее, второстепенные колонки у них — бледнее текстом
+   (цветом, не opacity: иначе бледнеет и фон) */
+main .table tr.row-open > td { background: oklch(var(--b2)); }
+main .table tr.row-child > td { background: oklch(var(--b2) / 0.4); }
+main .table tr.row-child > td.row-muted { color: oklch(var(--bc) / 0.6); }
+
 /* ==================== NUMBER INPUTS ==================== */
 /* Убираем стрелки (spinners) у числовых полей */
 input[type="number"]::-webkit-outer-spin-button,

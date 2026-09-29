@@ -14,22 +14,15 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Noto+Sans:wght@400;500;600;700&family=Noto+Sans+Devanagari:wght@400;500;600;700&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="../css/common.css?v=3">
+    <link rel="stylesheet" href="../css/common.css?v=4">
     <style>
         /* суммы и даты в таблицах не переносим — таблица прокручивается вбок */
         .cost-table td.text-right, .cost-table th.text-right { white-space: nowrap; }
         .cost-table td:first-child { min-width: 9rem; }
-        /* «ёлочка» раскрытия: common.css задаёт отступ ячеек с !important — перебиваем уровни здесь.
-           Стрелка вложенной строки встаёт под первую букву родителя (1rem отступа + 1rem стрелки на уровень) */
-        .cost-table td.pl-8 { padding-left: 2rem !important; }
-        .cost-table td.pl-16 { padding-left: 3rem !important; }
-        /* раскрытая группа — серым, её строки — светлее, даты и «как делится» у них приглушены */
-        .cost-table tr.row-child > td { background: oklch(var(--b2) / 0.4); }
-        .cost-table tr.row-open > td { background: oklch(var(--b2)); }
-        /* статья верхнего уровня — вся строка жирным: даты и суммы тоже, чтобы заголовок отличался от детализации */
+        /* «ёлочка» раскрытия (tbl-lvl-*, row-open, row-child, row-muted) — в common.css.
+           статья верхнего уровня — вся строка жирным: даты и суммы тоже, чтобы заголовок отличался от детализации */
         .cost-table tr.row-top > td { font-weight: 700; }
         .cost-table tr.row-top .text-xs, .cost-table tr.row-top .badge { font-weight: 400; }
-        .cost-table tr.row-child > td.row-muted { color: oklch(var(--bc) / 0.6); }
     </style>
     <style>
         .how-memo { font-size: 16px; line-height: 1.6; }
@@ -340,6 +333,6 @@
     <script src="../js/layout.js?v=82"></script>
     <script src="../js/eating-utils.js?v=11"></script>
     <script src="../js/kitchen-cost.js?v=14"></script>
-    <script src="../js/pages/kitchen-cost.js?v=39"></script>
+    <script src="../js/pages/kitchen-cost.js?v=40"></script>
 </body>
 </html>

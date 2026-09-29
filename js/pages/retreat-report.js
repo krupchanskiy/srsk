@@ -500,7 +500,7 @@ function renderFinance() {
     const moneyCell = (n, cls) => `<td class="text-right font-mono ${cls}">${CrmUtils.formatMoney(n, 'INR')}</td>`;
     const netCls = n => Number(n) < 0 ? 'text-error' : 'text-success';
     const splitRow = (label, block, opts = {}) => `<tr class="${opts.bold ? 'font-semibold border-t-2 border-base-300' : ''}">
-        <td class="${opts.indent ? 'pl-6 text-sm opacity-70' : ''}">${label}</td>
+        <td class="${opts.indent ? 'tbl-lvl-1 text-sm opacity-70' : ''}">${label}</td>
         ${moneyCell(block.income_base, 'text-success')}
         ${moneyCell(block.expense_base, 'text-error')}
         ${moneyCell(block.net_base, netCls(block.net_base))}

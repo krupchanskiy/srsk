@@ -535,7 +535,7 @@ function kitchenCashOps(dir) {
         return `<tr class="cursor-pointer hover:bg-base-200/50 row-top ${isOpen ? 'row-open' : ''}" data-action="toggle-row" data-key="${e(key)}">
             <td>${toggleCell(key)}${e(cat.name)} <span class="text-xs opacity-60">(${cat.list.length})</span></td><td></td>
             <td class="text-right">${money(cat.sum)}</td></tr>${isOpen ? cat.list.map(o => `<tr class="text-sm row-child">
-            <td class="pl-8">${o.operation_id ? `<a class="link link-hover" href="${DDS_URL(o.operation_id)}" target="_blank" rel="noopener" title="${e(tr('fin_open_in_dds', 'Открыть в ДДС'))}">${e(o.comment || o.participant || '—')}</a>` : e(o.comment || o.participant || '—')}
+            <td class="tbl-lvl-1">${o.operation_id ? `<a class="link link-hover" href="${DDS_URL(o.operation_id)}" target="_blank" rel="noopener" title="${e(tr('fin_open_in_dds', 'Открыть в ДДС'))}">${e(o.comment || o.participant || '—')}</a>` : e(o.comment || o.participant || '—')}
                 ${o.comment && o.participant ? `<div class="text-xs opacity-60">${e(o.participant)}</div>` : ''}</td>
             <td class="whitespace-nowrap row-muted">${e(fmtDay(o.occurred_on))} · ${e(o.account_name)}</td>
             <td class="text-right">${money(o.amount)}</td></tr>`).join('') : ''}`;
@@ -634,8 +634,9 @@ function renderSummary() {
         const days = isPeriod ? daysOf(row) : null;
         const cls = row.sub ? 'text-sm' : 'font-medium';
         const deptBucket = row.ev === 'none' && (row.buckets[0] === 'team' || row.buckets[0] === 'volunteers') ? row.buckets[0] : null;
-        return `<tr class="${row.main ? 'bg-base-200/60 font-semibold' : ''} ${deptBucket ? 'cursor-pointer hover:bg-base-200/50' : ''}" ${deptBucket ? `data-action="open-dept" data-bucket="${deptBucket}" title="${e(tr('cost_to_departments', 'По департаментам →'))}"` : ''}>
-            <td class="${cls} ${row.sub ? 'pl-8' : ''}">${deptBucket ? `<span class="link link-hover">${e(row.label)}</span>` : e(row.label)}${inc && inc.share < 0.999 ? ` <span class="text-xs opacity-60">(${Math.round(inc.share * 100)}% ${e(tr('cost_of_retreat', 'ретрита'))})</span>` : ''}</td>
+        const incomeOpen = isPeriod && !row.sub && (row.retreatId || row.key === 'none:guests') && expanded.has(`income:${row.retreatId || 'none'}`);
+        return `<tr class="${row.main ? 'bg-base-200/60 font-semibold' : ''} ${incomeOpen ? 'row-open' : ''} ${deptBucket ? 'cursor-pointer hover:bg-base-200/50' : ''}" ${deptBucket ? `data-action="open-dept" data-bucket="${deptBucket}" title="${e(tr('cost_to_departments', 'По департаментам →'))}"` : ''}>
+            <td class="${cls} ${row.sub ? 'tbl-lvl-1' : ''}">${deptBucket ? `<span class="link link-hover">${e(row.label)}</span>` : e(row.label)}${inc && inc.share < 0.999 ? ` <span class="text-xs opacity-60">(${Math.round(inc.share * 100)}% ${e(tr('cost_of_retreat', 'ретрита'))})</span>` : ''}</td>
             ${isPeriod ? `<td class="text-right text-sm">${days}</td>` : ''}
             <td class="text-right">${st.people ? num(st.people) : '—'}</td>
             <td class="text-right">${num(x.pm)}</td>
@@ -649,7 +650,7 @@ function renderSummary() {
                 ? `<span class="link link-hover" data-action="toggle-income" data-retreat="${row.retreatId || 'none'}" title="${e(tr('cost_show_income', 'Показать приходы'))}">${money(income)}</span>`
                 : inc?.external ? `<span class="text-xs opacity-60" title="${e(tr('cost_external_income_hint', 'Сторонний ретрит: приход за прасад — в строке «Гости без события»'))}">${e(tr('cost_external_short', 'в гостях'))}</span>` : '—'}</td>
             <td class="text-right">${resultCell(income, x, row.sub, ps)}</td>` : ''}
-        </tr>${isPeriod && !row.sub && (row.retreatId || row.key === 'none:guests') && expanded.has(`income:${row.retreatId || 'none'}`) ? incomeDrill(row, inc) : ''}`;
+        </tr>${incomeOpen ? incomeDrill(row, inc) : ''}`;
     }).join('');
 
     const showGrand = isPeriod && rows.length > 1;
@@ -699,13 +700,13 @@ function periodIncome(row) {
 function incomeDrill(row, inc) {
     if (!row.retreatId) {
         const ext = Object.entries(view.incomes).filter(([, i]) => i?.external && i.charged);
-        return `<tr><td colspan="11" class="bg-base-200/40 pl-8">
+        return `<tr class="row-child"><td colspan="11" class="tbl-lvl-1">
             <div class="text-sm font-medium mb-1">${e(tr('cost_noevent_donations', 'Пожертвования на прасад без ретрита'))}</div>
             ${opsTable(view.noEvent.ops)}
             ${ext.map(([id, i]) => `<div class="text-sm mt-1">${e(retreatName(id))} (${e(tr('cost_external', 'сторонний'))}): ${money(i.charged.charged * i.share)}${i.share < 0.999 ? ` <span class="opacity-60">(${Math.round(i.share * 100)}%)</span>` : ''}</div>`).join('')}</td></tr>`;
     }
     const c = inc?.charged;
-    return `<tr><td colspan="11" class="bg-base-200/40 pl-8">
+    return `<tr class="row-child"><td colspan="11" class="tbl-lvl-1">
         ${c ? `<div class="text-sm mb-2">${e(tr('fin_prasad_charged', 'Начислено за прасад'))}: <b>${money(c.charged)}</b> =
             ${e(tr('fin_prasad_meals', 'питание'))} ${money(c.meals)}${c.discount ? ` (${e(tr('fin_prasad_after_disc', 'со скидками'))} −${money(c.discount)})` : ''}
             + ${e(tr('fin_prasad_donations', 'пожертвования'))} ${money(c.donations)}${inc.autoN ? ` <span class="opacity-60">(${e(tr('cost_donations_auto', 'из них не отмечены, отнесены по дате'))}: ${inc.autoN} · ${money(inc.autoSum)})</span>` : ''}
@@ -1178,9 +1179,9 @@ function renderEaters() {
         const deptBucket = row.ev === 'none' && (row.buckets[0] === 'team' || row.buckets[0] === 'volunteers') ? row.buckets[0] : null;
         const deptLink = deptBucket ? ` <button class="btn btn-ghost btn-xs text-primary" data-action="open-dept" data-bucket="${deptBucket}">${e(tr('cost_to_departments', 'По департаментам →'))}</button>` : '';
         const open = expanded.has(key)
-            ? `<tr><td colspan="7" class="bg-base-200/40 pl-8">${peopleTable(personRows((xr, ev) => ev === row.ev && row.buckets.includes(xr.bucket) && rowMatch(row, xr)), row.buckets.length > 1)}</td></tr>` : '';
-        return `<tr class="${row.main ? 'bg-base-200/60 font-semibold' : ''} cursor-pointer hover:bg-base-200/50" data-action="toggle-row" data-key="${key}">
-            <td class="${row.sub ? 'pl-8 text-sm' : ''}">${toggleCell(key)}${e(row.label)}${deptLink}</td>
+            ? `<tr class="row-child"><td colspan="7" class="${row.sub ? 'tbl-lvl-2' : 'tbl-lvl-1'}">${peopleTable(personRows((xr, ev) => ev === row.ev && row.buckets.includes(xr.bucket) && rowMatch(row, xr)), row.buckets.length > 1)}</td></tr>` : '';
+        return `<tr class="${row.main ? 'bg-base-200/60 font-semibold' : ''} ${open ? 'row-open' : ''} cursor-pointer hover:bg-base-200/50" data-action="toggle-row" data-key="${key}">
+            <td class="${row.sub ? 'tbl-lvl-1 text-sm' : ''}">${toggleCell(key)}${e(row.label)}${deptLink}</td>
             <td class="text-right">${num(s.people)}</td><td class="text-right">${num(s.both)}</td>
             <td class="text-right">${num(s.bfOnly)}</td><td class="text-right">${num(s.lnOnly)}</td>
             <td class="text-right ${s.none ? '' : 'opacity-40'}">${num(s.none)}</td>
@@ -1251,8 +1252,8 @@ function renderDepartments() {
     Layout.$('#deptBody').innerHTML = list.map(({ id, ppl, s }) => {
         Object.keys(grand).forEach(k => grand[k] += s[k]);
         const key = `dept:${id}`;
-        const open = expanded.has(key) ? `<tr><td colspan="6" class="bg-base-200/40 pl-8">${peopleTable(ppl, true)}</td></tr>` : '';
-        return `<tr class="cursor-pointer hover:bg-base-200/50 ${id ? '' : 'text-warning'}" data-action="toggle-row" data-key="${key}">
+        const open = expanded.has(key) ? `<tr class="row-child"><td colspan="6" class="tbl-lvl-1">${peopleTable(ppl, true)}</td></tr>` : '';
+        return `<tr class="cursor-pointer hover:bg-base-200/50 ${open ? 'row-open' : ''} ${id ? '' : 'text-warning'}" data-action="toggle-row" data-key="${key}">
             <td>${toggleCell(key)}${e(name(id))}</td>
             <td class="text-right">${s.team || '—'}</td><td class="text-right">${s.vol || '—'}</td>
             <td class="text-right">${num(s.pm)}</td>
@@ -1434,7 +1435,7 @@ function renderOverhead() {
         const s = sumOf(list);
         const rowCls = [expanded.has(key) && 'row-open', depth ? 'row-child' : 'row-top', cls].filter(Boolean).join(' ');
         return `<tr class="cursor-pointer hover:bg-base-200/50 ${rowCls}" data-action="toggle-row" data-key="${key}">
-            <td class="${depth ? 'pl-8' : ''}">${toggleCell(key)}${labelHtml} <span class="text-xs opacity-60">(${list.length})</span>${list.some(x => x.l.estimate) ? ` <span class="badge badge-warning badge-xs cursor-help" title="${e(tr('cost_est_group_hint', 'Часть месяцев — предварительно: зарплата ещё не начислена. Раскройте, наведите на пометку — откуда взята сумма.'))}">${e(tr('cost_estimate_approx', 'предварительно'))}</span>` : ''}</td>
+            <td class="${depth ? 'tbl-lvl-1' : ''}">${toggleCell(key)}${labelHtml} <span class="text-xs opacity-60">(${list.length})</span>${list.some(x => x.l.estimate) ? ` <span class="badge badge-warning badge-xs cursor-help" title="${e(tr('cost_est_group_hint', 'Часть месяцев — предварительно: зарплата ещё не начислена. Раскройте, наведите на пометку — откуда взята сумма.'))}">${e(tr('cost_estimate_approx', 'предварительно'))}</span>` : ''}</td>
             <td class="text-sm whitespace-nowrap ${depth ? 'row-muted' : ''}">${e(range(list))}</td><td></td>
             <td class="text-right">${money(s.amount)}</td>
             <td class="text-right font-medium">${money(s.part)}</td></tr>`;
@@ -1466,7 +1467,7 @@ function renderOverhead() {
                 const key = `ov:pos:${k}`;
                 out.push(groupRow(key, `${e(l0.label)}${who}`, list, 1));
                 if (expanded.has(key)) list.sort((a, b) => a.l.from.localeCompare(b.l.from))
-                    .forEach(x => out.push(itemRow(x, e(DateUtils.parseDate(x.l.from).toLocaleDateString(locale(), { month: 'long', year: 'numeric' }).replace(' г.', '')), 'pl-16')));
+                    .forEach(x => out.push(itemRow(x, e(DateUtils.parseDate(x.l.from).toLocaleDateString(locale(), { month: 'long', year: 'numeric' }).replace(' г.', '')), 'tbl-lvl-2')));
             }
         }
     }
@@ -1486,7 +1487,7 @@ function renderOverhead() {
             const opId = x.l.postingId ? view.opByPosting.get(x.l.postingId) : null;
             const text = x.l.occurredOn ? fmtDay(x.l.occurredOn) : c;
             const labelHtml = opId ? `<a class="link link-hover" href="${DDS_URL(opId)}" target="_blank" rel="noopener" title="${e(tr('fin_open_in_dds', 'Открыть в ДДС'))}">${e(text)}</a>` : e(text);
-            out.push(itemRow(x, labelHtml, 'pl-8'));
+            out.push(itemRow(x, labelHtml, 'tbl-lvl-1'));
         });
     }
 
@@ -1672,10 +1673,10 @@ function renderReconcile() {
         const diff = model === null ? null : model - fact;
         if (model !== null) { modelSum += model; factSum += fact; }
         const key = `recon:${r.code}`;
-        const open = expanded.has(key) ? `<tr><td colspan="4" class="bg-base-200/40 pl-8">${opsTable(view.directPostings
+        const open = expanded.has(key) ? `<tr class="row-child"><td colspan="4" class="tbl-lvl-1">${opsTable(view.directPostings
             ? view.directPostings.filter(p => p.category_code === r.code).map(p => ({ date: p.occurred_on, opId: p.operation_id,
                 title: p.comment || p.category_name, amount: Number(p.amount_base) })) : null)}</td></tr>` : '';
-        return `<tr class="${fact ? 'cursor-pointer hover:bg-base-200/50' : ''}" ${fact ? `data-action="toggle-recon" data-key="${key}"` : ''}>
+        return `<tr class="${fact ? 'cursor-pointer hover:bg-base-200/50' : ''} ${open ? 'row-open' : ''}" ${fact ? `data-action="toggle-recon" data-key="${key}"` : ''}>
             <td class="text-sm">${fact ? toggleCell(key) : '<span class="inline-block w-4"></span>'}${e(name)}</td>
             <td class="text-right">${model === null ? '—' : money(model)}</td>
             <td class="text-right">${money(fact)}</td>

@@ -260,7 +260,7 @@ const costHead = (withCharged = false) => `<tr><th></th>
     ${withCharged ? `<th class="text-right">${e(tr('cost_per_person', 'На человека'))}</th>
     <th class="text-right" title="${e(tr('fin_prasad_charged_col_hint', 'Начислено за питание (со скидками, без отмен) — по статусу регистрации; пожертвования на прасад — только в итоге сверху'))}">${e(tr('fin_prasad_charged_col', 'Начислено'))}</th>` : ''}</tr>`;
 const costRow = (label, r, cls = '', sub = false, charged) => `<tr class="${cls}">
-    <td class="${sub ? 'pl-6 text-sm' : 'font-medium'}">${e(label)}</td>
+    <td class="${sub ? 'tbl-lvl-1 text-sm' : 'font-medium'}">${e(label)}</td>
     <td class="text-right">${r.people ?? '—'}</td>
     <td class="text-right">${r.pm.toLocaleString('ru-RU')}</td>
     <td class="text-right font-mono">${fmtB(r.food + r.dish + r.ext)}</td>
@@ -761,7 +761,7 @@ function renderPerParticipant(money, sum, ownExp, noPrices) {
     const chargedPer = payers.length ? net(payers) / payers.length : null;
     const groupsRow = sum.rows.find(r => r.key === 'groups');
     const row = (label, list, opts = {}) => list.length || opts.n ? `<tr class="${opts.cls || ''}">
-        <td class="${opts.sub ? 'pl-6 text-sm' : ''}">${e(label)}${opts.hint ? `<div class="text-xs opacity-60">${opts.hint}</div>` : ''}</td>
+        <td class="${opts.sub ? 'tbl-lvl-1 text-sm' : ''}">${e(label)}${opts.hint ? `<div class="text-xs opacity-60">${opts.hint}</div>` : ''}</td>
         <td class="text-right">${opts.n ?? list.length}</td>
         <td class="text-right font-mono">${opts.free ? '—' : fmtB(net(list))}</td>
         <td class="text-right font-mono">${opts.free || !list.length ? '—' : fmtB(net(list) / list.length)}</td></tr>` : '';
@@ -945,7 +945,7 @@ async function loadReport() {
     }
 
     const splitRow = (label, block, opts = {}) => `<tr class="${opts.bold ? 'font-semibold border-t-2 border-base-300' : ''}">
-        <td class="${opts.indent ? 'pl-6 text-sm opacity-70' : ''}">${label}</td>
+        <td class="${opts.indent ? 'tbl-lvl-1 text-sm opacity-70' : ''}">${label}</td>
         <td class="text-right font-mono text-success">${fmtB(block.income_base)}</td>
         <td class="text-right font-mono text-error">${fmtB(block.expense_base)}</td>
         <td class="text-right font-mono ${Number(block.net_base) < 0 ? 'text-error' : 'text-success'}">${fmtB(block.net_base)}</td>
