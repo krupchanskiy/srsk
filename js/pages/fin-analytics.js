@@ -230,6 +230,12 @@ const COST_PAGE = '../kitchen/cost.html';
 
 // ⚠ пропуски данных — каждый ссылкой туда, где исправить (правило ВГ)
 function costGaps(res, retreatId) {
+    return gapsAlert(costGapItems(res, retreatId));
+}
+const gapsAlert = items => items.length ? `<div class="alert alert-warning text-sm items-start py-2"><div>
+        <div class="font-semibold">⚠ ${e(tr('cost_q_title', 'Данные могут быть неточными'))}</div>
+        <ul class="list-disc ml-5">${items.map(x => `<li>${x}</li>`).join('')}</ul></div></div>` : '';
+function costGapItems(res, retreatId) {
     const w = res.warnings;
     const today = DateUtils.toISO(new Date());
     const past = w.noMenu.filter(x => x.split(' ')[0] <= today).length;
@@ -240,9 +246,7 @@ function costGaps(res, retreatId) {
     if (past) items.push(`<a class="link" href="${link}">${e(tr('cost_q_menu_past', 'меню не заведено на прошедшие приёмы пищи'))}: ${past}</a>`);
     if (w.noMenu.length - past) items.push(`<a class="link" href="${link}">${e(tr('cost_q_menu_future', 'меню ещё не заведено на предстоящие приёмы пищи'))}: ${w.noMenu.length - past}</a>`);
     if (w.payrollEstimated.length) items.push(`<a class="link" href="${link}">${e(tr('cost_q_payroll', 'зарплата предварительная, ещё не начислена'))}: ${w.payrollEstimated.length}</a>`);
-    return items.length ? `<div class="alert alert-warning text-sm items-start py-2"><div>
-        <div class="font-semibold">⚠ ${e(tr('cost_q_title', 'Данные могут быть неточными'))}</div>
-        <ul class="list-disc ml-5">${items.map(x => `<li>${x}</li>`).join('')}</ul></div></div>` : '';
+    return items;
 }
 
 // withCharged — отчёт ретрита: «На человека» и «Начислено» (питание по статусу регистрации)
@@ -405,8 +409,9 @@ function componentsPanel() {
         <div class="flex items-center gap-3 flex-wrap">
             <div class="text-sm font-medium">${e(tr('fin_pc_title', 'Состав себестоимости'))}</div>
             <label class="flex items-center gap-2 ml-auto text-sm ${admin ? 'cursor-pointer' : ''}" title="${e(tr('fin_pc_internal_hint', 'Внутренний ретрит: в его стоимость входят только отмеченные составляющие. Ничего не отмечено — питание в стоимость ретрита не входит.'))}">
-                <input type="checkbox" class="toggle toggle-sm" data-prasad-internal ${internal ? 'checked' : ''} ${admin ? '' : 'disabled'}>
-                ${e(tr('fin_pc_internal', 'Внутренний ретрит'))}</label>
+                <input type="checkbox" class="toggle toggle-sm toggle-success" data-prasad-internal ${internal ? 'checked' : ''} ${admin ? '' : 'disabled'}>
+                ${e(tr('fin_pc_internal', 'Внутренний ретрит'))}
+                <span class="badge badge-sm ${internal ? 'badge-success' : 'badge-ghost'}">${e(internal ? tr('fin_pc_internal_on', 'включён') : tr('fin_pc_internal_off', 'выключен'))}</span></label>
         </div>
         <table class="table table-xs"><tbody>${rows}
             <tr class="font-semibold border-t-2 border-base-300"><td>${e(internal ? tr('fin_prasad_included', 'Входит в стоимость ретрита') : tr('cost_total', 'Всего'))}</td>
@@ -517,7 +522,7 @@ async function fillPrasadCost(retreatId, prasadTotals, retreatOnly = null) {
             <div class="text-xs opacity-60">${e(tr('fin_official_dates', 'официально'))} ${e(DateUtils.formatRange(retreat.start_date, retreat.end_date))}${e(actual)} · ${e(status)}</div>
             ${costGaps(res, retreatId)}
             ${incomeGaps(inc, charged)}
-            <div class="grid grid-cols-2 lg:grid-cols-4 gap-2">
+            <div class="grid grid-cols-2 gap-2">
                 ${kv(tr('fin_prasad_charged', 'Начислено за прасад'), charged === null ? '—' : fmtB(charged), '',
                     charged === null ? '' : `${e(tr('fin_prasad_meals', 'питание'))} ${fmtB(sum.income.meals)}${sum.income.discount ? ` (${e(tr('fin_prasad_after_disc', 'со скидками'))} −${fmtB(sum.income.discount)})` : ''}${sum.income.donations ? ` + ${e(tr('fin_prasad_donations', 'пожертвования'))} ${fmtB(sum.income.donations)}${Number(inc?.donations_auto_n) ? ` (${e(tr('cost_donations_auto_short', 'не отмечены, по дате ретрита'))}: ${inc.donations_auto_n} · ${fmtB(inc.donations_auto)})` : ''}` : ''}${Number(inc?.cancelled) ? ` · ${e(tr('fin_prasad_cancelled', 'отменённые не входят'))}: ${inc.cancelled}` : ''}`)}
                 ${kv(tr('fin_prasad_received', 'Получено'), `<span class="text-blue-600">${fmtB(received)}</span>`, '',
@@ -534,10 +539,26 @@ async function fillPrasadCost(retreatId, prasadTotals, retreatOnly = null) {
                 <thead>${costHead(true)}</thead>
                 <tbody>${sum.rows.map((r, i) => costRow(LABELS[r.key] || r.key, r, i === 0 ? 'bg-base-200/60' : '', i > 0, chargedByRow[r.key] ?? null)).join('')}</tbody>
             </table></div>
-            ${retreatOnly ? onceBlock(shared, sharedTotal, retreatOnly, charged, sum.included, noPrices) : ''}
             <p class="text-xs opacity-60">${e(tr('fin_prasad_cost_note3', 'Себестоимость — расчёт по меню и подсчёту вкушающих, включая ранний заезд и поздний выезд; «На участника» — без команды и волонтёров. Окупаемость — по начисленному (питание со скидками, без отмен, плюс пожертвования на прасад), полученное — рядом. Сохраняется в Финансы и фиксируется при закрытии ретрита. Деньги не двигает.'))}
                 ${expenseDds ? ` ${e(tr('fin_prasad_cost_dds', 'Потрачено из кассы на прасад ретрита (ДДС)'))}: ${fmtB(expenseDds)} — ${e(tr('fin_prasad_dds_ref', 'для сверки с расчётом'))}.` : ''}</p>
         </div></div>`;
+
+        // Управленческая часть наверху отчёта (ВГ 28.09): итог «ретрит + прасад», ⚠ пропуски, стоимость на участника
+        if (retreatOnly) {
+            const mgmt = document.getElementById('mgmtTotalBox');
+            if (mgmt) mgmt.innerHTML = onceBlock(shared, sharedTotal, retreatOnly, charged, sum.included, noPrices);
+            const donAuto = Number(inc?.donations_auto_n) ? [`<a class="link" href="${await donationsLink(retreat)}">${e(tr('fin_gap_don_auto', 'пожертвования на прасад без ретрита — отнесены к ретриту по дате, проверьте'))}: ${inc.donations_auto_n} · ${fmtB(inc.donations_auto)}</a>`] : [];
+            if (token !== prasadCostToken) return;
+            const nr = inc?.no_rate || [];
+            reportGaps.cost = [...costGapItems(res, retreatId),
+                ...(charged === null ? [e(tr('fin_prasad_income_err', 'Не удалось получить начисления за питание — окупаемость не посчитана'))] : []),
+                ...(nr.length ? [`<a class="link" href="dictionaries.html">${e(tr('fin_prasad_no_rate', 'Нет курса ретрита — начисления не вошли в «Начислено»'))}: ${nr.length}</a>`] : []),
+                ...donAuto];
+            renderReportGaps();
+            const money = await moneyPromise;
+            if (token !== prasadCostToken) return;
+            renderPerParticipant(money, sum, round2(Number(retreatOnly.expense_base) - sharedTotal), noPrices);
+        }
     } catch (err) {
         console.error('Prasad cost:', err);
         if (token === prasadCostToken) box.innerHTML = '';
@@ -567,6 +588,22 @@ const MOVE_CATS = [
     ['volunteers', ['volunteers'], '#f59e0b', () => tr('cost_row_vol_retreat', 'Волонтёры ретрита')],
     ['groups', ['groups'], '#3b82f6', () => tr('nav_groups', 'Группы')]
 ];
+
+// пунктир дат (начало/конец ретрита, «сегодня») — свой маленький плагин, без annotation
+function dashMarks(days, marks) {
+    const on = marks.filter(([d]) => days.includes(d));
+    return { id: 'dashMarks', afterDatasetsDraw(c) {
+        const { ctx, chartArea: a, scales: { x } } = c;
+        ctx.save(); ctx.setLineDash([4, 4]); ctx.font = '11px sans-serif';
+        for (const [d, color, label] of on) {
+            const px = x.getPixelForValue(days.indexOf(d));
+            ctx.strokeStyle = color; ctx.fillStyle = color;
+            ctx.beginPath(); ctx.moveTo(px, a.top); ctx.lineTo(px, a.bottom); ctx.stroke();
+            ctx.fillText(label, px + 3, a.top + 10);
+        }
+        ctx.restore();
+    } };
+}
 
 function movementData(retreatId, span, detail) {
     const days = [];
@@ -630,21 +667,8 @@ async function renderMovement(retreat, span, detail, token) {
     try { Chart = await loadChartLib(); } catch { box.querySelector('canvas').replaceWith(Object.assign(document.createElement('div'), { className: 'text-sm text-error', textContent: tr('cost_charts_load_error', 'Не удалось загрузить графики') })); return; }
     if (token !== prasadCostToken || !document.getElementById('moveChart')) return;
     if (moveChart) moveChart.destroy();
-    const idx = d => m.days.indexOf(d);
-    // пунктир официальных дат и «сегодня» — свой маленький плагин, без annotation
-    const marks = [[retreat.start_date, '#6b7280', tr('fin_move_start', 'начало')], [retreat.end_date, '#6b7280', tr('fin_move_end', 'конец')],
-                   [today, '#ef4444', tr('today', 'сегодня')]].filter(([d]) => idx(d) >= 0);
-    const markPlugin = { id: 'moveMarks', afterDatasetsDraw(c) {
-        const { ctx, chartArea: a, scales: { x } } = c;
-        ctx.save(); ctx.setLineDash([4, 4]); ctx.font = '11px sans-serif';
-        for (const [d, color, label] of marks) {
-            const px = x.getPixelForValue(idx(d));
-            ctx.strokeStyle = color; ctx.fillStyle = color;
-            ctx.beginPath(); ctx.moveTo(px, a.top); ctx.lineTo(px, a.bottom); ctx.stroke();
-            ctx.fillText(label, px + 3, a.top + 10);
-        }
-        ctx.restore();
-    } };
+    const markPlugin = dashMarks(m.days, [[retreat.start_date, '#6b7280', tr('fin_move_start', 'начало')], [retreat.end_date, '#6b7280', tr('fin_move_end', 'конец')],
+                   [today, '#ef4444', tr('today', 'сегодня')]]);
     const cats = MOVE_CATS.filter(([k]) => m.days.some(d => m.byDay.get(d).cats[k]));
     moveChart = new Chart(document.getElementById('moveChart'), {
         type: 'bar',
@@ -683,9 +707,169 @@ async function fillMoveTable(box, m, short) {
         <tbody>${rows}</tbody></table>`;
 }
 
+// ==================== УПРАВЛЕНЧЕСКАЯ ЧАСТЬ ОТЧЁТА (ВГ 28.09) ====================
+// Одна плашка ⚠ наверху: пропуски расчёта прасада (cost) и денег участников (money)
+let reportGaps = { cost: [], money: [] };
+let moneyPromise = Promise.resolve(null);   // fin_retreat_money_by_day текущего ретрита
+let moneyChart = null;
+let reportToken = 0;
+
+function renderReportGaps() {
+    const box = document.getElementById('retreatGapsBox');
+    if (box) box.innerHTML = gapsAlert([...reportGaps.money, ...reportGaps.cost]);
+}
+
+// ДДС: пожертвования на прасад в официальные даты ретрита (там видно, какие без ретрита)
+let donationCategoryId;
+async function donationsLink(retreat) {
+    if (donationCategoryId === undefined) {
+        const { data } = await Layout.db.from('fin_v_categories').select('id').eq('name', 'Прасад - пожертвование').limit(1);
+        donationCategoryId = data?.[0]?.id || null;
+    }
+    return `dds.html?${donationCategoryId ? `category=${donationCategoryId}&` : ''}from=${retreat.start_date}&to=${retreat.end_date}`;
+}
+
+const personLink = (p, extra = '') => `<a class="link" href="participants.html?retreat=${currentRetreat}&open=${p.id}">${e(p.name || '—')}</a>${extra}`;
+
+// Группы людей ретрита по начислениям (ВГ 28.09): платящие — полная оплата, со скидкой, дети платные;
+// не платят — дети и гости бесплатно, ВИП, волонтёры ретрита. Команда ашрама в ретрит не входит.
+function peopleGroups(money) {
+    const g = { full: [], disc: [], kidPaid: [], kidFree: [], free: [], vip: [], vol: [], noCharges: [] };
+    for (const p of money?.people || []) {
+        const net = Number(p.gross) - Number(p.discount);
+        const child = p.meal_type === 'child';
+        if (p.status === 'team') continue;
+        if (p.status === 'vip') { if (p.placed || p.has_charges) g.vip.push(p); continue; }
+        if (p.status === 'volunteer') { if (p.placed) g.vol.push(p); continue; }
+        if (!p.has_charges) { g.noCharges.push(p); continue; }
+        if (net > 0.005) (child ? g.kidPaid : Number(p.discount) > 0.005 ? g.disc : g.full).push(p);
+        else (child ? g.kidFree : g.free).push(p);
+    }
+    return g;
+}
+
+function renderPerParticipant(money, sum, ownExp, noPrices) {
+    const box = document.getElementById('perPartBox');
+    if (!box) return;
+    if (!money) { box.innerHTML = ''; return; }
+    const g = peopleGroups(money);
+    const net = list => list.reduce((a, p) => a + Number(p.gross) - Number(p.discount), 0);
+    const disc = list => list.reduce((a, p) => a + Number(p.discount), 0);
+    const payers = [...g.full, ...g.disc, ...g.kidPaid];
+    const total = round2(ownExp + sum.included);
+    const perPayer = payers.length ? total / payers.length : null;
+    const chargedPer = payers.length ? net(payers) / payers.length : null;
+    const groupsRow = sum.rows.find(r => r.key === 'groups');
+    const row = (label, list, opts = {}) => list.length || opts.n ? `<tr class="${opts.cls || ''}">
+        <td class="${opts.sub ? 'pl-6 text-sm' : ''}">${e(label)}${opts.hint ? `<div class="text-xs opacity-60">${opts.hint}</div>` : ''}</td>
+        <td class="text-right">${opts.n ?? list.length}</td>
+        <td class="text-right font-mono">${opts.free ? '—' : fmtB(net(list))}</td>
+        <td class="text-right font-mono">${opts.free || !list.length ? '—' : fmtB(net(list) / list.length)}</td></tr>` : '';
+    box.innerHTML = `
+    <div class="card bg-base-100 shadow-sm h-full"><div class="card-body py-4 space-y-3">
+        <h2 class="card-title text-base">${e(tr('fin_ppc_title', 'Стоимость ретрита на участника'))}</h2>
+        <div class="grid grid-cols-2 gap-2">
+            <div class="bg-base-200/60 rounded-xl p-3">
+                <div class="text-xs uppercase tracking-wide opacity-60">${e(tr('fin_ppc_cost', 'Стоит на платящего'))}</div>
+                <div class="text-xl font-bold mt-1">${perPayer === null ? '—' : fmtB(perPayer)}</div>
+                <div class="text-xs opacity-60 mt-1">${fmtB(total)} ÷ ${payers.length} · ${e(tr('fin_ppc_retreat', 'ретрит'))} ${fmtB(ownExp)} + ${e(tr('fin_ppc_prasad', 'прасад'))} ${fmtB(sum.included)}${noPrices ? ' ⚠' : ''}</div>
+            </div>
+            <div class="bg-base-200/60 rounded-xl p-3">
+                <div class="text-xs uppercase tracking-wide opacity-60">${e(tr('fin_ppc_charged', 'Начислено на платящего'))}</div>
+                <div class="text-xl font-bold mt-1 ${perPayer !== null && chargedPer !== null ? (chargedPer < perPayer ? 'text-error' : 'text-success') : ''}">${chargedPer === null ? '—' : fmtB(chargedPer)}</div>
+                <div class="text-xs opacity-60 mt-1">${perPayer !== null && chargedPer !== null ? `${e(tr('fin_ppc_diff', 'разница'))} ${fmtB(chargedPer - perPayer)}` : ''}</div>
+            </div>
+        </div>
+        <div class="overflow-x-auto"><table class="table table-sm">
+            <thead><tr><th></th><th class="text-right">${e(tr('cost_people', 'Людей'))}</th>
+                <th class="text-right">${e(tr('fin_prasad_charged_col', 'Начислено'))}</th><th class="text-right">${e(tr('cost_per_person', 'На человека'))}</th></tr></thead>
+            <tbody>
+                ${row(tr('fin_ppc_payers', 'Платят'), payers, { cls: 'font-semibold bg-base-200/60' })}
+                ${row(tr('fin_ppc_full', 'Полная оплата'), g.full, { sub: true })}
+                ${row(tr('fin_ppc_disc', 'Со скидкой'), g.disc, { sub: true, hint: g.disc.length ? `${e(tr('fin_ppc_disc_sum', 'скидки'))} ${fmtB(disc(g.disc))}` : '' })}
+                ${row(tr('fin_ppc_kid_paid', 'Дети платные'), g.kidPaid, { sub: true })}
+                ${row(tr('fin_ppc_free', 'Не платят — их питание разложено на платящих'), [], { cls: 'font-semibold bg-base-200/60', free: true,
+                    n: g.kidFree.length + g.free.length + g.vip.length + g.vol.length + (groupsRow?.people || 0) })}
+                ${row(tr('fin_ppc_kid_free', 'Дети бесплатно'), g.kidFree, { sub: true, free: true })}
+                ${row(tr('fin_ppc_guest_free', 'Гости бесплатно (скидка 100%)'), g.free, { sub: true, free: true })}
+                ${row(tr('fin_ppc_vip', 'ВИП, лекторы'), g.vip, { sub: true, free: true })}
+                ${row(tr('fin_ppc_vol', 'Волонтёры ретрита'), g.vol, { sub: true, free: true })}
+                ${groupsRow ? row(tr('nav_groups', 'Группы'), [], { sub: true, free: true, n: groupsRow.people }) : ''}
+            </tbody></table></div>
+        <p class="text-xs opacity-60">${e(tr('fin_ppc_note', 'Стоимость = собственные расходы ретрита (без кухонных, уже вошедших в прасад — один расход один раз) + себестоимость прасада за всех, кто ел по ретриту, включая ВИП и волонтёров. Делится на платящих. Команда ашрама в ретрит не входит. Начислено — без отмен, со скидками.'))}</p>
+    </div></div>`;
+}
+
+// «Начислено и получено по дням» — весь ретрит, нарастающим итогом (ВГ 28.09).
+// Стартовые остатки (оплаты и долги до перехода на систему) — в первый день.
+async function renderMoneyByDay(retreat, token) {
+    const box = document.getElementById('moneyDayBox');
+    if (!box) return;
+    const money = await moneyPromise;
+    if (token !== reportToken) return;
+    // ⚠ гости без единого начисления — возможно, забыли начислить (или не приехали)
+    const g = peopleGroups(money);
+    reportGaps.money = g.noCharges.length ? [`${e(tr('fin_gap_no_charges', 'гости без начислений'))}: ${g.noCharges.length} — ${g.noCharges
+        .sort((a, b) => (a.name || '').localeCompare(b.name || '', 'ru'))
+        .map(p => personLink(p, p.placed ? '' : ` <span class="opacity-60">(${e(tr('fin_gap_not_placed', 'не заселён'))})</span>`)).join(', ')}`] : [];
+    renderReportGaps();
+
+    const dates = [...new Set([...Object.keys(money?.charged || {}), ...Object.keys(money?.paid || {})])].sort();
+    const od = Number(money?.opening_debt || 0), oc = Number(money?.opening_credit || 0);
+    if (!dates.length && !od && !oc) { box.innerHTML = ''; return; }
+    const today = DateUtils.toISO(new Date());
+    const from = dates[0] || retreat.start_date;
+    const to = [dates[dates.length - 1] || from, today < retreat.end_date ? today : retreat.end_date].sort().pop();
+    const days = [];
+    for (let d = from; d <= to; d = isoShift(d, 1)) days.push(d);
+    let ch = od, pd = oc;
+    const cumCh = [], cumPd = [], dayPd = [];
+    days.forEach((d, i) => {
+        const c = Number(money.charged?.[d] || 0), p = Number(money.paid?.[d] || 0);
+        ch += c; pd += p;
+        cumCh.push(round2(ch)); cumPd.push(round2(pd)); dayPd.push(round2(p + (i === 0 ? oc : 0)));
+    });
+    const short = d => DateUtils.formatShort(d).replace(/ \d{4}$/, '');
+    const rest = round2(ch - pd);
+    box.innerHTML = `
+    <div class="card bg-base-100 shadow-sm h-full"><div class="card-body py-4 space-y-2">
+        <h2 class="card-title text-base">${e(tr('fin_money_title', 'Начислено и получено по дням'))}</h2>
+        <div class="flex flex-wrap gap-x-6 gap-y-1 text-sm">
+            <span>${e(tr('fin_charged', 'Начислено'))}: <b>${fmtB(ch)}</b></span>
+            <span>${e(tr('fin_money_received', 'Получено'))}: <b class="text-blue-600">${fmtB(pd)}</b></span>
+            <span>${rest >= 0 ? e(tr('fin_money_rest', 'Не получено')) : e(tr('fin_money_over', 'Получено больше начисленного'))}: <b class="${rest > 0.5 ? 'text-error' : ''}">${fmtB(Math.abs(rest))}</b></span>
+        </div>
+        <div class="relative h-64"><canvas id="moneyChart"></canvas></div>
+        <p class="text-xs opacity-60">${e(tr('fin_money_hint', 'Весь ретрит: оргвзнос, проживание, питание, доп. услуги. Линии — нарастающим итогом, столбцы — получено за день. Начислено — без отмен, со скидками.'))}${od || oc ? ` ${e(tr('fin_money_opening', 'В первый день — остатки до перехода на систему'))}: ${e(tr('fin_money_opening_paid', 'оплачено'))} ${fmtB(oc)}${od ? `, ${e(tr('fin_money_opening_debt', 'долг'))} ${fmtB(od)}` : ''}.` : ''}</p>
+    </div></div>`;
+    let Chart;
+    try { Chart = await loadChartLib(); } catch { box.querySelector('canvas').replaceWith(Object.assign(document.createElement('div'), { className: 'text-sm text-error', textContent: tr('cost_charts_load_error', 'Не удалось загрузить графики') })); return; }
+    if (token !== reportToken || !document.getElementById('moneyChart')) return;
+    if (moneyChart) moneyChart.destroy();
+    moneyChart = new Chart(document.getElementById('moneyChart'), {
+        type: 'bar',
+        data: { labels: days.map(short), datasets: [
+            { type: 'line', label: tr('fin_charged', 'Начислено'), data: cumCh, borderColor: '#8b5cf6', backgroundColor: '#8b5cf6', pointRadius: 0, borderWidth: 2, stepped: true, order: 1 },
+            { type: 'line', label: tr('fin_money_received', 'Получено'), data: cumPd, borderColor: '#2563eb', backgroundColor: '#2563eb', pointRadius: 0, borderWidth: 2, stepped: true, order: 1 },
+            { label: tr('fin_money_day', 'Получено за день'), data: dayPd, backgroundColor: 'rgba(37, 99, 235, 0.25)', order: 2 }
+        ] },
+        options: { responsive: true, maintainAspectRatio: false, interaction: { mode: 'index', intersect: false },
+            plugins: { legend: { position: 'bottom', labels: { boxWidth: 12 } },
+                tooltip: { callbacks: { label: c => `${c.dataset.label}: ${fmtB(c.raw)}` } } },
+            scales: { x: { ticks: { maxTicksLimit: 12 } }, y: { beginAtZero: true, ticks: { callback: v => Number(v).toLocaleString('ru-RU') } } } },
+        plugins: [dashMarks(days, [[retreat.start_date, '#6b7280', tr('fin_move_start', 'начало')], [retreat.end_date, '#6b7280', tr('fin_move_end', 'конец')]])]
+    });
+}
+
 async function loadReport() {
     const box = document.getElementById('retreatReport');
     box.innerHTML = `<div class="text-center py-8"><span class="loading loading-spinner loading-md"></span></div>`;
+    const token = ++reportToken;
+    reportGaps = { cost: [], money: [] };
+    // деньги участников по дням — только финансистам (глава кухни их не видит)
+    moneyPromise = canReadAllFin()
+        ? Layout.db.rpc('fin_retreat_money_by_day', { p_retreat: currentRetreat }).then(r => r.error ? null : r.data, () => null)
+        : Promise.resolve(null);
     const { data, error } = await Layout.db.rpc('fin_get_retreat_report', { p_retreat: currentRetreat });
     if (error) { Layout.handleError(error, 'Аналитика'); return; }
     if (!data?.ok) { Layout.showNotification(data?.error?.message || 'Ошибка', 'error'); return; }
@@ -780,8 +964,9 @@ async function loadReport() {
         net_base: round2(Number(retreatCombinedTotals.net_base) - Number(prasad.net_base))
     } : retreatCombinedTotals;
 
-    const splitTotalsTable = (hasCafeActivity || hasPrasadActivity) ? `
-        <div class="card bg-base-100 shadow-sm"><div class="card-body py-4">
+    // Сводная таблица + управленческий итог «ретрит + прасад по расчёту» (mgmtTotalBox, заполняет fillPrasadCost)
+    const splitTotalsTable = (hasCafeActivity || hasPrasadActivity || showPrasad) ? `
+        <div class="card bg-base-100 shadow-sm"><div class="card-body py-4 space-y-3">
             <div class="overflow-x-auto"><table class="table table-sm">
                 <thead><tr><th></th><th class="text-right">${t('fin_income')}</th><th class="text-right">${t('fin_expense')}</th><th class="text-right">${t('fin_net')}</th></tr></thead>
                 <tbody>
@@ -792,6 +977,7 @@ async function loadReport() {
                     ${splitRow(t('retreat_report_finance_total'), tot, { bold: true })}
                 </tbody>
             </table></div>
+            <div id="mgmtTotalBox"></div>
         </div></div>` : '';
 
     // Должники и аванс важны только по ретриту — в прасаде и кафе их нет (ВГ, сен 2026)
@@ -806,23 +992,23 @@ async function loadReport() {
         ${Number(p.advance_total) > 0 ? `<div class="text-sm opacity-70">${t('fin_advance')}: ${fmtB(p.advance_total)}</div>` : ''}`;
 
     const unitTabs = (hasCafeActivity || showPrasad) ? `
-        <div role="tablist" class="tabs tabs-boxed w-fit">
+        <div role="tablist" class="tabs tabs-boxed w-fit max-w-full">
             <input type="radio" name="fin_unit_tabs" role="tab" class="tab" aria-label="${t('retreat_report_finance_retreat_only')}" checked />
-            <div role="tabpanel" class="tab-content pt-4 space-y-4">
+            <div role="tabpanel" class="tab-content pt-4 space-y-4 min-w-0">
                 ${catTable(retreatIncomeRows, 'fin_income_by_category', 'retreat')}
                 ${catTable(retreatExpenseRows, 'fin_expense_by_category', 'retreat')}
                 ${debtorsHtml}
             </div>
             ${showPrasad ? `
             <input type="radio" name="fin_unit_tabs" role="tab" class="tab" aria-label="${t('retreat_report_finance_prasad')}" />
-            <div role="tabpanel" class="tab-content pt-4 space-y-4">
+            <div role="tabpanel" class="tab-content pt-4 space-y-4 min-w-0">
                 ${catTable(r.prasad?.income_by_category || [], 'fin_income_by_category', 'prasad')}
                 ${catTable(r.prasad?.expense_by_category || [], 'fin_expense_by_category', 'prasad')}
                 <div id="prasadCostBox"></div>
             </div>` : ''}
             ${hasCafeActivity ? `
             <input type="radio" name="fin_unit_tabs" role="tab" class="tab" aria-label="${t('retreat_report_finance_cafe')}" />
-            <div role="tabpanel" class="tab-content pt-4 space-y-4">
+            <div role="tabpanel" class="tab-content pt-4 space-y-4 min-w-0">
                 ${catTable(r.cafe.income_by_category, 'fin_income_by_category', 'cafe')}
                 ${catTable(r.cafe.expense_by_category, 'fin_expense_by_category', 'cafe')}
             </div>` : ''}
@@ -837,7 +1023,12 @@ async function loadReport() {
         </div>
 
         ${closureBlock(currentData)}
+        <div id="retreatGapsBox"></div>
         ${splitTotalsTable}
+        <div class="grid grid-cols-1 xl:grid-cols-2 gap-4 items-stretch">
+            <div id="perPartBox" class="min-w-0"></div>
+            <div id="moneyDayBox" class="min-w-0"></div>
+        </div>
         <div id="retreatMoveBox"></div>
         <div class="grid grid-cols-1 lg:grid-cols-2 gap-4 items-start">
             <div class="min-w-0 space-y-4">${unitTabs}</div>
@@ -847,6 +1038,7 @@ async function loadReport() {
     `;
     // Панель относится к юниту — при смене вкладки сбрасываем
     box.querySelectorAll('input[name="fin_unit_tabs"]').forEach(i => i.addEventListener('change', resetDrill));
+    renderMoneyByDay(retreats.find(x => x.id === currentRetreat), token);
     if (showPrasad) fillPrasadCost(currentRetreat, prasad || {}, retreatOnlyTotals);
 }
 

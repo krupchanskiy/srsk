@@ -757,8 +757,8 @@ function noDeptPeople() {
         if (personDept.get(x.vaishnava_id)) continue;
         seen.set(x.vaishnava_id, x.bucket);
     }
-    return [...seen.entries()].map(([id, b]) => `${personName.get(id) || '—'} (${BUCKET_LABELS[b]().toLowerCase()})`)
-        .sort((a, b) => a.localeCompare(b, 'ru'));
+    return [...seen.entries()].map(([id, b]) => ({ id, label: `${personName.get(id) || '—'} (${BUCKET_LABELS[b]().toLowerCase()})` }))
+        .sort((a, b) => a.label.localeCompare(b.label, 'ru'));
 }
 
 function problemCount() {
@@ -1545,7 +1545,11 @@ function renderWarnings() {
     if (w.overheadUnassigned) parts.push(warningBox(`${tr('cost_w_ov_unassigned', 'Расходы «на ретрит» без ретрита и назначения считаются общими, назначьте их во вкладке «Накладные»')}: ${w.overheadUnassigned}`, [], 'alert-info'));
     parts.push(nonEmpty(tr('cost_w_labor', 'Выплата по статье «Зарплата» не связана с ведомостью: возможен двойной счёт с начислениями'), w.laborUnlinked));
     if (w.overheadForeign) parts.push(warningBox(`${tr('cost_w_foreign', 'Зарплата не в рупиях, не учтена')}: ${w.overheadForeign}`, []));
-    parts.push(nonEmpty(tr('cost_w_no_department', 'Команда и волонтёры без департамента — укажите департамент в карточке человека'), noDeptPeople()));
+    // правило ВГ 28.09: волонтёр привязан к департаменту или к ретриту (метка в шахматке) — каждого ссылкой на карточку
+    const noDept = noDeptPeople();
+    if (noDept.length) parts.push(`<div class="alert alert-warning items-start text-sm"><div>
+        <div class="font-semibold">${e(tr('cost_w_no_dept_or_retreat', 'Команда и волонтёры без департамента и без ретрита — укажите департамент в карточке человека или поселите с меткой ретрита'))}: ${noDept.length}</div>
+        <ul class="list-disc ml-5 mt-1">${noDept.map(p => `<li><a class="link" href="../vaishnavas/person.html?id=${p.id}" target="_blank" rel="noopener">${e(p.label)}</a></li>`).join('')}</ul></div></div>`);
     const html = parts.join('');
     Layout.$('#warnings').innerHTML = html || `<div class="text-sm opacity-60">${e(tr('cost_no_problems', 'Проблем в данных нет'))}</div>`;
 }
