@@ -504,7 +504,7 @@ async function fillDeptPrasadCost(from, to) {
 // отмеченные составляющие (fin_prasad_settings; меняет администратор финансов).
 let prasadCostState = null;
 const COMPONENT_LABELS = {
-    food: () => tr('fin_pc_food', 'Продукты (по меню, «Готовил Бридж Кишор»)'),
+    food: () => tr('fin_pc_food', 'Продукты (по меню + Бридж Кишор)'),
     dish: () => tr('fin_pc_dish', 'Одноразовая посуда'),
     ext: () => tr('fin_pc_ext', 'Готовое со стороны'),
     payroll: () => tr('fin_pc_payroll', 'Зарплаты кухни'),
