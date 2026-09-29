@@ -95,7 +95,7 @@ function drillHintHtml() {
 
 function resetDrill() {
     drillToken++;
-    document.querySelectorAll('.fin-drill-row.bg-base-200').forEach(x => x.classList.remove('bg-base-200'));
+    document.querySelectorAll('.fin-drill-row.bg-base-200, .fin-cost-row.bg-base-200').forEach(x => x.classList.remove('bg-base-200'));
     const panel = drillPanel();
     if (panel) panel.innerHTML = drillHintHtml();
 }
@@ -162,8 +162,80 @@ async function openDrill(rowEl) {
         : `<div class="p-6 text-sm opacity-50 text-center">${t('fin_drill_empty')}</div>`);
 }
 
+// Расшифровка статьи себестоимости прасада (правое окно): продукты — по продуктам, посуда и готовое —
+// по приёмам пищи, накладные — строки расхода с долей на этот ретрит
+async function openCostDrill(rowEl) {
+    const panel = drillPanel();
+    const st = prasadCostState;
+    if (!panel || !st?.res) return;
+    const { costKey: key, costName: name } = rowEl.dataset;
+    const token = ++drillToken;
+    document.querySelectorAll('.fin-drill-row.bg-base-200, .fin-cost-row.bg-base-200').forEach(x => x.classList.remove('bg-base-200'));
+    rowEl.classList.add('bg-base-200');
+    const ev = `retreat:${st.retreatId}`;
+    const share = r => {   // доля ретрита в приёме пищи
+        const b = r.byEvent?.[ev];
+        const n = b ? KitchenCost.BUCKETS.reduce((a, k) => a + (b[k] || 0), 0) : 0;
+        return { n, part: r.eaters ? n / r.eaters : 0 };
+    };
+    const day = d => DateUtils.formatShort(DateUtils.parseDate(d));
+    const mealName = m => m === 'breakfast' ? tr('breakfast', 'Завтрак') : m === 'lunch' ? tr('lunch', 'Обед') : m;
+    let rows = [];   // { title, sub, amount }
+    if (key === 'food') {
+        const byProd = {};
+        for (const r of st.res.mealRecords || []) {
+            const { part } = share(r);
+            if (!part) continue;
+            for (const [pid, c] of Object.entries(r.foodByProduct || {})) byProd[pid] = (byProd[pid] || 0) + c * part;
+        }
+        const ids = Object.keys(byProd).filter(x => x !== 'own_cook');
+        const names = new Map();
+        for (let i = 0; i < ids.length; i += 100) {
+            const { data } = await Layout.db.from('products').select('id, name_ru').in('id', ids.slice(i, i + 100));
+            (data || []).forEach(p => names.set(p.id, p.name_ru));
+        }
+        if (token !== drillToken) return;
+        rows = Object.entries(byProd).map(([pid, v]) => ({ title: pid === 'own_cook' ? tr('fin_pu_own_cook', 'Готовил Бридж Кишор') : (names.get(pid) || '—'), amount: v }));
+    } else if (key === 'dish' || key === 'ext') {
+        for (const r of st.res.mealRecords || []) {
+            const { n, part } = share(r);
+            const v = key === 'dish' ? r.dishwarePerEater * n : r.external * part;
+            if (v < 0.005) continue;
+            rows.push({ title: `${day(r.date)} · ${mealName(r.meal)}`, sub: key === 'ext' ? r.externalNames.join(', ') : `${n} ${tr('cost_people_short', 'чел.')}`, amount: v, keepOrder: true });
+        }
+    } else {
+        const cat = key.slice(4);
+        for (const l of st.res.overheadLines || []) {
+            const v = l.byEvent?.[ev] || 0;
+            if (!v || (l.category || '') !== cat) continue;
+            const who = l.category === 'payroll' ? [l.personName, l.label].filter(Boolean).join(' — ') : (l.comment || l.label);
+            const period = l.occurredOn ? day(l.occurredOn) : DateUtils.formatRange(l.from, l.to);
+            rows.push({ title: who, sub: `${period} · ${tr('fin_pu_full_amount', 'вся сумма')} ${fmtB(l.amount)}${l.estimate ? ` · ${tr('fin_pu_estimate', 'ориентировочно')}` : ''}`, amount: v });
+        }
+    }
+    if (!rows[0]?.keepOrder) rows.sort((a, b) => b.amount - a.amount);
+    const total = rows.reduce((a, x) => a + x.amount, 0);
+    panel.innerHTML = `
+        <div class="px-4 py-3 border-b border-base-200 flex items-start justify-between gap-2 shrink-0">
+            <div class="min-w-0">
+                <div class="font-bold text-error">${e(name)}</div>
+                <div class="text-xs opacity-60">${rows.length} · ${fmtB(total)} · ${e(tr('fin_pu_drill_hint', 'доля этого ретрита'))}</div>
+            </div>
+            <div class="flex items-center gap-2 shrink-0">
+                <a class="link link-primary text-xs" href="${COST_PAGE}?retreat=${st.retreatId}" target="_blank" rel="noopener">${e(tr('fin_prasad_cost_details', 'Подробно'))} →</a>
+                <button type="button" class="btn btn-ghost btn-xs" data-drill-close>✕</button></div>
+        </div>
+        ${rows.length ? `<div class="overflow-y-auto min-h-0 flex-1">${rows.map(x => `<div class="px-4 py-2 border-b border-base-200 flex justify-between gap-3">
+            <div class="min-w-0"><div class="text-sm break-words">${e(x.title || '—')}</div>${x.sub ? `<div class="text-xs opacity-60 break-words">${e(x.sub)}</div>` : ''}</div>
+            <div class="text-right font-mono whitespace-nowrap">${fmtB(round2(x.amount))}</div></div>`).join('')}</div>`
+        : `<div class="p-6 text-sm opacity-50 text-center">${t('fin_drill_empty')}</div>`}`;
+    if (window.innerWidth < 1024) panel.scrollIntoView({ behavior: 'smooth', block: 'start' });
+}
+
 function onReportClick(ev) {
     if (ev.target.closest('[data-drill-close]')) { resetDrill(); return; }
+    const costRow = ev.target.closest('.fin-cost-row');
+    if (costRow) { openCostDrill(costRow); return; }
     const row = ev.target.closest('.fin-drill-row');
     if (row) openDrill(row);
 }
@@ -282,36 +354,87 @@ function incomeGaps(inc, charged) {
         <a class="link" href="dictionaries.html">${e(tr('fin_prasad_add_rate', 'завести курс'))} →</a></div>`;
 }
 
-// «Один расход — один раз» + управленческий итог ретрита (ретрит + прасад), ТЗ 3.7
-function onceBlock(shared, sharedTotal, retreatOnly, charged, included, noPrices) {
-    const rows = shared.map(x => `<tr class="${x.inCost ? '' : 'opacity-50'}">
-        <td>${e(x.category)}</td><td class="text-sm opacity-70">${e(DateUtils.formatShort(DateUtils.parseDate(x.occurred_on)))}</td>
-        <td class="text-right font-mono">${fmtB(x.amount)}</td>
-        <td class="text-right font-mono">${x.inCost ? fmtB(x.inCost) : `<span class="text-xs">${e(tr('fin_once_not_in', 'не вошло'))}</span>`}</td></tr>`).join('');
-    const ownExp = round2(Number(retreatOnly.expense_base) - sharedTotal);
-    const retreatNet = round2(Number(retreatOnly.income_base) - ownExp);
-    const prasadNet = round2((charged ?? 0) - included);
-    const line = (label, inc, exp, net, cls = '') => `<tr class="${cls}"><td>${label}</td>
-        <td class="text-right font-mono text-success">${inc}</td><td class="text-right font-mono text-error">${exp}</td>
-        <td class="text-right font-mono ${net < 0 ? 'text-error' : 'text-success'}">${fmtB(net)}</td></tr>`;
-    return `<div class="border border-base-300 rounded-xl p-3 space-y-2">
-        <div class="text-sm font-medium">${e(tr('fin_once_title', 'Итог ретрита — ретрит плюс прасад'))}</div>
-        <div class="overflow-x-auto"><table class="table table-sm">
-            <thead><tr><th></th><th class="text-right">${t('fin_income')}</th><th class="text-right">${t('fin_expense')}</th><th class="text-right">${t('fin_net')}</th></tr></thead>
-            <tbody>
-                ${line(e(tr('fin_once_retreat', 'Ретрит — по кассе, без расходов кухни, вошедших в прасад')), fmtB(retreatOnly.income_base),
-                    sharedTotal ? `${fmtB(ownExp)}<div class="text-xs opacity-60 whitespace-nowrap">${fmtB(retreatOnly.expense_base)} − ${fmtB(sharedTotal)}</div>` : fmtB(ownExp), retreatNet)}
-                ${line(e(tr('fin_once_prasad', 'Прасад — начислено − себестоимость')), charged === null ? '—' : fmtB(charged), fmtB(included), prasadNet)}
-                ${line(`<b>${e(tr('fin_once_total', 'Итог ретрита'))}</b>`, '', '', round2(retreatNet + prasadNet), 'font-semibold border-t-2 border-base-300')}
+// Юнит «Прасад» — как Ретрит и Кафе (ВГ 29.09): приход — начислено за питание и пожертвования
+// на прасад, расход по статьям — себестоимость прасада ретрита (что вошло в расчёт), не касса.
+// Статьи накладных (зарплаты, гонорары, билеты, такси…) — своей долей на этот ретрит.
+function prasadExpenseRows(res, sum, retreatId) {
+    const ev = `retreat:${retreatId}`;
+    const on = k => sum.settings.components.includes(k);
+    const all = sum.rows[0];
+    const by = new Map();   // ключ → { name, v }: food / dish / ext / cat:<статья>
+    const add = (key, name, v) => {
+        if (Math.abs(v) < 0.005) return;
+        const x = by.get(key) || { key, name, v: 0 };
+        x.v += v; by.set(key, x);
+    };
+    if (on('food')) add('food', COMPONENT_LABELS.food(), all.food);
+    if (on('dish')) add('dish', COMPONENT_LABELS.dish(), all.dish);
+    if (on('ext')) add('ext', COMPONENT_LABELS.ext(), all.ext);
+    for (const l of res.overheadLines || []) {
+        const v = l.byEvent?.[ev] || 0;
+        if (!v || !on(KitchenCost.overheadComponent(l))) continue;
+        const cat = l.category || '';
+        add(`cat:${cat}`, cat === 'payroll' ? COMPONENT_LABELS.payroll() : (cat || COMPONENT_LABELS.household()), v);
+    }
+    return [...by.values()].map(x => ({ ...x, v: round2(x.v) })).sort((a, b) => b.v - a.v);
+}
+
+function prasadUnitHtml(res, sum, retreatId) {
+    const inc = sum.income;
+    // приход — получено (ВГ 30.09): питание оплачено + зачтено из общего, как в карточке участника
+    const incRows = inc ? [inc.mealsPaid == null ? [tr('fin_pu_meals', 'Питание — начислено'), inc.meals] : [tr('fin_pu_meals_paid', 'Питание — получено'), inc.mealsPaid],
+        [tr('fin_pu_donations', 'Прасад - пожертвование'), inc.donations]]
+        .filter(([, v]) => Math.abs(v) > 0.005) : [];
+    const expRows = prasadExpenseRows(res, sum, retreatId);
+    const table = (titleKey, cls, rows, total, extra = '') => `
+    <div class="card bg-base-100 shadow-sm"><div class="card-body py-4">
+        <h2 class="card-title text-base font-bold ${cls}">${t(titleKey)}</h2>
+        ${rows.length ? `<div class="overflow-x-auto"><table class="table table-sm"><tbody>
+            ${rows.map(([name, v]) => `<tr><td>${e(name)}</td><td class="text-right font-mono w-36">${fmtB(v)}</td></tr>`).join('')}
+            <tr class="font-semibold border-t-2 border-base-300"><td>${e(tr('cost_total', 'Всего'))}</td><td class="text-right font-mono">${total === null ? '—' : fmtB(total)}</td></tr>
+        </tbody></table></div>` : `<div class="text-sm opacity-60">${e(t('fin_drill_empty'))}</div>`}${extra}
+    </div></div>`;
+    const debt = inc?.mealsDebt > 0.5 ? `<div class="text-xs text-warning mt-2">${e(tr('fin_pu_meals_debt', 'Ещё не получено за питание (долги участников)'))}: ${fmtB(inc.mealsDebt)}</div>` : '';
+    return table('fin_income_by_category', 'text-success', incRows, inc?.received ?? inc?.charged ?? null, debt)
+        + `<div class="card bg-base-100 shadow-sm"><div class="card-body py-4">
+            <h2 class="card-title text-base font-bold text-error">${t('fin_expense_by_category')}</h2>
+            <div class="overflow-x-auto"><table class="table table-sm"><tbody>
+                <tr class="font-semibold bg-base-200/60"><td>${e(tr('fin_pu_cost', 'Себестоимость прасада'))}${sum.provisional ? ` <span class="badge badge-warning badge-sm" title="${e(t('fin_prasad_cost_prov_hint'))}">${e(tr('cost_provisional', 'предварительно'))}</span>` : ''}</td>
+                    <td class="text-right font-mono w-36">${fmtB(sum.included)}</td></tr>
+                ${expRows.map(x => `<tr class="fin-cost-row cursor-pointer hover:bg-base-200" data-cost-key="${e(x.key)}" data-cost-name="${e(x.name)}">
+                    <td class="tbl-lvl-1">${e(x.name)}</td><td class="text-right font-mono">${fmtB(x.v)}</td></tr>`).join('')}
             </tbody></table></div>
-        ${noPrices ? `<div class="text-xs text-warning">⚠ ${e(tr('cost_q_no_prices', 'цены ещё не внесены — продукты и посуда считаются как 0'))}</div>` : ''}
-        ${shared.length ? `<details class="text-sm"><summary class="cursor-pointer opacity-80">${e(tr('fin_once_list', 'Расходы кухни на ретрит — один расход считается один раз'))}: ${fmtB(sharedTotal)}</summary>
-            <table class="table table-xs mt-1"><thead><tr><th>${e(tr('fin_category', 'Статья'))}</th><th></th>
-                <th class="text-right">${e(tr('fin_once_amount', 'Сумма'))}</th><th class="text-right">${e(tr('fin_once_in_cost', 'Вошло в себестоимость прасада'))}</th></tr></thead>
-            <tbody>${rows}</tbody></table>
-            <p class="text-xs opacity-60 mt-1">${e(tr('fin_once_hint', 'Проведены со счёта Кухни на этот ретрит. Продукты уже посчитаны через меню, гонорар, такси, «Программа» и прочее — своей долей в накладных; вошедшее вычитается из расходов ретрита, чтобы не считать дважды. Кассовые итоги и закрытие не меняются.'))}</p>
-        </details>` : `<p class="text-xs opacity-60">${e(tr('fin_once_none', 'Расходов со счёта Кухни на этот ретрит нет — вычитать нечего.'))}</p>`}
-    </div>`;
+            <div class="text-xs opacity-60 mt-1">${e(tr('fin_pu_click', 'Нажмите на статью — расшифровка откроется справа'))}</div>
+        </div></div>`
+        + `<p class="text-xs opacity-60">${e(tr('fin_pu_note', 'Расход — себестоимость прасада ретрита: продукты по меню, посуда, готовое, и своей долей зарплаты кухни, оборудование, коммунальные, хозтовары, расходы кухни на ретрит. Всё со счёта Кухни входит сюда, а не в «Ретрит».'))}
+            <a class="link" href="${COST_PAGE}?retreat=${retreatId}">${e(tr('fin_prasad_cost_details', 'Подробно'))} →</a></p>`;
+}
+
+// Касса прасада (ДДС: питание и пожертвования, траты со счёта Кухни) — для сверки, свёрнуто
+function prasadCashDetails(pr) {
+    if (!pr?.income_by_category?.length && !pr?.expense_by_category?.length) return '';
+    return `<details class="space-y-4"><summary class="cursor-pointer text-sm opacity-80">${e(tr('fin_pu_cash', 'По кассе (ДДС) — для сверки'))}:
+            ${e(tr('fin_prasad_received', 'Получено'))} ${fmtB(pr.totals?.income_base || 0)} · ${e(tr('fin_pu_spent', 'потрачено со счёта Кухни'))} ${fmtB(pr.totals?.expense_base || 0)}</summary>
+        <div class="space-y-4 mt-2">${catTable(pr.income_by_category, 'fin_income_by_category', 'prasad')}${catTable(pr.expense_by_category, 'fin_expense_by_category', 'prasad')}</div></details>`;
+}
+
+// Сводка «Ретрит / Прасад / Кафе»: строка прасада и итог — когда посчитана себестоимость
+let unitsState = null;
+function fillUnitsTable(charged, included) {
+    const row = document.getElementById('prasadSplitRow');
+    const totalRow = document.getElementById('unitsTotalRow');
+    if (!row) return;
+    const cells = (inc, exp, net) => `<td class="text-right font-mono text-success">${inc === null ? '—' : fmtB(inc)}</td>
+        <td class="text-right font-mono text-error">${fmtB(exp)}</td>
+        <td class="text-right font-mono ${net < 0 ? 'text-error' : 'text-success'}">${fmtB(net)}</td>`;
+    const pNet = round2((charged ?? 0) - included);
+    row.innerHTML = `<td>${t('retreat_report_finance_prasad')}</td>${cells(charged, included, pNet)}`;
+    if (!totalRow || !unitsState) return;
+    const { retreat: r, cafe: c } = unitsState;
+    totalRow.innerHTML = `<td>${t('retreat_report_finance_total')}</td>${cells(
+        round2(Number(r.income_base) + (charged ?? 0) + Number(c.income_base)),
+        round2(Number(r.expense_base) + included + Number(c.expense_base)),
+        round2(Number(r.net_base) + pNet + Number(c.net_base)))}`;
 }
 
 // Отчёт по департаментам («Кухня»): расчётная себестоимость за период с разбивкой —
@@ -437,24 +560,6 @@ async function onPrasadSettingChange(input) {
     fillPrasadCost(prasadCostState.retreatId, prasadCostState.prasadTotals, prasadCostState.retreatOnly);
 }
 
-// «Один расход — один раз» (ТЗ 3.7): расходы со счёта Кухни, проведённые на ретрит, уже сидят
-// в себестоимости прасада — продукты через меню, гонорар/такси/«Программа» и прочее своей долей.
-// Сколько из каждого вошло (с учётом галочек внутреннего ретрита) — столько вычитаем из расходов ретрита.
-function sharedKitchenCosts(postings, res, retreatId, settings) {
-    const ev = `retreat:${retreatId}`;
-    const on = k => !settings.is_internal || (settings.components || []).includes(k);
-    return (postings || []).map(p => {
-        const amount = Number(p.amount_base) || 0;
-        let inCost = 0;
-        if (p.cost_group === 'direct') inCost = on('food') ? amount : 0;
-        else {
-            const line = (res.overheadLines || []).find(l => l.postingId === p.posting_id);
-            if (line && on(KitchenCost.overheadComponent(line))) inCost = Math.min(amount, line.byEvent?.[ev] || 0);
-        }
-        return { ...p, amount, inCost: round2(inCost) };
-    });
-}
-
 // Отчёт по ретриту → «Прасад» по ТЗ 3.7: приход (начислено и получено) против себестоимости по расчёту,
 // окупаемость по начисленному. Расчёт сохраняется в Финансы (fin_prasad_cost) и фиксируется при закрытии.
 // retreatOnly — собственные приход/расход ретрита (без прасада и кафе); у главы кухни его нет.
@@ -479,7 +584,7 @@ async function fillPrasadCost(retreatId, prasadTotals, retreatOnly = null) {
         const sum = KitchenCost.summarizeRetreat(res, detail, retreatId, span);
         const { data: settings } = await Layout.db.rpc('fin_get_prasad_settings', { p_retreat: retreatId });
         if (token !== prasadCostToken) return;
-        prasadCostState = { retreatId, sum, settings: settings || { is_internal: false, components: KitchenCost.COMPONENTS }, prasadTotals, retreatOnly };
+        prasadCostState = { retreatId, sum, res, settings: settings || { is_internal: false, components: KitchenCost.COMPONENTS }, prasadTotals, retreatOnly };
         applyPrasadSettings();
         sum.income = KitchenCost.incomeSummary(inc);
         KitchenCost.saveRetreatCost(Layout.db, retreatId, sum);
@@ -499,8 +604,6 @@ async function fillPrasadCost(retreatId, prasadTotals, retreatOnly = null) {
         const st = (...k) => k.reduce((a, x) => a + Number(bs[x] || 0), 0);
         const chargedByRow = { all: sum.income?.meals, participants: st('guest', 'vip', 'none'), guests: st('guest', 'none'),
             vips: st('vip'), team: st('team'), volunteers: st('volunteer'), groups: null };
-        const shared = retreatOnly ? sharedKitchenCosts(inc?.kitchen_postings, res, retreatId, sum.settings) : [];
-        const sharedTotal = round2(shared.reduce((a, x) => a + x.inCost, 0));
         const noRate = inc?.no_rate || [];
         const today = DateUtils.toISO(new Date());
         const status = today > span.to ? tr('cost_status_done', 'завершён — данные окончательные')
@@ -543,10 +646,12 @@ async function fillPrasadCost(retreatId, prasadTotals, retreatOnly = null) {
                 ${expenseDds ? ` ${e(tr('fin_prasad_cost_dds', 'Потрачено из кассы на прасад ретрита (ДДС)'))}: ${fmtB(expenseDds)} — ${e(tr('fin_prasad_dds_ref', 'для сверки с расчётом'))}.` : ''}</p>
         </div></div>`;
 
-        // Управленческая часть наверху отчёта (ВГ 28.09): итог «ретрит + прасад», ⚠ пропуски, стоимость на участника
+        const unitBox = document.getElementById('prasadUnitBox');
+        if (unitBox) unitBox.innerHTML = prasadUnitHtml(res, sum, retreatId);
+        fillUnitsTable(sum.income?.received ?? charged, sum.included);
+
+        // Управленческая часть наверху отчёта (ВГ 28.09): ⚠ пропуски, стоимость на участника
         if (retreatOnly) {
-            const mgmt = document.getElementById('mgmtTotalBox');
-            if (mgmt) mgmt.innerHTML = onceBlock(shared, sharedTotal, retreatOnly, charged, sum.included, noPrices);
             const donAuto = Number(inc?.donations_auto_n) ? [`<a class="link" href="${await donationsLink(retreat)}">${e(tr('fin_gap_don_auto', 'пожертвования на прасад без ретрита — отнесены к ретриту по дате, проверьте'))}: ${inc.donations_auto_n} · ${fmtB(inc.donations_auto)}</a>`] : [];
             if (token !== prasadCostToken) return;
             const nr = inc?.no_rate || [];
@@ -557,7 +662,7 @@ async function fillPrasadCost(retreatId, prasadTotals, retreatOnly = null) {
             renderReportGaps();
             const money = await moneyPromise;
             if (token !== prasadCostToken) return;
-            renderPerParticipant(money, sum, round2(Number(retreatOnly.expense_base) - sharedTotal), noPrices);
+            renderPerParticipant(money, sum, Number(retreatOnly.expense_base), noPrices);
         }
     } catch (err) {
         console.error('Prasad cost:', err);
@@ -911,18 +1016,21 @@ async function loadReport() {
     if (currentData.restricted) {
         const pr = r.prasad || { income_by_category: [], expense_by_category: [], totals: {} };
         const pt = pr.totals || {};
+        // тот же стандарт, что у финансистов: строка «Прасад» — начислено против себестоимости
+        unitsState = null;
         box.innerHTML = `
-            <div class="grid grid-cols-2 md:grid-cols-3 gap-3">
-                ${kpi('', icUp, t('fin_income'), `<span class="text-success">${fmtB(pt.income_base || 0)}</span>`)}
-                ${kpi('is-error', icDown, t('fin_expense'), `<span class="text-error">${fmtB(pt.expense_base || 0)}</span>`)}
-                ${kpi(Number(pt.net_base) < 0 ? 'is-error' : '', icNet, t('fin_net'), `<span class="${Number(pt.net_base) < 0 ? 'text-error' : ''}">${fmtB(pt.net_base || 0)}</span>`)}
-            </div>
+            <div class="card bg-base-100 shadow-sm"><div class="card-body py-4">
+                <div class="overflow-x-auto"><table class="table table-sm">
+                    <thead><tr><th></th><th class="text-right">${t('fin_income')}</th><th class="text-right">${t('fin_expense')}</th><th class="text-right">${t('fin_net')}</th></tr></thead>
+                    <tbody><tr id="prasadSplitRow"><td>${t('retreat_report_finance_prasad')}</td><td colspan="3" class="text-right"><span class="loading loading-spinner loading-xs"></span></td></tr></tbody>
+                </table></div>
+            </div></div>
             <div id="retreatMoveBox"></div>
             <div class="grid grid-cols-1 lg:grid-cols-2 gap-4 items-start">
                 <div class="min-w-0 space-y-4">
                     <h2 class="text-lg font-semibold">${t('retreat_report_finance_prasad')}</h2>
-                    ${catTable(pr.income_by_category, 'fin_income_by_category', 'prasad')}
-                    ${catTable(pr.expense_by_category, 'fin_expense_by_category', 'prasad')}
+                    <div id="prasadUnitBox"></div>
+                    ${prasadCashDetails(pr)}
                     <div id="prasadCostBox"></div>
                 </div>
                 <div id="finDrill" class="card bg-base-100 shadow-sm lg:sticky lg:top-4 flex flex-col overflow-hidden"
@@ -964,20 +1072,24 @@ async function loadReport() {
         net_base: round2(Number(retreatCombinedTotals.net_base) - Number(prasad.net_base))
     } : retreatCombinedTotals;
 
-    // Сводная таблица + управленческий итог «ретрит + прасад по расчёту» (mgmtTotalBox, заполняет fillPrasadCost)
+    // Три сущности — Ретрит, Прасад, Кафе (ВГ 29.09). Ретрит и кафе — по кассе своих счетов,
+    // прасад — начислено против себестоимости (строку и итог заполняет fillPrasadCost)
+    const cafeTotals = hasCafeActivity ? cafe : { income_base: 0, expense_base: 0, net_base: 0 };
+    unitsState = { retreat: retreatOnlyTotals, cafe: cafeTotals };
     const splitTotalsTable = (hasCafeActivity || hasPrasadActivity || showPrasad) ? `
         <div class="card bg-base-100 shadow-sm"><div class="card-body py-4 space-y-3">
             <div class="overflow-x-auto"><table class="table table-sm">
                 <thead><tr><th></th><th class="text-right">${t('fin_income')}</th><th class="text-right">${t('fin_expense')}</th><th class="text-right">${t('fin_net')}</th></tr></thead>
                 <tbody>
-                    ${splitRow(t('retreat_report_finance_retreat_only'), retreatCombinedTotals, { bold: hasPrasadActivity })}
-                    ${hasPrasadActivity ? splitRow(t('retreat_report_finance_retreat_only'), retreatOnlyTotals, { indent: true }) : ''}
-                    ${hasPrasadActivity ? splitRow(t('retreat_report_finance_prasad'), prasad, { indent: true }) : ''}
+                    ${splitRow(t('retreat_report_finance_retreat_only'), retreatOnlyTotals)}
+                    ${showPrasad ? `<tr id="prasadSplitRow"><td>${t('retreat_report_finance_prasad')}</td><td colspan="3" class="text-right"><span class="loading loading-spinner loading-xs"></span></td></tr>`
+                        : hasPrasadActivity ? splitRow(t('retreat_report_finance_prasad'), prasad) : ''}
                     ${hasCafeActivity ? splitRow(t('retreat_report_finance_cafe'), cafe) : ''}
-                    ${splitRow(t('retreat_report_finance_total'), tot, { bold: true })}
+                    ${showPrasad ? `<tr id="unitsTotalRow" class="font-semibold border-t-2 border-base-300"><td>${t('retreat_report_finance_total')}</td><td colspan="3"></td></tr>`
+                        : splitRow(t('retreat_report_finance_total'), tot, { bold: true })}
                 </tbody>
             </table></div>
-            <div id="mgmtTotalBox"></div>
+            ${showPrasad ? `<p class="text-xs opacity-60">${e(tr('fin_units_note', 'Ретрит и кафе — по кассе своих счетов. Прасад — начислено за питание и пожертвования против себестоимости прасада (всё со счёта Кухни входит в неё). Карточки сверху — вся касса ретрита.'))}</p>` : ''}
         </div></div>` : '';
 
     // Должники и аванс важны только по ретриту — в прасаде и кафе их нет (ВГ, сен 2026)
@@ -1002,8 +1114,8 @@ async function loadReport() {
             ${showPrasad ? `
             <input type="radio" name="fin_unit_tabs" role="tab" class="tab" aria-label="${t('retreat_report_finance_prasad')}" />
             <div role="tabpanel" class="tab-content pt-4 space-y-4 min-w-0">
-                ${catTable(r.prasad?.income_by_category || [], 'fin_income_by_category', 'prasad')}
-                ${catTable(r.prasad?.expense_by_category || [], 'fin_expense_by_category', 'prasad')}
+                <div id="prasadUnitBox"></div>
+                ${prasadCashDetails(r.prasad)}
                 <div id="prasadCostBox"></div>
             </div>` : ''}
             ${hasCafeActivity ? `

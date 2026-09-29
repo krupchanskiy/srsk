@@ -580,7 +580,10 @@ async function loadIncome(db, retreatId) {
     return data;
 }
 const incomeSummary = d => d && { charged: Math.round((Number(d.charged) + Number(d.donations)) * 100) / 100,
-    meals: Number(d.charged), donations: Number(d.donations), discount: Number(d.discount), byStatus: d.by_status || {} };
+    meals: Number(d.charged), donations: Number(d.donations), discount: Number(d.discount), byStatus: d.by_status || {},
+    // получено за питание — как в карточке участника: оплачено + зачтено из общего (мигр. 595)
+    mealsPaid: d.meals_paid == null ? null : Number(d.meals_paid), mealsDebt: d.meals_debt == null ? null : Number(d.meals_debt),
+    received: d.meals_paid == null ? null : Math.round((Number(d.meals_paid) + Number(d.donations)) * 100) / 100 };
 
 async function saveRetreatCost(db, retreatId, summary) {
     // кто бы ни сохранял (Себестоимость или Финансы) — с учётом галочек внутреннего ретрита
