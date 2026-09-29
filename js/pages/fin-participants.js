@@ -181,8 +181,9 @@ function renderParticipants() {
         };
         // Долг не сходится (деньги не засчитаны, начисление в другой валюте) —
         // видно прямо в списке, а не только в карточке
-        const пробл = b.problems?.length
-            ? ` <span class="badge badge-warning badge-sm" title="${e(b.problems.map(x => x.message).join('\n'))}">⚠ ${b.problems.length}</span>` : '';
+        const проблемы = (b.problems || []).filter(x => !ждётКурса(x));
+        const пробл = проблемы.length
+            ? ` <span class="badge badge-warning badge-sm" title="${e(проблемы.map(x => x.message).join('\n'))}">⚠ ${проблемы.length}</span>` : '';
         return `<tr class="cursor-pointer hover:bg-base-200" data-pid="${p.participant_id}" tabindex="0">
             <td class="font-medium">${e(p.name || '')}${пробл}</td>
             ${видимыеБлоки().map(k => `<td class="text-right">${ячейка(k)}</td>`).join('')}
@@ -526,15 +527,20 @@ async function сменитьВалютуРасчёта(cur) {
 function renderCardProblems(b) {
     const el = document.getElementById('cardProblems');
     if (!el) return;
-    const список = новаяСистема(b) ? (b.problems || []) : [];
-    if (!список.length) { el.innerHTML = ''; return; }
+    const все = новаяСистема(b) ? (b.problems || []) : [];
+    // Предоплата до курса ретрита — не расхождение, а ожидание (582, ВГ 29.09)
+    const ждут = все.filter(ждётКурса);
+    const список = все.filter(x => !ждётКурса(x));
     const можно = window.hasPermission?.('fin_admin');
-    el.innerHTML = `<div class="alert alert-warning py-2 px-3 text-sm mb-2 flex-col items-start gap-1">
+    el.innerHTML = (список.length ? `<div class="alert alert-warning py-2 px-3 text-sm mb-2 flex-col items-start gap-1">
         <div class="font-medium">⚠ Долг посчитан не полностью: ${список.length}</div>
         <ul class="text-xs list-disc pl-4">${список.map(x => `<li>${e(x.message)}</li>`).join('')}</ul>
         ${можно ? `<button type="button" class="btn btn-xs btn-outline" data-settle-fix="1">Привести к валюте расчёта ${e(FinUtils.symbol(b.currency))} по курсу ретрита</button>` : ''}
-    </div>`;
+    </div>` : '') + (ждут.length ? `<div class="alert py-2 px-3 text-sm mb-2 flex-col items-start gap-1">
+        <ul class="text-xs list-disc pl-4">${ждут.map(x => `<li>${e(x.message)}</li>`).join('')}</ul>
+    </div>` : '');
 }
+function ждётКурса(x) { return x.code === 'awaiting_retreat_rate'; }
 
 // Автовалюта блока (ВГ, 24.08): строка платежа участника задаёт валюту его
 // блока в сводке — «Николай вносит проживание в рублях → блок в рублях».
