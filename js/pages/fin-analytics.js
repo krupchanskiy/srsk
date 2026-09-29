@@ -1303,11 +1303,85 @@ function exportCsv() {
     a.click();
 }
 
+// ==================== ПЕРИОД «ОБЩЕЙ» И «ПО ДЕПАРТАМЕНТАМ» ====================
+// Один выбор на обе вкладки, как на Себестоимости (ВГ 27.09): месяц / квартал / год списком,
+// ◀ ▶ — соседний период, «или» — свои даты. Смена шага ведёт на период с сегодняшним днём.
+const PERIOD_KEY = 'fin_analytics_period';
+const period = { step: 'month', from: '', to: '' };
+let summaryShown = null;   // за какой период уже показаны вкладки: «from|to»
+let deptShown = null;
+
+function periodBounds(step, anchorIso) {
+    const d = DateUtils.parseDate(anchorIso);
+    if (step === 'year') return [`${d.getFullYear()}-01-01`, `${d.getFullYear()}-12-31`];
+    const m0 = step === 'quarter' ? Math.floor(d.getMonth() / 3) * 3 : d.getMonth();
+    const n = step === 'quarter' ? 3 : 1;
+    return [DateUtils.toISO(new Date(d.getFullYear(), m0, 1)), DateUtils.toISO(new Date(d.getFullYear(), m0 + n, 0))];
+}
+
+function setPeriodStep(step, anchorIso) {
+    period.step = step;
+    [period.from, period.to] = periodBounds(step, anchorIso);
+    try { localStorage.setItem(PERIOD_KEY, step); } catch { /* нет хранилища */ }
+}
+
+function shiftPeriod(dir) {
+    if (period.step === 'custom') {
+        const days = Math.round((DateUtils.parseDate(period.to) - DateUtils.parseDate(period.from)) / 86400000) + 1;
+        period.from = isoShift(period.from, dir * days);
+        period.to = isoShift(period.to, dir * days);
+        return;
+    }
+    const d = DateUtils.parseDate(period.from);
+    const months = period.step === 'year' ? 12 : period.step === 'quarter' ? 3 : 1;
+    setPeriodStep(period.step, DateUtils.toISO(new Date(d.getFullYear(), d.getMonth() + dir * months, 1)));
+}
+
+const capital = s => s.charAt(0).toUpperCase() + s.slice(1);
+const monthName = (y, m) => capital(new Date(y, m, 1).toLocaleDateString(Layout.currentLang === 'hi' ? 'hi-IN' : Layout.currentLang === 'en' ? 'en-US' : 'ru-RU', { month: 'long', year: 'numeric' }).replace(' г.', ''));
+
+function renderPeriodBar() {
+    document.querySelectorAll('[data-period-step]').forEach(b => b.classList.toggle('btn-active', b.dataset.periodStep === period.step));
+    document.getElementById('periodFrom').value = period.from;
+    document.getElementById('periodTo').value = period.to;
+    const custom = period.step === 'custom';
+    const sel = document.getElementById('periodSelect');
+    const label = document.getElementById('periodLabel');
+    sel.classList.toggle('hidden', custom);
+    label.classList.toggle('hidden', !custom);
+    label.textContent = custom ? DateUtils.formatRange(period.from, period.to) : '';
+    if (custom) return;
+    // от первого ретрита до следующего года — как на Себестоимости
+    const nowY = new Date().getFullYear();
+    const years = retreats.map(r => Number((r.start_date || '').slice(0, 4))).filter(Boolean);
+    const y1 = Math.min(nowY, ...years), y2 = Math.max(nowY + 1, ...years);
+    const opts = [];
+    for (let y = y2; y >= y1; y--) {
+        if (period.step === 'year') { opts.push([`${y}-01-01`, String(y)]); continue; }
+        if (period.step === 'quarter') for (let q = 3; q >= 0; q--) opts.push([DateUtils.toISO(new Date(y, q * 3, 1)), `${q + 1} ${tr('cost_quarter_short', 'кв.')} ${y}`]);
+        else for (let m = 11; m >= 0; m--) opts.push([DateUtils.toISO(new Date(y, m, 1)), monthName(y, m)]);
+    }
+    sel.innerHTML = opts.map(([v, l]) => `<option value="${v}" ${v === period.from ? 'selected' : ''}>${e(l)}</option>`).join('');
+}
+
+// Период сменился — перерисовать видимую вкладку; другая догонит, когда её откроют
+function onPeriodChange() {
+    renderPeriodBar();
+    loadActivePeriodTab();
+}
+
+function loadActivePeriodTab() {
+    const key = `${period.from}|${period.to}`;
+    const tab = document.querySelector('[data-tab].tab-active')?.dataset.tab;
+    if (tab === 'summary' && summaryShown !== key) loadSummary();
+    if (tab === 'dept' && deptShown !== key) loadDepartments();
+}
+
 // ==================== ОБЩАЯ ====================
 async function loadSummary() {
-    const from = document.getElementById('sumFrom').value;
-    const to = document.getElementById('sumTo').value;
+    const { from, to } = period;
     if (!from || !to) return;
+    summaryShown = `${from}|${to}`;
     const box = document.getElementById('summaryReport');
     box.innerHTML = `<div class="text-center py-8"><span class="loading loading-spinner loading-md"></span></div>`;
     const { data, error } = await Layout.db.rpc('fin_get_summary_report', { p_from: from, p_to: to });
@@ -1339,40 +1413,6 @@ async function loadSummary() {
 // своих доходов у них нет, деньги приходят переводом из кассы.
 let deptData = null;
 
-// Неделя — скользящие 7 дней, месяц и год — календарные:
-// та же логика, что в пресетах ДДС, чтобы цифры сходились между страницами.
-function deptPeriod(preset) {
-    const now = new Date();
-    const iso = d => DateUtils.toISO(d);
-    switch (preset) {
-        case 'week': {
-            const с = new Date(); с.setDate(с.getDate() - 6);
-            return [iso(с), FinUtils.todayISO()];
-        }
-        case 'month': return [iso(new Date(now.getFullYear(), now.getMonth(), 1)), FinUtils.todayISO()];
-        case 'year':  return [`${now.getFullYear()}-01-01`, FinUtils.todayISO()];
-        default:      return null;   // «Выбрать» — период задаёт человек
-    }
-}
-
-const DEPT_PRESET_KEY = 'fin_dept_report_preset';
-
-function markDeptPreset(preset) {
-    document.querySelectorAll('#deptPresets [data-dept-preset]').forEach(b =>
-        b.classList.toggle('is-on', b.dataset.deptPreset === preset));
-    document.getElementById('deptCustomRange').classList.toggle('hidden', preset !== 'custom');
-    localStorage.setItem(DEPT_PRESET_KEY, preset);
-}
-
-function applyDeptPreset(preset) {
-    markDeptPreset(preset);
-    if (preset === 'custom') return;   // ждём, пока выберут даты и нажмут «Показать»
-    const [from, to] = deptPeriod(preset);
-    document.getElementById('deptFrom').value = from;
-    document.getElementById('deptTo').value = to;
-    loadDepartments();
-}
-
 // Выбор департаментов живёт между сеансами: набор меняют редко,
 // а переставлять галочки при каждом заходе — лишняя работа.
 const DEPT_PICK_KEY = 'fin_dept_report_excluded';
@@ -1397,9 +1437,9 @@ function pickAllDepts(включить) {
 }
 
 async function loadDepartments() {
-    const from = document.getElementById('deptFrom').value;
-    const to = document.getElementById('deptTo').value;
+    const { from, to } = period;
     if (!from || !to) return;
+    deptShown = `${from}|${to}`;
     const box = document.getElementById('deptReport');
     box.innerHTML = `<div class="text-center py-8"><span class="loading loading-spinner loading-md"></span></div>`;
 
@@ -1559,12 +1599,31 @@ async function init() {
             document.getElementById('retreatTab').classList.toggle('hidden', tab.dataset.tab !== 'retreat');
             document.getElementById('summaryTab').classList.toggle('hidden', tab.dataset.tab !== 'summary');
             document.getElementById('deptTab').classList.toggle('hidden', tab.dataset.tab !== 'dept');
-            // Первый заход на вкладку сразу показывает цифры, а не пустой экран
-            if (tab.dataset.tab === 'dept' && !deptData) loadDepartments();
+            document.getElementById('periodBar').classList.toggle('hidden', tab.dataset.tab === 'retreat');
+            document.getElementById('deptCsvBtn').classList.toggle('hidden', tab.dataset.tab !== 'dept');
+            // Заход на вкладку сразу показывает цифры за выбранный период, а не пустой экран
+            loadActivePeriodTab();
         }));
 
-    document.querySelectorAll('[data-dept-preset]').forEach(btn =>
-        btn.addEventListener('click', () => applyDeptPreset(btn.dataset.deptPreset)));
+    document.querySelectorAll('[data-period-step]').forEach(btn => btn.addEventListener('click', () => {
+        const today = DateUtils.toISO(new Date());
+        setPeriodStep(btn.dataset.periodStep, period.from <= today && today <= period.to ? today : period.from);
+        onPeriodChange();
+    }));
+    document.querySelectorAll('[data-period-shift]').forEach(btn => btn.addEventListener('click', () => {
+        shiftPeriod(Number(btn.dataset.periodShift));
+        onPeriodChange();
+    }));
+    document.getElementById('periodSelect').addEventListener('change', ev => {
+        setPeriodStep(period.step, ev.target.value);
+        onPeriodChange();
+    });
+    ['periodFrom', 'periodTo'].forEach(id => document.getElementById(id).addEventListener('change', () => {
+        const from = document.getElementById('periodFrom').value, to = document.getElementById('periodTo').value;
+        if (!from || !to || from > to) return;
+        Object.assign(period, { step: 'custom', from, to });
+        onPeriodChange();
+    }));
 
     document.getElementById('reissueForm').addEventListener('submit', submitReissue);
     document.getElementById('retreatReport').addEventListener('click', onReportClick);
@@ -1577,17 +1636,11 @@ async function init() {
         if (att) FinUtils.openAttachment(att.dataset.attachmentPath);
     });
 
-    // период по умолчанию: текущий год
-    const now = new Date();
-    document.getElementById('sumFrom').value = `${now.getFullYear()}-01-01`;
-    document.getElementById('sumTo').value = FinUtils.todayISO();
-    // Возвращаем период, с которым работали в прошлый раз; по умолчанию текущий месяц.
-    // Поля дат заполняем всегда — они же стартовые значения для «Выбрать».
-    const сохранённый = localStorage.getItem(DEPT_PRESET_KEY) || 'month';
-    const [dFrom, dTo] = deptPeriod(сохранённый) || deptPeriod('month');
-    document.getElementById('deptFrom').value = dFrom;
-    document.getElementById('deptTo').value = dTo;
-    markDeptPreset(сохранённый);
+    // Период — шаг с прошлого раза (по умолчанию месяц), сам период — с сегодняшним днём
+    let savedStep = 'month';
+    try { savedStep = localStorage.getItem(PERIOD_KEY) || 'month'; } catch { /* нет хранилища */ }
+    setPeriodStep(['month', 'quarter', 'year'].includes(savedStep) ? savedStep : 'month', DateUtils.toISO(new Date()));
+    renderPeriodBar();
 
     const params = new URLSearchParams(window.location.search);
     const preset = params.get('retreat');

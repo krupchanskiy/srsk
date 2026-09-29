@@ -44,49 +44,33 @@
         </div>
     </div>
 
+    <!-- ===== ПЕРИОД: общий для «Общей» и «По департаментам» (как на Себестоимости) ===== -->
+    <div id="periodBar" class="hidden flex flex-wrap items-center gap-2 mb-4">
+        <div class="join">
+            <button type="button" class="btn btn-sm join-item" data-period-step="month" data-i18n="cost_step_month">Месяц</button>
+            <button type="button" class="btn btn-sm join-item" data-period-step="quarter" data-i18n="cost_step_quarter">Квартал</button>
+            <button type="button" class="btn btn-sm join-item" data-period-step="year" data-i18n="cost_step_year">Год</button>
+        </div>
+        <button type="button" class="btn btn-sm btn-ghost btn-square" data-period-shift="-1" aria-label="◀">◀</button>
+        <select id="periodSelect" class="select select-bordered select-sm font-semibold"></select>
+        <span id="periodLabel" class="font-semibold min-w-[9rem] text-center hidden"></span>
+        <button type="button" class="btn btn-sm btn-ghost btn-square" data-period-shift="1" aria-label="▶">▶</button>
+        <span class="opacity-50 text-sm" data-i18n="cost_or_dates">или</span>
+        <input type="date" id="periodFrom" class="input input-bordered input-sm">
+        <input type="date" id="periodTo" class="input input-bordered input-sm">
+        <button id="deptCsvBtn" class="btn btn-ghost btn-sm ml-auto gap-1 hidden" onclick="FinAnalytics.exportDeptCsv()">
+            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="w-3.5 h-3.5"><path stroke-linecap="round" stroke-linejoin="round" d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5M16.5 12L12 16.5m0 0L7.5 12m4.5 4.5V3"/></svg>
+            <span data-i18n="fin_export_csv">CSV</span>
+        </button>
+    </div>
+
     <!-- ===== ОБЩАЯ ===== -->
     <div id="summaryTab" class="hidden">
-        <div class="flex flex-wrap items-end gap-3 mb-4">
-            <div class="form-control">
-                <label class="label py-0"><span class="label-text text-xs" data-i18n="fin_period_from">С</span></label>
-                <input type="date" id="sumFrom" class="input input-bordered input-sm w-40">
-            </div>
-            <div class="form-control">
-                <label class="label py-0"><span class="label-text text-xs" data-i18n="fin_period_to">По</span></label>
-                <input type="date" id="sumTo" class="input input-bordered input-sm w-40">
-            </div>
-            <button class="btn btn-primary btn-sm" onclick="FinAnalytics.loadSummary()" data-i18n="fin_show">Показать</button>
-        </div>
         <div id="summaryReport" class="space-y-4"></div>
     </div>
 
     <!-- ВКЛАДКА: ПО ДЕПАРТАМЕНТАМ -->
     <div id="deptTab" class="hidden">
-        <div class="flex flex-wrap items-center gap-3 mb-4">
-            <div class="fin-seg" role="group" id="deptPresets">
-                <button type="button" data-dept-preset="week" data-i18n="fin_period_week">Неделя</button>
-                <button type="button" data-dept-preset="month" data-i18n="fin_period_month">Месяц</button>
-                <button type="button" data-dept-preset="year" data-i18n="fin_period_year">Год</button>
-                <button type="button" data-dept-preset="custom" data-i18n="fin_period_custom">Выбрать</button>
-            </div>
-            <button class="btn btn-ghost btn-sm ml-auto gap-1" onclick="FinAnalytics.exportDeptCsv()">
-                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="w-3.5 h-3.5"><path stroke-linecap="round" stroke-linejoin="round" d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5M16.5 12L12 16.5m0 0L7.5 12m4.5 4.5V3"/></svg>
-                <span data-i18n="fin_export_csv">CSV</span>
-            </button>
-        </div>
-
-        <!-- Поля дат нужны только для своего диапазона: в остальных случаях они лишний шум -->
-        <div id="deptCustomRange" class="hidden flex flex-wrap items-end gap-3 mb-4">
-            <div class="form-control">
-                <label class="label py-0" for="deptFrom"><span class="label-text text-xs" data-i18n="fin_period_from">С</span></label>
-                <input type="date" id="deptFrom" class="input input-bordered input-sm w-40">
-            </div>
-            <div class="form-control">
-                <label class="label py-0" for="deptTo"><span class="label-text text-xs" data-i18n="fin_period_to">По</span></label>
-                <input type="date" id="deptTo" class="input input-bordered input-sm w-40">
-            </div>
-            <button class="btn btn-primary btn-sm" onclick="FinAnalytics.loadDepartments()" data-i18n="fin_show">Показать</button>
-        </div>
         <div id="deptReport" class="space-y-4"></div>
     </div>
 </main>
@@ -95,29 +79,6 @@
     /* ---------- Отчёт по департаментам ----------
        Три числа на департамент: получил, потратил, осталось. Полоса под названием
        даёт пропорцию — кто съедает бюджет, видно раньше, чем прочитаны цифры. */
-    /* Переключатель периода: видно, какой выбран, без чтения полей с датами */
-    .fin-seg {
-        display: inline-flex; padding: 2px;
-        background: rgba(15, 23, 42, 0.05);
-        border-radius: 10px;
-    }
-    .fin-seg button {
-        appearance: none; border: 0; background: transparent;
-        padding: 0.3rem 0.85rem;
-        border-radius: 8px;
-        font-size: 0.8rem; font-weight: 500;
-        color: var(--fin-muted);
-        cursor: pointer;
-        transition: background 0.15s ease-out, color 0.15s ease-out, box-shadow 0.15s ease-out;
-    }
-    .fin-seg button:hover { color: var(--fin-ink); }
-    .fin-seg button.is-on {
-        background: #fff;
-        color: var(--fin-ink);
-        box-shadow: 0 1px 2px rgba(16, 24, 40, 0.08);
-    }
-    .fin-seg button:focus-visible { outline: 2px solid var(--fin-accent); outline-offset: 1px; }
-
     /* Шапка: за какой период отчёт и сколько департаментов учтено */
     .fin-dept-range {
         display: flex; flex-wrap: wrap; align-items: baseline; gap: 0.75rem;
@@ -302,7 +263,7 @@
 <script src="https://cdn.jsdelivr.net/npm/@pdf-lib/fontkit@1.1.1/dist/fontkit.umd.min.js"></script>
 <script src="../js/eating-utils.js?v=11"></script>
 <script src="../js/kitchen-cost.js?v=14"></script>
-<script src="../js/pages/fin-analytics.js?v=22"></script>
+<script src="../js/pages/fin-analytics.js?v=23"></script>
 
 </body>
 </html>
