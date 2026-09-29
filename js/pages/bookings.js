@@ -9,6 +9,23 @@ let currentFilter = 'all';
 // Живая бронь: из шахматки создаётся со статусом confirmed, отсюда — active. Раньше
 // вкладки и календарь видели только active, и брони из шахматки (группа БЧС) пропадали (ВГ, 29.09)
 const LIVE = ['active', 'confirmed'];
+
+// Место «заехало» — отметка «заехал» в шахматке (как у кухни) или уже выехал
+const заехал = r => !!r.arrived_at || r.status === 'checked_out';
+
+// Статус брони по её местам в шахматке (ВГ, 29.09):
+// upcoming — все места впереди; not_arrived — срок идёт, но кто-то без отметки «заехал»;
+// living — живут сейчас, все отмечены; left — все места закончились;
+// cancelled — снята; empty — в шахматке мест нет (требует внимания)
+function состояниеБрони(booking, места) {
+    if (booking.status === 'cancelled') return 'cancelled';
+    if (!места.length) return 'empty';
+    const конец = r => r.check_out || r.check_in;
+    if (места.every(r => конец(r) < today)) return 'left';
+    const сейчас = места.filter(r => r.check_in <= today && конец(r) >= today);
+    if (!сейчас.length) return 'upcoming';
+    return сейчас.some(r => !заехал(r)) ? 'not_arrived' : 'living';
+}
 let currentView = 'list';
 let calendarYear = new Date().getFullYear();
 let calendarMonth = new Date().getMonth();
@@ -86,17 +103,13 @@ async function loadBookings() {
         .select('*, retreats(id, name_ru, name_en, name_hi, start_date, end_date, is_external)')
         .order('check_in', { ascending: true });
 
-    // Вкладки (ВГ, 29.09): «Все» — живущие сейчас и предстоящие, прошедшие и отменённые —
-    // в отдельной вкладке, чтобы не сваливать всё в кучу
-    if (currentFilter === 'all') {
-        query = query.in('status', LIVE).gte('check_out', today);
-    } else if (currentFilter === 'past') {
+    // Схема «шахматка главная» (ВГ, 29.09): даты и места брони база держит по шахматке (584),
+    // статус считается здесь по местам. «Прошедшие» — выехавшие и снятые, остальные вкладки —
+    // живые брони, разложенные по статусу
+    if (currentFilter === 'past') {
         query = query.or(`check_out.lt.${today},status.eq.cancelled`);
-    } else if (currentFilter === 'not_checked_in') {
-        // Load bookings where dates are active (will filter by beds_pending later)
-        query = query.in('status', LIVE).lte('check_in', today).gte('check_out', today);
-    } else if (currentFilter === 'upcoming') {
-        query = query.in('status', LIVE).gt('check_in', today);
+    } else {
+        query = query.in('status', LIVE).gte('check_out', today);
     }
 
     const { data, error } = await query;
@@ -108,39 +121,37 @@ async function loadBookings() {
 
     bookings = data || [];
 
-    // Load all residents for these bookings in ONE query (instead of N+1)
+    // Места всех броней одним запросом
     if (bookings.length > 0) {
         const bookingIds = bookings.map(b => b.id);
         const { data: allResidents } = await Layout.db
             .from('residents')
-            .select('id, booking_id, vaishnava_id, guest_name')
+            .select('id, booking_id, vaishnava_id, guest_name, check_in, check_out, status, arrived_at')
             .in('booking_id', bookingIds)
-            .in('status', ['confirmed', 'checked_out']);   // выехавшие тоже стоят в шахматке
+            .neq('status', 'cancelled');
 
-        // Group residents by booking_id
         const residentsByBooking = {};
         (allResidents || []).forEach(r => {
-            if (!residentsByBooking[r.booking_id]) {
-                residentsByBooking[r.booking_id] = [];
-            }
-            residentsByBooking[r.booking_id].push(r);
+            (residentsByBooking[r.booking_id] = residentsByBooking[r.booking_id] || []).push(r);
         });
 
-        // Calculate stats for each booking
         for (const booking of bookings) {
-            const stats = residentsByBooking[booking.id] || [];
-            const filled = stats.filter(r => r.vaishnava_id || r.guest_name).length;
-            const pending = stats.length - filled;
-            booking.beds_filled = filled;
-            booking.beds_pending = pending;
-            booking.beds_placed = stats.length;   // сколько мест брони стоит в шахматке
+            const места = residentsByBooking[booking.id] || [];
+            booking.beds_placed = места.length;   // сколько мест брони стоит в шахматке
+            booking.beds_arrived = места.filter(заехал).length;
+            booking.state = состояниеБрони(booking, места);
         }
     }
 
-    // For "not_checked_in" filter, only show bookings with unfilled beds
-    if (currentFilter === 'not_checked_in') {
-        bookings = bookings.filter(b => b.beds_pending > 0);
+    // Сколько броней требуют внимания — на вкладке, чтобы было видно сразу
+    if (currentFilter !== 'past') {
+        const n = bookings.filter(b => b.state === 'empty').length;
+        const tab = Layout.$('#filtersBlock [data-filter="attention"] .tab-count');
+        if (tab) tab.textContent = n ? ` (${n})` : '';
     }
+
+    const нужное = { checked_in: 'living', not_checked_in: 'not_arrived', upcoming: 'upcoming', attention: 'empty' }[currentFilter];
+    if (нужное) bookings = bookings.filter(b => b.state === нужное);
 
     renderBookings();
 }
@@ -237,32 +248,27 @@ function renderBookings() {
 function bookingCard(booking) {
     const checkIn = DateUtils.parseDate(booking.check_in);
     const checkOut = DateUtils.parseDate(booking.check_out);
-    const isActive = LIVE.includes(booking.status) && booking.check_in <= today && booking.check_out >= today;
-    const isUpcoming = LIVE.includes(booking.status) && booking.check_in > today;
-    const isCancelled = booking.status === 'cancelled';
+    const isCancelled = booking.state === 'cancelled' || booking.status === 'cancelled';
 
-    const totalBeds = booking.beds_count;
-    const filledBeds = booking.beds_filled || 0;
-    const progressPercent = totalBeds > 0 ? Math.round((filledBeds / totalBeds) * 100) : 0;
+    const totalBeds = booking.beds_placed ?? booking.beds_count;
+    const arrived = booking.beds_arrived || 0;
+    const progressPercent = totalBeds > 0 ? Math.round((arrived / totalBeds) * 100) : 0;
 
     // Display name or contact_name
     const displayName = booking.name || booking.contact_name;
 
-    let statusBadge = '';
-    if (isCancelled) {
-        statusBadge = `<span class="badge badge-error badge-sm">${t('booking_status_cancelled')}</span>`;
-    } else if (!booking.beds_placed && (isActive || isUpcoming)) {
-        // Мест в шахматке нет совсем — раньше показывалось «Заселён» (0 из 0 свободных), ВГ 29.09
-        statusBadge = `<span class="badge badge-warning badge-sm" title="${e(tr('booking_no_places_hint', 'У брони нет ни одного места в шахматке: кухня её не считает. Поставьте места в шахматку или отмените бронь'))}">${e(tr('booking_no_places', 'Нет в шахматке'))}</span>`;
-    } else if (isActive && booking.beds_pending > 0) {
-        statusBadge = `<span class="badge badge-warning badge-sm">${t('bookings_filter_not_checked_in')}</span>`;
-    } else if (isActive && booking.beds_pending === 0) {
-        statusBadge = `<span class="badge badge-success badge-sm">${t('booking_status_checked_in')}</span>`;
-    } else if (isUpcoming) {
-        statusBadge = `<span class="badge badge-info badge-sm">${t('bookings_filter_upcoming')}</span>`;
-    }
+    const ЗНАЧКИ = {
+        cancelled: ['badge-error', t('booking_status_cancelled')],
+        empty: ['badge-warning', tr('booking_no_places', 'Нет в шахматке'), tr('booking_no_places_hint', 'У брони нет ни одного места в шахматке: кухня её не считает. Поставьте места в шахматку или отмените бронь')],
+        left: ['badge-ghost', tr('booking_state_left', 'Выехали')],
+        not_arrived: ['badge-warning', t('bookings_filter_not_checked_in')],
+        living: ['badge-success', t('booking_status_checked_in')],
+        upcoming: ['badge-info', t('bookings_filter_upcoming')]
+    };
+    const [цвет, текст, подсказка] = ЗНАЧКИ[booking.state] || [];
+    const statusBadge = текст ? `<span class="badge ${цвет} badge-sm" ${подсказка ? `title="${e(подсказка)}"` : ''}>${e(текст)}</span>` : '';
 
-return `
+    return `
         <div class="bg-base-100 rounded-lg shadow-sm overflow-hidden ${isCancelled ? 'opacity-50' : ''}" data-action="open-booking-modal" data-id="${booking.id}">
             <div class="p-4 cursor-pointer hover:bg-base-200/50 transition-colors">
                 <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
@@ -285,8 +291,8 @@ return `
 
                         <div class="w-24">
                             <div class="flex justify-between text-xs mb-1">
-                                <span>${t('booking_progress')}</span>
-                                <span>${filledBeds}/${totalBeds}</span>
+                                <span>${e(tr('booking_arrived', 'Заехали'))}</span>
+                                <span>${arrived}/${totalBeds}</span>
                             </div>
                             <progress class="progress ${progressPercent === 100 ? 'progress-success' : progressPercent > 0 ? 'progress-warning' : ''} w-full" value="${progressPercent}" max="100"></progress>
                         </div>
@@ -296,6 +302,7 @@ return `
         </div>
     `;
 }
+
 // Блок события: название, наш/сторонний, даты, сколько броней и мест; внутри — брони по датам
 function eventBlock(g) {
     const ev = g.событие;
