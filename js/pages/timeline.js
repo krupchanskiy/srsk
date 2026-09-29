@@ -46,7 +46,14 @@ const finHref = res => res.retreat_id
     : `../finance/participants.html?guests=1&visit=${res.id}`;
 let selfAccommodated = [];        // проживающие без номера: живут вне территории, в сетку не попадают
 let selfStays = [];               // группа «Самостоятельное проживание» внизу шахматки
-const SELF_GROUP_ID = '__self';   // её ключ в collapsedBuildings
+const SELF_GROUP_ID = '__self';   // её ключ в collapsedBuildings: гости
+const SELF_TEAM_ID = '__self_team';   // …и команда с волонтёрами — отдельным блоком (ВГ, 29.09)
+const SELF_BLOCKS = [['guests', SELF_GROUP_ID], ['team', SELF_TEAM_ID]];
+// Команда и волонтёры живут сами, но служат и едят с нами — их видно отдельно от гостей
+function selfKind(res) {
+    const cat = res.resident_categories || categories.find(c => c.id === res.category_id);
+    return cat?.slug === 'team' || cat?.slug === 'volunteer' ? 'team' : 'guests';
+}
 let periodRetreats = [];          // ретриты показанного периода — для «Сам организует» из CRM
 let periodResidents = [];         // все проживания периода — чтобы не дублировать людей из CRM
 let cancelledDealsSet = new Set(); // `${vaishnava_id}_${retreat_id}` — все сделки человека по ретриту отменены
@@ -184,8 +191,10 @@ async function loadTimelineData() {
     selfStays = [...selfAccommodated, ...fromCrm].sort((a, b) =>
         (a.has_meals === false) - (b.has_meals === false)
         || selfName(a).localeCompare(selfName(b), 'ru'));
-    if (selfStays.length) collapsedBuildings.delete(SELF_GROUP_ID);
-    else collapsedBuildings.add(SELF_GROUP_ID);
+    for (const [kind, id] of SELF_BLOCKS) {
+        if (selfStays.some(r => selfKind(r) === kind)) collapsedBuildings.delete(id);
+        else collapsedBuildings.add(id);
+    }
     const cleanings = cleaningsRes.data || [];
 
     // Строим Set dayIndex-ов для Экадаши
@@ -674,6 +683,7 @@ function collapseAllBuildings() {
     collapsedBuildings.clear();
     collapsedRooms.clear();
     collapsedBuildings.add(SELF_GROUP_ID);
+    collapsedBuildings.add(SELF_TEAM_ID);
     timelineData.buildings.forEach(building => {
         collapsedBuildings.add(building.id);
         building.rooms.forEach(room => {
@@ -829,7 +839,12 @@ function showCheckinForm() {
     const isSelf = !!modalContext.isSelf;
     document.getElementById('checkinBack').classList.toggle('hidden', isSelf);
     document.getElementById('checkinBackBtn').classList.toggle('hidden', isSelf);
-    document.getElementById('checkinTitle').textContent = isSelf ? selfBlockLabel() : t('timeline_checkin_title');
+    document.getElementById('checkinTitle').textContent = isSelf ? selfBlockLabel(modalContext.selfKind) : t('timeline_checkin_title');
+    // Из блока команды — сразу категория «Команда», её можно сменить на «Волонтёр»
+    if (isSelf && modalContext.selfKind === 'team') {
+        const team = categories.find(c => c.slug === 'team');
+        if (team) document.getElementById('checkinCategory').value = team.id;
+    }
     document.getElementById('checkinSubmit').textContent = isSelf ? tf('timeline_self_add', 'Добавить') : t('timeline_checkin');
 }
 
@@ -839,19 +854,21 @@ function tf(key, fallback) {
     return v === key ? fallback : v;
 }
 
-function selfBlockLabel() {
-    return tf('timeline_self_block', 'Самостоятельное проживание');
+function selfBlockLabel(kind = 'guests') {
+    return kind === 'team'
+        ? tf('timeline_self_block_team', 'Самостоятельное проживание — команда и волонтёры')
+        : tf('timeline_self_block_guests', 'Самостоятельное проживание — гости');
 }
 
 // Открыть форму добавления в «Самостоятельное проживание» (живёт вне ашрама, может питаться с нами)
-function openSelfStayModal() {
+function openSelfStayModal(kind = 'guests') {
     if (!canEditTimeline()) return;
-    modalContext = { roomId: null, isSelf: true, isConversion: false };
+    modalContext = { roomId: null, isSelf: true, selfKind: kind, isConversion: false };
     const today = new Date();
     const tomorrow = new Date(today);
     tomorrow.setDate(tomorrow.getDate() + 1);
     const hint = tf('timeline_self_add_hint', 'без номера — живёт вне ашрама');
-    document.getElementById('modalLocation').textContent = `${selfBlockLabel()} (${hint})`;
+    document.getElementById('modalLocation').textContent = `${selfBlockLabel(kind)} (${hint})`;
     document.getElementById('modalCheckIn').value = formatDateForInput(today);
     document.getElementById('modalCheckOut').value = formatDateForInput(tomorrow);
     showCheckinForm();
@@ -867,7 +884,7 @@ function openSelfStay(id) {
         id: res.id, name, isBooking: false, rawData: res,
         hasDebt: debtorsSet.has(finKey(res)),
         hasCredit: creditorsSet.has(finKey(res))
-    }, selfBlockLabel(), '');
+    }, selfBlockLabel(selfKind(res)), '');
 }
 
 function showBookingForm() {
@@ -1489,7 +1506,7 @@ function openResidentModal(guestData, buildingName, roomName) {
     // Локация
     document.getElementById('residentModalLocation').textContent = res.room_id
         ? `${buildingName} → ${t('timeline_room')} ${roomName}`
-        : selfBlockLabel();
+        : selfBlockLabel(selfKind(res));
 
     // Информация
     let infoHtml = '';
@@ -2882,7 +2899,7 @@ function renderTable() {
         });
     });
 
-    html += renderSelfGroupHtml();
+    html += SELF_BLOCKS.map(([kind]) => renderSelfGroupHtml(kind)).join('');
 
     html += '</tbody>';
     table.innerHTML = html;
@@ -2988,7 +3005,7 @@ function setupTimelineDelegation() {
                     );
                     break;
                 case 'open-resident-from-map': openResidentFromMap(id, ev); break;
-                case 'add-self-stay': openSelfStayModal(); break;
+                case 'add-self-stay': openSelfStayModal(el.dataset.kind); break;
                 case 'open-self-stay': openSelfStay(id); break;
                 case 'open-finance':
                     window.open(`../finance/participants.html?retreat=${el.dataset.retreat}&open=${el.dataset.person}`, '_blank');
@@ -3088,21 +3105,23 @@ async function loadCrmSelfAccommodated() {
 
 // Группа «Самостоятельное проживание» — строки как у мест в номерах: полоса по датам с именем
 // и «(питается)». Цвет свой (светлый, с полоской категории слева), чтобы не путать с заселением.
-function renderSelfGroupHtml() {
-    const collapsed = collapsedBuildings.has(SELF_GROUP_ID);
-    const blockLabel = selfBlockLabel();
+function renderSelfGroupHtml(kind) {
+    const groupId = kind === 'team' ? SELF_TEAM_ID : SELF_GROUP_ID;
+    const stays = selfStays.filter(r => selfKind(r) === kind);
+    const collapsed = collapsedBuildings.has(groupId);
+    const blockLabel = selfBlockLabel(kind);
     const canEdit = canEditTimeline();
     const crmRaw = t('timeline_self_from_crm');
     const crmHint = crmRaw === 'timeline_self_from_crm' ? 'Из сделки в CRM: «Сам организует»' : crmRaw;
 
-    let html = `<tr class="row-building row-self"><td class="sticky-col" data-action="toggle-building" data-id="${SELF_GROUP_ID}">`
-        + `<span class="toggle-arrow ${collapsed ? 'collapsed' : ''}">▼</span> ${e(blockLabel)}: ${selfStays.length}`
-        + (canEdit ? ` <button type="button" class="btn btn-xs btn-ghost text-primary ml-1" data-action="add-self-stay">+ ${e(tf('timeline_self_add', 'Добавить'))}</button>` : '')
+    let html = `<tr class="row-building row-self"><td class="sticky-col" data-action="toggle-building" data-id="${groupId}">`
+        + `<span class="toggle-arrow ${collapsed ? 'collapsed' : ''}">▼</span> ${e(blockLabel)}: ${stays.length}`
+        + (canEdit ? ` <button type="button" class="btn btn-xs btn-ghost text-primary ml-1" data-action="add-self-stay" data-kind="${kind}">+ ${e(tf('timeline_self_add', 'Добавить'))}</button>` : '')
         + '</td>';
     for (let col = 0; col < DAYS_TO_SHOW * 2; col++) html += `<td class="${col % 2 === 0 ? 'day-start' : ''}"></td>`;
     html += '</tr>';
 
-    selfStays.forEach(res => {
+    stays.forEach(res => {
         let startDay = dateToDayIndex(res.check_in);
         let endDay = res.check_out ? dateToDayIndex(res.check_out) : DAYS_TO_SHOW - 1;
         if (startDay > DAYS_TO_SHOW - 1 || endDay < 0) return;
