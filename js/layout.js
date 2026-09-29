@@ -508,7 +508,7 @@ function getName(item, lang = currentLang) {
 /** Имя человека с автотранслитерацией для не-русского языка */
 function getPersonName(person, lang = currentLang) {
     if (!person) return '—';
-    const name = person.spiritual_name || person.first_name || '';
+    const name = person.spiritual_name || [person.first_name, person.last_name].filter(Boolean).join(' ').trim();
     return lang === 'ru' ? name : transliterate(name);
 }
 
