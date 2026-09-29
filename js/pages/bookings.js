@@ -447,10 +447,13 @@ function openNewBookingModal() {
     form.check_in.value = today;
     form.check_out.value = '';
 
-    // Populate retreat select
+    // Только ретриты, которые ещё не прошли, ближайшие сверху: по ошибке выбранный
+    // прошедший Сева-ретрит на даты Лилы 2027 (Мадхурья-бхакти, ВГ 29.09)
     const retreatSelect = Layout.$('#newBookingRetreatSelect');
     retreatSelect.innerHTML = `<option value="">—</option>` +
-        retreats.map(r => `<option value="${r.id}">${Layout.getName(r)}</option>`).join('');
+        retreats.filter(r => !r.end_date || r.end_date >= today)
+            .sort((a, b) => (a.start_date || '').localeCompare(b.start_date || ''))
+            .map(r => `<option value="${r.id}">${Layout.getName(r)} (${DateUtils.formatRange(r.start_date, r.end_date)})</option>`).join('');
 
     // Populate building select for step 2
     const buildingSelect = Layout.$('#newBookingBuildingSelect');
@@ -916,6 +919,12 @@ async function saveNewBooking() {
         return;
     }
 
+    // Даты брони не пересекаются с ретритом — скорее всего выбран не тот
+    const ретрит = retreats.find(r => r.id === form.retreat_id.value);
+    if (ретрит && form.check_in.value && (form.check_in.value > ретрит.end_date
+            || (form.check_out.value || form.check_in.value) < ретрит.start_date)
+        && !confirm(`Даты брони не пересекаются с ретритом «${Layout.getName(ретрит)}» (${DateUtils.formatRange(ретрит.start_date, ретрит.end_date)}). Всё равно сохранить?`)) return;
+
     try {
         const bookingData = {
             name: form.contact_name?.value?.trim() || null,
@@ -1238,6 +1247,11 @@ async function init() {
             // Устанавливаем ретрит
             if (retreatId) {
                 const retreatSelect = document.getElementById('newBookingRetreatSelect');
+                // ретрит сделки уже прошёл — в списке его нет, добавляем, чтобы не потерять
+                const r = retreats.find(x => x.id === retreatId);
+                if (retreatSelect && r && ![...retreatSelect.options].some(o => o.value === retreatId)) {
+                    retreatSelect.insertAdjacentHTML('beforeend', `<option value="${r.id}">${Layout.getName(r)} (${DateUtils.formatRange(r.start_date, r.end_date)})</option>`);
+                }
                 if (retreatSelect) retreatSelect.value = retreatId;
             }
 
