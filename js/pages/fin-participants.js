@@ -136,6 +136,7 @@ async function loadParticipants() {
     const toolbar = document.getElementById('participantsToolbar');
     if (toolbar) toolbar.style.display = participants.length ? '' : 'none';
     renderParticipants();
+    loadDebtorNotes();
     // визиты показывают итог по гостю — после оплаты он тоже меняется
     if (noEventMode) window.FinGuests?.loadVisitList();
 }
@@ -185,7 +186,7 @@ function renderParticipants() {
         const пробл = проблемы.length
             ? ` <span class="badge badge-warning badge-sm" title="${e(проблемы.map(x => x.message).join('\n'))}">⚠ ${проблемы.length}</span>` : '';
         return `<tr class="cursor-pointer hover:bg-base-200" data-pid="${p.participant_id}" tabindex="0">
-            <td class="font-medium">${e(p.name || '')}${пробл}</td>
+            <td class="font-medium">${e(p.name || '')}${пробл}${строкаДоговорённости(p)}</td>
             ${видимыеБлоки().map(k => `<td class="text-right">${ячейка(k)}</td>`).join('')}
             <td class="text-right">${fmtNet(Number(b.general_debt) - Number(b.general_advance), cur)}</td>
             <td class="text-right font-semibold">${fmtNetWord(b.net, cur, b)}${crmCancelledBadge(p)}</td>
@@ -216,6 +217,47 @@ function renderParticipantsSummary() {
 
 // Сделка в CRM отменена, новой активной взамен нет — казначей видит причину
 // долга сразу, не заходя в CRM (ВГ, 07.09)
+// Список должников: последняя заметка кассира и срок «принесёт до» — чтобы
+// отличать «обещал принести» от «забыл» (фаза 2, шаг 6, ВГ 27.09). Заметки
+// импорта «[ИМПОРТ] уточнить…» — не договорённость, не показываем
+let debtorNotes = {}; // participant_id -> { note } (есть сделка CRM)
+async function loadDebtorNotes() {
+    const retreat = currentRetreat;
+    debtorNotes = {};
+    if (noEventMode) return;
+    const pids = participants.filter(p => Number(p.balance.net) > 0.005).map(p => p.participant_id);
+    if (!pids.length) return;
+    const { data: deals } = await Layout.db.from('crm_deals').select('id, vaishnava_id')
+        .eq('retreat_id', retreat).in('vaishnava_id', pids).neq('status', 'cancelled');
+    const dealPid = {};
+    const notes = {};
+    (deals || []).forEach(d => { dealPid[d.id] = d.vaishnava_id; notes[d.vaishnava_id] = { note: null }; });
+    const ids = Object.keys(dealPid);
+    if (ids.length) {
+        const { data } = await Layout.db.from('crm_communications')
+            .select('deal_id, summary, content, due_date, created_at')
+            .in('deal_id', ids).eq('type', 'note').not('summary', 'like', '[ИМПОРТ]%')
+            .order('created_at', { ascending: false });
+        (data || []).forEach(n => { const x = notes[dealPid[n.deal_id]]; if (x && !x.note) x.note = n; });
+    }
+    if (retreat !== currentRetreat) return;
+    debtorNotes = notes;
+    renderParticipants();
+}
+
+function строкаДоговорённости(p) {
+    const d = debtorNotes[p.participant_id];
+    if (!d || !(Number(p.balance.net) > 0.005)) return '';
+    if (!d.note) return `<div class="text-xs font-normal text-warning">Нет договорённости — добавьте заметку в карточке</div>`;
+    const n = d.note;
+    const срок = n.due_date ? DateUtils.parseDate(n.due_date) : null;
+    const сегодня = new Date(); сегодня.setHours(0, 0, 0, 0);
+    const срокHtml = !срок ? ''
+        : срок < сегодня ? ` · <span class="text-error">срок прошёл ${DateUtils.formatShort(срок)}</span>`
+        : ` · срок ${DateUtils.formatShort(срок)}`;
+    return `<div class="text-xs font-normal opacity-70">${DateUtils.formatShort(new Date(n.created_at))} · ${e(n.summary)}${n.content ? ` — ${e(n.content)}` : ''}${срокHtml}</div>`;
+}
+
 function crmCancelledBadge(p) {
     if (!p?.crm_cancelled) return '';
     return ` <span class="badge badge-ghost badge-sm align-middle" title="${t('fin_crm_cancelled_title')}">${t('fin_crm_cancelled_badge')}</span>`;
@@ -337,7 +379,7 @@ let cardCalc = null;
 async function loadCardNotes() {
     const dealId = card.dealId;
     const { data } = await Layout.db.from('crm_communications')
-        .select('summary, content, created_at, created_by:vaishnavas(spiritual_name, first_name)')
+        .select('summary, content, due_date, created_at, created_by:vaishnavas(spiritual_name, first_name)')
         .eq('deal_id', dealId).eq('type', 'note')
         .order('created_at', { ascending: false }).limit(20);
     if (card.dealId === dealId) renderCardNotes(data || []);
@@ -351,24 +393,26 @@ function renderCardNotes(notes) {
         <div class="text-xs font-semibold opacity-70 mb-1">${t('crm_notes')}</div>
         ${notes.map(n => `<div class="text-xs py-0.5 border-b border-base-200/60">
             <span class="opacity-50">${DateUtils.formatShort(new Date(n.created_at))}${n.created_by ? ' · ' + e(n.created_by.spiritual_name || n.created_by.first_name || '') : ''}</span>
-            ${e(n.summary)}${n.content ? ` <span class="opacity-70">— ${e(n.content)}</span>` : ''}
+            ${e(n.summary)}${n.content ? ` <span class="opacity-70">— ${e(n.content)}</span>` : ''}${n.due_date ? ` <span class="opacity-70">· срок ${DateUtils.formatShort(DateUtils.parseDate(n.due_date))}</span>` : ''}
         </div>`).join('')}
         <form id="cardNoteForm" class="flex gap-1 mt-1">
             <input type="text" id="cardNoteText" class="input input-bordered input-xs flex-1" placeholder="Договорённость по оплате — уйдёт в историю сделки CRM">
+            <input type="date" id="cardNoteDue" class="input input-bordered input-xs w-36" title="Срок: принесёт до (для списка должников)">
             <button type="submit" class="btn btn-xs">+ ${t('crm_note')}</button>
         </form>`;
     document.getElementById('cardNoteForm').addEventListener('submit', async ev => {
         ev.preventDefault();
         const текст = document.getElementById('cardNoteText').value.trim();
         if (!текст) return;
-        if (await addDealNote(card.dealId, текст)) loadCardNotes();
+        const срок = document.getElementById('cardNoteDue').value || null;
+        if (await addDealNote(card.dealId, текст, null, срок)) { loadCardNotes(); loadDebtorNotes(); }
     });
 }
 
-async function addDealNote(dealId, summary, content = null) {
+async function addDealNote(dealId, summary, content = null, dueDate = null) {
     const { error } = await Layout.db.from('crm_communications').insert({
         deal_id: dealId, type: 'note', direction: 'internal',
-        summary, content, created_by: window.currentUser?.vaishnava_id || null
+        summary, content, due_date: dueDate, created_by: window.currentUser?.vaishnava_id || null
     });
     if (error) { Layout.handleError(error, t('crm_note')); return false; }
     return true;
