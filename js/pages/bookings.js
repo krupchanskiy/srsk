@@ -81,11 +81,16 @@ async function loadInitialData() {
 async function loadBookings() {
     let query = Layout.db
         .from('bookings')
-        .select('*, retreats(id, name_ru, name_en)')
+        .select('*, retreats(id, name_ru, name_en, name_hi, start_date, end_date, is_external)')
         .order('check_in', { ascending: true });
 
-    // Filter by status
-    if (currentFilter === 'not_checked_in') {
+    // Вкладки (ВГ, 29.09): «Все» — живущие сейчас и предстоящие, прошедшие и отменённые —
+    // в отдельной вкладке, чтобы не сваливать всё в кучу
+    if (currentFilter === 'all') {
+        query = query.in('status', LIVE).gte('check_out', today);
+    } else if (currentFilter === 'past') {
+        query = query.or(`check_out.lt.${today},status.eq.cancelled`);
+    } else if (currentFilter === 'not_checked_in') {
         // Load bookings where dates are active (will filter by beds_pending later)
         query = query.in('status', LIVE).lte('check_in', today).gte('check_out', today);
     } else if (currentFilter === 'upcoming') {
@@ -197,65 +202,23 @@ function renderBookings() {
     list.classList.remove('hidden');
     emptyState.classList.add('hidden');
 
-    list.innerHTML = bookings.map(booking => {
-        const checkIn = DateUtils.parseDate(booking.check_in);
-        const checkOut = DateUtils.parseDate(booking.check_out);
-        const isActive = LIVE.includes(booking.status) && booking.check_in <= today && booking.check_out >= today;
-        const isUpcoming = LIVE.includes(booking.status) && booking.check_in > today;
-        const isCancelled = booking.status === 'cancelled';
-
-        const totalBeds = booking.beds_count;
-        const filledBeds = booking.beds_filled || 0;
-        const progressPercent = totalBeds > 0 ? Math.round((filledBeds / totalBeds) * 100) : 0;
-
-        // Display name or contact_name
-        const displayName = booking.name || booking.contact_name;
-
-        let statusBadge = '';
-        if (isCancelled) {
-            statusBadge = `<span class="badge badge-error badge-sm">${t('booking_status_cancelled')}</span>`;
-        } else if (isActive && booking.beds_pending > 0) {
-            statusBadge = `<span class="badge badge-warning badge-sm">${t('bookings_filter_not_checked_in')}</span>`;
-        } else if (isActive && booking.beds_pending === 0) {
-            statusBadge = `<span class="badge badge-success badge-sm">${t('booking_status_checked_in')}</span>`;
-        } else if (isUpcoming) {
-            statusBadge = `<span class="badge badge-info badge-sm">${t('bookings_filter_upcoming')}</span>`;
-        }
-
-        return `
-            <div class="bg-base-100 rounded-lg shadow-sm overflow-hidden ${isCancelled ? 'opacity-50' : ''}" data-action="open-booking-modal" data-id="${booking.id}">
-                <div class="p-4 cursor-pointer hover:bg-base-200/50 transition-colors">
-                    <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-                        <div class="flex-1">
-                            <div class="flex items-center gap-2 mb-1">
-                                <h3 class="font-semibold text-lg">${displayName}</h3>
-                                ${statusBadge}
-                            </div>
-                            <div class="text-sm opacity-60">
-                                ${checkIn.toLocaleDateString()} — ${checkOut.toLocaleDateString()}
-                                ${booking.retreats ? ` · ${Layout.getName(booking.retreats)}` : ''}
-                            </div>
-                        </div>
-
-                        <div class="flex items-center gap-4">
-                            <div class="text-center">
-                                <div class="text-2xl font-bold">${totalBeds}</div>
-                                <div class="text-xs opacity-60">${t('booking_beds')}</div>
-                            </div>
-
-                            <div class="w-24">
-                                <div class="flex justify-between text-xs mb-1">
-                                    <span>${t('booking_progress')}</span>
-                                    <span>${filledBeds}/${totalBeds}</span>
-                                </div>
-                                <progress class="progress ${progressPercent === 100 ? 'progress-success' : progressPercent > 0 ? 'progress-warning' : ''} w-full" value="${progressPercent}" max="100"></progress>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        `;
-    }).join('');
+    // Порядок (ВГ, 29.09): ближайшие сверху, дальше по датам; в «Прошедших» — свежие сверху.
+    // Брони одного события — одним блоком, блок стоит по дате своей первой брони;
+    // при одной дате — по алфавиту
+    const назад = currentFilter === 'past';
+    const имя = b => (b.name || b.contact_name || '').toLowerCase();
+    const поДате = (a, b) => (назад ? b.check_in.localeCompare(a.check_in) : a.check_in.localeCompare(b.check_in))
+        || имя(a).localeCompare(имя(b), 'ru');
+    const блоки = [];
+    const поСобытию = new Map();
+    for (const b of [...bookings].sort(поДате)) {
+        if (!b.retreats) { блоки.push({ одна: b, check_in: b.check_in, name: имя(b) }); continue; }
+        let g = поСобытию.get(b.retreats.id);
+        if (!g) { g = { событие: b.retreats, брони: [], check_in: b.check_in, name: Layout.getName(b.retreats).toLowerCase() }; поСобытию.set(b.retreats.id, g); блоки.push(g); }
+        g.брони.push(b);
+    }
+    блоки.sort(поДате);
+    list.innerHTML = блоки.map(g => g.одна ? bookingCard(g.одна) : eventBlock(g)).join('');
 
     // Делегирование кликов в списке бронирований
     if (!list._delegated) {
@@ -265,6 +228,83 @@ function renderBookings() {
             if (el) openBookingModal(el.dataset.id);
         });
     }
+}
+
+// Карточка одной брони
+function bookingCard(booking) {
+    const checkIn = DateUtils.parseDate(booking.check_in);
+    const checkOut = DateUtils.parseDate(booking.check_out);
+    const isActive = LIVE.includes(booking.status) && booking.check_in <= today && booking.check_out >= today;
+    const isUpcoming = LIVE.includes(booking.status) && booking.check_in > today;
+    const isCancelled = booking.status === 'cancelled';
+
+    const totalBeds = booking.beds_count;
+    const filledBeds = booking.beds_filled || 0;
+    const progressPercent = totalBeds > 0 ? Math.round((filledBeds / totalBeds) * 100) : 0;
+
+    // Display name or contact_name
+    const displayName = booking.name || booking.contact_name;
+
+    let statusBadge = '';
+    if (isCancelled) {
+        statusBadge = `<span class="badge badge-error badge-sm">${t('booking_status_cancelled')}</span>`;
+    } else if (isActive && booking.beds_pending > 0) {
+        statusBadge = `<span class="badge badge-warning badge-sm">${t('bookings_filter_not_checked_in')}</span>`;
+    } else if (isActive && booking.beds_pending === 0) {
+        statusBadge = `<span class="badge badge-success badge-sm">${t('booking_status_checked_in')}</span>`;
+    } else if (isUpcoming) {
+        statusBadge = `<span class="badge badge-info badge-sm">${t('bookings_filter_upcoming')}</span>`;
+    }
+
+return `
+        <div class="bg-base-100 rounded-lg shadow-sm overflow-hidden ${isCancelled ? 'opacity-50' : ''}" data-action="open-booking-modal" data-id="${booking.id}">
+            <div class="p-4 cursor-pointer hover:bg-base-200/50 transition-colors">
+                <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                    <div class="flex-1">
+                        <div class="flex items-center gap-2 mb-1">
+                            <h3 class="font-semibold text-lg">${displayName}</h3>
+                            ${statusBadge}
+                        </div>
+                        <div class="text-sm opacity-60">
+                            ${checkIn.toLocaleDateString()} — ${checkOut.toLocaleDateString()}
+                            ${booking.retreats ? ` · ${Layout.getName(booking.retreats)}` : ''}
+                        </div>
+                    </div>
+
+                    <div class="flex items-center gap-4">
+                        <div class="text-center">
+                            <div class="text-2xl font-bold">${totalBeds}</div>
+                            <div class="text-xs opacity-60">${t('booking_beds')}</div>
+                        </div>
+
+                        <div class="w-24">
+                            <div class="flex justify-between text-xs mb-1">
+                                <span>${t('booking_progress')}</span>
+                                <span>${filledBeds}/${totalBeds}</span>
+                            </div>
+                            <progress class="progress ${progressPercent === 100 ? 'progress-success' : progressPercent > 0 ? 'progress-warning' : ''} w-full" value="${progressPercent}" max="100"></progress>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    `;
+}
+// Блок события: название, наш/сторонний, даты, сколько броней и мест; внутри — брони по датам
+function eventBlock(g) {
+    const ev = g.событие;
+    const мест = g.брони.reduce((a, b) => a + (Number(b.beds_count) || 0), 0);
+    const тип = ev.is_external
+        ? `<span class="badge badge-outline badge-sm">${e(t('retreats_is_external'))}</span>`
+        : `<span class="badge badge-ghost badge-sm">${e(t('group_event_retreat'))}</span>`;
+    const даты = ev.start_date ? `${DateUtils.parseDate(ev.start_date).toLocaleDateString()} — ${DateUtils.parseDate(ev.end_date).toLocaleDateString()}` : '';
+    return `<details class="bg-base-200/60 rounded-xl" open>
+        <summary class="cursor-pointer px-4 py-3 flex flex-wrap items-center gap-2">
+            <span class="font-semibold text-lg">${e(Layout.getName(ev))}</span> ${тип}
+            <span class="text-sm opacity-60">${даты} · броней ${g.брони.length} · мест ${мест}</span>
+        </summary>
+        <div class="space-y-2 px-2 pb-2">${g.брони.map(bookingCard).join('')}</div>
+    </details>`;
 }
 
 function renderCalendarView() {
