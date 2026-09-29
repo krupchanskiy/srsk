@@ -24,6 +24,7 @@ let marked = new Set();   // отмеченные строки — для «ср
 let expanded = null;      // строка, раскрытая по дням
 let dirty = false;        // есть несохранённые правки
 let tariff = null;
+let rooms = [];           // цены номеров по услугам CRM (здание × вместимость), из «Тарифов»
 let bookings = [];        // брони события: мест в брони / в шахматке
 const ПРИЧИНА = 'за счёт ашрама';
 
@@ -78,6 +79,7 @@ async function open() {
     ]);
     if (error) { Layout.handleError(error, 'Группа'); modal.close(); return; }
     tariff = trf?.current;
+    rooms = trf?.rooms || [];
     if (!tariff) { Layout.showNotification('Сначала заведите тарифы (Гости без события → Тарифы)', 'warning'); modal.close(); return; }
     ret = data.retreat;
     payer = data.payer;
@@ -121,7 +123,7 @@ async function buildLines(data) {
         const изБрони = !p.name && p.booking_id ? именаПоБрони.get(p.booking_id).shift() : null;
         const key = 'r:' + p.resident_id;
         ключи.add(key);
-        const cap = Number(p.capacity) || 2;
+        const тип = FinGuests.типНомера(p, rooms);
         const fresh = {
             nights: p.check_out ? Math.max(днейМежду(p.check_in, p.check_out), 0) : 0,
             people: Math.max(Number(p.roommates) || 1, 1),
@@ -135,8 +137,10 @@ async function buildLines(data) {
             included: s ? s.included !== false : true,
             excludeReason: s?.exclude_reason || '',
             mealsOn: false,   // питание включили здесь — уйдёт в шахматку
-            // 3-местный = 2-местный + доп. кровать по галочке; 4-местные (Гостевой дом №23–28) — свой тариф (ВГ, 29.09)
-            roomPrice: s ? Number(s.room_price) : Number(cap <= 3 ? tariff.room2_price : tariff.room4_price),
+            // цена номера — по зданию и вместимости, как в прайсе ретритов (FinGuests.типНомера);
+            // меньшая вместимость типа = доп. кровать; цена не задана — вписать вручную
+            roomType: тип,
+            roomPrice: s ? Number(s.room_price) : Number(тип?.price) || 0,
             extraBed: !!s?.extra_bed,
             extraBedPrice: s?.extra_bed_price != null ? Number(s.extra_bed_price) : Number(tariff.extra_bed_price) || 0,
             bPrice: s ? Number(s.b_price) : Number(tariff.breakfast_price),
@@ -289,7 +293,8 @@ function placeRow(l, i) {
         <td class="whitespace-nowrap">${!p ? '' : l.extraBed
             ? `<span class="text-xs">доп. кровать</span> ${числа('extraBedPrice', l.extraBedPrice, 'w-16', 50, 'Цена доп. кровати за сутки')}`
             : `${числа('roomPrice', l.roomPrice, 'w-16', 50, 'Цена номера за сутки')} ÷ ${числа('people', l.people, 'w-10', 1, 'Сколько человек делят номер')}`}
-            ${p && Number(p.capacity) === 3 ? `<label class="flex items-center gap-1 text-[11px] cursor-pointer opacity-80" title="3-местный = 2-местный + доп. кровать: галочка — это место на доп. кровати">
+            ${p && l.roomType?.price == null && !l.extraBed ? `<div class="text-[11px] text-warning" title="Задайте цену в «Тарифах» или впишите здесь">цена не задана</div>` : ''}
+            ${p && l.roomType && Number(p.capacity) > Number(l.roomType.capacity) ? `<label class="flex items-center gap-1 text-[11px] cursor-pointer opacity-80" title="${p?.capacity}-местный = ${l.roomType?.capacity}-местный + доп. кровать: галочка — это место на доп. кровати">
                 <input type="checkbox" class="checkbox checkbox-xs" data-gr-extrabed="${i}" ${l.extraBed ? 'checked' : ''} ${выкл ? 'disabled' : ''}> доп. кровать</label>` : ''}</td>
         <td class="text-right font-mono">${p ? inr(r.проживание) : ''}</td>
         ${питаниеВыкл
@@ -361,8 +366,10 @@ function applyBulkPrices() {
     const r2 = val('grB2'), r4 = val('grB4'), b = val('grBB'), l = val('grBL');
     if ([r2, r4, b, l].every(x => x === null)) { Layout.showNotification('Впишите хотя бы одну цену', 'warning'); return; }
     for (const x of цели()) {
-        if (x.place && r2 !== null && (Number(x.place.capacity) || 2) <= 2) x.roomPrice = r2;
-        if (x.place && r4 !== null && (Number(x.place.capacity) || 2) > 2) x.roomPrice = r4;
+        // по типу номера (3-местный = 2-местный + доп. кровать), а не по числу мест в комнате
+        const тип = Number(x.roomType?.capacity ?? x.place?.capacity) || 2;
+        if (x.place && r2 !== null && тип <= 2) x.roomPrice = r2;
+        if (x.place && r4 !== null && тип > 2) x.roomPrice = r4;
         if (b !== null) x.bPrice = b;
         if (l !== null) x.lPrice = l;
     }

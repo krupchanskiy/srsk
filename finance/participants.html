@@ -454,26 +454,29 @@
 
 <!-- Модалка: тарифы для гостей без события (действуют с даты) -->
 <dialog id="tariffsModal" class="modal">
-    <div class="modal-box max-w-lg">
+    <div class="modal-box max-w-2xl">
         <h3 class="font-bold text-lg mb-1" data-i18n="fin_stay_tariffs">Тарифы</h3>
-        <div class="text-xs opacity-60 mb-3">Цены за сутки в ₹. Новые цены действуют с указанной даты; уже сделанные начисления не меняются</div>
+        <div class="text-xs opacity-60 mb-3">Цены за сутки в ₹ для гостей без события и групп. Новые цены действуют с указанной даты; уже сделанные начисления не меняются</div>
         <form id="tariffsForm">
-            <div class="grid grid-cols-2 gap-2 mb-3">
-                <label class="form-control col-span-2"><span class="label-text text-xs">Действует с</span>
-                    <input type="date" id="trfDate" class="input input-bordered input-sm" required></label>
-                <label class="form-control"><span class="label-text text-xs">Номер 2-местный</span>
-                    <input type="number" id="trfRoom2" min="0" step="50" class="input input-bordered input-sm" required></label>
-                <label class="form-control"><span class="label-text text-xs">Номер 4-местный</span>
-                    <input type="number" id="trfRoom4" min="0" step="50" class="input input-bordered input-sm" required></label>
+            <label class="form-control mb-3 max-w-xs"><span class="label-text text-xs">Действует с</span>
+                <input type="date" id="trfDate" class="input input-bordered input-sm" required></label>
+            <!-- номера — те же, что в справочнике услуг CRM и прайсе ретритов: здание × вместимость (ВГ, 29.09) -->
+            <div class="text-xs font-semibold uppercase opacity-60 mb-1">Проживание — за номер в сутки</div>
+            <div class="text-[11px] opacity-60 mb-1">Пусто — цена не задана: в окне начисления её впишут вручную. 3-местные считаются по 2-местному + доп. кровать</div>
+            <table class="table table-xs mb-3">
+                <thead><tr><th>Номер</th><th class="text-right w-32">₹ / сутки</th><th class="text-right">с даты</th></tr></thead>
+                <tbody id="trfRooms"></tbody>
+            </table>
+            <div class="grid grid-cols-3 gap-2 mb-3">
                 <label class="form-control"><span class="label-text text-xs">Завтрак</span>
                     <input type="number" id="trfBreakfast" min="0" step="10" class="input input-bordered input-sm" required></label>
                 <label class="form-control"><span class="label-text text-xs">Обед</span>
                     <input type="number" id="trfLunch" min="0" step="10" class="input input-bordered input-sm" required></label>
-                <label class="form-control"><span class="label-text text-xs">Доп. кровать (3-местный = 2-местный + доп. кровать)</span>
+                <label class="form-control"><span class="label-text text-xs">Доп. кровать</span>
                     <input type="number" id="trfExtraBed" min="0" step="50" class="input input-bordered input-sm" required></label>
             </div>
             <table class="table table-xs mb-2">
-                <thead><tr><th>С даты</th><th class="text-right">2-мест.</th><th class="text-right">4-мест.</th><th class="text-right">Завтрак</th><th class="text-right">Обед</th><th class="text-right">Доп. кр.</th></tr></thead>
+                <thead><tr><th>С даты</th><th class="text-right">Завтрак</th><th class="text-right">Обед</th><th class="text-right">Доп. кр.</th></tr></thead>
                 <tbody id="trfHistory"></tbody>
             </table>
             <div class="modal-action">
@@ -493,8 +496,8 @@
 <script src="../js/date-utils.js?v=4"></script>
 <script src="../js/fin-utils.js?v=17"></script>
 <script src="../js/pages/fin-participants.js?v=70"></script>
-<script src="../js/pages/fin-guests.js?v=6"></script>
-<script src="../js/pages/fin-group.js?v=5"></script>
+<script src="../js/pages/fin-guests.js?v=7"></script>
+<script src="../js/pages/fin-group.js?v=6"></script>
 
 </body>
 </html>

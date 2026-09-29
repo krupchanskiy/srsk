@@ -21,7 +21,8 @@ async function call(name, payload) {
     return res.result;
 }
 
-let tariff = null;        // действующий тариф
+let tariff = null;        // действующий тариф: питание, доп. кровать
+let rooms = [];           // цены номеров по услугам CRM (здание × вместимость)
 let visits = [];          // визиты периода из шахматки
 let selected = new Set(); // resident_id выбранных визитов
 let forms = {};           // resident_id → состояние расчёта
@@ -32,7 +33,20 @@ async function loadTariff() {
     const { data, error } = await Layout.db.rpc('fin_get_stay_tariffs', { p_on: DateUtils.toISO(new Date()) });
     if (error) { Layout.handleError(error, tr('fin_stay_tariffs', 'Тарифы')); return null; }
     tariff = data?.current || null;
+    rooms = data?.rooms || [];
     return data;
+}
+
+// Тип номера для места — как в прайсе ретритов (crm_calc_participation): номера этого здания
+// вместимостью не больше комнаты; сначала шаблон номера, потом точная вместимость, потом
+// ближайшая меньшая. Меньшая вместимость = доп. кровать (3-местный = 2-местный + доп. кровать).
+// Возвращает {name, price|null, capacity} или null — у здания нет номеров в тарифах
+function типНомера(place, список = rooms) {
+    const cap = Number(place.capacity) || 2;
+    const подходит = r => !r.pattern || new RegExp('^' + r.pattern.replace(/[.*+?^${}()|[\]\\]/g, '\\$&').replace(/%/g, '.*').replace(/_/g, '.') + '$', 'i').test(String(place.room || ''));
+    const кандидаты = список.filter(r => r.building_id === place.building_id && Number(r.capacity) <= cap && подходит(r))
+        .sort((a, b) => (!!b.pattern - !!a.pattern) || ((Number(b.capacity) === cap) - (Number(a.capacity) === cap)) || (Number(b.capacity) - Number(a.capacity)));
+    return кандидаты[0] || null;
 }
 
 async function openTariffs() {
@@ -40,15 +54,21 @@ async function openTariffs() {
     if (!data) return;
     const c = data.current || {};
     document.getElementById('trfDate').value = DateUtils.toISO(new Date());
-    document.getElementById('trfRoom2').value = c.room2_price ?? '';
-    document.getElementById('trfRoom4').value = c.room4_price ?? '';
     document.getElementById('trfBreakfast').value = c.breakfast_price ?? '';
     document.getElementById('trfLunch').value = c.lunch_price ?? '';
     document.getElementById('trfExtraBed').value = c.extra_bed_price ?? '';
+    let здание = null;
+    document.getElementById('trfRooms').innerHTML = rooms.map(r => {
+        const шапка = r.building !== здание ? `<tr class="bg-base-200"><td colspan="3" class="font-semibold">${e(r.building)}</td></tr>` : '';
+        здание = r.building;
+        return шапка + `<tr>
+            <td class="pl-4">${e(r.name)} <span class="opacity-50">· ${r.capacity}-мест.</span></td>
+            <td><input type="number" min="0" step="50" class="input input-bordered input-xs w-28 text-right" data-trf-room="${r.service_id}" value="${r.price ?? ''}" placeholder="не задана"></td>
+            <td class="text-right text-xs opacity-60">${r.from && r.price != null ? дата(r.from) : ''}</td>
+        </tr>`;
+    }).join('');
     document.getElementById('trfHistory').innerHTML = (data.history || []).map(h => `<tr>
         <td>${дата(h.effective_date)}</td>
-        <td class="text-right font-mono">${inr(h.room2_price)}</td>
-        <td class="text-right font-mono">${inr(h.room4_price)}</td>
         <td class="text-right font-mono">${inr(h.breakfast_price)}</td>
         <td class="text-right font-mono">${inr(h.lunch_price)}</td>
         <td class="text-right font-mono">${h.extra_bed_price != null ? inr(h.extra_bed_price) : '—'}</td>
@@ -60,11 +80,11 @@ async function submitTariffs(ev) {
     ev.preventDefault();
     const res = await call('fin_set_stay_tariffs', {
         effective_date: document.getElementById('trfDate').value,
-        room2_price: Number(document.getElementById('trfRoom2').value),
-        room4_price: Number(document.getElementById('trfRoom4').value),
         breakfast_price: Number(document.getElementById('trfBreakfast').value),
         lunch_price: Number(document.getElementById('trfLunch').value),
-        extra_bed_price: Number(document.getElementById('trfExtraBed').value) || null
+        extra_bed_price: Number(document.getElementById('trfExtraBed').value) || null,
+        room_prices: [...document.querySelectorAll('[data-trf-room]')].map(el => ({
+            service_id: el.dataset.trfRoom, price: el.value === '' ? null : Number(el.value) }))
     });
     if (!res) return;
     Layout.showNotification(tr('fin_saved', 'Сохранено'), 'success');
@@ -78,7 +98,7 @@ async function showTariffLine() {
     if (!el) return;
     await loadTariff();
     el.innerHTML = tariff
-        ? `Тарифы с ${дата(tariff.effective_date)}: номер 2-мест. <b>${inr(tariff.room2_price)}</b> · 4-мест. <b>${inr(tariff.room4_price)}</b> · завтрак <b>${inr(tariff.breakfast_price)}</b> · обед <b>${inr(tariff.lunch_price)}</b> · доп. кровать <b>${tariff.extra_bed_price != null ? inr(tariff.extra_bed_price) : '—'}</b> <span class="opacity-60">за сутки</span>`
+        ? `Тарифы: ${rooms.filter(r => r.price != null).map(r => `${e(r.name)} <b>${inr(r.price)}</b>`).join(' · ') || 'цены номеров не заданы'} · завтрак <b>${inr(tariff.breakfast_price)}</b> · обед <b>${inr(tariff.lunch_price)}</b> · доп. кровать <b>${tariff.extra_bed_price != null ? inr(tariff.extra_bed_price) : '—'}</b> <span class="opacity-60">за сутки</span>`
         : '<span class="text-warning">Тарифы не заведены — нажмите «Тарифы»</span>';
 }
 
@@ -202,12 +222,13 @@ async function toggleVisit(rid, on, withMates = true) {
 
 async function initForm(v) {
     if (forms[v.resident_id]) return;
-    const cap = Number(v.capacity) || 2;
+    const тип = типНомера(v);
     const f = {
         v,
         nights: v.check_out ? Math.max(днейМежду(v.check_in, v.check_out), 0) : 1,
-        // 3-местный = 2-местный + доп. кровать по галочке; 4-местные (Гостевой дом №23–28) — свой тариф (ВГ, 29.09)
-        roomPrice: Number(cap <= 3 ? tariff.room2_price : tariff.room4_price),
+        // цена номера — по зданию и вместимости, как в прайсе ретритов; не задана — вписать вручную
+        roomType: тип,
+        roomPrice: Number(тип?.price) || 0,
         extraBed: false,
         extraBedPrice: Number(tariff.extra_bed_price) || 0,
         people: Math.max(Number(v.roommates) || 1, 1),
@@ -294,9 +315,10 @@ function renderForms() {
                 = <span class="font-mono">${inr(r.заНочь)}</span>)
                 = <b class="font-mono">${inr(r.проживание)}</b>
             </div>
-            ${Number(v.capacity) === 3 ? `<label class="flex flex-wrap items-center gap-1 text-sm mb-3 -mt-2 cursor-pointer">
+            ${f.roomType?.price == null ? `<div class="text-xs text-warning -mt-2 mb-2">Цена номера ${f.roomType ? `«${e(f.roomType.name)}»` : `в здании «${e(v.building || '')}»`} не задана в Тарифах — впишите вручную</div>` : ''}
+            ${f.roomType && Number(v.capacity) > Number(f.roomType.capacity) ? `<label class="flex flex-wrap items-center gap-1 text-sm mb-3 -mt-2 cursor-pointer">
                 <input type="checkbox" class="checkbox checkbox-xs" data-gc-f="${rid}" data-k="extraBed" ${f.extraBed ? 'checked' : ''}>
-                на доп. кровати <span class="opacity-60">(3-местный = 2-местный + доп. кровать)</span>
+                на доп. кровати <span class="opacity-60">(${v.capacity}-местный = ${f.roomType?.capacity}-местный + доп. кровать)</span>
                 ${f.extraBed ? `— <input type="number" min="0" step="50" class="input input-bordered input-xs w-20" data-gc-f="${rid}" data-k="extraBedPrice" value="${f.extraBedPrice}"> за ночь` : ''}
             </label>` : ''}
             ${v.has_meals === false && !f.mealsOn ? `<div class="text-xs mb-3"><span class="opacity-60">Питание в шахматке выключено</span>
@@ -476,6 +498,6 @@ function init() {
     });
 }
 
-window.FinGuests = { open, openTariffs, showTariffLine, collapsePicker, expandPicker };
+window.FinGuests = { open, openTariffs, showTariffLine, collapsePicker, expandPicker, типНомера };
 init();
 })();
