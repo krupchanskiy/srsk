@@ -60,8 +60,13 @@ async function loadRetreats() {
     if (error) { Layout.handleError(error, 'Ретриты'); return; }
     retreats = data || [];
     const sel = document.getElementById('retreatSelect');
-    sel.innerHTML = `<option value="">${t('fin_select_retreat')}</option>` +
-        retreats.map(r => `<option value="${r.id}">${e(Layout.getName(r))}</option>`).join('');
+    // Наши ретриты и сторонние мероприятия — раздельно, как в шахматке и группах питания (ВГ, 29.09)
+    const option = r => `<option value="${r.id}">${e(Layout.getName(r))}</option>`;
+    const optgroup = (label, items) => items.length
+        ? `<optgroup label="${e(label)}">${items.map(option).join('')}</optgroup>` : '';
+    sel.innerHTML = `<option value="">${t('fin_select_retreat')}</option>`
+        + optgroup(t('group_event_retreat'), retreats.filter(r => !r.is_external))
+        + optgroup(t('retreats_is_external'), retreats.filter(r => r.is_external));
     sel.addEventListener('change', () => { setNoEventMode(false); selectRetreat(sel.value || null); });
 }
 
