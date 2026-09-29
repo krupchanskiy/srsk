@@ -46,7 +46,8 @@ function именаБрони(notes) {
 
 // ==================== РАСЧЁТ ====================
 function расчёт(l) {
-    const заНочь = l.people > 0 ? round2(l.roomPrice / l.people) : 0;
+    // на доп. кровати — цена доп. кровати за ночь, иначе номер ÷ жильцов
+    const заНочь = l.extraBed ? round2(l.extraBedPrice) : l.people > 0 ? round2(l.roomPrice / l.people) : 0;
     const завтраков = l.persons * l.meals.filter(m => m.b).length;
     const обедов = l.persons * l.meals.filter(m => m.l).length;
     const проживание = round2(l.nights * заНочь);
@@ -134,7 +135,10 @@ async function buildLines(data) {
             included: s ? s.included !== false : true,
             excludeReason: s?.exclude_reason || '',
             mealsOn: false,   // питание включили здесь — уйдёт в шахматку
-            roomPrice: s ? Number(s.room_price) : Number(cap <= 2 ? tariff.room2_price : tariff.room4_price),
+            // 3-местный = 2-местный + доп. кровать по галочке; 4-местные (Гостевой дом №23–28) — свой тариф (ВГ, 29.09)
+            roomPrice: s ? Number(s.room_price) : Number(cap <= 3 ? tariff.room2_price : tariff.room4_price),
+            extraBed: !!s?.extra_bed,
+            extraBedPrice: s?.extra_bed_price != null ? Number(s.extra_bed_price) : Number(tariff.extra_bed_price) || 0,
             bPrice: s ? Number(s.b_price) : Number(tariff.breakfast_price),
             lPrice: s ? Number(s.l_price) : Number(tariff.lunch_price),
             extra: s ? Number(s.extra) || 0 : 0,
@@ -282,7 +286,11 @@ function placeRow(l, i) {
             ${l.mealsOn ? '<span class="badge badge-info badge-xs" title="Питание включено здесь — при сохранении включится и в шахматке">питание вкл.</span>' : ''}</td>
         <td class="whitespace-nowrap text-xs">${p ? `${дата(p.check_in)}–${p.check_out ? дата(p.check_out) : '…'}` : `${дата(l.eater.start_date)}–${дата(l.eater.end_date)}`}</td>
         <td>${p ? числа('nights', l.nights, 'w-12') : ''}</td>
-        <td class="whitespace-nowrap">${p ? `${числа('roomPrice', l.roomPrice, 'w-16', 50, 'Цена номера за сутки')} ÷ ${числа('people', l.people, 'w-10', 1, 'Сколько человек делят номер')}` : ''}</td>
+        <td class="whitespace-nowrap">${!p ? '' : l.extraBed
+            ? `<span class="text-xs">доп. кровать</span> ${числа('extraBedPrice', l.extraBedPrice, 'w-16', 50, 'Цена доп. кровати за сутки')}`
+            : `${числа('roomPrice', l.roomPrice, 'w-16', 50, 'Цена номера за сутки')} ÷ ${числа('people', l.people, 'w-10', 1, 'Сколько человек делят номер')}`}
+            ${p && Number(p.capacity) === 3 ? `<label class="flex items-center gap-1 text-[11px] cursor-pointer opacity-80" title="3-местный = 2-местный + доп. кровать: галочка — это место на доп. кровати">
+                <input type="checkbox" class="checkbox checkbox-xs" data-gr-extrabed="${i}" ${l.extraBed ? 'checked' : ''} ${выкл ? 'disabled' : ''}> доп. кровать</label>` : ''}</td>
         <td class="text-right font-mono">${p ? inr(r.проживание) : ''}</td>
         ${питаниеВыкл
             ? `<td colspan="3" class="text-xs"><span class="opacity-60">питание в шахматке выключено</span>
@@ -418,6 +426,7 @@ function toLine(l) {
     const r = расчёт(l);
     const o = {
         key: l.key, label: l.label || null, nights: l.nights, room_price: l.roomPrice, people: l.people,
+        extra_bed: !!l.extraBed, extra_bed_price: l.extraBed ? l.extraBedPrice : null,
         breakfasts: r.завтраков, lunches: r.обедов, b_price: l.bPrice, l_price: l.lPrice, extra: Number(l.extra) || 0,
         meals: l.meals, persons: l.persons,
         included: l.included, exclude_reason: l.included ? null : (l.excludeReason || '').trim() || null
@@ -468,6 +477,7 @@ async function summaryData() {
         g.мест += l.place ? 1 : l.persons;
         if (l.place && l.label) g.имена.push(l.label);
         if (l.place) { g.ночи.add(l.nights); g.цены.add(l.roomPrice); }
+        if (l.extraBed) { g.допКроватей = (g.допКроватей || 0) + 1; g.ценаДоп = l.extraBedPrice; }
         g.проживание += r.проживание; g.завтраков += r.завтраков; g.обедов += r.обедов; g.питание += r.питание; g.доп += r.доп;
     }
     комнаты.forEach(g => { g.пропуски = пропуски(g.lines); g.итого = round2(g.проживание + g.питание + g.доп); });
@@ -496,7 +506,7 @@ async function openSummary() {
         <td>${k.период}</td>
         <td ${R}>${k.place ? [...k.ночи].join('/') : ''}</td>
         <td ${R}>${k.мест}</td>
-        <td ${R}>${k.place ? [...k.цены].map(inr).join('/') : ''}</td>
+        <td ${R}>${k.place ? [...k.цены].map(inr).join('/') : ''}${k.допКроватей ? `<br><span style="font-size:11px;opacity:.7">+ доп. кровать ${inr(k.ценаДоп)}${k.допКроватей > 1 ? ` × ${k.допКроватей}` : ''}</span>` : ''}</td>
         <td ${R}>${k.place ? inr(k.проживание) : ''}</td>
         <td ${R}>${k.завтраков}</td>
         <td ${R}>${k.обедов}</td>
@@ -535,7 +545,7 @@ function summaryText(d) {
     out.push('');
     for (const k of d.комнаты) {
         const части = [`${k.имя}, ${k.период}`];
-        if (k.place) части.push(`${[...k.ночи].join('/')} ноч. · мест ${k.мест} · номер ${[...k.цены].map(inr).join('/')}/сутки · проживание ${inr(k.проживание)}`);
+        if (k.place) части.push(`${[...k.ночи].join('/')} ноч. · мест ${k.мест} · номер ${[...k.цены].map(inr).join('/')}/сутки${k.допКроватей ? ` + доп. кровать ${inr(k.ценаДоп)}${k.допКроватей > 1 ? ` × ${k.допКроватей}` : ''}` : ''} · проживание ${inr(k.проживание)}`);
         else части.push(`${k.мест} чел.`);
         if (k.питание) части.push(`завтраков ${k.завтраков}, обедов ${k.обедов} — ${inr(k.питание)}${k.пропуски.length ? ` (${k.пропуски.join(', ')})` : ''}`);
         части.push(`итого ${inr(k.итого)}`);
@@ -607,7 +617,15 @@ function init() {
     });
     modal.addEventListener('change', ev => {
         const el = ev.target;
-        if (el.dataset.grInc !== undefined) {
+        if (el.dataset.grExtrabed !== undefined) {
+            // место на доп. кровати платит цену доп. кровати, остальные делят номер между собой
+            const l = lines[Number(el.dataset.grExtrabed)];
+            l.extraBed = el.checked;
+            for (const x of lines.filter(x => x !== l && x.place && ключКомнаты(x) === ключКомнаты(l) && !x.extraBed)) {
+                x.people = Math.max(1, x.people + (el.checked ? -1 : 1));
+            }
+            dirty = true; render();
+        } else if (el.dataset.grInc !== undefined) {
             const l = lines[Number(el.dataset.grInc)];
             l.included = el.checked;
             if (!l.included && !l.excludeReason) l.excludeReason = ПРИЧИНА;

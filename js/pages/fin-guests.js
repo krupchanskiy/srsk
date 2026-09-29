@@ -44,12 +44,14 @@ async function openTariffs() {
     document.getElementById('trfRoom4').value = c.room4_price ?? '';
     document.getElementById('trfBreakfast').value = c.breakfast_price ?? '';
     document.getElementById('trfLunch').value = c.lunch_price ?? '';
+    document.getElementById('trfExtraBed').value = c.extra_bed_price ?? '';
     document.getElementById('trfHistory').innerHTML = (data.history || []).map(h => `<tr>
         <td>${дата(h.effective_date)}</td>
         <td class="text-right font-mono">${inr(h.room2_price)}</td>
         <td class="text-right font-mono">${inr(h.room4_price)}</td>
         <td class="text-right font-mono">${inr(h.breakfast_price)}</td>
         <td class="text-right font-mono">${inr(h.lunch_price)}</td>
+        <td class="text-right font-mono">${h.extra_bed_price != null ? inr(h.extra_bed_price) : '—'}</td>
     </tr>`).join('');
     document.getElementById('tariffsModal').showModal();
 }
@@ -61,7 +63,8 @@ async function submitTariffs(ev) {
         room2_price: Number(document.getElementById('trfRoom2').value),
         room4_price: Number(document.getElementById('trfRoom4').value),
         breakfast_price: Number(document.getElementById('trfBreakfast').value),
-        lunch_price: Number(document.getElementById('trfLunch').value)
+        lunch_price: Number(document.getElementById('trfLunch').value),
+        extra_bed_price: Number(document.getElementById('trfExtraBed').value) || null
     });
     if (!res) return;
     Layout.showNotification(tr('fin_saved', 'Сохранено'), 'success');
@@ -75,7 +78,7 @@ async function showTariffLine() {
     if (!el) return;
     await loadTariff();
     el.innerHTML = tariff
-        ? `Тарифы с ${дата(tariff.effective_date)}: номер 2-мест. <b>${inr(tariff.room2_price)}</b> · 4-мест. <b>${inr(tariff.room4_price)}</b> · завтрак <b>${inr(tariff.breakfast_price)}</b> · обед <b>${inr(tariff.lunch_price)}</b> <span class="opacity-60">за сутки</span>`
+        ? `Тарифы с ${дата(tariff.effective_date)}: номер 2-мест. <b>${inr(tariff.room2_price)}</b> · 4-мест. <b>${inr(tariff.room4_price)}</b> · завтрак <b>${inr(tariff.breakfast_price)}</b> · обед <b>${inr(tariff.lunch_price)}</b> · доп. кровать <b>${tariff.extra_bed_price != null ? inr(tariff.extra_bed_price) : '—'}</b> <span class="opacity-60">за сутки</span>`
         : '<span class="text-warning">Тарифы не заведены — нажмите «Тарифы»</span>';
 }
 
@@ -203,7 +206,10 @@ async function initForm(v) {
     const f = {
         v,
         nights: v.check_out ? Math.max(днейМежду(v.check_in, v.check_out), 0) : 1,
-        roomPrice: Number(cap <= 2 ? tariff.room2_price : tariff.room4_price),
+        // 3-местный = 2-местный + доп. кровать по галочке; 4-местные (Гостевой дом №23–28) — свой тариф (ВГ, 29.09)
+        roomPrice: Number(cap <= 3 ? tariff.room2_price : tariff.room4_price),
+        extraBed: false,
+        extraBedPrice: Number(tariff.extra_bed_price) || 0,
         people: Math.max(Number(v.roommates) || 1, 1),
         bPrice: Number(tariff.breakfast_price),
         lPrice: Number(tariff.lunch_price),
@@ -227,7 +233,8 @@ async function initForm(v) {
 }
 
 function расчёт(f) {
-    const заНочь = f.people > 0 ? round2(f.roomPrice / f.people) : 0;
+    // на доп. кровати — цена доп. кровати за ночь, иначе номер ÷ жильцов
+    const заНочь = f.extraBed ? round2(f.extraBedPrice) : f.people > 0 ? round2(f.roomPrice / f.people) : 0;
     const завтраков = f.meals.filter(m => m.b).length;
     const обедов = f.meals.filter(m => m.l).length;
     const проживание = round2(f.nights * заНочь);
@@ -287,6 +294,11 @@ function renderForms() {
                 = <span class="font-mono">${inr(r.заНочь)}</span>)
                 = <b class="font-mono">${inr(r.проживание)}</b>
             </div>
+            ${Number(v.capacity) === 3 ? `<label class="flex flex-wrap items-center gap-1 text-sm mb-3 -mt-2 cursor-pointer">
+                <input type="checkbox" class="checkbox checkbox-xs" data-gc-f="${rid}" data-k="extraBed" ${f.extraBed ? 'checked' : ''}>
+                на доп. кровати <span class="opacity-60">(3-местный = 2-местный + доп. кровать)</span>
+                ${f.extraBed ? `— <input type="number" min="0" step="50" class="input input-bordered input-xs w-20" data-gc-f="${rid}" data-k="extraBedPrice" value="${f.extraBedPrice}"> за ночь` : ''}
+            </label>` : ''}
             ${v.has_meals === false && !f.mealsOn ? `<div class="text-xs mb-3"><span class="opacity-60">Питание в шахматке выключено</span>
                 <button type="button" class="btn btn-ghost btn-xs text-primary" data-gc-meals-on="${rid}" title="Если выключено по ошибке — включится и в шахматке, кухня посчитает его">включить питание</button></div>` : `
             <div class="text-xs font-semibold uppercase opacity-60 mb-1 flex items-center gap-2">Питание
@@ -378,7 +390,7 @@ async function save() {
         const base = { retreat_id: retreatId, participant_id: pid, resident_id: rid, occurred_on: v.check_in };
         const rows = [];
         if (f.nights > 0 && r.заНочь > 0) rows.push({ ...base, id: crypto.randomUUID(), kind: 'accommodation',
-            description: `Проживание ${дата(v.check_in)}–${v.check_out ? дата(v.check_out) : '…'}${где}${f.people > 1 ? ` (номер ${inr(f.roomPrice)} ÷ ${f.people})` : ''}${хвост}`,
+            description: `${f.extraBed ? 'Доп. кровать' : 'Проживание'} ${дата(v.check_in)}–${v.check_out ? дата(v.check_out) : '…'}${где}${!f.extraBed && f.people > 1 ? ` (номер ${inr(f.roomPrice)} ÷ ${f.people})` : ''}${хвост}`,
             quantity: f.nights, unit_price: вВалюту(r.заНочь) });
         if (r.завтраков && f.bPrice > 0) rows.push({ ...base, id: crypto.randomUUID(), kind: 'meals',
             description: `Завтраки: ${дни(f.meals.filter(m => m.b))}`, quantity: r.завтраков, unit_price: вВалюту(f.bPrice) });
@@ -453,7 +465,7 @@ function init() {
         } else if (el.dataset.gcF) {
             const f = forms[el.dataset.gcF];
             const k = el.dataset.k;
-            f[k] = ['extraDesc', 'comment'].includes(k) ? el.value : Number(el.value) || 0;
+            f[k] = k === 'extraBed' ? el.checked : ['extraDesc', 'comment'].includes(k) ? el.value : Number(el.value) || 0;
             renderForms();
         }
     });

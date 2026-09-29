@@ -469,9 +469,11 @@
                     <input type="number" id="trfBreakfast" min="0" step="10" class="input input-bordered input-sm" required></label>
                 <label class="form-control"><span class="label-text text-xs">Обед</span>
                     <input type="number" id="trfLunch" min="0" step="10" class="input input-bordered input-sm" required></label>
+                <label class="form-control"><span class="label-text text-xs">Доп. кровать (3-местный = 2-местный + доп. кровать)</span>
+                    <input type="number" id="trfExtraBed" min="0" step="50" class="input input-bordered input-sm" required></label>
             </div>
             <table class="table table-xs mb-2">
-                <thead><tr><th>С даты</th><th class="text-right">2-мест.</th><th class="text-right">4-мест.</th><th class="text-right">Завтрак</th><th class="text-right">Обед</th></tr></thead>
+                <thead><tr><th>С даты</th><th class="text-right">2-мест.</th><th class="text-right">4-мест.</th><th class="text-right">Завтрак</th><th class="text-right">Обед</th><th class="text-right">Доп. кр.</th></tr></thead>
                 <tbody id="trfHistory"></tbody>
             </table>
             <div class="modal-action">
@@ -491,8 +493,8 @@
 <script src="../js/date-utils.js?v=4"></script>
 <script src="../js/fin-utils.js?v=17"></script>
 <script src="../js/pages/fin-participants.js?v=70"></script>
-<script src="../js/pages/fin-guests.js?v=5"></script>
-<script src="../js/pages/fin-group.js?v=4"></script>
+<script src="../js/pages/fin-guests.js?v=6"></script>
+<script src="../js/pages/fin-group.js?v=5"></script>
 
 </body>
 </html>
