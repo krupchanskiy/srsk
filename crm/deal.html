@@ -230,6 +230,8 @@
                         </div>
                         <!-- Странные даты рейсов: перепутанный год или месяц -->
                         <div id="flightDatesWarning" class="hidden text-xs text-warning leading-snug"></div>
+                        <!-- Дат нет совсем — дальше «Забронировано» сделка не пройдёт (миграция 590) -->
+                        <div id="datesMissingWarning" class="hidden text-xs text-error leading-snug"></div>
                     </div>
                     <div id="checklistReadiness" class="mt-2 text-xs text-center"></div>
                 </div>
@@ -626,7 +628,7 @@
 <script src="../js/utils.js?v=12"></script>
 <script src="../js/layout.js?v=82"></script>
 <script src="../js/date-utils.js?v=4"></script>
-<script src="../js/crm-utils.js?v=4"></script>
+<script src="../js/crm-utils.js?v=5"></script>
 <script src="../js/prepayment-ops.js?v=3"></script>
 
 <script>
@@ -3424,6 +3426,19 @@ function renderDatesStatus() {
         input.classList.toggle('hidden', sel.value !== 'custom');
         if (deal[field]) input.value = String(deal[field]).slice(0, 16);
     });
+
+    // Живёт сам — своя дата означает, с какого по какой день он ест с нами
+    const сам = deal.checklist_accommodation === 'self';
+    document.getElementById('stayCheckIn').title = сам ? 'Ест с нами с' : 'Заезд в ШРСК';
+    document.getElementById('stayCheckOut').title = сам ? 'Ест с нами по' : 'Выезд из ШРСК';
+
+    const warn = document.getElementById('datesMissingWarning');
+    const нет = ['lead', 'working', 'invoiced', 'booked'].includes(deal.status) ? CrmUtils.datesMissing(deal) : [];
+    warn.classList.toggle('hidden', !нет.length);
+    if (нет.length) {
+        const что = нет.map(d => d === 'arrival' ? 'заезда' : 'выезда').join(' и ');
+        warn.textContent = `Нет даты ${что} — впишите рейс или ${сам ? 'даты «ест с нами с/по»' : 'свою дату в ШРСК'}. Без дат сделка не перейдёт в чек-лист.`;
+    }
 }
 
 async function saveDatesStatus(dir, value) {
@@ -3438,6 +3453,7 @@ async function saveStayDate(field, value) {
     const { error } = await Layout.db.from('crm_deals').update({ [field]: value || null }).eq('id', dealId);
     if (error) { Layout.handleError(error, t('crm_dates_status')); return; }
     deal[field] = value || null;
+    renderDatesStatus();
 }
 
 // updateArrivalType и updateDepartureType убраны — рейсы управляются через чеклист

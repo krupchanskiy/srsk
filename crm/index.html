@@ -159,7 +159,7 @@
 <script src="../js/utils.js?v=12"></script>
 <script src="../js/layout.js?v=82"></script>
 <script src="../js/date-utils.js?v=4"></script>
-<script src="../js/crm-utils.js?v=4"></script>
+<script src="../js/crm-utils.js?v=5"></script>
 
 <script>
 const t = key => Layout.t(key);
@@ -201,7 +201,7 @@ async function loadDeals() {
         .select(`
             *,
             vaishnavas:vaishnava_id(id, spiritual_name, first_name, last_name, phone),
-            retreats:retreat_id(id, name_ru, name_en, color),
+            retreats:retreat_id(id, name_ru, name_en, color, end_date),
             manager:manager_id(id, spiritual_name, first_name),
             crm_payments(is_confirmed, amount_inr)
         `)
@@ -291,7 +291,9 @@ function applyFilters() {
         if (manager && manager !== 'my' && manager !== 'unassigned' && d.manager_id !== manager) return false;
         if (mode && d.work_mode !== mode) return false;
         const marker = document.getElementById('filterMarker').value;
-        if (marker && !dealMarkerState(d)[marker]) return false;
+        const st = marker ? dealMarkerState(d) : null;
+        // «Даты не уточнены» — и расхождение с рейсом, и дат нет совсем
+        if (marker && !(st[marker] || (marker === 'dates' && st.noDates))) return false;
         if (search) {
             const g = d.vaishnavas;
             const haystack = [
@@ -455,6 +457,9 @@ function dealMarkerState(deal) {
     return {
         // красный: расхождение дат обнаружено, но не подтверждено (поля появятся в чеклисте дат)
         dates: deal.arrival_dates_status === 'unconfirmed' || deal.departure_dates_status === 'unconfirmed',
+        // красный: оплачено, а дат нет — дальше «Забронировано» сделка не пройдёт (миграция 590)
+        noDates: ['booked', 'checklist', 'ready'].includes(deal.status) && CrmUtils.datesMissing(deal).length > 0
+            && !(deal.retreats?.end_date < DateUtils.toISO(new Date())),   // закончившийся ретрит не тревожим
         // зелёный (не красный — это факт, не тревога): финансовое отклонение от полной цены
         terms: terms.some(x => x.condition_type !== 'self' || x.block !== 'accommodation'),
         // жёлтый: самостоятельное размещение
@@ -466,6 +471,7 @@ function renderCardMarkers(deal) {
     const st = dealMarkerState(deal);
     const метки = [];
     if (st.dates) метки.push(`<span class="inline-block w-2 h-2 rounded-full bg-red-500" title="${t('crm_marker_dates')}"></span>`);
+    else if (st.noDates) метки.push(`<span class="inline-block w-2 h-2 rounded-full bg-red-500" title="Нет дат заезда/выезда — уточните у гостя"></span>`);
     if (st.terms) {
         const terms = dealTermsByDeal[deal.id] || [];
         const текст = terms.filter(x => !(x.block === 'accommodation' && x.condition_type === 'self'))

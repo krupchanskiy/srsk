@@ -355,6 +355,20 @@ const CrmUtils = {
     },
 
     /**
+     * Каких дат не хватает сделке — копия crm_deal_dates_missing (миграция 590),
+     * которая не пускает сделку в чек-лист. Своя дата нужна, если выбрано
+     * «Не совпадает с рейсом» или «Билеты не нужны»; сам живёт и сам ест — даты не нужны.
+     */
+    datesMissing(deal) {
+        if (deal.checklist_accommodation === 'self' && deal.checklist_meals === 'self') return [];
+        const своя = dir => deal[dir + '_dates_status'] === 'custom' || deal.checklist_tickets === 'not_needed';
+        const out = [];
+        if (!(своя('arrival') ? deal.stay_check_in : deal.arrival_datetime)) out.push('arrival');
+        if (!(своя('departure') ? deal.stay_check_out : deal.departure_datetime)) out.push('departure');
+        return out;
+    },
+
+    /**
      * Получить допустимые переходы из текущего статуса
      */
     getAllowedTransitions(currentStatus) {
