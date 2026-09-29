@@ -6,6 +6,9 @@ let rooms = [];
 let floorPlans = [];
 let retreats = [];
 let currentFilter = 'all';
+// Живая бронь: из шахматки создаётся со статусом confirmed, отсюда — active. Раньше
+// вкладки и календарь видели только active, и брони из шахматки (группа БЧС) пропадали (ВГ, 29.09)
+const LIVE = ['active', 'confirmed'];
 let currentView = 'list';
 let calendarYear = new Date().getFullYear();
 let calendarMonth = new Date().getMonth();
@@ -84,9 +87,9 @@ async function loadBookings() {
     // Filter by status
     if (currentFilter === 'not_checked_in') {
         // Load bookings where dates are active (will filter by beds_pending later)
-        query = query.eq('status', 'active').lte('check_in', today).gte('check_out', today);
+        query = query.in('status', LIVE).lte('check_in', today).gte('check_out', today);
     } else if (currentFilter === 'upcoming') {
-        query = query.eq('status', 'active').gt('check_in', today);
+        query = query.in('status', LIVE).gt('check_in', today);
     }
 
     const { data, error } = await query;
@@ -138,7 +141,7 @@ async function loadAllBookings() {
     const { data, error } = await Layout.db
         .from('bookings')
         .select('id, name, contact_name, check_in, check_out, beds_count, status')
-        .eq('status', 'active')
+        .in('status', LIVE)
         .order('check_in');
 
     if (error) {
@@ -197,8 +200,8 @@ function renderBookings() {
     list.innerHTML = bookings.map(booking => {
         const checkIn = DateUtils.parseDate(booking.check_in);
         const checkOut = DateUtils.parseDate(booking.check_out);
-        const isActive = booking.status === 'active' && booking.check_in <= today && booking.check_out >= today;
-        const isUpcoming = booking.status === 'active' && booking.check_in > today;
+        const isActive = LIVE.includes(booking.status) && booking.check_in <= today && booking.check_out >= today;
+        const isUpcoming = LIVE.includes(booking.status) && booking.check_in > today;
         const isCancelled = booking.status === 'cancelled';
 
         const totalBeds = booking.beds_count;
