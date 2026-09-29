@@ -27,6 +27,32 @@ const FinUtils = {
         return crypto.randomUUID();
     },
 
+    // Общий курс устарел (ВГ, 28.09): старше 3 дней — жёлтое оповещение, 7 — красное.
+    // Смотрим последнюю дату по каждой валюте; оповещение — по самой старой.
+    // Возвращает HTML плашки или '' (курс свежий / нет прав на чтение курсов)
+    async staleRateAlert(currencies = null) {
+        const { data, error } = await Layout.db.from('fin_v_exchange_rates')
+            .select('from_currency, effective_date').is('object_id', null);
+        if (error || !data?.length) return '';
+        const последняя = {};
+        for (const r of data) {
+            if (currencies && !currencies.includes(r.from_currency)) continue;
+            if (!последняя[r.from_currency] || r.effective_date > последняя[r.from_currency]) последняя[r.from_currency] = r.effective_date;
+        }
+        const сегодня = DateUtils.parseDate(DateUtils.toISO(new Date()));
+        const старые = Object.entries(последняя)
+            .map(([cur, d]) => ({ cur, d, дней: Math.round((сегодня - DateUtils.parseDate(d)) / 864e5) }))
+            .filter(x => x.дней > 3)
+            .sort((a, b) => b.дней - a.дней);
+        if (!старые.length) return '';
+        const красное = старые[0].дней > 7;
+        const список = старые.map(x => `${FinUtils.symbol(x.cur)} от ${DateUtils.formatShort(DateUtils.parseDate(x.d))} (${Layout.pluralize(x.дней, { ru: ['день', 'дня', 'дней'], en: ['day', 'days'], hi: 'दिन' })})`).join(' · ');
+        return `<div class="alert ${красное ? 'alert-error' : 'alert-warning'} py-2 text-sm">
+            <span>⚠ Общий курс устарел: ${список}. По нему считаются гости без события и события без своего курса.</span>
+            <a href="dictionaries.html?tab=rates" class="btn btn-sm">Обновить курс</a>
+        </div>`;
+    },
+
     // Обёртка submit-хендлера: блокирует кнопку и показывает спиннер на время RPC
     lockedSubmit(handler) {
         return async ev => {

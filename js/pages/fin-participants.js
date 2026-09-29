@@ -136,6 +136,8 @@ async function loadParticipants() {
     const toolbar = document.getElementById('participantsToolbar');
     if (toolbar) toolbar.style.display = participants.length ? '' : 'none';
     renderParticipants();
+    // визиты показывают итог по гостю — после оплаты он тоже меняется
+    if (noEventMode) window.FinGuests?.loadVisitList();
 }
 
 // Рендер с учётом поиска по имени, фильтр-чипов (все/должники/авансы) и сортировки
@@ -150,6 +152,8 @@ function renderParticipants() {
     const query = (document.getElementById('pSearch')?.value || '').trim().toLowerCase();
     let list = participants.filter(p => {
         const net = Number(p.balance.net) || 0;
+        // гости без события: здесь только долги и авансы из любых периодов, остальное — в «Визитах»
+        if (noEventMode && Math.abs(net) < 0.005) return false;
         if (pFilter === 'debt' && net <= 0) return false;
         if (pFilter === 'advance' && net >= 0) return false;
         if (pFilter === 'paid') {
@@ -185,7 +189,8 @@ function renderParticipants() {
             <td class="text-right">${fmtNet(Number(b.general_debt) - Number(b.general_advance), cur)}</td>
             <td class="text-right font-semibold">${fmtNetWord(b.net, cur, b)}${crmCancelledBadge(p)}</td>
         </tr>`;
-    }).join('') || `<tr><td colspan="7" class="text-center py-6 opacity-60">${t('fin_nothing_found')}</td></tr>`;
+    }).join('') || `<tr><td colspan="7" class="text-center py-6 opacity-60">${noEventMode && !query
+        ? 'Долгов и авансов нет' : t('fin_nothing_found')}</td></tr>`;
     renderParticipantsSummary();
 }
 
@@ -294,6 +299,17 @@ async function loadRetreatRates() {
     retreatRateOwn = {};
     const { data } = await Layout.db.rpc('fin_get_retreat_rates', { p_retreat: currentRetreat });
     (data || []).forEach(r => { retreatRates[r.currency_code] = Number(r.rate); retreatRateOwn[r.currency_code] = !!r.is_own; });
+    renderRateAlert();
+}
+
+// Общий курс в ходу у гостей без события и у событий без своего курса — предупреждаем, если он устарел
+async function renderRateAlert() {
+    const el = document.getElementById('rateAlert');
+    if (!el) return;
+    const общие = Object.keys(retreatRates).filter(c => c !== 'INR' && !retreatRateOwn[c]);
+    const для = currentRetreat;
+    const html = currentRetreat && общие.length ? await FinUtils.staleRateAlert(общие) : '';
+    if (для === currentRetreat) el.innerHTML = html;
 }
 
 function renderCardRates() {
@@ -3063,6 +3079,8 @@ async function init() {
         await enterNoEvent();
         const openPid = params.get('open');
         if (openPid && participants.some(p => p.participant_id === openPid)) openCard(openPid);
+        // из шахматки: визит → карточка, если уже начислено, иначе окно начисления
+        else if (params.get('visit')) window.FinGuests?.openVisit(params.get('visit'));
     } else if (preset && retreats.some(r => r.id === preset)) {
         document.getElementById('retreatSelect').value = preset;
         await selectRetreat(preset);

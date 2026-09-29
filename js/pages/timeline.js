@@ -38,6 +38,12 @@ let allRetreats = [];         // для выбора ретрита при за�
 let retreatTags = new Map();  // retreat_id → { tag, name } только для ретритов, пересекающихся с другими в периоде
 let creditorsSet = new Set(); // `${vaishnava_id}_${retreat_id}` — ашрам должен участнику (переплата при начисленной карточке)
 let debtorsSet = new Set();   // `${vaishnava_id}_${retreat_id}` — участники с долгом по финмодулю
+// Ключ финмодуля: у гостя без события вместо ретрита — служебный контейнер «Гости без события»
+const finKey = res => res.vaishnava_id ? `${res.vaishnava_id}_${res.retreat_id || 'no-event'}` : null;
+// Карточка в Финансах: гость без события открывается по визиту — начисление или оплата
+const finHref = res => res.retreat_id
+    ? `../finance/participants.html?retreat=${res.retreat_id}&open=${res.vaishnava_id}`
+    : `../finance/participants.html?guests=1&visit=${res.id}`;
 let selfAccommodated = [];        // проживающие без номера: живут вне территории, в сетку не попадают
 let selfStays = [];               // группа «Самостоятельное проживание» внизу шахматки
 const SELF_GROUP_ID = '__self';   // её ключ в collapsedBuildings
@@ -214,6 +220,11 @@ async function loadTimelineData() {
         if (!debtors.error) for (const row of (debtors.data || [])) debtorsSet.add(`${row.participant_id}_${rid}`);
         if (!creditors.error) for (const row of (creditors.data || [])) creditorsSet.add(`${row.participant_id}_${rid}`);
     }));
+    // Гости без события (ВГ, 29.09): долг ведётся в служебном контейнере, флаги — отдельной функцией
+    if (residents.some(r => r.vaishnava_id && !r.retreat_id)) {
+        const { data, error } = await Layout.db.rpc('fin_no_event_debt_flags');
+        if (!error) for (const row of (data || [])) (row.is_debt ? debtorsSet : creditorsSet).add(`${row.participant_id}_no-event`);
+    }
 
     // Сделка отменена, а бронь в шахматке осталась: сами не снимаем (иначе не заметим, что место
     // освободилось), а вешаем красную плашку «Отмена» — снять бронь руками. Если у человека есть
@@ -421,10 +432,8 @@ async function loadTimelineData() {
                         // Уже выселенных не помечаем: прожил — значит, приезжал
                         isDealCancelled: !!(res.vaishnava_id && res.retreat_id && res.status !== 'checked_out'
                             && cancelledDealsSet.has(`${res.vaishnava_id}_${res.retreat_id}`)),
-                        hasDebt: !!(res.vaishnava_id && res.retreat_id
-                            && debtorsSet.has(`${res.vaishnava_id}_${res.retreat_id}`)),
-                        hasCredit: !!(res.vaishnava_id && res.retreat_id
-                            && creditorsSet.has(`${res.vaishnava_id}_${res.retreat_id}`)),
+                        hasDebt: debtorsSet.has(finKey(res)),
+                        hasCredit: creditorsSet.has(finKey(res)),
                         specialNeeds: (res.vaishnava_id && res.retreat_id
                             && specialNeedsMap.get(`${res.vaishnava_id}_${res.retreat_id}`)) || null,
                         // Сырые данные для модалки
@@ -850,11 +859,10 @@ function openSelfStay(id) {
     const res = selfStays.find(r => r.id === id && !r.fromCrm);
     if (!res) return;
     const name = (res.vaishnavas ? getVaishnavName(res.vaishnavas, '') : '') || res.guest_name || '—';
-    const key = `${res.vaishnava_id}_${res.retreat_id}`;
     openResidentModal({
         id: res.id, name, isBooking: false, rawData: res,
-        hasDebt: !!(res.vaishnava_id && res.retreat_id && debtorsSet.has(key)),
-        hasCredit: !!(res.vaishnava_id && res.retreat_id && creditorsSet.has(key))
+        hasDebt: debtorsSet.has(finKey(res)),
+        hasCredit: creditorsSet.has(finKey(res))
     }, selfBlockLabel(), '');
 }
 
@@ -1510,7 +1518,7 @@ function openResidentModal(guestData, buildingName, roomName) {
             <span class="text-gray-500">${t('timeline_finance_card')}:</span>
             <span class="font-medium text-error">
                 ${t('timeline_has_debt')}
-                <a href="../finance/participants.html?retreat=${res.retreat_id}&open=${res.vaishnava_id}" class="link link-primary ml-1">→</a>
+                <a href="${finHref(res)}" class="link link-primary ml-1">→</a>
             </span>
         </div>`;
     }
@@ -1520,8 +1528,17 @@ function openResidentModal(guestData, buildingName, roomName) {
             <span class="text-gray-500">${t('timeline_finance_card')}:</span>
             <span class="font-medium text-success">
                 ${t('timeline_we_owe')}
-                <a href="../finance/participants.html?retreat=${res.retreat_id}&open=${res.vaishnava_id}" class="link link-primary ml-1">→</a>
+                <a href="${finHref(res)}" class="link link-primary ml-1">→</a>
             </span>
+        </div>`;
+    }
+
+    // Гость без события: начислить и принять оплату — в Финансах по этому визиту (ВГ, 29.09)
+    if (!guestData.hasDebt && !guestData.hasCredit && !res.retreat_id && res.category_id === GUEST_CATEGORY_ID
+        && (window.hasPermission?.('fin_admin') || window.hasPermission?.('fin_observer'))) {
+        infoHtml += `<div class="flex justify-between py-1 border-b">
+            <span class="text-gray-500">${t('timeline_finance_card')}:</span>
+            <a href="${finHref(res)}" class="link link-primary font-medium">${Layout.escapeHtml(tf('timeline_charge_payment', 'Начисление и оплата'))} →</a>
         </div>`;
     }
 
@@ -1778,6 +1795,9 @@ async function checkoutResident() {
             p_participant: res.vaishnava_id, p_retreat: res.retreat_id
         });
         if (hasDebt === true && !confirm(t('timeline_debt_warning'))) return;
+    } else if (res.vaishnava_id) {
+        const { data: флаги } = await Layout.db.rpc('fin_no_event_debt_flags', { p_participant: res.vaishnava_id });
+        if (флаги?.some(f => f.is_debt) && !confirm(t('timeline_debt_warning'))) return;
     }
 
     const { error } = await Layout.db

@@ -49,12 +49,14 @@
     </div>
 
     <div id="noEventTariffLine" class="only-no-event text-sm -mt-4 mb-4"></div>
+    <!-- общий курс устарел (3 дня — жёлтое, 7 — красное), если он здесь в ходу -->
+    <div id="rateAlert" class="mb-4"></div>
 
     <!-- Панель: поиск по имени + фильтр-чипы + итог долгов/авансов -->
     <div class="flex flex-wrap items-center gap-3 mb-3" id="participantsToolbar" style="display:none">
         <input type="search" id="pSearch" class="input input-bordered input-sm w-56"
                data-i18n-placeholder="fin_search_name" placeholder="Поиск по имени…">
-        <div class="join">
+        <div class="join hide-no-event">
             <button class="join-item btn btn-sm btn-active" data-pfilter="all" data-i18n="fin_filter_all">Все</button>
             <button class="join-item btn btn-sm" data-pfilter="debt" data-i18n="fin_debtors">Должники</button>
             <button class="join-item btn btn-sm" data-pfilter="advance" data-i18n="fin_advances">Авансы</button>
@@ -63,6 +65,8 @@
         <div id="pSummary" class="text-sm ml-auto"></div>
     </div>
 
+    <!-- Гости без события: сверху долги и авансы из любых периодов, ниже — визиты за период (ВГ, 28.09) -->
+    <h2 class="only-no-event font-semibold text-lg mb-2">Долги и авансы <span class="font-normal text-sm opacity-60">— все периоды</span></h2>
     <div class="card bg-base-100 shadow-sm">
         <div class="card-body p-0">
             <div class="overflow-x-auto">
@@ -84,6 +88,41 @@
                 </table>
             </div>
             <div class="px-4 py-2 text-xs opacity-70" data-i18n="fin_color_legend">Красным — долг участника · зелёным — аванс (мы должны участнику)</div>
+        </div>
+    </div>
+
+    <!-- Визиты гостей без события за период: из шахматки, с начислением и итогом по гостю -->
+    <div class="only-no-event mt-6">
+        <div class="flex flex-wrap items-center gap-2 mb-2">
+            <h2 class="font-semibold text-lg mr-2">Визиты</h2>
+            <div class="join">
+                <button type="button" class="btn btn-sm join-item" data-gv-step="month">Месяц</button>
+                <button type="button" class="btn btn-sm join-item" data-gv-step="quarter">Квартал</button>
+                <button type="button" class="btn btn-sm join-item" data-gv-step="year">Год</button>
+            </div>
+            <select id="gvPeriod" class="select select-bordered select-sm font-semibold"></select>
+            <input type="search" id="gvSearch" class="input input-bordered input-sm w-48" placeholder="Поиск по имени…">
+            <div class="join">
+                <button type="button" class="join-item btn btn-sm" data-gv-filter="all">Все</button>
+                <button type="button" class="join-item btn btn-sm" data-gv-filter="uncharged">Не начислено</button>
+                <button type="button" class="join-item btn btn-sm" data-gv-filter="debt">Долг</button>
+                <button type="button" class="join-item btn btn-sm" data-gv-filter="paid">Оплачено</button>
+            </div>
+            <div id="gvSummary" class="text-sm ml-auto"></div>
+        </div>
+        <div class="card bg-base-100 shadow-sm">
+            <div class="card-body p-0">
+                <div class="overflow-x-auto">
+                    <table class="table table-sm">
+                        <thead><tr>
+                            <th>Гость</th><th>Номер</th><th>Даты</th><th class="text-right">Ночей</th>
+                            <th class="text-right">Начислено за визит</th>
+                            <th class="text-right" title="Итог по гостю за все визиты: долг, аванс или оплачено">Итог по гостю</th>
+                        </tr></thead>
+                        <tbody id="gvBody"></tbody>
+                    </table>
+                </div>
+            </div>
         </div>
     </div>
 </main>
@@ -494,9 +533,9 @@
 <script src="../js/utils.js?v=12"></script>
 <script src="../js/layout.js?v=82"></script>
 <script src="../js/date-utils.js?v=4"></script>
-<script src="../js/fin-utils.js?v=17"></script>
-<script src="../js/pages/fin-participants.js?v=70"></script>
-<script src="../js/pages/fin-guests.js?v=7"></script>
+<script src="../js/fin-utils.js?v=18"></script>
+<script src="../js/pages/fin-participants.js?v=71"></script>
+<script src="../js/pages/fin-guests.js?v=8"></script>
 <script src="../js/pages/fin-group.js?v=6"></script>
 
 </body>

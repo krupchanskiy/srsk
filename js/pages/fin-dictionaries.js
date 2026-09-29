@@ -650,6 +650,14 @@ async function init() {
         else if (ret) fillReturnForm(editingId, ret.dataset.returnEmployee);
     });
 
+    // ?tab=rates — прямая ссылка из оповещения «общий курс устарел»
+    const вкладка = new URLSearchParams(window.location.search).get('tab');
+    const таб = вкладка && document.querySelector(`[role="tab"][data-tab="${CSS.escape(вкладка)}"]`);
+    if (таб) {
+        document.querySelectorAll('[role="tab"]').forEach(x => x.classList.remove('tab-active'));
+        таб.classList.add('tab-active');
+        currentTab = вкладка;
+    }
     await loadTab();
 }
 

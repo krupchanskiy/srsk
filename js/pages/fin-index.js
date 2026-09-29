@@ -175,11 +175,13 @@ function renderSyncAge(accounts) {
 async function loadSignals() {
     const box = document.getElementById('finSignals');
     if (!box) return;
-    const [unposted, integrity] = await Promise.all([
+    const [unposted, integrity, курс] = await Promise.all([
         Layout.db.from('fin_v_unposted_crm_payments').select('*', { count: 'exact', head: true }),
-        Layout.db.from('fin_v_integrity_open').select('check_name, detail, bad_count')
+        Layout.db.from('fin_v_integrity_open').select('check_name, detail, bad_count'),
+        FinUtils.staleRateAlert()
     ]);
     const cards = [];
+    if (курс) cards.push(курс);
     const nUnposted = unposted.count || 0;
     if (nUnposted > 0) {
         cards.push(`<a href="inbox.html?tab=unposted" class="flex items-center gap-3 p-3 rounded-lg bg-error/10 border border-error/30 hover:bg-error/15">

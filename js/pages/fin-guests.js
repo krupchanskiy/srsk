@@ -102,6 +102,120 @@ async function showTariffLine() {
         : '<span class="text-warning">Тарифы не заведены — нажмите «Тарифы»</span>';
 }
 
+// ==================== СПИСОК ВИЗИТОВ ЗА ПЕРИОД ====================
+// Визиты из шахматки за месяц / квартал / год: начислено ли и итог по гостю.
+// Должники из любых периодов — в таблице над списком (fin-participants.js), ВГ 28.09
+const gv = { step: 'month', from: null, to: null, filter: 'all', list: [], запрос: 0 };
+
+function границы(step, iso) {
+    const d = DateUtils.parseDate(iso);
+    const y = d.getFullYear();
+    if (step === 'year') return [`${y}-01-01`, `${y}-12-31`];
+    const m = step === 'quarter' ? Math.floor(d.getMonth() / 3) * 3 : d.getMonth();
+    const n = step === 'quarter' ? 3 : 1;
+    return [DateUtils.toISO(new Date(y, m, 1)), DateUtils.toISO(new Date(y, m + n, 0))];
+}
+
+function setStep(step, iso) {
+    gv.step = step;
+    [gv.from, gv.to] = границы(step, iso || gv.from || DateUtils.toISO(new Date()));
+    try { localStorage.setItem('fin_guests_step', step); } catch { /* нет хранилища */ }
+    document.querySelectorAll('[data-gv-step]').forEach(b => b.classList.toggle('btn-active', b.dataset.gvStep === step));
+    const sel = document.getElementById('gvPeriod');
+    const опции = [];
+    // визиты гостей без события ведутся с 2026 года
+    for (let y = new Date().getFullYear() + 1; y >= 2026; y--) {
+        if (step === 'year') { опции.push([`${y}-01-01`, String(y)]); continue; }
+        const n = step === 'quarter' ? 4 : 12;
+        for (let i = n - 1; i >= 0; i--) {
+            const m = step === 'quarter' ? i * 3 : i;
+            const имя = step === 'quarter' ? `${i + 1} кв. ${y}`
+                : (l => l.charAt(0).toUpperCase() + l.slice(1))(new Date(y, m, 1).toLocaleDateString('ru-RU', { month: 'long', year: 'numeric' }).replace(' г.', ''));
+            опции.push([DateUtils.toISO(new Date(y, m, 1)), имя]);
+        }
+    }
+    sel.innerHTML = опции.map(([v, l]) => `<option value="${v}" ${v === gv.from ? 'selected' : ''}>${e(l)}</option>`).join('');
+}
+
+async function loadVisitList() {
+    const body = document.getElementById('gvBody');
+    if (!body) return;
+    if (!gv.from) {
+        let step = 'month';
+        try { step = localStorage.getItem('fin_guests_step') || 'month'; } catch { /* нет хранилища */ }
+        setStep(['month', 'quarter', 'year'].includes(step) ? step : 'month');
+    }
+    const n = ++gv.запрос;
+    if (!gv.list.length) body.innerHTML = `<tr><td colspan="6" class="text-center py-6"><span class="loading loading-spinner loading-sm"></span></td></tr>`;
+    const { data, error } = await Layout.db.rpc('fin_list_no_event_visits', { p_from: gv.from, p_to: gv.to });
+    if (n !== gv.запрос) return;   // период успели сменить
+    if (error) { Layout.handleError(error, 'Визиты'); return; }
+    gv.list = data || [];
+    renderVisitList();
+}
+
+// Состояние визита: не начислено (приехал, а денег не спросили) / предстоит / долг / аванс / оплачено.
+// Долг и аванс — по гостю в целом, не по визиту: платежи не привязаны к визиту
+function состояние(v) {
+    if (!(Number(v.charged) > 0)) return v.check_in > DateUtils.toISO(new Date()) ? 'upcoming' : 'uncharged';
+    const net = Number(v.balance?.net) || 0;
+    return net > 0.005 ? 'debt' : net < -0.005 ? 'advance' : 'paid';
+}
+
+function renderVisitList() {
+    const body = document.getElementById('gvBody');
+    const q = (document.getElementById('gvSearch')?.value || '').trim().toLowerCase();
+    const все = gv.list.map(v => ({ v, st: состояние(v) }));
+    const пропущено = все.filter(x => x.st === 'uncharged').length;
+    const должников = new Set(все.filter(x => x.st === 'debt').map(x => x.v.vaishnava_id)).size;
+    // О каждом пропуске — предупреждение сверху, клик ведёт к списку (ВГ)
+    document.getElementById('gvSummary').innerHTML = [
+        `визитов: ${все.length}`,
+        пропущено ? `<button type="button" class="link text-warning font-medium" data-gv-filter="uncharged">⚠ не начислено: ${пропущено}</button>` : '',
+        должников ? `<button type="button" class="link text-error" data-gv-filter="debt">с долгом: ${должников}</button>` : ''
+    ].filter(Boolean).join(' · ');
+    document.querySelectorAll('.join [data-gv-filter]').forEach(b => b.classList.toggle('btn-active', b.dataset.gvFilter === gv.filter));
+    const list = все.filter(({ v, st }) => (gv.filter === 'all' || st === gv.filter || (gv.filter === 'paid' && st === 'advance'))
+        && (!q || (v.name || '').toLowerCase().includes(q)))
+        .sort((a, b) => b.v.check_in.localeCompare(a.v.check_in) || (a.v.name || '').localeCompare(b.v.name || '', 'ru'));
+    const итог = ({ v, st }) => {
+        const cur = v.balance?.currency || 'INR';
+        const net = Math.abs(Number(v.balance?.net) || 0);
+        if (st === 'uncharged') return `<span class="badge badge-warning badge-sm whitespace-nowrap">⚠ не начислено</span>`;
+        if (st === 'upcoming') return `<span class="badge badge-ghost badge-sm">предстоит</span>`;
+        if (st === 'debt') return `<span class="badge badge-error badge-outline whitespace-nowrap font-mono">Долг ${FinUtils.fmtMoney(net, cur)}</span>`;
+        if (st === 'advance') return `<span class="badge badge-success badge-outline whitespace-nowrap font-mono">Аванс ${FinUtils.fmtMoney(net, cur)}</span>`;
+        return `<span class="badge badge-success badge-outline whitespace-nowrap gap-1">${FinUtils.ICONS.check} Оплачено</span>`;
+    };
+    body.innerHTML = list.map(x => {
+        const v = x.v;
+        return `<tr class="cursor-pointer hover:bg-base-200" data-gv-visit="${v.resident_id}" tabindex="0">
+            <td class="font-medium">${e(v.name)}${v.vaishnava_id ? '' : ' <span class="badge badge-ghost badge-xs" title="В шахматке только имя — карточку привяжем при начислении">без карточки</span>'}</td>
+            <td class="whitespace-nowrap">${v.room ? `${e(v.building || '')} №${e(String(v.room))}` : '<span class="opacity-50">без номера</span>'}</td>
+            <td class="whitespace-nowrap">${дата(v.check_in)} — ${v.check_out ? дата(v.check_out) : '…'}</td>
+            <td class="text-right">${v.check_out ? днейМежду(v.check_in, v.check_out) : '—'}</td>
+            <td class="text-right font-mono">${Number(v.charged) > 0 ? FinUtils.fmtMoney(v.charged, v.charge_currency || 'INR') : '<span class="opacity-40">—</span>'}</td>
+            <td class="text-right">${итог(x)}</td>
+        </tr>`;
+    }).join('') || `<tr><td colspan="6" class="text-center py-6 opacity-60">${gv.list.length ? 'Ничего не найдено' : 'Гостей без события за период нет'}</td></tr>`;
+}
+
+// Визит: уже начислено — карточка гостя (приём оплаты), иначе — окно начисления с этим визитом
+async function openVisit(rid, known) {
+    let v = known || gv.list.find(x => x.resident_id === rid);
+    if (!v) {
+        const { data } = await Layout.db.from('residents').select('check_in, check_out').eq('id', rid).maybeSingle();
+        if (!data) { Layout.showNotification('Визит не найден', 'error'); return; }
+        const { data: список } = await Layout.db.rpc('fin_list_no_event_visits',
+            { p_from: data.check_in, p_to: data.check_out || data.check_in });
+        v = (список || []).find(x => x.resident_id === rid);
+        if (!v) { Layout.showNotification('Это не гость без события — оплата через его ретрит', 'warning'); return; }
+    }
+    if (Number(v.charged) > 0 && v.vaishnava_id) { FinParticipants.openCardById(v.vaishnava_id); return; }
+    if (!window.hasPermission?.('fin_admin')) { Layout.showNotification('Начисляет администратор финансов', 'warning'); return; }
+    open({ rid: v.resident_id, from: v.check_in, to: v.check_out || v.check_in });
+}
+
 // ==================== ОКНО НАЧИСЛЕНИЯ ====================
 async function open(opts = {}) {
     if (!await loadTariff()) return;
@@ -112,8 +226,8 @@ async function open(opts = {}) {
     const сегодня = new Date();
     const с = new Date(сегодня); с.setDate(с.getDate() - 21);
     const по = new Date(сегодня); по.setDate(по.getDate() + 7);
-    document.getElementById('gcFrom').value = DateUtils.toISO(с);
-    document.getElementById('gcTo').value = DateUtils.toISO(по);
+    document.getElementById('gcFrom').value = opts.from || DateUtils.toISO(с);
+    document.getElementById('gcTo').value = opts.to || DateUtils.toISO(по);
     document.getElementById('gcForms').innerHTML = '';
     renderTotal();
     document.getElementById('guestChargeModal').showModal();
@@ -126,6 +240,12 @@ async function open(opts = {}) {
         if (selected.size) pickerOpen = false;
         renderVisits();
         renderForms();
+    }
+    // Из списка визитов или шахматки — сразу этот визит (соседи по номеру отметятся сами)
+    if (opts.rid && visits.some(v => v.resident_id === opts.rid)) {
+        await toggleVisit(opts.rid, true);
+        pickerOpen = false;
+        renderPicker();
     }
 }
 
@@ -442,6 +562,20 @@ function init() {
         try { await save(); } finally { saveBtn.disabled = !selected.size; }
     });
     document.getElementById('gcReload')?.addEventListener('click', loadVisits);
+    // список визитов за период
+    document.querySelectorAll('[data-gv-step]').forEach(b => b.addEventListener('click', () => { setStep(b.dataset.gvStep); loadVisitList(); }));
+    document.getElementById('gvPeriod')?.addEventListener('change', ev => { setStep(gv.step, ev.target.value); loadVisitList(); });
+    document.getElementById('gvSearch')?.addEventListener('input', Layout.debounce(renderVisitList, 200));
+    document.querySelector('main')?.addEventListener('click', ev => {
+        const f = ev.target.closest('[data-gv-filter]');
+        if (f) { gv.filter = gv.filter === f.dataset.gvFilter && !f.closest('.join') ? 'all' : f.dataset.gvFilter; renderVisitList(); return; }
+        const row = ev.target.closest('[data-gv-visit]');
+        if (row) openVisit(row.dataset.gvVisit);
+    });
+    document.getElementById('gvBody')?.addEventListener('keydown', ev => {
+        const row = ev.target.closest('[data-gv-visit]');
+        if (row && ev.key === 'Enter') openVisit(row.dataset.gvVisit);
+    });
     document.getElementById('gcSearch')?.addEventListener('input', Layout.debounce(renderVisits, 200));
     document.getElementById('gcRoom')?.addEventListener('input', Layout.debounce(renderVisits, 200));
     document.getElementById('gcBuilding')?.addEventListener('change', renderVisits);
@@ -498,6 +632,6 @@ function init() {
     });
 }
 
-window.FinGuests = { open, openTariffs, showTariffLine, collapsePicker, expandPicker, типНомера };
+window.FinGuests = { open, openTariffs, showTariffLine, collapsePicker, expandPicker, типНомера, loadVisitList, openVisit };
 init();
 })();
