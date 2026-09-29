@@ -261,13 +261,12 @@ async function loadTimelineData() {
         }
     }
 
-    // Фильтруем временные здания по датам шахматки
-    buildings = buildings.filter(b => {
-        // Постоянные здания показываем всегда
-        if (!b.is_temporary) return true;
-        // Временные — только если период аренды пересекается с диапазоном шахматки
-        return b.available_from <= endDateStr && b.available_until >= startDateStr;
-    });
+    // Внешние (временные) здания — только когда в них кто-то живёт или забронирован
+    // в показанном периоде; нет записей — здание пропадает из списка (ВГ, 29.09).
+    // Поставить первую бронь во внешнее здание — через «Перенос» или Бронирования
+    const зданиеНомера = new Map(rooms.map(r => [r.id, r.building_id]));
+    const занятыеЗдания = new Set(residents.filter(r => r.room_id).map(r => зданиеНомера.get(r.room_id)));
+    buildings = buildings.filter(b => !b.is_temporary || занятыеЗдания.has(b.id));
 
     // Сортируем: сначала постоянные, потом временные (внутри — по sort_order)
     buildings.sort((a, b) => (a.is_temporary ? 1 : 0) - (b.is_temporary ? 1 : 0) || (a.sort_order || 0) - (b.sort_order || 0));
@@ -2659,7 +2658,8 @@ function renderTable() {
 
             // Для временных зданий закрашиваем ячейки вне периода аренды
             const isOutsideRental = building.isTemporary &&
-                (dayIndex < building.availableFromDay || dayIndex > building.availableUntilDay);
+                ((building.availableFromDay !== null && dayIndex < building.availableFromDay)
+                 || (building.availableUntilDay !== null && dayIndex > building.availableUntilDay));
 
             if (isOutsideRental) {
                 html += `<td class="${dayStart}" style="background: #d1d5db;"></td>`;
@@ -2734,7 +2734,7 @@ function renderTable() {
 
                 // Проверка: для временных зданий закрашиваем ячейки вне периода аренды
                 const isOutsideRental = building.isTemporary &&
-                    (dayIndex < building.availableFromDay || dayIndex > building.availableUntilDay);
+                    ((building.availableFromDay !== null && dayIndex < building.availableFromDay) || (building.availableUntilDay !== null && dayIndex > building.availableUntilDay));
 
                 if (isOutsideRental) {
                     html += `<td class="${dayStart}" style="background: #e5e7eb; pointer-events: none;"></td>`;
@@ -2812,7 +2812,7 @@ function renderTable() {
 
                     // Проверка: для временных зданий закрашиваем ячейки вне периода аренды
                     const isOutsideRental = building.isTemporary &&
-                        (dayIndex < building.availableFromDay || dayIndex > building.availableUntilDay);
+                        ((building.availableFromDay !== null && dayIndex < building.availableFromDay) || (building.availableUntilDay !== null && dayIndex > building.availableUntilDay));
 
                     if (isOutsideRental) {
                         html += `<td class="half-day ${dayStart}" style="background: #e5e7eb; pointer-events: none;"></td>`;
