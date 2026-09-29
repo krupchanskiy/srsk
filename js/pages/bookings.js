@@ -58,8 +58,9 @@ const today = DateUtils.toISO(new Date());
 
 // ==================== DATA ====================
 async function loadInitialData() {
-    // Load buildings
-    buildings = await Cache.getOrLoad('buildings', async () => {
+    // Load buildings — только названия, отдельным ключом: под 'buildings' шахматка
+    // держит полные здания (временные, порядок, даты аренды) и путала порядок
+    buildings = await Cache.getOrLoad('buildings_names', async () => {
         const { data, error } = await Layout.db
             .from('buildings')
             .select('id, name_ru, name_en, name_hi')

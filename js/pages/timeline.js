@@ -105,6 +105,11 @@ async function loadTimelineData() {
     const startDateStr = formatDateYMD(baseDate);
     const endDateStr = formatDateYMD(endDate);
 
+    // Урезанный кэш зданий (только названия — его раньше клала страница Бронирований)
+    // ломал порядок: временные здания вставали перед Гостевым домом. Такой — выбрасываем
+    const кэшЗданий = Cache.get('buildings');
+    if (кэшЗданий && кэшЗданий.some(b => !('is_temporary' in b))) Cache.invalidate('buildings');
+
     // Загружаем параллельно
     const [buildingsData, roomsRes, residentsRes, retreatsRes, cleaningsRes, holidaysRes] = await Promise.all([
         Cache.getOrLoad('buildings', async () => {
