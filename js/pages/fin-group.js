@@ -294,16 +294,21 @@ function placeRow(l, i) {
     </tr>` + (expanded === l.key ? detailRow(l, i) : '');
 }
 
-// Брони события, где мест больше, чем стоит в шахматке: этих людей не начислить,
-// пока их не расселят (ВГ: «список перед глазами — кого считаем»)
+// Брони события, у которых мест в шахматке меньше, чем в брони. Обычная бронь ставит в
+// шахматку места без имён — кухня считает их «ожидаются»; у этих броней мест нет вовсе
+// (удалены или бронь заведена без мест), их видно только в «Бронированиях» (ВГ, 29.09)
 function renderUnplaced() {
     const el = document.getElementById('grUnplaced');
     const нехватка = bookings.filter(b => Number(b.placed) < Number(b.beds));
-    el.innerHTML = нехватка.length ? `<div class="alert alert-warning py-2 px-3 text-sm block">
-        <b>⚠ Не расселены в шахматке — ${нехватка.reduce((a, b) => a + b.beds - b.placed, 0)} мест(а) в ${нехватка.length} бронях.</b> Пока их нет в шахматке, они не начисляются и кухня их не видит:
+    const питание = lines.some(l => l.eater) ? '' : `<div class="text-xs opacity-60 mb-1">Кто питается с группой, но живёт не у нас — заведите в
+        <a class="link" href="../vaishnavas/groups.html" target="_blank">Группы питания</a> с событием «${e(ret.name)}»: появятся здесь строкой «Питание».</div>`;
+    el.innerHTML = питание + (нехватка.length ? `<div class="alert alert-warning py-2 px-3 text-sm block">
+        <b>⚠ Брони без мест в шахматке — ${нехватка.reduce((a, b) => a + b.beds - b.placed, 0)} мест(а) в ${нехватка.length} бронях.</b>
+        Бронь есть, а мест под неё в шахматке нет — поэтому кухня этих людей не считает (даже как «ожидаются») и здесь их не начислить.
+        Поставьте места в шахматку или отмените лишнюю бронь в «Бронированиях»:
         <ul class="list-disc ml-5 mt-1">${нехватка.map(b => `<li>${e(b.name || 'Бронь')} · ${дата(b.check_in)}–${дата(b.check_out)} · в брони ${b.beds}, в шахматке ${b.placed}${
             именаБрони(b.notes).length ? ` <span class="opacity-70">(${e(именаБрони(b.notes).join(', '))})</span>` : ''}</li>`).join('')}</ul>
-    </div>` : '';
+    </div>` : '');
 }
 
 // Раскрытая строка: завтраки/обеды по дням и цены
