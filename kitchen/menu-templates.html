@@ -1012,6 +1012,9 @@
             if (category !== 'all') {
                 filtered = recipes.filter(r => r.category?.slug === category);
             }
+            // Внутри категории — по алфавиту (ВГ, 30.09)
+            filtered = [...filtered].sort((a, b) =>
+                (getName(a) || '').localeCompare(getName(b) || '', Layout.currentLang));
 
             if (filtered.length === 0) {
                 list.innerHTML = `<div class="p-3 text-sm opacity-50 text-center">${t('nothing_found')}</div>`;

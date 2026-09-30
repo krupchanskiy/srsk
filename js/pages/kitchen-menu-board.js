@@ -782,9 +782,14 @@ function filterByCategory(category) {
         filtered = recipes.filter(r => r.category?.slug === category);
     }
 
-    if (isEkadashiDay) {
-        filtered = [...filtered].sort((a, b) => (b.ekadashi ? 1 : 0) - (a.ekadashi ? 1 : 0));
-    }
+    // Внутри категории — по алфавиту (ВГ, 30.09), экадашные по-прежнему первыми
+    filtered = [...filtered].sort((a, b) => {
+        if (isEkadashiDay) {
+            const разница = (b.ekadashi ? 1 : 0) - (a.ekadashi ? 1 : 0);
+            if (разница) return разница;
+        }
+        return (getName(a) || '').localeCompare(getName(b) || '', Layout.currentLang);
+    });
 
     if (filtered.length === 0) {
         list.innerHTML = `<div class="p-3 text-sm opacity-50 text-center">${t('nothing_found')}</div>`;
