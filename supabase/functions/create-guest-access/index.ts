@@ -59,13 +59,14 @@ serve(async (req) => {
       })
     }
 
-    // 2. Генерируем временный пароль
-    const chars = 'abcdefghjkmnpqrstuvwxyz23456789'
-    let password = 'seva'
-    for (let i = 0; i < 4; i++) {
-      password += chars[Math.floor(Math.random() * chars.length)]
-    }
-    password += Math.floor(Math.random() * 90 + 10) // 2 цифры
+    // 2. Генерируем временный пароль.
+    // Без узнаваемого префикса и на криптостойком источнике случайности:
+    // прежний вид «seva» + 4 буквы + 2 цифры угадывался с ходу, а
+    // Math.random для паролей не годится (29.09.2026)
+    const chars = 'abcdefghjkmnpqrstuvwxyz23456789ACDEFGHJKLMNPQRTUVWXYZ'
+    const bytes = new Uint8Array(12)
+    crypto.getRandomValues(bytes)
+    const password = Array.from(bytes, (b) => chars[b % chars.length]).join('')
 
     // 3. Создаём auth user через Admin API
     const { data: authData, error: authError } = await supabaseAdmin.auth.admin.createUser({
