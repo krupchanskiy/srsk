@@ -1199,6 +1199,7 @@
 
                     if (uploadError) {
                         console.error('Photo upload error:', uploadError);
+                        Layout.showNotification((t('photo_upload_error') || 'Не удалось загрузить фото') + ': ' + uploadError.message, 'error');
                     } else {
                         const { data: { publicUrl } } = Layout.db.storage.from('recipe-photos').getPublicUrl(fileName);
                         await Layout.db.from('recipes').update({ photo_url: publicUrl }).eq('id', savedRecipeId).eq('location_id', locationId);
