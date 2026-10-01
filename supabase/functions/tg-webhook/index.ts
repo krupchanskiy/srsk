@@ -509,11 +509,12 @@ Deno.serve(async (req) => {
     const arg = text.replace(/^\/\S+\s*/, "").trim().toLowerCase();
     const kind = /финанс|счёт|счет|деньг|трат/.test(arg) ? "finance"
                : /ресепшен|ресепшн|оповещ|информ|заезд/.test(arg) ? "notify"
+               : /меню/.test(arg) ? "menu"
                : null;
     if (!kind) {
       await tg("sendMessage", {
         chat_id: m.chat.id, reply_to_message_id: m.message_id,
-        text: "Напишите, какая это тема:\n/тема финансы — сюда пойдут траты и выдачи\n/тема ресепшен — сюда заезды, отъезды и долги",
+        text: "Напишите, какая это тема:\n/тема финансы — сюда пойдут траты и выдачи\n/тема ресепшен — сюда заезды, отъезды и долги\n/тема меню — сюда напоминания о незаполненном меню",
       });
       return new Response("ok");
     }
@@ -523,7 +524,7 @@ Deno.serve(async (req) => {
     await tg("sendMessage", {
       chat_id: m.chat.id, reply_to_message_id: m.message_id, parse_mode: "HTML",
       text: data?.ok
-        ? `✅ Запомнил: сюда буду писать ${kind === "finance" ? "про деньги" : "оповещения ресепшена"} для «${esc(data.department)}».`
+        ? `✅ Запомнил: сюда буду писать ${kind === "finance" ? "про деньги" : kind === "menu" ? "о незаполненном меню" : "оповещения ресепшена"} для «${esc(data.department)}».`
         : `⚠️ ${esc(data?.error ?? "не получилось")}`,
     });
     return new Response("ok");

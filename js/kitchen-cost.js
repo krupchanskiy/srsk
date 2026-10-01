@@ -150,7 +150,8 @@ function computeCosts(input) {
 
         // --- посуда: набор на одного вкушающего ---
         let dishwarePerEater = 0;
-        for (const k of (kits[meal.meal_type] || [])) {
+        // «Пост» — не готовили, посудой не пользовались: как и раньше без меню, посуда не считается (ВГ 01.10)
+        for (const k of (meal.is_fast ? [] : (kits[meal.meal_type] || []))) {
             const price = priceOn(prices[k.product_id], meal.date);
             if (price === null) { note(warn.missingPrices, k.product_id); continue; }
             dishwarePerEater += Number(k.quantity) * price;
@@ -348,7 +349,7 @@ async function fetchAll(makeQuery) {
 
 async function load(db, locationId, from, to) {
     const meals = await fetchAll(() => db.from('menu_meals')
-        .select('id, date, meal_type, portions, dishes:menu_dishes(id, recipe_id, portion_size)')
+        .select('id, date, meal_type, portions, is_fast, dishes:menu_dishes(id, recipe_id, portion_size)')
         .eq('location_id', locationId).gte('date', from).lte('date', to).order('date'));
 
     const mealIds = meals.map(m => m.id);

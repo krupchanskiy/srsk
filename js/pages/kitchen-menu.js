@@ -356,6 +356,7 @@ async function loadMenuData() {
             portions: meal.portions,
             cook_id: meal.cook_id,
             cook: meal.cook,
+            is_fast: !!meal.is_fast,
             external: meal.external || [],
             dishes: (meal.dishes || []).map(d => ({
                 id: d.id,
@@ -719,6 +720,21 @@ function renderMealSection(dateStr, mealType, index, mealData, isEkadashiDay) {
     const mealTitle = isCafe ? getMealTypeName(mealType) : `${index + 1}. ${getMealTypeName(mealType)}`;
 
     const external = mealData?.external || [];
+    // «Пост» — в этот день приём пищи не готовили; для проверки меню он заполнен (ВГ 01.10)
+    if (dishes.length === 0 && external.length === 0 && mealData?.is_fast) {
+        const canEdit = canEditMenu();
+        return `
+            <div class="p-4 rounded-lg bg-white/40">
+                <div class="flex items-center justify-between gap-3">
+                    <span class="text-xl font-medium opacity-60">${mealTitle}</span>
+                    <span class="flex items-center gap-2">
+                        <span class="badge badge-lg">${tr('menu_fast_title', 'Пост — не готовили')}</span>
+                        ${canEdit ? `<button class="btn btn-ghost btn-xs no-print" data-action="set-meal-fast" data-value="0" data-date="${dateStr}" data-meal-type="${mealType}">${tr('menu_fast_cancel', 'Отменить')}</button>` : ''}
+                    </span>
+                </div>
+            </div>
+        `;
+    }
     if (dishes.length === 0 && external.length === 0) {
         const canEdit = canEditMenu();
         return `
@@ -733,7 +749,8 @@ function renderMealSection(dateStr, mealType, index, mealData, isEkadashiDay) {
                 </div>
                 ${canEdit && !isCafe ? `<div class="flex flex-wrap justify-center gap-2">
                     <button class="btn btn-sm btn-outline border-current" style="color: var(--current-color)" data-action="open-own-cook-modal" data-date="${dateStr}" data-meal-type="${mealType}">+ ${tr('menu_own_cook_add', 'Готовил Бридж Кишор')}</button>
-                    <button class="btn btn-ghost btn-sm opacity-70" data-action="open-external-modal" data-date="${dateStr}" data-meal-type="${mealType}">+ ${tr('menu_external_add', 'Готовое со стороны')}</button></div>` : ''}
+                    <button class="btn btn-ghost btn-sm opacity-70" data-action="open-external-modal" data-date="${dateStr}" data-meal-type="${mealType}">+ ${tr('menu_external_add', 'Готовое со стороны')}</button>
+                    <button class="btn btn-ghost btn-sm opacity-70" data-action="set-meal-fast" data-value="1" data-date="${dateStr}" data-meal-type="${mealType}">${tr('menu_fast_add', 'Пост')}</button></div>` : ''}
             </div>
         `;
     }
@@ -959,6 +976,21 @@ async function removeExternal(date, mealType, id) {
     if (error) { Layout.showNotification(t('error'), 'error'); return; }
     const meal = menuData[date]?.[mealType];
     if (meal) meal.external = (meal.external || []).filter(x => x.id !== id);
+    render();
+}
+
+// Отметка «Пост» у приёма пищи: строка приёма создаётся, если её ещё нет
+async function setMealFast(date, mealType, isFast) {
+    if (!canEditMenu()) return;
+    const mealData = menuData[date]?.[mealType];
+    const portions = mealData?.portions || getEatingTotal(date, mealType);
+    const { data, error } = await Layout.db.from('menu_meals')
+        .upsert({ location_id: locationId, date, meal_type: mealType, portions, is_fast: isFast }, { onConflict: 'location_id,date,meal_type' })
+        .select('id').single();
+    if (error) { Layout.handleError(error, tr('menu_fast_add', 'Пост')); return; }
+    if (!menuData[date]) menuData[date] = {};
+    if (!menuData[date][mealType]) menuData[date][mealType] = { id: data.id, portions, dishes: [], external: [] };
+    menuData[date][mealType].is_fast = isFast;
     render();
 }
 
@@ -2345,6 +2377,7 @@ function setupViewDelegation(el) {
             case 'open-external-modal': openExternalModal(date, mealType); break;
             case 'open-own-cook-modal': openExternalModal(date, mealType, true); break;
             case 'remove-external': removeExternal(date, mealType, id); break;
+            case 'set-meal-fast': setMealFast(date, mealType, btn.dataset.value === '1'); break;
             case 'open-day-detail': openDayDetail(date); break;
         }
     });
