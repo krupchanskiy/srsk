@@ -465,6 +465,24 @@
                 residents.push(...(extra || []));
             }
 
+            // Департамент — на выбранный день по истории (после перевода прошлые дни — у прежнего)
+            const personIds = [...new Set(residents.map(r => r.vaishnava_id).filter(Boolean))];
+            if (personIds.length) {
+                const { data: hist } = await Layout.db
+                    .from('vaishnava_departments')
+                    .select('vaishnava_id, department_id, departments(id, name_ru, name_en, name_hi, color)')
+                    .in('vaishnava_id', personIds)
+                    .or(`date_from.is.null,date_from.lte.${today}`)
+                    .or(`date_to.is.null,date_to.gte.${today}`);
+                const onDay = {};
+                (hist || []).forEach(h => { onDay[h.vaishnava_id] = h; });
+                residents.forEach(r => {
+                    if (!r.vaishnavas) return;
+                    r.vaishnavas.department_id = onDay[r.vaishnava_id]?.department_id || null;
+                    r.vaishnavas.departments = onDay[r.vaishnava_id]?.departments || null;
+                });
+            }
+
             // Названия событий — для заголовков веток
             const retreatIds = [...new Set([
                 ...residents.map(r => r.retreat_id),

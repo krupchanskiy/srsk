@@ -58,7 +58,8 @@ async function init() {
         loadRegistrations(personId),
         loadPermanentResident(personId),
         loadChildren(personId),
-        loadFamily(personId)
+        loadFamily(personId),
+        loadDeptHistory(personId)
     ]);
     Layout.hideLoader();
 
@@ -304,6 +305,7 @@ function renderPerson() {
     document.getElementById('editIsTeamMember').checked = person.is_team_member;
     document.getElementById('viewDepartment').textContent = person.departments ? Layout.getName(person.departments) : '—';
     document.getElementById('editDepartment').value = person.department_id || '';
+    document.getElementById('deptFromWrap').classList.add('hidden');
     document.getElementById('viewService').textContent = person.service || '—';
     document.getElementById('editService').value = person.service || '';
     const seniorName = person.senior ? getVaishnavName(person.senior) : '—';
@@ -465,6 +467,30 @@ function populateDepartmentsSelect() {
     const select = document.getElementById('editDepartment');
     select.innerHTML = '<option value="">—</option>' +
         departments.map(d => `<option value="${d.id}">${Layout.getName(d)}</option>`).join('');
+    // Сменили департамент — спрашиваем, с какого числа: прошлое питание остаётся на прежнем
+    select.onchange = () => {
+        const changed = (select.value || null) !== (person?.department_id || null);
+        document.getElementById('deptFromWrap').classList.toggle('hidden', !changed);
+        const input = document.getElementById('editDeptFrom');
+        input.max = DateUtils.toISO(new Date());
+        if (changed && !input.value) input.value = input.max;
+    };
+}
+
+// История департаментов: кто где служил и с какого по какое число (vaishnava_departments)
+async function loadDeptHistory(personId) {
+    const box = document.getElementById('deptHistory');
+    const { data, error } = await Layout.db.from('vaishnava_departments')
+        .select('date_from, date_to, departments(name_ru, name_en, name_hi)')
+        .eq('vaishnava_id', personId).order('date_from', { ascending: false, nullsFirst: false });
+    if (error) { console.error('Error loading department history:', error); return; }
+    // одна строка «с начала по сей день» — истории нет, показывать нечего
+    const list = (data || []).filter(h => h.date_from || h.date_to);
+    box.classList.toggle('hidden', !list.length);
+    if (!list.length) return;
+    const fmt = d => DateUtils.formatDisplay(d);
+    box.innerHTML = `<div class="font-medium">${Layout.escapeHtml(t('dept_history'))}</div>` + (data || []).map(h =>
+        `<div>${Layout.escapeHtml(Layout.getName(h.departments || {}) || '—')}: ${h.date_from ? fmt(h.date_from) : Layout.escapeHtml(t('dept_since_start'))} — ${h.date_to ? fmt(h.date_to) : Layout.escapeHtml(t('dept_till_now'))}</div>`).join('');
 }
 
 function populateSeniorsSelect() {
@@ -754,6 +780,19 @@ async function savePerson() {
         return;
     }
 
+    // Перевод в другой департамент — с указанной даты, история сохраняется
+    if (updateData.department_id !== (person.department_id || null)) {
+        const from = document.getElementById('editDeptFrom').value || DateUtils.toISO(new Date());
+        const { error: deptError } = await Layout.db.rpc('set_vaishnava_department',
+            { p_vaishnava: person.id, p_department: updateData.department_id, p_from: from });
+        if (deptError) {
+            if (saveBtn) saveBtn.classList.remove('loading');
+            Layout.handleError(deptError, t('department'));
+            return;
+        }
+        document.getElementById('editDeptFrom').value = '';
+    }
+
     const { data, error } = await Layout.db
         .from('vaishnavas')
         .update(updateData)
@@ -770,6 +809,7 @@ async function savePerson() {
     }
 
     person = data;
+    loadDeptHistory(person.id);
     isEditMode = false;
     document.getElementById('profileContainer').classList.remove('edit-mode');
     document.getElementById('profileContainer').classList.add('view-mode');

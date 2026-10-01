@@ -55,7 +55,7 @@ let costGroups = [];
 let reconcileActuals = [];
 let reconcileThreshold = 15;  // % — порог подсветки расхождений в сверке (fin_settings, меняет fin_admin)
 let departments = [];                 // справочник департаментов людей (vaishnavas.department_id)
-const personDept = new Map();         // vaishnava_id → department_id | null
+const personDept = new Map();         // vaishnava_id → [{ dep, from, to }] — история департаментов (vaishnava_departments)
 const personName = new Map();         // vaishnava_id → имя (для списков людей)
 const groupNames = new Map();         // meal_groups.id → название группы
 
@@ -172,15 +172,20 @@ async function loadPersonDepts(ids) {
     const missing = [...new Set(ids)].filter(id => id && !personDept.has(id));
     for (let i = 0; i < missing.length; i += 150) {
         const part = missing.slice(i, i + 150);
-        const { data, error } = await Layout.db.from('vaishnavas')
-            .select('id, department_id, spiritual_name, first_name, last_name').in('id', part);
-        if (error) { console.error('vaishnavas departments:', error); return; }
-        part.forEach(id => personDept.set(id, null));
-        (data || []).forEach(v => {
-            personDept.set(v.id, v.department_id || null);
-            personName.set(v.id, v.spiritual_name || `${v.first_name || ''} ${v.last_name || ''}`.trim() || '—');
-        });
+        const [{ data, error }, { data: hist, error: hErr }] = await Promise.all([
+            Layout.db.from('vaishnavas').select('id, spiritual_name, first_name, last_name').in('id', part),
+            Layout.db.from('vaishnava_departments').select('vaishnava_id, department_id, date_from, date_to').in('vaishnava_id', part)]);
+        if (error || hErr) { console.error('vaishnavas departments:', error || hErr); return; }
+        part.forEach(id => personDept.set(id, []));
+        (data || []).forEach(v => personName.set(v.id, v.spiritual_name || `${v.first_name || ''} ${v.last_name || ''}`.trim() || '—'));
+        (hist || []).forEach(h => personDept.get(h.vaishnava_id).push({ dep: h.department_id, from: h.date_from, to: h.date_to }));
     }
+}
+
+// Департамент человека в конкретный день: после перевода прошлые дни остаются на прежнем департаменте
+function deptOn(vaishnavaId, d) {
+    const h = (vaishnavaId && personDept.get(vaishnavaId)) || [];
+    return h.find(x => (!x.from || x.from <= d) && (!x.to || x.to >= d))?.dep || null;
 }
 
 async function loadGroupNames(ids) {
@@ -772,7 +777,7 @@ function noDeptPeople() {
         if (!x.vaishnava_id || (x.bucket !== 'team' && x.bucket !== 'volunteers')) continue;
         if (x.retreat_id) continue;   // приехал под ретрит — питание на ретрите, департамент не нужен
         if (!x.breakfast && !x.lunch) continue;
-        if (personDept.get(x.vaishnava_id)) continue;
+        if (deptOn(x.vaishnava_id, x.d)) continue;
         seen.set(x.vaishnava_id, x.bucket);
     }
     return [...seen.entries()].map(([id, b]) => ({ id, label: `${personName.get(id) || '—'} (${BUCKET_LABELS[b]().toLowerCase()})` }))
@@ -853,7 +858,7 @@ function renderCompleteness() {
     for (const x of view.detail) {
         if (!x.vaishnava_id || (x.bucket !== 'team' && x.bucket !== 'volunteers') || (!x.breakfast && !x.lunch)) continue;
         if (x.retreat_id) continue;   // приехал под ретрит — департамент не нужен
-        teamVol.set(x.vaishnava_id, !!personDept.get(x.vaishnava_id));
+        teamVol.set(x.vaishnava_id, (teamVol.get(x.vaishnava_id) ?? true) && !!deptOn(x.vaishnava_id, x.d));
     }
     const months = new Set();
     for (let f = view.from.slice(0, 7) + '-01'; f <= view.to; f = addDays(monthEnd(f), 1)) months.add(f.slice(0, 7));
@@ -1085,7 +1090,8 @@ function scopeEvents() {
 // Люди по строкам детализации: кто, сколько дней ел, завтраков, обедов, приёмов пищи и во что обошёлся.
 // Стоимость человека = все его приёмы пищи × стоимость одного приёма пищи его ячейки
 // (ретрит или «без события» × категория), поэтому сумма по людям = итог сводки.
-function personRows(match) {
+// split(x) — делить человека на несколько строк (департамент по дням)
+function personRows(match, split) {
     const cells = view.result.cells;
     const rate = {};
     const rateOf = (ev, bucket) => {
@@ -1097,9 +1103,10 @@ function personRows(match) {
     for (const x of view.detail) {
         const ev = x.retreat_id ? `retreat:${x.retreat_id}` : 'none';
         if (!match(x, ev)) continue;
-        const key = x.vaishnava_id || x.ref_id;
+        const part = split ? split(x) : '';
+        const key = `${x.vaishnava_id || x.ref_id}|${part}`;
         const n = x.kind === 'group' ? (Number(x.people) || 1) : 1;
-        const p = people.get(key) || { key, vaishnavaId: x.vaishnava_id, kind: x.kind, refId: x.ref_id, bucket: x.bucket,
+        const p = people.get(key) || { key, part, vaishnavaId: x.vaishnava_id, kind: x.kind, refId: x.ref_id, bucket: x.bucket,
                                        n, days: new Set(), bf: 0, ln: 0, pm: 0, cost: 0 };
         p.n = Math.max(p.n, n);
         if (x.breakfast || x.lunch) p.days.add(x.d);
@@ -1240,12 +1247,13 @@ function renderDepartments() {
     // евшие в те же дни: для сведения, в себестоимость ретрита не входят (решение ВГ 25.09).
     const isRetreat = state.mode === 'retreat';
     const buckets = deptFilter === 'team' ? ['team'] : deptFilter === 'volunteers' ? ['volunteers'] : ['team', 'volunteers'];
-    const people = personRows((x, ev) => (!isRetreat || ev === 'none') && buckets.includes(x.bucket));
+    const people = personRows((x, ev) => (!isRetreat || ev === 'none') && buckets.includes(x.bucket),
+                              x => deptOn(x.vaishnava_id, x.d) || '');
     Layout.$('#deptRetreatNote').classList.toggle('hidden', !isRetreat);
     const byDept = new Map();
     for (const p of people) {
         if (!p.pm && !p.days.size) continue;
-        const id = (p.vaishnavaId && personDept.get(p.vaishnavaId)) || '';
+        const id = p.part;
         const list = byDept.get(id) || [];
         list.push(p);
         byDept.set(id, list);
