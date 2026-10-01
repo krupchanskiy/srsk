@@ -175,13 +175,16 @@ function renderSyncAge(accounts) {
 async function loadSignals() {
     const box = document.getElementById('finSignals');
     if (!box) return;
-    const [unposted, integrity, курс] = await Promise.all([
+    const [unposted, integrity, курс, безКурса] = await Promise.all([
         Layout.db.from('fin_v_unposted_crm_payments').select('*', { count: 'exact', head: true }),
         Layout.db.from('fin_v_integrity_open').select('check_name, detail, bad_count'),
-        FinUtils.staleRateAlert()
+        FinUtils.staleRateAlert(),
+        Layout.db.rpc('fin_get_retreats_without_rate')
     ]);
     const cards = [];
     if (курс) cards.push(курс);
+    const ретритыБезКурса = безКурса.data?.ok ? безКурса.data.result : [];
+    if (ретритыБезКурса.length) cards.push(retreatRateSignalHtml(ретритыБезКурса));
     const nUnposted = unposted.count || 0;
     if (nUnposted > 0) {
         cards.push(`<a href="inbox.html?tab=unposted" class="flex items-center gap-3 p-3 rounded-lg bg-error/10 border border-error/30 hover:bg-error/15">
@@ -225,6 +228,37 @@ async function loadSignals() {
             : `<div class="fin-signal-empty">${t('fin_signal_no_details')}</div>`;
         body.querySelectorAll('.fin-signal-act').forEach(b => b.addEventListener('click', onResolveClick));
     }));
+}
+
+// У своего ретрита нет своего курса (ВГ, 01.10): деньги в другой валюте
+// ждут его, чтобы засчитаться в долг гостя (582), — или ретрит вот-вот начнётся.
+// Расшифровка сразу: какой ретрит и сколько денег ждёт.
+function retreatRateSignalHtml(rows) {
+    const сегодня = DateUtils.parseDate(DateUtils.toISO(new Date()));
+    const items = rows.map(r => {
+        const даты = `${DateUtils.formatShort(DateUtils.parseDate(r.start_date))} — ${DateUtils.formatShort(DateUtils.parseDate(r.end_date))}`;
+        const дней = Math.round((DateUtils.parseDate(r.start_date) - сегодня) / 864e5);
+        const что = r.waiting
+            ? `ждут курса: ${r.waiting}`
+            : дней > 0 ? `начало через ${дней} ${Layout.pluralize(дней, { ru: ['день', 'дня', 'дней'], en: ['day', 'days'], hi: 'दिन' })}, записались ${r.participants}`
+            : `идёт, записались ${r.participants}`;
+        return `<div class="fin-signal-item">
+            <a class="fin-signal-row" href="participants.html?retreat=${e(r.retreat_id)}">
+                <span class="fin-signal-who">${e(r.title)}</span>
+                <span class="fin-signal-where">${e(даты)}</span>
+                <span class="fin-signal-what">${e(что)}</span>
+            </a>
+        </div>`;
+    }).join('');
+    return `<details class="fin-signal" data-loaded="1">
+        <summary class="flex items-center gap-3 p-3 rounded-lg bg-warning/15 border border-warning/40 cursor-pointer hover:bg-warning/25">
+            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.8" stroke="currentColor" class="w-5 h-5 text-warning shrink-0"><path stroke-linecap="round" stroke-linejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126zM12 15.75h.007v.008H12v-.008z"/></svg>
+            <span class="text-sm flex-1"><span class="font-semibold">Нет курса ретрита:</span> ${rows.length} ${Layout.pluralize(rows.length, { ru: ['ретрит', 'ретрита', 'ретритов'], en: ['retreat', 'retreats'], hi: 'रिट्रीट' })} — деньги в другой валюте не засчитываются в долг гостя, пока курс не заведён</span>
+            <a href="dictionaries.html?tab=rates" class="btn btn-sm" onclick="event.stopPropagation()">Завести курс</a>
+            <span class="fin-signal-chev"></span>
+        </summary>
+        <div class="fin-signal-body">${items}</div>
+    </details>`;
 }
 
 // Разбор сигнала «человека нет в учёте» прямо из списка: ВГ проходит 13 строк
