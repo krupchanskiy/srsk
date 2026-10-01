@@ -1,7 +1,7 @@
 // ==================== ФИНАНСЫ: ГОСТИ БЕЗ СОБЫТИЯ ====================
 // Начисление гостям, приехавшим не на ретрит (ВГ, 28.09.2026). Всё считается
 // по визиту — записи шахматки: ночи из дат, цена номера по вместимости делится
-// на живущих, питание — по той же формуле, что у кухни (eating_detail). Долг
+// на койки (семья, занявшая номер, — на живущих), питание — по той же формуле, что у кухни (eating_detail). Долг
 // ведётся в служебном контейнере «Гости без события» (fin_get_no_event_retreat),
 // приём оплаты — обычная карточка участника.
 (function() {
@@ -157,6 +157,7 @@ async function loadVisitList() {
 // Состояние визита: не начислено (приехал, а денег не спросили) / предстоит / долг / аванс / оплачено.
 // Долг и аванс — по гостю в целом, не по визиту: платежи не привязаны к визиту
 function состояние(v) {
+    if (v.no_charge_reason && !(Number(v.charged) > 0)) return 'free';
     if (!(Number(v.charged) > 0)) return v.check_in > DateUtils.toISO(new Date()) ? 'upcoming' : 'uncharged';
     const net = Number(v.balance?.net) || 0;
     return net > 0.005 ? 'debt' : net < -0.005 ? 'advance' : 'paid';
@@ -175,7 +176,7 @@ function renderVisitList() {
         должников ? `<button type="button" class="link text-error" data-gv-filter="debt">с долгом: ${должников}</button>` : ''
     ].filter(Boolean).join(' · ');
     document.querySelectorAll('.join [data-gv-filter]').forEach(b => b.classList.toggle('btn-active', b.dataset.gvFilter === gv.filter));
-    const list = все.filter(({ v, st }) => (gv.filter === 'all' || st === gv.filter || (gv.filter === 'paid' && st === 'advance'))
+    const list = все.filter(({ v, st }) => (gv.filter === 'all' || st === gv.filter || (gv.filter === 'paid' && (st === 'advance' || st === 'free')))
         && (!q || (v.name || '').toLowerCase().includes(q)))
         .sort((a, b) => b.v.check_in.localeCompare(a.v.check_in) || (a.v.name || '').localeCompare(b.v.name || '', 'ru'));
     const итог = ({ v, st }) => {
@@ -183,6 +184,7 @@ function renderVisitList() {
         const net = Math.abs(Number(v.balance?.net) || 0);
         if (st === 'uncharged') return `<span class="badge badge-warning badge-sm whitespace-nowrap">⚠ не начислено</span>`;
         if (st === 'upcoming') return `<span class="badge badge-ghost badge-sm">предстоит</span>`;
+        if (st === 'free') return `<span class="badge badge-ghost badge-sm whitespace-nowrap" title="${e(v.no_charge_reason)}">без оплаты · ${e(v.no_charge_reason)}</span>`;
         if (st === 'debt') return `<span class="badge badge-error badge-outline whitespace-nowrap font-mono">Долг ${FinUtils.fmtMoney(net, cur)}</span>`;
         if (st === 'advance') return `<span class="badge badge-success badge-outline whitespace-nowrap font-mono">Аванс ${FinUtils.fmtMoney(net, cur)}</span>`;
         return `<span class="badge badge-success badge-outline whitespace-nowrap gap-1">${FinUtils.ICONS.check} Оплачено</span>`;
@@ -302,7 +304,8 @@ function renderVisits() {
     body.innerHTML = list.map(v => {
         const ночей = v.check_out ? днейМежду(v.check_in, v.check_out) : '—';
         const начислено = Number(v.charged) > 0
-            ? `<span class="badge badge-ghost badge-sm whitespace-nowrap" title="Уже есть начисления по этому визиту">начислено ${FinUtils.fmtMoney(v.charged, v.charge_currency || 'INR')}</span>` : '';
+            ? `<span class="badge badge-ghost badge-sm whitespace-nowrap" title="Уже есть начисления по этому визиту">начислено ${FinUtils.fmtMoney(v.charged, v.charge_currency || 'INR')}</span>`
+            : v.no_charge_reason ? `<span class="badge badge-ghost badge-sm whitespace-nowrap" title="${e(v.no_charge_reason)}">без оплаты</span>` : '';
         return `<tr class="cursor-pointer hover:bg-base-200 ${selected.has(v.resident_id) ? 'bg-primary/5' : ''}" data-gc-visit="${v.resident_id}">
             <td><input type="checkbox" class="checkbox checkbox-sm" ${selected.has(v.resident_id) ? 'checked' : ''} tabindex="-1"></td>
             <td class="font-medium">${e(v.name)}${v.vaishnava_id ? '' : !v.guest_name && v.booking_name
@@ -352,11 +355,15 @@ async function initForm(v) {
         roomPrice: Number(тип?.price) || 0,
         extraBed: false,
         extraBedPrice: Number(tariff.extra_bed_price) || 0,
-        people: Math.max(Number(v.roommates) || 1, 1),
+        // по умолчанию — койко-место: цена номера ÷ койки, к одиночкам можно подселить (ВГ, 01.10);
+        // семья заняла номер целиком — ÷ число жильцов, подсказка рядом с делителем
+        people: Math.max(Number(тип?.capacity) || Number(v.capacity) || 1, 1),
         bPrice: Number(tariff.breakfast_price),
         lPrice: Number(tariff.lunch_price),
         meals: [],
         extraAmt: 0, extraDesc: '', comment: '',
+        // «Без оплаты» (гость ашрама, за счёт ашрама, пожертвование) — визит не висит «не начислено»
+        freeOn: !!v.no_charge_reason, freeReason: v.no_charge_reason || '',
         person: v.vaishnava_id ? { mode: 'linked', id: v.vaishnava_id } : { mode: 'new', candidates: null,
             np: { spiritual_name: v.guest_name || '', first_name: '', last_name: '', phone: v.guest_phone || '', email: v.guest_email || '' } }
     };
@@ -377,6 +384,7 @@ async function initForm(v) {
 }
 
 function расчёт(f) {
+    if (f.freeOn) return { заНочь: 0, завтраков: 0, обедов: 0, проживание: 0, питание: 0, доп: 0, итого: 0 };
     // на доп. кровати — цена доп. кровати за ночь, иначе номер ÷ жильцов
     const заНочь = f.extraBed ? round2(f.extraBedPrice) : f.people > 0 ? round2(f.roomPrice / f.people) : 0;
     const завтраков = f.meals.filter(m => m.b).length;
@@ -429,6 +437,13 @@ function renderForms() {
                 <div class="font-mono font-semibold">${inr(r.итого)}</div>
             </div>
             ${уже}
+            <label class="flex flex-wrap items-center gap-2 text-sm mb-2 cursor-pointer">
+                <input type="checkbox" class="toggle toggle-sm" data-gc-f="${rid}" data-k="freeOn" ${f.freeOn ? 'checked' : ''}>
+                Без оплаты
+                ${f.freeOn ? `<input type="text" list="gcFreeReasons" class="input input-bordered input-xs flex-1 min-w-48" placeholder="Причина *" data-gc-f="${rid}" data-k="freeReason" value="${e(f.freeReason)}">` : '<span class="text-xs opacity-60">гость ашрама, за счёт ашрама, пожертвование</span>'}
+            </label>
+            ${f.freeOn ? `<datalist id="gcFreeReasons"><option value="Гость ашрама"><option value="За счёт ашрама"><option value="Пожертвование"></datalist>
+            <div class="text-xs opacity-60">Начисления не будет, визит перестанет висеть «не начислено», серый $ в шахматке уйдёт. Частичная оплата — обычное начисление со скидкой.</div>` : `
             ${personHtml(rid, f)}
             ${!v.room_id ? `<div class="text-xs opacity-60 mb-3">Живёт самостоятельно — за жильё не начисляется</div>` : `
             <div class="text-xs font-semibold uppercase opacity-60 mb-1">Проживание</div>
@@ -439,6 +454,16 @@ function renderForms() {
                 = <span class="font-mono">${inr(r.заНочь)}</span>)
                 = <b class="font-mono">${inr(r.проживание)}</b>
             </div>
+            ${(() => {
+                const койки = Math.max(Number(f.roomType?.capacity) || Number(v.capacity) || 1, 1);
+                const жильцов = Math.max(Number(v.roommates) || 1, 1);
+                if (f.extraBed || койки === жильцов) return '';
+                return f.people === койки
+                    ? `<div class="text-xs -mt-2 mb-2 opacity-70">÷ ${койки} — койко-место. Семья заняла номер целиком? <button type="button" class="link link-primary" data-gc-people="${rid}" data-n="${жильцов}">÷ ${жильцов} жильцов</button></div>`
+                    : f.people === жильцов
+                    ? `<div class="text-xs -mt-2 mb-2 opacity-70">÷ ${жильцов} — номер на семью. <button type="button" class="link link-primary" data-gc-people="${rid}" data-n="${койки}">Койко-место: ÷ ${койки}</button></div>`
+                    : '';
+            })()}
             ${f.roomType?.price == null ? `<div class="text-xs text-warning -mt-2 mb-2">Цена номера ${f.roomType ? `«${e(f.roomType.name)}»` : `в здании «${e(v.building || '')}»`} не задана в Тарифах — впишите вручную</div>` : ''}
             ${f.roomType && Number(v.capacity) > Number(f.roomType.capacity) ? `<label class="flex flex-wrap items-center gap-1 text-sm mb-3 -mt-2 cursor-pointer">
                 <input type="checkbox" class="checkbox checkbox-xs" data-gc-f="${rid}" data-k="extraBed" ${f.extraBed ? 'checked' : ''}>
@@ -472,7 +497,7 @@ function renderForms() {
                 <input type="number" min="0" step="10" class="input input-bordered input-xs w-24" placeholder="₹" data-gc-f="${rid}" data-k="extraAmt" value="${f.extraAmt || ''}">
                 <input type="text" class="input input-bordered input-xs flex-1 min-w-40" placeholder="За что (такси, стирка…)" data-gc-f="${rid}" data-k="extraDesc" value="${e(f.extraDesc)}">
             </div>
-            <input type="text" class="input input-bordered input-xs w-full" placeholder="Комментарий (необязательно)" data-gc-f="${rid}" data-k="comment" value="${e(f.comment)}">
+            <input type="text" class="input input-bordered input-xs w-full" placeholder="Комментарий (необязательно)" data-gc-f="${rid}" data-k="comment" value="${e(f.comment)}">`}
         </div>`;
     }).join('');
     renderTotal();
@@ -491,6 +516,10 @@ async function save() {
     // проверка до первой записи: всё или ничего по понятным ошибкам
     for (const rid of selected) {
         const f = forms[rid];
+        if (f.freeOn) {
+            if (!f.freeReason.trim()) { Layout.showNotification(`${f.v.name}: укажите причину «без оплаты»`, 'warning'); return; }
+            continue;
+        }
         if (f.person.mode === 'existing' && !f.person.id) { Layout.showNotification(`${f.v.name}: выберите карточку`, 'warning'); return; }
         if (f.person.mode === 'new') {
             const np = f.person.np;
@@ -499,13 +528,20 @@ async function save() {
         }
         if (расчёт(f).итого <= 0) { Layout.showNotification(`${f.v.name}: нечего начислять`, 'warning'); return; }
     }
-    const повтор = [...selected].map(rid => forms[rid].v).filter(v => Number(v.charged) > 0);
+    const повтор = [...selected].filter(rid => !forms[rid].freeOn).map(rid => forms[rid].v).filter(v => Number(v.charged) > 0);
     if (повтор.length && !confirm(`Уже есть начисления: ${повтор.map(v => v.name).join(', ')}. Добавить ещё?`)) return;
 
     let первый = null;
-    for (const rid of selected) {
+    for (const rid of [...selected]) {
         const f = forms[rid];
         const v = f.v;
+        if (f.freeOn) {
+            if (!await call('fin_guest_set_no_charge', { resident_id: rid, reason: f.freeReason.trim() })) return;
+            selected.delete(rid);
+            continue;
+        }
+        // отметку «без оплаты» сняли — убрать её до начисления
+        if (v.no_charge_reason && !await call('fin_guest_set_no_charge', { resident_id: rid, reason: null })) return;
         const payload = { resident_id: rid };
         if (f.person.mode === 'linked' || f.person.mode === 'existing') payload.vaishnava_id = f.person.id;
         else payload.new_person = Object.fromEntries(Object.entries(f.person.np).map(([k, x]) => [k, (x || '').trim()]));
@@ -551,7 +587,7 @@ async function save() {
         if (!первый) первый = pid;
     }
     document.getElementById('guestChargeModal').close();
-    Layout.showNotification('Начислено — можно принимать оплату', 'success');
+    Layout.showNotification(первый ? 'Начислено — можно принимать оплату' : 'Сохранено', 'success');
     await FinParticipants.reload();
     if (первый) FinParticipants.openCardById(первый);
 }
@@ -605,6 +641,8 @@ function init() {
             renderForms();
             return;
         }
+        const дел = ev.target.closest('[data-gc-people]');
+        if (дел) { forms[дел.dataset.gcPeople].people = Number(дел.dataset.n); renderForms(); return; }
         const btn = ev.target.closest('[data-gc-all]');
         if (!btn) return;
         const on = btn.dataset.on === '1';
@@ -626,7 +664,7 @@ function init() {
         } else if (el.dataset.gcF) {
             const f = forms[el.dataset.gcF];
             const k = el.dataset.k;
-            f[k] = k === 'extraBed' ? el.checked : ['extraDesc', 'comment'].includes(k) ? el.value : Number(el.value) || 0;
+            f[k] = ['extraBed', 'freeOn'].includes(k) ? el.checked : ['extraDesc', 'comment', 'freeReason'].includes(k) ? el.value : Number(el.value) || 0;
             renderForms();
         }
     });

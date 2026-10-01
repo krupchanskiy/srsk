@@ -44,12 +44,21 @@ const finKey = res => res.vaishnava_id ? `${res.vaishnava_id}_${res.retreat_id |
 const finHref = res => res.retreat_id
     ? `../finance/participants.html?retreat=${res.retreat_id}&open=${res.vaishnava_id}`
     : `../finance/participants.html?guests=1&visit=${res.id}`;
+let uncharged = new Set();         // id визитов «гость без события»: начался, а не начислено и не «без оплаты»
+// Значок $: красный — долг, зелёный — мы должны, серый — гость без события, которому ничего не начислено
+function balanceBadge(res, hasDebt, hasCredit) {
+    const kind = hasDebt ? 'debt' : hasCredit ? 'credit' : uncharged.has(res.id) ? 'uncharged' : '';
+    if (!kind) return '';
+    const title = kind === 'debt' ? t('timeline_has_debt') : kind === 'credit' ? t('timeline_we_owe') : tf('timeline_not_charged', 'Не начислено и не оплачено');
+    return `<span class="balance-badge ${kind}" title="${Layout.escapeHtml(title)}" data-action="open-finance" data-href="${finHref(res)}">$</span>`;
+}
 let selfAccommodated = [];        // проживающие без номера: живут вне территории, в сетку не попадают
 let selfStays = [];               // группа «Самостоятельное проживание» внизу шахматки
 const SELF_GROUP_ID = '__self';   // её ключ в collapsedBuildings: гости
 const SELF_TEAM_ID = '__self_team';   // …и команда с волонтёрами — отдельным блоком (ВГ, 29.09)
 const SELF_BLOCKS = [['guests', SELF_GROUP_ID], ['team', SELF_TEAM_ID]];
-// Команда и волонтёры живут сами, но служат и едят с нами — их видно отдельно от гостей
+// Команда и волонтёры живут сами, но служат и едят с нами — их видно отдельно от гостей.
+// slug обязателен в выборке resident_categories: без него все уходили в блок гостей (ВГ, 01.10)
 function selfKind(res) {
     const cat = res.resident_categories || categories.find(c => c.id === res.category_id);
     return cat?.slug === 'team' || cat?.slug === 'volunteer' ? 'team' : 'guests';
@@ -135,7 +144,7 @@ async function loadTimelineData() {
             .order('number'),
         Layout.db.from('residents')
             .select(`*,
-                resident_categories(id, name_ru, name_en, name_hi, color),
+                resident_categories(id, slug, name_ru, name_en, name_hi, color),
                 vaishnavas(id, first_name, last_name, spiritual_name),
                 bookings(id, name, contact_name)`)
             .in('status', ['confirmed', 'checked_out', 'booked'])
@@ -238,6 +247,12 @@ async function loadTimelineData() {
     if (residents.some(r => r.vaishnava_id && !r.retreat_id)) {
         const { data, error } = await Layout.db.rpc('fin_no_event_debt_flags');
         if (!error) for (const row of (data || [])) (row.is_debt ? debtorsSet : creditorsSet).add(`${row.participant_id}_no-event`);
+    }
+    // Серый $: гость без события живёт, а не начислено и не отмечено «без оплаты» (ВГ, 01.10)
+    uncharged = new Set();
+    if (residents.some(r => !r.retreat_id)) {
+        const { data, error } = await Layout.db.rpc('fin_no_event_uncharged');
+        if (!error) for (const row of (data || [])) uncharged.add(row.resident_id);
     }
 
     // Сделка отменена, а бронь в шахматке осталась: сами не снимаем (иначе не заметим, что место
@@ -1028,6 +1043,64 @@ function retreatDatesMismatch(retreatId, from, to) {
     return !!r && !retreatFitsDates(r, from, to);
 }
 
+// Вариант 2 (ВГ, 01.10.2026): пара дней до/после ретрита — осознанно часть ретрита;
+// больше OUTSIDE_RETREAT_DAYS — подсказка вынести хвост в «Гости без события». Не запрет.
+const OUTSIDE_RETREAT_DAYS = 3;
+function outsideRetreat(retreatId, from, to) {
+    const r = retreatId && allRetreats.find(x => x.id === retreatId);
+    if (!r || !from) return null;
+    const днейМежду = (a, b) => Math.round((DateUtils.parseDate(b) - DateUtils.parseDate(a)) / 86400000);
+    const before = Math.max(0, днейМежду(from, r.start_date));
+    const after = to ? Math.max(0, днейМежду(r.end_date, to)) : 0;
+    if (before <= OUTSIDE_RETREAT_DAYS && after <= OUTSIDE_RETREAT_DAYS) return null;
+    return { retreat: r, before: before > OUTSIDE_RETREAT_DAYS ? before : 0, after: after > OUTSIDE_RETREAT_DAYS ? after : 0 };
+}
+function outsideRetreatText(o) {
+    const части = [o.before ? `${o.before} ${tf('timeline_days_before', 'дн. до')}` : '', o.after ? `${o.after} ${tf('timeline_days_after', 'дн. после')}` : ''].filter(Boolean);
+    return `${Layout.getName(o.retreat)}: ${части.join(', ')} — ${tf('timeline_outside_retreat_hint', 'вне дат ретрита. Вынести в «Гости без события»? Кнопка «Разделить» в окне проживания')}`;
+}
+// «✕» на подсказке — больше не показывать для этого проживания (только в этом браузере)
+function outsideDismissed(id) { try { return localStorage.getItem('outsideRetreatOk_' + id) === '1'; } catch { return false; } }
+function dismissOutside(id) { try { localStorage.setItem('outsideRetreatOk_' + id, '1'); } catch { /* приватный режим */ } }
+function warnOutsideRetreat(retreatId, from, to) {
+    const o = outsideRetreat(retreatId, from, to);
+    if (o) Layout.showNotification(outsideRetreatText(o), 'warning');
+}
+
+// «Разделить»: часть до начала / после конца ретрита — отдельной записью «Гость» без ретрита.
+// Шов кухни: в день разреза одна запись даёт завтрак (выезд без позднего), другая — обед
+// (заезд без раннего) — порция ровно одна, как было.
+async function splitOffRetreat(side) {
+    if (!currentResident || !canEditTimeline()) return;
+    const res = currentResident.rawData;
+    const o = outsideRetreat(res.retreat_id, res.check_in, res.check_out);
+    if (!o) return;
+    const cut = side === 'before' ? o.retreat.start_date : o.retreat.end_date;
+    const span = side === 'before' ? [res.check_in, cut] : [cut, res.check_out];
+    const q = tf('timeline_split_confirm', 'Вынести {dates} в «Гости без события»? Ретрит останется на своих датах, хвост станет отдельным визитом — его начисление и оплата в Финансах.');
+    if (!confirm(q.replace('{dates}', DateUtils.formatRange(span[0], span[1])))) return;
+    const { data: row, error: rErr } = await Layout.db.from('residents').select('*').eq('id', res.id).single();
+    if (rErr) { Layout.handleError(rErr, 'Разделить'); return; }
+    const { id, created_at, updated_at, ...copy } = row;
+    const piece = { ...copy, retreat_id: null, category_id: GUEST_CATEGORY_ID, booking_id: null,
+        cleaning_done: false, cleaning_skipped: false, check_in: span[0], check_out: span[1] };
+    const keep = {};
+    if (side === 'before') {
+        piece.late_checkout = false;
+        keep.check_in = cut; keep.early_checkin = false;
+    } else {
+        piece.early_checkin = false;
+        keep.check_out = cut; keep.late_checkout = false;
+    }
+    const { error: insErr } = await Layout.db.from('residents').insert(piece);
+    if (insErr) { Layout.handleError(insErr, 'Разделить'); return; }
+    const { error: upErr } = await Layout.db.from('residents').update(keep).eq('id', res.id);
+    if (upErr) { Layout.handleError(upErr, 'Разделить'); return; }
+    document.getElementById('residentModal').close();
+    await loadTimelineData();
+    renderTable();
+}
+
 function fillRetreatSelect(selectedId) {
     const sel = document.getElementById('checkinRetreat');
     if (sel) sel.innerHTML = retreatSelectHtml(selectedId,
@@ -1318,6 +1391,7 @@ async function saveCheckin(e) {
     }
 
     await offerRetreatOnAdjacent(data.vaishnava_id, data.check_in, data.check_out, data.retreat_id);
+    warnOutsideRetreat(data.retreat_id, data.check_in, data.check_out);
     document.getElementById('actionModal').close();
     showActionScreen();
     await loadTimelineData();
@@ -1409,6 +1483,7 @@ async function saveBooking(e) {
         console.error('Error saving booking residents:', residentsError);
     } else {
         await offerRetreatOnAdjacent(bookingVaishnavaId, form.check_in.value, form.check_out.value, bookingRetreatId);
+        warnOutsideRetreat(bookingRetreatId, form.check_in.value, form.check_out.value);
     }
 
     document.getElementById('actionModal').close();
@@ -1559,8 +1634,23 @@ function openResidentModal(guestData, buildingName, roomName) {
         && (window.hasPermission?.('fin_admin') || window.hasPermission?.('fin_observer'))) {
         infoHtml += `<div class="flex justify-between py-1 border-b">
             <span class="text-gray-500">${t('timeline_finance_card')}:</span>
-            <a href="${finHref(res)}" class="link link-primary font-medium">${Layout.escapeHtml(tf('timeline_charge_payment', 'Начисление и оплата'))} →</a>
+            <span>${uncharged.has(res.id) ? `<span class="text-gray-500 mr-1">${Layout.escapeHtml(tf('timeline_not_charged', 'Не начислено и не оплачено'))} ·</span>` : ''}<a href="${finHref(res)}" class="link link-primary font-medium">${Layout.escapeHtml(tf('timeline_charge_payment', 'Начисление и оплата'))} →</a></span>
         </div>`;
+    }
+
+    // Больше 3 дней до/после ретрита — подсказка вынести хвост в «Гости без события» (вариант 2, ВГ 01.10)
+    {
+        const o = outsideRetreat(res.retreat_id, res.check_in, res.check_out);
+        if (o && !isBooking && !outsideDismissed(res.id)) {
+            const кнопка = (side, n, label) => n && canEditTimeline()
+                ? `<button type="button" class="btn btn-xs btn-warning btn-outline" data-action="split-retreat" data-side="${side}">${label}</button>` : '';
+            infoHtml += `<div class="alert alert-warning py-2 px-3 my-2 text-sm flex flex-wrap items-center gap-2" id="outsideRetreatAlert">
+                <span class="flex-1">${Layout.escapeHtml(outsideRetreatText(o))}</span>
+                ${кнопка('before', o.before, tf('timeline_split_before', 'Разделить: до ретрита'))}
+                ${кнопка('after', o.after, tf('timeline_split_after', 'Разделить: после ретрита'))}
+                <button type="button" class="btn btn-xs btn-ghost" data-action="dismiss-outside" title="${Layout.escapeHtml(tf('close', 'Закрыть'))}">✕</button>
+            </div>`;
+        }
     }
 
     // Категория
@@ -1878,6 +1968,7 @@ async function setResidentRetreat(sel) {
     }
     res.retreat_id = retreatId;
     await offerRetreatOnAdjacent(res.vaishnava_id, res.check_in, res.check_out, retreatId);
+    warnOutsideRetreat(retreatId, res.check_in, res.check_out);
     const msg = Layout.t('timeline_retreat_saved');
     Layout.showNotification(msg === 'timeline_retreat_saved' ? 'Ретрит брони изменён' : msg, 'success');
     await loadTimelineData();
@@ -2049,6 +2140,7 @@ async function saveDates() {
         alert(Layout.t('error') + ': ' + error.message);
         return;
     }
+    warnOutsideRetreat(update.retreat_id === null ? null : oldRetreatId, checkIn, checkOut);
 
     // Даты брони — охват всех её мест, иначе список броней покажет старые даты
     const bookingId = currentResident.rawData.booking_id;
@@ -2870,10 +2962,7 @@ function renderTable() {
                             : '';
                         // Значок «$»: красный — участник должен, зелёный — должны мы.
                         // Клик ведёт в финансы участника (суммы шахматке недоступны)
-                        const balanceKind = guest.hasDebt ? 'debt' : (guest.hasCredit ? 'credit' : '');
-                        const debtDot = balanceKind
-                            ? `<span class="balance-badge ${balanceKind}" title="${t(balanceKind === 'debt' ? 'timeline_has_debt' : 'timeline_we_owe')}" data-action="open-finance" data-retreat="${guest.rawData.retreat_id}" data-person="${guest.rawData.vaishnava_id}">$</span>`
-                            : '';
+                        const debtDot = balanceBadge(guest.rawData, guest.hasDebt, guest.hasCredit);
                         // Бытовые потребности — не финансовый маркер: ромбик с подсказкой (ТЗ 2.3)
                         const needsDot = guest.specialNeeds ? `<span class="needs-dot" title="${Layout.escapeHtml(guest.specialNeeds)}">◆</span>` : '';
                         const tagHtml = guest.retreatTag
@@ -2979,6 +3068,20 @@ async function resetToToday() {
 // Инициализация
 // ==================== ДЕЛЕГИРОВАНИЕ КЛИКОВ ====================
 function setupTimelineDelegation() {
+    // Окно проживания: подсказка «вне дат ретрита»
+    const info = document.getElementById('residentInfo');
+    if (info && !info._delegated) {
+        info._delegated = true;
+        info.addEventListener('click', ev => {
+            const el = ev.target.closest('[data-action]');
+            if (!el) return;
+            if (el.dataset.action === 'split-retreat') splitOffRetreat(el.dataset.side);
+            if (el.dataset.action === 'dismiss-outside' && currentResident) {
+                dismissOutside(currentResident.id);
+                document.getElementById('outsideRetreatAlert')?.remove();
+            }
+        });
+    }
     // Делегирование для таблицы таймлайна
     const table = document.getElementById('timelineTable');
     if (table && !table._delegated) {
@@ -3008,7 +3111,7 @@ function setupTimelineDelegation() {
                 case 'add-self-stay': openSelfStayModal(el.dataset.kind); break;
                 case 'open-self-stay': openSelfStay(id); break;
                 case 'open-finance':
-                    window.open(`../finance/participants.html?retreat=${el.dataset.retreat}&open=${el.dataset.person}`, '_blank');
+                    window.open(el.dataset.href || `../finance/participants.html?retreat=${el.dataset.retreat}&open=${el.dataset.person}`, '_blank');
                     break;
                 case 'open-cleaning-modal': openCleaningModal(id); break;
             }
@@ -3144,9 +3247,12 @@ function renderSelfGroupHtml(kind) {
         const dates = `${DateUtils.formatShort(res.check_in)} — ${res.check_out ? DateUtils.formatShort(res.check_out) : '…'}`;
         const title = [name, cat ? Layout.getName(cat) : '', retreat ? Layout.getName(retreat) : '', dates, meals,
             res.fromCrm ? crmHint : ''].filter(Boolean).join(' · ');
-        const inner = `${tag ? `<span class="retreat-tag">${e(tag.tag)}</span>` : ''}${e(name || '—')}&nbsp;<span class="opacity-70">(${e(meals.toLowerCase())})</span>`
+        const badge = res.fromCrm ? '' : balanceBadge(res, debtorsSet.has(finKey(res)), creditorsSet.has(finKey(res)));
+        const inner = `${badge}${tag ? `<span class="retreat-tag">${e(tag.tag)}</span>` : ''}${e(name || '—')}&nbsp;<span class="opacity-70">(${e(meals.toLowerCase())})</span>`
             + (res.fromCrm ? '<span class="self-crm">CRM</span>' : '');
-        const mealsClass = res.has_meals === true ? ' meals-yes' : res.has_meals === false ? ' meals-no' : '';
+        // Команда и волонтёры — сплошным цветом категории, как в номерах (зелёный / оранжевый)
+        const mealsClass = (res.has_meals === true ? ' meals-yes' : res.has_meals === false ? ' meals-no' : '')
+            + (kind === 'team' ? ' self-staff' : '');
         // Своя запись — клик открывает окно проживания (даты, выселить, переселить в номер, удалить);
         // запись из CRM и без прав — карточка человека
         const bar = canEdit && !res.fromCrm

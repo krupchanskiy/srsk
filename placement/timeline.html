@@ -304,6 +304,9 @@
         /* Питается — бледно-зелёная (не путать с насыщенным зелёным команды), не питается — серая */
         .guest-bar.self-stay.meals-yes { background: #dcfce7; border-color: #86efac; color: #14532d; }
         .guest-bar.self-stay.meals-no { background: #d1d5db; border-color: #9ca3af; color: #374151; }
+        /* Команда и волонтёры вне ашрама — сплошным цветом категории, как в номерах (ВГ, 01.10) */
+        .guest-bar.self-stay.self-staff { background: var(--cat-color); border-color: var(--cat-color); color: #fff; }
+        .guest-bar.self-stay.self-staff .retreat-tag { background: rgba(255, 255, 255, 0.25); }
         .guest-bar.self-stay .retreat-tag { background: rgba(0, 0, 0, 0.1); }
         .guest-bar.self-stay .self-crm {
             margin-left: 6px;
@@ -351,6 +354,7 @@
         }
         .guest-bar .balance-badge.debt { background: #dc2626; }
         .guest-bar .balance-badge.credit { background: #16a34a; }
+        .guest-bar .balance-badge.uncharged { background: #9ca3af; }
 
         /* Бронирование — бледная штриховка, имя тёмное.
            Раньше полосы шли «цвет / 35% цвета», а текст оставался белым от
@@ -1195,7 +1199,7 @@
         if (btn) { btn.classList.toggle('btn-active', isFS); btn.title = isFS ? Layout.t('normal_view') : Layout.t('fullscreen'); }
     }
     </script>
-    <script src="../js/pages/timeline.js?v=50"></script>
+    <script src="../js/pages/timeline.js?v=51"></script>
 
 </body>
 </html>
