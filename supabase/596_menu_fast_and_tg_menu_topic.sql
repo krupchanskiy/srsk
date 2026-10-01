@@ -165,7 +165,8 @@ BEGIN
     SELECT d, bool_or(meal = 'breakfast') AS no_bf, bool_or(meal = 'lunch') AS no_ln
       FROM gaps GROUP BY d ORDER BY d
   LOOP
-    v_line := format(E'\n• <a href="https://in.rupaseva.com/kitchen/menu.html#day/%s%s">%s</a> — %s',
+    -- ссылка на всю строку, а не только на дату: на телефоне в неё проще попасть пальцем
+    v_line := format(E'\n• <a href="https://in.rupaseva.com/kitchen/menu.html#day/%s%s">%s — %s</a>',
       to_char(r.d, 'YYYY-MM-DD'),
       CASE WHEN r.no_bf AND r.no_ln THEN '' WHEN r.no_bf THEN '/breakfast' ELSE '/lunch' END,
       CASE r.d - p_today WHEN 0 THEN 'Сегодня, ' WHEN 1 THEN 'Завтра, ' ELSE '' END || to_char(r.d, 'DD.MM'),
@@ -176,8 +177,8 @@ BEGIN
 
   IF v_now = '' AND v_past = '' THEN RETURN NULL; END IF;
 
+  -- без приветствия: это напоминание бота, а не письмо (ВГ 01.10)
   RETURN '⚠️ <b>Меню не заполнено</b>' || E'\n\n'
-      || 'Харе Кришна! Примите, пожалуйста, мои поклоны.' || E'\n'
       || v_tag || ', пожалуйста, заполните меню — по нему считается вся кухня.'
       || CASE WHEN v_now <> '' THEN E'\n' || v_now ELSE '' END
       || CASE WHEN v_past <> '' THEN E'\n\nПрошлые дни:' || v_past ELSE '' END;
