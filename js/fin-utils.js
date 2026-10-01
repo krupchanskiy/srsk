@@ -189,22 +189,29 @@ const FinUtils = {
     // Загрузка справочников для форм (один раз на страницу)
     async loadRefs() {
         if (refs.loaded) return refs;
-        const [cur, acc, cat, cc, obj, con, ret] = await Promise.all([
+        const [cur, acc, cat, cc, obj, con, ret, fact] = await Promise.all([
             Layout.db.from('fin_v_currencies').select('*'),
             Layout.db.from('fin_v_account_balances').select('*').order('name'),
             Layout.db.from('fin_v_categories').select('*').order('name'),
             Layout.db.from('fin_v_cost_centers').select('*').order('name'),
             Layout.db.from('fin_v_accounting_objects').select('*').order('created_at', { ascending: false }),
             Layout.db.from('fin_v_contractors').select('*').order('name'),
-            Layout.db.from('retreats').select('id, start_date, end_date')
+            Layout.db.from('retreats').select('id, start_date, end_date'),
+            Layout.db.from('retreat_fact_end').select('retreat_id, fact_end')
         ]);
         refs.currencies = cur.data || [];
         refs.accounts = acc.data || [];
         refs.categories = cat.data || [];
         refs.costCenters = cc.data || [];
         // Даты ретрита — в подпись объекта: два «Ретрита Художников» иначе не различить
+        // fact_end — фактическое окончание (последний выезд гостей ретрита, миграция 603):
+        // по нему ретрит считается идущим/недавно прошедшим. Нет доступа к местам — плановое окончание.
         const retreatById = new Map((ret.data || []).map(r => [r.id, r]));
-        refs.objects = (obj.data || []).map(o => ({ ...o, retreat: retreatById.get(o.retreat_id) || null }));
+        const factById = new Map((fact.data || []).map(f => [f.retreat_id, f.fact_end]));
+        refs.objects = (obj.data || []).map(o => {
+            const retreat = retreatById.get(o.retreat_id) || null;
+            return { ...o, retreat, fact_end: factById.get(o.retreat_id) || retreat?.end_date || null };
+        });
         refs.contractors = con.data || [];
         refs.loaded = true;
         return refs;
@@ -317,7 +324,8 @@ const FinUtils = {
     },
 
     // Ретриты группами (ВГ, 01.10.2026): «Гости без события» наверху, затем
-    // идущие и предстоящие, затем недавно прошедшие (до 60 дней). Закрытые и
+    // идущие и предстоящие, затем недавно прошедшие (до 60 дней после фактического
+    // окончания — последнего выезда гостей ретрита, а не даты в карточке). Закрытые и
     // давно прошедшие — в архиве, раскрывается пунктом «Показать прошедшие…».
     // Выбранный ретрит виден всегда, даже архивный — иначе привязка слетит.
     objectOptions(selectedId, { all = false } = {}) {
@@ -330,7 +338,7 @@ const FinUtils = {
 
         const top = [], current = [], recent = [], past = [];
         for (const o of refs.objects) {
-            const start = o.retreat?.start_date, end = o.retreat?.end_date;
+            const start = o.retreat?.start_date, end = o.fact_end;
             if (start?.startsWith('2000-')) top.push(o);               // «Гости без события»
             else if (!end) current.push(o);
             else if (o.is_closed || end < recentFrom) past.push(o);
@@ -338,8 +346,8 @@ const FinUtils = {
             else current.push(o);
         }
         current.sort((a, b) => (a.retreat?.start_date || '').localeCompare(b.retreat?.start_date || ''));
-        recent.sort((a, b) => b.retreat.end_date.localeCompare(a.retreat.end_date));
-        past.sort((a, b) => b.retreat.end_date.localeCompare(a.retreat.end_date));
+        recent.sort((a, b) => b.fact_end.localeCompare(a.fact_end));
+        past.sort((a, b) => b.fact_end.localeCompare(a.fact_end));
 
         const pastShown = all ? past : past.filter(o => o.id === selectedId);
         const hasHidden = past.length > pastShown.length;
