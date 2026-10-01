@@ -96,7 +96,7 @@
     <script src="../js/utils.js?v=12"></script>
     <script src="../js/translit.js"></script>
     <script src="../js/auto-translate.js"></script>
-    <script src="../js/layout.js?v=82"></script>
+    <script src="../js/layout.js?v=83"></script>
     <script>
         // ==================== STATE ====================
         let currentTab = 'recipe_categories';
@@ -206,13 +206,20 @@
                 columns: [
                     { key: 'color', label: '', width: 'w-12', type: 'color' },
                     { key: 'short', label: 'cook_short', width: 'w-20' },
-                    { key: 'name', label: 'cook_name' }
+                    { key: 'name', label: 'cook_name' },
+                    { key: 'level', label: 'cook_level', type: 'translated', prefix: 'cook_level_' }
                 ],
                 fields: [
                     { name: 'vaishnava_id', label: 'cook_name', type: 'person_select', required: true },
                     { name: 'name', type: 'person_name' },
                     { name: 'short', label: 'cook_short', type: 'text', required: true, placeholder: 'БК' },
-                    { name: 'color', label: 'color', type: 'color', defaultValue: '#16a34a' }
+                    { name: 'color', label: 'color', type: 'color', defaultValue: '#16a34a' },
+                    // Уровень решает доступ к сайту: повар только смотрит, су-шеф правит (роль выдаётся сама)
+                    { name: 'level', label: 'cook_level', type: 'select', required: true, defaultValue: 'cook', hint: 'cook_level_hint', options: [
+                        { value: 'cook', label: 'cook_level_cook' },
+                        { value: 'sous_chef', label: 'cook_level_sous_chef' },
+                        { value: 'chef', label: 'cook_level_chef' }
+                    ]}
                 ],
                 orderBy: 'sort_order'
             }
@@ -335,6 +342,9 @@
                         if (col.type === 'color') {
                             return `<td><div class="color-preview" style="background-color: ${row[col.key] || '#ccc'}"></div></td>`;
                         }
+                        if (col.type === 'translated') {
+                            return `<td>${row[col.key] ? Layout.escapeHtml(t(col.prefix + row[col.key])) : ''}</td>`;
+                        }
                         return `<td>${row[col.key] || ''}</td>`;
                     }).join('');
 
@@ -410,6 +420,7 @@
                         <div>
                             <label class="label"><span class="label-text font-medium">${label}</span></label>
                             <select name="${field.name}" class="select select-bordered w-full" ${required}>${options}</select>
+                            ${field.hint ? `<div class="text-xs opacity-60 mt-1">${t(field.hint)}</div>` : ''}
                         </div>
                     `;
                 }

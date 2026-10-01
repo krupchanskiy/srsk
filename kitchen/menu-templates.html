@@ -34,13 +34,13 @@
                 <p class="text-sm opacity-60" id="templatesCount" data-i18n="loading">Загрузка...</p>
             </div>
             <div class="flex gap-2">
-                <button class="btn btn-ghost gap-2" onclick="openImportModal()">
+                <button class="btn btn-ghost gap-2" onclick="openImportModal()" data-permission="edit_menu_templates">
                     <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" />
                     </svg>
                     <span data-i18n="import_from_menu">Импортировать из меню</span>
                 </button>
-                <button class="btn btn-primary gap-2" onclick="openTemplateEditor()">
+                <button class="btn btn-primary gap-2" onclick="openTemplateEditor()" data-permission="edit_menu_templates">
                     <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" />
                     </svg>
@@ -128,7 +128,7 @@
 
             <div class="modal-action">
                 <button type="button" class="btn btn-ghost" onclick="templateEditorModal.close()" data-i18n="cancel">Отмена</button>
-                <button type="button" class="btn btn-primary" onclick="saveTemplate()" data-i18n="save">Сохранить</button>
+                <button type="button" class="btn btn-primary" onclick="saveTemplate()" data-i18n="save" data-permission="edit_menu_templates">Сохранить</button>
             </div>
         </div>
         <form method="dialog" class="modal-backdrop"><button>close</button></form>
@@ -292,7 +292,7 @@
     <script src="../js/translit.js"></script>
     <script src="../js/auto-translate.js"></script>
     <script src="../js/date-utils.js?v=4"></script>
-    <script src="../js/layout.js?v=82"></script>
+    <script src="../js/layout.js?v=83"></script>
     <script>
         // ==================== STATE ====================
         let templates = [];
@@ -305,6 +305,8 @@
         let editingTemplateId = null;
         let templateData = {}; // { dayNumber: { mealType: { portions, dishes: [...] } } }
         let currentDay = 1;
+        // Повар без права правки шаблонов только смотрит
+        const canEditTemplates = () => window.hasPermission?.('edit_menu_templates') ?? false;
         let selectedMealType = null;
 
         // Dish modal state
@@ -622,16 +624,16 @@
                                     <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
                                     </svg>
-                                    <span class="hidden sm:inline">${t('edit_template')}</span>
+                                    <span class="hidden sm:inline">${canEditTemplates() ? t('edit_template') : t('view')}</span>
                                 </button>
-                                <button class="btn btn-sm btn-primary" onclick="openApplyModal('${template.id}')">
+                                ${window.hasPermission?.('edit_menu') ? `<button class="btn btn-sm btn-primary" onclick="openApplyModal('${template.id}')">
                                     ${t('apply_template')}
-                                </button>
-                                <button class="btn btn-sm btn-ghost btn-square text-error/60 hover:text-error hover:bg-error/10" onclick="deleteTemplate('${template.id}')">
+                                </button>` : ''}
+                                ${canEditTemplates() ? `<button class="btn btn-sm btn-ghost btn-square text-error/60 hover:text-error hover:bg-error/10" onclick="deleteTemplate('${template.id}')">
                                     <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
                                     </svg>
-                                </button>
+                                </button>` : ''}
                             </div>
                         </div>
                     </div>
@@ -695,6 +697,12 @@
                 Layout.$('#editorModalTitle').textContent = t('add_template');
             }
 
+            // Повар без права правки: название, описание и число дней — только чтение
+            const readOnly = !canEditTemplates();
+            ['templateNameRu', 'templateNameEn', 'templateNameHi', 'templateDescRu', 'templateDescEn', 'templateDescHi', 'templateDayCount']
+                .forEach(fid => { const el = Layout.$('#' + fid); if (el) el.disabled = readOnly; });
+            if (readOnly) Layout.$('#editorModalTitle').textContent = getName(templates.find(x => x.id === id) || {});
+
             updateDayTabs();
             templateEditorModal.showModal();
         }
@@ -746,16 +754,17 @@
                                                class="input input-sm input-bordered w-20 text-center"
                                                value="${mealData.portions}"
                                                min="1"
+                                               ${canEditTemplates() ? '' : 'disabled'}
                                                onchange="updateMealPortions(${currentDay}, '${mealType}', this.value)"
                                         />
                                     </div>
                                 ` : ''}
-                                <button class="btn btn-ghost btn-sm" onclick="openDishModal(${currentDay}, '${mealType}')">
+                                ${canEditTemplates() ? `<button class="btn btn-ghost btn-sm" onclick="openDishModal(${currentDay}, '${mealType}')">
                                     <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" />
                                     </svg>
                                     ${t('add_dish')}
-                                </button>
+                                </button>` : ''}
                             </div>
                         </div>
 
@@ -779,11 +788,11 @@
                                             </div>
                                             <div class="flex items-center gap-2">
                                                 <span class="badge badge-lg">${dish.portion_size || ''} ${getUnitShort(dish.portion_unit)}</span>
-                                                <button class="btn btn-ghost btn-sm btn-square text-error/60 hover:text-error" onclick="removeDishFromTemplate(${currentDay}, '${mealType}', ${index})">
+                                                ${canEditTemplates() ? `<button class="btn btn-ghost btn-sm btn-square text-error/60 hover:text-error" onclick="removeDishFromTemplate(${currentDay}, '${mealType}', ${index})">
                                                     <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
                                                     </svg>
-                                                </button>
+                                                </button>` : ''}
                                             </div>
                                         </div>
                                     `;

@@ -224,7 +224,7 @@ const pagePermissions = {
     'stock/requests.html': 'view_requests',
     'stock/receive.html': 'receive_stock',
     'stock/issue.html': 'issue_stock',
-    'stock/inventory.html': 'conduct_inventory',
+    'stock/inventory.html': ['conduct_inventory', 'view_stock'],
     'stock/stock-settings.html': 'view_stock_settings',
 
     // Vaishnavas

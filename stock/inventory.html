@@ -39,7 +39,7 @@
 
         <!-- Tabs -->
         <div class="tabs tabs-boxed bg-base-100 p-1 mb-6 inline-flex" id="mainTabs">
-            <button class="tab tab-active" data-tab="new" onclick="switchTab('new')" data-i18n="new_inventory">Новая</button>
+            <button class="tab tab-active" data-tab="new" onclick="switchTab('new')" data-i18n="new_inventory" data-permission="conduct_inventory">Новая</button>
             <button class="tab" data-tab="in_progress" onclick="switchTab('in_progress')" data-i18n="in_progress_inventories">В процессе</button>
             <button class="tab" data-tab="completed" onclick="switchTab('completed')" data-i18n="completed_inventories">Завершённые</button>
         </div>
@@ -194,7 +194,7 @@
     <script src="../js/translit.js"></script>
     <script src="../js/auto-translate.js"></script>
     <script src="../js/date-utils.js?v=4"></script>
-    <script src="../js/layout.js?v=82"></script>
+    <script src="../js/layout.js?v=83"></script>
     <script>
         // ==================== STATE ====================
         let inventories = [];
@@ -643,7 +643,7 @@
                 return;
             }
 
-            const isEditable = currentInventory?.status === 'in_progress';
+            const isEditable = currentInventory?.status === 'in_progress' && window.hasPermission?.('conduct_inventory');
 
             tbody.innerHTML = filtered.map((item, idx) => {
                 const product = item.product;
@@ -839,6 +839,8 @@
             renderInProgressList();
             renderCompletedList();
             initialized = true;
+            // Повар без права инвентаризации только смотрит — сразу завершённые
+            if (!window.hasPermission?.('conduct_inventory')) switchTab('completed');
             Layout.updateAllTranslations();
         }
 
