@@ -17,6 +17,32 @@ function objectDatesLabel(o) {
     return ` (${from}–${dm(f)}.${f.slice(0, 4)})`;
 }
 
+const OBJECT_RECENT_DAYS = 60;
+const OBJECT_SHOW_PAST = '__show_past__';
+const OBJECT_GROUP_RU = {
+    fin_object_group_current: 'Идут и предстоящие',
+    fin_object_group_recent: 'Недавно прошли',
+    fin_object_group_past: 'Прошедшие',
+    fin_object_show_past: 'Показать прошедшие…'
+};
+// У кого переводы закэшированы до миграции 602 — Layout.t вернёт сам ключ
+function trOr(key) {
+    const v = Layout.t(key);
+    return v === key ? OBJECT_GROUP_RU[key] : v;
+}
+
+// «Показать прошедшие…» — раскрываем архив в этом же списке. Ловим на захвате,
+// до обработчиков страницы: служебное значение не должно дойти ни до них, ни до сохранения.
+document.addEventListener('change', ev => {
+    const sel = ev.target;
+    if (!(sel instanceof HTMLSelectElement) || sel.value !== OBJECT_SHOW_PAST) return;
+    ev.stopPropagation();
+    sel.innerHTML = FinUtils.objectOptions(null, { all: true });
+    sel.value = '';
+    sel.focus();
+    sel.showPicker?.();
+}, true);
+
 const refs = { loaded: false, currencies: [], accounts: [], categories: [], costCenters: [], objects: [], contractors: [] };
 
 // Кэш дат ретритов для подсказки «ближайший ретрит» (касса кафе, сен 2026)
@@ -290,12 +316,49 @@ const FinUtils = {
             .join('');
     },
 
-    objectOptions(selectedId) {
+    // Ретриты группами (ВГ, 01.10.2026): «Гости без события» наверху, затем
+    // идущие и предстоящие, затем недавно прошедшие (до 60 дней). Закрытые и
+    // давно прошедшие — в архиве, раскрывается пунктом «Показать прошедшие…».
+    // Выбранный ретрит виден всегда, даже архивный — иначе привязка слетит.
+    objectOptions(selectedId, { all = false } = {}) {
         const e = s => Layout.escapeHtml(s);
-        // Закрытый ретрит выбирать бесполезно — сервер откажет; помечаем в списке
-        return `<option value="">${Layout.t('fin_no_object')}</option>` + refs.objects
-            .map(o => `<option value="${o.id}" ${o.id === selectedId ? 'selected' : ''}>${e(o.display_name)}${objectDatesLabel(o)}${o.is_closed ? ` (${Layout.t('fin_object_closed')})` : ''}</option>`)
-            .join('');
+        const today = this.todayISO();
+        const d = new Date(); d.setDate(d.getDate() - OBJECT_RECENT_DAYS);
+        const recentFrom = DateUtils.toISO(d);
+        const opt = o => `<option value="${o.id}" ${o.id === selectedId ? 'selected' : ''}>${e(o.display_name)}${objectDatesLabel(o)}${o.is_closed ? ` (${Layout.t('fin_object_closed')})` : ''}</option>`;
+        const group = (key, list) => list.length ? `<optgroup label="${e(trOr(key))}">${list.map(opt).join('')}</optgroup>` : '';
+
+        const top = [], current = [], recent = [], past = [];
+        for (const o of refs.objects) {
+            const start = o.retreat?.start_date, end = o.retreat?.end_date;
+            if (start?.startsWith('2000-')) top.push(o);               // «Гости без события»
+            else if (!end) current.push(o);
+            else if (o.is_closed || end < recentFrom) past.push(o);
+            else if (end < today) recent.push(o);
+            else current.push(o);
+        }
+        current.sort((a, b) => (a.retreat?.start_date || '').localeCompare(b.retreat?.start_date || ''));
+        recent.sort((a, b) => b.retreat.end_date.localeCompare(a.retreat.end_date));
+        past.sort((a, b) => b.retreat.end_date.localeCompare(a.retreat.end_date));
+
+        const pastShown = all ? past : past.filter(o => o.id === selectedId);
+        const hasHidden = past.length > pastShown.length;
+        return `<option value="">${Layout.t('fin_no_object')}</option>`
+            + top.map(opt).join('')
+            + group('fin_object_group_current', current)
+            + group('fin_object_group_recent', recent)
+            + group('fin_object_group_past', pastShown)
+            + (hasHidden ? `<option value="${OBJECT_SHOW_PAST}">${e(trOr('fin_object_show_past'))}</option>` : '');
+    },
+
+    // Подставить ретрит из кода (подсказка по дате, открытие на правку): если он
+    // в архиве и в списке его нет — перерисовываем список вместе с ним
+    setObjectValue(sel, objectId) {
+        if (!sel) return;
+        if (objectId && ![...sel.options].some(o => o.value === objectId)) {
+            sel.innerHTML = this.objectOptions(objectId);
+        }
+        sel.value = objectId || '';
     },
 
     contractorOptions(selectedId) {

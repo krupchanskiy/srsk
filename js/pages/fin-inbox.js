@@ -450,7 +450,7 @@ async function maybeSuggestSplitObject(row) {
     if (!rowIsCafe(row)) return;
     const dateStr = (splitDraft.created_at || '').slice(0, 10);
     const objId = await FinUtils.nearestRetreatObject(dateStr);
-    if (objId) row.querySelector('[data-split-object]').value = objId;
+    if (objId) FinUtils.setObjectValue(row.querySelector('[data-split-object]'), objId);
 }
 
 function openSplit(id) {
@@ -652,7 +652,7 @@ async function maybeSuggestRefineObject(row) {
     if (!refineTargetIsCafe()) return;
     const dateStr = (refineDraft.created_at || '').slice(0, 10);
     const objId = await FinUtils.nearestRetreatObject(dateStr);
-    if (objId) row.querySelector('[data-refine-object]').value = objId;
+    if (objId) FinUtils.setObjectValue(row.querySelector('[data-refine-object]'), objId);
 }
 
 function suggestAllRefineRows() {

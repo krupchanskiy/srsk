@@ -526,7 +526,7 @@ async function repeatOperation(opId) {
             setSel(document.getElementById('incAccount'), p.account_id);
             document.getElementById('incAmount').value = Math.abs(Number(p.signed_amount));
             setSel(document.getElementById('incCategory'), p.category_id);
-            setSel(document.getElementById('incObject'), p.object_id || '');
+            FinUtils.setObjectValue(document.getElementById('incObject'), p.object_id);
             document.getElementById('incChannel').value = каналСчёта(p.account_id);
         }
         // Приход, внесённый частями в разные кассы, повторяется со всеми частями
@@ -803,7 +803,7 @@ async function maybeSuggestExpenseObject(row) {
     if (!row || row.dataset.objectAuto === '0') return;
     if (!FinUtils.isCafeAccount(row.querySelector('.exp-account').value)) return;
     const objId = await FinUtils.nearestRetreatObject(document.getElementById('expDate').value);
-    if (objId) row.querySelector('.exp-object').value = objId;
+    if (objId) FinUtils.setObjectValue(row.querySelector('.exp-object'), objId);
 }
 
 function openExpense() {
@@ -889,7 +889,7 @@ async function maybeSuggestIncomeObject() {
         const { data } = date ? await Layout.db.rpc('fin_prasad_donation_object', { p_date: date }) : { data: null };
         if (token !== incHintToken || !incObjectAuto) return;
         if (data?.object_id && !data.is_closed) {
-            objSel.value = data.object_id;
+            FinUtils.setObjectValue(objSel, data.object_id);
             incPrasadAutoObject = data.object_id;
             if (hint) hint.textContent = `В эти даты идёт «${data.retreat_name}» — пожертвование отнесено к нему. Не так — выберите «Без ретрита».`;
         } else {
