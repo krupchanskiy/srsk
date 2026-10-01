@@ -748,9 +748,9 @@ function renderMealSection(dateStr, mealType, index, mealData, isEkadashiDay) {
                     </div>
                 </div>
                 ${canEdit && !isCafe ? `<div class="flex flex-wrap justify-center gap-2">
+                    <button class="btn btn-sm btn-outline border-current" style="color: #10b981" data-action="set-meal-fast" data-value="1" data-date="${dateStr}" data-meal-type="${mealType}">${tr('menu_fast_add', 'Пост')}</button>
                     <button class="btn btn-sm btn-outline border-current" style="color: var(--current-color)" data-action="open-own-cook-modal" data-date="${dateStr}" data-meal-type="${mealType}">+ ${tr('menu_own_cook_add', 'Готовил Бридж Кишор')}</button>
-                    <button class="btn btn-ghost btn-sm opacity-70" data-action="open-external-modal" data-date="${dateStr}" data-meal-type="${mealType}">+ ${tr('menu_external_add', 'Готовое со стороны')}</button>
-                    <button class="btn btn-ghost btn-sm opacity-70" data-action="set-meal-fast" data-value="1" data-date="${dateStr}" data-meal-type="${mealType}">${tr('menu_fast_add', 'Пост')}</button></div>` : ''}
+                    <button class="btn btn-ghost btn-sm opacity-70" data-action="open-external-modal" data-date="${dateStr}" data-meal-type="${mealType}">+ ${tr('menu_external_add', 'Готовое со стороны')}</button></div>` : ''}
             </div>
         `;
     }
