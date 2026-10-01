@@ -185,15 +185,18 @@ async function loadTimelineData() {
     // Для выбора при брони/заселении нужны не только ретриты просматриваемого периода:
     // бронируют и на будущие, а прошедшие — через «Архив / все ретриты…». Ретритов
     // немного, берём все; что показать в списке, решает retreatFitsDates.
-    // fact_end — фактическое окончание (миграция 603): пока живут его люди, ретрит идёт.
+    // fact_end — фактическое окончание (миграции 603, 605): внутренний ретрит идёт, пока живут
+    // его люди; обычный — не дольше конца + 3 дня.
     const [{ data: selectableRetreats }, { data: factEnds }] = await Promise.all([
         Layout.db.from('retreats')
             .select('id, name_ru, name_en, name_hi, short_name, start_date, end_date, color, is_external')
             .order('start_date'),
-        Layout.db.from('retreat_fact_end').select('retreat_id, fact_end')
+        Layout.db.from('retreat_fact_end').select('retreat_id, fact_end, is_internal')
     ]);
-    const factEndMap = new Map((factEnds || []).map(f => [f.retreat_id, f.fact_end]));
-    allRetreats = (selectableRetreats || retreats).map(r => ({ ...r, fact_end: factEndMap.get(r.id) || r.end_date }));
+    const factEndMap = new Map((factEnds || []).map(f => [f.retreat_id, f]));
+    allRetreats = (selectableRetreats || retreats).map(r => ({ ...r,
+        fact_end: factEndMap.get(r.id)?.fact_end || r.end_date,
+        is_internal: !!factEndMap.get(r.id)?.is_internal }));
     // Самостоятельное проживание — отдельной группой внизу шахматки: без номера + «Сам организует»
     // из CRM. Раскрыта, если в периоде кто-то есть, свёрнута — если никого
     const fromCrm = await loadCrmSelfAccommodated().catch(err => {
@@ -1010,9 +1013,9 @@ function selectVaishnava(id) {
 // Только те, что идут в даты проживания, и с датами в скобках: «Сева-ретрит» 2026 и 2027
 // иначе не различить. Уже выбранный остаётся в списке, даже если даты разошлись, —
 // тогда под полем предупреждение (retreatDatesMismatch), но сохранить можно.
-// Наш ретрит идёт, пока живут его люди (ВГ 01.10.2026: художники после 30.09): конец —
-// fact_end (выезд последнего; переезд встык — заезд в тот же день, он попадает).
-// Уехал последний — ретрит больше не предлагается, но не закрывается: он в «Архиве».
+// Конец нашего ретрита — fact_end (ВГ 01.10.2026): внутренний (художники) идёт, пока живут
+// его люди — до выезда последнего; обычный — не дольше конца + 3 дня (вариант 2).
+// Прошёл — ретрит больше не предлагается, но не закрывается: он в «Архиве».
 const retreatFitsDates = (r, from, to) => !!from && r.start_date <= (to || from)
     && (r.is_external ? r.end_date : (r.fact_end || r.end_date)) >= from;
 
@@ -1125,7 +1128,8 @@ function retreatDatesMismatch(retreatId, from, to) {
 const OUTSIDE_RETREAT_DAYS = 3;
 function outsideRetreat(retreatId, from, to) {
     const r = retreatId && allRetreats.find(x => x.id === retreatId);
-    if (!r || !from) return null;
+    // Внутренний ретрит (художники) идёт, пока живут его люди, — хвост не выносим (ВГ 01.10)
+    if (!r || !from || r.is_internal) return null;
     const днейМежду = (a, b) => Math.round((DateUtils.parseDate(b) - DateUtils.parseDate(a)) / 86400000);
     const before = Math.max(0, днейМежду(from, r.start_date));
     const after = to ? Math.max(0, днейМежду(r.end_date, to)) : 0;
