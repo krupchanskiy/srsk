@@ -790,7 +790,8 @@
                             <span class="label-text-alt opacity-60" id="checkinRetreatHint"></span>
                         </label>
                         <select name="retreat_id" id="checkinRetreat" class="select select-bordered select-sm w-full"
-                                onchange="this.dataset.touched='1'"></select>
+                                onchange="this.dataset.touched='1'; showRetreatWarn('checkin')"></select>
+                        <div id="checkinRetreatWarn" class="text-xs text-amber-700 mt-1 hidden"></div>
                     </div>
 
                     <div class="form-control mt-3">
@@ -936,7 +937,8 @@
                             <span class="label-text-alt opacity-60" id="bookingRetreatHint"></span>
                         </label>
                         <select name="retreat_id" id="bookingRetreat" class="select select-bordered select-sm w-full"
-                                onchange="this.dataset.touched='1'"></select>
+                                onchange="this.dataset.touched='1'; showRetreatWarn('booking')"></select>
+                        <div id="bookingRetreatWarn" class="text-xs text-amber-700 mt-1 hidden"></div>
                     </div>
 
                     <!-- Прасад: с брони и начинается расчёт порций на кухне -->
@@ -1199,7 +1201,7 @@
         if (btn) { btn.classList.toggle('btn-active', isFS); btn.title = isFS ? Layout.t('normal_view') : Layout.t('fullscreen'); }
     }
     </script>
-    <script src="../js/pages/timeline.js?v=51"></script>
+    <script src="../js/pages/timeline.js?v=52"></script>
 
 </body>
 </html>

@@ -146,7 +146,7 @@ async function loadTimelineData() {
             .select(`*,
                 resident_categories(id, slug, name_ru, name_en, name_hi, color),
                 vaishnavas(id, first_name, last_name, spiritual_name),
-                bookings(id, name, contact_name)`)
+                bookings(id, name, contact_name, notes)`)
             .in('status', ['confirmed', 'checked_out', 'booked'])
             .lte('check_in', endDateStr)
             .or(`check_out.is.null,check_out.gte.${startDateStr}`),
@@ -181,14 +181,17 @@ async function loadTimelineData() {
     periodRetreats = retreats;
     retreatTags = computeRetreatTags(retreats);
     // Для выбора при брони/заселении нужны не только ретриты просматриваемого периода:
-    // бронируют и на будущие (и стороннее мероприятие через год тоже). Берём всё, что
-    // закончилось не раньше 3 месяцев до начала периода (старые для брони не нужны).
-    const threeMonthsBefore = new Date(baseDate); threeMonthsBefore.setMonth(threeMonthsBefore.getMonth() - 3);
-    const { data: selectableRetreats } = await Layout.db.from('retreats')
-        .select('id, name_ru, name_en, name_hi, short_name, start_date, end_date, color, is_external')
-        .gte('end_date', formatDateYMD(threeMonthsBefore))
-        .order('start_date');
-    allRetreats = selectableRetreats || retreats;
+    // бронируют и на будущие, а прошедшие — через «Архив / все ретриты…». Ретритов
+    // немного, берём все; что показать в списке, решает retreatFitsDates.
+    // fact_end — фактическое окончание (миграция 603): пока живут его люди, ретрит идёт.
+    const [{ data: selectableRetreats }, { data: factEnds }] = await Promise.all([
+        Layout.db.from('retreats')
+            .select('id, name_ru, name_en, name_hi, short_name, start_date, end_date, color, is_external')
+            .order('start_date'),
+        Layout.db.from('retreat_fact_end').select('retreat_id, fact_end')
+    ]);
+    const factEndMap = new Map((factEnds || []).map(f => [f.retreat_id, f.fact_end]));
+    allRetreats = (selectableRetreats || retreats).map(r => ({ ...r, fact_end: factEndMap.get(r.id) || r.end_date }));
     // Самостоятельное проживание — отдельной группой внизу шахматки: без номера + «Сам организует»
     // из CRM. Раскрыта, если в периоде кто-то есть, свёрнута — если никого
     const fromCrm = await loadCrmSelfAccommodated().catch(err => {
@@ -987,17 +990,72 @@ function selectVaishnava(id) {
 // Список для заселения и брони: наши ретриты и сторонние мероприятия — двумя разделами.
 // Только те, что идут в даты проживания, и с датами в скобках: «Сева-ретрит» 2026 и 2027
 // иначе не различить. Уже выбранный остаётся в списке, даже если даты разошлись, —
-// сохранить с ним не даст retreatDatesMismatch.
-const retreatFitsDates = (r, from, to) => !!from && r.start_date <= (to || from) && r.end_date >= from;
+// тогда под полем предупреждение (retreatDatesMismatch), но сохранить можно.
+// Наш ретрит идёт, пока живут его люди (ВГ 01.10.2026: художники после 30.09): конец —
+// fact_end (выезд последнего; переезд встык — заезд в тот же день, он попадает).
+// Уехал последний — ретрит больше не предлагается, но не закрывается: он в «Архиве».
+const retreatFitsDates = (r, from, to) => !!from && r.start_date <= (to || from)
+    && (r.is_external ? r.end_date : (r.fact_end || r.end_date)) >= from;
 
-function retreatSelectHtml(selectedId, from, to) {
-    const list = allRetreats.filter(r => r.id === selectedId || retreatFitsDates(r, from, to));
-    const option = r => `<option value="${r.id}" ${r.id === selectedId ? 'selected' : ''}>${Layout.escapeHtml(Layout.getName(r))} (${DateUtils.formatRange(r.start_date, r.end_date)})</option>`;
+function retreatIdFits(id, from, to) {
+    const r = allRetreats.find(x => x.id === id);
+    return !!r && retreatFitsDates(r, from, to);
+}
+
+const RETREAT_ARCHIVE = '__all_retreats__';
+
+// all — «Архив / все ретриты…»: все ретриты по годам, новые сверху
+function retreatSelectHtml(selectedId, from, to, { all = false } = {}) {
+    // В архиве разделы — годы, поэтому стороннее мероприятие помечаем в самой строке
+    const external = tf('retreats_is_external', 'Стороннее мероприятие');
+    const option = r => `<option value="${r.id}" ${r.id === selectedId ? 'selected' : ''}>${Layout.escapeHtml(Layout.getName(r))}${all && r.is_external ? ' · ' + Layout.escapeHtml(external) : ''} (${DateUtils.formatRange(r.start_date, r.end_date)})</option>`;
     const optgroup = (label, items) => items.length
         ? `<optgroup label="${Layout.escapeHtml(label)}">` + items.map(option).join('') + '</optgroup>' : '';
-    return `<option value="">${Layout.t('timeline_no_retreat') || '— без ретрита —'}</option>`
+    const none = `<option value="">${Layout.t('timeline_no_retreat') || '— без ретрита —'}</option>`;
+    if (all) {
+        // «Гости без события» (служебный, 2000 год) — в шахматке это «без ретрита»
+        const sorted = allRetreats.filter(r => !r.start_date.startsWith('2000-'))
+            .sort((a, b) => b.start_date.localeCompare(a.start_date));
+        const years = [...new Set(sorted.map(r => r.start_date.slice(0, 4)))];
+        return none + years.map(y => optgroup(y, sorted.filter(r => r.start_date.startsWith(y)))).join('');
+    }
+    const list = allRetreats.filter(r => r.id === selectedId || retreatFitsDates(r, from, to));
+    return none
         + optgroup(Layout.t('group_event_retreat') || 'Наш ретрит', list.filter(r => !r.is_external))
-        + optgroup(Layout.t('retreats_is_external') || 'Стороннее мероприятие', list.filter(r => r.is_external));
+        + optgroup(external, list.filter(r => r.is_external))
+        + `<option value="${RETREAT_ARCHIVE}">${Layout.escapeHtml(tf('timeline_retreat_archive', 'Архив / все ретриты…'))}</option>`;
+}
+
+// «Архив / все ретриты…» — раскрываем все ретриты в этом же списке. Ловим на захвате,
+// до onchange самого списка: служебное значение не должно дойти до сохранения.
+// Прежнее значение запоминаем при входе в список: раскрыли архив и ничего не выбрали —
+// остаётся тот ретрит, что был.
+document.addEventListener('focusin', ev => {
+    if (ev.target instanceof HTMLSelectElement) ev.target.dataset.prev = ev.target.value;
+}, true);
+document.addEventListener('change', ev => {
+    const sel = ev.target;
+    if (!(sel instanceof HTMLSelectElement) || sel.value !== RETREAT_ARCHIVE) return;
+    ev.stopPropagation();
+    const prev = sel.dataset.prev === RETREAT_ARCHIVE ? '' : (sel.dataset.prev || '');
+    sel.innerHTML = retreatSelectHtml(prev, null, null, { all: true });
+    sel.value = prev;
+    sel.dataset.prev = prev;
+    sel.focus();
+    sel.showPicker?.();
+}, true);
+
+// Мягкое предупреждение под полем (ТЗ 01.10, п. 4): даты брони не попадают в ретрит.
+// Сохранение не блокирует — выбрать прошедший ретрит из архива можно осознанно.
+function showRetreatWarn(prefix) {
+    const sel = document.getElementById(prefix + 'Retreat');
+    const warn = document.getElementById(prefix + 'RetreatWarn');
+    if (!sel || !warn) return;
+    const from = document.getElementById(prefix + 'DateIn').value;
+    const to = document.getElementById(prefix + 'DateOut').value || from;
+    const bad = retreatDatesMismatch(sel.value, from, to);
+    warn.textContent = bad ? retreatDatesMismatchText() : '';
+    warn.classList.toggle('hidden', !bad);
 }
 
 // Пока кэш переводов у пользователя не обновился, показываем русский текст, а не имя ключа
@@ -1105,6 +1163,7 @@ function fillRetreatSelect(selectedId) {
     const sel = document.getElementById('checkinRetreat');
     if (sel) sel.innerHTML = retreatSelectHtml(selectedId,
         document.getElementById('checkinDateIn').value, document.getElementById('checkinDateOut').value);
+    showRetreatWarn('checkin');
 }
 
 // Подсказать ретрит по человеку и датам: берём регистрацию, чей ретрит
@@ -1125,13 +1184,12 @@ async function suggestRetreat() {
 
     const { data } = await Layout.db
         .from('retreat_registrations')
-        .select('retreat_id, retreats(id, name_ru, name_en, name_hi, start_date, end_date)')
+        .select('retreat_id')
         .eq('vaishnava_id', vId)
         .eq('is_deleted', false)
         .not('status', 'in', '("cancelled","rejected")');
 
-    const fits = (data || []).filter(r => r.retreats
-        && r.retreats.start_date <= to && r.retreats.end_date >= from);
+    const fits = (data || []).filter(r => retreatIdFits(r.retreat_id, from, to));
 
     if (fits.length === 1) {
         fillRetreatSelect(fits[0].retreat_id);
@@ -1204,12 +1262,11 @@ async function suggestBookingCategory(vaishnavaId) {
     const to = document.getElementById('bookingDateOut').value || from;
     const { data } = await Layout.db
         .from('retreat_registrations')
-        .select('status, retreats(start_date, end_date)')
+        .select('status, retreat_id')
         .eq('vaishnava_id', vaishnavaId)
         .eq('is_deleted', false)
         .not('status', 'in', '("cancelled","rejected")');
-    const fits = (data || []).filter(r => r.retreats
-        && r.retreats.start_date <= to && r.retreats.end_date >= from);
+    const fits = (data || []).filter(r => retreatIdFits(r.retreat_id, from, to));
     const catId = fits.length ? BOOKING_STATUS_CATEGORY[fits[0].status] : null;
     if (catId && sel.querySelector(`option[value="${catId}"]`)) {
         sel.value = catId;
@@ -1255,12 +1312,11 @@ async function suggestBookingRetreat() {
     if (vId && from) {
         const { data } = await Layout.db
             .from('retreat_registrations')
-            .select('retreat_id, retreats(id, start_date, end_date)')
+            .select('retreat_id')
             .eq('vaishnava_id', vId)
             .eq('is_deleted', false)
             .not('status', 'in', '("cancelled","rejected")');
-        const regFits = (data || []).filter(r => r.retreats
-            && r.retreats.start_date <= to && r.retreats.end_date >= from);
+        const regFits = (data || []).filter(r => retreatIdFits(r.retreat_id, from, to));
         if (regFits.length === 1) {
             fillBookingRetreatSelect(regFits[0].retreat_id);
             hint.textContent = Layout.t('timeline_retreat_auto') || 'подставлено по регистрации';
@@ -1269,7 +1325,7 @@ async function suggestBookingRetreat() {
     }
 
     const fits = from
-        ? allRetreats.filter(r => r.start_date <= to && r.end_date >= from)
+        ? allRetreats.filter(r => retreatFitsDates(r, from, to))
         : [];
 
     if (fits.length === 1) {
@@ -1287,6 +1343,7 @@ function fillBookingRetreatSelect(selectedId) {
     const sel = document.getElementById('bookingRetreat');
     if (sel) sel.innerHTML = retreatSelectHtml(selectedId,
         document.getElementById('bookingDateIn').value, document.getElementById('bookingDateOut').value);
+    showRetreatWarn('booking');
 }
 
 function clearVaishnavSelection() {
@@ -1296,7 +1353,8 @@ function clearVaishnavSelection() {
     // Показываем поля нового гостя
     document.getElementById('guestFields').classList.remove('hidden');
     const sel = document.getElementById('checkinRetreat');
-    if (sel) delete sel.dataset.touched;
+    // Заселение по брони с ретритом — ретрит брони не сбрасываем при смене человека
+    if (sel && !(modalContext?.isConversion && modalContext.bookingRetreatId)) delete sel.dataset.touched;
     suggestRetreat();
 }
 
@@ -1330,9 +1388,9 @@ async function saveCheckin(e) {
         Layout.showNotification(tf('timeline_checkout_before_checkin', 'Выезд не может быть раньше заезда'), 'error');
         return;
     }
+    // Даты вне ретрита — только предупреждение (ТЗ 01.10, п. 4): прошедший ретрит из архива выбирают осознанно
     if (retreatDatesMismatch(form.retreat_id?.value, form.check_in.value, form.check_out.value)) {
-        Layout.showNotification(retreatDatesMismatchText(), 'error');
-        return;
+        Layout.showNotification(retreatDatesMismatchText(), 'warning');
     }
 
     const mealTypeVal = form.meal_type.value || 'prasad';
@@ -1419,8 +1477,7 @@ async function saveBooking(e) {
         return;
     }
     if (retreatDatesMismatch(bookingRetreatId, form.check_in.value, form.check_out.value)) {
-        Layout.showNotification(retreatDatesMismatchText(), 'error');
-        return;
+        Layout.showNotification(retreatDatesMismatchText(), 'warning');
     }
     const bookingVaishnavaId = form.vaishnava_id?.value || null;
     const bookingCategoryId = form.category_id?.value || null;
@@ -1741,6 +1798,13 @@ function openResidentModal(guestData, buildingName, roomName) {
             infoHtml += `<div class="flex justify-between py-1 border-b">
                 <span class="text-gray-500">${t('timeline_contact')}:</span>
                 <span class="font-medium">${e(res.bookings.contact_name)}</span>
+            </div>`;
+        }
+        // Примечание брони (ТЗ 01.10, п. 6): пишется в форме брони, а раньше не было видно нигде
+        if (res.bookings.notes && res.bookings.notes !== res.notes) {
+            infoHtml += `<div class="flex justify-between gap-3 py-1 border-b">
+                <span class="text-gray-500 shrink-0">${tf('timeline_booking_notes', 'Примечание брони')}:</span>
+                <span class="font-medium text-right whitespace-pre-line">${e(res.bookings.notes)}</span>
             </div>`;
         }
     }
@@ -2512,7 +2576,8 @@ async function convertToCheckin() {
     modalContext = {
         roomId: res.room_id,
         residentId: currentResident.id,
-        isConversion: true
+        isConversion: true,
+        bookingRetreatId: res.retreat_id || null
     };
 
     // Показываем форму заселения
@@ -2520,8 +2585,11 @@ async function convertToCheckin() {
     document.getElementById('checkinScreen').classList.remove('hidden');
     document.getElementById('bookingScreen').classList.add('hidden');
 
+    // Источник виден в форме (ТЗ 01.10, п. 8): «Заселение по брони: Группа …»
+    const bookingName = res.bookings?.name || res.bookings?.contact_name;
     document.getElementById('checkinLocation').textContent =
-        document.getElementById('residentModalLocation').textContent;
+        document.getElementById('residentModalLocation').textContent
+        + (bookingName ? ` · ${tf('timeline_checkin_by_booking', 'Заселение по брони')}: ${bookingName}` : '');
     document.getElementById('checkinDateIn').value = res.check_in;
     document.getElementById('checkinDateOut').value = res.check_out || '';
 
@@ -2532,8 +2600,6 @@ async function convertToCheckin() {
     document.getElementById('checkinDateIn').value =
         res.check_in < todayIso && (!res.check_out || res.check_out >= todayIso) ? todayIso : res.check_in;
     document.getElementById('checkinDateOut').value = res.check_out || '';
-    delete document.getElementById('checkinRetreat').dataset.touched;
-    fillRetreatSelect(res.retreat_id || '');
 
     if (res.early_checkin) {
         document.querySelector('#checkinForm [name="early_checkin"]').checked = true;
@@ -2547,6 +2613,19 @@ async function convertToCheckin() {
     document.querySelector('#checkinForm [name="lunch"]').checked = res.lunch !== false;
 
     clearVaishnavSelection();
+    // Ретрит, категория и примечание — с брони (ТЗ 01.10, п. 8). Ставим после сброса
+    // выбора вайшнава: тот пересчитывал ретрит и стирал ретрит брони — отсюда путаница.
+    // «Выбран вручную», чтобы подсказка по регистрации его не перебила; поля правятся.
+    const retreatSel = document.getElementById('checkinRetreat');
+    fillRetreatSelect(res.retreat_id || '');
+    if (res.retreat_id) retreatSel.dataset.touched = '1';
+    else delete retreatSel.dataset.touched;
+    const catSel = document.getElementById('checkinCategory');
+    if (res.category_id && catSel?.querySelector(`option[value="${res.category_id}"]`)) catSel.value = res.category_id;
+    const notes = res.notes || res.bookings?.notes;
+    if (notes) document.querySelector('#checkinForm [name="notes"]').value = notes;
+    const hint = document.getElementById('checkinRetreatHint');
+    if (hint && res.retreat_id) hint.textContent = tf('timeline_retreat_from_booking', 'из брони');
 
     document.getElementById('actionModal').showModal();
 }
