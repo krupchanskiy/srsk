@@ -121,8 +121,15 @@ async function buildLines(data) {
         .filter(Boolean).sort();
     const поДням = new Map();
     if (дни.length) {
-        const { data: ed } = await Layout.db.rpc('eating_detail', { p_from: дни[0], p_to: дни[дни.length - 1] });
-        for (const r of ed || []) {
+        // постранично: за длинный период у всех гостей больше 1000 строк
+        const ed = [];
+        for (let off = 0; ; off += 1000) {
+            const { data } = await Layout.db.rpc('eating_detail', { p_from: дни[0], p_to: дни[дни.length - 1] })
+                .order('d').order('ref_id').range(off, off + 999);
+            ed.push(...(data || []));
+            if (!data || data.length < 1000) break;
+        }
+        for (const r of ed) {
             if (!поДням.has(r.ref_id)) поДням.set(r.ref_id, []);
             поДням.get(r.ref_id).push({ d: r.d, b: !!r.breakfast, l: !!r.lunch });
         }

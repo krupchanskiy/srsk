@@ -345,7 +345,8 @@ async function initForm(v) {
     const тип = типНомера(v);
     const f = {
         v,
-        nights: v.check_out ? Math.max(днейМежду(v.check_in, v.check_out), 0) : 1,
+        // самостоятельное проживание (без номера) — за жильё не начисляем, только питание
+        nights: !v.room_id ? 0 : v.check_out ? Math.max(днейМежду(v.check_in, v.check_out), 0) : 1,
         // цена номера — по зданию и вместимости, как в прайсе ретритов; не задана — вписать вручную
         roomType: тип,
         roomPrice: Number(тип?.price) || 0,
@@ -362,8 +363,10 @@ async function initForm(v) {
     forms[v.resident_id] = f;
     // Питание — ровно то, что считает кухня: день заезда, выезда, ранний/поздний
     if (v.has_meals !== false && v.check_out) {
-        const { data } = await Layout.db.rpc('eating_detail', { p_from: v.check_in, p_to: v.check_out });
-        const дни = (data || []).filter(r => r.ref_id === v.resident_id).sort((a, b) => a.d.localeCompare(b.d));
+        // фильтр на сервере: за месяц у всех гостей больше 1000 строк — без него строки гостя обрезались
+        const { data } = await Layout.db.rpc('eating_detail', { p_from: v.check_in, p_to: v.check_out })
+            .eq('ref_id', v.resident_id);
+        const дни = (data || []).sort((a, b) => a.d.localeCompare(b.d));
         f.meals = дни.map(r => ({ d: r.d, b: !!r.breakfast, l: !!r.lunch }));
     }
     if (!v.vaishnava_id) {
@@ -422,11 +425,12 @@ function renderForms() {
         const последний = f.meals.length - 1;
         return `<div class="border border-base-300 rounded-xl p-3 mb-3" data-gc-form="${rid}">
             <div class="flex flex-wrap justify-between gap-2 mb-2">
-                <div class="font-semibold">${e(v.name)} <span class="font-normal text-sm opacity-60">· ${v.room ? `${e(v.building || '')} №${e(String(v.room))} (${v.capacity}-мест.)` : 'без номера'} · ${дата(v.check_in)} — ${v.check_out ? дата(v.check_out) : '…'}</span></div>
+                <div class="font-semibold">${e(v.name)} <span class="font-normal text-sm opacity-60">· ${v.room ? `${e(v.building || '')} №${e(String(v.room))} (${v.capacity}-мест.)` : 'самостоятельное проживание'} · ${дата(v.check_in)} — ${v.check_out ? дата(v.check_out) : '…'}</span></div>
                 <div class="font-mono font-semibold">${inr(r.итого)}</div>
             </div>
             ${уже}
             ${personHtml(rid, f)}
+            ${!v.room_id ? `<div class="text-xs opacity-60 mb-3">Живёт самостоятельно — за жильё не начисляется</div>` : `
             <div class="text-xs font-semibold uppercase opacity-60 mb-1">Проживание</div>
             <div class="flex flex-wrap items-center gap-1 text-sm mb-3">
                 <input type="number" min="0" step="1" class="input input-bordered input-xs w-16" data-gc-f="${rid}" data-k="nights" value="${f.nights}"> ноч. ×
@@ -441,6 +445,7 @@ function renderForms() {
                 на доп. кровати <span class="opacity-60">(${v.capacity}-местный = ${f.roomType?.capacity}-местный + доп. кровать)</span>
                 ${f.extraBed ? `— <input type="number" min="0" step="50" class="input input-bordered input-xs w-20" data-gc-f="${rid}" data-k="extraBedPrice" value="${f.extraBedPrice}"> за ночь` : ''}
             </label>` : ''}
+            `}
             ${v.has_meals === false && !f.mealsOn ? `<div class="text-xs mb-3"><span class="opacity-60">Питание в шахматке выключено</span>
                 <button type="button" class="btn btn-ghost btn-xs text-primary" data-gc-meals-on="${rid}" title="Если выключено по ошибке — включится и в шахматке, кухня посчитает его">включить питание</button></div>` : `
             <div class="text-xs font-semibold uppercase opacity-60 mb-1 flex items-center gap-2">Питание
