@@ -23,7 +23,7 @@ async function loadRetreats() {
     retreats = data || [];
     const sel = document.getElementById('retreatSelect');
     sel.innerHTML = `<option value="">${t('fin_select_retreat')}</option>` +
-        retreats.map(r => `<option value="${r.id}">${e(Layout.getName(r))}</option>`).join('');
+        retreats.map(r => `<option value="${r.id}">${e(Layout.getName(r))}${FinUtils.retreatDatesLabel(r.start_date, r.end_date)}</option>`).join('');
     sel.addEventListener('change', () => selectRetreat(sel.value || null));
 }
 

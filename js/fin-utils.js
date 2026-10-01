@@ -10,7 +10,9 @@ const CURRENCY_SYMBOLS = { INR: '₹', RUB: '₽', USD: '$', EUR: '€' };
 // « (02.08–30.09.2026)» по датам ретрита; строки YYYY-MM-DD режем без Date —
 // никаких сдвигов таймзоны. «Гости без события» хранят заглушку 2000-01-01 — без дат.
 function objectDatesLabel(o) {
-    const s = o.retreat?.start_date, f = o.retreat?.end_date;
+    return retreatDatesLabel(o.retreat?.start_date, o.retreat?.end_date);
+}
+function retreatDatesLabel(s, f) {
     if (!s || !f || s.startsWith('2000-')) return '';
     const dm = d => `${d.slice(8, 10)}.${d.slice(5, 7)}`;
     const from = s.slice(0, 4) === f.slice(0, 4) ? dm(s) : `${dm(s)}.${s.slice(0, 4)}`;
@@ -328,6 +330,9 @@ const FinUtils = {
     // окончания — последнего выезда гостей ретрита, а не даты в карточке). Закрытые и
     // давно прошедшие — в архиве, раскрывается пунктом «Показать прошедшие…».
     // Выбранный ретрит виден всегда, даже архивный — иначе привязка слетит.
+    // « (02.08–30.09.2026)» — для любых списков ретритов (одинаковые названия)
+    retreatDatesLabel,
+
     objectOptions(selectedId, { all = false } = {}) {
         const e = s => Layout.escapeHtml(s);
         const today = this.todayISO();
