@@ -7,6 +7,16 @@
 
 const CURRENCY_SYMBOLS = { INR: '₹', RUB: '₽', USD: '$', EUR: '€' };
 
+// « (02.08–30.09.2026)» по датам ретрита; строки YYYY-MM-DD режем без Date —
+// никаких сдвигов таймзоны. «Гости без события» хранят заглушку 2000-01-01 — без дат.
+function objectDatesLabel(o) {
+    const s = o.retreat?.start_date, f = o.retreat?.end_date;
+    if (!s || !f || s.startsWith('2000-')) return '';
+    const dm = d => `${d.slice(8, 10)}.${d.slice(5, 7)}`;
+    const from = s.slice(0, 4) === f.slice(0, 4) ? dm(s) : `${dm(s)}.${s.slice(0, 4)}`;
+    return ` (${from}–${dm(f)}.${f.slice(0, 4)})`;
+}
+
 const refs = { loaded: false, currencies: [], accounts: [], categories: [], costCenters: [], objects: [], contractors: [] };
 
 // Кэш дат ретритов для подсказки «ближайший ретрит» (касса кафе, сен 2026)
@@ -153,19 +163,22 @@ const FinUtils = {
     // Загрузка справочников для форм (один раз на страницу)
     async loadRefs() {
         if (refs.loaded) return refs;
-        const [cur, acc, cat, cc, obj, con] = await Promise.all([
+        const [cur, acc, cat, cc, obj, con, ret] = await Promise.all([
             Layout.db.from('fin_v_currencies').select('*'),
             Layout.db.from('fin_v_account_balances').select('*').order('name'),
             Layout.db.from('fin_v_categories').select('*').order('name'),
             Layout.db.from('fin_v_cost_centers').select('*').order('name'),
             Layout.db.from('fin_v_accounting_objects').select('*').order('created_at', { ascending: false }),
-            Layout.db.from('fin_v_contractors').select('*').order('name')
+            Layout.db.from('fin_v_contractors').select('*').order('name'),
+            Layout.db.from('retreats').select('id, start_date, end_date')
         ]);
         refs.currencies = cur.data || [];
         refs.accounts = acc.data || [];
         refs.categories = cat.data || [];
         refs.costCenters = cc.data || [];
-        refs.objects = obj.data || [];
+        // Даты ретрита — в подпись объекта: два «Ретрита Художников» иначе не различить
+        const retreatById = new Map((ret.data || []).map(r => [r.id, r]));
+        refs.objects = (obj.data || []).map(o => ({ ...o, retreat: retreatById.get(o.retreat_id) || null }));
         refs.contractors = con.data || [];
         refs.loaded = true;
         return refs;
@@ -281,7 +294,7 @@ const FinUtils = {
         const e = s => Layout.escapeHtml(s);
         // Закрытый ретрит выбирать бесполезно — сервер откажет; помечаем в списке
         return `<option value="">${Layout.t('fin_no_object')}</option>` + refs.objects
-            .map(o => `<option value="${o.id}" ${o.id === selectedId ? 'selected' : ''}>${e(o.display_name)}${o.is_closed ? ` (${Layout.t('fin_object_closed')})` : ''}</option>`)
+            .map(o => `<option value="${o.id}" ${o.id === selectedId ? 'selected' : ''}>${e(o.display_name)}${objectDatesLabel(o)}${o.is_closed ? ` (${Layout.t('fin_object_closed')})` : ''}</option>`)
             .join('');
     },
 
