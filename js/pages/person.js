@@ -356,7 +356,10 @@ function toggleTeamSections() {
     const isVolunteer = registrations.some(r =>
         r.resident?.resident_categories?.slug === 'volunteer')
         || permanentResident?.resident_categories?.slug === 'volunteer';
-    const showServiceFields = isTeam || isVolunteer;
+    // Админ в режиме правки видит блок всегда: иначе гостя нельзя сделать членом команды —
+    // галочка лежит в этом же блоке (ВГ, 01.10)
+    const canAssign = isEditMode && person?.id !== window.currentUser?.vaishnava_id && window.hasPermission?.('edit_vaishnava');
+    const showServiceFields = isTeam || isVolunteer || canAssign;
 
     document.getElementById('staysSection').style.display = isTeam ? 'block' : 'none';
     document.getElementById('teamSection').style.display = showServiceFields ? 'block' : 'none';
@@ -702,6 +705,7 @@ function enterEditMode() {
     isEditMode = true;
     document.getElementById('profileContainer').classList.remove('view-mode');
     document.getElementById('profileContainer').classList.add('edit-mode');
+    toggleTeamSections();
     document.getElementById('editFirstName').focus();
 }
 
