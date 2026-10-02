@@ -68,9 +68,23 @@ function ночей(l) {
     return выезд ? Math.min(l.nights, днейМежду(l.place.check_in, выезд)) : l.nights;
 }
 
+// Доля номера за ночь — целыми рупиями, сумма долей = цена номера (ВГ, 02.10: без «хвостиков»
+// вроде ₹5 499,99): ₹5 500 на троих = 1 834 + 1 833 + 1 833, лишняя рупия — первым в номере
+function доля(l) {
+    if (!(l.people > 0)) return 0;
+    const база = Math.floor(l.roomPrice / l.people);
+    const остаток = Math.round(l.roomPrice - база * l.people);
+    if (!остаток) return база;
+    if (l.roomPrice !== Math.round(l.roomPrice)) return round2(l.roomPrice / l.people);   // цена с пайсами — как раньше
+    const соседи = lines.filter(x => x.place && !x.extraBed && ключКомнаты(x) === ключКомнаты(l)
+        && x.roomPrice === l.roomPrice && x.people === l.people);
+    const i = соседи.indexOf(l);
+    return база + (i >= 0 && i < остаток ? 1 : 0);
+}
+
 function расчёт(l) {
     // на доп. кровати — цена доп. кровати за ночь, иначе номер ÷ жильцов
-    const заНочь = l.extraBed ? round2(l.extraBedPrice) : l.people > 0 ? round2(l.roomPrice / l.people) : 0;
+    const заНочь = l.extraBed ? round2(l.extraBedPrice) : доля(l);
     const завтраков = l.persons * l.meals.filter(m => m.b).length;
     const обедов = l.persons * l.meals.filter(m => m.l).length;
     const проживание = round2(ночей(l) * заНочь);
@@ -368,11 +382,11 @@ function placeRow(l, i) {
             ${h && l.roomType?.price == null && !l.extraBed ? `<div class="text-[11px] text-warning" title="Задайте цену в «Тарифах» или впишите здесь">цена не задана</div>` : ''}
             ${h && l.roomType && Number(p.capacity) > Number(l.roomType.capacity) ? `<label class="flex items-center gap-1 text-[11px] cursor-pointer opacity-80" title="${p?.capacity}-местный = ${l.roomType?.capacity}-местный + доп. кровать: галочка — это место на доп. кровати">
                 <input type="checkbox" class="checkbox checkbox-xs" data-gr-extrabed="${i}" ${l.extraBed ? 'checked' : ''} ${выкл ? 'disabled' : ''}> доп. кровать</label>` : ''}</td>
-        <td class="text-right font-mono">${h ? inr(r.проживание) : ''}</td>
+        <td class="text-right font-mono gr-stay-end">${h ? inr(r.проживание) : ''}</td>
         ${питаниеВыкл
-            ? `<td colspan="3" class="text-xs"><span class="opacity-60">питание в шахматке выключено</span>
+            ? `<td colspan="3" class="text-xs gr-meal-start"><span class="opacity-60">питание в шахматке выключено</span>
                 <button type="button" class="btn btn-ghost btn-xs text-primary" data-gr-meals-on="${i}" ${выкл ? 'disabled' : ''}>включить</button></td>`
-            : `<td class="whitespace-nowrap">${приём(l, i, 'b', r.завтраков)}</td><td class="whitespace-nowrap">${приём(l, i, 'l', r.обедов)}</td>
+            : `<td class="whitespace-nowrap gr-meal-start">${приём(l, i, 'b', r.завтраков)}</td><td class="whitespace-nowrap">${приём(l, i, 'l', r.обедов)}</td>
                <td class="text-right font-mono">${inr(r.питание)}</td>`}
         <td>${числа('extra', l.extra || '', 'w-16', 10)}</td>
         <td class="text-right font-mono font-semibold whitespace-nowrap ${выкл ? 'line-through' : ''} ${l.selfPay ? 'opacity-60' : ''}">${inr(r.итого)}${l.selfPay
@@ -555,6 +569,7 @@ function toLine(l) {
     const o = {
         key: l.key, label: l.label || null, nights: l.nights, room_price: l.roomPrice, people: l.people,
         extra_bed: !!l.extraBed, extra_bed_price: l.extraBed ? l.extraBedPrice : null,
+        night_price: r.заНочь,
         breakfasts: r.завтраков, lunches: r.обедов, b_price: l.bPrice, l_price: l.lPrice, extra: Number(l.extra) || 0,
         meals: l.meals, persons: l.persons,
         included: l.included, exclude_reason: l.included ? null : (l.excludeReason || '').trim() || null,

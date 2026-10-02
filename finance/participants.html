@@ -436,6 +436,11 @@
     <form method="dialog" class="modal-backdrop"><button>close</button></form>
 </dialog>
 
+<style>
+    /* промежуток между суммой проживания и завтраками (ВГ, 02.10) */
+    #groupChargeModal .gr-stay-end { padding-right: 1.25rem !important; }
+    #groupChargeModal .gr-meal-start { padding-left: 1.25rem !important; }
+</style>
 <!-- Модалка: начисление группе — таблица всех мест брони, платит организатор (js/pages/fin-group.js) -->
 <dialog id="groupChargeModal" class="modal">
     <div class="modal-box max-w-7xl">
@@ -460,11 +465,19 @@
         </div>
         <div class="overflow-x-auto max-h-[50vh] overflow-y-auto border border-base-300 rounded-lg">
             <table class="table table-xs">
-                <thead class="sticky top-0 bg-base-100 z-10"><tr>
+                <thead class="sticky top-0 bg-base-100 z-10">
+                    <!-- Блоки «Проживание» / «Питание» — цветом модулей размещения и кухни (ВГ, 02.10) -->
+                    <tr class="gr-blocks">
+                        <th colspan="4"></th>
+                        <th colspan="3" class="pb-0"><div class="text-center text-[11px] tracking-wider pb-1 mr-5" style="color:#8b5cf6;border-bottom:2px solid #8b5cf6">Проживание</div></th>
+                        <th colspan="3" class="pb-0"><div class="text-center text-[11px] tracking-wider pb-1 ml-5" style="color:#f49800;border-bottom:2px solid #f49800">Питание</div></th>
+                        <th colspan="3"></th>
+                    </tr>
+                    <tr>
                     <th><input type="checkbox" id="grMarkAll" class="checkbox checkbox-xs" title="Отметить все"></th>
                     <th title="Начисляем">Начисл.</th><th>Место / имя</th><th>Даты</th><th>Ночей</th><th>Номер ₹ ÷ чел.</th>
-                    <th class="text-right">Проживание</th><th title="Нажмите на число — питание по дням">Завтраки × ₹</th><th title="Нажмите на число — питание по дням">Обеды × ₹</th>
-                    <th class="text-right">Питание</th><th>Доп. ₹</th><th class="text-right">Итого</th><th>Платит</th>
+                    <th class="text-right gr-stay-end">Сумма</th><th class="gr-meal-start" title="Нажмите на число — питание по дням">Завтраки × ₹</th><th title="Нажмите на число — питание по дням">Обеды × ₹</th>
+                    <th class="text-right">Сумма</th><th>Доп. ₹</th><th class="text-right">Итого</th><th>Платит</th>
                 </tr></thead>
                 <tbody id="grBody"></tbody>
             </table>
@@ -537,7 +550,7 @@
 <script src="../js/fin-utils.js?v=21"></script>
 <script src="../js/pages/fin-participants.js?v=74"></script>
 <script src="../js/pages/fin-guests.js?v=10"></script>
-<script src="../js/pages/fin-group.js?v=11"></script>
+<script src="../js/pages/fin-group.js?v=12"></script>
 
 </body>
 </html>
