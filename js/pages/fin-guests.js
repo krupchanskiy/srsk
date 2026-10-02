@@ -374,13 +374,63 @@ async function initForm(v) {
         const { data } = await Layout.db.rpc('eating_detail', { p_from: v.check_in, p_to: v.check_out })
             .eq('ref_id', v.resident_id);
         const дни = (data || []).sort((a, b) => a.d.localeCompare(b.d));
-        f.meals = дни.map(r => ({ d: r.d, b: !!r.breakfast, l: !!r.lunch }));
+        f.meals = дни.map(r => ({ d: r.d, b: !!r.breakfast, l: !!r.lunch, ref: v.resident_id }));
+        f.base = await базаПитания(f.meals);
     }
     if (!v.vaishnava_id) {
         const { data } = await Layout.db.rpc('fin_guest_person_candidates',
             { p_name: v.guest_name || '', p_phone: v.guest_phone || null, p_email: v.guest_email || null });
         f.person.candidates = data || [];
     }
+}
+
+// ==================== ЛЕНТА ПИТАНИЯ ====================
+// Прасад за приём (ВГ, 02.10): снятый в окне приём, который кухня считала, — пропуск для
+// кухни (resident_meal_skips, учтён в eating_detail). База — что кухня считает без прежних
+// пропусков этих мест (они тоже отсюда). meals: [{d, b, l, ref}] — ref = место (resident)
+async function базаПитания(meals) {
+    const ids = [...new Set(meals.map(m => m.ref).filter(Boolean))];
+    const { data } = ids.length
+        ? await Layout.db.from('resident_meal_skips').select('resident_id, d, breakfast, lunch').in('resident_id', ids)
+        : { data: [] };
+    return meals.map(m => {
+        const sk = (data || []).find(x => x.resident_id === m.ref && x.d === m.d);
+        return { d: m.d, ref: m.ref, b: m.b || !!sk?.breakfast, l: m.l || !!sk?.lunch };
+    });
+}
+
+const пропускиЛенты = (meals, base) => meals.map(m => {
+    const x = base.find(y => y.d === m.d && y.ref === m.ref);
+    return { d: m.d, ref: m.ref, b: !!x?.b && !m.b, l: !!x?.l && !m.l };
+}).filter(s => s.b || s.l);
+
+// Пропуски → кухня, по каждому месту в пределах его дней ленты.
+// places: resident_id → {check_in, check_out} — ранний заезд / поздний выезд, если в
+// день заезда поставлен завтрак (в день выезда — обед), которого кухня не считала
+async function сохранитьПропуски(meals, base, places = {}) {
+    const пр = пропускиЛенты(meals, base);
+    for (const ref of new Set(meals.map(m => m.ref).filter(Boolean))) {
+        const дни = meals.filter(m => m.ref === ref);
+        const p = places[ref];
+        const добавлен = (d, k) => { const m = дни.find(x => x.d === d); const x = base.find(y => y.d === d && y.ref === ref); return !!m?.[k] && !x?.[k]; };
+        const payload = { resident_id: ref, from: дни[0].d, to: дни[дни.length - 1].d,
+            skips: пр.filter(s => s.ref === ref).map(({ d, b, l }) => ({ d, b, l })) };
+        if (p && добавлен(p.check_in, 'b')) payload.early_checkin = true;
+        if (p?.check_out && добавлен(p.check_out, 'l')) payload.late_checkout = true;
+        if (!await call('fin_set_meal_skips', payload)) return false;
+    }
+    return true;
+}
+
+// Описание строки начисления: «Завтраки 30.09–05.10, без 02.10». Не было приёма в день
+// заезда/выезда (утренний завтрак, обед после отъезда) — это не пропуск, в «без» не пишем
+function описаниеПриёмов(назв, meals, k) {
+    const есть = meals.filter(m => m[k]);
+    if (!есть.length) return назв;
+    const d = s => `${s.slice(8, 10)}.${s.slice(5, 7)}`;
+    const a = есть[0].d, b = есть[есть.length - 1].d;
+    const без = meals.filter(m => !m[k] && m.d > a && m.d < b).map(m => d(m.d));
+    return `${назв} ${a === b ? d(a) : `${d(a)}–${d(b)}`}${без.length ? `, без ${без.join(', ')}` : ''}`;
 }
 
 function расчёт(f) {
@@ -491,7 +541,7 @@ function renderForms() {
                 + ${r.обедов} × <input type="number" min="0" step="10" class="input input-bordered input-xs w-20" data-gc-f="${rid}" data-k="lPrice" value="${f.lPrice}"> обед
                 = <b class="font-mono">${inr(r.питание)}</b>
             </div>
-            <div class="text-[11px] opacity-60 mb-3">Завтрак в день заезда и обед в день выезда уходят в шахматку (ранний заезд / поздний выезд) — кухня посчитает так же</div>`}
+            <div class="text-[11px] opacity-60 mb-3">Завтрак в день заезда и обед в день выезда уходят в шахматку (ранний заезд / поздний выезд), снятые дни в середине — кухне как пропуск</div>`}
             <div class="text-xs font-semibold uppercase opacity-60 mb-1">Дополнительно</div>
             <div class="flex flex-wrap items-center gap-1 mb-2">
                 <input type="number" min="0" step="10" class="input input-bordered input-xs w-24" placeholder="₹" data-gc-f="${rid}" data-k="extraAmt" value="${f.extraAmt || ''}">
@@ -569,20 +619,21 @@ async function save() {
         const r = расчёт(f);
         const где = v.room ? ` · ${v.building || ''} №${v.room}` : '';
         const хвост = f.comment.trim() ? ` · ${f.comment.trim()}` : '';
-        const дни = arr => arr.map(m => DateUtils.formatShort(DateUtils.parseDate(m.d))).join(', ');
         const base = { retreat_id: retreatId, participant_id: pid, resident_id: rid, occurred_on: v.check_in };
         const rows = [];
         if (f.nights > 0 && r.заНочь > 0) rows.push({ ...base, id: crypto.randomUUID(), kind: 'accommodation',
             description: `${f.extraBed ? 'Доп. кровать' : 'Проживание'} ${дата(v.check_in)}–${v.check_out ? дата(v.check_out) : '…'}${где}${!f.extraBed && f.people > 1 ? ` (номер ${inr(f.roomPrice)} ÷ ${f.people})` : ''}${хвост}`,
             quantity: f.nights, unit_price: вВалюту(r.заНочь) });
         if (r.завтраков && f.bPrice > 0) rows.push({ ...base, id: crypto.randomUUID(), kind: 'meals',
-            description: `Завтраки: ${дни(f.meals.filter(m => m.b))}`, quantity: r.завтраков, unit_price: вВалюту(f.bPrice) });
+            description: описаниеПриёмов('Завтраки', f.meals, 'b'), quantity: r.завтраков, unit_price: вВалюту(f.bPrice) });
         if (r.обедов && f.lPrice > 0) rows.push({ ...base, id: crypto.randomUUID(), kind: 'meals',
-            description: `Обеды: ${дни(f.meals.filter(m => m.l))}`, quantity: r.обедов, unit_price: вВалюту(f.lPrice) });
+            description: описаниеПриёмов('Обеды', f.meals, 'l'), quantity: r.обедов, unit_price: вВалюту(f.lPrice) });
         if (r.доп > 0) rows.push({ ...base, id: crypto.randomUUID(), kind: 'extra',
             description: f.extraDesc.trim() || 'Дополнительно', quantity: 1, unit_price: вВалюту(r.доп) });
         const res = await call('fin_create_charge', { rows });
         if (!res) return;
+        // снятые дни в середине → кухня (края уже ушли флагами раннего заезда / позднего выезда)
+        if (f.base && f.meals.length && !await сохранитьПропуски(f.meals, f.base)) return;
         selected.delete(rid);
         if (!первый) первый = pid;
     }
@@ -636,8 +687,10 @@ function init() {
             f.meals = [];
             for (let d = DateUtils.parseDate(f.v.check_in); f.v.check_out && d <= DateUtils.parseDate(f.v.check_out); d.setDate(d.getDate() + 1)) {
                 const iso = DateUtils.toISO(d);
-                f.meals.push({ d: iso, b: iso !== f.v.check_in || !!f.v.early_checkin, l: iso !== f.v.check_out || !!f.v.late_checkout });
+                f.meals.push({ d: iso, ref: f.v.resident_id, b: iso !== f.v.check_in || !!f.v.early_checkin, l: iso !== f.v.check_out || !!f.v.late_checkout });
             }
+            // база — дни по датам визита: снятое потом в середине уйдёт кухне пропуском
+            f.base = f.meals.map(m => ({ ...m }));
             renderForms();
             return;
         }
@@ -675,6 +728,7 @@ function init() {
     });
 }
 
-window.FinGuests = { open, openTariffs, showTariffLine, collapsePicker, expandPicker, типНомера, loadVisitList, openVisit };
+window.FinGuests = { open, openTariffs, showTariffLine, collapsePicker, expandPicker, типНомера, loadVisitList, openVisit,
+    базаПитания, сохранитьПропуски, описаниеПриёмов };
 init();
 })();

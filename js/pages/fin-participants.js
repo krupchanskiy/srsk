@@ -55,7 +55,7 @@ const round2 = v => Math.round(v * 100) / 100;
 // ==================== СПИСОК ====================
 async function loadRetreats() {
     const { data, error } = await Layout.db.from('retreats')
-        .select('id, name_ru, name_en, name_hi, start_date, is_external')
+        .select('id, name_ru, name_en, name_hi, start_date, end_date, is_external')
         .order('start_date', { ascending: false });
     if (error) { Layout.handleError(error, 'Ретриты'); return; }
     retreats = data || [];
@@ -1210,6 +1210,8 @@ function chargeRowHtml(idx) {
                 </div>
             </div>
         </div>
+        <!-- Питание участника — по приёмам из шахматки, завтрак и обед отдельно (ВГ, 02.10) -->
+        <div class="chg-meals-wrap hidden mt-2"></div>
         <div class="text-right text-sm mt-2 opacity-70 chg-total"></div>
         ${idx > 0 ? `<button type="button" class="btn btn-ghost btn-sm text-error mt-1" aria-label="${t('fin_remove_row')}" onclick="this.closest('.chg-row').remove()">${FinUtils.ICONS.x}</button>` : ''}
     </div>`;
@@ -1236,10 +1238,13 @@ function wireChargeRow(row) {
     const relabel = () => {
         const поДням = ['accommodation', 'meals'].includes(kindSel.value);
         qtyLabel.textContent = поДням ? t('fin_days') : t('fin_quantity');
-        datesWrap.classList.toggle('hidden', !поДням);
+        datesWrap.classList.toggle('hidden', !поДням || !!row.ribbon);
     };
     kindSel.addEventListener('change', relabel);
     relabel();
+    // Питание — лентой по дням: меняется блок или человек
+    kindSel.addEventListener('change', () => loadMealRibbon(row));
+    row.querySelector('.chg-person-id').addEventListener('change', () => loadMealRibbon(row));
     // Даты → количество дней: расчёт остаётся объяснимым (ТЗ 3.4)
     const по_датам = () => {
         const a = row.querySelector('.chg-date-from').value;
@@ -1302,12 +1307,114 @@ function addChargeRow(presetPerson) {
     return row;
 }
 
-function openCharge() {
+// ==================== ПИТАНИЕ ПО ПРИЁМАМ ====================
+// Прасад участника — за приём, завтрак и обед отдельно, как у групп (ВГ, 02.10):
+// дни и приёмы — из eating_detail (то же, что видит кухня), число × цена. Снятый приём
+// уходит кухне пропуском, завтрак в день заезда / обед в день выезда — ранним заездом /
+// поздним выездом. Цены — тарифы «Гостей без события», правятся в строке
+let mealTariff = null;
+async function loadMealRibbon(row) {
+    const pid = row.querySelector('.chg-person-id').value;
+    const ret = retreats.find(x => x.id === currentRetreat);
+    const нужна = row.querySelector('.chg-kind').value === 'meals' && pid && ret && !noEventMode && !row.dataset.noRibbon;
+    const ключ = нужна ? pid : '';
+    if (row.dataset.ribbonFor === ключ) return;
+    row.dataset.ribbonFor = ключ;
+    row.ribbon = null;
+    if (нужна) {
+        const сдвиг = (iso, n) => { const d = DateUtils.parseDate(iso); d.setDate(d.getDate() + n); return DateUtils.toISO(d); };
+        if (!mealTariff) {
+            const { data } = await Layout.db.rpc('fin_get_stay_tariffs', { p_on: DateUtils.toISO(new Date()) });
+            mealTariff = data?.current || null;
+        }
+        // ретрит идёт, пока живут его люди: берём с запасом вокруг дат, фильтр — по ретриту
+        const { data } = await Layout.db.rpc('eating_detail', { p_from: сдвиг(ret.start_date, -14), p_to: сдвиг(ret.end_date || ret.start_date, 45) })
+            .eq('vaishnava_id', pid).eq('retreat_id', currentRetreat).order('d');
+        if (row.dataset.ribbonFor !== ключ) return;   // пока грузили, выбрали другого
+        const meals = (data || []).map(r => ({ d: r.d, b: !!r.breakfast, l: !!r.lunch, ref: r.kind === 'resident' ? r.ref_id : null }));
+        if (meals.length && mealTariff) {
+            const ids = [...new Set(meals.map(m => m.ref).filter(Boolean))];
+            const [base, { data: места }] = await Promise.all([
+                FinGuests.базаПитания(meals),
+                ids.length ? Layout.db.from('residents').select('id, check_in, check_out').in('id', ids) : Promise.resolve({ data: [] })
+            ]);
+            if (row.dataset.ribbonFor !== ключ) return;
+            row.ribbon = { meals, base, places: Object.fromEntries((места || []).map(p => [p.id, p])),
+                bPrice: Number(mealTariff.breakfast_price) || 0, lPrice: Number(mealTariff.lunch_price) || 0 };
+            // цены тарифа — в рупиях; перевод в валюту расчёта — как у любой строки
+            row.querySelector('.chg-currency').value = 'INR';
+        }
+    }
+    const r = row.ribbon;
+    row.querySelector('.chg-qty').closest('.form-control').classList.toggle('hidden', !!r);
+    row.querySelector('.chg-price').closest('.form-control').classList.toggle('hidden', !!r);
+    row.querySelector('.chg-qty').required = !r;
+    row.querySelector('.chg-price').required = !r;
+    row.querySelector('.chg-dates-wrap').classList.toggle('hidden', !!r || !['accommodation', 'meals'].includes(row.querySelector('.chg-kind').value));
+    renderMealRibbon(row);
+}
+
+function ribbonCalc(r) {
+    const завтраков = r.meals.filter(m => m.b).length, обедов = r.meals.filter(m => m.l).length;
+    return { завтраков, обедов, итого: round2(завтраков * r.bPrice + обедов * r.lPrice) };
+}
+
+function renderMealRibbon(row) {
+    const wrap = row.querySelector('.chg-meals-wrap');
+    const r = row.ribbon;
+    const ждём = row.dataset.ribbonFor && !r;
+    wrap.classList.toggle('hidden', !r && !ждём);
+    if (!r) {
+        wrap.innerHTML = ждём ? '<span class="text-xs opacity-60">В шахматке нет дней питания у этого участника — начисление по датам</span>' : '';
+        return;
+    }
+    const c = ribbonCalc(r);
+    const дата = s => `${s.slice(8, 10)}.${s.slice(5, 7)}`;
+    const безМеста = r.meals.some(m => !m.ref);
+    wrap.innerHTML = `
+        <div class="text-xs font-semibold uppercase opacity-60 mb-1 flex items-center gap-2">По приёмам из шахматки
+            <button type="button" class="btn btn-ghost btn-xs normal-case font-normal" data-rb-all="1">все</button>
+            <button type="button" class="btn btn-ghost btn-xs normal-case font-normal" data-rb-all="0">ничего</button>
+        </div>
+        <div class="flex flex-wrap gap-1 mb-1">
+            ${r.meals.map((m, i) => `<div class="border border-base-300 rounded-lg px-2 py-1 text-xs">
+                <div class="font-medium">${дата(m.d)}</div>
+                <label class="flex items-center gap-1 cursor-pointer"><input type="checkbox" class="checkbox checkbox-xs" data-rb-i="${i}" data-m="b" ${m.b ? 'checked' : ''}> завтрак</label>
+                <label class="flex items-center gap-1 cursor-pointer"><input type="checkbox" class="checkbox checkbox-xs" data-rb-i="${i}" data-m="l" ${m.l ? 'checked' : ''}> обед</label>
+            </div>`).join('')}
+        </div>
+        <div class="flex flex-wrap items-center gap-1 text-sm">
+            ${c.завтраков} × <input type="number" min="0" step="10" class="input input-bordered input-xs w-20" data-rb-price="bPrice" value="${r.bPrice}"> завтрак
+            + ${c.обедов} × <input type="number" min="0" step="10" class="input input-bordered input-xs w-20" data-rb-price="lPrice" value="${r.lPrice}"> обед
+            = <b class="font-mono">${FinUtils.fmtMoney(c.итого, 'INR')}</b>
+        </div>
+        <div class="text-[11px] opacity-60 mt-1">Снятый приём — кухня не готовит на него (пропуск); завтрак в день заезда и обед в день выезда — ранний заезд / поздний выезд в шахматке${безМеста ? '. Дни, когда участник ещё не расселён, — только в деньгах, кухня узнает после расселения' : ''}</div>`;
+    if (!wrap._delegated) {
+        wrap._delegated = true;
+        wrap.addEventListener('change', ev => {
+            const el = ev.target;
+            if (el.dataset.rbI != null) row.ribbon.meals[Number(el.dataset.rbI)][el.dataset.m] = el.checked;
+            else if (el.dataset.rbPrice) row.ribbon[el.dataset.rbPrice] = Number(el.value) || 0;
+            else return;
+            renderMealRibbon(row);
+        });
+        wrap.addEventListener('click', ev => {
+            const b = ev.target.closest('[data-rb-all]');
+            if (!b) return;
+            row.ribbon.meals.forEach(m => { m.b = m.l = b.dataset.rbAll === '1'; });
+            renderMealRibbon(row);
+        });
+    }
+}
+
+function openCharge(opts = {}) {
     if (!currentRetreat) { Layout.showNotification(t('fin_select_retreat'), 'warning'); return; }
     // гостю без события начисляем по визиту из шахматки, а не произвольной строкой
     if (noEventMode && window.FinGuests) { FinGuests.open({ pid: card.id }); return; }
     document.getElementById('chargeRows').innerHTML = '';
-    addChargeRow(card.id ? { id: card.id, name: card.name } : null);
+    const row = addChargeRow(card.id ? { id: card.id, name: card.name } : null);
+    if (opts.noRibbon) row.dataset.noRibbon = '1';
+    loadMealRibbon(row);
     document.getElementById('chargeReason').value = '';
     // Форма раскрывается внутри карточки: сводка выше остаётся видна (ТЗ 3.1)
     closePayment();
@@ -1327,7 +1434,9 @@ let recalcSource = null;
 function openRecalc(chargeId) {
     const c = cardChargesById[chargeId];
     if (!c) return;
-    openCharge();
+    // перерасчёт одной строки — прежним «число × цена», без ленты: иначе одна строка
+    // завтраков превратилась бы в завтраки + обеды
+    openCharge({ noRibbon: true });
     recalcSource = c;
     const row = document.querySelector('#chargeRows .chg-row');
     row.querySelector('.chg-kind').value = c.kind;
@@ -1364,7 +1473,13 @@ async function submitCharge(ev) {
         // Кто и почему — в самой строке, видно в истории без раскопок
         reason = `Перерасчёт: ${причинаПерерасчёта} (было ${FinUtils.fmtMoney(recalcSource.net_amount, recalcSource.currency_code || 'INR')})`;
     }
-    const rows = [...document.querySelectorAll('#chargeRows .chg-row')].map(row => ({
+    const chgRows = [...document.querySelectorAll('#chargeRows .chg-row')];
+    const ленты = chgRows.filter(row => row.ribbon);
+    if (ленты.some(row => !ribbonCalc(row.ribbon).итого)) {
+        Layout.showNotification('Питание: не отмечено ни одного приёма', 'warning');
+        return;
+    }
+    const rows = chgRows.flatMap(row => row.ribbon ? ribbonRows(row, reason) : [{
         id: FinUtils.newRequestId(),
         participant_id: row.querySelector('.chg-person-id').value,
         retreat_id: currentRetreat,
@@ -1384,7 +1499,7 @@ async function submitCharge(ev) {
         discount_reason: row.querySelector('.chg-discount-reason').value || null,
         agreed_with: row.querySelector('.chg-agreed-with').value || null,
         creation_reason: reason
-    }));
+    }]);
     if (rows.some(r => !r.participant_id)) {
         Layout.showNotification(t('fin_participant_required'), 'warning');
         return;
@@ -1409,9 +1524,46 @@ async function submitCharge(ev) {
         input.scrollIntoView({ block: 'center', behavior: 'smooth' });
     }
     if (FinUtils.handleResult(res)) {
+        // снятые приёмы → кухня (пропуски), добавленные края → ранний заезд / поздний выезд
+        for (const row of ленты) {
+            const r = row.ribbon;
+            await FinGuests.сохранитьПропуски(r.meals.filter(m => m.ref), r.base, r.places);
+        }
         closeCharge();
         await refreshAfterChange();
     }
+}
+
+// Строка «Питание» по ленте → два начисления: завтраки и обеды, число × цена.
+// Скидка строки — сначала с обедов, остаток с завтраков
+function ribbonRows(row, reason) {
+    const r = row.ribbon;
+    const c = ribbonCalc(r);
+    const курс = ценаВInr(row, 1);
+    const desc = row.querySelector('.chg-desc');
+    const свой = desc.dataset.touched && desc.value.trim() ? desc.value.trim() + ' · ' : '';
+    let скидка = Math.min(Number(row.querySelector('.chg-discount').value) || 0, c.итого);
+    const out = [];
+    for (const [k, назв, qty, цена] of [['l', 'Обеды', c.обедов, r.lPrice], ['b', 'Завтраки', c.завтраков, r.bPrice]]) {
+        if (!qty || !(цена > 0)) continue;
+        const ск = Math.min(скидка, qty * цена);
+        скидка -= ск;
+        out.unshift({
+            id: FinUtils.newRequestId(),
+            participant_id: row.querySelector('.chg-person-id').value,
+            retreat_id: currentRetreat,
+            kind: 'meals',
+            description: свой + FinGuests.описаниеПриёмов(назв, r.meals, k),
+            quantity: qty,
+            unit_price: round2(цена * курс),
+            occurred_on: row.querySelector('.chg-date').value || null,
+            discount_amount: ск > 0 ? round2(ск * курс) : null,
+            discount_reason: ск > 0 ? row.querySelector('.chg-discount-reason').value || null : null,
+            agreed_with: ск > 0 ? row.querySelector('.chg-agreed-with').value || null : null,
+            creation_reason: reason
+        });
+    }
+    return out;
 }
 
 // ==================== ФОРМА: ПЛАТЁЖ ====================

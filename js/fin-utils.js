@@ -512,6 +512,7 @@ const FinUtils = {
         const pick = btn => {
             inputEl.value = btn.dataset.name;
             hiddenEl.value = hiddenEl.dataset.useUserId ? btn.dataset.user : btn.dataset.id;
+            hiddenEl.dispatchEvent(new Event('change'));   // выбран человек — форма может подгрузить его данные
             close();
         };
         const highlight = idx => {
