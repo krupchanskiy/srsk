@@ -857,7 +857,7 @@
                             <span class="label-text-alt opacity-60" id="bookingCategoryHint"></span>
                         </label>
                         <select name="category_id" id="bookingCategory" class="select select-bordered select-sm w-full"
-                                onchange="this.dataset.touched='1'">
+                                onchange="this.dataset.touched='1'; toggleBookingStaffFields()">
                             <option value="">—</option>
                         </select>
                     </div>
@@ -881,11 +881,31 @@
                             <input type="text" id="bookingVaishnavSearch" class="input input-bordered input-sm w-full pr-10"
                                    placeholder="Поиск по имени..." data-i18n-placeholder="timeline_search_by_name"
                                    autocomplete="off"
-                                   oninput="searchBookingVaishnavas(this.value)" />
+                                   oninput="searchBookingVaishnavas(this.value); updateBookingNewPersonHint()" />
                             <div class="absolute right-2 top-1/2 -translate-y-1/2">
                                 <button type="button" class="btn btn-ghost btn-xs hidden" id="clearBookingVaishnava" onclick="clearBookingVaishnavSelection()">✕</button>
                             </div>
                             <div id="bookingVaishnavaSuggestions" class="hidden absolute z-50 w-full bg-base-100 shadow-lg rounded-lg mt-1 max-h-48 overflow-y-auto border"></div>
+                        </div>
+                        <!-- Волонтёр или команда без карточки — при сохранении создаётся черновая (ВГ 02.10) -->
+                        <div id="bookingNewPersonHint" class="text-xs text-amber-700 mt-1 hidden"></div>
+                    </div>
+
+                    <!-- Департамент и служение: волонтёра и команду бронируют сразу под департамент
+                         (ТЗ 01.10, п. 5); департамент ложится в историю служения человека на даты брони -->
+                    <div id="bookingStaffFields" class="hidden grid grid-cols-2 gap-3 mb-3">
+                        <div class="form-control">
+                            <label class="label py-1">
+                                <span class="label-text font-medium" data-i18n="department">Департамент</span>
+                            </label>
+                            <select name="department_id" id="bookingDepartment" class="select select-bordered select-sm w-full"></select>
+                        </div>
+                        <div class="form-control">
+                            <label class="label py-1">
+                                <span class="label-text font-medium" data-i18n="service">Служение</span>
+                            </label>
+                            <input type="text" name="service" id="bookingService" class="input input-bordered input-sm w-full"
+                                   placeholder="Например: повар" data-i18n-placeholder="timeline_service_placeholder" />
                         </div>
                     </div>
 
@@ -1210,7 +1230,7 @@
         if (btn) { btn.classList.toggle('btn-active', isFS); btn.title = isFS ? Layout.t('normal_view') : Layout.t('fullscreen'); }
     }
     </script>
-    <script src="../js/pages/timeline.js?v=55"></script>
+    <script src="../js/pages/timeline.js?v=56"></script>
 
 </body>
 </html>

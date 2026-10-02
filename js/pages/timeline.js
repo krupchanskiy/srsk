@@ -20,6 +20,7 @@ let timelineData = {
 // Справочники для форм
 let categories = [];
 let vaishnavas = [];
+let departments = [];         // справочник департаментов (ВГ 02.10: у волонтёра и команды — обязательно)
 
 // Хранилище гостей для кликов
 let guestsMap = new Map();
@@ -33,6 +34,8 @@ let ekadashiDays = new Set();
 // Фактическое время прибытия/отъезда из retreat_registrations
 let retreatTimesMap = new Map();
 const SELF_ICON = '<svg xmlns="http://www.w3.org/2000/svg" width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15.75 6a3.75 3.75 0 11-7.5 0 3.75 3.75 0 017.5 0zM4.5 20.118a7.5 7.5 0 0115 0"/></svg>';
+// Есть примечание у брони или места — значок «записка», текст в подсказке плашки (ТЗ 01.10, п. 6)
+const NOTE_ICON = '<svg xmlns="http://www.w3.org/2000/svg" width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="display:inline;margin-left:3px;vertical-align:-1px"><path d="M8 10h8M8 14h5M21 12a9 9 0 01-13.5 7.8L3 21l1.2-4.5A9 9 0 1121 12z"/></svg>';
 const GUEST_CATEGORY_ID = '6ad3bfdd-cb95-453a-b589-986717615736'; // resident_categories: «Гость»
 let allRetreats = [];         // для выбора ретрита при заселении (наши и сторонние мероприятия)
 let retreatTags = new Map();  // retreat_id → { tag, name } только для ретритов, пересекающихся с другими в периоде
@@ -147,7 +150,7 @@ async function loadTimelineData() {
         Layout.db.from('residents')
             .select(`*,
                 resident_categories(id, slug, name_ru, name_en, name_hi, color),
-                vaishnavas(id, first_name, last_name, spiritual_name),
+                vaishnavas(id, first_name, last_name, spiritual_name, service),
                 bookings(id, name, contact_name, notes)`)
             .in('status', ['confirmed', 'checked_out', 'booked'])
             .lte('check_in', endDateStr)
@@ -453,6 +456,10 @@ async function loadTimelineData() {
                     const guest = {
                         id: res.id,
                         name: guestName || '—',
+                        // Департамент места (ВГ 02.10) — на плашке «Имя · Кухня» и в поиске
+                        dept: departmentName(res.department_id),
+                        // Примечание брони или места — значок на плашке, текст в подсказке (ТЗ 01.10, п. 6)
+                        note: res.notes || res.bookings?.notes || '',
                         startDay,
                         startHalf,
                         endDay,
@@ -768,10 +775,15 @@ async function loadDictionaries() {
             if (error) { console.error('Error loading resident_categories:', error); return null; }
             return (data || []).filter(c => (c.sort_order || 0) < 999);
         }),
-        Utils.fetchAll((from, to) => Layout.db.from('vaishnavas').select('id, spiritual_name, first_name, last_name, gender, phone, birth_date').eq('is_deleted', false).order('spiritual_name').range(from, to))
+        Utils.fetchAll((from, to) => Layout.db.from('vaishnavas').select('id, spiritual_name, first_name, last_name, gender, phone, birth_date').eq('is_deleted', false).order('spiritual_name').range(from, to)),
+        Layout.db.from('departments').select('id, name_ru, name_en, name_hi, sort_order').order('sort_order')
+            .then(({ data, error }) => { if (error) console.error('departments:', error); departments = data || []; })
     ]);
     categories = catData || [];
     vaishnavas = vaishnavasRes.data || [];
+    const deptSelect = document.getElementById('bookingDepartment');
+    if (deptSelect) deptSelect.innerHTML = '<option value="">—</option>'
+        + departments.map(d => `<option value="${d.id}">${e(Layout.getName(d))}</option>`).join('');
 
     // Заполняем категории
     const catSelect = document.getElementById('checkinCategory');
@@ -953,6 +965,33 @@ function showBookingForm() {
         const team = categories.find(c => c.slug === 'team');
         if (team) { bookingCatSel.value = team.id; bookingCatSel.dataset.touched = '1'; }
     }
+    toggleBookingStaffFields();
+}
+
+// ===== Департамент и служение в брони (ТЗ 01.10, п. 5; ВГ 02.10) =====
+// Волонтёр и команда: департамент обязателен, человек обязателен — из справочника или
+// вписанное имя, по которому при сохранении создаётся черновая карточка.
+const STAFF_CATEGORY_SLUGS = ['team', 'volunteer'];
+const isStaffCategory = id => STAFF_CATEGORY_SLUGS.includes(categories.find(c => c.id === id)?.slug);
+const departmentName = id => { const d = id && departments.find(x => x.id === id); return d ? Layout.getName(d) : ''; };
+
+function toggleBookingStaffFields() {
+    const staff = isStaffCategory(document.getElementById('bookingCategory')?.value);
+    document.getElementById('bookingStaffFields')?.classList.toggle('hidden', !staff);
+    updateBookingNewPersonHint();
+}
+
+// Человек не выбран, но имя вписано — подсказка, что заведём черновую карточку
+function updateBookingNewPersonHint() {
+    const hint = document.getElementById('bookingNewPersonHint');
+    if (!hint) return;
+    const staff = isStaffCategory(document.getElementById('bookingCategory')?.value);
+    const chosen = document.getElementById('bookingVaishnavId')?.value;
+    const typed = document.getElementById('bookingVaishnavSearch')?.value.trim();
+    hint.textContent = staff && !chosen && typed
+        ? tf('timeline_new_person_hint', 'Нет в справочнике — при сохранении будет заведена черновая карточка «{name}»').replace('{name}', typed)
+        : '';
+    hint.classList.toggle('hidden', !hint.textContent);
 }
 
 // ===== Поиск вайшнавов =====
@@ -1261,6 +1300,7 @@ function selectBookingVaishnava(id) {
     // Контакт по умолчанию — сам гость
     const form = document.getElementById('bookingForm');
     if (form && !form.contact_name.value.trim()) form.contact_name.value = name;
+    updateBookingNewPersonHint();
     suggestBookingRetreat();
     suggestBookingCategory(id);
 }
@@ -1279,6 +1319,7 @@ async function suggestBookingCategory(vaishnavaId) {
     if (!sel || sel.dataset.touched === '1') return;
     sel.value = '';
     if (hint) hint.textContent = '';
+    toggleBookingStaffFields();
     if (!vaishnavaId) return;
 
     const from = document.getElementById('bookingDateIn').value;
@@ -1295,6 +1336,7 @@ async function suggestBookingCategory(vaishnavaId) {
         sel.value = catId;
         if (hint) hint.textContent = Layout.t('timeline_retreat_auto') || 'подставлено по регистрации';
     }
+    toggleBookingStaffFields();
 }
 
 function clearBookingVaishnavSelection() {
@@ -1311,6 +1353,7 @@ function clearBookingVaishnavSelection() {
     const catSel = document.getElementById('bookingCategory');
     if (catSel) delete catSel.dataset.touched;
     suggestBookingCategory(null);
+    updateBookingNewPersonHint();
 }
 
 document.getElementById('bookingVaishnavaSuggestions')?.addEventListener('click', ev => {
@@ -1503,8 +1546,39 @@ async function saveBooking(e) {
     if (retreatDatesMismatch(bookingRetreatId, form.check_in.value, form.check_out.value)) {
         Layout.showNotification(retreatDatesMismatchText(), 'warning');
     }
-    const bookingVaishnavaId = form.vaishnava_id?.value || null;
+    let bookingVaishnavaId = form.vaishnava_id?.value || null;
     const bookingCategoryId = form.category_id?.value || null;
+
+    // Волонтёр и команда (ВГ 02.10): департамент обязателен; человек — из справочника,
+    // а если его там нет, по вписанному имени заводим черновую карточку
+    const staff = isStaffCategory(bookingCategoryId);
+    const departmentId = staff ? (form.department_id?.value || null) : null;
+    const service = staff ? (form.service?.value.trim() || null) : null;
+    if (staff && !departmentId) {
+        Layout.showNotification(tf('timeline_department_required', 'Выберите департамент: у волонтёра и команды он обязателен'), 'error');
+        return;
+    }
+    const typedName = document.getElementById('bookingVaishnavSearch')?.value.trim() || '';
+    if (staff && !bookingVaishnavaId && !typedName) {
+        Layout.showNotification(tf('timeline_person_required', 'Укажите человека: выберите из справочника или впишите имя — заведём черновую карточку'), 'error');
+        return;
+    }
+    if (staff && !bookingVaishnavaId) {
+        const isTeam = categories.find(c => c.id === bookingCategoryId)?.slug === 'team';
+        const { data: draft, error: draftError } = await Layout.db.from('vaishnavas')
+            .insert({ spiritual_name: typedName, service, is_team_member: isTeam })
+            .select('id, spiritual_name, first_name, last_name, gender, phone, birth_date')
+            .single();
+        if (draftError) { Layout.handleError(draftError, tf('timeline_draft_card', 'Черновая карточка')); return; }
+        bookingVaishnavaId = draft.id;
+        vaishnavas.push(draft);
+        Layout.showNotification(tf('timeline_draft_card_created', 'Заведена черновая карточка «{name}» — дополните её, когда будут данные').replace('{name}', typedName), 'info');
+    } else if (staff && service) {
+        // Служение — в карточку, только если там пусто: не затираем
+        const { error: srvError } = await Layout.db.from('vaishnavas').update({ service })
+            .eq('id', bookingVaishnavaId).is('service', null);
+        if (srvError) console.error('service:', srvError);
+    }
 
     const bookingData = {
         name: bookingName,
@@ -1542,6 +1616,8 @@ async function saveBooking(e) {
             vaishnava_id: i === 0 ? bookingVaishnavaId : null,
             // Пусто — не передаём, чтобы сработал default колонки («Гость»)
             ...(bookingCategoryId ? { category_id: bookingCategoryId } : {}),
+            // Департамент — у каждого места; у места с человеком база пишет его в историю служения
+            department_id: departmentId,
             // Ретрит с брони: без него место не свяжется ни с регистрацией,
             // ни с долгом при выезде
             retreat_id: bookingRetreatId,
@@ -1564,6 +1640,7 @@ async function saveBooking(e) {
 
     if (residentsError) {
         console.error('Error saving booking residents:', residentsError);
+        Layout.showNotification(residentsError.message, 'error');
     } else {
         await offerRetreatOnAdjacent(bookingVaishnavaId, form.check_in.value, form.check_out.value, bookingRetreatId);
         warnOutsideRetreat(bookingRetreatId, form.check_in.value, form.check_out.value);
@@ -1741,6 +1818,28 @@ function openResidentModal(guestData, buildingName, roomName) {
         infoHtml += `<div class="flex justify-between py-1 border-b">
             <span class="text-gray-500">${t('timeline_category')}:</span>
             <span class="font-medium">${Layout.getName(res.resident_categories)}</span>
+        </div>`;
+    }
+
+    // Департамент места (ВГ 02.10): виден у всех, у волонтёра и команды — обязателен;
+    // меняется на месте, без пересоздания брони. Место с человеком — база пишет его
+    // в историю служения на даты места (миграция 614)
+    if (res.department_id || isStaffCategory(res.category_id)) {
+        const control = canEditTimeline()
+            ? `<select class="select select-bordered select-sm max-w-[16rem]${res.department_id ? '' : ' border-error'}" onchange="setResidentDepartment(this)">
+                   <option value="">—</option>
+                   ${departments.map(d => `<option value="${d.id}" ${d.id === res.department_id ? 'selected' : ''}>${e(Layout.getName(d))}</option>`).join('')}
+               </select>`
+            : `<span class="font-medium">${e(departmentName(res.department_id) || '—')}</span>`;
+        infoHtml += `<div class="flex justify-between items-center gap-2 py-1 border-b">
+            <span class="text-gray-500">${tf('department', 'Департамент')}:</span>
+            ${control}
+        </div>`;
+    }
+    if (res.vaishnavas?.service) {
+        infoHtml += `<div class="flex justify-between py-1 border-b">
+            <span class="text-gray-500">${tf('service', 'Служение')}:</span>
+            <span class="font-medium">${e(res.vaishnavas.service)}</span>
         </div>`;
     }
 
@@ -2033,6 +2132,34 @@ async function deleteResident() {
     }
 
     document.getElementById('residentModal').close();
+    await loadTimelineData();
+    renderTable();
+}
+
+// Сменить департамент места прямо из окна проживания (ВГ 02.10).
+// У брони на несколько мест меняем у всех её мест — департамент у брони один
+async function setResidentDepartment(sel) {
+    if (!currentResident || !canEditTimeline()) return;
+    const res = currentResident.rawData;
+    const departmentId = sel.value || null;
+    if (departmentId === (res.department_id || null)) return;
+    if (!departmentId && isStaffCategory(res.category_id)) {
+        Layout.showNotification(tf('timeline_department_required', 'Выберите департамент: у волонтёра и команды он обязателен'), 'error');
+        sel.value = res.department_id || '';
+        return;
+    }
+    sel.disabled = true;
+    const q = Layout.db.from('residents').update({ department_id: departmentId });
+    const { error } = await (res.booking_id ? q.eq('booking_id', res.booking_id) : q.eq('id', currentResident.id));
+    sel.disabled = false;
+    if (error) {
+        sel.value = res.department_id || '';
+        Layout.handleError(error, tf('department', 'Департамент'));
+        return;
+    }
+    res.department_id = departmentId;
+    sel.classList.toggle('border-error', !departmentId);
+    Layout.showNotification(tf('timeline_department_saved', 'Департамент изменён'), 'success');
     await loadTimelineData();
     renderTable();
 }
@@ -2660,6 +2787,8 @@ async function convertToCheckin() {
 
 // Текущий запрос поиска
 let _searchQuery = '';
+// Ищем по имени и по департаменту: «кухня» подсветит всех, кто едет в Кухню, и покажет их число
+const guestMatchesSearch = guest => `${guest.name} ${guest.dept || ''}`.toLowerCase().includes(_searchQuery);
 
 function onTimelineSearch(query) {
     _searchQuery = query.trim().toLowerCase();
@@ -2671,7 +2800,7 @@ function onTimelineSearch(query) {
     // Собираем ID совпавших гостей
     const matchedIds = new Set();
     for (const [id, guest] of guestsMap) {
-        if (guest.name.toLowerCase().includes(_searchQuery)) {
+        if (guestMatchesSearch(guest)) {
             matchedIds.add(id);
         }
     }
@@ -2712,7 +2841,7 @@ function applySearchHighlight() {
 
     const matchedIds = new Set();
     for (const [id, guest] of guestsMap) {
-        if (guest.name.toLowerCase().includes(_searchQuery)) {
+        if (guestMatchesSearch(guest)) {
             matchedIds.add(id);
         }
     }
@@ -3073,15 +3202,20 @@ function renderTable() {
                         const tagHtml = guest.retreatTag
                             ? `<span class="retreat-tag" title="${Layout.escapeHtml(guest.retreatTag.name)}">${Layout.escapeHtml(guest.retreatTag.tag)}</span>`
                             : '';
+                        // «Имя · Кухня» и значок примечания с текстом в подсказке
+                        const barLabel = e(guest.name)
+                            + (guest.dept ? `<span class="opacity-80"> · ${e(guest.dept)}</span>` : '')
+                            + (guest.note ? NOTE_ICON : '');
+                        const noteTitle = guest.note ? ` title="${e(guest.note)}"` : '';
                         if (guest.isBooking) {
                             // Бронирование — штриховка
                             const bgColor = guest.color || '#3b82f6';
-                            html += `<div class="guest-bar booking${checkedOutClass}${debtClass}" style="width: ${width}px; --bar-color: ${bgColor}; border-color: ${bgColor};" data-action="open-resident-from-map" data-id="${guest.id}">${cancelHtml}${debtDot}${needsDot}${tagHtml}${selfHtml}${guest.name}</div>`;
+                            html += `<div class="guest-bar booking${checkedOutClass}${debtClass}" style="width: ${width}px; --bar-color: ${bgColor}; border-color: ${bgColor};" data-action="open-resident-from-map" data-id="${guest.id}"${noteTitle}>${cancelHtml}${debtDot}${needsDot}${tagHtml}${selfHtml}${barLabel}</div>`;
                         } else {
                             // Обычное заселение
                             const bgColor = guest.color || '#3b82f6';
                             const borderColor = guest.border || '#facc15';
-                            html += `<div class="guest-bar${checkedOutClass}${debtClass}" style="width: ${width}px; background: ${bgColor}; border-color: ${borderColor};" data-action="open-resident-from-map" data-id="${guest.id}">${cancelHtml}${debtDot}${needsDot}${tagHtml}${selfHtml}${guest.name}</div>`;
+                            html += `<div class="guest-bar${checkedOutClass}${debtClass}" style="width: ${width}px; background: ${bgColor}; border-color: ${borderColor};" data-action="open-resident-from-map" data-id="${guest.id}"${noteTitle}>${cancelHtml}${debtDot}${needsDot}${tagHtml}${selfHtml}${barLabel}</div>`;
                         }
                     }
 
@@ -3372,10 +3506,12 @@ function renderSelfGroupHtml(kind) {
         // Бронь без номера: заезд ещё не отмечен — пунктиром, как бронь в номерах
         const booked = !res.fromCrm && !res.arrived_at;
         const dates = `${DateUtils.formatShort(res.check_in)} — ${res.check_out ? DateUtils.formatShort(res.check_out) : '…'}`;
-        const title = [name, cat ? Layout.getName(cat) : '', retreat ? Layout.getName(retreat) : '', dates, meals,
-            booked ? t('timeline_booking') : '', res.fromCrm ? crmHint : ''].filter(Boolean).join(' · ');
+        const dept = departmentName(res.department_id);
+        const note = res.notes || res.bookings?.notes || '';
+        const title = [name, dept, cat ? Layout.getName(cat) : '', retreat ? Layout.getName(retreat) : '', dates, meals,
+            booked ? t('timeline_booking') : '', res.fromCrm ? crmHint : '', note].filter(Boolean).join(' · ');
         const badge = res.fromCrm ? '' : balanceBadge(res, debtorsSet.has(finKey(res)), creditorsSet.has(finKey(res)));
-        const inner = `${badge}${tag && !seatLabel ? `<span class="retreat-tag">${e(tag.tag)}</span>` : ''}${e(name)}&nbsp;<span class="opacity-70">(${e(meals.toLowerCase())})</span>`
+        const inner = `${badge}${tag && !seatLabel ? `<span class="retreat-tag">${e(tag.tag)}</span>` : ''}${e(name)}${dept ? `<span class="opacity-80"> · ${e(dept)}</span>` : ''}${note ? NOTE_ICON : ''}&nbsp;<span class="opacity-70">(${e(meals.toLowerCase())})</span>`
             + (res.fromCrm ? '<span class="self-crm">CRM</span>' : '');
         const cls = `guest-bar self-stay${mealsCls(res.has_meals)}${booked ? ' self-booked' : ''}`;
         const style = `width: ${width}px; --cat-color: ${catColor};`;
