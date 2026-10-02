@@ -107,12 +107,32 @@ function safeColor(color, fallback = '#6b7280') {
  * @param {string|null} params.departureDatetime - departure_datetime (ISO)
  * @returns {Promise<{moved: boolean, warnings: string[]}>}
  */
-async function checkAndMoveDatesAcrossRetreats({ db, registrationId, vaishnavId, retreat, arrivalDatetime, departureDatetime }) {
-    const result = { moved: false, warnings: [], notifications: [] };
+async function checkAndMoveDatesAcrossRetreats({ db, registrationId, vaishnavId, retreat, arrivalDatetime, departureDatetime, originalArrival, originalDeparture }) {
+    const result = { moved: false, warnings: [], notifications: [], blocked: null };
     if (!retreat || !vaishnavId) return result;
 
     const depDate = departureDatetime ? departureDatetime.slice(0, 10) : null;
     const arrDate = arrivalDatetime ? arrivalDatetime.slice(0, 10) : null;
+
+    // Невозможные даты (ВГ 02.10.2026, js/date-guard.js) — до любых переносов: вызывающий
+    // код показывает blocked и не сохраняет. Предупреждения — с запасом 3 дня и числом дней.
+    const guard = window.DateGuard;
+    const r = guard && retreat.id ? (await guard.retreat(retreat.id)) || retreat : retreat;
+    if (guard) {
+        const block = [guard.checkOrder(arrivalDatetime, departureDatetime, 'Регистрация'),
+                       guard.check(arrivalDatetime, 'arrival', r, 'Приезд'),
+                       guard.check(departureDatetime, 'departure', r, 'Выезд')]
+            .find(x => x?.level === 'block');
+        if (block) { result.blocked = block.text; return result; }
+    }
+    // Переспрашиваем только про изменённую дату (если вызывающий код передал прежние)
+    const unchanged = (value, orig) => orig !== undefined && guard && !guard.changed(value, orig);
+    const warnText = (value, kind, old) => {
+        if (!guard) return old;
+        if (unchanged(value, kind === 'arrival' ? originalArrival : originalDeparture)) return null;
+        const w = guard.check(value, kind, r, kind === 'arrival' ? 'Приезд' : 'Выезд');
+        return w?.level === 'warn' ? w.text : null;
+    };
 
     // Вылет позже окончания ретрита — ищем более поздний ретрит
     if (depDate && depDate > retreat.end_date) {
@@ -142,7 +162,8 @@ async function checkAndMoveDatesAcrossRetreats({ db, registrationId, vaishnavId,
             // Обнуляем departure_datetime в текущей регистрации (вызывающий код должен это учесть)
             result.clearedDeparture = true;
         } else {
-            result.warnings.push(`Выезд (${depDate}) позже окончания ретрита (${retreat.end_date}). Возможно, вылет относится к другому ретриту?`);
+            const w = warnText(departureDatetime, 'departure', `Выезд (${depDate}) позже окончания ретрита (${retreat.end_date}). Возможно, вылет относится к другому ретриту?`);
+            if (w) result.warnings.push(w);
         }
     }
 
@@ -171,7 +192,8 @@ async function checkAndMoveDatesAcrossRetreats({ db, registrationId, vaishnavId,
             result.moved = true;
             result.clearedArrival = true;
         } else {
-            result.warnings.push(`Прибытие (${arrDate}) раньше начала ретрита (${retreat.start_date})`);
+            const w = warnText(arrivalDatetime, 'arrival', `Прибытие (${arrDate}) раньше начала ретрита (${retreat.start_date})`);
+            if (w) result.warnings.push(w);
         }
     }
 

@@ -1037,6 +1037,9 @@ function openTransferModal(registrationId) {
     toggleDirectDepartureModal(directDeparture);
     document.getElementById('tmDepartureFromAshram').value = reg.departure_datetime ? reg.departure_datetime.slice(0, 16) : '';
     document.getElementById('tmDepartureRetreatTransfer').value = departureRetreat?.needs_transfer || '';
+    // Плашки дат — от прошлого гостя не тянем
+    ['tmArrivalDatetime', 'tmDepartureDatetime', 'tmArrivalAtAshram', 'tmDepartureFromAshram']
+        .forEach(id => DateGuard.show(document.getElementById(id), null));
 
     document.getElementById('transferModal').showModal();
 }
@@ -1067,14 +1070,31 @@ async function saveTransfers() {
             ? addHoursToDatetime(document.getElementById('tmDepartureDatetime').value, -7)
             : (document.getElementById('tmDepartureFromAshram').value || null);
 
+        // Рейсы: год/месяц против дат ретрита, вылет раньше прилёта, рейс и даты в ШРСК
+        // расходятся (ВГ 02.10.2026, js/date-guard.js) — только для изменённых дат
+        {
+            const oldFlight = dir => (reg.guest_transfers || []).find(t => t.direction === dir)?.flight_datetime || null;
+            const ok = await DateGuard.confirmFlights(retreat, {
+                arrFlight: document.getElementById('tmArrivalDatetime').value || null,
+                depFlight: document.getElementById('tmDepartureDatetime').value || null,
+                arrStay: arrivalDatetime, depStay: departureDatetime
+            }, {
+                arrFlight: oldFlight('arrival'), depFlight: oldFlight('departure'),
+                arrStay: reg.arrival_datetime, depStay: reg.departure_datetime
+            }, directArrival, directDeparture);
+            if (!ok) return;
+        }
+
         // Автоперенос дат в другой ретрит или предупреждение
         let actualArrival = arrivalDatetime;
         let actualDeparture = departureDatetime;
         if (retreat) {
             const moveResult = await Utils.checkAndMoveDatesAcrossRetreats({
                 db: Layout.db, registrationId: regId, vaishnavId: reg.vaishnava_id,
-                retreat, arrivalDatetime, departureDatetime
+                retreat, arrivalDatetime, departureDatetime,
+                originalArrival: reg.arrival_datetime ?? null, originalDeparture: reg.departure_datetime ?? null
             });
+            if (moveResult.blocked) { Layout.showNotification(moveResult.blocked, 'error'); return; }
             if (moveResult.warnings.length && !confirm(moveResult.warnings.join('\n') + '\n\n' + t('preliminary_save_anyway'))) return;
             if (moveResult.clearedDeparture) actualDeparture = null;
             if (moveResult.clearedArrival) actualArrival = null;
@@ -1744,6 +1764,7 @@ function openNewGuestModal() {
     }
     const form = document.getElementById('newGuestForm');
     form.reset();
+    form.querySelectorAll('.date-guard-msg').forEach(el => el.classList.add('hidden'));
     // Сброс: галочки включены → скрыть отдельные поля приезда/отъезда
     document.getElementById('arrivalDatetimeRow').classList.add('hidden');
     document.getElementById('departureDatetimeRow').classList.add('hidden');
@@ -1769,6 +1790,26 @@ document.addEventListener('DOMContentLoaded', () => {
         if (!f.spiritual_name.value.trim() && (!f.first_name.value.trim() || !f.last_name.value.trim())) {
             Layout.showNotification(t('preliminary_specify_name'), 'warning');
             return;
+        }
+
+        // Даты против ретрита (ВГ 02.10.2026) — до создания карточки, иначе при отказе базы
+        // осталась бы карточка без регистрации
+        if (retreat) {
+            const r = await DateGuard.retreat(retreat.id) || retreat;
+            const arrFlight = f.arrival_flight_datetime.value || null;
+            const depFlight = f.departure_flight_datetime.value || null;
+            const arrStay = f.direct_arrival.checked ? null : (f.arrival_datetime.value || null);
+            const depStay = f.direct_departure.checked ? null : (f.departure_datetime.value || null);
+            if (!DateGuard.confirmSave([
+                DateGuard.checkOrder(arrFlight, depFlight, 'Рейсы'),
+                DateGuard.checkOrder(arrStay, depStay, 'Регистрация'),
+                DateGuard.check(arrFlight, 'arrival', r, 'Прилёт'),
+                DateGuard.check(depFlight, 'departure', r, 'Вылет'),
+                DateGuard.check(arrStay, 'arrival', r, 'Приезд в ШРСК'),
+                DateGuard.check(depStay, 'departure', r, 'Выезд из ШРСК'),
+                DateGuard.checkPair(arrFlight, arrStay, 'arrival'),
+                DateGuard.checkPair(depFlight, depStay, 'departure')
+            ])) return;
         }
 
         try {
@@ -3518,3 +3559,19 @@ window.addEventListener('pageshow', (event) => {
 });
 
 init();
+
+// Плашка «проверьте месяц и год» сразу при вводе даты (ВГ 02.10.2026, js/date-guard.js)
+{
+    const getRetreat = async () => retreat ? (await DateGuard.retreat(retreat.id)) || retreat : null;
+    const nf = name => document.querySelector(`#newGuestForm [name="${name}"]`);
+    [
+        [document.getElementById('tmArrivalDatetime'), 'arrival', 'Прилёт'],
+        [document.getElementById('tmDepartureDatetime'), 'departure', 'Вылет'],
+        [document.getElementById('tmArrivalAtAshram'), 'arrival', 'Приезд в ШРСК'],
+        [document.getElementById('tmDepartureFromAshram'), 'departure', 'Выезд из ШРСК'],
+        [nf('arrival_flight_datetime'), 'arrival', 'Прилёт'],
+        [nf('departure_flight_datetime'), 'departure', 'Вылет'],
+        [nf('arrival_datetime'), 'arrival', 'Приезд в ШРСК'],
+        [nf('departure_datetime'), 'departure', 'Выезд из ШРСК']
+    ].forEach(([input, kind, label]) => DateGuard.bind(input, kind, label, getRetreat));
+}

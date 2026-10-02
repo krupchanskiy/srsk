@@ -1404,9 +1404,11 @@ async function syncResidentDateToRegistration(reg, field, newDateValue) {
         if (reg.arrival_datetime && oldArrivalDate !== newDateValue) {
             const timePart = reg.arrival_datetime.slice(10, 16); // T03:50
             const newDt = newDateValue + timePart;
-            await Layout.db.from('retreat_registrations')
+            // База отклоняет невозможные даты (миграция 609) — не молчим
+            const { error } = await Layout.db.from('retreat_registrations')
                 .update({ arrival_datetime: newDt })
                 .eq('id', reg.id);
+            if (error) { Layout.showNotification(error.message, 'error'); return; }
             reg.arrival_datetime = newDt;
         }
         // Обновить рейс прилёта (сдвиг на ту же дельту дней)
@@ -1417,9 +1419,10 @@ async function syncResidentDateToRegistration(reg, field, newDateValue) {
             const newFlightDate = DateUtils.toISO(new Date(oldFlightDt.getTime() + daysDelta * 86400000));
             const flightTime = arrival.flight_datetime.slice(10, 16);
             const newFlightDt = newFlightDate + flightTime;
-            await Layout.db.from('guest_transfers')
+            const { error } = await Layout.db.from('guest_transfers')
                 .update({ flight_datetime: newFlightDt })
                 .eq('id', arrival.id);
+            if (error) { Layout.showNotification(error.message, 'error'); return; }
             arrival.flight_datetime = newFlightDt;
         }
     }
@@ -1430,9 +1433,10 @@ async function syncResidentDateToRegistration(reg, field, newDateValue) {
         if (reg.departure_datetime && oldDepartureDate !== newDateValue) {
             const timePart = reg.departure_datetime.slice(10, 16);
             const newDt = newDateValue + timePart;
-            await Layout.db.from('retreat_registrations')
+            const { error } = await Layout.db.from('retreat_registrations')
                 .update({ departure_datetime: newDt })
                 .eq('id', reg.id);
+            if (error) { Layout.showNotification(error.message, 'error'); return; }
             reg.departure_datetime = newDt;
         }
         // Обновить рейс вылета (сдвиг на ту же дельту дней)
@@ -1443,9 +1447,10 @@ async function syncResidentDateToRegistration(reg, field, newDateValue) {
             const newFlightDate = DateUtils.toISO(new Date(oldFlightDt.getTime() + daysDelta * 86400000));
             const flightTime = departure.flight_datetime.slice(10, 16);
             const newFlightDt = newFlightDate + flightTime;
-            await Layout.db.from('guest_transfers')
+            const { error } = await Layout.db.from('guest_transfers')
                 .update({ flight_datetime: newFlightDt })
                 .eq('id', departure.id);
+            if (error) { Layout.showNotification(error.message, 'error'); return; }
             departure.flight_datetime = newFlightDt;
         }
     }
@@ -1641,6 +1646,8 @@ function openEditRegModal(registrationId) {
     document.getElementById('editOrgNotes').value = reg.org_notes || '';
     document.getElementById('editGuestQuestions').value = reg.guest_questions || '';
 
+    // Плашки дат — от прошлой регистрации не тянем
+    editRegModal.querySelectorAll('.date-guard-msg').forEach(el => el.classList.add('hidden'));
     editRegModal.showModal();
 }
 
@@ -1675,6 +1682,20 @@ async function saveRegistration() {
             guest_questions: document.getElementById('editGuestQuestions').value || null
         };
 
+        // Рейсы против дат ретрита (ВГ 02.10.2026, js/date-guard.js) — только изменённые
+        {
+            const oldFlight = dir => (reg.guest_transfers || []).find(t => t.direction === dir)?.flight_datetime || null;
+            const ok = await DateGuard.confirmFlights(reg.retreats, {
+                arrFlight: document.getElementById('editArrivalDatetime').value || null,
+                depFlight: document.getElementById('editDepartureDatetime').value || null,
+                arrStay: regData.arrival_datetime, depStay: regData.departure_datetime
+            }, {
+                arrFlight: oldFlight('arrival'), depFlight: oldFlight('departure'),
+                arrStay: reg.arrival_datetime, depStay: reg.departure_datetime
+            }, directArrival, directDeparture);
+            if (!ok) return;
+        }
+
         // Автоперенос дат в другой ретрит или предупреждение
         const retreat = reg.retreats;
         const origArrival = regData.arrival_datetime;
@@ -1682,8 +1703,10 @@ async function saveRegistration() {
         if (retreat) {
             const moveResult = await Utils.checkAndMoveDatesAcrossRetreats({
                 db: Layout.db, registrationId: regId, vaishnavId: reg.vaishnava_id,
-                retreat, arrivalDatetime: regData.arrival_datetime, departureDatetime: regData.departure_datetime
+                retreat, arrivalDatetime: regData.arrival_datetime, departureDatetime: regData.departure_datetime,
+                originalArrival: reg.arrival_datetime ?? null, originalDeparture: reg.departure_datetime ?? null
             });
+            if (moveResult.blocked) { Layout.showNotification(moveResult.blocked, 'error'); return; }
             if (moveResult.warnings.length && !confirm(moveResult.warnings.join('\n') + '\n\n' + t('person_save_anyway'))) return;
             if (moveResult.clearedDeparture) regData.departure_datetime = null;
             if (moveResult.clearedArrival) regData.arrival_datetime = null;
@@ -2893,3 +2916,17 @@ document.getElementById('familySearch')?.addEventListener('input',
     Layout.debounce(familySearchInput, 300));
 
 init();
+
+// Плашка «проверьте месяц и год» сразу при вводе даты (ВГ 02.10.2026, js/date-guard.js)
+{
+    const getRetreat = async () => {
+        const r = registrations.find(x => x.id === currentEditRegId)?.retreats;
+        return r ? (await DateGuard.retreat(r.id)) || r : null;
+    };
+    [
+        ['editArrivalDatetime', 'arrival', 'Прилёт'],
+        ['editDepartureDatetime', 'departure', 'Вылет'],
+        ['editArrivalAtAshram', 'arrival', 'Приезд в ШРСК'],
+        ['editDepartureFromAshram', 'departure', 'Выезд из ШРСК']
+    ].forEach(([id, kind, label]) => DateGuard.bind(document.getElementById(id), kind, label, getRetreat));
+}

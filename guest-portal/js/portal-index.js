@@ -11,6 +11,7 @@
 let photoFile = null;
 let cropper = null;
 let currentTransfers = { arrival: null, departure: null };
+let currentPortalRetreat = null; // даты ретрита — проверить год/месяц рейса перед сохранением
 let currentRegistrationId = null;
 let isPublicView = false; // Режим просмотра чужого профиля
 
@@ -85,6 +86,23 @@ async function saveTransferEdit(direction) {
     const flightNumber = document.getElementById(`${direction}-edit-flight`).value.trim();
     const needsTransfer = document.getElementById(`${direction}-edit-needs`).checked;
 
+    // Рейс больше чем на 3 дня от дат ретрита — гость подтверждает (ВГ 02.10.2026);
+    // менеджеру при этом приходит задача «Уточнить даты» (миграция 610)
+    const r = currentPortalRetreat;
+    const old = currentTransfers[direction]?.flight_datetime?.slice(0, 16) || '';
+    if (datetime && r && datetime.slice(0, 16) !== old) {
+        const d = datetime.slice(0, 10);
+        const gap = (a, b) => Math.round((DateUtils.parseDate(b) - DateUtils.parseDate(a)) / 86400000);
+        if (gap(d, r.start_date) > 3 || gap(r.end_date, d) > 3) {
+            const fmt = x => `${x.slice(8, 10)}.${x.slice(5, 7)}.${x.slice(0, 4)}`;
+            const tpl = PortalLayout.t('portal_flight_date_check');
+            const text = (tpl === 'portal_flight_date_check'
+                ? 'Рейс {date}, а ретрит {dates}. Проверьте, пожалуйста, месяц и год. Сохранить?' : tpl)
+                .replace('{date}', fmt(d)).replace('{dates}', `${fmt(r.start_date)}–${fmt(r.end_date)}`);
+            if (!confirm(text)) return;
+        }
+    }
+
     try {
         let savedTransfer;
 
@@ -144,7 +162,8 @@ async function saveTransferEdit(direction) {
         cancelTransferEdit(direction);
     } catch (err) {
         console.error('Ошибка сохранения трансфера:', err);
-        PortalLayout.showNotification(PortalLayout.t('portal_error_saving'), 'error');
+        // Невозможная дата (миграция 609) — показываем причину, а не общее «ошибка»
+        PortalLayout.showNotification(err?.code === '23514' ? err.message : PortalLayout.t('portal_error_saving'), 'error');
     }
 }
 
@@ -816,6 +835,7 @@ async function loadActiveRetreat(guestId) {
 
         // Трансферы — всегда показываем блок при наличии ретрита
         currentTransfers = data.transfers; // Сохраняем для редактирования
+        currentPortalRetreat = retreat;
         currentRegistrationId = data.activeRetreat.id; // Сохраняем ID регистрации
         transferBlock.classList.remove('hidden');
 

@@ -625,10 +625,11 @@
 <script src="../js/config.js?v=5"></script>
 <script src="../js/auth-check.js?v=13"></script>
 <script src="../js/cache.js?v=1"></script>
-<script src="../js/utils.js?v=12"></script>
+<script src="../js/utils.js?v=13"></script>
 <script src="../js/layout.js?v=83"></script>
 <script src="../js/date-utils.js?v=4"></script>
 <script src="../js/crm-utils.js?v=5"></script>
+<script src="../js/date-guard.js?v=1"></script>
 <script src="../js/prepayment-ops.js?v=3"></script>
 
 <script>
@@ -640,6 +641,7 @@ let dealId = new URLSearchParams(window.location.search).get('id');
 let deal = null;
 let guest = null;
 let retreat = null;
+let retreatIsInternal = false;
 let services = [];
 let dealServices = [];
 let payments = [];
@@ -686,6 +688,8 @@ async function loadDeal() {
     deal = data;
     guest = data.vaishnavas;
     retreat = data.retreats;
+    // Внутренний ретрит (художники): «позже конца» не предупреждаем — js/date-guard.js
+    retreatIsInternal = retreat?.id ? !!(await DateGuard.retreat(retreat.id))?.is_internal : false;
 
     renderHeader();
     renderSidebar();
@@ -3460,18 +3464,9 @@ async function saveStayDate(field, value) {
 
 // Описки в датах рейсов (год 2027 вместо 2026, август вместо сентября) расползаются
 // дальше в бронь, трансфер и шахматку, и найти их там уже некому. Ловим сразу при
-// вводе, но не блокируем: бывают и настоящие «прилетел за месяц».
+// вводе: «прилетел за месяц» бывает — только предупреждение; невозможное (прилёт после
+// конца ретрита) не примет база (миграция 609).
 const DAY_MS = 24 * 60 * 60 * 1000;
-
-function daysOutsideRetreat(dateStr) {
-    if (!dateStr || !retreat?.start_date || !retreat?.end_date) return 0;
-    const d = DateUtils.parseDate(dateStr);
-    const from = DateUtils.parseDate(retreat.start_date);
-    const to   = DateUtils.parseDate(retreat.end_date);
-    if (d < from) return Math.round((from - d) / DAY_MS);
-    if (d > to)   return Math.round((d - to) / DAY_MS);
-    return 0;
-}
 
 // Бронь может не покрывать рейсы гостя: прилетел 18-го, а место забронировано с 22-го —
 // четыре ночи жить негде, и до заезда об этом никто не узнает. Считаем обе стороны.
@@ -3506,11 +3501,14 @@ function checkFlightDates() {
     if (arrival && departure && departure < arrival) {
         msgs.push(t('crm_warn_departure_before_arrival'));
     }
-    // Месяц в запасе — это уже не «приехал заранее», а почти всегда описка
-    const farArrival   = daysOutsideRetreat(arrival);
-    const farDeparture = daysOutsideRetreat(departure);
-    if (farArrival > 30)   msgs.push(t('crm_warn_arrival_far').replace('{days}', farArrival));
-    if (farDeparture > 30) msgs.push(t('crm_warn_departure_far').replace('{days}', farDeparture));
+    // Больше 3 дней от дат ретрита — с числом дней и просьбой проверить месяц и год
+    // (ВГ 02.10.2026, js/date-guard.js — то же правило, что в остальных формах)
+    if (retreat?.start_date) {
+        const r = { ...retreat, is_internal: !!retreatIsInternal };
+        [DateGuard.check(deal.arrival_datetime, 'arrival', r, 'Прилёт'),
+         DateGuard.check(deal.departure_datetime, 'departure', r, 'Вылет')]
+            .forEach(w => { if (w) msgs.push(w.text); });
+    }
 
     box.innerHTML = msgs.map(m => `⚠️ ${e(m)}`).join('<br>');
     box.classList.toggle('hidden', msgs.length === 0);
@@ -3523,7 +3521,13 @@ async function saveFlightField(field, value) {
 }
 
 async function saveArrivalDatetime(value) {
-    await Layout.db.from('crm_deals').update({ arrival_datetime: value || null }).eq('id', dealId);
+    // Невозможную дату (прилёт после конца ретрита) база не примет — миграция 609
+    const { error } = await Layout.db.from('crm_deals').update({ arrival_datetime: value || null }).eq('id', dealId);
+    if (error) {
+        Layout.showNotification(error.message, 'error');
+        document.getElementById('arrivalDatetime').value = deal.arrival_datetime?.slice(0, 16) || '';
+        return;
+    }
     deal.arrival_datetime = value;
     // Триггер БД пересчитывает расхождение и может сбросить подтверждение — перечитываем
     {
@@ -3556,7 +3560,12 @@ async function saveArrivalDatetime(value) {
 }
 
 async function saveDepartureDatetime(value) {
-    await Layout.db.from('crm_deals').update({ departure_datetime: value || null }).eq('id', dealId);
+    const { error } = await Layout.db.from('crm_deals').update({ departure_datetime: value || null }).eq('id', dealId);
+    if (error) {
+        Layout.showNotification(error.message, 'error');
+        document.getElementById('departureDatetime').value = deal.departure_datetime?.slice(0, 16) || '';
+        return;
+    }
     deal.departure_datetime = value;
     // Триггер БД пересчитывает расхождение и может сбросить подтверждение — перечитываем
     {

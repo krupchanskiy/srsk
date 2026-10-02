@@ -425,6 +425,7 @@ function openGuestModal(registrationId = null) {
     searchInput.value = '';
     selectedDisplay.classList.add('hidden');
     document.getElementById('vaishnavSuggestions').classList.add('hidden');
+    form.querySelectorAll('.date-guard-msg').forEach(el => el.classList.add('hidden'));
 
     if (registrationId) {
         title.textContent = t('edit_guest');
@@ -527,8 +528,12 @@ document.getElementById('guestForm').addEventListener('submit', async (e) => {
     if (retreat) {
         const moveResult = await Utils.checkAndMoveDatesAcrossRetreats({
             db: Layout.db, registrationId: registrationId || '_new_', vaishnavId: vaishnavId,
-            retreat, arrivalDatetime, departureDatetime
+            retreat, arrivalDatetime, departureDatetime,
+            // Новая регистрация — прежних дат нет, всё считается изменённым
+            originalArrival: registrations.find(r => r.id === registrationId)?.arrival_datetime ?? null,
+            originalDeparture: registrations.find(r => r.id === registrationId)?.departure_datetime ?? null
         });
+        if (moveResult.blocked) { Layout.showNotification(moveResult.blocked, 'error'); return; }
         if (moveResult.warnings.length && !confirm(moveResult.warnings.join('\n') + '\n\n' + t('retreat_guests_save_anyway'))) return;
         if (moveResult.clearedDeparture) actualDeparture = null;
         if (moveResult.clearedArrival) actualArrival = null;
@@ -1998,3 +2003,11 @@ window.onLanguageChange = () => {
 
 debug('🚀 retreat-guests.js VERSION 2.0 - Status fixed to GUEST');
 init();
+
+// Плашка «проверьте месяц и год» сразу при вводе даты (ВГ 02.10.2026, js/date-guard.js)
+{
+    const getRetreat = async () => retreat ? (await DateGuard.retreat(retreat.id)) || retreat : null;
+    const form = document.getElementById('guestForm');
+    DateGuard.bind(form?.elements.arrival_datetime, 'arrival', 'Приезд', getRetreat);
+    DateGuard.bind(form?.elements.departure_datetime, 'departure', 'Выезд', getRetreat);
+}
