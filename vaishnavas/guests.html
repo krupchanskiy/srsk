@@ -227,7 +227,7 @@
                 .from('vaishnavas')
                 .select('id, first_name, last_name, spiritual_name, phone, email, country, spiritual_teacher, is_team_member, photo_url', { count: 'exact' })
                 .eq('is_deleted', false)
-                .or('is_team_member.is.null,is_team_member.eq.false');
+                .eq('status', 'guest');
 
             query = V.applyServerSearch(query, state.searchQuery);
             query = V.applyServerSort(query, state);

@@ -1,10 +1,9 @@
 // Профиль вайшнава
-// Управление данными персоны, периодами проживания, регистрациями на ретриты
+// Управление данными персоны, регистрациями на ретриты
 
 const t = key => Layout.t(key);
 const e = str => Layout.escapeHtml(str);
 let person = null;
-let stays = [];
 let registrations = [];
 let children = [];
 let departments = [];
@@ -54,7 +53,6 @@ async function init() {
     await loadPerson(personId);
     // Параллельно загружаем историю, размещение и детей
     await Promise.all([
-        loadStays(personId),
         loadRegistrations(personId),
         loadPermanentResident(personId),
         loadChildren(personId),
@@ -128,7 +126,7 @@ async function loadDepartments() {
             return data;
         }),
         Utils.fetchAll((from, to) => Layout.db.from('vaishnavas').select('id, spiritual_name, first_name, last_name')
-            .eq('is_team_member', true).eq('is_deleted', false).order('spiritual_name').range(from, to)),
+            .in('status', ['team', 'volunteer']).eq('is_deleted', false).order('spiritual_name').range(from, to)),
         Utils.fetchAll((from, to) => Layout.db.from('vaishnavas').select('spiritual_teacher')
             .not('spiritual_teacher', 'is', null).eq('is_deleted', false).range(from, to)),
         Layout.db.from('spiritual_teachers').select('name_ru, name_en').order('sort_order')
@@ -141,16 +139,6 @@ async function loadDepartments() {
     spiritualTeachers = [...new Set([...knownGurus, ...customTeachers])];
     populateDepartmentsSelect();
     populateSeniorsSelect();
-}
-
-async function loadStays(personId) {
-    const { data } = await Layout.db
-        .from('vaishnava_stays')
-        .select('*')
-        .eq('vaishnava_id', personId)
-        .order('start_date', { ascending: false });
-    stays = data || [];
-    renderStays();
 }
 
 async function loadRegistrations(personId) {
@@ -264,13 +252,12 @@ function renderPerson() {
     // Badges
     const badgesEl = document.getElementById('personBadges');
     let badges = [];
-    if (person.is_team_member) {
+    const status = personStatus();
+    badges.push(`<span class="badge ${STATUS_BADGE[status]}">${statusLabel(status)}</span>`);
+    if (status !== 'guest' && person.departments) {
         const dept = person.departments;
-        if (dept) {
-            { const c = Utils.safeColor(dept.color); badges.push(`<span class="badge" style="background-color: ${c}20; color: ${c}; border-color: ${c}">${Layout.getName(dept)}</span>`); }
-        } else {
-            badges.push(`<span class="badge badge-primary">${t('team_member')}</span>`);
-        }
+        const c = Utils.safeColor(dept.color);
+        badges.push(`<span class="badge" style="background-color: ${c}20; color: ${c}; border-color: ${c}">${Layout.getName(dept)}</span>`);
     }
     badgesEl.innerHTML = badges.join('');
 
@@ -302,7 +289,8 @@ function renderPerson() {
     document.getElementById('editSpiritualTeacher').value = person.spiritual_teacher || '';
 
     // Team section
-    document.getElementById('editIsTeamMember').checked = person.is_team_member;
+    editStatus = personStatus();
+    renderStatusPicker();
     document.getElementById('viewDepartment').textContent = person.departments ? Layout.getName(person.departments) : '—';
     document.getElementById('editDepartment').value = person.department_id || '';
     document.getElementById('deptFromWrap').classList.add('hidden');
@@ -329,7 +317,9 @@ function renderPerson() {
     document.getElementById('editIndianPhoneWhatsapp').checked = person.indian_phone_whatsapp || false;
     document.getElementById('viewIndianPhoneWhatsapp').classList.toggle('hidden', !person.indian_phone_whatsapp);
 
-    document.getElementById('teamBadgeView').textContent = person.is_team_member ? t('yes') : t('no');
+    const statusBadge = document.getElementById('teamBadgeView');
+    statusBadge.className = `badge view-only ${STATUS_BADGE[personStatus()]}`;
+    statusBadge.textContent = statusLabel(personStatus());
 
     // Show/hide team-specific sections
     toggleTeamSections();
@@ -353,24 +343,59 @@ function renderPerson() {
     document.getElementById('childrenSection').style.display = person.parent_id ? 'none' : 'block';
 }
 
-function toggleTeamSections() {
-    const isTeam = person?.is_team_member || document.getElementById('editIsTeamMember')?.checked;
-    const isVolunteer = registrations.some(r =>
-        r.resident?.resident_categories?.slug === 'volunteer')
-        || permanentResident?.resident_categories?.slug === 'volunteer';
-    // Админ в режиме правки видит блок всегда: иначе гостя нельзя сделать членом команды —
-    // галочка лежит в этом же блоке (ВГ, 01.10)
-    const canAssign = isEditMode && person?.id !== window.currentUser?.vaishnava_id && window.hasPermission?.('edit_vaishnava');
-    const showServiceFields = isTeam || isVolunteer || canAssign;
+// Статус человека: Гость / Волонтёр / Команда (vaishnavas.status, ВГ 02.10).
+// is_team_member база держит сама: = (status = 'team')
+const STATUS_BADGE = { guest: 'badge-ghost', volunteer: 'badge-warning', team: 'badge-success' };
+let editStatus = 'guest';
 
-    document.getElementById('staysSection').style.display = isTeam ? 'block' : 'none';
-    document.getElementById('teamSection').style.display = showServiceFields ? 'block' : 'none';
-    document.getElementById('teamOnlyFields').style.display = isTeam ? '' : 'none';
-    document.getElementById('indiaExperienceField').style.display = showServiceFields ? 'none' : 'block';
+function tr(key, fallback) {
+    const v = t(key);
+    return v === key ? fallback : v;
 }
 
-function toggleTeamFields() {
-    toggleTeamSections();
+function statusLabel(status) {
+    const fallback = { guest: 'Гость', volunteer: 'Волонтёр', team: 'Команда' }[status];
+    return tr('person_status_' + status, fallback);
+}
+
+function personStatus() {
+    return person?.status || (person?.is_team_member ? 'team' : 'guest');
+}
+
+// Менять статус может админ и не в своём профиле
+function canAssignStatus() {
+    return person?.id !== window.currentUser?.vaishnava_id && !!window.hasPermission?.('edit_vaishnava');
+}
+
+function renderStatusPicker() {
+    const picker = document.getElementById('statusPicker');
+    picker.querySelectorAll('[data-status]').forEach(btn => {
+        const active = btn.dataset.status === editStatus;
+        btn.classList.toggle('btn-active', active);
+        btn.classList.toggle('btn-neutral', active);
+    });
+    if (!picker._delegated) {
+        picker._delegated = true;
+        picker.addEventListener('click', (ev) => {
+            const btn = ev.target.closest('[data-status]');
+            if (!btn) return;
+            editStatus = btn.dataset.status;
+            renderStatusPicker();
+            toggleTeamSections();
+        });
+    }
+}
+
+function toggleTeamSections() {
+    const status = isEditMode ? editStatus : personStatus();
+    const serving = status !== 'guest';
+    const canAssign = isEditMode && canAssignStatus();
+
+    // Гостю блок служения не нужен; админ в правке видит его ради переключателя статуса
+    document.getElementById('teamSection').style.display = serving || canAssign ? 'block' : 'none';
+    document.getElementById('statusPickerWrap').style.display = canAssign ? '' : 'none';
+    document.getElementById('serviceFields').style.display = serving ? '' : 'none';
+    document.getElementById('docsSection').style.display = serving ? 'block' : 'none';
 }
 
 function renderViewPhone() {
@@ -762,7 +787,6 @@ async function savePerson() {
         birth_date: document.getElementById('editBirthDate').value || null,
         india_experience: document.getElementById('editIndiaExperience').value || null,
         spiritual_teacher: document.getElementById('editSpiritualTeacher').value || null,
-        is_team_member: document.getElementById('editIsTeamMember').checked,
         department_id: document.getElementById('editDepartment').value || null,
         service: document.getElementById('editService').value || null,
         senior_id: document.getElementById('editSenior').value || null,
@@ -773,6 +797,8 @@ async function savePerson() {
         indian_phone_whatsapp: document.getElementById('editIndianPhoneWhatsapp').checked,
         notes: document.getElementById('editNotes').value || null
     };
+
+    if (canAssignStatus()) updateData.status = editStatus;
 
     if (!updateData.first_name && !updateData.spiritual_name) {
         Layout.showNotification(t('name_or_spiritual_required'), 'warning');
@@ -851,165 +877,6 @@ async function deletePerson() {
     }
 
     window.location.href = 'index.html';
-}
-
-// ==================== STAYS ====================
-
-function renderStays() {
-    const container = document.getElementById('staysList');
-    const emptyState = document.getElementById('emptyStays');
-
-    if (stays.length === 0) {
-        container.innerHTML = '';
-        emptyState.classList.remove('hidden');
-        return;
-    }
-
-    emptyState.classList.add('hidden');
-    // Делегирование кликов в списке периодов проживания
-    if (!container._delegated) {
-        container._delegated = true;
-        container.addEventListener('click', ev => {
-            const el = ev.target.closest('[data-action="open-stay-modal"]');
-            if (el) openStayModal(el.dataset.id);
-        });
-    }
-
-    container.innerHTML = stays.map(stay => {
-        const isCurrent = stay.start_date <= today && stay.end_date >= today;
-        const isFuture = stay.start_date > today;
-        const isPermanent = stay.end_date >= '2099-01-01';
-
-        let stayClass = 'stay-card';
-        if (isCurrent) stayClass += ' stay-current';
-        else if (isFuture) stayClass += ' stay-future';
-        else stayClass += ' stay-past';
-
-        const dateDisplay = isPermanent
-            ? t('person_at_srsk')
-            : `${formatDate(stay.start_date)} — ${formatDate(stay.end_date)}`;
-
-        return `
-            <div class="${stayClass} border rounded-lg p-3 cursor-pointer hover:shadow-md transition-shadow" data-action="open-stay-modal" data-id="${stay.id}">
-                <div class="flex items-center justify-between">
-                    <div>
-                        <div class="font-medium">${dateDisplay}</div>
-                        ${stay.comment ? `<div class="text-sm opacity-60 mt-1">${stay.comment}</div>` : ''}
-                    </div>
-                    ${isCurrent ? `<span class="badge badge-success badge-sm">${t('here_now')}</span>` : ''}
-                    ${isFuture ? `<span class="badge badge-info badge-sm">${t('planned')}</span>` : ''}
-                </div>
-            </div>
-        `;
-    }).join('');
-}
-
-let editingStayId = null;
-
-function togglePermanentStay(isPermanent) {
-    const datesContainer = document.getElementById('datesContainer');
-    const startDateInput = document.getElementById('stayStartDate');
-    const endDateInput = document.getElementById('stayEndDate');
-
-    if (isPermanent) {
-        datesContainer.classList.add('hidden');
-        startDateInput.removeAttribute('required');
-        endDateInput.removeAttribute('required');
-    } else {
-        datesContainer.classList.remove('hidden');
-        startDateInput.setAttribute('required', 'required');
-        endDateInput.setAttribute('required', 'required');
-    }
-}
-
-function openStayModal(stayId = null) {
-    const form = document.getElementById('stayForm');
-    form.reset();
-    editingStayId = stayId;
-
-    const isPermanentCheckbox = document.getElementById('isPermanentStay');
-    isPermanentCheckbox.checked = false;
-    togglePermanentStay(false);
-
-    if (stayId) {
-        const stay = stays.find(s => s.id === stayId);
-        if (stay) {
-            form.querySelector('[name="stay_id"]').value = stay.id;
-
-            // Проверяем, является ли период "постоянным" (end_date >= 2099-01-01)
-            const isPermanent = stay.end_date >= '2099-01-01';
-            isPermanentCheckbox.checked = isPermanent;
-            togglePermanentStay(isPermanent);
-
-            if (!isPermanent) {
-                form.querySelector('[name="start_date"]').value = stay.start_date;
-                form.querySelector('[name="end_date"]').value = stay.end_date;
-            }
-            form.querySelector('[name="comment"]').value = stay.comment || '';
-            form.querySelector('[name="early_checkin"]').checked = stay.early_checkin || false;
-            form.querySelector('[name="late_checkout"]').checked = stay.late_checkout || false;
-        }
-        document.getElementById('stayModalTitle').textContent = t('edit_stay');
-        document.querySelectorAll('.edit-stay-only').forEach(el => el.classList.remove('hidden'));
-    } else {
-        document.getElementById('stayModalTitle').textContent = t('add_stay');
-        document.querySelectorAll('.edit-stay-only').forEach(el => el.classList.add('hidden'));
-    }
-
-    document.getElementById('stayModal').showModal();
-}
-
-function closeStayModal() {
-    document.getElementById('stayModal').close();
-    editingStayId = null;
-}
-
-async function saveStay(event) {
-    event.preventDefault();
-    const form = event.target;
-
-    const isPermanent = document.getElementById('isPermanentStay').checked;
-
-    const stayData = {
-        vaishnava_id: person.id,
-        start_date: isPermanent ? '2020-01-01' : form.start_date.value,
-        end_date: isPermanent ? '2099-12-31' : form.end_date.value,
-        early_checkin: form.early_checkin.checked,
-        late_checkout: form.late_checkout.checked,
-        comment: form.comment.value || null
-    };
-
-    let result;
-    if (editingStayId) {
-        result = await Layout.db.from('vaishnava_stays').update(stayData).eq('id', editingStayId);
-    } else {
-        result = await Layout.db.from('vaishnava_stays').insert(stayData);
-    }
-
-    if (result.error) {
-        console.error('Error saving stay:', result.error);
-        Layout.showNotification(t('error_saving'), 'error');
-        return;
-    }
-
-    closeStayModal();
-    await loadStays(person.id);
-}
-
-async function deleteStay() {
-    if (!editingStayId) return;
-    const confirmed = await ModalUtils.confirm(t('confirm_delete'));
-    if (!confirmed) return;
-
-    const { error } = await Layout.db.from('vaishnava_stays').delete().eq('id', editingStayId);
-    if (error) {
-        console.error('Error deleting stay:', error);
-        Layout.showNotification(t('error_deleting'), 'error');
-        return;
-    }
-
-    closeStayModal();
-    await loadStays(person.id);
 }
 
 // ==================== ADD TO RETREAT ====================
@@ -2761,7 +2628,6 @@ window.onLanguageChange = function(lang) {
     populateCountriesList();
     populateDepartmentsSelect();
     renderPerson();
-    renderStays();
     renderRegistrations();
     renderChildren();
     Layout.updateAllTranslations();

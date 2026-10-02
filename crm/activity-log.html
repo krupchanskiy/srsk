@@ -216,7 +216,7 @@ async function loadReferenceData() {
     const [managersRes, crmRolesRes, retreatsRes] = await Promise.all([
         Layout.db.from('vaishnavas')
             .select('id, spiritual_name, first_name, last_name, is_superuser, user_id')
-            .eq('is_team_member', true)
+            .in('status', ['team', 'volunteer'])
             .eq('is_deleted', false),
         Layout.db.from('user_roles')
             .select('user_id, roles!inner(code)')

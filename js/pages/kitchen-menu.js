@@ -285,7 +285,7 @@ async function loadData() {
         Layout.db
             .from('vaishnavas')
             .select('*, department:departments!inner(*)')
-            .eq('is_team_member', true)
+            .in('status', ['team', 'volunteer'])
             .eq('is_deleted', false)
             .eq('departments.name_en', 'Kitchen'),
         Cache.getOrLoad('units', async () => {

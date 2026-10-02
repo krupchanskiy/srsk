@@ -786,7 +786,7 @@
             const { data, error } = await Layout.db
                 .from('vaishnavas')
                 .select('id, spiritual_name, first_name, last_name, department_id')
-                .eq('is_team_member', true)
+                .in('status', ['team', 'volunteer'])
                 .eq('is_deleted', false)
                 .in('department_id', kitchenDeptIds)
                 .order('spiritual_name');

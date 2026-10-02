@@ -89,7 +89,7 @@
                 const { data: teamMembers, error: tmError } = await db
                     .from('vaishnavas')
                     .select('*, departments(id, name_ru, name_en, name_hi, color)')
-                    .eq('is_team_member', true)
+                    .in('status', ['team', 'volunteer'])
                     .eq('is_deleted', false)
                     .order('spiritual_name', { ascending: true, nullsFirst: false });
 

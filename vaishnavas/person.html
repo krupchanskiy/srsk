@@ -175,20 +175,6 @@
             box-shadow: 0 1px 3px rgba(0,0,0,0.1);
             padding: 1rem;
         }
-        .stay-card {
-            border-left: 4px solid var(--current-color);
-        }
-        .stay-current {
-            border-left-color: #10b981;
-            background: rgba(16, 185, 129, 0.05);
-        }
-        .stay-future {
-            border-left-color: #6366f1;
-        }
-        .stay-past {
-            border-left-color: #d1d5db;
-            opacity: 0.7;
-        }
         .retreat-card {
             border-left: 4px solid var(--current-color);
             cursor: pointer;
@@ -448,11 +434,17 @@
                 <div class="section-card" id="teamSection">
                     <div class="flex items-center justify-between mb-4">
                         <h3 class="font-semibold" data-i18n="team_service">Команда / Служение</h3>
-                        <label class="flex items-center gap-2 cursor-pointer edit-only">
-                            <input type="checkbox" id="editIsTeamMember" class="checkbox checkbox-sm checkbox-primary" onchange="toggleTeamFields()">
-                            <span class="text-sm" data-i18n="is_team_member">Член команды</span>
-                        </label>
-                        <span class="badge badge-primary view-only" id="teamBadgeView"></span>
+                        <span class="badge view-only" id="teamBadgeView"></span>
+                    </div>
+                    <!-- Статус: Гость / Волонтёр / Команда — меняет админ, не в своём профиле -->
+                    <div id="statusPickerWrap" class="edit-only mb-4">
+                        <div class="info-label" data-i18n="person_status">Статус</div>
+                        <div class="join" id="statusPicker">
+                            <button type="button" class="btn btn-sm join-item" data-status="guest" data-i18n="person_status_guest">Гость</button>
+                            <button type="button" class="btn btn-sm join-item" data-status="volunteer" data-i18n="person_status_volunteer">Волонтёр</button>
+                            <button type="button" class="btn btn-sm join-item" data-status="team" data-i18n="person_status_team">Команда</button>
+                        </div>
+                        <div class="text-xs opacity-60 mt-1" data-i18n="person_status_hint">По статусу подставляется категория при заселении — в брони её можно поменять</div>
                     </div>
                     <!-- Поля служения (для команды и волонтёров) -->
                     <div id="serviceFields" class="space-y-3">
@@ -482,8 +474,12 @@
                             </select>
                         </div>
                     </div>
-                    <!-- Поля только для команды (паспорт, виза, инд. телефон) -->
-                    <div id="teamOnlyFields" class="space-y-3 mt-3">
+                </div>
+
+                <!-- Документы — у волонтёров и команды (ВГ 02.10) -->
+                <div class="section-card" id="docsSection">
+                    <h3 class="font-semibold mb-4" data-i18n="person_documents">Документы</h3>
+                    <div class="space-y-3">
                         <div>
                             <div class="info-label" data-i18n="passport">Паспорт</div>
                             <div class="view-only info-value" id="viewPassport">—</div>
@@ -623,23 +619,6 @@
                         <span data-i18n="make_independent">Сделать самостоятельным</span>
                     </button>
                 </div>
-
-                <!-- Team Stays (only for team members) -->
-                <div class="section-card" id="staysSection">
-                    <div class="flex items-center justify-between mb-4">
-                        <h3 class="font-semibold" data-i18n="stays_history">Периоды пребывания</h3>
-                        <button class="btn btn-sm btn-outline gap-1" onclick="openStayModal()">
-                            <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" />
-                            </svg>
-                            <span data-i18n="add">Добавить</span>
-                        </button>
-                    </div>
-                    <div id="staysList" class="space-y-3"></div>
-                    <div id="emptyStays" class="hidden text-center py-6 opacity-60">
-                        <p data-i18n="no_stays">Нет запланированных периодов</p>
-                    </div>
-                </div>
             </div>
 
         </div>
@@ -679,60 +658,6 @@
                 <button type="button" class="btn" onclick="closeCropModal()" data-i18n="cancel">Отмена</button>
                 <button type="button" class="btn btn-primary" onclick="saveCroppedPhoto()" data-i18n="save">Сохранить</button>
             </div>
-        </div>
-        <form method="dialog" class="modal-backdrop"><button>close</button></form>
-    </dialog>
-
-    <!-- Stay Modal -->
-    <dialog id="stayModal" class="modal">
-        <div class="modal-box">
-            <h3 class="font-bold text-lg mb-4" id="stayModalTitle" data-i18n="add_stay">Добавить период</h3>
-            <form id="stayForm" onsubmit="saveStay(event)">
-                <input type="hidden" name="stay_id" value="">
-
-                <!-- Постоянное пребывание -->
-                <div class="form-control mb-4">
-                    <label class="label cursor-pointer justify-start gap-3">
-                        <input type="checkbox" id="isPermanentStay" class="checkbox checkbox-success" onchange="togglePermanentStay(this.checked)">
-                        <span class="label-text font-medium" data-i18n="permanent_stay">Находится в ШРСК постоянно</span>
-                    </label>
-                </div>
-
-                <div id="datesContainer">
-                    <div class="grid grid-cols-2 gap-4 mb-4">
-                        <div class="form-control">
-                            <label class="label"><span class="label-text font-medium" data-i18n="arrival">Приезд</span></label>
-                            <input type="date" name="start_date" id="stayStartDate" class="input input-bordered" required>
-                        </div>
-                        <div class="form-control">
-                            <label class="label"><span class="label-text font-medium" data-i18n="departure">Отъезд</span></label>
-                            <input type="date" name="end_date" id="stayEndDate" class="input input-bordered" required>
-                        </div>
-                    </div>
-                </div>
-
-                <!-- Ранний заезд / Поздний выезд -->
-                <div class="flex gap-4 mb-4">
-                    <label class="label cursor-pointer gap-2">
-                        <input type="checkbox" name="early_checkin" class="checkbox checkbox-sm checkbox-primary" />
-                        <span class="label-text text-sm" data-i18n="early_checkin">Ранний заезд</span>
-                    </label>
-                    <label class="label cursor-pointer gap-2">
-                        <input type="checkbox" name="late_checkout" class="checkbox checkbox-sm checkbox-primary" />
-                        <span class="label-text text-sm" data-i18n="late_checkout">Поздний выезд</span>
-                    </label>
-                </div>
-
-                <div class="form-control mb-4">
-                    <label class="label"><span class="label-text" data-i18n="comment">Комментарий</span></label>
-                    <input type="text" name="comment" class="input input-bordered" placeholder="Например: Картика" data-i18n-placeholder="placeholder_comment_example">
-                </div>
-                <div class="modal-action">
-                    <button type="button" class="btn btn-ghost" onclick="closeStayModal()" data-i18n="cancel">Отмена</button>
-                    <button type="button" class="btn btn-error btn-outline edit-stay-only hidden" onclick="deleteStay()" data-i18n="delete">Удалить</button>
-                    <button type="submit" class="btn btn-primary" data-i18n="save">Сохранить</button>
-                </div>
-            </form>
         </div>
         <form method="dialog" class="modal-backdrop"><button>close</button></form>
     </dialog>
@@ -1078,6 +1003,6 @@
     <script src="../js/modal-utils.js?v=3"></script>
     <script src="../js/date-utils.js?v=4"></script>
     <script src="../js/layout.js?v=83"></script>
-    <script src="../js/pages/person.js?v=25"></script>
+    <script src="../js/pages/person.js?v=26"></script>
 </body>
 </html>
