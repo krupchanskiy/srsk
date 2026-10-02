@@ -211,11 +211,19 @@
 
     // ==================== ОБЩИЙ ПАРОЛЬ ====================
     // Раньше аккаунты создавались с общим паролем. Пока пароль не сменён —
-    // на каждой открытой странице показываем окно с просьбой сменить его
-    // (решение ВГ 02.10). Временно: убрать вместе с auth_uses_shared_password().
+    // при открытии страницы показываем окно с просьбой сменить его, но не чаще
+    // раза в 30 минут (решение ВГ 02.10). Временно: убрать вместе с auth_uses_shared_password().
     async function checkSharedPassword(db) {
+        const SHARED_PW_INTERVAL_MS = 30 * 60 * 1000;
+        try {
+            const last = Number(localStorage.getItem('srsk_shared_pw_shown_at')) || 0;
+            if (Date.now() - last < SHARED_PW_INTERVAL_MS) return;
+        } catch (e) { /* хранилище недоступно — просто покажем окно */ }
+
         const { data: isShared, error } = await db.rpc('auth_uses_shared_password');
         if (error || !isShared) return;
+
+        try { localStorage.setItem('srsk_shared_pw_shown_at', String(Date.now())); } catch (e) { /* ignore */ }
 
         if (document.readyState === 'loading') {
             document.addEventListener('DOMContentLoaded', showSharedPasswordModal);
