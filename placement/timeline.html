@@ -848,6 +848,8 @@
                 </div>
 
                 <div class="text-sm text-gray-500 mb-4" id="bookingLocation"></div>
+                <!-- Правка брони на несколько мест: что меняется у всех мест, что — только у этого -->
+                <div id="bookingEditGroupHint" class="alert alert-info py-2 px-3 mb-3 text-sm hidden"></div>
 
                 <form id="bookingForm" onsubmit="saveBooking(event)">
                     <!-- Категория: от неё зависит цвет плашки в шахматке -->
@@ -915,7 +917,7 @@
                             <label class="label py-1">
                                 <span class="label-text font-medium" data-i18n="booking_contact_name">Контактное лицо</span>
                             </label>
-                            <input type="text" name="contact_name" class="input input-bordered input-sm w-full" required />
+                            <input type="text" name="contact_name" id="bookingContactName" class="input input-bordered input-sm w-full" required />
                         </div>
                         <div class="form-control">
                             <label class="label py-1">
@@ -949,8 +951,8 @@
                         </div>
                     </div>
 
-                    <!-- Количество мест -->
-                    <div class="form-control mt-3">
+                    <!-- Количество мест (при правке брони скрыто — места добавляются в шахматке) -->
+                    <div class="form-control mt-3" id="bookingBedsRow">
                         <label class="label py-1">
                             <span class="label-text font-medium" data-i18n="booking_beds_count">Количество мест</span>
                         </label>
@@ -996,8 +998,8 @@
                     </div>
 
                     <div class="modal-action">
-                        <button type="button" class="btn btn-ghost" onclick="showActionScreen()" data-i18n="back">Назад</button>
-                        <button type="submit" class="btn btn-info" data-i18n="add_booking">Забронировать</button>
+                        <button type="button" class="btn btn-ghost" id="bookingBack" onclick="bookingBack()" data-i18n="back">Назад</button>
+                        <button type="submit" class="btn btn-info" id="bookingSubmit" data-i18n="add_booking">Забронировать</button>
                     </div>
                 </form>
             </div>
@@ -1230,7 +1232,7 @@
         if (btn) { btn.classList.toggle('btn-active', isFS); btn.title = isFS ? Layout.t('normal_view') : Layout.t('fullscreen'); }
     }
     </script>
-    <script src="../js/pages/timeline.js?v=56"></script>
+    <script src="../js/pages/timeline.js?v=57"></script>
 
 </body>
 </html>

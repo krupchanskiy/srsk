@@ -151,7 +151,7 @@ async function loadTimelineData() {
             .select(`*,
                 resident_categories(id, slug, name_ru, name_en, name_hi, color),
                 vaishnavas(id, first_name, last_name, spiritual_name, service),
-                bookings(id, name, contact_name, notes)`)
+                bookings(id, name, contact_name, contact_phone, notes)`)
             .in('status', ['confirmed', 'checked_out', 'booked'])
             .lte('check_in', endDateStr)
             .or(`check_out.is.null,check_out.gte.${startDateStr}`),
@@ -966,6 +966,7 @@ function showBookingForm() {
         if (team) { bookingCatSel.value = team.id; bookingCatSel.dataset.touched = '1'; }
     }
     toggleBookingStaffFields();
+    setBookingEditMode(false);
 }
 
 // ===== Департамент и служение в брони (ТЗ 01.10, п. 5; ВГ 02.10) =====
@@ -992,6 +993,189 @@ function updateBookingNewPersonHint() {
         ? tf('timeline_new_person_hint', 'Нет в справочнике — при сохранении будет заведена черновая карточка «{name}»').replace('{name}', typed)
         : '';
     hint.classList.toggle('hidden', !hint.textContent);
+}
+
+// ===== Правка брони и проживания (ТЗ 01.10, п. 7) =====
+// Кнопка «Изменить» в окне проживания открывает ту же форму «Бронирование» с заполненными
+// полями: категория, человек, департамент и служение, даты, ретрит, прасад, примечания,
+// название и контакт брони. Номер меняется кнопкой «Перенос» — там подбор свободных мест.
+// У брони на несколько мест категория, ретрит, департамент и прасад меняются у всех мест,
+// даты и человек — только у этого места.
+function setBookingEditMode(on, isLiving) {
+    document.getElementById('bookingSubmit').textContent = on ? tf('save', 'Сохранить') : t('add_booking');
+    if (on) document.getElementById('bookingTitle').textContent = isLiving
+        ? tf('timeline_edit_stay', 'Изменить проживание') : tf('timeline_edit_booking', 'Изменить бронь');
+    document.getElementById('bookingBedsRow').classList.toggle('hidden', on);
+    if (!on) {
+        document.getElementById('bookingEditGroupHint').classList.add('hidden');
+        document.getElementById('bookingContactName').required = true;
+    }
+}
+
+function bookingBack() {
+    if (modalContext?.editResidentId) document.getElementById('actionModal').close();
+    else showActionScreen();
+}
+
+async function openBookingEdit() {
+    if (!currentResident || !canEditTimeline()) return;
+    const res = currentResident.rawData;
+    const location = document.getElementById('residentModalLocation').textContent;
+    document.getElementById('residentModal').close();
+
+    modalContext = { roomId: res.room_id, isSelf: !res.room_id, isConversion: false,
+        editResidentId: res.id, editRes: res };
+    showBookingForm();
+    setBookingEditMode(true, !!res.arrived_at);
+
+    const form = document.getElementById('bookingForm');
+    document.getElementById('bookingLocation').textContent = location;
+    const catSel = document.getElementById('bookingCategory');
+    catSel.value = res.category_id || '';
+    catSel.dataset.touched = '1';
+    form.name.value = res.bookings?.name || '';
+    form.contact_name.value = res.bookings?.contact_name || '';
+    form.contact_phone.value = res.bookings?.contact_phone || res.guest_phone || '';
+    // Контакт обязателен только у брони: у проживания без брони его негде хранить
+    document.getElementById('bookingContactName').required = !!res.booking_id;
+    document.getElementById('bookingDateIn').value = res.check_in || '';
+    document.getElementById('bookingDateOut').value = res.check_out || '';
+    form.early_checkin.checked = !!res.early_checkin;
+    form.late_checkout.checked = !!res.late_checkout;
+    // «Не питается» (has_meals = false) — галочки сняты: иначе правка любого поля
+    // молча вернула бы человека в подсчёт кухни (eating_detail не считает has_meals = false)
+    form.breakfast.checked = res.has_meals !== false && res.breakfast !== false;
+    form.lunch.checked = res.has_meals !== false && res.lunch !== false;
+    form.notes.value = (res.booking_id ? res.bookings?.notes : res.notes) || '';
+
+    // Ретрит — как выбран, подсказка по датам не перебивает
+    const retreatSel = document.getElementById('bookingRetreat');
+    retreatSel.dataset.touched = '1';
+    fillBookingRetreatSelect(res.retreat_id || '');
+
+    if (res.vaishnava_id) {
+        if (!vaishnavas.some(v => v.id === res.vaishnava_id) && res.vaishnavas) {
+            vaishnavas.push({ id: res.vaishnava_id, ...res.vaishnavas });
+        }
+        selectBookingVaishnava(res.vaishnava_id);
+    } else {
+        document.getElementById('bookingVaishnavSearch').value = res.guest_name || '';
+    }
+    document.getElementById('bookingDepartment').value = res.department_id || '';
+    document.getElementById('bookingService').value = res.vaishnavas?.service || '';
+    toggleBookingStaffFields();
+
+    // Бронь на несколько мест — подсказка, что меняется у всех
+    const hint = document.getElementById('bookingEditGroupHint');
+    hint.classList.add('hidden');
+    if (res.booking_id) {
+        const { count } = await Layout.db.from('residents').select('id', { count: 'exact', head: true })
+            .eq('booking_id', res.booking_id).neq('status', 'cancelled');
+        modalContext.bookingPlaces = count || 1;
+        if (count > 1) {
+            hint.textContent = tf('timeline_edit_group_hint', 'В брони {n} мест: категория, ретрит, департамент и прасад изменятся у всех мест, даты и человек — только у этого места.').replace('{n}', count);
+            hint.classList.remove('hidden');
+        }
+    }
+    document.getElementById('actionModal').showModal();
+}
+
+async function saveBookingEdit(form) {
+    const res = modalContext.editRes;
+    const checkIn = form.check_in.value;
+    const checkOut = form.check_out.value || null;
+    if (!checkIn) { Layout.showNotification(t('specify_checkin_date'), 'error'); return; }
+    if (checkOut && checkOut < checkIn) {
+        Layout.showNotification(tf('timeline_checkout_before_checkin', 'Выезд не может быть раньше заезда'), 'error');
+        return;
+    }
+    const categoryId = form.category_id.value || null;
+    const retreatId = form.retreat_id?.value || null;
+    if (retreatDatesMismatch(retreatId, checkIn, checkOut)) {
+        Layout.showNotification(retreatDatesMismatchText(), 'warning');
+    }
+    const staff = isStaffCategory(categoryId);
+    const departmentId = staff ? (form.department_id?.value || null) : (res.department_id || null);
+    const service = staff ? (form.service?.value.trim() || null) : null;
+    if (staff && !departmentId) {
+        Layout.showNotification(tf('timeline_department_required', 'Выберите департамент: у волонтёра и команды он обязателен'), 'error');
+        return;
+    }
+    let vaishnavaId = form.vaishnava_id?.value || null;
+    const typedName = document.getElementById('bookingVaishnavSearch')?.value.trim() || '';
+    if (staff && !vaishnavaId && !typedName) {
+        Layout.showNotification(tf('timeline_person_required', 'Укажите человека: выберите из справочника или впишите имя — заведём черновую карточку'), 'error');
+        return;
+    }
+
+    // Новые даты — хватает ли мест в номере (пересекающиеся проживания против вместимости)
+    if (res.room_id && (checkIn !== res.check_in || checkOut !== (res.check_out || null))) {
+        const room = timelineData.buildings.flatMap(b => b.rooms || []).find(r => r.id === res.room_id);
+        let q = Layout.db.from('residents').select('id', { count: 'exact', head: true })
+            .eq('room_id', res.room_id).eq('status', 'confirmed').neq('id', res.id)
+            .or(`check_out.is.null,check_out.gt.${checkIn}`);
+        if (checkOut) q = q.lt('check_in', checkOut);
+        const { count } = await q;
+        if (room?.capacity && count >= room.capacity && !confirm(
+            tf('timeline_edit_room_full', 'В номере {cap} мест, а в эти даты уже живут или забронированы {n}. Сохранить всё равно?')
+                .replace('{cap}', room.capacity).replace('{n}', count))) return;
+    }
+
+    if (staff) {
+        vaishnavaId = await ensureStaffPerson(vaishnavaId, typedName, service, categoryId);
+        if (!vaishnavaId) return;
+    }
+    const breakfast = form.breakfast.checked;
+    const lunch = form.lunch.checked;
+
+    const place = {
+        vaishnava_id: vaishnavaId,
+        // Имя без карточки — у гостя без справочника; у брони имя берётся из названия брони
+        guest_name: vaishnavaId ? null : (typedName || null),
+        category_id: categoryId,
+        retreat_id: retreatId,
+        department_id: departmentId,
+        check_in: checkIn,
+        check_out: checkOut,
+        early_checkin: form.early_checkin.checked,
+        late_checkout: form.late_checkout.checked,
+        breakfast,
+        lunch,
+        // Правят осознанно — «питается?» больше не «не указано» (случай Ананды Вардханы Свами, 02.10)
+        has_meals: breakfast || lunch
+    };
+    if (!res.booking_id) place.notes = form.notes.value.trim() || null;
+    if (!res.booking_id && form.contact_phone.value.trim()) place.guest_phone = form.contact_phone.value.trim();
+
+    const { error } = await Layout.db.from('residents').update(place).eq('id', res.id);
+    if (error) { Layout.handleError(error, tf('timeline_edit_booking', 'Изменить бронь')); return; }
+
+    if (res.booking_id) {
+        // Общее для брони — у остальных её мест
+        if ((modalContext.bookingPlaces || 1) > 1) {
+            const { error: grpError } = await Layout.db.from('residents')
+                .update({ category_id: categoryId, retreat_id: retreatId, department_id: departmentId, breakfast, lunch })
+                .eq('booking_id', res.booking_id).neq('id', res.id).neq('status', 'cancelled');
+            if (grpError) Layout.handleError(grpError, tf('timeline_edit_booking', 'Изменить бронь'));
+        }
+        // Даты брони пересчитает база по местам (миграции 583/584)
+        const { error: bError } = await Layout.db.from('bookings').update({
+            name: form.name.value.trim() || null,
+            contact_name: form.contact_name.value.trim() || null,
+            contact_phone: form.contact_phone.value.trim() || null,
+            notes: form.notes.value.trim() || null,
+            retreat_id: retreatId
+        }).eq('id', res.booking_id);
+        if (bError) Layout.handleError(bError, tf('timeline_edit_booking', 'Изменить бронь'));
+    }
+
+    await offerRetreatOnAdjacent(vaishnavaId, checkIn, checkOut, retreatId);
+    warnOutsideRetreat(retreatId, checkIn, checkOut);
+    Layout.showNotification(tf('timeline_edit_saved', 'Изменения сохранены'), 'success');
+    document.getElementById('actionModal').close();
+    showActionScreen();
+    await loadTimelineData();
+    renderTable();
 }
 
 // ===== Поиск вайшнавов =====
@@ -1532,10 +1716,34 @@ async function saveCheckin(e) {
 }
 
 // Сохранение бронирования
+// Волонтёр или команда: человек есть — дописываем служение, если в карточке пусто;
+// нет — заводим черновую карточку со статусом по категории брони (поле статуса —
+// «Вайшнавы 1», мигр. 619; is_team_member синхронизирует триггер). null — не вышло.
+async function ensureStaffPerson(vaishnavaId, typedName, service, categoryId) {
+    if (vaishnavaId) {
+        if (service) {
+            const { error } = await Layout.db.from('vaishnavas').update({ service })
+                .eq('id', vaishnavaId).is('service', null);
+            if (error) console.error('service:', error);
+        }
+        return vaishnavaId;
+    }
+    const status = categories.find(c => c.id === categoryId)?.slug === 'team' ? 'team' : 'volunteer';
+    const { data: draft, error } = await Layout.db.from('vaishnavas')
+        .insert({ spiritual_name: typedName, service, status })
+        .select('id, spiritual_name, first_name, last_name, gender, phone, birth_date, status')
+        .single();
+    if (error) { Layout.handleError(error, tf('timeline_draft_card', 'Черновая карточка')); return null; }
+    vaishnavas.push(draft);
+    Layout.showNotification(tf('timeline_draft_card_created', 'Заведена черновая карточка «{name}» — дополните её, когда будут данные').replace('{name}', typedName), 'info');
+    return draft.id;
+}
+
 async function saveBooking(e) {
     e.preventDefault();
     if (!canEditTimeline()) return;
     const form = e.target;
+    if (modalContext?.editResidentId) return saveBookingEdit(form);
 
     const bedsCount = parseInt(form.beds_count.value) || 1;
 
@@ -1571,23 +1779,9 @@ async function saveBooking(e) {
         Layout.showNotification(tf('timeline_person_required', 'Укажите человека: выберите из справочника или впишите имя — заведём черновую карточку'), 'error');
         return;
     }
-    if (staff && !bookingVaishnavaId) {
-        // Статус карточки — по категории брони (поле статуса — «Вайшнавы 1», мигр. 619;
-        // is_team_member синхронизирует триггер)
-        const status = categories.find(c => c.id === bookingCategoryId)?.slug === 'team' ? 'team' : 'volunteer';
-        const { data: draft, error: draftError } = await Layout.db.from('vaishnavas')
-            .insert({ spiritual_name: typedName, service, status })
-            .select('id, spiritual_name, first_name, last_name, gender, phone, birth_date, status')
-            .single();
-        if (draftError) { Layout.handleError(draftError, tf('timeline_draft_card', 'Черновая карточка')); return; }
-        bookingVaishnavaId = draft.id;
-        vaishnavas.push(draft);
-        Layout.showNotification(tf('timeline_draft_card_created', 'Заведена черновая карточка «{name}» — дополните её, когда будут данные').replace('{name}', typedName), 'info');
-    } else if (staff && service) {
-        // Служение — в карточку, только если там пусто: не затираем
-        const { error: srvError } = await Layout.db.from('vaishnavas').update({ service })
-            .eq('id', bookingVaishnavaId).is('service', null);
-        if (srvError) console.error('service:', srvError);
+    if (staff) {
+        bookingVaishnavaId = await ensureStaffPerson(bookingVaishnavaId, typedName, service, bookingCategoryId);
+        if (!bookingVaishnavaId) return;
     }
 
     const bookingData = {
@@ -1951,6 +2145,13 @@ function openResidentModal(guestData, buildingName, roomName) {
     const canEdit = canEditTimeline();
 
     if (canEdit) {
+        // Правка всех полей брони/проживания в форме «Бронирование» (ТЗ 01.10, п. 7)
+        actionsHtml += `<button class="btn btn-outline" data-action="edit-booking">
+            <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.232 5.232l3.536 3.536M9 13l6.232-6.232a2.5 2.5 0 113.536 3.536L12.536 16.536A4 4 0 0110 17.5H7v-3a4 4 0 011-2.5z" />
+            </svg>
+            ${e(tf('edit', 'Изменить'))}
+        </button>`;
         if (isBooking) {
             // Действия для бронирования
             actionsHtml += `<button class="btn btn-primary" data-action="convert-to-checkin">
@@ -3381,6 +3582,7 @@ function setupTimelineDelegation() {
             if (!btn) return;
             switch (btn.dataset.action) {
                 case 'convert-to-checkin': convertToCheckin(); break;
+                case 'edit-booking': openBookingEdit(); break;
                 case 'show-move-screen': showMoveScreen(); break;
                 case 'no-show': showNoShowScreen(); break;
                 case 'checkout-resident': showCheckoutScreen(); break;
