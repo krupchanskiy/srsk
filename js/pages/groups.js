@@ -1,5 +1,6 @@
 // ==================== GROUPS.JS ====================
-// CRUD для meal_groups — внешние группы питающихся
+// CRUD для meal_groups — «Разовое питание» (ВГ, 02.10.2026): разовые приходы на день-два,
+// в шахматку можно не заносить. Регулярных — в шахматку (бронь, в том числе без номера)
 
 (function() {
 'use strict';
@@ -7,6 +8,7 @@
 let groups = [];
 let retreats = [];
 let editingGroupId = null;
+const LONG_DAYS = 3;   // порог «разового» прихода (ВГ, 02.10)
 
 const t = key => Layout.t(key);
 const e = str => Layout.escapeHtml(str);
@@ -95,8 +97,51 @@ function eventLabel(g) {
     return r ? Layout.getName(r) : '—';
 }
 
+// ⚠ Двойной счёт: человек записан здесь и на те же дни стоит в шахматке с питанием —
+// кухня посчитает его дважды. Узнаём по имени записи = имя в карточке (у «Группы 10 человек»
+// проверить нечего). Только текущие и будущие записи.
+const norm = s => (s || '').toLowerCase().replace(/ё/g, 'е').replace(/[^a-zа-я0-9\u0900-\u097f]+/g, ' ').trim();
+async function checkDoubleCount() {
+    const el = Layout.$('#doubleCountAlert');
+    if (!el) return;
+    const today = DateUtils.toISO(new Date());
+    const actual = groups.filter(g => g.end_date >= today);
+    el.classList.add('hidden');
+    if (!actual.length) return;
+    const from = actual.map(g => g.start_date).sort()[0];
+    const to = actual.map(g => g.end_date).sort().pop();
+    const { data, error } = await Layout.db.from('residents')
+        .select('check_in, check_out, meal_start_date, meal_end_date, vaishnavas(spiritual_name, first_name, last_name)')
+        .in('status', ['confirmed', 'checked_out'])
+        .not('vaishnava_id', 'is', null)
+        .not('has_meals', 'is', false)
+        .lte('check_in', to)
+        .or(`check_out.is.null,check_out.gte.${from}`);
+    if (error || !data?.length) return;
+    const hits = [];
+    for (const g of actual) {
+        const name = norm(g.name);
+        if (!name) continue;
+        const r = data.find(x => {
+            const v = x.vaishnavas || {};
+            const names = [v.spiritual_name, `${v.first_name || ''} ${v.last_name || ''}`].map(norm).filter(Boolean);
+            const s = x.meal_start_date || x.check_in, f = x.meal_end_date || x.check_out;
+            return names.includes(name) && s <= g.end_date && (!f || f >= g.start_date);
+        });
+        if (r) hits.push({ g, r });
+    }
+    if (!hits.length) return;
+    el.innerHTML = `<div><b>⚠ ${e(tr('one_time_meals_double_title', 'Записаны и здесь, и в шахматке с питанием'))}: ${hits.length}</b>
+        <span class="opacity-80">— ${e(tr('one_time_meals_double_hint', 'кухня считает их дважды. Уберите запись здесь или сократите даты.'))}</span>
+        <ul class="list-disc ml-5 mt-1">${hits.map(({ g, r }) =>
+            `<li><a class="link" data-action="edit-group" data-id="${g.id}">${e(g.name)}</a> · ${formatDate(g.start_date)} — ${formatDate(g.end_date)}`
+            + ` <span class="opacity-70">(${e(tr('one_time_meals_in_timeline', 'в шахматке'))}: ${formatDate(r.check_in)} — ${formatDate(r.check_out)})</span></li>`).join('')}</ul></div>`;
+    el.classList.remove('hidden');
+}
+
 // ==================== RENDER ====================
 function renderGroups() {
+    checkDoubleCount();
     const tbody = Layout.$('#groupsTable');
     const noGroups = Layout.$('#noGroups');
 
@@ -207,6 +252,12 @@ async function saveGroup(ev) {
     if (!data.name || !data.start_date || !data.end_date) return;
     if (data.start_date > data.end_date) {
         Layout.showNotification(t('groups_date_error'), 'error');
+        return;
+    }
+    // Дольше 3 дней — скорее всего ходит регулярно: место такому в шахматке (ВГ, 02.10)
+    const days = Math.round((DateUtils.parseDate(data.end_date) - DateUtils.parseDate(data.start_date)) / 86400000) + 1;
+    if (days > LONG_DAYS && !confirm(tr('one_time_meals_long_warn',
+        'Запись на %n дн. Если человек ходит регулярно или живёт у нас — заведите его в шахматку (бронь, можно без номера). Всё равно сохранить здесь?').replace('%n', days))) {
         return;
     }
     const retreat = data.retreat_id && retreats.find(r => r.id === data.retreat_id);

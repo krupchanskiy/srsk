@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <script src="../js/color-init.js?v=2"></script>
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Группы — ШРСК</title>
+    <title>Разовое питание — ШРСК</title>
     <link rel="icon" type="image/svg+xml" href="/favicon.svg">
     <link href="https://cdn.jsdelivr.net/npm/daisyui@4.12.14/dist/full.min.css" rel="stylesheet" />
     <script src="https://cdn.tailwindcss.com"></script>
@@ -23,14 +23,19 @@
 
         <!-- Page Header -->
         <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6">
-            <h1 class="text-2xl font-bold" data-i18n="nav_groups">Группы</h1>
+            <h1 class="text-2xl font-bold" data-i18n="nav_groups">Разовое питание</h1>
             <button class="btn btn-primary gap-2" data-action="open-group-modal" data-permission="edit_preliminary">
                 <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" />
                 </svg>
-                <span data-i18n="add_group">Добавить группу</span>
+                <span data-i18n="add_group">Добавить</span>
             </button>
         </div>
+
+        <!-- Правило (ВГ, 02.10.2026): разово — здесь, регулярно — в шахматку -->
+        <div class="text-sm opacity-70 mb-3" data-i18n="one_time_meals_rule">Для разовых приходов: человек или группа пришли поесть на день-два, в шахматку можно не заносить. Кто ходит регулярно или живёт несколько дней — заведите в шахматку (бронь, в том числе без номера в «Самостоятельном проживании»).</div>
+        <!-- ⚠ Одни и те же люди и здесь, и в шахматке — кухня посчитает дважды -->
+        <div id="doubleCountAlert" class="alert alert-warning text-sm mb-3 hidden block"></div>
 
         <!-- Groups Table -->
         <div class="overflow-x-auto">
@@ -52,8 +57,7 @@
                 </tbody>
             </table>
             <div id="noGroups" class="hidden text-center py-12 opacity-50">
-                <div class="text-4xl mb-2">👥</div>
-                <p data-i18n="no_groups">Нет групп</p>
+                                <p data-i18n="no_groups">Нет записей</p>
             </div>
         </div>
 
@@ -65,7 +69,7 @@
     <dialog id="groupModal" class="modal">
         <div class="modal-box max-w-lg relative">
             <button type="button" class="btn btn-sm btn-circle btn-ghost absolute right-2 top-2" data-action="close-modal">✕</button>
-            <h3 class="font-bold text-lg mb-4" id="groupModalTitle" data-i18n="add_group">Добавить группу</h3>
+            <h3 class="font-bold text-lg mb-4" id="groupModalTitle" data-i18n="add_group">Добавить</h3>
 
             <form id="groupForm" class="space-y-4">
                 <input type="hidden" name="id" />
@@ -131,7 +135,7 @@
     <script src="../js/utils.js?v=12"></script>
     <script src="../js/date-utils.js?v=4"></script>
     <script src="../js/layout.js?v=83"></script>
-    <script src="../js/pages/groups.js?v=4"></script>
+    <script src="../js/pages/groups.js?v=5"></script>
 
 </body>
 </html>

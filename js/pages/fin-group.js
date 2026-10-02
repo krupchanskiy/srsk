@@ -266,9 +266,9 @@ const цели = () => marked.size ? lines.filter(l => marked.has(l.key)) : line
 // Комната + период — одна группа строк: у группы разные заезды по номерам (ВГ, 28.09)
 // Без номера — по брони: места одной групповой брони вместе, разные брони не сливаются
 const ключКомнаты = l => l.place ? `${l.place.room_id || 'b:' + (l.place.booking_id || l.key)}|${l.place.check_in}|${l.place.check_out}` : l.key;
-// Название шапки: номер, место без номера или группа питания
+// Название шапки: номер, место без номера или запись «Разового питания»
 const имяГруппы = (p, label) => p?.room_id ? `${p.building || ''} №${p.room || '—'}`
-    : p ? `Без номера: ${p.booking_name || label || 'питание'}` : `Питание: ${label || 'группа'}`;
+    : p ? `Без номера: ${p.booking_name || label || 'питание'}` : `Разовое питание: ${label || 'группа'}`;
 
 function render() {
     const body = document.getElementById('grBody');
