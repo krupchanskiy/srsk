@@ -942,6 +942,7 @@ async function saveExternal(ev) {
     let mealId = mealData?.id;
     const defaultPortions = getEatingTotal(date, mealType);
     if (!mealId) {
+        const locationId = getCurrentLocation()?.id;
         const { data: newMeal } = await Layout.db.from('menu_meals')
             .upsert({ location_id: locationId, date, meal_type: mealType, portions: defaultPortions }, { onConflict: 'location_id,date,meal_type' })
             .select().single();
@@ -984,6 +985,7 @@ async function setMealFast(date, mealType, isFast) {
     if (!canEditMenu()) return;
     const mealData = menuData[date]?.[mealType];
     const portions = mealData?.portions || getEatingTotal(date, mealType);
+    const locationId = getCurrentLocation()?.id;
     const { data, error } = await Layout.db.from('menu_meals')
         .upsert({ location_id: locationId, date, meal_type: mealType, portions, is_fast: isFast }, { onConflict: 'location_id,date,meal_type' })
         .select('id').single();
