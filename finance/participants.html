@@ -446,6 +446,7 @@
         <div id="grUnplaced" class="mb-2"></div>
         <div class="border border-base-300 rounded-lg p-2 mb-2 text-sm">
             <div class="font-semibold text-xs uppercase opacity-60 mb-1">Сразу <span id="grBulkWho"></span></div>
+            <div class="text-xs opacity-60 mb-1">Договорные цены группы — остаются здесь и попадают в сводку организатору:</div>
             <div class="flex flex-wrap items-center gap-1 mb-2">
                 номер 2-мест. <input type="number" id="grB2" min="0" step="50" class="input input-bordered input-xs w-20" placeholder="₹">
                 4-мест. <input type="number" id="grB4" min="0" step="50" class="input input-bordered input-xs w-20" placeholder="₹">
@@ -462,8 +463,8 @@
                 <thead class="sticky top-0 bg-base-100 z-10"><tr>
                     <th><input type="checkbox" id="grMarkAll" class="checkbox checkbox-xs" title="Отметить все"></th>
                     <th title="Начисляем">Начисл.</th><th>Место / имя</th><th>Даты</th><th>Ночей</th><th>Номер ₹ ÷ чел.</th>
-                    <th class="text-right">Проживание</th><th class="text-right">Завтр.</th><th class="text-right">Обеды</th>
-                    <th class="text-right">Питание</th><th>Доп. ₹</th><th class="text-right">Итого</th><th></th>
+                    <th class="text-right">Проживание</th><th title="Нажмите на число — питание по дням">Завтраки × ₹</th><th title="Нажмите на число — питание по дням">Обеды × ₹</th>
+                    <th class="text-right">Питание</th><th>Доп. ₹</th><th class="text-right">Итого</th><th>Платит</th>
                 </tr></thead>
                 <tbody id="grBody"></tbody>
             </table>
@@ -536,7 +537,7 @@
 <script src="../js/fin-utils.js?v=21"></script>
 <script src="../js/pages/fin-participants.js?v=74"></script>
 <script src="../js/pages/fin-guests.js?v=10"></script>
-<script src="../js/pages/fin-group.js?v=10"></script>
+<script src="../js/pages/fin-group.js?v=11"></script>
 
 </body>
 </html>
