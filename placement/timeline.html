@@ -891,6 +891,9 @@
                         </div>
                         <!-- Волонтёр или команда без карточки — при сохранении создаётся черновая (ВГ 02.10) -->
                         <div id="bookingNewPersonHint" class="text-xs text-amber-700 mt-1 hidden"></div>
+                        <!-- Ещё люди этой брони: каждое имя — своё место (ВГ 02.10) -->
+                        <div id="bookingExtraPeople"></div>
+                        <button type="button" id="bookingAddPerson" class="btn btn-ghost btn-xs text-primary self-start mt-1 px-1" onclick="addBookingPersonRow()">+ ещё человек</button>
                     </div>
 
                     <!-- Департамент и служение: волонтёра и команду бронируют сразу под департамент
@@ -956,7 +959,7 @@
                         <label class="label py-1">
                             <span class="label-text font-medium" data-i18n="booking_beds_count">Количество мест</span>
                         </label>
-                        <input type="number" name="beds_count" min="1" value="1" class="input input-bordered input-sm w-full" required />
+                        <input type="number" name="beds_count" min="1" value="1" class="input input-bordered input-sm w-full" required oninput="this.dataset.manual = this.value" />
                         <div id="bookingSelfHint" class="text-xs opacity-70 mt-1 hidden">Места без номера: имена можно не вписывать сейчас — они вписываются в места по мере появления, у каждого места свои даты. Кухня считает места с даты заезда.</div>
                     </div>
 
@@ -1232,7 +1235,7 @@
         if (btn) { btn.classList.toggle('btn-active', isFS); btn.title = isFS ? Layout.t('normal_view') : Layout.t('fullscreen'); }
     }
     </script>
-    <script src="../js/pages/timeline.js?v=57"></script>
+    <script src="../js/pages/timeline.js?v=58"></script>
 
 </body>
 </html>

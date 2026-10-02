@@ -954,6 +954,9 @@ function showBookingForm() {
     const bookingCatSel = document.getElementById('bookingCategory');
     if (bookingCatSel) delete bookingCatSel.dataset.touched;
     clearBookingVaishnavSelection();
+    const extraPeople = document.getElementById('bookingExtraPeople');
+    if (extraPeople) extraPeople.innerHTML = '';
+    delete document.getElementById('bookingForm').beds_count.dataset.manual;
 
     // Бронь без номера: группа местами без имён или один человек (ВГ, 01.10)
     const isSelf = !!modalContext?.isSelf;
@@ -1006,6 +1009,9 @@ function setBookingEditMode(on, isLiving) {
     if (on) document.getElementById('bookingTitle').textContent = isLiving
         ? tf('timeline_edit_stay', 'Изменить проживание') : tf('timeline_edit_booking', 'Изменить бронь');
     document.getElementById('bookingBedsRow').classList.toggle('hidden', on);
+    // При правке — только этот человек; ещё людей добавляют только в новую бронь
+    document.getElementById('bookingAddPerson')?.classList.toggle('hidden', on);
+    if (on) { const extra = document.getElementById('bookingExtraPeople'); if (extra) extra.innerHTML = ''; }
     if (!on) {
         document.getElementById('bookingEditGroupHint').classList.add('hidden');
         document.getElementById('bookingContactName').required = true;
@@ -1553,6 +1559,81 @@ document.getElementById('bookingVaishnavaSuggestions')?.addEventListener('click'
     if (el) selectBookingVaishnava(el.dataset.id);
 });
 
+// ===== Несколько человек в одной брони (ВГ 02.10) =====
+// Под первым «Вайшнавом» — «+ ещё человек»: каждое имя занимает своё место брони,
+// число мест подтягивается под число людей. Из справочника — поиском, нет там — просто имя.
+function addBookingPersonRow() {
+    const box = document.getElementById('bookingExtraPeople');
+    if (!box) return;
+    const row = document.createElement('div');
+    row.className = 'relative flex gap-1 mt-2';
+    row.dataset.personRow = '1';
+    row.innerHTML = `<input type="hidden" data-role="id" />
+        <input type="text" data-role="name" class="input input-bordered input-sm w-full" autocomplete="off"
+               placeholder="${e(tf('timeline_search_by_name', 'Поиск по имени...'))}" />
+        <button type="button" class="btn btn-ghost btn-xs self-center" data-action="remove-booking-person">✕</button>
+        <div data-role="suggestions" class="hidden absolute z-50 top-full left-0 right-8 bg-base-100 shadow-lg rounded-lg mt-1 max-h-48 overflow-y-auto border"></div>`;
+    box.appendChild(row);
+    syncBookingBeds();
+    row.querySelector('[data-role="name"]').focus();
+}
+
+// Мест не меньше, чем людей; больше — если вписали вручную (едут ещё безымянные)
+function syncBookingBeds() {
+    const beds = document.getElementById('bookingForm').beds_count;
+    const people = 1 + document.querySelectorAll('#bookingExtraPeople [data-person-row]').length;
+    beds.value = Math.max(parseInt(beds.dataset.manual) || 1, people);
+}
+
+// Люди брони по порядку мест: первый — из поля «Вайшнав», дальше — добавленные строки
+function bookingPeople() {
+    const people = [{
+        id: document.getElementById('bookingVaishnavId')?.value || null,
+        name: document.getElementById('bookingVaishnavSearch')?.value.trim() || ''
+    }];
+    document.querySelectorAll('#bookingExtraPeople [data-person-row]').forEach(row => {
+        const id = row.querySelector('[data-role="id"]').value || null;
+        const name = row.querySelector('[data-role="name"]').value.trim();
+        if (id || name) people.push({ id, name });
+    });
+    return people;
+}
+
+{
+    const box = document.getElementById('bookingExtraPeople');
+    box?.addEventListener('input', ev => {
+        const row = ev.target.closest('[data-person-row]');
+        if (!row || ev.target.dataset.role !== 'name') return;
+        row.querySelector('[data-role="id"]').value = '';
+        const sug = row.querySelector('[data-role="suggestions"]');
+        const q = ev.target.value.trim().toLowerCase();
+        if (q.length < 2) { sug.classList.add('hidden'); return; }
+        const matches = vaishnavas.filter(v =>
+            getVaishnavName(v).toLowerCase().includes(q) || (v.phone || '').toLowerCase().includes(q)).slice(0, 10);
+        sug.innerHTML = matches.length
+            ? matches.map(v => `<div class="p-2 hover:bg-base-200 cursor-pointer" data-action="select-booking-person" data-id="${v.id}">${e(getVaishnavName(v))}</div>`).join('')
+            : `<div class="p-3 text-gray-500 text-sm">${e(tf('timeline_not_found_new_name', 'Нет в справочнике — сохраним просто имя'))}</div>`;
+        sug.classList.remove('hidden');
+    });
+    box?.addEventListener('click', ev => {
+        const row = ev.target.closest('[data-person-row]');
+        if (!row) return;
+        if (ev.target.closest('[data-action="remove-booking-person"]')) { row.remove(); syncBookingBeds(); return; }
+        const pick = ev.target.closest('[data-action="select-booking-person"]');
+        if (pick) {
+            const v = vaishnavas.find(x => x.id === pick.dataset.id);
+            row.querySelector('[data-role="id"]').value = pick.dataset.id;
+            row.querySelector('[data-role="name"]').value = v ? getVaishnavName(v) : '';
+            row.querySelector('[data-role="suggestions"]').classList.add('hidden');
+        }
+    });
+    document.addEventListener('click', ev => {
+        document.querySelectorAll('#bookingExtraPeople [data-person-row]').forEach(row => {
+            if (!row.contains(ev.target)) row.querySelector('[data-role="suggestions"]').classList.add('hidden');
+        });
+    });
+}
+
 // Ретрит в форме бронирования: если выбран человек — сначала пробуем его
 // регистрации (как при заселении), иначе подсказываем по пересечению дат.
 async function suggestBookingRetreat() {
@@ -1745,7 +1826,9 @@ async function saveBooking(e) {
     const form = e.target;
     if (modalContext?.editResidentId) return saveBookingEdit(form);
 
-    const bedsCount = parseInt(form.beds_count.value) || 1;
+    // Люди брони — каждый на своё место; мест не меньше, чем людей
+    const people = bookingPeople();
+    const bedsCount = Math.max(parseInt(form.beds_count.value) || 1, people.length);
 
     // Создаём бронирование
     const earlyCheckin = form.early_checkin.checked;
@@ -1762,8 +1845,12 @@ async function saveBooking(e) {
     if (retreatDatesMismatch(bookingRetreatId, form.check_in.value, form.check_out.value)) {
         Layout.showNotification(retreatDatesMismatchText(), 'warning');
     }
-    let bookingVaishnavaId = form.vaishnava_id?.value || null;
     const bookingCategoryId = form.category_id?.value || null;
+    const chosenIds = people.map(p => p.id).filter(Boolean);
+    if (new Set(chosenIds).size !== chosenIds.length) {
+        Layout.showNotification(tf('timeline_person_twice', 'Один и тот же человек выбран дважды'), 'error');
+        return;
+    }
 
     // Волонтёр и команда (ВГ 02.10): департамент обязателен; человек — из справочника,
     // а если его там нет, по вписанному имени заводим черновую карточку
@@ -1774,15 +1861,18 @@ async function saveBooking(e) {
         Layout.showNotification(tf('timeline_department_required', 'Выберите департамент: у волонтёра и команды он обязателен'), 'error');
         return;
     }
-    const typedName = document.getElementById('bookingVaishnavSearch')?.value.trim() || '';
-    if (staff && !bookingVaishnavaId && !typedName) {
+    if (staff && !people[0].id && !people[0].name) {
         Layout.showNotification(tf('timeline_person_required', 'Укажите человека: выберите из справочника или впишите имя — заведём черновую карточку'), 'error');
         return;
     }
+    // Команда и волонтёры — у каждого вписанного имени черновая карточка; гость — имя в месте
     if (staff) {
-        bookingVaishnavaId = await ensureStaffPerson(bookingVaishnavaId, typedName, service, bookingCategoryId);
-        if (!bookingVaishnavaId) return;
+        for (const p of people) {
+            p.id = await ensureStaffPerson(p.id, p.name, service, bookingCategoryId);
+            if (!p.id) return;
+        }
     }
+    const bookingVaishnavaId = people[0].id;
 
     const bookingData = {
         name: bookingName,
@@ -1811,13 +1901,15 @@ async function saveBooking(e) {
     }
 
     // Создаём placeholder резидентов для бронирования.
-    // Первое место — за выбранным гостем (если указан), остальные безымянные.
+    // Места по порядку — за указанными людьми, остальные безымянные.
     const residents = [];
     for (let i = 0; i < bedsCount; i++) {
+        const person = people[i];
         residents.push({
             room_id: modalContext.roomId,
             booking_id: booking.id,
-            vaishnava_id: i === 0 ? bookingVaishnavaId : null,
+            vaishnava_id: person?.id || null,
+            guest_name: person && !person.id ? (person.name || null) : null,
             // Пусто — не передаём, чтобы сработал default колонки («Гость»)
             ...(bookingCategoryId ? { category_id: bookingCategoryId } : {}),
             // Департамент — у каждого места; у места с человеком база пишет его в историю служения
