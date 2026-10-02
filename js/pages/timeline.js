@@ -775,7 +775,7 @@ async function loadDictionaries() {
             if (error) { console.error('Error loading resident_categories:', error); return null; }
             return (data || []).filter(c => (c.sort_order || 0) < 999);
         }),
-        Utils.fetchAll((from, to) => Layout.db.from('vaishnavas').select('id, spiritual_name, first_name, last_name, gender, phone, birth_date').eq('is_deleted', false).order('spiritual_name').range(from, to)),
+        Utils.fetchAll((from, to) => Layout.db.from('vaishnavas').select('id, spiritual_name, first_name, last_name, gender, phone, birth_date, status').eq('is_deleted', false).order('spiritual_name').range(from, to)),
         Layout.db.from('departments').select('id, name_ru, name_en, name_hi, sort_order').order('sort_order')
             .then(({ data, error }) => { if (error) console.error('departments:', error); departments = data || []; })
     ]);
@@ -1331,10 +1331,18 @@ async function suggestBookingCategory(vaishnavaId) {
         .eq('is_deleted', false)
         .not('status', 'in', '("cancelled","rejected")');
     const fits = (data || []).filter(r => retreatIdFits(r.retreat_id, from, to));
-    const catId = fits.length ? BOOKING_STATUS_CATEGORY[fits[0].status] : null;
+    let catId = fits.length ? BOOKING_STATUS_CATEGORY[fits[0].status] : null;
+    let hintText = Layout.t('timeline_retreat_auto') || 'подставлено по регистрации';
+    // Регистрации нет — по статусу человека в карточке (волонтёр / команда). Категорию
+    // можно поменять, статус в карточке от этого не меняется (ВГ 02.10)
+    if (!catId) {
+        const status = vaishnavas.find(v => v.id === vaishnavaId)?.status;
+        catId = BOOKING_STATUS_CATEGORY[status] || null;
+        hintText = tf('timeline_category_by_status', 'по статусу в карточке');
+    }
     if (catId && sel.querySelector(`option[value="${catId}"]`)) {
         sel.value = catId;
-        if (hint) hint.textContent = Layout.t('timeline_retreat_auto') || 'подставлено по регистрации';
+        if (hint) hint.textContent = hintText;
     }
     toggleBookingStaffFields();
 }
@@ -1564,10 +1572,12 @@ async function saveBooking(e) {
         return;
     }
     if (staff && !bookingVaishnavaId) {
-        const isTeam = categories.find(c => c.id === bookingCategoryId)?.slug === 'team';
+        // Статус карточки — по категории брони (поле статуса — «Вайшнавы 1», мигр. 619;
+        // is_team_member синхронизирует триггер)
+        const status = categories.find(c => c.id === bookingCategoryId)?.slug === 'team' ? 'team' : 'volunteer';
         const { data: draft, error: draftError } = await Layout.db.from('vaishnavas')
-            .insert({ spiritual_name: typedName, service, is_team_member: isTeam })
-            .select('id, spiritual_name, first_name, last_name, gender, phone, birth_date')
+            .insert({ spiritual_name: typedName, service, status })
+            .select('id, spiritual_name, first_name, last_name, gender, phone, birth_date, status')
             .single();
         if (draftError) { Layout.handleError(draftError, tf('timeline_draft_card', 'Черновая карточка')); return; }
         bookingVaishnavaId = draft.id;
