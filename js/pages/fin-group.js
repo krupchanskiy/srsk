@@ -23,6 +23,7 @@ let removed = 0;          // мест из прошлого листа боль�
 let marked = new Set();   // отмеченные строки — для «сразу всем»
 let expanded = null;      // строка, раскрытая по дням
 let dirty = false;        // есть несохранённые правки
+let draft = false;        // лист сохранён черновиком, но не начислен (ВГ, 02.10)
 let tariff = null;
 let rooms = [];           // цены номеров по услугам CRM (здание × вместимость), из «Тарифов»
 let bookings = [];        // брони события: мест в брони / в шахматке
@@ -134,9 +135,11 @@ async function open() {
     payer = data.payer;
     advances = data.advances || [];
     payerKey = null;
-    marked = new Set(); expanded = null; dirty = false;
+    marked = new Set(); expanded = null; dirty = false; draft = !!data.sheet?.draft;
     document.getElementById('grTitle').textContent = ret.name;
     await buildLines(data);
+    // организатор из строки списка, выбранный в черновике
+    if (!payer) payerKey = (data.sheet?.lines || []).find(l => l.org && lines.some(x => x.key === l.key))?.key || null;
     fillPrices(data.sheet?.prices);
     renderPayer();
     renderRates();
@@ -184,17 +187,19 @@ async function buildLines(data) {
         ключи.add(key);
         // Место без номера (живёт сам, ест с нами — ВГ, 29.09): только питание, без ночей и цены номера
         const тип = p.room_id ? FinGuests.типНомера(p, rooms) : null;
+        const s = saved.get(key);
+        // питание включили здесь и сохранили черновиком — в шахматке оно ещё выключено
+        const mealsOn = !!s?.has_meals && p.has_meals === false;
         const fresh = {
             nights: p.room_id && p.check_out ? Math.max(днейМежду(p.check_in, p.check_out), 0) : 0,
             people: Math.max(Number(p.roommates) || 1, 1),
-            meals: p.has_meals === false ? [] : (поДням.get(p.resident_id) || []).map(m => ({ ...m }))
+            meals: mealsOn ? питаниеПоДатам(p) : p.has_meals === false ? [] : (поДням.get(p.resident_id) || []).map(m => ({ ...m }))
         };
         // база для пропусков: шахматка без прежних пропусков этого места
         const base = fresh.meals.map(m => {
             const sk = (p.skips || []).find(x => x.d === m.d);
             return { d: m.d, b: m.b || !!sk?.b, l: m.l || !!sk?.l };
         });
-        const s = saved.get(key);
         const тотЖе = s && s.check_in === p.check_in && s.check_out === p.check_out;
         lines.push({
             key, place: p, resident_id: p.resident_id, persons: 1, base,
@@ -202,7 +207,7 @@ async function buildLines(data) {
             label: s?.label || p.name || изБрони || '',
             included: s ? s.included !== false : true,
             excludeReason: s?.exclude_reason || '',
-            mealsOn: false,   // питание включили здесь — уйдёт в шахматку
+            mealsOn,          // питание включили здесь — уйдёт в шахматку
             // цена номера — по зданию и вместимости, как в прайсе ретритов (FinGuests.типНомера);
             // меньшая вместимость типа = доп. кровать; цена не задана — вписать вручную
             roomType: тип,
@@ -522,7 +527,8 @@ function renderTotal() {
         Проживание <b class="font-mono">${inr(s.проживание)}</b> · питание <b class="font-mono">${inr(s.питание)}</b>
         <span class="opacity-60">(завтраков ${s.завтраков}, обедов ${s.обедов})</span>${s.доп ? ` · доп. <b class="font-mono">${inr(s.доп)}</b>` : ''}
         · <b>итого <span class="font-mono">${inr(всего)}</span></b>
-        ${dirty ? ' <span class="badge badge-warning badge-sm">не сохранено</span>' : ''}
+        ${dirty ? ' <span class="badge badge-warning badge-sm">не сохранено</span>'
+            : draft ? ' <span class="badge badge-info badge-sm">черновик — не начислено</span>' : ''}
         ${сам.length ? `<div class="text-xs opacity-70">Платят сами: ${сам.length} чел. — <span class="font-mono">${inr(сумСами)}</span>, в сумму организатора не входит</div>` : ''}
         <div class="text-xs">${аванс
             ? `− аванс группы <b class="font-mono">${inr(аванс)}</b> <span class="opacity-60">(${advances.map(x => `${дата(x.date)}${x.currency !== 'INR' ? `, ${FinUtils.fmtMoney(x.amount, x.currency)}` : ''}${x.account ? `, ${e(x.account)}` : ''}`).join('; ')})</span>
@@ -558,10 +564,27 @@ async function save() {
     Layout.showNotification((r.changed.length
         ? `Начислено организатору: ${r.changed.map(k => названия[k]).join(', ')} обновлено`
         : 'Сохранено — суммы не изменились') + (r.self_pay ? ` · платят сами: ${r.self_pay} — на их карточках` : ''), 'success');
-    dirty = false;
+    dirty = false; draft = false;
     document.getElementById('groupChargeModal').close();
     await FinParticipants.reload();
     FinParticipants.openCardById(r.payer_id);
+}
+
+// Черновик (ВГ, 02.10): правки по ходу переговоров — только в лист. На карточку, в шахматку
+// и кухне ничего не уходит, это делает «Начислить». Даты места — как в шахматке (ранний
+// выезд пересчитается из питания), иначе при открытии лист собрался бы заново
+async function saveDraft() {
+    const draftLines = lines.map(l => {
+        const o = toLine(l);
+        if (l.place) { o.check_out = l.place.check_out; o.nights = l.nights; delete o.depart_on; }
+        if (l.key === payerKey) o.org = true;
+        return o;
+    });
+    const res = await FinUtils.rpc('fin_group_save_draft', { retreat_id: ret.id, lines: draftLines, prices: prices() });
+    if (!res?.ok) { Layout.showNotification(res?.error?.message || 'Ошибка', 'error'); return; }
+    dirty = false; draft = true;
+    Layout.showNotification('Сохранено черновиком — начисления не менялись', 'success');
+    renderTotal();
 }
 
 function toLine(l) {
@@ -610,7 +633,7 @@ const СЛОВА = {
           paid: 'Оплачено', left: 'Осталось оплатить', currency: 'Валюта расчёта', rate: 'курс', notCharged: 'Не начисляем',
           byRoom: 'Гости по номерам', room: 'Номер', dates: 'Даты', noId: 'Гость (без документа)', mealsOnly: 'только питание',
           selfMark: 'платит сам', ashram: 'за счёт ашрама', roomType: n => `${n}-местный номер`, inCur: 'В валюте расчёта',
-          unsaved: 'Внимание: в окне есть несохранённые правки — «начислено» и «осталось» по сохранённому' },
+          unsaved: 'Внимание: в окне есть не начисленные правки — «начислено» и «осталось» по последнему начислению' },
     en: { org: 'Organizer', rates: 'Agreed rates', perNight: 'night', breakfast: 'Breakfast', lunch: 'Lunch', extraBed: 'Extra bed',
           stay: 'Accommodation', rooms: 'Rooms', guests: 'Guests', nights: 'Nights', amount: 'Amount', meals: 'Meals', count: 'Count', price: 'Price',
           breakfasts: 'Breakfasts', lunches: 'Lunches', noB: 'no breakfast', noL: 'no lunch', noBL: 'no meals', people: n => `${n} guest${n === 1 ? '' : 's'}`,
@@ -620,7 +643,7 @@ const СЛОВА = {
           byRoom: 'Guests by room', room: 'Room', dates: 'Dates', noId: 'Guest (no ID provided)', mealsOnly: 'meals only',
           selfMark: 'pays individually', ashram: "at the ashram's expense",
           roomType: n => ({ 1: 'Single room', 2: 'Double room', 3: 'Triple room', 4: 'Quad room' })[n] || `${n}-bed room`, inCur: 'In settlement currency',
-          unsaved: 'Note: there are unsaved changes — “charged” and “balance” reflect the saved version' },
+          unsaved: 'Note: there are changes not yet charged — “charged” and “balance” reflect the last charge' },
     hi: { org: 'आयोजक', rates: 'तय दरें', perNight: 'रात', breakfast: 'नाश्ता', lunch: 'दोपहर का भोजन', extraBed: 'अतिरिक्त बिस्तर',
           stay: 'आवास', rooms: 'कमरे', guests: 'मेहमान', nights: 'रातें', amount: 'राशि', meals: 'भोजन', count: 'संख्या', price: 'दर',
           breakfasts: 'नाश्ते', lunches: 'दोपहर के भोजन', noB: 'नाश्ता नहीं', noL: 'दोपहर का भोजन नहीं', noBL: 'भोजन नहीं', people: n => `${n} मेहमान`,
@@ -629,7 +652,7 @@ const СЛОВА = {
           paid: 'भुगतान किया', left: 'शेष देय', currency: 'भुगतान मुद्रा', rate: 'दर', notCharged: 'शुल्क नहीं लिया गया',
           byRoom: 'कमरेवार मेहमान', room: 'कमरा', dates: 'तिथियाँ', noId: 'अतिथि (पहचान पत्र नहीं दिया)', mealsOnly: 'केवल भोजन',
           selfMark: 'स्वयं भुगतान', ashram: 'आश्रम के खर्च पर', roomType: n => `${n} बिस्तर वाला कमरा`, inCur: 'भुगतान मुद्रा में',
-          unsaved: 'ध्यान दें: बिना सहेजे बदलाव हैं — «प्रभारित» और «शेष» सहेजे गए संस्करण के अनुसार' }
+          unsaved: 'ध्यान दें: कुछ बदलाव अभी प्रभारित नहीं हुए — «प्रभारित» और «शेष» पिछले शुल्क के अनुसार' }
 };
 const ЛОКАЛЬ = { ru: 'ru-RU', en: 'en-GB', hi: 'hi-IN' };
 let язык = 'ru';
@@ -766,7 +789,7 @@ function summaryHtml(d) {
                 <td>${g.люди.map(l => `${e(имяГостя(l))}${l.selfPay ? ` <i class="mute">(${T.selfMark})</i>` : ''}${!l.included ? ` <i class="mute">(${e(причина(l.excludeReason))})</i>` : ''}`).join(', ')}</td>
                 <td ${R}>${g.сумма ? деньги(round2(g.сумма)) : ''}</td></tr>`; }).join('')}
         </table>
-        ${dirty ? `<div class="warn no-print">${T.unsaved}</div>` : ''}
+        ${dirty || draft ? `<div class="warn no-print">${T.unsaved}</div>` : ''}
     </div>`;
 }
 // сумма завтраков или обедов по группе
@@ -857,6 +880,12 @@ function init() {
         if (saveBtn.disabled) return;
         saveBtn.disabled = true;
         try { await save(); } finally { saveBtn.disabled = false; }
+    });
+    const draftBtn = document.getElementById('grDraft');
+    draftBtn.addEventListener('click', async () => {
+        if (draftBtn.disabled) return;
+        draftBtn.disabled = true;
+        try { await saveDraft(); } finally { draftBtn.disabled = false; }
     });
     // закрыть с несохранёнными правками — только осознанно
     modal.addEventListener('cancel', ev => { if (dirty && !confirm('Правки не сохранены. Закрыть?')) ev.preventDefault(); });
