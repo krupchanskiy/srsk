@@ -54,6 +54,8 @@ function balanceBadge(res, hasDebt, hasCredit) {
 }
 let selfAccommodated = [];        // проживающие без номера: живут вне территории, в сетку не попадают
 let selfStays = [];               // группа «Самостоятельное проживание» внизу шахматки
+const expandedSelfGroups = new Set(); // раскрытые групповые брони без номера (по умолчанию свёрнуты)
+const SEAT_FORMS = { ru: ['место', 'места', 'мест'], en: ['seat', 'seats'], hi: 'स्थान' };
 const SELF_GROUP_ID = '__self';   // её ключ в collapsedBuildings: гости
 const SELF_TEAM_ID = '__self_team';   // …и команда с волонтёрами — отдельным блоком (ВГ, 29.09)
 const SELF_BLOCKS = [['guests', SELF_GROUP_ID], ['team', SELF_TEAM_ID]];
@@ -828,6 +830,12 @@ function showActionScreen() {
     document.getElementById('actionScreen').classList.remove('hidden');
     document.getElementById('checkinScreen').classList.add('hidden');
     document.getElementById('bookingScreen').classList.add('hidden');
+    // Без номера (самостоятельное проживание): уборка, бельё и ремонт не нужны,
+    // «Заселить» = человек уже здесь, заезд отмечается сразу
+    const isSelf = !!modalContext?.isSelf;
+    document.querySelectorAll('#actionScreen [data-room-only]').forEach(b => b.classList.toggle('hidden', isSelf));
+    document.getElementById('actionCheckinLabel').textContent = isSelf
+        ? tf('timeline_self_here', 'Уже здесь (заехал)') : t('timeline_checkin');
 }
 
 function showCheckinForm() {
@@ -855,8 +863,6 @@ function showCheckinForm() {
 
     // «+ Добавить» в блоке «Самостоятельное проживание» — та же форма, но без номера
     const isSelf = !!modalContext.isSelf;
-    document.getElementById('checkinBack').classList.toggle('hidden', isSelf);
-    document.getElementById('checkinBackBtn').classList.toggle('hidden', isSelf);
     document.getElementById('checkinTitle').textContent = isSelf ? selfBlockLabel(modalContext.selfKind) : t('timeline_checkin_title');
     // Из блока команды — сразу категория «Команда», её можно сменить на «Волонтёр»
     if (isSelf && modalContext.selfKind === 'team') {
@@ -889,7 +895,9 @@ function openSelfStayModal(kind = 'guests') {
     document.getElementById('modalLocation').textContent = `${selfBlockLabel(kind)} (${hint})`;
     document.getElementById('modalCheckIn').value = formatDateForInput(today);
     document.getElementById('modalCheckOut').value = formatDateForInput(tomorrow);
-    showCheckinForm();
+    // Выбор, как у номера: «Уже здесь» (заезд сразу) или «Забронировать» — один человек
+    // или группа местами без имён; бронь висит пунктиром, пока не отмечен заезд (ВГ, 01.10)
+    showActionScreen();
     document.getElementById('actionModal').showModal();
 }
 
@@ -899,7 +907,7 @@ function openSelfStay(id) {
     if (!res) return;
     const name = (res.vaishnavas ? getVaishnavName(res.vaishnavas, '') : '') || res.guest_name || '—';
     openResidentModal({
-        id: res.id, name, isBooking: false, rawData: res,
+        id: res.id, name: name !== '—' ? name : selfSeatName(res), isBooking: !res.arrived_at, rawData: res,
         hasDebt: debtorsSet.has(finKey(res)),
         hasCredit: creditorsSet.has(finKey(res))
     }, selfBlockLabel(selfKind(res)), '');
@@ -931,6 +939,17 @@ function showBookingForm() {
     const bookingCatSel = document.getElementById('bookingCategory');
     if (bookingCatSel) delete bookingCatSel.dataset.touched;
     clearBookingVaishnavSelection();
+
+    // Бронь без номера: группа местами без имён или один человек (ВГ, 01.10)
+    const isSelf = !!modalContext?.isSelf;
+    document.getElementById('bookingTitle').textContent = isSelf
+        ? `${tf('timeline_booking_title', 'Бронирование')}: ${selfBlockLabel(modalContext.selfKind)}`
+        : t('timeline_booking_title');
+    document.getElementById('bookingSelfHint').classList.toggle('hidden', !isSelf);
+    if (isSelf && modalContext.selfKind === 'team' && bookingCatSel) {
+        const team = categories.find(c => c.slug === 'team');
+        if (team) { bookingCatSel.value = team.id; bookingCatSel.dataset.touched = '1'; }
+    }
 }
 
 // ===== Поиск вайшнавов =====
@@ -1412,7 +1431,8 @@ async function saveCheckin(e) {
         arrived_at: new Date().toISOString(),
         meal_type: mealTypeVal,
         // Самостоятельное проживание: без номера, живёт вне ашрама
-        has_housing: !modalContext.isSelf,
+        // Без номера — живёт вне ашрама (и при вписывании имени в место брони без номера)
+        has_housing: !!modalContext.roomId,
         has_meals: mealTypeVal !== 'self',
         // Галочки «Прасад» — основа расчёта порций на кухне
         breakfast: form.breakfast?.checked ?? true,
@@ -1525,8 +1545,10 @@ async function saveBooking(e) {
             check_out: form.check_out.value,
             early_checkin: earlyCheckin,
             late_checkout: lateCheckout,
-            has_housing: true,
-            has_meals: null,
+            // Без номера — живёт вне ашрама, только питание (окно «Начислить группе» не берёт ночи)
+            has_housing: !!modalContext.roomId,
+            // В номере «питается?» уточняют при заселении; без номера бронь и есть питание
+            has_meals: modalContext.roomId ? null : (bookingBreakfast || bookingLunch),
             // Питание считается уже с брони, не дожидаясь заселения
             breakfast: bookingBreakfast,
             lunch: bookingLunch,
@@ -3189,6 +3211,11 @@ function setupTimelineDelegation() {
                 case 'open-resident-from-map': openResidentFromMap(id, ev); break;
                 case 'add-self-stay': openSelfStayModal(el.dataset.kind); break;
                 case 'open-self-stay': openSelfStay(id); break;
+                case 'toggle-self-group':
+                    if (expandedSelfGroups.has(id)) expandedSelfGroups.delete(id); else expandedSelfGroups.add(id);
+                    renderTable();
+                    break;
+                case 'self-group-arrived': markSelfGroupArrived(id); break;
                 case 'open-finance':
                     window.open(el.dataset.href || `../finance/participants.html?retreat=${el.dataset.retreat}&open=${el.dataset.person}`, '_blank');
                     break;
@@ -3303,53 +3330,148 @@ function renderSelfGroupHtml(kind) {
     for (let col = 0; col < DAYS_TO_SHOW * 2; col++) html += `<td class="${col % 2 === 0 ? 'day-start' : ''}"></td>`;
     html += '</tr>';
 
-    stays.forEach(res => {
-        let startDay = dateToDayIndex(res.check_in);
-        let endDay = res.check_out ? dateToDayIndex(res.check_out) : DAYS_TO_SHOW - 1;
-        if (startDay > DAYS_TO_SHOW - 1 || endDay < 0) return;
+    // Полоса по датам: [первая колонка, ширина] или null, если вне видимого периода
+    const span = (from, to) => {
+        let startDay = dateToDayIndex(from);
+        let endDay = to ? dateToDayIndex(to) : DAYS_TO_SHOW - 1;
+        if (startDay > DAYS_TO_SHOW - 1 || endDay < 0) return null;
         const startHalf = startDay < 0 ? 0 : 1;
         const endHalf = endDay > DAYS_TO_SHOW - 1 ? 1 : 0;
         startDay = Math.max(0, startDay);
         endDay = Math.min(DAYS_TO_SHOW - 1, endDay);
         const startCol = startDay * 2 + startHalf;
-        const width = Math.max(1, endDay * 2 + endHalf - startCol + 1) * CELL_WIDTH - 2;
-
-        let name = res.guest_name || '';
-        if (res.vaishnavas) name = getVaishnavName(res.vaishnavas, '');
-        if (!name && res.bookings) name = res.bookings.name || res.bookings.contact_name || '';
-        const cat = res.resident_categories || categories.find(c => c.id === res.category_id);
-        const catColor = Utils.isValidColor(cat?.color) ? cat.color : '#3b82f6';
-        const retreat = res.retreat_id ? allRetreats.find(r => r.id === res.retreat_id) : null;
-        const tag = res.retreat_id ? retreatTags.get(res.retreat_id) : null;
-        const meals = res.has_meals === true ? t('timeline_meals_yes')
-            : res.has_meals === false ? t('timeline_meals_no') : t('timeline_meals_unknown');
-        const dates = `${DateUtils.formatShort(res.check_in)} — ${res.check_out ? DateUtils.formatShort(res.check_out) : '…'}`;
-        const title = [name, cat ? Layout.getName(cat) : '', retreat ? Layout.getName(retreat) : '', dates, meals,
-            res.fromCrm ? crmHint : ''].filter(Boolean).join(' · ');
-        const badge = res.fromCrm ? '' : balanceBadge(res, debtorsSet.has(finKey(res)), creditorsSet.has(finKey(res)));
-        const inner = `${badge}${tag ? `<span class="retreat-tag">${e(tag.tag)}</span>` : ''}${e(name || '—')}&nbsp;<span class="opacity-70">(${e(meals.toLowerCase())})</span>`
-            + (res.fromCrm ? '<span class="self-crm">CRM</span>' : '');
-        // Команда и волонтёры — сплошным цветом категории, как в номерах (зелёный / оранжевый)
-        const mealsClass = (res.has_meals === true ? ' meals-yes' : res.has_meals === false ? ' meals-no' : '')
-            + (kind === 'team' ? ' self-staff' : '');
-        // Своя запись — клик открывает окно проживания (даты, выселить, переселить в номер, удалить);
-        // запись из CRM и без прав — карточка человека
-        const bar = canEdit && !res.fromCrm
-            ? `<div class="guest-bar self-stay${mealsClass} cursor-pointer" data-action="open-self-stay" data-id="${res.id}" style="width: ${width}px; --cat-color: ${catColor};" title="${e(title)}">${inner}</div>`
-            : res.vaishnava_id
-            ? `<a class="guest-bar self-stay${mealsClass}" href="../vaishnavas/person.html?id=${res.vaishnava_id}" style="width: ${width}px; --cat-color: ${catColor};" title="${e(title)}">${inner}</a>`
-            : `<div class="guest-bar self-stay${mealsClass}" style="width: ${width}px; --cat-color: ${catColor};" title="${e(title)}">${inner}</div>`;
-
-        html += `<tr class="row-bed ${collapsed ? 'collapsed' : ''}"><td class="sticky-col text-xs opacity-70 truncate" title="${e(retreat ? Layout.getName(retreat) : '')}">${e(retreat ? Layout.getName(retreat) : '')}</td>`;
+        return [startCol, Math.max(1, endDay * 2 + endHalf - startCol + 1) * CELL_WIDTH - 2];
+    };
+    const row = (labelHtml, labelTitle, startCol, bar, extraClass = '') => {
+        let tr = `<tr class="row-bed ${extraClass} ${collapsed ? 'collapsed' : ''}"><td class="sticky-col text-xs truncate" title="${e(labelTitle)}">${labelHtml}</td>`;
         for (let col = 0; col < DAYS_TO_SHOW * 2; col++) {
             const dayIndex = Math.floor(col / 2);
             const cls = [col % 2 === 0 ? 'day-start' : '', isWeekend(dayIndex) ? 'weekend' : '',
                 dayIndex === TODAY_INDEX ? 'today' : '', isEkadashi(dayIndex) ? 'ekadashi' : ''].join(' ');
-            html += `<td class="half-day ${cls}">${col === startCol ? bar : ''}</td>`;
+            tr += `<td class="half-day ${cls}">${col === startCol ? bar : ''}</td>`;
         }
-        html += '</tr>';
+        return tr + '</tr>';
+    };
+    const mealsText = v => v === true ? t('timeline_meals_yes') : v === false ? t('timeline_meals_no') : t('timeline_meals_unknown');
+    const mealsCls = v => (v === true ? ' meals-yes' : v === false ? ' meals-no' : '') + (kind === 'team' ? ' self-staff' : '');
+
+    const stayRow = (res, seatLabel) => {
+        const sp = span(res.check_in, res.check_out);
+        if (!sp) return '';
+        const [startCol, width] = sp;
+        const name = selfSeatName(res);
+        const cat = res.resident_categories || categories.find(c => c.id === res.category_id);
+        const catColor = Utils.isValidColor(cat?.color) ? cat.color : '#3b82f6';
+        const retreat = res.retreat_id ? allRetreats.find(r => r.id === res.retreat_id) : null;
+        const tag = res.retreat_id ? retreatTags.get(res.retreat_id) : null;
+        const meals = mealsText(res.has_meals);
+        // Бронь без номера: заезд ещё не отмечен — пунктиром, как бронь в номерах
+        const booked = !res.fromCrm && !res.arrived_at;
+        const dates = `${DateUtils.formatShort(res.check_in)} — ${res.check_out ? DateUtils.formatShort(res.check_out) : '…'}`;
+        const title = [name, cat ? Layout.getName(cat) : '', retreat ? Layout.getName(retreat) : '', dates, meals,
+            booked ? t('timeline_booking') : '', res.fromCrm ? crmHint : ''].filter(Boolean).join(' · ');
+        const badge = res.fromCrm ? '' : balanceBadge(res, debtorsSet.has(finKey(res)), creditorsSet.has(finKey(res)));
+        const inner = `${badge}${tag && !seatLabel ? `<span class="retreat-tag">${e(tag.tag)}</span>` : ''}${e(name)}&nbsp;<span class="opacity-70">(${e(meals.toLowerCase())})</span>`
+            + (res.fromCrm ? '<span class="self-crm">CRM</span>' : '');
+        const cls = `guest-bar self-stay${mealsCls(res.has_meals)}${booked ? ' self-booked' : ''}`;
+        const style = `width: ${width}px; --cat-color: ${catColor};`;
+        // Своя запись — клик открывает окно проживания или брони (даты, заезд, «Не приехал»,
+        // вписать имя в место); запись из CRM и без прав — карточка человека
+        const bar = canEdit && !res.fromCrm
+            ? `<div class="${cls} cursor-pointer" data-action="open-self-stay" data-id="${res.id}" style="${style}" title="${e(title)}">${inner}</div>`
+            : res.vaishnava_id
+            ? `<a class="${cls}" href="../vaishnavas/person.html?id=${res.vaishnava_id}" style="${style}" title="${e(title)}">${inner}</a>`
+            : `<div class="${cls}" style="${style}" title="${e(title)}">${inner}</div>`;
+        const label = seatLabel
+            ? `<span class="self-seat-label opacity-70">${e(seatLabel)}</span>`
+            : `<span class="opacity-70">${e(retreat ? Layout.getName(retreat) : '')}</span>`;
+        return row(label, retreat ? Layout.getName(retreat) : '', startCol, bar);
+    };
+
+    // Групповая бронь без номера (ВГ, 01.10): одна строка «Группа X · N мест», под ней места —
+    // с именами или «место k», у каждого свои даты. Кухня считает места, не строку группы
+    const groups = new Map();
+    for (const r of stays) if (r.booking_id && !r.fromCrm) {
+        if (!groups.has(r.booking_id)) groups.set(r.booking_id, []);
+        groups.get(r.booking_id).push(r);
+    }
+    for (const [id, seats] of groups) if (seats.length < 2) groups.delete(id);
+    const done = new Set();
+    stays.forEach(res => {
+        const seats = res.booking_id && groups.get(res.booking_id);
+        if (!seats) { html += stayRow(res); return; }
+        if (done.has(res.booking_id)) return;
+        done.add(res.booking_id);
+        const ordered = selfBookingSeats(res.booking_id);
+        const from = ordered.map(r => r.check_in).sort()[0];
+        const to = ordered.some(r => !r.check_out) ? null : ordered.map(r => r.check_out).sort().pop();
+        const sp = span(from, to);
+        if (!sp) return;
+        const [startCol, width] = sp;
+        const b = res.bookings || {};
+        const gname = b.name || b.contact_name || t('timeline_booking');
+        const expanded = expandedSelfGroups.has(res.booking_id);
+        const waiting = ordered.filter(r => !r.arrived_at).length;
+        const eats = ordered.filter(r => r.has_meals !== false).length;
+        const cat = res.resident_categories || categories.find(c => c.id === res.category_id);
+        const catColor = Utils.isValidColor(cat?.color) ? cat.color : '#3b82f6';
+        const retreat = res.retreat_id ? allRetreats.find(r => r.id === res.retreat_id) : null;
+        const tag = res.retreat_id ? retreatTags.get(res.retreat_id) : null;
+        const seatsText = Layout.pluralize(ordered.length, SEAT_FORMS);
+        const mealsNote = eats === ordered.length ? t('timeline_meals_yes').toLowerCase()
+            : `${t('timeline_meals_yes').toLowerCase()}: ${eats}`;
+        const title = [gname, seatsText, retreat ? Layout.getName(retreat) : '',
+            `${DateUtils.formatShort(from)} — ${to ? DateUtils.formatShort(to) : '…'}`, mealsNote,
+            waiting ? `${t('timeline_booking')}: ${waiting}` : ''].filter(Boolean).join(' · ');
+        const bar = `<div class="guest-bar self-stay self-group${mealsCls(eats ? true : false)}${waiting ? ' self-booked' : ''} cursor-pointer" data-action="toggle-self-group" data-id="${res.booking_id}" style="width: ${width}px; --cat-color: ${catColor};" title="${e(title)}">`
+            + `${tag ? `<span class="retreat-tag">${e(tag.tag)}</span>` : ''}${e(gname)} · ${e(seatsText)}&nbsp;<span class="opacity-70">(${e(mealsNote)})</span></div>`;
+        const label = `<span data-action="toggle-self-group" data-id="${res.booking_id}" class="cursor-pointer font-medium">`
+            + `<span class="toggle-arrow ${expanded ? '' : 'collapsed'}">▼</span> ${e(gname)} · ${ordered.length}</span>`
+            + (canEdit && waiting ? ` <button type="button" class="btn btn-xs btn-ghost text-primary px-1" data-action="self-group-arrived" data-id="${res.booking_id}" title="${e(tf('timeline_self_group_arrived_hint', 'Отметить заезд всем местам, где он ещё не отмечен'))}">${e(tf('timeline_self_group_arrived', 'Группа приехала'))}</button>` : '');
+        html += row(label, title, startCol, bar);
+        if (expanded) ordered.forEach((r, i) => {
+            const named = (r.vaishnavas ? getVaishnavName(r.vaishnavas, '') : '') || r.guest_name;
+            html += stayRow(r, named ? `${i + 1}. ${named}` : `${tf('timeline_self_seat', 'место')} ${i + 1}`);
+        });
     });
     return html;
+}
+
+// Места брони без номера по порядку (как созданы) — для «место k» и строки группы
+function selfBookingSeats(bookingId) {
+    return selfStays.filter(r => r.booking_id === bookingId && !r.fromCrm)
+        .sort((a, b) => (a.created_at || '').localeCompare(b.created_at || '') || a.id.localeCompare(b.id));
+}
+
+// Имя в блоке «Самостоятельное проживание»: человек, иначе «Группа X · место k»
+function selfSeatName(res) {
+    const name = (res.vaishnavas ? getVaishnavName(res.vaishnavas, '') : '') || res.guest_name;
+    if (name) return name;
+    const b = res.bookings;
+    const gname = b ? (b.name || b.contact_name || '') : '';
+    if (!res.booking_id || res.fromCrm) return gname || '—';
+    const seats = selfBookingSeats(res.booking_id);
+    if (seats.length < 2) return gname || '—';
+    return `${gname} · ${tf('timeline_self_seat', 'место')} ${seats.findIndex(r => r.id === res.id) + 1}`;
+}
+
+// «Группа приехала»: заезд всем местам брони без номера, где он ещё не отмечен.
+// Кто не приехал — потом «Не приехал / отказ» на его месте
+async function markSelfGroupArrived(bookingId) {
+    if (!canEditTimeline()) return;
+    const seats = selfBookingSeats(bookingId).filter(r => !r.arrived_at);
+    if (!seats.length) return;
+    const gname = seats[0].bookings?.name || seats[0].bookings?.contact_name || '';
+    const q = tf('timeline_self_group_arrived_confirm', 'Отметить заезд: %s, %n?')
+        .replace('%s', gname).replace('%n', Layout.pluralize(seats.length, SEAT_FORMS));
+    if (!confirm(q)) return;
+    const { error } = await Layout.db.from('residents')
+        .update({ status: 'confirmed', arrived_at: new Date().toISOString() })
+        .in('id', seats.map(r => r.id))
+        .is('arrived_at', null);
+    if (error) { Layout.handleError(error, tf('timeline_self_group_arrived', 'Группа приехала')); return; }
+    await loadTimelineData();
+    renderTable();
 }
 
 // Гость прилетает раньше начала брони или улетает позже её конца — в эти ночи ему
@@ -3398,7 +3520,7 @@ async function loadStayAlerts() {
     const banner = document.getElementById('stayAlertsBanner');
     if (!banner) return;
     const today = DateUtils.toISO(new Date());
-    const cols = 'id, vaishnava_id, check_in, check_out, room_id, guest_name, rooms(number), vaishnavas(first_name, last_name, spiritual_name), bookings(name, contact_name)';
+    const cols = 'id, vaishnava_id, check_in, check_out, room_id, booking_id, guest_name, rooms(number), vaishnavas(first_name, last_name, spiritual_name), bookings(name, contact_name)';
 
     const [notArrivedRes, notOutRes] = await Promise.all([
         Layout.db.from('residents').select(cols)
@@ -3423,10 +3545,21 @@ async function loadStayAlerts() {
             && l.check_in < r.check_in && (!l.check_out || l.check_out >= r.check_in)));
     }
     const notOut = notOutRes.data || [];
+    // Групповая бронь без номера — одной строкой «Группа X · N мест», а не N одинаковых имён
+    const seatsOf = new Map();
+    notArrived = notArrived.filter(r => {
+        if (r.room_id || !r.booking_id || r.vaishnava_id || r.guest_name) return true;
+        const first = seatsOf.get(r.booking_id);
+        if (first) { first._seats++; return false; }
+        r._seats = 1;
+        seatsOf.set(r.booking_id, r);
+        return true;
+    });
 
     const person = (r, date, label) => {
-        const name = (r.vaishnavas ? getVaishnavName(r.vaishnavas, '') : '') || r.guest_name
-            || r.bookings?.name || r.bookings?.contact_name || tf('timeline_no_name', 'Без имени');
+        const name = ((r.vaishnavas ? getVaishnavName(r.vaishnavas, '') : '') || r.guest_name
+            || r.bookings?.name || r.bookings?.contact_name || tf('timeline_no_name', 'Без имени'))
+            + (r._seats > 1 ? ` · ${Layout.pluralize(r._seats, SEAT_FORMS)}` : '');
         const room = r.rooms?.number ? `, ${t('timeline_room')} ${e(r.rooms.number)}` : '';
         return `<a class="link link-hover font-medium" data-action="open-stay-alert" data-id="${r.id}" data-date="${date}">${e(name)}</a>`
             + `<span class="opacity-60"> (${e(label)} ${DateUtils.formatShort(date)}${room})</span>`;
@@ -3457,7 +3590,11 @@ async function openStayAlert(id, date) {
     baseDate = d;
     await reload();
     if (guestsMap.has(id)) openResidentFromMap(id);
-    else openSelfStay(id);
+    else {
+        const seat = selfStays.find(r => r.id === id);
+        if (seat?.booking_id) { expandedSelfGroups.add(seat.booking_id); renderTable(); }
+        openSelfStay(id);
+    }
 }
 
 async function init() {

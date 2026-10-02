@@ -150,9 +150,10 @@ async function buildLines(data) {
         const изБрони = !p.name && p.booking_id ? именаПоБрони.get(p.booking_id).shift() : null;
         const key = 'r:' + p.resident_id;
         ключи.add(key);
-        const тип = FinGuests.типНомера(p, rooms);
+        // Место без номера (живёт сам, ест с нами — ВГ, 29.09): только питание, без ночей и цены номера
+        const тип = p.room_id ? FinGuests.типНомера(p, rooms) : null;
         const fresh = {
-            nights: p.check_out ? Math.max(днейМежду(p.check_in, p.check_out), 0) : 0,
+            nights: p.room_id && p.check_out ? Math.max(днейМежду(p.check_in, p.check_out), 0) : 0,
             people: Math.max(Number(p.roommates) || 1, 1),
             meals: p.has_meals === false ? [] : (поДням.get(p.resident_id) || []).map(m => ({ ...m }))
         };
@@ -167,7 +168,7 @@ async function buildLines(data) {
             // цена номера — по зданию и вместимости, как в прайсе ретритов (FinGuests.типНомера);
             // меньшая вместимость типа = доп. кровать; цена не задана — вписать вручную
             roomType: тип,
-            roomPrice: s ? Number(s.room_price) : Number(тип?.price) || 0,
+            roomPrice: s ? Number(s.room_price) : p.room_id ? Number(тип?.price) || 0 : 0,
             extraBed: !!s?.extra_bed,
             extraBedPrice: s?.extra_bed_price != null ? Number(s.extra_bed_price) : Number(tariff.extra_bed_price) || 0,
             bPrice: s ? Number(s.b_price) : Number(tariff.breakfast_price),
@@ -263,7 +264,11 @@ async function saveRate() {
 const цели = () => marked.size ? lines.filter(l => marked.has(l.key)) : lines;
 
 // Комната + период — одна группа строк: у группы разные заезды по номерам (ВГ, 28.09)
-const ключКомнаты = l => l.place ? `${l.place.room_id}|${l.place.check_in}|${l.place.check_out}` : l.key;
+// Без номера — по брони: места одной групповой брони вместе, разные брони не сливаются
+const ключКомнаты = l => l.place ? `${l.place.room_id || 'b:' + (l.place.booking_id || l.key)}|${l.place.check_in}|${l.place.check_out}` : l.key;
+// Название шапки: номер, место без номера или группа питания
+const имяГруппы = (p, label) => p?.room_id ? `${p.building || ''} №${p.room || '—'}`
+    : p ? `Без номера: ${p.booking_name || label || 'питание'}` : `Питание: ${label || 'группа'}`;
 
 function render() {
     const body = document.getElementById('grBody');
@@ -289,15 +294,15 @@ function headRow(g) {
     const отм = g.lines.filter(l => marked.has(l.key)).length;
     const сумма = g.lines.filter(l => l.included).reduce((a, l) => a + расчёт(l).итого, 0);
     const tri = (n, all) => n === 0 ? '' : n === all ? 'checked' : 'data-mixed="1"';
-    const имя = p ? `${p.building || ''} №${p.room || '—'}` : `Питание: ${l0.label || 'группа'}`;
-    const даты = p ? `${дата(p.check_in)}–${дата(p.check_out)} · ${Math.max(днейМежду(p.check_in, p.check_out || p.check_in), 0)} ноч.`
+    const имя = имяГруппы(p, l0.label);
+    const даты = p ? `${дата(p.check_in)}–${дата(p.check_out)} · ${p.room_id ? `${Math.max(днейМежду(p.check_in, p.check_out || p.check_in), 0)} ноч.` : 'только питание'}`
         : `${дата(l0.eater.start_date)}–${дата(l0.eater.end_date)}`;
     return `<tr class="bg-base-200 border-t-2 border-base-300">
         <td><input type="checkbox" class="checkbox checkbox-xs" data-gr-markroom="${g.k}" ${tri(отм, g.lines.length)} title="Отметить комнату — для правок «сразу»"></td>
         <td><input type="checkbox" class="checkbox checkbox-xs checkbox-success" data-gr-incroom="${g.k}" ${tri(вкл, g.lines.length)} title="Начисляем за комнату"></td>
-        <td colspan="9" class="font-semibold">${e(имя)}${p ? ` <span class="font-normal opacity-60">${p.capacity}-мест.</span>` : ''}
+        <td colspan="9" class="font-semibold">${e(имя)}${p?.room_id ? ` <span class="font-normal opacity-60">${p.capacity}-мест.</span>` : ''}
             <span class="font-normal opacity-70">· ${даты} · ${p ? `мест ${g.lines.length}` : `${l0.persons} чел.`}${вкл < g.lines.length ? ` · начисляем ${вкл}` : ''}</span>
-            ${p?.booking_name ? `<span class="font-normal text-xs opacity-50">· ${e(p.booking_name)}</span>` : ''}</td>
+            ${p?.booking_name && p.room_id ? `<span class="font-normal text-xs opacity-50">· ${e(p.booking_name)}</span>` : ''}</td>
         <td class="text-right font-mono font-semibold">${inr(сумма)}</td><td></td>
     </tr>`;
 }
@@ -305,6 +310,7 @@ function headRow(g) {
 function placeRow(l, i) {
     const r = расчёт(l);
     const p = l.place;
+    const h = !!p?.room_id;   // в номере; без номера — только питание
     const выкл = !l.included;
     const числа = (k, v, w, step = 1, title = '') => `<input type="number" min="0" step="${step}" class="input input-bordered input-xs ${w} px-1 text-right" data-gr-f="${i}" data-k="${k}" value="${v}" ${title ? `title="${title}"` : ''} ${выкл ? 'disabled' : ''}>`;
     const питаниеВыкл = p && p.has_meals === false && !l.mealsOn;
@@ -316,15 +322,15 @@ function placeRow(l, i) {
             ${l.changed ? '<span class="badge badge-warning badge-xs" title="Даты в шахматке изменились — ночи и питание пересчитаны заново">шахматка</span>' : ''}
             ${l.mealsOn ? '<span class="badge badge-info badge-xs" title="Питание включено здесь — при сохранении включится и в шахматке">питание вкл.</span>' : ''}</td>
         <td class="whitespace-nowrap text-xs">${p ? `${дата(p.check_in)}–${p.check_out ? дата(p.check_out) : '…'}` : `${дата(l.eater.start_date)}–${дата(l.eater.end_date)}`}</td>
-        <td>${p ? числа('nights', l.nights, 'w-12') : ''}${p && раннийВыезд(l) ? `<div class="text-[11px] text-warning whitespace-nowrap"
+        <td>${h ? числа('nights', l.nights, 'w-12') : p ? '<span class="text-[11px] opacity-60 whitespace-nowrap">без номера</span>' : ''}${p && раннийВыезд(l) ? `<div class="text-[11px] text-warning whitespace-nowrap"
             title="Последние дни сняты — при сохранении выезд уйдёт в шахматку, кухня поправится">выезд → ${дата(раннийВыезд(l))}${ночей(l) < l.nights ? `, ${ночей(l)} ноч.` : ''}</div>` : ''}</td>
-        <td class="whitespace-nowrap">${!p ? '' : l.extraBed
+        <td class="whitespace-nowrap">${!h ? '' : l.extraBed
             ? `<span class="text-xs">доп. кровать</span> ${числа('extraBedPrice', l.extraBedPrice, 'w-16', 50, 'Цена доп. кровати за сутки')}`
             : `${числа('roomPrice', l.roomPrice, 'w-16', 50, 'Цена номера за сутки')} ÷ ${числа('people', l.people, 'w-10', 1, 'Сколько человек делят номер')}`}
-            ${p && l.roomType?.price == null && !l.extraBed ? `<div class="text-[11px] text-warning" title="Задайте цену в «Тарифах» или впишите здесь">цена не задана</div>` : ''}
-            ${p && l.roomType && Number(p.capacity) > Number(l.roomType.capacity) ? `<label class="flex items-center gap-1 text-[11px] cursor-pointer opacity-80" title="${p?.capacity}-местный = ${l.roomType?.capacity}-местный + доп. кровать: галочка — это место на доп. кровати">
+            ${h && l.roomType?.price == null && !l.extraBed ? `<div class="text-[11px] text-warning" title="Задайте цену в «Тарифах» или впишите здесь">цена не задана</div>` : ''}
+            ${h && l.roomType && Number(p.capacity) > Number(l.roomType.capacity) ? `<label class="flex items-center gap-1 text-[11px] cursor-pointer opacity-80" title="${p?.capacity}-местный = ${l.roomType?.capacity}-местный + доп. кровать: галочка — это место на доп. кровати">
                 <input type="checkbox" class="checkbox checkbox-xs" data-gr-extrabed="${i}" ${l.extraBed ? 'checked' : ''} ${выкл ? 'disabled' : ''}> доп. кровать</label>` : ''}</td>
-        <td class="text-right font-mono">${p ? inr(r.проживание) : ''}</td>
+        <td class="text-right font-mono">${h ? inr(r.проживание) : ''}</td>
         ${питаниеВыкл
             ? `<td colspan="3" class="text-xs"><span class="opacity-60">питание в шахматке выключено</span>
                 <button type="button" class="btn btn-ghost btn-xs text-primary" data-gr-meals-on="${i}" ${выкл ? 'disabled' : ''}>включить</button></td>`
@@ -341,8 +347,8 @@ function placeRow(l, i) {
 function renderUnplaced() {
     const el = document.getElementById('grUnplaced');
     const нехватка = bookings.filter(b => Number(b.placed) < Number(b.beds));
-    const питание = lines.some(l => l.eater) ? '' : `<div class="text-xs opacity-60 mb-1">Кто питается с группой, но живёт не у нас — заведите в
-        <a class="link" href="../vaishnavas/groups.html" target="_blank">Группы питания</a> с событием «${e(ret.name)}»: появятся здесь строкой «Питание».</div>`;
+    const питание = lines.some(l => l.eater || (l.place && !l.place.room_id)) ? '' : `<div class="text-xs opacity-60 mb-1">Кто питается с группой, но живёт не у нас — заведите в
+        <a class="link" href="../placement/timeline.html" target="_blank">шахматке</a> бронью без номера (блок «Самостоятельное проживание», событие «${e(ret.name)}»): места появятся здесь строками «только питание».</div>`;
     el.innerHTML = питание + (нехватка.length ? `<div class="alert alert-warning py-2 px-3 text-sm block">
         <b>⚠ Брони без мест в шахматке — ${нехватка.reduce((a, b) => a + b.beds - b.placed, 0)} мест(а) в ${нехватка.length} бронях.</b>
         Бронь есть, а мест под неё в шахматке нет — поэтому кухня этих людей не считает (даже как «ожидаются») и здесь их не начислить.
@@ -396,8 +402,8 @@ function applyBulkPrices() {
     for (const x of цели()) {
         // по типу номера (3-местный = 2-местный + доп. кровать), а не по числу мест в комнате
         const тип = Number(x.roomType?.capacity ?? x.place?.capacity) || 2;
-        if (x.place && r2 !== null && тип <= 2) x.roomPrice = r2;
-        if (x.place && r4 !== null && тип > 2) x.roomPrice = r4;
+        if (x.place?.room_id && r2 !== null && тип <= 2) x.roomPrice = r2;
+        if (x.place?.room_id && r4 !== null && тип > 2) x.roomPrice = r4;
         if (b !== null) x.bPrice = b;
         if (l !== null) x.lPrice = l;
     }
@@ -513,7 +519,7 @@ async function summaryData() {
         let g = комнаты.find(x => x.k === k);
         if (!g) {
             const p = l.place;
-            g = { k, place: !!p, имя: p ? `${p.building || ''} №${p.room || '—'}` : `Питание: ${l.label || 'группа'}`, cap: p?.capacity,
+            g = { k, place: !!p?.room_id, имя: имяГруппы(p, l.label), cap: p?.room_id ? p.capacity : null,
                   период: p ? `${дата(p.check_in)}–${дата(p.check_out)}` : `${дата(l.eater.start_date)}–${дата(l.eater.end_date)}`,
                   lines: [], мест: 0, имена: [], ночи: new Set(), цены: new Set(), проживание: 0, завтраков: 0, обедов: 0, питание: 0, доп: 0 };
             комнаты.push(g);
@@ -522,7 +528,7 @@ async function summaryData() {
         g.lines.push(l);
         g.мест += l.place ? 1 : l.persons;
         if (l.place && l.label) g.имена.push(l.label);
-        if (l.place) { g.ночи.add(ночей(l)); g.цены.add(l.roomPrice); }
+        if (l.place?.room_id) { g.ночи.add(ночей(l)); g.цены.add(l.roomPrice); }
         if (l.extraBed) { g.допКроватей = (g.допКроватей || 0) + 1; g.ценаДоп = l.extraBedPrice; }
         g.проживание += r.проживание; g.завтраков += r.завтраков; g.обедов += r.обедов; g.питание += r.питание; g.доп += r.доп;
     }

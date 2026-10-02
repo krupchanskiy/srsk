@@ -308,6 +308,14 @@
         .guest-bar.self-stay.self-staff { background: var(--cat-color); border-color: var(--cat-color); color: #fff; }
         .guest-bar.self-stay.self-staff .retreat-tag { background: rgba(255, 255, 255, 0.25); }
         .guest-bar.self-stay .retreat-tag { background: rgba(0, 0, 0, 0.1); }
+        /* Бронь без номера (ещё не отмечен заезд) — пунктир и штриховка, как бронь в номерах */
+        .guest-bar.self-stay.self-booked {
+            border-style: dashed;
+            background-image: repeating-linear-gradient(45deg, rgba(255, 255, 255, 0.55) 0 4px, transparent 4px 8px);
+        }
+        /* Групповая бронь без номера: строка группы и её места */
+        .guest-bar.self-stay.self-group { font-weight: 600; }
+        .self-seat-label { padding-left: 18px; }
         .guest-bar.self-stay .self-crm {
             margin-left: 6px;
             padding: 0 4px;
@@ -662,7 +670,7 @@
                         <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M18 9v3m0 0v3m0-3h3m-3 0h-3m-2-5a4 4 0 11-8 0 4 4 0 018 0zM3 20a6 6 0 0112 0v1H3v-1z" />
                         </svg>
-                        <span data-i18n="timeline_checkin">Заселить</span>
+                        <span id="actionCheckinLabel" data-i18n="timeline_checkin">Заселить</span>
                     </button>
                     <button class="btn btn-info" onclick="showBookingForm()">
                         <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -670,19 +678,19 @@
                         </svg>
                         <span data-i18n="add_booking">Забронировать</span>
                     </button>
-                    <button class="btn btn-warning" onclick="handleAction('cleaning')">
+                    <button class="btn btn-warning" onclick="handleAction('cleaning')" data-room-only>
                         <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
                             <path stroke-linecap="round" stroke-linejoin="round" d="M5 3v4M3 5h4M6 17v4m-2-2h4m5-16l2.286 6.857L21 12l-5.714 2.143L13 21l-2.286-6.857L5 12l5.714-2.143L13 3z" />
                         </svg>
                         <span data-i18n="timeline_cleaning">Уборка</span>
                     </button>
-                    <button class="btn" style="background: #06b6d4; color: white; border: none;" onclick="handleAction('linen')">
+                    <button class="btn" style="background: #06b6d4; color: white; border: none;" onclick="handleAction('linen')" data-room-only>
                         <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
                             <path stroke-linecap="round" stroke-linejoin="round" d="M4 6h16M4 10h16M4 14h16M4 18h16" />
                         </svg>
                         <span data-i18n="timeline_bedding">Бельё</span>
                     </button>
-                    <button class="btn btn-error" onclick="handleAction('repair')">
+                    <button class="btn btn-error" onclick="handleAction('repair')" data-room-only>
                         <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6V4m0 2a2 2 0 100 4m0-4a2 2 0 110 4m-6 8a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4m6 6v10m6-2a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4" />
                         </svg>
@@ -836,7 +844,7 @@
             <div id="bookingScreen" class="hidden">
                 <div class="flex items-center gap-2 mb-4">
                     <button class="btn btn-ghost btn-sm btn-circle" onclick="showActionScreen()">←</button>
-                    <h3 class="font-bold text-lg" data-i18n="timeline_booking_title">Бронирование</h3>
+                    <h3 class="font-bold text-lg" id="bookingTitle" data-i18n="timeline_booking_title">Бронирование</h3>
                 </div>
 
                 <div class="text-sm text-gray-500 mb-4" id="bookingLocation"></div>
@@ -927,6 +935,7 @@
                             <span class="label-text font-medium" data-i18n="booking_beds_count">Количество мест</span>
                         </label>
                         <input type="number" name="beds_count" min="1" value="1" class="input input-bordered input-sm w-full" required />
+                        <div id="bookingSelfHint" class="text-xs opacity-70 mt-1 hidden">Места без номера: имена можно не вписывать сейчас — они вписываются в места по мере появления, у каждого места свои даты. Кухня считает места с даты заезда.</div>
                     </div>
 
                     <!-- Ретрит: подставляется по пересечению дат, но остаётся
@@ -1201,7 +1210,7 @@
         if (btn) { btn.classList.toggle('btn-active', isFS); btn.title = isFS ? Layout.t('normal_view') : Layout.t('fullscreen'); }
     }
     </script>
-    <script src="../js/pages/timeline.js?v=52"></script>
+    <script src="../js/pages/timeline.js?v=54"></script>
 
 </body>
 </html>
