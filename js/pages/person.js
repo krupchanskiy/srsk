@@ -57,7 +57,9 @@ async function init() {
         loadPermanentResident(personId),
         loadChildren(personId),
         loadFamily(personId),
-        loadDeptHistory(personId)
+        loadDeptHistory(personId),
+        loadStayHistory(personId),
+        loadDuplicates(personId)
     ]);
     Layout.hideLoader();
 
@@ -323,6 +325,7 @@ function renderPerson() {
 
     // Show/hide team-specific sections
     toggleTeamSections();
+    renderIncompleteBanner();
 
     // Notes
     document.getElementById('viewNotes').textContent = person.notes || '—';
@@ -2629,6 +2632,8 @@ window.onLanguageChange = function(lang) {
     populateDepartmentsSelect();
     renderPerson();
     renderRegistrations();
+    renderStayHistory();
+    renderDuplicatesBanner();
     renderChildren();
     Layout.updateAllTranslations();
 };
@@ -2753,6 +2758,157 @@ async function toggleFamilyDetails(linkId, on) {
     Layout.showNotification(t('saved'), 'success');
 }
 
+// ==================== НЕПОЛНАЯ КАРТОЧКА, «ВОЗМОЖНО, ОДНО ЛИЦО», ИСТОРИЯ ПРОЖИВАНИЯ (ВГ 02.10) ====================
+
+const MISSING_FIELD_INPUT = { phone: 'editPhone', email: 'editEmail', telegram: 'editTelegram', birth: 'editBirthDate' };
+const WARNING_ICON = '<svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" /></svg>';
+const PEOPLE_ICON = '<svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z" /></svg>';
+
+// ⚠ Неполная карточка: нет телефона, почты, Телеграма или года рождения. Клик — сразу на поле
+function renderIncompleteBanner() {
+    const banner = document.getElementById('incompleteBanner');
+    const missing = VaishnavasUtils.missingContacts(person);
+    banner.classList.toggle('hidden', missing.length === 0);
+    if (!missing.length) return;
+    const canEdit = canEditProfile();
+    const items = missing.map(k => canEdit
+        ? `<button type="button" class="link font-medium" data-action="fill-missing" data-field="${k}">${e(VaishnavasUtils.missingLabel(k))}</button>`
+        : `<span class="font-medium">${e(VaishnavasUtils.missingLabel(k))}</span>`).join(', ');
+    const text = canEdit
+        ? tr('person_incomplete_hint', 'Не хватает: {list}. Нажмите, чтобы дополнить').replace('{list}', items)
+        : items;
+    banner.innerHTML = `${WARNING_ICON}<div><b>${e(tr('person_incomplete', 'Неполная карточка'))}</b> — ${text}</div>`;
+}
+
+function fillMissing(field) {
+    if (!isEditMode) enterEditMode();
+    const input = document.getElementById(MISSING_FIELD_INPUT[field]);
+    if (!input) return;
+    input.scrollIntoView({ block: 'center' });
+    input.focus();
+}
+
+// «Возможно, одно лицо»: похожее имя, тот же телефон или почта (vaishnava_duplicates)
+let duplicates = [];
+
+async function loadDuplicates(personId) {
+    duplicates = [];
+    const { data, error } = await Layout.db.rpc('vaishnava_duplicates', { p_id: personId });
+    if (error || !data?.length) { renderDuplicatesBanner(); return; }
+    const others = data.map(d => d.a_id === personId
+        ? { id: d.b_id, reason: d.reason, signedIn: d.b_signed_in }
+        : { id: d.a_id, reason: d.reason, signedIn: d.a_signed_in });
+    const { data: people } = await Layout.db.from('vaishnavas')
+        .select('id, spiritual_name, first_name, last_name, created_at')
+        .in('id', others.map(o => o.id));
+    duplicates = others
+        .map(o => ({ ...o, person: (people || []).find(p => p.id === o.id) }))
+        .filter(o => o.person);
+    renderDuplicatesBanner();
+}
+
+function renderDuplicatesBanner() {
+    const banner = document.getElementById('duplicatesBanner');
+    banner.classList.toggle('hidden', duplicates.length === 0);
+    if (!duplicates.length) return;
+    const canMerge = !!window.hasPermission?.('edit_vaishnava');
+    const reasons = {
+        name: tr('person_dup_reason_name', 'похожее имя'),
+        phone: tr('person_dup_reason_phone', 'тот же телефон'),
+        email: tr('person_dup_reason_email', 'та же почта')
+    };
+    const rows = duplicates.map(d => {
+        const created = formatDate(d.person.created_at.slice(0, 10));
+        const meta = [reasons[d.reason], d.signedIn ? tr('person_dup_has_login', 'входил на сайт') : null, created]
+            .filter(Boolean).join(' · ');
+        const buttons = canMerge ? `
+            <button type="button" class="btn btn-xs btn-primary" data-action="merge-dup" data-id="${d.id}">${e(tr('person_merge', 'Слить'))}</button>
+            <button type="button" class="btn btn-xs btn-ghost" data-action="not-dup" data-id="${d.id}">${e(tr('person_not_same', 'Это разные люди'))}</button>` : '';
+        return `<div class="flex flex-wrap items-center gap-2">
+            <a class="link font-medium" href="person.html?id=${d.id}">${e(getVaishnavName(d.person))}</a>
+            <span class="text-xs opacity-70">${e(meta)}</span>${buttons}
+        </div>`;
+    }).join('');
+    banner.className = 'alert alert-info mb-4 items-start';
+    banner.innerHTML = `${PEOPLE_ICON}<div class="space-y-1"><b>${e(tr('person_maybe_same', 'Возможно, одно лицо'))}</b>${rows}</div>`;
+}
+
+async function mergeDuplicate(otherId) {
+    const dup = duplicates.find(d => d.id === otherId);
+    if (!dup) return;
+    const message = tr('person_merge_confirm', 'Слить карточки «{a}» и «{b}»? Останется карточка, с которой входили на сайт, пустые поля дополнятся из второй, брони, оплаты и история перейдут к ней. Отменить нельзя.')
+        .replace('{a}', getVaishnavName(person)).replace('{b}', getVaishnavName(dup.person));
+    if (!await ModalUtils.confirm(message)) return;
+    const { data, error } = await Layout.db.rpc('vaishnava_merge', { p_main: person.id, p_dup: otherId });
+    if (error) { Layout.handleError(error, tr('person_merge', 'Слить')); return; }
+    if (!data?.ok) { Layout.showNotification(data?.error || t('error_saving'), 'error'); return; }
+    Layout.showNotification(tr('person_merged', 'Карточки слиты'), 'success');
+    // осталась вторая карточка (с неё входили на сайт) — переходим на неё
+    if (data.main !== person.id) window.location.href = `person.html?id=${data.main}`;
+    else window.location.reload();
+}
+
+async function markNotDuplicate(otherId) {
+    const { error } = await Layout.db.rpc('vaishnava_mark_not_duplicate', { p_a: person.id, p_b: otherId });
+    if (error) { Layout.handleError(error, tr('person_not_same', 'Это разные люди')); return; }
+    duplicates = duplicates.filter(d => d.id !== otherId);
+    renderDuplicatesBanner();
+}
+
+// История проживания: все места человека в шахматке, новые сверху; 3 последних, остальное — по кнопке
+let stayHistory = [];
+let stayHistoryExpanded = false;
+const STAY_HISTORY_SHORT = 3;
+
+async function loadStayHistory(personId) {
+    const { data, error } = await Layout.db
+        .from('residents')
+        .select('id, check_in, check_out, notes, room_id, rooms(number, buildings(name_ru, name_en, name_hi)), retreats(name_ru, name_en, name_hi), resident_categories:category_id(name_ru, name_en, name_hi, color), departments:department_id(name_ru, name_en, name_hi, color)')
+        .eq('vaishnava_id', personId)
+        .neq('status', 'cancelled')
+        .order('check_in', { ascending: false });
+    if (error) console.error('Error loading stay history:', error);
+    stayHistory = data || [];
+    renderStayHistory();
+}
+
+function renderStayHistory() {
+    const list = document.getElementById('stayHistoryList');
+    if (!stayHistory.length) {
+        list.innerHTML = `<p class="text-sm opacity-60">${e(tr('person_stay_history_empty', 'В шахматке проживаний нет'))}</p>`;
+        return;
+    }
+    const shown = stayHistoryExpanded ? stayHistory : stayHistory.slice(0, STAY_HISTORY_SHORT);
+    const rows = shown.map(r => {
+        const isNow = r.check_in <= today && r.check_out >= today;
+        const until = r.check_out >= '2099-01-01' ? t('person_permanent') : formatDate(r.check_out);
+        const room = r.rooms
+            ? `${r.rooms.buildings ? Layout.getName(r.rooms.buildings) + ', ' : ''}${r.rooms.number}`
+            : t('self_accommodation');
+        const event = r.retreats ? Layout.getName(r.retreats) : tr('person_no_event', 'без события');
+        const cat = r.resident_categories;
+        const catBadge = cat
+            ? (() => { const c = Utils.safeColor(cat.color); return `<span class="badge badge-sm" style="background-color: ${c}20; color: ${c}; border-color: ${c}">${e(Layout.getName(cat))}</span>`; })()
+            : '';
+        const dept = r.departments ? `<span class="text-xs opacity-70">${e(Layout.getName(r.departments))}</span>` : '';
+        const notes = r.notes ? `<div class="text-xs opacity-60 mt-1">${e(r.notes)}</div>` : '';
+        return `<div class="border-l-4 pl-3 py-1 ${isNow ? 'border-success' : 'border-base-300'}">
+            <div class="flex flex-wrap items-center gap-x-3 gap-y-1 text-sm">
+                <span class="font-medium">${formatDate(r.check_in)} — ${until}</span>
+                <span>${e(room)}</span>
+                <span class="opacity-70">${e(event)}</span>
+                ${catBadge}${dept}
+            </div>${notes}
+        </div>`;
+    }).join('');
+    const toggle = stayHistory.length > STAY_HISTORY_SHORT
+        ? `<button type="button" class="btn btn-ghost btn-xs mt-1" data-action="toggle-stay-history">${stayHistoryExpanded
+            ? e(tr('person_hide', 'Свернуть'))
+            : `${e(tr('person_show_all', 'Показать все'))} (${stayHistory.length})`}</button>`
+        : '';
+    list.innerHTML = rows + toggle;
+}
+
 // Делегирование кликов для секций детей, родителя и семьи
 document.addEventListener('click', ev => {
     const el = ev.target.closest('[data-action]');
@@ -2765,6 +2921,10 @@ document.addEventListener('click', ev => {
     }
     switch (el.dataset.action) {
         case 'open-add-child-modal': openAddChildModal(); break;
+        case 'fill-missing': fillMissing(el.dataset.field); break;
+        case 'merge-dup': mergeDuplicate(el.dataset.id); break;
+        case 'not-dup': markNotDuplicate(el.dataset.id); break;
+        case 'toggle-stay-history': stayHistoryExpanded = !stayHistoryExpanded; renderStayHistory(); break;
         case 'make-independent': makeIndependent(); break;
         case 'open-add-family-modal': openAddFamilyModal(); break;
         case 'save-family-link': saveFamilyLink(); break;

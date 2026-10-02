@@ -247,6 +247,10 @@
         <!-- Profile Container (view/edit mode) -->
         <div id="profileContainer" class="view-mode">
 
+        <!-- ⚠ Неполная карточка и «Возможно, одно лицо» — заполняет person.js -->
+        <div id="incompleteBanner" class="alert alert-warning mb-4 hidden"></div>
+        <div id="duplicatesBanner" class="alert mb-4 hidden"></div>
+
         <!-- Person Header -->
         <div id="personCard" class="bg-base-100 rounded-lg shadow-sm p-6 mb-6">
             <div class="flex flex-col md:flex-row gap-6">
@@ -545,6 +549,12 @@
                 <div class="section-card hidden" id="currentAccommodationSection">
                     <h3 class="font-semibold mb-4" data-i18n="current_accommodation">Текущее размещение</h3>
                     <div id="currentAccommodationContent"></div>
+                </div>
+
+                <!-- История проживания — все места человека в шахматке -->
+                <div class="section-card" id="stayHistorySection">
+                    <h3 class="font-semibold mb-4" data-i18n="person_stay_history">История проживания</h3>
+                    <div id="stayHistoryList" class="space-y-2"></div>
                 </div>
 
                 <!-- Retreat Registrations -->
@@ -1003,6 +1013,7 @@
     <script src="../js/modal-utils.js?v=3"></script>
     <script src="../js/date-utils.js?v=4"></script>
     <script src="../js/layout.js?v=84"></script>
-    <script src="../js/pages/person.js?v=26"></script>
+    <script src="../js/vaishnavas-utils.js?v=3"></script>
+    <script src="../js/pages/person.js?v=27"></script>
 </body>
 </html>

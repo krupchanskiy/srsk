@@ -158,75 +158,45 @@ function sortPeople(list, state) {
     });
 }
 
-/** Загрузка проживаний (stays) - команда + гости */
+/** Загрузка проживаний (stays): места в шахматке, текущие и будущие.
+ *  «Периоды пребывания» (vaishnava_stays) больше не ведутся — шахматка главная (ВГ 02.10) */
 async function loadStays() {
-    // Загружаем периоды пребывания команды и регистрации гостей параллельно
-    const [teamStaysRes, guestRegsRes] = await Promise.all([
-        Layout.db
-            .from('vaishnava_stays')
-            .select('vaishnava_id, start_date, end_date')
-            .order('start_date'),
-        Layout.db
-            .from('retreat_registrations')
-            .select('id, vaishnava_id, retreats(name_ru, name_en, name_hi)')
-            .eq('is_deleted', false)
-    ]);
-
-    if (teamStaysRes.error) {
-        console.error('Ошибка загрузки vaishnava_stays:', teamStaysRes.error);
-    }
-    if (guestRegsRes.error) {
-        console.error('Ошибка загрузки retreat_registrations:', guestRegsRes.error);
-    }
+    const now = new Date();
+    const today = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+    const { data, error } = await Utils.fetchAll((from, to) => Layout.db
+        .from('residents')
+        .select('vaishnava_id, check_in, check_out, retreats(name_ru, name_en, name_hi)')
+        .not('vaishnava_id', 'is', null)
+        .neq('status', 'cancelled')
+        .gte('check_out', today)
+        .order('check_in')
+        .range(from, to));
+    if (error) console.error('Ошибка загрузки residents:', error);
 
     const stays = {};
-
-    // Добавляем периоды команды
-    (teamStaysRes.data || []).forEach(s => {
-        if (!stays[s.vaishnava_id]) stays[s.vaishnava_id] = [];
-        stays[s.vaishnava_id].push({ start_date: s.start_date, end_date: s.end_date });
+    (data || []).forEach(r => {
+        if (!stays[r.vaishnava_id]) stays[r.vaishnava_id] = [];
+        stays[r.vaishnava_id].push({ start_date: r.check_in, end_date: r.check_out, retreat: r.retreats });
     });
-
-    // Загружаем трансферы для всех регистраций
-    const registrationIds = (guestRegsRes.data || []).map(r => r.id);
-    if (registrationIds.length > 0) {
-        const { data: transfers } = await Layout.db
-            .from('guest_transfers')
-            .select('registration_id, direction, flight_datetime')
-            .in('registration_id', registrationIds);
-
-        // Группируем трансферы по registration_id
-        const transfersByReg = {};
-        (transfers || []).forEach(t => {
-            if (!transfersByReg[t.registration_id]) {
-                transfersByReg[t.registration_id] = { arrival: null, departure: null };
-            }
-            if (t.direction === 'arrival' && t.flight_datetime) {
-                transfersByReg[t.registration_id].arrival = t.flight_datetime.split('T')[0];
-            } else if (t.direction === 'departure' && t.flight_datetime) {
-                transfersByReg[t.registration_id].departure = t.flight_datetime.split('T')[0];
-            }
-        });
-
-        // Добавляем периоды гостей (используем личные даты прилета/вылета)
-        (guestRegsRes.data || []).forEach(r => {
-            const regTransfers = transfersByReg[r.id];
-            if (regTransfers && (regTransfers.arrival || regTransfers.departure)) {
-                if (!stays[r.vaishnava_id]) stays[r.vaishnava_id] = [];
-                stays[r.vaishnava_id].push({
-                    start_date: regTransfers.arrival || regTransfers.departure,
-                    end_date: regTransfers.departure || regTransfers.arrival,
-                    retreat: r.retreats // информация о ретрите
-                });
-            }
-        });
-    }
-
-    debug('Загружено периодов команды:', teamStaysRes.data?.length || 0);
-    debug('Загружено регистраций гостей:', guestRegsRes.data?.length || 0);
-    debug('Всего уникальных людей:', Object.keys(stays).length);
-
     return stays;
+}
+
+/** Чего не хватает в карточке: телефон, почта, Телеграм, год рождения (ВГ 02.10) */
+function missingContacts(person) {
+    const missing = [];
+    if (!person.phone?.trim()) missing.push('phone');
+    if (!person.email?.trim()) missing.push('email');
+    if (!person.telegram?.trim() && !person.telegram_username?.trim() && !person.telegram_chat_id) missing.push('telegram');
+    if (!person.birth_date) missing.push('birth');
+    return missing;
+}
+
+/** Подписи к missingContacts */
+function missingLabel(key) {
+    const fallback = { phone: 'телефон', email: 'почта', telegram: 'Телеграм', birth: 'год рождения' }[key];
+    const k = 'person_missing_' + key;
+    const v = t(k);
+    return v === k ? fallback : v;
 }
 
 /** Проверка присутствия на текущую дату */
@@ -416,6 +386,8 @@ window.VaishnavasUtils = {
     applyServerSort,
     sortPeople,
     loadStays,
+    missingContacts,
+    missingLabel,
     isPresent,
     renderPersonRow,
     renderPagination,

@@ -83,6 +83,14 @@
                     <span data-i18n="filter_present">Здесь</span>
                     <sup class="ml-1 opacity-60" id="countPresent">0</sup>
                 </button>
+                <button class="btn btn-sm filter-btn btn-ghost" data-filter="incomplete">
+                    <span data-i18n="filter_incomplete">Неполные</span>
+                    <sup class="ml-1 opacity-60" id="countIncomplete">0</sup>
+                </button>
+                <button class="btn btn-sm filter-btn btn-ghost" data-filter="duplicates">
+                    <span data-i18n="filter_duplicates">Возможно, одно лицо</span>
+                    <sup class="ml-1 opacity-60" id="countDuplicates">0</sup>
+                </button>
             </div>
             <div class="flex-1 max-w-md relative">
                 <input type="text" id="searchInput" class="input input-bordered w-full pr-10" data-i18n-placeholder="search" placeholder="Поиск...">
@@ -94,8 +102,11 @@
             </div>
         </div>
 
+        <!-- «Неполные» и «Возможно, одно лицо» — свои списки вместо таблицы -->
+        <div id="specialList" class="hidden bg-base-100 rounded-xl shadow p-4 space-y-2"></div>
+
         <!-- People Table -->
-        <div class="bg-base-100 rounded-xl shadow overflow-x-auto">
+        <div id="peopleTableWrap" class="bg-base-100 rounded-xl shadow overflow-x-auto">
             <table class="table table-zebra table-fixed w-full">
                 <thead>
                     <tr>
@@ -237,9 +248,10 @@
     <script src="../js/auto-translate.js"></script>
     <script src="../js/date-utils.js?v=4"></script>
     <script src="../js/layout.js?v=84"></script>
-    <script src="../js/vaishnavas-utils.js?v=2"></script>
+    <script src="../js/vaishnavas-utils.js?v=3"></script>
     <script>
         const V = VaishnavasUtils;
+        const t = key => Layout.t(key);
         let people = [];
         let stays = {};
         let totalCount = 0;
@@ -249,7 +261,7 @@
         async function init() {
             const params = new URLSearchParams(window.location.search);
             const urlFilter = params.get('filter');
-            if (['team', 'volunteers', 'guests'].includes(urlFilter)) {
+            if (['team', 'volunteers', 'guests', 'incomplete', 'duplicates'].includes(urlFilter)) {
                 state.currentFilter = urlFilter;
             }
 
@@ -291,6 +303,7 @@
             document.getElementById('countAll').textContent = allRes.count || 0;
             document.getElementById('countTeam').textContent = teamRes.count || 0;
             document.getElementById('countVolunteers').textContent = volunteersRes.count || 0;
+            loadSpecialCounts();
             document.getElementById('countGuests').textContent = guestsRes.count || 0;
 
             // Считаем присутствующих из stays
@@ -305,6 +318,16 @@
         }
 
         async function loadPeople() {
+            // «Неполные» и «Возможно, одно лицо» — отдельные списки
+            const special = ['incomplete', 'duplicates'].includes(state.currentFilter);
+            document.getElementById('specialList').classList.toggle('hidden', !special);
+            document.getElementById('peopleTableWrap').classList.toggle('hidden', special);
+            if (special) {
+                document.getElementById('paginationContainer').innerHTML = '';
+                if (state.currentFilter === 'incomplete') renderIncomplete(await loadIncomplete());
+                else renderDuplicates(await loadDuplicatePairs());
+                return;
+            }
             let query = Layout.db
                 .from('vaishnavas')
                 .select('id, first_name, last_name, spiritual_name, phone, email, country, spiritual_teacher, is_team_member, status, photo_url, departments(id, name_ru, name_en, name_hi, color)', { count: 'exact' })
@@ -480,6 +503,99 @@
             tbody.innerHTML = filtered.map(person => renderRow(person)).join('');
 
             V.renderPagination('paginationContainer', state, totalCount, loadPeople);
+        }
+
+        // ==================== НЕПОЛНЫЕ КАРТОЧКИ И ВОЗМОЖНЫЕ ДУБЛИ (ВГ 02.10) ====================
+
+        const e = str => Layout.escapeHtml(str);
+        function tr(key, fallback) {
+            const v = Layout.t(key);
+            return v === key ? fallback : v;
+        }
+
+        const STATUS_BADGE = { guest: 'badge-ghost', volunteer: 'badge-warning', team: 'badge-success' };
+        function statusBadge(status) {
+            const label = tr('person_status_' + status, { guest: 'Гость', volunteer: 'Волонтёр', team: 'Команда' }[status]);
+            return `<span class="badge badge-sm ${STATUS_BADGE[status] || ''}">${e(label)}</span>`;
+        }
+
+        function formatShortDate(iso) {
+            return DateUtils.parseDate(iso).toLocaleDateString(Layout.currentLang === 'hi' ? 'hi-IN' : Layout.currentLang === 'en' ? 'en-US' : 'ru-RU', { day: 'numeric', month: 'short' });
+        }
+
+        // Кто живёт сейчас или приедет, а в карточке нет телефона, почты, Телеграма или года рождения — по дате заезда
+        async function loadIncomplete() {
+            const { data, error } = await Utils.fetchAll((from, to) => Layout.db
+                .from('residents')
+                .select('check_in, vaishnava:vaishnavas(id, spiritual_name, first_name, last_name, phone, email, telegram, telegram_username, telegram_chat_id, birth_date, status, is_deleted)')
+                .not('vaishnava_id', 'is', null)
+                .neq('status', 'cancelled')
+                .gte('check_out', today)
+                .order('check_in')
+                .range(from, to));
+            if (error) { Layout.handleError(error, 'Неполные карточки'); return []; }
+            const seen = new Set();
+            const result = [];
+            (data || []).forEach(r => {
+                const v = r.vaishnava;
+                if (!v || v.is_deleted || seen.has(v.id)) return;
+                seen.add(v.id);
+                const missing = V.missingContacts(v);
+                if (missing.length) result.push({ person: v, checkIn: r.check_in, missing });
+            });
+            return result;
+        }
+
+        function renderIncomplete(rows) {
+            const box = document.getElementById('specialList');
+            const hint = `<p class="text-sm opacity-70 mb-2">${e(tr('incomplete_list_hint', 'Кто живёт сейчас или приедет: не хватает телефона, почты, Телеграма или года рождения. По дате заезда.'))}</p>`;
+            if (!rows.length) { box.innerHTML = hint + `<p class="opacity-50 py-6 text-center">${Layout.t('no_results')}</p>`; return; }
+            box.innerHTML = hint + rows.map(r => `
+                <a href="person.html?id=${r.person.id}" class="flex flex-wrap items-center gap-x-3 gap-y-1 p-2 rounded hover:bg-base-200">
+                    <span class="font-medium">${e(getVaishnavName(r.person))}</span>
+                    ${statusBadge(r.person.status)}
+                    <span class="text-sm opacity-70">${e(tr('incomplete_arrival', 'заезд'))} ${formatShortDate(r.checkIn)}</span>
+                    <span class="text-sm text-warning">⚠ ${r.missing.map(k => e(V.missingLabel(k))).join(', ')}</span>
+                </a>`).join('');
+        }
+
+        // Пары «возможно, одно лицо» — сливать из карточки человека
+        async function loadDuplicatePairs() {
+            const { data, error } = await Layout.db.rpc('vaishnava_duplicates');
+            if (error) { Layout.handleError(error, 'Возможно, одно лицо'); return []; }
+            const ids = [...new Set((data || []).flatMap(d => [d.a_id, d.b_id]))];
+            if (!ids.length) return [];
+            const { data: people } = await Utils.fetchAll((from, to) => Layout.db.from('vaishnavas')
+                .select('id, spiritual_name, first_name, last_name, status').in('id', ids).range(from, to));
+            const byId = Object.fromEntries((people || []).map(p => [p.id, p]));
+            return (data || []).filter(d => byId[d.a_id] && byId[d.b_id])
+                .map(d => ({ ...d, a: byId[d.a_id], b: byId[d.b_id] }));
+        }
+
+        function renderDuplicates(pairs) {
+            const box = document.getElementById('specialList');
+            if (!pairs.length) { box.innerHTML = `<p class="opacity-50 py-6 text-center">${Layout.t('no_results')}</p>`; return; }
+            const reasons = {
+                name: tr('person_dup_reason_name', 'похожее имя'),
+                phone: tr('person_dup_reason_phone', 'тот же телефон'),
+                email: tr('person_dup_reason_email', 'та же почта')
+            };
+            const signed = tr('person_dup_has_login', 'входил на сайт');
+            const link = (p, signedIn) => `<a href="person.html?id=${p.id}" class="link font-medium">${e(getVaishnavName(p))}</a>${signedIn ? ` <span class="text-xs opacity-60">(${e(signed)})</span>` : ''}`;
+            box.innerHTML = pairs.map(d => `
+                <div class="flex flex-wrap items-center gap-x-3 gap-y-1 p-2 rounded hover:bg-base-200">
+                    ${link(d.a, d.a_signed_in)} <span class="opacity-50">↔</span> ${link(d.b, d.b_signed_in)}
+                    <span class="text-xs opacity-70">${e(reasons[d.reason] || '')}</span>
+                </div>`).join('');
+        }
+
+        async function loadSpecialCounts() {
+            const [incomplete, pairs] = await Promise.all([
+                loadIncomplete(),
+                Layout.db.rpc('vaishnava_duplicates')
+            ]);
+            document.getElementById('countIncomplete').textContent = incomplete.length;
+            document.getElementById('countDuplicates').textContent = pairs.data?.length || 0;
         }
 
         function openAddModal() { V.openAddModal(); }
