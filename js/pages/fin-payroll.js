@@ -329,7 +329,7 @@ async function init() {
     if (['fin_payroll_range_all_short', 'fin_payroll_ended_on'].some(k => t(k) === k)
         && !sessionStorage.getItem('payrollTrReload')) {
         sessionStorage.setItem('payrollTrReload', '1');
-        Cache.invalidate('translations_v54');
+        Cache.invalidate('translations_v55');
         location.reload();
         return;
     }

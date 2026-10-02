@@ -719,6 +719,9 @@ function renderCardBlocks(b) {
         const writtenOff = Number(block.written_off) || 0;
         const fromGeneral = Math.max(0, (Number(block.charged) - Number(block.paid)) - Number(block.balance) - fromOffset - writtenOff);
         const balance = Number(block.balance);
+        // «Оплачено» — всё, что фактически покрыло блок: прямые платежи, общий платёж
+        // и зачёт от соседнего блока; иначе при оплате «общим» стоит «Оплачено 0» (ВГ 02.10)
+        const paidTotal = Number(block.paid) + fromGeneral + fromOffset;
         // Остаток блока с разложением по валютам: основная сумма + доплата (ВГ, 24.08)
         const части = разложениеБлока(card.id, k, balance, cardCur);
         const мульти = части.length > 1;
@@ -738,9 +741,9 @@ function renderCardBlocks(b) {
         <div class="border border-base-300 rounded-lg p-2">
             <div class="text-xs font-semibold uppercase opacity-60 mb-1 flex justify-between items-center gap-1">${blockLabel(k)}${списать}</div>
             <div class="text-xs flex justify-between gap-2"><span>${t('fin_charged')}</span><span class="font-mono">${FinUtils.fmtMoney(Number(block.charged) * kx, cardCur)}</span></div>
-            <div class="text-xs flex justify-between gap-2"><span>${t('fin_paid')}</span><span class="font-mono">${FinUtils.fmtMoney(Number(block.paid) * kx, cardCur)}</span></div>
-            ${fromGeneral > 0 ? `<div class="text-xs flex justify-between gap-2 text-success"><span>${t('fin_from_general')}</span><span class="font-mono">${FinUtils.fmtMoney(fromGeneral * kx, cardCur)}</span></div>` : ''}
-            ${fromOffset > 0 ? `<div class="text-xs flex justify-between gap-2 text-success"><span>${t('fin_from_advance')}</span><span class="font-mono">${FinUtils.fmtMoney(fromOffset * kx, cardCur)}</span></div>` : ''}
+            <div class="text-xs flex justify-between gap-2"><span>${t('fin_paid')}</span><span class="font-mono">${FinUtils.fmtMoney(paidTotal * kx, cardCur)}</span></div>
+            ${fromGeneral > 0 ? `<div class="text-xs flex justify-between gap-2 text-success pl-2 opacity-80"><span>${t('fin_incl')} ${t('fin_from_general')}</span><span class="font-mono">${FinUtils.fmtMoney(fromGeneral * kx, cardCur)}</span></div>` : ''}
+            ${fromOffset > 0 ? `<div class="text-xs flex justify-between gap-2 text-success pl-2 opacity-80"><span>${t('fin_incl')} ${t('fin_from_advance')}</span><span class="font-mono">${FinUtils.fmtMoney(fromOffset * kx, cardCur)}</span></div>` : ''}
             ${writtenOff > 0 ? `<div class="text-xs flex justify-between gap-2 opacity-70" title="Недостача при оплате другой валютой в пределах шага округления"><span>Списано: округление</span><span class="font-mono">${FinUtils.fmtMoney(writtenOff, cardCur)}</span></div>` : ''}
             <div class="text-sm flex justify-between gap-2 mt-1 pt-1 border-t border-base-200 items-start"><span>${t('fin_balance')}</span>${balanceHtml}</div>
         </div>`;

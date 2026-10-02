@@ -1,0 +1,104 @@
+<!DOCTYPE html>
+<html lang="ru" data-theme="light">
+<head>
+    <script src="../js/color-init.js?v=2"></script>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title data-i18n-title="fin_page_title_sales_fee">Процент отделу продаж — Финансы — ШРСК</title>
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg">
+    <link href="https://cdn.jsdelivr.net/npm/daisyui@4.12.14/dist/full.min.css" rel="stylesheet" />
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script>tailwind.config = { theme: { extend: { screens: { 'desktop': '1200px' } } } }</script>
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans:wght@400;500;600;700&family=Noto+Sans+Devanagari:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="../css/common.css?v=4">
+    <link rel="stylesheet" href="../css/fin.css?v=1">
+    <style>
+        .sf-table td, .sf-table th { padding: 0.35rem 0.5rem; }
+        .sf-table tr.sf-flagged td { background: rgba(245, 158, 11, 0.08); }
+        @media print {
+            #header-placeholder, #footer-placeholder, .no-print { display: none !important; }
+            body { background: #fff !important; }
+            main { padding: 0 !important; }
+            .card { box-shadow: none !important; border: 1px solid #ddd !important; }
+        }
+    </style>
+</head>
+<body class="fin-page bg-base-200 min-h-screen flex flex-col">
+
+<div id="header-placeholder"></div>
+
+<main class="container mx-auto px-4 py-6 flex-1">
+    <div class="flex flex-wrap justify-between items-center gap-3 mb-4">
+        <h1 class="text-2xl font-bold" data-i18n="fin_sales_fee_title">Процент отделу продаж</h1>
+        <div class="flex flex-wrap items-center gap-2 no-print">
+            <select id="retreatSelect" class="select select-bordered select-sm w-64"></select>
+            <button type="button" id="copyBtn" class="btn btn-ghost btn-sm" data-i18n="fin_sales_fee_copy">Скопировать для Телеграма</button>
+            <button type="button" id="printBtn" class="btn btn-ghost btn-sm" data-i18n="retreat_report_print">Печать</button>
+        </div>
+    </div>
+
+    <div id="sfBody"><div class="text-center py-16 opacity-50"><span class="loading loading-spinner"></span></div></div>
+</main>
+
+<div id="footer-placeholder"></div>
+
+<!-- Ставка и порог -->
+<dialog id="settingsModal" class="modal">
+    <div class="modal-box max-w-sm">
+        <h3 class="font-bold text-lg mb-4" data-i18n="fin_sales_fee_settings">Ставка и порог</h3>
+        <form id="settingsForm">
+            <div class="form-control mb-2">
+                <label class="label py-0"><span class="label-text" data-i18n="fin_sales_fee_rate">За человека, ₽</span></label>
+                <input type="number" id="setRate" class="input input-bordered input-sm" min="1" step="1" required>
+            </div>
+            <div class="form-control mb-2">
+                <label class="label py-0"><span class="label-text" data-i18n="fin_sales_fee_threshold">Порог оплаты оргвзноса, %</span></label>
+                <input type="number" id="setThreshold" class="input input-bordered input-sm" min="1" max="100" step="1" required>
+            </div>
+            <p class="text-xs opacity-60" data-i18n="fin_sales_fee_settings_hint">Новые ставка и порог сразу меняют расчёт. Уже зафиксированные итоги не меняются.</p>
+            <div class="modal-action">
+                <button type="button" class="btn" onclick="document.getElementById('settingsModal').close()" data-i18n="cancel">Отмена</button>
+                <button type="submit" class="btn btn-primary" data-i18n="save">Сохранить</button>
+            </div>
+        </form>
+    </div>
+    <form method="dialog" class="modal-backdrop"><button>close</button></form>
+</dialog>
+
+<!-- Ручное решение по человеку -->
+<dialog id="overrideModal" class="modal">
+    <div class="modal-box max-w-sm">
+        <h3 class="font-bold text-lg mb-1" id="overrideTitle"></h3>
+        <p class="text-sm opacity-70 mb-3" id="overrideInfo"></p>
+        <form id="overrideForm">
+            <input type="hidden" id="overridePid">
+            <div class="form-control mb-2">
+                <label class="label cursor-pointer justify-start gap-2"><input type="radio" name="ovChoice" value="auto" class="radio radio-sm"><span class="label-text" data-i18n="fin_sales_fee_by_formula">По формуле</span></label>
+                <label class="label cursor-pointer justify-start gap-2"><input type="radio" name="ovChoice" value="true" class="radio radio-sm"><span class="label-text" data-i18n="fin_sales_fee_include">Засчитать</span></label>
+                <label class="label cursor-pointer justify-start gap-2"><input type="radio" name="ovChoice" value="false" class="radio radio-sm"><span class="label-text" data-i18n="fin_sales_fee_exclude">Не засчитывать</span></label>
+            </div>
+            <div class="form-control mb-2">
+                <label class="label py-0"><span class="label-text" data-i18n="fin_sales_fee_reason">Почему</span></label>
+                <input type="text" id="overrideComment" class="input input-bordered input-sm">
+            </div>
+            <div class="modal-action">
+                <button type="button" class="btn" onclick="document.getElementById('overrideModal').close()" data-i18n="cancel">Отмена</button>
+                <button type="submit" class="btn btn-primary" data-i18n="save">Сохранить</button>
+            </div>
+        </form>
+    </div>
+    <form method="dialog" class="modal-backdrop"><button>close</button></form>
+</dialog>
+
+<script src="../js/config.js?v=5"></script>
+<script src="../js/auth-check.js?v=13"></script>
+<script src="../js/cache.js?v=1"></script>
+<script src="../js/utils.js?v=13"></script>
+<script src="../js/layout.js?v=84"></script>
+<script src="../js/date-utils.js?v=4"></script>
+<script src="../js/fin-utils.js?v=22"></script>
+<script src="../js/pages/fin-sales-fee.js?v=1"></script>
+
+</body>
+</html>

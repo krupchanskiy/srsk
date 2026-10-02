@@ -73,7 +73,7 @@ function catTable(rows, titleKey, unit = 'retreat') {
     <div class="card bg-base-100 shadow-sm"><div class="card-body py-4">
         <h2 class="card-title text-base font-bold ${dir === 'in' ? 'text-success' : 'text-error'}">${t(titleKey)}</h2>
         <div class="overflow-x-auto"><table class="table table-sm">
-            <tbody>${rows.map(r => `<tr class="fin-drill-row cursor-pointer hover:bg-base-200"
+            <tbody>${rows.map(r => r.link ? `<tr class="cursor-pointer hover:bg-base-200 italic" onclick="location.href='${e(r.link)}'">` : `<tr class="fin-drill-row cursor-pointer hover:bg-base-200"
                     data-drill-unit="${unit}" data-drill-dir="${dir}" data-drill-group="${e(r.category_id)}" data-drill-name="${e(r.name)}">
                     <td>${e(r.name)}</td>
                     <td class="text-right opacity-60">${Object.entries(r.by_currency || {}).map(([c, v]) => FinUtils.fmtMoney(v, c)).join(' · ')}</td>
@@ -966,6 +966,33 @@ async function renderMoneyByDay(retreat, token) {
     });
 }
 
+// Процент отделу продаж (миграция 623): пока не зафиксирован — в траты ретрита идёт
+// расчётом, чтобы итог был виден сразу; после фиксации это обычная трата, а если
+// с тех пор что-то изменилось — расчётом идёт только разница (ВГ 02.10).
+async function addSalesFeeEstimate(report, retreatId) {
+    if (!canReadAllFin()) return;
+    const [{ data: sf }, { data: rates }] = await Promise.all([
+        Layout.db.rpc('fin_sales_fee_calc', { p_retreat: retreatId }).then(r => r, () => ({})),
+        Layout.db.rpc('fin_get_retreat_rates', { p_retreat: retreatId }).then(r => r, () => ({}))
+    ]);
+    if (!sf?.has_object) return;
+    const pending = Number(sf.amount_rub) - Number(sf.fixation?.amount_rub || 0);
+    if (Math.abs(pending) < 0.005) return;
+    const rubRate = Number((rates || []).find(x => x.currency_code === 'RUB')?.rate);
+    if (!(rubRate > 0)) return;
+    const base = Math.round(pending * rubRate * 100) / 100;
+    const label = sf.fixation
+        ? tr('fin_sales_fee_pending_delta', 'Процент отделу продаж — изменилось после фиксации, не проведено')
+        : tr('fin_sales_fee_pending', 'Процент отделу продаж — расчёт, не зафиксировано');
+    report.expense_by_category = [...(report.expense_by_category || []), {
+        category_id: 'sales_fee_pending', name: `${label} (${sf.qualified} × ${FinUtils.fmtMoney(sf.rate_rub, 'RUB')})`,
+        base_total: base, by_currency: { RUB: pending }, link: `sales-fee.html?retreat=${retreatId}`
+    }];
+    const tot = report.totals;
+    tot.expense_base = Math.round((Number(tot.expense_base) + base) * 100) / 100;
+    tot.net_base = Math.round((Number(tot.net_base) - base) * 100) / 100;
+}
+
 async function loadReport() {
     const box = document.getElementById('retreatReport');
     box.innerHTML = `<div class="text-center py-8"><span class="loading loading-spinner loading-md"></span></div>`;
@@ -979,6 +1006,8 @@ async function loadReport() {
     if (error) { Layout.handleError(error, 'Аналитика'); return; }
     if (!data?.ok) { Layout.showNotification(data?.error?.message || 'Ошибка', 'error'); return; }
     currentData = data.result;
+    if (currentData.exists) await addSalesFeeEstimate(currentData.report, currentRetreat);
+    if (token !== reportToken) return;
 
     if (!currentData.exists) {
         box.innerHTML = `<div class="text-center py-8 opacity-60">${t('fin_no_fin_data')}</div>`;
