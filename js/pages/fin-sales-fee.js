@@ -88,7 +88,7 @@ function renderSummary() {
     const fx = calc.fixation;
     const diff = fixationDiff();
     const ruleLine = `${e(t('fin_sales_fee_rule'))}: ${fmtRub(calc.rate_rub)} · ${e(t('fin_sales_fee_threshold_short'))} ${Math.round(calc.threshold * 100)}%`
-        + (isAdmin ? ` <button type="button" class="btn btn-link btn-xs no-print" id="settingsBtn">${e(t('edit'))}</button>` : '');
+        + (isAdmin ? ` <button type="button" class="btn btn-outline btn-primary btn-xs ml-2 gap-1 no-print" id="settingsBtn"><svg xmlns="http://www.w3.org/2000/svg" class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M16.862 4.487l1.687-1.688a1.875 1.875 0 112.652 2.652L10.582 16.07a4.5 4.5 0 01-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 011.13-1.897l8.932-8.931z"/></svg>${e(t('edit'))}</button>` : '');
     const prices = Object.entries(calc.prices || {}).map(([c, v]) => FinUtils.fmtMoney(v, c)).join(' / ') || '—';
 
     let fixHtml;
