@@ -376,6 +376,8 @@ async function initForm(v) {
         const дни = (data || []).sort((a, b) => a.d.localeCompare(b.d));
         f.meals = дни.map(r => ({ d: r.d, b: !!r.breakfast, l: !!r.lunch, ref: v.resident_id }));
         f.base = await базаПитания(f.meals);
+        f.mealsAll = f.meals.map(m => ({ ...m }));
+        f.baseAll = f.base.map(m => ({ ...m }));
     }
     if (!v.vaishnava_id) {
         const { data } = await Layout.db.rpc('fin_guest_person_candidates',
@@ -504,6 +506,16 @@ function renderForms() {
                 = <span class="font-mono">${inr(r.заНочь)}</span>)
                 = <b class="font-mono">${inr(r.проживание)}</b>
             </div>
+            ${v.check_out ? `<div class="flex flex-wrap items-center gap-1 text-xs -mt-2 mb-3">
+                Выезд из номера <input type="date" class="input input-bordered input-xs" data-gc-f="${rid}" data-k="leaveOut" value="${f.leaveOut || v.check_out}" min="${v.check_in}" max="${v.check_out}">
+                ${f.leaveOut && f.leaveOut < v.check_out ? `
+                    <label class="flex items-center gap-1 cursor-pointer ml-2"><input type="radio" class="radio radio-xs" name="gcLeave_${rid}" data-gc-f="${rid}" data-k="leaveMode" value="gone" ${f.leaveMode !== 'self' ? 'checked' : ''}> уехал совсем</label>
+                    <label class="flex items-center gap-1 cursor-pointer ml-2"><input type="radio" class="radio radio-xs" name="gcLeave_${rid}" data-gc-f="${rid}" data-k="leaveMode" value="self" ${f.leaveMode === 'self' ? 'checked' : ''}> живёт сам и питается с нами до</label>
+                    <input type="date" class="input input-bordered input-xs" data-gc-f="${rid}" data-k="selfUntil" value="${f.selfUntil || v.check_out}" min="${f.leaveOut}">
+                    <div class="w-full opacity-60">${f.leaveMode === 'self'
+                        ? 'Номер закроется этой датой, в шахматке откроется «Самостоятельное проживание» с питанием — его прасад начисляется отдельным визитом'
+                        : 'Шахматка и кухня — по новой дате выезда'}</div>` : ''}
+            </div>` : ''}
             ${(() => {
                 const койки = Math.max(Number(f.roomType?.capacity) || Number(v.capacity) || 1, 1);
                 const жильцов = Math.max(Number(v.roommates) || 1, 1);
@@ -553,6 +565,19 @@ function renderForms() {
     renderTotal();
 }
 
+// Выезд из номера раньше, чем в шахматке (ВГ, 03.10): ночи — по новую дату, питание этого
+// визита — тоже (в день выезда без обеда). Уехал совсем — кухня перестаёт кормить; живёт сам —
+// с этой даты «Самостоятельное проживание» с питанием, его прасад — отдельным визитом
+function выездИзНомера(f, iso) {
+    const v = f.v;
+    if (!iso || iso >= v.check_out || iso <= v.check_in) iso = null;
+    f.leaveOut = iso;
+    const до = iso || v.check_out;
+    f.nights = Math.max(днейМежду(v.check_in, до), 0);
+    const обрезать = list => (list || []).filter(m => m.d <= до).map(m => m.d === до && iso ? { ...m, l: false } : { ...m });
+    if (f.mealsAll) { f.meals = обрезать(f.mealsAll); f.base = обрезать(f.baseAll); }
+}
+
 function renderTotal() {
     const сумма = [...selected].reduce((a, rid) => a + (forms[rid] ? расчёт(forms[rid]).итого : 0), 0);
     document.getElementById('gcTotal').innerHTML = selected.size
@@ -578,6 +603,24 @@ async function save() {
         }
         if (расчёт(f).итого <= 0) { Layout.showNotification(`${f.v.name}: нечего начислять`, 'warning'); return; }
     }
+    // выезд из номера раньше — что изменится в шахматке, с подтверждением
+    const выезды = [];
+    for (const rid of selected) {
+        const f = forms[rid];
+        if (f.freeOn || !f.leaveOut) continue;
+        const payload = { resident_id: rid, check_in: f.v.check_in, check_out: f.leaveOut,
+            stays_self: f.leaveMode === 'self', self_until: f.leaveMode === 'self' ? (f.selfUntil || f.v.check_out) : null };
+        let план = await call('fin_charge_set_stay', { ...payload, dry_run: true });
+        if (план?.ask_booking) {
+            payload.whole_booking = confirm(`${f.v.name}: в той же брони ещё ${план.ask_booking} чел. на тех же датах.
+OK — изменить даты всей брони, Отмена — только у этого гостя`);
+            план = await call('fin_charge_set_stay', { ...payload, dry_run: true });
+        }
+        if (!план) return;
+        выезды.push({ rid, payload, шаги: (план.plan || []).map(x =>
+            `• ${f.v.name}, ${x.what}: ${x.old_in ? `${дата(x.old_in)} — ${дата(x.old_out)}` : 'нет'} → ${дата(x.new_in)} — ${дата(x.new_out)}`) });
+    }
+    if (выезды.length && !confirm(`Изменятся даты в шахматке:\n${выезды.flatMap(x => x.шаги).join('\n')}\n\nКухня пересчитает питание сама. Продолжить?`)) return;
     const повтор = [...selected].filter(rid => !forms[rid].freeOn).map(rid => forms[rid].v).filter(v => Number(v.charged) > 0);
     if (повтор.length && !confirm(`Уже есть начисления: ${повтор.map(v => v.name).join(', ')}. Добавить ещё?`)) return;
 
@@ -634,6 +677,12 @@ async function save() {
         if (!res) return;
         // снятые дни в середине → кухня (края уже ушли флагами раннего заезда / позднего выезда)
         if (f.base && f.meals.length && !await сохранитьПропуски(f.meals, f.base)) return;
+        // выезд из номера раньше → шахматка; отмена начисления проживания вернёт даты
+        const выезд = выезды.find(x => x.rid === rid);
+        if (выезд && rows.length) {
+            const привязка = rows.find(x => x.kind === 'accommodation') || rows[0];
+            if (!await call('fin_charge_set_stay', { ...выезд.payload, charge_id: привязка.id })) return;
+        }
         selected.delete(rid);
         if (!первый) первый = pid;
     }
@@ -717,7 +766,9 @@ function init() {
         } else if (el.dataset.gcF) {
             const f = forms[el.dataset.gcF];
             const k = el.dataset.k;
-            f[k] = ['extraBed', 'freeOn'].includes(k) ? el.checked : ['extraDesc', 'comment', 'freeReason'].includes(k) ? el.value : Number(el.value) || 0;
+            if (k === 'leaveOut') { выездИзНомера(f, el.value); renderForms(); return; }
+            f[k] = ['extraBed', 'freeOn'].includes(k) ? el.checked
+                : ['extraDesc', 'comment', 'freeReason', 'leaveMode', 'selfUntil'].includes(k) ? el.value : Number(el.value) || 0;
             renderForms();
         }
     });

@@ -1263,6 +1263,13 @@ function chargeRowHtml(idx) {
                 <label class="chg-stay-wrap hidden flex items-center gap-1 mt-1 text-xs cursor-pointer">
                     <input type="checkbox" class="checkbox checkbox-xs chg-whole-stay"> Весь срок — обновить шахматку, кухню и CRM
                 </label>
+                <!-- Выезд раньше: уехал совсем (кухня тоже перестаёт кормить) или живёт сам и ест с нами
+                     (номер закрывается, с этой даты — «Самостоятельное проживание» с питанием), ВГ 03.10 -->
+                <div class="chg-leave-wrap hidden text-xs mt-1 pl-5 space-y-0.5">
+                    <label class="flex items-center gap-1 cursor-pointer"><input type="radio" class="radio radio-xs chg-leave" value="gone" checked> уехал совсем</label>
+                    <label class="flex items-center gap-1 cursor-pointer flex-wrap"><input type="radio" class="radio radio-xs chg-leave" value="self"> остаётся жить сам и питается с нами до
+                        <input type="date" class="input input-bordered input-xs chg-self-until"></label>
+                </div>
             </div>
             <div class="form-control">
                 <label class="label py-0"><span class="label-text text-xs">${t('fin_unit_price')}</span></label>
@@ -1298,6 +1305,18 @@ function chargeRowHtml(idx) {
         <div class="text-right text-sm mt-2 opacity-70 chg-total"></div>
         ${idx > 0 ? `<button type="button" class="btn btn-ghost btn-sm text-error mt-1" aria-label="${t('fin_remove_row')}" onclick="this.closest('.chg-row').remove()">${FinUtils.ICONS.x}</button>` : ''}
     </div>`;
+}
+
+// «Уехал совсем / живёт сам» — только когда выезд в форме раньше, чем в шахматке
+function updateLeaveChoice(row) {
+    const wrap = row.querySelector('.chg-leave-wrap');
+    const to = row.querySelector('.chg-date-to').value;
+    const прежний = row.dataset.stayOut;
+    const раньше = row.querySelector('.chg-kind').value === 'accommodation' && row.querySelector('.chg-whole-stay').checked
+        && to && прежний && to < прежний;
+    wrap.classList.toggle('hidden', !раньше);
+    const until = row.querySelector('.chg-self-until');
+    if (раньше && !until.value) until.value = прежний;
 }
 
 function wireChargeRow(row) {
@@ -1342,6 +1361,11 @@ function wireChargeRow(row) {
     };
     row.querySelector('.chg-date-from').addEventListener('change', по_датам);
     row.querySelector('.chg-date-to').addEventListener('change', по_датам);
+    // радиокнопки — своя группа на каждую строку формы
+    const leaveName = 'chgLeave_' + Math.random().toString(36).slice(2);
+    row.querySelectorAll('.chg-leave').forEach(r => { r.name = leaveName; });
+    ['.chg-date-to', '.chg-whole-stay', '.chg-kind'].forEach(sel =>
+        row.querySelector(sel).addEventListener('change', () => updateLeaveChoice(row)));
 
     // Живой итог строки: qty × цена − скидка
     const totalEl = row.querySelector('.chg-total');
@@ -1547,15 +1571,17 @@ const fmtStayDates = (a, b) => a && b ? `${DateUtils.formatShort(DateUtils.parse
 function openRecalc(chargeId) {
     const c = cardChargesById[chargeId];
     if (!c) return;
-    // перерасчёт одной строки — прежним «число × цена», без ленты: иначе одна строка
-    // завтраков превратилась бы в завтраки + обеды
-    openCharge({ noRibbon: true });
+    // Перерасчёт питания участника ретрита — лентой дней из шахматки (снятое уходит кухне),
+    // она заменяет весь блок «Питание»; прочее — прежним «число × цена» (ВГ, 03.10)
+    const лентой = c.kind === 'meals' && !noEventMode;
+    openCharge({ noRibbon: !лентой });
     recalcSource = c;
     const row = document.querySelector('#chargeRows .chg-row');
     row.querySelector('.chg-kind').value = c.kind;
     row.querySelector('.chg-kind').dispatchEvent(new Event('change'));
     const desc = row.querySelector('.chg-desc');
-    desc.value = c.description || ''; desc.dataset.touched = '1';
+    // лента сама пишет описание по дням — прежнее не приклеиваем к новым строкам
+    if (!лентой) { desc.value = c.description || ''; desc.dataset.touched = '1'; }
     row.querySelector('.chg-qty').value = c.quantity;
     row.querySelector('.chg-price').value = c.unit_price;
     row.querySelector('.chg-currency').value = c.currency_code || 'INR';
@@ -1570,7 +1596,9 @@ function openRecalc(chargeId) {
         if (cardCalc?.dates?.source === 'timeline') {
             row.querySelector('.chg-date-from').value = cardCalc.dates.check_in;
             row.querySelector('.chg-date-to').value = cardCalc.dates.check_out;
+            row.dataset.stayOut = cardCalc.dates.check_out;
         }
+        updateLeaveChoice(row);
     }
     const wrap = document.getElementById('chargeRecalcWrap');
     wrap.classList.remove('hidden');
@@ -1634,6 +1662,11 @@ async function submitCharge(ev) {
         const срок = { row, chargeId: row._chargeId, payload: {
             participant_id: row.querySelector('.chg-person-id').value, retreat_id: currentRetreat,
             check_in: from, check_out: to, reason: причинаПерерасчёта || reason || null } };
+        if (!row.querySelector('.chg-leave-wrap').classList.contains('hidden')
+            && row.querySelector('.chg-leave:checked')?.value === 'self') {
+            срок.payload.stays_self = true;
+            срок.payload.self_until = row.querySelector('.chg-self-until').value || null;
+        }
         let план = await FinUtils.rpc('fin_charge_set_stay', { ...срок.payload, dry_run: true });
         if (план?.ok && план.result?.ask_booking) {
             срок.payload.whole_booking = confirm(`В той же брони ещё ${план.result.ask_booking} чел. на тех же датах.\nOK — изменить даты всей брони, Отмена — только у этого гостя`);
@@ -1642,7 +1675,10 @@ async function submitCharge(ev) {
         if (!план?.ok) { Layout.showNotification(план?.error?.message || 'Даты не переносятся', 'error'); return; }
         const шаги = (план.result?.plan || []).map(x => `• ${x.what}: ${fmtStayDates(x.old_in, x.old_out)} → ${fmtStayDates(x.new_in, x.new_out)}`);
         if (!шаги.length) continue;   // в шахматке те же даты
-        if (!confirm(`Начисление изменит даты проживания:\n${шаги.join('\n')}\n\nКухня пересчитает питание сама, в сделку CRM уйдёт запись. Продолжить?`)) return;
+        const кухня = срок.payload.stays_self
+            ? 'Кухня продолжит кормить: с даты выезда — «Самостоятельное проживание» с питанием.'
+            : 'Кухня пересчитает питание сама.';
+        if (!confirm(`Начисление изменит даты проживания:\n${шаги.join('\n')}\n\n${кухня} В сделку CRM уйдёт запись. Продолжить?`)) return;
         сроки.push(срок);
     }
     const res = await FinUtils.rpc('fin_create_charge', { rows });
@@ -1653,13 +1689,21 @@ async function submitCharge(ev) {
         else Layout.showNotification('Даты проживания обновлены в шахматке, кухне и CRM', 'success');
     }
     if (res?.ok && recalcSource) {
-        // Новая строка уже есть — теперь отменяем старую с записью «было → стало»
-        const новая = rows[0];
-        const стало = Math.max(Number(новая.quantity) * Number(новая.unit_price) - Number(новая.discount_amount || 0), 0);
-        await FinUtils.rpc('fin_cancel_charge', {
-            charge_id: recalcSource.id,
-            reason: `Перерасчёт: было ${FinUtils.fmtMoney(recalcSource.net_amount, recalcSource.currency_code || 'INR')} → стало ${FinUtils.fmtMoney(стало, валютаКарточки())}. ${причинаПерерасчёта}`
-        });
+        // Новые строки уже есть — теперь отменяем старые с записью «было → стало».
+        // Лента питания заменяет весь блок «Питание» (дни, одиночные приёмы), не одну строку
+        const стало = rows.reduce((a, r) => a + Math.max(Number(r.quantity) * Number(r.unit_price) - Number(r.discount_amount || 0), 0), 0);
+        const лентаПитания = recalcSource.kind === 'meals' && ленты.length;
+        const старые = лентаПитания
+            ? Object.values(cardChargesById).filter(c => c.kind === 'meals' && !c.is_cancelled && c.participant_id === rows[0].participant_id && !rows.some(r => r.id === c.id))
+            : [recalcSource];
+        const было = старые.reduce((a, c) => a + Number(c.net_amount || 0), 0);
+        for (const c of старые) {
+            await FinUtils.rpc('fin_cancel_charge', {
+                charge_id: c.id,
+                reason: `Перерасчёт: было ${FinUtils.fmtMoney(было, recalcSource.currency_code || 'INR')} → стало ${FinUtils.fmtMoney(стало, валютаКарточки())}. ${причинаПерерасчёта}`
+            });
+        }
+        if (лентаПитания) await запискаПитанияВCrm(rows[0].participant_id, ленты[0].ribbon, было, стало, причинаПерерасчёта);
     }
     if (res?.error?.code === 'post_close_reason_required') {
         // ретрит закрыт: показываем поле причины и ведём к нему фокус,
@@ -1679,6 +1723,20 @@ async function submitCharge(ev) {
         closeCharge();
         await refreshAfterChange();
     }
+}
+
+// Перерасчёт питания → запись в истории сделки CRM (тип placement, без денег — как даты
+// из оплаты; заметки кассира о долге не перекрывает)
+async function запискаПитанияВCrm(pid, r, было, стало, причина) {
+    const { data: deal } = await Layout.db.from('crm_deals').select('id')
+        .eq('vaishnava_id', pid).eq('retreat_id', currentRetreat).neq('status', 'cancelled')
+        .order('updated_at', { ascending: false }).limit(1).maybeSingle();
+    if (!deal) return;
+    const c = ribbonCalc(r);
+    const состав = [c.дней ? `${c.дней} дн.` : '', c.завтраков ? `${c.завтраков} завтр.` : '', c.обедов ? `${c.обедов} обед.` : ''].filter(Boolean).join(' + ') || 'без питания';
+    const summary = `Питание из оплаты: ${состав} (было ${FinUtils.fmtMoney(было, валютаКарточки())} → стало ${FinUtils.fmtMoney(стало, валютаКарточки())})`;
+    await Layout.db.from('crm_communications').insert({ deal_id: deal.id, type: 'placement', direction: 'internal',
+        summary, content: summary + (причина ? `. ${причина}` : ''), created_by: window.currentUser?.id || null });
 }
 
 // Строка «Питание» по ленте → начисления: дни (завтрак и обед) по цене дня ретрита,
