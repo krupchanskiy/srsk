@@ -1043,6 +1043,12 @@ const СТИЛЬ = `.sheet{font:12px/1.4 system-ui,'Noto Sans','Noto Sans Devana
     .sheet .rooms tr.room td{background:#f3f4f6;font-weight:600;border-top:1px solid #d1d5db}.sheet .rooms .pl{padding-left:14px}.sheet .rooms tr.off td{opacity:.55}
     .sheet thead{display:table-header-group}.sheet .rooms tr.room{break-after:avoid}.sheet .warn{color:#b45309;margin-top:8px}`;
 
+// На бумаге — только чёрный (ВГ, 03.10): серое лазерный принтер печатает точками, шрифт размыт.
+// Номера выделяются жирным и линией вместо серого фона, шапки таблиц — жирные
+const ПЕЧАТЬ = `@media print{.sheet *{color:#000!important;opacity:1!important;border-color:#000!important;background:none!important}
+    .sheet .t td,.sheet .t th{border-bottom:.5pt solid #000}.sheet .t th{font-weight:700;font-size:10px}.sheet h3{font-weight:700}
+    .sheet .rooms tr.room td{border-top:1.2pt solid #000;font-weight:700}}`;
+
 async function openSummary() {
     const d = await summaryData();
     document.getElementById('grSummaryBody').innerHTML = `<style>${СТИЛЬ}</style>
@@ -1129,7 +1135,7 @@ function printSummary() {
     w.document.write(`<!doctype html><html lang="${язык}"><head><meta charset="utf-8"><title>${e(имя)}</title>
         <meta name="color-scheme" content="light">
         <link href="https://fonts.googleapis.com/css2?family=Noto+Sans:wght@400;600&family=Noto+Sans+Devanagari:wght@400;600&display=swap" rel="stylesheet">
-        <style>@page{size:A4;margin:12mm}html,body{margin:0;background:#fff;color:#111;color-scheme:light}.no-print{display:none}${СТИЛЬ}</style></head>
+        <style>@page{size:A4;margin:12mm}html,body{margin:0;background:#fff;color:#000;color-scheme:light}.no-print{display:none}${СТИЛЬ}${ПЕЧАТЬ}</style></head>
         <body>${document.getElementById('grSummarySheet').innerHTML}</body></html>`);
     w.document.close();
     // шрифт хинди — дождаться загрузки, иначе печать уйдёт квадратиками

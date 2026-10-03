@@ -413,3 +413,12 @@ body.user-type-guest [data-hide-for-guests] {
 body.user-type-guest .edit-action {
     display: none !important;
 }
+
+/* Печать — только чёрный (ВГ, 03.10): серый текст, полупрозрачность и серые линии
+   лазерный принтер печатает точками — шрифт выходит размытым. На экране не меняется.
+   Скрытое через opacity-0 и подсказки (::before/::after) не трогаем — остаются скрытыми */
+@media print {
+    *:not(.opacity-0), *::before, *::after { color: #000 !important; border-color: #000 !important; text-shadow: none !important; }
+    *:not(.opacity-0) { opacity: 1 !important; }
+    ::placeholder { color: #000 !important; }
+}
