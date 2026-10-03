@@ -16,7 +16,10 @@ let currentRetreat = null;
 let calc = null;
 let isAdmin = false;
 
-const FLAG_ORDER = ['problems', 'no_price', 'debt', 'discount_pass', 'no_charge'];
+// «Оргвзнос не начислен» (0 из 0) не предупреждаем: это не приехавшие, дети, неснятые брони —
+// решать там нечего (ВГ 03.10); в списке «Не засчитаны» они остаются
+const FLAG_ORDER = ['problems', 'no_price', 'debt', 'discount_pass'];
+const shownFlags = r => (r.flags || []).filter(f => FLAG_ORDER.includes(f));
 
 const fmtRub = n => FinUtils.fmtMoney(n, 'RUB');
 // суммы архива пересчитаны в валюту сделки через соотношение цен — копейки там ни о чём не говорят
@@ -64,13 +67,13 @@ function fixationDiff() {
 
 function renderWarnings() {
     const groups = {};
-    calc.rows.forEach(r => (r.flags || []).forEach(f => { (groups[f] = groups[f] || []).push(r); }));
+    calc.rows.forEach(r => shownFlags(r).forEach(f => { (groups[f] = groups[f] || []).push(r); }));
     const parts = FLAG_ORDER.filter(f => groups[f]).map(f => `
         <div class="mb-2">
             <div class="font-semibold">${e(t('fin_sales_fee_flag_' + f))} — ${groups[f].length}</div>
             <div class="text-sm opacity-80">${e(t('fin_sales_fee_flag_' + f + '_hint'))}</div>
             <div class="text-sm mt-1 flex flex-wrap gap-x-3 gap-y-1">${groups[f].map(r =>
-                `<a class="link" href="${participantHref(r.participant_id)}" target="_blank">${e(r.name)} (${pctStr(r.pct)})</a>`).join('')}</div>
+                `<a class="link" href="#" data-goto="${e(r.participant_id)}">${e(r.name)} (${pctStr(r.pct)})</a>`).join('')}</div>
         </div>`);
     if (Number(calc.unposted_crm) > 0) {
         parts.unshift(`<div class="mb-2"><div class="font-semibold">${e(t('fin_sales_fee_unposted'))} — ${calc.unposted_crm}</div>
@@ -128,15 +131,15 @@ function renderSummary() {
 }
 
 function rowHtml(r) {
-    const flagged = (r.flags || []).length > 0;
+    const flagged = shownFlags(r).length > 0;
     const ov = r.override
         ? `<div class="text-xs ${r.override.include ? 'text-success' : 'text-error'}">${e(t(r.override.include ? 'fin_sales_fee_included_manually' : 'fin_sales_fee_excluded_manually'))}: ${e(r.override.comment || '')}</div>`
         : '';
-    const badges = (r.flags || []).map(f => `<span class="badge badge-warning badge-xs">${e(t('fin_sales_fee_flag_' + f))}</span>`).join(' ');
+    const badges = shownFlags(r).map(f => `<span class="badge badge-warning badge-xs">${e(t('fin_sales_fee_flag_' + f))}</span>`).join(' ');
     const paid = money(r.paid, r.currency);
     const price = money(r.price, r.currency);
     const debt = Number(r.debt) > 0 ? `<div class="text-xs text-error">${e(t('fin_sales_fee_owes'))} ${money(r.debt, r.currency)}</div>` : '';
-    return `<tr class="${flagged ? 'sf-flagged' : ''}">
+    return `<tr id="sf-row-${e(r.participant_id)}" class="${flagged ? 'sf-flagged' : ''}">
         <td><a class="link link-hover" href="${participantHref(r.participant_id)}" target="_blank">${e(r.name)}</a> ${badges}${ov}</td>
         <td class="text-right font-mono whitespace-nowrap">${paid}${debt}</td>
         <td class="text-right font-mono whitespace-nowrap opacity-60">${price}</td>
@@ -301,6 +304,17 @@ async function init() {
     document.getElementById('sfBody').addEventListener('click', ev => {
         if (ev.target.closest('#fixBtn')) { fix(); return; }
         if (ev.target.closest('#settingsBtn')) { openSettings(); return; }
+        const go = ev.target.closest('[data-goto]');
+        if (go) {
+            ev.preventDefault();
+            const row = document.getElementById('sf-row-' + go.dataset.goto);
+            if (!row) return;
+            row.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            row.classList.remove('sf-found');
+            void row.offsetWidth;
+            row.classList.add('sf-found');
+            return;
+        }
         const ov = ev.target.closest('[data-override]');
         if (ov) openOverride(ov.dataset.override);
     });
