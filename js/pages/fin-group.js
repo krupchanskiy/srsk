@@ -1115,18 +1115,25 @@ async function copySummary() {
 }
 
 // PDF — через печать браузера («Сохранить как PDF»), лист А4
+// Печать — в невидимой рамке на этой же странице (ВГ, 03.10): новая вкладка за окном печати
+// показывала «кашу» (тёмная тема браузера, полосы) и уводила со страницы
 function printSummary() {
-    const w = window.open('', '_blank');
-    if (!w) { Layout.showNotification('Браузер не дал открыть окно печати', 'error'); return; }
+    document.getElementById('grPrintFrame')?.remove();
+    const f = document.createElement('iframe');
+    f.id = 'grPrintFrame';
+    f.style.cssText = 'position:fixed;right:0;bottom:0;width:0;height:0;border:0';
+    document.body.appendChild(f);
+    const w = f.contentWindow;
     const имя = имяНаЯзыке(названия?.событие, ret.name);
+    w.document.open();
     w.document.write(`<!doctype html><html lang="${язык}"><head><meta charset="utf-8"><title>${e(имя)}</title>
+        <meta name="color-scheme" content="light">
         <link href="https://fonts.googleapis.com/css2?family=Noto+Sans:wght@400;600&family=Noto+Sans+Devanagari:wght@400;600&display=swap" rel="stylesheet">
-        <style>@page{size:A4;margin:12mm}body{margin:0}.no-print{display:none}${СТИЛЬ}</style></head>
+        <style>@page{size:A4;margin:12mm}html,body{margin:0;background:#fff;color:#111;color-scheme:light}.no-print{display:none}${СТИЛЬ}</style></head>
         <body>${document.getElementById('grSummarySheet').innerHTML}</body></html>`);
     w.document.close();
-    w.focus();
     // шрифт хинди — дождаться загрузки, иначе печать уйдёт квадратиками
-    (w.document.fonts?.ready || Promise.resolve()).then(() => w.print());
+    (w.document.fonts?.ready || Promise.resolve()).then(() => { w.focus(); w.print(); });
 }
 
 // ==================== СОБЫТИЯ ====================
