@@ -872,7 +872,7 @@ function renderCardBlocks(b) {
         // оставил пожертвованием, остальное просит назад (ВГ, 05.09)
         ? `<div class="flex flex-col items-start -mr-1">
             <button type="button" class="btn btn-ghost btn-xs text-success px-1" data-donate-all="1" title="${t('fin_keep_as_donation')}">${t('fin_type_donation')}</button>
-            ${новая ? '' /* возврат аванса в новой системе — отдельным шагом */ : `<button type="button" class="btn btn-ghost btn-xs text-warning px-1" data-refund-advance="1" title="${t('fin_refund_advance_hint')}">${t('fin_refund')}</button>`}
+            <button type="button" class="btn btn-ghost btn-xs text-warning px-1" data-refund-advance="1" title="${t('fin_refund_advance_hint')}">${t('fin_refund')}</button>
            </div>`
         : '';
     const блокиEl = document.getElementById('cardBlocks');
@@ -1058,8 +1058,8 @@ async function loadCardCompanions() {
         : v < -0.005
             ? `<span class="text-success">${t('fin_advance')} ${FinUtils.fmtMoney(-v, cur)}</span>`
             : `<span class="opacity-60">0</span>`;
-    // зачёт между участниками в новой системе — отдельным шагом
-    const зачётМожно = !новаяСистема(мойБаланс);
+    // зачёт между участниками: сумма в валюте донора, получателю — по курсу ретрита (мигр. 639)
+    const зачётМожно = true;
     el.innerHTML = `
         <div class="border border-base-300 rounded-lg p-2 mb-2">
             <div class="flex flex-wrap items-center gap-2 text-xs mb-1">
@@ -2955,7 +2955,7 @@ function renderGroupBalance() {
     // Зачёт предлагаем самой очевидной паре: наибольший аванс → наибольший долг
     const донор = строки.filter(x => x.net < -0.005).sort((a, b) => a.net - b.net)[0];
     const получатель = строки.filter(x => x.net > 0.005).sort((a, b) => b.net - a.net)[0];
-    const кнопка = донор && получатель && !новаяСистема(балансКарточки())
+    const кнопка = донор && получатель
         ? `<button type="button" class="btn btn-xs btn-outline btn-success"
              data-group-offset="${e(донор.pid)}" data-group-to="${e(получатель.pid)}"
              title="${e(`${донор.имя} → ${получатель.имя}`)}">${t('fin_offset_advance')}</button>`
@@ -3083,25 +3083,28 @@ function openRefundAdvance() {
     requestIds.refund = requestIds.refund || FinUtils.newRequestId();
     document.getElementById('refundPostingId').value = '';
     document.getElementById('refundTitle').textContent = t('fin_refund_advance_title');
+    // аванс — в валюте гостя (новая система) или в ₹ (Сева-ретрит)
+    const cur = валютаРасчёта(b);
     document.getElementById('refundInfo').textContent =
-        `${card.name} · ${t('fin_advance')}: ${FinUtils.fmtMoney(аванс, 'INR')}`;
+        `${card.name} · ${t('fin_advance')}: ${FinUtils.fmtMoney(аванс, cur)}`;
     const счета = document.getElementById('refundAccount');
-    // деньги отдают из кассы, чаще всего рупиями — её и ставим первой
-    счета.innerHTML = FinUtils.accountOptions(null, null, a => a.currency_code === 'INR' ? 1 : 0);
+    // первыми — счета в валюте аванса: возврат без пересчёта
+    счета.innerHTML = FinUtils.accountOptions(null, null, a => a.currency_code === cur ? 1 : 0);
     document.getElementById('refundDate').value = FinUtils.todayISO();
     document.getElementById('refundReason').value = '';
-    подставитьСуммуВозврата(аванс);
-    счета.onchange = () => подставитьСуммуВозврата(аванс);
+    подставитьСуммуВозврата(аванс, cur);
+    счета.onchange = () => подставитьСуммуВозврата(аванс, cur);
     document.getElementById('refundModal').showModal();
 }
 
 // Сумма в валюте выбранного счёта. Округляем вниз: при пересчёте вверх возврат
 // вышел бы на копейку больше аванса, и сервер отказал бы
-function подставитьСуммуВозврата(авансInr) {
+function подставитьСуммуВозврата(аванс, cur = 'INR') {
     const acc = FinUtils.refs.accounts.find(a => a.account_id === document.getElementById('refundAccount').value);
-    const курс = retreatRates[acc?.currency_code] || 1;
+    // из валюты аванса в валюту счёта — по курсу ретрита; та же валюта — как есть
+    const курс = acc?.currency_code === cur ? 1 : (retreatRates[acc?.currency_code] || 1) / (retreatRates[cur] || 1);
     const поле = document.getElementById('refundAmount');
-    поле.value = Math.floor((авансInr / курс) * 100) / 100;
+    поле.value = Math.floor((аванс / курс) * 100) / 100;
     поле.max = поле.value;
 }
 
