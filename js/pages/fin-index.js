@@ -322,7 +322,7 @@ async function onResolveClick(ev) {
 // Деньги отменившего — на баланс человека: в той валюте, в которой он прислал,
 // без пересчёта; с ретрита они уходят целиком
 async function onDepositClick(b) {
-    if (!confirm(`Оставить деньги ${b.dataset.who} на балансе человека — без ретрита, в той валюте, в которой они пришли (${b.dataset.amount} по курсу CRM)? Потом их можно зачесть на любой ретрит или вернуть.`)) return;
+    if (!confirm(`Оставить деньги ${b.dataset.who} на балансе человека — без ретрита, в той валюте, в которой они пришли (${b.dataset.amount})? Потом их можно зачесть на любой ретрит или вернуть.`)) return;
     b.disabled = true;
     const { data, error } = await Layout.db.rpc('fin_deposit_from_payments', {
         payload: { request_id: FinUtils.newRequestId(), participant_id: b.dataset.pid, retreat_id: b.dataset.rid }

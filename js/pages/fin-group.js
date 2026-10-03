@@ -83,9 +83,13 @@ function расчёт(l) {
 // Платит сам (ВГ, 02.10): место остаётся в группе, сумма — на его карточке, не организатору
 const вСчётГруппы = l => l.included && !l.selfPay;
 const сами = () => lines.filter(l => l.included && l.selfPay);
-const авансИтого = () => round2(advances.reduce((a, x) => a + (Number(x.amount_inr) || 0), 0));
+// Аванс в ₹ — по курсу ретрита (фаза 2), а не по курсу дня прихода: деньги в своей валюте,
+// курс только для сравнения с начислением группы
+const авансВРупиях = x => x.currency === 'INR' ? Number(x.amount) || 0
+    : (Number(x.amount) || 0) * (Number(FinParticipants.rates()[x.currency]) || 0);
+const авансИтого = () => round2(advances.reduce((a, x) => a + авансВРупиях(x), 0));
 // ещё на событии; перенесённый «Начислить» на карточку организатора (moved, 630) уже в её остатке
-const авансНаСобытии = () => round2(advances.filter(x => !x.moved).reduce((a, x) => a + (Number(x.amount_inr) || 0), 0));
+const авансНаСобытии = () => round2(advances.filter(x => !x.moved).reduce((a, x) => a + авансВРупиях(x), 0));
 
 // Пропущенные приёмы строки: по шахматке был, в окне снят. База — питание из шахматки
 // без прежних пропусков (они тоже отсюда)

@@ -531,7 +531,6 @@ function restoreCollapsedStates() {
 let retreats = [];
 let deals = [];
 let tasks = [];
-let payments = [];
 let cancellationReasons = [];
 
 // ==================== DATA ====================
@@ -557,7 +556,6 @@ async function loadDashboard() {
     const queries = [
         loadDeals(retreatId),
         loadTasks(retreatId),
-        loadPayments(retreatId),
         loadCancellationReasons()
     ];
 
@@ -599,19 +597,6 @@ async function loadTasks(retreatId) {
     tasks = (data || []).filter(task => {
         if (!retreatId) return true;
         return task.deal?.retreat_id === retreatId;
-    });
-}
-
-async function loadPayments(retreatId) {
-    let query = Layout.db
-        .from('crm_payments')
-        .select('amount_inr, deal:deal_id(retreat_id)');
-
-    const { data } = await query;
-
-    payments = (data || []).filter(p => {
-        if (!retreatId) return true;
-        return p.deal?.retreat_id === retreatId;
     });
 }
 
