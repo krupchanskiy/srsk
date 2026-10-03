@@ -444,7 +444,11 @@
 <!-- Модалка: начисление группе — таблица всех мест брони, платит организатор (js/pages/fin-group.js) -->
 <dialog id="groupChargeModal" class="modal">
     <div class="modal-box max-w-7xl">
-        <h3 class="font-bold text-lg mb-1">Начислить группе · <span id="grTitle"></span></h3>
+        <div class="flex items-start gap-2 mb-1">
+            <h3 class="font-bold text-lg">Начислить группе · <span id="grTitle"></span></h3>
+            <!-- язык окна и сводки: показать группе по месту (ВГ, 03.10) -->
+            <div id="grLang" class="join ml-auto"></div>
+        </div>
         <div class="text-xs opacity-60 mb-2">Места из шахматки по комнатам, у каждой — свои даты. Ночи, цена номера ÷ жильцов и питание (как считает кухня) — по тарифам; правьте строку, комнату или сразу всем. Снимите зелёную галочку — место или комната не начисляются (укажите почему). Пересчитать можно в любой момент, даже при оплате</div>
         <div id="grPayer" class="text-sm mb-2"></div>
         <div id="grRates" class="text-sm mb-2 flex flex-wrap items-center gap-2"></div>
@@ -494,7 +498,7 @@
 
 <!-- Модалка: сводка для организатора группы — копия текстом или PDF -->
 <dialog id="groupSummaryModal" class="modal">
-    <div class="modal-box max-w-4xl">
+    <div class="modal-box max-w-6xl">
         <div id="grSummaryBody" class="text-sm"></div>
         <textarea id="grSummaryText" class="hidden"></textarea>
         <div class="modal-action">
@@ -551,7 +555,7 @@
 <script src="../js/fin-utils.js?v=22"></script>
 <script src="../js/pages/fin-participants.js?v=76"></script>
 <script src="../js/pages/fin-guests.js?v=11"></script>
-<script src="../js/pages/fin-group.js?v=13"></script>
+<script src="../js/pages/fin-group.js?v=14"></script>
 
 </body>
 </html>

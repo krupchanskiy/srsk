@@ -10,7 +10,8 @@
 
 const e = str => Layout.escapeHtml(str);
 const round2 = v => Math.round(v * 100) / 100;
-const inr = v => FinUtils.fmtMoney(v, 'INR');
+// суммы — в записи языка окна (en/hi — индийская: ₹2,15,000)
+const inr = v => деньги(v);
 // в таблице и сводке — коротко «01.10», год — только в заголовке сводки
 const дата = s => s ? `${s.slice(8, 10)}.${s.slice(5, 7)}` : '…';
 const датаГод = s => DateUtils.formatShort(DateUtils.parseDate(s));
@@ -136,8 +137,9 @@ async function open() {
     advances = data.advances || [];
     payerKey = null;
     marked = new Set(); expanded = null; dirty = false; draft = !!data.sheet?.draft;
-    document.getElementById('grTitle').textContent = ret.name;
     await buildLines(data);
+    await загрузитьНазвания();
+    названиеОкна();
     // организатор из строки списка, выбранный в черновике
     if (!payer) payerKey = (data.sheet?.lines || []).find(l => l.org && lines.some(x => x.key === l.key))?.key || null;
     fillPrices(data.sheet?.prices);
@@ -260,11 +262,13 @@ function renderPayer() {
         el.innerHTML = `<span class="opacity-60">Платит организатор:</span> <b>${e(l?.label || 'место без имени')}</b>
             <span class="text-xs opacity-60">(живёт с группой${l?.place?.vaishnava_id ? '' : ' — карточка заведётся при сохранении'})</span>
             <button type="button" class="btn btn-ghost btn-xs" data-gr-payer-change>сменить</button>`;
+        перевести(el);
         return;
     }
     if (payer) {
         el.innerHTML = `<span class="opacity-60">Платит организатор:</span> <b>${e(payer.name)}</b>${payer.phone ? ` · ${e(payer.phone)}` : ''}
             <button type="button" class="btn btn-ghost btn-xs" data-gr-payer-change>сменить</button>`;
+        перевести(el);
         return;
     }
     el.innerHTML = `<div class="border border-warning/40 bg-warning/5 rounded-lg p-2">
@@ -280,6 +284,7 @@ function renderPayer() {
         </div>
     </div>`;
     FinUtils.attachPersonSearch(document.getElementById('grPayerSearch'), document.getElementById('grPayerId'));
+    перевести(el);
 }
 
 // ==================== КУРС СОБЫТИЯ ====================
@@ -299,6 +304,7 @@ function renderRates() {
                 <button type="button" class="btn btn-primary btn-xs" data-gr-rate-save>OK</button>
             </div>
         </details>`;
+    перевести(document.getElementById('grRates'));
 }
 
 async function saveRate() {
@@ -322,7 +328,7 @@ const цели = () => marked.size ? lines.filter(l => marked.has(l.key)) : line
 // Без номера — по брони: места одной групповой брони вместе, разные брони не сливаются
 const ключКомнаты = l => l.place ? `${l.place.room_id || 'b:' + (l.place.booking_id || l.key)}|${l.place.check_in}|${l.place.check_out}` : l.key;
 // Название шапки: номер, место без номера или запись «Разового питания»
-const имяГруппы = (p, label) => p?.room_id ? `${p.building || ''} №${p.room || '—'}`
+const имяГруппы = (p, label) => p?.room_id ? `${имяНаЯзыке(названия?.здания.get(p.building_id), p.building || '')} №${p.room || '—'}`
     : p ? `Без номера: ${p.booking_name || label || 'питание'}` : `Разовое питание: ${label || 'группа'}`;
 
 function render() {
@@ -535,6 +541,7 @@ function renderTotal() {
                → <b>к оплате <span class="font-mono">${inr(Math.max(round2(всего - аванс), 0))}</span></b>${всего < аванс ? ` <span class="text-warning">переплата ${inr(round2(аванс - всего))}</span>` : ''}`
             : '<span class="opacity-60">Предоплаты/аванса по событию нет</span>'}</div>`;
     document.getElementById('grSave').textContent = payer || payerKey ? 'Пересчитать начисления' : 'Начислить организатору';
+    перевести(document.getElementById('groupChargeModal'));
 }
 
 // ==================== СОХРАНЕНИЕ ====================
@@ -633,6 +640,8 @@ const СЛОВА = {
           paid: 'Оплачено', left: 'Осталось оплатить', currency: 'Валюта расчёта', rate: 'курс', notCharged: 'Не начисляем',
           byRoom: 'Гости по номерам', room: 'Номер', dates: 'Даты', noId: 'Гость (без документа)', mealsOnly: 'только питание',
           selfMark: 'платит сам', ashram: 'за счёт ашрама', roomType: n => `${n}-местный номер`, inCur: 'В валюте расчёта',
+          detail: 'Подробно по каждому гостю', byGuest: 'По каждому гостю', viewFull: 'Подробный', viewShort: 'Краткий', mealsByDay: 'Питание по дням', guest: 'Гость', perNightShort: 'ноч.', B: 'З', L: 'О',
+          legend: 'З — завтрак, О — обед; пусто — гостя в этот день нет, «–» — был, но не ел',
           unsaved: 'Внимание: в окне есть не начисленные правки — «начислено» и «осталось» по последнему начислению' },
     en: { org: 'Organizer', rates: 'Agreed rates', perNight: 'night', breakfast: 'Breakfast', lunch: 'Lunch', extraBed: 'Extra bed',
           stay: 'Accommodation', rooms: 'Rooms', guests: 'Guests', nights: 'Nights', amount: 'Amount', meals: 'Meals', count: 'Count', price: 'Price',
@@ -642,6 +651,8 @@ const СЛОВА = {
           paid: 'Paid', left: 'Balance due', currency: 'Settlement currency', rate: 'rate', notCharged: 'Not charged',
           byRoom: 'Guests by room', room: 'Room', dates: 'Dates', noId: 'Guest (no ID provided)', mealsOnly: 'meals only',
           selfMark: 'pays individually', ashram: "at the ashram's expense",
+          detail: 'Details by guest', byGuest: 'By guest', viewFull: 'Detailed', viewShort: 'Short', mealsByDay: 'Meals by day', guest: 'Guest', perNightShort: 'nights', B: 'B', L: 'L',
+          legend: 'B — breakfast, L — lunch; blank — guest not here that day, “–” — here but no meals',
           roomType: n => ({ 1: 'Single room', 2: 'Double room', 3: 'Triple room', 4: 'Quad room' })[n] || `${n}-bed room`, inCur: 'In settlement currency',
           unsaved: 'Note: there are changes not yet charged — “charged” and “balance” reflect the last charge' },
     hi: { org: 'आयोजक', rates: 'तय दरें', perNight: 'रात', breakfast: 'नाश्ता', lunch: 'दोपहर का भोजन', extraBed: 'अतिरिक्त बिस्तर',
@@ -652,10 +663,13 @@ const СЛОВА = {
           paid: 'भुगतान किया', left: 'शेष देय', currency: 'भुगतान मुद्रा', rate: 'दर', notCharged: 'शुल्क नहीं लिया गया',
           byRoom: 'कमरेवार मेहमान', room: 'कमरा', dates: 'तिथियाँ', noId: 'अतिथि (पहचान पत्र नहीं दिया)', mealsOnly: 'केवल भोजन',
           selfMark: 'स्वयं भुगतान', ashram: 'आश्रम के खर्च पर', roomType: n => `${n} बिस्तर वाला कमरा`, inCur: 'भुगतान मुद्रा में',
+          detail: 'हर अतिथि का विवरण', byGuest: 'प्रति अतिथि', viewFull: 'विस्तृत', viewShort: 'संक्षिप्त', mealsByDay: 'दिनवार भोजन', guest: 'अतिथि', perNightShort: 'रातें', B: 'ना', L: 'भो',
+          legend: 'ना — नाश्ता, भो — दोपहर का भोजन; खाली — उस दिन अतिथि नहीं, «–» — थे पर भोजन नहीं',
           unsaved: 'ध्यान दें: कुछ बदलाव अभी प्रभारित नहीं हुए — «प्रभारित» और «शेष» पिछले शुल्क के अनुसार' }
 };
 const ЛОКАЛЬ = { ru: 'ru-RU', en: 'en-GB', hi: 'hi-IN' };
 let язык = 'ru';
+let вид = 'full';     // сводка: подробная (с сеткой по дням) или краткая — только деньги по людям (ВГ, 03.10)
 let названия = null;   // событие и здания на трёх языках — для сводки
 
 // Дни, когда кто-то из списка не ел, и сколько человек: {d, b, l} — число пропустивших
@@ -736,6 +750,151 @@ function имяКомнаты(l) {
     return p ? `${p.booking_name || T.mealsOnly}` : (l.label || T.mealsOnly);
 }
 const имяГостя = l => l.label || (l.eater ? СЛОВА[язык].people(l.persons) : СЛОВА[язык].noId);
+
+// ==================== ЯЗЫК ОКНА ====================
+// Окно начисления — тоже на трёх языках, чтобы показать группе по месту (ВГ, 03.10).
+// Разметка пишется по-русски; после отрисовки текст, подсказки и плейсхолдеры
+// переводятся по словарю. Исходник узла запоминается — обратно на русский без перерисовки.
+// Имена гостей и причины — в полях ввода, их не трогаем
+const ОКНО = {
+    'Начислить группе': ['Charge the group', 'समूह को शुल्क'],
+    'Места из шахматки по комнатам, у каждой — свои даты. Ночи, цена номера ÷ жильцов и питание (как считает кухня) — по тарифам; правьте строку, комнату или сразу всем. Снимите зелёную галочку — место или комната не начисляются (укажите почему). Пересчитать можно в любой момент, даже при оплате':
+        ['Places from the room chart, grouped by room, each with its own dates. Nights, room price ÷ occupants and meals (as counted by the kitchen) follow the rates; edit a row, a room or everyone at once. Untick the green box — the place or room is not charged (give a reason). You can recalculate at any time, even at payment',
+         'कमरों के अनुसार स्थान, हर एक की अपनी तिथियाँ। रातें, कमरे की दर ÷ रहने वाले और भोजन (रसोई की गणना के अनुसार) — दरों के अनुसार; एक पंक्ति, कमरा या सभी को एक साथ बदलें। हरा निशान हटाएँ — स्थान या कमरे का शुल्क नहीं लगेगा (कारण लिखें)। किसी भी समय, भुगतान के समय भी, दोबारा गणना की जा सकती है'],
+    'Платит организатор': ['Paid by organizer', 'भुगतान आयोजक द्वारा'],
+    'место без имени': ['unnamed place', 'बिना नाम का स्थान'],
+    'живёт с группой': ['stays with the group', 'समूह के साथ ठहरे हैं'],
+    'живёт с группой — карточка заведётся при сохранении': ['stays with the group — a card will be created on save', 'समूह के साथ ठहरे हैं — सहेजने पर कार्ड बनेगा'],
+    'сменить': ['change', 'बदलें'],
+    'Кто платит за группу? Организатор собирает со всех и платит одной суммой — начисления будут на его карточке.':
+        ['Who pays for the group? The organizer collects from everyone and pays one amount — charges go to their card.',
+         'समूह का भुगतान कौन करेगा? आयोजक सबसे इकट्ठा करके एक राशि देते हैं — शुल्क उनके कार्ड पर होंगे।'],
+    'Живёт с группой — выберите «организатор» в колонке «Платит» его строки; иначе найдите карточку или впишите имя':
+        ['If they stay with the group — choose “organizer” in the “Pays” column of their row; otherwise find a card or enter a name',
+         'यदि वे समूह के साथ ठहरे हैं — उनकी पंक्ति के «भुगतान» कॉलम में «आयोजक» चुनें; अन्यथा कार्ड खोजें या नाम लिखें'],
+    'Найти карточку по имени…': ['Find a card by name…', 'नाम से कार्ड खोजें…'],
+    'или новая': ['or new', 'या नया'],
+    'Имя': ['Name', 'नाम'], 'Телефон': ['Phone', 'फ़ोन'], 'Почта': ['Email', 'ईमेल'],
+    'Курс': ['Rate', 'विनिमय दर'], 'общий': ['general', 'सामान्य'], 'свой': ['own', 'अपना'],
+    '+ свой курс': ['+ own rate', '+ अपनी दर'],
+    'Курсов нет — оплата не в ₹ не пройдёт': ['No exchange rates — payment not in ₹ will fail', 'विनिमय दरें नहीं हैं — ₹ के अलावा भुगतान नहीं होगा'],
+    'Договорной курс для этого события; без него действует общий': ['Agreed rate for this event; otherwise the general rate applies', 'इस कार्यक्रम के लिए तय दर; अन्यथा सामान्य दर'],
+    'Сразу': ['Apply to', 'लागू करें:'],
+    'Договорные цены группы — остаются здесь и попадают в сводку организатору':
+        ['Agreed group rates — kept here and shown in the organizer summary', 'समूह की तय दरें — यहाँ रहती हैं और आयोजक के सारांश में दिखती हैं'],
+    'номер 2-мест.': ['double room', '2 बिस्तर का कमरा'], '4-мест.': ['quad room', '4 बिस्तर का कमरा'],
+    'завтрак': ['breakfast', 'नाश्ता'], 'обед': ['lunch', 'दोपहर का भोजन'],
+    'Применить цены': ['Apply rates', 'दरें लागू करें'],
+    'Вернуть по шахматке': ['Reset to room chart', 'चार्ट के अनुसार लौटाएँ'],
+    'вернуть по шахматке': ['reset to room chart', 'चार्ट के अनुसार लौटाएँ'],
+    'Ночи, жильцы и питание — заново из шахматки; цены остаются': ['Nights, occupants and meals — again from the room chart; rates stay', 'रातें, रहने वाले और भोजन — चार्ट से दोबारा; दरें वही रहेंगी'],
+    'Питание по дням — снимите день, если группа не ела': ['Meals by day — untick a day if the group did not eat', 'दिनवार भोजन — जिस दिन समूह ने भोजन नहीं किया, उसका निशान हटाएँ'],
+    'Проживание': ['Accommodation', 'आवास'], 'Питание': ['Meals', 'भोजन'],
+    'Отметить все': ['Select all', 'सभी चुनें'], 'Начисляем': ['Charged', 'शुल्क'], 'Начисл.': ['Charge', 'शुल्क'],
+    'Место / имя': ['Place / name', 'स्थान / नाम'], 'Даты': ['Dates', 'तिथियाँ'], 'Ночей': ['Nights', 'रातें'],
+    'Номер ₹ ÷ чел.': ['Room ₹ ÷ guests', 'कमरा ₹ ÷ लोग'], 'Сумма': ['Amount', 'राशि'],
+    'Завтраки × ₹': ['Breakfasts × ₹', 'नाश्ते × ₹'], 'Обеды × ₹': ['Lunches × ₹', 'दोपहर भोजन × ₹'],
+    'Нажмите на число — питание по дням': ['Click the number — meals by day', 'संख्या पर क्लिक करें — दिनवार भोजन'],
+    'Доп. ₹': ['Extra ₹', 'अतिरिक्त ₹'], 'Итого': ['Total', 'कुल'], 'Платит': ['Pays', 'भुगतान'],
+    'Сводка организатору': ['Organizer summary', 'आयोजक के लिए सारांश'], 'Закрыть': ['Close', 'बंद करें'],
+    'Сохранить': ['Save', 'सहेजें'], 'Сохранить правки, не начисляя организатору': ['Save edits without charging the organizer', 'आयोजक को शुल्क लगाए बिना बदलाव सहेजें'],
+    'Начислить организатору': ['Charge the organizer', 'आयोजक को शुल्क लगाएँ'], 'Пересчитать начисления': ['Recalculate charges', 'शुल्क दोबारा गणना करें'],
+    'Копировать текстом': ['Copy as text', 'टेक्स्ट कॉपी करें'], 'PDF / печать': ['PDF / print', 'PDF / प्रिंट'],
+    'Отметить комнату — для правок «сразу»': ['Select the room — for bulk edits', 'कमरा चुनें — एक साथ बदलाव के लिए'],
+    'Начисляем за комнату': ['Charge for the room', 'कमरे का शुल्क'],
+    'только питание': ['meals only', 'केवल भोजन'], 'питание': ['meals', 'भोजन'], 'группа': ['group', 'समूह'],
+    'имя / место': ['name / place', 'नाम / स्थान'], 'почему не начисляем': ['why not charged', 'शुल्क क्यों नहीं'],
+    'шахматка': ['room chart', 'चार्ट'], 'Даты в шахматке изменились — ночи и питание пересчитаны заново': ['Dates in the room chart changed — nights and meals recalculated', 'चार्ट में तिथियाँ बदलीं — रातें और भोजन दोबारा गिने गए'],
+    'платит сам': ['pays individually', 'स्वयं भुगतान'], 'Остаётся в группе, сумма — на его карточке': ['Stays in the group, amount goes to their own card', 'समूह में रहते हैं, राशि उनके अपने कार्ड पर'],
+    'организатор': ['organizer', 'आयोजक'], 'в группе': ['in the group', 'समूह में'],
+    'питание вкл.': ['meals on', 'भोजन चालू'], 'Питание включено здесь — при сохранении включится и в шахматке': ['Meals turned on here — will also turn on in the room chart on save', 'भोजन यहाँ चालू — सहेजने पर चार्ट में भी चालू होगा'],
+    'без номера': ['no room', 'बिना कमरा'],
+    'Последние дни сняты — при сохранении выезд уйдёт в шахматку, кухня поправится': ['Last days removed — on save the check-out goes to the room chart, the kitchen updates', 'अंतिम दिन हटाए गए — सहेजने पर प्रस्थान चार्ट में जाएगा, रसोई अपडेट होगी'],
+    'доп. кровать': ['extra bed', 'अतिरिक्त बिस्तर'], 'Цена доп. кровати за сутки': ['Extra bed price per night', 'अतिरिक्त बिस्तर की दर प्रति रात'],
+    'Цена номера за сутки': ['Room price per night', 'कमरे की दर प्रति रात'], 'Сколько человек делят номер': ['How many people share the room', 'कमरे में कितने लोग'],
+    'цена не задана': ['no price set', 'दर तय नहीं'], 'Задайте цену в «Тарифах» или впишите здесь': ['Set the price in “Rates” or enter it here', '«दरें» में दर तय करें या यहाँ लिखें'],
+    'питание в шахматке выключено': ['meals are off in the room chart', 'चार्ट में भोजन बंद है'], 'Питание в шахматке выключено': ['Meals are off in the room chart', 'चार्ट में भोजन बंद है'],
+    'включить': ['turn on', 'चालू करें'],
+    'на его карточке': ['on their own card', 'उनके अपने कार्ड पर'], 'Не входит в сумму организатора — начисляется на его карточку': ['Not in the organizer total — charged to their own card', 'आयोजक की राशि में नहीं — उनके अपने कार्ड पर'],
+    'Питание по дням — снять пропущенные': ['Meals by day — untick missed ones', 'दिनवार भोजन — छूटे हुए हटाएँ'],
+    'При сохранении кухня увидит: снятые дни — пропуски, завтрак в день заезда и обед в день выезда — ранний заезд / поздний выезд':
+        ['On save the kitchen will see: unticked days are skipped meals, breakfast on arrival day and lunch on departure day are early arrival / late departure',
+         'सहेजने पर रसोई देखेगी: हटाए गए दिन — छूटे भोजन, आगमन के दिन नाश्ता और प्रस्थान के दिन दोपहर का भोजन — जल्दी आगमन / देर से प्रस्थान'],
+    'В шахматке нет мест этого события': ['No places for this event in the room chart', 'चार्ट में इस कार्यक्रम के स्थान नहीं हैं'],
+    'итого': ['total', 'कुल'], 'доп.': ['extra', 'अतिरिक्त'], 'к оплате': ['amount due', 'देय राशि'],
+    'не сохранено': ['not saved', 'सहेजा नहीं'], 'черновик — не начислено': ['draft — not charged', 'ड्राफ़्ट — शुल्क नहीं लगा'],
+    '− аванс группы': ['− group advance', '− समूह का अग्रिम'], 'Предоплаты/аванса по событию нет': ['No advance for this event', 'इस कार्यक्रम का कोई अग्रिम नहीं'],
+    'в сумму организатора не входит': ['not in the organizer total', 'आयोजक की राशि में नहीं'],
+    'шахматке': ['the room chart', 'चार्ट'],
+};
+// Строки с числами и именами — по шаблонам; замены внутри строки (длинные — первыми)
+const ОКНО_ШАБЛОНЫ = [
+    [/^бронью без номера \(блок «Самостоятельное проживание», событие «(.*)»\): места появятся здесь строками «только питание»\.$/, ['as a booking without a room (block “Own accommodation”, event “$1”): they will appear here as “meals only” rows.', 'बिना कमरे की बुकिंग के रूप में (खंड «स्वयं का आवास», कार्यक्रम «$1»): वे यहाँ «केवल भोजन» पंक्तियों में दिखेंगे।']],
+    [/^Без номера: (.*)$/, ['No room: $1', 'बिना कमरा: $1']],
+    [/^Разовое питание: (.*)$/, ['One-off meals: $1', 'एकबारगी भोजन: $1']],
+    [/^(\d+)-местный = (\d+)-местный \+ доп\. кровать: галочка — это место на доп\. кровати$/, ['$1-bed = $2-bed + extra bed: tick — this place is the extra bed', '$1 बिस्तर = $2 बिस्तर + अतिरिक्त बिस्तर: निशान — यह स्थान अतिरिक्त बिस्तर है']],
+    [/^(\d+)-мест\.$/, ['$1-bed', '$1 बिस्तर']],
+    [/(\d+) ноч\./g, ['$1 nights', '$1 रातें']],
+    [/мест (\d+)/g, ['$1 places', '$1 स्थान']],
+    [/начисляем (\d+)/g, ['charging $1', '$1 पर शुल्क']],
+    [/(\d+) чел\./g, ['$1 guests', '$1 लोग']],
+    [/только питание/g, ['meals only', 'केवल भोजन']],
+    [/^всем \((\d+)\)$/, ['all ($1)', 'सभी ($1)']],
+    [/^отмеченным \((\d+)\)$/, ['selected ($1)', 'चुने हुए ($1)']],
+    [/^выезд → (.*)$/, ['check-out → $1', 'प्रस्थान → $1']],
+    [/^без (\d+) дн\.$/, ['missed $1 days', '$1 दिन छूटे']],
+    [/^без (.*)$/, ['missed $1', 'छूटा $1']],
+    [/^\(завтраков (\d+), обедов (\d+)\)$/, ['(breakfasts $1, lunches $2)', '(नाश्ते $1, दोपहर भोजन $2)']],
+    [/^Платят сами: (.*)$/, ['Paying individually: $1', 'स्वयं भुगतान: $1']],
+    [/^переплата (.*)$/, ['overpaid $1', 'अधिक भुगतान $1']],
+    [/^(\d+) мест\(а\) из прошлого расчёта больше нет в шахматке — выпадут при пересчёте$/, ['$1 place(s) from the previous calculation are no longer in the room chart — they will drop out on recalculation', 'पिछली गणना के $1 स्थान अब चार्ट में नहीं हैं — दोबारा गणना में हट जाएँगे']],
+    [/^(.*) · питание по дням — снимите приём, если человек предупредил, что не будет$/, ['$1 · meals by day — untick a meal if the person said they will skip it', '$1 · दिनवार भोजन — यदि व्यक्ति ने बताया कि नहीं आएँगे तो निशान हटाएँ']],
+    [/^Кто питается с группой, но живёт не у нас — заведите в$/, ['Whoever eats with the group but stays elsewhere — add them in', 'जो समूह के साथ भोजन करते हैं पर कहीं और ठहरे हैं — उन्हें जोड़ें']],
+    [/^⚠ Брони без мест в шахматке — (\d+) мест\(а\) в (\d+) бронях\.$/, ['⚠ Bookings without places in the room chart — $1 place(s) in $2 bookings.', '⚠ चार्ट में बिना स्थान की बुकिंग — $2 बुकिंग में $1 स्थान।']],
+    [/^Бронь есть, а мест под неё в шахматке нет[\s\S]*$/, ['These bookings have no places in the room chart, so the kitchen does not count these people and they cannot be charged here. Place them in the room chart or cancel the extra booking in “Bookings”:', 'इन बुकिंग के लिए चार्ट में स्थान नहीं हैं, इसलिए रसोई इन्हें नहीं गिनती और यहाँ शुल्क नहीं लगेगा। चार्ट में स्थान दें या «बुकिंग» में अतिरिक्त बुकिंग रद्द करें:']],
+    [/в брони (\d+), в шахматке (\d+)/g, ['booked $1, in the chart $2', 'बुकिंग में $1, चार्ट में $2']],
+];
+
+// '· питание' / 'Курс:' / '(общий)' — знаки по краям не мешают словарю
+function перевод(ru) {
+    if (язык === 'ru') return ru;
+    const i = язык === 'en' ? 0 : 1;
+    const m = ru.match(/^(\s*[·(]?\s*)([\s\S]*?)(\s*[:)·]?\s*)$/);
+    const ядро = m[2].replace(/\s+/g, ' ');
+    if (ОКНО[ядро]) return m[1] + ОКНО[ядро][i] + m[3];
+    if (ret && ядро === ret.name) return m[1] + имяНаЯзыке(названия?.событие, ret.name) + m[3];
+    const [, до, текст, после] = ru.match(/^(\s*)([\s\S]*?)(\s*)$/);
+    let out = текст.replace(/\s+/g, ' '), было = out;
+    for (const [re, t] of ОКНО_ШАБЛОНЫ) out = out.replace(re, t[i]);
+    if (ret && out.includes(ret.name)) out = out.split(ret.name).join(имяНаЯзыке(названия?.событие, ret.name));
+    return out === было ? ru : до + out + после;
+}
+
+const исходныйТекст = new WeakMap();   // узел → русский текст
+const исходныеАтриб = new WeakMap();   // элемент → {title, placeholder} по-русски
+function перевести(root) {
+    if (!root) return;
+    const w = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
+    for (let n = w.nextNode(); n; n = w.nextNode()) {
+        if (!n.nodeValue.trim() || n.parentElement.closest('#grTitle, style, script')) continue;
+        if (!исходныйТекст.has(n)) исходныйТекст.set(n, n.nodeValue);
+        const t = перевод(исходныйТекст.get(n));
+        if (n.nodeValue !== t) n.nodeValue = t;
+    }
+    for (const el of root.querySelectorAll('[title], [placeholder]')) {
+        if (!исходныеАтриб.has(el)) исходныеАтриб.set(el, { title: el.getAttribute('title'), placeholder: el.getAttribute('placeholder') });
+        const a = исходныеАтриб.get(el);
+        if (a.title) el.setAttribute('title', перевод(a.title));
+        if (a.placeholder) el.setAttribute('placeholder', перевод(a.placeholder));
+    }
+}
+
+// Заголовок окна и переключатель языка
+function названиеОкна() {
+    document.getElementById('grTitle').textContent = имяНаЯзыке(названия?.событие, ret.name);
+    document.getElementById('grLang').innerHTML = Object.entries({ ru: 'Русский', en: 'English', hi: 'हिन्दी' }).map(([k, v]) =>
+        `<button type="button" class="btn btn-xs join-item ${язык === k ? 'btn-active' : ''}" data-gr-lang="${k}">${v}</button>`).join('');
+}
 const причина = r => (r || '').trim() === ПРИЧИНА ? СЛОВА[язык].ashram : r || '';
 
 function summaryHtml(d) {
@@ -781,17 +940,96 @@ function summaryHtml(d) {
         ${d.s.доп ? `<table class="t narrow"><tr><td>${T.extra}</td><td ${R}>${деньги(d.s.доп)}</td></tr></table>` : ''}
         <table class="t narrow total">${строкиИтога.map(([a, b]) => `<tr><td>${a}</td><td ${R}>${b}</td></tr>`).join('')}</table>
         ${d.исключены.length ? `<div class="small"><b>${T.notCharged}:</b> ${d.исключены.map(l => `${e(имяГостя(l))} — ${e(причина(l.excludeReason))}`).join('; ')}</div>` : ''}
-        <h3>${T.byRoom}</h3>
-        <table class="t rooms"><tr><th>${T.room}</th><th>${T.dates}</th><th>${T.guests}</th><th ${R}>${T.amount}</th></tr>
-            ${d.комнаты.map(g => { const p = g.l0.place;
-                return `<tr><td>${e(имяКомнаты(g.l0))}</td>
-                <td class="nw">${p ? `${дата(p.check_in)}–${дата(p.check_out)}` : `${дата(g.l0.eater.start_date)}–${дата(g.l0.eater.end_date)}`}</td>
-                <td>${g.люди.map(l => `${e(имяГостя(l))}${l.selfPay ? ` <i class="mute">(${T.selfMark})</i>` : ''}${!l.included ? ` <i class="mute">(${e(причина(l.excludeReason))})</i>` : ''}`).join(', ')}</td>
-                <td ${R}>${g.сумма ? деньги(round2(g.сумма)) : ''}</td></tr>`; }).join('')}
-        </table>
+        ${подробно(d)}
         ${dirty || draft ? `<div class="warn no-print">${T.unsaved}</div>` : ''}
     </div>`;
 }
+// Подробно по каждому гостю (ВГ, 03.10): по номерам — каждый человек, ночи × цена за ночь,
+// сетка по дням (завтрак / обед), завтраки и обеды × цена, сумма питания, итог.
+// Все места события, «платит сам» и «не начисляем» — с пометкой, в сумму номера не входят
+// Отчёт полный, листов — сколько нужно (ВГ, 03.10); ограничение только по ширине А4:
+// до 10 дней — дни колонками в той же таблице, дольше — отдельные таблицы «Питание по дням»
+// по 10 дней, в каждой все гости. Шапки таблиц повторяются на каждом листе (thead)
+const ДНЕЙ_В_СЕТКЕ = 10;
+function днейСводки() {
+    return [...new Set(lines.flatMap(l => l.meals.map(m => m.d)))].sort();
+}
+// приёмы одного дня: «З О» / «З» / «О» / «–» (был, не ел) / '' (не было)
+function приёмыДня(l, d) {
+    const T = СЛОВА[язык], m = l.meals.find(x => x.d === d);
+    if (!m) return '';
+    return [m.b ? T.B : '', m.l ? T.L : ''].filter(Boolean).join(' ') || '–';
+}
+const периодКомнаты = g => { const p = g.l0.place;
+    return p ? `${дата(p.check_in)}–${дата(p.check_out)}` : `${дата(g.l0.eater.start_date)}–${дата(g.l0.eater.end_date)}`; };
+const пометкаГостя = l => { const T = СЛОВА[язык];
+    return (l.selfPay ? ` <i class="mute">(${T.selfMark})</i>` : !l.included ? ` <i class="mute">(${e(причина(l.excludeReason))})</i>` : '')
+        + (раннийВыезд(l) ? ` <span class="mute">→ ${дата(раннийВыезд(l))}</span>` : ''); };
+
+// Краткая (ВГ, 03.10): по каждому человеку — за номер, завтраки и обеды (сколько × цена = сумма),
+// питание всего и общая сумма; без сетки по дням
+function кратко(d) {
+    const T = СЛОВА[язык], R = 'class="r"';
+    const естьДоп = lines.some(l => Number(l.extra));
+    const колонок = 8 + (естьДоп ? 1 : 0);
+    const строка = l => {
+        const r = расчёт(l), h = !!l.place?.room_id;
+        return `<tr class="${l.included ? '' : 'off'}"><td class="pl">${e(имяГостя(l))}${пометкаГостя(l)}</td>
+            <td ${R}>${h ? `${ночей(l)} × ${деньги(r.заНочь)}` : ''}</td><td ${R}>${h ? деньги(r.проживание) : ''}</td>
+            <td ${R}>${r.завтраков ? `${r.завтраков} × ${деньги(l.bPrice)}` : ''}</td><td ${R}>${r.завтраков ? деньги(round2(r.завтраков * l.bPrice)) : ''}</td>
+            <td ${R}>${r.обедов ? `${r.обедов} × ${деньги(l.lPrice)}` : ''}</td><td ${R}>${r.обедов ? деньги(round2(r.обедов * l.lPrice)) : ''}</td>
+            <td ${R}>${r.питание ? деньги(r.питание) : ''}</td>${естьДоп ? `<td ${R}>${r.доп ? деньги(r.доп) : ''}</td>` : ''}
+            <td ${R}><b>${деньги(r.итого)}</b></td></tr>`;
+    };
+    return `<h3>${T.byGuest}</h3>
+        <table class="t rooms">
+            <thead><tr><th>${T.room} / ${T.guest}</th><th ${R}>${T.nights}</th><th ${R}>${T.stay}</th>
+                <th ${R}>${T.breakfasts}</th><th ${R}>${T.amount}</th><th ${R}>${T.lunches}</th><th ${R}>${T.amount}</th>
+                <th ${R}>${T.meals}</th>${естьДоп ? `<th ${R}>${T.extra}</th>` : ''}<th ${R}>${T.total}</th></tr></thead>
+            ${d.комнаты.map(g => `<tr class="room"><td colspan="${колонок - 1}">${e(имяКомнаты(g.l0))} <span class="mute">· ${периодКомнаты(g)}</span></td>
+                    <td ${R}>${g.сумма ? деньги(round2(g.сумма)) : ''}</td></tr>` + g.люди.map(строка).join('')).join('')}
+        </table>`;
+}
+
+function подробно(d) {
+    if (вид === 'short') return кратко(d);
+    const T = СЛОВА[язык], R = 'class="r"';
+    const дни = днейСводки();
+    const вместе = дни.length <= ДНЕЙ_В_СЕТКЕ;   // дни — колонками в таблице сумм
+    const колДни = вместе ? дни : [];
+    const естьДоп = lines.some(l => Number(l.extra));
+    const колонок = 7 + колДни.length + (естьДоп ? 1 : 0);
+    const строка = l => {
+        const r = расчёт(l), h = !!l.place?.room_id;
+        return `<tr class="${l.included ? '' : 'off'}"><td class="pl">${e(имяГостя(l))}${пометкаГостя(l)}</td>
+            <td ${R}>${h ? `${ночей(l)} × ${деньги(r.заНочь)}` : ''}</td><td ${R}>${h ? деньги(r.проживание) : ''}</td>
+            ${колДни.map(x => `<td class="c">${приёмыДня(l, x)}</td>`).join('')}
+            <td ${R}>${r.завтраков ? `${r.завтраков} × ${деньги(l.bPrice)}` : ''}</td><td ${R}>${r.обедов ? `${r.обедов} × ${деньги(l.lPrice)}` : ''}</td>
+            <td ${R}>${r.питание ? деньги(r.питание) : ''}</td>${естьДоп ? `<td ${R}>${r.доп ? деньги(r.доп) : ''}</td>` : ''}
+            <td ${R}><b>${деньги(r.итого)}</b></td></tr>`;
+    };
+    let html = `<h3>${T.detail}</h3>
+        <table class="t rooms">
+            <thead><tr><th>${T.room} / ${T.guest}</th><th ${R}>${T.nights}</th><th ${R}>${T.stay}</th>
+                ${колДни.map(x => `<th class="c">${дата(x)}</th>`).join('')}
+                <th ${R}>${T.breakfasts}</th><th ${R}>${T.lunches}</th><th ${R}>${T.meals}</th>${естьДоп ? `<th ${R}>${T.extra}</th>` : ''}<th ${R}>${T.total}</th></tr></thead>
+            ${d.комнаты.map(g => `<tr class="room"><td colspan="${колонок - 1}">${e(имяКомнаты(g.l0))} <span class="mute">· ${периодКомнаты(g)}</span></td>
+                    <td ${R}>${g.сумма ? деньги(round2(g.сумма)) : ''}</td></tr>` + g.люди.map(строка).join('')).join('')}
+        </table>`;
+    // длинное событие: сетка по дням — отдельными таблицами по 10 дней
+    if (!вместе) for (let i = 0; i < дни.length; i += ДНЕЙ_В_СЕТКЕ) {
+        const часть = дни.slice(i, i + ДНЕЙ_В_СЕТКЕ);
+        html += `<h3>${T.mealsByDay} · ${дата(часть[0])}–${дата(часть[часть.length - 1])}</h3>
+            <table class="t rooms">
+                <thead><tr><th>${T.room} / ${T.guest}</th>${часть.map(x => `<th class="c">${дата(x)}</th>`).join('')}</tr></thead>
+                ${d.комнаты.map(g => `<tr class="room"><td colspan="${часть.length + 1}">${e(имяКомнаты(g.l0))} <span class="mute">· ${периодКомнаты(g)}</span></td></tr>`
+                    + g.люди.map(l => `<tr class="${l.included ? '' : 'off'}"><td class="pl">${e(имяГостя(l))}${пометкаГостя(l)}</td>
+                        ${часть.map(x => `<td class="c">${приёмыДня(l, x)}</td>`).join('')}</tr>`).join('')).join('')}
+            </table>`;
+    }
+    return html + `<div class="small mute">${T.legend}</div>`;
+}
+
 // сумма завтраков или обедов по группе
 const сумПриёма = k => lines.filter(вСчётГруппы).reduce((a, l) => { const r = расчёт(l); return a + (k === 'b' ? r.завтраков * l.bPrice : r.обедов * l.lPrice); }, 0);
 
@@ -801,16 +1039,21 @@ const СТИЛЬ = `.sheet{font:12px/1.4 system-ui,'Noto Sans','Noto Sans Devana
     .sheet .t{border-collapse:collapse;width:100%}.sheet .t.narrow{max-width:420px}.sheet .t td,.sheet .t th{border-bottom:1px solid #e5e5e5;padding:3px 6px;text-align:left;vertical-align:top}
     .sheet .t th{font-size:10px;text-transform:uppercase;opacity:.7;font-weight:600}.sheet .r{text-align:right!important;white-space:nowrap}.sheet .nw{white-space:nowrap}
     .sheet .sub td{font-weight:600}.sheet .total{margin-top:12px}.sheet .total td{font-size:13px}.sheet .mute{opacity:.65}.sheet .small{font-size:11px;margin-top:4px}
-    .sheet .rooms td{font-size:11px}.sheet .rooms tr{break-inside:avoid}.sheet .warn{color:#b45309;margin-top:8px}`;
+    .sheet .rooms td{font-size:11px}.sheet .rooms tr{break-inside:avoid}.sheet .rooms th{font-size:9px}.sheet .rooms .c{text-align:center;white-space:nowrap}
+    .sheet .rooms tr.room td{background:#f3f4f6;font-weight:600;border-top:1px solid #d1d5db}.sheet .rooms .pl{padding-left:14px}.sheet .rooms tr.off td{opacity:.55}
+    .sheet thead{display:table-header-group}.sheet .rooms tr.room{break-after:avoid}.sheet .warn{color:#b45309;margin-top:8px}`;
 
 async function openSummary() {
     const d = await summaryData();
     document.getElementById('grSummaryBody').innerHTML = `<style>${СТИЛЬ}</style>
         <div class="join mb-3 no-print">${Object.entries({ ru: 'Русский', en: 'English', hi: 'हिन्दी' }).map(([k, v]) =>
             `<button type="button" class="btn btn-xs join-item ${язык === k ? 'btn-active' : ''}" data-gr-lang="${k}">${v}</button>`).join('')}</div>
+        <div class="join mb-3 ml-2 no-print">${['full', 'short'].map(k =>
+            `<button type="button" class="btn btn-xs join-item ${вид === k ? 'btn-active' : ''}" data-gr-view="${k}">${СЛОВА[язык][k === 'full' ? 'viewFull' : 'viewShort']}</button>`).join('')}</div>
         <div id="grSummarySheet">${summaryHtml(d)}</div>`;
     document.getElementById('grSummaryText').value = summaryText(d);
     const modal = document.getElementById('groupSummaryModal');
+    перевести(modal.querySelector('.modal-action'));
     if (!modal.open) modal.showModal();
 }
 
@@ -846,8 +1089,23 @@ function summaryText(d) {
         out.push(`${T.advance}: − ${деньги(d.аванс)}`, o > 0 ? `${T.due}: ${деньги(o)}` : o < 0 ? `${T.overpaid}: ${деньги(-o)}` : T.paidFull);
     }
     if (d.исключены.length) out.push('', `${T.notCharged}: ${d.исключены.map(l => `${имяГостя(l)} — ${причина(l.excludeReason)}`).join('; ')}`);
-    out.push('', `${T.byRoom}:`);
-    d.комнаты.forEach(g => out.push(`• ${имяКомнаты(g.l0)}: ${g.люди.map(l => имяГостя(l) + (l.selfPay ? ` (${T.selfMark})` : '')).join(', ')}`));
+    out.push('', `${вид === 'short' ? T.byGuest : T.detail}:`);
+    d.комнаты.forEach(g => {
+        const p = g.l0.place;
+        out.push('', `${имяКомнаты(g.l0)} · ${p ? `${дата(p.check_in)}–${дата(p.check_out)}` : `${дата(g.l0.eater.start_date)}–${дата(g.l0.eater.end_date)}`}${g.сумма ? ` — ${деньги(round2(g.сумма))}` : ''}`);
+        g.люди.forEach(l => {
+            const r = расчёт(l), части = [];
+            if (l.place?.room_id) части.push(`${T.stay.toLowerCase()} ${ночей(l)} × ${деньги(r.заНочь)} = ${деньги(r.проживание)}`);
+            if (r.завтраков) части.push(`${T.breakfasts.toLowerCase()} ${r.завтраков} × ${деньги(l.bPrice)} = ${деньги(round2(r.завтраков * l.bPrice))}`);
+            if (r.обедов) части.push(`${T.lunches.toLowerCase()} ${r.обедов} × ${деньги(l.lPrice)} = ${деньги(round2(r.обедов * l.lPrice))}`);
+            if (r.завтраков && r.обедов) части.push(`${T.meals.toLowerCase()} ${деньги(r.питание)}`);
+            if (r.доп) части.push(`${T.extra.toLowerCase()} ${деньги(r.доп)}`);
+            const пометка = l.selfPay ? ` (${T.selfMark})` : !l.included ? ` (${причина(l.excludeReason)})` : '';
+            out.push(`• ${имяГостя(l)}${пометка}: ${части.join('; ')} — ${T.total.toLowerCase()} ${деньги(r.итого)}`);
+            if (вид === 'full' && l.meals.length) out.push(`  ${l.meals.map(m => `${дата(m.d)} ${приёмыДня(l, m.d)}`).join(', ')}`);
+        });
+    });
+    if (вид === 'full') out.push('', T.legend);
     return out.join('\n');
 }
 
@@ -906,6 +1164,8 @@ function init() {
         }
         const fr = t.closest('[data-gr-fresh]');
         if (fr) { freshAll([lines[Number(fr.dataset.grFresh)]]); return; }
+        const lg = t.closest('[data-gr-lang]');
+        if (lg) { язык = lg.dataset.grLang; названиеОкна(); renderRates(); render(); return; }
     });
     modal.addEventListener('change', ev => {
         const el = ev.target;
@@ -964,7 +1224,9 @@ function init() {
     // язык сводки: Русский / English / हिन्दी
     document.getElementById('groupSummaryModal')?.addEventListener('click', ev => {
         const b = ev.target.closest('[data-gr-lang]');
-        if (b) { язык = b.dataset.grLang; openSummary(); }
+        if (b) { язык = b.dataset.grLang; openSummary(); названиеОкна(); renderRates(); render(); }
+        const v = ev.target.closest('[data-gr-view]');
+        if (v) { вид = v.dataset.grView; openSummary(); }
     });
     document.getElementById('grBulkFresh').addEventListener('click', () => freshAll(цели()));
 }
