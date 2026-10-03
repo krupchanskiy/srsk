@@ -354,6 +354,9 @@ async function saveNewPerson(event, opts = {}) {
             : form.is_team_member.value === 'true';
     }
 
+    // Статус (Гость / Волонтёр / Команда) — со страницы «Команда» по открытой вкладке
+    if (form.status?.value) data.status = form.status.value;
+
     if (!data.first_name && !data.spiritual_name) {
         Layout.showNotification(t('name_or_spiritual_required'), 'warning');
         return;

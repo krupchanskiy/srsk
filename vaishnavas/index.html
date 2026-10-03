@@ -248,7 +248,7 @@
     <script src="../js/auto-translate.js"></script>
     <script src="../js/date-utils.js?v=4"></script>
     <script src="../js/layout.js?v=84"></script>
-    <script src="../js/vaishnavas-utils.js?v=3"></script>
+    <script src="../js/vaishnavas-utils.js?v=4"></script>
     <script>
         const V = VaishnavasUtils;
         const t = key => Layout.t(key);
@@ -554,7 +554,9 @@
                 <a href="person.html?id=${r.person.id}" class="flex flex-wrap items-center gap-x-3 gap-y-1 p-2 rounded hover:bg-base-200">
                     <span class="font-medium">${e(getVaishnavName(r.person))}</span>
                     ${statusBadge(r.person.status)}
-                    <span class="text-sm opacity-70">${e(tr('incomplete_arrival', 'заезд'))} ${formatShortDate(r.checkIn)}</span>
+                    <span class="text-sm opacity-70">${r.checkIn <= today
+                        ? e(tr('incomplete_living_since', 'живёт с'))
+                        : e(tr('incomplete_arrival', 'заезд'))} ${formatShortDate(r.checkIn)}</span>
                     <span class="text-sm text-warning">⚠ ${r.missing.map(k => e(V.missingLabel(k))).join(', ')}</span>
                 </a>`).join('');
         }

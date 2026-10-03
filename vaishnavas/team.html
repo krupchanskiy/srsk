@@ -60,6 +60,18 @@
             </button>
         </div>
 
+        <!-- Команда и волонтёры — одна команда, два списка (ВГ 03.10) -->
+        <div role="tablist" class="tabs tabs-boxed inline-flex mb-4" id="groupTabs">
+            <button role="tab" class="tab tab-active" data-group="team">
+                <span data-i18n="person_status_team">Команда</span>
+                <sup class="ml-1 opacity-60" id="countGroupTeam">0</sup>
+            </button>
+            <button role="tab" class="tab" data-group="volunteer">
+                <span data-i18n="filter_volunteers">Волонтёры</span>
+                <sup class="ml-1 opacity-60" id="countGroupVolunteer">0</sup>
+            </button>
+        </div>
+
         <!-- Filters -->
         <div class="flex flex-col sm:flex-row gap-4 mb-6 sm:items-center">
             <div class="flex flex-wrap gap-2" id="filterButtons">
@@ -188,12 +200,8 @@
                     </div>
                 </div>
 
-                <div class="form-control mb-4">
-                    <label class="label cursor-pointer justify-start gap-3">
-                        <input type="checkbox" name="is_team_member" class="checkbox checkbox-primary" checked>
-                        <span class="label-text" data-i18n="is_team_member">Член команды</span>
-                    </label>
-                </div>
+                <!-- Статус — по открытой вкладке: «Команда» или «Волонтёры» -->
+                <input type="hidden" name="status" value="team">
 
                 <div class="modal-action">
                     <button type="button" class="btn btn-ghost" onclick="closeAddModal()" data-i18n="cancel">Отмена</button>
@@ -212,7 +220,7 @@
     <script src="../js/auto-translate.js"></script>
     <script src="../js/date-utils.js?v=4"></script>
     <script src="../js/layout.js?v=84"></script>
-    <script src="../js/vaishnavas-utils.js?v=3"></script>
+    <script src="../js/vaishnavas-utils.js?v=4"></script>
     <script>
         const V = VaishnavasUtils;
         let people = [];
@@ -220,6 +228,33 @@
         let totalCount = 0;
         const state = { currentFilter: 'all', searchQuery: '', sortField: 'name', sortDirection: 'asc', currentPage: 1 };
         const today = DateUtils.toISO(new Date());
+        // Вкладка: команда или волонтёры (?group=volunteer)
+        let group = new URLSearchParams(window.location.search).get('group') === 'volunteer' ? 'volunteer' : 'team';
+
+        function setupGroupTabs() {
+            const tabs = document.querySelectorAll('#groupTabs [data-group]');
+            const mark = () => tabs.forEach(tab => tab.classList.toggle('tab-active', tab.dataset.group === group));
+            mark();
+            tabs.forEach(tab => tab.addEventListener('click', () => {
+                if (tab.dataset.group === group) return;
+                group = tab.dataset.group;
+                mark();
+                const url = new URL(window.location);
+                if (group === 'volunteer') url.searchParams.set('group', 'volunteer');
+                else url.searchParams.delete('group');
+                history.replaceState(null, '', url);
+                state.currentPage = 1;
+                loadPeople();
+            }));
+        }
+
+        async function loadGroupCounts() {
+            const count = status => Layout.db.from('vaishnavas').select('id', { count: 'exact', head: true })
+                .eq('is_deleted', false).eq('status', status);
+            const [teamRes, volunteerRes] = await Promise.all([count('team'), count('volunteer')]);
+            document.getElementById('countGroupTeam').textContent = teamRes.count || 0;
+            document.getElementById('countGroupVolunteer').textContent = volunteerRes.count || 0;
+        }
 
         async function init() {
             await Layout.init({ module: 'housing', menuId: 'vaishnavas', itemId: 'vaishnavas_team' });
@@ -227,7 +262,8 @@
             Layout.showLoader();
             // Сначала загружаем stays, потом people - чтобы при рендеринге stays был уже заполнен
             await loadStaysData();
-            await loadPeople();
+            setupGroupTabs();
+            await Promise.all([loadPeople(), loadGroupCounts()]);
             Layout.hideLoader();
 
             V.setupSearch(state, loadPeople);
@@ -240,7 +276,7 @@
                 .from('vaishnavas')
                 .select('id, first_name, last_name, spiritual_name, phone, email, country, spiritual_teacher, is_team_member, photo_url, service, departments(id, name_ru, name_en, name_hi, color)', { count: 'exact' })
                 .eq('is_deleted', false)
-                .eq('is_team_member', true);
+                .eq('status', group);
 
             query = V.applyServerSearch(query, state.searchQuery);
 
@@ -438,7 +474,10 @@
             V.renderPagination('paginationContainer', state, totalCount, loadPeople);
         }
 
-        function openAddModal() { V.openAddModal(); }
+        function openAddModal() {
+            V.openAddModal();
+            document.querySelector('#addForm [name="status"]').value = group;
+        }
         function closeAddModal() { V.closeAddModal(); }
         function saveNewPerson(event) { V.saveNewPerson(event); }
 
