@@ -1028,9 +1028,11 @@ const СТИЛЬ = `.sheet{font:12px/1.4 system-ui,'Noto Sans','Noto Sans Devana
     .sheet thead{display:table-header-group}.sheet .rooms tr.room{break-after:avoid}.sheet .warn{color:#b45309;margin-top:8px}`;
 
 // На бумаге текст — только чёрный (ВГ, 03.10): серое лазерный принтер печатает точками, шрифт размыт.
-// Линии остаются серыми — чёрные слишком пестрят. Номера выделяются жирным вместо серого фона
+// Линии остаются серыми — чёрные слишком пестрят. Строки номеров — жирным и на сером фоне, как в PDF
+// (print-color-adjust: иначе браузер фон на печать не выводит)
 const ПЕЧАТЬ = `@media print{.sheet *{color:#000!important;opacity:1!important;background:none!important}
-    .sheet .t th{font-weight:700;font-size:10px}.sheet h3{font-weight:700}.sheet .rooms tr.room td{font-weight:700}}`;
+    .sheet .t th{font-weight:700;font-size:10px}.sheet h3{font-weight:700}
+    .sheet .rooms tr.room td{font-weight:700;background:#e5e7eb!important;-webkit-print-color-adjust:exact;print-color-adjust:exact}}`;
 
 async function openSummary() {
     const d = await summaryData();
