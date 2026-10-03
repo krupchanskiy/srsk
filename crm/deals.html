@@ -245,7 +245,7 @@
 <script src="../js/utils.js?v=13"></script>
 <script src="../js/layout.js?v=84"></script>
 <script src="../js/date-utils.js?v=4"></script>
-<script src="../js/crm-utils.js?v=5"></script>
+<script src="../js/crm-utils.js?v=6"></script>
 
 <script>
 const t = key => Layout.t(key);
@@ -309,8 +309,8 @@ function sortDeals() {
                 if (aVal && !bVal) return -1;
                 break;
             case 'paid':
-                aVal = a.total_paid || 0;
-                bVal = b.total_paid || 0;
+                aVal = Number(a.total_paid_inr ?? a.total_paid ?? 0);
+                bVal = Number(b.total_paid_inr ?? b.total_paid ?? 0);
                 break;
             case 'created':
             default:
@@ -359,7 +359,7 @@ async function loadDeals() {
             vaishnavas:vaishnava_id(id, spiritual_name, first_name, last_name, phone, email),
             retreats:retreat_id(id, name_ru, name_en, color),
             manager:manager_id(id, spiritual_name, first_name, last_name),
-            crm_payments(is_confirmed, amount_inr)
+            crm_payments(is_confirmed, amount, currency)
         `)
         .order('created_at', { ascending: false });
 
@@ -580,24 +580,21 @@ function renderTable() {
     }).join('');
 }
 
+// Оплачено — итог сделки в валюте гостя (финансы); ждущие подтверждения платежи CRM —
+// отдельно, в своей валюте, без пересчёта
 function renderPaidCell(d) {
-    const payments = d.crm_payments || [];
-    if (payments.length === 0) {
+    const pending = CrmUtils.formatPendingPayments(d.crm_payments);
+    const paid = Number(d.total_paid || 0);
+    if (!paid && !pending) {
         return '<span class="text-base-content/30">—</span>';
     }
-
-    const confirmed = payments.filter(p => p.is_confirmed).reduce((s, p) => s + Number(p.amount_inr || 0), 0);
-    const unconfirmed = payments.filter(p => !p.is_confirmed).reduce((s, p) => s + Number(p.amount_inr || 0), 0);
-    const total = confirmed + unconfirmed;
-
-    const allConfirmed = unconfirmed === 0;
-    const dotColor = allConfirmed ? '#22c55e' : '#f59e0b';
-    const textClass = allConfirmed ? '' : 'text-amber-700';
-    const title = allConfirmed
-        ? 'Все платежи подтверждены'
-        : `Подтверждено: ${CrmUtils.formatMoney(confirmed)}. Ждёт подтверждения: ${CrmUtils.formatMoney(unconfirmed)}`;
-
-    return `<span class="${textClass}">${CrmUtils.formatMoney(total)}</span><span class="inline-block w-2.5 h-2.5 rounded-full ml-2 align-middle" style="background:${dotColor}" title="${title}"></span>`;
+    const dotColor = pending ? '#f59e0b' : '#22c55e';
+    const title = pending
+        ? `Подтверждено: ${CrmUtils.formatDealTotal(d, 'paid')}. Ждёт подтверждения: ${pending}`
+        : 'Все платежи подтверждены';
+    const main = paid ? `<span>${CrmUtils.formatDealTotal(d, 'paid')}</span>` : '';
+    const wait = pending ? `<span class="text-amber-700">${paid ? ' + ' : ''}${pending}</span>` : '';
+    return `${main}${wait}<span class="inline-block w-2.5 h-2.5 rounded-full ml-2 align-middle" style="background:${dotColor}" title="${title}"></span>`;
 }
 
 function renderChecklistDots(d) {
@@ -874,7 +871,7 @@ function exportXlsx() {
             Layout.getName(r) || '',
             CrmUtils.getStatusLabel(d.status),
             m ? CrmUtils.getGuestShortName(m) : '',
-            d.total_paid || 0,
+            d.total_paid ? `${d.total_paid} ${d.totals_currency || 'INR'}` : 0,
             CrmUtils.formatDate(d.created_at),
             cl('checklist_accommodation'),
             cl('checklist_meals'),

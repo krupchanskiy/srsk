@@ -159,7 +159,7 @@
 <script src="../js/utils.js?v=13"></script>
 <script src="../js/layout.js?v=84"></script>
 <script src="../js/date-utils.js?v=4"></script>
-<script src="../js/crm-utils.js?v=5"></script>
+<script src="../js/crm-utils.js?v=6"></script>
 
 <script>
 const t = key => Layout.t(key);
@@ -203,7 +203,7 @@ async function loadDeals() {
             vaishnavas:vaishnava_id(id, spiritual_name, first_name, last_name, phone),
             retreats:retreat_id(id, name_ru, name_en, color, end_date),
             manager:manager_id(id, spiritual_name, first_name),
-            crm_payments(is_confirmed, amount_inr)
+            crm_payments(is_confirmed, amount, currency)
         `)
         .order('created_at', { ascending: false });
 
@@ -353,8 +353,9 @@ function renderKanban() {
         const label = CrmUtils.getStatusLabel(status);
         const isCancelled = status === 'cancelled';
 
-        const totalPaid = deals.reduce((sum, d) => sum + (d.total_paid || 0), 0);
-        const sumText = totalPaid > 0 ? ` · ${totalPaid.toLocaleString('ru-RU')}` : '';
+        // сумма по сделкам — ₹ по курсу ретрита (итог каждой сделки — в валюте гостя)
+        const totalPaid = CrmUtils.sumDealsInr(deals, 'paid');
+        const sumText = totalPaid > 0 ? ` · ${CrmUtils.formatMoney(Math.round(totalPaid))}` : '';
 
         return `
             <div class="kanban-column ${isCancelled ? 'column-cancelled' : ''}" data-status="${status}">
@@ -482,19 +483,17 @@ function renderCardMarkers(deal) {
     return метки.join('');
 }
 
+// Оплачено — итог сделки в валюте гостя; ждущие подтверждения — в своей валюте
 function renderCardAmount(deal) {
-    const payments = deal.crm_payments || [];
-    if (payments.length === 0) return '';
-    const confirmed = payments.filter(p => p.is_confirmed).reduce((s, p) => s + Number(p.amount_inr || 0), 0);
-    const unconfirmed = payments.filter(p => !p.is_confirmed).reduce((s, p) => s + Number(p.amount_inr || 0), 0);
-    const total = confirmed + unconfirmed;
-    if (total === 0) return '';
-    const allConfirmed = unconfirmed === 0;
-    const cls = allConfirmed ? 'text-success' : 'text-amber-600';
-    const title = allConfirmed
-        ? 'Все платежи подтверждены'
-        : `Подтверждено: ${CrmUtils.formatMoney(confirmed)}. Ждёт подтверждения: ${CrmUtils.formatMoney(unconfirmed)}`;
-    return `<span class="text-xs font-mono ${cls}" title="${title}">${CrmUtils.formatMoney(total)}</span>`;
+    const pending = CrmUtils.formatPendingPayments(deal.crm_payments);
+    const paid = Number(deal.total_paid || 0);
+    if (!paid && !pending) return '';
+    const cls = pending ? 'text-amber-600' : 'text-success';
+    const title = pending
+        ? `Подтверждено: ${CrmUtils.formatDealTotal(deal, 'paid')}. Ждёт подтверждения: ${pending}`
+        : 'Все платежи подтверждены';
+    const text = [paid ? CrmUtils.formatDealTotal(deal, 'paid') : '', pending].filter(Boolean).join(' + ');
+    return `<span class="text-xs font-mono ${cls}" title="${title}">${text}</span>`;
 }
 
 // ==================== DRAG & DROP ====================

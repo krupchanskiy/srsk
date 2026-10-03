@@ -318,17 +318,51 @@ const CrmUtils = {
     },
 
     /**
-     * Получить текст баланса с цветом
+     * Получить текст баланса с цветом (в валюте итогов сделки)
      */
     getBalanceHtml(deal) {
         const balance = this.getBalance(deal);
+        const cur = deal.totals_currency || 'INR';
         if (balance === 0) {
-            return `<span class="text-success">${this.formatMoney(0)}</span>`;
+            return `<span class="text-success">${this.formatMoney(0, cur)}</span>`;
         } else if (balance > 0) {
-            return `<span class="text-success">+${this.formatMoney(balance)}</span>`;
+            return `<span class="text-success">+${this.formatMoney(balance, cur)}</span>`;
         } else {
-            return `<span class="text-error">${this.formatMoney(balance)}</span>`;
+            return `<span class="text-error">${this.formatMoney(balance, cur)}</span>`;
         }
+    },
+
+    // Итоги сделки (фаза 2): total_charged/total_paid — в валюте гостя (totals_currency),
+    // total_*_inr — те же суммы в ₹ по курсу ретрита. Одна сделка — в валюте гостя,
+    // сумма по многим — ₹ по курсу ретрита + разбивка по валютам.
+    formatDealTotal(deal, kind) {
+        return this.formatMoney(deal[`total_${kind}`], deal.totals_currency || 'INR');
+    },
+
+    sumDealsInr(deals, kind) {
+        return deals.reduce((s, d) => s + Number(d[`total_${kind}_inr`] ?? d[`total_${kind}`] ?? 0), 0);
+    },
+
+    formatDealsSum(deals, kind) {
+        const inr = this.sumDealsInr(deals, kind);
+        const byCur = {};
+        deals.forEach(d => {
+            const v = Number(d[`total_${kind}`] || 0);
+            if (v) byCur[d.totals_currency || 'INR'] = (byCur[d.totals_currency || 'INR'] || 0) + v;
+        });
+        const parts = Object.entries(byCur);
+        return parts.some(([c]) => c !== 'INR')
+            ? `${this.formatMoney(inr)} (${parts.map(([c, v]) => this.formatMoney(v, c)).join(' + ')})`
+            : this.formatMoney(inr);
+    },
+
+    // Неподтверждённые платежи CRM — каждая валюта отдельно, без пересчёта
+    formatPendingPayments(payments) {
+        const byCur = {};
+        (payments || []).filter(p => !p.is_confirmed).forEach(p => {
+            byCur[p.currency || 'INR'] = (byCur[p.currency || 'INR'] || 0) + Number(p.amount || 0);
+        });
+        return Object.entries(byCur).filter(([, v]) => v).map(([c, v]) => this.formatMoney(v, c)).join(' + ');
     },
 
     // ═══════════════════════════════════════════════════════════════

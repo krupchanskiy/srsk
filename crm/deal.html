@@ -279,7 +279,7 @@
                             <span class="font-mono font-bold text-slate-700" id="financeCharged">—</span>
                         </div>
                         <div class="flex justify-between text-sm">
-                            <span class="text-base-content/60" data-i18n="crm_paid">Оплачено (₹)</span>
+                            <span class="text-base-content/60" data-i18n="crm_paid">Оплачено</span>
                             <span class="font-mono font-bold text-emerald-600" id="financePaid">—</span>
                         </div>
                         <div class="flex justify-between text-sm hidden" id="financePendingRow">
@@ -624,7 +624,7 @@
 <script src="../js/utils.js?v=13"></script>
 <script src="../js/layout.js?v=84"></script>
 <script src="../js/date-utils.js?v=4"></script>
-<script src="../js/crm-utils.js?v=5"></script>
+<script src="../js/crm-utils.js?v=6"></script>
 <script src="../js/date-guard.js?v=1"></script>
 <script src="../js/prepayment-ops.js?v=3"></script>
 
@@ -655,7 +655,8 @@ let guestHistory = [];
 let currentTab = 'info';
 let counts = { services: 0, payments: 0, tasks: 0 };
 let prepaymentOperations = []; // все операции этого участника
-let participantBalances = [];  // нераспределённый остаток
+let participantBalances = [];
+let dealBalance = null;      // crm_get_deal_balance: баланс v2 в валюте гостя  // нераспределённый остаток
 
 // ==================== DATA ====================
 async function loadDeal() {
@@ -819,8 +820,19 @@ async function loadPayments() {
         .eq('deal_id', dealId)
         .order('received_at', { ascending: false });
     payments = data || [];
-    await loadPrepaymentOperations();
+    await Promise.all([loadPrepaymentOperations(), loadDealBalance()]);
     renderFinanceBlock();
+}
+
+// Итог сделки из финансов (v2) — в валюте гостя. Разбивку видят финансы и менеджер
+// сделки; остальным — итоги из самой сделки (тоже в валюте гостя)
+async function loadDealBalance() {
+    const [bal, row] = await Promise.all([
+        Layout.db.rpc('crm_get_deal_balance', { p_deal: dealId }),
+        Layout.db.from('crm_deals').select('total_charged, total_paid, totals_currency').eq('id', dealId).single()
+    ]);
+    dealBalance = bal.error ? null : bal.data;
+    if (row.data && deal) Object.assign(deal, row.data);
 }
 
 async function loadPrepaymentOperations() {
@@ -1551,8 +1563,6 @@ function renderFinanceBlock() {
     const list = document.getElementById('financePaymentsList');
     if (!list) return;
 
-    const totalInr = payments.reduce((sum, p) => sum + Number(p.amount_inr || 0), 0);
-
     if (payments.length === 0) {
         list.innerHTML = `<p class="text-base-content/40 text-xs text-center py-2">${t('crm_no_payments')}</p>`;
     } else {
@@ -1607,35 +1617,36 @@ function renderFinanceBlock() {
     renderParticipantBalance();
     renderBalanceBanner();
 
-    // Итого оплачено (в рупиях) — только подтверждённые для консистентности с total_paid
-    const confirmedInr = payments.filter(p => p.is_confirmed).reduce((sum, p) => sum + Number(p.amount_inr || 0), 0);
-    const unconfirmedInr = payments.filter(p => !p.is_confirmed).reduce((sum, p) => sum + Number(p.amount_inr || 0), 0);
-    document.getElementById('financePaid').textContent = CrmUtils.formatMoney(confirmedInr);
+    // Итог — из финансов в валюте гостя (фаза 2), без пересчёта в ₹. Неподтверждённые
+    // платежи CRM — отдельной строкой, каждая валюта сама по себе
+    const cur = dealBalance?.currency || deal?.totals_currency || 'INR';
+    const charged = Number(deal?.total_charged || 0);
+    const paid = Number(deal?.total_paid || 0);
+    document.getElementById('financePaid').textContent = CrmUtils.formatMoney(paid, cur);
 
     const pendingRow = document.getElementById('financePendingRow');
-    if (unconfirmedInr > 0) {
-        document.getElementById('financePending').textContent = CrmUtils.formatMoney(unconfirmedInr);
+    const pending = CrmUtils.formatPendingPayments(payments);
+    if (pending) {
+        document.getElementById('financePending').textContent = pending;
         pendingRow.classList.remove('hidden');
     } else {
         pendingRow.classList.add('hidden');
     }
 
-    // Начислено и баланс
-    const charged = deal ? (deal.total_charged || 0) : 0;
-    const dealCurrency = deal?.currency || 'INR';
-    document.getElementById('financeCharged').textContent = charged > 0 ? CrmUtils.formatMoney(charged, dealCurrency) : '—';
+    document.getElementById('financeCharged').textContent = charged > 0 ? CrmUtils.formatMoney(charged, cur) : '—';
 
+    // Баланс: net из v2 (учитывает зачёт между блоками), иначе начислено − оплачено
     const balanceEl = document.getElementById('financeBalance');
-    if (charged > 0) {
-        const balance = charged - confirmedInr;
+    if (charged > 0 || paid > 0) {
+        const balance = dealBalance ? Number(dealBalance.net || 0) : charged - paid;
         if (balance > 0) {
-            balanceEl.textContent = '−' + CrmUtils.formatMoney(balance);
+            balanceEl.textContent = '−' + CrmUtils.formatMoney(balance, cur);
             balanceEl.className = 'font-mono text-rose-600';
         } else if (balance < 0) {
-            balanceEl.textContent = '+' + CrmUtils.formatMoney(Math.abs(balance));
+            balanceEl.textContent = '+' + CrmUtils.formatMoney(Math.abs(balance), cur);
             balanceEl.className = 'font-mono text-sky-600';
         } else {
-            balanceEl.textContent = CrmUtils.formatMoney(0);
+            balanceEl.textContent = CrmUtils.formatMoney(0, cur);
             balanceEl.className = 'font-mono text-emerald-600';
         }
     } else {
@@ -2580,10 +2591,11 @@ async function saveNameEdit() {
 
 // ==================== HELPERS ====================
 async function refreshDeal() {
-    const { data } = await Layout.db.from('crm_deals').select('total_charged, total_paid').eq('id', dealId).single();
+    const { data } = await Layout.db.from('crm_deals').select('total_charged, total_paid, totals_currency').eq('id', dealId).single();
     if (data) {
         deal.total_charged = data.total_charged;
         deal.total_paid = data.total_paid;
+        deal.totals_currency = data.totals_currency;
         renderSidebar();
     }
 }

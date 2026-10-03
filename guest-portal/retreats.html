@@ -103,7 +103,7 @@
     <script src="js/portal-auth.js"></script>
     <script src="js/portal-layout.js?v=84"></script>
     <script src="../js/date-utils.js?v=4"></script>
-    <script src="js/portal-data.js?v=3"></script>
+    <script src="js/portal-data.js?v=4"></script>
 
     <script>
         const t = key => PortalLayout.t(key);
@@ -140,6 +140,11 @@
         };
 
         // Шаблон секции <details>
+        // Итоги заявки — в валюте гостя (фаза 2), не в рупиях
+        function curSign(deal) {
+            return ({ INR: '₹', RUB: '₽', USD: '$', EUR: '€' })[deal.totals_currency || 'INR'] || '';
+        }
+
         function sectionDetails(bg, color, title, isOpen, content) {
             return `
                 <details class="card p-5" style="background: ${bg};"${isOpen ? ' open' : ''}>
@@ -330,7 +335,7 @@
                                         </span>
                                         ${deal.total_paid > 0 ? `
                                             <div class="text-sm text-gray-500 mt-1">
-                                                ${lang === 'ru' ? 'Оплачено' : 'Paid'}: &#8377;${deal.total_paid.toLocaleString()}
+                                                ${lang === 'ru' ? 'Оплачено' : 'Paid'}: ${curSign(deal)}${deal.total_paid.toLocaleString()}
                                             </div>
                                         ` : ''}
                                     </div>
@@ -339,7 +344,7 @@
                                     <div class="mt-3 pt-3 border-t">
                                         <div class="flex justify-between text-sm">
                                             <span class="text-gray-500">${lang === 'ru' ? 'К оплате' : 'To pay'}:</span>
-                                            <span class="font-medium">&#8377;${(deal.total_charged - deal.total_paid).toLocaleString()}</span>
+                                            <span class="font-medium">${curSign(deal)}${(deal.total_charged - deal.total_paid).toLocaleString()}</span>
                                         </div>
                                     </div>
                                 ` : ''}

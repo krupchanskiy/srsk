@@ -477,7 +477,7 @@
 <script src="../js/utils.js?v=13"></script>
 <script src="../js/layout.js?v=84"></script>
 <script src="../js/date-utils.js?v=4"></script>
-<script src="../js/crm-utils.js?v=5"></script>
+<script src="../js/crm-utils.js?v=6"></script>
 
 <script>
 const t = key => Layout.t(key);
@@ -630,13 +630,12 @@ function renderMetrics() {
     const PAID_STATUSES = ['booked', 'checklist', 'ready', 'completed'];
     const paid = deals.filter(d => PAID_STATUSES.includes(d.status)).length;
     const conversion = total > 0 ? Math.round(paid / total * 100) : 0;
-    // Используем total_paid из сделок для консистентности с блоком "Финансы"
-    const revenue = deals.reduce((sum, d) => sum + Number(d.total_paid || 0), 0);
+    // Итоги сделок — в валюте гостя; сумма по сделкам — ₹ по курсу ретрита + разбивка
 
     document.getElementById('metricTotal').textContent = total;
     document.getElementById('metricActive').textContent = active;
     document.getElementById('metricConversion').textContent = conversion + '%';
-    document.getElementById('metricRevenue').textContent = CrmUtils.formatMoney(revenue);
+    document.getElementById('metricRevenue').textContent = CrmUtils.formatDealsSum(deals, 'paid');
 }
 
 function renderAttention() {
@@ -739,12 +738,12 @@ function renderFunnel() {
 }
 
 function renderFinances() {
-    const expected = deals.reduce((sum, d) => sum + Number(d.total_charged || 0), 0);
-    const received = deals.reduce((sum, d) => sum + Number(d.total_paid || 0), 0);
+    const expected = CrmUtils.sumDealsInr(deals, 'charged');
+    const received = CrmUtils.sumDealsInr(deals, 'paid');
     const percent = expected > 0 ? Math.round(received / expected * 100) : 0;
 
-    document.getElementById('financeExpected').textContent = CrmUtils.formatMoney(expected);
-    document.getElementById('financeReceived').textContent = CrmUtils.formatMoney(received);
+    document.getElementById('financeExpected').textContent = CrmUtils.formatDealsSum(deals, 'charged');
+    document.getElementById('financeReceived').textContent = CrmUtils.formatDealsSum(deals, 'paid');
     document.getElementById('financePercent').textContent = percent + '%';
     document.getElementById('financeProgressBar').style.width = percent + '%';
 }
@@ -773,7 +772,7 @@ function renderManagersLoad() {
         if (CrmUtils.isActive(deal)) byManager[key].active++;
         if (deal.status === 'booked' || deal.status === 'checklist' || deal.status === 'ready' || deal.status === 'completed') {
             byManager[key].paid++;
-            byManager[key].revenue += Number(deal.total_paid || 0);
+            byManager[key].revenue += Number(deal.total_paid_inr ?? deal.total_paid ?? 0);
         }
         if (deal.status === 'completed') byManager[key].completed++;
     });
