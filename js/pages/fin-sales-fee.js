@@ -20,6 +20,8 @@ let isAdmin = false;
 // решать там нечего (ВГ 03.10); в списке «Не засчитаны» они остаются
 const FLAG_ORDER = ['problems', 'no_price', 'debt', 'discount_pass'];
 const shownFlags = r => (r.flags || []).filter(f => FLAG_ORDER.includes(f));
+// в ⚠ — только то, по чему ещё не решили: после «Решить» человек уходит из блока
+const openFlags = r => r.override ? [] : shownFlags(r);
 
 const fmtRub = n => FinUtils.fmtMoney(n, 'RUB');
 // суммы архива пересчитаны в валюту сделки через соотношение цен — копейки там ни о чём не говорят
@@ -66,8 +68,10 @@ function fixationDiff() {
 }
 
 function renderWarnings() {
+    // после фиксации проверять нечего, пока ничего не изменилось
+    if (calc.fixation && !fixationDiff().changed) return '';
     const groups = {};
-    calc.rows.forEach(r => shownFlags(r).forEach(f => { (groups[f] = groups[f] || []).push(r); }));
+    calc.rows.forEach(r => openFlags(r).forEach(f => { (groups[f] = groups[f] || []).push(r); }));
     const parts = FLAG_ORDER.filter(f => groups[f]).map(f => `
         <div class="mb-2">
             <div class="font-semibold">${e(t('fin_sales_fee_flag_' + f))} — ${groups[f].length}</div>
