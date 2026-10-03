@@ -84,6 +84,8 @@ function расчёт(l) {
 const вСчётГруппы = l => l.included && !l.selfPay;
 const сами = () => lines.filter(l => l.included && l.selfPay);
 const авансИтого = () => round2(advances.reduce((a, x) => a + (Number(x.amount_inr) || 0), 0));
+// ещё на событии; перенесённый «Начислить» на карточку организатора (moved, 630) уже в её остатке
+const авансНаСобытии = () => round2(advances.filter(x => !x.moved).reduce((a, x) => a + (Number(x.amount_inr) || 0), 0));
 
 // Пропущенные приёмы строки: по шахматке был, в окне снят. База — питание из шахматки
 // без прежних пропусков (они тоже отсюда)
@@ -711,16 +713,20 @@ async function summaryData() {
     const cur = bal?.system === 'settlement_currency' ? bal.currency : 'INR';
     const rate = cur === 'INR' ? 1 : Number(FinParticipants.rates()[cur]) || null;
     const сум = k => Object.values(bal?.blocks || {}).reduce((a, b) => a + (Number(b[k]) || 0), 0);
+    // оплачено — всё, что погасило карточку (и общими платежами), кроме перенесённого аванса:
+    // иначе «Начислено − Аванс − Оплачено» не сходится с остатком
+    const перенесено = round2(авансИтого() - авансНаСобытии());
+    const перенесеноВал = cur === 'INR' ? перенесено : rate ? round2(перенесено / rate) : 0;
     return { типы: [...типы.values()].sort((a, b) => (a.cap ?? 99) - (b.cap ?? 99)), s, всего: round2(s.проживание + s.питание + s.доп),
              ценаЗ: цена('b'), ценаО: цена('l'), пропуски: пропуски(группа), поДням: приёмыПоДням(группа), комнаты,
              исключены: lines.filter(l => !l.included), сам: сами(),
-             bal, cur, rate, начислено: сум('charged'), оплачено: сум('paid'), остаток: Number(bal?.net) || 0,
-             аванс: авансИтого(), цены: prices() };
+             bal, cur, rate, начислено: сум('charged'), оплачено: Math.max(round2(сум('charged') - (Number(bal?.net) || 0) - перенесеноВал), 0),
+             остаток: Number(bal?.net) || 0, аванс: авансИтого(), авансНаСобытии: авансНаСобытии(), цены: prices() };
 }
 
-// Аванс события — в ₹, на карточке организатора его нет: вычитаем из остатка карточки
+// Аванс события — в ₹. Перенесённый уже в остатке карточки; вычитаем только тот, что ещё на событии
 const вВалюте = (d, inrSum) => d.cur === 'INR' ? inrSum : d.rate ? round2(inrSum / d.rate) : 0;
-const остаток = d => round2(d.остаток - вВалюте(d, d.аванс));
+const остаток = d => round2(d.остаток - вВалюте(d, d.авансНаСобытии));
 
 // Деньги и даты на языке сводки: по-русски как везде, en/hi — индийская запись (₹2,15,000)
 const деньги = (v, cur = 'INR') => язык === 'ru' || cur !== 'INR' ? FinUtils.fmtMoney(v, cur)
