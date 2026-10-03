@@ -10,6 +10,15 @@
 const t = key => Layout.t(key);
 const e = str => Layout.escapeHtml(str);
 const fmtB = n => FinUtils.fmtMoney(n, 'INR');
+// Долг одного гостя — в его валюте (фаза 2); у старой системы валюты нет — ₹
+const fmtDebtor = x => x.currency && x.currency !== 'INR' ? FinUtils.fmtMoney(x.debt_cur, x.currency) : fmtB(x.debt);
+// Сумма по многим гостям — ₹ по курсу ретрита, рядом разбивка, если есть не только ₹
+const fmtByCur = (inr, byCur) => {
+    const parts = Object.entries(byCur || {}).filter(([, v]) => Number(v));
+    return parts.some(([c]) => c !== 'INR')
+        ? `${fmtB(inr)} <span class="text-xs opacity-60">(${parts.map(([c, v]) => FinUtils.fmtMoney(v, c)).join(' + ')})</span>`
+        : fmtB(inr);
+};
 
 let retreats = [];
 let currentRetreat = null;
@@ -1125,12 +1134,12 @@ async function loadReport() {
     const debtorsHtml = `${p.debtors?.length ? `
         <div class="card bg-base-100 shadow-sm"><div class="card-body py-4">
             <h2 class="card-title text-base">${t('fin_debtors')} <span class="badge badge-error badge-sm">${p.debtors.length}</span>
-                <span class="ml-auto font-mono text-error text-base">${fmtB(p.debt_total)}</span></h2>
+                <span class="ml-auto font-mono text-error text-base">${fmtByCur(p.debt_total, p.debt_by_currency)}</span></h2>
             <div class="overflow-x-auto"><table class="table table-sm"><tbody>
-                ${p.debtors.map(x => `<tr class="cursor-pointer hover:bg-base-200" onclick="location.href='participants.html?retreat=${currentRetreat}&open=${x.participant_id}'"><td><span class="hover:underline">${e(x.name || '')}</span><div data-debtor-note="${x.participant_id}"></div></td><td class="text-right font-mono text-error w-36 align-top">${fmtB(x.debt)}</td></tr>`).join('')}
+                ${p.debtors.map(x => `<tr class="cursor-pointer hover:bg-base-200" onclick="location.href='participants.html?retreat=${currentRetreat}&open=${x.participant_id}'"><td><span class="hover:underline">${e(x.name || '')}</span><div data-debtor-note="${x.participant_id}"></div></td><td class="text-right font-mono text-error w-36 align-top">${fmtDebtor(x)}</td></tr>`).join('')}
             </tbody></table></div>
         </div></div>` : ''}
-        ${Number(p.advance_total) > 0 ? `<div class="text-sm opacity-70">${t('fin_advance')}: ${fmtB(p.advance_total)}</div>` : ''}`;
+        ${Number(p.advance_total) > 0 ? `<div class="text-sm opacity-70">${t('fin_advance')}: ${fmtByCur(p.advance_total, p.advance_by_currency)}</div>` : ''}`;
 
     const unitTabs = (hasCafeActivity || showPrasad) ? `
         <div role="tablist" class="tabs tabs-boxed w-fit max-w-full">
@@ -1223,7 +1232,7 @@ function openClose() {
     const p = currentData.report.participants;
     document.getElementById('closeInfo').innerHTML =
         p.debt_total > 0
-            ? `<span class="text-error font-medium">${t('fin_debtors')}: ${p.debtors.length} · ${fmtB(p.debt_total)}</span>`
+            ? `<span class="text-error font-medium">${t('fin_debtors')}: ${p.debtors.length} · ${fmtByCur(p.debt_total, p.debt_by_currency)}</span>`
             : `<span class="text-success">${t('fin_no_debts')}</span>`;
     document.getElementById('closeModal').showModal();
 }
@@ -1397,7 +1406,7 @@ async function renderClosurePdf(snap, version) {
         for (const d of p.debtors) {
             const yy = y;
             line(d.name || '', 10, { keep: true });
-            rightText(money(d.debt), 10, yy);
+            rightText(d.currency && d.currency !== 'INR' ? FinUtils.fmtMoney(d.debt_cur, d.currency) : money(d.debt), 10, yy);
             y -= 16;
         }
     }

@@ -1198,16 +1198,25 @@ function finMoney(amount, code) {
     return `${FIN_SYMBOLS[code || 'INR'] || code} ${n.toLocaleString('ru-RU', { maximumFractionDigits: 2 })}`;
 }
 
-function finStatusHtml(net) {
+function finStatusHtml(net, code) {
     const t = k => PortalLayout.t(k);
     const v = Number(net) || 0;
-    if (v > 0) return `<span class="text-red-600">${t('fin_debt')}: ${finMoney(v)}</span>`;
-    if (v < 0) return `<span class="text-srsk-green">${t('fin_advance')}: ${finMoney(-v)}</span>`;
+    if (v > 0) return `<span class="text-red-600">${t('fin_debt')}: ${finMoney(v, code)}</span>`;
+    if (v < 0) return `<span class="text-srsk-green">${t('fin_advance')}: ${finMoney(-v, code)}</span>`;
     return `<span class="text-srsk-green">${t('portal_fin_paid_up')}</span>`;
+}
+
+// Итог по нескольким валютам {RUB: 100, INR: -50}: у каждого гостя долг в его валюте,
+// складывать разные валюты нельзя — показываем по каждой
+function finStatusByCurrencyHtml(byCur) {
+    const nonZero = Object.entries(byCur || {}).filter(([, v]) => Math.abs(Number(v) || 0) >= 0.005);
+    if (!nonZero.length) return finStatusHtml(0);
+    return nonZero.map(([c, v]) => finStatusHtml(v, c)).join('<br>');
 }
 
 function finBlocksHtml(balance) {
     const t = k => PortalLayout.t(k);
+    const cur = balance?.currency;
     return ['org_fee', 'accommodation', 'meals', 'extra']
         .map(k => ({ k, ...(balance?.blocks?.[k] || {}) }))
         .filter(x => Number(x.charged) > 0 || Number(x.paid) > 0)
@@ -1216,7 +1225,7 @@ function finBlocksHtml(balance) {
             return `<div class="flex justify-between text-sm">
                 <span class="text-gray-600">${t('fin_block_' + x.k)}</span>
                 <span class="${bal > 0 ? 'text-red-600 font-medium' : 'text-gray-700'}">
-                    ${finMoney(x.paid)} / ${finMoney(x.charged)}${bal > 0 ? ` · ${t('fin_debt').toLowerCase()} ${finMoney(bal)}` : ''}
+                    ${finMoney(x.paid, cur)} / ${finMoney(x.charged, cur)}${bal > 0 ? ` · ${t('fin_debt').toLowerCase()} ${finMoney(bal, cur)}` : ''}
                 </span>
             </div>`;
         }).join('');
@@ -1230,10 +1239,10 @@ function renderFinanceRetreat(item) {
     const renderChargeLines = list => (list || []).map(c => `
         <div class="flex justify-between text-sm ${c.is_cancelled ? 'line-through text-gray-400' : 'text-gray-700'}">
             <span>${escapeHtml(c.description || t('fin_block_' + c.kind))}</span>
-            <span>${finMoney(c.net_amount)}</span>
+            <span>${finMoney(c.net_amount, c.currency_code)}</span>
         </div>`).join('');
 
-    const renderPaymentLines = list => (list || []).map(p => {
+    const renderPaymentLines = (list, legacy) => (list || []).map(p => {
         // «Переоформлен» — это перераспределение между участниками, деньги на месте.
         // Раньше такой платёж показывался как сторно, и гость читал это как
         // «мой платёж отменили».
@@ -1247,12 +1256,16 @@ function renderFinanceRetreat(item) {
         const paidBy = p.paid_by
             ? `<div class="text-xs text-gray-400">${t('fin_paid_by')}: ${escapeHtml(p.paid_by)}</div>`
             : '';
-        // Валютный платёж показывает свой расчёт: курс зафиксирован в момент
-        // операции и не меняется задним числом — вопрос «а почему столько рупий»
-        // должен закрываться самой строкой, без обращения к администратору
-        const conv = p.currency_code && p.currency_code !== 'INR' && Number(p.rate_used)
-            ? `<div class="text-xs text-gray-400">${t('fin_at_rate')} ${Number(p.rate_used).toLocaleString('ru-RU', { maximumFractionDigits: 4 })} → ${finMoney(p.amount_base)}</div>`
-            : '';
+        // Валютный платёж показывает свой расчёт. Старая система (всё в ₹) — курс
+        // и рупии; новая — только если деньги в другой валюте, чем долг гостя:
+        // сколько засчитано в его валюту (по курсу ретрита)
+        const conv = legacy
+            ? (p.currency_code && p.currency_code !== 'INR' && Number(p.rate_used)
+                ? `<div class="text-xs text-gray-400">${t('fin_at_rate')} ${Number(p.rate_used).toLocaleString('ru-RU', { maximumFractionDigits: 4 })} → ${finMoney(p.amount_base)}</div>`
+                : '')
+            : (p.settle_currency && p.settle_currency !== p.currency_code && p.settle_amount != null
+                ? `<div class="text-xs text-gray-400">→ ${finMoney(p.settle_amount, p.settle_currency)}</div>`
+                : '');
         const dim = p.status === 'reversed' || p.status === 'reallocated';
         return `<div class="flex justify-between text-sm ${dim ? 'text-gray-400' : 'text-gray-700'}">
             <span>${escapeHtml(formatPortalDate(p.occurred_on))} · ${t('fin_type_' + p.type)}${badge}${paidBy}</span>
@@ -1261,7 +1274,7 @@ function renderFinanceRetreat(item) {
     }).join('');
 
     const charges = renderChargeLines(item.charges);
-    const payments = renderPaymentLines(item.payments);
+    const payments = renderPaymentLines(item.payments, b.system === 'legacy_inr');
 
     // Семья: только итоги и блоки родственников, без их операций
     // (детализация чужих платежей в портал не отдаётся сервером)
@@ -1269,14 +1282,14 @@ function renderFinanceRetreat(item) {
         // Детализация родственника приходит только при включённом full_details
         // на связи — иначе сервер эти ключи не отдаёт вовсе
         const fCharges = f.charges ? renderChargeLines(f.charges) : '';
-        const fPayments = f.payments ? renderPaymentLines(f.payments) : '';
+        const fPayments = f.payments ? renderPaymentLines(f.payments, f.balance?.system === 'legacy_inr') : '';
         return `
         <div class="pt-2 mt-2 border-t border-gray-200/70">
             <div class="flex justify-between text-sm mb-1">
                 <span class="font-medium text-gray-800">${escapeHtml(f.name || '')}
                     <span class="text-gray-400 font-normal">· ${t('family_rel_' + f.relation)}</span>
                 </span>
-                <span class="font-semibold">${finStatusHtml(f.balance?.net)}</span>
+                <span class="font-semibold">${finStatusHtml(f.balance?.net, f.balance?.currency)}</span>
             </div>
             ${finBlocksHtml(f.balance)}
             ${fCharges ? `<div class="text-xs text-gray-400 uppercase tracking-wide mt-2 mb-1">${t('fin_charges')}</div><div class="space-y-1">${fCharges}</div>` : ''}
@@ -1290,7 +1303,7 @@ function renderFinanceRetreat(item) {
             ${family}
             <div class="flex justify-between text-sm font-semibold mt-2 pt-2 border-t border-gray-300">
                 <span class="text-gray-800">${t('portal_family_total')}</span>
-                <span>${finStatusHtml(item.family_net)}</span>
+                <span>${finStatusByCurrencyHtml(item.family_net)}</span>
             </div>
         </div>` : '';
 
@@ -1298,7 +1311,7 @@ function renderFinanceRetreat(item) {
     <div class="p-4 bg-white/70 rounded-xl">
         <div class="flex flex-wrap items-center justify-between gap-2 mb-2">
             <div class="font-semibold text-gray-800">${escapeHtml(item.retreat_name || '')}</div>
-            <div class="text-sm font-semibold">${finStatusHtml(b.net)}</div>
+            <div class="text-sm font-semibold">${finStatusHtml(b.net, b.currency)}</div>
         </div>
         ${blocksHtml ? `<div class="space-y-1 mb-3">${blocksHtml}</div>` : ''}
         ${charges ? `<div class="text-xs text-gray-400 uppercase tracking-wide mb-1">${t('fin_charges')}</div><div class="space-y-1 mb-3">${charges}</div>` : ''}
@@ -1328,9 +1341,13 @@ async function loadFinances() {
         const items = data.result || [];
         if (!items.length) return;
         document.getElementById('finance-content').innerHTML = items.map(renderFinanceRetreat).join('');
-        // суммарный статус в шапке блока — по всем ретритам
-        const totalNet = items.reduce((s, it) => s + (Number(it.balance?.net) || 0), 0);
-        document.getElementById('finance-summary').innerHTML = finStatusHtml(totalNet);
+        // суммарный статус в шапке блока — по всем ретритам, по валютам
+        const totalNet = {};
+        items.forEach(it => {
+            const c = it.balance?.currency || 'INR';
+            totalNet[c] = (totalNet[c] || 0) + (Number(it.balance?.net) || 0);
+        });
+        document.getElementById('finance-summary').innerHTML = finStatusByCurrencyHtml(totalNet);
         document.getElementById('finance-block').classList.remove('hidden');
     } catch (e) {
         console.error('[Finances] Ошибка загрузки:', e);
