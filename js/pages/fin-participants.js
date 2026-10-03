@@ -315,19 +315,24 @@ async function openCard(pid) {
     if (noEventMode) {
         document.getElementById('cardCrmInfo').innerHTML = '';
         document.getElementById('cardNotes').innerHTML = '';
+        document.getElementById('cardSyncChanges').innerHTML = '';
         cardCalc = null; card.dealId = null;
         await Promise.all([loadCardCharges(), loadCardPayments()]);
         loadCardCompanions();
         return;
     }
+    // Недостающие блоки создаются сразу, а изменение уже начисленного (даты в шахматке,
+    // условия CRM) — только по кнопке «Применить»: автопересчёт не меняет молча (фаза 2, шаг 7)
+    document.getElementById('cardSyncChanges').innerHTML = '';
     if (window.hasPermission?.('fin_admin')) {
         const { data: res } = await Layout.db.rpc('fin_sync_charges_from_crm',
-            { p_participant: card.id, p_retreat: currentRetreat });
-        if (res?.ok && ((res.result?.created || 0) + (res.result?.updated || 0)) > 0) {
+            { p_participant: card.id, p_retreat: currentRetreat, p_mode: 'new_only' });
+        if (res?.ok && (res.result?.created || 0) > 0) {
             await loadParticipants();
             const fresh = participants.find(x => x.participant_id === card.id);
             if (fresh) { renderCardBlocks(fresh.balance); renderCardCurrencyBtns(); }
         }
+        if (res?.ok) renderSyncChanges(res.changes);
     }
     loadCardCrmInfo();
     await Promise.all([loadCardCharges(), loadCardPayments()]);
@@ -515,11 +520,17 @@ async function loadCardCrmInfo() {
         </div>
     </div>` : '';
 
+    // Даты — из шахматки по всем записям гостя; из сделки — пока не размещён (фаза 2, шаг 7)
+    const откудаДаты = { timeline: 'по шахматке', deal: 'по сделке — в шахматке ещё нет', retreat: 'по датам ретрита — в шахматке ещё нет' }[d.source] || '';
+    const места = d.rooms || [];
+    const списокМест = места.length > 1 ? `<div class="text-[11px] opacity-60 mb-0.5">${места.map(m =>
+        `${e(m.building || '—')}${m.room ? ' №' + e(String(m.room)) : ''} ${DateUtils.formatShort(DateUtils.parseDate(m.check_in))} — ${DateUtils.formatShort(DateUtils.parseDate(m.check_out))}`).join(' · ')}</div>` : '';
     if (el) el.innerHTML = `
         <div class="bg-base-200/40 rounded-lg px-2.5 py-1.5">
             <div class="flex flex-wrap items-center gap-2 text-[11px] uppercase tracking-wide opacity-50 mb-0.5">
-                <span>${t('fin_crm_terms_info')} · <span class="normal-case">${DateUtils.formatShort(DateUtils.parseDate(d.check_in))} — ${DateUtils.formatShort(DateUtils.parseDate(d.check_out))}, ${d.nights_total} ноч.${d.building ? ` · ${e(d.building)}${d.room ? ' №' + e(String(d.room)) : ''}` : ''}</span></span>
+                <span>${t('fin_crm_terms_info')} · <span class="normal-case">${DateUtils.formatShort(DateUtils.parseDate(d.check_in))} — ${DateUtils.formatShort(DateUtils.parseDate(d.check_out))}, ${d.nights_total} ноч.${места.length > 1 ? '' : d.building ? ` · ${e(d.building)}${d.room ? ' №' + e(String(d.room)) : ''}` : ''}${откудаДаты ? ` · ${откудаДаты}` : ''}</span></span>
             </div>
+            ${списокМест}
             ${блок('org_fee', blockLabel('org_fee'))}
             ${блок('accommodation', blockLabel('accommodation'))}
             ${блок('meals', blockLabel('meals'))}
@@ -535,6 +546,29 @@ async function loadCardCrmInfo() {
     if (card.payments?.length) renderCardPayments();
 }
 
+// Плашка «расчёт изменился»: было → стало по каждому блоку, применяется одной кнопкой
+function renderSyncChanges(changes) {
+    const el = document.getElementById('cardSyncChanges');
+    const изм = (changes || []).filter(c => c.action === 'update');
+    if (!изм.length) { el.innerHTML = ''; return; }
+    const деньги = (v, c) => FinUtils.fmtMoney(Number(v) || 0, c || 'INR');
+    const строки = изм.map(c => {
+        const разница = c.old_currency === c.currency ? Number(c.new_net) - Number(c.old_net) : null;
+        return `<div class="py-0.5">
+            <b>${e(blockLabel(c.kind))}:</b> ${деньги(c.old_net, c.old_currency)} → ${деньги(c.new_net, c.currency)}${разница != null ? ` <span class="font-mono">(${разница > 0 ? '+' : '−'}${деньги(Math.abs(разница), c.currency)})</span>` : ''}
+            <div class="text-xs opacity-70">было: ${e(c.old_description || '')}<br>стало: ${e(c.new_description || '')}</div>
+        </div>`;
+    }).join('');
+    el.innerHTML = `<div class="alert alert-warning py-2 px-3 text-sm items-start">
+        <div class="flex-1">
+            <div class="font-semibold mb-1">Расчёт изменился (шахматка или условия CRM) — начисления пока прежние</div>
+            ${строки}
+        </div>
+        <button type="button" class="btn btn-sm btn-warning" id="cardSyncApply">Применить</button>
+    </div>`;
+    el.querySelector('#cardSyncApply').addEventListener('click', syncFromCrm);
+}
+
 // «Подтянуть из CRM»: материализация расчёта в начисления (ТЗ 3.1, сценарий 1)
 async function syncFromCrm() {
     if (!card.id) return;
@@ -545,7 +579,9 @@ async function syncFromCrm() {
         const r = res.result || {};
         if (r.no_deal) Layout.showNotification(t('fin_no_deal_in_crm'), 'warning');
         else Layout.showNotification(`CRM → ${t('fin_charges')}: +${r.created || 0} / ~${r.updated || 0}`, 'success');
+        document.getElementById('cardSyncChanges').innerHTML = '';
         await refreshAfterChange();
+        loadCardCrmInfo();
     }
 }
 
@@ -1344,8 +1380,24 @@ function addChargeRow(presetPerson) {
 // Прасад участника — за приём, завтрак и обед отдельно, как у групп (ВГ, 02.10):
 // дни и приёмы — из eating_detail (то же, что видит кухня), число × цена. Снятый приём
 // уходит кухне пропуском, завтрак в день заезда / обед в день выезда — ранним заездом /
-// поздним выездом. Цены — тарифы «Гостей без события», правятся в строке
+// поздним выездом. Цены — из прайса ретрита: пара «завтрак + обед» — по цене дня ретрита,
+// одиночный приём — «Завтрак / Обед — за один приём» (ВГ, 03.10; так же считает сервер,
+// миграция 628). Нет цены дня в прайсе — тарифы «Гостей без события». Правятся в строке
 let mealTariff = null;
+const retreatMealPrices = {};   // retreat_id → { day, bf, ln } в ₹ (null — нет в прайсе)
+async function loadRetreatMealPrices(ret) {
+    if (retreatMealPrices[ret.id]) return retreatMealPrices[ret.id];
+    const { data } = await Layout.db.from('crm_retreat_prices')
+        .select('price, crm_services!inner(code, category, sort_order)')
+        .eq('retreat_id', ret.id).eq('crm_services.category', 'meals');
+    const rows = (data || []).slice().sort((a, b) => (a.crm_services.sort_order || 0) - (b.crm_services.sort_order || 0));
+    const дней = Math.max(Math.round((DateUtils.parseDate(ret.end_date) - DateUtils.parseDate(ret.start_date)) / 86400000), 1);
+    const day = rows.find(x => !['meal_breakfast', 'meal_lunch'].includes(x.crm_services.code));
+    const цена = code => { const x = rows.find(y => y.crm_services.code === code); return x ? Number(x.price) : null; };
+    return (retreatMealPrices[ret.id] = {
+        day: day ? round2(Number(day.price) / дней) : null, bf: цена('meal_breakfast'), ln: цена('meal_lunch')
+    });
+}
 async function loadMealRibbon(row) {
     const pid = row.querySelector('.chg-person-id').value;
     const ret = retreats.find(x => x.id === currentRetreat);
@@ -1360,6 +1412,7 @@ async function loadMealRibbon(row) {
             const { data } = await Layout.db.rpc('fin_get_stay_tariffs', { p_on: DateUtils.toISO(new Date()) });
             mealTariff = data?.current || null;
         }
+        const прайс = ret.end_date ? await loadRetreatMealPrices(ret) : { day: null };
         // ретрит идёт, пока живут его люди: берём с запасом вокруг дат, фильтр — по ретриту
         const { data } = await Layout.db.rpc('eating_detail', { p_from: сдвиг(ret.start_date, -14), p_to: сдвиг(ret.end_date || ret.start_date, 45) })
             .eq('vaishnava_id', pid).eq('retreat_id', currentRetreat).order('d');
@@ -1374,6 +1427,10 @@ async function loadMealRibbon(row) {
             if (row.dataset.ribbonFor !== ключ) return;
             row.ribbon = { meals, base, places: Object.fromEntries((места || []).map(p => [p.id, p])),
                 bPrice: Number(mealTariff.breakfast_price) || 0, lPrice: Number(mealTariff.lunch_price) || 0 };
+            if (прайс.day != null) Object.assign(row.ribbon, {
+                dPrice: прайс.day, bPrice: прайс.bf ?? 0, lPrice: прайс.ln ?? 0,
+                нетЦены: [прайс.bf == null && 'завтрака', прайс.ln == null && 'обеда'].filter(Boolean)
+            });
             // цены тарифа — в рупиях; перевод в валюту расчёта — как у любой строки
             row.querySelector('.chg-currency').value = 'INR';
         }
@@ -1389,7 +1446,11 @@ async function loadMealRibbon(row) {
 
 function ribbonCalc(r) {
     const завтраков = r.meals.filter(m => m.b).length, обедов = r.meals.filter(m => m.l).length;
-    return { завтраков, обедов, итого: round2(завтраков * r.bPrice + обедов * r.lPrice) };
+    if (r.dPrice == null) return { дней: 0, завтраков, обедов, итого: round2(завтраков * r.bPrice + обедов * r.lPrice) };
+    // пары за всё пребывание: заезд после обеда + обед в день выезда — один день
+    const дней = Math.min(завтраков, обедов);
+    return { дней, завтраков: завтраков - дней, обедов: обедов - дней,
+        итого: round2(дней * r.dPrice + (завтраков - дней) * r.bPrice + (обедов - дней) * r.lPrice) };
 }
 
 function renderMealRibbon(row) {
@@ -1417,10 +1478,12 @@ function renderMealRibbon(row) {
             </div>`).join('')}
         </div>
         <div class="flex flex-wrap items-center gap-1 text-sm">
+            ${r.dPrice != null ? `${c.дней} × <input type="number" min="0" step="10" class="input input-bordered input-xs w-20" data-rb-price="dPrice" value="${r.dPrice}"> дн. (завтрак и обед) +` : ''}
             ${c.завтраков} × <input type="number" min="0" step="10" class="input input-bordered input-xs w-20" data-rb-price="bPrice" value="${r.bPrice}"> завтрак
             + ${c.обедов} × <input type="number" min="0" step="10" class="input input-bordered input-xs w-20" data-rb-price="lPrice" value="${r.lPrice}"> обед
             = <b class="font-mono">${FinUtils.fmtMoney(c.итого, 'INR')}</b>
         </div>
+        ${r.нетЦены?.length && (c.завтраков || c.обедов) ? `<div class="text-xs text-warning mt-1">⚠ В прайсе ретрита нет цены ${r.нетЦены.join(' и ')} за один приём — впишите цену здесь или заведите в CRM → Цены ретрита</div>` : ''}
         <div class="text-[11px] opacity-60 mt-1">Снятый приём — кухня не готовит на него (пропуск); завтрак в день заезда и обед в день выезда — ранний заезд / поздний выезд в шахматке${безМеста ? '. Дни, когда участник ещё не расселён, — только в деньгах, кухня узнает после расселения' : ''}</div>`;
     if (!wrap._delegated) {
         wrap._delegated = true;
@@ -1567,8 +1630,8 @@ async function submitCharge(ev) {
     }
 }
 
-// Строка «Питание» по ленте → два начисления: завтраки и обеды, число × цена.
-// Скидка строки — сначала с обедов, остаток с завтраков
+// Строка «Питание» по ленте → начисления: дни (завтрак и обед) по цене дня ретрита,
+// одиночные завтраки и обеды, число × цена. Скидка строки — сначала с дней, потом с обедов
 function ribbonRows(row, reason) {
     const r = row.ribbon;
     const c = ribbonCalc(r);
@@ -1577,7 +1640,10 @@ function ribbonRows(row, reason) {
     const свой = desc.dataset.touched && desc.value.trim() ? desc.value.trim() + ' · ' : '';
     let скидка = Math.min(Number(row.querySelector('.chg-discount').value) || 0, c.итого);
     const out = [];
-    for (const [k, назв, qty, цена] of [['l', 'Обеды', c.обедов, r.lPrice], ['b', 'Завтраки', c.завтраков, r.bPrice]]) {
+    const дата = s => `${s.slice(8, 10)}.${s.slice(5, 7)}`;
+    const едят = r.meals.filter(m => m.b || m.l);
+    const пары = r.dPrice == null ? [] : [['d', едят.length ? `Питание ${дата(едят[0].d)}–${дата(едят[едят.length - 1].d)}: дни с завтраком и обедом` : 'Питание', c.дней, r.dPrice]];
+    for (const [k, назв, qty, цена] of [...пары, ['l', r.dPrice == null ? 'Обеды' : 'Обеды без завтрака', c.обедов, r.lPrice], ['b', r.dPrice == null ? 'Завтраки' : 'Завтраки без обеда', c.завтраков, r.bPrice]]) {
         if (!qty || !(цена > 0)) continue;
         const ск = Math.min(скидка, qty * цена);
         скидка -= ск;
@@ -1586,7 +1652,7 @@ function ribbonRows(row, reason) {
             participant_id: row.querySelector('.chg-person-id').value,
             retreat_id: currentRetreat,
             kind: 'meals',
-            description: свой + FinGuests.описаниеПриёмов(назв, r.meals, k),
+            description: свой + (k === 'd' || r.dPrice != null ? назв : FinGuests.описаниеПриёмов(назв, r.meals, k)),
             quantity: qty,
             unit_price: round2(цена * курс),
             occurred_on: row.querySelector('.chg-date').value || null,
@@ -2053,7 +2119,7 @@ function addOtherParticipantRow() {
             // чью карточку ещё не открывали, разбивка пуста (ВГ, 24.08)
             if (window.hasPermission?.('fin_admin')) {
                 await Layout.db.rpc('fin_sync_charges_from_crm',
-                    { p_participant: hid.value, p_retreat: currentRetreat });
+                    { p_participant: hid.value, p_retreat: currentRetreat, p_mode: 'new_only' });
             }
             // после синка баланс берём свежий с сервера, а не из списка страницы
             const { data: свежий } = await Layout.db.rpc('fin_get_participant_balance',
