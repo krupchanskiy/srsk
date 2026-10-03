@@ -50,25 +50,10 @@ function именаБрони(notes) {
 }
 
 // ==================== РАСЧЁТ ====================
-// Сняты ПОСЛЕДНИЕ дни (ни завтрака, ни обеда до конца) — человек уехал раньше (ВГ, 29.09):
-// выезд — последний день, когда он ещё ел; при сохранении уходит в шахматку, кухня
-// поправится сама. Снятые дни в середине (экскурсия) — не отъезд, шахматку не трогаем.
-// Снят один только завтрак в день выезда — уехал утром, ночь была: тоже не отъезд, только деньги.
-// Возвращает новую дату выезда или null
-function раннийВыезд(l) {
-    if (!l.place?.check_out || !l.meals.length) return null;
-    const последний = [...l.meals].reverse().find(m => m.b || m.l);
-    if (!последний || последний.d < l.place.check_in || последний.d >= l.place.check_out) return null;
-    // накануне выезда был обед, в день выезда ничего — уехал утром без завтрака, не раньше
-    if (днейМежду(последний.d, l.place.check_out) === 1 && последний.l) return null;
-    return последний.d;
-}
-
-// Ночи с учётом раннего выезда: больше, чем до новой даты выезда, не бывает
-function ночей(l) {
-    const выезд = раннийВыезд(l);
-    return выезд ? Math.min(l.nights, днейМежду(l.place.check_in, выезд)) : l.nights;
-}
+// Даты и ночи — только из шахматки (ВГ, 03.10): по еде не судим, уехал ли человек — бывает,
+// живёт и питается сам. Снятые приёмы в любые дни, и в последние, — пропуски питания
+// (деньги и кухня), шахматку окно не трогает. Уехал раньше — выезд правят в шахматке.
+// Прежнее правило «сняты последние дни = ранний выезд» (29.09, мигр. 593) убрано
 
 // Доля номера за ночь — целыми рупиями, сумма долей = цена номера (ВГ, 02.10: без «хвостиков»
 // вроде ₹5 499,99): ₹5 500 на троих = 1 834 + 1 833 + 1 833, лишняя рупия — первым в номере
@@ -89,7 +74,7 @@ function расчёт(l) {
     const заНочь = l.extraBed ? round2(l.extraBedPrice) : доля(l);
     const завтраков = l.persons * l.meals.filter(m => m.b).length;
     const обедов = l.persons * l.meals.filter(m => m.l).length;
-    const проживание = round2(ночей(l) * заНочь);
+    const проживание = round2(l.nights * заНочь);
     const питание = round2(завтраков * l.bPrice + обедов * l.lPrice);
     const доп = round2(Number(l.extra) || 0);
     return { заНочь, завтраков, обедов, проживание, питание, доп, итого: round2(проживание + питание + доп) };
@@ -101,11 +86,10 @@ const сами = () => lines.filter(l => l.included && l.selfPay);
 const авансИтого = () => round2(advances.reduce((a, x) => a + (Number(x.amount_inr) || 0), 0));
 
 // Пропущенные приёмы строки: по шахматке был, в окне снят. База — питание из шахматки
-// без прежних пропусков (они тоже отсюда); дни после раннего выезда — не пропуск
+// без прежних пропусков (они тоже отсюда)
 function пропущено(l, k) {
-    const выезд = раннийВыезд(l);
     const база = l.base || l.fresh.meals;
-    return l.meals.filter(m => !m[k] && база.find(x => x.d === m.d)?.[k] && !(выезд && m.d > выезд)).map(m => m.d);
+    return l.meals.filter(m => !m[k] && база.find(x => x.d === m.d)?.[k]).map(m => m.d);
 }
 
 function итоги(list = lines.filter(вСчётГруппы)) {
@@ -385,8 +369,7 @@ function placeRow(l, i) {
             ${строкаОрганизатора() === l ? '<span class="badge badge-success badge-xs">организатор</span>' : ''}
             ${l.mealsOn ? '<span class="badge badge-info badge-xs" title="Питание включено здесь — при сохранении включится и в шахматке">питание вкл.</span>' : ''}</td>
         <td class="whitespace-nowrap text-xs">${p ? `${дата(p.check_in)}–${p.check_out ? дата(p.check_out) : '…'}` : `${дата(l.eater.start_date)}–${дата(l.eater.end_date)}`}</td>
-        <td>${h ? числа('nights', l.nights, 'w-12') : p ? '<span class="text-[11px] opacity-60 whitespace-nowrap">без номера</span>' : ''}${p && раннийВыезд(l) ? `<div class="text-[11px] text-warning whitespace-nowrap"
-            title="Последние дни сняты — при сохранении выезд уйдёт в шахматку, кухня поправится">выезд → ${дата(раннийВыезд(l))}${ночей(l) < l.nights ? `, ${ночей(l)} ноч.` : ''}</div>` : ''}</td>
+        <td>${h ? числа('nights', l.nights, 'w-12') : p ? '<span class="text-[11px] opacity-60 whitespace-nowrap">без номера</span>' : ''}</td>
         <td class="whitespace-nowrap">${!h ? '' : l.extraBed
             ? `<span class="text-xs">доп. кровать</span> ${числа('extraBedPrice', l.extraBedPrice, 'w-16', 50, 'Цена доп. кровати за сутки')}`
             : `${числа('roomPrice', l.roomPrice, 'w-16', 50, 'Цена номера за сутки')} ÷ ${числа('people', l.people, 'w-10', 1, 'Сколько человек делят номер')}`}
@@ -548,9 +531,6 @@ function renderTotal() {
 async function save() {
     const безПричины = lines.filter(l => !l.included && !(l.excludeReason || '').trim());
     if (безПричины.length) { Layout.showNotification(`Укажите, почему не начисляем: ${безПричины.map(l => l.label || 'место').join(', ')}`, 'warning'); return; }
-    const уехали = lines.filter(l => раннийВыезд(l));
-    if (уехали.length && !confirm(`Ранний выезд уйдёт в шахматку (кухня поправится):\n${уехали.map(l =>
-        `• ${l.label || 'место'} · ${l.place.building || ''} №${l.place.room || '—'}: ${дата(l.place.check_out)} → ${дата(раннийВыезд(l))}`).join('\n')}\n\nСохранить?`)) return;
     const безИмени = lines.filter(l => (l.selfPay || l.key === payerKey) && !l.place?.vaishnava_id && !(l.label || '').trim());
     if (безИмени.length) { Layout.showNotification('Впишите имя тому, кто платит сам или организатору, — без имени карточку не завести', 'warning'); return; }
     const payload = { retreat_id: ret.id, lines: lines.map(toLine), prices: prices() };
@@ -578,12 +558,10 @@ async function save() {
 }
 
 // Черновик (ВГ, 02.10): правки по ходу переговоров — только в лист. На карточку, в шахматку
-// и кухне ничего не уходит, это делает «Начислить». Даты места — как в шахматке (ранний
-// выезд пересчитается из питания), иначе при открытии лист собрался бы заново
+// и кухне ничего не уходит, это делает «Начислить»
 async function saveDraft() {
     const draftLines = lines.map(l => {
         const o = toLine(l);
-        if (l.place) { o.check_out = l.place.check_out; o.nights = l.nights; delete o.depart_on; }
         if (l.key === payerKey) o.org = true;
         return o;
     });
@@ -616,12 +594,6 @@ function toLine(l) {
         const first = l.meals[0], last = l.meals[l.meals.length - 1];
         if (first && first.d === l.place.check_in) o.early_checkin = !!first.b;
         if (last && last.d === l.place.check_out) o.late_checkout = !!last.l;
-        // уехал раньше: новый выезд — в шахматку; обед в последний день = поздний выезд
-        const выезд = раннийВыезд(l);
-        if (выезд) {
-            const день = l.meals.find(m => m.d === выезд);
-            Object.assign(o, { check_out: выезд, depart_on: выезд, nights: ночей(l), late_checkout: !!день?.l });
-        }
     } else {
         Object.assign(o, { meal_group_id: l.meal_group_id, check_in: l.eater.start_date, check_out: l.eater.end_date });
     }
@@ -640,7 +612,7 @@ const СЛОВА = {
           paid: 'Оплачено', left: 'Осталось оплатить', currency: 'Валюта расчёта', rate: 'курс', notCharged: 'Не начисляем',
           byRoom: 'Гости по номерам', room: 'Номер', dates: 'Даты', noId: 'Гость (без документа)', mealsOnly: 'только питание',
           selfMark: 'платит сам', ashram: 'за счёт ашрама', roomType: n => `${n}-местный номер`, inCur: 'В валюте расчёта',
-          detail: 'Подробно по каждому гостю', byGuest: 'По каждому гостю', viewFull: 'Подробный', viewShort: 'Краткий', mealsByDay: 'Питание по дням', guest: 'Гость', perNightShort: 'ноч.', B: 'З', L: 'О',
+          detail: 'Подробно по каждому гостю', byGuest: 'По каждому гостю', viewFull: 'Подробный', viewShort: 'Краткий', mealsByDay: 'Питание по дням', mealsDaily: 'Приёмы пищи по дням', date: 'Дата', guest: 'Гость', perNightShort: 'ноч.', B: 'З', L: 'О',
           legend: 'З — завтрак, О — обед; пусто — гостя в этот день нет, «–» — был, но не ел',
           unsaved: 'Внимание: в окне есть не начисленные правки — «начислено» и «осталось» по последнему начислению' },
     en: { org: 'Organizer', rates: 'Agreed rates', perNight: 'night', breakfast: 'Breakfast', lunch: 'Lunch', extraBed: 'Extra bed',
@@ -651,7 +623,7 @@ const СЛОВА = {
           paid: 'Paid', left: 'Balance due', currency: 'Settlement currency', rate: 'rate', notCharged: 'Not charged',
           byRoom: 'Guests by room', room: 'Room', dates: 'Dates', noId: 'Guest (no ID provided)', mealsOnly: 'meals only',
           selfMark: 'pays individually', ashram: "at the ashram's expense",
-          detail: 'Details by guest', byGuest: 'By guest', viewFull: 'Detailed', viewShort: 'Short', mealsByDay: 'Meals by day', guest: 'Guest', perNightShort: 'nights', B: 'B', L: 'L',
+          detail: 'Details by guest', byGuest: 'By guest', viewFull: 'Detailed', viewShort: 'Short', mealsByDay: 'Meals by day', mealsDaily: 'Meals per day', date: 'Date', guest: 'Guest', perNightShort: 'nights', B: 'B', L: 'L',
           legend: 'B — breakfast, L — lunch; blank — guest not here that day, “–” — here but no meals',
           roomType: n => ({ 1: 'Single room', 2: 'Double room', 3: 'Triple room', 4: 'Quad room' })[n] || `${n}-bed room`, inCur: 'In settlement currency',
           unsaved: 'Note: there are changes not yet charged — “charged” and “balance” reflect the last charge' },
@@ -663,7 +635,7 @@ const СЛОВА = {
           paid: 'भुगतान किया', left: 'शेष देय', currency: 'भुगतान मुद्रा', rate: 'दर', notCharged: 'शुल्क नहीं लिया गया',
           byRoom: 'कमरेवार मेहमान', room: 'कमरा', dates: 'तिथियाँ', noId: 'अतिथि (पहचान पत्र नहीं दिया)', mealsOnly: 'केवल भोजन',
           selfMark: 'स्वयं भुगतान', ashram: 'आश्रम के खर्च पर', roomType: n => `${n} बिस्तर वाला कमरा`, inCur: 'भुगतान मुद्रा में',
-          detail: 'हर अतिथि का विवरण', byGuest: 'प्रति अतिथि', viewFull: 'विस्तृत', viewShort: 'संक्षिप्त', mealsByDay: 'दिनवार भोजन', guest: 'अतिथि', perNightShort: 'रातें', B: 'ना', L: 'भो',
+          detail: 'हर अतिथि का विवरण', byGuest: 'प्रति अतिथि', viewFull: 'विस्तृत', viewShort: 'संक्षिप्त', mealsByDay: 'दिनवार भोजन', mealsDaily: 'प्रतिदिन भोजन', date: 'तिथि', guest: 'अतिथि', perNightShort: 'रातें', B: 'ना', L: 'भो',
           legend: 'ना — नाश्ता, भो — दोपहर का भोजन; खाली — उस दिन अतिथि नहीं, «–» — थे पर भोजन नहीं',
           unsaved: 'ध्यान दें: कुछ बदलाव अभी प्रभारित नहीं हुए — «प्रभारित» और «शेष» पिछले शुल्क के अनुसार' }
 };
@@ -676,8 +648,6 @@ let названия = null;   // событие и здания на трёх �
 function пропуски(list) {
     const без = new Map();
     for (const l of list) for (const f of l.base || l.fresh.meals) {
-        // после раннего выезда дни не «пропущены» — человека уже нет
-        if (раннийВыезд(l) && f.d > раннийВыезд(l)) continue;
         const m = l.meals.find(x => x.d === f.d);
         const x = без.get(f.d) || { d: f.d, b: 0, l: 0 };
         if (f.b && !m?.b) x.b += l.persons;
@@ -685,6 +655,19 @@ function пропуски(list) {
         без.set(f.d, x);
     }
     return [...без.values()].filter(x => x.b || x.l).sort((a, b) => a.d.localeCompare(b.d));
+}
+
+// Приёмы пищи группы по дням (ВГ, 03.10): сколько завтраков и обедов в каждый день —
+// тот же счёт, что в итогах (место × приём, у записи «Разового питания» — × людей)
+function приёмыПоДням(list) {
+    const дни = new Map();
+    for (const l of list) for (const m of l.meals) {
+        const x = дни.get(m.d) || { d: m.d, b: 0, l: 0 };
+        if (m.b) x.b += l.persons;
+        if (m.l) x.l += l.persons;
+        дни.set(m.d, x);
+    }
+    return [...дни.values()].filter(x => x.b || x.l).sort((a, b) => a.d.localeCompare(b.d));
 }
 
 async function загрузитьНазвания() {
@@ -705,7 +688,7 @@ async function summaryData() {
     for (const l of группа.filter(x => x.place?.room_id)) {
         const k = l.extraBed ? 'extra' : String(типМест(l));
         const t = типы.get(k) || { k, cap: l.extraBed ? null : типМест(l), номера: new Set(), гостей: 0, ночи: new Set(), сумма: 0, цены: new Set() };
-        t.номера.add(l.place.room_id); t.гостей += 1; t.ночи.add(ночей(l)); t.сумма += расчёт(l).проживание;
+        t.номера.add(l.place.room_id); t.гостей += 1; t.ночи.add(l.nights); t.сумма += расчёт(l).проживание;
         t.цены.add(l.extraBed ? l.extraBedPrice : l.roomPrice);
         типы.set(k, t);
     }
@@ -729,7 +712,7 @@ async function summaryData() {
     const rate = cur === 'INR' ? 1 : Number(FinParticipants.rates()[cur]) || null;
     const сум = k => Object.values(bal?.blocks || {}).reduce((a, b) => a + (Number(b[k]) || 0), 0);
     return { типы: [...типы.values()].sort((a, b) => (a.cap ?? 99) - (b.cap ?? 99)), s, всего: round2(s.проживание + s.питание + s.доп),
-             ценаЗ: цена('b'), ценаО: цена('l'), пропуски: пропуски(группа), комнаты,
+             ценаЗ: цена('b'), ценаО: цена('l'), пропуски: пропуски(группа), поДням: приёмыПоДням(группа), комнаты,
              исключены: lines.filter(l => !l.included), сам: сами(),
              bal, cur, rate, начислено: сум('charged'), оплачено: сум('paid'), остаток: Number(bal?.net) || 0,
              аванс: авансИтого(), цены: prices() };
@@ -809,7 +792,6 @@ const ОКНО = {
     'организатор': ['organizer', 'आयोजक'], 'в группе': ['in the group', 'समूह में'],
     'питание вкл.': ['meals on', 'भोजन चालू'], 'Питание включено здесь — при сохранении включится и в шахматке': ['Meals turned on here — will also turn on in the room chart on save', 'भोजन यहाँ चालू — सहेजने पर चार्ट में भी चालू होगा'],
     'без номера': ['no room', 'बिना कमरा'],
-    'Последние дни сняты — при сохранении выезд уйдёт в шахматку, кухня поправится': ['Last days removed — on save the check-out goes to the room chart, the kitchen updates', 'अंतिम दिन हटाए गए — सहेजने पर प्रस्थान चार्ट में जाएगा, रसोई अपडेट होगी'],
     'доп. кровать': ['extra bed', 'अतिरिक्त बिस्तर'], 'Цена доп. кровати за сутки': ['Extra bed price per night', 'अतिरिक्त बिस्तर की दर प्रति रात'],
     'Цена номера за сутки': ['Room price per night', 'कमरे की दर प्रति रात'], 'Сколько человек делят номер': ['How many people share the room', 'कमरे में कितने लोग'],
     'цена не задана': ['no price set', 'दर तय नहीं'], 'Задайте цену в «Тарифах» или впишите здесь': ['Set the price in “Rates” or enter it here', '«दरें» में दर तय करें या यहाँ लिखें'],
@@ -841,7 +823,6 @@ const ОКНО_ШАБЛОНЫ = [
     [/только питание/g, ['meals only', 'केवल भोजन']],
     [/^всем \((\d+)\)$/, ['all ($1)', 'सभी ($1)']],
     [/^отмеченным \((\d+)\)$/, ['selected ($1)', 'चुने हुए ($1)']],
-    [/^выезд → (.*)$/, ['check-out → $1', 'प्रस्थान → $1']],
     [/^без (\d+) дн\.$/, ['missed $1 days', '$1 दिन छूटे']],
     [/^без (.*)$/, ['missed $1', 'छूटा $1']],
     [/^\(завтраков (\d+), обедов (\d+)\)$/, ['(breakfasts $1, lunches $2)', '(नाश्ते $1, दोपहर भोजन $2)']],
@@ -936,7 +917,11 @@ function summaryHtml(d) {
             ${d.s.завтраков ? `<tr><td>${T.breakfasts}</td><td ${R}>${d.s.завтраков}</td><td ${R}>${d.ценаЗ != null ? деньги(d.ценаЗ) : ''}</td><td ${R}>${деньги(round2(сумПриёма('b')))}</td></tr>` : ''}
             ${d.s.обедов ? `<tr><td>${T.lunches}</td><td ${R}>${d.s.обедов}</td><td ${R}>${d.ценаО != null ? деньги(d.ценаО) : ''}</td><td ${R}>${деньги(round2(сумПриёма('l')))}</td></tr>` : ''}
             <tr class="sub"><td>${T.total}</td><td></td><td></td><td ${R}>${деньги(d.s.питание)}</td></tr></table>
-            ${d.пропуски.length ? `<div class="small mute">${d.пропуски.map(x => `${дата(x.d)} — ${пр(x)}`).join('; ')}</div>` : ''}` : ''}
+            ${d.пропуски.length ? `<div class="small mute">${d.пропуски.map(x => `${дата(x.d)} — ${пр(x)}`).join('; ')}</div>` : ''}
+            ${d.поДням.length ? `<h3>${T.mealsDaily}</h3><table class="t narrow">
+                <thead><tr><th>${T.date}</th><th ${R}>${T.breakfasts}</th><th ${R}>${T.lunches}</th></tr></thead>
+                ${d.поДням.map(x => `<tr><td>${дата(x.d)}</td><td ${R}>${x.b}</td><td ${R}>${x.l}</td></tr>`).join('')}
+                <tr class="sub"><td>${T.total}</td><td ${R}>${d.s.завтраков}</td><td ${R}>${d.s.обедов}</td></tr></table>` : ''}` : ''}
         ${d.s.доп ? `<table class="t narrow"><tr><td>${T.extra}</td><td ${R}>${деньги(d.s.доп)}</td></tr></table>` : ''}
         <table class="t narrow total">${строкиИтога.map(([a, b]) => `<tr><td>${a}</td><td ${R}>${b}</td></tr>`).join('')}</table>
         ${d.исключены.length ? `<div class="small"><b>${T.notCharged}:</b> ${d.исключены.map(l => `${e(имяГостя(l))} — ${e(причина(l.excludeReason))}`).join('; ')}</div>` : ''}
@@ -963,8 +948,7 @@ function приёмыДня(l, d) {
 const периодКомнаты = g => { const p = g.l0.place;
     return p ? `${дата(p.check_in)}–${дата(p.check_out)}` : `${дата(g.l0.eater.start_date)}–${дата(g.l0.eater.end_date)}`; };
 const пометкаГостя = l => { const T = СЛОВА[язык];
-    return (l.selfPay ? ` <i class="mute">(${T.selfMark})</i>` : !l.included ? ` <i class="mute">(${e(причина(l.excludeReason))})</i>` : '')
-        + (раннийВыезд(l) ? ` <span class="mute">→ ${дата(раннийВыезд(l))}</span>` : ''); };
+    return l.selfPay ? ` <i class="mute">(${T.selfMark})</i>` : !l.included ? ` <i class="mute">(${e(причина(l.excludeReason))})</i>` : ''; };
 
 // Краткая (ВГ, 03.10): по каждому человеку — за номер, завтраки и обеды (сколько × цена = сумма),
 // питание всего и общая сумма; без сетки по дням
@@ -975,7 +959,7 @@ function кратко(d) {
     const строка = l => {
         const r = расчёт(l), h = !!l.place?.room_id;
         return `<tr class="${l.included ? '' : 'off'}"><td class="pl">${e(имяГостя(l))}${пометкаГостя(l)}</td>
-            <td ${R}>${h ? `${ночей(l)} × ${деньги(r.заНочь)}` : ''}</td><td ${R}>${h ? деньги(r.проживание) : ''}</td>
+            <td ${R}>${h ? `${l.nights} × ${деньги(r.заНочь)}` : ''}</td><td ${R}>${h ? деньги(r.проживание) : ''}</td>
             <td ${R}>${r.завтраков ? `${r.завтраков} × ${деньги(l.bPrice)}` : ''}</td><td ${R}>${r.завтраков ? деньги(round2(r.завтраков * l.bPrice)) : ''}</td>
             <td ${R}>${r.обедов ? `${r.обедов} × ${деньги(l.lPrice)}` : ''}</td><td ${R}>${r.обедов ? деньги(round2(r.обедов * l.lPrice)) : ''}</td>
             <td ${R}>${r.питание ? деньги(r.питание) : ''}</td>${естьДоп ? `<td ${R}>${r.доп ? деньги(r.доп) : ''}</td>` : ''}
@@ -1002,7 +986,7 @@ function подробно(d) {
     const строка = l => {
         const r = расчёт(l), h = !!l.place?.room_id;
         return `<tr class="${l.included ? '' : 'off'}"><td class="pl">${e(имяГостя(l))}${пометкаГостя(l)}</td>
-            <td ${R}>${h ? `${ночей(l)} × ${деньги(r.заНочь)}` : ''}</td><td ${R}>${h ? деньги(r.проживание) : ''}</td>
+            <td ${R}>${h ? `${l.nights} × ${деньги(r.заНочь)}` : ''}</td><td ${R}>${h ? деньги(r.проживание) : ''}</td>
             ${колДни.map(x => `<td class="c">${приёмыДня(l, x)}</td>`).join('')}
             <td ${R}>${r.завтраков ? `${r.завтраков} × ${деньги(l.bPrice)}` : ''}</td><td ${R}>${r.обедов ? `${r.обедов} × ${деньги(l.lPrice)}` : ''}</td>
             <td ${R}>${r.питание ? деньги(r.питание) : ''}</td>${естьДоп ? `<td ${R}>${r.доп ? деньги(r.доп) : ''}</td>` : ''}
@@ -1080,6 +1064,8 @@ function summaryText(d) {
         if (d.s.завтраков) out.push(`• ${T.breakfasts}: ${d.s.завтраков}${d.ценаЗ != null ? ` × ${деньги(d.ценаЗ)}` : ''} = ${деньги(round2(сумПриёма('b')))}`);
         if (d.s.обедов) out.push(`• ${T.lunches}: ${d.s.обедов}${d.ценаО != null ? ` × ${деньги(d.ценаО)}` : ''} = ${деньги(round2(сумПриёма('l')))}`);
         d.пропуски.forEach(x => out.push(`  ${дата(x.d)}: ${x.b ? `${T.noB} ${T.people(x.b)}` : ''}${x.b && x.l ? ', ' : ''}${x.l ? `${T.noL} ${T.people(x.l)}` : ''}`));
+        out.push('', `${T.mealsDaily}:`);
+        d.поДням.forEach(x => out.push(`• ${дата(x.d)}: ${T.breakfasts.toLowerCase()} ${x.b}, ${T.lunches.toLowerCase()} ${x.l}`));
     }
     if (d.s.доп) out.push(`${T.extra}: ${деньги(d.s.доп)}`);
     out.push('', `${d.сам.length ? T.totalGroup : T.total}: ${деньги(d.всего)}`);
@@ -1101,7 +1087,7 @@ function summaryText(d) {
         out.push('', `${имяКомнаты(g.l0)} · ${p ? `${дата(p.check_in)}–${дата(p.check_out)}` : `${дата(g.l0.eater.start_date)}–${дата(g.l0.eater.end_date)}`}${g.сумма ? ` — ${деньги(round2(g.сумма))}` : ''}`);
         g.люди.forEach(l => {
             const r = расчёт(l), части = [];
-            if (l.place?.room_id) части.push(`${T.stay.toLowerCase()} ${ночей(l)} × ${деньги(r.заНочь)} = ${деньги(r.проживание)}`);
+            if (l.place?.room_id) части.push(`${T.stay.toLowerCase()} ${l.nights} × ${деньги(r.заНочь)} = ${деньги(r.проживание)}`);
             if (r.завтраков) части.push(`${T.breakfasts.toLowerCase()} ${r.завтраков} × ${деньги(l.bPrice)} = ${деньги(round2(r.завтраков * l.bPrice))}`);
             if (r.обедов) части.push(`${T.lunches.toLowerCase()} ${r.обедов} × ${деньги(l.lPrice)} = ${деньги(round2(r.обедов * l.lPrice))}`);
             if (r.завтраков && r.обедов) части.push(`${T.meals.toLowerCase()} ${деньги(r.питание)}`);
