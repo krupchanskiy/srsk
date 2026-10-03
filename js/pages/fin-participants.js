@@ -525,7 +525,16 @@ async function loadCardCrmInfo() {
     const места = d.rooms || [];
     const списокМест = места.length > 1 ? `<div class="text-[11px] opacity-60 mb-0.5">${места.map(m =>
         `${e(m.building || '—')}${m.room ? ' №' + e(String(m.room)) : ''} ${DateUtils.formatShort(DateUtils.parseDate(m.check_in))} — ${DateUtils.formatShort(DateUtils.parseDate(m.check_out))}`).join(' · ')}</div>` : '';
-    if (el) el.innerHTML = `
+    // Больше 3 дней до/после ретрита — не ретрит, а визит «Гость без события» (вариант 2, ВГ 01.10)
+    let вынос = '';
+    const днейМежду = (a, b) => Math.round((DateUtils.parseDate(b) - DateUtils.parseDate(a)) / 86400000);
+    const до = Math.max(0, днейМежду(d.check_in, d.retreat_start)), после = Math.max(0, днейМежду(d.retreat_end, d.check_out));
+    if (d.source === 'timeline' && (до > 3 || после > 3)) {
+        const { data: внутренний } = await Layout.db.rpc('retreat_is_internal', { p_retreat: currentRetreat });
+        if (!внутренний) вынос = `<div class="alert alert-warning py-1.5 px-2.5 text-xs mb-1">⚠ Пребывание выходит за ретрит: ${[до > 3 ? `до — ${до} дн.` : '', после > 3 ? `после — ${после} дн.` : ''].filter(Boolean).join(', ')}.
+            Больше 3 дней — это визит «Гость без события»: <a class="link" href="../placement/timeline.html" target="_blank">шахматка</a> → окно проживания → «Разделить», начисление и оплата хвоста — в «Гостях без события»</div>`;
+    }
+    if (el) el.innerHTML = `${вынос}
         <div class="bg-base-200/40 rounded-lg px-2.5 py-1.5">
             <div class="flex flex-wrap items-center gap-2 text-[11px] uppercase tracking-wide opacity-50 mb-0.5">
                 <span>${t('fin_crm_terms_info')} · <span class="normal-case">${DateUtils.formatShort(DateUtils.parseDate(d.check_in))} — ${DateUtils.formatShort(DateUtils.parseDate(d.check_out))}, ${d.nights_total} ноч.${места.length > 1 ? '' : d.building ? ` · ${e(d.building)}${d.room ? ' №' + e(String(d.room)) : ''}` : ''}${откудаДаты ? ` · ${откудаДаты}` : ''}</span></span>
@@ -1249,6 +1258,11 @@ function chargeRowHtml(idx) {
                     <input type="date" class="input input-bordered input-sm chg-date-from w-full">
                     <input type="date" class="input input-bordered input-sm chg-date-to w-full">
                 </div>
+                <!-- «Начислить» с датами сразу пишет шахматку, кухню и CRM (фаза 2, шаг 7б, ВГ 03.10).
+                     Только проживание и только весь срок: доп. отрезок (ночь в другой гостинице) — без галочки -->
+                <label class="chg-stay-wrap hidden flex items-center gap-1 mt-1 text-xs cursor-pointer">
+                    <input type="checkbox" class="checkbox checkbox-xs chg-whole-stay"> Весь срок — обновить шахматку, кухню и CRM
+                </label>
             </div>
             <div class="form-control">
                 <label class="label py-0"><span class="label-text text-xs">${t('fin_unit_price')}</span></label>
@@ -1308,6 +1322,7 @@ function wireChargeRow(row) {
         const поДням = ['accommodation', 'meals'].includes(kindSel.value);
         qtyLabel.textContent = поДням ? t('fin_days') : t('fin_quantity');
         datesWrap.classList.toggle('hidden', !поДням || !!row.ribbon);
+        row.querySelector('.chg-stay-wrap').classList.toggle('hidden', kindSel.value !== 'accommodation' || noEventMode);
     };
     kindSel.addEventListener('change', relabel);
     relabel();
@@ -1527,6 +1542,8 @@ function closeCharge() {
 // «Перерасчёт» (ТЗ 3.1, сценарий 3): не тихая замена числа, а видимая запись
 // «было → стало» — старая строка отменяется с причиной, новая добавляется
 let recalcSource = null;
+const fmtStayDates = (a, b) => a && b ? `${DateUtils.formatShort(DateUtils.parseDate(a))} — ${DateUtils.formatShort(DateUtils.parseDate(b))}` : '—';
+
 function openRecalc(chargeId) {
     const c = cardChargesById[chargeId];
     if (!c) return;
@@ -1547,6 +1564,14 @@ function openRecalc(chargeId) {
     row.querySelector('.chg-discount').dispatchEvent(new Event('input'));
     row.querySelector('.chg-discount-reason').value = c.discount_reason || '';
     row.querySelector('.chg-qty').dispatchEvent(new Event('input'));
+    // перерасчёт проживания — это весь срок: даты из шахматки, правка уйдёт обратно в неё
+    if (c.kind === 'accommodation' && !noEventMode) {
+        row.querySelector('.chg-whole-stay').checked = true;
+        if (cardCalc?.dates?.source === 'timeline') {
+            row.querySelector('.chg-date-from').value = cardCalc.dates.check_in;
+            row.querySelector('.chg-date-to').value = cardCalc.dates.check_out;
+        }
+    }
     const wrap = document.getElementById('chargeRecalcWrap');
     wrap.classList.remove('hidden');
     document.getElementById('chargeRecalcReason').value = '';
@@ -1576,7 +1601,7 @@ async function submitCharge(ev) {
         return;
     }
     const rows = chgRows.flatMap(row => row.ribbon ? ribbonRows(row, reason) : [{
-        id: FinUtils.newRequestId(),
+        id: (row._chargeId = FinUtils.newRequestId()),
         participant_id: row.querySelector('.chg-person-id').value,
         retreat_id: currentRetreat,
         kind: row.querySelector('.chg-kind').value,
@@ -1600,7 +1625,33 @@ async function submitCharge(ev) {
         Layout.showNotification(t('fin_participant_required'), 'warning');
         return;
     }
+    // «Весь срок»: что изменится в шахматке — до начисления, с подтверждением
+    const сроки = [];
+    for (const row of chgRows) {
+        if (row.ribbon || row.querySelector('.chg-kind').value !== 'accommodation' || !row.querySelector('.chg-whole-stay').checked) continue;
+        const from = row.querySelector('.chg-date-from').value, to = row.querySelector('.chg-date-to').value;
+        if (!from || !to) { Layout.showNotification('«Весь срок»: укажите даты с — по', 'warning'); return; }
+        const срок = { row, chargeId: row._chargeId, payload: {
+            participant_id: row.querySelector('.chg-person-id').value, retreat_id: currentRetreat,
+            check_in: from, check_out: to, reason: причинаПерерасчёта || reason || null } };
+        let план = await FinUtils.rpc('fin_charge_set_stay', { ...срок.payload, dry_run: true });
+        if (план?.ok && план.result?.ask_booking) {
+            срок.payload.whole_booking = confirm(`В той же брони ещё ${план.result.ask_booking} чел. на тех же датах.\nOK — изменить даты всей брони, Отмена — только у этого гостя`);
+            план = await FinUtils.rpc('fin_charge_set_stay', { ...срок.payload, dry_run: true });
+        }
+        if (!план?.ok) { Layout.showNotification(план?.error?.message || 'Даты не переносятся', 'error'); return; }
+        const шаги = (план.result?.plan || []).map(x => `• ${x.what}: ${fmtStayDates(x.old_in, x.old_out)} → ${fmtStayDates(x.new_in, x.new_out)}`);
+        if (!шаги.length) continue;   // в шахматке те же даты
+        if (!confirm(`Начисление изменит даты проживания:\n${шаги.join('\n')}\n\nКухня пересчитает питание сама, в сделку CRM уйдёт запись. Продолжить?`)) return;
+        сроки.push(срок);
+    }
     const res = await FinUtils.rpc('fin_create_charge', { rows });
+    // начисление проведено — даты в шахматку (привязаны к начислению: его отмена их вернёт)
+    if (res?.ok) for (const срок of сроки) {
+        const r = await FinUtils.rpc('fin_charge_set_stay', { ...срок.payload, charge_id: срок.chargeId });
+        if (!r?.ok) Layout.showNotification(`Начислено, но даты в шахматке не изменены: ${r?.error?.message || 'ошибка'}`, 'warning');
+        else Layout.showNotification('Даты проживания обновлены в шахматке, кухне и CRM', 'success');
+    }
     if (res?.ok && recalcSource) {
         // Новая строка уже есть — теперь отменяем старую с записью «было → стало»
         const новая = rows[0];
@@ -3228,11 +3279,16 @@ function openCancelCharge(chargeId, desc) {
 
 async function submitCancelCharge(ev) {
     ev.preventDefault();
+    const chargeId = document.getElementById('cancelChargeId').value;
     const res = await FinUtils.rpc('fin_cancel_charge', {
-        charge_id: document.getElementById('cancelChargeId').value,
+        charge_id: chargeId,
         reason: document.getElementById('cancelChargeReason').value
     });
     if (FinUtils.handleResult(res)) {
+        // начисление меняло даты в шахматке — возвращаем прежние (если после него не правили)
+        const back = await FinUtils.rpc('fin_charge_revert_stay', { charge_id: chargeId });
+        if (back?.ok && back.result?.reverted) Layout.showNotification('Даты проживания возвращены как были', 'success');
+        if (back?.ok && back.result?.changed_since?.length) Layout.showNotification('Шахматку меняли после этого начисления — даты не возвращены, проверьте их в шахматке', 'warning');
         document.getElementById('cancelChargeModal').close();
         await refreshAfterChange();
     }
