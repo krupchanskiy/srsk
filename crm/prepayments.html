@@ -494,16 +494,13 @@ function renderSystemCell(p) {
 
 function renderAmountCell(p) {
     const amount = CrmUtils.formatMoney(p.amount, p.currency);
-    const inr = p.currency !== 'INR'
-        ? `<div class="text-xs text-base-content/50">≈ ${CrmUtils.formatMoney(p.amount_inr)} (курс ${p.rate_to_inr})</div>`
-        : '';
     // Оргвзнос и проживание лежат в одном списке — подписываем, что есть что
     const kind = p.payment_type !== 'org_fee'
         ? `<div class="text-xs text-base-content/60">${e(t('crm_payment_type_' + p.payment_type) || p.payment_type)}</div>`
         : '';
     return `<div class="inline-edit-cell text-right" onclick="editAmount('${p.id}', this)">
         <div class="font-mono font-bold">${amount}</div>
-        ${inr}${kind}
+        ${kind}
     </div>`;
 }
 
@@ -735,7 +732,6 @@ function editAmount(id, cellEl) {
             <select class="select select-bordered select-sm" data-role="currency">
                 ${currencies.map(c => `<option value="${c.code}" data-rate="${c.rate_to_inr}" ${c.code === currentCurrency ? 'selected' : ''}>${c.code}</option>`).join('')}
             </select>
-            ${currentCurrency !== 'INR' ? `<input type="number" class="input input-bordered input-sm w-20 text-right" data-role="rate" value="${p.rate_to_inr}" step="0.0001" min="0" title="Курс к ₹">` : ''}
             <button class="btn btn-xs btn-ghost" data-role="cancel" title="Отмена">✕</button>
         </div>
     `;
@@ -744,27 +740,20 @@ function editAmount(id, cellEl) {
     const cancelBtn = cellEl.querySelector('[data-role="cancel"]');
     amountInput.focus();
     amountInput.select();
-
-    currencySelect.addEventListener('change', () => {
-        // Пересобрать ячейку, если пользователь сменил валюту (чтобы появилось/исчезло поле курса)
-        const newCurrency = currencySelect.value;
-        const newRate = parseFloat(currencySelect.selectedOptions[0]?.dataset.rate) || 1;
-        const newAmount = parseFloat(amountInput.value) || 0;
-        // Применяем временно в модели (без сохранения)
-        p.currency = newCurrency;
-        p.rate_to_inr = newRate;
-        p.amount = newAmount;
-        editAmount(id, cellEl); // перерисовать редактор с/без поля курса
-    });
+    // После выбора валюты фокус обратно на сумму — уход с ячейки сохранит правку
+    currencySelect.addEventListener('change', () => amountInput.focus());
 
     const commit = async () => {
         const amount = parseFloat(amountInput.value);
         const currency = currencySelect.value;
-        const rateInput = cellEl.querySelector('[data-role="rate"]');
-        const rate = rateInput ? parseFloat(rateInput.value) : (parseFloat(currencySelect.selectedOptions[0]?.dataset.rate) || 1);
+        // Курс на экране не показываем (в ДДС и в долг гостя он не идёт) — сохраняем
+        // молча: прежний, если валюта та же, иначе общий курс новой валюты
+        const rate = currency === p.currency
+            ? Number(p.rate_to_inr)
+            : (parseFloat(currencySelect.selectedOptions[0]?.dataset.rate) || 1);
         if (!amount || amount <= 0) { applyFilters(); return; }
 
-        const changed = amount !== Number(p.amount) || currency !== p.currency || rate !== Number(p.rate_to_inr);
+        const changed = amount !== Number(p.amount) || currency !== p.currency;
         if (changed) {
             await savePatch(id, {
                 amount,
