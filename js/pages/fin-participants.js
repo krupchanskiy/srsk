@@ -298,6 +298,7 @@ async function openCard(pid) {
     closeCharge(); closePayment();
     renderCardRates();
     renderCardCurrencyBtns();
+    loadCardDeposit();
     // Баланс тянем с сервера: список мог устареть после платежей, и карточка
     // показывала нули при живых начислениях (ВГ, 28.08)
     const { data: свежий } = await Layout.db.rpc('fin_get_participant_balance',
@@ -416,6 +417,35 @@ async function addDealNote(dealId, summary, content = null, dueDate = null) {
     });
     if (error) { Layout.handleError(error, t('crm_note')); return false; }
     return true;
+}
+
+// Деньги человека без ретрита (629): если лежат — предложить зачесть сюда (ВГ, 03.10)
+async function loadCardDeposit() {
+    const el = document.getElementById('cardDeposit');
+    if (!el) return;
+    el.innerHTML = '';
+    if (noEventMode) return;
+    const pid = card.id, rid = currentRetreat;
+    const { data } = await Layout.db.rpc('fin_get_deposits', { p_participant: pid });
+    const d = data?.ok ? data.result[0] : null;
+    if (!d || card.id !== pid || currentRetreat !== rid) return;
+    el.innerHTML = `<div class="alert alert-info py-2 text-sm">
+        <span>На балансе человека лежит <b>${FinUtils.fmtMoney(d.amount, d.currency)}</b> без ретрита${d.comment ? ` — ${e(d.comment)}` : ''}.</span>
+        ${window.hasPermission?.('fin_admin') ? `<button class="btn btn-sm" id="cardDepositApply">Зачесть сюда</button>` : ''}
+    </div>`;
+    document.getElementById('cardDepositApply')?.addEventListener('click', async ev => {
+        const btn = ev.currentTarget;
+        const ввод = prompt(`Сколько зачесть на «${card.retreatName}»? Не больше ${FinUtils.fmtMoney(d.amount, d.currency)}`, d.amount);
+        if (ввод === null) return;
+        const сумма = Number(String(ввод).replace(/\s/g, '').replace(',', '.'));
+        if (!(сумма > 0)) return;
+        btn.disabled = true;
+        const res = await FinUtils.rpc('fin_deposit_apply', {
+            request_id: FinUtils.newRequestId(), participant_id: pid, retreat_id: rid, amount: сумма });
+        if (!FinUtils.handleResult(res)) { btn.disabled = false; return; }
+        await refreshAfterChange();
+        loadCardDeposit();
+    });
 }
 
 async function loadCardCrmInfo() {

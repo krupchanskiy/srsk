@@ -276,13 +276,17 @@ function resolveActionsHtml(a) {
     }
     const пожертвование = `<button class="fin-signal-act${a.cancelled ? '' : ' ghost'}" ${attrs('donation')}>${t('fin_resolve_donation')}</button>`;
     const возврат = `<button class="fin-signal-act${a.cancelled ? '' : ' ghost'}" ${attrs('refund')}>${t('fin_resolve_refund')}</button>`;
-    const аванс = `<button class="fin-signal-act${a.cancelled ? ' ghost' : ''}" ${attrs('advance')}>${t('fin_resolve_advance')}</button>`;
+    const аванс = `<button class="fin-signal-act" ${attrs('advance')}>${t('fin_resolve_advance')}</button>`;
+    // Отменившему «Аванс» не годится: он оставил бы деньги на отменённом ретрите.
+    // Вместо него — баланс человека без ретрита, в валюте взноса (ВГ, 03.10)
+    const наБаланс = `<button class="fin-signal-act" ${attrs('deposit')}>На баланс человека</button>`;
     // Первой идёт та кнопка, которая уместна по статусу сделки
-    return `<div class="fin-signal-acts">${a.cancelled ? возврат + пожертвование + аванс : аванс + возврат + пожертвование}</div>`;
+    return `<div class="fin-signal-acts">${a.cancelled ? наБаланс + возврат + пожертвование : аванс + возврат + пожертвование}</div>`;
 }
 
 async function onResolveClick(ev) {
     const b = ev.currentTarget;
+    if (b.dataset.act === 'deposit') return onDepositClick(b);
     const ключ = b.dataset.act === 'donation' ? 'fin_resolve_donation_confirm'
         : b.dataset.act === 'refund' ? 'fin_resolve_refund_confirm'
         : b.dataset.mode === 'topup' ? 'fin_resolve_topup_confirm'
@@ -315,10 +319,106 @@ async function onResolveClick(ev) {
     loadSignals();
 }
 
+// Деньги отменившего — на баланс человека: в той валюте, в которой он прислал,
+// без пересчёта; с ретрита они уходят целиком
+async function onDepositClick(b) {
+    if (!confirm(`Оставить деньги ${b.dataset.who} на балансе человека — без ретрита, в той валюте, в которой они пришли (${b.dataset.amount} по курсу CRM)? Потом их можно зачесть на любой ретрит или вернуть.`)) return;
+    b.disabled = true;
+    const { data, error } = await Layout.db.rpc('fin_deposit_from_payments', {
+        payload: { request_id: FinUtils.newRequestId(), participant_id: b.dataset.pid, retreat_id: b.dataset.rid }
+    });
+    if (error || !data?.ok) {
+        b.disabled = false;
+        alert(`${t('fin_resolve_failed')}: ${error?.message || data?.error?.message || ''}`);
+        return;
+    }
+    loadSignals();
+    loadDeposits();
+}
+
+// ==================== Деньги гостей без ретрита ====================
+// Лежат сколько угодно, без подсветки давности (ВГ, 03.10): человек сам решает —
+// зачесть на ретрит или вернуть. Здесь видно, у кого что лежит.
+async function loadDeposits() {
+    const box = document.getElementById('finDeposits');
+    if (!box) return;
+    const { data, error } = await Layout.db.rpc('fin_get_deposits');
+    const rows = (!error && data?.ok) ? data.result : [];
+    if (!rows.length) { box.classList.add('hidden'); box.innerHTML = ''; return; }
+    const итого = {};
+    rows.forEach(r => { итого[r.currency] = (итого[r.currency] || 0) + Number(r.amount); });
+    box.innerHTML = `<div class="card bg-base-100"><div class="card-body">
+        <div class="flex items-center gap-2 flex-wrap">
+            <h2 class="font-semibold">Деньги гостей без ретрита</h2>
+            <span class="text-sm opacity-60">${Object.entries(итого).map(([c, v]) => FinUtils.fmtMoney(v, c)).join(' · ')}</span>
+        </div>
+        <div class="text-xs opacity-60 mb-2">Отменили участие, деньги оставили у нас. Зачесть на ретрит или вернуть — по просьбе человека.</div>
+        <div class="divide-y divide-base-200">${rows.map(depositRowHtml).join('')}</div>
+    </div></div>`;
+    box.classList.remove('hidden');
+    box.querySelectorAll('[data-dep-act]').forEach(btn => btn.addEventListener('click', onDepositAction));
+}
+
+function depositRowHtml(r) {
+    const ретриты = r.retreats.map(x => `<option value="${e(x.id)}">${e(x.name)}</option>`).join('');
+    const счета = FinUtils.refs.accounts.filter(a => a.is_active && a.currency_code === r.currency)
+        .map(a => `<option value="${e(a.account_id)}">${e(a.name)}</option>`).join('');
+    const attrs = `data-pid="${e(r.participant_id)}" data-cur="${e(r.currency)}" data-max="${e(r.amount)}"`;
+    return `<div class="py-2" data-dep="${e(r.participant_id)}">
+        <div class="flex items-baseline gap-2 flex-wrap">
+            <span class="font-medium">${e(r.name)}</span>
+            <span class="font-mono">${FinUtils.fmtMoney(r.amount, r.currency)}</span>
+            <span class="text-xs opacity-60">${e(r.comment || '')}</span>
+        </div>
+        <div class="flex items-center gap-2 flex-wrap mt-1">
+            <input type="number" step="0.01" min="0" class="input input-bordered input-xs w-28" value="${e(r.amount)}" data-dep-amount>
+            ${ретриты
+                ? `<select class="select select-bordered select-xs" data-dep-retreat>${ретриты}</select>
+                   <button class="btn btn-xs" data-dep-act="apply" ${attrs}>Зачесть</button>`
+                : `<span class="text-xs opacity-60">не записан ни на один ретрит — зачесть пока некуда</span>`}
+            ${счета
+                ? `<select class="select select-bordered select-xs" data-dep-account>${счета}</select>
+                   <button class="btn btn-xs btn-ghost" data-dep-act="refund" ${attrs}>Вернуть</button>`
+                : `<span class="text-xs opacity-60">нет счёта в ${e(r.currency)} для возврата</span>`}
+        </div>
+    </div>`;
+}
+
+async function onDepositAction(ev) {
+    const b = ev.currentTarget;
+    const row = b.closest('[data-dep]');
+    const сумма = Number(row.querySelector('[data-dep-amount]').value);
+    if (!(сумма > 0) || сумма > Number(b.dataset.max) + 0.005) {
+        alert(`Сумма — от 0 до ${FinUtils.fmtMoney(b.dataset.max, b.dataset.cur)}`);
+        return;
+    }
+    const кто = row.querySelector('.font-medium').textContent;
+    let rpc, payload;
+    if (b.dataset.depAct === 'apply') {
+        const sel = row.querySelector('[data-dep-retreat]');
+        if (!confirm(`Зачесть ${FinUtils.fmtMoney(сумма, b.dataset.cur)} с баланса ${кто} на «${sel.selectedOptions[0].text}»?`)) return;
+        rpc = 'fin_deposit_apply';
+        payload = { request_id: FinUtils.newRequestId(), participant_id: b.dataset.pid, retreat_id: sel.value, amount: сумма };
+    } else {
+        const sel = row.querySelector('[data-dep-account]');
+        const дата = prompt(`Вернуть ${FinUtils.fmtMoney(сумма, b.dataset.cur)} ${кто} со счёта «${sel.selectedOptions[0].text}». Дата возврата:`, FinUtils.todayISO());
+        if (дата === null) return;
+        rpc = 'fin_deposit_refund';
+        payload = { request_id: FinUtils.newRequestId(), participant_id: b.dataset.pid, account_id: sel.value,
+                    amount: сумма, occurred_on: дата.trim() || FinUtils.todayISO() };
+    }
+    b.disabled = true;
+    const res = await FinUtils.rpc(rpc, payload);
+    if (!FinUtils.handleResult(res)) { b.disabled = false; return; }
+    loadDeposits();
+    if (rpc === 'fin_deposit_refund') loadDashboard();
+}
+
 async function init() {
     await Layout.init({ module: 'finance', menuId: 'fin_main', itemId: 'fin_main' });
     await loadDashboard();
     loadSignals();
+    loadDeposits();
 }
 
 init();
