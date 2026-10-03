@@ -300,7 +300,9 @@ function renderTable() {
     }
     const byId = Object.fromEntries(services.map(s => [s.id, s]));
     const ro = canEdit() ? '' : 'disabled';
+    // Завтрак и обед за один приём — не отдельные строки, а разбивка цены дня под питанием
     body.innerHTML = prices
+        .filter(p => !MEAL_PARTS.includes(byId[p.service_id]?.code))
         .sort((a, b) => (byId[a.service_id]?.name_ru || '').localeCompare(byId[b.service_id]?.name_ru || ''))
         .map(p => {
             const s = byId[p.service_id];
@@ -311,8 +313,89 @@ function renderTable() {
                     data-field="${f}" value="${p[f] ?? ''}" step="0.01" min="0" ${ro}></td>`).join('')}
                 <td><input type="text" class="input input-bordered input-sm w-full" data-field="note" value="${e(p.note || '')}" ${ro}></td>
                 <td>${canEdit() ? `<button class="btn btn-ghost btn-xs text-error" data-action="del" title="${t('delete')}">✕</button>` : ''}</td>
-            </tr>`;
+            </tr>${s?.category === 'meals' ? mealSplitRow(p) : ''}`;
         }).join('');
+}
+
+// ==================== РАЗБИВКА ЦЕНЫ ДНЯ: ЗАВТРАК + ОБЕД ====================
+// Цена питания — за весь ретрит; в день = цена ÷ дней ретрита. Гость, который в какой-то
+// день ест один приём, платит за этот приём: завтрак вписывается, обед = день − завтрак
+// (ВГ, 03.10). Хранится услугами meal_breakfast / meal_lunch — их берёт расчёт начислений
+const MEAL_PARTS = ['meal_breakfast', 'meal_lunch'];
+const PRICE_FIELDS = ['price', 'price_rub', 'price_usd', 'price_eur'];
+const round2 = v => Math.round(v * 100) / 100;
+function retreatDays() {
+    const r = retreats.find(x => x.id === document.getElementById('retreatSelect').value);
+    if (!r?.start_date || !r?.end_date) return null;
+    return Math.max(Math.round((DateUtils.parseDate(r.end_date) - DateUtils.parseDate(r.start_date)) / 86400000), 1);
+}
+function mealPart(code) {
+    const s = services.find(x => x.code === code);
+    return s ? prices.find(p => p.service_id === s.id) : null;
+}
+function mealSplitRow(day) {
+    const дней = retreatDays();
+    if (!дней) return '';
+    const bf = mealPart('meal_breakfast'), ln = mealPart('meal_lunch');
+    const ro = canEdit() ? '' : 'disabled';
+    const ячейки = PRICE_FIELDS.map(f => {
+        if (day[f] == null) return '<td></td>';
+        const вДень = round2(Number(day[f]) / дней);
+        const обед = bf?.[f] != null ? round2(вДень - Number(bf[f])) : null;
+        return `<td class="text-right text-xs whitespace-nowrap">
+            <div class="opacity-60">в день ${вДень}</div>
+            <label class="flex items-center justify-end gap-1">завтрак <input type="number" class="input input-bordered input-xs w-20" data-meal-split="${f}" value="${bf?.[f] ?? ''}" step="0.01" min="0" max="${вДень}" ${ro}></label>
+            <div class="${обед != null && обед < 0 ? 'text-error' : ''}">обед ${обед ?? '—'}</div>
+        </td>`;
+    }).join('');
+    const сошлось = PRICE_FIELDS.every(f => day[f] == null || bf?.[f] == null || ln?.[f] == null
+        || Math.abs(Number(bf[f]) + Number(ln[f]) - Number(day[f]) / дней) < 0.011);
+    return `<tr class="bg-base-200/40" data-meal-split-row="${day.id}">
+        <td class="text-xs">↳ Один приём: завтрак + обед = цена дня
+            <div class="opacity-60">${дней} дн. ретрита · для дней, когда гость ест один приём</div>
+            ${!bf ? '<div class="text-warning">⚠ разбивка не задана — одиночные приёмы не начисляются</div>' : !сошлось ? '<div class="text-warning">⚠ цена дня изменилась — проверьте завтрак</div>' : ''}</td>
+        ${ячейки}<td></td><td></td>
+    </tr>`;
+}
+// Завтрак вписан → обед = день − завтрак, обе услуги сохраняются сразу
+async function saveMealSplit(field, value) {
+    const дней = retreatDays();
+    const day = prices.find(p => services.find(s => s.id === p.service_id && s.category === 'meals' && !MEAL_PARTS.includes(s.code)));
+    if (!дней || !day || day[field] == null) return;
+    const вДень = round2(Number(day[field]) / дней);
+    if (value != null && (value < 0 || value > вДень)) {
+        Layout.showNotification(`Завтрак должен быть от 0 до ${вДень} — это цена дня`, 'warning');
+        renderTable();
+        return;
+    }
+    const retreat_id = document.getElementById('retreatSelect').value;
+    const rows = [['meal_breakfast', value], ['meal_lunch', value == null ? null : round2(вДень - value)]].map(([code, v]) => {
+        const svc = services.find(s => s.code === code);
+        const прежняя = mealPart(code);
+        const row = { retreat_id, service_id: svc.id, updated_by: window.currentUser?.id || null, updated_at: new Date().toISOString() };
+        PRICE_FIELDS.forEach(f => { row[f] = f === field ? v : (прежняя?.[f] ?? null); });
+        return row;
+    });
+    const { error } = await Layout.db.from('crm_retreat_prices').upsert(rows, { onConflict: 'retreat_id,service_id' });
+    if (error) { Layout.handleError(error, t('save')); return; }
+    await loadPrices();
+}
+// Цена дня изменилась — завтрак остаётся, обед пересчитывается (сумма = новой цене дня)
+async function resyncMealSplit() {
+    const дней = retreatDays();
+    const day = prices.find(p => services.find(s => s.id === p.service_id && s.category === 'meals' && !MEAL_PARTS.includes(s.code)));
+    const bf = mealPart('meal_breakfast'), ln = mealPart('meal_lunch');
+    if (!дней || !day || !bf || !ln) return;
+    const patch = {};
+    PRICE_FIELDS.forEach(f => {
+        if (day[f] == null || bf[f] == null) return;
+        const обед = round2(Number(day[f]) / дней - Number(bf[f]));
+        if (Number(ln[f]) !== обед) patch[f] = обед;
+    });
+    if (!Object.keys(patch).length) return;
+    const { error } = await Layout.db.from('crm_retreat_prices').update(patch).eq('id', ln.id);
+    if (error) { Layout.handleError(error, t('save')); return; }
+    Layout.showNotification('Цена дня изменилась — обед за один приём пересчитан (завтрак прежний). Проверьте разбивку', 'info');
 }
 
 // Сохранение по уходу из поля — без отдельной кнопки «Сохранить»
@@ -337,6 +420,10 @@ async function saveCell(row, input) {
     if (p) p[field] = value;
     row.classList.add('flash-saved');
     setTimeout(() => row.classList.remove('flash-saved'), 900);
+    if (services.find(s => s.id === p?.service_id)?.category === 'meals' && field !== 'note') {
+        await resyncMealSplit();
+        await loadPrices();
+    }
 }
 
 async function deletePrice(id) {
@@ -371,7 +458,7 @@ function openAddModal() {
         buildings.map(b => `<option value="${b.id}">${e(Layout.getName(b))}</option>`).join('');
     // Остальные позиции (оргвзнос, питание, доп. кровать, сим-карта…) — из справочника
     const used = new Set(prices.map(p => p.service_id));
-    const free = services.filter(s => !used.has(s.id) && s.category !== 'transport' && s.category !== 'accommodation');
+    const free = services.filter(s => !used.has(s.id) && s.category !== 'transport' && s.category !== 'accommodation' && !MEAL_PARTS.includes(s.code));
     document.getElementById('addService').innerHTML =
         free.map(s => `<option value="${s.id}">${e(Layout.getName(s))}</option>`).join('');
     ['addInr', 'addRub', 'addUsd', 'addEur', 'addNote', 'addPattern'].forEach(id => document.getElementById(id).value = '');
@@ -450,6 +537,10 @@ async function init() {
     if (!editAllowed) document.querySelector('[data-permission="edit_retreat_prices"]')?.classList.add('hidden');
     await loadRefs();
     document.getElementById('addForm').addEventListener('submit', submitAdd);
+    document.getElementById('pricesBody').addEventListener('change', ev => {
+        const split = ev.target.closest('[data-meal-split]');
+        if (split) { const v = split.value.trim(); saveMealSplit(split.dataset.mealSplit, v === '' ? null : Number(v)); }
+    });
     document.getElementById('pricesBody').addEventListener('change', ev => {
         const input = ev.target.closest('[data-field]');
         const row = ev.target.closest('[data-price]');
