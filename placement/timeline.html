@@ -277,6 +277,14 @@
             cursor: pointer;
         }
 
+        /* Отлучка: приём снят, номер за человеком — бледная штриховка поверх полосы */
+        .guest-bar .away-hatch {
+            position: absolute;
+            top: 0;
+            bottom: 0;
+            background: repeating-linear-gradient(45deg, rgba(255, 255, 255, 0.75) 0 3px, rgba(255, 255, 255, 0.35) 3px 6px);
+        }
+
         /* Сделка в CRM отменена, а бронь/заселение висит — место надо освободить руками */
         .guest-bar.deal-cancelled { outline: 2px solid #dc2626; outline-offset: -1px; }
         .guest-bar .cancel-badge {
@@ -1188,6 +1196,44 @@
                 </div>
             </div>
 
+            <!-- Экран «Питание по дням»: отлучки без разрезания проживания (мигр. 627) -->
+            <div id="mealDaysScreen" class="hidden">
+                <div class="flex items-center gap-2 mb-2">
+                    <button class="btn btn-ghost btn-sm btn-circle" onclick="showResidentInfoScreen()">←</button>
+                    <h3 class="font-bold text-lg" data-i18n="timeline_meal_days">Питание по дням</h3>
+                </div>
+                <div class="text-sm text-gray-500 mb-1"><span id="mealDaysGuestName" class="font-medium"></span></div>
+                <p class="text-xs opacity-60 mb-3" data-i18n="timeline_meal_days_hint">Снятая галочка — приём не готовится на этого человека. Комната остаётся за ним.</p>
+
+                <div class="border rounded-lg p-3 mb-3 bg-base-200/50">
+                    <div class="font-medium text-sm mb-2" data-i18n="timeline_away">Уезжает на время</div>
+                    <div class="grid grid-cols-[5.5rem_1fr] items-center gap-x-2 gap-y-2 text-sm">
+                        <span data-i18n="timeline_away_from">Уезжает</span>
+                        <div class="flex flex-wrap items-center gap-2">
+                            <input type="date" id="awayFrom" class="input input-bordered input-sm">
+                            <span class="opacity-60" data-i18n="timeline_away_that_day">в этот день</span>
+                            <label class="flex items-center gap-1"><input type="checkbox" id="awayFromB" class="checkbox checkbox-xs" checked><span data-i18n="breakfast">завтрак</span></label>
+                            <label class="flex items-center gap-1"><input type="checkbox" id="awayFromL" class="checkbox checkbox-xs"><span data-i18n="lunch">обед</span></label>
+                        </div>
+                        <span data-i18n="timeline_away_to">Вернётся</span>
+                        <div class="flex flex-wrap items-center gap-2">
+                            <input type="date" id="awayTo" class="input input-bordered input-sm">
+                            <span class="opacity-60" data-i18n="timeline_away_that_day">в этот день</span>
+                            <label class="flex items-center gap-1"><input type="checkbox" id="awayToB" class="checkbox checkbox-xs"><span data-i18n="breakfast">завтрак</span></label>
+                            <label class="flex items-center gap-1"><input type="checkbox" id="awayToL" class="checkbox checkbox-xs" checked><span data-i18n="lunch">обед</span></label>
+                        </div>
+                    </div>
+                    <button class="btn btn-sm btn-outline mt-2" onclick="applyAway()" data-i18n="timeline_away_apply">Применить к списку</button>
+                </div>
+
+                <div id="mealDaysList" class="max-h-72 overflow-y-auto border rounded-lg text-sm"></div>
+
+                <div class="modal-action">
+                    <button class="btn btn-ghost" onclick="showResidentInfoScreen()" data-i18n="cancel">Отмена</button>
+                    <button class="btn btn-primary" onclick="saveMealDays(this)" data-i18n="save">Сохранить</button>
+                </div>
+            </div>
+
             <!-- Экран выселения -->
             <div id="checkoutScreen" class="hidden">
                 <div class="flex items-center gap-2 mb-4">
@@ -1235,7 +1281,7 @@
         if (btn) { btn.classList.toggle('btn-active', isFS); btn.title = isFS ? Layout.t('normal_view') : Layout.t('fullscreen'); }
     }
     </script>
-    <script src="../js/pages/timeline.js?v=58"></script>
+    <script src="../js/pages/timeline.js?v=59"></script>
 
 </body>
 </html>

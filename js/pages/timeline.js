@@ -72,6 +72,7 @@ let periodRetreats = [];          // ретриты показанного пе�
 let periodResidents = [];         // все проживания периода — чтобы не дублировать людей из CRM
 let cancelledDealsSet = new Set(); // `${vaishnava_id}_${retreat_id}` — все сделки человека по ретриту отменены
 let specialNeedsMap = new Map();   // `${vaishnava_id}_${retreat_id}` — особые потребности из CRM
+let mealSkipsMap = new Map();      // resident_id → Map(d → {b, l}) — пропуски питания (отлучки, мигр. 627)
 
 // Флаг права на редактирование таймлайна
 const canEditTimeline = () => window.hasPermission?.('edit_timeline') ?? false;
@@ -90,6 +91,24 @@ function dateToDayIndex(dateStr) {
     date.setHours(0, 0, 0, 0);
     const diff = date - baseDate;
     return Math.floor(diff / (1000 * 60 * 60 * 24));
+}
+
+// Отлучка на полосе гостя: снятый завтрак — штриховка первой половины дня, обед — второй.
+// Номер остаётся за человеком, кухня его не считает (resident_meal_skips, мигр. 627)
+function awayHatchHtml(residentId, startCol, spanCells) {
+    const skips = mealSkipsMap.get(residentId);
+    if (!skips) return '';
+    const title = e(tf('timeline_away_hatch', 'Не ест — уехал на время'));
+    let html = '';
+    for (const [d, sk] of skips) {
+        const day = dateToDayIndex(d) * 2 - startCol;
+        for (const [half, off] of [[0, sk.b], [1, sk.l]]) {
+            const col = day + half;
+            if (!off || col < 0 || col >= spanCells) continue;
+            html += `<span class="away-hatch" style="left: ${col * CELL_WIDTH - 1}px; width: ${CELL_WIDTH}px;" title="${title}"></span>`;
+        }
+    }
+    return html;
 }
 
 // Буквенная метка ретрита в полосе гостя: «(СР) Иван». Нужна только там, где ретриты идут
@@ -132,7 +151,7 @@ async function loadTimelineData() {
     if (кэшЗданий && кэшЗданий.some(b => !('is_temporary' in b))) Cache.invalidate('buildings');
 
     // Загружаем параллельно
-    const [buildingsData, roomsRes, residentsRes, retreatsRes, cleaningsRes, holidaysRes] = await Promise.all([
+    const [buildingsData, roomsRes, residentsRes, retreatsRes, cleaningsRes, holidaysRes, skipsRes] = await Promise.all([
         Cache.getOrLoad('buildings', async () => {
             const { data, error } = await Layout.db.from('buildings')
                 .select('*, building_types(id, slug, color, name_ru, name_en, name_hi)')
@@ -168,8 +187,17 @@ async function loadTimelineData() {
             .select('date')
             .eq('type', 'ekadashi')
             .gte('date', startDateStr)
-            .lte('date', endDateStr)
+            .lte('date', endDateStr),
+        Layout.db.from('resident_meal_skips')
+            .select('resident_id, d, breakfast, lunch')
+            .gte('d', startDateStr)
+            .lte('d', endDateStr)
     ]);
+    mealSkipsMap = new Map();
+    for (const sk of (skipsRes.data || [])) {
+        if (!mealSkipsMap.has(sk.resident_id)) mealSkipsMap.set(sk.resident_id, new Map());
+        mealSkipsMap.get(sk.resident_id).set(sk.d, { b: sk.breakfast, l: sk.lunch });
+    }
 
     if (roomsRes.error) console.error('Error loading rooms:', roomsRes.error);
     if (residentsRes.error) console.error('Error loading residents:', residentsRes.error);
@@ -2199,6 +2227,15 @@ function openResidentModal(guestData, buildingName, roomName) {
         </div>`;
     }
 
+    // Питание по дням — отлучки без разрезания проживания (мигр. 627)
+    if (res.has_meals !== false && res.check_out && canEditTimeline()) {
+        const nSkips = mealSkipsMap.get(res.id)?.size || 0;
+        infoHtml += `<div class="flex justify-between items-center gap-2 py-1 border-b">
+            <span class="text-gray-500">${e(tf('timeline_meal_days', 'Питание по дням'))}${nSkips ? ` <span class="badge badge-warning badge-sm">${e(tf('timeline_meal_skipped_n', 'пропусков: {n}').replace('{n}', nSkips))}</span>` : ''}</span>
+            <button class="btn btn-xs btn-outline" data-action="meal-days">${e(tf('timeline_away', 'Уезжает на время'))} / ${e(tf('edit', 'Изменить'))}</button>
+        </div>`;
+    }
+
     // Примечания
     if (res.notes) {
         infoHtml += `<div class="flex justify-between py-1 border-b">
@@ -2572,10 +2609,136 @@ async function submitNoShow(btn) {
 // Показать экран информации о резиденте
 function showResidentInfoScreen() {
     document.getElementById('noShowScreen').classList.add('hidden');
+    document.getElementById('mealDaysScreen').classList.add('hidden');
     document.getElementById('residentInfoScreen').classList.remove('hidden');
     document.getElementById('moveScreen').classList.add('hidden');
     document.getElementById('editDatesScreen').classList.add('hidden');
     document.getElementById('checkoutScreen').classList.add('hidden');
+}
+
+// ==================== ПИТАНИЕ ПО ДНЯМ ====================
+// Отлучка (ВГ, 03.10): человек живёт одной записью, номер за ним; снятые приёмы — пропуски
+// resident_meal_skips, их учитывает eating_detail → кухня, Себестоимость и бот видят сами.
+// База дня — что кухня считает без пропусков этого места; приёмы, которых кухня не считает
+// (завтрак в день заезда и т.п.), здесь не включаются — это края проживания.
+let mealDays = [];   // [{d, baseB, baseL, b, l}]
+
+async function showMealDaysScreen() {
+    if (!currentResident || !canEditTimeline()) return;
+    const res = currentResident.rawData;
+    document.getElementById('residentInfoScreen').classList.add('hidden');
+    document.getElementById('mealDaysScreen').classList.remove('hidden');
+    document.getElementById('mealDaysGuestName').textContent = currentResident.name;
+    const list = document.getElementById('mealDaysList');
+    list.innerHTML = `<div class="text-center py-4">${t('timeline_loading')}</div>`;
+    list._scrolled = false;
+
+    const from = res.meal_start_date || res.check_in;
+    const to = res.meal_end_date || res.check_out;
+    const [{ data: ed, error }, { data: sk }] = await Promise.all([
+        Layout.db.rpc('eating_detail', { p_from: from, p_to: to }).eq('ref_id', res.id),
+        Layout.db.from('resident_meal_skips').select('d, breakfast, lunch').eq('resident_id', res.id)
+    ]);
+    if (error) { Layout.handleError(error, tf('timeline_meal_days', 'Питание по дням')); return; }
+    const byDay = new Map();
+    for (const r of (ed || [])) {
+        const x = byDay.get(r.d) || { b: false, l: false };
+        byDay.set(r.d, { b: x.b || !!r.breakfast, l: x.l || !!r.lunch });
+    }
+    const skips = new Map((sk || []).map(x => [x.d, x]));
+    mealDays = [];
+    for (let d = DateUtils.parseDate(from); formatDateYMD(d) <= to; d.setDate(d.getDate() + 1)) {
+        const ds = formatDateYMD(d);
+        const eat = byDay.get(ds) || { b: false, l: false };
+        const s = skips.get(ds);
+        const baseB = eat.b || !!s?.breakfast, baseL = eat.l || !!s?.lunch;
+        mealDays.push({ d: ds, baseB, baseL, b: eat.b, l: eat.l });
+    }
+
+    // Отлучка по умолчанию — с завтрашнего дня (если он внутри проживания)
+    const tomorrow = new Date(); tomorrow.setHours(0, 0, 0, 0); tomorrow.setDate(tomorrow.getDate() + 1);
+    let def = formatDateYMD(tomorrow);
+    if (def < from) def = from;
+    if (def > to) def = to;
+    for (const id of ['awayFrom', 'awayTo']) {
+        const el = document.getElementById(id);
+        el.min = from; el.max = to; el.value = def;
+    }
+    renderMealDays();
+}
+
+function renderMealDays() {
+    const list = document.getElementById('mealDaysList');
+    const today = formatDateYMD(new Date());
+    const lang = { en: 'en-GB', hi: 'hi-IN' }[localStorage.getItem('srsk_lang')] || 'ru-RU';
+    const cell = (i, k, base, on) => base
+        ? `<input type="checkbox" class="checkbox checkbox-sm checkbox-primary" data-meal-i="${i}" data-meal-k="${k}"${on ? ' checked' : ''}>`
+        : '<span class="opacity-30">—</span>';
+    list.innerHTML = `<table class="table table-xs">
+        <thead class="sticky top-0 bg-base-100 z-10"><tr><th></th><th class="text-center">${e(Layout.t('breakfast'))}</th><th class="text-center">${e(Layout.t('lunch'))}</th></tr></thead>
+        <tbody>${mealDays.map((m, i) => {
+            const dt = DateUtils.parseDate(m.d);
+            const off = (m.baseB && !m.b) || (m.baseL && !m.l);
+            return `<tr class="${m.d === today ? 'bg-primary/10 font-medium' : ''}${off ? ' text-warning' : ''}" ${m.d === today ? 'data-today' : ''}>
+                <td>${e(dt.toLocaleDateString(lang, { weekday: 'short' }))} ${m.d.slice(8, 10)}.${m.d.slice(5, 7)}</td>
+                <td class="text-center">${cell(i, 'b', m.baseB, m.b)}</td>
+                <td class="text-center">${cell(i, 'l', m.baseL, m.l)}</td>
+            </tr>`;
+        }).join('')}</tbody></table>`;
+    if (!list._delegated) {
+        list._delegated = true;
+        list.addEventListener('change', ev => {
+            const cb = ev.target.closest('[data-meal-i]');
+            if (!cb) return;
+            mealDays[+cb.dataset.mealI][cb.dataset.mealK] = cb.checked;
+            renderMealDays();
+        });
+    }
+    const todayRow = list.querySelector('[data-today]');
+    if (todayRow && !list._scrolled) { list._scrolled = true; list.scrollTop = Math.max(0, todayRow.offsetTop - 60); }
+}
+
+// «Уезжает на время»: в день отъезда — что успевает съесть, в день возвращения — к чему
+// успевает, дни между — без питания. Только меняет список, сохраняет кнопка «Сохранить»
+function applyAway() {
+    const from = document.getElementById('awayFrom').value;
+    const to = document.getElementById('awayTo').value;
+    if (!from || !to || to < from || from < mealDays[0]?.d || to > mealDays[mealDays.length - 1]?.d) {
+        Layout.showNotification(tf('timeline_away_bad_dates', 'Даты отлучки должны быть внутри проживания'), 'warning');
+        return;
+    }
+    const fB = document.getElementById('awayFromB').checked, fL = document.getElementById('awayFromL').checked;
+    const tB = document.getElementById('awayToB').checked, tL = document.getElementById('awayToL').checked;
+    for (const m of mealDays) {
+        if (m.d < from || m.d > to) continue;
+        let b = false, l = false;
+        if (m.d === from) { b = fB; l = fL; }
+        // Отъезд и возвращение в один день — ест то, что отмечено хотя бы в одной строке
+        if (m.d === to) { b = from === to ? b || tB : tB; l = from === to ? l || tL : tL; }
+        m.b = m.baseB && b;
+        m.l = m.baseL && l;
+    }
+    renderMealDays();
+}
+
+async function saveMealDays(btn) {
+    if (!currentResident || !mealDays.length) return;
+    const skips = mealDays
+        .map(m => ({ d: m.d, b: m.baseB && !m.b, l: m.baseL && !m.l }))
+        .filter(s => s.b || s.l);
+    btn.disabled = true;
+    const { error } = await Layout.db.rpc('resident_set_meal_skips', {
+        p_resident_id: currentResident.id,
+        p_from: mealDays[0].d,
+        p_to: mealDays[mealDays.length - 1].d,
+        p_skips: skips
+    });
+    btn.disabled = false;
+    if (error) { Layout.handleError(error, tf('timeline_meal_days', 'Питание по дням')); return; }
+    Layout.showNotification(tf('timeline_meal_days_saved', 'Питание сохранено — кухня видит изменения'), 'success');
+    document.getElementById('residentModal').close();
+    await loadTimelineData();
+    renderTable();
 }
 
 // Показать экран выселения
@@ -3510,15 +3673,16 @@ function renderTable() {
                             + (guest.dept ? `<span class="opacity-80"> · ${e(guest.dept)}</span>` : '')
                             + (guest.note ? NOTE_ICON : '');
                         const noteTitle = guest.note ? ` title="${e(guest.note)}"` : '';
+                        const awayHtml = awayHatchHtml(guest.rawData?.id, startCol, spanCells);
                         if (guest.isBooking) {
                             // Бронирование — штриховка
                             const bgColor = guest.color || '#3b82f6';
-                            html += `<div class="guest-bar booking${checkedOutClass}${debtClass}" style="width: ${width}px; --bar-color: ${bgColor}; border-color: ${bgColor};" data-action="open-resident-from-map" data-id="${guest.id}"${noteTitle}>${cancelHtml}${debtDot}${needsDot}${tagHtml}${selfHtml}${barLabel}</div>`;
+                            html += `<div class="guest-bar booking${checkedOutClass}${debtClass}" style="width: ${width}px; --bar-color: ${bgColor}; border-color: ${bgColor};" data-action="open-resident-from-map" data-id="${guest.id}"${noteTitle}>${cancelHtml}${debtDot}${needsDot}${tagHtml}${selfHtml}${barLabel}${awayHtml}</div>`;
                         } else {
                             // Обычное заселение
                             const bgColor = guest.color || '#3b82f6';
                             const borderColor = guest.border || '#facc15';
-                            html += `<div class="guest-bar${checkedOutClass}${debtClass}" style="width: ${width}px; background: ${bgColor}; border-color: ${borderColor};" data-action="open-resident-from-map" data-id="${guest.id}"${noteTitle}>${cancelHtml}${debtDot}${needsDot}${tagHtml}${selfHtml}${barLabel}</div>`;
+                            html += `<div class="guest-bar${checkedOutClass}${debtClass}" style="width: ${width}px; background: ${bgColor}; border-color: ${borderColor};" data-action="open-resident-from-map" data-id="${guest.id}"${noteTitle}>${cancelHtml}${debtDot}${needsDot}${tagHtml}${selfHtml}${barLabel}${awayHtml}</div>`;
                         }
                     }
 
@@ -3679,6 +3843,7 @@ function setupTimelineDelegation() {
                 case 'no-show': showNoShowScreen(); break;
                 case 'checkout-resident': showCheckoutScreen(); break;
                 case 'show-edit-dates-screen': showEditDatesScreen(); break;
+                case 'meal-days': showMealDaysScreen(); break;
                 case 'delete-resident': deleteResident(); break;
             }
         });
