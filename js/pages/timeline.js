@@ -55,6 +55,18 @@ function balanceBadge(res, hasDebt, hasCredit) {
     const title = kind === 'debt' ? t('timeline_has_debt') : kind === 'credit' ? t('timeline_we_owe') : tf('timeline_not_charged', 'Не начислено и не оплачено');
     return `<span class="balance-badge ${kind}" title="${Layout.escapeHtml(title)}" data-action="open-finance" data-href="${finHref(res)}">$</span>`;
 }
+// Значок $ на строке групповой брони (ВГ 03.10): если хоть у одного места долг или «не начислено» —
+// тот же значок у группы, с числом таких мест; клик ведёт к первому такому месту.
+// Важнее долг, потом «не начислено», потом «мы должны»
+function groupBalanceBadge(seats) {
+    const kindOf = r => debtorsSet.has(finKey(r)) ? 'debt' : creditorsSet.has(finKey(r)) ? 'credit' : uncharged.has(r.id) ? 'uncharged' : '';
+    const kind = ['debt', 'uncharged', 'credit'].find(k => seats.some(r => kindOf(r) === k));
+    if (!kind) return '';
+    const hit = seats.filter(r => kindOf(r) === kind);
+    const label = kind === 'debt' ? t('timeline_has_debt') : kind === 'credit' ? t('timeline_we_owe') : tf('timeline_not_charged', 'Не начислено и не оплачено');
+    const title = `${label}: ${hit.length} ${tf('timeline_of', 'из')} ${seats.length}`;
+    return `<span class="balance-badge ${kind}" title="${Layout.escapeHtml(title)}" data-action="open-finance" data-href="${finHref(hit[0])}">$</span>`;
+}
 let selfAccommodated = [];        // проживающие без номера: живут вне территории, в сетку не попадают
 let selfStays = [];               // группа «Самостоятельное проживание» внизу шахматки
 const expandedSelfGroups = new Set(); // раскрытые групповые брони без номера (по умолчанию свёрнуты)
@@ -4033,7 +4045,7 @@ function renderSelfGroupHtml(kind) {
             `${DateUtils.formatShort(from)} — ${to ? DateUtils.formatShort(to) : '…'}`, mealsNote,
             waiting ? `${t('timeline_booking')}: ${waiting}` : ''].filter(Boolean).join(' · ');
         const bar = `<div class="guest-bar self-stay self-group${mealsCls(eats ? true : false)}${waiting ? ' self-booked' : ''} cursor-pointer" data-action="toggle-self-group" data-id="${res.booking_id}" style="width: ${width}px; --cat-color: ${catColor};" title="${e(title)}">`
-            + `${tag ? `<span class="retreat-tag">${e(tag.tag)}</span>` : ''}${e(gname)} · ${e(seatsText)}&nbsp;<span class="opacity-70">(${e(mealsNote)})</span></div>`;
+            + `${groupBalanceBadge(ordered)}${tag ? `<span class="retreat-tag">${e(tag.tag)}</span>` : ''}${e(gname)} · ${e(seatsText)}&nbsp;<span class="opacity-70">(${e(mealsNote)})</span></div>`;
         const label = `<span data-action="toggle-self-group" data-id="${res.booking_id}" class="cursor-pointer font-medium">`
             + `<span class="toggle-arrow ${expanded ? '' : 'collapsed'}">▼</span> ${e(gname)} · ${ordered.length}</span>`
             + (canEdit && waiting ? ` <button type="button" class="btn btn-xs btn-ghost text-primary px-1" data-action="self-group-arrived" data-id="${res.booking_id}" title="${e(tf('timeline_self_group_arrived_hint', 'Отметить заезд всем местам, где он ещё не отмечен'))}">${e(tf('timeline_self_group_arrived', 'Группа приехала'))}</button>` : '');
