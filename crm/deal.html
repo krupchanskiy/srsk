@@ -389,17 +389,13 @@
             <div class="grid grid-cols-2 gap-3 mb-3">
                 <div class="form-control">
                     <label class="label"><span class="label-text" data-i18n="crm_amount">Сумма</span></label>
-                    <input type="number" id="paymentAmount" class="input input-bordered" required min="0.01" step="0.01" oninput="updatePaymentRate()">
+                    <input type="number" id="paymentAmount" class="input input-bordered" required min="0.01" step="0.01">
                 </div>
                 <div class="form-control">
                     <label class="label"><span class="label-text" data-i18n="crm_currency">Валюта</span></label>
-                    <select id="paymentCurrency" class="select select-bordered" onchange="updatePaymentRate()">
+                    <select id="paymentCurrency" class="select select-bordered">
                     </select>
                 </div>
-            </div>
-
-            <div class="bg-base-200 p-3 rounded-lg mb-3">
-                <div class="text-sm"><span data-i18n="crm_rate">Курс</span>: <span id="paymentRate">1</span> → <span id="paymentInr">—</span></div>
             </div>
 
             <div class="grid grid-cols-2 gap-3 mb-3">
@@ -1293,8 +1289,6 @@ function renderServicesTab() {
 }
 
 function renderPaymentsTab() {
-    const total = payments.reduce((sum, p) => sum + Number(p.amount_inr), 0);
-
     return `
         <div class="flex justify-between items-center mb-4">
             <h3 class="font-bold">${t('crm_tab_payments')}</h3>
@@ -1303,7 +1297,7 @@ function renderPaymentsTab() {
         ${payments.length === 0
             ? `<p class="text-base-content/50 text-center py-4">${t('crm_no_payments')}</p>`
             : `<table class="table">
-                <thead><tr><th></th><th>${t('crm_date')}</th><th>${t('crm_payment_type')}</th><th>Платёжная система</th><th class="text-right">${t('crm_amount')}</th><th class="text-right">${t('crm_in_inr')}</th><th>${t('crm_received_by')}</th><th>${t('crm_note')}</th><th></th></tr></thead>
+                <thead><tr><th></th><th>${t('crm_date')}</th><th>${t('crm_payment_type')}</th><th>Платёжная система</th><th class="text-right">${t('crm_amount')}</th><th>${t('crm_received_by')}</th><th>${t('crm_note')}</th><th></th></tr></thead>
                 <tbody>
                     ${payments.map(p => {
                         const systemLabel = p.payment_system ? Layout.getName(p.payment_system) : (p.payment_method ? (t('crm_method_' + p.payment_method) || p.payment_method) : '—');
@@ -1316,14 +1310,12 @@ function renderPaymentsTab() {
                             <td><span class="badge badge-ghost badge-sm">${t('crm_payment_type_' + p.payment_type) || p.payment_type}</span></td>
                             <td class="text-sm text-base-content/60">${e(systemLabel)}</td>
                             <td class="text-right font-mono">${CrmUtils.formatMoney(p.amount, p.currency)}</td>
-                            <td class="text-right font-mono font-bold">${CrmUtils.formatMoney(p.amount_inr)}</td>
                             <td class="text-sm">${p.received_by ? e(CrmUtils.getGuestShortName(p.received_by)) : '—'}</td>
                             <td class="text-sm text-base-content/60 max-w-xs truncate">${p.notes ? e(p.notes) : '—'}</td>
                             <td><button class="btn btn-ghost btn-xs text-error" onclick="deletePayment('${p.id}')">${CrmUtils.UI_ICONS.trash}</button></td>
                         </tr>
                     `;}).join('')}
                 </tbody>
-                <tfoot><tr><td colspan="5"></td><td class="text-right font-mono font-bold text-lg">${CrmUtils.formatMoney(total)}</td><td colspan="3"></td></tr></tfoot>
             </table>`
         }
     `;
@@ -1599,8 +1591,6 @@ function renderFinanceBlock() {
                         <span class="opacity-70 w-12 shrink-0">${e(dateStr)}</span>
                         <span class="opacity-80 flex-1 truncate">${e(typeLabel)}</span>
                         <span class="font-mono">${CrmUtils.formatMoney(p.amount, p.currency)}</span>
-                        <span class="opacity-40">→</span>
-                        <span class="font-mono font-semibold">${CrmUtils.formatMoney(p.amount_inr)}</span>
                         ${showDistribute
                             ? `<button class="btn btn-ghost btn-xs h-5 min-h-5 px-1 text-primary" onclick="event.stopPropagation(); openDistributeForPayment('${p.id}')" title="${e(t('crm_distribute_prepayment'))}">${e(t('crm_distribute'))}</button>`
                             : ''}
@@ -2133,7 +2123,6 @@ function openPaymentModal() {
     const systemSelect = document.getElementById('paymentSystem');
     if (systemSelect) systemSelect.value = '';   // способ оплаты выбирает менеджер
     document.getElementById('paymentNotes').value = '';
-    updatePaymentRate();
     document.getElementById('addPaymentModal').showModal();
 }
 
@@ -2156,8 +2145,6 @@ function showPaymentDetails(id) {
     const rows = [
         [t('crm_date'),           e(dateStr)],
         [t('crm_amount'),         CrmUtils.formatMoney(p.amount, p.currency)],
-        [t('crm_rate'),           `1 ${p.currency} = ${p.rate_to_inr} ₹`],
-        [t('crm_in_inr'),         `<span class="font-bold">${CrmUtils.formatMoney(p.amount_inr)}</span>`],
         [t('crm_payment_type'),   e(typeLabel)],
         ['Платёжная система',     e(systemLabel)],
         ['Статус',                confirmedHtml],
@@ -2249,14 +2236,6 @@ function formatHistoryAction(ev, systemById) {
         return `${e(ev.field || 'поле')}: ${e(ev.old_value || '—')} → ${e(ev.new_value || '—')}`;
     }
     return e(ev.action);
-}
-
-function updatePaymentRate() {
-    const select = document.getElementById('paymentCurrency');
-    const rate = select.selectedOptions[0]?.dataset.rate || 1;
-    const amount = parseFloat(document.getElementById('paymentAmount').value) || 0;
-    document.getElementById('paymentRate').textContent = rate;
-    document.getElementById('paymentInr').textContent = CrmUtils.formatMoney(amount * rate);
 }
 
 async function savePayment(event) {

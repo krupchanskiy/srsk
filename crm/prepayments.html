@@ -814,7 +814,7 @@ function exportXlsx() {
     const headers = [
         t('crm_guest'), t('crm_phone'), t('crm_retreat'),
         t('crm_prepayment_confirmation_status'), t('crm_payment_system'),
-        `${t('crm_amount')} (orig)`, t('crm_currency'), `${t('crm_amount')} ₹`, 'Курс',
+        t('crm_amount'), t('crm_currency'),
         t('crm_payment_date'), t('crm_manager'), t('crm_created')
     ];
     const rows = filtered.map(p => {
@@ -827,8 +827,6 @@ function exportXlsx() {
             p.payment_system ? Layout.getName(p.payment_system) : '',
             p.amount,
             p.currency,
-            p.amount_inr,
-            p.rate_to_inr,
             p.received_at ? p.received_at.slice(0, 10) : '',
             p.deal?.manager ? CrmUtils.getGuestShortName(p.deal.manager) : '',
             CrmUtils.formatDate(p.created_at)
