@@ -1285,56 +1285,18 @@ function selectVaishnava(id) {
 // Конец нашего ретрита — fact_end (ВГ 01.10.2026): внутренний (художники) идёт, пока живут
 // его люди — до выезда последнего; обычный — не дольше конца + 3 дня (вариант 2).
 // Прошёл — ретрит больше не предлагается, но не закрывается: он в «Архиве».
-const retreatFitsDates = (r, from, to) => !!from && r.start_date <= (to || from)
-    && (r.is_external ? r.end_date : (r.fact_end || r.end_date)) >= from;
+// Правило списка и «Архив / все ретриты…» — общие, в js/retreat-select.js (ВГ 08.10.2026)
+const retreatFitsDates = (r, from, to) => RetreatSelect.fits(r, from, to);
 
 function retreatIdFits(id, from, to) {
     const r = allRetreats.find(x => x.id === id);
     return !!r && retreatFitsDates(r, from, to);
 }
 
-const RETREAT_ARCHIVE = '__all_retreats__';
-
-// all — «Архив / все ретриты…»: все ретриты по годам, новые сверху
-function retreatSelectHtml(selectedId, from, to, { all = false } = {}) {
-    // В архиве разделы — годы, поэтому стороннее мероприятие помечаем в самой строке
-    const external = tf('retreats_is_external', 'Стороннее мероприятие');
-    const option = r => `<option value="${r.id}" ${r.id === selectedId ? 'selected' : ''}>${Layout.escapeHtml(Layout.getName(r))}${all && r.is_external ? ' · ' + Layout.escapeHtml(external) : ''} (${DateUtils.formatRange(r.start_date, r.end_date)})</option>`;
-    const optgroup = (label, items) => items.length
-        ? `<optgroup label="${Layout.escapeHtml(label)}">` + items.map(option).join('') + '</optgroup>' : '';
-    const none = `<option value="">${Layout.t('timeline_no_retreat') || '— без ретрита —'}</option>`;
-    if (all) {
-        // «Гости без события» (служебный, 2000 год) — в шахматке это «без ретрита»
-        const sorted = allRetreats.filter(r => !r.start_date.startsWith('2000-'))
-            .sort((a, b) => b.start_date.localeCompare(a.start_date));
-        const years = [...new Set(sorted.map(r => r.start_date.slice(0, 4)))];
-        return none + years.map(y => optgroup(y, sorted.filter(r => r.start_date.startsWith(y)))).join('');
-    }
-    const list = allRetreats.filter(r => r.id === selectedId || retreatFitsDates(r, from, to));
-    return none
-        + optgroup(Layout.t('group_event_retreat') || 'Наш ретрит', list.filter(r => !r.is_external))
-        + optgroup(external, list.filter(r => r.is_external))
-        + `<option value="${RETREAT_ARCHIVE}">${Layout.escapeHtml(tf('timeline_retreat_archive', 'Архив / все ретриты…'))}</option>`;
+function retreatSelectHtml(selectedId, from, to, opts = {}) {
+    return RetreatSelect.html(allRetreats, selectedId, from, to, opts);
 }
-
-// «Архив / все ретриты…» — раскрываем все ретриты в этом же списке. Ловим на захвате,
-// до onchange самого списка: служебное значение не должно дойти до сохранения.
-// Прежнее значение запоминаем при входе в список: раскрыли архив и ничего не выбрали —
-// остаётся тот ретрит, что был.
-document.addEventListener('focusin', ev => {
-    if (ev.target instanceof HTMLSelectElement) ev.target.dataset.prev = ev.target.value;
-}, true);
-document.addEventListener('change', ev => {
-    const sel = ev.target;
-    if (!(sel instanceof HTMLSelectElement) || sel.value !== RETREAT_ARCHIVE) return;
-    ev.stopPropagation();
-    const prev = sel.dataset.prev === RETREAT_ARCHIVE ? '' : (sel.dataset.prev || '');
-    sel.innerHTML = retreatSelectHtml(prev, null, null, { all: true });
-    sel.value = prev;
-    sel.dataset.prev = prev;
-    sel.focus();
-    sel.showPicker?.();
-}, true);
+RetreatSelect.setSource(() => allRetreats);
 
 // Мягкое предупреждение под полем (ТЗ 01.10, п. 4): даты брони не попадают в ретрит.
 // Сохранение не блокирует — выбрать прошедший ретрит из архива можно осознанно.

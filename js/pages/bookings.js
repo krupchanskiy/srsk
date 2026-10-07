@@ -438,6 +438,16 @@ function closeDayModal() {
 }
 
 // ==================== NEW BOOKING MODAL ====================
+// Список ретритов под даты брони; выбранный сохраняем
+function fillNewBookingRetreats(selectedId) {
+    const form = Layout.$('#newBookingForm');
+    const sel = Layout.$('#newBookingRetreatSelect');
+    if (!form || !sel) return;
+    sel.innerHTML = RetreatSelect.html(retreats, selectedId, form.check_in.value, form.check_out.value, { noneLabel: '—' });
+    sel.value = selectedId || '';
+}
+RetreatSelect.setSource(() => retreats, { noneLabel: () => '—' });
+
 function openNewBookingModal() {
     bookingStep = 1;
     bookingSelectedBeds.clear();
@@ -447,13 +457,10 @@ function openNewBookingModal() {
     form.check_in.value = today;
     form.check_out.value = '';
 
-    // Только ретриты, которые ещё не прошли, ближайшие сверху: по ошибке выбранный
+    // Список как в шахматке (js/retreat-select.js): по датам брони, «Предстоящие»,
+    // «Архив / все ретриты…». Прошедшие — только через архив: по ошибке выбранный
     // прошедший Сева-ретрит на даты Лилы 2027 (Мадхурья-бхакти, ВГ 29.09)
-    const retreatSelect = Layout.$('#newBookingRetreatSelect');
-    retreatSelect.innerHTML = `<option value="">—</option>` +
-        retreats.filter(r => !r.end_date || r.end_date >= today)
-            .sort((a, b) => (a.start_date || '').localeCompare(b.start_date || ''))
-            .map(r => `<option value="${r.id}">${Layout.getName(r)} (${DateUtils.formatRange(r.start_date, r.end_date)})</option>`).join('');
+    fillNewBookingRetreats('');
 
     // Populate building select for step 2
     const buildingSelect = Layout.$('#newBookingBuildingSelect');
@@ -1192,6 +1199,11 @@ async function init() {
     updateUI();
     await loadInitialData();
 
+    // Смена дат брони — пересобираем список ретритов под них
+    const nbForm = document.getElementById('newBookingForm');
+    ['check_in', 'check_out'].forEach(n => nbForm?.[n]?.addEventListener('change',
+        () => fillNewBookingRetreats(Layout.$('#newBookingRetreatSelect').value)));
+
     // Проверяем CRM-режим (переход с карточки сделки)
     const urlParams = new URLSearchParams(window.location.search);
     crmDealId = urlParams.get('crm_deal_id') || null;
@@ -1245,15 +1257,8 @@ async function init() {
             }
 
             // Устанавливаем ретрит
-            if (retreatId) {
-                const retreatSelect = document.getElementById('newBookingRetreatSelect');
-                // ретрит сделки уже прошёл — в списке его нет, добавляем, чтобы не потерять
-                const r = retreats.find(x => x.id === retreatId);
-                if (retreatSelect && r && ![...retreatSelect.options].some(o => o.value === retreatId)) {
-                    retreatSelect.insertAdjacentHTML('beforeend', `<option value="${r.id}">${Layout.getName(r)} (${DateUtils.formatRange(r.start_date, r.end_date)})</option>`);
-                }
-                if (retreatSelect) retreatSelect.value = retreatId;
-            }
+            // (выбранный остаётся в списке, даже если ретрит сделки уже прошёл)
+            if (retreatId) fillNewBookingRetreats(retreatId);
 
             // Скрываем выбор здания — конкретное место уже задано типом проживания в CRM
             const buildingScopeRow = document.getElementById('buildingScopeRow');
