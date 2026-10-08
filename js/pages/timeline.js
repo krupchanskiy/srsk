@@ -4097,16 +4097,16 @@ function renderSelfGroupHtml(kind) {
     const crmRaw = t('timeline_self_from_crm');
     const crmHint = crmRaw === 'timeline_self_from_crm' ? 'Из сделки в CRM: «Сам организует»' : crmRaw;
 
-    // Подблок под разделителем — коротко «Гости: N» / «Команда: N» и «+ Добавить» в одну строку;
-    // полное название — в подсказке при наведении
+    // Подблок под разделителем — «Гости: N» / «Команда: N» и «+ Добавить» в одну строку; если не
+    // влезает в колонку, надпись выходит поверх серых клеток справа ровно на свою длину
     const shortLabel = kind === 'team'
-        ? tf('timeline_self_short_team', 'Команда')
-        : tf('timeline_self_short_guests', 'Гости');
+        ? tf('timeline_self_sub_team', 'Команда')
+        : tf('timeline_self_sub_guests', 'Гости');
     const hint = `${blockLabel}. ${tf('timeline_self_header_hint', 'Живут вне ашрама. Здесь можно добавить человека или бронь.')}`;
     let html = `<tr class="row-building row-self"><td class="sticky-col" data-action="toggle-building" data-id="${groupId}" title="${e(hint)}">`
-        + `<span class="toggle-arrow ${collapsed ? 'collapsed' : ''}">▼</span> ${e(shortLabel)}: ${stays.length}`
+        + `<span class="self-head"><span class="toggle-arrow ${collapsed ? 'collapsed' : ''}">▼</span> ${e(shortLabel)}: ${stays.length}`
         + (canEdit ? ` <button type="button" class="btn btn-xs btn-outline btn-primary self-add-btn" data-action="add-self-stay" data-kind="${kind}">+ ${e(tf('timeline_self_add', 'Добавить'))}</button>` : '')
-        + '</td>';
+        + '</span></td>';
     for (let col = 0; col < DAYS_TO_SHOW * 2; col++) html += `<td class="${col % 2 === 0 ? 'day-start' : ''}"></td>`;
     html += '</tr>';
 

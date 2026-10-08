@@ -325,7 +325,20 @@
         }
         /* Строка группы с кнопкой «Группа приехала» — тоже переносится, чтобы кнопку не обрезало */
         .row-bed .sticky-col:has(.btn) { white-space: normal; }
-        .row-self .self-add-btn { margin-left: 2px; min-height: 20px; height: 20px; padding: 0 5px; font-size: 11px !important; gap: 0; }
+        /* Заголовок подблока не обрезается: выходит из колонки поверх серых клеток своей строки */
+        .row-self .sticky-col { overflow: visible; }
+        .row-self .self-head {
+            position: relative;
+            z-index: 11;
+            display: inline-flex;
+            align-items: center;
+            gap: 4px;
+            padding-right: 8px;
+            background: #d1d5db;
+            white-space: nowrap;
+        }
+        .row-self .sticky-col:hover .self-head { background: #c0c5cc; }
+        .row-self .self-add-btn { margin-left: 4px; }
 
         /* Сделка в CRM отменена, а бронь/заселение висит — место надо освободить руками */
         .guest-bar.deal-cancelled { outline: 2px solid #dc2626; outline-offset: -1px; }
@@ -1339,7 +1352,7 @@
     </script>
     <script src="../js/retreat-select.js?v=1"></script>
     <script src="../js/meal-group-editor.js?v=1"></script>
-    <script src="../js/pages/timeline.js?v=69"></script>
+    <script src="../js/pages/timeline.js?v=70"></script>
 
 </body>
 </html>
