@@ -3675,6 +3675,16 @@ function renderTable() {
 
     // Повторно применить подсветку поиска после перерисовки
     if (_searchQuery) applySearchHighlight();
+
+    // Полоса ретритов — отдельный div: левый отступ = фактической ширине колонки номеров,
+    // иначе при широкой колонке плашки ретритов съезжают относительно дат
+    const firstCol = table.querySelector('th.sticky-col');
+    const label = document.querySelector('.retreats-label');
+    if (firstCol && label) {
+        const w = firstCol.getBoundingClientRect().width + 'px';
+        label.style.width = w;
+        label.style.minWidth = w;
+    }
 }
 
 // Перезагрузка данных и рендеринг
@@ -3760,6 +3770,8 @@ function setupTimelineDelegation() {
                 dismissOutside(currentResident.id);
                 document.getElementById('outsideRetreatAlert')?.remove();
             }
+            // Кнопка «Уезжает на время / Изменить» стоит в строке «Питание по дням», не в блоке действий
+            if (el.dataset.action === 'meal-days') showMealDaysScreen();
         });
     }
     // Делегирование для таблицы таймлайна
