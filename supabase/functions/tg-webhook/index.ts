@@ -390,13 +390,15 @@ Deno.serve(async (req) => {
       if (st?.ok) await renderCard(msg.chat.id, msg.message_id, draftId, st);
     } else if (action === "eat") {
       // «Подробнее» / «Свернуть» под вкушающими: перерисовываем то же сообщение.
-      // p — утренний «План на завтра» (шапка сверху), s — ответ на /сколько.
+      // p — утренний «План на завтра» (шапка и сравнение с прошлым планом), s — ответ на /сколько.
       const detail = parts[1] === "1";
-      const { data: txt } = await supa.rpc("tg_eating_text", { p_date: parts[2], p_detail: detail });
+      const { data: txt } = parts[3] === "p"
+        ? await supa.rpc("tg_kitchen_plan_text", { p_date: parts[2], p_detail: detail })
+        : await supa.rpc("tg_eating_text", { p_date: parts[2], p_detail: detail });
       if (txt) {
         await tg("editMessageText", {
           chat_id: msg.chat.id, message_id: msg.message_id, parse_mode: "HTML",
-          text: (parts[3] === "p" ? "📋 <b>План на завтра</b>\n" : "") + txt,
+          text: txt,
           reply_markup: detailKeyboard("eat", !detail, parts[2], parts[3]),
         });
       }
