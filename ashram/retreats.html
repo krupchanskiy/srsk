@@ -242,6 +242,19 @@
                     <p class="text-xs opacity-50 mt-1" data-i18n="retreats_is_external_hint">Организовано не нами (аренда площадки, свадьба, чужой ретрит) — та же инфраструктура, но отдельно от наших ретритов в списках и выпадающих меню</p>
                 </div>
 
+                <!-- Контактное лицо группы (ВГ 08.10): бронь в шахматке подставляет
+                     его имя, телефон и телеграм из карточки -->
+                <div class="form-control">
+                    <label class="label"><span class="label-text font-medium">Контактное лицо</span></label>
+                    <div class="relative">
+                        <input type="hidden" name="contact_vaishnava_id" />
+                        <input type="text" id="retreatContactSearch" class="input input-bordered w-full pr-10" autocomplete="off" placeholder="Поиск по имени..." />
+                        <button type="button" class="btn btn-ghost btn-xs absolute right-2 top-1/2 -translate-y-1/2" onclick="setRetreatContact(null)">✕</button>
+                        <div id="retreatContactSuggestions" class="hidden absolute z-50 w-full bg-base-100 shadow-lg rounded-lg mt-1 max-h-48 overflow-y-auto border"></div>
+                    </div>
+                    <p class="text-xs opacity-50 mt-1" id="retreatContactInfo">С кем держим связь по группе — подставится в бронь вместе с телефоном и телеграмом</p>
+                </div>
+
                 <!-- Кафе: подсказка ближайшего ретрита в кассе кафе не должна предлагать
                      внутренние проекты вроде «Ретрит Художников», которые ашрам
                      финансирует сам и к кассе кафе отношения не имеют -->
@@ -471,6 +484,41 @@
                 return [];
             }
             return data || [];
+        }
+
+        // ==================== КОНТАКТНОЕ ЛИЦО ====================
+        let people = [];
+        const personName = v => v.spiritual_name || `${v.first_name || ''} ${v.last_name || ''}`.trim();
+        const personTelegram = v => v.telegram || v.telegram_username || '';
+
+        async function loadPeople() {
+            const { data } = await Utils.fetchAll((from, to) => Layout.db.from('vaishnavas')
+                .select('id, spiritual_name, first_name, last_name, phone, telegram, telegram_username')
+                .eq('is_deleted', false).order('spiritual_name').range(from, to));
+            people = data || [];
+        }
+
+        function setRetreatContact(id) {
+            const form = document.getElementById('retreatForm');
+            const v = id && people.find(p => p.id === id);
+            form.contact_vaishnava_id.value = v ? v.id : '';
+            document.getElementById('retreatContactSearch').value = v ? personName(v) : '';
+            document.getElementById('retreatContactSuggestions').classList.add('hidden');
+            document.getElementById('retreatContactInfo').textContent = v
+                ? [v.phone, personTelegram(v)].filter(Boolean).join(' · ') || 'В карточке нет ни телефона, ни телеграма'
+                : 'С кем держим связь по группе — подставится в бронь вместе с телефоном и телеграмом';
+        }
+
+        function searchRetreatContact(q) {
+            const box = document.getElementById('retreatContactSuggestions');
+            document.getElementById('retreatForm').contact_vaishnava_id.value = '';
+            q = q.trim().toLowerCase();
+            if (q.length < 2) { box.classList.add('hidden'); return; }
+            const found = people.filter(v => personName(v).toLowerCase().includes(q)).slice(0, 10);
+            box.innerHTML = found.length
+                ? found.map(v => `<div class="p-2 hover:bg-base-200 cursor-pointer" data-contact-id="${v.id}">${Layout.escapeHtml(personName(v))}</div>`).join('')
+                : '<div class="p-3 text-sm opacity-60">Не найдено — сначала заведите человека в справочнике</div>';
+            box.classList.remove('hidden');
         }
 
         async function loadHolidays() {
@@ -757,6 +805,7 @@
                     form.expected_participants.value = retreat.expected_participants || 0;
                     form.is_external.checked = retreat.is_external || false;
                     form.cafe_eligible.checked = retreat.cafe_eligible !== false;
+                    setRetreatContact(retreat.contact_vaishnava_id || null);
                     renderColorPicker(retreat.color || COLORS[0]);
                     deleteSection.classList.remove('hidden');
 
@@ -785,6 +834,7 @@
                 }
             } else {
                 title.textContent = t('add_retreat');
+                setRetreatContact(null);
                 // Random default color
                 renderColorPicker(COLORS[Math.floor(Math.random() * COLORS.length)]);
                 deleteSection.classList.add('hidden');
@@ -904,6 +954,7 @@
                 expected_participants: parseInt(form.expected_participants.value) || 0,
                 is_external: form.is_external.checked,
                 cafe_eligible: form.cafe_eligible.checked,
+                contact_vaishnava_id: form.contact_vaishnava_id.value || null,
                 color: form.color.value,
                 image_url: form.image_url.value || null,
                 registration_open: form.registration_open.checked,
@@ -1073,8 +1124,14 @@
             // Load retreats and holidays in parallel
             const [retreatsData, holidaysData] = await Promise.all([
                 loadRetreats(),
-                loadHolidays()
+                loadHolidays(),
+                loadPeople()
             ]);
+            document.getElementById('retreatContactSearch').addEventListener('input', ev => searchRetreatContact(ev.target.value));
+            document.getElementById('retreatContactSuggestions').addEventListener('click', ev => {
+                const el = ev.target.closest('[data-contact-id]');
+                if (el) setRetreatContact(el.dataset.contactId);
+            });
             retreats = retreatsData;
             holidays = holidaysData;
 

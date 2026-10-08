@@ -182,7 +182,7 @@ async function loadTimelineData() {
             .select(`*,
                 resident_categories(id, slug, name_ru, name_en, name_hi, color),
                 vaishnavas(id, first_name, last_name, spiritual_name, service),
-                bookings(id, name, contact_name, contact_phone, notes)`)
+                bookings(id, name, contact_name, contact_phone, contact_telegram, notes)`)
             .in('status', ['confirmed', 'checked_out', 'booked'])
             .lte('check_in', endDateStr)
             .or(`check_out.is.null,check_out.gte.${startDateStr}`),
@@ -232,7 +232,7 @@ async function loadTimelineData() {
     // его люди; обычный — не дольше конца + 3 дня.
     const [{ data: selectableRetreats }, { data: factEnds }] = await Promise.all([
         Layout.db.from('retreats')
-            .select('id, name_ru, name_en, name_hi, short_name, start_date, end_date, color, is_external')
+            .select('id, name_ru, name_en, name_hi, short_name, start_date, end_date, color, is_external, contact_vaishnava_id')
             .order('start_date'),
         Layout.db.from('retreat_fact_end').select('retreat_id, fact_end, is_internal')
     ]);
@@ -815,7 +815,7 @@ async function loadDictionaries() {
             if (error) { console.error('Error loading resident_categories:', error); return null; }
             return (data || []).filter(c => (c.sort_order || 0) < 999);
         }),
-        Utils.fetchAll((from, to) => Layout.db.from('vaishnavas').select('id, spiritual_name, first_name, last_name, gender, phone, birth_date, status').eq('is_deleted', false).order('spiritual_name').range(from, to)),
+        Utils.fetchAll((from, to) => Layout.db.from('vaishnavas').select('id, spiritual_name, first_name, last_name, gender, phone, telegram, telegram_username, birth_date, status').eq('is_deleted', false).order('spiritual_name').range(from, to)),
         Layout.db.from('departments').select('id, name_ru, name_en, name_hi, sort_order').order('sort_order')
             .then(({ data, error }) => { if (error) console.error('departments:', error); departments = data || []; })
     ]);
@@ -992,7 +992,8 @@ function showBookingForm() {
     const bookingRetreatSel = document.getElementById('bookingRetreat');
     if (bookingRetreatSel) delete bookingRetreatSel.dataset.touched;
     const bookingCatSel = document.getElementById('bookingCategory');
-    if (bookingCatSel) delete bookingCatSel.dataset.touched;
+    if (bookingCatSel) { delete bookingCatSel.dataset.touched; delete bookingCatSel.dataset.auto; }
+    resetBookingRetreatAuto();
     clearBookingVaishnavSelection();
     const extraPeople = document.getElementById('bookingExtraPeople');
     if (extraPeople) extraPeople.innerHTML = '';
@@ -1082,6 +1083,7 @@ async function openBookingEdit() {
     form.name.value = res.bookings?.name || '';
     form.contact_name.value = res.bookings?.contact_name || '';
     form.contact_phone.value = res.bookings?.contact_phone || res.guest_phone || '';
+    form.contact_telegram.value = res.bookings?.contact_telegram || '';
     // Контакт обязателен только у брони: у проживания без брони его негде хранить
     document.getElementById('bookingContactName').required = !!res.booking_id;
     document.getElementById('bookingDateIn').value = res.check_in || '';
@@ -1209,6 +1211,7 @@ async function saveBookingEdit(form) {
             name: form.name.value.trim() || null,
             contact_name: form.contact_name.value.trim() || null,
             contact_phone: form.contact_phone.value.trim() || null,
+            contact_telegram: form.contact_telegram.value.trim() || null,
             notes: form.notes.value.trim() || null,
             retreat_id: retreatId
         }).eq('id', res.booking_id);
@@ -1564,21 +1567,44 @@ document.getElementById('bookingVaishnavaSuggestions')?.addEventListener('click'
 // ===== Несколько человек в одной брони (ВГ 02.10) =====
 // Под первым «Вайшнавом» — «+ ещё человек»: каждое имя занимает своё место брони,
 // число мест подтягивается под число людей. Из справочника — поиском, нет там — просто имя.
+// У каждого добавленного свои заезд и выезд (ВГ 08.10): сначала общие даты брони,
+// правят только тому, кто едет иначе. Первый человек и безымянные места — по общим датам.
 function addBookingPersonRow() {
     const box = document.getElementById('bookingExtraPeople');
     if (!box) return;
+    const form = document.getElementById('bookingForm');
     const row = document.createElement('div');
-    row.className = 'relative flex gap-1 mt-2';
+    row.className = 'mt-2';
     row.dataset.personRow = '1';
-    row.innerHTML = `<input type="hidden" data-role="id" />
-        <input type="text" data-role="name" class="input input-bordered input-sm w-full" autocomplete="off"
-               placeholder="${e(tf('timeline_search_by_name', 'Поиск по имени...'))}" />
-        <button type="button" class="btn btn-ghost btn-xs self-center" data-action="remove-booking-person">✕</button>
-        <div data-role="suggestions" class="hidden absolute z-50 top-full left-0 right-8 bg-base-100 shadow-lg rounded-lg mt-1 max-h-48 overflow-y-auto border"></div>`;
+    row.innerHTML = `<div class="relative flex gap-1">
+            <input type="hidden" data-role="id" />
+            <input type="text" data-role="name" class="input input-bordered input-sm w-full" autocomplete="off"
+                   placeholder="${e(tf('timeline_search_by_name', 'Поиск по имени...'))}" />
+            <button type="button" class="btn btn-ghost btn-xs self-center" data-action="remove-booking-person">✕</button>
+            <div data-role="suggestions" class="hidden absolute z-50 top-full left-0 right-8 bg-base-100 shadow-lg rounded-lg mt-1 max-h-48 overflow-y-auto border"></div>
+        </div>
+        <div class="flex items-center gap-1 mt-1 pr-8 text-xs opacity-80">
+            <span>${e(tf('check_in', 'Заезд'))}</span>
+            <input type="date" data-role="in" class="input input-bordered input-xs flex-1 min-w-0" value="${e(form.check_in.value)}" />
+            <span>${e(tf('check_out', 'Выезд'))}</span>
+            <input type="date" data-role="out" class="input input-bordered input-xs flex-1 min-w-0" value="${e(form.check_out.value)}" />
+        </div>`;
     box.appendChild(row);
     syncBookingBeds();
     row.querySelector('[data-role="name"]').focus();
 }
+
+// Общие даты сменили — у строк, где даты не правили руками, они идут следом
+function syncBookingPersonDates() {
+    const form = document.getElementById('bookingForm');
+    document.querySelectorAll('#bookingExtraPeople [data-person-row]').forEach(row => {
+        const din = row.querySelector('[data-role="in"]'), dout = row.querySelector('[data-role="out"]');
+        if (din.dataset.manual !== '1') din.value = form.check_in.value;
+        if (dout.dataset.manual !== '1') dout.value = form.check_out.value;
+    });
+}
+document.getElementById('bookingDateIn')?.addEventListener('change', syncBookingPersonDates);
+document.getElementById('bookingDateOut')?.addEventListener('change', syncBookingPersonDates);
 
 // Мест не меньше, чем людей; больше — если вписали вручную (едут ещё безымянные)
 function syncBookingBeds() {
@@ -1589,6 +1615,7 @@ function syncBookingBeds() {
 
 // Люди брони по порядку мест: первый — из поля «Вайшнав», дальше — добавленные строки
 function bookingPeople() {
+    const form = document.getElementById('bookingForm');
     const people = [{
         id: document.getElementById('bookingVaishnavId')?.value || null,
         name: document.getElementById('bookingVaishnavSearch')?.value.trim() || ''
@@ -1596,13 +1623,20 @@ function bookingPeople() {
     document.querySelectorAll('#bookingExtraPeople [data-person-row]').forEach(row => {
         const id = row.querySelector('[data-role="id"]').value || null;
         const name = row.querySelector('[data-role="name"]').value.trim();
-        if (id || name) people.push({ id, name });
+        const check_in = row.querySelector('[data-role="in"]').value || null;
+        const check_out = row.querySelector('[data-role="out"]').value || null;
+        // Безымянное место тоже берём, если у него свои даты
+        const ownDates = check_in !== form.check_in.value || check_out !== form.check_out.value;
+        if (id || name || ownDates) people.push({ id, name, check_in, check_out });
     });
     return people;
 }
 
 {
     const box = document.getElementById('bookingExtraPeople');
+    box?.addEventListener('change', ev => {
+        if (['in', 'out'].includes(ev.target.dataset.role)) ev.target.dataset.manual = '1';
+    });
     box?.addEventListener('input', ev => {
         const row = ev.target.closest('[data-person-row]');
         if (!row || ev.target.dataset.role !== 'name') return;
@@ -1685,6 +1719,113 @@ function fillBookingRetreatSelect(selectedId) {
     if (sel) sel.innerHTML = retreatSelectHtml(selectedId,
         document.getElementById('bookingDateIn').value, document.getElementById('bookingDateOut').value);
     showRetreatWarn('booking');
+    applyBookingRetreat();
+}
+
+// ===== Ретрит подставляет остальное (ВГ 08.10) =====
+// Стороннее мероприятие — это группа: категория «Группа», название брони — имя группы.
+// Контактное лицо — из ретрита (имя, телефон, телеграм из карточки). Есть у группы
+// «Разовое питание по дням» — кухня считает по нему, галочек прасада у мест нет.
+// Вписанное руками не перебиваем; при правке брони ничего не подставляем.
+function resetBookingRetreatAuto() {
+    const form = document.getElementById('bookingForm');
+    delete form.name.dataset.manual;
+    delete form.contact_name.dataset.auto;
+    document.getElementById('bookingContactId').value = '';
+    document.getElementById('bookingContactSuggestions').classList.add('hidden');
+    setBookingPrasadByGroup(null);
+}
+
+async function applyBookingRetreat() {
+    if (modalContext?.editResidentId) return;
+    const form = document.getElementById('bookingForm');
+    const retreatId = form.retreat_id.value;
+    const r = allRetreats.find(x => x.id === retreatId);
+
+    const catSel = document.getElementById('bookingCategory');
+    const group = categories.find(c => c.slug === 'group');
+    if (group && catSel.dataset.touched !== '1') {
+        if (r?.is_external) { catSel.value = group.id; catSel.dataset.auto = '1'; }
+        else if (catSel.dataset.auto === '1') { catSel.value = ''; delete catSel.dataset.auto; }
+        toggleBookingStaffFields();
+    }
+
+    if (form.name.dataset.manual !== '1') form.name.value = r?.is_external ? Layout.getName(r) : '';
+
+    if (!form.contact_name.value.trim() || form.contact_name.dataset.auto === '1') {
+        const v = r?.contact_vaishnava_id && vaishnavas.find(x => x.id === r.contact_vaishnava_id);
+        setBookingContact(v || null);
+        if (v) form.contact_name.dataset.auto = '1';
+    }
+
+    let mealGroup = null;
+    if (r) {
+        const from = form.check_in.value, to = form.check_out.value || from;
+        const { data } = await Layout.db.from('meal_groups').select('id, name')
+            .eq('retreat_id', r.id).eq('by_day', true).lte('start_date', to).gte('end_date', from).limit(1);
+        mealGroup = data?.[0] || null;
+    }
+    if (form.retreat_id.value === retreatId) setBookingPrasadByGroup(mealGroup);
+}
+
+function setBookingPrasadByGroup(mealGroup) {
+    const form = document.getElementById('bookingForm');
+    const checks = document.getElementById('bookingPrasadChecks');
+    const note = document.getElementById('bookingPrasadByGroup');
+    // Ушли с группы «по дням» — галочки возвращаем
+    if (!mealGroup && checks.dataset.byGroup === '1') form.breakfast.checked = form.lunch.checked = true;
+    if (mealGroup) form.breakfast.checked = form.lunch.checked = false;
+    checks.dataset.byGroup = mealGroup ? '1' : '';
+    checks.classList.toggle('hidden', !!mealGroup);
+    note.classList.toggle('hidden', !mealGroup);
+    note.innerHTML = mealGroup
+        ? `Питание отдельно от проживания: кухня считает по заявке «${e(mealGroup.name)}» в <a class="link link-primary" href="../vaishnavas/groups.html" target="_blank">Разовом питании</a>. Лишний едок — добавьте его в числа заявки.`
+        : '';
+}
+
+// Контактное лицо: из справочника — телефон и телеграм из карточки; иначе просто имя
+function setBookingContact(v) {
+    const form = document.getElementById('bookingForm');
+    document.getElementById('bookingContactId').value = v?.id || '';
+    form.contact_name.value = v ? getVaishnavName(v) : '';
+    form.contact_phone.value = v?.phone || '';
+    form.contact_telegram.value = v ? (v.telegram || v.telegram_username || '') : '';
+    delete form.contact_name.dataset.auto;
+}
+
+function searchBookingContact(q) {
+    const form = document.getElementById('bookingForm');
+    delete form.contact_name.dataset.auto;
+    document.getElementById('bookingContactId').value = '';
+    const box = document.getElementById('bookingContactSuggestions');
+    q = q.trim().toLowerCase();
+    if (q.length < 2) { box.classList.add('hidden'); return; }
+    const found = vaishnavas.filter(v => getVaishnavName(v).toLowerCase().includes(q)).slice(0, 10);
+    if (!found.length) { box.classList.add('hidden'); return; }
+    box.innerHTML = found.map(v => `<div class="p-2 hover:bg-base-200 cursor-pointer" data-contact-id="${v.id}">${e(getVaishnavName(v))}</div>`).join('');
+    box.classList.remove('hidden');
+}
+
+document.getElementById('bookingContactSuggestions')?.addEventListener('click', ev => {
+    const el = ev.target.closest('[data-contact-id]');
+    if (!el) return;
+    setBookingContact(vaishnavas.find(v => v.id === el.dataset.contactId));
+    document.getElementById('bookingContactSuggestions').classList.add('hidden');
+});
+document.addEventListener('click', ev => {
+    const box = document.getElementById('bookingContactSuggestions');
+    if (box && !box.contains(ev.target) && ev.target.id !== 'bookingContactName') box.classList.add('hidden');
+});
+
+// Контакт выбран из справочника, а у группы контакта ещё нет — предложить запомнить
+async function offerRetreatContact(retreatId, contactId) {
+    const r = allRetreats.find(x => x.id === retreatId);
+    if (!r?.is_external || !contactId || r.contact_vaishnava_id) return;
+    const v = vaishnavas.find(x => x.id === contactId);
+    if (!v || !confirm(`Запомнить ${getVaishnavName(v)} как контактное лицо группы «${Layout.getName(r)}»? В следующей брони подставится само.`)) return;
+    const { error } = await Layout.db.from('retreats').update({ contact_vaishnava_id: contactId }).eq('id', retreatId);
+    if (error) { Layout.handleError(error, 'Контактное лицо группы'); return; }
+    r.contact_vaishnava_id = contactId;
 }
 
 function clearVaishnavSelection() {
@@ -1847,6 +1988,17 @@ async function saveBooking(e) {
     if (retreatDatesMismatch(bookingRetreatId, form.check_in.value, form.check_out.value)) {
         Layout.showNotification(retreatDatesMismatchText(), 'warning');
     }
+    // Свои даты у людей брони: выезд не раньше заезда; бронь — от раннего заезда до позднего выезда
+    for (const p of people) {
+        p.check_in = p.check_in || form.check_in.value;
+        p.check_out = p.check_out || form.check_out.value;
+        if (p.check_out && p.check_out < p.check_in) {
+            Layout.showNotification(`${p.name || tf('timeline_vaishnava', 'Вайшнав')}: ${tf('timeline_checkout_before_checkin', 'Выезд не может быть раньше заезда')}`, 'error');
+            return;
+        }
+    }
+    const bookingCheckIn = people.reduce((m, p) => p.check_in < m ? p.check_in : m, form.check_in.value);
+    const bookingCheckOut = people.reduce((m, p) => p.check_out > m ? p.check_out : m, form.check_out.value);
     const bookingCategoryId = form.category_id?.value || null;
     const chosenIds = people.map(p => p.id).filter(Boolean);
     if (new Set(chosenIds).size !== chosenIds.length) {
@@ -1880,8 +2032,9 @@ async function saveBooking(e) {
         name: bookingName,
         contact_name: form.contact_name.value,
         contact_phone: form.contact_phone.value || null,
-        check_in: form.check_in.value,
-        check_out: form.check_out.value,
+        contact_telegram: form.contact_telegram.value.trim() || null,
+        check_in: bookingCheckIn,
+        check_out: bookingCheckOut,
         beds_count: bedsCount,
         retreat_id: bookingRetreatId,
         early_checkin: earlyCheckin,
@@ -1919,8 +2072,8 @@ async function saveBooking(e) {
             // Ретрит с брони: без него место не свяжется ни с регистрацией,
             // ни с долгом при выезде
             retreat_id: bookingRetreatId,
-            check_in: form.check_in.value,
-            check_out: form.check_out.value,
+            check_in: person?.check_in || form.check_in.value,
+            check_out: person?.check_out || form.check_out.value,
             early_checkin: earlyCheckin,
             late_checkout: lateCheckout,
             // Без номера — живёт вне ашрама, только питание (окно «Начислить группе» не берёт ночи)
@@ -1941,7 +2094,8 @@ async function saveBooking(e) {
         Layout.showNotification(residentsError.message, 'error');
     } else {
         await offerRetreatOnAdjacent(bookingVaishnavaId, form.check_in.value, form.check_out.value, bookingRetreatId);
-        warnOutsideRetreat(bookingRetreatId, form.check_in.value, form.check_out.value);
+        warnOutsideRetreat(bookingRetreatId, bookingCheckIn, bookingCheckOut);
+        await offerRetreatContact(bookingRetreatId, document.getElementById('bookingContactId').value);
     }
 
     document.getElementById('actionModal').close();

@@ -860,6 +860,19 @@
                 <div id="bookingEditGroupHint" class="alert alert-info py-2 px-3 mb-3 text-sm hidden"></div>
 
                 <form id="bookingForm" onsubmit="saveBooking(event)">
+                    <!-- Ретрит — первым (ВГ 08.10): по нему подставляются категория, название брони,
+                         контактное лицо и питание группы. Подбирается по датам, но остаётся на выбор —
+                         гость может жить в даты ретрита, не участвуя -->
+                    <div class="form-control mb-3">
+                        <label class="label py-1">
+                            <span class="label-text font-medium" data-i18n="nav_retreats">Ретрит</span>
+                            <span class="label-text-alt opacity-60" id="bookingRetreatHint"></span>
+                        </label>
+                        <select name="retreat_id" id="bookingRetreat" class="select select-bordered select-sm w-full"
+                                onchange="this.dataset.touched='1'; showRetreatWarn('booking'); applyBookingRetreat()"></select>
+                        <div id="bookingRetreatWarn" class="text-xs text-amber-700 mt-1 hidden"></div>
+                    </div>
+
                     <!-- Категория: от неё зависит цвет плашки в шахматке -->
                     <div class="form-control mb-3">
                         <label class="label py-1">
@@ -877,7 +890,7 @@
                         <label class="label py-1">
                             <span class="label-text font-medium" data-i18n="booking_name">Название брони</span>
                         </label>
-                        <input type="text" name="name" class="input input-bordered input-sm w-full" placeholder="Например: Группа из Москвы" data-i18n-placeholder="booking_name_placeholder" />
+                        <input type="text" name="name" id="bookingName" oninput="this.dataset.manual='1'" class="input input-bordered input-sm w-full" placeholder="Например: Группа из Москвы" data-i18n-placeholder="booking_name_placeholder" />
                     </div>
 
                     <!-- Гость из справочника: не обязателен, но если выбран —
@@ -922,19 +935,31 @@
                         </div>
                     </div>
 
-                    <!-- Контакт -->
+                    <!-- Контакт: у группы подставляется из ретрита (ВГ 08.10); можно выбрать человека
+                         из справочника — телефон и телеграм возьмутся из карточки -->
                     <div class="grid grid-cols-2 gap-3 mb-3">
                         <div class="form-control">
                             <label class="label py-1">
                                 <span class="label-text font-medium" data-i18n="booking_contact_name">Контактное лицо</span>
                             </label>
-                            <input type="text" name="contact_name" id="bookingContactName" class="input input-bordered input-sm w-full" required />
+                            <div class="relative">
+                                <input type="hidden" id="bookingContactId" />
+                                <input type="text" name="contact_name" id="bookingContactName" class="input input-bordered input-sm w-full" required
+                                       autocomplete="off" oninput="searchBookingContact(this.value)" />
+                                <div id="bookingContactSuggestions" class="hidden absolute z-50 w-full bg-base-100 shadow-lg rounded-lg mt-1 max-h-48 overflow-y-auto border"></div>
+                            </div>
                         </div>
                         <div class="form-control">
                             <label class="label py-1">
                                 <span class="label-text font-medium" data-i18n="booking_contact_phone">Телефон</span>
                             </label>
                             <input type="tel" name="contact_phone" class="input input-bordered input-sm w-full" />
+                        </div>
+                        <div class="form-control col-span-2">
+                            <label class="label py-1">
+                                <span class="label-text font-medium">Телеграм</span>
+                            </label>
+                            <input type="text" name="contact_telegram" class="input input-bordered input-sm w-full" placeholder="@username" />
                         </div>
                     </div>
 
@@ -971,24 +996,13 @@
                         <div id="bookingSelfHint" class="text-xs opacity-70 mt-1 hidden">Места без номера: имена можно не вписывать сейчас — они вписываются в места по мере появления, у каждого места свои даты. Кухня считает места с даты заезда.</div>
                     </div>
 
-                    <!-- Ретрит: подставляется по пересечению дат, но остаётся
-                         на выбор — гость может жить в даты ретрита, не участвуя -->
-                    <div class="form-control mt-3">
-                        <label class="label py-1">
-                            <span class="label-text font-medium" data-i18n="nav_retreats">Ретрит</span>
-                            <span class="label-text-alt opacity-60" id="bookingRetreatHint"></span>
-                        </label>
-                        <select name="retreat_id" id="bookingRetreat" class="select select-bordered select-sm w-full"
-                                onchange="this.dataset.touched='1'; showRetreatWarn('booking')"></select>
-                        <div id="bookingRetreatWarn" class="text-xs text-amber-700 mt-1 hidden"></div>
-                    </div>
-
-                    <!-- Прасад: с брони и начинается расчёт порций на кухне -->
+                    <!-- Прасад: с брони и начинается расчёт порций на кухне. У группы с «Разовым
+                         питанием по дням» кухня считает по её таблице — галочек у мест нет (ВГ 08.10) -->
                     <div class="form-control mt-3">
                         <label class="label py-1">
                             <span class="label-text font-medium" data-i18n="prasad_title">Прасад</span>
                         </label>
-                        <div class="flex gap-4">
+                        <div class="flex gap-4" id="bookingPrasadChecks">
                             <label class="label cursor-pointer justify-start gap-2 py-1">
                                 <input type="checkbox" name="breakfast" class="checkbox checkbox-sm checkbox-info" checked />
                                 <span class="label-text text-sm" data-i18n="breakfast">Завтрак</span>
@@ -998,6 +1012,7 @@
                                 <span class="label-text text-sm" data-i18n="lunch">Обед</span>
                             </label>
                         </div>
+                        <div id="bookingPrasadByGroup" class="text-sm bg-base-200 rounded-lg px-3 py-2 hidden"></div>
                     </div>
 
                     <!-- Примечания -->
@@ -1282,7 +1297,7 @@
     }
     </script>
     <script src="../js/retreat-select.js?v=1"></script>
-    <script src="../js/pages/timeline.js?v=62"></script>
+    <script src="../js/pages/timeline.js?v=63"></script>
 
 </body>
 </html>
