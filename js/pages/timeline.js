@@ -1039,6 +1039,7 @@ function showBookingForm() {
     clearBookingVaishnavSelection();
     const extraPeople = document.getElementById('bookingExtraPeople');
     if (extraPeople) extraPeople.innerHTML = '';
+    resetBookingKids();
     delete document.getElementById('bookingForm').beds_count.dataset.manual;
 
     // Бронь без номера: группа местами без имён или один человек (ВГ, 01.10)
@@ -1137,6 +1138,7 @@ async function openBookingEdit() {
     form.breakfast.checked = res.has_meals !== false && res.breakfast !== false;
     form.lunch.checked = res.has_meals !== false && res.lunch !== false;
     form.notes.value = (res.booking_id ? res.bookings?.notes : res.notes) || '';
+    resetBookingKids(res);
 
     // Ретрит — как выбран, подсказка по датам не перебивает
     const retreatSel = document.getElementById('bookingRetreat');
@@ -1239,6 +1241,7 @@ async function saveBookingEdit(form) {
 
     const { error } = await Layout.db.from('residents').update(place).eq('id', res.id);
     if (error) { Layout.handleError(error, tf('timeline_edit_booking', 'Изменить бронь')); return; }
+    await saveBookingKids([res.id]);
 
     if (res.booking_id) {
         // Общее для брони — у остальных её мест
@@ -2143,7 +2146,8 @@ async function saveBooking(e) {
         });
     }
 
-    const { error: residentsError } = await Layout.db.from('residents').insert(residents);
+    const { data: created, error: residentsError } = await Layout.db.from('residents').insert(residents).select('id');
+    if (!residentsError) await saveBookingKids((created || []).map(r => r.id));
 
     if (residentsError) {
         console.error('Error saving booking residents:', residentsError);
@@ -2821,29 +2825,51 @@ function kidsBadge(res) {
     return `<span class="kid-badge" title="${e(title)}">+${kids.length}</span>`;
 }
 
+// В окне брони/проживания дети только видны; добавить или убрать — в «Редактировать» или при
+// бронировании (ВГ 08.10: из окна легко нажать случайно)
 function renderKidsRow() {
     const box = document.getElementById('residentKids');
     if (!box || !currentResident) return;
     const kids = currentResident.rawData.resident_children || [];
-    const canEdit = canEditTimeline();
-    if (!kids.length && !canEdit) { box.innerHTML = ''; return; }
-    const chips = kids.map(k => {
-        const name = k.vaishnava_id
-            ? `<a href="../vaishnavas/person.html?id=${k.vaishnava_id}" class="link">${e(kidName(k))}</a>`
-            : e(kidName(k));
-        const del = canEdit
-            ? ` <button type="button" class="opacity-60 hover:opacity-100" data-action="kid-remove" data-id="${k.id}" title="${e(tf('timeline_kid_remove', 'Убрать ребёнка'))}">✕</button>`
-            : '';
-        return `<span class="badge badge-outline gap-1">${name}${del}</span>`;
-    }).join(' ');
-    const add = canEdit
-        ? `<button type="button" class="btn btn-xs btn-outline" data-action="kid-add">${e(tf('timeline_add_kid_no_bed', '+ ребёнок (без кровати)'))}</button>`
-        : '';
+    if (!kids.length) { box.innerHTML = ''; return; }
+    const chips = kids.map(k => `<span class="badge badge-outline">${k.vaishnava_id
+        ? `<a href="../vaishnavas/person.html?id=${k.vaishnava_id}" class="link">${e(kidName(k))}</a>`
+        : e(kidName(k))}</span>`).join(' ');
     box.innerHTML = `<div class="flex justify-between items-center gap-2 py-1 border-b" title="${e(tf('timeline_kid_hint', 'Живёт с родителем, кровать не занимает; кухня: до 7 лет не порция'))}">
         <span class="text-gray-500">${e(tf('timeline_kids_no_bed', 'Дети без кровати'))}:</span>
-        <span class="flex flex-wrap justify-end items-center gap-1">${chips}${add}</span>
-    </div>
-    <div id="kidPicker" class="hidden"></div>`;
+        <span class="flex flex-wrap justify-end items-center gap-1">${chips}</span>
+    </div>`;
+}
+
+// ----- Дети в форме брони: черновик, пишется в базу по «Сохранить» -----
+let bookingKids = [];          // [{id?, vaishnava_id, guest_name, birth_date, label, to}] — to: номер человека брони
+let bookingKidsRemoved = [];   // id убранных из уже сохранённых
+
+function resetBookingKids(res = null) {
+    bookingKids = (res?.resident_children || []).map(k => ({ id: k.id, vaishnava_id: k.vaishnava_id,
+        guest_name: k.guest_name, birth_date: k.birth_date, label: kidName(k), to: 0 }));
+    bookingKidsRemoved = [];
+    renderBookingKids();
+}
+
+// Новая бронь на несколько человек — ребёнок к выбранному (к маме; ВГ 08.10)
+function bookingKidPeople() {
+    if (modalContext?.editResidentId) return [];
+    return bookingPeople().map((p, i) => p.name || `${tf('timeline_bed', 'Место')} ${i + 1}`);
+}
+
+function renderBookingKids() {
+    const box = document.getElementById('bookingKids');
+    if (!box) return;
+    const people = bookingKidPeople();
+    const chips = bookingKids.map((k, i) => `<span class="badge badge-outline gap-1">${e(k.label)}${people.length > 1 ? ` <span class="opacity-60">→ ${e(people[k.to] || people[0])}</span>` : ''}
+        <button type="button" class="opacity-60 hover:opacity-100" data-action="bkid-remove" data-i="${i}" title="${e(tf('timeline_kid_remove', 'Убрать ребёнка'))}">✕</button></span>`).join(' ');
+    box.innerHTML = `<div class="flex flex-wrap items-center gap-1 mt-2" title="${e(tf('timeline_kid_hint', 'Живёт с родителем, кровать не занимает; кухня: до 7 лет не порция'))}">
+            <span class="label-text font-medium mr-1">${e(tf('timeline_kids_no_bed', 'Дети без кровати'))}:</span>
+            ${chips}
+            <button type="button" class="btn btn-ghost btn-xs text-primary px-1" data-action="bkid-add">${e(tf('timeline_add_kid_no_bed', '+ ребёнок (без кровати)'))}</button>
+        </div>
+        <div id="bookingKidPicker" class="hidden"></div>`;
 }
 
 // Дети родителя по семейным связям и «родителю» в карточке — первыми; моложе 18 или без даты
@@ -2856,75 +2882,110 @@ function familyKids(parentId, links) {
         .sort((a, b) => (b.birth_date || '').localeCompare(a.birth_date || ''));
 }
 
-async function showKidPicker() {
-    const box = document.getElementById('kidPicker');
-    if (!box || !currentResident) return;
-    const res = currentResident.rawData;
+async function showBookingKidPicker() {
+    const box = document.getElementById('bookingKidPicker');
+    if (!box) return;
     box.classList.remove('hidden');
-    box.innerHTML = `<div class="text-center py-2 text-sm">${t('timeline_loading')}</div>`;
-    let links = [];
-    if (res.vaishnava_id) {
-        const { data } = await Layout.db.from('family_links').select('vaishnava_id, relative_id')
-            .or(`vaishnava_id.eq.${res.vaishnava_id},relative_id.eq.${res.vaishnava_id}`);
-        links = data || [];
-    }
-    const taken = new Set((res.resident_children || []).map(k => k.vaishnava_id).filter(Boolean));
-    const fam = res.vaishnava_id ? familyKids(res.vaishnava_id, links).filter(v => !taken.has(v.id)) : [];
-    const pick = v => `<button type="button" class="btn btn-xs" data-action="kid-pick" data-id="${v.id}">${e(getVaishnavName(v, '—'))}${v.birth_date ? ` <span class="opacity-60">${e(DateUtils.formatShort(v.birth_date))}</span>` : ''}</button>`;
+    const people = bookingKidPeople();
+    const toSel = people.length > 1
+        ? `<label class="flex items-center gap-2"><span class="text-gray-500">${e(tf('timeline_kid_to', 'К кому'))}</span>
+            <select id="bookingKidTo" class="select select-bordered select-xs">${people.map((n, i) => `<option value="${i}">${e(n)}</option>`).join('')}</select></label>`
+        : '';
+    // Семья — того, к кому ставим: в правке — человек этого места, в новой брони — выбранный
+    const parentId = () => modalContext?.editResidentId
+        ? modalContext.editRes?.vaishnava_id
+        : bookingPeople()[Number(document.getElementById('bookingKidTo')?.value || 0)]?.id;
+    const taken = () => new Set(bookingKids.map(k => k.vaishnava_id).filter(Boolean));
+    const pick = v => `<button type="button" class="btn btn-xs" data-action="bkid-pick" data-id="${v.id}">${e(getVaishnavName(v, '—'))}${v.birth_date ? ` <span class="opacity-60">${e(DateUtils.formatShort(v.birth_date))}</span>` : ''}</button>`;
     box.innerHTML = `<div class="bg-base-200 rounded-lg p-2 my-2 space-y-2 text-sm">
-        ${fam.length ? `<div><div class="text-gray-500 mb-1">${e(tf('timeline_kid_family', 'Из семьи'))}</div><div class="flex flex-wrap gap-1">${fam.map(pick).join('')}</div></div>` : ''}
-        <input type="text" class="input input-bordered input-sm w-full" id="kidSearch" placeholder="${e(tf('timeline_kid_search', 'Найти карточку ребёнка…'))}">
-        <div id="kidSearchResults" class="flex flex-wrap gap-1"></div>
+        ${toSel}
+        <div id="bookingKidFamily"></div>
+        <input type="text" class="input input-bordered input-sm w-full" id="bookingKidSearch" placeholder="${e(tf('timeline_kid_search', 'Найти карточку ребёнка…'))}">
+        <div id="bookingKidResults" class="flex flex-wrap gap-1"></div>
         <div class="text-gray-500">${e(tf('timeline_kid_no_card', 'Без карточки'))}</div>
         <div class="flex flex-wrap items-center gap-2">
-            <input type="text" class="input input-bordered input-sm flex-1 min-w-[8rem]" id="kidName" placeholder="${e(tf('timeline_kid_name', 'Имя ребёнка'))}">
-            <input type="date" class="input input-bordered input-sm" id="kidBirth" title="${e(tf('timeline_kid_birth', 'Дата рождения'))}">
-            <button type="button" class="btn btn-sm btn-primary" data-action="kid-add-named">${e(tf('add', 'Добавить'))}</button>
+            <input type="text" class="input input-bordered input-sm flex-1 min-w-[8rem]" id="bookingKidName" placeholder="${e(tf('timeline_kid_name', 'Имя ребёнка'))}">
+            <input type="date" class="input input-bordered input-sm" id="bookingKidBirth" title="${e(tf('timeline_kid_birth', 'Дата рождения'))}">
+            <button type="button" class="btn btn-sm btn-primary" data-action="bkid-add-named">${e(tf('add', 'Добавить'))}</button>
         </div>
     </div>`;
-    const input = document.getElementById('kidSearch');
+    const showFamily = async () => {
+        const fam = document.getElementById('bookingKidFamily');
+        const pid = parentId();
+        if (!pid) { fam.innerHTML = ''; return; }
+        const { data } = await Layout.db.from('family_links').select('vaishnava_id, relative_id')
+            .or(`vaishnava_id.eq.${pid},relative_id.eq.${pid}`);
+        const list = familyKids(pid, data || []).filter(v => !taken().has(v.id));
+        fam.innerHTML = list.length
+            ? `<div class="text-gray-500 mb-1">${e(tf('timeline_kid_family', 'Из семьи'))}</div><div class="flex flex-wrap gap-1">${list.map(pick).join('')}</div>`
+            : '';
+    };
+    document.getElementById('bookingKidTo')?.addEventListener('change', showFamily);
+    showFamily();
+    const input = document.getElementById('bookingKidSearch');
     input.addEventListener('input', () => {
         const q = input.value.trim().toLowerCase();
-        const list = document.getElementById('kidSearchResults');
+        const list = document.getElementById('bookingKidResults');
         if (q.length < 2) { list.innerHTML = ''; return; }
-        const found = vaishnavas.filter(v => !taken.has(v.id) && v.id !== res.vaishnava_id
+        const found = vaishnavas.filter(v => !taken().has(v.id) && v.id !== parentId()
             && getVaishnavName(v, '').toLowerCase().includes(q)).slice(0, 8);
         list.innerHTML = found.length ? found.map(pick).join('') : `<span class="opacity-60">${t('timeline_not_found')}</span>`;
     });
-    input.focus();
 }
 
-async function addKid(row) {
-    if (!currentResident || !canEditTimeline()) return;
-    const res = currentResident.rawData;
-    const { data, error } = await Layout.db.from('resident_children')
-        .insert({ resident_id: res.id, ...row })
-        .select('id, vaishnava_id, guest_name, birth_date, vaishnavas(id, first_name, last_name, spiritual_name, birth_date)');
-    if (error) { Layout.handleError(error, tf('timeline_kids_no_bed', 'Дети без кровати')); return; }
-    res.resident_children = [...(res.resident_children || []), ...(data || [])];
-    renderKidsRow();
-    renderTable();
+function addBookingKid(row) {
+    row.to = Number(document.getElementById('bookingKidTo')?.value || 0);
+    bookingKids.push(row);
+    renderBookingKids();
 }
 
-// Без карточки — имя и дата рождения обязательны: по дате кухня решает, порция ли это
-function addNamedKid() {
-    const name = document.getElementById('kidName')?.value.trim();
-    const birth = document.getElementById('kidBirth')?.value;
-    if (!name || !birth) {
-        Layout.showNotification(`${tf('timeline_kid_name', 'Имя ребёнка')} · ${tf('timeline_kid_birth', 'Дата рождения')}`, 'warning');
-        return;
+{
+    const box = document.getElementById('bookingKids');
+    box?.addEventListener('click', ev => {
+        const el = ev.target.closest('[data-action]');
+        if (!el) return;
+        switch (el.dataset.action) {
+            case 'bkid-add': showBookingKidPicker(); break;
+            case 'bkid-pick': {
+                const v = vaishnavas.find(x => x.id === el.dataset.id);
+                addBookingKid({ vaishnava_id: el.dataset.id, guest_name: null, birth_date: null, label: v ? getVaishnavName(v, '—') : '—' });
+                break;
+            }
+            case 'bkid-add-named': {
+                // Без карточки — имя и дата рождения обязательны: по дате кухня решает, порция ли это
+                const name = document.getElementById('bookingKidName')?.value.trim();
+                const birth = document.getElementById('bookingKidBirth')?.value;
+                if (!name || !birth) {
+                    Layout.showNotification(`${tf('timeline_kid_name', 'Имя ребёнка')} · ${tf('timeline_kid_birth', 'Дата рождения')}`, 'warning');
+                    return;
+                }
+                addBookingKid({ vaishnava_id: null, guest_name: name, birth_date: birth, label: name });
+                break;
+            }
+            case 'bkid-remove': {
+                const [k] = bookingKids.splice(Number(el.dataset.i), 1);
+                if (k?.id) bookingKidsRemoved.push(k.id);
+                renderBookingKids();
+                break;
+            }
+        }
+    });
+}
+
+// Запись черновика: убранные — удалить, новые — к месту (в новой брони — к месту выбранного человека)
+async function saveBookingKids(residentIds) {
+    if (bookingKidsRemoved.length) {
+        const { error } = await Layout.db.from('resident_children').delete().in('id', bookingKidsRemoved);
+        if (error) Layout.handleError(error, tf('timeline_kid_remove', 'Убрать ребёнка'));
     }
-    addKid({ guest_name: name, birth_date: birth });
-}
-
-async function removeKid(id) {
-    if (!currentResident || !canEditTimeline()) return;
-    const { error } = await Layout.db.from('resident_children').delete().eq('id', id);
-    if (error) { Layout.handleError(error, tf('timeline_kid_remove', 'Убрать ребёнка')); return; }
-    const res = currentResident.rawData;
-    res.resident_children = (res.resident_children || []).filter(k => k.id !== id);
-    renderKidsRow();
-    renderTable();
+    const rows = bookingKids.filter(k => !k.id).map(k => ({
+        resident_id: residentIds[k.to] || residentIds[0],
+        vaishnava_id: k.vaishnava_id, guest_name: k.guest_name, birth_date: k.birth_date
+    }));
+    if (rows.length) {
+        const { error } = await Layout.db.from('resident_children').insert(rows);
+        if (error) Layout.handleError(error, tf('timeline_kids_no_bed', 'Дети без кровати'));
+    }
 }
 
 // ==================== ПИТАНИЕ ПО ДНЯМ ====================
@@ -4135,10 +4196,6 @@ function setupTimelineDelegation() {
             }
             // Кнопка «Уезжает на время / Изменить» стоит в строке «Питание по дням», не в блоке действий
             if (el.dataset.action === 'meal-days') showMealDaysScreen();
-            if (el.dataset.action === 'kid-add') showKidPicker();
-            if (el.dataset.action === 'kid-pick') addKid({ vaishnava_id: el.dataset.id });
-            if (el.dataset.action === 'kid-add-named') addNamedKid();
-            if (el.dataset.action === 'kid-remove') removeKid(el.dataset.id);
         });
     }
     // Делегирование для таблицы таймлайна

@@ -1008,6 +1008,9 @@
                         <!-- Ещё люди этой брони: каждое имя — своё место (ВГ 02.10) -->
                         <div id="bookingExtraPeople"></div>
                         <button type="button" id="bookingAddPerson" class="btn btn-ghost btn-xs text-primary self-start mt-1 px-1" onclick="addBookingPersonRow()">+ ещё человек</button>
+                        <!-- Дети без кровати — «+1» к месту (мигр. 650); добавить и убрать — только здесь,
+                             в окне брони они только видны (ВГ 08.10) -->
+                        <div id="bookingKids"></div>
                     </div>
 
                     <!-- Департамент и служение: волонтёра и команду бронируют сразу под департамент
@@ -1367,7 +1370,7 @@
     </script>
     <script src="../js/retreat-select.js?v=1"></script>
     <script src="../js/meal-group-editor.js?v=1"></script>
-    <script src="../js/pages/timeline.js?v=74"></script>
+    <script src="../js/pages/timeline.js?v=75"></script>
 
 </body>
 </html>
