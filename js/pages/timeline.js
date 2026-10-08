@@ -378,6 +378,8 @@ async function loadTimelineData() {
         const rawEndDay = dateToDayIndex(r.end_date);
         return {
             name: Layout.getName(r),
+            color: r.color,
+            dates: DateUtils.formatRange(r.start_date, r.end_date),
             startDay: Math.max(0, rawStartDay),
             endDay: Math.min(DAYS_TO_SHOW - 1, rawEndDay),
             rawStartDay,
@@ -3518,14 +3520,37 @@ function renderRetreats() {
         html += '<div class="retreat-half"></div>';
     }
 
-    // Плашки ретритов
-    timelineData.retreats.forEach(r => {
+    // Плашки ретритов (ВГ 08.10): цвет — из настроек ретрита, без цвета — прежний зелёный.
+    // Ретрит, который ни с кем не пересекается, — во всю высоту. Пересекающиеся — каждый
+    // одной сплошной полосой на своей дорожке, дорожки делят высоту поровну.
+    const BAND_HEIGHT = 34;
+    const sorted = [...timelineData.retreats].sort((a, b) => a.startDay - b.startDay || b.endDay - a.endDay);
+    const laneEnds = [];       // последний занятый день каждой дорожки
+    let cluster = [], clusterEnd = -1;
+    const closeCluster = () => {
+        const lanes = Math.max(...cluster.map(r => r.lane)) + 1;
+        cluster.forEach(r => { r.lanes = lanes; });
+        cluster = []; laneEnds.length = 0;
+    };
+    sorted.forEach(r => {
+        if (cluster.length && r.startDay > clusterEnd) closeCluster();
+        let lane = laneEnds.findIndex(end => end < r.startDay);
+        if (lane === -1) { lane = laneEnds.length; laneEnds.push(r.endDay); } else laneEnds[lane] = r.endDay;
+        r.lane = lane;
+        cluster.push(r);
+        clusterEnd = Math.max(clusterEnd, r.endDay);
+    });
+    if (cluster.length) closeCluster();
+    sorted.forEach(r => {
         // Позиция: каждая половина = 24px + 1px border, первая половина ещё +2px border-left
         // Упрощённо: startDay * (24+1+24+1) + 2 для border-left
         const left = r.startDay * CELL_WIDTH * 2 + 2; // +2 для первой границы
         const spanDays = r.endDay - r.startDay + 1;
         const width = spanDays * CELL_WIDTH * 2 - 4;
-        html += `<div class="retreat-chip" style="left: ${left}px; width: ${width}px;">${r.name}</div>`;
+        const h = Math.floor(BAND_HEIGHT / r.lanes);
+        const gap = r.lanes > 1 ? 1 : 0;
+        const font = r.lanes > 1 ? 'font-size: 12px;' : '';
+        html += `<div class="retreat-chip" title="${e(r.name)} · ${e(r.dates)}" style="left: ${left}px; width: ${width}px; top: ${r.lane * h}px; height: ${h - gap}px; line-height: ${h - gap}px; ${font} background: ${Utils.safeColor(r.color, '#10b981')};">${e(r.name)}</div>`;
     });
 
     // Названия месяцев на первых числах
