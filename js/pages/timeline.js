@@ -4653,13 +4653,15 @@ async function loadStayAlerts() {
     const today = DateUtils.toISO(new Date());
     const cols = 'id, vaishnava_id, check_in, check_out, room_id, booking_id, guest_name, rooms(number), vaishnavas(first_name, last_name, spiritual_name), bookings(name, contact_name)';
 
-    const [notArrivedRes, notOutRes] = await Promise.all([
+    const [notArrivedRes, notOutRes, conflictsRes] = await Promise.all([
         Layout.db.from('residents').select(cols)
             .in('status', ['confirmed', 'booked']).is('arrived_at', null)
             .lt('check_in', today).order('check_in'),
         Layout.db.from('residents').select(cols)
             .eq('status', 'confirmed').not('arrived_at', 'is', null)
-            .lt('check_out', today).order('check_out')
+            .lt('check_out', today).order('check_out'),
+        // Накладки (ВГ 08.10): больше людей, чем мест, и один человек в двух местах сразу — 654
+        Layout.db.rpc('room_conflicts')
     ]);
     // Молча выходим: шахматка важнее сигнала
     if (notArrivedRes.error || notOutRes.error) return;
@@ -4700,10 +4702,26 @@ async function loadStayAlerts() {
             + rows.map(r => person(r, dateOf(r), label)).join(' · ') + '</div>'
         : '';
 
-    banner.innerHTML =
-        line(tf('timeline_not_arrived_title', 'Не заселены'), notArrived, r => r.check_in, tf('timeline_not_arrived_since', 'заезд с'))
+    // Накладки — красным и первыми: решать сразу (поправить даты или переставить человека)
+    const conflicts = conflictsRes.error ? [] : (conflictsRes.data || []);
+    const conflictLine = c => {
+        const room = c.room_number ? `${e(c.building || '')} №${e(c.room_number)}` : tf('timeline_self_title', 'Самостоятельное проживание');
+        const range = `${DateUtils.formatShort(c.d_from)}–${DateUtils.formatShort(c.d_to)}`;
+        const what = c.kind === 'overbook'
+            ? `${tf('timeline_conflict_overbook', 'Накладка')}: ${room}`
+            : tf('timeline_conflict_same_person', 'Один человек в двух местах');
+        const detail = c.kind === 'overbook'
+            ? `${range} — ${c.peak} ${tf('timeline_conflict_people_for', 'чел. на')} ${Layout.pluralize(c.capacity, SEAT_FORMS)}`
+            : range;
+        return `<div class="text-error">${ALERT_ICON.replace('text-warning', 'text-error')} <span class="font-medium">${what}</span>`
+            + ` <span>(${detail})</span> — `
+            + `<a class="link link-hover" data-action="open-stay-alert" data-id="${c.resident_ids[0]}" data-date="${c.d_from}">${e(c.who || '')}</a></div>`;
+    };
+
+    banner.innerHTML = conflicts.map(conflictLine).join('')
+        + line(tf('timeline_not_arrived_title', 'Не заселены'), notArrived, r => r.check_in, tf('timeline_not_arrived_since', 'заезд с'))
         + line(tf('timeline_not_checked_out_title', 'Не выселены'), notOut, r => r.check_out, tf('timeline_not_checked_out_since', 'выезд был'));
-    banner.classList.toggle('hidden', !notArrived.length && !notOut.length);
+    banner.classList.toggle('hidden', !conflicts.length && !notArrived.length && !notOut.length);
 
     if (!banner._delegated) {
         banner._delegated = true;
