@@ -265,6 +265,14 @@ async function loadTimelineData() {
     if (mgErr) console.error('meal_groups:', mgErr);
     const днейВЗаписи = g => Math.round((DateUtils.parseDate(g.end_date) - DateUtils.parseDate(g.start_date)) / 86400000) + 1;
     mealStrips = (mg || []).filter(g => днейВЗаписи(g) > 3);
+    // числа по дням — для раскрытой полосы (строки «Завтраки» / «Обеды»)
+    const byDayIds = mealStrips.filter(g => g.by_day).map(g => g.id);
+    const { data: mgd, error: mgdErr } = byDayIds.length
+        ? await Layout.db.from('meal_group_days').select('group_id, d, breakfast, lunch, note').in('group_id', byDayIds)
+        : { data: [] };
+    if (mgdErr) console.error('meal_group_days:', mgdErr);
+    for (const g of mealStrips) g.days = new Map();
+    for (const r of mgd || []) mealStrips.find(g => g.id === r.group_id)?.days.set(r.d, { b: r.breakfast, l: r.lunch, note: r.note });
     for (const [kind, id] of SELF_BLOCKS) {
         if (selfStays.some(r => selfKind(r) === kind) || (kind === 'guests' && mealStrips.length)) collapsedBuildings.delete(id);
         else collapsedBuildings.add(id);
@@ -3976,6 +3984,7 @@ function setupTimelineDelegation() {
                     break;
                 case 'self-group-arrived': markSelfGroupArrived(id); break;
                 case 'open-meal-group': openMealGroup(id, el, ev); break;
+                case 'open-meal-group-day': openMealGroup(id, el, ev, el.dataset.d); break;
                 case 'open-finance':
                     window.open(el.dataset.href || `../finance/participants.html?retreat=${el.dataset.retreat}&open=${el.dataset.person}`, '_blank');
                     break;
@@ -4176,7 +4185,11 @@ function renderSelfGroupHtml(kind) {
         const bar = `<div class="guest-bar self-stay meals-yes ${canEdit ? 'cursor-pointer' : ''}" ${canEdit ? `data-action="open-meal-group" data-id="${g.id}" data-start-col="${startCol}"` : ''}`
             + ` style="width: ${width}px; --cat-color: ${color};" title="${e(title)}">`
             + `${tag ? `<span class="retreat-tag">${e(tag.tag)}</span>` : ''}${e(label)} · ${e(who)}&nbsp;<span class="opacity-70">(${e(meals)})</span></div>`;
-        html += row(`<span class="font-medium">${e(label)}</span>`, title, startCol, bar);
+        const key = 'mg:' + g.id;
+        const expanded = expandedSelfGroups.has(key);
+        html += row(`<span data-action="toggle-self-group" data-id="${key}" class="cursor-pointer font-medium">`
+            + `<span class="toggle-arrow ${expanded ? '' : 'collapsed'}">▼</span> ${e(label)}</span>`, title, startCol, bar);
+        if (expanded) html += mealDayRows(g, canEdit);
     }
 
     // Групповая бронь без номера (ВГ, 01.10): одна строка «Группа X · N мест», под ней места —
@@ -4228,17 +4241,53 @@ function renderSelfGroupHtml(kind) {
     return html;
 }
 
+// Раскрытая полоса питания: строки «Завтраки» и «Обеды», в клетке дня — число (ВГ, 08.10.2026).
+// День с примечанием поварам — с жёлтой меткой; клик по числу — окно на этом дне
+function mealDayRows(g, canEdit) {
+    const dayOf = d => g.by_day ? (g.days.get(d) || { b: 0, l: 0 })
+        : { b: g.breakfast ? g.people_count : 0, l: g.lunch ? g.people_count : 0 };
+    const line = (k, label) => {
+        let tr = `<tr class="row-bed"><td class="sticky-col text-xs pl-6 opacity-80">${e(label)}</td>`;
+        for (let col = 0; col < DAYS_TO_SHOW * 2; col++) {
+            const dayIndex = Math.floor(col / 2);
+            const cls = [col % 2 === 0 ? 'day-start' : '', isWeekend(dayIndex) ? 'weekend' : '',
+                dayIndex === TODAY_INDEX ? 'today' : '', isEkadashi(dayIndex) ? 'ekadashi' : ''].join(' ');
+            let cell = '';
+            if (col % 2 === 0) {
+                const dt = new Date(baseDate);
+                dt.setDate(dt.getDate() + dayIndex);
+                const d = DateUtils.toISO(dt);
+                if (d >= g.start_date && d <= g.end_date) {
+                    const v = dayOf(d);
+                    const note = g.days?.get(d)?.note;
+                    const n = v[k];
+                    const tip = `${DateUtils.formatShort(d)} · ${label}: ${n}${note ? ' · ' + note : ''}`;
+                    cell = `<div class="guest-bar self-stay meals-yes meal-day-cell${canEdit ? ' cursor-pointer' : ''}"${canEdit ? ` data-action="open-meal-group-day" data-id="${g.id}" data-d="${d}"` : ''}`
+                        + ` style="width: ${CELL_WIDTH * 2 - 2}px; --cat-color: ${note ? '#f59e0b' : 'transparent'};" title="${e(tip)}">${n || ''}</div>`;
+                }
+            }
+            tr += `<td class="half-day ${cls}">${cell}</td>`;
+        }
+        return tr + '</tr>';
+    };
+    return line('b', t('breakfast')) + line('l', t('lunch'));
+}
+
 // Клик по полосе питания группы: окно «Разового питания» на том дне, куда кликнули
-function openMealGroup(id, bar, ev) {
+function openMealGroup(id, bar, ev, day = null) {
     const g = mealStrips.find(x => x.id === id);
     if (!g) return;
-    const startCol = Number(bar.dataset.startCol) || 0;
-    const x = ev.clientX - bar.getBoundingClientRect().left;
-    const dayIndex = Math.floor((x + (startCol % 2) * CELL_WIDTH) / (2 * CELL_WIDTH)) + Math.floor(startCol / 2);
-    const d = new Date(baseDate);
-    d.setDate(d.getDate() + dayIndex);
+    let focusDate = day;
+    if (!focusDate) {
+        const startCol = Number(bar.dataset.startCol) || 0;
+        const x = ev.clientX - bar.getBoundingClientRect().left;
+        const dayIndex = Math.floor((x + (startCol % 2) * CELL_WIDTH) / (2 * CELL_WIDTH)) + Math.floor(startCol / 2);
+        const d = new Date(baseDate);
+        d.setDate(d.getDate() + dayIndex);
+        focusDate = DateUtils.toISO(d);
+    }
     MealGroupEditor.open(g, {
-        focusDate: DateUtils.toISO(d),
+        focusDate,
         onSaved: async () => { await loadTimelineData(); renderTable(); }
     });
 }

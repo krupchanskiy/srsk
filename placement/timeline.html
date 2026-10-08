@@ -261,6 +261,15 @@
         .guest-bar.checked-out .retreat-tag { background: rgba(0, 0, 0, 0.1); }
 
         /* Полоска гостя — абсолютное позиционирование */
+        /* Раскрытое питание группы: число дня по центру клетки (ВГ, 08.10.2026) */
+        .guest-bar.meal-day-cell {
+            justify-content: center;
+            text-align: center;
+            padding: 0;
+            font-size: 12px;
+            font-weight: 600;
+        }
+
         .guest-bar {
             position: absolute;
             top: 3px;
@@ -1314,7 +1323,7 @@
     </script>
     <script src="../js/retreat-select.js?v=1"></script>
     <script src="../js/meal-group-editor.js?v=1"></script>
-    <script src="../js/pages/timeline.js?v=65"></script>
+    <script src="../js/pages/timeline.js?v=66"></script>
 
 </body>
 </html>
