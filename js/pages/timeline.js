@@ -1612,6 +1612,16 @@ function addBookingPersonRow() {
             <input type="date" data-role="in" class="input input-bordered input-xs flex-1 min-w-0" value="${e(form.check_in.value)}" />
             <span>${e(tf('check_out', 'Выезд'))}</span>
             <input type="date" data-role="out" class="input input-bordered input-xs flex-1 min-w-0" value="${e(form.check_out.value)}" />
+        </div>
+        <div class="grid grid-cols-2 gap-1 pr-8">
+            <label class="label cursor-pointer justify-start gap-2 py-0.5">
+                <input type="checkbox" data-role="early" class="checkbox checkbox-xs checkbox-info" />
+                <span class="label-text text-xs">${e(tf('timeline_early_checkin', 'Ранний заезд'))}</span>
+            </label>
+            <label class="label cursor-pointer justify-start gap-2 py-0.5">
+                <input type="checkbox" data-role="late" class="checkbox checkbox-xs checkbox-info" />
+                <span class="label-text text-xs">${e(tf('timeline_late_checkout', 'Поздний выезд'))}</span>
+            </label>
         </div>`;
     box.appendChild(row);
     syncBookingBeds();
@@ -1649,9 +1659,11 @@ function bookingPeople() {
         const name = row.querySelector('[data-role="name"]').value.trim();
         const check_in = row.querySelector('[data-role="in"]').value || null;
         const check_out = row.querySelector('[data-role="out"]').value || null;
-        // Безымянное место тоже берём, если у него свои даты
-        const ownDates = check_in !== form.check_in.value || check_out !== form.check_out.value;
-        if (id || name || ownDates) people.push({ id, name, check_in, check_out });
+        const early = row.querySelector('[data-role="early"]').checked;
+        const late = row.querySelector('[data-role="late"]').checked;
+        // Безымянное место тоже берём, если у него свои даты или ранний/поздний (ВГ 08.10)
+        const ownDates = check_in !== form.check_in.value || check_out !== form.check_out.value || early || late;
+        if (id || name || ownDates) people.push({ id, name, check_in, check_out, early, late });
     });
     return people;
 }
@@ -2046,6 +2058,7 @@ async function saveBooking(e) {
     // Команда и волонтёры — у каждого вписанного имени черновая карточка; гость — имя в месте
     if (staff) {
         for (const p of people) {
+            if (!p.id && !p.name) continue;   // безымянное место со своими датами — карточка не нужна
             p.id = await ensureStaffPerson(p.id, p.name, service, bookingCategoryId);
             if (!p.id) return;
         }
@@ -2098,8 +2111,9 @@ async function saveBooking(e) {
             retreat_id: bookingRetreatId,
             check_in: person?.check_in || form.check_in.value,
             check_out: person?.check_out || form.check_out.value,
-            early_checkin: earlyCheckin,
-            late_checkout: lateCheckout,
+            // Ранний заезд и поздний выезд — у каждого свои; первый и безымянные — по общим галочкам
+            early_checkin: i === 0 || !person ? earlyCheckin : !!person.early,
+            late_checkout: i === 0 || !person ? lateCheckout : !!person.late,
             // Без номера — живёт вне ашрама, только питание (окно «Начислить группе» не берёт ночи)
             has_housing: !!modalContext.roomId,
             // В номере «питается?» уточняют при заселении; без номера бронь и есть питание
