@@ -304,11 +304,28 @@
         }
         .guest-bar .away-hatch svg { width: 10px; height: 10px; }
 
-        /* Заголовок блока «Вне ШРСК»: две строки — название и кнопка «+ Добавить» */
-        .row-self .sticky-col.self-head { white-space: normal; padding-top: 4px; padding-bottom: 4px; }
+        /* Разделитель «Самостоятельное проживание» — на всю ширину, надпись не уезжает вбок */
+        .row-self-divider td {
+            background: #8b5cf6;
+            padding: 0;
+            height: 28px;
+            border-color: #8b5cf6 !important;
+        }
+        .self-divider-label {
+            position: sticky;
+            left: 0;
+            display: inline-block;
+            padding: 0 12px;
+            color: #fff;
+            font-size: 12px;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 1.5px;
+            line-height: 28px;
+        }
         /* Строка группы с кнопкой «Группа приехала» — тоже переносится, чтобы кнопку не обрезало */
         .row-bed .sticky-col:has(.btn) { white-space: normal; }
-        .self-head .self-add-btn { margin-top: 2px; min-height: 20px; height: 20px; padding: 0 8px; }
+        .row-self .self-add-btn { margin-left: 4px; min-height: 20px; height: 20px; padding: 0 6px; }
 
         /* Сделка в CRM отменена, а бронь/заселение висит — место надо освободить руками */
         .guest-bar.deal-cancelled { outline: 2px solid #dc2626; outline-offset: -1px; }
@@ -1323,7 +1340,7 @@
     </script>
     <script src="../js/retreat-select.js?v=1"></script>
     <script src="../js/meal-group-editor.js?v=1"></script>
-    <script src="../js/pages/timeline.js?v=66"></script>
+    <script src="../js/pages/timeline.js?v=67"></script>
 
 </body>
 </html>

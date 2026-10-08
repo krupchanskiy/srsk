@@ -3844,6 +3844,9 @@ function renderTable() {
         });
     });
 
+    // Разделитель «Самостоятельное проживание» на всю ширину: отделяет живущих в номерах
+    // от живущих вне ашрама; надпись прилеплена слева и не уезжает при прокрутке вбок
+    html += `<tr class="row-self-divider"><td colspan="${DAYS_TO_SHOW * 2 + 1}"><div class="self-divider-label">${e(tf('timeline_self_block', 'Самостоятельное проживание'))}</div></td></tr>`;
     html += SELF_BLOCKS.map(([kind]) => renderSelfGroupHtml(kind)).join('');
 
     html += '</tbody>';
@@ -4094,15 +4097,15 @@ function renderSelfGroupHtml(kind) {
     const crmRaw = t('timeline_self_from_crm');
     const crmHint = crmRaw === 'timeline_self_from_crm' ? 'Из сделки в CRM: «Сам организует»' : crmRaw;
 
-    // Колонка узкая (200px): коротко «Вне ШРСК — гости: N», кнопка «+ Добавить» второй строкой,
+    // Подблок под разделителем — коротко «Гости: N» / «Команда: N» и «+ Добавить» в одну строку;
     // полное название — в подсказке при наведении
     const shortLabel = kind === 'team'
-        ? tf('timeline_self_short_team', 'Вне ШРСК — команда')
-        : tf('timeline_self_short_guests', 'Вне ШРСК — гости');
+        ? tf('timeline_self_short_team', 'Команда')
+        : tf('timeline_self_short_guests', 'Гости');
     const hint = `${blockLabel}. ${tf('timeline_self_header_hint', 'Живут вне ашрама. Здесь можно добавить человека или бронь.')}`;
-    let html = `<tr class="row-building row-self"><td class="sticky-col self-head" data-action="toggle-building" data-id="${groupId}" title="${e(hint)}">`
-        + `<div class="truncate"><span class="toggle-arrow ${collapsed ? 'collapsed' : ''}">▼</span> ${e(shortLabel)}: ${stays.length}</div>`
-        + (canEdit ? `<button type="button" class="btn btn-xs btn-outline btn-primary self-add-btn" data-action="add-self-stay" data-kind="${kind}">+ ${e(tf('timeline_self_add', 'Добавить'))}</button>` : '')
+    let html = `<tr class="row-building row-self"><td class="sticky-col" data-action="toggle-building" data-id="${groupId}" title="${e(hint)}">`
+        + `<span class="toggle-arrow ${collapsed ? 'collapsed' : ''}">▼</span> ${e(shortLabel)}: ${stays.length}`
+        + (canEdit ? ` <button type="button" class="btn btn-xs btn-outline btn-primary self-add-btn" data-action="add-self-stay" data-kind="${kind}">+ ${e(tf('timeline_self_add', 'Добавить'))}</button>` : '')
         + '</td>';
     for (let col = 0; col < DAYS_TO_SHOW * 2; col++) html += `<td class="${col % 2 === 0 ? 'day-start' : ''}"></td>`;
     html += '</tr>';
