@@ -35,6 +35,9 @@ let ingredientsCache = {};
 const canEditMenu = () => window.hasPermission?.('edit_menu') ?? false;
 
 let pastMenuRight = false;
+// Себестоимость порции (просьба Сундары Рупы 08.10): видят те, кому открыты цены (view/edit_prices — строго, как в базе)
+let seePrices = false;
+let dishRates = {};   // { dishId: { perUnit, portionAmount, missing, unresolved } } — KitchenCost.loadDishRates
 let dishCooks = [];   // повара у блюд (kitchen_cooks): буквы и цвет, как в Планировщике
 function cookBadge(cookRef) {
     const c = cookRef ? dishCooks.find(x => x.id === cookRef) : null;
@@ -371,9 +374,81 @@ async function loadMenuData() {
     });
 
     // Загружаем количество едоков для текущего диапазона
-    await loadEatingCounts(startDate, endDate);
+    await Promise.all([loadEatingCounts(startDate, endDate), loadDishRates()]);
 
     render();
+}
+
+// Цена порции блюд: только день, только основная кухня, только при доступе к ценам
+async function loadDishRates() {
+    dishRates = {};
+    if (!seePrices || currentView !== 'day' || Layout.currentLocation === 'cafe') return;
+    const dishes = [];
+    for (const [date, meals] of Object.entries(menuData)) {
+        for (const m of Object.values(meals)) (m.dishes || []).forEach(d => dishes.push({ id: d.id, recipe_id: d.recipe_id, date }));
+    }
+    try {
+        dishRates = await KitchenCost.loadDishRates(Layout.db, getCurrentLocation()?.id, dishes);
+    } catch (err) {
+        console.error('Цена порции:', err);
+    }
+}
+
+const formatRupees = v => '₹' + (v < 10 ? v.toFixed(1) : Math.round(v).toLocaleString('ru-RU'));
+
+// Себестоимость продуктов на 1 порцию: по блюдам и по приёму пищи (блюда + готовое со стороны).
+// Неполная (нет цены / плотности у части продуктов) — с ⚠ и списком в подсказке.
+function mealCost(mealData, portions) {
+    const dishes = {};
+    let sum = 0, partial = false, any = false;
+    const gaps = [];
+    for (const d of (mealData?.dishes || [])) {
+        const r = dishRates[d.id];
+        if (!r) continue;
+        any = true;
+        const cost = r.perUnit * (Number(d.portion_size) || r.portionAmount);
+        const missing = [...r.missing, ...r.unresolved];
+        dishes[d.id] = { cost, missing, noPrice: r.missing, noUnit: r.unresolved };
+        sum += cost;
+        if (missing.length) { partial = true; gaps.push(`${getName(d.recipe)}: ${missing.join(', ')}`); }
+    }
+    const ext = (mealData?.external || []).reduce((s, x) => s + (x.kind === 'own_cook'
+        ? Number(x.per_person) || 0
+        : (portions > 0 ? (Number(x.amount) || 0) / portions : 0)), 0);
+    return { dishes, total: sum + ext, external: ext, partial, gaps, any };
+}
+
+function dishCostTitle(c) {
+    const lines = [tr('menu_cost_dish_hint', 'Себестоимость продуктов на 1 порцию по ценам на этот день')];
+    if (c.noPrice.length) lines.push(tr('menu_cost_no_price', 'Нет цены') + ': ' + c.noPrice.join(', '));
+    if (c.noUnit.length) lines.push(tr('menu_cost_no_unit', 'Не переводится единица (нужна плотность или вес штуки)') + ': ' + c.noUnit.join(', '));
+    return lines.join('\n');
+}
+
+function dishCostHtml(c) {
+    if (!c) return '';
+    return `<span class="text-sm whitespace-nowrap no-print ${c.missing.length ? 'text-amber-600' : 'opacity-60'}" title="${Layout.escapeHtml(dishCostTitle(c))}">${c.missing.length ? '⚠ ' : ''}${formatRupees(c.cost)}</span>`;
+}
+
+function mealCostHtml(mc) {
+    if (!mc.any) return '';
+    const lines = [tr('menu_cost_meal_hint', 'Себестоимость продуктов на 1 порцию: блюда + готовое со стороны. Без посуды, зарплат и общих расходов.')];
+    if (mc.external) lines.push(tr('menu_external_title', 'Готовое со стороны') + ': ' + formatRupees(mc.external));
+    if (mc.partial) lines.push('⚠ ' + tr('menu_cost_partial', 'Посчитано не всё') + ':', ...mc.gaps);
+    return `<span class="text-base font-semibold whitespace-nowrap no-print mr-1 ${mc.partial ? 'text-amber-600' : ''}" title="${Layout.escapeHtml(lines.join('\n'))}">${mc.partial ? '⚠ ' : ''}${formatRupees(mc.total)} <span class="font-normal opacity-60">/ ${tr('menu_cost_per_portion', 'порция')}</span></span>`;
+}
+
+// После правки граммовки или числа порций — пересчитать цифры на месте, не перерисовывая (фокус в поле остаётся)
+function refreshMealCost(dateStr, mealType) {
+    const mealData = menuData[dateStr]?.[mealType];
+    if (!mealData || !Object.keys(dishRates).length) return;
+    const mc = mealCost(mealData, mealData.portions || getEatingTotal(dateStr, mealType));
+    const head = document.querySelector(`[data-meal-cost="${dateStr}|${mealType}"]`);
+    if (head) head.innerHTML = mealCostHtml(mc);
+    for (const [id, c] of Object.entries(mc.dishes)) {
+        const el = document.querySelector(`[data-dish-cost="${id}"]`);
+        if (el) el.innerHTML = dishCostHtml(c);
+    }
 }
 
 // Загрузка количества едоков на период
@@ -730,6 +805,7 @@ function renderMealSection(dateStr, mealType, index, mealData, isEkadashiDay) {
     const mealTitle = isCafe ? getMealTypeName(mealType) : `${index + 1}. ${getMealTypeName(mealType)}`;
 
     const external = mealData?.external || [];
+    const mc = mealCost(mealData, portions);
     // «Пост» — в этот день приём пищи не готовили; для проверки меню он заполнен (ВГ 01.10)
     if (dishes.length === 0 && external.length === 0 && mealData?.is_fast) {
         const canEdit = canEditMenu();
@@ -813,6 +889,7 @@ function renderMealSection(dateStr, mealType, index, mealData, isEkadashiDay) {
                     ${totals ? `<span class="text-base opacity-60">${totals}</span>` : ''}
                 </div>
                 <div class="flex items-center gap-1">
+                    <span data-meal-cost="${dateStr}|${mealType}">${mealCostHtml(mc)}</span>
                     ${dishes.length > 0 ? `
                     <button class="btn btn-ghost btn-md btn-square opacity-50 hover:opacity-100 no-print"
                             data-action="open-meal-details-modal" data-date="${dateStr}" data-meal-type="${mealType}"
@@ -875,6 +952,7 @@ function renderMealSection(dateStr, mealType, index, mealData, isEkadashiDay) {
                                 ${notEkadashiWarning ? `<span class="text-xs text-error ml-2">⚠ ${t('ekadashi_warning')}</span>` : ''}
                             </div>
                             <div class="flex items-center gap-2">
+                                <span data-dish-cost="${dish.id}">${dishCostHtml(mc.dishes[dish.id])}</span>
                                 ${quantityHtml}
                                 ${canEdit ? `
                                 <button class="btn btn-ghost btn-sm btn-square text-error/60 hover:text-error hover:bg-error/10 no-print" data-action="remove-dish" data-date="${dateStr}" data-meal-type="${mealType}" data-dish-id="${dish.id}">
@@ -1431,6 +1509,7 @@ async function updateMealPortions(dateStr, mealType, value) {
             .eq('id', mealData.id)
             .eq('location_id', locationId);
         mealData.portions = portions;
+        refreshMealCost(dateStr, mealType);
     } else {
         const { data } = await Layout.db
             .from('menu_meals')
@@ -1513,6 +1592,11 @@ async function updateDishQuantity(dishId, value) {
         .eq('meal_id', currentMeal.id);
 
     currentDish.portion_size = quantity;
+    for (const dateStr in menuData) {
+        for (const mealType in menuData[dateStr]) {
+            if (menuData[dateStr][mealType] === currentMeal) refreshMealCost(dateStr, mealType);
+        }
+    }
 }
 
 // ==================== DISH MODAL ====================
@@ -1836,6 +1920,7 @@ async function saveDish() {
     });
 
     dishModal.close();
+    await loadDishRates();
     render();
 }
 
@@ -2463,6 +2548,11 @@ async function init() {
         const uid = window.currentUser?.id;
         if (uid) pastMenuRight = (await Layout.db.rpc('kitchen_has_permission', { p_user: uid, p_code: 'edit_past_menu' })).data === true;
     } catch { pastMenuRight = false; }
+    try {
+        const uid = window.currentUser?.id;
+        const check = async code => (await Layout.db.rpc('kitchen_has_permission', { p_user: uid, p_code: code })).data === true;
+        if (uid) seePrices = (await Promise.all(['view_prices', 'edit_prices', 'edit_archived_prices'].map(check))).some(Boolean);
+    } catch { seePrices = false; }
     const { data: dc } = await Layout.db.from('kitchen_cooks').select('id, name, short, color').order('sort_order');
     dishCooks = dc || [];
 

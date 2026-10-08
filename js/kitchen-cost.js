@@ -56,6 +56,33 @@ function convert(amount, ingUnit, productUnit, density, units) {
     return null;
 }
 
+// ---------- стоимость блюда ----------
+// Продукты рецепта на servings порций по portionSize (размер порции в меню → порция рецепта → 100),
+// по ценам на дату, с учётом отходов. Одна формула для Себестоимости и для цены порции в меню.
+// d: { products, densities, units, prices }. Нет цены / не переводится единица — продукт не считается
+// и попадает в missing (product_id) / unresolved ('продукт|ед. рецепта|ед. продукта').
+function dishCost(recipe, portionSize, servings, date, d) {
+    const res = { cost: 0, byProduct: {}, missing: [], unresolved: [], noOutput: false };
+    const size = Number(portionSize) || Number(recipe.portion_amount) || 100;
+    const output = (Number(recipe.output_amount) || 0) * (recipe.output_unit === 'kg' ? 1000 : 1);
+    if (output <= 0) res.noOutput = true;
+    const multiplier = output > 0 ? (servings * size) / output : 1;
+
+    for (const ing of (recipe.ingredients || [])) {
+        const p = ing.product_id && d.products[ing.product_id];
+        if (!p) continue;
+        const qty = convert((Number(ing.amount) || 0) * multiplier, ing.unit, p.unit, d.densities[ing.product_id], d.units);
+        if (qty === null) { res.unresolved.push(`${p.name}|${ing.unit}|${p.unit}`); continue; }
+        const price = priceOn(d.prices[ing.product_id], date);
+        if (price === null) { res.missing.push(ing.product_id); continue; }
+        const waste = Number(p.waste_percent) || 0;
+        const c = (waste > 0 && waste < 100 ? qty / (1 - waste / 100) : qty) * price;
+        res.cost += c;
+        if (c) res.byProduct[ing.product_id] = (res.byProduct[ing.product_id] || 0) + c;
+    }
+    return res;
+}
+
 // ---------- расчёт ----------
 // input: { meals, recipes, products, densities, units, prices, kits, externals, counts, from, to }
 //   meals:      menu_meals с dishes[{recipe_id, portion_size}]
@@ -106,16 +133,6 @@ function computeCosts(input) {
     };
     const note = (map, key) => map.set(key, (map.get(key) || 0) + 1);
 
-    // стоимость продукта в нужном количестве на дату; null = нет цены
-    function productCost(productId, qtyInProductUnit, date) {
-        const p = products[productId];
-        const price = priceOn(prices[productId], date);
-        if (price === null) { note(warn.missingPrices, productId); return 0; }
-        const waste = Number(p?.waste_percent) || 0;
-        const purchased = waste > 0 && waste < 100 ? qtyInProductUnit / (1 - waste / 100) : qtyInProductUnit;
-        return purchased * price;
-    }
-
     const seen = new Set();
     for (const meal of meals) {
         if (!MEALS.includes(meal.meal_type)) continue;
@@ -132,20 +149,12 @@ function computeCosts(input) {
             // прошедший день — состав блюда из снимка на тот день (правка рецепта прошлое не меняет, ВГ 27.09)
             const recipe = recipes[dish.snap_key || dish.recipe_id];
             if (!recipe) continue;
-            const portionSize = Number(dish.portion_size) || Number(recipe.portion_amount) || 100;
-            const output = (Number(recipe.output_amount) || 0) * (recipe.output_unit === 'kg' ? 1000 : 1);
-            if (output <= 0) warn.recipesNoOutput.add(dish.recipe_id);
-            const multiplier = output > 0 ? (portions * portionSize) / output : 1;
-
-            for (const ing of (recipe.ingredients || [])) {
-                if (!ing.product_id || !products[ing.product_id]) continue;
-                const p = products[ing.product_id];
-                const qty = convert((Number(ing.amount) || 0) * multiplier, ing.unit, p.unit, densities[ing.product_id], units);
-                if (qty === null) { note(warn.unresolvedUnits, `${p.name}|${ing.unit}|${p.unit}`); continue; }
-                const c = productCost(ing.product_id, qty, meal.date);
-                food += c;
-                if (c) foodByProduct[ing.product_id] = (foodByProduct[ing.product_id] || 0) + c;
-            }
+            const r = dishCost(recipe, dish.portion_size, portions, meal.date, input);
+            if (r.noOutput) warn.recipesNoOutput.add(dish.recipe_id);
+            r.missing.forEach(id => note(warn.missingPrices, id));
+            r.unresolved.forEach(k => note(warn.unresolvedUnits, k));
+            food += r.cost;
+            for (const [id, c] of Object.entries(r.byProduct)) foodByProduct[id] = (foodByProduct[id] || 0) + c;
         }
 
         // --- посуда: набор на одного вкушающего ---
@@ -345,6 +354,60 @@ async function fetchAll(makeQuery) {
         if (!data || data.length < 1000) break;
     }
     return rows;
+}
+
+// Цена порции блюд меню (страница Меню): dishes [{id, recipe_id, date}] →
+// { [dishId]: { perUnit, portionAmount, missing: [названия], unresolved: [названия], noOutput } }
+// perUnit — стоимость продуктов на 1 г (мл, шт) порции; прошедший день — по снимку рецепта, как в Себестоимости.
+async function loadDishRates(db, locationId, dishes) {
+    const dishIds = dishes.map(x => x.id);
+    const recipeIds = [...new Set(dishes.map(x => x.recipe_id).filter(Boolean))];
+    if (!recipeIds.length) return {};
+
+    const inChunks = async (ids, make) => {
+        const rows = [];
+        for (let i = 0; i < ids.length; i += 200) rows.push(...await fetchAll(() => make(ids.slice(i, i + 200))));
+        return rows;
+    };
+    const [recipeRows, ingRows, snapRows] = await Promise.all([
+        inChunks(recipeIds, ids => db.from('recipes').select('id, output_amount, output_unit, portion_amount').in('id', ids)),
+        inChunks(recipeIds, ids => db.from('recipe_ingredients').select('recipe_id, product_id, amount, unit').in('recipe_id', ids)),
+        inChunks(dishIds, ids => db.from('kitchen_v_dish_snapshots')
+            .select('menu_dish_id, output_amount, output_unit, portion_amount, ingredients').in('menu_dish_id', ids))
+    ]);
+    const recipes = {};
+    recipeRows.forEach(r => (recipes[r.id] = { ...r, ingredients: [] }));
+    ingRows.forEach(i => recipes[i.recipe_id]?.ingredients.push(i));
+    const snaps = {};
+    snapRows.forEach(sn => (snaps[sn.menu_dish_id] = { output_amount: sn.output_amount, output_unit: sn.output_unit,
+        portion_amount: sn.portion_amount,
+        ingredients: (sn.ingredients || []).map(i => ({ product_id: i.product_id, amount: i.amount, unit: i.unit })) }));
+
+    const productIds = [...new Set([...Object.values(recipes), ...Object.values(snaps)]
+        .flatMap(r => r.ingredients.map(i => i.product_id)).filter(Boolean))];
+    const [productRows, densityRows, unitRows, priceRows] = await Promise.all([
+        inChunks(productIds, ids => db.from('products').select('id, name_ru, unit, waste_percent').in('id', ids)),
+        inChunks(productIds, ids => db.from('product_densities').select('product_id, tsp_grams, tbsp_grams, cup_grams, liter_grams, piece_grams').in('product_id', ids)),
+        fetchAll(() => db.from('units').select('code, type, to_base_ratio')),
+        inChunks(productIds, ids => db.from('kitchen_prices').select('product_id, price, valid_from, valid_to')
+            .eq('location_id', locationId).in('product_id', ids))
+    ]);
+    const d = { products: {}, densities: {}, units: {}, prices: {} };
+    productRows.forEach(p => (d.products[p.id] = { name: p.name_ru, unit: p.unit, waste_percent: p.waste_percent }));
+    densityRows.forEach(x => (d.densities[x.product_id] = x));
+    unitRows.forEach(u => (d.units[u.code] = { type: u.type, ratio: Number(u.to_base_ratio) }));
+    priceRows.forEach(r => (d.prices[r.product_id] = d.prices[r.product_id] || []).push(r));
+
+    const out = {};
+    for (const dish of dishes) {
+        const recipe = snaps[dish.id] || recipes[dish.recipe_id];
+        if (!recipe) continue;
+        const r = dishCost(recipe, 1, 1, dish.date, d);
+        out[dish.id] = { perUnit: r.cost, portionAmount: Number(recipe.portion_amount) || 100, noOutput: r.noOutput,
+                         missing: [...new Set(r.missing.map(id => d.products[id]?.name))],
+                         unresolved: [...new Set(r.unresolved.map(k => k.split('|')[0]))] };
+    }
+    return out;
 }
 
 async function load(db, locationId, from, to) {
@@ -599,7 +662,7 @@ async function saveRetreatCost(db, retreatId, summary) {
     if (error) console.error('fin_save_prasad_cost:', error);
 }
 
-const api = { computeCosts, calculate, priceOn, convert, BUCKETS, COMPONENTS, retreatSpan, loadDetail, summarizeRetreat, applySettings, saveRetreatCost,
+const api = { computeCosts, calculate, priceOn, convert, dishCost, loadDishRates, BUCKETS, COMPONENTS, retreatSpan, loadDetail, summarizeRetreat, applySettings, saveRetreatCost,
               loadIncome, incomeSummary, overheadComponent };
 if (typeof module !== 'undefined') module.exports = api;
 return api;
