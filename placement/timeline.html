@@ -798,9 +798,17 @@
                         <label class="label">
                             <span class="label-text font-medium" data-i18n="timeline_category">Категория</span>
                         </label>
-                        <select name="category_id" id="checkinCategory" class="select select-bordered w-full">
+                        <select name="category_id" id="checkinCategory" class="select select-bordered w-full" onchange="toggleCheckinDept()">
                             <option value="">—</option>
                         </select>
+                    </div>
+
+                    <!-- Департамент: у волонтёра и команды обязателен, как в брони (ВГ 02.10, «Шахматка 8») -->
+                    <div id="checkinDeptRow" class="form-control mb-3 hidden">
+                        <label class="label">
+                            <span class="label-text font-medium" data-i18n="department">Департамент</span>
+                        </label>
+                        <select name="department_id" id="checkinDepartment" class="select select-bordered w-full"></select>
                     </div>
 
                     <!-- Выбор вайшнава -->
@@ -1371,7 +1379,7 @@
     </script>
     <script src="../js/retreat-select.js?v=1"></script>
     <script src="../js/meal-group-editor.js?v=1"></script>
-    <script src="../js/pages/timeline.js?v=77"></script>
+    <script src="../js/pages/timeline.js?v=78"></script>
 
 </body>
 </html>

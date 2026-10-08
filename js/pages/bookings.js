@@ -978,7 +978,11 @@ async function saveNewBooking() {
             .from('residents')
             .insert(residentsData);
 
-        if (residentsError) throw residentsError;
+        if (residentsError) {
+            // Места не встали (например, накладка — 655): пустую бронь этого сохранения убираем
+            await Layout.db.from('bookings').delete().eq('id', booking.id);
+            throw residentsError;
+        }
 
         // Если открыто из CRM — линкуем бронь к сделке и закрываем iframe
         if (crmDealId) {

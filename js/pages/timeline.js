@@ -857,9 +857,12 @@ async function loadDictionaries() {
     ]);
     categories = catData || [];
     vaishnavas = vaishnavasRes.data || [];
-    const deptSelect = document.getElementById('bookingDepartment');
-    if (deptSelect) deptSelect.innerHTML = '<option value="">—</option>'
+    const deptOptions = '<option value="">—</option>'
         + departments.map(d => `<option value="${d.id}">${e(Layout.getName(d))}</option>`).join('');
+    ['bookingDepartment', 'checkinDepartment'].forEach(id => {
+        const sel = document.getElementById(id);
+        if (sel) sel.innerHTML = deptOptions;
+    });
 
     // Заполняем категории
     const catSelect = document.getElementById('checkinCategory');
@@ -967,6 +970,7 @@ function showCheckinForm() {
         const team = categories.find(c => c.slug === 'team');
         if (team) document.getElementById('checkinCategory').value = team.id;
     }
+    toggleCheckinDept();
     document.getElementById('checkinSubmit').textContent = isSelf ? tf('timeline_self_add', 'Добавить') : t('timeline_checkin');
 }
 
@@ -1063,6 +1067,12 @@ function showBookingForm() {
 const STAFF_CATEGORY_SLUGS = ['team', 'volunteer'];
 const isStaffCategory = id => STAFF_CATEGORY_SLUGS.includes(categories.find(c => c.id === id)?.slug);
 const departmentName = id => { const d = id && departments.find(x => x.id === id); return d ? Layout.getName(d) : ''; };
+
+// «Заселить»: департамент виден и обязателен у волонтёра и команды
+function toggleCheckinDept() {
+    const staff = isStaffCategory(document.getElementById('checkinCategory')?.value);
+    document.getElementById('checkinDeptRow')?.classList.toggle('hidden', !staff);
+}
 
 function toggleBookingStaffFields() {
     const staff = isStaffCategory(document.getElementById('bookingCategory')?.value);
@@ -1201,18 +1211,8 @@ async function saveBookingEdit(form) {
         return;
     }
 
-    // Новые даты — хватает ли мест в номере (пересекающиеся проживания против вместимости)
-    if (res.room_id && (checkIn !== res.check_in || checkOut !== (res.check_out || null))) {
-        const room = timelineData.buildings.flatMap(b => b.rooms || []).find(r => r.id === res.room_id);
-        let q = Layout.db.from('residents').select('id', { count: 'exact', head: true })
-            .eq('room_id', res.room_id).eq('status', 'confirmed').neq('id', res.id)
-            .or(`check_out.is.null,check_out.gt.${checkIn}`);
-        if (checkOut) q = q.lt('check_in', checkOut);
-        const { count } = await q;
-        if (room?.capacity && count >= room.capacity && !confirm(
-            tf('timeline_edit_room_full', 'В номере {cap} мест, а в эти даты уже живут или забронированы {n}. Сохранить всё равно?')
-                .replace('{cap}', room.capacity).replace('{n}', count))) return;
-    }
+    // Хватает ли мест в номере на новые даты — проверяет база (запрет накладок, 655):
+    // нахлёст не сохранится, в сообщении — номер, ночь и сколько человек
 
     if (staff) {
         vaishnavaId = await ensureStaffPerson(vaishnavaId, typedName, service, categoryId);
@@ -1453,10 +1453,61 @@ async function splitOffRetreat(side) {
         piece.early_checkin = false;
         keep.check_out = cut; keep.late_checkout = false;
     }
-    const { error: insErr } = await Layout.db.from('residents').insert(piece);
-    if (insErr) { Layout.handleError(insErr, 'Разделить'); return; }
+    // Сначала укорачиваем, потом вставляем хвост: иначе на миг человек стоит
+    // в двух местах сразу и база не даст сохранить (запрет накладок, 655)
     const { error: upErr } = await Layout.db.from('residents').update(keep).eq('id', res.id);
     if (upErr) { Layout.handleError(upErr, 'Разделить'); return; }
+    const { error: insErr } = await Layout.db.from('residents').insert(piece);
+    if (insErr) {
+        const back = side === 'before'
+            ? { check_in: row.check_in, early_checkin: row.early_checkin }
+            : { check_out: row.check_out, late_checkout: row.late_checkout };
+        await Layout.db.from('residents').update(back).eq('id', res.id);
+        Layout.handleError(insErr, 'Разделить');
+        return;
+    }
+    document.getElementById('residentModal').close();
+    await loadTimelineData();
+    renderTable();
+}
+
+// Следующий внутренний ретрит, на начало которого заходит проживание по внутреннему ретриту
+function nextInternalRetreat(res) {
+    const cur = res.retreat_id && allRetreats.find(x => x.id === res.retreat_id);
+    if (!cur?.is_internal) return null;
+    return allRetreats
+        .filter(r => r.is_internal && r.id !== cur.id && r.start_date > res.check_in
+            && (!res.check_out || r.start_date < res.check_out))
+        .sort((a, b) => a.start_date.localeCompare(b.start_date))[0] || null;
+}
+
+// «Перевести с даты»: проживание делится на старте следующего ретрита (ВГ 01.10: не целиком),
+// вторая часть — тот же номер, человек и категория, ретрит — следующий
+async function moveToNextRetreat(nextId) {
+    if (!currentResident || !canEditTimeline()) return;
+    const res = currentResident.rawData;
+    const next = allRetreats.find(r => r.id === nextId);
+    if (!next) return;
+    const q = tf('timeline_next_internal_confirm', 'Разделить проживание на {date}: до этой даты — «{cur}», с неё — «{next}»?')
+        .replace('{date}', DateUtils.formatShort(next.start_date))
+        .replace('{cur}', Layout.getName(allRetreats.find(r => r.id === res.retreat_id) || {}))
+        .replace('{next}', Layout.getName(next));
+    if (!confirm(q)) return;
+    const { data: row, error: rErr } = await Layout.db.from('residents').select('*').eq('id', res.id).single();
+    if (rErr) { Layout.handleError(rErr, 'Перевести'); return; }
+    const { id, created_at, updated_at, ...copy } = row;
+    const piece = { ...copy, retreat_id: next.id, check_in: next.start_date, early_checkin: false,
+        cleaning_done: false, cleaning_skipped: false };
+    // Сначала укорачиваем, потом вставляем вторую часть — иначе на миг два места сразу (655)
+    const { error: upErr } = await Layout.db.from('residents')
+        .update({ check_out: next.start_date, late_checkout: false }).eq('id', res.id);
+    if (upErr) { Layout.handleError(upErr, 'Перевести'); return; }
+    const { error: insErr } = await Layout.db.from('residents').insert(piece);
+    if (insErr) {
+        await Layout.db.from('residents').update({ check_out: row.check_out, late_checkout: row.late_checkout }).eq('id', res.id);
+        Layout.handleError(insErr, 'Перевести');
+        return;
+    }
     document.getElementById('residentModal').close();
     await loadTimelineData();
     renderTable();
@@ -1993,6 +2044,14 @@ async function saveCheckin(e) {
         alert(Layout.t('select_vaishnava_or_enter_name'));
         return;
     }
+    // Волонтёр и команда — департамент обязателен, как в брони; у остальных место его не меняет
+    if (isStaffCategory(data.category_id)) {
+        data.department_id = form.department_id.value || null;
+        if (!data.department_id) {
+            Layout.showNotification(tf('timeline_department_required', 'Выберите департамент: у волонтёра и команды он обязателен'), 'error');
+            return;
+        }
+    }
 
     let error;
 
@@ -2178,7 +2237,11 @@ async function saveBooking(e) {
 
     if (residentsError) {
         console.error('Error saving booking residents:', residentsError);
+        // Места не встали (например, накладка — 655): пустую бронь этого же сохранения убираем,
+        // форма остаётся открытой — поправить даты или номер и сохранить снова
+        await Layout.db.from('bookings').delete().eq('id', booking.id);
         Layout.showNotification(residentsError.message, 'error');
+        return;
     } else {
         await offerRetreatOnAdjacent(bookingVaishnavaId, form.check_in.value, form.check_out.value, bookingRetreatId);
         warnOutsideRetreat(bookingRetreatId, bookingCheckIn, bookingCheckOut);
@@ -2350,6 +2413,20 @@ function openResidentModal(guestData, buildingName, roomName) {
                 ${кнопка('before', o.before, tf('timeline_split_before', 'Разделить: до ретрита'))}
                 ${кнопка('after', o.after, tf('timeline_split_after', 'Разделить: после ретрита'))}
                 <button type="button" class="btn btn-xs btn-ghost" data-action="dismiss-outside" title="${Layout.escapeHtml(tf('close', 'Закрыть'))}">✕</button>
+            </div>`;
+        }
+    }
+
+    // Проживание по внутреннему ретриту заходит на начало следующего внутреннего (летние
+    // художники → зимний с 01.12) — подсказка перевести с даты его старта (ВГ 01.10, «Шахматка 8»)
+    {
+        const next = nextInternalRetreat(res);
+        if (next && !isBooking) {
+            const txt = tf('timeline_next_internal', 'С {date} идёт «{name}». Перевести проживание на него с этой даты?')
+                .replace('{date}', DateUtils.formatShort(next.start_date)).replace('{name}', Layout.getName(next));
+            infoHtml += `<div class="alert alert-info py-2 px-3 my-2 text-sm flex flex-wrap items-center gap-2">
+                <span class="flex-1">${Layout.escapeHtml(txt)}</span>
+                ${canEditTimeline() ? `<button type="button" class="btn btn-xs btn-info btn-outline" data-action="move-next-retreat" data-id="${next.id}">${Layout.escapeHtml(tf('timeline_next_internal_btn', 'Перевести с {date}').replace('{date}', DateUtils.formatShort(next.start_date)))}</button>` : ''}
             </div>`;
         }
     }
@@ -3641,6 +3718,8 @@ async function convertToCheckin() {
     else delete retreatSel.dataset.touched;
     const catSel = document.getElementById('checkinCategory');
     if (res.category_id && catSel?.querySelector(`option[value="${res.category_id}"]`)) catSel.value = res.category_id;
+    document.getElementById('checkinDepartment').value = res.department_id || '';
+    toggleCheckinDept();
     const notes = res.notes || res.bookings?.notes;
     if (notes) document.querySelector('#checkinForm [name="notes"]').value = notes;
     const hint = document.getElementById('checkinRetreatHint');
@@ -4218,6 +4297,7 @@ function setupTimelineDelegation() {
             const el = ev.target.closest('[data-action]');
             if (!el) return;
             if (el.dataset.action === 'split-retreat') splitOffRetreat(el.dataset.side);
+            if (el.dataset.action === 'move-next-retreat') moveToNextRetreat(el.dataset.id);
             if (el.dataset.action === 'dismiss-outside' && currentResident) {
                 dismissOutside(currentResident.id);
                 document.getElementById('outsideRetreatAlert')?.remove();
