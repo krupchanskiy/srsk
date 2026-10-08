@@ -750,7 +750,7 @@
                         </svg>
                         <span id="actionCheckinLabel" data-i18n="timeline_checkin">Заселить</span>
                     </button>
-                    <button class="btn btn-info" onclick="showBookingForm()">
+                    <button class="btn btn-info" onclick="toggleBookingChoice()">
                         <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
                         </svg>
@@ -774,6 +774,12 @@
                         </svg>
                         <span data-i18n="timeline_close_for_repair">Закрыть на ремонт</span>
                     </button>
+                </div>
+
+                <!-- «Забронировать» → кого: один человек/семья в этот номер или группа по номерам (ВГ, 08.10) -->
+                <div id="bookingChoice" class="hidden grid grid-cols-2 gap-3 mt-3 p-3 rounded-lg bg-info/10">
+                    <button class="btn btn-sm btn-outline" onclick="showBookingForm()" data-i18n="timeline_booking_person">Человек или семья</button>
+                    <button class="btn btn-sm btn-outline" onclick="openGroupBooking()" data-i18n="timeline_booking_group">Группа</button>
                 </div>
 
                 <div class="modal-action">
@@ -1379,7 +1385,8 @@
     </script>
     <script src="../js/retreat-select.js?v=1"></script>
     <script src="../js/meal-group-editor.js?v=1"></script>
-    <script src="../js/pages/timeline.js?v=78"></script>
+    <script src="../js/group-booking.js?v=1"></script>
+    <script src="../js/pages/timeline.js?v=79"></script>
 
 </body>
 </html>

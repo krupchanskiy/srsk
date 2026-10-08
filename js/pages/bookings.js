@@ -1017,6 +1017,12 @@ async function saveNewBooking() {
     }
 }
 
+// Окно «Регистрация группы» (js/group-booking.js) — то же, что в шахматке; с id брони — правка её номеров
+function openGroupBooking(bookingId = null) {
+    if (bookingId) closeBookingModal();
+    GroupBooking.open({ bookingId, onSaved: async () => { await loadBookings(); await loadAllBookings(); } });
+}
+
 // ==================== BOOKING DETAILS MODAL ====================
 async function openBookingModal(bookingId) {
     selectedBookingId = bookingId;

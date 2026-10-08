@@ -936,6 +936,28 @@ function showActionScreen() {
     document.querySelectorAll('#actionScreen [data-room-only]').forEach(b => b.classList.toggle('hidden', isSelf));
     document.getElementById('actionCheckinLabel').textContent = isSelf
         ? tf('timeline_self_here', 'Уже здесь (заехал)') : t('timeline_checkin');
+    document.getElementById('bookingChoice')?.classList.add('hidden');
+}
+
+// «Забронировать» → выбор: человек или семья (форма брони в этот номер) или группа
+function toggleBookingChoice() {
+    document.getElementById('bookingChoice').classList.toggle('hidden');
+}
+
+// Окно «Регистрация группы» (js/group-booking.js): даты с экрана действия, этот номер уже отмечен
+function openGroupBooking(bookingId = null) {
+    if (!canEditTimeline()) return;
+    const opts = { onSaved: async () => { await loadTimelineData(); renderTable(); } };
+    if (bookingId) opts.bookingId = bookingId;
+    else Object.assign(opts, {
+        checkIn: document.getElementById('modalCheckIn').value,
+        checkOut: document.getElementById('modalCheckOut').value,
+        roomId: modalContext?.roomId || null,
+        selfCount: modalContext?.isSelf ? 1 : 0
+    });
+    document.getElementById('actionModal').close();
+    document.getElementById('residentModal').close();
+    GroupBooking.open(opts);
 }
 
 function showCheckinForm() {
@@ -2576,6 +2598,15 @@ function openResidentModal(guestData, buildingName, roomName) {
             </svg>
             ${e(tf('edit', 'Изменить'))}
         </button>`;
+        // Бронь на несколько мест — номера и места группы в окне «Регистрация группы»
+        if (res.booking_id && periodResidents.filter(r => r.booking_id === res.booking_id && r.status !== 'cancelled').length > 1) {
+            actionsHtml += `<button class="btn btn-outline" data-action="group-booking" data-id="${res.booking_id}">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z" />
+                </svg>
+                ${e(tf('timeline_group_rooms_btn', 'Номера группы'))}
+            </button>`;
+        }
         if (isBooking) {
             // Действия для бронирования
             actionsHtml += `<button class="btn btn-primary" data-action="convert-to-checkin">
@@ -4359,6 +4390,7 @@ function setupTimelineDelegation() {
             switch (btn.dataset.action) {
                 case 'convert-to-checkin': convertToCheckin(); break;
                 case 'edit-booking': openBookingEdit(); break;
+                case 'group-booking': openGroupBooking(btn.dataset.id); break;
                 case 'show-move-screen': showMoveScreen(); break;
                 case 'no-show': showNoShowScreen(); break;
                 case 'checkout-resident': showCheckoutScreen(); break;
