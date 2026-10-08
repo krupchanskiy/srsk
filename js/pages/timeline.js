@@ -108,20 +108,30 @@ function dateToDayIndex(dateStr) {
 
 const AWAY_X = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.5"><path stroke-linecap="round" d="M6 6l12 12M18 6L6 18"/></svg>';
 
-// Отлучка на полосе гостя: снятый завтрак — крестик в первой половине дня, обед — во второй.
-// Номер остаётся за человеком, кухня его не считает (resident_meal_skips, мигр. 627)
-function awayHatchHtml(residentId, startCol, spanCells) {
-    const skips = mealSkipsMap.get(residentId);
+// Пропуск питания на полосе гостя: снятый завтрак — крестик в первой половине дня, обед — во второй.
+// Если в этот день человек не ест совсем (снятый приём + тот, что он и так не ест), — крестик
+// на весь день (ВГ 08.10). Номер остаётся за человеком, кухня его не считает (resident_meal_skips, мигр. 627)
+function awayHatchHtml(res, startCol, spanCells) {
+    const skips = res && mealSkipsMap.get(res.id);
     if (!skips) return '';
-    const title = e(tf('timeline_away_hatch', 'Не ест — уехал на время'));
+    const eatsB = res.has_meals !== false && res.breakfast !== false;
+    const eatsL = res.has_meals !== false && res.lunch !== false;
+    const label = {
+        day: tf('timeline_not_eating', 'Не ест'),
+        b: tf('timeline_not_eating_breakfast', 'Не ест завтрак'),
+        l: tf('timeline_not_eating_lunch', 'Не ест обед')
+    };
+    const mark = (from, to, title) => {
+        from = Math.max(0, from); to = Math.min(spanCells - 1, to);
+        if (from > to) return '';
+        return `<span class="away-hatch" style="left: ${from * CELL_WIDTH - 1}px; width: ${(to - from + 1) * CELL_WIDTH}px;" title="${e(title)}">${AWAY_X}</span>`;
+    };
     let html = '';
     for (const [d, sk] of skips) {
         const day = dateToDayIndex(d) * 2 - startCol;
-        for (const [half, off] of [[0, sk.b], [1, sk.l]]) {
-            const col = day + half;
-            if (!off || col < 0 || col >= spanCells) continue;
-            html += `<span class="away-hatch" style="left: ${col * CELL_WIDTH - 1}px; width: ${CELL_WIDTH}px;" title="${title}">${AWAY_X}</span>`;
-        }
+        if ((sk.b || !eatsB) && (sk.l || !eatsL)) { html += mark(day, day + 1, label.day); continue; }
+        if (sk.b) html += mark(day, day, label.b);
+        if (sk.l) html += mark(day + 1, day + 1, label.l);
     }
     return html;
 }
@@ -901,7 +911,13 @@ function renderLegend() {
         <span class="text-xs text-gray-600">${selfLabel}</span>
     </div>`;
 
-    legend.innerHTML = categoriesHtml + selfHtml + bookingHtml + cleaningHtml;
+    // Пропуск питания — крестик на полосе (ВГ 08.10)
+    const notEatingHtml = `<div class="flex items-center gap-1 whitespace-nowrap">
+        <span class="w-3 h-3 rounded shrink-0 flex items-center justify-center legend-away" style="background: #0e9f6e; color: #fff;">${AWAY_X}</span>
+        <span class="text-xs text-gray-600">${e(tf('timeline_not_eating', 'Не ест'))}</span>
+    </div>`;
+
+    legend.innerHTML = categoriesHtml + selfHtml + bookingHtml + notEatingHtml + cleaningHtml;
 }
 
 // Переключение экранов
@@ -3862,7 +3878,7 @@ function renderTable() {
                             + (guest.dept ? `<span class="opacity-80"> · ${e(guest.dept)}</span>` : '')
                             + (guest.note ? NOTE_ICON : '');
                         const noteTitle = guest.note ? ` title="${e(guest.note)}"` : '';
-                        const awayHtml = awayHatchHtml(guest.rawData?.id, startCol, spanCells);
+                        const awayHtml = awayHatchHtml(guest.rawData, startCol, spanCells);
                         if (guest.isBooking) {
                             // Бронирование — штриховка
                             const bgColor = guest.color || '#3b82f6';
