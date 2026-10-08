@@ -950,6 +950,7 @@ function showCheckinForm() {
 
     // Сбрасываем форму
     document.getElementById('checkinForm').reset();
+    delete document.querySelector('#checkinForm [data-prasad-meals]').dataset.byGroup;
     document.getElementById('checkinDateIn').value =
         document.getElementById('modalCheckIn').value;
     document.getElementById('checkinDateOut').value =
@@ -1466,6 +1467,7 @@ function fillRetreatSelect(selectedId) {
     if (sel) sel.innerHTML = retreatSelectHtml(selectedId,
         document.getElementById('checkinDateIn').value, document.getElementById('checkinDateOut').value);
     showRetreatWarn('checkin');
+    applyCheckinMealGroup();
 }
 
 // Подсказать ретрит по человеку и датам: берём регистрацию, чей ретрит
@@ -1794,7 +1796,8 @@ function resetBookingRetreatAuto() {
 }
 
 async function applyBookingRetreat() {
-    if (modalContext?.editResidentId) return;
+    // При правке брони ничего не подставляем — только питание по заявке группы
+    if (modalContext?.editResidentId) return applyBookingMealGroup();
     const form = document.getElementById('bookingForm');
     const retreatId = form.retreat_id.value;
     const r = allRetreats.find(x => x.id === retreatId);
@@ -1815,25 +1818,48 @@ async function applyBookingRetreat() {
         if (v) form.contact_name.dataset.auto = '1';
     }
 
-    let mealGroup = null;
-    if (r) {
-        const from = form.check_in.value, to = form.check_out.value || from;
-        const { data } = await Layout.db.from('meal_groups').select('id, name')
-            .eq('retreat_id', r.id).eq('by_day', true).lte('start_date', to).gte('end_date', from).limit(1);
-        mealGroup = data?.[0] || null;
-    }
+    applyBookingMealGroup();
+}
+
+// Заявка «Разовое питание по дням» ретрита на эти даты (мигр. 640) — кухня считает по ней
+async function findByDayMealGroup(retreatId, from, to) {
+    if (!retreatId || !from) return null;
+    const { data } = await Layout.db.from('meal_groups').select('id, name')
+        .eq('retreat_id', retreatId).eq('by_day', true).lte('start_date', to || from).gte('end_date', from).limit(1);
+    return data?.[0] || null;
+}
+
+async function applyBookingMealGroup() {
+    const form = document.getElementById('bookingForm');
+    const retreatId = form.retreat_id.value;
+    const mealGroup = await findByDayMealGroup(retreatId, form.check_in.value, form.check_out.value);
     if (form.retreat_id.value === retreatId) setBookingPrasadByGroup(mealGroup);
+}
+
+// То же при заселении: у мест группы «по дням» галочек прасада нет — иначе кухня
+// посчитает человека дважды (поимённо и в числе заявки)
+async function applyCheckinMealGroup() {
+    const form = document.getElementById('checkinForm');
+    const retreatId = form.retreat_id.value;
+    const mealGroup = await findByDayMealGroup(retreatId, form.check_in.value, form.check_out.value);
+    if (form.retreat_id.value !== retreatId) return;
+    setPrasadByGroup(mealGroup, form, form.querySelector('[data-prasad-meals]'),
+        document.getElementById('checkinPrasadByGroup'), form.meal_type);
 }
 
 function setBookingPrasadByGroup(mealGroup) {
     const form = document.getElementById('bookingForm');
-    const checks = document.getElementById('bookingPrasadChecks');
-    const note = document.getElementById('bookingPrasadByGroup');
+    setPrasadByGroup(mealGroup, form, document.getElementById('bookingPrasadChecks'),
+        document.getElementById('bookingPrasadByGroup'));
+}
+
+function setPrasadByGroup(mealGroup, form, checks, note, mealTypeSel) {
     // Ушли с группы «по дням» — галочки возвращаем
     if (!mealGroup && checks.dataset.byGroup === '1') form.breakfast.checked = form.lunch.checked = true;
     if (mealGroup) form.breakfast.checked = form.lunch.checked = false;
     checks.dataset.byGroup = mealGroup ? '1' : '';
     checks.classList.toggle('hidden', !!mealGroup);
+    mealTypeSel?.classList.toggle('hidden', !!mealGroup);
     note.classList.toggle('hidden', !mealGroup);
     note.innerHTML = mealGroup
         ? `Питание отдельно от проживания: кухня считает по заявке «${e(mealGroup.name)}» в <a class="link link-primary" href="../vaishnavas/groups.html" target="_blank">Разовом питании</a>. Лишний едок — добавьте его в числа заявки.`
@@ -1953,7 +1979,8 @@ async function saveCheckin(e) {
         // Самостоятельное проживание: без номера, живёт вне ашрама
         // Без номера — живёт вне ашрама (и при вписывании имени в место брони без номера)
         has_housing: !!modalContext.roomId,
-        has_meals: mealTypeVal !== 'self',
+        // Питание по заявке группы «по дням» — поимённо не питается
+        has_meals: mealTypeVal !== 'self' && form.querySelector('[data-prasad-meals]').dataset.byGroup !== '1',
         // Галочки «Прасад» — основа расчёта порций на кухне
         breakfast: form.breakfast?.checked ?? true,
         lunch: form.lunch?.checked ?? true,
@@ -3586,6 +3613,7 @@ async function convertToCheckin() {
 
     // Сбрасываем форму
     document.getElementById('checkinForm').reset();
+    delete document.querySelector('#checkinForm [data-prasad-meals]').dataset.byGroup;
     // Заселяют позже брони — начало с сегодняшнего дня (дата в форме видна и правится)
     const todayIso = DateUtils.toISO(new Date());
     document.getElementById('checkinDateIn').value =
