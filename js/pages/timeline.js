@@ -69,6 +69,7 @@ function groupBalanceBadge(seats) {
 }
 let selfAccommodated = [];        // проживающие без номера: живут вне территории, в сетку не попадают
 let selfStays = [];               // группа «Самостоятельное проживание» внизу шахматки
+let mealStrips = [];             // питание группы по событию из «Разового питания» — полосой в «Самостоятельном проживании»
 const expandedSelfGroups = new Set(); // раскрытые групповые брони без номера (по умолчанию свёрнуты)
 const SEAT_FORMS = { ru: ['место', 'места', 'мест'], en: ['seat', 'seats'], hi: 'स्थान' };
 const SELF_GROUP_ID = '__self';   // её ключ в collapsedBuildings: гости
@@ -251,8 +252,19 @@ async function loadTimelineData() {
     selfStays = [...selfAccommodated, ...fromCrm].sort((a, b) =>
         (a.has_meals === false) - (b.has_meals === false)
         || selfName(a).localeCompare(selfName(b), 'ru'));
+    // Питание группы по событию (ВГ, 08.10.2026): запись «Разового питания» с ретритом и дольше
+    // 3 дней — полосой в «Самостоятельном проживании — гости»; клик — то же окно, что на странице
+    const { data: mg, error: mgErr } = await Layout.db.from('meal_groups')
+        .select('*')
+        .not('retreat_id', 'is', null)
+        .lte('start_date', endDateStr)
+        .gte('end_date', startDateStr)
+        .order('start_date');
+    if (mgErr) console.error('meal_groups:', mgErr);
+    const днейВЗаписи = g => Math.round((DateUtils.parseDate(g.end_date) - DateUtils.parseDate(g.start_date)) / 86400000) + 1;
+    mealStrips = (mg || []).filter(g => днейВЗаписи(g) > 3);
     for (const [kind, id] of SELF_BLOCKS) {
-        if (selfStays.some(r => selfKind(r) === kind)) collapsedBuildings.delete(id);
+        if (selfStays.some(r => selfKind(r) === kind) || (kind === 'guests' && mealStrips.length)) collapsedBuildings.delete(id);
         else collapsedBuildings.add(id);
     }
     const cleanings = cleaningsRes.data || [];
@@ -3961,6 +3973,7 @@ function setupTimelineDelegation() {
                     renderTable();
                     break;
                 case 'self-group-arrived': markSelfGroupArrived(id); break;
+                case 'open-meal-group': openMealGroup(id, el, ev); break;
                 case 'open-finance':
                     window.open(el.dataset.href || `../finance/participants.html?retreat=${el.dataset.retreat}&open=${el.dataset.person}`, '_blank');
                     break;
@@ -4137,6 +4150,27 @@ function renderSelfGroupHtml(kind) {
         return row(label, retreat ? Layout.getName(retreat) : '', startCol, bar);
     };
 
+    // Питание группы по событию — сверху блока гостей: полоса на даты питания, без мелких чисел;
+    // клик открывает таблицу по дням сразу на нужном дне (ВГ, 08.10.2026)
+    if (kind === 'guests') for (const g of mealStrips) {
+        const sp = span(g.start_date, g.end_date);
+        if (!sp) continue;
+        const [startCol, width] = sp;
+        const retreat = allRetreats.find(r => r.id === g.retreat_id);
+        const tag = retreatTags.get(g.retreat_id);
+        const color = Utils.isValidColor(retreat?.color) ? retreat.color : '#8b5cf6';
+        const who = g.by_day ? `${tf('mge_up_to', 'до')} ${g.people_count}` : String(g.people_count);
+        const meals = g.by_day ? tf('mge_mode_days', 'По дням').toLowerCase()
+            : [g.breakfast ? t('breakfast') : '', g.lunch ? t('lunch') : ''].filter(Boolean).join(', ').toLowerCase();
+        const label = `${tf('mge_meals', 'Питание')}: ${g.name}`;
+        const title = [label, retreat ? Layout.getName(retreat) : '', `${DateUtils.formatShort(g.start_date)} — ${DateUtils.formatShort(g.end_date)}`,
+            `${who} ${tf('cost_people_short', 'чел.')}`, meals].filter(Boolean).join(' · ');
+        const bar = `<div class="guest-bar self-stay meals-yes ${canEdit ? 'cursor-pointer' : ''}" ${canEdit ? `data-action="open-meal-group" data-id="${g.id}" data-start-col="${startCol}"` : ''}`
+            + ` style="width: ${width}px; --cat-color: ${color};" title="${e(title)}">`
+            + `${tag ? `<span class="retreat-tag">${e(tag.tag)}</span>` : ''}${e(label)} · ${e(who)}&nbsp;<span class="opacity-70">(${e(meals)})</span></div>`;
+        html += row(`<span class="font-medium">${e(label)}</span>`, title, startCol, bar);
+    }
+
     // Групповая бронь без номера (ВГ, 01.10): одна строка «Группа X · N мест», под ней места —
     // с именами или «место k», у каждого свои даты. Кухня считает места, не строку группы
     const groups = new Map();
@@ -4184,6 +4218,21 @@ function renderSelfGroupHtml(kind) {
         });
     });
     return html;
+}
+
+// Клик по полосе питания группы: окно «Разового питания» на том дне, куда кликнули
+function openMealGroup(id, bar, ev) {
+    const g = mealStrips.find(x => x.id === id);
+    if (!g) return;
+    const startCol = Number(bar.dataset.startCol) || 0;
+    const x = ev.clientX - bar.getBoundingClientRect().left;
+    const dayIndex = Math.floor((x + (startCol % 2) * CELL_WIDTH) / (2 * CELL_WIDTH)) + Math.floor(startCol / 2);
+    const d = new Date(baseDate);
+    d.setDate(d.getDate() + dayIndex);
+    MealGroupEditor.open(g, {
+        focusDate: DateUtils.toISO(d),
+        onSaved: async () => { await loadTimelineData(); renderTable(); }
+    });
 }
 
 // Места брони без номера по порядку (как созданы) — для «место k» и строки группы
