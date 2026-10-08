@@ -282,12 +282,14 @@ function renderPerson() {
     // Personal info - view
     document.getElementById('viewGender').textContent = person.gender ? t(person.gender) : '—';
     document.getElementById('viewBirthDate').textContent = person.birth_date ? formatDate(person.birth_date) : '—';
+    renderChildConfirmed();
     document.getElementById('viewIndiaExperience').textContent = person.india_experience || '—';
     document.getElementById('viewSpiritualTeacher').textContent = person.spiritual_teacher || '—';
 
     // Personal info - edit
     document.getElementById('editGender').value = person.gender || '';
     document.getElementById('editBirthDate').value = person.birth_date || '';
+    document.getElementById('editChildConfirmed').checked = !!person.child_confirmed_at;
     document.getElementById('editIndiaExperience').value = person.india_experience || '';
     document.getElementById('editSpiritualTeacher').value = person.spiritual_teacher || '';
 
@@ -808,6 +810,27 @@ async function savePerson() {
         Layout.showNotification(t('name_or_spiritual_required'), 'warning');
         if (saveBtn) saveBtn.classList.remove('loading');
         return;
+    }
+
+    // Ребёнок (мигр. 651): детская дата без отметки — вопрос «Это ребёнок?»; «Нет» — исправить дату
+    const childBox = document.getElementById('editChildConfirmed');
+    const age = updateData.birth_date ? DateUtils.calculateAge(updateData.birth_date) : null;
+    if (age != null && age < 14 && !childBox.checked && !person.child_confirmed_at) {
+        if (!confirm(t('child_confirm_q').replace('{age}', Layout.pluralize(age, { ru: ['год', 'года', 'лет'] })))) {
+            if (saveBtn) saveBtn.classList.remove('loading');
+            document.getElementById('editBirthDate').focus();
+            return;
+        }
+        childBox.checked = true;
+    }
+    if (childBox.checked !== !!person.child_confirmed_at) {
+        const { error: childError } = await Layout.db.rpc('vaishnava_set_child_confirmed',
+            { p_vaishnava: person.id, p_confirmed: childBox.checked });
+        if (childError) {
+            if (saveBtn) saveBtn.classList.remove('loading');
+            Layout.handleError(childError, t('child_confirmed'));
+            return;
+        }
     }
 
     // Перевод в другой департамент — с указанной даты, история сохраняется
@@ -2346,6 +2369,23 @@ function renderRegistrations() {
             </div>
         `;
     }).join('');
+}
+
+// «Ребёнок подтверждён» (мигр. 651): рядом с датой рождения — галочка, кто и когда
+async function renderChildConfirmed() {
+    const el = document.getElementById('viewBirthDate');
+    if (!person.child_confirmed_at) return;
+    const mark = document.createElement('span');
+    mark.className = 'badge badge-success badge-sm ml-2';
+    mark.textContent = '✓ ' + t('child_confirmed');
+    el.appendChild(mark);
+    const when = formatDate(person.child_confirmed_at.slice(0, 10));
+    mark.title = when;
+    if (person.child_confirmed_by) {
+        const { data } = await Layout.db.from('vaishnavas')
+            .select('spiritual_name, first_name, last_name').eq('user_id', person.child_confirmed_by).maybeSingle();
+        if (data) mark.title = `${getVaishnavName(data, '')} · ${when}`;
+    }
 }
 
 // ==================== CHILDREN ====================

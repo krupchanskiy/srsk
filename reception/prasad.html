@@ -74,7 +74,7 @@
             <button class="btn btn-sm btn-ghost" onclick="resetFilters()" data-i18n="reset_filters">Сбросить</button>
         </div>
 
-        <!-- ⚠ детское питание без даты рождения: кухня считает как взрослого (651) -->
+        <!-- ⚠ детское питание без даты рождения: кухня считает как взрослого (652) -->
         <div id="childNoBirthWarn" class="hidden mb-4"></div>
 
         <!-- Счётчики: Питание -->
@@ -511,32 +511,40 @@
         }
 
         // Ребёнок младше 7 лет — не порция (ест с мамой), с 7 — полная; возраст кухня берёт
-        // из даты рождения (eating_detail, 651). У «детского питания» без даты рождения
-        // кухня считает как взрослого — предупреждаем, клик ведёт к полю в карточке.
+        // из даты рождения, но только у подтверждённого ребёнка (eating_detail, 652; отметка — 651).
+        // Кого кухня считает взрослым, хотя это, похоже, ребёнок, — предупреждаем, клик ведёт к карточке:
+        // «детское питание» без даты рождения и детская дата без отметки «Ребёнок подтверждён».
         async function loadChildNoBirth() {
             const box = document.getElementById('childNoBirthWarn');
             const ids = [...new Set(detailRows.map(d => d.vaishnava_id).filter(Boolean))];
-            let kids = [];
+            let noBirth = [], unconfirmed = [];
             if (ids.length) {
-                // «детское питание» в регистрации и дети без кровати при родителе (650)
                 const sel = 'vaishnava_id, vaishnavas!inner(id, spiritual_name, first_name, last_name, birth_date)';
-                const [regs, extra] = await Promise.all([
+                const child14 = new Date(currentDate); child14.setFullYear(child14.getFullYear() - 14);
+                const [regs, extra, young] = await Promise.all([
                     Layout.db.from('retreat_registrations').select(sel)
                         .eq('meal_type', 'child').eq('is_deleted', false)
                         .is('vaishnavas.birth_date', null).in('vaishnava_id', ids),
                     Layout.db.from('resident_children').select(sel)
-                        .is('vaishnavas.birth_date', null).in('vaishnava_id', ids)
+                        .is('vaishnavas.birth_date', null).in('vaishnava_id', ids),
+                    Layout.db.from('vaishnavas').select('id, spiritual_name, first_name, last_name, birth_date')
+                        .in('id', ids).is('child_confirmed_at', null).gt('birth_date', DateUtils.toISO(child14))
                 ]);
                 const seen = new Set();
-                kids = [...(regs.data || []), ...(extra.data || [])].map(r => r.vaishnavas)
+                noBirth = [...(regs.data || []), ...(extra.data || [])].map(r => r.vaishnavas)
                     .filter(v => !seen.has(v.id) && seen.add(v.id));
+                unconfirmed = young.data || [];
             }
-            if (!kids.length) { box.classList.add('hidden'); box.innerHTML = ''; return; }
+            if (!noBirth.length && !unconfirmed.length) { box.classList.add('hidden'); box.innerHTML = ''; return; }
             const nameOf = v => v.spiritual_name || `${v.first_name || ''} ${v.last_name || ''}`.trim();
-            box.innerHTML = `<div class="alert alert-warning py-2 text-sm flex-wrap gap-2">
-                <span class="font-semibold">⚠ ${e(tr('prasad_child_no_birth', 'Детское питание без даты рождения'))}: ${kids.length}</span>
+            const chips = list => list.map(v => `<button type="button" class="badge badge-outline cursor-pointer" data-action="set-birth" data-person="${e(v.id)}">${e(nameOf(v))}${v.birth_date ? ` · ${e(DateUtils.formatShort(v.birth_date))}` : ''}</button>`).join('');
+            const line = (label, list) => list.length ? `<div class="flex flex-wrap items-center gap-2">
+                <span class="font-semibold">⚠ ${e(label)}: ${list.length}</span>
+                <span class="flex flex-wrap gap-1">${chips(list)}</span></div>` : '';
+            box.innerHTML = `<div class="alert alert-warning py-2 text-sm flex-col items-start gap-1">
+                ${line(tr('prasad_child_no_birth', 'Детское питание без даты рождения'), noBirth)}
+                ${line(tr('prasad_child_unconfirmed', 'Детская дата без подтверждения'), unconfirmed)}
                 <span class="opacity-80">${e(tr('prasad_child_no_birth_hint', 'кухня считает их как взрослых; до 7 лет ребёнок не порция'))}</span>
-                <span class="flex flex-wrap gap-1">${kids.map(v => `<button type="button" class="badge badge-outline cursor-pointer" data-action="set-birth" data-person="${e(v.id)}">${e(nameOf(v))}</button>`).join('')}</span>
             </div>`;
             box.classList.remove('hidden');
         }

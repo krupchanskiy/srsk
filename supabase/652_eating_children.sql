@@ -1,7 +1,7 @@
--- 651: дети на кухне (ВГ, 08.10.2026, «Шахматка 9»).
+-- 652: дети на кухне (ВГ, 08.10.2026, «Шахматка 9»).
 -- Ребёнок младше 7 лет (vaishnavas.birth_date на день питания) — не порция: ест с мамой
 -- из одной тарелки, денег не берём. С 7 лет — полная обычная порция.
--- Нет даты рождения — считаем как взрослого (⚠ на странице «Прасад»).
+-- Нет даты рождения или ребёнок не подтверждён (651) — считаем как взрослого (⚠ на «Прасаде»).
 -- Регистрации с «детским питанием» (meal_type = 'child') теперь тоже в расчёте —
 -- раньше без места в шахматке они не считались вовсе, а время рейса не уточняло их края.
 -- Деньги (crm_calc_participation, «Начислить группе/гостю») берут приёмы отсюда же:
@@ -159,12 +159,13 @@ AS $function$
         OR (NOT EXISTS (SELECT 1 FROM res x WHERE x.d = f.d AND x.vaishnava_id = c.vaishnava_id)
             AND NOT EXISTS (SELECT 1 FROM reg_rows g WHERE g.d = f.d AND g.vaishnava_id = c.vaishnava_id))
   )
-  -- ребёнок младше 7 лет на этот день — не порция
+  -- подтверждённый ребёнок (651) младше 7 лет на этот день — не порция; у «+1» без карточки
+  -- дата своя — добавление в шахматке и есть подтверждение
   SELECT p.d, p.kind, p.ref_id, p.vaishnava_id, p.retreat_id, p.bucket, p.breakfast, p.lunch, 1
     FROM people_rows p
     LEFT JOIN vaishnavas v ON v.id = p.vaishnava_id
-   WHERE COALESCE(v.birth_date, p.bd) IS NULL
-      OR p.d >= COALESCE(v.birth_date, p.bd) + interval '7 years'
+    CROSS JOIN LATERAL (SELECT COALESCE(CASE WHEN v.child_confirmed_at IS NOT NULL THEN v.birth_date END, p.bd) AS bd) k
+   WHERE k.bd IS NULL OR p.d >= k.bd + interval '7 years'
   UNION ALL
   -- ---------- группы ----------
   SELECT dd.d, 'group', mg.id, NULL, mg.retreat_id, 'groups',
