@@ -6,7 +6,7 @@ const EatingUtils = {
      * Загрузить количество едоков по дням за период
      * @param {string} startDate — 'YYYY-MM-DD'
      * @param {string} endDate   — 'YYYY-MM-DD'
-     * @returns {{ [dateStr]: { breakfast: {team,volunteers,vips,guests,groups,expected}, lunch: {...}, byEvent } }}
+     * @returns {{ [dateStr]: { breakfast: {team,volunteers,vips,guests,groups,expected}, lunch: {...}, byEvent, notes } }}
      *
      * expected — «ожидаемые»: бронь есть, приезд ещё не отмечен. Считаются как
      * едоки: недокормить приехавшего хуже, чем приготовить лишнюю порцию.
@@ -36,8 +36,23 @@ const EatingUtils = {
                 breakfast: empty(), lunch: empty(),
                 // Разбивка по событию (ретрит / без события) — те же числа, что
                 // и в итогах, но раздельно; сумма по событиям равна итогу.
-                byEvent: { breakfast: {}, lunch: {} }
+                byEvent: { breakfast: {}, lunch: {} },
+                notes: []
             };
+        }
+
+        // Примечания к дню для поваров — из «Разового питания» «По дням» (миграция 640):
+        // counts[d].notes = [{ name, note }]
+        const { data: notes, error: notesErr } = await Layout.db
+            .from('meal_group_days')
+            .select('d, note, meal_groups!inner(name, by_day)')
+            .gte('d', startDate).lte('d', endDate)
+            .eq('meal_groups.by_day', true)
+            .not('note', 'is', null);
+        if (notesErr) console.error('meal_group_days notes:', notesErr);
+        for (const n of notes || []) {
+            if (!counts[n.d] || !(n.note || '').trim()) continue;
+            counts[n.d].notes.push({ name: n.meal_groups?.name || '', note: n.note.trim() });
         }
 
         for (const r of rows) {

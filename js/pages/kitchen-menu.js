@@ -446,6 +446,15 @@ function formatEatingLine(dateStr, cssClass) {
     return `<div class="${cssClass}" title="${titleText}">${autoLine}</div>`;
 }
 
+// Примечания к дню из «Разового питания» «По дням» — поварам (ВГ, 08.10.2026)
+function formatDayNotes(notes) {
+    if (!notes?.length) return '';
+    const icon = '<svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 shrink-0 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M7 8h10M7 12h6m-9 8l3.5-3H18a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v9a2 2 0 002 2h1v3z"/></svg>';
+    return `<div class="mt-2 rounded-lg bg-amber-50 border border-amber-200 px-3 py-2 text-sm text-amber-900 space-y-1">`
+        + notes.map(n => `<div class="flex gap-2">${icon}<span><b>${Layout.escapeHtml(n.name)}:</b> ${Layout.escapeHtml(n.note)}</span></div>`).join('')
+        + `</div>`;
+}
+
 // Детальная разбивка едоков для дневного вида
 function formatEatingDetailed(dateStr) {
     const counts = eatingCounts[dateStr];
@@ -486,10 +495,11 @@ function formatEatingDetailed(dateStr) {
 
     const bfHtml = renderMeal(counts.breakfast, 'breakfast', t('breakfast'));
     const lnHtml = renderMeal(counts.lunch, 'lunch', t('lunch'));
+    const notesHtml = formatDayNotes(counts.notes);
 
-    if (!bfHtml && !lnHtml) return '';
+    if (!bfHtml && !lnHtml && !notesHtml) return '';
 
-    return `<div class="mt-2 text-gray-500">${bfHtml}${lnHtml}</div>`;
+    return `<div class="mt-2 text-gray-500">${bfHtml}${lnHtml}</div>${notesHtml}`;
 }
 
 // ==================== EATING COUNT CHANGE ALERT ====================

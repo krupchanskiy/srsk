@@ -317,6 +317,11 @@ function renderBoard() {
                     eatingHtml = `<div class="eating-badge"><b style="color:#111">${e(mealLabel)}</b> ${parts.join('+')}=${total}</div>`;
                 }
             }
+            // примечания к дню из «Разового питания» — поварам (ВГ, 08.10.2026); в первой строке дня, чтобы не дублировать
+            if (mt === types[0] && counts?.notes?.length) {
+                eatingHtml += counts.notes.map(n => `<div class="eating-badge" style="background:#fef3c7;color:#78350f;white-space:normal;padding:2px 4px;border-radius:4px">`
+                    + `<b>${e(n.name)}:</b> ${e(n.note)}</div>`).join('');
+            }
 
             // Плашки блюд
             let dishesHtml = '';
