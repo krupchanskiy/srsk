@@ -56,8 +56,12 @@
             left: 0 !important;
             background: white;
             z-index: 10;
-            width: 160px;
-            min-width: 160px;
+            /* Ширина постоянная: длинное обрезается «…», полностью — в подсказке */
+            width: 200px;
+            min-width: 200px;
+            max-width: 200px;
+            overflow: hidden;
+            text-overflow: ellipsis;
             padding: 0 12px;
             text-align: left;
             white-space: nowrap;
@@ -87,8 +91,8 @@
         }
 
         .retreats-label {
-            min-width: 160px;
-            width: 160px;
+            min-width: 200px;
+            width: 200px;
             background: #f3f4f6;
             flex-shrink: 0;
         }
@@ -277,13 +281,25 @@
             cursor: pointer;
         }
 
-        /* Отлучка: приём снят, номер за человеком — бледная штриховка поверх полосы */
+        /* Отлучка: приём снят, номер за человеком — крестик в половине дня (завтрак/обед),
+           без штриховки, чтобы не путать с бронью */
         .guest-bar .away-hatch {
             position: absolute;
             top: 0;
             bottom: 0;
-            background: repeating-linear-gradient(45deg, rgba(255, 255, 255, 0.75) 0 3px, rgba(255, 255, 255, 0.35) 3px 6px);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background: rgba(0, 0, 0, 0.18);
+            color: #fff;
         }
+        .guest-bar .away-hatch svg { width: 10px; height: 10px; }
+
+        /* Заголовок блока «Вне ШРСК»: две строки — название и кнопка «+ Добавить» */
+        .row-self .sticky-col.self-head { white-space: normal; padding-top: 4px; padding-bottom: 4px; }
+        /* Строка группы с кнопкой «Группа приехала» — тоже переносится, чтобы кнопку не обрезало */
+        .row-bed .sticky-col:has(.btn) { white-space: normal; }
+        .self-head .self-add-btn { margin-top: 2px; min-height: 20px; height: 20px; padding: 0 8px; }
 
         /* Сделка в CRM отменена, а бронь/заселение висит — место надо освободить руками */
         .guest-bar.deal-cancelled { outline: 2px solid #dc2626; outline-offset: -1px; }
@@ -1298,7 +1314,7 @@
     </script>
     <script src="../js/retreat-select.js?v=1"></script>
     <script src="../js/meal-group-editor.js?v=1"></script>
-    <script src="../js/pages/timeline.js?v=64"></script>
+    <script src="../js/pages/timeline.js?v=65"></script>
 
 </body>
 </html>

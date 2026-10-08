@@ -106,7 +106,9 @@ function dateToDayIndex(dateStr) {
     return Math.floor(diff / (1000 * 60 * 60 * 24));
 }
 
-// Отлучка на полосе гостя: снятый завтрак — штриховка первой половины дня, обед — второй.
+const AWAY_X = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.5"><path stroke-linecap="round" d="M6 6l12 12M18 6L6 18"/></svg>';
+
+// Отлучка на полосе гостя: снятый завтрак — крестик в первой половине дня, обед — во второй.
 // Номер остаётся за человеком, кухня его не считает (resident_meal_skips, мигр. 627)
 function awayHatchHtml(residentId, startCol, spanCells) {
     const skips = mealSkipsMap.get(residentId);
@@ -118,7 +120,7 @@ function awayHatchHtml(residentId, startCol, spanCells) {
         for (const [half, off] of [[0, sk.b], [1, sk.l]]) {
             const col = day + half;
             if (!off || col < 0 || col >= spanCells) continue;
-            html += `<span class="away-hatch" style="left: ${col * CELL_WIDTH - 1}px; width: ${CELL_WIDTH}px;" title="${title}"></span>`;
+            html += `<span class="away-hatch" style="left: ${col * CELL_WIDTH - 1}px; width: ${CELL_WIDTH}px;" title="${title}">${AWAY_X}</span>`;
         }
     }
     return html;
@@ -4083,9 +4085,15 @@ function renderSelfGroupHtml(kind) {
     const crmRaw = t('timeline_self_from_crm');
     const crmHint = crmRaw === 'timeline_self_from_crm' ? 'Из сделки в CRM: «Сам организует»' : crmRaw;
 
-    let html = `<tr class="row-building row-self"><td class="sticky-col" data-action="toggle-building" data-id="${groupId}">`
-        + `<span class="toggle-arrow ${collapsed ? 'collapsed' : ''}">▼</span> ${e(blockLabel)}: ${stays.length}`
-        + (canEdit ? ` <button type="button" class="btn btn-xs btn-ghost text-primary ml-1" data-action="add-self-stay" data-kind="${kind}">+ ${e(tf('timeline_self_add', 'Добавить'))}</button>` : '')
+    // Колонка узкая (200px): коротко «Вне ШРСК — гости: N», кнопка «+ Добавить» второй строкой,
+    // полное название — в подсказке при наведении
+    const shortLabel = kind === 'team'
+        ? tf('timeline_self_short_team', 'Вне ШРСК — команда')
+        : tf('timeline_self_short_guests', 'Вне ШРСК — гости');
+    const hint = `${blockLabel}. ${tf('timeline_self_header_hint', 'Живут вне ашрама. Здесь можно добавить человека или бронь.')}`;
+    let html = `<tr class="row-building row-self"><td class="sticky-col self-head" data-action="toggle-building" data-id="${groupId}" title="${e(hint)}">`
+        + `<div class="truncate"><span class="toggle-arrow ${collapsed ? 'collapsed' : ''}">▼</span> ${e(shortLabel)}: ${stays.length}</div>`
+        + (canEdit ? `<button type="button" class="btn btn-xs btn-outline btn-primary self-add-btn" data-action="add-self-stay" data-kind="${kind}">+ ${e(tf('timeline_self_add', 'Добавить'))}</button>` : '')
         + '</td>';
     for (let col = 0; col < DAYS_TO_SHOW * 2; col++) html += `<td class="${col % 2 === 0 ? 'day-start' : ''}"></td>`;
     html += '</tr>';
