@@ -851,7 +851,7 @@ async function loadDictionaries() {
             if (error) { console.error('Error loading resident_categories:', error); return null; }
             return (data || []).filter(c => (c.sort_order || 0) < 999);
         }),
-        Utils.fetchAll((from, to) => Layout.db.from('vaishnavas').select('id, spiritual_name, first_name, last_name, gender, phone, telegram, telegram_username, birth_date, status, parent_id').eq('is_deleted', false).order('spiritual_name').range(from, to)),
+        Utils.fetchAll((from, to) => Layout.db.from('vaishnavas').select('id, spiritual_name, first_name, last_name, gender, phone, telegram, telegram_username, birth_date, status, parent_id, department_id').eq('is_deleted', false).order('spiritual_name').range(from, to)),
         Layout.db.from('departments').select('id, name_ru, name_en, name_hi, sort_order').order('sort_order')
             .then(({ data, error }) => { if (error) console.error('departments:', error); departments = data || []; })
     ]);
@@ -1341,6 +1341,9 @@ function selectVaishnava(id) {
     // Скрываем поля нового гостя
     document.getElementById('guestFields').classList.add('hidden');
     document.getElementById('checkinGuestName').value = '';
+    // Департамент — из карточки человека, если у места он не указан
+    const deptSel = document.getElementById('checkinDepartment');
+    if (deptSel && !deptSel.value && v?.department_id) deptSel.value = v.department_id;
     suggestRetreat();
 }
 
@@ -1615,6 +1618,9 @@ function selectBookingVaishnava(id) {
     // Контакт по умолчанию — сам гость
     const form = document.getElementById('bookingForm');
     if (form && !form.contact_name.value.trim()) form.contact_name.value = name;
+    // Департамент — из карточки человека (одна база команды, ВГ 08.10); выбранный вручную не перебиваем
+    const deptSel = document.getElementById('bookingDepartment');
+    if (deptSel && !deptSel.value && v?.department_id) deptSel.value = v.department_id;
     updateBookingNewPersonHint();
     suggestBookingRetreat();
     suggestBookingCategory(id);
