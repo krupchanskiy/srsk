@@ -729,7 +729,10 @@ function movementData(retreatId, span, detail) {
         if (!cat) continue;
         const key = x.kind === 'group' ? 'g:' + x.ref_id : (x.vaishnava_id || x.ref_id);
         if (!present.has(key)) present.set(key, { id: x.vaishnava_id, group: x.kind === 'group', days: new Map() });
-        present.get(key).days.set(x.d, { n: x.kind === 'group' ? (Number(x.people) || 1) : 1, cat });
+        // у записи «По дням» (640) завтрак и обед — две строки дня: берём большее число
+        const n = x.kind === 'group' ? (Number(x.people) || 1) : 1;
+        const was = present.get(key).days.get(x.d);
+        present.get(key).days.set(x.d, { n: Math.max(n, was?.n || 0), cat });
     }
     const byDay = new Map(days.map(d => [d, { cats: {}, total: 0, inN: 0, outN: 0, inIds: [], outIds: [] }]));
     for (const p of present.values()) {

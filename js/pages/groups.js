@@ -7,8 +7,6 @@
 
 let groups = [];
 let retreats = [];
-let editingGroupId = null;
-const LONG_DAYS = 3;   // порог «разового» прихода (ВГ, 02.10)
 
 const t = key => Layout.t(key);
 const e = str => Layout.escapeHtml(str);
@@ -37,63 +35,15 @@ async function loadGroups() {
 }
 
 async function loadRetreats() {
-    // fact_end — фактическое окончание ретрита, как в шахматке (миграции 603, 605)
-    const [{ data, error }, { data: factEnds }] = await Promise.all([
-        Layout.db.from('retreats')
-            .select('id, name_ru, name_en, name_hi, start_date, end_date, is_external')
-            .order('start_date', { ascending: false }),
-        Layout.db.from('retreat_fact_end').select('retreat_id, fact_end')
-    ]);
+    const { data, error } = await Layout.db
+        .from('retreats')
+        .select('id, name_ru, name_en, name_hi, start_date, end_date, is_external')
+        .order('start_date', { ascending: false });
     if (error) {
         console.error('Error loading retreats:', error);
         return [];
     }
-    const factEnd = new Map((factEnds || []).map(f => [f.retreat_id, f.fact_end]));
-    return (data || []).map(r => ({ ...r, fact_end: factEnd.get(r.id) || r.end_date }));
-}
-
-// Ретрит идёт в даты записи — общее правило с шахматкой (js/retreat-select.js)
-const fitsDates = (r, from, to) => RetreatSelect.fits(r, from, to);
-const noneLabel = () => tr('group_event_none', 'Без события');
-RetreatSelect.setSource(() => retreats, { noneLabel });
-
-// Список как в шахматке: по датам, «Предстоящие», «Архив / все ретриты…».
-// Даты разошлись с выбранным ретритом — предупреждение под полем, сохранить можно.
-function renderEventSelect() {
-    const sel = Layout.$('#eventLinkSelect');
-    const form = Layout.$('#groupForm');
-    if (!sel || !form) return;
-    const from = form.start_date.value, to = form.end_date.value;
-    const selectedId = sel.value;
-    sel.innerHTML = RetreatSelect.html(retreats, selectedId, from, to, { noneLabel: noneLabel() });
-    sel.value = selectedId;
-    showEventWarn();
-}
-
-function showEventWarn() {
-    const form = Layout.$('#groupForm');
-    const warn = Layout.$('#eventLinkWarn');
-    if (!form || !warn) return;
-    const bad = RetreatSelect.mismatch(retreats, form.event_link.value, form.start_date.value, form.end_date.value);
-    warn.textContent = bad ? RetreatSelect.mismatchText() : '';
-    warn.classList.toggle('hidden', !bad);
-}
-
-// Смена дат: пересобираем список; новой группе подставляем ретрит, если по датам подходит ровно один
-function onGroupDatesChange() {
-    const sel = Layout.$('#eventLinkSelect');
-    const form = Layout.$('#groupForm');
-    renderEventSelect();
-    const hint = Layout.$('#eventLinkHint');
-    if (hint) hint.textContent = '';
-    if (editingGroupId || sel.dataset.touched === '1' || sel.value) return;
-    const fits = retreats.filter(r => fitsDates(r, form.start_date.value, form.end_date.value));
-    if (fits.length === 1) {
-        sel.value = fits[0].id;
-        if (hint) hint.textContent = tr('timeline_retreat_by_dates', 'подставлено по датам');
-    } else if (fits.length > 1 && hint) {
-        hint.textContent = tr('timeline_retreat_many', 'подходит несколько — выберите');
-    }
+    return data || [];
 }
 
 function eventLabel(g) {
@@ -181,9 +131,12 @@ function renderGroups() {
                 </td>
                 <td class="whitespace-nowrap">${formatDate(g.start_date)} — ${formatDate(g.end_date)}</td>
                 <td class="text-sm">${e(eventLabel(g))}</td>
-                <td class="text-center font-semibold">${g.people_count}</td>
-                <td class="text-center">${g.breakfast ? '✓' : '—'}</td>
-                <td class="text-center">${g.lunch ? '✓' : '—'}</td>
+                ${g.by_day
+                    ? `<td class="text-center font-semibold whitespace-nowrap">${e(tr('mge_up_to', 'до'))} ${g.people_count}</td>
+                       <td class="text-center text-xs opacity-70" colspan="2">${e(tr('mge_mode_days', 'По дням'))}</td>`
+                    : `<td class="text-center font-semibold">${g.people_count}</td>
+                       <td class="text-center">${g.breakfast ? '✓' : '—'}</td>
+                       <td class="text-center">${g.lunch ? '✓' : '—'}</td>`}
                 <td class="text-sm opacity-70 max-w-xs truncate">${e(g.notes || '')}</td>
                 <td>
                     <button class="btn btn-ghost btn-sm btn-square" data-action="edit-group" data-id="${g.id}" data-permission="edit_preliminary">
@@ -198,109 +151,10 @@ function renderGroups() {
 }
 
 // ==================== MODAL ====================
+// Окно записи — общее с шахматкой (js/meal-group-editor.js)
 function openGroupModal(groupId = null) {
-    editingGroupId = groupId;
-    const form = Layout.$('#groupForm');
-    const title = Layout.$('#groupModalTitle');
-    const deleteBtn = Layout.$('#deleteGroupBtn');
-
-    form.reset();
-    const sel = Layout.$('#eventLinkSelect');
-    delete sel.dataset.touched;
-    sel.value = '';
-
-    if (groupId) {
-        const g = groups.find(x => x.id === groupId);
-        if (g) {
-            title.textContent = t('edit_group');
-            form.id.value = g.id;
-            form.name.value = g.name || '';
-            form.start_date.value = g.start_date || '';
-            form.end_date.value = g.end_date || '';
-            form.people_count.value = g.people_count || 1;
-            renderEventSelect();   // список под даты группы, иначе её ретрита в нём нет
-            form.event_link.value = g.retreat_id || '';
-            form.breakfast.checked = g.breakfast !== false;
-            form.lunch.checked = g.lunch !== false;
-            form.notes.value = g.notes || '';
-            deleteBtn.classList.remove('hidden');
-        }
-    } else {
-        title.textContent = t('add_group');
-        deleteBtn.classList.add('hidden');
-    }
-    renderEventSelect();
-
-    Layout.$('#groupModal').showModal();
-}
-
-function closeModal() {
-    Layout.$('#groupModal').close();
-    editingGroupId = null;
-}
-
-async function saveGroup(ev) {
-    ev.preventDefault();
-    const form = Layout.$('#groupForm');
-
-    const data = {
-        name: form.name.value.trim(),
-        start_date: form.start_date.value,
-        end_date: form.end_date.value,
-        people_count: parseInt(form.people_count.value) || 1,
-        breakfast: form.breakfast.checked,
-        lunch: form.lunch.checked,
-        notes: form.notes.value.trim() || null,
-        retreat_id: form.event_link.value || null
-    };
-
-    if (!data.name || !data.start_date || !data.end_date) return;
-    if (data.start_date > data.end_date) {
-        Layout.showNotification(t('groups_date_error'), 'error');
-        return;
-    }
-    // Дольше 3 дней — скорее всего ходит регулярно: место такому в шахматке (ВГ, 02.10)
-    const days = Math.round((DateUtils.parseDate(data.end_date) - DateUtils.parseDate(data.start_date)) / 86400000) + 1;
-    if (days > LONG_DAYS && !confirm(tr('one_time_meals_long_warn',
-        'Запись на %n дн. Если человек ходит регулярно или живёт у нас — заведите его в шахматку (бронь, можно без номера). Всё равно сохранить здесь?').replace('%n', days))) {
-        return;
-    }
-
-    try {
-        if (editingGroupId) {
-            const { error } = await Layout.db.from('meal_groups').update(data).eq('id', editingGroupId);
-            if (error) throw error;
-        } else {
-            const { error } = await Layout.db.from('meal_groups').insert(data);
-            if (error) throw error;
-        }
-
-        closeModal();
-        groups = await loadGroups();
-        renderGroups();
-        Layout.showNotification(t('groups_saved'), 'success');
-    } catch (err) {
-        console.error('Error saving group:', err);
-        Layout.showNotification(t('groups_save_error') + ': ' + err.message, 'error');
-    }
-}
-
-async function deleteGroup() {
-    if (!editingGroupId) return;
-    if (!confirm(t('groups_delete_confirm'))) return;
-
-    try {
-        const { error } = await Layout.db.from('meal_groups').delete().eq('id', editingGroupId);
-        if (error) throw error;
-
-        closeModal();
-        groups = await loadGroups();
-        renderGroups();
-        Layout.showNotification(t('groups_deleted'), 'success');
-    } catch (err) {
-        console.error('Error deleting group:', err);
-        Layout.showNotification(t('groups_delete_error') + ': ' + err.message, 'error');
-    }
+    const g = groupId ? groups.find(x => x.id === groupId) : null;
+    MealGroupEditor.open(g, { onSaved: async () => { groups = await loadGroups(); renderGroups(); } });
 }
 
 // ==================== EVENT DELEGATION ====================
@@ -315,19 +169,12 @@ document.addEventListener('click', ev => {
         case 'edit-group':
             openGroupModal(btn.dataset.id);
             break;
-        case 'close-modal':
-            closeModal();
-            break;
-        case 'delete-group':
-            deleteGroup();
-            break;
     }
 });
 
 // ==================== INIT ====================
 function updateUI() {
     Layout.updateAllTranslations();
-    renderEventSelect();
     renderGroups();
 }
 
@@ -338,13 +185,6 @@ async function init() {
     Layout.showLoader();
 
     [groups, retreats] = await Promise.all([loadGroups(), loadRetreats()]);
-    renderEventSelect();
-
-    const form = Layout.$('#groupForm');
-    form.addEventListener('submit', saveGroup);
-    form.start_date.addEventListener('change', onGroupDatesChange);
-    form.end_date.addEventListener('change', onGroupDatesChange);
-    Layout.$('#eventLinkSelect').addEventListener('change', ev => { ev.target.dataset.touched = '1'; showEventWarn(); });
 
     updateUI();
     Layout.hideLoader();

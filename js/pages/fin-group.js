@@ -69,11 +69,15 @@ function доля(l) {
     return база + (i >= 0 && i < остаток ? 1 : 0);
 }
 
+// Сколько приёмов k ('b' | 'l') в этот день у строки: место — 1, запись «Разового
+// питания» — людей в ней, а «По дням» — своё число дня (bn / ln, миграция 640)
+const приёмов = (l, m, k) => m?.[k] ? (m[k + 'n'] ?? l.persons) : 0;
+
 function расчёт(l) {
     // на доп. кровати — цена доп. кровати за ночь, иначе номер ÷ жильцов
     const заНочь = l.extraBed ? round2(l.extraBedPrice) : доля(l);
-    const завтраков = l.persons * l.meals.filter(m => m.b).length;
-    const обедов = l.persons * l.meals.filter(m => m.l).length;
+    const завтраков = l.meals.reduce((a, m) => a + приёмов(l, m, 'b'), 0);
+    const обедов = l.meals.reduce((a, m) => a + приёмов(l, m, 'l'), 0);
     const проживание = round2(l.nights * заНочь);
     const питание = round2(завтраков * l.bPrice + обедов * l.lPrice);
     const доп = round2(Number(l.extra) || 0);
@@ -158,7 +162,14 @@ async function buildLines(data) {
         }
         for (const r of ed) {
             if (!поДням.has(r.ref_id)) поДням.set(r.ref_id, []);
-            поДням.get(r.ref_id).push({ d: r.d, b: !!r.breakfast, l: !!r.lunch });
+            const дни = поДням.get(r.ref_id);
+            if (r.kind !== 'group') { дни.push({ d: r.d, b: !!r.breakfast, l: !!r.lunch }); continue; }
+            // запись «Разового питания»: у «По дням» (640) завтрак и обед — отдельные строки
+            // со своим числом; bn/ln — сколько завтраков/обедов в этот день
+            let m = дни.find(x => x.d === r.d);
+            if (!m) { m = { d: r.d, b: false, l: false }; дни.push(m); }
+            if (r.breakfast) { m.b = true; m.bn = Number(r.people) || 0; }
+            if (r.lunch) { m.l = true; m.ln = Number(r.people) || 0; }
         }
         поДням.forEach(a => a.sort((x, y) => x.d.localeCompare(y.d)));
     }
@@ -222,6 +233,13 @@ async function buildLines(data) {
         const s = saved.get(key);
         const fresh = { nights: 0, people: 1, meals: (поДням.get(g.meal_group_id) || []).map(m => ({ ...m })) };
         const тотЖе = s && s.check_in === g.start_date && s.check_out === g.end_date;
+        // числа дня у «По дням» — всегда свежие из «Разового питания»; в листе хранятся только галочки
+        const свежие = new Map(fresh.meals.map(m => [m.d, m]));
+        const сЧислами = m => { const f = свежие.get(m.d); const x = { ...m };
+            delete x.bn; delete x.ln;
+            if (f?.bn != null) x.bn = f.bn;
+            if (f?.ln != null) x.ln = f.ln;
+            return x; };
         lines.push({
             key, eater: g, meal_group_id: g.meal_group_id, persons: Number(g.people_count) || 1,
             label: s?.label || g.name || '',
@@ -231,7 +249,7 @@ async function buildLines(data) {
             bPrice: s ? Number(s.b_price) : Number(tariff.breakfast_price),
             lPrice: s ? Number(s.l_price) : Number(tariff.lunch_price),
             extra: s ? Number(s.extra) || 0 : 0,
-            meals: тотЖе && Array.isArray(s.meals) ? s.meals.map(m => ({ ...m })) : fresh.meals.map(m => ({ ...m })),
+            meals: тотЖе && Array.isArray(s.meals) ? s.meals.map(сЧислами) : fresh.meals.map(m => ({ ...m })),
             fresh,
             changed: !!s && !тотЖе
         });
@@ -656,8 +674,8 @@ function пропуски(list) {
     for (const l of list) for (const f of l.base || l.fresh.meals) {
         const m = l.meals.find(x => x.d === f.d);
         const x = без.get(f.d) || { d: f.d, b: 0, l: 0 };
-        if (f.b && !m?.b) x.b += l.persons;
-        if (f.l && !m?.l) x.l += l.persons;
+        if (f.b && !m?.b) x.b += приёмов(l, f, 'b');
+        if (f.l && !m?.l) x.l += приёмов(l, f, 'l');
         без.set(f.d, x);
     }
     return [...без.values()].filter(x => x.b || x.l).sort((a, b) => a.d.localeCompare(b.d));
@@ -669,8 +687,8 @@ function приёмыПоДням(list) {
     const дни = new Map();
     for (const l of list) for (const m of l.meals) {
         const x = дни.get(m.d) || { d: m.d, b: 0, l: 0 };
-        if (m.b) x.b += l.persons;
-        if (m.l) x.l += l.persons;
+        x.b += приёмов(l, m, 'b');
+        x.l += приёмов(l, m, 'l');
         дни.set(m.d, x);
     }
     return [...дни.values()].filter(x => x.b || x.l).sort((a, b) => a.d.localeCompare(b.d));
