@@ -63,10 +63,11 @@ async function init() {
     ]);
     Layout.hideLoader();
 
-    // Пришли с «Прасада» по значку «⚠ без департамента» — сразу правка на нужном поле
-    if (params.get('edit') === 'department' && canEditProfile()) {
+    // Пришли с «Прасада» по значку «⚠ без департамента» / «⚠ без даты рождения» — сразу правка на нужном поле
+    const editField = { department: 'editDepartment', birth_date: 'editBirthDate' }[params.get('edit')];
+    if (editField && canEditProfile()) {
         enterEditMode();
-        const select = document.getElementById('editDepartment');
+        const select = document.getElementById(editField);
         select.scrollIntoView({ block: 'center' });
         select.focus();
     }
@@ -844,9 +845,9 @@ async function savePerson() {
     document.getElementById('profileContainer').classList.add('view-mode');
     renderPerson();
 
-    // Открыт с «Прасада» ради департамента — сохранили, вкладку закрываем:
+    // Открыт с «Прасада» ради департамента или даты рождения — сохранили, вкладку закрываем:
     // «Прасад» сам перечитает данные, когда к нему вернутся
-    if (new URLSearchParams(window.location.search).get('edit') === 'department' && window.opener) {
+    if (['department', 'birth_date'].includes(new URLSearchParams(window.location.search).get('edit')) && window.opener) {
         Layout.showNotification(t('saved'), 'success');
         setTimeout(() => window.close(), 800);
     }

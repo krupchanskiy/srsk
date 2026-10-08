@@ -404,6 +404,20 @@
 
         /* Долг по финмодулю: точка-маркер, виден на любом цвете категории.
            Только факт долга — суммы шахматке недоступны */
+        /* Ребёнок без кровати при родителе (мигр. 650): «+1» на полосе, имена в подсказке */
+        .guest-bar .kid-badge {
+            flex: 0 0 auto;
+            margin-left: 4px;
+            padding: 0 4px;
+            border-radius: 7px;
+            font-size: 9px;
+            line-height: 13px;
+            font-weight: 700;
+            background: rgba(255, 255, 255, 0.85);
+            color: #374151;
+            cursor: help;
+        }
+
         .guest-bar .needs-dot {
             color: #d97706;
             margin-right: 2px;
@@ -1353,7 +1367,7 @@
     </script>
     <script src="../js/retreat-select.js?v=1"></script>
     <script src="../js/meal-group-editor.js?v=1"></script>
-    <script src="../js/pages/timeline.js?v=73"></script>
+    <script src="../js/pages/timeline.js?v=74"></script>
 
 </body>
 </html>

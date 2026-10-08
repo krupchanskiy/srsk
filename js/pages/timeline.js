@@ -195,7 +195,9 @@ async function loadTimelineData() {
             .select(`*,
                 resident_categories(id, slug, name_ru, name_en, name_hi, color),
                 vaishnavas(id, first_name, last_name, spiritual_name, service),
-                bookings(id, name, contact_name, contact_phone, contact_telegram, notes)`)
+                bookings(id, name, contact_name, contact_phone, contact_telegram, notes),
+                resident_children(id, vaishnava_id, guest_name, birth_date,
+                    vaishnavas(id, first_name, last_name, spiritual_name, birth_date))`)
             .in('status', ['confirmed', 'checked_out', 'booked'])
             .lte('check_in', endDateStr)
             .or(`check_out.is.null,check_out.gte.${startDateStr}`),
@@ -849,7 +851,7 @@ async function loadDictionaries() {
             if (error) { console.error('Error loading resident_categories:', error); return null; }
             return (data || []).filter(c => (c.sort_order || 0) < 999);
         }),
-        Utils.fetchAll((from, to) => Layout.db.from('vaishnavas').select('id, spiritual_name, first_name, last_name, gender, phone, telegram, telegram_username, birth_date, status').eq('is_deleted', false).order('spiritual_name').range(from, to)),
+        Utils.fetchAll((from, to) => Layout.db.from('vaishnavas').select('id, spiritual_name, first_name, last_name, gender, phone, telegram, telegram_username, birth_date, status, parent_id').eq('is_deleted', false).order('spiritual_name').range(from, to)),
         Layout.db.from('departments').select('id, name_ru, name_en, name_hi, sort_order').order('sort_order')
             .then(({ data, error }) => { if (error) console.error('departments:', error); departments = data || []; })
     ]);
@@ -2260,6 +2262,8 @@ function openResidentModal(guestData, buildingName, roomName) {
         <span class="text-gray-500">${t('timeline_guest')}:</span>
         <span class="font-medium">${nameLink}</span>
     </div>`;
+    // Дети без кровати — «+1» к этому месту (мигр. 650)
+    infoHtml += '<div id="residentKids"></div>';
 
     // Особые потребности из CRM — видны при заселении, без перехода в другой раздел (ТЗ 2.3)
     {
@@ -2450,6 +2454,7 @@ function openResidentModal(guestData, buildingName, roomName) {
     }
 
     document.getElementById('residentInfo').innerHTML = infoHtml;
+    renderKidsRow();
 
     // Кнопки действий (только если есть права на редактирование)
     let actionsHtml = '';
@@ -2796,6 +2801,130 @@ function showResidentInfoScreen() {
     document.getElementById('moveScreen').classList.add('hidden');
     document.getElementById('editDatesScreen').classList.add('hidden');
     document.getElementById('checkoutScreen').classList.add('hidden');
+}
+
+// ==================== ДЕТИ БЕЗ КРОВАТИ ====================
+// Малыш живёт с мамой (ВГ, 08.10.2026): «+1» на полосе родителя, кровать не занимает,
+// номер не переполнен и в начислении не дорожает — дети лежат в resident_children (мигр. 650),
+// а не в residents. Кухня — eating_detail: в дни родителя, до 7 лет не порция, без даты
+// рождения — как взрослый. Номера с доп. кроватью (3/7/8 Гостевого дома) — там ребёнок
+// постарше занимает обычное место, «+1» не нужен.
+
+function kidName(k) {
+    return (k.vaishnavas ? getVaishnavName(k.vaishnavas, '') : '') || k.guest_name || '—';
+}
+
+function kidsBadge(res) {
+    const kids = res.resident_children || [];
+    if (!kids.length) return '';
+    const title = `${tf('timeline_kids_no_bed', 'Дети без кровати')}: ${kids.map(kidName).join(', ')}`;
+    return `<span class="kid-badge" title="${e(title)}">+${kids.length}</span>`;
+}
+
+function renderKidsRow() {
+    const box = document.getElementById('residentKids');
+    if (!box || !currentResident) return;
+    const kids = currentResident.rawData.resident_children || [];
+    const canEdit = canEditTimeline();
+    if (!kids.length && !canEdit) { box.innerHTML = ''; return; }
+    const chips = kids.map(k => {
+        const name = k.vaishnava_id
+            ? `<a href="../vaishnavas/person.html?id=${k.vaishnava_id}" class="link">${e(kidName(k))}</a>`
+            : e(kidName(k));
+        const del = canEdit
+            ? ` <button type="button" class="opacity-60 hover:opacity-100" data-action="kid-remove" data-id="${k.id}" title="${e(tf('timeline_kid_remove', 'Убрать ребёнка'))}">✕</button>`
+            : '';
+        return `<span class="badge badge-outline gap-1">${name}${del}</span>`;
+    }).join(' ');
+    const add = canEdit
+        ? `<button type="button" class="btn btn-xs btn-outline" data-action="kid-add">${e(tf('timeline_add_kid_no_bed', '+ ребёнок (без кровати)'))}</button>`
+        : '';
+    box.innerHTML = `<div class="flex justify-between items-center gap-2 py-1 border-b" title="${e(tf('timeline_kid_hint', 'Живёт с родителем, кровать не занимает; кухня: до 7 лет не порция'))}">
+        <span class="text-gray-500">${e(tf('timeline_kids_no_bed', 'Дети без кровати'))}:</span>
+        <span class="flex flex-wrap justify-end items-center gap-1">${chips}${add}</span>
+    </div>
+    <div id="kidPicker" class="hidden"></div>`;
+}
+
+// Дети родителя по семейным связям и «родителю» в карточке — первыми; моложе 18 или без даты
+function familyKids(parentId, links) {
+    const ids = new Set(links.map(l => l.vaishnava_id === parentId ? l.relative_id : l.vaishnava_id));
+    vaishnavas.forEach(v => { if (v.parent_id === parentId) ids.add(v.id); });
+    const adult = new Date(); adult.setFullYear(adult.getFullYear() - 18);
+    return vaishnavas
+        .filter(v => ids.has(v.id) && v.id !== parentId && (!v.birth_date || DateUtils.parseDate(v.birth_date) > adult))
+        .sort((a, b) => (b.birth_date || '').localeCompare(a.birth_date || ''));
+}
+
+async function showKidPicker() {
+    const box = document.getElementById('kidPicker');
+    if (!box || !currentResident) return;
+    const res = currentResident.rawData;
+    box.classList.remove('hidden');
+    box.innerHTML = `<div class="text-center py-2 text-sm">${t('timeline_loading')}</div>`;
+    let links = [];
+    if (res.vaishnava_id) {
+        const { data } = await Layout.db.from('family_links').select('vaishnava_id, relative_id')
+            .or(`vaishnava_id.eq.${res.vaishnava_id},relative_id.eq.${res.vaishnava_id}`);
+        links = data || [];
+    }
+    const taken = new Set((res.resident_children || []).map(k => k.vaishnava_id).filter(Boolean));
+    const fam = res.vaishnava_id ? familyKids(res.vaishnava_id, links).filter(v => !taken.has(v.id)) : [];
+    const pick = v => `<button type="button" class="btn btn-xs" data-action="kid-pick" data-id="${v.id}">${e(getVaishnavName(v, '—'))}${v.birth_date ? ` <span class="opacity-60">${e(DateUtils.formatShort(v.birth_date))}</span>` : ''}</button>`;
+    box.innerHTML = `<div class="bg-base-200 rounded-lg p-2 my-2 space-y-2 text-sm">
+        ${fam.length ? `<div><div class="text-gray-500 mb-1">${e(tf('timeline_kid_family', 'Из семьи'))}</div><div class="flex flex-wrap gap-1">${fam.map(pick).join('')}</div></div>` : ''}
+        <input type="text" class="input input-bordered input-sm w-full" id="kidSearch" placeholder="${e(tf('timeline_kid_search', 'Найти карточку ребёнка…'))}">
+        <div id="kidSearchResults" class="flex flex-wrap gap-1"></div>
+        <div class="text-gray-500">${e(tf('timeline_kid_no_card', 'Без карточки'))}</div>
+        <div class="flex flex-wrap items-center gap-2">
+            <input type="text" class="input input-bordered input-sm flex-1 min-w-[8rem]" id="kidName" placeholder="${e(tf('timeline_kid_name', 'Имя ребёнка'))}">
+            <input type="date" class="input input-bordered input-sm" id="kidBirth" title="${e(tf('timeline_kid_birth', 'Дата рождения'))}">
+            <button type="button" class="btn btn-sm btn-primary" data-action="kid-add-named">${e(tf('add', 'Добавить'))}</button>
+        </div>
+    </div>`;
+    const input = document.getElementById('kidSearch');
+    input.addEventListener('input', () => {
+        const q = input.value.trim().toLowerCase();
+        const list = document.getElementById('kidSearchResults');
+        if (q.length < 2) { list.innerHTML = ''; return; }
+        const found = vaishnavas.filter(v => !taken.has(v.id) && v.id !== res.vaishnava_id
+            && getVaishnavName(v, '').toLowerCase().includes(q)).slice(0, 8);
+        list.innerHTML = found.length ? found.map(pick).join('') : `<span class="opacity-60">${t('timeline_not_found')}</span>`;
+    });
+    input.focus();
+}
+
+async function addKid(row) {
+    if (!currentResident || !canEditTimeline()) return;
+    const res = currentResident.rawData;
+    const { data, error } = await Layout.db.from('resident_children')
+        .insert({ resident_id: res.id, ...row })
+        .select('id, vaishnava_id, guest_name, birth_date, vaishnavas(id, first_name, last_name, spiritual_name, birth_date)');
+    if (error) { Layout.handleError(error, tf('timeline_kids_no_bed', 'Дети без кровати')); return; }
+    res.resident_children = [...(res.resident_children || []), ...(data || [])];
+    renderKidsRow();
+    renderTable();
+}
+
+// Без карточки — имя и дата рождения обязательны: по дате кухня решает, порция ли это
+function addNamedKid() {
+    const name = document.getElementById('kidName')?.value.trim();
+    const birth = document.getElementById('kidBirth')?.value;
+    if (!name || !birth) {
+        Layout.showNotification(`${tf('timeline_kid_name', 'Имя ребёнка')} · ${tf('timeline_kid_birth', 'Дата рождения')}`, 'warning');
+        return;
+    }
+    addKid({ guest_name: name, birth_date: birth });
+}
+
+async function removeKid(id) {
+    if (!currentResident || !canEditTimeline()) return;
+    const { error } = await Layout.db.from('resident_children').delete().eq('id', id);
+    if (error) { Layout.handleError(error, tf('timeline_kid_remove', 'Убрать ребёнка')); return; }
+    const res = currentResident.rawData;
+    res.resident_children = (res.resident_children || []).filter(k => k.id !== id);
+    renderKidsRow();
+    renderTable();
 }
 
 // ==================== ПИТАНИЕ ПО ДНЯМ ====================
@@ -3882,12 +4011,12 @@ function renderTable() {
                         if (guest.isBooking) {
                             // Бронирование — штриховка
                             const bgColor = guest.color || '#3b82f6';
-                            html += `<div class="guest-bar booking${checkedOutClass}${debtClass}" style="width: ${width}px; --bar-color: ${bgColor}; border-color: ${bgColor};" data-action="open-resident-from-map" data-id="${guest.id}"${noteTitle}>${cancelHtml}${debtDot}${needsDot}${tagHtml}${selfHtml}${barLabel}${awayHtml}</div>`;
+                            html += `<div class="guest-bar booking${checkedOutClass}${debtClass}" style="width: ${width}px; --bar-color: ${bgColor}; border-color: ${bgColor};" data-action="open-resident-from-map" data-id="${guest.id}"${noteTitle}>${cancelHtml}${debtDot}${needsDot}${tagHtml}${selfHtml}${barLabel}${kidsBadge(guest.rawData)}${awayHtml}</div>`;
                         } else {
                             // Обычное заселение
                             const bgColor = guest.color || '#3b82f6';
                             const borderColor = guest.border || '#facc15';
-                            html += `<div class="guest-bar${checkedOutClass}${debtClass}" style="width: ${width}px; background: ${bgColor}; border-color: ${borderColor};" data-action="open-resident-from-map" data-id="${guest.id}"${noteTitle}>${cancelHtml}${debtDot}${needsDot}${tagHtml}${selfHtml}${barLabel}${awayHtml}</div>`;
+                            html += `<div class="guest-bar${checkedOutClass}${debtClass}" style="width: ${width}px; background: ${bgColor}; border-color: ${borderColor};" data-action="open-resident-from-map" data-id="${guest.id}"${noteTitle}>${cancelHtml}${debtDot}${needsDot}${tagHtml}${selfHtml}${barLabel}${kidsBadge(guest.rawData)}${awayHtml}</div>`;
                         }
                     }
 
@@ -4006,6 +4135,10 @@ function setupTimelineDelegation() {
             }
             // Кнопка «Уезжает на время / Изменить» стоит в строке «Питание по дням», не в блоке действий
             if (el.dataset.action === 'meal-days') showMealDaysScreen();
+            if (el.dataset.action === 'kid-add') showKidPicker();
+            if (el.dataset.action === 'kid-pick') addKid({ vaishnava_id: el.dataset.id });
+            if (el.dataset.action === 'kid-add-named') addNamedKid();
+            if (el.dataset.action === 'kid-remove') removeKid(el.dataset.id);
         });
     }
     // Делегирование для таблицы таймлайна
@@ -4208,7 +4341,7 @@ function renderSelfGroupHtml(kind) {
         const title = [name, dept, cat ? Layout.getName(cat) : '', retreat ? Layout.getName(retreat) : '', dates, meals,
             booked ? t('timeline_booking') : '', res.fromCrm ? crmHint : '', note].filter(Boolean).join(' · ');
         const badge = res.fromCrm ? '' : balanceBadge(res, debtorsSet.has(finKey(res)), creditorsSet.has(finKey(res)));
-        const inner = `${badge}${tag && !seatLabel ? `<span class="retreat-tag">${e(tag.tag)}</span>` : ''}${e(name)}${dept ? `<span class="opacity-80"> · ${e(dept)}</span>` : ''}${note ? NOTE_ICON : ''}&nbsp;<span class="opacity-70">(${e(meals.toLowerCase())})</span>`
+        const inner = `${badge}${tag && !seatLabel ? `<span class="retreat-tag">${e(tag.tag)}</span>` : ''}${e(name)}${dept ? `<span class="opacity-80"> · ${e(dept)}</span>` : ''}${note ? NOTE_ICON : ''}${kidsBadge(res)}&nbsp;<span class="opacity-70">(${e(meals.toLowerCase())})</span>`
             + (res.fromCrm ? '<span class="self-crm">CRM</span>' : '');
         const cls = `guest-bar self-stay${mealsCls(res.has_meals)}${booked ? ' self-booked' : ''}`;
         const style = `width: ${width}px; --cat-color: ${catColor};`;

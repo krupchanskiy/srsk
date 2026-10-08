@@ -74,6 +74,9 @@
             <button class="btn btn-sm btn-ghost" onclick="resetFilters()" data-i18n="reset_filters">Сбросить</button>
         </div>
 
+        <!-- ⚠ детское питание без даты рождения: кухня считает как взрослого (651) -->
+        <div id="childNoBirthWarn" class="hidden mb-4"></div>
+
         <!-- Счётчики: Питание -->
         <div class="mb-2 text-sm font-semibold uppercase tracking-wide opacity-60" data-i18n="col_meal">Питание</div>
         <div class="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-4" id="statsMeals">
@@ -452,6 +455,7 @@
             detailRows = detailResult.data || [];
             detailByRef = {};
             detailRows.forEach(d => { detailByRef[d.ref_id] = d; });
+            await loadChildNoBirth();
 
             // Кухня кормит и тех, у кого даты питания шире проживания (уже выехал,
             // а обедать ходит) — догружаем их, иначе итоги не сойдутся с поваром
@@ -504,6 +508,37 @@
             renderTable();
             renderCards();
             updateTitle();
+        }
+
+        // Ребёнок младше 7 лет — не порция (ест с мамой), с 7 — полная; возраст кухня берёт
+        // из даты рождения (eating_detail, 651). У «детского питания» без даты рождения
+        // кухня считает как взрослого — предупреждаем, клик ведёт к полю в карточке.
+        async function loadChildNoBirth() {
+            const box = document.getElementById('childNoBirthWarn');
+            const ids = [...new Set(detailRows.map(d => d.vaishnava_id).filter(Boolean))];
+            let kids = [];
+            if (ids.length) {
+                // «детское питание» в регистрации и дети без кровати при родителе (650)
+                const sel = 'vaishnava_id, vaishnavas!inner(id, spiritual_name, first_name, last_name, birth_date)';
+                const [regs, extra] = await Promise.all([
+                    Layout.db.from('retreat_registrations').select(sel)
+                        .eq('meal_type', 'child').eq('is_deleted', false)
+                        .is('vaishnavas.birth_date', null).in('vaishnava_id', ids),
+                    Layout.db.from('resident_children').select(sel)
+                        .is('vaishnavas.birth_date', null).in('vaishnava_id', ids)
+                ]);
+                const seen = new Set();
+                kids = [...(regs.data || []), ...(extra.data || [])].map(r => r.vaishnavas)
+                    .filter(v => !seen.has(v.id) && seen.add(v.id));
+            }
+            if (!kids.length) { box.classList.add('hidden'); box.innerHTML = ''; return; }
+            const nameOf = v => v.spiritual_name || `${v.first_name || ''} ${v.last_name || ''}`.trim();
+            box.innerHTML = `<div class="alert alert-warning py-2 text-sm flex-wrap gap-2">
+                <span class="font-semibold">⚠ ${e(tr('prasad_child_no_birth', 'Детское питание без даты рождения'))}: ${kids.length}</span>
+                <span class="opacity-80">${e(tr('prasad_child_no_birth_hint', 'кухня считает их как взрослых; до 7 лет ребёнок не порция'))}</span>
+                <span class="flex flex-wrap gap-1">${kids.map(v => `<button type="button" class="badge badge-outline cursor-pointer" data-action="set-birth" data-person="${e(v.id)}">${e(nameOf(v))}</button>`).join('')}</span>
+            </div>`;
+            box.classList.remove('hidden');
         }
 
         function populateFilterOptions() {
@@ -1250,6 +1285,10 @@
                         // закрывается, а эта страница перечитывает данные
                         refreshOnReturn = true;
                         window.open(adjustHref('vaishnavas/person.html?id=' + el.dataset.person + '&edit=department'), '_blank');
+                        break;
+                    case 'set-birth':
+                        refreshOnReturn = true;
+                        window.open(adjustHref('vaishnavas/person.html?id=' + el.dataset.person + '&edit=birth_date'), '_blank');
                         break;
                 }
             });
