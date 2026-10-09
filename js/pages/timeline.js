@@ -186,7 +186,7 @@ async function loadTimelineData() {
             return data;
         }),
         Layout.db.from('rooms')
-            .select('id, number, floor, building_id, capacity, status, plan_x, plan_y, plan_width, plan_height')
+            .select('id, number, floor, building_id, capacity, status, plan_x, plan_y, plan_width, plan_height, room_types(slug)')
             .eq('is_active', true)
             .order('building_id')
             .order('floor')
@@ -453,13 +453,16 @@ async function loadTimelineData() {
                 const capacity = room.capacity || 1;
                 const roomResidents = residentsByRoom[room.id] || [];
 
-                // Создаём виртуальные места
+                // Создаём виртуальные места. В номере «Два плюс один» последнее место —
+                // доп. кровать (ВГ 09.10): места заполняются сверху, третий встаёт на неё
+                const hasExtraBed = room.room_types?.slug === 'doubleplus' && capacity > 1;
                 const beds = [];
                 for (let i = 0; i < capacity; i++) {
                     beds.push({
                         name: capacity === 1 ? '' : `${i + 1}`,
                         roomId: room.id,
                         bedIndex: i,
+                        isExtra: hasExtraBed && i === capacity - 1,
                         guests: []
                     });
                 }
@@ -3383,7 +3386,7 @@ async function showMoveScreen() {
     const [buildingsData, residentsRes] = await Promise.all([
         Cache.getOrLoad('buildings_with_rooms', async () => {
             const { data, error } = await Layout.db.from('buildings')
-                .select('*, rooms(*)')
+                .select('*, rooms(*, room_types(slug))')
                 .eq('is_active', true)
                 .order('sort_order');
             if (error) { console.error('Error loading buildings:', error); return null; }
@@ -3469,6 +3472,10 @@ async function showMoveScreen() {
             } else if (occupied > 0) {
                 btnClass = 'btn-outline btn-warning';
                 label = `${room.number} (${occupied}/${capacity})`;
+                // «Два плюс один»: свободна только доп. кровать
+                if (room.room_types?.slug === 'doubleplus' && occupied === capacity - 1) {
+                    label += ` · ${e(tf('timeline_extra_bed', 'Доп. кровать').toLowerCase())}`;
+                }
                 disabled = false;
             } else {
                 btnClass = 'btn-outline btn-success';
@@ -4145,8 +4152,9 @@ function renderTable() {
             const bedsHiddenClass = (buildingCollapsed || roomCollapsed) ? 'collapsed' : '';
 
             room.beds.forEach(bed => {
-                const bedLabel = bed.name ? `${t('timeline_bed')} ${bed.name}` : '';
-                html += `<tr class="row-bed ${bedsHiddenClass}"><td class="sticky-col">${bedLabel}</td>`;
+                const bedLabel = bed.isExtra ? e(tf('timeline_extra_bed', 'Доп. кровать'))
+                    : bed.name ? `${t('timeline_bed')} ${bed.name}` : '';
+                html += `<tr class="row-bed${bed.isExtra ? ' row-extra-bed' : ''} ${bedsHiddenClass}"><td class="sticky-col">${bedLabel}</td>`;
 
                 // Всегда рендерим все ячейки (DAYS_TO_SHOW * 2)
                 for (let col = 0; col < DAYS_TO_SHOW * 2; col++) {

@@ -212,7 +212,7 @@ async function loadRefs() {
     const [b, r, rt, fe, cat] = await Promise.all([
         Layout.db.from('buildings').select('id, name_ru, name_en, name_hi, is_temporary, sort_order, available_from, available_until')
             .eq('is_active', true).order('sort_order'),
-        Layout.db.from('rooms').select('id, number, floor, building_id, capacity, status').eq('is_active', true),
+        Layout.db.from('rooms').select('id, number, floor, building_id, capacity, status, room_types(slug)').eq('is_active', true),
         Layout.db.from('retreats')
             .select('id, name_ru, name_en, name_hi, start_date, end_date, is_external, contact_vaishnava_id')
             .order('start_date'),
@@ -291,7 +291,9 @@ function roomState(room) {
     const o = S.occ.get(room.id) || { peak: 0, adjacent: false };
     const free = Math.max(0, cap - o.peak);
     const kind = o.peak >= cap ? 'busy' : o.peak > 0 ? 'partial' : o.adjacent ? 'adjacent' : 'free';
-    return { cap, free, kind, peak: o.peak };
+    // «Два плюс один» (ВГ 09.10): третье место — доп. кровать, обычно для семьи или друзей
+    const extraBed = room.room_types?.slug === 'doubleplus' && cap > 1;
+    return { cap, free, kind, peak: o.peak, extraBed };
 }
 
 // ---------- ретрит ----------
@@ -417,6 +419,7 @@ function renderRooms() {
             const min = minFor(room.id);
             const max = Math.max(st.free, min);
             const sub = st.kind === 'busy' ? tf('timeline_room_overlap', 'занят')
+                : st.extraBed && st.free === 1 ? tf('timeline_room_extra_only', 'осталась только доп. кровать')
                 : st.kind === 'partial' ? `${tf('timeline_room_busy_of', 'занято')} ${st.peak} ${tf('booking_of', 'из')} ${st.cap}`
                 : st.kind === 'adjacent' ? tf('timeline_room_adjacent', 'в стык')
                 : tf('timeline_room_free', 'свободен');
@@ -424,7 +427,7 @@ function renderRooms() {
             for (let n = min; n <= max; n++) opts.push(`<option value="${n}" ${n === p ? 'selected' : ''}>${n || '—'}</option>`);
             const disabled = S.mode === 'person' ? st.free < personNeed() && !p : max === 0;
             return `<div class="gb-room gb-${disabled ? 'busy' : st.kind}${p ? ' gb-picked' : ''}" data-room-card="${room.id}">
-                <div class="flex justify-between gap-1"><span class="gb-num">№${e(room.number)}</span><span class="text-xs opacity-60">${st.cap}</span></div>
+                <div class="flex justify-between gap-1"><span class="gb-num">№${e(room.number)}</span><span class="text-xs opacity-60"${st.extraBed ? ` title="${e(tf('timeline_room_two_plus', '2 + доп. кровать'))}"` : ''}>${st.extraBed ? `${st.cap - 1}+1` : st.cap}</span></div>
                 <div class="gb-sub">${e(sub)}${min ? ` · ${e(tf('timeline_room_named', 'с именами'))}: ${min}` : ''}</div>
                 ${disabled || S.mode === 'person' ? '' : `<select class="select select-bordered select-xs" data-room="${room.id}">${opts.join('')}</select>`}
                 ${assignedNames(room.id)}
