@@ -4871,14 +4871,12 @@ async function loadStayAlerts() {
 
     // Пересечение с ретритом «весь Гостевой дом»: перенести даты или «Оставить как есть»
     const f = HouseGuard.fmt;
-    const overlapLine = o => `<div>${ALERT_ICON} <span class="font-medium">${o.kind === 'cross' ? 'Пересечение с ретритом' : 'Возможно пересечение с ретритом'} «${e(Layout.getName(o.retreat))}»</span>: `
+    // Коротко (ВГ 09.10): кто, номер, даты, сколько ночей / «уточните время», кнопка; примечание — ниже
+    const overlapLine = o => `<div>${ALERT_ICON} <span class="font-medium">${o.kind === 'cross' ? 'Пересечение' : 'Возможно пересечение'} с «${e(Layout.getName(o.retreat))}»:</span> `
         + `<a class="link link-hover font-medium" data-action="open-stay-alert" data-id="${o.ids[0]}" data-date="${o.check_in}">${e(o.who || tf('timeline_no_name', 'Без имени'))}${o.ids.length > 1 ? ` · ${Layout.pluralize(o.ids.length, SEAT_FORMS)}` : ''}</a>`
         + ` <span class="opacity-60">(№${e(o.room)}, ${f(o.check_in)} → ${o.check_out ? f(o.check_out) : '…'})</span> — `
-        + (o.kind === 'cross'
-            ? `${e(o.text)}: ${HouseGuard.ruNights(o.nights)} на ретрите (${f(o.from)} → ${f(o.to)}). Перенесите даты или`
-            : `${e(o.text)}. Номер освободится только после их выезда и уборки — пожалуйста, уточните время заезда. Решили —`)
-        + (canEditTimeline() ? ` <button class="btn btn-xs btn-ghost underline px-1" data-action="house-overlap-ok" data-ids="${o.ids.join(',')}" data-name="${e(o.who || '')}">оставьте как есть</button>` : ' оставьте как есть')
-        // Примечание брони — что уже выясняют (ВГ 09.10: «уточнить время»)
+        + (o.kind === 'cross' ? `${HouseGuard.ruNights(o.nights)} на ретрите` : 'уточните время заезда')
+        + (canEditTimeline() ? ` · <button class="btn btn-xs btn-ghost underline px-1" data-action="house-overlap-ok" data-ids="${o.ids.join(',')}" data-name="${e(o.who || '')}">оставить как есть</button>` : '')
         + (o.note ? `<div class="pl-5 text-sm opacity-80">Примечание: ${e(o.note)}</div>` : '')
         + '</div>';
 
