@@ -18,3 +18,13 @@ where id in ('21711b68-9d09-4125-be90-360b4bc690bb',   -- Дикша Ретри�
 update retreats set occupies_guesthouse = false
 where id in ('1ce123cc-b2ec-48c1-b675-23c46ea0a40c',   -- Группа Говинда Махараджа
              '0bf47193-a6e9-4156-92cf-fc430fbc88a0');  -- Группа Бхакти Чайтаньи Свами
+
+-- Дополнено 09.10 по ответу ВГ (текущие и будущие ретриты; прошлые не трогаем):
+update retreats set occupies_guesthouse = true
+where id in ('059b86b3-7411-4343-a46a-10bbb5e18e08',   -- Лила-киртан-ретрит 2027
+             '9528ac06-b09a-4806-84a5-139b3d0fe6f5',   -- Бхагаватам-ретрит 2027
+             '2cb6adba-ea24-4189-917f-44b9e08b810f')   -- Фестиваль Шри-Шри Радхи Говинды 2027
+  and occupies_guesthouse is null;
+update retreats set occupies_guesthouse = false
+where id = '75826808-76b4-4b9b-bace-1d70140fe30c'      -- Ретрит Художников
+  and occupies_guesthouse is null;
