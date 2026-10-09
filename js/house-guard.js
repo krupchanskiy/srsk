@@ -70,11 +70,51 @@ const HouseGuard = (() => {
         return confirm(parts.join('\n\n') + '\n\n«ОК» — всё равно забронировать, «Отмена» — изменить даты.');
     }
 
+    /**
+     * Уже стоящие брони Гостевого дома не из ретрита на его ночах, ещё не решённые
+     * (residents.house_overlap_ok, 669) — для плашки шахматки. Места одной брони в номере — одной строкой.
+     * → [{ ids, room, who, check_in, check_out, retreat, nights, from, to }]
+     */
+    async function pending() {
+        const { retreats, rooms } = await load();
+        if (!retreats.length) return [];
+        const minStart = retreats.reduce((m, r) => r.start_date < m ? r.start_date : m, retreats[0].start_date);
+        const maxEnd = retreats.reduce((m, r) => r.end_date > m ? r.end_date : m, retreats[0].end_date);
+        const { data, error } = await Layout.db.from('residents')
+            .select('id, room_id, booking_id, retreat_id, check_in, check_out, guest_name, vaishnavas(spiritual_name, first_name, last_name), bookings(name)')
+            .in('room_id', [...rooms.keys()]).eq('status', 'confirmed').eq('house_overlap_ok', false)
+            .lte('check_in', maxEnd).or(`check_out.is.null,check_out.gt.${minStart}`)
+            .order('check_in');
+        if (error) return [];
+        const out = new Map();
+        for (const row of data || []) for (const r of retreats) {
+            if (row.retreat_id === r.id) continue;
+            const leave = shift(r.end_date, 1);
+            if (!(row.check_in < leave && (!row.check_out || row.check_out > r.start_date))) continue;
+            const key = `${r.id}|${row.room_id}|${row.booking_id || row.id}|${row.check_in}|${row.check_out}`;
+            const v = row.vaishnavas;
+            const name = v?.spiritual_name || `${v?.first_name || ''} ${v?.last_name || ''}`.trim() || row.guest_name || '';
+            const item = out.get(key);
+            if (item) { item.ids.push(row.id); if (!item.who && name) item.who = name; continue; }
+            const from = row.check_in > r.start_date ? row.check_in : r.start_date;
+            const to = row.check_out && row.check_out < leave ? row.check_out : leave;
+            out.set(key, { ids: [row.id], room: rooms.get(row.room_id), who: name || row.bookings?.name || '',
+                check_in: row.check_in, check_out: row.check_out, retreat: r, nights: nights(from, to), from, to });
+        }
+        return [...out.values()];
+    }
+
+    // «Оставить как есть» — решено осознанно, плашка больше не показывает
+    async function accept(ids) {
+        const { error } = await Layout.db.from('residents').update({ house_overlap_ok: true }).in('id', ids);
+        return error;
+    }
+
     // Изменилось ли место относительно того, что было в базе
     const changed = (now, old) => !old || now.room_id !== old.room_id || now.check_in !== old.check_in
         || (now.check_out || null) !== (old.check_out || null) || (now.retreat_id || null) !== (old.retreat_id || null);
 
-    return { confirmSave, changed };
+    return { confirmSave, changed, pending, accept, fmt, ruNights };
 })();
 
 window.HouseGuard = HouseGuard;

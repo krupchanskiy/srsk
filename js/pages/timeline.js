@@ -4795,7 +4795,7 @@ async function loadStayAlerts() {
     const today = DateUtils.toISO(new Date());
     const cols = 'id, vaishnava_id, check_in, check_out, room_id, booking_id, guest_name, rooms(number), vaishnavas(first_name, last_name, spiritual_name), bookings(name, contact_name)';
 
-    const [notArrivedRes, notOutRes, conflictsRes] = await Promise.all([
+    const [notArrivedRes, notOutRes, conflictsRes, houseOverlaps] = await Promise.all([
         Layout.db.from('residents').select(cols)
             .in('status', ['confirmed', 'booked']).is('arrived_at', null)
             .lt('check_in', today).order('check_in'),
@@ -4803,7 +4803,9 @@ async function loadStayAlerts() {
             .eq('status', 'confirmed').not('arrived_at', 'is', null)
             .lt('check_out', today).order('check_out'),
         // Накладки (ВГ 08.10): больше людей, чем мест, и один человек в двух местах сразу — 654
-        Layout.db.rpc('room_conflicts')
+        Layout.db.rpc('room_conflicts'),
+        // Брони Гостевого дома на ночах ретрита «весь Гостевой дом» — висят до решения (668/669)
+        HouseGuard.pending()
     ]);
     // Молча выходим: шахматка важнее сигнала
     if (notArrivedRes.error || notOutRes.error) return;
@@ -4860,18 +4862,40 @@ async function loadStayAlerts() {
             + `<a class="link link-hover" data-action="open-stay-alert" data-id="${c.resident_ids[0]}" data-date="${c.d_from}">${e(c.who || '')}</a></div>`;
     };
 
+    // Пересечение с ретритом «весь Гостевой дом»: перенести даты или «Оставить как есть»
+    const f = HouseGuard.fmt;
+    const overlapLine = o => `<div>${ALERT_ICON} <span class="font-medium">Пересечение с ретритом «${e(Layout.getName(o.retreat))}»</span>`
+        + ` <span class="opacity-60">(${f(o.retreat.start_date)}–${f(o.retreat.end_date)}, весь Гостевой дом)</span>: `
+        + `<a class="link link-hover font-medium" data-action="open-stay-alert" data-id="${o.ids[0]}" data-date="${o.check_in}">${e(o.who || tf('timeline_no_name', 'Без имени'))}${o.ids.length > 1 ? ` · ${Layout.pluralize(o.ids.length, SEAT_FORMS)}` : ''}</a>`
+        + ` <span class="opacity-60">(№${e(o.room)}, ${f(o.check_in)} → ${o.check_out ? f(o.check_out) : '…'})</span>`
+        + ` — ${HouseGuard.ruNights(o.nights)} на ретрите (${f(o.from)} → ${f(o.to)}). Перенесите даты или`
+        + (canEditTimeline() ? ` <button class="btn btn-xs btn-ghost underline px-1" data-action="house-overlap-ok" data-ids="${o.ids.join(',')}" data-name="${e(o.who || '')}">оставьте как есть</button>` : ' оставьте как есть')
+        + '</div>';
+
     banner.innerHTML = conflicts.map(conflictLine).join('')
+        + houseOverlaps.map(overlapLine).join('')
         + line(tf('timeline_not_arrived_title', 'Не заселены'), notArrived, r => r.check_in, tf('timeline_not_arrived_since', 'заезд с'))
         + line(tf('timeline_not_checked_out_title', 'Не выселены'), notOut, r => r.check_out, tf('timeline_not_checked_out_since', 'выезд был'));
-    banner.classList.toggle('hidden', !conflicts.length && !notArrived.length && !notOut.length);
+    banner.classList.toggle('hidden', !conflicts.length && !houseOverlaps.length && !notArrived.length && !notOut.length);
 
     if (!banner._delegated) {
         banner._delegated = true;
         banner.addEventListener('click', ev => {
             const a = ev.target.closest('[data-action="open-stay-alert"]');
             if (a) openStayAlert(a.dataset.id, a.dataset.date);
+            const ok = ev.target.closest('[data-action="house-overlap-ok"]');
+            if (ok) acceptHouseOverlap(ok.dataset.ids.split(','), ok.dataset.name);
         });
     }
+}
+
+// «Оставить как есть»: номер точно не понадобится ретриту — плашка больше не показывает (669)
+async function acceptHouseOverlap(ids, name) {
+    if (!canEditTimeline()) return;
+    if (!confirm(`Оставить бронь${name ? ` «${name}»` : ''} как есть? Убедитесь, что этот номер ретрит не займёт — предупреждение сверху пропадёт.`)) return;
+    const error = await HouseGuard.accept(ids);
+    if (error) { Layout.handleError(error, 'Оставить как есть'); return; }
+    await loadStayAlerts();
 }
 
 // Перейти в шахматке к дате брони и открыть её окно
