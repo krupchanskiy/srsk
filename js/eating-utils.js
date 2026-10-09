@@ -41,18 +41,15 @@ const EatingUtils = {
             };
         }
 
-        // Примечания к дню для поваров — из «Разового питания» «По дням» (миграция 640):
+        // Примечания к дню для поваров — «Разовое питание» по дням (640) и люди из шахматки:
+        // «ожидается в ~16:00 — оставить обед» (670); те же строки, что в боте кухни.
         // counts[d].notes = [{ name, note }]
         const { data: notes, error: notesErr } = await Layout.db
-            .from('meal_group_days')
-            .select('d, note, meal_groups!inner(name, by_day)')
-            .gte('d', startDate).lte('d', endDate)
-            .eq('meal_groups.by_day', true)
-            .not('note', 'is', null);
-        if (notesErr) console.error('meal_group_days notes:', notesErr);
+            .rpc('eating_day_notes', { p_from: startDate, p_to: endDate });
+        if (notesErr) console.error('eating_day_notes:', notesErr);
         for (const n of notes || []) {
             if (!counts[n.d] || !(n.note || '').trim()) continue;
-            counts[n.d].notes.push({ name: n.meal_groups?.name || '', note: n.note.trim() });
+            counts[n.d].notes.push({ name: n.name || '', note: n.note.trim() });
         }
 
         for (const r of rows) {
