@@ -1,4 +1,4 @@
--- 663b (в журнале базы — 663_person_booking_translations; номер 663 занят предоплатой): переводы окна «Бронирование: человек или семья» (js/group-booking.js, режим person; ВГ, 09.10.2026, «Шахматка 11», часть 4).
+-- 663d (в журнале базы — 663_person_booking_translations; 663, 663b, 663c заняты предоплатой): переводы окна «Бронирование: человек или семья» (js/group-booking.js, режим person; ВГ, 09.10.2026, «Шахматка 11», часть 4).
 insert into translations (key, ru, en, hi, page)
 select v.key, v.ru, v.en, v.hi, 'timeline'
   from (values

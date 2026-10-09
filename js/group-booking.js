@@ -115,7 +115,7 @@ function ensureDialog() {
                     <span class="flex items-center gap-1"><span class="w-3 h-3 rounded gb-free" style="border:1px solid #a7f3d0;background:#ecfdf5"></span>${e(tf('timeline_room_free', 'свободен'))}</span>
                     <span class="flex items-center gap-1"><span class="w-3 h-3 rounded" style="border:1px solid #fcd34d;background:#fffbeb"></span>${e(tf('timeline_room_adjacent', 'в стык'))}</span>
                     <span class="flex items-center gap-1"><span class="w-3 h-3 rounded" style="border:1px solid #fdba74;background:#fff7ed"></span>${e(tf('timeline_room_partial', 'занят частично'))}</span>
-                    <span class="flex items-center gap-1"><span class="w-3 h-3 rounded" style="border:1px solid #fecaca;background:#fef2f2"></span>${e(tf('timeline_room_overlap', 'нахлёст — нельзя'))}</span>
+                    <span class="flex items-center gap-1"><span class="w-3 h-3 rounded" style="border:1px solid #fecaca;background:#fef2f2"></span>${e(tf('timeline_room_overlap', 'занят'))}</span>
                     <button type="button" class="btn btn-xs btn-outline ml-auto" data-gb="list" data-group-only>${e(tf('timeline_group_paste_list', 'Вставить список'))}</button>
                 </div>
                 <div id="gbListSummary" class="hidden mb-2 p-3 rounded-lg text-sm bg-info/10"></div>
@@ -416,7 +416,7 @@ function renderRooms() {
             picked += p;
             const min = minFor(room.id);
             const max = Math.max(st.free, min);
-            const sub = st.kind === 'busy' ? tf('timeline_room_overlap', 'нахлёст — нельзя')
+            const sub = st.kind === 'busy' ? tf('timeline_room_overlap', 'занят')
                 : st.kind === 'partial' ? `${tf('timeline_room_busy_of', 'занято')} ${st.peak} ${tf('booking_of', 'из')} ${st.cap}`
                 : st.kind === 'adjacent' ? tf('timeline_room_adjacent', 'в стык')
                 : tf('timeline_room_free', 'свободен');
