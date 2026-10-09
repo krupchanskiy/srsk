@@ -4876,7 +4876,10 @@ async function loadStayAlerts() {
         + `<a class="link link-hover font-medium" data-action="open-stay-alert" data-id="${o.ids[0]}" data-date="${o.check_in}">${e(o.who || tf('timeline_no_name', 'Без имени'))}${o.ids.length > 1 ? ` · ${Layout.pluralize(o.ids.length, SEAT_FORMS)}` : ''}</a>`
         + ` <span class="opacity-60">(№${e(o.room)}, ${f(o.check_in)} → ${o.check_out ? f(o.check_out) : '…'})</span> — `
         + (o.kind === 'cross' ? `${HouseGuard.ruNights(o.nights)} на ретрите` : 'уточните время заезда')
-        + (canEditTimeline() ? ` · <button class="btn btn-xs btn-ghost underline px-1" data-action="house-overlap-ok" data-ids="${o.ids.join(',')}" data-name="${e(o.who || '')}">оставить как есть</button>` : '')
+        // «Всё в порядке» — аккуратная зелёная кнопка: вопрос решён, строка уходит
+        + (canEditTimeline() ? ` <button class="btn btn-xs h-6 min-h-0 ml-1 gap-1 font-normal normal-case bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border border-emerald-300 hover:border-emerald-400" data-action="house-overlap-ok" data-ids="${o.ids.join(',')}" data-name="${e(o.who || '')}">`
+            + '<svg xmlns="http://www.w3.org/2000/svg" class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"/></svg>'
+            + 'Всё в порядке</button>' : '')
         + (o.note ? `<div class="pl-5 text-sm opacity-80">Примечание: ${e(o.note)}</div>` : '')
         + '</div>';
 
@@ -4900,7 +4903,7 @@ async function loadStayAlerts() {
 // «Оставить как есть»: номер точно не понадобится ретриту — плашка больше не показывает (669)
 async function acceptHouseOverlap(ids, name) {
     if (!canEditTimeline()) return;
-    if (!confirm(`Оставить бронь${name ? ` «${name}»` : ''} как есть? Убедитесь, что этот номер ретрит не займёт — предупреждение сверху пропадёт.`)) return;
+    if (!confirm(`Всё в порядке с бронью${name ? ` «${name}»` : ''}? Предупреждение сверху пропадёт.`)) return;
     const error = await HouseGuard.accept(ids);
     if (error) { Layout.handleError(error, 'Оставить как есть'); return; }
     await loadStayAlerts();
