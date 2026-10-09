@@ -75,7 +75,7 @@
                     </button>
                 </div>
             </div>
-            <!-- «Забронировать» → человек или семья (прежний мастер, до части 4) или группа (ВГ, 08.10) -->
+            <!-- «Забронировать» → человек или семья (один номер) или группа — одно окно js/group-booking.js (ВГ, 08.10) -->
             <div class="dropdown dropdown-end" data-permission="create_booking">
                 <div tabindex="0" role="button" class="btn btn-primary gap-2">
                     <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -84,7 +84,7 @@
                     <span data-i18n="add_booking">Забронировать</span>
                 </div>
                 <ul tabindex="0" class="dropdown-content menu bg-base-100 rounded-box z-10 w-56 p-2 shadow">
-                    <li><a onclick="document.activeElement.blur(); openNewBookingModal()" data-i18n="timeline_booking_person">Человек или семья</a></li>
+                    <li><a onclick="document.activeElement.blur(); openPersonBooking()" data-i18n="timeline_booking_person">Человек или семья</a></li>
                     <li><a onclick="document.activeElement.blur(); openGroupBooking()" data-i18n="timeline_booking_group">Группа</a></li>
                 </ul>
             </div>
@@ -116,7 +116,7 @@
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
                 </svg>
                 <p class="text-lg opacity-60" data-i18n="bookings_empty">Нет бронирований</p>
-                <button class="btn btn-primary mt-4" onclick="openNewBookingModal()" data-permission="create_booking" data-i18n="add_booking">Забронировать</button>
+                <button class="btn btn-primary mt-4" onclick="openPersonBooking()" data-permission="create_booking" data-i18n="add_booking">Забронировать</button>
             </div>
         </div>
 
@@ -161,145 +161,6 @@
 
     <div id="footer-placeholder"></div>
 
-    <!-- NEW Booking Modal (2 steps) -->
-    <dialog id="newBookingModal" class="modal">
-        <div class="modal-box max-w-4xl relative">
-            <button type="button" class="btn btn-sm btn-circle btn-ghost absolute right-2 top-2" onclick="closeNewBookingModal()">✕</button>
-            <h3 class="font-bold text-lg mb-4" id="newBookingModalTitle" data-i18n="booking_title">Новая бронь</h3>
-
-            <!-- Steps indicator -->
-            <div class="flex items-center justify-center gap-4 mb-6">
-                <div class="flex items-center gap-2" id="bookingStep1Indicator">
-                    <span class="w-8 h-8 rounded-full bg-primary text-primary-content flex items-center justify-center font-bold">1</span>
-                    <span class="font-medium" data-i18n="booking_step_1">Данные брони</span>
-                </div>
-                <div class="w-12 h-px bg-base-300"></div>
-                <div class="flex items-center gap-2 opacity-40" id="bookingStep2Indicator">
-                    <span class="w-8 h-8 rounded-full bg-base-300 flex items-center justify-center font-bold">2</span>
-                    <span class="font-medium" data-i18n="booking_step_2">Выбор комнат</span>
-                </div>
-            </div>
-
-            <!-- Step 1: Booking Data -->
-            <div id="bookingStep1">
-                <form id="newBookingForm" class="space-y-4">
-                    <input type="hidden" name="crm_deal_id" id="crmDealIdField" value="">
-                    <!-- Contact Person -->
-                    <div class="grid grid-cols-2 gap-4">
-                        <div>
-                            <label class="label"><span class="label-text font-medium" data-i18n="booking_contact_name">Контактное лицо</span><span class="text-error ml-1">*</span></label>
-                            <input type="text" name="contact_name" class="input input-bordered w-full" required />
-                        </div>
-                        <div>
-                            <label class="label"><span class="label-text font-medium" data-i18n="booking_contact_phone">Телефон</span></label>
-                            <input type="tel" name="contact_phone" class="input input-bordered w-full" />
-                        </div>
-                    </div>
-
-                    <div class="grid grid-cols-2 gap-4">
-                        <div>
-                            <label class="label"><span class="label-text font-medium" data-i18n="booking_contact_email">Email</span></label>
-                            <input type="email" name="contact_email" class="input input-bordered w-full" />
-                        </div>
-                        <div>
-                            <label class="label"><span class="label-text font-medium" data-i18n="booking_contact_country">Страна</span></label>
-                            <input type="text" name="contact_country" class="input input-bordered w-full" />
-                        </div>
-                    </div>
-
-                    <div class="divider"></div>
-
-                    <!-- Booking Details -->
-                    <div class="grid grid-cols-3 gap-4">
-                        <div>
-                            <label class="label"><span class="label-text font-medium" data-i18n="booking_beds_count">Количество мест</span><span class="text-error ml-1">*</span></label>
-                            <input type="number" name="beds_count" min="1" max="200" value="1" class="input input-bordered w-full" required />
-                        </div>
-                        <div>
-                            <label class="label"><span class="label-text font-medium" data-i18n="check_in">Заезд</span><span class="text-error ml-1">*</span></label>
-                            <input type="date" name="check_in" class="input input-bordered w-full" required />
-                        </div>
-                        <div>
-                            <label class="label"><span class="label-text font-medium" data-i18n="check_out">Выезд</span><span class="text-error ml-1">*</span></label>
-                            <input type="date" name="check_out" class="input input-bordered w-full" required />
-                        </div>
-                    </div>
-
-                    <div class="grid grid-cols-2 gap-4" id="buildingScopeRow">
-                        <div>
-                            <label class="label"><span class="label-text font-medium" data-i18n="booking_buildings">Где размещаем</span><span class="text-error ml-1">*</span></label>
-                            <select name="building_scope" id="newBookingBuildingScope" class="select select-bordered w-full" required>
-                                <!-- Заполняется динамически -->
-                            </select>
-                        </div>
-                        <div>
-                            <label class="label"><span class="label-text font-medium" data-i18n="booking_retreat">Ретрит</span></label>
-                            <select name="retreat_id" id="newBookingRetreatSelect" class="select select-bordered w-full">
-                                <option value="">—</option>
-                            </select>
-                        </div>
-                    </div>
-
-                    <div>
-                        <label class="label"><span class="label-text font-medium" data-i18n="booking_notes">Примечания</span></label>
-                        <input type="text" name="notes" class="input input-bordered w-full" />
-                    </div>
-                </form>
-
-                <div class="modal-action">
-                    <button type="button" class="btn btn-ghost" onclick="closeNewBookingModal()" data-i18n="cancel">Отмена</button>
-                    <button type="button" class="btn btn-primary" onclick="goToBookingStep2()" data-i18n="booking_next">Далее</button>
-                </div>
-            </div>
-
-            <!-- Step 2: Room Selection -->
-            <div id="bookingStep2" class="hidden">
-                <!-- Building selector -->
-                <div class="flex items-center justify-between mb-4">
-                    <select id="newBookingBuildingSelect" class="select select-bordered" onchange="renderBookingPlan()">
-                        <!-- Buildings will be populated -->
-                    </select>
-                    <div class="badge badge-lg badge-warning gap-2">
-                        <span data-i18n="booking_selected">Выбрано</span>
-                        <span id="bookingSelectedCount">0</span>
-                        <span data-i18n="booking_of">из</span>
-                        <span id="bookingTotalCount">1</span>
-                    </div>
-                </div>
-
-                <!-- Legend -->
-                <div class="flex flex-wrap gap-3 items-center mb-4 text-sm">
-                    <div class="flex items-center gap-1">
-                        <span class="w-3 h-3 rounded" style="background-color: #10b981"></span>
-                        <span data-i18n="floor_plan_available">Свободно</span>
-                    </div>
-                    <div class="flex items-center gap-1">
-                        <span class="w-3 h-3 rounded" style="background-color: #8b5cf6"></span>
-                        <span data-i18n="floor_plan_occupied">Заселена</span>
-                    </div>
-                    <div class="flex items-center gap-1">
-                        <span class="w-3 h-3 rounded" style="background-color: #eab308"></span>
-                        <span data-i18n="floor_plan_booked">Забронировано</span>
-                    </div>
-                    <div class="flex items-center gap-1">
-                        <span class="w-3 h-3 rounded" style="background-color: #6366f1"></span>
-                        <span data-i18n="bookings_selected_for_booking">Выбрано для брони</span>
-                    </div>
-                </div>
-
-                <!-- Floor plans grid -->
-                <div id="bookingPlanContainer" class="grid grid-cols-2 gap-4 max-h-96 overflow-y-auto">
-                    <!-- Plans will be rendered here -->
-                </div>
-
-                <div class="modal-action">
-                    <button type="button" class="btn btn-ghost" onclick="goToBookingStep1()" data-i18n="booking_back">Назад</button>
-                    <button type="button" class="btn btn-primary" id="bookingSaveBtn" onclick="saveNewBooking()" disabled data-i18n="booking_save">Сохранить</button>
-                </div>
-            </div>
-        </div>
-        <form method="dialog" class="modal-backdrop"><button>close</button></form>
-    </dialog>
 
     <!-- Booking Details Modal -->
     <dialog id="bookingModal" class="modal">
@@ -348,39 +209,6 @@
         <form method="dialog" class="modal-backdrop"><button>close</button></form>
     </dialog>
 
-    <!-- Availability Error Modal -->
-    <dialog id="availabilityErrorModal" class="modal">
-        <div class="modal-box max-w-lg">
-            <button type="button" class="btn btn-sm btn-circle btn-ghost absolute right-2 top-2" onclick="closeAvailabilityErrorModal()">✕</button>
-
-            <div class="flex items-center gap-3 mb-4">
-                <div class="w-12 h-12 rounded-full bg-error/20 flex items-center justify-center">
-                    <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6 text-error" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
-                    </svg>
-                </div>
-                <div>
-                    <h3 class="font-bold text-lg" data-i18n="booking_not_available">Бронирование невозможно</h3>
-                    <p class="text-sm opacity-60" id="availabilityErrorBuilding"></p>
-                </div>
-            </div>
-
-            <div class="bg-base-200 rounded-lg p-4 mb-4">
-                <div class="text-sm font-medium mb-2 opacity-70" data-i18n="booking_problem_dates">На следующие даты недостаточно мест:</div>
-                <div id="availabilityErrorDates" class="space-y-2"></div>
-            </div>
-
-            <div class="flex items-center justify-between bg-warning/10 rounded-lg p-3">
-                <span class="text-sm" data-i18n="booking_required_beds">Требуется мест:</span>
-                <span id="availabilityErrorRequired" class="font-bold text-lg"></span>
-            </div>
-
-            <div class="modal-action">
-                <button type="button" class="btn" onclick="closeAvailabilityErrorModal()" data-i18n="understood">Понятно</button>
-            </div>
-        </div>
-        <form method="dialog" class="modal-backdrop"><button>close</button></form>
-    </dialog>
 
     <script src="../js/config.js?v=5"></script>
     <script src="../js/auth-check.js?v=13"></script>
@@ -392,7 +220,7 @@
     <script src="../js/date-utils.js?v=4"></script>
     <script src="../js/layout.js?v=84"></script>
     <script src="../js/retreat-select.js?v=1"></script>
-    <script src="../js/group-booking.js?v=7"></script>
-    <script src="../js/pages/bookings.js?v=12"></script>
+    <script src="../js/group-booking.js?v=8"></script>
+    <script src="../js/pages/bookings.js?v=13"></script>
 </body>
 </html>

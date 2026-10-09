@@ -2,8 +2,6 @@
 let bookings = [];
 let allBookings = [];
 let buildings = [];
-let rooms = [];
-let floorPlans = [];
 let retreats = [];
 let currentFilter = 'all';
 // Живая бронь: из шахматки создаётся со статусом confirmed, отсюда — active. Раньше
@@ -31,24 +29,8 @@ let calendarYear = new Date().getFullYear();
 let calendarMonth = new Date().getMonth();
 let selectedBookingId = null;
 
-// New booking state
-let bookingStep = 1;
-let bookingSelectedBeds = new Set();
-let bookingBuildingId = null;
-
 // CRM mode: crm_deal_id из URL
 let crmDealId = null;
-let crmVaishnavaId = null; // человек из сделки — уходит в первое место брони
-let crmBuildingIds = []; // фильтр зданий при бронировании из CRM
-
-const statusColors = {
-    available: '#10b981',
-    occupied: '#8b5cf6',
-    booked: '#eab308',
-    cleaning: '#ef4444',
-    maintenance: '#6b7280',
-    selected: '#6366f1'
-};
 
 const t = key => Layout.t(key);
 // перевод с запасным текстом — новые ключи, пока у людей старый кэш переводов
@@ -69,23 +51,6 @@ async function loadInitialData() {
         if (error) { console.error('Error loading buildings:', error); return null; }
         return data;
     }) || [];
-
-    // Load rooms (кэш 1 час)
-    rooms = await Cache.getOrLoad('rooms', async () => {
-        const { data, error } = await Layout.db
-            .from('rooms')
-            .select('id, number, floor, building_id, capacity, plan_x, plan_y, plan_width, plan_height')
-            .eq('is_active', true);
-        if (error) { console.error('Error loading rooms:', error); return null; }
-        return data;
-    }, 3600000) || [];
-
-    // Load floor plans
-    const { data: plansData } = await Layout.db
-        .from('floor_plans')
-        .select('*')
-        .order('floor');
-    floorPlans = plansData || [];
 
     // Load retreats (кэш 30 мин)
     retreats = await Cache.getOrLoad('retreats', async () => {
@@ -437,590 +402,18 @@ function closeDayModal() {
     Layout.$('#dayModal').close();
 }
 
-// ==================== NEW BOOKING MODAL ====================
-// Список ретритов под даты брони; выбранный сохраняем
-function fillNewBookingRetreats(selectedId) {
-    const form = Layout.$('#newBookingForm');
-    const sel = Layout.$('#newBookingRetreatSelect');
-    if (!form || !sel) return;
-    sel.innerHTML = RetreatSelect.html(retreats, selectedId, form.check_in.value, form.check_out.value, { noneLabel: '—' });
-    sel.value = selectedId || '';
-}
+// Архив ретритов в списке окна брони (js/retreat-select.js)
 RetreatSelect.setSource(() => retreats, { noneLabel: () => '—' });
-
-function openNewBookingModal() {
-    bookingStep = 1;
-    bookingSelectedBeds.clear();
-
-    const form = Layout.$('#newBookingForm');
-    form.reset();
-    form.check_in.value = today;
-    form.check_out.value = '';
-
-    // Список как в шахматке (js/retreat-select.js): по датам брони, «Предстоящие»,
-    // «Архив / все ретриты…». Прошедшие — только через архив: по ошибке выбранный
-    // прошедший Сева-ретрит на даты Лилы 2027 (Мадхурья-бхакти, ВГ 29.09)
-    fillNewBookingRetreats('');
-
-    // Populate building select for step 2
-    const buildingSelect = Layout.$('#newBookingBuildingSelect');
-    buildingSelect.innerHTML = buildings.map(b =>
-        `<option value="${b.id}">${Layout.getName(b)}</option>`
-    ).join('');
-    bookingBuildingId = buildings[0]?.id;
-
-    // Populate building scope select for step 1
-    // Считаем ёмкость каждого здания
-    const buildingCapacity = {};
-    let totalCapacity = 0;
-    rooms.forEach(r => {
-        if (!buildingCapacity[r.building_id]) buildingCapacity[r.building_id] = 0;
-        buildingCapacity[r.building_id] += r.capacity || 0;
-        totalCapacity += r.capacity || 0;
-    });
-
-    const guesthouse = buildings.find(b => b.name_ru === 'Гостевой дом' || b.name_en === 'Guest House');
-    const buildingScopeSelect = Layout.$('#newBookingBuildingScope');
-    buildingScopeSelect.innerHTML =
-        (guesthouse ? `<option value="${guesthouse.id}">${Layout.getName(guesthouse)} (${buildingCapacity[guesthouse.id] || 0})</option>` : '') +
-        `<option value="all">${t('booking_all_buildings')} (${totalCapacity})</option>` +
-        buildings.filter(b => b.id !== guesthouse?.id).map(b =>
-            `<option value="${b.id}">${Layout.getName(b)} (${buildingCapacity[b.id] || 0})</option>`
-        ).join('');
-
-    updateBookingStepIndicators();
-    Layout.$('#bookingStep1').classList.remove('hidden');
-    Layout.$('#bookingStep2').classList.add('hidden');
-
-    Layout.$('#newBookingModal').showModal();
-}
-
-function closeNewBookingModal() {
-    Layout.$('#newBookingModal').close();
-    bookingSelectedBeds.clear();
-}
-
-function updateBookingStepIndicators() {
-    const step1 = Layout.$('#bookingStep1Indicator');
-    const step2 = Layout.$('#bookingStep2Indicator');
-
-    if (bookingStep === 1) {
-        step1.classList.remove('opacity-40');
-        step1.querySelector('span:first-child').classList.add('bg-primary', 'text-primary-content');
-        step1.querySelector('span:first-child').classList.remove('bg-base-300');
-        step2.classList.add('opacity-40');
-        step2.querySelector('span:first-child').classList.remove('bg-primary', 'text-primary-content');
-        step2.querySelector('span:first-child').classList.add('bg-base-300');
-    } else {
-        step1.classList.add('opacity-40');
-        step1.querySelector('span:first-child').classList.remove('bg-primary', 'text-primary-content');
-        step1.querySelector('span:first-child').classList.add('bg-base-300');
-        step2.classList.remove('opacity-40');
-        step2.querySelector('span:first-child').classList.add('bg-primary', 'text-primary-content');
-        step2.querySelector('span:first-child').classList.remove('bg-base-300');
-    }
-}
-
-async function goToBookingStep2() {
-    const form = Layout.$('#newBookingForm');
-    if (!form.checkValidity()) {
-        form.reportValidity();
-        return;
-    }
-
-    const bedsCount = parseInt(form.beds_count.value) || 1;
-    const checkIn = form.check_in.value;
-    const checkOut = form.check_out.value;
-
-    // В CRM-режиме building_scope скрыт — используем crmBuildingIds или все здания
-    const buildingScopeEl = document.getElementById('buildingScopeRow');
-    const isCrmHidden = buildingScopeEl?.classList.contains('hidden');
-    const buildingScope = isCrmHidden ? 'all' : form.building_scope.value;
-
-    // Определяем building_ids для проверки доступности
-    let buildingIds = null;
-    if (isCrmHidden && crmBuildingIds.length > 0) {
-        buildingIds = crmBuildingIds;
-    } else if (!isCrmHidden && buildingScope !== 'all') {
-        buildingIds = [buildingScope];
-    }
-
-    // Проверяем доступность на весь период
-    const { data: problemDates, error } = await Layout.db.rpc('check_booking_availability', {
-        p_check_in: checkIn,
-        p_check_out: checkOut,
-        p_beds_needed: bedsCount,
-        p_building_ids: buildingIds
-    });
-
-    if (error) {
-        console.error('Error checking availability:', error);
-    } else if (problemDates && problemDates.length > 0) {
-        const buildingName = buildingScope === 'all'
-            ? t('booking_all_buildings')
-            : Layout.getName(buildings.find(b => b.id === buildingScope)) || '';
-
-        showAvailabilityError(problemDates, buildingName, bedsCount);
-        return;
-    }
-
-    bookingStep = 2;
-    updateBookingStepIndicators();
-    Layout.$('#bookingStep1').classList.add('hidden');
-    Layout.$('#bookingStep2').classList.remove('hidden');
-
-    // Устанавливаем выбранное здание для отображения плана (или первое, если "все")
-    const buildingSelect = Layout.$('#newBookingBuildingSelect');
-    if (buildingScope !== 'all') {
-        buildingSelect.value = buildingScope;
-        bookingBuildingId = buildingScope;
-    }
-
-    Layout.$('#bookingTotalCount').textContent = bedsCount;
-    Layout.$('#bookingSelectedCount').textContent = bookingSelectedBeds.size;
-
-    renderBookingPlan();
-}
-
-function goToBookingStep1() {
-    bookingStep = 1;
-    updateBookingStepIndicators();
-    Layout.$('#bookingStep1').classList.remove('hidden');
-    Layout.$('#bookingStep2').classList.add('hidden');
-}
-
-function showAvailabilityError(problemDates, buildingName, bedsNeeded) {
-    const dateFormatter = new Intl.DateTimeFormat(Layout.currentLang === 'hi' ? 'hi-IN' : Layout.currentLang === 'en' ? 'en-US' : 'ru-RU', {
-        day: 'numeric',
-        month: 'long',
-        weekday: 'short'
-    });
-
-    Layout.$('#availabilityErrorBuilding').textContent = buildingName;
-    Layout.$('#availabilityErrorRequired').textContent = bedsNeeded;
-
-    const datesContainer = Layout.$('#availabilityErrorDates');
-    datesContainer.innerHTML = problemDates.map(d => {
-        const date = DateUtils.parseDate(d.problem_date);
-        const percent = Math.round((d.available_beds / d.total_capacity) * 100);
-        const colorClass = percent < 30 ? 'bg-error' : percent < 70 ? 'bg-warning' : 'bg-success';
-
-        return `
-            <div class="flex items-center justify-between py-2 border-b border-base-300 last:border-0">
-                <span class="font-medium">${dateFormatter.format(date)}</span>
-                <div class="flex items-center gap-3">
-                    <div class="w-24 bg-base-300 rounded-full h-2">
-                        <div class="${colorClass} h-2 rounded-full" style="width: ${100 - percent}%"></div>
-                    </div>
-                    <span class="text-sm opacity-70 w-20 text-right">
-                        ${t('booking_available')} <strong>${d.available_beds}</strong>
-                    </span>
-                </div>
-            </div>
-        `;
-    }).join('');
-
-    Layout.$('#availabilityErrorModal').showModal();
-}
-
-function closeAvailabilityErrorModal() {
-    Layout.$('#availabilityErrorModal').close();
-}
-
-async function renderBookingPlan() {
-    const container = Layout.$('#bookingPlanContainer');
-    const buildingSelect = Layout.$('#newBookingBuildingSelect');
-    bookingBuildingId = buildingSelect.value;
-
-    const form = Layout.$('#newBookingForm');
-    const checkIn = form.check_in.value;
-
-    // Load occupancy for the booking dates
-    const { data: bookingOccupancy } = await Layout.db.rpc('get_room_occupancy_with_bookings', { target_date: checkIn });
-
-    // Load gender data: кто именно занимает каждую кровать (по индексу)
-    const { data: resGender } = await Layout.db
-        .from('residents')
-        .select('room_id, vaishnavas(gender)')
-        .eq('status', 'confirmed')
-        .lte('check_in', checkIn)
-        .or(`check_out.is.null,check_out.gt.${checkIn}`)
-        .order('check_in')
-        .order('created_at');
-
-    // Строим карту: room_id → [gender_bed0, gender_bed1, ...]
-    const bedGenderMap = {};
-    (resGender || []).forEach(r => {
-        if (!bedGenderMap[r.room_id]) bedGenderMap[r.room_id] = [];
-        bedGenderMap[r.room_id].push(r.vaishnavas?.gender || null);
-    });
-
-    // Get floor plans for selected building
-    const buildingPlans = floorPlans.filter(p => p.building_id === bookingBuildingId).sort((a, b) => a.floor - b.floor);
-    const buildingRooms = rooms.filter(r => r.building_id === bookingBuildingId);
-
-    // У внешних гостиниц планов этажей нет, а селить в них надо: показываем
-    // комнаты списком с теми же местами и цветами, что и на плане (ВГ, 15.08)
-    if (buildingPlans.length === 0) {
-        renderBookingRoomList(container, buildingRooms, bookingOccupancy || [], bedGenderMap);
-        return;
-    }
-
-    container.innerHTML = buildingPlans.map(plan => `
-        <div class="bg-base-200 rounded-lg p-2">
-            <div class="text-xs font-medium mb-1 opacity-60">${t('floor_plan_floor')} ${plan.floor}</div>
-            <div class="floor-plan-container relative">
-                <img src="${plan.image_url}" alt="${t('floor_plan_floor')} ${plan.floor}" class="w-full" />
-                <svg class="floor-plan-svg absolute top-0 left-0 w-full h-full" id="bookingPlanSvg_${plan.floor}" viewBox="0 0 100 100" preserveAspectRatio="none"></svg>
-            </div>
-        </div>
-    `).join('');
-
-    buildingPlans.forEach(plan => {
-        renderBookingPlanMarkers(plan.floor, buildingRooms, bookingOccupancy || [], bedGenderMap);
-    });
-}
-
-// Цвет кровати с учётом пола жильца
-function getBedFill(isSelected, isOccupied, isBooked, bedGenderMap, roomId, bedIndex) {
-    if (isSelected) return statusColors.selected;
-    if (isOccupied) {
-        const g = (bedGenderMap[roomId] || [])[bedIndex];
-        return g === 'male' ? '#3b82f6' : g === 'female' ? '#ec4899' : statusColors.occupied;
-    }
-    if (isBooked) return statusColors.booked;
-    return statusColors.available;
-}
-
-// Запасной выбор комнат: то же, что план этажа, но списком — для зданий,
-// у которых плана нет (внешние гостиницы). Места кликаются так же.
-function renderBookingRoomList(container, buildingRooms, bookingOccupancy, bedGenderMap = {}) {
-    const комнаты = buildingRooms
-        .filter(r => r.status !== 'maintenance' && r.status !== 'mothballed')
-        .sort((a, b) => (a.floor || 0) - (b.floor || 0) ||
-                        String(a.number).localeCompare(String(b.number), 'ru', { numeric: true }));
-
-    if (!комнаты.length) {
-        container.innerHTML = `<div class="col-span-2 text-center py-8 opacity-50">${t('floor_plan_no_plan')}</div>`;
-        return;
-    }
-
-    container.innerHTML = `<div class="col-span-2 grid grid-cols-2 sm:grid-cols-3 gap-2" id="bookingRoomList"></div>`;
-    const список = container.querySelector('#bookingRoomList');
-
-    комнаты.forEach(room => {
-        const occ = bookingOccupancy.find(o => o.room_id === room.id);
-        const занято = occ?.occupied || 0;
-        const забронировано = occ?.booked || 0;
-        const мест = occ?.capacity || room.capacity || 1;
-
-        const карточка = document.createElement('div');
-        карточка.className = 'bg-base-200 rounded-lg p-2';
-        карточка.dataset.roomId = room.id;
-        карточка.innerHTML = `<div class="text-xs font-medium mb-1 opacity-60">
-            ${Layout.escapeHtml(String(room.number))}${room.floor ? ` · ${t('floor_plan_floor')} ${room.floor}` : ''}
-        </div>`;
-
-        const ряд = document.createElement('div');
-        ряд.className = 'flex gap-1';
-        for (let i = 0; i < мест; i++) {
-            const занятоМесто = i < занято;
-            const бронь = !занятоМесто && i < занято + забронировано;
-            const выбрано = bookingSelectedBeds.has(`${room.id}_${i}`);
-            const свободно = !занятоМесто && !бронь;
-
-            const место = document.createElement('button');
-            место.type = 'button';
-            место.className = 'flex-1 h-8 rounded';
-            место.style.background = getBedFill(выбрано, занятоМесто, бронь, bedGenderMap, room.id, i);
-            место.disabled = !(свободно || выбрано);
-            место.title = `${t('floor_plan_room') || ''} ${room.number}`.trim();
-            if (!место.disabled) место.onclick = () => toggleBookingBed(room.id, i, мест);
-            ряд.appendChild(место);
-        }
-        карточка.appendChild(ряд);
-        список.appendChild(карточка);
-    });
-}
-
-function renderBookingPlanMarkers(floor, buildingRooms, bookingOccupancy, bedGenderMap = {}) {
-    const svg = Layout.$(`#bookingPlanSvg_${floor}`);
-    if (!svg) return;
-
-    svg.innerHTML = '';
-
-    const floorRooms = buildingRooms.filter(r =>
-        r.floor === floor &&
-        r.plan_x != null &&
-        r.plan_y != null &&
-        r.status !== 'maintenance' &&
-        r.status !== 'mothballed'
-    );
-
-    floorRooms.forEach(room => {
-        const roomOcc = bookingOccupancy.find(o => o.room_id === room.id);
-        const occupied = roomOcc?.occupied || 0;
-        const booked = roomOcc?.booked || 0;
-        const capacity = roomOcc?.capacity || room.capacity || 1;
-
-        const x = parseFloat(room.plan_x);
-        const y = parseFloat(room.plan_y);
-        const w = parseFloat(room.plan_width) || 8;
-        const h = parseFloat(room.plan_height) || 8;
-
-        const g = document.createElementNS('http://www.w3.org/2000/svg', 'g');
-        g.setAttribute('data-room-id', room.id);
-
-        if (capacity === 2) {
-            const halfW = w / 2;
-            for (let i = 0; i < 2; i++) {
-                const bedKey = `${room.id}_${i}`;
-                const isOccupied = i < occupied;
-                const isBooked = i >= occupied && i < occupied + booked;
-                const isSelected = bookingSelectedBeds.has(bedKey);
-                const isAvailable = !isOccupied && !isBooked;
-
-                const rect = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
-                rect.setAttribute('x', x + i * halfW);
-                rect.setAttribute('y', y);
-                rect.setAttribute('width', halfW);
-                rect.setAttribute('height', h);
-                rect.setAttribute('fill', getBedFill(isSelected, isOccupied, isBooked, bedGenderMap, room.id, i));
-
-                if (isAvailable || isSelected) {
-                    rect.style.cursor = 'pointer';
-                    rect.onclick = () => toggleBookingBed(room.id, i, capacity);
-                }
-
-                g.appendChild(rect);
-            }
-        } else if (capacity === 3) {
-            const thirdW = w / 3;
-            for (let i = 0; i < 3; i++) {
-                const bedKey = `${room.id}_${i}`;
-                const isOccupied = i < occupied;
-                const isBooked = i >= occupied && i < occupied + booked;
-                const isSelected = bookingSelectedBeds.has(bedKey);
-                const isAvailable = !isOccupied && !isBooked;
-
-                const rect = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
-                rect.setAttribute('x', x + i * thirdW);
-                rect.setAttribute('y', y);
-                rect.setAttribute('width', thirdW);
-                rect.setAttribute('height', h);
-                rect.setAttribute('fill', getBedFill(isSelected, isOccupied, isBooked, bedGenderMap, room.id, i));
-
-                if (isAvailable || isSelected) {
-                    rect.style.cursor = 'pointer';
-                    rect.onclick = () => toggleBookingBed(room.id, i, capacity);
-                }
-
-                g.appendChild(rect);
-            }
-        } else if (capacity === 4) {
-            const halfW = w / 2;
-            const halfH = h / 2;
-            const positions = [[0, 0], [1, 0], [0, 1], [1, 1]];
-            for (let i = 0; i < 4; i++) {
-                const [px, py] = positions[i];
-                const bedKey = `${room.id}_${i}`;
-                const isOccupied = i < occupied;
-                const isBooked = i >= occupied && i < occupied + booked;
-                const isSelected = bookingSelectedBeds.has(bedKey);
-                const isAvailable = !isOccupied && !isBooked;
-
-                const rect = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
-                rect.setAttribute('x', x + px * halfW);
-                rect.setAttribute('y', y + py * halfH);
-                rect.setAttribute('width', halfW);
-                rect.setAttribute('height', halfH);
-                rect.setAttribute('fill', getBedFill(isSelected, isOccupied, isBooked, bedGenderMap, room.id, i));
-
-                if (isAvailable || isSelected) {
-                    rect.style.cursor = 'pointer';
-                    rect.onclick = () => toggleBookingBed(room.id, i, capacity);
-                }
-
-                g.appendChild(rect);
-            }
-        } else {
-            const bedKey = `${room.id}_0`;
-            const isOccupied = occupied > 0;
-            const isBooked = booked > 0;
-            const isSelected = bookingSelectedBeds.has(bedKey);
-            const isAvailable = !isOccupied && !isBooked;
-
-            const rect = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
-            rect.setAttribute('x', x);
-            rect.setAttribute('y', y);
-            rect.setAttribute('width', w);
-            rect.setAttribute('height', h);
-            rect.setAttribute('fill', getBedFill(isSelected, isOccupied, isBooked, bedGenderMap, room.id, 0));
-
-            if (isAvailable || isSelected) {
-                rect.style.cursor = 'pointer';
-                rect.onclick = () => toggleBookingBed(room.id, 0, capacity);
-            }
-
-            g.appendChild(rect);
-        }
-
-        // Room number label
-        const text = document.createElementNS('http://www.w3.org/2000/svg', 'text');
-        text.setAttribute('x', x + w / 2);
-        text.setAttribute('y', y + h / 2);
-        text.classList.add('room-label');
-        text.textContent = room.number;
-        text.style.pointerEvents = 'none';
-
-        g.appendChild(text);
-        svg.appendChild(g);
-    });
-}
-
-function toggleBookingBed(roomId, bedIndex, capacity) {
-    const bedKey = `${roomId}_${bedIndex}`;
-    const form = Layout.$('#newBookingForm');
-    const maxBeds = parseInt(form.beds_count.value) || 1;
-
-    if (bookingSelectedBeds.has(bedKey)) {
-        bookingSelectedBeds.delete(bedKey);
-    } else {
-        if (bookingSelectedBeds.size >= maxBeds) {
-            return;
-        }
-        bookingSelectedBeds.add(bedKey);
-    }
-
-    Layout.$('#bookingSelectedCount').textContent = bookingSelectedBeds.size;
-
-    const saveBtn = Layout.$('#bookingSaveBtn');
-    saveBtn.disabled = bookingSelectedBeds.size !== maxBeds;
-
-    // Обновляем только визуальное состояние без полной перерисовки
-    updateBookingBedVisual(roomId, bedIndex, capacity);
-}
-
-function updateBookingBedVisual(roomId, bedIndex, capacity) {
-    const bedKey = `${roomId}_${bedIndex}`;
-    const isSelected = bookingSelectedBeds.has(bedKey);
-
-    const цвет = isSelected ? statusColors.selected : statusColors.available;
-
-    // Места — прямоугольники на плане этажа либо кнопки в списке комнат
-    document.querySelectorAll(`[data-room-id="${roomId}"]`).forEach(roomGroup => {
-        const места = roomGroup.querySelectorAll('rect, button');
-        const место = места[capacity === 1 ? 0 : bedIndex];
-        if (!место) return;
-        if (место.tagName === 'rect') место.setAttribute('fill', цвет);
-        else место.style.background = цвет;
-    });
-}
-
-async function saveNewBooking() {
-    const form = Layout.$('#newBookingForm');
-    const bedsCount = parseInt(form.beds_count.value) || 1;
-
-    if (bookingSelectedBeds.size !== bedsCount) {
-        Layout.showNotification(t('select_beds_on_plan').replace('{count}', bedsCount), 'error');
-        return;
-    }
-
-    // Даты брони не пересекаются с ретритом — скорее всего выбран не тот
-    const ретрит = retreats.find(r => r.id === form.retreat_id.value);
-    if (ретрит && form.check_in.value && (form.check_in.value > ретрит.end_date
-            || (form.check_out.value || form.check_in.value) < ретрит.start_date)
-        && !confirm(`Даты брони не пересекаются с ретритом «${Layout.getName(ретрит)}» (${DateUtils.formatRange(ретрит.start_date, ретрит.end_date)}). Всё равно сохранить?`)) return;
-
-    try {
-        const bookingData = {
-            name: form.contact_name?.value?.trim() || null,
-            contact_name: form.contact_name.value.trim(),
-            contact_phone: form.contact_phone.value.trim() || null,
-            contact_email: form.contact_email.value.trim() || null,
-            contact_country: form.contact_country.value.trim() || null,
-            beds_count: bedsCount,
-            check_in: form.check_in.value,
-            check_out: form.check_out.value,
-            retreat_id: form.retreat_id.value || null,
-            notes: form.notes.value.trim() || null,
-            status: 'active'
-        };
-
-        const { data: booking, error: bookingError } = await Layout.db
-            .from('bookings')
-            .insert(bookingData)
-            .select()
-            .single();
-
-        if (bookingError) throw bookingError;
-
-        // Места брони: первое несёт человека из сделки (если бронь из CRM),
-        // остальные — безымянные спутники. Ретрит проставляется всем: иначе
-        // размещение не свяжется ни с регистрацией, ни с долгом при выезде.
-        const residentsData = [];
-        [...bookingSelectedBeds].forEach((bedKey, idx) => {
-            const [roomId] = bedKey.split('_');
-            residentsData.push({
-                room_id: roomId,
-                booking_id: booking.id,
-                vaishnava_id: idx === 0 ? (crmVaishnavaId || null) : null,
-                retreat_id: form.retreat_id.value || null,
-                check_in: form.check_in.value,
-                check_out: form.check_out.value,
-                has_housing: true,
-                has_meals: null,
-                status: 'confirmed'
-            });
-        });
-
-        const { error: residentsError } = await Layout.db
-            .from('residents')
-            .insert(residentsData);
-
-        if (residentsError) {
-            // Места не встали (например, накладка — 655): пустую бронь этого сохранения убираем
-            await Layout.db.from('bookings').delete().eq('id', booking.id);
-            throw residentsError;
-        }
-
-        // Если открыто из CRM — линкуем бронь к сделке и закрываем iframe
-        if (crmDealId) {
-            const firstBedKey = [...bookingSelectedBeds][0];
-            const firstRoomId = firstBedKey ? firstBedKey.split('_')[0] : null;
-
-            await Layout.db.from('crm_deals')
-                .update({ booking_id: booking.id, room_id: firstRoomId })
-                .eq('id', crmDealId);
-
-            // Если открыты в iframe — сообщаем родителю
-            if (window.parent !== window) {
-                window.parent.postMessage({
-                    type:       'crm_booking_saved',
-                    booking_id: booking.id,
-                    room_id:    firstRoomId,
-                }, '*');
-            } else {
-                // Открыты как отдельная страница — редирект
-                window.location.href = `../crm/deal.html?id=${crmDealId}`;
-            }
-            return;
-        }
-
-        closeNewBookingModal();
-        await loadBookings();
-        await loadAllBookings();
-
-    } catch (err) {
-        console.error('Error saving booking:', err);
-        Layout.showNotification(t('error_saving') + ': ' + err.message, 'error');
-    }
-}
 
 // Окно «Регистрация группы» (js/group-booking.js) — то же, что в шахматке; с id брони — правка её номеров
 function openGroupBooking(bookingId = null) {
     if (bookingId) closeBookingModal();
     GroupBooking.open({ bookingId, onSaved: async () => { await loadBookings(); await loadAllBookings(); } });
+}
+
+// «Человек или семья» — то же окно, один номер, люди поимённо (часть 4, ВГ 08.10)
+function openPersonBooking() {
+    GroupBooking.open({ mode: 'person', onSaved: async () => { await loadBookings(); await loadAllBookings(); } });
 }
 
 // ==================== BOOKING DETAILS MODAL ====================
@@ -1209,15 +602,9 @@ async function init() {
     updateUI();
     await loadInitialData();
 
-    // Смена дат брони — пересобираем список ретритов под них
-    const nbForm = document.getElementById('newBookingForm');
-    ['check_in', 'check_out'].forEach(n => nbForm?.[n]?.addEventListener('change',
-        () => fillNewBookingRetreats(Layout.$('#newBookingRetreatSelect').value)));
-
     // Проверяем CRM-режим (переход с карточки сделки)
     const urlParams = new URLSearchParams(window.location.search);
     crmDealId = urlParams.get('crm_deal_id') || null;
-    crmVaishnavaId = urlParams.get('vaishnava_id') || null;
 
     if (crmDealId) {
         // Показываем кнопку «Вернуться к сделке» только если НЕ в iframe
@@ -1227,68 +614,28 @@ async function init() {
             if (backBar) backBar.classList.remove('hidden');
             if (backLink) backLink.href = `../crm/deal.html?id=${crmDealId}`;
         }
-
-        // Читаем building_ids для фильтрации плана
-        const buildingIdsParam = urlParams.get('building_ids') || '';
-        crmBuildingIds = buildingIdsParam ? buildingIdsParam.split(',').filter(Boolean) : [];
-
-        // Открываем форму бронирования сразу, предзаполненную данными из URL
-        openNewBookingModal();
-
-        // Заполняем поля из URL-параметров
-        const form = document.getElementById('newBookingForm');
-        if (form) {
-            const checkIn     = urlParams.get('check_in')       || '';
-            const checkOut    = urlParams.get('check_out')      || '';
-            const retreatId   = urlParams.get('retreat_id')     || '';
-            const cName       = urlParams.get('contact_name')   || '';
-            const cPhone      = urlParams.get('contact_phone')  || '';
-            const cEmail      = urlParams.get('contact_email')  || '';
-            const bedsCount   = parseInt(urlParams.get('beds_count') || '1') || 1;
-            const memberNames = urlParams.get('member_names')   || '';
-
-            form.check_in.value      = checkIn;
-            form.check_out.value     = checkOut;
-            form.contact_name.value  = cName;
-            form.contact_phone.value = cPhone;
-            form.contact_email.value = cEmail;
-            form.beds_count.value    = bedsCount;
-            form.crm_deal_id.value   = crmDealId;
-
-            // Показываем подсказку о составе группы
-            if (memberNames) {
-                const bedsInput = form.querySelector('[name="beds_count"]');
-                if (bedsInput) {
-                    const hint = document.createElement('div');
-                    hint.className = 'text-xs text-base-content/60 mt-1';
-                    hint.textContent = `Состав: ${cName}${memberNames ? ', ' + memberNames : ''}`;
-                    bedsInput.parentNode.appendChild(hint);
+        // «Забронировать номер» из сделки (часть 4, ВГ 08.10): окно «Человек или семья» —
+        // гость сделки и его спутники поимённо, один номер; здания — по типу проживания в чек-листе
+        const q = n => urlParams.get(n) || '';
+        const members = q('member_names').split(', ').filter(Boolean).map(name => ({ name }));
+        await GroupBooking.open({
+            mode: 'person',
+            crmDealId,
+            checkIn: q('check_in'),
+            checkOut: q('check_out'),
+            retreatId: q('retreat_id'),
+            people: [{ vid: q('vaishnava_id'), name: q('contact_name') }, ...members],
+            contact: { name: q('contact_name'), phone: q('contact_phone'), email: q('contact_email') },
+            buildingIds: q('building_ids').split(',').filter(Boolean),
+            onSaved: ({ bookingId, roomId }) => {
+                // В окне сделки (iframe) — сообщаем родителю, отдельной страницей — назад к сделке
+                if (window.parent !== window) {
+                    window.parent.postMessage({ type: 'crm_booking_saved', booking_id: bookingId, room_id: roomId }, '*');
+                } else {
+                    window.location.href = `../crm/deal.html?id=${crmDealId}`;
                 }
             }
-
-            // Устанавливаем ретрит
-            // (выбранный остаётся в списке, даже если ретрит сделки уже прошёл)
-            if (retreatId) fillNewBookingRetreats(retreatId);
-
-            // Скрываем выбор здания — конкретное место уже задано типом проживания в CRM
-            const buildingScopeRow = document.getElementById('buildingScopeRow');
-            if (buildingScopeRow) buildingScopeRow.classList.add('hidden');
-            const bScope = document.getElementById('newBookingBuildingScope');
-            if (bScope) bScope.removeAttribute('required');
-
-            // Фильтруем шаг 2: building selector — только нужные здания
-            if (crmBuildingIds.length > 0) {
-                const buildingSelect = document.getElementById('newBookingBuildingSelect');
-                if (buildingSelect) {
-                    const filtered = buildings.filter(b => crmBuildingIds.includes(b.id));
-                    buildingSelect.innerHTML = filtered.map(b =>
-                        `<option value="${b.id}">${Layout.getName(b)}</option>`
-                    ).join('');
-                    bookingBuildingId = filtered[0]?.id || bookingBuildingId;
-                }
-            }
-        }
-
+        });
         Layout.hideLoader();
         return;
     }

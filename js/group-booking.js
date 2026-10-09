@@ -62,7 +62,7 @@ function ensureDialog() {
                         <select id="gbRetreat" class="select select-bordered select-sm w-full"></select>
                         <span id="gbRetreatWarn" class="text-xs text-warning mt-1 hidden"></span>
                     </label>
-                    <label class="form-control">
+                    <label class="form-control" data-group-only>
                         <span class="label-text font-medium mb-1">${e(tf('timeline_group_name', 'Название группы'))}</span>
                         <input id="gbName" class="input input-bordered input-sm w-full" />
                     </label>
@@ -87,10 +87,16 @@ function ensureDialog() {
                             <span class="label-text font-medium mb-1">${e(tf('check_out', 'Выезд'))}</span>
                             <input id="gbOut" type="date" class="input input-bordered input-sm w-full" />
                         </label>
-                        <label class="form-control">
+                        <label class="form-control" data-group-only>
                             <span class="label-text font-medium mb-1">${e(tf('timeline_group_people', 'Людей'))}</span>
                             <input id="gbPeople" type="number" min="1" max="500" class="input input-bordered input-sm w-full" />
                         </label>
+                    </div>
+                    <!-- «Человек или семья»: люди поимённо, все в один номер -->
+                    <div class="sm:col-span-2 hidden" data-person-only>
+                        <div class="label-text font-medium mb-1">${e(tf('timeline_person_people', 'Кто едет'))}</div>
+                        <div id="gbPersons" class="space-y-1"></div>
+                        <button type="button" class="btn btn-ghost btn-xs mt-1" data-gb="person-add">+ ${e(tf('timeline_add_person', 'ещё человек'))}</button>
                     </div>
                     <div id="gbMeals" class="sm:col-span-2 flex flex-wrap items-center gap-4 text-sm">
                         <span class="font-medium">${e(tf('timeline_prasad', 'Прасад'))}:</span>
@@ -110,12 +116,12 @@ function ensureDialog() {
                     <span class="flex items-center gap-1"><span class="w-3 h-3 rounded" style="border:1px solid #fcd34d;background:#fffbeb"></span>${e(tf('timeline_room_adjacent', 'в стык'))}</span>
                     <span class="flex items-center gap-1"><span class="w-3 h-3 rounded" style="border:1px solid #fdba74;background:#fff7ed"></span>${e(tf('timeline_room_partial', 'занят частично'))}</span>
                     <span class="flex items-center gap-1"><span class="w-3 h-3 rounded" style="border:1px solid #fecaca;background:#fef2f2"></span>${e(tf('timeline_room_overlap', 'нахлёст — нельзя'))}</span>
-                    <button type="button" class="btn btn-xs btn-outline ml-auto" data-gb="list">${e(tf('timeline_group_paste_list', 'Вставить список'))}</button>
+                    <button type="button" class="btn btn-xs btn-outline ml-auto" data-gb="list" data-group-only>${e(tf('timeline_group_paste_list', 'Вставить список'))}</button>
                 </div>
                 <div id="gbListSummary" class="hidden mb-2 p-3 rounded-lg text-sm bg-info/10"></div>
                 <div id="gbBuildings" class="space-y-2"></div>
 
-                <div class="flex flex-wrap items-center gap-3 mt-4 p-3 rounded-lg bg-base-200">
+                <div class="flex flex-wrap items-center gap-3 mt-4 p-3 rounded-lg bg-base-200" data-group-only>
                     <span class="font-medium">${e(tf('timeline_self_stay', 'Самостоятельное проживание'))}:</span>
                     <input id="gbSelf" type="number" min="0" max="500" value="0" class="input input-bordered input-sm w-24" />
                     <span class="text-xs opacity-70">${e(tf('timeline_self_add_hint', 'без номера — живёт вне ашрама'))}</span>
@@ -158,6 +164,16 @@ function ensureDialog() {
         if (ev.target.closest('[data-gb="list-back"]')) { showList(false); return; }
         if (ev.target.closest('[data-gb="list-apply"]')) { applyList(); return; }
         if (ev.target.closest('[data-gb="list-clear"]')) { S.assign = []; S.manual = []; renderRooms(); return; }
+        const pick = ev.target.closest('[data-person-pick]');
+        if (pick) {
+            const v = S.people.find(x => x.id === pick.dataset.personPick);
+            S.persons[+pick.dataset.i] = { vid: v.id, name: personName(v) };
+            renderPersons(); afterPersonsChanged(); return;
+        }
+        if (ev.target.closest('[data-gb="person-add"]')) { S.persons.push({ vid: '', name: '' }); renderPersons(); return; }
+        const del = ev.target.closest('[data-gb="person-del"]');
+        if (del) { S.persons.splice(+del.dataset.i, 1); renderPersons(); afterPersonsChanged(); return; }
+        document.querySelectorAll('[data-person-sugg]').forEach(b => b.classList.add('hidden'));
         if (ev.target.closest('#gbList')) return;
         if (ev.target.closest('select')) return;
         const card = ev.target.closest('[data-room-card]');
@@ -167,6 +183,10 @@ function ensureDialog() {
         const sel = ev.target.closest('select[data-room]');
         if (sel) { setPick(sel.dataset.room, parseInt(sel.value) || 0); return; }
         if (ev.target.closest('#gbList')) onListEdit(ev);
+    });
+    dlg.addEventListener('input', ev => {
+        const inp = ev.target.closest('[data-person-name]');
+        if (inp) onPersonInput(inp);
     });
     let pasteTimer;
     $('gbPaste').addEventListener('input', () => { clearTimeout(pasteTimer); pasteTimer = setTimeout(renderList, 250); });
@@ -299,7 +319,7 @@ async function applyRetreat() {
             await onDatesChanged(true);
         }
         const cn = $('gbContactName');
-        if (!cn.value.trim() || cn.dataset.auto === '1') {
+        if (S.mode !== 'person' && (!cn.value.trim() || cn.dataset.auto === '1')) {
             let v = null;
             if (r?.contact_vaishnava_id) {
                 const { data } = await Layout.db.from('vaishnavas')
@@ -347,7 +367,8 @@ async function onDatesChanged(fromRetreat) {
         const p = S.picks[room.id] || 0;
         if (!p) continue;
         const max = Math.max(roomState(room).free, minFor(room.id));
-        if (p > max) S.picks[room.id] = max;
+        // Человек или семья: номер, где на новые даты всем не хватает мест, снимаем целиком
+        if (p > max) { if (S.mode === 'person') delete S.picks[room.id]; else S.picks[room.id] = max; }
     }
     renderRooms();
     applyMealGroup();
@@ -367,6 +388,14 @@ function toggleRoom(roomId) {
     const room = S.rooms.find(r => r.id === roomId);
     if (!room) return;
     const st = roomState(room);
+    if (S.mode === 'person') {
+        const need = personNeed();
+        S.picks = (S.picks[roomId] || st.free < need) ? {} : { [roomId]: need };
+        if (!S.picks[roomId] && st.free < need && st.free > 0)
+            Layout.showNotification(`№${room.number}: ${tf('timeline_person_room_small', 'свободных мест меньше, чем людей')} (${st.free} / ${need})`, 'warning');
+        renderRooms();
+        return;
+    }
     if ((S.picks[roomId] || 0) > 0) setPick(roomId, 0);
     else if (st.free > 0) setPick(roomId, st.free);
 }
@@ -374,7 +403,7 @@ function toggleRoom(roomId) {
 function renderRooms() {
     const openNow = new Set([...document.querySelectorAll('#gbBuildings details[open]')].map(d => d.dataset.building));
     const from = $('gbIn').value, to = $('gbOut').value;
-    const shown = S.buildings.filter(b => !b.is_temporary || (S.rooms.some(r => r.building_id === b.id && (S.picks[r.id] || S.occ.has(r.id)))
+    const shown = S.buildings.filter(b => !S.buildingFilter || S.buildingFilter.includes(b.id)).filter(b => !b.is_temporary || (S.rooms.some(r => r.building_id === b.id && (S.picks[r.id] || S.occ.has(r.id)))
         || (from && to && b.available_from && b.available_until && b.available_from <= to && b.available_until >= from)));
     const html = shown.map((b, i) => {
         const rooms = S.rooms.filter(r => r.building_id === b.id);
@@ -393,11 +422,11 @@ function renderRooms() {
                 : tf('timeline_room_free', 'свободен');
             const opts = [];
             for (let n = min; n <= max; n++) opts.push(`<option value="${n}" ${n === p ? 'selected' : ''}>${n || '—'}</option>`);
-            const disabled = max === 0;
+            const disabled = S.mode === 'person' ? st.free < personNeed() && !p : max === 0;
             return `<div class="gb-room gb-${disabled ? 'busy' : st.kind}${p ? ' gb-picked' : ''}" data-room-card="${room.id}">
                 <div class="flex justify-between gap-1"><span class="gb-num">№${e(room.number)}</span><span class="text-xs opacity-60">${st.cap}</span></div>
                 <div class="gb-sub">${e(sub)}${min ? ` · ${e(tf('timeline_room_named', 'с именами'))}: ${min}` : ''}</div>
-                ${disabled ? '' : `<select class="select select-bordered select-xs" data-room="${room.id}">${opts.join('')}</select>`}
+                ${disabled || S.mode === 'person' ? '' : `<select class="select select-bordered select-xs" data-room="${room.id}">${opts.join('')}</select>`}
                 ${assignedNames(room.id)}
             </div>`;
         }).join('');
@@ -426,6 +455,15 @@ function seatTotals() {
 }
 
 function renderCounter() {
+    if (S.mode === 'person') {
+        const roomId = Object.keys(S.picks).find(k => S.picks[k]);
+        const room = roomId && S.rooms.find(r => r.id === roomId);
+        const b = room && S.buildings.find(x => x.id === room.building_id);
+        $('gbCounter').innerHTML = `${e(tf('timeline_group_people', 'Людей'))}: <b>${personNeed()}</b> · `
+            + (room ? `${e(Layout.getName(b))} <b>№${e(room.number)}</b>`
+                : `<span class="text-warning font-medium">${e(tf('timeline_person_pick_room', 'выберите номер'))}</span>`);
+        return;
+    }
     const { inRooms, self, total } = seatTotals();
     const people = parseInt($('gbPeople').value) || 0;
     let diff = '';
@@ -803,12 +841,61 @@ function renderListSummary() {
         ${m.length ? `<ul class="mt-1 text-xs list-disc pl-5">${m.map(x => `<li><b>${e(x.name)}</b> — ${e(x.why)}</li>`).join('')}</ul>` : ''}`;
 }
 
+// ---------- «Человек или семья» (часть 4, ВГ 08.10) ----------
+// Тот же выбор номеров, но один номер на всех: человек из сделки CRM (или из справочника)
+// и его спутники поимённо. Номер, где свободных мест меньше, чем людей, выбрать нельзя.
+const personNeed = () => Math.max(1, (S.persons || []).filter(p => p.vid || p.name.trim()).length);
+
+function renderPersons() {
+    $('gbPersons').innerHTML = S.persons.map((p, i) => `<div class="flex items-center gap-2 relative" data-person-row="${i}">
+        <input class="input input-bordered input-sm flex-1" data-person-name="${i}" value="${e(p.name)}"
+            placeholder="${e(tf('timeline_person_placeholder', 'Имя — из справочника или просто вписать'))}" autocomplete="off">
+        ${p.vid ? `<span class="badge badge-success badge-sm" title="${e(tf('timeline_list_found', 'есть в базе'))}">✓</span>` : ''}
+        ${S.persons.length > 1 ? `<button type="button" class="btn btn-ghost btn-xs" data-gb="person-del" data-i="${i}">✕</button>` : ''}
+        <div class="absolute left-0 top-full z-20 w-full bg-base-100 border rounded shadow hidden" data-person-sugg="${i}"></div>
+    </div>`).join('');
+}
+
+function onPersonInput(input) {
+    const i = +input.dataset.personName;
+    const p = S.persons[i];
+    p.name = input.value;
+    p.vid = '';
+    input.parentElement.querySelector('.badge')?.remove();
+    const box = document.querySelector(`[data-person-sugg="${i}"]`);
+    const q = normName(input.value);
+    const found = q.length >= 3 && S.people ? S.people.filter(v => v.keys.some(k => k.includes(q))).slice(0, 8) : [];
+    box.innerHTML = found.map(v => `<div class="px-2 py-1 hover:bg-base-200 cursor-pointer text-sm" data-person-pick="${v.id}" data-i="${i}">${e(personName(v))}${v.phone ? ` <span class="opacity-60">${e(v.phone)}</span>` : ''}</div>`).join('');
+    box.classList.toggle('hidden', !found.length);
+    afterPersonsChanged();
+}
+
+// Людей стало больше, чем мест в выбранном номере, — номер снимаем
+function afterPersonsChanged() {
+    const roomId = Object.keys(S.picks).find(k => S.picks[k]);
+    if (roomId) {
+        const need = personNeed();
+        const room = S.rooms.find(r => r.id === roomId);
+        if (roomState(room).free < need) S.picks = {};
+        else S.picks = { [roomId]: need };
+    }
+    renderRooms();
+}
+
 // ---------- открыть ----------
 async function open(opts = {}) {
-    if (!canEdit()) return;
+    // Из сделки CRM — как прежний мастер, без проверки прав шахматки (запись проверяет база)
+    if (!canEdit() && !opts.crmDealId) return;
     ensureDialog();
     S = { picks: {}, origPicks: {}, minSeats: {}, occ: new Map(), booking: null, seats: [],
-        onSaved: opts.onSaved, datesTouched: false };
+        onSaved: opts.onSaved, datesTouched: false,
+        mode: opts.mode === 'person' ? 'person' : 'group',
+        crmDealId: opts.crmDealId || null,
+        contactEmail: opts.contact?.email || null,
+        buildingFilter: opts.buildingIds?.length ? opts.buildingIds : null };
+    const person = S.mode === 'person';
+    document.querySelectorAll('#groupBookingModal [data-group-only]').forEach(el => el.classList.toggle('hidden', person));
+    document.querySelectorAll('#groupBookingModal [data-person-only]').forEach(el => el.classList.toggle('hidden', !person));
     for (const id of ['gbName', 'gbContactName', 'gbContactPhone', 'gbContactTelegram', 'gbNotes', 'gbPeople']) {
         $(id).value = '';
         delete $(id).dataset.manual;
@@ -818,9 +905,17 @@ async function open(opts = {}) {
     $('gbPaste').value = '';
     S.assign = []; S.manual = []; S.listPeople = []; S.rows = null; S.mapSig = null;
     showList(false);
-    $('gbTitle').textContent = opts.bookingId
-        ? tf('timeline_group_edit', 'Расселение группы')
+    $('gbTitle').textContent = person ? tf('timeline_person_title', 'Бронирование: человек или семья')
+        : opts.bookingId ? tf('timeline_group_edit', 'Расселение группы')
         : tf('timeline_group_title', 'Регистрация группы');
+    if (person) {
+        S.persons = (opts.people || []).filter(p => p.vid || p.name).map(p => ({ vid: p.vid || '', name: p.name || '' }));
+        if (!S.persons.length) S.persons = [{ vid: '', name: '' }];
+        renderPersons();
+        $('gbContactName').value = opts.contact?.name || '';
+        $('gbContactPhone').value = opts.contact?.phone || '';
+        loadPeople();
+    }
     $('gbBuildings').innerHTML = `<div class="text-center py-6"><span class="loading loading-spinner"></span></div>`;
     $('groupBookingModal').showModal();
 
@@ -850,13 +945,15 @@ async function open(opts = {}) {
         $('gbIn').value = opts.checkIn || '';
         $('gbOut').value = opts.checkOut || '';
         if (opts.selfCount) S.picks[SELF] = opts.selfCount;
-        fillRetreats('');
+        // Из сделки CRM даты уже посчитаны (ретрит ± рейсы) — ретрит их не перебивает
+        if (person && opts.checkIn) S.datesTouched = true;
+        fillRetreats(opts.retreatId || '');
     }
     $('gbSelf').value = S.picks[SELF] || 0;
     $('gbSelf').min = S.minSeats[SELF] || 0;
     retreatWarn();
     await loadOccupancy();
-    if (opts.roomId) {
+    if (opts.roomId && !person) {
         const room = S.rooms.find(r => r.id === opts.roomId);
         if (room) S.picks[room.id] = roomState(room).free;
     }
@@ -866,6 +963,7 @@ async function open(opts = {}) {
 
 // ---------- сохранить ----------
 async function save() {
+    if (S.mode === 'person') return savePerson();
     const btn = $('gbSave');
     const from = $('gbIn').value, to = $('gbOut').value;
     const retreatId = $('gbRetreat').value || null;
@@ -901,6 +999,50 @@ async function save() {
     }
 }
 
+// «Человек или семья»: один номер, люди поимённо; из CRM — бронь привязывается к сделке
+async function savePerson() {
+    const btn = $('gbSave');
+    const from = $('gbIn').value, to = $('gbOut').value;
+    const retreatId = $('gbRetreat').value || null;
+    const retreat = S.retreats.find(r => r.id === retreatId);
+    const people = S.persons.filter(p => p.vid || p.name.trim());
+    const roomId = Object.keys(S.picks).find(k => S.picks[k]);
+
+    if (!from || !to) return Layout.showNotification(tf('timeline_dates_required', 'Укажите заезд и выезд'), 'error');
+    if (to <= from) return Layout.showNotification(tf('timeline_checkout_before_checkin', 'Выезд не может быть раньше заезда'), 'error');
+    if (!people.length) return Layout.showNotification(tf('timeline_person_required', 'Укажите человека: выберите из справочника или впишите имя'), 'error');
+    const ids = people.map(p => p.vid).filter(Boolean);
+    if (new Set(ids).size !== ids.length) return Layout.showNotification(tf('timeline_person_twice', 'Один и тот же человек выбран дважды'), 'error');
+    if (!roomId) return Layout.showNotification(tf('timeline_person_pick_room', 'Выберите номер'), 'error');
+
+    S.picks = { [roomId]: people.length };
+    S.assign = people.map(p => ({ ...p, name: p.name.trim(), key: roomId, in: from, out: to }));
+    const first = people[0].name.trim();
+    const head = {
+        name: first,
+        contact_name: $('gbContactName').value.trim() || first,
+        contact_phone: $('gbContactPhone').value.trim() || null,
+        contact_telegram: $('gbContactTelegram').value.trim() || null,
+        retreat_id: retreatId,
+        notes: $('gbNotes').value.trim() || null
+    };
+    btn.disabled = true;
+    try {
+        const booking = await saveNew(head, from, to, retreat);
+        if (!booking) return;
+        if (S.crmDealId) {
+            const { error } = await Layout.db.from('crm_deals')
+                .update({ booking_id: booking.id, room_id: roomId }).eq('id', S.crmDealId);
+            if (error) Layout.showNotification(error.message, 'error');
+        }
+        $('groupBookingModal').close();
+        Layout.showNotification(tf('saved', 'Сохранено'), 'success');
+        await S.onSaved?.({ bookingId: booking.id, roomId });
+    } finally {
+        btn.disabled = false;
+    }
+}
+
 function seatRow(base, roomId) {
     return { ...base, room_id: roomId === SELF ? null : roomId, has_housing: roomId !== SELF,
         has_meals: roomId === SELF ? (base.breakfast || base.lunch) : null };
@@ -918,7 +1060,8 @@ const listQueue = () => {
 async function saveNew(head, from, to, retreat) {
     const { total } = seatTotals();
     const { data: booking, error } = await Layout.db.from('bookings')
-        .insert({ ...head, check_in: from, check_out: to, beds_count: total, status: 'confirmed' })
+        .insert({ ...head, ...(S.contactEmail ? { contact_email: S.contactEmail } : {}),
+            check_in: from, check_out: to, beds_count: total, status: 'confirmed' })
         .select().single();
     if (error) { Layout.showNotification(error.message, 'error'); return false; }
 
@@ -947,7 +1090,7 @@ async function saveNew(head, from, to, retreat) {
         Layout.showNotification(e2.message, 'error');
         return false;
     }
-    return true;
+    return booking;
 }
 
 // Правка: шапка брони, затем убрать лишние места, сдвинуть общие даты, добавить новые.
