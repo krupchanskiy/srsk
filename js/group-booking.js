@@ -990,6 +990,8 @@ async function save() {
         notes: $('gbNotes').value.trim() || null
     };
 
+    if (!(await HouseGuard.confirmSave(houseRows(from, to, retreatId)))) return;
+
     btn.disabled = true;
     try {
         const ok = S.booking ? await saveEdit(head, from, to, retreatId) : await saveNew(head, from, to, retreat);
@@ -1029,6 +1031,7 @@ async function savePerson() {
         retreat_id: retreatId,
         notes: $('gbNotes').value.trim() || null
     };
+    if (!(await HouseGuard.confirmSave(houseRows(from, to, retreatId)))) return;
     btn.disabled = true;
     try {
         const booking = await saveNew(head, from, to, retreat);
@@ -1044,6 +1047,19 @@ async function savePerson() {
     } finally {
         btn.disabled = false;
     }
+}
+
+// Места для проверки ночей ретрита «весь Гостевой дом» (668): новые номера и люди со своими датами;
+// у правки брони — только если сдвинулись общие даты или ретрит, иначе добавленные места
+function houseRows(from, to, retreatId) {
+    const b = S.booking;
+    const moved = !b || from !== b.check_in || to !== b.check_out || (retreatId || null) !== (b.retreat_id || null);
+    const rows = Object.entries(S.picks)
+        .filter(([k, n]) => k !== SELF && n > (moved ? 0 : (S.origPicks?.[k] || 0)))
+        .map(([k]) => ({ room_id: k, check_in: from, check_out: to, retreat_id: retreatId }));
+    for (const p of S.assign || [])
+        if (p.key !== SELF) rows.push({ room_id: p.key, check_in: p.in || from, check_out: p.out || to, retreat_id: retreatId });
+    return rows;
 }
 
 function seatRow(base, roomId) {

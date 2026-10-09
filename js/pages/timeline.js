@@ -1239,6 +1239,10 @@ async function saveBookingEdit(form) {
     // Хватает ли мест в номере на новые даты — проверяет база (запрет накладок, 655):
     // нахлёст не сохранится, в сообщении — номер, ночь и сколько человек
 
+    // Ночи ретрита «весь Гостевой дом» — осознанное подтверждение (668)
+    const houseRow = { room_id: res.room_id, check_in: checkIn, check_out: checkOut, retreat_id: retreatId };
+    if (HouseGuard.changed(houseRow, res) && !(await HouseGuard.confirmSave([houseRow]))) return;
+
     if (staff) {
         vaishnavaId = await ensureStaffPerson(vaishnavaId, typedName, service, categoryId);
         if (!vaishnavaId) return;
@@ -2084,6 +2088,9 @@ async function saveCheckin(e) {
         }
     }
 
+    // Ночи ретрита «весь Гостевой дом» — осознанное подтверждение (668)
+    if (!(await HouseGuard.confirmSave([data]))) return;
+
     let error;
 
     if (modalContext.isConversion && modalContext.residentId) {
@@ -2202,6 +2209,12 @@ async function saveBooking(e) {
         }
     }
     const bookingVaishnavaId = people[0].id;
+
+    // Ночи ретрита «весь Гостевой дом» — осознанное подтверждение (668); у людей могут быть свои даты
+    const houseRows = [{ check_in: form.check_in.value, check_out: form.check_out.value }, ...people]
+        .filter(p => p.check_in)
+        .map(p => ({ room_id: modalContext.roomId, check_in: p.check_in, check_out: p.check_out || form.check_out.value, retreat_id: bookingRetreatId }));
+    if (!(await HouseGuard.confirmSave(houseRows))) return;
 
     const bookingData = {
         name: bookingName,
@@ -3499,6 +3512,9 @@ async function showMoveScreen() {
 async function moveToRoom(newRoomId) {
     if (!currentResident) return;
     if (!canEditTimeline()) return;
+    // Перенос в номер Гостевого дома на ночи ретрита «весь Гостевой дом» (668)
+    const moved = currentResident.rawData || {};
+    if (!(await HouseGuard.confirmSave([{ room_id: newRoomId, check_in: moved.check_in, check_out: moved.check_out, retreat_id: moved.retreat_id }]))) return;
 
     const { error } = await Layout.db
         .from('residents')

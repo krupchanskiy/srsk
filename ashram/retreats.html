@@ -242,6 +242,23 @@
                     <p class="text-xs opacity-50 mt-1" data-i18n="retreats_is_external_hint">Организовано не нами (аренда площадки, свадьба, чужой ретрит) — та же инфраструктура, но отдельно от наших ретритов в списках и выпадающих меню</p>
                 </div>
 
+                <!-- Весь Гостевой дом (ВГ 09.10, миграция 668): чужие брони на ночи ретрита —
+                     с предупреждением. Без выбора по умолчанию — при сохранении спросит -->
+                <div class="form-control" id="guesthouseBlock">
+                    <label class="label"><span class="label-text font-medium">Ретрит займёт весь Гостевой дом? *</span></label>
+                    <div class="flex flex-col gap-2">
+                        <label class="label cursor-pointer justify-start gap-3 py-0">
+                            <input type="radio" name="occupies_guesthouse" value="true" class="radio radio-primary radio-sm" />
+                            <span class="label-text">Да, весь Гостевой дом</span>
+                        </label>
+                        <label class="label cursor-pointer justify-start gap-3 py-0">
+                            <input type="radio" name="occupies_guesthouse" value="false" class="radio radio-primary radio-sm" />
+                            <span class="label-text">Нет, только часть номеров</span>
+                        </label>
+                    </div>
+                    <p class="text-xs opacity-50 mt-1">«Да» — защита от накладок: если на эти даты кто-то бронирует номер Гостевого дома не для ретрита, система переспросит</p>
+                </div>
+
                 <!-- Контактное лицо группы (ВГ 08.10): бронь в шахматке подставляет
                      его имя, телефон и телеграм из карточки -->
                 <div class="form-control">
@@ -382,6 +399,19 @@
             </div>
         </div>
         <form method="dialog" class="modal-backdrop"><button>close</button></form>
+    </dialog>
+
+    <!-- Не ответили «Гостевой дом» — спрашиваем перед сохранением (защита от забывчивости, ВГ 09.10) -->
+    <dialog id="guesthouseAskModal" class="modal">
+        <div class="modal-box max-w-md">
+            <h3 class="font-bold text-lg mb-2">Ретрит займёт весь Гостевой дом?</h3>
+            <p class="text-sm mb-4" id="guesthouseAskText"></p>
+            <div class="flex flex-col gap-2">
+                <button type="button" class="btn btn-primary" onclick="answerGuesthouse(true)">Да, весь Гостевой дом</button>
+                <button type="button" class="btn btn-outline" onclick="answerGuesthouse(false)">Нет, только часть номеров</button>
+                <button type="button" class="btn btn-ghost btn-sm" onclick="document.getElementById('guesthouseAskModal').close()">Вернуться к ретриту</button>
+            </div>
+        </div>
     </dialog>
 
     <script src="../js/config.js?v=5"></script>
@@ -593,6 +623,7 @@
                                 ${r.short_name ? `<span class="badge badge-sm badge-ghost">${Layout.escapeHtml(r.short_name)}</span>` : ''}
                                 ${isActive ? `<span class="badge badge-sm" style="background-color: ${r.color}; color: white;">${t('now')}</span>` : ''}
                                 ${r.is_external ? `<span class="badge badge-sm badge-outline">${t('retreats_is_external')}</span>` : ''}
+                                ${r.occupies_guesthouse ? '<span class="badge badge-sm badge-outline">Весь Гостевой дом</span>' : ''}
                                 ${r.registration_open ? `<span class="badge badge-sm badge-success">Регистрация</span>` : ''}
                             </div>
                             ${desc ? `<p class="text-sm opacity-60 mb-2 line-clamp-2">${desc}</p>` : ''}
@@ -805,6 +836,8 @@
                     form.expected_participants.value = retreat.expected_participants || 0;
                     form.is_external.checked = retreat.is_external || false;
                     form.cafe_eligible.checked = retreat.cafe_eligible !== false;
+                    if (retreat.occupies_guesthouse != null)
+                        form.querySelector(`[name="occupies_guesthouse"][value="${retreat.occupies_guesthouse}"]`).checked = true;
                     setRetreatContact(retreat.contact_vaishnava_id || null);
                     renderColorPicker(retreat.color || COLORS[0]);
                     deleteSection.classList.remove('hidden');
@@ -934,11 +967,31 @@
             editingId = null;
         }
 
+        // Ответ из окна «большой или маленький?» — ставим в форму и сохраняем дальше
+        function answerGuesthouse(all) {
+            const form = document.getElementById('retreatForm');
+            form.querySelector(`[name="occupies_guesthouse"][value="${all}"]`).checked = true;
+            document.getElementById('guesthouseAskModal').close();
+            form.requestSubmit();
+        }
+
         async function saveRetreat(e) {
             e.preventDefault();
             const form = document.getElementById('retreatForm');
             const submitBtn = form.querySelector('button[type="submit"]');
             const imageInput = document.getElementById('imageInput');
+
+            const guesthouse = form.querySelector('[name="occupies_guesthouse"]:checked')?.value;
+            if (!guesthouse) {
+                const name = form.name_ru.value.trim() || 'ретрит';
+                const dates = form.start_date.value && form.end_date.value
+                    ? ` (${DateUtils.formatRange(form.start_date.value, form.end_date.value)})` : '';
+                document.getElementById('guesthouseAskText').textContent =
+                    `«${name}»${dates}. Если «Да» — на эти даты номера Гостевого дома держатся для ретрита: ` +
+                    'кто-то бронирует номер не для ретрита — система переспросит. Так гости ретрита не приедут в занятый номер.';
+                document.getElementById('guesthouseAskModal').showModal();
+                return;
+            }
 
             submitBtn.disabled = true;
             submitBtn.innerHTML = '<span class="loading loading-spinner loading-sm"></span>';
@@ -954,6 +1007,7 @@
                 expected_participants: parseInt(form.expected_participants.value) || 0,
                 is_external: form.is_external.checked,
                 cafe_eligible: form.cafe_eligible.checked,
+                occupies_guesthouse: guesthouse === 'true',
                 contact_vaishnava_id: form.contact_vaishnava_id.value || null,
                 color: form.color.value,
                 image_url: form.image_url.value || null,
