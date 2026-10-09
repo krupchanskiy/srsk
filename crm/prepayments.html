@@ -26,6 +26,8 @@
         .status-dot { width: 8px; height: 8px; border-radius: 50%; }
         .status-dot.confirmed { background: #22c55e; }
         .status-dot.not-confirmed { background: #f59e0b; }
+        .status-chip.legacy { background: #e5e7eb; color: #374151; }
+        .status-dot.legacy { background: #9ca3af; }
         .inline-edit-cell { cursor: pointer; border-radius: 6px; padding: 4px 6px; }
         .inline-edit-cell:hover { background: oklch(var(--b2)); }
         .inline-edit-cell.readonly { cursor: default; }
@@ -64,6 +66,7 @@
                         <option value="" data-i18n="crm_all_statuses">Все статусы</option>
                         <option value="confirmed" data-i18n="crm_prepayment_confirmed">Подтверждена</option>
                         <option value="not_confirmed" data-i18n="crm_prepayment_not_confirmed">Не подтверждена</option>
+                        <option value="legacy" data-i18n="crm_prepayment_legacy">Старый платёж</option>
                     </select>
                 </div>
 
@@ -173,6 +176,23 @@
     <form method="dialog" class="modal-backdrop"><button>close</button></form>
 </dialog>
 
+<!-- Как подтвердить: обычный платёж (проводка в кассу) или старый (без проводки) -->
+<dialog id="confirmKindModal" class="modal">
+    <div class="modal-box max-w-sm">
+        <h3 class="font-bold text-lg mb-1" data-i18n="crm_prepayment_how_confirm">Как подтвердить платёж?</h3>
+        <p id="confirmKindWho" class="text-sm opacity-70 mb-4"></p>
+        <div class="flex flex-col gap-2">
+            <button type="button" id="confirmKindNormal" class="btn btn-primary" data-i18n="crm_confirm">Подтвердить</button>
+            <button type="button" id="confirmKindLegacy" class="btn btn-outline" data-i18n="crm_prepayment_legacy">Старый платёж</button>
+            <p class="text-xs opacity-70 text-center" data-i18n="crm_prepayment_legacy_hint">Подтверждён для сделки, в кассу и ДДС не проводится</p>
+        </div>
+        <div class="modal-action">
+            <form method="dialog"><button class="btn btn-ghost" data-i18n="cancel">Отмена</button></form>
+        </div>
+    </div>
+    <form method="dialog" class="modal-backdrop"><button>close</button></form>
+</dialog>
+
 <div id="footer-placeholder"></div>
 
 <script src="../js/config.js?v=5"></script>
@@ -200,6 +220,8 @@ let sortDir = 'desc';
 let debounceTimer = null;
 
 const canConfirm = () => !!window.hasPermission?.('confirm_prepayment');
+// Перевод с запасным русским текстом — пока у человека старый кэш переводов
+const tr = (key, ru) => { const v = t(key); return v === key ? ru : v; };
 
 // Кэш операций по payment_id
 let operationsByPayment = {}; // { paymentId: [operations] }
@@ -296,7 +318,8 @@ function applyFilters() {
 
     filtered = prepayments.filter(p => {
         if (retreatId && p.deal?.retreat_id !== retreatId) return false;
-        if (status === 'confirmed' && !p.is_confirmed) return false;
+        if (status === 'confirmed' && (!p.is_confirmed || p.is_legacy)) return false;
+        if (status === 'legacy' && !p.is_legacy) return false;
         if (status === 'not_confirmed' && p.is_confirmed) return false;
         if (systemId && p.payment_system_id !== systemId) return false;
 
@@ -372,8 +395,8 @@ function sortData() {
                 bv = (Layout.getName(b.deal?.retreats) || '').toLowerCase();
                 break;
             case 'status':
-                av = a.is_confirmed ? 1 : 0;
-                bv = b.is_confirmed ? 1 : 0;
+                av = a.is_legacy ? 2 : a.is_confirmed ? 1 : 0;
+                bv = b.is_legacy ? 2 : b.is_confirmed ? 1 : 0;
                 break;
             case 'system':
                 av = (Layout.getName(a.payment_system) || '').toLowerCase();
@@ -475,14 +498,20 @@ document.addEventListener('prepayment-ops:changed', async () => {
     applyFilters();
 });
 
+function statusLabel(p) {
+    if (p.is_legacy) return tr('crm_prepayment_legacy', 'Старый платёж');
+    return p.is_confirmed ? t('crm_prepayment_confirmed') : t('crm_prepayment_not_confirmed');
+}
+
 function renderStatusCell(p) {
-    const confirmed = p.is_confirmed;
+    const kind = p.is_legacy ? 'legacy' : p.is_confirmed ? 'confirmed' : 'not-confirmed';
     const clickable = canConfirm();
-    const cls = `status-chip ${confirmed ? 'confirmed' : 'not-confirmed'} ${clickable ? 'clickable' : ''}`;
-    const label = confirmed ? t('crm_prepayment_confirmed') : t('crm_prepayment_not_confirmed');
+    const cls = `status-chip ${kind} ${clickable ? 'clickable' : ''}`;
+    const label = statusLabel(p);
+    const title = p.is_legacy ? ` title="${e(tr('crm_prepayment_legacy_hint', 'Подтверждён для сделки, в кассу и ДДС не проводится'))}"` : '';
     const onclick = clickable ? `onclick="toggleStatus('${p.id}')"` : '';
-    return `<span class="${cls}" ${onclick}>
-        <span class="status-dot ${confirmed ? 'confirmed' : 'not-confirmed'}"></span>
+    return `<span class="${cls}" ${onclick}${title}>
+        <span class="status-dot ${kind}"></span>
         ${e(label)}
     </span>`;
 }
@@ -559,10 +588,14 @@ async function toggleStatus(id) {
     const p = findPayment(id);
     if (!p) return;
     const confirming = !p.is_confirmed;
-    // Один случайный клик подтверждал платёж без вопросов (ТЗ 1.13)
+    // Один случайный клик подтверждал платёж без вопросов (ТЗ 1.13).
+    // Выбор: обычное подтверждение или «Старый платёж» — подтверждён для
+    // сделки, но в кассу и ДДС не проводится (решение ВГ 09.10.2026)
+    let legacy = false;
     if (confirming) {
-        const кто = CrmUtils.getGuestName(p.deal?.vaishnavas);
-        if (!confirm(`${t('crm_confirm_payment_q')}\n${CrmUtils.formatMoney(p.amount, p.currency)}${кто ? ` — ${кто}` : ''}`)) return;
+        const kind = await pickConfirmKind(p);
+        if (!kind) return;
+        legacy = kind === 'legacy';
     }
     // Решение ВГ (вопрос 2, 23.07.2026): подтверждать платежи может ТОЛЬКО
     // администратор финансов — автопроводка идёт от имени подтверждающего,
@@ -576,21 +609,26 @@ async function toggleStatus(id) {
     // деньги уже сидят в начальных остатках. Счёт и фактическую сумму для
     // него не спрашиваем: подтверждение чисто для истории CRM.
     const preCutover = confirming && await isPreCutover(p);
+    // Старый платёж после запуска кассы — деньги не встанут на баланс,
+    // поэтому переспрашиваем. До запуска — без вопросов.
+    if (legacy && !preCutover &&
+        !confirm(tr('crm_prepayment_legacy_warn', 'Будьте внимательны: платёж получен после запуска кассы. «Старый платёж» НЕ поставит эти деньги на баланс и не внесёт их в ДДС. Продолжить?'))) return;
     // Способ оплаты обязателен при подтверждении (решение ВГ, вопрос 3):
     // без него непонятно, откуда пришли деньги. Дублируется триггером в БД.
-    if (confirming && !preCutover && !p.payment_system_id) {
+    if (confirming && !legacy && !preCutover && !p.payment_system_id) {
         Layout.showNotification(t('crm_confirm_requires_payment_system'), 'error');
         return;
     }
     const patch = {
         is_confirmed: confirming,
         confirmed_at: confirming ? new Date().toISOString() : null,
-        confirmed_by: confirming ? (window.currentUser?.vaishnava_id || null) : null
+        confirmed_by: confirming ? (window.currentUser?.vaishnava_id || null) : null,
+        is_legacy: legacy
     };
     // Решение ВГ (вопрос 4, 23.07.2026): «отмечать приход денег только на тот
     // счёт, на котором они лежат». Счёт указывает подтверждающий — для любого
     // платежа, не только наличного. Система по валюте больше не угадывает.
-    if (confirming && !preCutover && !p.fin_account_id) {
+    if (confirming && !legacy && !preCutover && !p.fin_account_id) {
         const choice = await pickAccount(p.currency, Number(p.amount));
         if (!choice) return;
         patch.fin_account_id = choice.accountId;
@@ -600,6 +638,21 @@ async function toggleStatus(id) {
     applyFilters();
     Layout.refreshPrepaymentsBadge?.();
     if (confirming) reportAutopost(id);
+}
+
+// Модалка выбора: 'normal' | 'legacy' | null (отмена)
+function pickConfirmKind(p) {
+    const кто = CrmUtils.getGuestName(p.deal?.vaishnavas);
+    document.getElementById('confirmKindWho').textContent =
+        `${CrmUtils.formatMoney(p.amount, p.currency)}${кто ? ` — ${кто}` : ''}`;
+    return new Promise(resolve => {
+        const dlg = document.getElementById('confirmKindModal');
+        const done = value => { dlg.onclose = null; dlg.close(); resolve(value); };
+        document.getElementById('confirmKindNormal').onclick = () => done('normal');
+        document.getElementById('confirmKindLegacy').onclick = () => done('legacy');
+        dlg.onclose = () => resolve(null);
+        dlg.showModal();
+    });
 }
 
 // Модалка подтверждения: счёт и фактически зачисленная сумма.
@@ -823,7 +876,7 @@ function exportXlsx() {
             CrmUtils.getGuestName(g),
             g?.phone || '',
             Layout.getName(p.deal?.retreats) || '',
-            p.is_confirmed ? t('crm_prepayment_confirmed') : t('crm_prepayment_not_confirmed'),
+            statusLabel(p),
             p.payment_system ? Layout.getName(p.payment_system) : '',
             p.amount,
             p.currency,

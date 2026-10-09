@@ -1314,8 +1314,8 @@ function renderPaymentsTab() {
                 <tbody>
                     ${payments.map(p => {
                         const systemLabel = p.payment_system ? Layout.getName(p.payment_system) : (p.payment_method ? (t('crm_method_' + p.payment_method) || p.payment_method) : '—');
-                        const dotColor = p.is_confirmed ? '#22c55e' : '#f59e0b';
-                        const dotTitle = p.is_confirmed ? 'Платёж подтверждён' : 'Платёж не подтверждён';
+                        const dotColor = p.is_legacy ? '#9ca3af' : p.is_confirmed ? '#22c55e' : '#f59e0b';
+                        const dotTitle = p.is_legacy ? 'Старый платёж — без проводки в кассу' : p.is_confirmed ? 'Платёж подтверждён' : 'Платёж не подтверждён';
                         return `
                         <tr>
                             <td><span class="inline-block w-2.5 h-2.5 rounded-full" style="background:${dotColor}" title="${dotTitle}"></span></td>
@@ -1609,8 +1609,8 @@ function renderFinanceBlock() {
                 ? new Date(p.received_at).toLocaleDateString('ru-RU', { day: 'numeric', month: 'short' })
                 : '—';
             const typeLabel = t('crm_payment_type_' + p.payment_type) || p.payment_type || '';
-            const dotColor = p.is_confirmed ? '#22c55e' : '#f59e0b';
-            const dotTitle = p.is_confirmed ? 'Платёж подтверждён' : 'Платёж не подтверждён (ждёт подтверждения)';
+            const dotColor = p.is_legacy ? '#9ca3af' : p.is_confirmed ? '#22c55e' : '#f59e0b';
+            const dotTitle = p.is_legacy ? 'Старый платёж — без проводки в кассу' : p.is_confirmed ? 'Платёж подтверждён' : 'Платёж не подтверждён (ждёт подтверждения)';
             const rowCls = p.is_confirmed ? '' : 'bg-amber-50 ring-1 ring-amber-200';
             const textCls = p.is_confirmed ? '' : 'text-amber-700';
 
