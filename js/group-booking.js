@@ -159,7 +159,7 @@ const $ = id => document.getElementById(id);
 // ---------- данные ----------
 async function loadRefs() {
     const [b, r, rt, fe, cat] = await Promise.all([
-        Layout.db.from('buildings').select('id, name_ru, name_en, name_hi, is_temporary, sort_order')
+        Layout.db.from('buildings').select('id, name_ru, name_en, name_hi, is_temporary, sort_order, available_from, available_until')
             .eq('is_active', true).order('sort_order'),
         Layout.db.from('rooms').select('id, number, floor, building_id, capacity, status').eq('is_active', true),
         Layout.db.from('retreats')
@@ -171,7 +171,9 @@ async function loadRefs() {
     const err = b.error || r.error || rt.error || cat.error;
     if (err) throw err;
     const factEnd = new Map((fe.data || []).map(f => [f.retreat_id, f.fact_end]));
-    S.buildings = b.data || [];
+    // Порядок как в шахматке: сначала наши постоянные здания (Гостевой дом первым), потом временные
+    S.buildings = (b.data || []).sort((x, y) => (x.is_temporary ? 1 : 0) - (y.is_temporary ? 1 : 0)
+        || (x.sort_order || 0) - (y.sort_order || 0));
     S.rooms = (r.data || []).filter(x => x.status !== 'maintenance' && x.status !== 'mothballed')
         .sort((a, c) => (a.floor || 0) - (c.floor || 0)
             || String(a.number).localeCompare(String(c.number), 'ru', { numeric: true }));
@@ -340,7 +342,10 @@ function toggleRoom(roomId) {
 
 function renderRooms() {
     const openNow = new Set([...document.querySelectorAll('#gbBuildings details[open]')].map(d => d.dataset.building));
-    const html = S.buildings.map((b, i) => {
+    const from = $('gbIn').value, to = $('gbOut').value;
+    const shown = S.buildings.filter(b => !b.is_temporary || (S.rooms.some(r => r.building_id === b.id && (S.picks[r.id] || S.occ.has(r.id)))
+        || (from && to && b.available_from && b.available_until && b.available_from <= to && b.available_until >= from)));
+    const html = shown.map((b, i) => {
         const rooms = S.rooms.filter(r => r.building_id === b.id);
         if (!rooms.length) return '';
         let freeBeds = 0, picked = 0;
