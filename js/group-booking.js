@@ -467,7 +467,7 @@ function showList(on) {
     $('gbList').classList.toggle('hidden', !on);
     $('gbListFooter').classList.toggle('hidden', !on);
     $('gbTitle').textContent = on ? tf('timeline_group_paste_list', 'Вставить список')
-        : (S.booking ? tf('timeline_group_edit', 'Групповая бронь: номера и места') : tf('timeline_group_title', 'Регистрация группы'));
+        : (S.booking ? tf('timeline_group_edit', 'Расселение группы') : tf('timeline_group_title', 'Регистрация группы'));
     if (on) { loadPeople(); $('gbPaste').focus(); renderList(); }
 }
 
@@ -819,7 +819,7 @@ async function open(opts = {}) {
     S.assign = []; S.manual = []; S.listPeople = []; S.rows = null; S.mapSig = null;
     showList(false);
     $('gbTitle').textContent = opts.bookingId
-        ? tf('timeline_group_edit', 'Групповая бронь: номера и места')
+        ? tf('timeline_group_edit', 'Расселение группы')
         : tf('timeline_group_title', 'Регистрация группы');
     $('gbBuildings').innerHTML = `<div class="text-center py-6"><span class="loading loading-spinner"></span></div>`;
     $('groupBookingModal').showModal();
