@@ -511,8 +511,12 @@ async function loadTimelineData() {
                     let startHalf = res.early_checkin === true ? 0 : 1;
                     let endHalf = res.late_checkout === true ? 1 : 0;
 
-                    // Уточняем по фактическому времени из регистрации на ретрит
-                    if (res.vaishnava_id && res.retreat_id) {
+                    // Время у места (670) — как у кухни: до 9:00 — с утра, после 14:00 — весь день отъезда
+                    if (!res.early_checkin && res.arrival_time && parseInt(res.arrival_time) < ArrivalTime.BH) startHalf = 0;
+                    if (!res.late_checkout && res.departure_time && parseInt(res.departure_time) >= ArrivalTime.LH) endHalf = 1;
+
+                    // Уточняем по фактическому времени из регистрации на ретрит (время у места сильнее)
+                    if (res.vaishnava_id && res.retreat_id && !res.arrival_time && !res.departure_time) {
                         const regTimes = retreatTimesMap.get(`${res.vaishnava_id}_${res.retreat_id}`);
                         if (regTimes) {
                             if (!res.early_checkin && regTimes.arrival) {
@@ -978,6 +982,7 @@ function showCheckinForm() {
 
     // Сбрасываем форму
     document.getElementById('checkinForm').reset();
+    ArrivalTime.fromPlace(document.getElementById('checkinArrivalTime'), document.getElementById('checkinDepartureTime'));
     delete document.querySelector('#checkinForm [data-prasad-meals]').dataset.byGroup;
     document.getElementById('checkinDateIn').value =
         document.getElementById('modalCheckIn').value;
@@ -1055,6 +1060,7 @@ function showBookingForm() {
 
     // Сбрасываем форму
     document.getElementById('bookingForm').reset();
+    ArrivalTime.fromPlace(document.getElementById('bookingArrivalTime'), document.getElementById('bookingDepartureTime'));
     document.getElementById('bookingDateIn').value =
         document.getElementById('modalCheckIn').value;
     document.getElementById('bookingDateOut').value =
@@ -1167,8 +1173,8 @@ async function openBookingEdit() {
     document.getElementById('bookingContactName').required = !!res.booking_id;
     document.getElementById('bookingDateIn').value = res.check_in || '';
     document.getElementById('bookingDateOut').value = res.check_out || '';
-    form.early_checkin.checked = !!res.early_checkin;
-    form.late_checkout.checked = !!res.late_checkout;
+    ArrivalTime.fromPlace(document.getElementById('bookingArrivalTime'), document.getElementById('bookingDepartureTime'), res);
+    form.kitchen_note.value = res.kitchen_note || '';
     // «Не питается» (has_meals = false) — галочки сняты: иначе правка любого поля
     // молча вернула бы человека в подсчёт кухни (eating_detail не считает has_meals = false)
     form.breakfast.checked = res.has_meals !== false && res.breakfast !== false;
@@ -1259,8 +1265,8 @@ async function saveBookingEdit(form) {
         department_id: departmentId,
         check_in: checkIn,
         check_out: checkOut,
-        early_checkin: form.early_checkin.checked,
-        late_checkout: form.late_checkout.checked,
+        ...ArrivalTime.toPlace(document.getElementById('bookingArrivalTime'), document.getElementById('bookingDepartureTime')),
+        kitchen_note: form.kitchen_note.value.trim() || null,
         breakfast,
         lunch,
         // Правят осознанно — «питается?» больше не «не указано» (случай Ананды Вардханы Свами, 02.10)
@@ -1478,12 +1484,15 @@ async function splitOffRetreat(side) {
     const piece = { ...copy, retreat_id: null, category_id: GUEST_CATEGORY_ID, booking_id: null,
         cleaning_done: false, cleaning_skipped: false, check_in: span[0], check_out: span[1] };
     const keep = {};
+    // Время приезда и примечание поварам — у части с днём приезда, время отъезда — у части с днём отъезда (670)
+    const noArrival = { early_checkin: false, arrival_time: null, keep_arrival_meal: false, kitchen_note: null };
+    const noDeparture = { late_checkout: false, departure_time: null };
     if (side === 'before') {
-        piece.late_checkout = false;
-        keep.check_in = cut; keep.early_checkin = false;
+        Object.assign(piece, noDeparture);
+        Object.assign(keep, { check_in: cut }, noArrival);
     } else {
-        piece.early_checkin = false;
-        keep.check_out = cut; keep.late_checkout = false;
+        Object.assign(piece, noArrival);
+        Object.assign(keep, { check_out: cut }, noDeparture);
     }
     // Сначала укорачиваем, потом вставляем хвост: иначе на миг человек стоит
     // в двух местах сразу и база не даст сохранить (запрет накладок, 655)
@@ -1492,8 +1501,9 @@ async function splitOffRetreat(side) {
     const { error: insErr } = await Layout.db.from('residents').insert(piece);
     if (insErr) {
         const back = side === 'before'
-            ? { check_in: row.check_in, early_checkin: row.early_checkin }
-            : { check_out: row.check_out, late_checkout: row.late_checkout };
+            ? { check_in: row.check_in, early_checkin: row.early_checkin, arrival_time: row.arrival_time,
+                keep_arrival_meal: row.keep_arrival_meal, kitchen_note: row.kitchen_note }
+            : { check_out: row.check_out, late_checkout: row.late_checkout, departure_time: row.departure_time };
         await Layout.db.from('residents').update(back).eq('id', res.id);
         Layout.handleError(insErr, 'Разделить');
         return;
@@ -1529,14 +1539,16 @@ async function moveToNextRetreat(nextId) {
     if (rErr) { Layout.handleError(rErr, 'Перевести'); return; }
     const { id, created_at, updated_at, ...copy } = row;
     const piece = { ...copy, retreat_id: next.id, check_in: next.start_date, early_checkin: false,
+        arrival_time: null, keep_arrival_meal: false, kitchen_note: null,
         cleaning_done: false, cleaning_skipped: false };
     // Сначала укорачиваем, потом вставляем вторую часть — иначе на миг два места сразу (655)
     const { error: upErr } = await Layout.db.from('residents')
-        .update({ check_out: next.start_date, late_checkout: false }).eq('id', res.id);
+        .update({ check_out: next.start_date, late_checkout: false, departure_time: null }).eq('id', res.id);
     if (upErr) { Layout.handleError(upErr, 'Перевести'); return; }
     const { error: insErr } = await Layout.db.from('residents').insert(piece);
     if (insErr) {
-        await Layout.db.from('residents').update({ check_out: row.check_out, late_checkout: row.late_checkout }).eq('id', res.id);
+        await Layout.db.from('residents').update({ check_out: row.check_out, late_checkout: row.late_checkout,
+            departure_time: row.departure_time }).eq('id', res.id);
         Layout.handleError(insErr, 'Перевести');
         return;
     }
@@ -1723,16 +1735,12 @@ function addBookingPersonRow() {
             <input type="date" data-role="out" class="input input-bordered input-xs flex-1 min-w-0" value="${e(form.check_out.value)}" />
         </div>
         <div class="grid grid-cols-2 gap-1 pr-8">
-            <label class="label cursor-pointer justify-start gap-2 py-0.5">
-                <input type="checkbox" data-role="early" class="checkbox checkbox-xs checkbox-info" />
-                <span class="label-text text-xs">${e(tf('timeline_early_checkin', 'Ранний заезд'))}</span>
-            </label>
-            <label class="label cursor-pointer justify-start gap-2 py-0.5">
-                <input type="checkbox" data-role="late" class="checkbox checkbox-xs checkbox-info" />
-                <span class="label-text text-xs">${e(tf('timeline_late_checkout', 'Поздний выезд'))}</span>
-            </label>
+            <div data-role="arrTime" data-arrival-time="in"></div>
+            <div data-role="depTime" data-arrival-time="out"></div>
         </div>`;
     box.appendChild(row);
+    ArrivalTime.set(row.querySelector('[data-role="arrTime"]'));
+    ArrivalTime.set(row.querySelector('[data-role="depTime"]'));
     syncBookingBeds();
     row.querySelector('[data-role="name"]').focus();
 }
@@ -1768,11 +1776,11 @@ function bookingPeople() {
         const name = row.querySelector('[data-role="name"]').value.trim();
         const check_in = row.querySelector('[data-role="in"]').value || null;
         const check_out = row.querySelector('[data-role="out"]').value || null;
-        const early = row.querySelector('[data-role="early"]').checked;
-        const late = row.querySelector('[data-role="late"]').checked;
-        // Безымянное место тоже берём, если у него свои даты или ранний/поздний (ВГ 08.10)
-        const ownDates = check_in !== form.check_in.value || check_out !== form.check_out.value || early || late;
-        if (id || name || ownDates) people.push({ id, name, check_in, check_out, early, late });
+        const times = ArrivalTime.toPlace(row.querySelector('[data-role="arrTime"]'), row.querySelector('[data-role="depTime"]'));
+        // Безымянное место тоже берём, если у него свои даты или время (ВГ 08.10)
+        const ownDates = check_in !== form.check_in.value || check_out !== form.check_out.value
+            || !!times.arrival_time || !!times.departure_time;
+        if (id || name || ownDates) people.push({ id, name, check_in, check_out, times });
     });
     return people;
 }
@@ -2053,8 +2061,9 @@ async function saveCheckin(e) {
         guest_phone: form.guest_phone?.value || null,
         check_in: form.check_in.value,
         check_out: form.check_out.value || null,
-        early_checkin: form.early_checkin.checked,
-        late_checkout: form.late_checkout.checked,
+        // Время у места вместо галочек «ранний/поздний» (670)
+        ...ArrivalTime.toPlace(document.getElementById('checkinArrivalTime'), document.getElementById('checkinDepartureTime')),
+        kitchen_note: form.kitchen_note.value.trim() || null,
         // Ретрит подставляется по датам, но остаётся на выбор: без него
         // человек не считается участником — не увидим ни долг, ни расселение
         retreat_id: form.retreat_id?.value || null,
@@ -2155,8 +2164,9 @@ async function saveBooking(e) {
     const bedsCount = Math.max(parseInt(form.beds_count.value) || 1, people.length);
 
     // Создаём бронирование
-    const earlyCheckin = form.early_checkin.checked;
-    const lateCheckout = form.late_checkout.checked;
+    // Время у места вместо галочек «ранний/поздний» (670)
+    const mainTimes = ArrivalTime.toPlace(document.getElementById('bookingArrivalTime'), document.getElementById('bookingDepartureTime'));
+    const kitchenNote = form.kitchen_note.value.trim() || null;
     const bookingBreakfast = form.breakfast?.checked ?? true;
     const bookingLunch = form.lunch?.checked ?? true;
     const bookingName = form.name.value.trim() || null;
@@ -2225,8 +2235,8 @@ async function saveBooking(e) {
         check_out: bookingCheckOut,
         beds_count: bedsCount,
         retreat_id: bookingRetreatId,
-        early_checkin: earlyCheckin,
-        late_checkout: lateCheckout,
+        early_checkin: mainTimes.early_checkin,
+        late_checkout: mainTimes.late_checkout,
         notes: form.notes.value || null,
         status: 'confirmed'
     };
@@ -2262,9 +2272,10 @@ async function saveBooking(e) {
             retreat_id: bookingRetreatId,
             check_in: person?.check_in || form.check_in.value,
             check_out: person?.check_out || form.check_out.value,
-            // Ранний заезд и поздний выезд — у каждого свои; первый и безымянные — по общим галочкам
-            early_checkin: i === 0 || !person ? earlyCheckin : !!person.early,
-            late_checkout: i === 0 || !person ? lateCheckout : !!person.late,
+            // Время — у каждого своё; первый и безымянные — по общему (670)
+            ...(i === 0 || !person ? mainTimes : person.times),
+            // Примечание поварам — одно на бронь, у первого места
+            kitchen_note: i === 0 ? kitchenNote : null,
             // Без номера — живёт вне ашрама, только питание (окно «Начислить группе» не берёт ночи)
             has_housing: !!modalContext.roomId,
             // В номере «питается?» уточняют при заселении; без номера бронь и есть питание
@@ -2528,7 +2539,7 @@ function openResidentModal(guestData, buildingName, roomName) {
     // Даты
     infoHtml += `<div class="flex justify-between py-1 border-b">
         <span class="text-gray-500">${t('timeline_checkin')}:</span>
-        <span class="font-medium">${formatDisplayDate(res.check_in)}${res.early_checkin ? ` (${t('timeline_early')})` : ''}</span>
+        <span class="font-medium">${formatDisplayDate(res.check_in)}${res.early_checkin ? ` (${t('timeline_early')})` : ''}${res.arrival_time ? ` · ${e(ArrivalTime.label(res, 'in'))}` : ''}</span>
     </div>`;
     // Плейсхолдер для времени приезда (заполняется асинхронно)
     infoHtml += `<div id="residentArrivalTime" class="hidden flex justify-between py-1 border-b">
@@ -2539,7 +2550,7 @@ function openResidentModal(guestData, buildingName, roomName) {
     if (res.check_out) {
         infoHtml += `<div class="flex justify-between py-1 border-b">
             <span class="text-gray-500">${t('timeline_checkout')}:</span>
-            <span class="font-medium">${formatDisplayDate(res.check_out)}${res.late_checkout ? ` (${t('timeline_late')})` : ''}</span>
+            <span class="font-medium">${formatDisplayDate(res.check_out)}${res.late_checkout ? ` (${t('timeline_late')})` : ''}${res.departure_time ? ` · ${e(ArrivalTime.label(res, 'out'))}` : ''}</span>
         </div>`;
     }
     // Плейсхолдер для времени отъезда
@@ -2763,7 +2774,7 @@ async function checkoutResident() {
 
     const res = currentResident.rawData;
     const checkoutDate = document.getElementById('checkoutDate').value;
-    const lateCheckout = document.getElementById('checkoutLate').checked;
+    const dep = ArrivalTime.get(document.getElementById('checkoutDepartureTime'));
 
     if (!checkoutDate) {
         alert(Layout.t('specify_checkout_date') || 'Укажите дату выезда');
@@ -2790,7 +2801,7 @@ async function checkoutResident() {
 
     const { error } = await Layout.db
         .from('residents')
-        .update({ check_out: checkoutDate, late_checkout: lateCheckout, status: 'checked_out' })
+        .update({ check_out: checkoutDate, departure_time: dep.time, late_checkout: dep.legacy, status: 'checked_out' })
         .eq('id', currentResident.id);
 
     if (error) {
@@ -3288,7 +3299,8 @@ function showCheckoutScreen() {
     if (defaultDate < res.check_in) defaultDate = res.check_in;
 
     document.getElementById('checkoutDate').value = defaultDate;
-    document.getElementById('checkoutLate').checked = res.late_checkout || false;
+    // Время отъезда (670); старая галочка «Поздний выезд» — только если уже стоит
+    ArrivalTime.set(document.getElementById('checkoutDepartureTime'), { time: res.departure_time, legacy: !!res.late_checkout });
 }
 
 // Показать экран редактирования дат
@@ -3305,8 +3317,7 @@ function showEditDatesScreen() {
     const res = currentResident.rawData;
     document.getElementById('editCheckIn').value = res.check_in || '';
     document.getElementById('editCheckOut').value = res.check_out || '';
-    document.getElementById('editEarlyCheckin').checked = res.early_checkin || false;
-    document.getElementById('editLateCheckout').checked = res.late_checkout || false;
+    ArrivalTime.fromPlace(document.getElementById('editArrivalTime'), document.getElementById('editDepartureTime'), res);
 }
 
 // Сохранить изменённые даты
@@ -3316,8 +3327,7 @@ async function saveDates() {
 
     const checkIn = document.getElementById('editCheckIn').value;
     const checkOut = document.getElementById('editCheckOut').value;
-    const earlyCheckin = document.getElementById('editEarlyCheckin').checked;
-    const lateCheckout = document.getElementById('editLateCheckout').checked;
+    const times = ArrivalTime.toPlace(document.getElementById('editArrivalTime'), document.getElementById('editDepartureTime'));
 
     if (!checkIn) {
         alert(Layout.t('specify_checkin_date'));
@@ -3331,7 +3341,7 @@ async function saveDates() {
 
     // Новые даты совсем не пересекаются с ретритом брони — ретрит уже не тот.
     // Предлагаем снять его (другой ретрит выбирается потом в окне брони), иначе не сохраняем
-    const update = { check_in: checkIn, check_out: checkOut || null, early_checkin: earlyCheckin, late_checkout: lateCheckout };
+    const update = { check_in: checkIn, check_out: checkOut || null, ...times };
     const oldRetreatId = currentResident.rawData.retreat_id;
     if (retreatDatesMismatch(oldRetreatId, checkIn, checkOut || checkIn)) {
         const r = allRetreats.find(x => x.id === oldRetreatId);
@@ -3757,12 +3767,9 @@ async function convertToCheckin() {
         res.check_in < todayIso && (!res.check_out || res.check_out >= todayIso) ? todayIso : res.check_in;
     document.getElementById('checkinDateOut').value = res.check_out || '';
 
-    if (res.early_checkin) {
-        document.querySelector('#checkinForm [name="early_checkin"]').checked = true;
-    }
-    if (res.late_checkout) {
-        document.querySelector('#checkinForm [name="late_checkout"]').checked = true;
-    }
+    // Время и примечание поварам — как в брони (670)
+    ArrivalTime.fromPlace(document.getElementById('checkinArrivalTime'), document.getElementById('checkinDepartureTime'), res);
+    document.querySelector('#checkinForm [name="kitchen_note"]').value = res.kitchen_note || '';
     // Питание перенеслось с брони: если при бронировании завтрак сняли,
     // заселение не должно втихую вернуть его обратно.
     document.querySelector('#checkinForm [name="breakfast"]').checked = res.breakfast !== false;
@@ -4864,12 +4871,12 @@ async function loadStayAlerts() {
 
     // Пересечение с ретритом «весь Гостевой дом»: перенести даты или «Оставить как есть»
     const f = HouseGuard.fmt;
-    const overlapLine = o => `<div>${ALERT_ICON} <span class="font-medium">${o.kind === 'cross' ? 'Пересечение с ретритом' : 'Впритык к ретриту'} «${e(Layout.getName(o.retreat))}»</span>: `
+    const overlapLine = o => `<div>${ALERT_ICON} <span class="font-medium">${o.kind === 'cross' ? 'Пересечение с ретритом' : 'Возможно пересечение с ретритом'} «${e(Layout.getName(o.retreat))}»</span>: `
         + `<a class="link link-hover font-medium" data-action="open-stay-alert" data-id="${o.ids[0]}" data-date="${o.check_in}">${e(o.who || tf('timeline_no_name', 'Без имени'))}${o.ids.length > 1 ? ` · ${Layout.pluralize(o.ids.length, SEAT_FORMS)}` : ''}</a>`
         + ` <span class="opacity-60">(№${e(o.room)}, ${f(o.check_in)} → ${o.check_out ? f(o.check_out) : '…'})</span> — `
         + (o.kind === 'cross'
             ? `${e(o.text)}: ${HouseGuard.ruNights(o.nights)} на ретрите (${f(o.from)} → ${f(o.to)}). Перенесите даты или`
-            : `${e(o.text)}. Успеете убрать номер? Уточните время приезда или`)
+            : `${e(o.text)}. Номер освободится только после их выезда и уборки — пожалуйста, уточните время заезда. Решили —`)
         + (canEditTimeline() ? ` <button class="btn btn-xs btn-ghost underline px-1" data-action="house-overlap-ok" data-ids="${o.ids.join(',')}" data-name="${e(o.who || '')}">оставьте как есть</button>` : ' оставьте как есть')
         // Примечание брони — что уже выясняют (ВГ 09.10: «уточнить время»)
         + (o.note ? `<div class="pl-5 text-sm opacity-80">Примечание: ${e(o.note)}</div>` : '')
