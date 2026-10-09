@@ -124,8 +124,8 @@ function ensureDialog() {
             </div>
 
             <div id="gbList" class="hidden overflow-y-auto flex-1 pr-1">
-                <p class="text-sm mb-2">${e(tf('timeline_list_hint', 'Выделите в Excel или Google-таблице строки вместе с заголовком, скопируйте и вставьте сюда (Cmd+V). Какой столбец что значит — выберете ниже.'))}</p>
-                <textarea id="gbPaste" rows="6" class="textarea textarea-bordered w-full font-mono text-xs" placeholder="Имя&#9;№&#9;Заезд&#9;Выезд"></textarea>
+                <p class="text-sm mb-2">${e(tf('timeline_list_hint', 'Выделите в Excel или Google-таблице всю таблицу сразу — все столбцы вместе с заголовком, скопируйте (Cmd+C) и вставьте сюда (Cmd+V). Какой столбец что значит, выберете ниже. Столбец с номером комнаты не обязателен: без него люди встанут на места, отмеченные в окне группы.'))}</p>
+                <textarea id="gbPaste" rows="6" class="textarea textarea-bordered w-full font-mono text-xs" placeholder="Пример:&#10;Имя&#9;Номер комнаты&#9;Заезд&#9;Выезд&#10;Радха Рани д.д.&#9;14&#9;12.10&#9;22.10&#10;Иван +1&#9;15&#9;12.10&#9;20.10"></textarea>
                 <div id="gbMap" class="mt-3"></div>
                 <div id="gbPreview" class="mt-3"></div>
             </div>
