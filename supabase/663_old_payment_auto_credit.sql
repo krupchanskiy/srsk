@@ -163,3 +163,12 @@ UPDATE translations SET
   ru = 'Будьте внимательны: платёж получен после запуска кассы. «Старый платёж» НЕ поставит эти деньги на баланс кассы и не внесёт их в ДДС — гостю они зачтутся как «оплачено до запуска». Продолжить?',
   en = 'Careful: this payment was received after the cash system started. "Old payment" will NOT put this money on the cash balance or into cash flow — the guest will be credited as "paid before launch". Continue?'
 WHERE key = 'crm_prepayment_legacy_warn';
+
+-- Переспрос перед «Старым платежом»: отменить нельзя
+INSERT INTO translations (key, ru, en, hi, context) VALUES
+  ('crm_prepayment_legacy_final',
+   E'Подтвердить как СТАРЫЙ ПЛАТЁЖ?\n\n• в кассу и ДДС не проводится\n• гостю зачитывается «оплачено до запуска»\n• ОТМЕНИТЬ БУДЕТ НЕЛЬЗЯ — только коррекцией остатка в финансах',
+   E'Confirm as OLD PAYMENT?\n\n• not posted to cash or cash flow\n• the guest is credited "paid before launch"\n• THIS CANNOT BE UNDONE — only by an opening balance correction in finance',
+   E'पुराने भुगतान के रूप में पुष्टि करें?\n\n• कैश में दर्ज नहीं\n• अतिथि को «लॉन्च से पहले भुगतान» जमा\n• इसे रद्द नहीं किया जा सकता',
+   'CRM Предоплата')
+ON CONFLICT (key) DO UPDATE SET ru = EXCLUDED.ru, en = EXCLUDED.en, hi = EXCLUDED.hi, context = EXCLUDED.context;
