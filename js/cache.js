@@ -53,11 +53,14 @@ function invalidateAll() {
 
 /** Получить из кэша или загрузить через loaderFn */
 async function getOrLoad(key, loaderFn, ttl = DEFAULT_TTL) {
+    // Пустой список не кэшируем и из кэша не берём: запрос до входа (RLS) отдаёт [],
+    // и шахматка час показывала бы «ни одного здания»
+    const пусто = d => Array.isArray(d) && d.length === 0;
     const cached = get(key);
-    if (cached !== null) return cached;
+    if (cached !== null && !пусто(cached)) return cached;
 
     const data = await loaderFn();
-    if (data != null) {
+    if (data != null && !пусто(data)) {
         set(key, data, ttl);
     }
     return data;
