@@ -1450,7 +1450,10 @@ async function saveBirthDate(value) {
         }
         child = true;
     }
-    await Layout.db.from('vaishnavas').update({ birth_date: value || null }).eq('id', guest.id);
+    if (!await saveGuestFields({ birth_date: value || null })) {
+        document.getElementById('guestBirthDate').value = guest.birth_date || '';
+        return;
+    }
     guest.birth_date = value || null;
     document.getElementById('guestAgeHint').textContent = ageHintText();
     if (child) await confirmChild(true);
@@ -2530,6 +2533,17 @@ async function copyTemplateText(text) {
     await CrmUtils.copyToClipboard(text);
 }
 
+// Карточка гостя из сделки — через crm_guest_update (мигр. 666): у менеджеров по продажам нет
+// права edit_vaishnava, прямой UPDATE отсекался без ошибки и сделка писала «Сохранено» (09.10)
+async function saveGuestFields(fields) {
+    const { error } = await Layout.db.rpc('crm_guest_update', { p_vaishnava: guest.id, p_fields: fields });
+    if (error) {
+        console.error(error);
+        Layout.showNotification(`${t('crm_save_error')}: ${error.message}`, 'error');
+    }
+    return !error;
+}
+
 // ==================== INLINE EDIT CONTACTS ====================
 function startEditContact(field, currentValue) {
     const container = document.getElementById('contact-val-' + field);
@@ -2553,12 +2567,7 @@ function startEditContact(field, currentValue) {
 }
 
 async function saveGender(value) {
-    const { error } = await Layout.db.from('vaishnavas')
-        .update({ gender: value || null })
-        .eq('id', guest.id);
-    if (error) {
-        Layout.showNotification(t('crm_save_error'), 'error');
-    } else {
+    if (await saveGuestFields({ gender: value || null })) {
         guest.gender = value || null;
         Layout.showNotification(t('saved'), 'success');
         renderTab(); // обновить цвет в select
@@ -2570,11 +2579,7 @@ async function saveContact(field, value) {
     const update = {};
     update[field] = trimmed || null;
 
-    const { error } = await Layout.db.from('vaishnavas').update(update).eq('id', guest.id);
-    if (error) {
-        Layout.showNotification(t('crm_save_error'), 'error');
-        console.error(error);
-    } else {
+    if (await saveGuestFields(update)) {
         guest[field] = trimmed || null;
         Layout.showNotification(t('saved'), 'success');
         renderHeader();
@@ -2609,15 +2614,7 @@ async function saveNameEdit() {
 
     if (!fn) { Layout.showNotification(t('crm_name_required'), 'error'); return; }
 
-    const { error } = await Layout.db.from('vaishnavas').update({
-        spiritual_name: sn || null,
-        first_name: fn,
-        last_name: ln || null
-    }).eq('id', guest.id);
-
-    if (error) {
-        Layout.showNotification(t('crm_save_error'), 'error');
-    } else {
+    if (await saveGuestFields({ spiritual_name: sn || null, first_name: fn, last_name: ln || null })) {
         guest.spiritual_name = sn || null;
         guest.first_name = fn;
         guest.last_name = ln || null;
@@ -3195,10 +3192,7 @@ async function cancelRoomBooking() {
 
 // ==================== ДОППОЛЯ ====================
 async function saveGuruName(value) {
-    await Layout.db.from('vaishnavas').update({
-        spiritual_teacher: value || null,
-        guru_name: value || null
-    }).eq('id', guest.id);
+    if (!await saveGuestFields({ spiritual_teacher: value || null, guru_name: value || null })) return;
     guest.spiritual_teacher = value;
     guest.guru_name = value;
 }
