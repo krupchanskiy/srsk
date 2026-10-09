@@ -183,6 +183,7 @@
         <p id="confirmKindWho" class="text-sm opacity-70 mb-4"></p>
         <div class="flex flex-col gap-2">
             <button type="button" id="confirmKindNormal" class="btn btn-primary" data-i18n="crm_confirm">Подтвердить</button>
+            <p class="text-xs opacity-70 text-center mb-2" data-i18n="crm_prepayment_normal_hint">Проводится в кассу и ДДС. Отменить — только сторно в ДДС</p>
             <button type="button" id="confirmKindLegacy" class="btn btn-outline" data-i18n="crm_prepayment_legacy">Старый платёж</button>
             <p class="text-xs opacity-70 text-center" data-i18n="crm_prepayment_legacy_hint">Зачтён гостю как «оплачено до запуска», в кассу и ДДС не проводится</p>
         </div>
@@ -587,7 +588,8 @@ async function savePatch(id, patch) {
             payment_system:payment_system_id(id, code, name_ru, name_en)
         `)
         .single();
-    if (error) { Layout.handleError(error, 'Сохранение'); return null; }
+    // Запреты базы (проведённый платёж, старый платёж) объясняют себя в details
+    if (error) { Layout.handleError(error.details ? { message: error.details } : error, 'Сохранение'); return null; }
     // Обновляем локальный кэш (deal/retreat/vaishnavas в data отсутствуют — их не трогаем)
     const p = findPayment(id);
     if (p && data) {
