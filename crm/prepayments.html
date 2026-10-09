@@ -184,7 +184,7 @@
         <div class="flex flex-col gap-2">
             <button type="button" id="confirmKindNormal" class="btn btn-primary" data-i18n="crm_confirm">Подтвердить</button>
             <button type="button" id="confirmKindLegacy" class="btn btn-outline" data-i18n="crm_prepayment_legacy">Старый платёж</button>
-            <p class="text-xs opacity-70 text-center" data-i18n="crm_prepayment_legacy_hint">Подтверждён для сделки, в кассу и ДДС не проводится</p>
+            <p class="text-xs opacity-70 text-center" data-i18n="crm_prepayment_legacy_hint">Зачтён гостю как «оплачено до запуска», в кассу и ДДС не проводится</p>
         </div>
         <div class="modal-action">
             <form method="dialog"><button class="btn btn-ghost" data-i18n="cancel">Отмена</button></form>
@@ -519,10 +519,11 @@ function statusLabel(p) {
 
 function renderStatusCell(p) {
     const kind = p.is_legacy ? 'legacy' : p.is_confirmed ? 'confirmed' : 'not-confirmed';
-    const clickable = canConfirm();
+    // Старый платёж уже зачтён гостю — снять подтверждение нельзя (мигр. 663)
+    const clickable = canConfirm() && !p.is_legacy;
     const cls = `status-chip ${kind} ${clickable ? 'clickable' : ''}`;
     const label = statusLabel(p);
-    const title = p.is_legacy ? ` title="${e(tr('crm_prepayment_legacy_hint', 'Подтверждён для сделки, в кассу и ДДС не проводится'))}"` : '';
+    const title = p.is_legacy ? ` title="${e(tr('crm_prepayment_legacy_hint', 'Зачтён гостю как «оплачено до запуска», в кассу и ДДС не проводится'))}"` : '';
     const onclick = clickable ? `onclick="toggleStatus('${p.id}')"` : '';
     return `<span class="${cls}" ${onclick}${title}>
         <span class="status-dot ${kind}"></span>
@@ -626,7 +627,7 @@ async function toggleStatus(id) {
     // Старый платёж после запуска кассы — деньги не встанут на баланс,
     // поэтому переспрашиваем. До запуска — без вопросов.
     if (legacy && !preCutover &&
-        !confirm(tr('crm_prepayment_legacy_warn', 'Будьте внимательны: платёж получен после запуска кассы. «Старый платёж» НЕ поставит эти деньги на баланс и не внесёт их в ДДС. Продолжить?'))) return;
+        !confirm(tr('crm_prepayment_legacy_warn', 'Будьте внимательны: платёж получен после запуска кассы. «Старый платёж» НЕ поставит эти деньги на баланс кассы и не внесёт их в ДДС — гостю они зачтутся как «оплачено до запуска». Продолжить?'))) return;
     // Способ оплаты обязателен при подтверждении (решение ВГ, вопрос 3):
     // без него непонятно, откуда пришли деньги. Дублируется триггером в БД.
     if (confirming && !legacy && !preCutover && !p.payment_system_id) {
