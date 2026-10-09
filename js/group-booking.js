@@ -437,7 +437,7 @@ function renderCounter() {
 // по номерам из списка (организаторы расселяют сами). Спутники без имени — «Имя +1».
 // Не помещается (людей в номере больше, чем мест, замена посреди срока) — «разберите вручную».
 const ROLES = [
-    ['', '— не брать —'], ['name', 'Имя'], ['room', 'Номер'], ['in', 'Заезд'], ['out', 'Выезд'],
+    ['', '— не брать —'], ['name', 'Имя'], ['room', 'Номер комнаты'], ['in', 'Заезд'], ['out', 'Выезд'],
     ['days', 'Дни («14 и 15»)'], ['count', 'Сколько человек'], ['phone', 'Телефон']
 ];
 const ROLE_RE = [
@@ -672,7 +672,7 @@ function renderList() {
     };
     $('gbPreview').innerHTML = `<div class="overflow-x-auto"><table class="table table-xs">
         <thead><tr><th>${e(tf('timeline_list_name', 'Имя'))}</th><th>${e(tf('timeline_list_in_base', 'В базе'))}</th>
-            <th>${e(tf('timeline_room', 'Номер'))}</th><th>${e(tf('check_in', 'Заезд'))}</th><th>${e(tf('check_out', 'Выезд'))}</th></tr></thead>
+            <th>${e(tf('timeline_list_room_col', 'Номер комнаты'))}</th><th>${e(tf('check_in', 'Заезд'))}</th><th>${e(tf('check_out', 'Выезд'))}</th></tr></thead>
         <tbody>${P.map((p, i) => `<tr class="${i && P[i - 1].row !== p.row ? 'border-t-2' : ''}">
             <td class="whitespace-nowrap">${e(p.name)}</td>
             <td>${matchCell(p, i)}</td>
