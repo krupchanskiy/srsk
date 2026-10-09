@@ -4864,12 +4864,15 @@ async function loadStayAlerts() {
 
     // Пересечение с ретритом «весь Гостевой дом»: перенести даты или «Оставить как есть»
     const f = HouseGuard.fmt;
-    const overlapLine = o => `<div>${ALERT_ICON} <span class="font-medium">Пересечение с ретритом «${e(Layout.getName(o.retreat))}»</span>`
-        + ` <span class="opacity-60">(${f(o.retreat.start_date)}–${f(o.retreat.end_date)}, весь Гостевой дом)</span>: `
+    const overlapLine = o => `<div>${ALERT_ICON} <span class="font-medium">${o.kind === 'cross' ? 'Пересечение с ретритом' : 'Впритык к ретриту'} «${e(Layout.getName(o.retreat))}»</span>: `
         + `<a class="link link-hover font-medium" data-action="open-stay-alert" data-id="${o.ids[0]}" data-date="${o.check_in}">${e(o.who || tf('timeline_no_name', 'Без имени'))}${o.ids.length > 1 ? ` · ${Layout.pluralize(o.ids.length, SEAT_FORMS)}` : ''}</a>`
-        + ` <span class="opacity-60">(№${e(o.room)}, ${f(o.check_in)} → ${o.check_out ? f(o.check_out) : '…'})</span>`
-        + ` — ${HouseGuard.ruNights(o.nights)} на ретрите (${f(o.from)} → ${f(o.to)}). Перенесите даты или`
+        + ` <span class="opacity-60">(№${e(o.room)}, ${f(o.check_in)} → ${o.check_out ? f(o.check_out) : '…'})</span> — `
+        + (o.kind === 'cross'
+            ? `${e(o.text)}: ${HouseGuard.ruNights(o.nights)} на ретрите (${f(o.from)} → ${f(o.to)}). Перенесите даты или`
+            : `${e(o.text)}. Успеете убрать номер? Уточните время приезда или`)
         + (canEditTimeline() ? ` <button class="btn btn-xs btn-ghost underline px-1" data-action="house-overlap-ok" data-ids="${o.ids.join(',')}" data-name="${e(o.who || '')}">оставьте как есть</button>` : ' оставьте как есть')
+        // Примечание брони — что уже выясняют (ВГ 09.10: «уточнить время»)
+        + (o.note ? `<div class="pl-5 text-sm opacity-80">Примечание: ${e(o.note)}</div>` : '')
         + '</div>';
 
     banner.innerHTML = conflicts.map(conflictLine).join('')
