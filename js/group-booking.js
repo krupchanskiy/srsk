@@ -976,7 +976,8 @@ async function save() {
     const people = parseInt($('gbPeople').value) || 0;
 
     if (!from || !to) return Layout.showNotification(tf('timeline_dates_required', 'Укажите заезд и выезд'), 'error');
-    if (to <= from) return Layout.showNotification(tf('timeline_checkout_before_checkin', 'Выезд не может быть раньше заезда'), 'error');
+    if (to === from) return Layout.showNotification(tf('timeline_same_day_use_meals', 'Заезд и выезд в один день — ни одной ночи. Чтобы покормить без ночёвки, внесите в «Разовое питание»'), 'error');
+    if (to < from) return Layout.showNotification(tf('timeline_checkout_before_checkin', 'Выезд не может быть раньше заезда'), 'error');
     if (!name && !retreat) return Layout.showNotification(tf('timeline_group_name_required', 'Выберите ретрит или впишите название группы'), 'error');
     if (!total) return Layout.showNotification(tf('timeline_group_no_seats', 'Выберите номера или места без номера'), 'error');
     if (people && people !== total && !confirm(`${tf('timeline_group_people', 'Людей')}: ${people}, ${tf('timeline_group_seats', 'мест').toLowerCase()}: ${total}. ${tf('save', 'Сохранить')}?`)) return;
@@ -1014,7 +1015,8 @@ async function savePerson() {
     const roomId = Object.keys(S.picks).find(k => S.picks[k]);
 
     if (!from || !to) return Layout.showNotification(tf('timeline_dates_required', 'Укажите заезд и выезд'), 'error');
-    if (to <= from) return Layout.showNotification(tf('timeline_checkout_before_checkin', 'Выезд не может быть раньше заезда'), 'error');
+    if (to === from) return Layout.showNotification(tf('timeline_same_day_use_meals', 'Заезд и выезд в один день — ни одной ночи. Чтобы покормить без ночёвки, внесите в «Разовое питание»'), 'error');
+    if (to < from) return Layout.showNotification(tf('timeline_checkout_before_checkin', 'Выезд не может быть раньше заезда'), 'error');
     if (!people.length) return Layout.showNotification(tf('timeline_person_required', 'Укажите человека: выберите из справочника или впишите имя'), 'error');
     const ids = people.map(p => p.vid).filter(Boolean);
     if (new Set(ids).size !== ids.length) return Layout.showNotification(tf('timeline_person_twice', 'Один и тот же человек выбран дважды'), 'error');

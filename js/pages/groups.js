@@ -54,13 +54,14 @@ function eventLabel(g) {
 
 // ⚠ Двойной счёт: человек записан здесь и на те же дни стоит в шахматке с питанием —
 // кухня посчитает его дважды. Узнаём по имени записи = имя в карточке (у «Группы 10 человек»
-// проверить нечего). Только текущие и будущие записи.
+// проверить нечего). Только текущие и будущие записи на одного человека: в записи на несколько
+// человек имя — это тот, кто бронирует и платит, а едят его гости.
 const norm = s => (s || '').toLowerCase().replace(/ё/g, 'е').replace(/[^a-zа-я0-9\u0900-\u097f]+/g, ' ').trim();
 async function checkDoubleCount() {
     const el = Layout.$('#doubleCountAlert');
     if (!el) return;
     const today = DateUtils.toISO(new Date());
-    const actual = groups.filter(g => g.end_date >= today);
+    const actual = groups.filter(g => g.end_date >= today && (g.people_count || 1) <= 1);
     el.classList.add('hidden');
     if (!actual.length) return;
     const from = actual.map(g => g.start_date).sort()[0];
