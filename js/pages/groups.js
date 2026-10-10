@@ -129,6 +129,7 @@ function renderGroups() {
                 <td>
                     <div class="font-medium">${e(g.name)}</div>
                     ${isActive ? '<span class="badge badge-success badge-xs">active</span>' : ''}
+                    ${inTimeline(g) ? `<a href="../placement/timeline.html" class="badge badge-xs badge-outline gap-1 whitespace-nowrap" title="${e(tr('groups_in_timeline_hint', 'Та же запись показана полосой в шахматке («Самостоятельное проживание — гости»). Это не дубль: кухня считает её один раз'))}">${e(tr('groups_in_timeline', 'в шахматке'))}</a>` : ''}
                 </td>
                 <td class="whitespace-nowrap">${formatDate(g.start_date)} — ${formatDate(g.end_date)}</td>
                 <td class="text-sm">${e(eventLabel(g))}</td>
@@ -149,6 +150,12 @@ function renderGroups() {
             </tr>
         `;
     }).join('');
+}
+
+// Та же запись полосой в шахматке: с событием и дольше 3 дней (как mealStrips в timeline.js)
+function inTimeline(g) {
+    if (!g.retreat_id) return false;
+    return Math.round((DateUtils.parseDate(g.end_date) - DateUtils.parseDate(g.start_date)) / 86400000) + 1 > 3;
 }
 
 // ==================== MODAL ====================
