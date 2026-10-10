@@ -390,11 +390,12 @@ Deno.serve(async (req) => {
       if (st?.ok) await renderCard(msg.chat.id, msg.message_id, draftId, st);
     } else if (action === "eat") {
       // «Подробнее» / «Свернуть» под вкушающими: перерисовываем то же сообщение.
-      // p — утренний «План на завтра» (шапка и сравнение с прошлым планом), s — ответ на /сколько.
+      // p — утренний «План на завтра» (шапка и сравнение с прошлым планом), s — ответ на /сколько
+      // (сравнение тоже есть — просьба кухни 10.10).
       const detail = parts[1] === "1";
       const { data: txt } = parts[3] === "p"
         ? await supa.rpc("tg_kitchen_plan_text", { p_date: parts[2], p_detail: detail })
-        : await supa.rpc("tg_eating_text", { p_date: parts[2], p_detail: detail });
+        : await supa.rpc("tg_eating_text", { p_date: parts[2], p_detail: detail, p_compare: true });
       if (txt) {
         await tg("editMessageText", {
           chat_id: msg.chat.id, message_id: msg.message_id, parse_mode: "HTML",
@@ -574,9 +575,11 @@ Deno.serve(async (req) => {
 
   // ---------- /сколько — питающиеся на дату (ТЗ, п. 6) ----------
   // Считает та же функция, что и меню на сайте, — расхождения быть не может.
+  // Как в «Плане на завтра»: «Завтрак: 82 (10.10 — 66)» — число из плана, отправленного
+  // на предыдущий день (просьба кухни 10.10); нет такого плана — скобок нет.
   if (/^\/(сколько|вкушающие|питание|eaters)(\s|$)/i.test(text)) {
     const iso = askedDate(text.replace(/^\/\S+\s*/, "").trim().toLowerCase());
-    const { data: txt } = await supa.rpc("tg_eating_text", { p_date: iso, p_detail: false });
+    const { data: txt } = await supa.rpc("tg_eating_text", { p_date: iso, p_detail: false, p_compare: true });
     await tg("sendMessage", {
       chat_id: m.chat.id, reply_to_message_id: m.message_id, parse_mode: "HTML",
       text: txt ?? "На эту дату данных нет. Напишите «/сколько завтра» или «/сколько 5.08».",
