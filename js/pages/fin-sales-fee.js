@@ -9,7 +9,7 @@
 'use strict';
 
 const t = key => Layout.t(key);
-// новые ключи (мигр. 676) могут ещё не быть в кэше переводов браузера — русский запасной текст
+// новые ключи (мигр. 679) могут ещё не быть в кэше переводов браузера — русский запасной текст
 const tf = (key, fallback) => { const v = t(key); return v === key ? fallback : v; };
 const e = str => Layout.escapeHtml(str);
 
@@ -291,7 +291,7 @@ async function telegramText() {
     if (fx) {
         const { data, error } = await Layout.db.rpc('fin_sales_fee_fixation', { p_fixation: fx.id });
         if (error) { Layout.handleError(error, t('fin_sales_fee_title')); return null; }
-        // в снимках до мигр. 675 менеджера нет — берём из текущего расчёта
+        // в снимках до мигр. 678 менеджера нет — берём из текущего расчёта
         const mgrById = Object.fromEntries(calc.rows.map(r => [String(r.participant_id), r.manager]));
         rows = data.rows.map(r => ({ ...r, manager: r.manager ?? mgrById[String(r.participant_id)] }));
         threshold = data.threshold;
