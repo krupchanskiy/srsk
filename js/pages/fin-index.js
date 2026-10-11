@@ -502,8 +502,7 @@ function advLineHtml(d, l, admin) {
 
 // Пожертвование из переплаты — как «Оставить пожертвованием» в карточке участника:
 // компенсирующее начисление по блокам, где переплата (общий аванс — к первому блоку с начислением)
-async function donateAdvance(d, сумма, opId) {
-    const { data: b } = await Layout.db.rpc('fin_get_participant_balance', { p_participant: d.participant_id, p_retreat: d.retreat_id });
+async function donateAdvance(d, b, сумма, opId) {
     const BLOCKS = ['org_fee', 'accommodation', 'meals', 'extra'];
     const авансы = BLOCKS.map(k => ({ k, v: -(Number(b?.blocks?.[k]?.balance) || 0) })).filter(x => x.v > 0.005);
     const общий = Number(b?.general_advance) || 0;
@@ -518,11 +517,11 @@ async function donateAdvance(d, сумма, opId) {
             participant_id: d.participant_id, retreat_id: d.retreat_id, kind: k,
             description: Layout.t('fin_donation_excess'), quantity: 1, unit_price: часть,
             discount_amount: null, discount_reason: null, agreed_with: null,
-            creation_reason: `Излишек оставлен как пожертвование — решение менеджера CRM${d.note ? ': ' + d.note : ''}`
+            creation_reason: `Излишек оставлен как пожертвование${d.currency !== (b?.currency || 'INR') ? ` (заплачено в ${d.currency}: ${FinUtils.fmtMoney(d.amount, d.currency)})` : ''} — решение менеджера CRM${d.note ? ': ' + d.note : ''}`
         });
         остаток -= часть;
     }
-    if (остаток > 0.5) return { ok: false, error: { message: `Аванса меньше, чем нужно пожертвовать: не хватает ${FinUtils.fmtMoney(остаток, d.currency)}` } };
+    if (остаток > 0.5) return { ok: false, error: { message: `Аванса меньше, чем нужно пожертвовать: не хватает ${FinUtils.fmtMoney(остаток, b?.currency || 'INR')}` } };
     return await FinUtils.rpc('fin_create_charge', { rows });
 }
 
@@ -539,18 +538,41 @@ async function onAdvanceAction(ev) {
     } else {
         const сумма = Number(row.querySelector('[data-adv-amount]').value);
         if (!(сумма > 0)) { alert('Укажите сумму'); return; }
+        // Решение — в валюте платежа (681), журнал ретрита может вестись в другой (Сева — в ₹):
+        // с ретрита списываем пропорционально, последнюю строку — весь остаток, чтобы не висели копейки
+        const { data: bal } = await Layout.db.rpc('fin_get_participant_balance', { p_participant: d.participant_id, p_retreat: d.retreat_id });
+        const журналВал = bal?.currency || 'INR';
+        const аванс = Math.max(-(Number(bal?.net) || 0), 0);
+        const ждут = d.lines.filter(x => !x.done_at);
+        const решеноВсего = ждут.reduce((a, x) => a + Number(x.amount), 0);
+        let изЖурнала = сумма;
+        if (журналВал !== d.currency) {
+            изЖурнала = ждут.length === 1 && Math.abs(сумма - решеноВсего) < 0.005
+                ? аванс : Math.round(сумма * (аванс / решеноВсего) * 100) / 100;
+        }
         let res;
         if (l.action === 'donate') {
             if (!confirm(`${кто}: оставить ${FinUtils.fmtMoney(сумма, d.currency)} пожертвованием?`)) return;
             b.disabled = true;
-            res = await donateAdvance(d, сумма, l.op_id);
+            res = await donateAdvance(d, bal, изЖурнала, l.op_id);
         } else if (l.action === 'refund') {
             const sel = row.querySelector('[data-adv-account]');
             if (!sel) return;
             const дата = prompt(`Вернуть ${FinUtils.fmtMoney(сумма, d.currency)} ${кто} со счёта «${sel.selectedOptions[0].text}». Дата возврата:`, FinUtils.todayISO());
             if (дата === null) return;
             b.disabled = true;
-            res = await FinUtils.rpc('fin_refund_advance', {
+            if (журналВал !== d.currency) {
+                // Валюта платежа ≠ валюте журнала (Сева — ₹): возврат через баланс гостя —
+                // перенос в валюте платежа, затем возврат с баланса без пересчёта по курсу
+                res = await FinUtils.rpc('fin_advance_move', {
+                    request_id: l.op_id, participant_id: d.participant_id, from_retreat_id: d.retreat_id,
+                    to_retreat_id: null, amount: изЖурнала, in_amount: сумма, in_currency: d.currency
+                });
+                if (res?.ok) res = await FinUtils.rpc('fin_deposit_refund', {
+                    request_id: 'f' + l.op_id.slice(1), participant_id: d.participant_id,
+                    account_id: sel.value, amount: сумма, occurred_on: дата.trim() || FinUtils.todayISO()
+                });
+            } else res = await FinUtils.rpc('fin_refund_advance', {
                 request_id: l.op_id, participant_id: d.participant_id, retreat_id: d.retreat_id,
                 account_id: sel.value, amount: сумма, occurred_on: дата.trim() || FinUtils.todayISO(),
                 reason: `Возврат аванса — решение менеджера CRM${d.note ? ': ' + d.note : ''}`, payment_channel: 'cash'
@@ -562,7 +584,9 @@ async function onAdvanceAction(ev) {
             b.disabled = true;
             res = await FinUtils.rpc('fin_advance_move', {
                 request_id: l.op_id, participant_id: d.participant_id, from_retreat_id: d.retreat_id,
-                to_retreat_id: sel.value || null, amount: сумма
+                to_retreat_id: sel.value || null, amount: изЖурнала,
+                // получатель — в валюте, в которой человек платил
+                ...(журналВал !== d.currency ? { in_amount: сумма, in_currency: d.currency } : {})
             });
         }
         if (!FinUtils.handleResult(res)) { b.disabled = false; return; }
