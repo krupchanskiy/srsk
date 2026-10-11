@@ -279,7 +279,7 @@ function departedBadge(deal) {
         `<div class="mt-2 rounded-md text-center text-xs py-0.5 px-1 truncate" style="${style}" title="${e(title)}">${text}</div>`;
     if (net > 0.5 && DEPARTED_STATUSES.includes(deal.status)) {
         let что = 'свяжитесь';
-        let title = 'Уехал с долгом — свяжитесь и запишите договорённость об оплате';
+        let title = 'Уехал и остался должен — свяжитесь и запишите договорённость об оплате';
         if (x.promise_at) {
             const today = DateUtils.toISO(new Date());
             const ддмм = d => `${String(d.getDate()).padStart(2, '0')}.${String(d.getMonth() + 1).padStart(2, '0')}`;
@@ -298,7 +298,8 @@ function departedBadge(deal) {
             const решение = ADVANCE_DECISIONS[x.advance_decision] || x.advance_decision;
             return { kind: 'advanceDone', html: плашка('border:1px solid #facc15;color:#a16207', `Аванс ${сумма} · ${e(решение)}`, 'Решение: ' + решение + (x.advance_note ? ' — ' + x.advance_note : '')) };
         }
-        return { kind: 'advance', html: плашка('background:#facc15;color:#713f12', `Аванс ${сумма} — уточнить`, 'Переплата — выясните у участника: оставить авансом, пожертвовать или вернуть, и запишите в сделке') };
+        const ктоОн = deal.status === 'cancelled' ? 'Не приехал (участие отменено), а деньги остались' : 'Уехал, а деньги остались';
+        return { kind: 'advance', html: плашка('background:#facc15;color:#713f12', `Аванс ${сумма} — уточнить`, `${ктоОн} — выясните у участника: оставить на балансе, перенести на ретрит, пожертвовать или вернуть, и запишите в сделке`) };
     }
     if (DEPARTED_STATUSES.includes(deal.status)) {
         return { kind: 'ok', html: плашка('background:#16a34a;color:#fff', '✓ Можно завершать', 'Уехал, долга нет — сделку можно переводить в «Завершён»') };

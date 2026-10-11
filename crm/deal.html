@@ -2498,12 +2498,14 @@ async function quickAddComm() {
 let closeAfterPromise = false;
 
 async function loadPaymentPromise() {
-    const [{ data: debt }, { data: promises }] = await Promise.all([
+    const [{ data: debt }, { data: promises }, { data: уехал }] = await Promise.all([
         Layout.db.rpc('crm_deal_debt', { p_deal: dealId }),
         Layout.db.from('crm_communications')
             .select('summary, due_date, created_at, created_by:vaishnavas(spiritual_name, first_name)')
             .eq('deal_id', dealId).eq('type', 'payment_promise')
-            .order('created_at', { ascending: false })
+            .order('created_at', { ascending: false }),
+        // уехал ли (678): строка «уехал и остался должен»
+        Layout.db.rpc('crm_deals_after_departure', { p_deal_ids: [dealId] })
     ]);
     const card = document.getElementById('promiseCard');
     const net = Number(debt?.net || 0);
@@ -2517,6 +2519,7 @@ async function loadPaymentPromise() {
     document.getElementById('promiseDebt').innerHTML = net > 0.5
         // shown_* (679): сумма, записанная вручную, — например, «$90» вместо пересчёта старого ретрита
         ? `<span class="text-lg font-bold" style="color:#b91c1c">Долг ${CrmUtils.formatMoney(Math.round(Number(debt.shown_net ?? net)), debt.shown_currency || debt.currency)}</span>`
+          + (уехал?.length ? `<div class="text-sm mt-1" style="color:#991b1b">Участник уехал и остался должен</div>` : '')
           + (debt.has_promise ? '' : `<div class="text-xs opacity-70 mt-1">Свяжитесь с участником и запишите договорённость — без неё сделку не перевести в «Завершён»</div>`)
         : '<span class="text-success">Долга нет</span>';
     document.getElementById('promiseList').innerHTML = list.map(p => `
@@ -2582,7 +2585,11 @@ async function loadAdvanceCard() {
     const fmt = v => CrmUtils.formatMoney(v, advanceState.currency);
     document.getElementById('advanceSum').innerHTML = net < -0.5
         ? `<span class="text-lg font-bold" style="color:#a16207">Переплата ${fmt(Math.round(-net))}</span>`
-          + (list?.length ? '' : `<div class="text-xs opacity-70 mt-1">Участник уехал, а деньги остались. Выясните, что с ними сделать, и запишите решение</div>`)
+          // ситуация — по стадии сделки: отменённая = не приехал, иначе — уехал
+          + `<div class="text-sm mt-1" style="color:#854d0e">${deal.status === 'cancelled'
+                ? 'Участник не приехал (участие отменено), а деньги остались — мы ему должны'
+                : 'Участник уехал, а деньги остались — мы ему должны'}</div>`
+          + (list?.length ? '' : `<div class="text-xs opacity-70 mt-1">Выясните у участника, что сделать с деньгами, и запишите решение</div>`)
         : '<span class="opacity-70">Аванса больше нет</span>';
     const имяРетрита = id => { const r = advanceState.retreats.find(r => r.id === id); return r ? Layout.getName(r) : 'ретрит'; };
     document.getElementById('advanceList').innerHTML = (list || []).map((a, i) => `
