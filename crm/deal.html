@@ -2608,14 +2608,15 @@ function addAdvanceLine(amount = null) {
     const rts = advanceState.retreats.map(r => `<option value="${r.id}">${e(Layout.getName(r))}</option>`).join('');
     box.insertAdjacentHTML('beforeend', `
         <div class="adv-line rounded-lg bg-base-100 p-2 space-y-1">
-            <div class="flex gap-1">
-                <select class="select select-bordered select-xs flex-1 adv-action" required>
-                    <option value="">Что делаем…</option>${opts}
-                </select>
-                <input type="number" step="0.01" min="0.01" class="input input-bordered input-xs w-24 adv-amount" value="${amount || ''}" required title="Сумма в ${advanceState.currency}">
+            <select class="select select-bordered select-sm w-full min-w-0 adv-action" required>
+                <option value="">Что делаем…</option>${opts}
+            </select>
+            <div class="flex items-center gap-1">
+                <input type="number" step="0.01" min="0.01" class="input input-bordered input-sm flex-1 min-w-0 adv-amount" value="${amount || ''}" required title="Сумма в ${advanceState.currency}">
+                <span class="text-xs opacity-70">${advanceState.currency}</span>
                 ${box.children.length ? '<button type="button" class="btn btn-xs btn-ghost adv-remove" title="Убрать строку">×</button>' : ''}
             </div>
-            <select class="select select-bordered select-xs w-full adv-retreat hidden"><option value="">На какой ретрит…</option>${rts}</select>
+            <select class="select select-bordered select-sm w-full min-w-0 adv-retreat hidden"><option value="">На какой ретрит…</option>${rts}</select>
         </div>`);
     const line = box.lastElementChild;
     line.querySelector('.adv-action').addEventListener('change', ev => {
