@@ -5,6 +5,8 @@ const t = key => Layout.t(key);
 const e = str => Layout.escapeHtml(str);
 let person = null;
 let registrations = [];
+let personDeals = [];        // сделки CRM человека — итог по ретриту в «Истории ретритов»
+let retreatBalances = {};    // retreat_id -> баланс из фин. журнала
 let children = [];
 let departments = [];
 let teamMembers = [];
@@ -197,8 +199,85 @@ async function loadRegistrations(personId) {
         }
     }
 
+    await loadPersonDeals(personId);
     renderRegistrations();
     toggleTeamSections();
+}
+
+// Сделки не удаляются (только уходят с канбана) — карточка человека показывает
+// их итог: стадия, условия, деньги, отказ, ссылка на переписку
+async function loadPersonDeals(personId) {
+    const { data } = await Layout.db.from('crm_deals')
+        .select('id, retreat_id, status, cancellation_reason, checklist_accommodation, checklist_meals, manager:manager_id(spiritual_name, first_name, last_name), retreats(id, name_ru, name_en, name_hi, start_date, end_date), crm_communications(count)')
+        .eq('vaishnava_id', personId)
+        .order('created_at', { ascending: false });
+    personDeals = data || [];
+
+    // Деньги — из фин. журнала, как в «Участниках и оплатах»; без фин. прав не показываем
+    retreatBalances = {};
+    if (!window.hasPermission?.('fin_admin') && !window.hasPermission?.('fin_observer')) return;
+    const ids = [...new Set([...registrations, ...personDeals].map(x => x.retreat_id).filter(Boolean))];
+    const res = await Promise.all(ids.map(rid =>
+        Layout.db.rpc('fin_get_participant_balance', { p_participant: personId, p_retreat: rid })));
+    res.forEach((r, i) => { if (!r.error && r.data) retreatBalances[ids[i]] = r.data; });
+}
+
+function formatDealMoney(amount, currency) {
+    const symbols = { INR: '₹', RUB: '₽', USD: '$', EUR: '€' };
+    const n = Number(amount || 0).toLocaleString('ru-RU', { maximumFractionDigits: 0 });
+    return `${symbols[currency] || currency || ''} ${n}`;
+}
+
+// Блок «Сделка» для ретрита: стадия CRM, менеджер, условия, деньги, причина отказа
+function renderDealSummary(retreatId) {
+    const deal = personDeals.find(d => d.retreat_id === retreatId);
+    const bal = retreatBalances[retreatId];
+    if (!deal && !bal) return '';
+    const rows = [];
+
+    if (deal) {
+        const stages = { lead: 'Заявка', working: 'В работе', invoiced: 'Выставлен счёт', booked: 'Оплачена бронь', checklist: 'Чек-лист', ready: 'Готов', completed: 'Ретрит завершён', cancelled: 'Отказ' };
+        const manager = deal.manager ? (deal.manager.spiritual_name || `${deal.manager.first_name || ''} ${deal.manager.last_name || ''}`.trim()) : '';
+        rows.push(`<div><span class="opacity-60">Стадия:</span> <span class="${deal.status === 'cancelled' ? 'text-error' : ''}">${stages[deal.status] || e(deal.status)}</span>${manager ? ` <span class="opacity-60">· менеджер</span> ${e(manager)}` : ''}</div>`);
+
+        if (deal.status === 'cancelled') {
+            const reasons = { changed_mind: 'передумал', financial: 'финансы', visa: 'виза', health: 'здоровье', rescheduled: 'перенёс', no_response: 'не отвечает', other: 'другое' };
+            rows.push(`<div><span class="opacity-60">Причина отказа:</span> ${deal.cancellation_reason ? (reasons[deal.cancellation_reason] || e(deal.cancellation_reason)) : '<span class="text-warning">не указана</span>'}</div>`);
+        } else {
+            const acc = { guest_house: 'Гостевой дом ШРСК', staff_house: 'Служебные дома ШРСК', partner_hotel: 'Отель-партнёр', self: 'Сам организует' };
+            const meals = { in_ashram: 'В ашраме', self: 'Сам' };
+            const parts = [];
+            if (acc[deal.checklist_accommodation]) parts.push(`<span class="opacity-60">проживание:</span> ${acc[deal.checklist_accommodation]}`);
+            if (meals[deal.checklist_meals]) parts.push(`<span class="opacity-60">питание:</span> ${meals[deal.checklist_meals]}`);
+            if (parts.length) rows.push(`<div>${parts.join(' · ')}</div>`);
+        }
+    }
+
+    if (bal) {
+        const cur = bal.currency;
+        const blocks = Object.values(bal.blocks || {});
+        const charged = blocks.reduce((s, b) => s + Number(b.charged || 0), 0) + Number(bal.general_charged || 0);
+        const paid = blocks.reduce((s, b) => s + Number(b.paid || 0), 0) + Number(bal.general_paid || 0);
+        const net = Number(bal.net || 0);
+        let result = '<span class="text-success">рассчитан полностью</span>';
+        if (net > 0.5) result = `<span class="text-error font-medium">долг ${formatDealMoney(net, cur)}</span>`;
+        else if (net < -0.5) result = `<span class="text-warning font-medium">аванс ${formatDealMoney(-net, cur)}</span>`;
+        if (charged > 0.5 || paid > 0.5 || Math.abs(net) > 0.5) {
+            rows.push(`<div><span class="opacity-60">Начислено</span> ${formatDealMoney(charged, cur)} · <span class="opacity-60">оплачено</span> ${formatDealMoney(paid, cur)} · ${result}</div>`);
+        }
+    }
+
+    if (deal) {
+        const comms = deal.crm_communications?.[0]?.count || 0;
+        rows.push(`<div><a class="link link-primary" href="../crm/deal.html?id=${deal.id}" onclick="event.stopPropagation()">Открыть сделку${comms ? ` · переписка (${comms})` : ''} →</a></div>`);
+    }
+
+    return `
+        <div class="detail-section">
+            <div class="detail-label">📑 Сделка</div>
+            <div class="text-sm space-y-1">${rows.join('')}</div>
+        </div>
+    `;
 }
 
 function renderPerson() {
@@ -2019,9 +2098,11 @@ function renderRegistrations() {
     const emptyState = document.getElementById('emptyRegistrations');
     const countBadge = document.getElementById('retreatsCount');
 
-    countBadge.textContent = registrations.length;
+    // Сделки без регистрации (отказ, заявка в работе) — тоже история человека
+    const dealsOnly = personDeals.filter(d => d.retreats && !registrations.some(r => r.retreat_id === d.retreat_id));
+    countBadge.textContent = registrations.length + dealsOnly.length;
 
-    if (registrations.length === 0) {
+    if (registrations.length === 0 && dealsOnly.length === 0) {
         container.innerHTML = '';
         emptyState.classList.remove('hidden');
         return;
@@ -2079,7 +2160,7 @@ function renderRegistrations() {
         const hasDetails = arrival || departure || arrivalRetreat || departureRetreat || reg.arrival_datetime || reg.departure_datetime || reg.resident || reg.guest_accommodations?.[0] || reg.accommodation_wishes || reg.companions || reg.payment_notes || reg.org_notes || reg.extended_stay || reg.guest_questions || reg.special_needs;
 
         // Build details HTML
-        let detailsHtml = '';
+        let detailsHtml = renderDealSummary(reg.retreat_id);
 
         if (arrival) {
             const arrivalTime = formatFlightDateTime(arrival.flight_datetime, arrival.notes);
@@ -2368,7 +2449,21 @@ function renderRegistrations() {
                 <div class="details">${detailsHtml}${actionsHtml}</div>
             </div>
         `;
-    }).join('');
+    }).join('') + dealsOnly.map(d => `
+            <div class="retreat-card border rounded-lg p-3" data-action="toggle-expanded">
+                <div class="flex items-center justify-between">
+                    <div class="flex-1 min-w-0">
+                        <div class="font-medium">${Layout.getName(d.retreats)}</div>
+                        <div class="text-sm opacity-60">${formatDate(d.retreats.start_date)} — ${formatDate(d.retreats.end_date)}</div>
+                    </div>
+                    <div class="flex items-center gap-2">
+                        <span class="badge ${d.status === 'cancelled' ? 'status-cancelled' : ''}">${d.status === 'cancelled' ? 'Отказ' : 'Сделка в CRM'}</span>
+                        <svg class="chevron w-4 h-4 opacity-40" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
+                    </div>
+                </div>
+                <div class="details">${renderDealSummary(d.retreat_id)}</div>
+            </div>
+        `).join('');
 }
 
 // «Ребёнок подтверждён» (мигр. 651): рядом с датой рождения — галочка, кто и когда
