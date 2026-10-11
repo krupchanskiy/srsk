@@ -9,6 +9,8 @@
 'use strict';
 
 const t = key => Layout.t(key);
+// новые ключи (мигр. 676) могут ещё не быть в кэше переводов браузера — русский запасной текст
+const tf = (key, fallback) => { const v = t(key); return v === key ? fallback : v; };
 const e = str => Layout.escapeHtml(str);
 
 let retreats = [];
@@ -28,6 +30,21 @@ const fmtRub = n => FinUtils.fmtMoney(n, 'RUB');
 const money = (v, cur) => FinUtils.fmtMoney(Math.round(Number(v) || 0), cur);
 const pctStr = p => p == null ? '—' : `${Math.round(Number(p))}%`;
 const fmtDate = ts => ts ? DateUtils.formatDisplay(new Date(ts)) : '';
+const managerName = r => r.manager || tf('fin_sales_fee_no_manager', 'Без менеджера');
+
+// Засчитанные по менеджерам сделок: сколько человек и сколько начислено каждому
+function byManager(rows, rate) {
+    const groups = new Map();
+    rows.filter(r => r.ok).forEach(r => {
+        const name = managerName(r);
+        groups.set(name, (groups.get(name) || 0) + 1);
+    });
+    const none = managerName({});
+    return [...groups.entries()]
+        .map(([name, count]) => ({ name, count, amount: count * Number(rate) }))
+        .sort((a, b) => (a.name === none) - (b.name === none) || b.count - a.count || a.name.localeCompare(b.name));
+}
+
 const participantHref = pid => `participants.html?retreat=${encodeURIComponent(currentRetreat)}&open=${encodeURIComponent(pid)}`;
 
 async function loadRetreats() {
@@ -120,6 +137,15 @@ function renderSummary() {
     const ex = calc.excluded || {};
     const exParts = ['team', 'volunteer', 'vip'].filter(k => ex[k]).map(k => `${t('fin_sales_fee_status_' + k)} ${ex[k]}`);
 
+    const mgrs = byManager(calc.rows, calc.rate_rub);
+    const mgrHtml = mgrs.length ? `<div class="mt-3">
+        <div class="text-sm font-semibold mb-1">${e(tf('fin_sales_fee_by_manager', 'По менеджерам'))}</div>
+        <table class="text-base"><tbody>${mgrs.map(m => `<tr>
+            <td class="pr-6 py-0.5">${e(m.name)}</td>
+            <td class="text-right font-mono whitespace-nowrap py-0.5">${m.count} × ${fmtRub(calc.rate_rub)} = <b>${fmtRub(m.amount)}</b></td>
+        </tr>`).join('')}</tbody></table>
+    </div>` : '';
+
     return `<div class="card bg-base-100 mb-4"><div class="card-body py-4">
         <div class="flex flex-wrap justify-between gap-4">
             <div>
@@ -127,6 +153,7 @@ function renderSummary() {
                 <div class="text-sm opacity-70 mt-1">${ruleLine}</div>
                 <div class="text-sm opacity-70">${e(t('fin_sales_fee_full_fee'))}: ${e(prices)}</div>
                 ${exParts.length ? `<div class="text-sm opacity-60">${e(t('fin_sales_fee_not_paying'))}: ${e(exParts.join(', '))}</div>` : ''}
+                ${mgrHtml}
             </div>
             <div class="flex flex-col items-end gap-2">${fixHtml}${fixBtn}</div>
         </div>
@@ -145,6 +172,7 @@ function rowHtml(r) {
     const debt = Number(r.debt) > 0 ? `<div class="text-xs text-error">${e(t('fin_sales_fee_owes'))} ${money(r.debt, r.currency)}</div>` : '';
     return `<tr id="sf-row-${e(r.participant_id)}" class="${flagged ? 'sf-flagged' : ''}">
         <td><a class="link link-hover" href="${participantHref(r.participant_id)}" target="_blank">${e(r.name)}</a> ${badges}${ov}</td>
+        <td class="whitespace-nowrap ${r.manager ? '' : 'italic'}">${e(managerName(r))}</td>
         <td class="text-right font-mono whitespace-nowrap">${paid}${debt}</td>
         <td class="text-right font-mono whitespace-nowrap opacity-60">${price}</td>
         <td class="text-right font-semibold">${pctStr(r.pct)}</td>
@@ -159,6 +187,7 @@ function tableHtml(rows, titleKey, cls) {
         <div class="overflow-x-auto"><table class="table table-sm sf-table">
             <thead><tr>
                 <th>${e(t('fin_sales_fee_col_name'))}</th>
+                <th>${e(tf('fin_sales_fee_col_manager', 'Менеджер'))}</th>
                 <th class="text-right">${e(t('fin_sales_fee_col_paid'))}</th>
                 <th class="text-right">${e(t('fin_sales_fee_col_full'))}</th>
                 <th class="text-right">%</th>
@@ -262,12 +291,15 @@ async function telegramText() {
     if (fx) {
         const { data, error } = await Layout.db.rpc('fin_sales_fee_fixation', { p_fixation: fx.id });
         if (error) { Layout.handleError(error, t('fin_sales_fee_title')); return null; }
-        rows = data.rows; threshold = data.threshold;
+        // в снимках до мигр. 675 менеджера нет — берём из текущего расчёта
+        const mgrById = Object.fromEntries(calc.rows.map(r => [String(r.participant_id), r.manager]));
+        rows = data.rows.map(r => ({ ...r, manager: r.manager ?? mgrById[String(r.participant_id)] }));
+        threshold = data.threshold;
     }
     const count = fx ? fx.qualified_count : calc.qualified;
     const rate = fx ? fx.rate_rub : calc.rate_rub;
     const amount = fx ? fx.amount_rub : calc.amount_rub;
-    const line = r => `• ${r.name} — ${money(r.paid, r.currency)} из ${money(r.price, r.currency)} (${pctStr(r.pct)})`
+    const line = r => `• ${r.name} (${managerName(r)}) — ${money(r.paid, r.currency)} из ${money(r.price, r.currency)} (${pctStr(r.pct)})`
         + (r.override ? ` — ${r.override.include ? 'засчитан' : 'не засчитан'} вручную: ${r.override.comment || ''}` : '');
     const ok = rows.filter(r => r.ok);
     const no = rows.filter(r => !r.ok);
@@ -277,6 +309,9 @@ async function telegramText() {
         `📊 Процент отделу продаж — ${ret?.name || ''}`,
         `${count} × ${fmtRub(rate)} = ${fmtRub(amount)}${fx ? ` (зафиксировано ${fmtDate(fx.created_at)})` : ' (расчёт, ещё не зафиксирован)'}`,
         `Засчитываются участники, оплатившие оргвзнос от ${Math.round(threshold * 100)}% полной суммы.`,
+        '',
+        '👤 По менеджерам',
+        ...byManager(rows, rate).map(m => `• ${m.name} — ${m.count} × ${fmtRub(rate)} = ${fmtRub(m.amount)}`),
         '',
         `✅ Засчитаны — ${ok.length}`,
         ...ok.map(line),
