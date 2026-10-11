@@ -141,6 +141,63 @@ function rowHtml(g) {
     </tr>`;
 }
 
+// Подтверждение получения (683): ждут только выплаты, проведённые после
+// запуска; сторнированные не в счёт
+const needsConfirm = p => p.confirm_requested_at && !p.is_reversed && !p.confirmed_at;
+
+function confirmHtml(p) {
+    if (!p.confirm_requested_at || p.is_reversed) return '';
+    if (p.confirmed_at) {
+        return ` <span class="badge badge-success badge-xs whitespace-nowrap">${t('fin_payroll_confirmed')} ${DateUtils.formatShort(new Date(p.confirmed_at))}</span>`;
+    }
+    if (p.recipient_linked) {
+        return ` <span class="badge badge-warning badge-xs whitespace-nowrap">${t('fin_payroll_wait_confirm')}</span>`;
+    }
+    return ` <span class="badge badge-warning badge-xs whitespace-nowrap">${t('fin_payroll_not_linked')}</span>
+        <button type="button" class="btn btn-outline btn-xs ml-1" data-invite="${p.id}">${t('fin_payroll_copy_invite')}</button>`;
+}
+
+// ⚠ сверху: сколько выплат без подтверждения и чьи — клик раскрывает строку
+function renderConfirmWarning() {
+    const box = document.getElementById('payrollConfirmWarn');
+    const list = payments.filter(needsConfirm).sort((a, b) => a.occurred_on.localeCompare(b.occurred_on));
+    if (!list.length) { box.innerHTML = ''; return; }
+    box.innerHTML = `<div class="alert alert-warning mb-4 items-start">
+        <div class="w-full">
+            <div class="font-semibold">⚠ ${t('fin_payroll_unconfirmed_title')}: ${list.length}</div>
+            <ul class="mt-1 text-sm">${list.map(p => {
+                const g = groupByPosition(p.position_id);
+                return `<li><button type="button" class="hover:underline text-left" data-open-pos="${p.position_id}">
+                    • ${e(g?.employee_name || '')} (${e(g?.department_name || '')}) — ${DateUtils.formatShort(DateUtils.parseDate(p.occurred_on))}, ${FinUtils.fmtMoney(p.amount, p.currency_code)} — ${t(p.recipient_linked ? 'fin_payroll_wait_confirm' : 'fin_payroll_not_linked')}
+                </button></li>`;
+            }).join('')}</ul>
+        </div>
+    </div>`;
+}
+
+function openPosition(positionId) {
+    const g = groupByPosition(positionId);
+    if (!g) return;
+    detailOpen.add(g.key);
+    render();
+    document.querySelector(`[data-toggle="${g.key}"]`)?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+}
+
+// Приглашение для неподключённого к боту: ВГ пересылает его человеку,
+// тот жмёт «Старт» — бот привязывает его и присылает выплату с кнопкой
+async function copyInvite(paymentId) {
+    const res = await FinUtils.rpc('fin_payroll_invite_token', { payment_id: paymentId });
+    if (!res?.ok) { FinUtils.handleResult(res); return; }
+    const link = `https://t.me/SRSKteambot?start=${res.result.token}`;
+    const text = t('fin_payroll_invite_text').replace('{link}', link);
+    try {
+        await navigator.clipboard.writeText(text);
+        Layout.showNotification(t('fin_payroll_invite_copied'), 'success');
+    } catch (err) {
+        window.prompt(t('fin_payroll_copy_invite'), text);
+    }
+}
+
 // Разбивка «за какой период что начислено» и «когда что выплачено» — всё за
 // всё время, независимо от выбранного периода колонок (замечание ВГ, 16.09.2026)
 function detailBodyHtml(g) {
@@ -150,7 +207,7 @@ function detailBodyHtml(g) {
         ? accr.map(a => `<div class="flex justify-between gap-4"><span>${periodLabel(a.period)}${a.is_manual ? ` (${t('fin_payroll_manual')})` : ''}${a.days_worked != null && a.days_worked < a.days_in_month ? ` (${a.days_worked}/${a.days_in_month} ${t('fin_payroll_days')})` : ''}</span><span class="font-mono">${FinUtils.fmtMoney(a.amount, a.currency_code)}</span></div>`).join('')
         : `<div class="opacity-60">${t('fin_payroll_no_accruals')}</div>`;
     const payHtml = pays.length
-        ? pays.map(p => `<div class="flex justify-between gap-4 ${p.is_reversed ? 'opacity-50 line-through' : ''}"><span>${DateUtils.formatShort(DateUtils.parseDate(p.occurred_on))}${p.comment ? ` — ${e(p.comment)}` : ''}</span><span class="font-mono">${FinUtils.fmtMoney(p.amount, p.currency_code)}</span></div>`).join('')
+        ? pays.map(p => `<div class="flex justify-between gap-4 ${p.is_reversed ? 'opacity-50 line-through' : ''}"><span>${DateUtils.formatShort(DateUtils.parseDate(p.occurred_on))}${p.comment ? ` — ${e(p.comment)}` : ''}${confirmHtml(p)}</span><span class="font-mono">${FinUtils.fmtMoney(p.amount, p.currency_code)}</span></div>`).join('')
         : `<div class="opacity-60">${t('fin_payroll_no_payments')}</div>`;
     return `<div class="grid grid-cols-1 md:grid-cols-2 gap-4">
         <div><div class="font-semibold mb-1">${t('fin_payroll_accrued')} — ${t('fin_payroll_range_all_short')}</div>${accHtml}</div>
@@ -167,6 +224,7 @@ function visibleGroups() {
 
 function render() {
     groups = buildGroups();
+    renderConfirmWarning();
     const range = currentRange();
     const container = document.getElementById('payrollBody');
     const byDept = new Map();
@@ -326,9 +384,9 @@ async function init() {
 
     // Кэш переводов в браузере живёт долго и не знает про новые ключи: вместо
     // «fin_payroll_range_all_short» на экране — один раз сбрасываем и перечитываем
-    if (['fin_payroll_range_all_short', 'fin_payroll_ended_on'].some(k => t(k) === k)
-        && !sessionStorage.getItem('payrollTrReload')) {
-        sessionStorage.setItem('payrollTrReload', '1');
+    if (['fin_payroll_range_all_short', 'fin_payroll_ended_on', 'fin_payroll_invite_text'].some(k => t(k) === k)
+        && !sessionStorage.getItem('payrollTrReload2')) {
+        sessionStorage.setItem('payrollTrReload2', '1');
         Cache.invalidate('translations_v55');
         location.reload();
         return;
@@ -338,9 +396,15 @@ async function init() {
         const payBtn = ev.target.closest('[data-pay]');
         const toggleBtn = ev.target.closest('[data-toggle]');
         const accrueBtn = ev.target.closest('[data-accrue]');
-        if (payBtn) openPayModal(payBtn.dataset.pay);
+        const inviteBtn = ev.target.closest('[data-invite]');
+        if (inviteBtn) copyInvite(inviteBtn.dataset.invite);
+        else if (payBtn) openPayModal(payBtn.dataset.pay);
         else if (accrueBtn) openAccrueModal(accrueBtn.dataset.accrue);
         else if (toggleBtn) toggleDetail(toggleBtn.dataset.toggle);
+    });
+    document.getElementById('payrollConfirmWarn').addEventListener('click', ev => {
+        const btn = ev.target.closest('[data-open-pos]');
+        if (btn) openPosition(btn.dataset.openPos);
     });
     document.getElementById('payForm').addEventListener('submit', FinUtils.lockedSubmit(submitPay));
     document.getElementById('accrueForm').addEventListener('submit', FinUtils.lockedSubmit(submitAccrue));

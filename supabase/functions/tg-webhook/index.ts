@@ -415,6 +415,23 @@ Deno.serve(async (req) => {
           reply_markup: detailKeyboard("arr", !detail, parts[2], parts[3]),
         });
       }
+    } else if (action === "pc") {
+      // «Получил» под личным сообщением о зарплате (683): подтверждает только
+      // сам получатель; сообщение заменяем отметкой без кнопки.
+      const { data } = await supa.rpc("tg_payroll_confirm", { p_payment: parts[1], p_tg_user: cq.from.id });
+      if (data?.ok) {
+        await tg("editMessageText", {
+          chat_id: msg.chat.id, message_id: msg.message_id, parse_mode: "HTML", text: data.text,
+        });
+      } else {
+        await tg("answerCallbackQuery", {
+          callback_query_id: cq.id, show_alert: true,
+          text: data?.error === "reversed"
+            ? "Эта выплата отменена — подтверждать нечего."
+            : "Не получилось подтвердить. Напишите, пожалуйста, Ванамали Гопалу.",
+        });
+        return new Response("ok");
+      }
     } else if (action === "hy" || action === "hn") {
       // Передача между держателями: подтвердить может только получатель —
       // по его Telegram-id, а не по имени в тексте. Карточка видна всем в чате,
@@ -482,6 +499,8 @@ Deno.serve(async (req) => {
       const { data } = await supa.rpc("tg_use_link_token", { p_token: parts[1], p_tg_user: m.from.id, p_username: m.from.username ?? null });
       if (data?.ok) {
         await tg("sendMessage", { chat_id: m.chat.id, text: `✅ Telegram привязан к профилю: ${data.name}. Теперь могу записывать расходы от вашего имени.` });
+        // Пришёл по приглашению из ведомости — сразу присылаем выплаты, ждущие «Получил» (683)
+        await supa.rpc("tg_payroll_send_pending", { p_tg_user: m.from.id });
       } else {
         const why = data?.error === "expired" ? "ссылка устарела" : data?.error === "used" ? "ссылка уже использована" : "ссылка неверная";
         await tg("sendMessage", { chat_id: m.chat.id, text: `⚠️ Не получилось привязать: ${why}. Откройте профиль на in.rupaseva.com и нажмите «Привязать Telegram» ещё раз.` });
