@@ -2514,7 +2514,8 @@ async function loadPaymentPromise() {
     card.style.backgroundColor = net > 0.5 ? '#fee2e2' : ''; // red-100
     document.getElementById('promiseTitle').style.color = net > 0.5 ? '#991b1b' : ''; // red-800
     document.getElementById('promiseDebt').innerHTML = net > 0.5
-        ? `<span class="text-lg font-bold" style="color:#b91c1c">Долг ${CrmUtils.formatMoney(Math.round(net), debt.currency)}</span>`
+        // shown_* (679): сумма, записанная вручную, — например, «$90» вместо пересчёта старого ретрита
+        ? `<span class="text-lg font-bold" style="color:#b91c1c">Долг ${CrmUtils.formatMoney(Math.round(Number(debt.shown_net ?? net)), debt.shown_currency || debt.currency)}</span>`
           + (debt.has_promise ? '' : `<div class="text-xs opacity-70 mt-1">Свяжитесь с участником и запишите договорённость — без неё сделку не перевести в «Завершён»</div>`)
         : '<span class="text-success">Долга нет</span>';
     document.getElementById('promiseList').innerHTML = list.map(p => `
