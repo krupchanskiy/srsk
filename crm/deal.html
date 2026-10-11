@@ -2481,7 +2481,7 @@ async function loadPaymentPromise() {
     card.classList.toggle('border-error/30', net > 0.5);
     document.getElementById('promiseDebt').innerHTML = net > 0.5
         ? `<span class="text-error font-medium">Долг ${CrmUtils.formatMoney(Math.round(net), debt.currency)}</span>`
-          + (debt.has_promise ? '' : `<div class="text-xs opacity-70 mt-1">Свяжитесь с участником и запишите договорённость — без неё сделку не закрыть</div>`)
+          + (debt.has_promise ? '' : `<div class="text-xs opacity-70 mt-1">Свяжитесь с участником и запишите договорённость — без неё сделку не перевести в «Завершён»</div>`)
         : '<span class="text-success">Долга нет</span>';
     document.getElementById('promiseList').innerHTML = list.map(p => `
         <div class="text-xs py-1 border-b border-base-200">

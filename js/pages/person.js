@@ -237,7 +237,7 @@ function renderDealSummary(retreatId) {
     const rows = [];
 
     if (deal) {
-        const stages = { lead: 'Заявка', working: 'В работе', invoiced: 'Выставлен счёт', booked: 'Оплачена бронь', checklist: 'Чек-лист', ready: 'Готов', completed: 'Ретрит завершён', cancelled: 'Отказ' };
+        const stages = { lead: 'Заявка', working: 'В работе', invoiced: 'Выставлен счёт', booked: 'Оплачена бронь', checklist: 'Чек лист', ready: 'Готов', completed: 'Завершён', cancelled: 'Отменён' };
         const manager = deal.manager ? (deal.manager.spiritual_name || `${deal.manager.first_name || ''} ${deal.manager.last_name || ''}`.trim()) : '';
         rows.push(`<div><span class="opacity-60">Стадия:</span> <span class="${deal.status === 'cancelled' ? 'text-error' : ''}">${stages[deal.status] || e(deal.status)}</span>${manager ? ` <span class="opacity-60">· менеджер</span> ${e(manager)}` : ''}</div>`);
 
@@ -2464,7 +2464,7 @@ function renderRegistrations() {
                         <div class="text-sm opacity-60">${formatDate(d.retreats.start_date)} — ${formatDate(d.retreats.end_date)}</div>
                     </div>
                     <div class="flex items-center gap-2">
-                        <span class="badge ${d.status === 'cancelled' ? 'status-cancelled' : ''}">${d.status === 'cancelled' ? 'Отказ' : 'Сделка в CRM'}</span>
+                        <span class="badge ${d.status === 'cancelled' ? 'status-cancelled' : ''}">${d.status === 'cancelled' ? 'Отменён' : 'Сделка в CRM'}</span>
                         <svg class="chevron w-4 h-4 opacity-40" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
                     </div>
                 </div>
