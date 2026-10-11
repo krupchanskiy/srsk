@@ -268,32 +268,40 @@ async function loadDeparted() {
 
 const ADVANCE_DECISIONS = { keep: 'оставить авансом', donate: 'пожертвовать', refund: 'вернуть' };
 
-// Значок уехавшего: красный «Долг», зелёный «Можно завершать», жёлтый «Аванс — уточнить»
+// Плашка уехавшего — внизу карточки во всю ширину (верхний угол — маркерам):
+// красная «Долг», зелёная «Можно завершать», жёлтая «Аванс — уточнить»
 function departedBadge(deal) {
     const x = departedByDeal[deal.id];
     if (!x) return null;
     const net = Number(x.net);
     const сумма = CrmUtils.formatMoney(Math.round(Math.abs(net)), x.currency);
+    const плашка = (style, text, title) =>
+        `<div class="mt-2 rounded-md text-center text-xs py-0.5 px-1 truncate" style="${style}" title="${e(title)}">${text}</div>`;
     if (net > 0.5 && DEPARTED_STATUSES.includes(deal.status)) {
+        let что = 'свяжитесь';
         let title = 'Уехал с долгом — свяжитесь и запишите договорённость об оплате';
         if (x.promise_at) {
             const today = DateUtils.toISO(new Date());
             const ддмм = d => `${String(d.getDate()).padStart(2, '0')}.${String(d.getMonth() + 1).padStart(2, '0')}`;
             const срок = x.promise_due ? ддмм(DateUtils.parseDate(x.promise_due)) : '';
-            title = !x.promise_due ? `Договорённость от ${ддмм(new Date(x.promise_at))}, без срока`
-                : x.promise_due < today ? `Срок прошёл ${срок} — свяжитесь снова`
-                : `Обещал к ${срок}`;
+            что = !x.promise_due ? `договорились ${ддмм(new Date(x.promise_at))}`
+                : x.promise_due < today ? `срок прошёл ${срок}`
+                : `обещал к ${срок}`;
+            title = !x.promise_due ? 'Договорённость без срока — задача «Проверить оплату» через 7 дней'
+                : x.promise_due < today ? 'Срок оплаты прошёл — свяжитесь снова и запишите новую договорённость'
+                : 'Ждём оплату к обещанной дате';
         }
-        return { kind: 'debt', html: `<span class="badge badge-sm border-0 text-white whitespace-nowrap" style="background:#dc2626" title="${e(title)}">Долг ${сумма}</span>` };
+        return { kind: 'debt', html: плашка('background:#dc2626;color:#fff', `Долг ${сумма} · ${что}`, title) };
     }
     if (net < -0.5) {
         if (x.advance_decision) {
-            return { kind: 'advanceDone', html: `<span class="badge badge-sm badge-outline whitespace-nowrap" style="color:#a16207;border-color:#facc15" title="${e('Решение: ' + (ADVANCE_DECISIONS[x.advance_decision] || x.advance_decision) + (x.advance_note ? ' — ' + x.advance_note : ''))}">Аванс ${сумма}</span>` };
+            const решение = ADVANCE_DECISIONS[x.advance_decision] || x.advance_decision;
+            return { kind: 'advanceDone', html: плашка('border:1px solid #facc15;color:#a16207', `Аванс ${сумма} · ${e(решение)}`, 'Решение: ' + решение + (x.advance_note ? ' — ' + x.advance_note : '')) };
         }
-        return { kind: 'advance', html: `<span class="badge badge-sm border-0 whitespace-nowrap" style="background:#facc15;color:#713f12" title="Переплата — выясните у участника: оставить авансом, пожертвовать или вернуть, и запишите в сделке">Аванс ${сумма} — уточнить</span>` };
+        return { kind: 'advance', html: плашка('background:#facc15;color:#713f12', `Аванс ${сумма} — уточнить`, 'Переплата — выясните у участника: оставить авансом, пожертвовать или вернуть, и запишите в сделке') };
     }
     if (DEPARTED_STATUSES.includes(deal.status)) {
-        return { kind: 'ok', html: `<span class="badge badge-sm border-0 text-white whitespace-nowrap" style="background:#16a34a" title="Уехал, долга нет — сделку можно переводить в «Завершён»">Можно завершать</span>` };
+        return { kind: 'ok', html: плашка('background:#16a34a;color:#fff', '✓ Можно завершать', 'Уехал, долга нет — сделку можно переводить в «Завершён»') };
     }
     return null;
 }
@@ -514,7 +522,6 @@ function renderCard(deal) {
             <div class="flex items-start justify-between gap-1 mb-1">
                 <div class="font-medium text-sm leading-tight">${CrmUtils.getGuestDualName(guest)}</div>
                 <div class="flex items-center gap-1 shrink-0">
-                    ${departedBadge(deal)?.html || ''}
                     ${renderCardMarkers(deal)}
                     ${tempBadge}
                     ${isOverdue ? `<span title="${t('crm_no_contact_24h')}" class="text-error text-xs">⚠</span>` : ''}
@@ -538,6 +545,7 @@ function renderCard(deal) {
                     ${deal.status !== 'completed' && deal.status !== 'cancelled' ? `<button class="btn btn-xs btn-ghost btn-circle opacity-0 group-hover:opacity-100" onclick="event.stopPropagation(); quickAdvance('${deal.id}', '${deal.status}')" title="Следующий статус">→</button>` : ''}
                 </div>
             </div>
+            ${departedBadge(deal)?.html || ''}
         </div>
     `;
 }
