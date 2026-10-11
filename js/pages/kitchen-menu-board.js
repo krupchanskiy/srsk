@@ -363,6 +363,17 @@ function renderBoard() {
     }
 }
 
+// Левый край колонки дня i по настоящей таблице: ширина колонки больше COL_WIDTH
+// (отступы и рамка), поэтому умножение на COL_WIDTH сдвигало полосы ретритов к концу доски
+function colX(i) {
+    const ths = document.querySelectorAll('#boardTable thead th');
+    if (!ths.length) return i * COL_WIDTH;
+    const x0 = ths[0].offsetLeft;
+    if (i < ths.length) return ths[i].offsetLeft - x0;
+    const last = ths[ths.length - 1];
+    return last.offsetLeft + last.offsetWidth - x0 + (i - ths.length) * last.offsetWidth;
+}
+
 function renderRetreats() {
     const container = document.getElementById('retreatsScroll');
     if (!container) return;
@@ -374,7 +385,7 @@ function renderRetreats() {
 
     // Фоновые слоты по дням
     for (let i = 0; i < totalDays; i++) {
-        html += `<div class="retreat-slot"></div>`;
+        html += `<div class="retreat-slot" style="width: ${colX(i + 1) - colX(i)}px; min-width: ${colX(i + 1) - colX(i)}px;"></div>`;
     }
 
     // Плашки ретритов
@@ -390,8 +401,8 @@ function renderRetreats() {
         const startDay = Math.round((rStart - startDate) / (1000 * 60 * 60 * 24));
         const endDay = Math.round((rEnd - startDate) / (1000 * 60 * 60 * 24));
 
-        const left = startDay * COL_WIDTH;
-        const width = (endDay - startDay + 1) * COL_WIDTH;
+        const left = colX(startDay);
+        const width = colX(endDay + 1) - left;
         const color = r.color || '#10b981';
 
         html += `<div class="retreat-chip" style="left: ${left}px; width: ${width}px; background-color: ${color};">${e(getName(r))}</div>`;
@@ -403,7 +414,7 @@ function renderRetreats() {
         const d = new Date(startDate);
         d.setDate(d.getDate() + i);
         if (d.getDate() === 1) {
-            const left = i * COL_WIDTH;
+            const left = colX(i);
             html += `<div class="month-label" style="left: ${left}px;">${monthNamesUpper[d.getMonth()]}</div>`;
         }
     }
@@ -456,7 +467,7 @@ async function extendRange(direction) {
             updateMonthLabel();
 
             // Компенсация скролла: добавленные колонки сдвигают контент
-            boardContainer.scrollLeft = prevScrollLeft + CHUNK_SIZE * COL_WIDTH;
+            boardContainer.scrollLeft = prevScrollLeft + colX(CHUNK_SIZE);
         } else {
             const oldEnd = new Date(endDate);
             const newEnd = new Date(endDate);
@@ -496,7 +507,7 @@ function updateMonthLabel() {
 
     if (boardContainer) {
         const centerX = boardContainer.scrollLeft + boardContainer.clientWidth / 2;
-        const dayIndex = Math.floor(centerX / COL_WIDTH);
+        const dayIndex = Math.floor(centerX / (colX(1) || COL_WIDTH));
         const centerDate = new Date(startDate);
         centerDate.setDate(centerDate.getDate() + dayIndex);
         label.textContent = `${monthNames[centerDate.getMonth()]} ${centerDate.getFullYear()}`;
@@ -545,7 +556,7 @@ function scrollToTodayColumn() {
     const todayCopy = new Date(startDate);
     todayCopy.setHours(0, 0, 0, 0);
     const offsetDays = Math.round((today - todayCopy) / (1000 * 60 * 60 * 24));
-    boardContainer.scrollLeft = offsetDays * COL_WIDTH - boardContainer.clientWidth / 3;
+    boardContainer.scrollLeft = colX(offsetDays) - boardContainer.clientWidth / 3;
 }
 
 // ==================== DRAG & DROP ====================
