@@ -137,6 +137,7 @@ async function loadParticipants() {
     if (toolbar) toolbar.style.display = participants.length ? '' : 'none';
     renderParticipants();
     loadDebtorNotes();
+    loadAdvanceDecisions();
     // визиты показывают итог по гостю — после оплаты он тоже меняется
     if (noEventMode) window.FinGuests?.loadVisitList();
 }
@@ -186,7 +187,7 @@ function renderParticipants() {
         const пробл = проблемы.length
             ? ` <span class="badge badge-warning badge-sm" title="${e(проблемы.map(x => x.message).join('\n'))}">⚠ ${проблемы.length}</span>` : '';
         return `<tr class="cursor-pointer hover:bg-base-200" data-pid="${p.participant_id}" tabindex="0">
-            <td class="font-medium">${e(p.name || '')}${пробл}${строкаДоговорённости(p)}</td>
+            <td class="font-medium">${e(p.name || '')}${пробл}${строкаДоговорённости(p)}${строкаАванса(p)}</td>
             ${видимыеБлоки().map(k => `<td class="text-right">${ячейка(k)}</td>`).join('')}
             <td class="text-right">${fmtNet(Number(b.general_debt) - Number(b.general_advance), cur)}</td>
             <td class="text-right font-semibold">${fmtNetWord(b.net, cur, b)}${crmCancelledBadge(p)}</td>
@@ -262,6 +263,40 @@ function строкаДоговорённости(p) {
         : срок < сегодня ? ` · <span class="text-error">срок прошёл ${DateUtils.formatShort(срок)}</span>`
         : ` · срок ${DateUtils.formatShort(срок)}`;
     return `<div class="text-xs font-normal opacity-70">${DateUtils.formatShort(new Date(n.created_at))} · ${e(n.summary)}${n.content ? ` — ${e(n.content)}` : ''}${срокHtml}</div>`;
+}
+
+// Аванс у уехавшего (678): менеджер CRM выясняет и записывает решение в сделке —
+// оставить авансом / пожертвовать / вернуть. Проводку делает финансист
+const РЕШЕНИЯ_АВАНСА = { keep: 'оставить авансом на следующий ретрит', donate: 'пожертвовать', refund: 'вернуть' };
+let advanceDecisions = {}; // participant_id -> последняя запись advance_decision
+async function loadAdvanceDecisions() {
+    const retreat = currentRetreat;
+    advanceDecisions = {};
+    if (noEventMode) return;
+    const pids = participants.filter(p => Number(p.balance.net) < -0.005).map(p => p.participant_id);
+    if (!pids.length) return;
+    // и отменённые сделки: аванс часто остаётся у отказавшихся
+    const { data: deals } = await Layout.db.from('crm_deals').select('id, vaishnava_id')
+        .eq('retreat_id', retreat).in('vaishnava_id', pids);
+    const dealPid = {};
+    (deals || []).forEach(d => { dealPid[d.id] = d.vaishnava_id; });
+    const ids = Object.keys(dealPid);
+    if (!ids.length) return;
+    const { data } = await Layout.db.from('crm_communications')
+        .select('deal_id, summary, content, created_at')
+        .in('deal_id', ids).eq('type', 'advance_decision')
+        .order('created_at', { ascending: false });
+    if (retreat !== currentRetreat) return;
+    (data || []).forEach(n => { const pid = dealPid[n.deal_id]; if (!advanceDecisions[pid]) advanceDecisions[pid] = n; });
+    renderParticipants();
+}
+
+function строкаАванса(p) {
+    const n = advanceDecisions[p.participant_id];
+    if (!n || !(Number(p.balance.net) < -0.005)) return '';
+    const решение = РЕШЕНИЯ_АВАНСА[n.content] || n.content || '';
+    const комм = n.summary && n.summary.toLowerCase() !== решение.toLowerCase() ? ` — ${e(n.summary)}` : '';
+    return `<div class="text-xs font-normal" style="color:#a16207">Решение по авансу (CRM, ${DateUtils.formatShort(new Date(n.created_at))}): ${e(решение)}${комм}</div>`;
 }
 
 function crmCancelledBadge(p) {

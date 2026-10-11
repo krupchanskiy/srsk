@@ -130,6 +130,8 @@
                 <option value="dates" data-i18n="crm_marker_dates">Даты не уточнены</option>
                 <option value="terms" data-i18n="crm_filter_has_terms">Инд. условия</option>
                 <option value="self" data-i18n="crm_filter_self_acc">Самост. размещение</option>
+                <option value="debtLeft">Уехали с долгом</option>
+                <option value="advance">Аванс — уточнить</option>
             </select>
 
             <!-- Новая сделка -->
@@ -174,6 +176,7 @@ let filteredDeals = [];
 let dealTermsByDeal = {};   // deal_id -> строки индивидуальных условий
 let sortableInstances = [];
 let dealTaskCounts = {}; // { dealId: { overdue, today, planned } }
+let departedByDeal = {};  // deal_id -> долг/аванс уехавшего (678), только кто уже уехал
 
 // Статусы для канбана
 const KANBAN_STATUSES = ['lead', 'working', 'invoiced', 'booked', 'checklist', 'ready', 'completed', 'cancelled'];
@@ -245,8 +248,54 @@ async function loadDeals() {
     }
 
     deals = data || [];
-    await loadDealTaskCounts();
+    await Promise.all([loadDealTaskCounts(), loadDeparted()]);
     applyFilters();
+}
+
+// Уехавшие (678): долг/аванс из фин. журнала одной пачкой — для значка на карточке.
+// Отъезд — последний выезд в шахматке, иначе конец ретрита; до отъезда значка нет
+const DEPARTED_STATUSES = ['booked', 'checklist', 'ready'];
+async function loadDeparted() {
+    departedByDeal = {};
+    // Кто уехал раньше конца ретрита — тоже уехал: отбирает база по шахматке
+    const ids = deals.filter(d => DEPARTED_STATUSES.includes(d.status) || d.status === 'completed' || d.status === 'cancelled')
+        .map(d => d.id);
+    if (!ids.length) return;
+    const { data, error } = await Layout.db.rpc('crm_deals_after_departure', { p_deal_ids: ids });
+    if (error) { console.warn('crm_deals_after_departure', error); return; }
+    (data || []).forEach(x => { departedByDeal[x.deal_id] = x; });
+}
+
+const ADVANCE_DECISIONS = { keep: 'оставить авансом', donate: 'пожертвовать', refund: 'вернуть' };
+
+// Значок уехавшего: красный «Долг», зелёный «Можно завершать», жёлтый «Аванс — уточнить»
+function departedBadge(deal) {
+    const x = departedByDeal[deal.id];
+    if (!x) return null;
+    const net = Number(x.net);
+    const сумма = CrmUtils.formatMoney(Math.round(Math.abs(net)), x.currency);
+    if (net > 0.5 && DEPARTED_STATUSES.includes(deal.status)) {
+        let title = 'Уехал с долгом — свяжитесь и запишите договорённость об оплате';
+        if (x.promise_at) {
+            const today = DateUtils.toISO(new Date());
+            const ддмм = d => `${String(d.getDate()).padStart(2, '0')}.${String(d.getMonth() + 1).padStart(2, '0')}`;
+            const срок = x.promise_due ? ддмм(DateUtils.parseDate(x.promise_due)) : '';
+            title = !x.promise_due ? `Договорённость от ${ддмм(new Date(x.promise_at))}, без срока`
+                : x.promise_due < today ? `Срок прошёл ${срок} — свяжитесь снова`
+                : `Обещал к ${срок}`;
+        }
+        return { kind: 'debt', html: `<span class="badge badge-sm border-0 text-white whitespace-nowrap" style="background:#dc2626" title="${e(title)}">Долг ${сумма}</span>` };
+    }
+    if (net < -0.5) {
+        if (x.advance_decision) {
+            return { kind: 'advanceDone', html: `<span class="badge badge-sm badge-outline whitespace-nowrap" style="color:#a16207;border-color:#facc15" title="${e('Решение: ' + (ADVANCE_DECISIONS[x.advance_decision] || x.advance_decision) + (x.advance_note ? ' — ' + x.advance_note : ''))}">Аванс ${сумма}</span>` };
+        }
+        return { kind: 'advance', html: `<span class="badge badge-sm border-0 whitespace-nowrap" style="background:#facc15;color:#713f12" title="Переплата — выясните у участника: оставить авансом, пожертвовать или вернуть, и запишите в сделке">Аванс ${сумма} — уточнить</span>` };
+    }
+    if (DEPARTED_STATUSES.includes(deal.status)) {
+        return { kind: 'ok', html: `<span class="badge badge-sm border-0 text-white whitespace-nowrap" style="background:#16a34a" title="Уехал, долга нет — сделку можно переводить в «Завершён»">Можно завершать</span>` };
+    }
+    return null;
 }
 
 async function loadManagers() {
@@ -307,13 +356,13 @@ function applyFilters() {
     const search = document.getElementById('filterSearch').value.trim().toLowerCase();
     const currentUserId = window.currentUser?.vaishnava_id;
 
+    const marker = document.getElementById('filterMarker').value;
     hiddenClosedCount = 0;
     filteredDeals = deals.filter(d => {
         if (manager === 'my' && d.manager_id !== currentUserId) return false;
         if (manager === 'unassigned' && d.manager_id) return false;
         if (manager && manager !== 'my' && manager !== 'unassigned' && d.manager_id !== manager) return false;
         if (mode && d.work_mode !== mode) return false;
-        const marker = document.getElementById('filterMarker').value;
         const st = marker ? dealMarkerState(d) : null;
         // «Даты не уточнены» — и расхождение с рейсом, и дат нет совсем
         if (marker && !(st[marker] || (marker === 'dates' && st.noDates))) return false;
@@ -330,7 +379,8 @@ function applyFilters() {
             if (!haystack.includes(search)) return false;
         }
         // При поиске по имени показываем и старые закрытые — человека ищут целиком
-        if (!showHiddenClosed && !search && isClosedLongAgo(d)) { hiddenClosedCount++; return false; }
+        // Фильтр «Аванс — уточнить» ищет и среди старых отказов (аванс у отменённой сделки)
+        if (!showHiddenClosed && !search && !marker && isClosedLongAgo(d)) { hiddenClosedCount++; return false; }
         return true;
     });
 
@@ -344,7 +394,9 @@ function renderStats() {
     const overdue = filteredDeals.filter(d => CrmUtils.isOverdue(d)).length;
     const active = filteredDeals.filter(d => CrmUtils.isActive(d)).length;
 
-    document.getElementById('statsTotal').textContent = `${t('crm_total')}: ${total} | ${t('crm_active')}: ${active}`;
+    // пока кэш переводов старый (до часа) — русское слово, а не ключ
+    const сл = (k, ru) => t(k) === k ? ru : t(k);
+    document.getElementById('statsTotal').textContent = `${сл('crm_deals_count', 'Сделок')}: ${total} · ${сл('crm_deals_open', 'не закрыто')}: ${active}`;
 
     const hiddenEl = document.getElementById('statsHidden');
     if (hiddenClosedCount > 0 || showHiddenClosed) {
@@ -380,6 +432,9 @@ function renderKanban() {
             byStatus[d.status].push(d);
         }
     });
+    // Уехавшие с долгом — наверх колонки (сортировка устойчивая, остальной порядок прежний)
+    Object.values(byStatus).forEach(list => list.sort((a, b) =>
+        (departedBadge(b)?.kind === 'debt') - (departedBadge(a)?.kind === 'debt')));
 
     container.innerHTML = KANBAN_STATUSES.map(status => {
         const deals = byStatus[status];
@@ -459,6 +514,7 @@ function renderCard(deal) {
             <div class="flex items-start justify-between gap-1 mb-1">
                 <div class="font-medium text-sm leading-tight">${CrmUtils.getGuestDualName(guest)}</div>
                 <div class="flex items-center gap-1 shrink-0">
+                    ${departedBadge(deal)?.html || ''}
                     ${renderCardMarkers(deal)}
                     ${tempBadge}
                     ${isOverdue ? `<span title="${t('crm_no_contact_24h')}" class="text-error text-xs">⚠</span>` : ''}
@@ -499,7 +555,10 @@ function dealMarkerState(deal) {
         // зелёный (не красный — это факт, не тревога): финансовое отклонение от полной цены
         terms: terms.some(x => x.condition_type !== 'self' || x.block !== 'accommodation'),
         // жёлтый: самостоятельное размещение
-        self: terms.some(x => x.block === 'accommodation' && x.condition_type === 'self')
+        self: terms.some(x => x.block === 'accommodation' && x.condition_type === 'self'),
+        // уехал (678): с долгом / аванс без решения менеджера
+        debtLeft: departedBadge(deal)?.kind === 'debt',
+        advance: departedBadge(deal)?.kind === 'advance'
     };
 }
 

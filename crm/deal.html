@@ -137,6 +137,23 @@
                 </div>
             </div>
 
+            <!-- Аванс у уехавшего (678): менеджер выясняет и записывает решение -->
+            <div class="card shadow-sm hidden border" id="advanceCard" style="background:#fef9c3;border-color:#facc15">
+                <div class="card-body p-4">
+                    <h3 class="font-bold mb-1" style="color:#854d0e">Аванс</h3>
+                    <div id="advanceSum" class="text-sm mb-2"></div>
+                    <div id="advanceList" class="space-y-1 mb-2"></div>
+                    <form id="advanceForm" onsubmit="saveAdvanceDecision(event)" class="space-y-2">
+                        <div class="text-xs opacity-70">Что делаем с деньгами:</div>
+                        <label class="flex items-center gap-2 text-sm cursor-pointer"><input type="radio" name="advanceDecision" value="keep" class="radio radio-sm" required> Оставить авансом на следующий ретрит</label>
+                        <label class="flex items-center gap-2 text-sm cursor-pointer"><input type="radio" name="advanceDecision" value="donate" class="radio radio-sm"> Пожертвовать</label>
+                        <label class="flex items-center gap-2 text-sm cursor-pointer"><input type="radio" name="advanceDecision" value="refund" class="radio radio-sm"> Вернуть</label>
+                        <textarea id="advanceNote" class="textarea textarea-bordered textarea-sm w-full bg-base-100" rows="2" placeholder="Комментарий: на какой ретрит, куда и как вернуть"></textarea>
+                        <button type="submit" class="btn btn-sm btn-warning w-full">Записать решение</button>
+                    </form>
+                </div>
+            </div>
+
             <!-- Чеклист гостя -->
             <div class="card shadow-sm transition-colors duration-500" id="checklistCard">
                 <div class="card-body p-4">
@@ -709,7 +726,7 @@ async function loadDeal() {
     renderSidebar();
     renderChecklist();
     renderFlightData();
-    await Promise.all([loadCounts(), loadPayments(), loadGuestHistory(), loadDealMembers(), loadPlacement(), loadRecentComms(), loadDealTerms(), loadPaymentPromise()]);
+    await Promise.all([loadCounts(), loadPayments(), loadGuestHistory(), loadDealMembers(), loadPlacement(), loadRecentComms(), loadDealTerms(), loadPaymentPromise(), loadAdvanceCard()]);
     loadParticipationCalc();   // расчёт стоимости — асинхронно, не блокирует карточку
     renderHeader(); // повторно — теперь с бейджем «повторный гость»
     loadTabData();
@@ -1853,6 +1870,20 @@ function renderHistoryTab() {
                                 </div>
                             </div>
                         `;
+                    } else if (item.itemType === 'comm' && item.type === 'advance_decision') {
+                        return `
+                            <div class="flex gap-3 p-3 border-l-4 bg-base-200/40 rounded-r-lg" style="border-color:#facc15">
+                                <div class="w-8 h-8 flex items-center justify-center" style="color:#a16207"><svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-5 h-5"><path stroke-linecap="round" stroke-linejoin="round" d="M2.25 18.75a60.07 60.07 0 0 1 15.797 2.101c.727.198 1.453-.342 1.453-1.096V18.75M3.75 4.5v.75A.75.75 0 0 1 3 6h-.75m0 0v-.375c0-.621.504-1.125 1.125-1.125H20.25M2.25 6v9m18-10.5v.75c0 .414.336.75.75.75h.75m-1.5-1.5h.375c.621 0 1.125.504 1.125 1.125v9.75c0 .621-.504 1.125-1.125 1.125h-.375m1.5-1.5H21a.75.75 0 0 0-.75.75v.75m0 0H3.75m0 0h-.375a1.125 1.125 0 0 1-1.125-1.125V15m1.5 1.5v-.75A.75.75 0 0 0 3 15h-.75M15 10.5a3 3 0 1 1-6 0 3 3 0 0 1 6 0Zm3 0h.008v.008H18V10.5Zm-12 0h.008v.008H6V10.5Z" /></svg></div>
+                                <div class="flex-1">
+                                    <div class="text-xs font-semibold" style="color:#a16207">Аванс: ${e(ADVANCE_DECISIONS[item.content] || item.content || '')}</div>
+                                    <div class="font-medium whitespace-pre-line">${e(item.summary)}</div>
+                                    <div class="text-xs text-base-content/50 mt-1">
+                                        ${CrmUtils.formatDateTime(item.created_at)}
+                                        ${item.created_by ? ` • ${e(CrmUtils.getGuestShortName(item.created_by))}` : ''}
+                                    </div>
+                                </div>
+                            </div>
+                        `;
                     } else if (item.itemType === 'comm' && item.type === 'payment_promise') {
                         return `
                             <div class="flex gap-3 p-3 border-l-4 border-error/40 bg-base-200/40 rounded-r-lg">
@@ -2517,6 +2548,56 @@ async function savePaymentPromise(event) {
     }
 }
 
+// ==================== АВАНС У УЕХАВШЕГО (678) ====================
+// Переплата после отъезда: менеджер выясняет у участника и записывает решение.
+// Проводку (зачёт на другой ретрит, пожертвование, возврат) делают в Финансах
+const ADVANCE_DECISIONS = { keep: 'Оставить авансом на следующий ретрит', donate: 'Пожертвовать', refund: 'Вернуть' };
+
+async function loadAdvanceCard() {
+    const [{ data: rows }, { data: list }] = await Promise.all([
+        Layout.db.rpc('crm_deals_after_departure', { p_deal_ids: [dealId] }),
+        Layout.db.from('crm_communications')
+            .select('summary, content, created_at, created_by:vaishnavas(spiritual_name, first_name)')
+            .eq('deal_id', dealId).eq('type', 'advance_decision')
+            .order('created_at', { ascending: false })
+    ]);
+    const x = rows?.[0];
+    const card = document.getElementById('advanceCard');
+    const net = Number(x?.net || 0);
+    if (!(net < -0.5) && !list?.length) { card.classList.add('hidden'); return; }
+    card.classList.remove('hidden');
+    document.getElementById('advanceSum').innerHTML = net < -0.5
+        ? `<span class="text-lg font-bold" style="color:#a16207">Переплата ${CrmUtils.formatMoney(Math.round(-net), x.currency)}</span>`
+          + (list?.length ? '' : `<div class="text-xs opacity-70 mt-1">Участник уехал, а деньги остались. Выясните, что с ними сделать, и запишите решение</div>`)
+        : '<span class="opacity-70">Аванса больше нет</span>';
+    document.getElementById('advanceList').innerHTML = (list || []).map(a => `
+        <div class="text-xs py-1 border-b border-yellow-300">
+            <div class="font-semibold">${e(ADVANCE_DECISIONS[a.content] || a.content || '')}</div>
+            ${a.summary ? `<div class="whitespace-pre-line">${e(a.summary)}</div>` : ''}
+            <div class="opacity-50">${CrmUtils.formatDateTime(a.created_at)}${a.created_by ? ' · ' + e(CrmUtils.getGuestShortName(a.created_by)) : ''}</div>
+        </div>`).join('');
+    document.getElementById('advanceForm').classList.toggle('hidden', !(net < -0.5));
+}
+
+async function saveAdvanceDecision(event) {
+    event.preventDefault();
+    const form = document.getElementById('advanceForm');
+    const decision = form.querySelector('input[name="advanceDecision"]:checked')?.value;
+    if (!decision) return;
+    const note = document.getElementById('advanceNote').value.trim();
+    const { error } = await Layout.db.from('crm_communications').insert({
+        deal_id: dealId, type: 'advance_decision', direction: 'internal',
+        summary: note || ADVANCE_DECISIONS[decision], content: decision,
+        created_by: window.currentUser?.vaishnava_id || null
+    });
+    if (error) { Layout.handleError(error, 'Аванс'); return; }
+    form.reset();
+    Layout.showNotification('Решение по авансу записано — финансы увидят его в «Участниках и оплатах»', 'success');
+    await loadAdvanceCard();
+    loadRecentComms();
+    if (currentTab === 'history') { await loadHistory(); renderTab(); }
+}
+
 // ==================== ПОСЛЕДНИЕ КОНТАКТЫ ====================
 async function loadRecentComms() {
     const { data } = await Layout.db
@@ -2534,7 +2615,7 @@ async function loadRecentComms() {
         return;
     }
 
-    const typeIcons = { call: '📞', whatsapp: '💬', telegram: '✈', email: '📧', note: '📝', payment_promise: '₹' };
+    const typeIcons = { call: '📞', whatsapp: '💬', telegram: '✈', email: '📧', note: '📝', payment_promise: '₹', advance_decision: '₹' };
 
     container.classList.remove('hidden');
     container.innerHTML = `<div class="text-xs opacity-50 mb-1">${t('crm_recent_contacts')} (${data.length})</div>` +
