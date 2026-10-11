@@ -138,8 +138,9 @@ function renderSummary() {
     const exParts = ['team', 'volunteer', 'vip'].filter(k => ex[k]).map(k => `${t('fin_sales_fee_status_' + k)} ${ex[k]}`);
 
     const mgrs = byManager(calc.rows, calc.rate_rub);
-    const mgrHtml = mgrs.length ? `<div class="mt-3">
-        <div class="text-sm font-semibold mb-1">${e(tf('fin_sales_fee_by_manager', 'По менеджерам'))}</div>
+    // справа под фиксацией — чтобы шапка не росла с числом менеджеров
+    const mgrHtml = mgrs.length ? `<div>
+        <div class="text-sm font-semibold mb-1 text-right">${e(tf('fin_sales_fee_by_manager', 'По менеджерам'))}</div>
         <table class="text-base"><tbody>${mgrs.map(m => `<tr>
             <td class="pr-6 py-0.5">${e(m.name)}</td>
             <td class="text-right font-mono whitespace-nowrap py-0.5">${m.count} × ${fmtRub(calc.rate_rub)} = <b>${fmtRub(m.amount)}</b></td>
@@ -153,9 +154,8 @@ function renderSummary() {
                 <div class="text-sm opacity-70 mt-1">${ruleLine}</div>
                 <div class="text-sm opacity-70">${e(t('fin_sales_fee_full_fee'))}: ${e(prices)}</div>
                 ${exParts.length ? `<div class="text-sm opacity-60">${e(t('fin_sales_fee_not_paying'))}: ${e(exParts.join(', '))}</div>` : ''}
-                ${mgrHtml}
             </div>
-            <div class="flex flex-col items-end gap-2">${fixHtml}${fixBtn}</div>
+            <div class="flex flex-col items-end gap-2">${fixHtml}${fixBtn}${mgrHtml}</div>
         </div>
         ${!fx ? `<p class="text-xs opacity-60 mt-2">${e(t('fin_sales_fee_fix_hint'))}</p>` : ''}
     </div></div>`;

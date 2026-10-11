@@ -421,5 +421,7 @@ body.user-type-guest .edit-action {
 @media print {
     *:not(.opacity-0), *::before, *::after { color: #000 !important; text-shadow: none !important; }
     *:not(.opacity-0) { opacity: 1 !important; }
+    /* закрытые окна DaisyUI спрятаны прозрачностью — без этого правило выше выводит их на бумагу */
+    .modal:not([open]):not(.modal-open) { display: none !important; }
     ::placeholder { color: #000 !important; }
 }
