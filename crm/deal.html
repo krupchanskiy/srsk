@@ -117,6 +117,26 @@
                 </div>
             </div>
 
+            <!-- Договорённость об оплате (674): сделку с долгом не закрыть без неё -->
+            <div class="card bg-base-100 shadow-sm hidden border border-error/30" id="promiseCard">
+                <div class="card-body p-4">
+                    <h3 class="font-bold mb-1">Договорённость об оплате</h3>
+                    <div id="promiseDebt" class="text-sm mb-2"></div>
+                    <div id="promiseList" class="space-y-1 mb-2"></div>
+                    <form id="promiseForm" onsubmit="savePaymentPromise(event)" class="space-y-2">
+                        <label class="flex items-start gap-2 text-sm cursor-pointer">
+                            <input type="checkbox" id="promiseContacted" class="checkbox checkbox-sm mt-0.5" required>
+                            <span>Связался с участником, напомнил об оплате</span>
+                        </label>
+                        <textarea id="promiseText" class="textarea textarea-bordered textarea-sm w-full" rows="2" required placeholder="О чём договорились: сколько и каким способом заплатит"></textarea>
+                        <label class="block text-xs opacity-70">Когда придут деньги
+                            <input type="date" id="promiseDue" class="input input-bordered input-sm w-full mt-1">
+                        </label>
+                        <button type="submit" class="btn btn-sm btn-primary w-full">Записать договорённость</button>
+                    </form>
+                </div>
+            </div>
+
             <!-- Чеклист гостя -->
             <div class="card shadow-sm transition-colors duration-500" id="checklistCard">
                 <div class="card-body p-4">
@@ -692,7 +712,7 @@ async function loadDeal() {
     renderSidebar();
     renderChecklist();
     renderFlightData();
-    await Promise.all([loadCounts(), loadPayments(), loadGuestHistory(), loadDealMembers(), loadPlacement(), loadRecentComms(), loadDealTerms()]);
+    await Promise.all([loadCounts(), loadPayments(), loadGuestHistory(), loadDealMembers(), loadPlacement(), loadRecentComms(), loadDealTerms(), loadPaymentPromise()]);
     loadParticipationCalc();   // расчёт стоимости — асинхронно, не блокирует карточку
     renderHeader(); // повторно — теперь с бейджем «повторный гость»
     loadTabData();
@@ -1837,6 +1857,20 @@ function renderHistoryTab() {
                                 </div>
                             </div>
                         `;
+                    } else if (item.itemType === 'comm' && item.type === 'payment_promise') {
+                        return `
+                            <div class="flex gap-3 p-3 border-l-4 border-error/40 bg-base-200/40 rounded-r-lg">
+                                <div class="w-8 h-8 flex items-center justify-center text-error"><svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-5 h-5"><path stroke-linecap="round" stroke-linejoin="round" d="M2.25 18.75a60.07 60.07 0 0 1 15.797 2.101c.727.198 1.453-.342 1.453-1.096V18.75M3.75 4.5v.75A.75.75 0 0 1 3 6h-.75m0 0v-.375c0-.621.504-1.125 1.125-1.125H20.25M2.25 6v9m18-10.5v.75c0 .414.336.75.75.75h.75m-1.5-1.5h.375c.621 0 1.125.504 1.125 1.125v9.75c0 .621-.504 1.125-1.125 1.125h-.375m1.5-1.5H21a.75.75 0 0 0-.75.75v.75m0 0H3.75m0 0h-.375a1.125 1.125 0 0 1-1.125-1.125V15m1.5 1.5v-.75A.75.75 0 0 0 3 15h-.75M15 10.5a3 3 0 1 1-6 0 3 3 0 0 1 6 0Zm3 0h.008v.008H18V10.5Zm-12 0h.008v.008H6V10.5Z" /></svg></div>
+                                <div class="flex-1">
+                                    <div class="text-xs font-semibold text-error">Договорённость об оплате${item.due_date ? ` · деньги к ${CrmUtils.formatDate(item.due_date)}` : ''}</div>
+                                    <div class="font-medium whitespace-pre-line">${e(item.summary)}</div>
+                                    <div class="text-xs text-base-content/50 mt-1">
+                                        ${CrmUtils.formatDateTime(item.created_at)}
+                                        ${item.created_by ? ` • ${e(CrmUtils.getGuestShortName(item.created_by))}` : ''}
+                                    </div>
+                                </div>
+                            </div>
+                        `;
                     } else if (item.itemType === 'comm') {
                         const svgIcon = CrmUtils.COMM_SVG_ICONS[item.type] || CrmUtils.COMM_SVG_ICONS.note;
                         return `
@@ -1892,6 +1926,14 @@ async function changeStatus(newStatus) {
         // Блокировка стадии из БД (ТЗ 1.6): текст объясняет, чего не хватает
         Layout.showNotification(error.message, 'error');
         document.getElementById('statusSelect').value = deal.status;
+        // Долг без договорённости (674): ведём к форме, после записи — закроем сами
+        if (error.hint === 'payment_promise_required') {
+            closeAfterPromise = true;
+            await loadPaymentPromise();
+            const card = document.getElementById('promiseCard');
+            card.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            document.getElementById('promiseText').focus();
+        }
         return;
     }
 
@@ -2461,6 +2503,60 @@ async function quickAddComm() {
     }
 }
 
+// ==================== ДОГОВОРЁННОСТЬ ОБ ОПЛАТЕ (674) ====================
+// Долг — из фин. журнала (crm_deal_debt), виден менеджеру без фин. прав.
+// Сделку с долгом база не пустит в «Ретрит завершён», пока нет договорённости после конца ретрита
+let closeAfterPromise = false;
+
+async function loadPaymentPromise() {
+    const [{ data: debt }, { data: promises }] = await Promise.all([
+        Layout.db.rpc('crm_deal_debt', { p_deal: dealId }),
+        Layout.db.from('crm_communications')
+            .select('summary, due_date, created_at, created_by:vaishnavas(spiritual_name, first_name)')
+            .eq('deal_id', dealId).eq('type', 'payment_promise')
+            .order('created_at', { ascending: false })
+    ]);
+    const card = document.getElementById('promiseCard');
+    const net = Number(debt?.net || 0);
+    const list = promises || [];
+    if (net <= 0.5 && !list.length) { card.classList.add('hidden'); return; }
+    card.classList.remove('hidden');
+    card.classList.toggle('border-error/30', net > 0.5);
+    document.getElementById('promiseDebt').innerHTML = net > 0.5
+        ? `<span class="text-error font-medium">Долг ${CrmUtils.formatMoney(Math.round(net), debt.currency)}</span>`
+          + (debt.has_promise ? '' : `<div class="text-xs opacity-70 mt-1">Свяжитесь с участником и запишите договорённость — без неё сделку не закрыть</div>`)
+        : '<span class="text-success">Долга нет</span>';
+    document.getElementById('promiseList').innerHTML = list.map(p => `
+        <div class="text-xs py-1 border-b border-base-200">
+            <div class="whitespace-pre-line">${e(p.summary)}</div>
+            <div class="opacity-50">${CrmUtils.formatDateTime(p.created_at)}${p.created_by ? ' · ' + e(CrmUtils.getGuestShortName(p.created_by)) : ''}${p.due_date ? ` · деньги к ${CrmUtils.formatDate(p.due_date)}` : ''}</div>
+        </div>`).join('');
+    document.getElementById('promiseForm').classList.toggle('hidden', net <= 0.5);
+}
+
+async function savePaymentPromise(event) {
+    event.preventDefault();
+    const text = document.getElementById('promiseText').value.trim();
+    if (!text) return;
+    const { error } = await Layout.db.from('crm_communications').insert({
+        deal_id: dealId, type: 'payment_promise', direction: 'outbound',
+        summary: text, due_date: document.getElementById('promiseDue').value || null,
+        created_by: window.currentUser?.vaishnava_id || null
+    });
+    if (error) { Layout.handleError(error, 'Договорённость об оплате'); return; }
+    await Layout.db.from('crm_deals').update({ last_contacted_at: new Date().toISOString() }).eq('id', dealId);
+    document.getElementById('promiseForm').reset();
+    Layout.showNotification('Договорённость записана', 'success');
+    await loadPaymentPromise();
+    loadRecentComms();
+    if (currentTab === 'history') { await loadHistory(); renderTab(); }
+    if (closeAfterPromise) {
+        closeAfterPromise = false;
+        await changeStatus('completed');
+        document.getElementById('statusSelect').value = deal.status;
+    }
+}
+
 // ==================== ПОСЛЕДНИЕ КОНТАКТЫ ====================
 async function loadRecentComms() {
     const { data } = await Layout.db
@@ -2478,7 +2574,7 @@ async function loadRecentComms() {
         return;
     }
 
-    const typeIcons = { call: '📞', whatsapp: '💬', telegram: '✈', email: '📧', note: '📝' };
+    const typeIcons = { call: '📞', whatsapp: '💬', telegram: '✈', email: '📧', note: '📝', payment_promise: '₹' };
 
     container.classList.remove('hidden');
     container.innerHTML = `<div class="text-xs opacity-50 mb-1">${t('crm_recent_contacts')} (${data.length})</div>` +

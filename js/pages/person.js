@@ -208,8 +208,9 @@ async function loadRegistrations(personId) {
 // их итог: стадия, условия, деньги, отказ, ссылка на переписку
 async function loadPersonDeals(personId) {
     const { data } = await Layout.db.from('crm_deals')
-        .select('id, retreat_id, status, cancellation_reason, checklist_accommodation, checklist_meals, manager:manager_id(spiritual_name, first_name, last_name), retreats(id, name_ru, name_en, name_hi, start_date, end_date), crm_communications(count)')
+        .select('id, retreat_id, status, cancellation_reason, checklist_accommodation, checklist_meals, manager:manager_id(spiritual_name, first_name, last_name), retreats(id, name_ru, name_en, name_hi, start_date, end_date), crm_communications(count), promises:crm_communications(summary, due_date, created_at, type)')
         .eq('vaishnava_id', personId)
+        .eq('promises.type', 'payment_promise')
         .order('created_at', { ascending: false });
     personDeals = data || [];
 
@@ -265,6 +266,12 @@ function renderDealSummary(retreatId) {
         if (charged > 0.5 || paid > 0.5 || Math.abs(net) > 0.5) {
             rows.push(`<div><span class="opacity-60">Начислено</span> ${formatDealMoney(charged, cur)} · <span class="opacity-60">оплачено</span> ${formatDealMoney(paid, cur)} · ${result}</div>`);
         }
+    }
+
+    // Договорённость об оплате (674) — последняя запись менеджера
+    const promise = (deal?.promises || []).sort((a, b) => b.created_at.localeCompare(a.created_at))[0];
+    if (promise) {
+        rows.push(`<div><span class="opacity-60">Договорённость об оплате:</span> ${e(promise.summary)}${promise.due_date ? ` <span class="opacity-60">· деньги к</span> ${formatDate(promise.due_date)}` : ''}</div>`);
     }
 
     if (deal) {

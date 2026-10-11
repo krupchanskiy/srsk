@@ -235,10 +235,14 @@ async function loadDebtorNotes() {
     const ids = Object.keys(dealPid);
     if (ids.length) {
         const { data } = await Layout.db.from('crm_communications')
-            .select('deal_id, summary, content, due_date, created_at')
-            .in('deal_id', ids).eq('type', 'note').not('summary', 'like', '[ИМПОРТ]%')
+            .select('deal_id, type, summary, content, due_date, created_at')
+            .in('deal_id', ids).in('type', ['note', 'payment_promise']).not('summary', 'like', '[ИМПОРТ]%')
             .order('created_at', { ascending: false });
-        (data || []).forEach(n => { const x = notes[dealPid[n.deal_id]]; if (x && !x.note) x.note = n; });
+        // Договорённость об оплате (674) важнее обычной заметки; старые долги — по последней заметке
+        (data || []).forEach(n => {
+            const x = notes[dealPid[n.deal_id]];
+            if (x && (!x.note || (n.type === 'payment_promise' && x.note.type !== 'payment_promise'))) x.note = n;
+        });
     }
     if (retreat !== currentRetreat) return;
     debtorNotes = notes;
@@ -248,8 +252,10 @@ async function loadDebtorNotes() {
 function строкаДоговорённости(p) {
     const d = debtorNotes[p.participant_id];
     if (!d || !(Number(p.balance.net) > 0.005)) return '';
-    if (!d.note) return `<div class="text-xs font-normal text-warning">Нет договорённости — добавьте заметку в карточке</div>`;
+    if (!d.note) return `<div class="text-xs font-normal text-warning">Нет договорённости об оплате — менеджер записывает её в сделке CRM</div>`;
     const n = d.note;
+    // Старая заметка — не договорённость (674): показываем, но с предупреждением
+    if (n.type !== 'payment_promise') return `<div class="text-xs font-normal text-warning">Нет договорённости об оплате · заметка ${DateUtils.formatShort(new Date(n.created_at))}: ${e(n.summary)}</div>`;
     const срок = n.due_date ? DateUtils.parseDate(n.due_date) : null;
     const сегодня = new Date(); сегодня.setHours(0, 0, 0, 0);
     const срокHtml = !срок ? ''
@@ -386,7 +392,7 @@ async function loadCardNotes() {
     const dealId = card.dealId;
     const { data } = await Layout.db.from('crm_communications')
         .select('summary, content, due_date, created_at, created_by:vaishnavas(spiritual_name, first_name)')
-        .eq('deal_id', dealId).eq('type', 'note')
+        .eq('deal_id', dealId).in('type', ['note', 'payment_promise'])
         .order('created_at', { ascending: false }).limit(20);
     if (card.dealId === dealId) renderCardNotes(data || []);
 }
@@ -411,13 +417,13 @@ function renderCardNotes(notes) {
         const текст = document.getElementById('cardNoteText').value.trim();
         if (!текст) return;
         const срок = document.getElementById('cardNoteDue').value || null;
-        if (await addDealNote(card.dealId, текст, null, срок)) { loadCardNotes(); loadDebtorNotes(); }
+        if (await addDealNote(card.dealId, текст, null, срок, 'payment_promise')) { loadCardNotes(); loadDebtorNotes(); }
     });
 }
 
-async function addDealNote(dealId, summary, content = null, dueDate = null) {
+async function addDealNote(dealId, summary, content = null, dueDate = null, type = 'note') {
     const { error } = await Layout.db.from('crm_communications').insert({
-        deal_id: dealId, type: 'note', direction: 'internal',
+        deal_id: dealId, type, direction: 'internal',
         summary, content, due_date: dueDate, created_by: window.currentUser?.vaishnava_id || null
     });
     if (error) { Layout.handleError(error, t('crm_note')); return false; }
