@@ -21,10 +21,27 @@
         /* шапка сайта закреплена — строку не прячем под ней */
         .sf-table tr { scroll-margin-top: 120px; }
         @media print {
-            #header-placeholder, #footer-placeholder, .no-print { display: none !important; }
+            /* layout.js заменяет заглушки настоящими header/footer */
+            #header-placeholder, #footer-placeholder, body > header, body > footer, .no-print { display: none !important; }
             body { background: #fff !important; }
-            main { padding: 0 !important; }
+            /* узкие поля листа; container на экране ограничивает ширину — на бумаге во всю ширину */
+            @page { size: A4; margin: 10mm; }
+            main.container { padding: 0 !important; margin: 0 !important; max-width: none !important; width: 100% !important; }
             .card { box-shadow: none !important; border: 1px solid #ddd !important; }
+            /* лист A4: мелкий шрифт — больше строк на странице (common.css ставит 18px с !important) */
+            main, main .card, main .table, main .text-sm, main .text-base { font-size: 11px !important; }
+            main h1 { font-size: 16px !important; margin-bottom: 0.4rem !important; }
+            main .text-3xl { font-size: 18px !important; }
+            main .text-xs { font-size: 9px !important; }
+            main .badge { font-size: 10px !important; padding: 0 0.4rem !important; }
+            main .card-body { padding: 0.5rem 0.7rem !important; }
+            main .card { margin-bottom: 0.5rem !important; }
+            /* таблица целиком на ширину листа — без прокрутки, обрезающей правые колонки */
+            main .overflow-x-auto { overflow: visible !important; }
+            main .sf-table { width: 100%; }
+            main .sf-table td { font-size: 10px !important; padding: 1px 4px !important; }
+            main .sf-table th { font-size: 8px !important; padding: 2px 4px !important; }
+            .sf-table tr { break-inside: avoid; }
         }
     </style>
 </head>
@@ -102,7 +119,7 @@
 <script src="../js/layout.js?v=84"></script>
 <script src="../js/date-utils.js?v=4"></script>
 <script src="../js/fin-utils.js?v=22"></script>
-<script src="../js/pages/fin-sales-fee.js?v=6"></script>
+<script src="../js/pages/fin-sales-fee.js?v=7"></script>
 
 </body>
 </html>

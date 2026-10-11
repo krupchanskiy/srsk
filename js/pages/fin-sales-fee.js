@@ -118,7 +118,7 @@ function renderSummary() {
     } else {
         fixHtml = `<div class="text-sm"><span class="badge badge-success badge-sm">${e(t('fin_sales_fee_fixed'))}</span>
             ${e(fmtDate(fx.created_at))}${fx.created_by_name ? ' · ' + e(fx.created_by_name) : ''}:
-            ${fx.qualified_count} × ${fmtRub(fx.rate_rub)} = <b>${fmtRub(fx.amount_rub)}</b>${fx.comment ? ' · ' + e(fx.comment) : ''}</div>`;
+            <span class="whitespace-nowrap">${fx.qualified_count} × ${fmtRub(fx.rate_rub)} = <b>${fmtRub(fx.amount_rub)}</b></span>${fx.comment ? ' · ' + e(fx.comment) : ''}</div>`;
         if (diff.changed) {
             const names = (list, sign) => list.map(r => `${sign} ${e(r.name)}`).join(', ');
             fixHtml += `<div class="alert alert-info mt-2 py-2 text-sm block">
