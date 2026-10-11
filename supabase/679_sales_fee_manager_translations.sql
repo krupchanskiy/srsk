@@ -1,4 +1,4 @@
--- 676: переводы для разбивки «Процента отделу продаж» по менеджерам (миграция 675)
+-- 679 (в журнале базы — 676_sales_fee_manager_translations): переводы для разбивки «Процента отделу продаж» по менеджерам (миграция 678)
 insert into translations (key, ru, en, hi) values
   ('fin_sales_fee_col_manager', 'Менеджер', 'Manager', 'प्रबंधक'),
   ('fin_sales_fee_by_manager', 'По менеджерам', 'By manager', 'प्रबंधक अनुसार'),
