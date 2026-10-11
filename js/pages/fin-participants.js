@@ -267,7 +267,7 @@ function строкаДоговорённости(p) {
 
 // Аванс у уехавшего (678): менеджер CRM выясняет и записывает решение в сделке —
 // оставить авансом / пожертвовать / вернуть. Проводку делает финансист
-const РЕШЕНИЯ_АВАНСА = { keep: 'оставить авансом на следующий ретрит', donate: 'пожертвовать', refund: 'вернуть' };
+const РЕШЕНИЯ_АВАНСА = { keep: 'оставить авансом на следующий ретрит', deposit: 'оставить на балансе (без ретрита)', retreat: 'перенести на ретрит', donate: 'пожертвовать', refund: 'вернуть', split: 'по частям' };
 let advanceDecisions = {}; // participant_id -> последняя запись advance_decision
 async function loadAdvanceDecisions() {
     const retreat = currentRetreat;
@@ -296,7 +296,7 @@ function строкаАванса(p) {
     if (!n || !(Number(p.balance.net) < -0.005)) return '';
     const решение = РЕШЕНИЯ_АВАНСА[n.content] || n.content || '';
     const комм = n.summary && n.summary.toLowerCase() !== решение.toLowerCase() ? ` — ${e(n.summary)}` : '';
-    return `<div class="text-xs font-normal" style="color:#a16207">Решение по авансу (CRM, ${DateUtils.formatShort(new Date(n.created_at))}): ${e(решение)}${комм}</div>`;
+    return `<div class="text-xs font-normal whitespace-pre-line" style="color:#a16207">Решение по авансу (CRM, ${DateUtils.formatShort(new Date(n.created_at))}): ${e(решение)}${комм} · проводится на главной Финансов</div>`;
 }
 
 function crmCancelledBadge(p) {

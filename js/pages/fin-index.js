@@ -414,10 +414,172 @@ async function onDepositAction(ev) {
     if (rpc === 'fin_deposit_refund') loadDashboard();
 }
 
+// ==================== Решения по авансам (680) ====================
+// Менеджер CRM записал, что делать с переплатой уехавшего («сумма → куда»).
+// Финансист проверяет, при необходимости правит сумму/ретрит и проводит строку кнопкой
+const РЕШЕНИЯ = {
+    donate: 'Пожертвовать',
+    deposit: 'Оставить на балансе гостя (без ретрита)',
+    retreat: 'Перенести на ретрит',
+    refund: 'Вернуть деньгами'
+};
+let advDecisions = [];
+let advRetreats = [];
+
+async function loadAdvanceDecisions() {
+    const box = document.getElementById('finAdvanceDecisions');
+    if (!box) return;
+    const [{ data, error }, { data: rts }] = await Promise.all([
+        Layout.db.from('crm_advance_decisions')
+            .select('id, deal_id, participant_id, retreat_id, currency, amount, lines, note, created_at, person:participant_id(spiritual_name, first_name, last_name), retreat:retreat_id(name_ru, name_en), manager:created_by(spiritual_name, first_name)')
+            .order('created_at', { ascending: false }),
+        Layout.db.from('retreats').select('id, name_ru, name_en, start_date')
+            .gte('end_date', FinUtils.todayISO()).eq('is_system', false).order('start_date')
+    ]);
+    if (error) { console.warn('crm_advance_decisions', error); return; }
+    advRetreats = rts || [];
+    // по сделке действует последнее решение; ждут — строки без отметки «проведено»
+    const seen = new Set();
+    advDecisions = (data || []).filter(d => !seen.has(d.deal_id) && seen.add(d.deal_id))
+        .filter(d => (d.lines || []).some(l => !l.done_at));
+    if (!advDecisions.length) { box.classList.add('hidden'); box.innerHTML = ''; return; }
+    const admin = window.hasPermission?.('fin_admin');
+    box.innerHTML = `<div class="card bg-base-100 border-2" style="border-color:#16a34a"><div class="card-body">
+        <div class="flex items-center gap-2 flex-wrap">
+            <h2 class="font-semibold" style="color:#15803d">Авансы: решения менеджеров ждут проводки</h2>
+            <span class="badge border-0 text-white" style="background:#16a34a">${advDecisions.length}</span>
+        </div>
+        <div class="text-xs opacity-60 mb-2">Человек уехал с переплатой, менеджер выяснил, что с ней делать. Проверьте сумму и ретрит — при ошибке поправьте — и нажмите «Провести».</div>
+        <div class="divide-y divide-base-200">${advDecisions.map(d => advDecisionHtml(d, admin)).join('')}</div>
+    </div></div>`;
+    box.classList.remove('hidden');
+    box.querySelectorAll('[data-adv-act]').forEach(btn => btn.addEventListener('click', onAdvanceAction));
+}
+
+function advDecisionHtml(d, admin) {
+    const p = d.person || {};
+    const имя = p.spiritual_name || `${p.first_name || ''} ${p.last_name || ''}`.trim();
+    const ссылка = `participants.html?retreat=${encodeURIComponent(d.retreat_id)}&open=${encodeURIComponent(d.participant_id)}`;
+    const менеджер = d.manager ? (d.manager.spiritual_name || d.manager.first_name || '') : '';
+    return `<div class="py-2">
+        <div class="flex items-baseline gap-2 flex-wrap">
+            <a class="font-medium link" href="${ссылка}">${e(имя)}</a>
+            <span class="text-sm opacity-60">${e(Layout.getName(d.retreat) || '')}</span>
+            <span class="font-mono">аванс ${FinUtils.fmtMoney(d.amount, d.currency)}</span>
+            <span class="text-xs opacity-60">${DateUtils.formatShort(new Date(d.created_at))}${менеджер ? ' · ' + e(менеджер) : ''}</span>
+        </div>
+        ${d.note ? `<div class="text-xs opacity-70 whitespace-pre-line">${e(d.note)}</div>` : ''}
+        <div class="mt-1 space-y-1">${(d.lines || []).map(l => advLineHtml(d, l, admin)).join('')}</div>
+    </div>`;
+}
+
+function advLineHtml(d, l, admin) {
+    const attrs = `data-dec="${e(d.id)}" data-op="${e(l.op_id)}"`;
+    if (l.done_at) {
+        return `<div class="text-sm opacity-60">✓ ${e(РЕШЕНИЯ[l.action] || l.action)} — ${FinUtils.fmtMoney(l.amount, d.currency)}, проведено</div>`;
+    }
+    let куда = '';
+    if (l.action === 'retreat' || l.action === 'deposit') {
+        куда = `<select class="select select-bordered select-xs" data-adv-to>
+            <option value="" ${l.action === 'deposit' ? 'selected' : ''}>на баланс гостя (без ретрита)</option>
+            ${advRetreats.filter(r => r.id !== d.retreat_id).map(r => `<option value="${e(r.id)}" ${r.id === l.retreat_id ? 'selected' : ''}>${e(Layout.getName(r))}</option>`).join('')}
+        </select>`;
+    } else if (l.action === 'refund') {
+        const счета = FinUtils.refs.accounts.filter(a => a.is_active && a.currency_code === d.currency)
+            .map(a => `<option value="${e(a.account_id)}">${e(a.name)}</option>`).join('');
+        куда = счета ? `<select class="select select-bordered select-xs" data-adv-account>${счета}</select>`
+            : `<span class="text-xs text-warning">нет счёта в ${e(d.currency)} — верните из карточки участника</span>`;
+    }
+    return `<div class="flex items-center gap-2 flex-wrap text-sm" data-adv-line>
+        <span class="min-w-40">${e(РЕШЕНИЯ[l.action] || l.action)}</span>
+        <input type="number" step="0.01" min="0.01" class="input input-bordered input-xs w-28" value="${e(l.amount)}" data-adv-amount ${admin ? '' : 'disabled'}>
+        <span class="text-xs opacity-60">${e(d.currency)}</span>
+        ${admin ? куда : ''}
+        ${admin ? `<button class="btn btn-xs btn-success text-white" data-adv-act="run" data-action="${e(l.action)}" ${attrs}>Провести</button>
+                   <button class="btn btn-xs btn-ghost" data-adv-act="done" ${attrs} title="Уже проведено вручную — убрать из списка">уже сделано</button>` : ''}
+    </div>`;
+}
+
+// Пожертвование из переплаты — как «Оставить пожертвованием» в карточке участника:
+// компенсирующее начисление по блокам, где переплата (общий аванс — к первому блоку с начислением)
+async function donateAdvance(d, сумма, opId) {
+    const { data: b } = await Layout.db.rpc('fin_get_participant_balance', { p_participant: d.participant_id, p_retreat: d.retreat_id });
+    const BLOCKS = ['org_fee', 'accommodation', 'meals', 'extra'];
+    const авансы = BLOCKS.map(k => ({ k, v: -(Number(b?.blocks?.[k]?.balance) || 0) })).filter(x => x.v > 0.005);
+    const общий = Number(b?.general_advance) || 0;
+    if (общий > 0.005) авансы.push({ k: BLOCKS.find(k => Number(b?.blocks?.[k]?.charged) > 0) || 'org_fee', v: общий });
+    const rows = [];
+    let остаток = сумма;
+    for (const { k, v } of авансы) {
+        if (остаток <= 0.005) break;
+        const часть = Math.round(Math.min(v, остаток) * 100) / 100;
+        rows.push({
+            id: rows.length ? FinUtils.newRequestId() : opId,
+            participant_id: d.participant_id, retreat_id: d.retreat_id, kind: k,
+            description: Layout.t('fin_donation_excess'), quantity: 1, unit_price: часть,
+            discount_amount: null, discount_reason: null, agreed_with: null,
+            creation_reason: `Излишек оставлен как пожертвование — решение менеджера CRM${d.note ? ': ' + d.note : ''}`
+        });
+        остаток -= часть;
+    }
+    if (остаток > 0.5) return { ok: false, error: { message: `Аванса меньше, чем нужно пожертвовать: не хватает ${FinUtils.fmtMoney(остаток, d.currency)}` } };
+    return await FinUtils.rpc('fin_create_charge', { rows });
+}
+
+async function onAdvanceAction(ev) {
+    const b = ev.currentTarget;
+    const d = advDecisions.find(x => x.id === b.dataset.dec);
+    const l = d?.lines.find(x => x.op_id === b.dataset.op);
+    if (!d || !l) return;
+    const row = b.closest('[data-adv-line]');
+    const p = d.person || {};
+    const кто = p.spiritual_name || `${p.first_name || ''} ${p.last_name || ''}`.trim();
+    if (b.dataset.advAct === 'done') {
+        if (!confirm(`Отметить «${РЕШЕНИЯ[l.action]}» у ${кто} проведённым, ничего не проводя?`)) return;
+    } else {
+        const сумма = Number(row.querySelector('[data-adv-amount]').value);
+        if (!(сумма > 0)) { alert('Укажите сумму'); return; }
+        let res;
+        if (l.action === 'donate') {
+            if (!confirm(`${кто}: оставить ${FinUtils.fmtMoney(сумма, d.currency)} пожертвованием?`)) return;
+            b.disabled = true;
+            res = await donateAdvance(d, сумма, l.op_id);
+        } else if (l.action === 'refund') {
+            const sel = row.querySelector('[data-adv-account]');
+            if (!sel) return;
+            const дата = prompt(`Вернуть ${FinUtils.fmtMoney(сумма, d.currency)} ${кто} со счёта «${sel.selectedOptions[0].text}». Дата возврата:`, FinUtils.todayISO());
+            if (дата === null) return;
+            b.disabled = true;
+            res = await FinUtils.rpc('fin_refund_advance', {
+                request_id: l.op_id, participant_id: d.participant_id, retreat_id: d.retreat_id,
+                account_id: sel.value, amount: сумма, occurred_on: дата.trim() || FinUtils.todayISO(),
+                reason: `Возврат аванса — решение менеджера CRM${d.note ? ': ' + d.note : ''}`, payment_channel: 'cash'
+            });
+        } else {
+            const sel = row.querySelector('[data-adv-to]');
+            const куда = sel.value ? `на «${sel.selectedOptions[0].text}»` : 'на баланс гостя (без ретрита)';
+            if (!confirm(`${кто}: перенести ${FinUtils.fmtMoney(сумма, d.currency)} ${куда}?`)) return;
+            b.disabled = true;
+            res = await FinUtils.rpc('fin_advance_move', {
+                request_id: l.op_id, participant_id: d.participant_id, from_retreat_id: d.retreat_id,
+                to_retreat_id: sel.value || null, amount: сумма
+            });
+        }
+        if (!FinUtils.handleResult(res)) { b.disabled = false; return; }
+    }
+    b.disabled = true;
+    const { data: r2, error } = await Layout.db.rpc('fin_advance_decision_line_done', { p_decision: d.id, p_op: l.op_id });
+    if (error || !r2?.ok) alert(`Проведено, но отметка не записалась: ${error?.message || r2?.error?.message || ''}`);
+    loadAdvanceDecisions();
+    loadDeposits();
+    if (l.action === 'refund') loadDashboard();
+}
+
 async function init() {
     await Layout.init({ module: 'finance', menuId: 'fin_main', itemId: 'fin_main' });
     await loadDashboard();
     loadSignals();
+    loadAdvanceDecisions();
     loadDeposits();
 }
 

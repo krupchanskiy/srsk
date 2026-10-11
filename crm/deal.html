@@ -144,11 +144,12 @@
                     <div id="advanceSum" class="text-sm mb-2"></div>
                     <div id="advanceList" class="space-y-1 mb-2"></div>
                     <form id="advanceForm" onsubmit="saveAdvanceDecision(event)" class="space-y-2">
-                        <div class="text-xs opacity-70">Что делаем с деньгами:</div>
-                        <label class="flex items-center gap-2 text-sm cursor-pointer"><input type="radio" name="advanceDecision" value="keep" class="radio radio-sm" required> Оставить авансом на следующий ретрит</label>
-                        <label class="flex items-center gap-2 text-sm cursor-pointer"><input type="radio" name="advanceDecision" value="donate" class="radio radio-sm"> Пожертвовать</label>
-                        <label class="flex items-center gap-2 text-sm cursor-pointer"><input type="radio" name="advanceDecision" value="refund" class="radio radio-sm"> Вернуть</label>
-                        <textarea id="advanceNote" class="textarea textarea-bordered textarea-sm w-full bg-base-100" rows="2" placeholder="Комментарий: на какой ретрит, куда и как вернуть"></textarea>
+                        <div class="text-xs opacity-70">Что делаем с деньгами (можно разделить на части):</div>
+                        <div id="advanceLines" class="space-y-2"></div>
+                        <button type="button" class="btn btn-xs btn-ghost" onclick="addAdvanceLine()">+ Разделить на части</button>
+                        <div id="advanceRest" class="text-xs"></div>
+                        <textarea id="advanceNote" class="textarea textarea-bordered textarea-sm w-full bg-base-100" rows="2" placeholder="Комментарий: что сказал участник, куда и как вернуть"></textarea>
+                        <div class="text-xs opacity-70">Деньги проведёт финансист — вы только записываете решение</div>
                         <button type="submit" class="btn btn-sm btn-warning w-full">Записать решение</button>
                     </form>
                 </div>
@@ -2549,51 +2550,123 @@ async function savePaymentPromise(event) {
     }
 }
 
-// ==================== АВАНС У УЕХАВШЕГО (678) ====================
-// Переплата после отъезда: менеджер выясняет у участника и записывает решение.
-// Проводку (зачёт на другой ретрит, пожертвование, возврат) делают в Финансах
-const ADVANCE_DECISIONS = { keep: 'Оставить авансом на следующий ретрит', donate: 'Пожертвовать', refund: 'Вернуть' };
+// ==================== АВАНС У УЕХАВШЕГО (678, 680) ====================
+// Переплата после отъезда: менеджер выясняет у участника и записывает решение строками
+// «сумма → куда» (crm_advance_decisions). Деньги двигает только финансист — кнопкой «Провести»
+// в «Участниках и оплатах»; там же он может поправить сумму или ретрит
+const ADVANCE_DECISIONS = {
+    donate: 'Пожертвовать',
+    deposit: 'Оставить на балансе (ещё не знает, когда приедет)',
+    retreat: 'Перенести на ретрит',
+    refund: 'Вернуть деньгами',
+    split: 'По частям'
+};
+let advanceState = { amount: 0, currency: 'INR', retreats: [] };
 
 async function loadAdvanceCard() {
-    const [{ data: rows }, { data: list }] = await Promise.all([
+    const today = DateUtils.toISO(new Date());
+    const [{ data: rows }, { data: list }, { data: rts }] = await Promise.all([
         Layout.db.rpc('crm_deals_after_departure', { p_deal_ids: [dealId] }),
-        Layout.db.from('crm_communications')
-            .select('summary, content, created_at, created_by:vaishnavas(spiritual_name, first_name)')
-            .eq('deal_id', dealId).eq('type', 'advance_decision')
-            .order('created_at', { ascending: false })
+        Layout.db.from('crm_advance_decisions')
+            .select('id, amount, currency, lines, note, created_at, created_by:vaishnavas(spiritual_name, first_name)')
+            .eq('deal_id', dealId).order('created_at', { ascending: false }),
+        Layout.db.from('retreats').select('id, name_ru, name_en, start_date')
+            .gte('end_date', today).eq('is_system', false).order('start_date')
     ]);
     const x = rows?.[0];
     const card = document.getElementById('advanceCard');
     const net = Number(x?.net || 0);
     if (!(net < -0.5) && !list?.length) { card.classList.add('hidden'); return; }
     card.classList.remove('hidden');
+    advanceState = { amount: Math.round(-net * 100) / 100, currency: x?.currency || 'INR', retreats: (rts || []).filter(r => r.id !== deal.retreat_id) };
+    const fmt = v => CrmUtils.formatMoney(v, advanceState.currency);
     document.getElementById('advanceSum').innerHTML = net < -0.5
-        ? `<span class="text-lg font-bold" style="color:#a16207">Переплата ${CrmUtils.formatMoney(Math.round(-net), x.currency)}</span>`
+        ? `<span class="text-lg font-bold" style="color:#a16207">Переплата ${fmt(Math.round(-net))}</span>`
           + (list?.length ? '' : `<div class="text-xs opacity-70 mt-1">Участник уехал, а деньги остались. Выясните, что с ними сделать, и запишите решение</div>`)
         : '<span class="opacity-70">Аванса больше нет</span>';
-    document.getElementById('advanceList').innerHTML = (list || []).map(a => `
-        <div class="text-xs py-1 border-b border-yellow-300">
-            <div class="font-semibold">${e(ADVANCE_DECISIONS[a.content] || a.content || '')}</div>
-            ${a.summary ? `<div class="whitespace-pre-line">${e(a.summary)}</div>` : ''}
+    const имяРетрита = id => { const r = advanceState.retreats.find(r => r.id === id); return r ? Layout.getName(r) : 'ретрит'; };
+    document.getElementById('advanceList').innerHTML = (list || []).map((a, i) => `
+        <div class="text-xs py-1 border-b border-yellow-300 ${i > 0 ? 'opacity-50' : ''}">
+            ${i > 0 ? '<div class="italic">Прежнее решение</div>' : ''}
+            ${(a.lines || []).map(l => `<div class="flex justify-between gap-2">
+                <span>${e(ADVANCE_DECISIONS[l.action] || l.action)}${l.action === 'retreat' ? ' «' + e(имяРетрита(l.retreat_id)) + '»' : ''}</span>
+                <span class="whitespace-nowrap font-mono">${CrmUtils.formatMoney(l.amount, a.currency)} ${l.done_at ? '<span class="text-success">✓ проведено</span>' : '<span class="opacity-60">ждёт финансы</span>'}</span>
+            </div>`).join('')}
+            ${a.note ? `<div class="whitespace-pre-line mt-0.5">${e(a.note)}</div>` : ''}
             <div class="opacity-50">${CrmUtils.formatDateTime(a.created_at)}${a.created_by ? ' · ' + e(CrmUtils.getGuestShortName(a.created_by)) : ''}</div>
         </div>`).join('');
-    document.getElementById('advanceForm').classList.toggle('hidden', !(net < -0.5));
+    const form = document.getElementById('advanceForm');
+    form.classList.toggle('hidden', !(net < -0.5));
+    if (net < -0.5) { document.getElementById('advanceLines').innerHTML = ''; addAdvanceLine(advanceState.amount); }
+}
+
+function addAdvanceLine(amount = null) {
+    const box = document.getElementById('advanceLines');
+    if (amount == null) amount = Math.max(advanceState.amount - advanceLinesSum(), 0);
+    const opts = Object.entries(ADVANCE_DECISIONS).filter(([k]) => k !== 'split')
+        .map(([k, v]) => `<option value="${k}">${e(v)}</option>`).join('');
+    const rts = advanceState.retreats.map(r => `<option value="${r.id}">${e(Layout.getName(r))}</option>`).join('');
+    box.insertAdjacentHTML('beforeend', `
+        <div class="adv-line rounded-lg bg-base-100 p-2 space-y-1">
+            <div class="flex gap-1">
+                <select class="select select-bordered select-xs flex-1 adv-action" required>
+                    <option value="">Что делаем…</option>${opts}
+                </select>
+                <input type="number" step="0.01" min="0.01" class="input input-bordered input-xs w-24 adv-amount" value="${amount || ''}" required title="Сумма в ${advanceState.currency}">
+                ${box.children.length ? '<button type="button" class="btn btn-xs btn-ghost adv-remove" title="Убрать строку">×</button>' : ''}
+            </div>
+            <select class="select select-bordered select-xs w-full adv-retreat hidden"><option value="">На какой ретрит…</option>${rts}</select>
+        </div>`);
+    const line = box.lastElementChild;
+    line.querySelector('.adv-action').addEventListener('change', ev => {
+        line.querySelector('.adv-retreat').classList.toggle('hidden', ev.target.value !== 'retreat');
+    });
+    line.querySelector('.adv-amount').addEventListener('input', renderAdvanceRest);
+    line.querySelector('.adv-remove')?.addEventListener('click', () => { line.remove(); renderAdvanceRest(); });
+    renderAdvanceRest();
+}
+
+function advanceLinesSum() {
+    return [...document.querySelectorAll('#advanceLines .adv-amount')].reduce((s, el) => s + (Number(el.value) || 0), 0);
+}
+
+function renderAdvanceRest() {
+    const rest = Math.round((advanceState.amount - advanceLinesSum()) * 100) / 100;
+    document.getElementById('advanceRest').innerHTML = Math.abs(rest) <= 0.5 ? ''
+        : rest > 0 ? `<span class="text-warning">Не распределено ${CrmUtils.formatMoney(rest, advanceState.currency)}</span>`
+        : `<span class="text-error">Больше аванса на ${CrmUtils.formatMoney(-rest, advanceState.currency)}</span>`;
 }
 
 async function saveAdvanceDecision(event) {
     event.preventDefault();
-    const form = document.getElementById('advanceForm');
-    const decision = form.querySelector('input[name="advanceDecision"]:checked')?.value;
-    if (!decision) return;
+    const lines = [...document.querySelectorAll('#advanceLines .adv-line')].map(el => ({
+        op_id: crypto.randomUUID(),
+        action: el.querySelector('.adv-action').value,
+        amount: Math.round((Number(el.querySelector('.adv-amount').value) || 0) * 100) / 100,
+        ...(el.querySelector('.adv-action').value === 'retreat' ? { retreat_id: el.querySelector('.adv-retreat').value || null } : {})
+    }));
+    if (lines.some(l => l.action === 'retreat' && !l.retreat_id)) { Layout.showNotification('Выберите ретрит, на который перенести аванс', 'error'); return; }
+    if (Math.abs(advanceState.amount - advanceLinesSum()) > 0.5) {
+        Layout.showNotification(`Строки должны в сумме дать весь аванс — ${CrmUtils.formatMoney(advanceState.amount, advanceState.currency)}`, 'error');
+        return;
+    }
     const note = document.getElementById('advanceNote').value.trim();
-    const { error } = await Layout.db.from('crm_communications').insert({
-        deal_id: dealId, type: 'advance_decision', direction: 'internal',
-        summary: note || ADVANCE_DECISIONS[decision], content: decision,
+    const { error } = await Layout.db.from('crm_advance_decisions').insert({
+        deal_id: dealId, participant_id: deal.vaishnava_id, retreat_id: deal.retreat_id,
+        currency: advanceState.currency, amount: advanceState.amount, lines, note: note || null,
         created_by: window.currentUser?.vaishnava_id || null
     });
     if (error) { Layout.handleError(error, 'Аванс'); return; }
-    form.reset();
-    Layout.showNotification('Решение по авансу записано — финансы увидят его в «Участниках и оплатах»', 'success');
+    // В историю сделки — словами; на канбане значок показывает решение
+    const имяРетрита = id => { const r = advanceState.retreats.find(r => r.id === id); return r ? Layout.getName(r) : ''; };
+    const текст = lines.map(l => `${ADVANCE_DECISIONS[l.action]}${l.action === 'retreat' ? ' «' + имяРетрита(l.retreat_id) + '»' : ''}: ${CrmUtils.formatMoney(l.amount, advanceState.currency)}`).join('\n');
+    await Layout.db.from('crm_communications').insert({
+        deal_id: dealId, type: 'advance_decision', direction: 'internal',
+        summary: текст + (note ? '\n' + note : ''), content: lines.length > 1 ? 'split' : lines[0].action,
+        created_by: window.currentUser?.vaishnava_id || null
+    });
+    document.getElementById('advanceNote').value = '';
+    Layout.showNotification('Решение записано — финансы проведут его в «Участниках и оплатах»', 'success');
     await loadAdvanceCard();
     loadRecentComms();
     if (currentTab === 'history') { await loadHistory(); renderTab(); }

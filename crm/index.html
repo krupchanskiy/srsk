@@ -266,7 +266,7 @@ async function loadDeparted() {
     (data || []).forEach(x => { departedByDeal[x.deal_id] = x; });
 }
 
-const ADVANCE_DECISIONS = { keep: 'оставить авансом', donate: 'пожертвовать', refund: 'вернуть' };
+const ADVANCE_DECISIONS = { keep: 'оставить авансом', deposit: 'оставить на балансе', retreat: 'перенести на ретрит', donate: 'пожертвовать', refund: 'вернуть', split: 'по частям' };
 
 // Плашка уехавшего — внизу карточки во всю ширину (верхний угол — маркерам):
 // красная «Долг», зелёная «Можно завершать», жёлтая «Аванс — уточнить»
