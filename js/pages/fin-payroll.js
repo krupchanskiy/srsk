@@ -75,6 +75,8 @@ function buildGroups() {
         const ids = new Set(g.positions.map(p => p.id));
         g.current = current;
         g.employee_name = shown.employee_name;
+        g.vaishnava_id = shown.vaishnava_id;
+        g.telegram_enabled = shown.telegram_enabled !== false;
         g.department_id = shown.department_id;
         g.department_name = shown.department_name;
         g.position_title = shown.position_title;
@@ -109,6 +111,20 @@ function balanceBadge(g) {
     return `<span class="badge badge-success badge-sm">${t('fin_payroll_settled')}</span>`;
 }
 
+// Телеграм у человека (684): выключен — ни строки в чат, ни лички, ни ожидания «Получил»
+const tgIcon = `<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-3.5 h-3.5"><path stroke-linecap="round" stroke-linejoin="round" d="M6 12 3.269 3.125A59.769 59.769 0 0 1 21.485 12 59.768 59.768 0 0 1 3.27 20.875L5.999 12Zm0 0h7.5"/></svg>`;
+
+function telegramToggleHtml(g) {
+    return g.telegram_enabled
+        ? `<button type="button" class="btn btn-ghost btn-xs px-1 opacity-60" data-tg-toggle="${g.vaishnava_id}" data-tg-enabled="1" title="${e(t('fin_payroll_tg_on'))}">${tgIcon}</button>`
+        : `<button type="button" class="badge badge-ghost badge-sm gap-1 cursor-pointer line-through" data-tg-toggle="${g.vaishnava_id}" data-tg-enabled="0" title="${e(t('fin_payroll_tg_off'))}">${tgIcon}${t('fin_payroll_tg_off_short')}</button>`;
+}
+
+async function toggleTelegram(vaishnavaId, enable) {
+    const res = await FinUtils.rpc('fin_payroll_set_telegram', { vaishnava_id: vaishnavaId, enabled: enable });
+    if (FinUtils.handleResult(res)) await load();
+}
+
 const chevron = `<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="w-3 h-3 inline transition-transform"><path stroke-linecap="round" stroke-linejoin="round" d="m8.25 4.5 7.5 7.5-7.5 7.5"/></svg>`;
 
 function rowHtml(g) {
@@ -120,6 +136,7 @@ function rowHtml(g) {
             <button type="button" class="inline-flex items-center gap-1 hover:underline" data-toggle="${g.key}">
                 <span class="${isOpen ? 'rotate-90' : ''}">${chevron}</span>${e(g.employee_name)}
             </button>
+            ${telegramToggleHtml(g)}
             ${!g.is_current ? ` <span class="badge badge-ghost badge-xs">${t('fin_payroll_ended_on')} ${DateUtils.formatShort(DateUtils.parseDate(g.ended_on))}</span>` : ''}
         </td>
         <td>${e(g.position_title)}</td>
@@ -384,9 +401,9 @@ async function init() {
 
     // Кэш переводов в браузере живёт долго и не знает про новые ключи: вместо
     // «fin_payroll_range_all_short» на экране — один раз сбрасываем и перечитываем
-    if (['fin_payroll_range_all_short', 'fin_payroll_ended_on', 'fin_payroll_invite_text'].some(k => t(k) === k)
-        && !sessionStorage.getItem('payrollTrReload2')) {
-        sessionStorage.setItem('payrollTrReload2', '1');
+    if (['fin_payroll_range_all_short', 'fin_payroll_ended_on', 'fin_payroll_invite_text', 'fin_payroll_tg_off_short'].some(k => t(k) === k)
+        && !sessionStorage.getItem('payrollTrReload3')) {
+        sessionStorage.setItem('payrollTrReload3', '1');
         Cache.invalidate('translations_v55');
         location.reload();
         return;
@@ -397,7 +414,9 @@ async function init() {
         const toggleBtn = ev.target.closest('[data-toggle]');
         const accrueBtn = ev.target.closest('[data-accrue]');
         const inviteBtn = ev.target.closest('[data-invite]');
-        if (inviteBtn) copyInvite(inviteBtn.dataset.invite);
+        const tgBtn = ev.target.closest('[data-tg-toggle]');
+        if (tgBtn) toggleTelegram(tgBtn.dataset.tgToggle, tgBtn.dataset.tgEnabled !== '1');
+        else if (inviteBtn) copyInvite(inviteBtn.dataset.invite);
         else if (payBtn) openPayModal(payBtn.dataset.pay);
         else if (accrueBtn) openAccrueModal(accrueBtn.dataset.accrue);
         else if (toggleBtn) toggleDetail(toggleBtn.dataset.toggle);
