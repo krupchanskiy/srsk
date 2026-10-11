@@ -141,6 +141,7 @@
     <div class="flex gap-4 mb-4 text-sm flex-wrap">
         <span id="statsTotal" class="text-base-content/70">—</span>
         <span id="statsOverdue" class="text-error hidden">—</span>
+        <span id="statsHidden" class="text-base-content/60 hidden"></span>
     </div>
 
     <!-- Канбан -->
@@ -175,6 +176,26 @@ let dealTaskCounts = {}; // { dealId: { overdue, today, planned } }
 
 // Статусы для канбана
 const KANBAN_STATUSES = ['lead', 'working', 'invoiced', 'booked', 'checklist', 'ready', 'completed', 'cancelled'];
+
+// Завершённые и отказы уходят с доски через 2 недели после конца ретрита.
+// Сделка не удаляется: она в поиске, в списке «Сделки» и по кнопке «показать»
+const HIDE_CLOSED_AFTER_DAYS = 14;
+let showHiddenClosed = false;
+let hiddenClosedCount = 0;
+
+function isClosedLongAgo(d) {
+    if (d.status !== 'completed' && d.status !== 'cancelled') return false;
+    if (!d.retreats?.end_date) return false;
+    const limit = DateUtils.parseDate(d.retreats.end_date);
+    limit.setDate(limit.getDate() + HIDE_CLOSED_AFTER_DAYS);
+    const now = new Date();
+    return limit < new Date(now.getFullYear(), now.getMonth(), now.getDate());
+}
+
+function toggleHiddenClosed() {
+    showHiddenClosed = !showHiddenClosed;
+    applyFilters();
+}
 
 // ==================== DATA ====================
 async function loadRetreats() {
@@ -285,6 +306,7 @@ function applyFilters() {
     const search = document.getElementById('filterSearch').value.trim().toLowerCase();
     const currentUserId = window.currentUser?.vaishnava_id;
 
+    hiddenClosedCount = 0;
     filteredDeals = deals.filter(d => {
         if (manager === 'my' && d.manager_id !== currentUserId) return false;
         if (manager === 'unassigned' && d.manager_id) return false;
@@ -306,6 +328,8 @@ function applyFilters() {
             ].filter(Boolean).join(' ').toLowerCase();
             if (!haystack.includes(search)) return false;
         }
+        // При поиске по имени показываем и старые закрытые — человека ищут целиком
+        if (!showHiddenClosed && !search && isClosedLongAgo(d)) { hiddenClosedCount++; return false; }
         return true;
     });
 
@@ -320,6 +344,16 @@ function renderStats() {
     const active = filteredDeals.filter(d => CrmUtils.isActive(d)).length;
 
     document.getElementById('statsTotal').textContent = `${t('crm_total')}: ${total} | ${t('crm_active')}: ${active}`;
+
+    const hiddenEl = document.getElementById('statsHidden');
+    if (hiddenClosedCount > 0 || showHiddenClosed) {
+        hiddenEl.innerHTML = showHiddenClosed
+            ? `Показаны и старые закрытые · <a class="link" onclick="toggleHiddenClosed()">скрыть</a>`
+            : `Скрыто закрытых старше 2 недель: ${hiddenClosedCount} · <a class="link" onclick="toggleHiddenClosed()">показать</a>`;
+        hiddenEl.classList.remove('hidden');
+    } else {
+        hiddenEl.classList.add('hidden');
+    }
 
     const overdueEl = document.getElementById('statsOverdue');
     if (overdue > 0) {
