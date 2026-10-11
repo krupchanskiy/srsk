@@ -161,6 +161,7 @@
 <script src="../js/layout.js?v=84"></script>
 <script src="../js/date-utils.js?v=4"></script>
 <script src="../js/crm-utils.js?v=6"></script>
+<script src="../js/crm-cancel-reason.js?v=1"></script>
 
 <script>
 const t = key => Layout.t(key);
@@ -549,6 +550,13 @@ function initSortable() {
 
                 if (newStatus === oldStatus) return;
 
+                // Отказ — только с причиной (675); передумали — карточка возвращается
+                let reason = {};
+                if (newStatus === 'cancelled') {
+                    reason = await CrmCancelReason.ask();
+                    if (!reason) { await loadDeals(); return; }
+                }
+
                 // Оптимистично обновляем UI
                 const deal = filteredDeals.find(d => d.id === dealId);
                 if (deal) deal.status = newStatus;
@@ -558,6 +566,7 @@ function initSortable() {
                     .from('crm_deals')
                     .update({
                         status: newStatus,
+                        ...reason,
                         first_contacted_at: deal?.first_contacted_at || (newStatus === 'working' ? new Date().toISOString() : null),
                         last_contacted_at: new Date().toISOString()
                     })

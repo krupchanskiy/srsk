@@ -99,7 +99,6 @@
                 <option value="" data-i18n="crm_status_placeholder">Статус...</option>
             </select>
             <button class="btn btn-sm btn-primary" onclick="bulkChangeStatus()" data-i18n="crm_change">Сменить</button>
-            <button class="btn btn-sm btn-error btn-outline" onclick="bulkDelete()" data-i18n="delete">Удалить</button>
         </div>
     </div>
 
@@ -246,6 +245,7 @@
 <script src="../js/layout.js?v=84"></script>
 <script src="../js/date-utils.js?v=4"></script>
 <script src="../js/crm-utils.js?v=6"></script>
+<script src="../js/crm-cancel-reason.js?v=1"></script>
 
 <script>
 const t = key => Layout.t(key);
@@ -819,34 +819,21 @@ async function bulkChangeStatus() {
     const ids = getSelectedIds();
     const status = document.getElementById('bulkStatus').value;
     if (!status || ids.length === 0) return;
+    // Отказ — только с причиной (675), одна на все выбранные
+    let reason = {};
+    if (status === 'cancelled') {
+        reason = await CrmCancelReason.ask(ids.length);
+        if (!reason) return;
+    }
+    // Блокировки стадий в БД срабатывают по каждой сделке — показываем, что не прошло
+    let ok = 0;
+    const failed = [];
     for (const id of ids) {
-        await Layout.db.from('crm_deals').update({ status }).eq('id', id);
+        const { error } = await Layout.db.from('crm_deals').update({ status, ...reason }).eq('id', id);
+        if (error) failed.push(error.message); else ok++;
     }
-    Layout.showNotification(`${t('crm_status_changed_for')} ${ids.length}`, 'success');
-    await loadDeals();
-}
-
-async function bulkDelete() {
-    const ids = getSelectedIds();
-    const cancelledIds = ids.filter(id => {
-        const d = deals.find(dd => dd.id === id);
-        return d && d.status === 'cancelled';
-    });
-    if (cancelledIds.length === 0) {
-        Layout.showNotification(t('crm_delete_cancelled_only'), 'error');
-        return;
-    }
-    if (!confirm(`${t('crm_confirm_delete_deals')} (${cancelledIds.length})?`)) return;
-    for (const id of cancelledIds) {
-        await Layout.db.from('crm_deal_services').delete().eq('deal_id', id);
-        await Layout.db.from('crm_payments').delete().eq('deal_id', id);
-        await Layout.db.from('crm_communications').delete().eq('deal_id', id);
-        await Layout.db.from('crm_tasks').delete().eq('deal_id', id);
-        await Layout.db.from('crm_deal_history').delete().eq('deal_id', id);
-        await Layout.db.from('crm_deal_members').delete().eq('deal_id', id);
-        await Layout.db.from('crm_deals').delete().eq('id', id);
-    }
-    Layout.showNotification(`${t('deleted')}: ${cancelledIds.length}`, 'success');
+    if (ok) Layout.showNotification(`${t('crm_status_changed_for')} ${ok}`, 'success');
+    if (failed.length) Layout.showNotification(`Не изменено: ${failed.length}. ${failed[0]}`, 'error');
     await loadDeals();
 }
 
