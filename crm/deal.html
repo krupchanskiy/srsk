@@ -120,7 +120,7 @@
             <!-- Договорённость об оплате (674): сделку с долгом не закрыть без неё -->
             <div class="card bg-base-100 shadow-sm hidden border border-error/30" id="promiseCard">
                 <div class="card-body p-4">
-                    <h3 class="font-bold mb-1">Договорённость об оплате</h3>
+                    <h3 class="font-bold mb-1" id="promiseTitle">Договорённость об оплате</h3>
                     <div id="promiseDebt" class="text-sm mb-2"></div>
                     <div id="promiseList" class="space-y-1 mb-2"></div>
                     <form id="promiseForm" onsubmit="savePaymentPromise(event)" class="space-y-2">
@@ -2479,8 +2479,11 @@ async function loadPaymentPromise() {
     if (net <= 0.5 && !list.length) { card.classList.add('hidden'); return; }
     card.classList.remove('hidden');
     card.classList.toggle('border-error/30', net > 0.5);
+    // Долг — красная заливка, как зелёная у чек-листа: чтобы бросалось в глаза (поля остаются белыми)
+    card.style.backgroundColor = net > 0.5 ? '#fee2e2' : ''; // red-100
+    document.getElementById('promiseTitle').style.color = net > 0.5 ? '#991b1b' : ''; // red-800
     document.getElementById('promiseDebt').innerHTML = net > 0.5
-        ? `<span class="text-error font-medium">Долг ${CrmUtils.formatMoney(Math.round(net), debt.currency)}</span>`
+        ? `<span class="text-lg font-bold" style="color:#b91c1c">Долг ${CrmUtils.formatMoney(Math.round(net), debt.currency)}</span>`
           + (debt.has_promise ? '' : `<div class="text-xs opacity-70 mt-1">Свяжитесь с участником и запишите договорённость — без неё сделку не перевести в «Завершён»</div>`)
         : '<span class="text-success">Долга нет</span>';
     document.getElementById('promiseList').innerHTML = list.map(p => `
