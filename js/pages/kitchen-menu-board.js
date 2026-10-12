@@ -391,6 +391,7 @@ function renderRetreats() {
     // Плашки ретритов
     const rangeStart = formatDate(startDate);
     const rangeEnd = formatDate(endDate);
+    const rangeStartDate = parseLocalDate(rangeStart);
 
     for (const r of retreats) {
         if (r.end_date < rangeStart || r.start_date > rangeEnd) continue;
@@ -398,8 +399,9 @@ function renderRetreats() {
         const rStart = parseLocalDate(r.start_date < rangeStart ? rangeStart : r.start_date);
         const rEnd = parseLocalDate(r.end_date > rangeEnd ? rangeEnd : r.end_date);
 
-        const startDay = Math.round((rStart - startDate) / (1000 * 60 * 60 * 24));
-        const endDay = Math.round((rEnd - startDate) / (1000 * 60 * 60 * 24));
+        // от полуночи первого дня: startDate хранит текущее время, и после 12:00 округление давало день −1
+        const startDay = Math.round((rStart - rangeStartDate) / (1000 * 60 * 60 * 24));
+        const endDay = Math.round((rEnd - rangeStartDate) / (1000 * 60 * 60 * 24));
 
         const left = colX(startDay);
         const width = colX(endDay + 1) - left;
