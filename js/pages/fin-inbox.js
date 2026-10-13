@@ -99,6 +99,7 @@ function chatDraftCardHtml(d) {
                 </div>
             </div>
             <div class="text-xs opacity-60 mt-1">${e([d.author, d.raw_text].filter(Boolean).join(' · '))}</div>
+            ${d.note ? `<div class="text-xs mt-1"><span class="font-medium">${Layout.translations?.['fin_draft_note'] ? t('fin_draft_note') : 'Пояснение'}:</span> ${e(d.note)}</div>` : ''}
         </div>
     </div>`;
 }
@@ -471,6 +472,7 @@ function openSplit(id) {
     // поправить статью, а не делить.
     document.getElementById('splitRows').innerHTML =
         splitRowHtml(splitDraft.amount, splitDraft.category_id || null);
+    document.getElementById('splitNote').value = splitDraft.note || '';
     renderRemainder();
     document.querySelectorAll('#splitRows [data-split-row]').forEach(maybeSuggestSplitObject);
     document.querySelectorAll('#splitRows [data-split-row]').forEach(syncSplitPayrollField);
@@ -493,7 +495,8 @@ async function submitSplit(ev) {
     const { data, error } = await Layout.db.rpc('tg_post_draft', {
         p_id: document.getElementById('splitDraftId').value,
         p_rows: rows,
-        p_source_account: document.getElementById('splitSource').value || null
+        p_source_account: document.getElementById('splitSource').value || null,
+        p_note: document.getElementById('splitNote').value
     });
     if (error) { Layout.handleError(error, t('fin_post_draft')); return; }
     if (data?.ok) {
@@ -687,6 +690,7 @@ function openRefine(id) {
     // Стартуем с одной строки на всю сумму — самый частый случай, дробят редко
     document.getElementById('refineRows').innerHTML = refineRowHtml(refineDraft.amount, guessCategoryId(refineDraft.raw_text, refineTargetIsCafe()), null);
     document.getElementById('refineSpent').checked = false;
+    document.getElementById('refineNote').value = refineDraft.note || '';
     syncRefineSpent();
     renderRefineRemainder();
     suggestAllRefineRows();
@@ -713,7 +717,8 @@ async function submitRefine(ev) {
     const { data, error } = await Layout.db.rpc('tg_refine_draft', {
         p_id: id,
         p_target_department: document.getElementById('refineTarget').value || null,
-        p_source_account: document.getElementById('refineSource').value || null
+        p_source_account: document.getElementById('refineSource').value || null,
+        p_note: document.getElementById('refineNote').value
     });
     if (error) { Layout.handleError(error, t('fin_refine')); return; }
     if (!data?.ok) { Layout.showNotification(data?.error || t('error'), 'error'); return; }
