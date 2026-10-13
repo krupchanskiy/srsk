@@ -323,6 +323,18 @@
                     </div>
                 </div>
                 <button type="button" class="btn btn-ghost btn-sm mt-1" id="incAddRowBtn" onclick="FinDds.addIncomeRow()">+ Добавить счёт</button>
+                <!-- «Касса кафе» по точкам (ВГ, 13.10.2026): сумму могут принести одной пачкой,
+                     но считают раздельно; сумма в строке выше — их итог -->
+                <div id="incCafeWrap" class="grid grid-cols-2 gap-3 mt-2 hidden">
+                    <div class="form-control">
+                        <label class="label py-0"><span class="label-text">Самообслуживание <span class="opacity-60">(1 этаж)</span></span></label>
+                        <input type="number" id="incCafeSelf" class="input input-bordered input-sm" min="0" step="0.01">
+                    </div>
+                    <div class="form-control">
+                        <label class="label py-0"><span class="label-text">Кафе <span class="opacity-60">(2 этаж)</span></span></label>
+                        <input type="number" id="incCafeHall" class="input input-bordered input-sm" min="0" step="0.01">
+                    </div>
+                </div>
             </div>
             <!-- Появляется, когда выбрана статья «Оплата от участника»: без имени
                  такой приход не уменьшит долг гостя и не попадёт в его карточку -->
@@ -530,7 +542,7 @@
 <script src="../js/layout.js?v=84"></script>
 <script src="../js/date-utils.js?v=4"></script>
 <script src="../js/fin-utils.js?v=22"></script>
-<script src="../js/pages/fin-dds.js?v=35"></script>
+<script src="../js/pages/fin-dds.js?v=36"></script>
 
 </body>
 </html>

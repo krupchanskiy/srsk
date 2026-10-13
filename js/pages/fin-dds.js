@@ -15,6 +15,14 @@ const requestIds = { expense: null, income: null, transfer: null, transferExpens
 let expenseRowSeq = 0;
 let opsById = {};   // операции общей ленты (для кнопки сторно в развороте)
 
+// Точки приёма денег кафе (fin_postings.cafe_point, мигр. 688)
+const CAFE_POINTS = { self: 'Самообслуживание', cafe: 'Кафе' };
+
+// Статья с точкой кафе, если она есть: «Касса кафе · Самообслуживание»
+function categoryLabel(p) {
+    return [p.category_name, CAFE_POINTS[p.cafe_point]].filter(Boolean).join(' · ');
+}
+
 // У сторно своего комментария нет — там причина, которую написал казначей
 // (поле reason). Раньше колонка показывала только comment, и причина
 // сторнирования пропадала из журнала (замечание ВГ 05.08.2026).
@@ -36,7 +44,10 @@ function buildFilters() {
     document.getElementById('filterCategory').innerHTML =
         `<option value="">${t('fin_filter_all_categories')}</option>` +
         FinUtils.refs.categories.filter(c => c.is_active)
-            .map(c => `<option value="${c.id}">${e(c.name)}</option>`).join('');
+            .map(c => `<option value="${c.id}">${e(c.name)}</option>` +
+                // «Касса кафе» — ещё и по точкам: значение «статья|точка»
+                (FinUtils.isCafeCategory(c.id) ? Object.entries(CAFE_POINTS).map(([pt, name]) =>
+                    `<option value="${c.id}|${pt}">${e(c.name)} — ${e(name)}</option>`).join('') : '')).join('');
     document.getElementById('filterApproval').innerHTML =
         `<option value="">${t('fin_filter_all_statuses')}</option>` +
         ['pending', 'approved', 'disputed', 'not_required'].map(a => `<option value="${a}">${t('fin_approval_' + a)}</option>`).join('');
@@ -70,10 +81,12 @@ function buildFilters() {
 }
 
 function filterValues() {
+    const [category, cafePoint] = (document.getElementById('filterCategory').value || '').split('|');
     return {
         account: document.getElementById('filterAccount').value || null,
         type: document.getElementById('filterType').value || null,
-        category: document.getElementById('filterCategory').value || null,
+        category: category || null,
+        cafePoint: cafePoint || null,
         approval: document.getElementById('filterApproval').value || null,
         from: document.getElementById('filterFrom').value || null,
         to: document.getElementById('filterTo').value || null,
@@ -92,6 +105,7 @@ async function exportCsv() {
         let q = Layout.db.from('fin_v_account_ledger').select('*').order('ledger_seq', { ascending: false }).limit(5000);
         if (f.account) q = q.eq('account_id', f.account);
         if (f.category) q = q.eq('category_id', f.category);
+        if (f.cafePoint) q = q.eq('cafe_point', f.cafePoint);
         if (f.object) q = q.eq('object_id', f.object);
         if (f.type) q = q.eq('type', f.type);
         if (f.approval) q = q.eq('approval', f.approval);
@@ -101,7 +115,7 @@ async function exportCsv() {
         else if (f.q) q = q.or(`comment.ilike.%${f.q}%,reason.ilike.%${f.q}%`);
         const { data } = await q;
         header = ['Дата', 'Тип', 'Счёт', 'Статья', 'Центр затрат', 'Объект', 'Участник', 'Комментарий', 'Сумма', 'Валюта'];
-        rows = (data || []).map(p => [p.occurred_on, FinUtils.typeLabel(p.type), p.account_name, p.category_name, p.cost_center_name, p.object_name, p.participant_name, commentOf(p), p.signed_amount, p.currency_code]);
+        rows = (data || []).map(p => [p.occurred_on, FinUtils.typeLabel(p.type), p.account_name, categoryLabel(p), p.cost_center_name, p.object_name, p.participant_name, commentOf(p), p.signed_amount, p.currency_code]);
     } else {
         let q = Layout.db.from('fin_v_operations').select('*').order('created_at', { ascending: false }).limit(5000);
         if (f.type) q = q.eq('type', f.type);
@@ -292,6 +306,7 @@ async function loadTable(append = false) {
             .range(listOffset, listOffset + PAGE - 1);
         if (f.account) q = q.eq('account_id', f.account);
         if (f.category) q = q.eq('category_id', f.category);
+        if (f.cafePoint) q = q.eq('cafe_point', f.cafePoint);
         if (f.object) q = q.eq('object_id', f.object);
         if (f.type) q = q.eq('type', f.type);
         if (f.approval) q = q.eq('approval', f.approval);
@@ -339,7 +354,7 @@ async function loadTable(append = false) {
                     p.contra_account
                         ? ` <span class="opacity-70 whitespace-nowrap">${p.direction === 'out' ? '→' : '←'} ${e(p.contra_account)}</span>`
                         : ''}${badges(p)}</td>
-                <td>${e(p.category_name || '—')}</td>
+                <td>${e(categoryLabel(p) || '—')}</td>
                 <td>${e(showRunning ? (p.object_name || '') : (p.account_name || ''))}</td>
                 <td class="max-w-xs truncate opacity-70">${e(commentOf(p))}</td>
                 <td class="text-right font-mono ${Number(p.signed_amount) < 0 ? 'text-error' : 'text-success'}">${FinUtils.fmtMoney(p.signed_amount, p.currency_code)}</td>
@@ -446,6 +461,7 @@ async function toggleDetails(opId, ключ = opId) {
             <span class="fin-posting-acc">${e(p.account_name)}</span>
             <span class="fin-tags">
                 ${p.category_name ? тег(p.category_name) : ''}
+                ${p.cafe_point ? тег(CAFE_POINTS[p.cafe_point]) : ''}
                 ${p.cost_center_name ? тег(p.cost_center_name) : ''}
                 ${p.object_name ? тег(p.object_name) : ''}
                 ${p.participant_name ? тег(p.participant_name) : ''}
@@ -529,8 +545,17 @@ async function repeatOperation(opId) {
             FinUtils.setObjectValue(document.getElementById('incObject'), p.object_id);
             document.getElementById('incChannel').value = каналСчёта(p.account_id);
         }
-        // Приход, внесённый частями в разные кассы, повторяется со всеми частями
-        ins.slice(1).forEach(x => addIncomeRow({ account_id: x.account_id, amount: Math.abs(Number(x.signed_amount)) }));
+        if (p && isCafeIncome()) {
+            // «Касса кафе» повторяется по точкам; у старого прихода без разбивки поля пустые — делит казначей
+            ins.filter(x => x.cafe_point).forEach(x => {
+                const el = document.getElementById(x.cafe_point === 'self' ? 'incCafeSelf' : 'incCafeHall');
+                el.value = (Number(el.value) || 0) + Math.abs(Number(x.signed_amount));
+            });
+            syncParticipantBlock();
+        } else {
+            // Приход, внесённый частями в разные кассы, повторяется со всеми частями
+            ins.slice(1).forEach(x => addIncomeRow({ account_id: x.account_id, amount: Math.abs(Number(x.signed_amount)) }));
+        }
         updateIncomeRecap();
     }
 }
@@ -913,6 +938,8 @@ function openIncome() {
     document.getElementById('incAccount').innerHTML = счетаПоКаналу('cash');
     document.getElementById('incObject').innerHTML = FinUtils.objectOptions();
     document.getElementById('incChannel').innerHTML = каналыСписком(каналСчёта(document.getElementById('incAccount').value));
+    document.getElementById('incCafeSelf').value = '';
+    document.getElementById('incCafeHall').value = '';
     updateIncomeCategoryList();
     document.getElementById('incAmount').value = '';
     document.getElementById('incComment').value = '';
@@ -1010,6 +1037,39 @@ function syncParticipantBlock() {
     // Ретрит для платежа участника обязателен: без него платёж не привяжется
     // к его балансу по мероприятию
     document.getElementById('incObject').required = need;
+    syncCafeBlock();
+}
+
+// ---- «Касса кафе» по точкам (ВГ, 13.10.2026) ----
+// Деньги кафе принимают в двух местах. Статья одна, для отчётов кафе — одна сумма;
+// точка — пометка строки прихода (fin_postings.cafe_point), чтобы смотреть разбивку в ДДС.
+// Пожертвование по точкам не делится — только обычный приход
+const isCafeIncome = () => !document.getElementById('incIsDonation').checked
+    && FinUtils.isCafeCategory(document.getElementById('incCategory').value);
+
+function syncCafeBlock() {
+    const on = isCafeIncome();
+    document.getElementById('incCafeWrap').classList.toggle('hidden', !on);
+    // Сумма в строке «Поступило» — итог двух точек, руками не вводится
+    const amount = document.getElementById('incAmount');
+    amount.readOnly = on;
+    amount.classList.toggle('opacity-70', on);
+    if (!on) return;
+    document.getElementById('incAddRowBtn').classList.add('hidden');
+    document.querySelectorAll('#incRows .inc-row:not(:first-child)').forEach(r => r.remove());
+    syncCafeTotal();
+}
+
+function syncCafeTotal() {
+    const sum = cafeParts().reduce((s, p) => s + p.amount, 0);
+    document.getElementById('incAmount').value = sum ? Math.round(sum * 100) / 100 : '';
+}
+
+function cafeParts() {
+    const row = incomeParts()[0];
+    return [['self', 'incCafeSelf'], ['cafe', 'incCafeHall']]
+        .map(([point, id]) => ({ ...row, cafe_point: point, amount: Number(document.getElementById(id).value) || 0 }))
+        .filter(p => p.amount > 0);
 }
 
 // ---- Один платёж за нескольких (правило ВГ, 29.07.2026) ----
@@ -1138,17 +1198,22 @@ async function submitIncome(ev) {
         return;
     }
 
+    // «Касса кафе»: одна строка на точку, счёт и канал — из строки «Поступило»
+    const cafe = isCafeIncome();
+    const parts = cafe ? cafeParts() : incomeParts().map(p => ({ ...p, amount: p.amount.value }));
+    if (cafe && !parts.length) { Layout.showNotification('Введите сумму хотя бы по одной точке кафе', 'error'); return; }
     const payload = {
         request_id: requestIds.income,
         occurred_on: document.getElementById('incDate').value,
         comment: document.getElementById('incComment').value || null,
-        rows: incomeParts().map(p => ({
+        rows: parts.map(p => ({
             id: FinUtils.newRequestId(),
             account_id: p.account.value,
-            amount: p.amount.value,
+            amount: p.amount,
             category_id: document.getElementById('incCategory').value,
             object_id: document.getElementById('incObject').value || null,
-            payment_channel: p.channel.value || null
+            payment_channel: p.channel.value || null,
+            ...(p.cafe_point ? { cafe_point: p.cafe_point } : {})
         }))
     };
     if (isDonation && document.getElementById('incDonorId').value) {
@@ -1331,6 +1396,7 @@ async function init() {
     FinUtils.attachPersonSearch(document.getElementById('incDonorSearch'), document.getElementById('incDonorId'));
     FinUtils.attachPersonSearch(document.getElementById('incParticipantSearch'), document.getElementById('incParticipantId'));
     document.getElementById('incCategory').addEventListener('change', syncParticipantBlock);
+    document.getElementById('incCafeWrap').addEventListener('input', syncCafeTotal);
     document.getElementById('incCategory').addEventListener('change', maybeSuggestIncomeObject);
     document.getElementById('incDate').addEventListener('change', maybeSuggestIncomeObject);
     document.getElementById('incObject').addEventListener('change', () => { incObjectAuto = false; });
@@ -1345,7 +1411,7 @@ async function init() {
         if (isDirty() && !confirm(t('fin_confirm_discard'))) ev.preventDefault();
     });
     guardDialog('expenseModal', () => [...document.querySelectorAll('#expRows .exp-amount')].some(i => i.value));
-    guardDialog('incomeModal', () => incomeParts().some(p => p.amount.value));
+    guardDialog('incomeModal', () => incomeParts().some(p => p.amount.value) || cafeParts().length > 0);
     guardDialog('transferModal', () => !!document.getElementById('trAmount').value);
 
     const ddsBody = document.getElementById('ddsBody');
