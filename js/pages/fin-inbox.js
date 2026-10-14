@@ -302,11 +302,53 @@ async function submitReversal(ev) {
 
 // Провести заявку из чата: fin-админ создаёт настоящий расход/перевод,
 // на исходное сообщение в чате бот ставит 👍
+// Выдача департаменту, у которого несколько держателей наличных (Зелёные, Кафе), —
+// сначала выбрать, кому именно отданы деньги, иначе в /баланс они «не привязано» (689)
 async function postDraft(id) {
-    const { data, error } = await Layout.db.rpc('tg_post_draft', { p_id: id });
-    if (error) { Layout.handleError(error, t('fin_post_draft')); return; }
-    if (data?.ok) { Layout.showNotification(t('fin_saved'), 'success'); await loadList(); }
-    else Layout.showNotification(data?.error || t('error'), 'error');
+    const draft = chatDrafts.find(d => d.id === id);
+    if (draft?.kind === 'transfer' && draft.target_department_id) {
+        const { data: holders, error } = await Layout.db.from('fin_department_holders')
+            .select('vaishnava_id, nickname, vaishnavas(spiritual_name, first_name, last_name)')
+            .eq('department_id', draft.target_department_id).eq('is_active', true);
+        if (error) { Layout.handleError(error, t('fin_post_draft')); return; }
+        if (holders.length > 1) { openHolderPick(draft, holders); return; }
+    }
+    await callPostDraft(id, null);
+}
+
+async function callPostDraft(id, targetHolder) {
+    const params = { p_id: id };
+    if (targetHolder) Object.assign(params, { p_rows: null, p_target_holder: targetHolder });
+    const { data, error } = await Layout.db.rpc('tg_post_draft', params);
+    if (error) { Layout.handleError(error, t('fin_post_draft')); return false; }
+    if (data?.ok) { Layout.showNotification(t('fin_saved'), 'success'); await loadList(); return true; }
+    Layout.showNotification(data?.error || t('error'), 'error');
+    return false;
+}
+
+function openHolderPick(draft, holders) {
+    document.getElementById('holderDraftId').value = draft.id;
+    document.getElementById('holderInfo').textContent =
+        `«${draft.target_department || ''}» · ${FinUtils.fmtMoney(draft.amount, draft.currency)} · ${draft.raw_text || ''}`;
+    // Никого не отмечаем заранее — выбор осознанный
+    document.getElementById('holderList').innerHTML = holders.map(h => {
+        const v = h.vaishnavas || {};
+        const name = v.spiritual_name || `${v.first_name || ''} ${v.last_name || ''}`.trim();
+        return `<label class="label cursor-pointer justify-start gap-3 py-1">
+            <input type="radio" name="holderPick" class="radio radio-sm" value="${h.vaishnava_id}" required>
+            <span class="label-text">${e(name)}${h.nickname ? ` <span class="opacity-60">(${e(h.nickname)})</span>` : ''}</span>
+        </label>`;
+    }).join('');
+    document.getElementById('holderModal').showModal();
+}
+
+async function submitHolderPick(ev) {
+    ev.preventDefault();
+    const holder = document.querySelector('input[name="holderPick"]:checked')?.value;
+    if (!holder) return;
+    if (await callPostDraft(document.getElementById('holderDraftId').value, holder)) {
+        document.getElementById('holderModal').close();
+    }
 }
 
 // ==================== СТАТЬИ ЗАЯВКИ (замечание ВГ, 26.07.2026) ====================
@@ -844,6 +886,7 @@ async function init() {
         renderRemainder();
     });
     document.getElementById('reversalForm').addEventListener('submit', submitReversal);
+    document.getElementById('holderForm').addEventListener('submit', submitHolderPick);
 
     document.getElementById('inboxList').addEventListener('click', ev => {
         const att = ev.target.closest('[data-attachment-path]');
