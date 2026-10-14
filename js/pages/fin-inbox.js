@@ -559,7 +559,21 @@ async function submitSplit(ev) {
 // департамента в строке: получатель уже зафиксирован в refineTarget.
 let refineDraft = null;
 
+// «Никому — потратил сам» (ВГ, 14.10.2026): получатель в тексте указан по ошибке,
+// деньги никуда не передавались — заявка проводится расходом автора на ретрит/статью
+const REFINE_SELF = 'self';
+
+function refineIsSelf() {
+    return document.getElementById('refineTarget').value === REFINE_SELF;
+}
+
+// За кем в итоге числится расход: получатель или сам автор заявки
+function refineCostDept() {
+    return refineIsSelf() ? refineDraft?.department_id : document.getElementById('refineTarget').value;
+}
+
 function refineTargetIsCafe() {
+    if (refineIsSelf()) return FinUtils.isCafeDepartmentName(refineDraft?.department);
     const opt = document.getElementById('refineTarget').selectedOptions[0];
     return FinUtils.isCafeDepartmentName(opt?.textContent);
 }
@@ -634,7 +648,7 @@ async function guessLaborByPayroll(row) {
     if (!row || !refineDraft) return;
     const catSel = row.querySelector('[data-refine-cat]');
     if (catSel.value) return;
-    const list = await getPayrollPositions(document.getElementById('refineTarget').value);
+    const list = await getPayrollPositions(refineCostDept());
     if (!guessPayrollPositionId(refineDraft.raw_text, list)) return;
     const labor = FinUtils.refs.categories.find(c => c.is_active && c.direction === 'out' && c.code === 'dept_labor');
     if (!labor) return;
@@ -666,8 +680,7 @@ async function syncRefinePayrollField(row) {
     const show = isLaborCategory(catId);
     sel.classList.toggle('hidden', !show);
     if (!show) return;
-    const deptId = document.getElementById('refineTarget').value;
-    const list = await getPayrollPositions(deptId);
+    const list = await getPayrollPositions(refineCostDept());
     const chosen = sel.value || guessPayrollPositionId(refineDraft?.raw_text, list);
     sel.innerHTML = payrollOptionsHtml(list, chosen);
 }
@@ -715,7 +728,9 @@ function openRefine(id) {
     // У департаментов получатель себя исключён (ВГ, 21.09.2026).
     const selfTarget = refineDraft.target_department_id === refineDraft.department_id;
     document.getElementById('refineTarget').innerHTML =
-        `<option value="">—</option>` + departments
+        `<option value="">—</option>` +
+        `<option value="${REFINE_SELF}">${Layout.translations?.['fin_refine_self_spent'] ? t('fin_refine_self_spent') : 'Никому — потратил сам'}</option>` +
+        departments
             .filter(d => selfTarget || d.id !== refineDraft.department_id)
             .map(d => `<option value="${d.id}" ${d.id === refineDraft.target_department_id ? 'selected' : ''}>${e(d.name)}</option>`)
             .join('');
@@ -744,7 +759,11 @@ function openRefine(id) {
 // «Уже потрачено» — деньги ушли из рук в руки и тут же были израсходованы:
 // нужны статья и, если это трата события, ретрит — в каждой строке.
 function syncRefineSpent() {
-    const spent = document.getElementById('refineSpent').checked;
+    // «потратил сам» без строк провести нечего — галочка обязательна
+    const spentBox = document.getElementById('refineSpent');
+    if (refineIsSelf()) spentBox.checked = true;
+    spentBox.disabled = refineIsSelf();
+    const spent = spentBox.checked;
     document.getElementById('refineSpentFields').classList.toggle('hidden', !spent);
     refineRows().forEach(r => { r.querySelector('[data-refine-cat]').required = spent; });
     document.getElementById('refineSubmit').textContent = spent ? t('fin_post_draft') : t('save');
@@ -756,11 +775,13 @@ async function submitRefine(ev) {
     const id = document.getElementById('refineDraftId').value;
     const spent = document.getElementById('refineSpent').checked;
 
+    const self = refineIsSelf();
     const { data, error } = await Layout.db.rpc('tg_refine_draft', {
         p_id: id,
-        p_target_department: document.getElementById('refineTarget').value || null,
+        p_target_department: self ? null : (document.getElementById('refineTarget').value || null),
         p_source_account: document.getElementById('refineSource').value || null,
-        p_note: document.getElementById('refineNote').value
+        p_note: document.getElementById('refineNote').value,
+        p_self_spent: self
     });
     if (error) { Layout.handleError(error, t('fin_refine')); return; }
     if (!data?.ok) { Layout.showNotification(data?.error || t('error'), 'error'); return; }
@@ -830,6 +851,7 @@ async function init() {
     document.getElementById('refineForm').addEventListener('submit', submitRefine);
     document.getElementById('refineSpent').addEventListener('change', syncRefineSpent);
     document.getElementById('refineSpent').addEventListener('change', suggestAllRefineRows);
+    document.getElementById('refineTarget').addEventListener('change', syncRefineSpent);
     document.getElementById('refineTarget').addEventListener('change', suggestAllRefineRows);
     document.getElementById('refineTarget').addEventListener('change', syncAllRefinePayrollFields);
     document.getElementById('refineTarget').addEventListener('change', () => refineRows().forEach(guessLaborByPayroll));
