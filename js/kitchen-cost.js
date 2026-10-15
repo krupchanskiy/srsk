@@ -10,6 +10,7 @@ const KitchenCost = (function () {
 
 const BUCKETS = ['team', 'volunteers', 'vips', 'guests', 'groups', 'expected'];
 const MEALS = ['breakfast', 'lunch'];
+const COST_COUNTS = 'eating_by_event_cost';   // вкушающие с долями волонтёров по ретритам (697)
 // Число порций повара с числом вкушающих не сравниваем: повар ставит его сознательно (ВГ, 24.09.2026)
 
 // ---------- цена на дату (то же правило, что kitchen_price_on в базе) ----------
@@ -497,7 +498,7 @@ async function load(db, locationId, from, to) {
         overhead.error = err?.details || err?.message || String(err);
     }
 
-    const counts = await EatingUtils.loadCounts(cFrom, cTo);
+    const counts = await EatingUtils.loadCounts(cFrom, cTo, COST_COUNTS);
     const today = DateUtils.toISO(new Date());
 
     return { meals, recipes, products, densities, units, prices, kits, externals, counts, overhead, today, from, to };
@@ -522,7 +523,8 @@ const isoMonthEnd = iso => { const d = DateUtils.parseDate(iso); return DateUtil
 const spanCache = new Map();
 async function retreatSpan(r) {
     if (spanCache.has(r.id)) return spanCache.get(r.id);
-    const counts = await EatingUtils.loadCounts(isoAdd(r.start_date, -31), isoAdd(r.end_date, 31));
+    // ±62 дня: волонтёр ретрита, ждущий между ретритами, тоже продлевает ретрит (697)
+    const counts = await EatingUtils.loadCounts(isoAdd(r.start_date, -62), isoAdd(r.end_date, 62), COST_COUNTS);
     const key = `retreat:${r.id}`;
     let from = r.start_date, to = r.end_date, pm = 0;
     for (const [date, day] of Object.entries(counts)) {
@@ -541,16 +543,18 @@ async function retreatSpan(r) {
     return span;
 }
 
-// Кто и что ел — построчно по людям и дням (eating_detail). За год это десятки тысяч строк: грузим месяцами параллельно.
+// Кто и что ел — построчно по людям и дням (eating_detail_cost). За год это десятки тысяч строк: грузим месяцами параллельно.
+// Строка волонтёра ретрита / ШРСК может быть разделена между ретритами: x.w — доля (у остальных 1),
+// x.share — 'retreat_volunteer' | 'retreat_volunteer_unmarked' | 'shrsk_volunteer' (мигр. 697)
 async function loadDetail(db, from, to) {
     const chunks = [];
     for (let f = from; f <= to; f = isoAdd(isoMonthEnd(f), 1)) chunks.push([f, isoMonthEnd(f) < to ? isoMonthEnd(f) : to]);
     const parts = await Promise.all(chunks.map(async ([f, t2]) => {
         const rows = [];
         for (let off = 0; ; off += 1000) {
-            const { data, error } = await db.rpc('eating_detail', { p_from: f, p_to: t2 })
+            const { data, error } = await db.rpc('eating_detail_cost', { p_from: f, p_to: t2 })
                 .order('d').order('ref_id').range(off, off + 999);
-            if (error) { console.error('eating_detail:', error); break; }
+            if (error) { console.error('eating_detail_cost:', error); break; }
             rows.push(...(data || []));
             if (!data || data.length < 1000) break;
         }

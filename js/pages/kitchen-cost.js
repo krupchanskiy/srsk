@@ -68,6 +68,8 @@ function money2(v) {
     return Number(v).toLocaleString(locale(), { minimumFractionDigits: 0, maximumFractionDigits: 2 }) + ' ₹';
 }
 function num(v) { return Number(v).toLocaleString(locale()); }
+// доли волонтёров дают дробные приёмы пищи (697) — показываем с одним знаком
+const fmtN = v => Number.isInteger(v) ? v : (Math.round(v * 10) / 10).toLocaleString(locale());
 function fmtDay(iso) { return DateUtils.formatShort(DateUtils.parseDate(iso)); }
 function errorText(error) { return error?.details || error?.message || t('error'); }
 function addDays(iso, n) { const d = DateUtils.parseDate(iso); d.setDate(d.getDate() + n); return DateUtils.toISO(d); }
@@ -362,7 +364,7 @@ function rowAgg(row) {
         if (`retreat:${x.retreat_id}` !== row.ev || !row.buckets.includes(x.bucket) || !rowMatch(row, x)) continue;
         const c = cells[row.ev]?.[x.bucket];
         if (!c || !c.personMeals) continue;
-        const n = x.kind === 'group' ? (Number(x.people) || 1) : 1;
+        const n = (x.kind === 'group' ? (Number(x.people) || 1) : 1) * (Number(x.w) || 1);   // w — доля волонтёра (697)
         const meals = ((x.breakfast ? 1 : 0) + (x.lunch ? 1 : 0)) * n;
         if (!meals) continue;
         const k = meals / c.personMeals;
@@ -432,6 +434,8 @@ function renderQuality() {
     if (noMenuFuture) reasons.push(link(`${tr('cost_q_menu_future', 'меню ещё не заведено на предстоящие приёмы пищи')}: ${noMenuFuture}`, 'data-action="open-no-menu"'));
     const monthName = ym => DateUtils.parseDate(ym + '-01').toLocaleDateString(locale(), { month: 'long', year: 'numeric' }).replace(' г.', '');
     if (w.payrollEstimated.length) reasons.push(link(`${tr('cost_q_payroll', 'зарплата предварительная, ещё не начислена')}: ${w.payrollEstimated.map(monthName).join(', ')}`, 'data-action="tab" data-tab="overhead"'));
+    const unmarked = unmarkedVolunteers();
+    if (unmarked.length) reasons.push(link(`${tr('cost_q_unmarked', 'волонтёры ретрита без отмеченных ретритов')}: ${unmarked.length}`, 'data-action="tab" data-tab="problems"'));
     const box = Layout.$('#qualityBanner');
     if (!reasons.length) { box.classList.add('hidden'); return; }
     box.innerHTML = `<div class="alert alert-warning text-sm items-start">
@@ -776,6 +780,7 @@ function noDeptPeople() {
     for (const x of view.detail) {
         if (!x.vaishnava_id || (x.bucket !== 'team' && x.bucket !== 'volunteers')) continue;
         if (x.retreat_id) continue;   // приехал под ретрит — питание на ретрите, департамент не нужен
+        if (x.share) continue;        // волонтёр ретрита / ШРСК — вне департаментов (697)
         if (!x.breakfast && !x.lunch) continue;
         if (deptOn(x.vaishnava_id, x.d)) continue;
         seen.set(x.vaishnava_id, x.bucket);
@@ -784,11 +789,27 @@ function noDeptPeople() {
         .sort((a, b) => a.label.localeCompare(b.label, 'ru'));
 }
 
+// «Волонтёр ретрита» без отмеченных ретритов (697): питание не попало в ретриты — ⚠ со ссылкой на бронь (ВГ 15.10)
+function unmarkedVolunteers() {
+    if (view.unmarked) return view.unmarked;
+    const seen = new Map();
+    for (const x of view.detail) {
+        if (x.share !== 'retreat_volunteer_unmarked' || (!x.breakfast && !x.lunch)) continue;
+        const p = seen.get(x.ref_id);
+        if (!p || x.d < p.d) seen.set(x.ref_id, { id: x.ref_id, vaishnavaId: x.vaishnava_id, d: x.d });
+    }
+    view.unmarked = [...seen.values()].map(p => ({ ...p, label: p.vaishnavaId ? (personName.get(p.vaishnavaId) || '—') : tr('cost_unnamed_booking', 'Бронь без имени') }))
+        .sort((a, b) => a.label.localeCompare(b.label, 'ru'));
+    return view.unmarked;
+}
+const bookingUrl = p => `../placement/timeline.html?resident=${encodeURIComponent(p.id)}&date=${p.d}`;
+
 function problemCount() {
     const w = view.result.warnings;
     return w.missingPrices.size + w.unresolvedUnits.size + w.noMenu.length + w.noEaters.length
         + w.overheadNoBase.length + w.overheadUnallocated.length + w.laborUnlinked.length + w.recipesNoOutput.size
-        + (w.overheadError ? 1 : 0) + (w.payrollEstimated.length ? 1 : 0) + (noDeptPeople().length ? 1 : 0);
+        + (w.overheadError ? 1 : 0) + (w.payrollEstimated.length ? 1 : 0) + (noDeptPeople().length ? 1 : 0)
+        + (unmarkedVolunteers().length ? 1 : 0);
 }
 
 function sectionList() {
@@ -1110,11 +1131,13 @@ function personRows(match, split) {
                                        n, days: new Set(), bf: 0, ln: 0, pm: 0, cost: 0 };
         p.n = Math.max(p.n, n);
         if (x.breakfast || x.lunch) p.days.add(x.d);
-        if (x.breakfast) p.bf += n;
-        if (x.lunch) p.ln += n;
+        // волонтёр между ретритами — доля w в каждом (697)
+        const nw = n * (Number(x.w) || 1);
+        if (x.breakfast) p.bf += nw;
+        if (x.lunch) p.ln += nw;
         const meals = (x.breakfast ? 1 : 0) + (x.lunch ? 1 : 0);
-        p.pm += meals * n;
-        p.cost += meals * n * rateOf(ev, x.bucket);
+        p.pm += meals * nw;
+        p.cost += meals * nw * rateOf(ev, x.bucket);
         people.set(key, p);
     }
     return [...people.values()];
@@ -1143,8 +1166,8 @@ function peopleTable(list, withBucket) {
             ${withBucket ? `<td class="text-xs">${p.bucket === 'team' || p.bucket === 'volunteers'
                 ? `<span class="badge badge-sm border-0 text-white" style="background:${BUCKET_COLORS[p.bucket]}">${e(BUCKET_LABELS[p.bucket]())}</span>`
                 : `<span class="opacity-70">${e(BUCKET_LABELS[p.bucket]())}</span>`}</td>` : ''}
-            <td class="text-right">${p.days.size}</td><td class="text-right">${p.bf}</td><td class="text-right">${p.ln}</td>
-            <td class="text-right">${p.pm}</td>
+            <td class="text-right">${p.days.size}</td><td class="text-right">${fmtN(p.bf)}</td><td class="text-right">${fmtN(p.ln)}</td>
+            <td class="text-right">${fmtN(p.pm)}</td>
             <td class="text-right">${money(p.cost)}${warnMark(ps)}</td></tr>`).join('')}</tbody></table>`;
 }
 
@@ -1230,8 +1253,8 @@ function renderEaters() {
             const tot = cols.reduce((s, k) => s + sum[k], 0);
             if (!tot) continue;
             out.push(`<tr><td class="whitespace-nowrap">${m === 'breakfast' ? e(fmtDay(d)) : ''}</td><td class="text-sm opacity-70">${e(MEAL_LABELS[m]())}</td>
-                ${cols.map(k => `<td class="text-right ${sum[k] ? '' : 'opacity-30'}">${sum[k]}</td>`).join('')}
-                <td class="text-right font-medium">${tot}</td></tr>`);
+                ${cols.map(k => `<td class="text-right ${sum[k] ? '' : 'opacity-30'}">${fmtN(sum[k])}</td>`).join('')}
+                <td class="text-right font-medium">${fmtN(tot)}</td></tr>`);
         }
     }
     Layout.$('#daysBody').innerHTML = out.join('') || `<tr><td colspan="9" class="text-center opacity-60">${e(tr('cost_nothing', 'За период нет данных'))}</td></tr>`;
@@ -1241,14 +1264,21 @@ function renderEaters() {
 // Правило ВГ: у каждого в команде и каждого волонтёра есть департамент; расход на их питание
 // по смыслу лежит на департаменте. Фильтр: все / команда / волонтёры.
 let deptFilter = 'all';
+const SHRSK_ROW = 'shrsk';            // строка «Волонтёры ШРСК» — не департамент (697)
+const UNMARKED_ROW = 'unmarked';      // «Волонтёр ретрита» без отмеченных ретритов
 
 function renderDepartments() {
     // В режиме «Ретрит» — не люди ретрита (они на «Вкушающих»), а постоянные команда и волонтёры,
     // евшие в те же дни: для сведения, в себестоимость ретрита не входят (решение ВГ 25.09).
     const isRetreat = state.mode === 'retreat';
     const buckets = deptFilter === 'team' ? ['team'] : deptFilter === 'volunteers' ? ['volunteers'] : ['team', 'volunteers'];
-    const people = personRows((x, ev) => (!isRetreat || ev === 'none') && buckets.includes(x.bucket),
-                              x => deptOn(x.vaishnava_id, x.d) || '');
+    // Волонтёр ретрита и ШРСК (697): дни, ушедшие в ретриты, — расход ретритов, здесь их нет;
+    // ШРСК вне ретритов — строка «Волонтёры ШРСК» (общий расход), без отмеченных ретритов — своя строка с ⚠
+    const people = personRows((x, ev) => (!isRetreat || ev === 'none') && buckets.includes(x.bucket)
+                                         && !(x.share && x.retreat_id && x.share !== 'retreat_volunteer_unmarked'),
+                              x => x.share === 'shrsk_volunteer' ? SHRSK_ROW
+                                 : x.share === 'retreat_volunteer_unmarked' ? UNMARKED_ROW
+                                 : deptOn(x.vaishnava_id, x.d) || '');
     Layout.$('#deptRetreatNote').classList.toggle('hidden', !isRetreat);
     const byDept = new Map();
     for (const p of people) {
@@ -1258,11 +1288,13 @@ function renderDepartments() {
         list.push(p);
         byDept.set(id, list);
     }
-    const name = id => id ? (Layout.getName(departments.find(d => d.id === id) || {}) || '—') : tr('cost_no_department', 'Без департамента');
+    const name = id => id === SHRSK_ROW ? tr('cost_shrsk_volunteers', 'Волонтёры ШРСК (общий расход)')
+        : id === UNMARKED_ROW ? tr('cost_unmarked_row', 'Волонтёры ретрита — ретриты не отмечены')
+        : id ? (Layout.getName(departments.find(d => d.id === id) || {}) || '—') : tr('cost_no_department', 'Без департамента');
     const sumOf = list => list.reduce((acc, p) => ({ team: acc.team + (p.bucket === 'team' ? 1 : 0), vol: acc.vol + (p.bucket === 'volunteers' ? 1 : 0),
                                                      pm: acc.pm + p.pm, cost: acc.cost + p.cost }), { team: 0, vol: 0, pm: 0, cost: 0 });
     const list = [...byDept.entries()].map(([id, ppl]) => ({ id, ppl, s: sumOf(ppl) }))
-        .sort((a, b) => (a.id === '') - (b.id === '') || b.s.cost - a.s.cost || name(a.id).localeCompare(name(b.id)));
+        .sort((a, b) => (a.id === '' || a.id === UNMARKED_ROW) - (b.id === '' || b.id === UNMARKED_ROW) || b.s.cost - a.s.cost || name(a.id).localeCompare(name(b.id)));
     const months = Math.max(1, (DateUtils.parseDate(view.to) - DateUtils.parseDate(view.from)) / 86400000 / 30.44);
     const ps = pricesState();
 
@@ -1278,7 +1310,7 @@ function renderDepartments() {
         Object.keys(grand).forEach(k => grand[k] += s[k]);
         const key = `dept:${id}`;
         const open = expanded.has(key) ? `<tr class="row-child"><td colspan="6" class="tbl-lvl-1">${peopleTable(ppl, true)}</td></tr>` : '';
-        return `<tr class="cursor-pointer hover:bg-base-200/50 ${open ? 'row-open' : ''} ${id ? '' : 'text-warning'}" data-action="toggle-row" data-key="${key}">
+        return `<tr class="cursor-pointer hover:bg-base-200/50 ${open ? 'row-open' : ''} ${id && id !== UNMARKED_ROW ? '' : 'text-warning'}" data-action="toggle-row" data-key="${key}">
             <td>${toggleCell(key)}${e(name(id))}</td>
             <td class="text-right">${s.team || '—'}</td><td class="text-right">${s.vol || '—'}</td>
             <td class="text-right">${num(s.pm)}</td>
@@ -1311,7 +1343,7 @@ function renderDirect() {
     const breakdown = (byEvent, onlyScope) => Object.entries(byEvent || {})
         .filter(([ev]) => !onlyScope || !scope || scope.includes(ev))
         .map(([ev, b]) => {
-            const parts = ALL_BUCKETS.filter(k => b[k]).map(k => `${(ev === 'none' ? (NONE_ROWS.find(r => r.buckets.includes(k))?.label() || k) : BUCKET_LABELS[k]()).toLowerCase()} ${b[k]}`);
+            const parts = ALL_BUCKETS.filter(k => b[k]).map(k => `${(ev === 'none' ? (NONE_ROWS.find(r => r.buckets.includes(k))?.label() || k) : BUCKET_LABELS[k]()).toLowerCase()} ${fmtN(b[k])}`);
             if (!parts.length) return '';
             return `${ev === 'none' ? tr('cost_no_event', 'без события') : retreatName(ev.slice(8))}: ${parts.join(', ')}`;
         }).filter(Boolean).join(' · ');
@@ -1343,8 +1375,8 @@ function renderDirect() {
                 out.push(`<tr class="opacity-60">
                     <td class="whitespace-nowrap">${e(fmtDay(d))}</td>
                     <td class="text-sm">${menuLink(d, meal)} <span class="badge badge-warning badge-xs">${e(tr('cost_no_menu', 'меню не внесено'))}</span></td>
-                    ${scope ? `<td class="text-right" title="${e(breakdown(byEvent, true))}">${n}</td>` : ''}
-                    <td class="text-right" title="${e(breakdown(byEvent, false))}">${total}</td>
+                    ${scope ? `<td class="text-right" title="${e(breakdown(byEvent, true))}">${fmtN(n)}</td>` : ''}
+                    <td class="text-right" title="${e(breakdown(byEvent, false))}">${fmtN(total)}</td>
                     <td class="text-right">—</td><td class="text-right">—</td><td class="text-right">—</td><td class="text-right">—</td><td class="text-right">—</td></tr>`);
                 continue;
             }
@@ -1361,8 +1393,8 @@ function renderDirect() {
                 out.push(`<tr class="${r.unallocated ? 'text-warning' : ''}">
                     <td class="whitespace-nowrap">${e(fmtDay(r.date))}</td>
                     <td class="text-sm">${menuLink(r.date, r.meal)}${fullyExternal ? ` <span class="badge badge-info badge-xs">${e(tr('cost_fully_external', 'целиком со стороны'))}</span>` : ''}${ownCook ? ` <span class="badge badge-ghost badge-xs" title="${e(tr('menu_own_cook_hint', 'Продукты не покупаются — берутся из наших закупок. Цена ориентировочная: в себестоимости она умножается на число вкушающих.'))}">${e(r.ownCookNames.join(', '))}</span>` : ''}</td>
-                    ${scope ? `<td class="text-right" title="${e(breakdown(r.byEvent, true))}">${n}</td>` : ''}
-                    <td class="text-right" title="${e(breakdown(r.byEvent, false))}">${r.eaters || '—'}</td>
+                    ${scope ? `<td class="text-right" title="${e(breakdown(r.byEvent, true))}">${fmtN(n)}</td>` : ''}
+                    <td class="text-right" title="${e(breakdown(r.byEvent, false))}">${r.eaters ? fmtN(r.eaters) : '—'}</td>
                     <td class="text-right">${r.portions ?? '—'}</td>
                     <td class="text-right">${ps === 'none' && !ownCook ? '—' : money(food)}</td>
                     <td class="text-right">${ps === 'none' ? '—' : money(dish)}</td>
@@ -1576,6 +1608,10 @@ function renderWarnings() {
     if (noDept.length) parts.push(`<div class="alert alert-warning items-start text-sm"><div>
         <div class="font-semibold">${e(tr('cost_w_no_dept_or_retreat', 'Команда и волонтёры без департамента и без ретрита — укажите департамент в карточке человека или поселите с меткой ретрита'))}: ${noDept.length}</div>
         <ul class="list-disc ml-5 mt-1">${noDept.map(p => `<li><a class="link" href="../vaishnavas/person.html?id=${p.id}" target="_blank" rel="noopener">${e(p.label)}</a></li>`).join('')}</ul></div></div>`);
+    const unmarked = unmarkedVolunteers();
+    if (unmarked.length) parts.push(`<div class="alert alert-warning items-start text-sm"><div>
+        <div class="font-semibold">${e(tr('cost_w_unmarked', 'Волонтёры ретрита без отмеченных ретритов — их питание не попало в ретриты; отметьте ретриты в брони'))}: ${unmarked.length}</div>
+        <ul class="list-disc ml-5 mt-1">${unmarked.map(p => `<li><a class="link" href="${bookingUrl(p)}" target="_blank" rel="noopener">${e(p.label)}</a></li>`).join('')}</ul></div></div>`);
     const html = parts.join('');
     Layout.$('#warnings').innerHTML = html || `<div class="text-sm opacity-60">${e(tr('cost_no_problems', 'Проблем в данных нет'))}</div>`;
 }

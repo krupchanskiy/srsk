@@ -725,6 +725,7 @@ function movementData(retreatId, span, detail) {
     const present = new Map();   // человек/группа → Map(день → {n, cat})
     for (const x of detail) {
         if (x.retreat_id !== retreatId || !(x.breakfast || x.lunch)) continue;
+        if (x.share === 'shrsk_volunteer') continue;   // волонтёр ШРСК — только доля питания, не человек ретрита (697)
         const cat = MOVE_CATS.find(c => c[1].includes(x.bucket))?.[0];
         if (!cat) continue;
         const key = x.kind === 'group' ? 'g:' + x.ref_id : (x.vaishnava_id || x.ref_id);

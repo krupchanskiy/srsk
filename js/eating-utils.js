@@ -15,11 +15,13 @@ const EatingUtils = {
      * считает бот. Раньше здесь жила своя копия, и бот с сайтом расходились
      * (24.09.2026). Правила — в комментарии к миграции.
      */
-    async loadCounts(startDate, endDate) {
+    // rpc — 'eating_by_event_cost' для себестоимости: волонтёры ретрита и ШРСК разложены
+    // по ретритам дробными долями (мигр. 697); поварам — обычный подсчёт
+    async loadCounts(startDate, endDate, rpc = 'eating_by_event') {
         const rows = [];
         for (let from = 0; ; from += 1000) {
             const { data, error } = await Layout.db
-                .rpc('eating_by_event', { p_from: startDate, p_to: endDate })
+                .rpc(rpc, { p_from: startDate, p_to: endDate })
                 .order('d').order('meal').order('retreat_id')
                 .range(from, from + 999);
             // Ошибку показываем, а не глотаем: иначе getTotal молча подставит 50
@@ -58,8 +60,8 @@ const EatingUtils = {
             const evKey = r.retreat_id ? `retreat:${r.retreat_id}` : 'none';
             const ev = day.byEvent[r.meal][evKey] || (day.byEvent[r.meal][evKey] = empty());
             for (const k of ['team', 'volunteers', 'vips', 'guests', 'groups', 'expected']) {
-                day[r.meal][k] += r[k];
-                ev[k] += r[k];
+                day[r.meal][k] += Number(r[k]);
+                ev[k] += Number(r[k]);
             }
         }
 

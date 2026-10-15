@@ -981,6 +981,16 @@
                         </select>
                     </div>
 
+                    <!-- «Волонтёр ретрита» (мигр. 697): ретриты, на которые приехал служить — его питание
+                         за весь приезд идёт в себестоимость прасада этих ретритов (ВГ + Ачинтья Кришна 15.10) -->
+                    <div id="bookingServesFields" class="form-control mb-3 hidden">
+                        <label class="label py-1">
+                            <span class="label-text font-medium" data-i18n="timeline_serves_retreats">Ретриты, на которые приехал служить</span>
+                        </label>
+                        <div id="bookingServesList" class="flex flex-col gap-1"></div>
+                        <div class="text-xs opacity-60 mt-1" data-i18n="timeline_serves_hint">Питание за весь приезд делится между отмеченными ретритами, дни ожидания — поровну</div>
+                    </div>
+
                     <!-- Название брони -->
                     <div class="form-control mb-3">
                         <label class="label py-1">
@@ -1014,14 +1024,14 @@
                                 <label class="label py-1">
                                     <span class="label-text font-medium" data-i18n="check_in">Заезд</span>
                                 </label>
-                                <input type="date" name="check_in" id="bookingDateIn" class="input input-bordered input-sm w-full" required onchange="suggestBookingRetreat()" />
+                                <input type="date" name="check_in" id="bookingDateIn" class="input input-bordered input-sm w-full" required onchange="suggestBookingRetreat(); renderBookingServes()" />
                                 <div id="bookingArrivalTime" data-arrival-time="in"></div>
                             </div>
                             <div class="form-control">
                                 <label class="label py-1">
                                     <span class="label-text font-medium" data-i18n="check_out">Выезд</span>
                                 </label>
-                                <input type="date" name="check_out" id="bookingDateOut" class="input input-bordered input-sm w-full" required onchange="suggestBookingRetreat()" />
+                                <input type="date" name="check_out" id="bookingDateOut" class="input input-bordered input-sm w-full" required onchange="suggestBookingRetreat(); renderBookingServes()" />
                                 <div id="bookingDepartureTime" data-arrival-time="out"></div>
                             </div>
                         </div>
@@ -1392,7 +1402,7 @@
     <script src="../js/house-guard.js?v=4"></script>
     <script src="../js/arrival-time.js?v=1"></script>
     <script src="../js/group-booking.js?v=12"></script>
-    <script src="../js/pages/timeline.js?v=90"></script>
+    <script src="../js/pages/timeline.js?v=91"></script>
 
 </body>
 </html>

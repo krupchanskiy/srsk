@@ -79,7 +79,7 @@ const SELF_BLOCKS = [['guests', SELF_GROUP_ID], ['team', SELF_TEAM_ID]];
 // slug обязателен в выборке resident_categories: без него все уходили в блок гостей (ВГ, 01.10)
 function selfKind(res) {
     const cat = res.resident_categories || categories.find(c => c.id === res.category_id);
-    return cat?.slug === 'team' || cat?.slug === 'volunteer' ? 'team' : 'guests';
+    return ['team', 'volunteer', 'retreat_volunteer', 'shrsk_volunteer'].includes(cat?.slug) ? 'team' : 'guests';
 }
 let periodRetreats = [];          // ретриты показанного периода — для «Сам организует» из CRM
 let periodResidents = [];         // все проживания периода — чтобы не дублировать людей из CRM
@@ -853,7 +853,8 @@ function openActionModal(dayIndex, roomId, buildingName, roomName, bedName, half
 // Загрузка справочников
 async function loadDictionaries() {
     const [catData, vaishnavasRes] = await Promise.all([
-        Cache.getOrLoad('resident_categories', async () => {
+        // _v2: новые категории волонтёров (697) — не ждать часа старого кэша
+        Cache.getOrLoad('resident_categories_v2', async () => {
             const { data, error } = await Layout.db.from('resident_categories').select('*').order('sort_order');
             if (error) { console.error('Error loading resident_categories:', error); return null; }
             return (data || []).filter(c => (c.sort_order || 0) < 999);
@@ -1076,6 +1077,7 @@ function showBookingForm() {
     const extraPeople = document.getElementById('bookingExtraPeople');
     if (extraPeople) extraPeople.innerHTML = '';
     resetBookingKids();
+    document.getElementById('bookingServesList').innerHTML = '';
     delete document.getElementById('bookingForm').beds_count.dataset.manual;
 
     // Бронь без номера: группа местами без имён или один человек (ВГ, 01.10)
@@ -1108,7 +1110,40 @@ function toggleCheckinDept() {
 function toggleBookingStaffFields() {
     const staff = isStaffCategory(document.getElementById('bookingCategory')?.value);
     document.getElementById('bookingStaffFields')?.classList.toggle('hidden', !staff);
+    renderBookingServes();
     updateBookingNewPersonHint();
+}
+
+// ===== «Волонтёр ретрита» (мигр. 697, ВГ + Ачинтья Кришна 15.10) =====
+// В брони отмечаются ретриты, на которые приехал служить (наши и сторонние): его питание за весь
+// приезд — расход в себестоимости прасада этих ретритов. Список — ретриты в даты брони + уже отмеченные.
+const categorySlug = id => categories.find(c => c.id === id)?.slug;
+const isServesCategory = id => categorySlug(id) === 'retreat_volunteer';
+function renderBookingServes(selected) {
+    const box = document.getElementById('bookingServesFields');
+    const list = document.getElementById('bookingServesList');
+    if (!box || !list) return;
+    const on = isServesCategory(document.getElementById('bookingCategory')?.value);
+    box.classList.toggle('hidden', !on);
+    if (!on && !selected) return;
+    const keep = new Set(selected || [...list.querySelectorAll('input:checked')].map(i => i.value));
+    const from = document.getElementById('bookingDateIn').value;
+    const to = document.getElementById('bookingDateOut').value || from;
+    const shown = allRetreats
+        .filter(r => keep.has(r.id) || (r.start_date > '2000-01-01' && (!to || r.start_date <= to) && (!from || r.end_date >= from)))
+        .sort((a, b) => a.start_date.localeCompare(b.start_date));
+    list.innerHTML = shown.length
+        ? shown.map(r => `<label class="flex items-center gap-2 text-sm cursor-pointer">
+              <input type="checkbox" class="checkbox checkbox-sm" value="${r.id}" ${keep.has(r.id) ? 'checked' : ''}>
+              <span>${e(Layout.getName(r))} <span class="opacity-60">${e(DateUtils.formatRange(r.start_date, r.end_date))}</span></span></label>`).join('')
+        : `<div class="text-sm opacity-60">${e(tf('timeline_serves_none', 'В даты брони ретритов нет'))}</div>`;
+}
+const bookingServesIds = () => isServesCategory(document.getElementById('bookingCategory')?.value)
+    ? [...document.querySelectorAll('#bookingServesList input:checked')].map(i => i.value) : [];
+// Ретриты не отмечены — сохранить можно, но себестоимость покажет ⚠ (решение ВГ 15.10)
+function warnNoServes(categoryId, ids) {
+    if (isServesCategory(categoryId) && !ids.length)
+        Layout.showNotification(tf('timeline_serves_empty', 'Не отмечены ретриты волонтёра — его питание не попадёт в ретриты, в Себестоимости будет ⚠'), 'warning');
 }
 
 // Человек не выбран, но имя вписано — подсказка, что заведём черновую карточку
@@ -1198,6 +1233,7 @@ async function openBookingEdit() {
     document.getElementById('bookingDepartment').value = res.department_id || '';
     document.getElementById('bookingService').value = res.vaishnavas?.service || '';
     toggleBookingStaffFields();
+    renderBookingServes(res.serves_retreat_ids || []);
 
     // Бронь на несколько мест — подсказка, что меняется у всех
     const hint = document.getElementById('bookingEditGroupHint');
@@ -1255,8 +1291,11 @@ async function saveBookingEdit(form) {
     }
     const breakfast = form.breakfast.checked;
     const lunch = form.lunch.checked;
+    const servesIds = bookingServesIds();
+    warnNoServes(categoryId, servesIds);
 
     const place = {
+        serves_retreat_ids: servesIds,
         vaishnava_id: vaishnavaId,
         // Имя без карточки — у гостя без справочника; у брони имя берётся из названия брони
         guest_name: vaishnavaId ? null : (typedName || null),
@@ -1283,7 +1322,7 @@ async function saveBookingEdit(form) {
         // Общее для брони — у остальных её мест
         if ((modalContext.bookingPlaces || 1) > 1) {
             const { error: grpError } = await Layout.db.from('residents')
-                .update({ category_id: categoryId, retreat_id: retreatId, department_id: departmentId, breakfast, lunch })
+                .update({ category_id: categoryId, retreat_id: retreatId, department_id: departmentId, breakfast, lunch, serves_retreat_ids: servesIds })
                 .eq('booking_id', res.booking_id).neq('id', res.id).neq('status', 'cancelled');
             if (grpError) Layout.handleError(grpError, tf('timeline_edit_booking', 'Изменить бронь'));
         }
@@ -2210,6 +2249,8 @@ async function saveBooking(e) {
         Layout.showNotification(tf('timeline_person_required', 'Укажите человека: выберите из справочника или впишите имя — заведём черновую карточку'), 'error');
         return;
     }
+    const servesIds = bookingServesIds();
+    warnNoServes(bookingCategoryId, servesIds);
     // Команда и волонтёры — у каждого вписанного имени черновая карточка; гость — имя в месте
     if (staff) {
         for (const p of people) {
@@ -2267,6 +2308,7 @@ async function saveBooking(e) {
             ...(bookingCategoryId ? { category_id: bookingCategoryId } : {}),
             // Департамент — у каждого места; у места с человеком база пишет его в историю служения
             department_id: departmentId,
+            serves_retreat_ids: servesIds,
             // Ретрит с брони: без него место не свяжется ни с регистрацией,
             // ни с долгом при выезде
             retreat_id: bookingRetreatId,
@@ -2507,6 +2549,14 @@ function openResidentModal(guestData, buildingName, roomName) {
         infoHtml += `<div class="flex justify-between items-center gap-2 py-1 border-b">
             <span class="text-gray-500">${tf('department', 'Департамент')}:</span>
             ${control}
+        </div>`;
+    }
+    // «Волонтёр ретрита» (697): на какие ретриты приехал — правится кнопкой «Изменить»
+    if (isServesCategory(res.category_id)) {
+        const names = (res.serves_retreat_ids || []).map(id => allRetreats.find(r => r.id === id)).filter(Boolean).map(r => Layout.getName(r));
+        infoHtml += `<div class="flex justify-between gap-2 py-1 border-b">
+            <span class="text-gray-500">${tf('timeline_serves_short', 'Служит на ретритах')}:</span>
+            <span class="font-medium text-right ${names.length ? '' : 'text-warning'}">${names.length ? e(names.join(', ')) : '⚠ ' + e(tf('timeline_serves_not_set', 'не отмечены'))}</span>
         </div>`;
     }
     if (res.vaishnavas?.service) {
@@ -4939,6 +4989,10 @@ async function init() {
 
     loadUncoveredNights();   // не задерживает отрисовку шахматки
     loadStayAlerts();
+
+    // ?resident=<id>&date=<заезд> — открыть это место (ссылки из ⚠ Себестоимости)
+    const params = new URLSearchParams(location.search);
+    if (params.get('resident') && params.get('date')) openStayAlert(params.get('resident'), params.get('date'));
 
     // Подписка на изменения в реальном времени
     subscribeToRealtime();
