@@ -37,7 +37,7 @@ const FILTER_IDS = { filterAccount: 'account', filterType: 'type', filterCategor
 function buildFilters() {
     document.getElementById('filterAccount').innerHTML =
         `<option value="">${t('fin_filter_all_accounts')}</option>` +
-        FinUtils.refs.accounts.map(a => `<option value="${a.account_id}">${e(a.name)}</option>`).join('');
+        FinUtils.sortAccounts(FinUtils.refs.accounts).map(a => `<option value="${a.account_id}">${e(a.name)}</option>`).join('');
     document.getElementById('filterType').innerHTML =
         `<option value="">${t('fin_filter_all_types')}</option>` +
         OP_TYPES.map(tp => `<option value="${tp}">${e(FinUtils.typeLabel(tp))}</option>`).join('');
@@ -772,8 +772,9 @@ async function submitReversal(ev) {
 function счетаПоКаналу(канал, selectedId, filter) {
     const наличные = (канал || 'cash') === 'cash';
     return FinUtils.accountOptions(selectedId, filter,
-        a => ((a.reconciliation_mode === 'cash_count') === наличные ? 2 : 0)
-           + (a.currency_code === 'INR' ? 1 : 0));
+        // Рупия первой — уже порядком валют в FinUtils.sortAccounts; отдельный
+        // вес за INR перемешивал подотчётных (15.10)
+        a => ((a.reconciliation_mode === 'cash_count') === наличные ? 1 : 0));
 }
 
 // ==================== ФОРМА: РАСХОД ====================

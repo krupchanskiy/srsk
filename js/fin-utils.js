@@ -285,6 +285,17 @@ const FinUtils = {
         return await this.loadRefs();
     },
 
+    // Порядок счетов (ВГ, 15.10): по названию без «(₹)» в конце, у одного названия
+    // валюты всегда ₹ → $ → € → ₽ — все счета человека/департамента стоят рядом
+    sortAccounts(list) {
+        const ORDER = { INR: 0, USD: 1, EUR: 2, RUB: 3 };
+        const base = a => (a.name || '').replace(/\s*\([^()]*\)\s*$/, '').trim();
+        return [...list].sort((a, b) =>
+            base(a).localeCompare(base(b), 'ru')
+            || (ORDER[a.currency_code] ?? 9) - (ORDER[b.currency_code] ?? 9)
+            || (a.name || '').localeCompare(b.name || '', 'ru'));
+    },
+
     // Опции селектов. Счета группируются: реальные / подотчётные.
     // prefer — вес приоритета: счета с большим весом идут первыми в своей группе.
     // Булев результат тоже принимается (true = 1). Чек-лист ВГ v3, п.4: канал
@@ -292,7 +303,7 @@ const FinUtils = {
     accountOptions(selectedId, filter, prefer) {
         const e = s => Layout.escapeHtml(s);
         const opt = a => `<option value="${a.account_id}" data-currency="${e(a.currency_code)}" ${a.account_id === selectedId ? 'selected' : ''}>${e(a.name)} (${this.fmtMoney(a.balance, a.currency_code)})</option>`;
-        const active = refs.accounts.filter(a => a.is_active && (!filter || filter(a)));
+        const active = this.sortAccounts(refs.accounts.filter(a => a.is_active && (!filter || filter(a))));
         if (prefer) active.sort((a, b) => Number(prefer(b)) - Number(prefer(a)));
         const real = active.filter(a => a.kind === 'real');
         const custodial = active.filter(a => a.kind === 'custodial');
