@@ -149,6 +149,11 @@
                 <div class="label"><span class="label-text" data-i18n="fin_refine_target">Кому выдаём</span></div>
                 <select class="select select-bordered" id="refineTarget" required></select>
             </label>
+            <!-- У получателя несколько держателей (Кафе, Зелёные) — кому именно отданы деньги -->
+            <label class="form-control mt-2 hidden" id="refineHolderWrap">
+                <div class="label"><span class="label-text">Кому из держателей</span></div>
+                <select class="select select-bordered" id="refineHolder"></select>
+            </label>
             <label class="form-control mt-2">
                 <div class="label"><span class="label-text" data-i18n="fin_refine_source">С какого счёта</span></div>
                 <select class="select select-bordered" id="refineSource"></select>
@@ -188,7 +193,7 @@
 <script src="../js/layout.js?v=84"></script>
 <script src="../js/date-utils.js?v=4"></script>
 <script src="../js/fin-utils.js?v=23"></script>
-<script src="../js/pages/fin-inbox.js?v=38"></script>
+<script src="../js/pages/fin-inbox.js?v=39"></script>
 
 </body>
 </html>

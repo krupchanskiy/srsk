@@ -309,13 +309,26 @@ async function submitReversal(ev) {
 async function postDraft(id) {
     const draft = chatDrafts.find(d => d.id === id);
     if (draft?.kind === 'transfer' && draft.target_department_id) {
-        const { data: holders, error } = await Layout.db.from('fin_department_holders')
-            .select('vaishnava_id, nickname, vaishnavas(spiritual_name, first_name, last_name)')
-            .eq('department_id', draft.target_department_id).eq('is_active', true);
-        if (error) { Layout.handleError(error, t('fin_post_draft')); return; }
+        const holders = await loadHolders(draft.target_department_id);
+        if (!holders) return;
         if (holders.length > 1) { openHolderPick(draft, holders); return; }
     }
     await callPostDraft(id, null);
+}
+
+// Активные держатели наличных департамента; null — ошибка уже показана
+async function loadHolders(deptId) {
+    const { data, error } = await Layout.db.from('fin_department_holders')
+        .select('vaishnava_id, nickname, vaishnavas(spiritual_name, first_name, last_name)')
+        .eq('department_id', deptId).eq('is_active', true);
+    if (error) { Layout.handleError(error, t('fin_post_draft')); return null; }
+    return data;
+}
+
+function holderName(h) {
+    const v = h.vaishnavas || {};
+    const name = v.spiritual_name || `${v.first_name || ''} ${v.last_name || ''}`.trim();
+    return name + (h.nickname ? ` (${h.nickname})` : '');
 }
 
 // Размен в кассу кафе: деньги на Кафе, но ни на кого из держателей —
@@ -341,11 +354,9 @@ function openHolderPick(draft, holders) {
         `«${draft.target_department || ''}» · ${FinUtils.fmtMoney(draft.amount, draft.currency)} · ${draft.raw_text || ''}`;
     // Никого не отмечаем заранее — выбор осознанный
     document.getElementById('holderList').innerHTML = holders.map(h => {
-        const v = h.vaishnavas || {};
-        const name = v.spiritual_name || `${v.first_name || ''} ${v.last_name || ''}`.trim();
         return `<label class="label cursor-pointer justify-start gap-3 py-1">
             <input type="radio" name="holderPick" class="radio radio-sm" value="${h.vaishnava_id}" required>
-            <span class="label-text">${e(name)}${h.nickname ? ` <span class="opacity-60">(${e(h.nickname)})</span>` : ''}</span>
+            <span class="label-text">${e(holderName(h))}</span>
         </label>`;
     }).join('') + (draft.target_department_id === CAFE_DEPT_ID ? `<label class="label cursor-pointer justify-start gap-3 py-1">
             <input type="radio" name="holderPick" class="radio radio-sm" value="${FLOAT_PICK}" required>
@@ -587,6 +598,27 @@ function refineTargetIsCafe() {
     return isCafeDept(refineCostDept());
 }
 
+// Держатель получателя — прямо в окне уточнения (ВГ, 15.10.2026): раньше выбор
+// всплывал только после «Сохранить» → «Провести», и его не находили.
+// Выбран держатель — «Сохранить» сразу проводит; «выберу потом» — только сохраняет.
+let refineHolders = [];
+
+async function loadRefineHolders() {
+    const deptId = refineIsSelf() ? null : document.getElementById('refineTarget').value;
+    refineHolders = (deptId && await loadHolders(deptId)) || [];
+    // ответ мог прийти, когда получателя уже сменили
+    if (deptId !== (refineIsSelf() ? null : document.getElementById('refineTarget').value)) return;
+    document.getElementById('refineHolder').innerHTML = `<option value="">— выберу потом</option>` +
+        refineHolders.map(h => `<option value="${h.vaishnava_id}">${e(holderName(h))}</option>`).join('') +
+        (deptId === CAFE_DEPT_ID ? `<option value="${FLOAT_PICK}">Выдано на сдачу (касса 2 этажа, ни на кого)</option>` : '');
+    syncRefineSpent();
+}
+
+// «Уже потрачено» держателя не получает: приход и расход гасятся
+function refineHolderShown() {
+    return refineHolders.length > 1 && !document.getElementById('refineSpent').checked;
+}
+
 // Подсказка статьи по тексту заявки («выдано Уше 1600₹ зп» → Оплата труда).
 // Порядок важен: первое совпавшее правило побеждает. Ошибку казначей поправит
 // в списке, задача — не заставлять его каждый раз выбирать с нуля.
@@ -757,6 +789,8 @@ function openRefine(id) {
     document.getElementById('refineRows').innerHTML = refineRowHtml(refineDraft.amount, guessCategoryId(refineDraft.raw_text, refineTargetIsCafe()), null);
     document.getElementById('refineSpent').checked = false;
     document.getElementById('refineNote').value = refineDraft.note || '';
+    refineHolders = [];
+    loadRefineHolders();
     syncRefineSpent();
     renderRefineRemainder();
     suggestAllRefineRows();
@@ -775,7 +809,9 @@ function syncRefineSpent() {
     const spent = spentBox.checked;
     document.getElementById('refineSpentFields').classList.toggle('hidden', !spent);
     refineRows().forEach(r => { r.querySelector('[data-refine-cat]').required = spent; });
-    document.getElementById('refineSubmit').textContent = spent ? t('fin_post_draft') : t('save');
+    document.getElementById('refineHolderWrap').classList.toggle('hidden', !refineHolderShown());
+    const posting = spent || (refineHolderShown() && document.getElementById('refineHolder').value);
+    document.getElementById('refineSubmit').textContent = posting ? t('fin_post_draft') : t('save');
     renderRefineRemainder();
 }
 
@@ -794,6 +830,14 @@ async function submitRefine(ev) {
     });
     if (error) { Layout.handleError(error, t('fin_refine')); return; }
     if (!data?.ok) { Layout.showNotification(data?.error || t('error'), 'error'); return; }
+
+    // Держатель выбран — проводим сразу, без второго окна
+    const holder = refineHolderShown() && document.getElementById('refineHolder').value;
+    if (!spent && holder) {
+        if (await callPostDraft(id, holder)) document.getElementById('refineModal').close();
+        else await loadList();   // уточнение сохранилось, проведение — нет
+        return;
+    }
 
     // Без галочки уточнение только сохраняется — проводит казначей отдельно,
     // посмотрев на исправленную карточку.
@@ -861,6 +905,8 @@ async function init() {
     document.getElementById('refineSpent').addEventListener('change', syncRefineSpent);
     document.getElementById('refineSpent').addEventListener('change', suggestAllRefineRows);
     document.getElementById('refineTarget').addEventListener('change', syncRefineSpent);
+    document.getElementById('refineTarget').addEventListener('change', loadRefineHolders);
+    document.getElementById('refineHolder').addEventListener('change', syncRefineSpent);
     document.getElementById('refineTarget').addEventListener('change', suggestAllRefineRows);
     document.getElementById('refineTarget').addEventListener('change', syncAllRefinePayrollFields);
     document.getElementById('refineTarget').addEventListener('change', () => refineRows().forEach(guessLaborByPayroll));

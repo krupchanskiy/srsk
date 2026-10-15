@@ -508,6 +508,11 @@
                     <input type="number" id="trTargetAmount" class="input input-bordered input-sm" min="0.01" step="0.01">
                 </div>
             </div>
+            <!-- У получателя несколько держателей (Кафе, Зелёные) — кому именно отданы деньги (698) -->
+            <div class="form-control mb-2 hidden" id="trHolderWrap">
+                <label class="label py-0"><span class="label-text">Кому из держателей</span></label>
+                <select id="trHolder" class="select select-bordered select-sm"></select>
+            </div>
             <div class="form-control mb-2">
                 <label class="label py-0"><span class="label-text" data-i18n="fin_comment">Комментарий</span></label>
                 <input type="text" id="trComment" class="input input-bordered input-sm">
@@ -550,7 +555,7 @@
 <script src="../js/layout.js?v=84"></script>
 <script src="../js/date-utils.js?v=4"></script>
 <script src="../js/fin-utils.js?v=23"></script>
-<script src="../js/pages/fin-dds.js?v=38"></script>
+<script src="../js/pages/fin-dds.js?v=39"></script>
 
 </body>
 </html>

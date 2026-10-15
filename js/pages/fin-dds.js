@@ -1284,7 +1284,61 @@ function openTransfer(sourceId) {
     toggleTransferSpent();
     updateTransferCurrency();
     updateTransferRecap();
+    document.getElementById('trHolder').dataset.dept = '';
+    loadDeptHolders().then(syncTransferHolder);
     document.getElementById('transferModal').showModal();
+}
+
+// Кому из держателей получателя легли деньги (ВГ, 15.10.2026, мигр. 698) — как
+// во «Входящих» (689): один держатель ставится сам, у Кафе и Зелёных выбирают.
+// У Кафе есть «выдано на сдачу» — ни на кого, касса 2 этажа (693).
+const CAFE_DEPT_ID = '4b2b3528-abd8-42de-ad35-935029c29340';
+const FLOAT_PICK = 'float';
+let deptHolders = null;   // { department_id: [держатели] }
+
+async function loadDeptHolders() {
+    if (deptHolders) return;
+    const { data, error } = await Layout.db.from('fin_department_holders')
+        .select('department_id, vaishnava_id, nickname, vaishnavas(spiritual_name, first_name, last_name)')
+        .eq('is_active', true);
+    deptHolders = {};
+    if (error) return;   // без списка — как раньше, ни на кого
+    data.forEach(h => (deptHolders[h.department_id] ||= []).push(h));
+}
+
+function transferTargetDept() {
+    const target = document.getElementById('trTarget').value;
+    return FinUtils.refs.accounts.find(a => a.account_id === target)?.department_id || null;
+}
+
+function transferTargetHolders() {
+    return deptHolders?.[transferTargetDept()] || [];
+}
+
+// «Уже потрачено» держателя не получает: приход и расход гасятся
+function syncTransferHolder() {
+    const list = transferTargetHolders();
+    const show = list.length > 1 && !document.getElementById('trSpent').checked;
+    const sel = document.getElementById('trHolder');
+    document.getElementById('trHolderWrap').classList.toggle('hidden', !show);
+    sel.required = show;
+    const dept = transferTargetDept() || '';
+    if (sel.dataset.dept === dept) return;
+    sel.dataset.dept = dept;
+    // Никого не отмечаем заранее — выбор осознанный
+    sel.innerHTML = `<option value="">—</option>` + list.map(h => {
+        const v = h.vaishnavas || {};
+        const name = v.spiritual_name || `${v.first_name || ''} ${v.last_name || ''}`.trim();
+        return `<option value="${h.vaishnava_id}">${e(name)}${h.nickname ? ` (${e(h.nickname)})` : ''}</option>`;
+    }).join('') + (dept === CAFE_DEPT_ID ? `<option value="${FLOAT_PICK}">Выдано на сдачу (касса 2 этажа, ни на кого)</option>` : '');
+}
+
+function transferHolderValue() {
+    if (document.getElementById('trSpent').checked) return null;
+    const list = transferTargetHolders();
+    if (list.length === 1) return list[0].vaishnava_id;
+    const v = document.getElementById('trHolder').value;
+    return list.length > 1 && v && v !== FLOAT_PICK ? v : null;
 }
 
 // «Деньги уже потрачены»: за департамент оплатили напрямую, и одним действием
@@ -1343,6 +1397,7 @@ async function submitTransfer(ev) {
     }
     const дата = document.getElementById('trDate').value;
     const комментарий = document.getElementById('trComment').value || null;
+    const держатель = transferHolderValue();
     const res = await FinUtils.rpc('fin_create_transfer', {
         request_id: requestIds.transfer,
         occurred_on: дата,
@@ -1350,7 +1405,8 @@ async function submitTransfer(ev) {
         target_account_id: target,
         source_amount: document.getElementById('trAmount').value,
         target_amount: differ ? document.getElementById('trTargetAmount').value : null,
-        comment: комментарий
+        comment: комментарий,
+        ...(держатель ? { target_holder_person_id: держатель } : {})
     });
     if (!FinUtils.handleResult(res)) return;
     requestIds.transfer = null;
@@ -1407,10 +1463,11 @@ async function init() {
         if (att) FinUtils.openAttachment(att.dataset.attachmentPath);
     });
     document.getElementById('incIsDonation').addEventListener('change', updateIncomeCategoryList);
-    document.getElementById('trSource').addEventListener('change', () => { rebuildTransferTarget(); updateTransferCurrency(); updateTransferRecap(); });
-    document.getElementById('trTarget').addEventListener('change', () => { updateTransferCurrency(); updateTransferRecap(); });
+    document.getElementById('trSource').addEventListener('change', () => { rebuildTransferTarget(); updateTransferCurrency(); updateTransferRecap(); syncTransferHolder(); });
+    document.getElementById('trTarget').addEventListener('change', () => { updateTransferCurrency(); updateTransferRecap(); syncTransferHolder(); });
     document.getElementById('trAmount').addEventListener('input', updateTransferRecap);
     document.getElementById('trSpent').addEventListener('change', toggleTransferSpent);
+    document.getElementById('trSpent').addEventListener('change', syncTransferHolder);
     document.getElementById('expenseModal').addEventListener('input', updateExpenseRecap);
     document.getElementById('expenseModal').addEventListener('change', updateExpenseRecap);
     // Сменили счёт в строке расхода — канал этой строки встаёт по счёту
