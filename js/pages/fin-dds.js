@@ -940,6 +940,8 @@ function openIncome() {
     document.getElementById('incChannel').innerHTML = каналыСписком(каналСчёта(document.getElementById('incAccount').value));
     document.getElementById('incCafeSelf').value = '';
     document.getElementById('incCafeHall').value = '';
+    document.getElementById('incCafeFloat').value = '';
+    cafeFloatLoaded = false;
     updateIncomeCategoryList();
     document.getElementById('incAmount').value = '';
     document.getElementById('incComment').value = '';
@@ -1058,11 +1060,34 @@ function syncCafeBlock() {
     document.getElementById('incAddRowBtn').classList.add('hidden');
     document.querySelectorAll('#incRows .inc-row:not(:first-child)').forEach(r => r.remove());
     syncCafeTotal();
+    loadCafeFloat();
 }
+
+// Размен в кассе 2 этажа = остаток Кафе без держателя (693). Сам не подставляется
+// (ВГ, 15.10): касса может сдаваться и целиком с разменом, и только выручкой —
+// вычет размена каждый раз осознанный, кнопкой с суммой
+let cafeFloatLoaded = false;
+async function loadCafeFloat() {
+    if (cafeFloatLoaded) return;
+    cafeFloatLoaded = true;
+    const { data } = await Layout.db.rpc('fin_cafe_float', { p_currency: 'INR' });
+    const amount = Number(data) || 0;
+    const btn = document.getElementById('incCafeFloatBtn');
+    btn.classList.toggle('hidden', amount <= 0);
+    btn.textContent = `в кассе ${FinUtils.fmtMoney(amount, 'INR')} — вычесть размен`;
+    btn.onclick = () => { document.getElementById('incCafeFloat').value = amount; syncCafeTotal(); };
+}
+
+const cafeFloat = () => Number(document.getElementById('incCafeFloat').value) || 0;
 
 function syncCafeTotal() {
     const sum = cafeParts().reduce((s, p) => s + p.amount, 0);
     document.getElementById('incAmount').value = sum ? Math.round(sum * 100) / 100 : '';
+    const hall = Number(document.getElementById('incCafeHall').value) || 0;
+    document.getElementById('incCafeNet').textContent = !hall ? ''
+        : cafeFloat()
+            ? `Доходом кафе пойдёт ${FinUtils.fmtMoney(hall - cafeFloat(), 'INR')}, размен ${FinUtils.fmtMoney(cafeFloat(), 'INR')} вернётся с Кафе`
+            : 'Размен не вычтен — всё снятое с 2 этажа пойдёт доходом';
 }
 
 function cafeParts() {
@@ -1202,6 +1227,15 @@ async function submitIncome(ev) {
     const cafe = isCafeIncome();
     const parts = cafe ? cafeParts() : incomeParts().map(p => ({ ...p, amount: p.amount.value }));
     if (cafe && !parts.length) { Layout.showNotification('Введите сумму хотя бы по одной точке кафе', 'error'); return; }
+    // Размен входит в снятую кассу 2 этажа — доходом только остаток (693)
+    const float = cafe ? cafeFloat() : 0;
+    const hallPart = parts.find(p => p.cafe_point === 'cafe');
+    if (float > 0) {
+        if (!hallPart || float > hallPart.amount) {
+            Layout.showNotification('Размен больше, чем снято с кассы 2 этажа', 'error'); return;
+        }
+        hallPart.amount = Math.round((hallPart.amount - float) * 100) / 100;
+    }
     const payload = {
         request_id: requestIds.income,
         occurred_on: document.getElementById('incDate').value,
@@ -1219,7 +1253,13 @@ async function submitIncome(ev) {
     if (isDonation && document.getElementById('incDonorId').value) {
         payload.payer_contact_id = document.getElementById('incDonorId').value;
     }
-    const res = await FinUtils.rpc(isDonation ? 'fin_create_donation' : 'fin_create_income', payload);
+    if (float > 0) {
+        payload.rows = payload.rows.filter(r => r.amount > 0);
+        payload.cafe_float = float;
+        payload.float_account_id = hallPart.account.value;
+    }
+    const res = await FinUtils.rpc(isDonation ? 'fin_create_donation'
+        : float > 0 ? 'fin_create_cafe_collection' : 'fin_create_income', payload);
     if (FinUtils.handleResult(res)) {
         requestIds.income = null;
         document.getElementById('incomeModal').close();

@@ -316,9 +316,14 @@ async function postDraft(id) {
     await callPostDraft(id, null);
 }
 
+// Размен в кассу кафе: деньги на Кафе, но ни на кого из держателей —
+// это остаток без держателя, его потом возвращает приход «Касса кафе» (693)
+const FLOAT_PICK = 'float';
+
 async function callPostDraft(id, targetHolder) {
     const params = { p_id: id };
-    if (targetHolder) Object.assign(params, { p_rows: null, p_target_holder: targetHolder });
+    if (targetHolder === FLOAT_PICK) Object.assign(params, { p_rows: null, p_no_holder: true });
+    else if (targetHolder) Object.assign(params, { p_rows: null, p_target_holder: targetHolder });
     const { data, error } = await Layout.db.rpc('tg_post_draft', params);
     if (error) { Layout.handleError(error, t('fin_post_draft')); return false; }
     if (data?.ok) { Layout.showNotification(t('fin_saved'), 'success'); await loadList(); return true; }
@@ -338,7 +343,10 @@ function openHolderPick(draft, holders) {
             <input type="radio" name="holderPick" class="radio radio-sm" value="${h.vaishnava_id}" required>
             <span class="label-text">${e(name)}${h.nickname ? ` <span class="opacity-60">(${e(h.nickname)})</span>` : ''}</span>
         </label>`;
-    }).join('');
+    }).join('') + (draft.target_department === 'Кафе' ? `<label class="label cursor-pointer justify-start gap-3 py-1">
+            <input type="radio" name="holderPick" class="radio radio-sm" value="${FLOAT_PICK}" required>
+            <span class="label-text">Размен в кассу 2 этажа <span class="opacity-60">(ни на кого)</span></span>
+        </label>` : '');
     document.getElementById('holderModal').showModal();
 }
 
