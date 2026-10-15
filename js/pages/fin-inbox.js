@@ -319,6 +319,8 @@ async function postDraft(id) {
 // Размен в кассу кафе: деньги на Кафе, но ни на кого из держателей —
 // это остаток без держателя, его потом возвращает приход «Касса кафе» (693)
 const FLOAT_PICK = 'float';
+// Кафе — по постоянному id (696): переименование департамента не ломает пункт
+const CAFE_DEPT_ID = '4b2b3528-abd8-42de-ad35-935029c29340';
 
 async function callPostDraft(id, targetHolder) {
     const params = { p_id: id };
@@ -343,7 +345,7 @@ function openHolderPick(draft, holders) {
             <input type="radio" name="holderPick" class="radio radio-sm" value="${h.vaishnava_id}" required>
             <span class="label-text">${e(name)}${h.nickname ? ` <span class="opacity-60">(${e(h.nickname)})</span>` : ''}</span>
         </label>`;
-    }).join('') + (draft.target_department === 'Кафе' ? `<label class="label cursor-pointer justify-start gap-3 py-1">
+    }).join('') + (draft.target_department_id === CAFE_DEPT_ID ? `<label class="label cursor-pointer justify-start gap-3 py-1">
             <input type="radio" name="holderPick" class="radio radio-sm" value="${FLOAT_PICK}" required>
             <span class="label-text">Выдано на сдачу <span class="opacity-60">(касса 2 этажа, ни на кого)</span></span>
         </label>` : '');
