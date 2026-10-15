@@ -1074,7 +1074,7 @@ async function loadCafeFloat() {
     const amount = Number(data) || 0;
     const btn = document.getElementById('incCafeFloatBtn');
     btn.classList.toggle('hidden', amount <= 0);
-    btn.textContent = `в кассе ${FinUtils.fmtMoney(amount, 'INR')} — вычесть размен`;
+    btn.textContent = `выдано на сдачу ${FinUtils.fmtMoney(amount, 'INR')} — вычесть`;
     btn.onclick = () => { document.getElementById('incCafeFloat').value = amount; syncCafeTotal(); };
 }
 
@@ -1086,8 +1086,8 @@ function syncCafeTotal() {
     const hall = Number(document.getElementById('incCafeHall').value) || 0;
     document.getElementById('incCafeNet').textContent = !hall ? ''
         : cafeFloat()
-            ? `Доходом кафе пойдёт ${FinUtils.fmtMoney(hall - cafeFloat(), 'INR')}, размен ${FinUtils.fmtMoney(cafeFloat(), 'INR')} вернётся с Кафе`
-            : 'Размен не вычтен — всё снятое с 2 этажа пойдёт доходом';
+            ? `Доходом кафе пойдёт ${FinUtils.fmtMoney(hall - cafeFloat(), 'INR')}, сдача ${FinUtils.fmtMoney(cafeFloat(), 'INR')} вернётся с Кафе`
+            : 'Сдача не вычтена — всё снятое с 2 этажа пойдёт доходом';
 }
 
 function cafeParts() {
@@ -1232,7 +1232,7 @@ async function submitIncome(ev) {
     const hallPart = parts.find(p => p.cafe_point === 'cafe');
     if (float > 0) {
         if (!hallPart || float > hallPart.amount) {
-            Layout.showNotification('Размен больше, чем снято с кассы 2 этажа', 'error'); return;
+            Layout.showNotification('Сдачи больше, чем снято с кассы 2 этажа', 'error'); return;
         }
         hallPart.amount = Math.round((hallPart.amount - float) * 100) / 100;
     }

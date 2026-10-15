@@ -345,7 +345,7 @@ function openHolderPick(draft, holders) {
         </label>`;
     }).join('') + (draft.target_department === 'Кафе' ? `<label class="label cursor-pointer justify-start gap-3 py-1">
             <input type="radio" name="holderPick" class="radio radio-sm" value="${FLOAT_PICK}" required>
-            <span class="label-text">Размен в кассу 2 этажа <span class="opacity-60">(ни на кого)</span></span>
+            <span class="label-text">Выдано на сдачу <span class="opacity-60">(касса 2 этажа, ни на кого)</span></span>
         </label>` : '');
     document.getElementById('holderModal').showModal();
 }
