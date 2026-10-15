@@ -37,7 +37,7 @@ const FILTER_IDS = { filterAccount: 'account', filterType: 'type', filterCategor
 function buildFilters() {
     document.getElementById('filterAccount').innerHTML =
         `<option value="">${t('fin_filter_all_accounts')}</option>` +
-        FinUtils.sortAccounts(FinUtils.refs.accounts).map(a => `<option value="${a.account_id}">${e(a.name)}</option>`).join('');
+        FinUtils.refs.accounts.map(a => `<option value="${a.account_id}">${e(a.name)}</option>`).join('');
     document.getElementById('filterType').innerHTML =
         `<option value="">${t('fin_filter_all_types')}</option>` +
         OP_TYPES.map(tp => `<option value="${tp}">${e(FinUtils.typeLabel(tp))}</option>`).join('');

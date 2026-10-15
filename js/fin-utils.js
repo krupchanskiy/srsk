@@ -202,7 +202,7 @@ const FinUtils = {
             Layout.db.from('retreat_fact_end').select('retreat_id, fact_end')
         ]);
         refs.currencies = cur.data || [];
-        refs.accounts = acc.data || [];
+        refs.accounts = this.sortAccounts(acc.data || []);
         refs.categories = cat.data || [];
         refs.costCenters = cc.data || [];
         // Даты ретрита — в подпись объекта: два «Ретрита Художников» иначе не различить
@@ -221,7 +221,7 @@ const FinUtils = {
 
     async reloadAccounts() {
         const { data } = await Layout.db.from('fin_v_account_balances').select('*').order('name');
-        refs.accounts = data || [];
+        refs.accounts = this.sortAccounts(data || []);
         return refs.accounts;
     },
 
@@ -303,7 +303,7 @@ const FinUtils = {
     accountOptions(selectedId, filter, prefer) {
         const e = s => Layout.escapeHtml(s);
         const opt = a => `<option value="${a.account_id}" data-currency="${e(a.currency_code)}" ${a.account_id === selectedId ? 'selected' : ''}>${e(a.name)} (${this.fmtMoney(a.balance, a.currency_code)})</option>`;
-        const active = this.sortAccounts(refs.accounts.filter(a => a.is_active && (!filter || filter(a))));
+        const active = refs.accounts.filter(a => a.is_active && (!filter || filter(a)));
         if (prefer) active.sort((a, b) => Number(prefer(b)) - Number(prefer(a)));
         const real = active.filter(a => a.kind === 'real');
         const custodial = active.filter(a => a.kind === 'custodial');

@@ -168,8 +168,7 @@ function renderTab() {
 // и не появлялся в списке получателей (случай ВГ со «Стройкой», 05.08.2026).
 function deptAccountsHtml(deptId) {
     const own = FinUtils.refs.accounts
-        .filter(a => a.department_id === deptId && a.kind === 'custodial' && a.is_active)
-        .sort((a, b) => a.name.localeCompare(b.name));
+        .filter(a => a.department_id === deptId && a.kind === 'custodial' && a.is_active);
     const have = new Set(own.map(a => a.currency_code));
     const canAdd = FinUtils.refs.currencies.filter(c => !have.has(c.code));
 
