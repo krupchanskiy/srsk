@@ -46,7 +46,6 @@
             <button class="tab tab-active" data-tab="building_types" data-i18n="dict_building_types">Типы зданий</button>
             <button class="tab" data-tab="room_types" data-i18n="dict_room_types">Типы комнат</button>
             <button class="tab" data-tab="resident_categories" data-i18n="dict_resident_categories">Категории</button>
-            <button class="tab" data-tab="departments" data-i18n="dict_departments">Департаменты</button>
         </div>
 
         <!-- Tab Content -->
@@ -90,8 +89,7 @@
         let data = {
             building_types: [],
             room_types: [],
-            resident_categories: [],
-            departments: []
+            resident_categories: []
         };
 
         const t = key => Layout.t(key);
@@ -154,23 +152,6 @@
                     { name: 'name_en', label: 'col_english', type: 'text', placeholder: 'Guest' },
                     { name: 'name_hi', label: 'col_hindi', type: 'text', placeholder: 'अतिथि' },
                     { name: 'color', label: 'color', type: 'color', defaultValue: '#3b82f6' }
-                ],
-                orderBy: 'sort_order'
-            },
-            departments: {
-                table: 'departments',
-                titleKey: 'dict_departments',
-                columns: [
-                    { key: 'color', label: '', width: 'w-12', type: 'color' },
-                    { key: 'name_ru', label: 'col_russian', editable: true },
-                    { key: 'name_en', label: 'col_english', editable: true },
-                    { key: 'name_hi', label: 'col_hindi', editable: true }
-                ],
-                fields: [
-                    { name: 'name_ru', label: 'col_russian', type: 'text', required: true, placeholder: 'Кухня' },
-                    { name: 'name_en', label: 'col_english', type: 'text', required: false, placeholder: 'Kitchen' },
-                    { name: 'name_hi', label: 'col_hindi', type: 'text', required: false, placeholder: 'रसोई' },
-                    { name: 'color', label: 'color', type: 'color', defaultValue: '#6366f1' }
                 ],
                 orderBy: 'sort_order'
             }

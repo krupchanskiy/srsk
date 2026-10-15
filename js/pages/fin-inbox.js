@@ -11,6 +11,8 @@ let currentTab = 'pending';
 let opsById = {};
 let chatDrafts = [];   // заявки из чатов текущей выдачи — нужны модалке статей
 let departments = [];  // справочник для выбора департамента-получателя
+// Кафе — по коду, а не по названию: департамент можно переименовать в справочнике
+const isCafeDept = id => !!id && departments.find(d => d.id === id)?.code === 'cafe';
 
 async function loadUnpostedCount() {
     // Платежи, подтверждённые в CRM, но не разнесённые в финмодуль
@@ -494,8 +496,7 @@ function renderRemainder() {
 // data-split-dept) строка кафе, если сама заявка из чата департамента «Кафе»
 function rowIsCafe(row) {
     const deptSelect = row.querySelector('[data-split-dept]');
-    const deptName = deptSelect.value ? deptSelect.selectedOptions[0].textContent.trim() : splitDraft?.department;
-    return FinUtils.isCafeDepartmentName(deptName);
+    return isCafeDept(deptSelect.value || splitDraft?.department_id);
 }
 
 async function maybeSuggestSplitObject(row) {
@@ -583,9 +584,7 @@ function refineCostDept() {
 }
 
 function refineTargetIsCafe() {
-    if (refineIsSelf()) return FinUtils.isCafeDepartmentName(refineDraft?.department);
-    const opt = document.getElementById('refineTarget').selectedOptions[0];
-    return FinUtils.isCafeDepartmentName(opt?.textContent);
+    return isCafeDept(refineCostDept());
 }
 
 // Подсказка статьи по тексту заявки («выдано Уше 1600₹ зп» → Оплата труда).
@@ -845,7 +844,7 @@ async function init() {
     await Layout.init({ module: 'finance', menuId: 'fin_inbox', itemId: 'fin_inbox' });
     await FinUtils.loadRefs();
 
-    const { data: depts } = await Layout.db.from('fin_v_departments').select('id, name').order('name');
+    const { data: depts } = await Layout.db.from('fin_v_departments').select('id, name, code').order('name');
     departments = depts || [];
 
     document.querySelectorAll('[data-tab]').forEach(tab =>

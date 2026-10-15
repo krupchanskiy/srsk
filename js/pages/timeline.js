@@ -859,13 +859,13 @@ async function loadDictionaries() {
             return (data || []).filter(c => (c.sort_order || 0) < 999);
         }),
         Utils.fetchAll((from, to) => Layout.db.from('vaishnavas').select('id, spiritual_name, first_name, last_name, gender, phone, telegram, telegram_username, birth_date, status, parent_id, department_id').eq('is_deleted', false).order('spiritual_name').range(from, to)),
-        Layout.db.from('departments').select('id, name_ru, name_en, name_hi, sort_order').order('sort_order')
+        Layout.db.from('fin_departments').select('id, name_ru:name, for_people').order('name')
             .then(({ data, error }) => { if (error) console.error('departments:', error); departments = data || []; })
     ]);
     categories = catData || [];
     vaishnavas = vaishnavasRes.data || [];
     const deptOptions = '<option value="">—</option>'
-        + departments.map(d => `<option value="${d.id}">${e(Layout.getName(d))}</option>`).join('');
+        + departments.filter(d => d.for_people).map(d => `<option value="${d.id}">${e(Layout.getName(d))}</option>`).join('');
     ['bookingDepartment', 'checkinDepartment'].forEach(id => {
         const sel = document.getElementById(id);
         if (sel) sel.innerHTML = deptOptions;
@@ -2501,7 +2501,7 @@ function openResidentModal(guestData, buildingName, roomName) {
         const control = canEditTimeline()
             ? `<select class="select select-bordered select-sm max-w-[16rem]${res.department_id ? '' : ' border-error'}" onchange="setResidentDepartment(this)">
                    <option value="">—</option>
-                   ${departments.map(d => `<option value="${d.id}" ${d.id === res.department_id ? 'selected' : ''}>${e(Layout.getName(d))}</option>`).join('')}
+                   ${departments.filter(d => d.for_people || d.id === res.department_id).map(d => `<option value="${d.id}" ${d.id === res.department_id ? 'selected' : ''}>${e(Layout.getName(d))}</option>`).join('')}
                </select>`
             : `<span class="font-medium">${e(departmentName(res.department_id) || '—')}</span>`;
         infoHtml += `<div class="flex justify-between items-center gap-2 py-1 border-b">

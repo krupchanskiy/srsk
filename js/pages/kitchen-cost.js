@@ -54,7 +54,7 @@ let unassigned = [];
 let costGroups = [];
 let reconcileActuals = [];
 let reconcileThreshold = 15;  // % — порог подсветки расхождений в сверке (fin_settings, меняет fin_admin)
-let departments = [];                 // справочник департаментов людей (vaishnavas.department_id)
+let departments = [];                 // справочник департаментов (fin_departments, Финансы → Справочники)
 const personDept = new Map();         // vaishnava_id → [{ dep, from, to }] — история департаментов (vaishnava_departments)
 const personName = new Map();         // vaishnava_id → имя (для списков людей)
 const groupNames = new Map();         // meal_groups.id → название группы
@@ -2032,7 +2032,7 @@ async function init() {
 
     const [{ data }, { data: deps }] = await Promise.all([
         Layout.db.from('retreats').select('id, name_ru, name_en, name_hi, start_date, end_date, is_external').order('start_date', { ascending: false }),
-        Layout.db.from('departments').select('*')
+        Layout.db.from('fin_departments').select('id, name_ru:name, color')
     ]);
     retreats = data || [];
     departments = deps || [];

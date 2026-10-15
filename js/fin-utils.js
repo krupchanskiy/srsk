@@ -242,10 +242,6 @@ const FinUtils = {
         return !!a && /кафе/i.test(a.name);
     },
 
-    isCafeDepartmentName(name) {
-        return (name || '').trim() === 'Кафе';
-    },
-
     async loadRetreatRanges() {
         if (retreatRanges) return retreatRanges;
         // cafe_eligible = false — ретрит вне подсчёта кафе (внутренний проект,

@@ -78,7 +78,7 @@ async function init() {
 async function loadPerson(personId) {
     const { data, error } = await Layout.db
         .from('vaishnavas')
-        .select('*, departments(id, name_ru, name_en, name_hi, color), senior:vaishnavas!senior_id(id, spiritual_name, first_name, last_name), parent:vaishnavas!parent_id(id, spiritual_name, first_name, last_name)')
+        .select('*, departments:fin_departments!vaishnavas_department_id_fkey(id, name_ru:name, color), senior:vaishnavas!senior_id(id, spiritual_name, first_name, last_name), parent:vaishnavas!parent_id(id, spiritual_name, first_name, last_name)')
         .eq('id', personId)
         .maybeSingle();
 
@@ -125,11 +125,9 @@ function applyEditPermissions() {
 
 async function loadDepartments() {
     const [deptData, teamRes, teachersRes, knownTeachersRes] = await Promise.all([
-        Cache.getOrLoad('departments', async () => {
-            const { data, error } = await Layout.db.from('departments').select('*').order('sort_order');
-            if (error) { console.error('Error loading departments:', error); return null; }
-            return data;
-        }),
+        // Департаменты — из Финансов → Справочники; без кэша, чтобы переименование было видно сразу
+        Layout.db.from('fin_departments').select('id, name_ru:name, color, for_people').order('name')
+            .then(({ data, error }) => { if (error) console.error('Error loading departments:', error); return data; }),
         Utils.fetchAll((from, to) => Layout.db.from('vaishnavas').select('id, spiritual_name, first_name, last_name')
             .in('status', ['team', 'volunteer']).eq('is_deleted', false).order('spiritual_name').range(from, to)),
         Utils.fetchAll((from, to) => Layout.db.from('vaishnavas').select('spiritual_teacher')
@@ -582,8 +580,10 @@ function populateCountriesList() {
 
 function populateDepartmentsSelect() {
     const select = document.getElementById('editDepartment');
+    // личные счета (галочка «показывать у людей» снята) не предлагаем, но текущий оставляем
     select.innerHTML = '<option value="">—</option>' +
-        departments.map(d => `<option value="${d.id}">${Layout.getName(d)}</option>`).join('');
+        departments.filter(d => d.for_people || d.id === person?.department_id)
+            .map(d => `<option value="${d.id}">${Layout.getName(d)}</option>`).join('');
     // Сменили департамент — спрашиваем, с какого числа: прошлое питание остаётся на прежнем
     select.onchange = () => {
         const changed = (select.value || null) !== (person?.department_id || null);
@@ -598,7 +598,7 @@ function populateDepartmentsSelect() {
 async function loadDeptHistory(personId) {
     const box = document.getElementById('deptHistory');
     const { data, error } = await Layout.db.from('vaishnava_departments')
-        .select('date_from, date_to, departments(name_ru, name_en, name_hi)')
+        .select('date_from, date_to, departments:fin_departments!vaishnava_departments_department_id_fkey(name_ru:name)')
         .eq('vaishnava_id', personId).order('date_from', { ascending: false, nullsFirst: false });
     if (error) { console.error('Error loading department history:', error); return; }
     // одна строка «с начала по сей день» — истории нет, показывать нечего
@@ -936,7 +936,7 @@ async function savePerson() {
         .from('vaishnavas')
         .update(updateData)
         .eq('id', person.id)
-        .select('*, departments(id, name_ru, name_en, name_hi, color), senior:vaishnavas!senior_id(id, spiritual_name, first_name, last_name), parent:vaishnavas!parent_id(id, spiritual_name, first_name, last_name)')
+        .select('*, departments:fin_departments!vaishnavas_department_id_fkey(id, name_ru:name, color), senior:vaishnavas!senior_id(id, spiritual_name, first_name, last_name), parent:vaishnavas!parent_id(id, spiritual_name, first_name, last_name)')
         .maybeSingle();
 
     if (saveBtn) saveBtn.classList.remove('loading');
@@ -3006,7 +3006,7 @@ const STAY_HISTORY_SHORT = 3;
 async function loadStayHistory(personId) {
     const { data, error } = await Layout.db
         .from('residents')
-        .select('id, check_in, check_out, notes, room_id, rooms(number, buildings(name_ru, name_en, name_hi)), retreats(name_ru, name_en, name_hi), resident_categories:category_id(name_ru, name_en, name_hi, color), departments:department_id(name_ru, name_en, name_hi, color)')
+        .select('id, check_in, check_out, notes, room_id, rooms(number, buildings(name_ru, name_en, name_hi)), retreats(name_ru, name_en, name_hi), resident_categories:category_id(name_ru, name_en, name_hi, color), departments:department_id(name_ru:name, color)')
         .eq('vaishnava_id', personId)
         .neq('status', 'cancelled')
         .order('check_in', { ascending: false });

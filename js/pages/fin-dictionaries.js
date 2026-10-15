@@ -123,10 +123,11 @@ function renderTab() {
                 <td class="text-right"><button class="btn btn-ghost btn-sm" data-edit="${r.id}" aria-label="${t('edit')}" title="${t('edit')}">${editIcon}</button></td>
             </tr>`).join('');
     } else if (currentTab === 'departments') {
-        head.innerHTML = `<tr><th>${t('col_name') || 'Название'}</th><th>${t('fin_responsible')}</th><th>${t('fin_dept_chat')}</th><th>${t('fin_dept_on_hand')}</th><th></th></tr>`;
+        head.innerHTML = `<tr><th>${t('col_name') || 'Название'}</th><th>${t('fin_responsible')}</th><th>${t('fin_dept_chat')}</th><th>${t('fin_dept_on_hand')}</th><th class="text-right">${t('fin_dept_people')}</th><th></th></tr>`;
         body.innerHTML = view.map(r => `
             <tr>
-                <td>${e(r.name)}</td>
+                <td>${Utils.isValidColor(r.color) ? `<span class="inline-block w-2.5 h-2.5 rounded-full mr-1.5 align-middle" style="background:${r.color}"></span>` : ''}${e(r.name)}${
+                    r.for_people ? '' : ` <span class="badge badge-ghost badge-sm">${t('fin_dept_personal')}</span>`}</td>
                 <td>${e(r.responsible_name || '')}</td>
                 <td>${r.chat_title
                         ? e(r.chat_title)
@@ -136,6 +137,7 @@ function renderTab() {
                         : ''}</td>
                 <td class="font-mono">${
                     (r.balances || []).map(b => FinUtils.fmtMoney(b.amount, b.currency)).join(' · ') || '—'}</td>
+                <td class="text-right">${r.people_count || ''}</td>
                 <td class="text-right"><button class="btn btn-ghost btn-sm" data-edit="${r.id}" aria-label="${t('edit')}" title="${t('edit')}">${editIcon}</button></td>
             </tr>`).join('');
     } else {
@@ -455,6 +457,13 @@ function openForm(row) {
         }).join('');
         fields.innerHTML =
             fieldHtml('f_name', 'col_name', `<input type="text" id="f_name" class="input input-bordered input-sm" value="${e(row?.name || '')}" required>`) +
+            // Один список департаментов на всё приложение (691): цвет и «у людей» —
+            // для карточки человека, шахматки и Себестоимости
+            fieldHtml('f_color', 'fin_dept_color', `<input type="color" id="f_color" class="input input-bordered input-sm w-20 p-1" value="${Utils.isValidColor(row?.color) ? row.color : '#6b7280'}">`) +
+            `<div class="form-control mb-2"><label class="label cursor-pointer justify-start gap-3 py-1">
+                <input type="checkbox" id="f_for_people" class="checkbox checkbox-sm" ${!row || row.for_people ? 'checked' : ''}>
+                <span class="label-text">${t('fin_dept_for_people')}</span></label>
+                <span class="text-xs opacity-60">${t('fin_dept_for_people_hint')}</span></div>` +
             `<div class="form-control mb-2">
                 <label class="label py-0"><span class="label-text">${t('fin_responsible')}</span></label>
                 <input type="text" id="f_resp_search" class="input input-bordered input-sm" autocomplete="off" value="${e(row?.responsible_name || '')}">
@@ -586,6 +595,8 @@ async function submitForm(ev) {
             id: editingId, name: val('f_name'),
             responsible_person_id: val('f_resp') || null,
             chat_id: val('f_chat') || null,
+            color: val('f_color') || null,
+            for_people: checked('f_for_people'),
             category_ids: [...document.querySelectorAll('.dept-cat:checked')].map(i => i.value)
         });
         if (res?.ok) knownChats = null;   // привязки изменились — перечитаем список чатов

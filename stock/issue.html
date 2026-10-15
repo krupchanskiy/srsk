@@ -767,11 +767,11 @@
         }
 
         async function loadCooks() {
-            // Загружаем ID департаментов "Кухня" и "Кафе"
+            // Загружаем ID департаментов «Кухня» и «Кафе» — по коду, название можно переименовать
             const { data: depts, error: deptsError } = await Layout.db
-                .from('departments')
-                .select('id, name_ru')
-                .in('name_ru', ['Кухня', 'Кафе']);
+                .from('fin_departments')
+                .select('id')
+                .in('code', ['kitchen', 'cafe']);
 
             const kitchenDeptIds = depts?.map(d => d.id) || [];
 

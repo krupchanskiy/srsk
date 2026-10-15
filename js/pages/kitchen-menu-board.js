@@ -135,10 +135,10 @@ async function loadData() {
         Layout.db.from('holidays').select('*'),
         Layout.db
             .from('vaishnavas')
-            .select('*, department:departments!inner(*)')
+            .select('*, department:fin_departments!vaishnavas_department_id_fkey!inner(code)')
             .in('status', ['team', 'volunteer'])
             .eq('is_deleted', false)
-            .eq('departments.name_en', 'Kitchen'),
+            .eq('department.code', 'kitchen'),
         Cache.getOrLoad('units', async () => {
             const { data, error } = await Layout.db.from('units').select('*');
             if (error) return null;

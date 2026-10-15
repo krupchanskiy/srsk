@@ -274,7 +274,7 @@
         async function loadPeople() {
             let query = Layout.db
                 .from('vaishnavas')
-                .select('id, first_name, last_name, spiritual_name, phone, email, country, spiritual_teacher, is_team_member, photo_url, service, departments(id, name_ru, name_en, name_hi, color)', { count: 'exact' })
+                .select('id, first_name, last_name, spiritual_name, phone, email, country, spiritual_teacher, is_team_member, photo_url, service, departments:fin_departments!vaishnavas_department_id_fkey(id, name_ru:name, color)', { count: 'exact' })
                 .eq('is_deleted', false)
                 .eq('status', group);
 

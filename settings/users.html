@@ -88,7 +88,7 @@
                 // Загружаем членов команды из vaishnavas
                 const { data: teamMembers, error: tmError } = await db
                     .from('vaishnavas')
-                    .select('*, departments(id, name_ru, name_en, name_hi, color)')
+                    .select('*, departments:fin_departments!vaishnavas_department_id_fkey(id, name_ru:name, color)')
                     .in('status', ['team', 'volunteer'])
                     .eq('is_deleted', false)
                     .order('spiritual_name', { ascending: true, nullsFirst: false });
@@ -106,12 +106,11 @@
 
         async function loadDepartments() {
             try {
-                departments = await Cache.getOrLoad('departments', async () => {
-                    const { data, error } = await db.from('departments').select('*').order('sort_order');
-                    if (error) throw error;
-                    return data;
-                });
-                departments = departments || [];
+                // Департаменты — из Финансов → Справочники; без кэша, чтобы переименование было видно сразу
+                const { data, error } = await db.from('fin_departments')
+                    .select('id, name_ru:name, color').eq('for_people', true).order('name');
+                if (error) throw error;
+                departments = data || [];
                 populateDepartmentFilters();
             } catch (err) {
                 console.error('Error loading departments:', err);

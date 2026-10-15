@@ -1600,6 +1600,7 @@ async function loadSummary() {
 // Экономика департамента — не «доход/расход», а «получил → потратил → осталось»:
 // своих доходов у них нет, деньги приходят переводом из кассы.
 let deptData = null;
+let kitchenDeptId = null;   // Кухня — по коду, а не по названию (название правится в справочнике)
 
 // Выбор департаментов живёт между сеансами: набор меняют редко,
 // а переставлять галочки при каждом заходе — лишняя работа.
@@ -1631,7 +1632,11 @@ async function loadDepartments() {
     const box = document.getElementById('deptReport');
     box.innerHTML = `<div class="text-center py-8"><span class="loading loading-spinner loading-md"></span></div>`;
 
-    const { data, error } = await Layout.db.rpc('fin_get_department_report', { p_from: from, p_to: to });
+    const [{ data, error }, { data: kd }] = await Promise.all([
+        Layout.db.rpc('fin_get_department_report', { p_from: from, p_to: to }),
+        Layout.db.from('fin_departments').select('id').eq('code', 'kitchen').maybeSingle()
+    ]);
+    kitchenDeptId = kd?.id || null;
     if (error) { Layout.handleError(error, 'Аналитика'); return; }
     if (!data?.ok) { Layout.showNotification(data?.error?.message || 'Ошибка', 'error'); return; }
 
@@ -1686,8 +1691,8 @@ function renderDeptReport() {
             </div>
             ${активные.map(d => deptRow(d, maxSpent)).join('')}
         </div></div>
-        ${активные.some(d => d.name === 'Кухня') ? '<div id="deptPrasadCostBox"></div>' : ''}`;
-    if (активные.some(d => d.name === 'Кухня')) fillDeptPrasadCost(deptData.from, deptData.to);
+        ${активные.some(d => d.department_id === kitchenDeptId) ? '<div id="deptPrasadCostBox"></div>' : ''}`;
+    if (активные.some(d => d.department_id === kitchenDeptId)) fillDeptPrasadCost(deptData.from, deptData.to);
 }
 
 // Шапка отчёта: за какой период он построен и сколько департаментов в нём учтено.

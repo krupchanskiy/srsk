@@ -405,7 +405,7 @@
             id, check_in, check_out, meal_type, has_meals, breakfast, lunch,
             status, category_id, vaishnava_id, guest_name, notes, has_housing, retreat_id,
             vaishnavas(id, spiritual_name, first_name, last_name, department_id,
-                departments(id, name_ru, name_en, name_hi, color)),
+                departments:fin_departments!vaishnavas_department_id_fkey(id, name_ru:name, color)),
             rooms(id, number, floor, building_id, buildings(id, name_ru, name_en, name_hi)),
             resident_categories(id, slug, name_ru, name_en, name_hi, color)
         `;
@@ -474,7 +474,7 @@
             if (personIds.length) {
                 const { data: hist } = await Layout.db
                     .from('vaishnava_departments')
-                    .select('vaishnava_id, department_id, departments(id, name_ru, name_en, name_hi, color)')
+                    .select('vaishnava_id, department_id, departments:fin_departments!vaishnava_departments_department_id_fkey(id, name_ru:name, color)')
                     .in('vaishnava_id', personIds)
                     .or(`date_from.is.null,date_from.lte.${today}`)
                     .or(`date_to.is.null,date_to.gte.${today}`);
