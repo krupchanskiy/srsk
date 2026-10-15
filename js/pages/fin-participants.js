@@ -1293,11 +1293,12 @@ function chargeRowHtml(idx) {
                 <input type="number" class="input input-bordered input-sm chg-qty" value="1" min="0.01" step="any" required>
             </div>
             <!-- Дни правятся через даты, сумма пересчитывается сама (ТЗ 3.4) -->
-            <div class="form-control chg-dates-wrap hidden">
+            <!-- Два поля дат в одной колонке не помещаются в узком окне — там на всю строку -->
+            <div class="form-control chg-dates-wrap hidden col-span-2 md:col-span-3 lg:col-span-1">
                 <label class="label py-0"><span class="label-text text-xs">${t('fin_dates_from')} — ${t('fin_dates_to')}</span></label>
                 <div class="flex gap-1">
-                    <input type="date" class="input input-bordered input-sm chg-date-from w-full">
-                    <input type="date" class="input input-bordered input-sm chg-date-to w-full">
+                    <input type="date" class="input input-bordered input-sm chg-date-from w-full min-w-0">
+                    <input type="date" class="input input-bordered input-sm chg-date-to w-full min-w-0">
                 </div>
                 <!-- «Начислить» с датами сразу пишет шахматку, кухню и CRM (фаза 2, шаг 7б, ВГ 03.10).
                      Только проживание и только весь срок: доп. отрезок (ночь в другой гостинице) — без галочки -->
