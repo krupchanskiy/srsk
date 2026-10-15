@@ -356,6 +356,26 @@ Deno.serve(async (req) => {
     } else if (action === "ack") {
       // «Понял» под предупреждением «не нашёл сумму» — убираем его из чата
       await tg("deleteMessage", { chat_id: msg.chat.id, message_id: msg.message_id });
+    } else if (action === "rc") {
+      // «Принял» под тегом о получении денег: нажимает только казначей. Тег
+      // убираем, на исходное сообщение ставим 👍 — видно, что учтено (ВГ 15.10.2026).
+      const tre = await treasurer();
+      const { data: who } = await supa.rpc("tg_resolve_user", {
+        p_user: cq.from.id, p_username: cq.from.username ?? null,
+      });
+      const clicker = Array.isArray(who) ? who[0] : who;
+      if (!tre?.vaishnava_id || clicker?.vaishnava_id !== tre.vaishnava_id) {
+        await tg("answerCallbackQuery", {
+          callback_query_id: cq.id, show_alert: true,
+          text: "Простите, эту кнопку вы нажать не можете.",
+        });
+        return new Response("ok");
+      }
+      await tg("setMessageReaction", {
+        chat_id: msg.chat.id, message_id: Number(parts[1]),
+        reaction: [{ type: "emoji", emoji: "👍" }],
+      });
+      await tg("deleteMessage", { chat_id: msg.chat.id, message_id: msg.message_id });
     } else if (action === "ok") {
       const { data } = await supa.rpc("tg_set_draft_status", { p_id: parts[1], p_status: "pending", p_card_message_id: msg?.message_id });
       const row = Array.isArray(data) ? data[0] : data;
@@ -725,11 +745,16 @@ Deno.serve(async (req) => {
   // Так пишет тот, КОМУ передали. Передачу заявляет сторона, которая выдала;
   // если реагировать на обе, одни и те же деньги попадут в учёт дважды.
   if (RECEIPT_WORDS.test(text)) {
+    // Телеграм присылает сообщение заново как «исправленное», когда на него ставят
+    // реакцию: казначей ставил 👍 — и бот тегал его повторно (ВГ 15.10.2026).
+    // На само сообщение уже ответили — на правку молчим.
+    if (update.edited_message && !update.message) return new Response("ok");
     const tre = await treasurer();
     const tag = tre?.username ? `@${tre.username}` : "Казначей";
     await tg("sendMessage", {
       chat_id: m.chat.id, reply_to_message_id: m.message_id,
       text: `${tag} — здесь про получение денег. Заявку не создаю: передачу записывает тот, кто выдал. Проверьте, пожалуйста.`,
+      reply_markup: { inline_keyboard: [[{ text: "✅ Принял", callback_data: `rc:${m.message_id}` }]] },
     });
     return new Response("ok");
   }
