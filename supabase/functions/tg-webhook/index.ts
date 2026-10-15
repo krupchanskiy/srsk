@@ -490,6 +490,9 @@ Deno.serve(async (req) => {
       p_chat: m.chat.id, p_message_id: m.message_id,
     });
     const draft = Array.isArray(prev) ? prev[0] : prev;
+    // Текст тот же — это не правка: Телеграм шлёт «исправленное» и на смену
+    // реакции (бот ставит 👀 после «Записать»). Молчим (ВГ 15.10.2026).
+    if (draft && draft.raw_text === text) return new Response("ok");
     if (draft) {
       await tg("sendMessage", {
         chat_id: m.chat.id, reply_to_message_id: m.message_id,
