@@ -147,6 +147,24 @@ Deno.serve(async (req: Request) => {
       }
     }
 
+    if (authUserId && !vaishnava.user_id) {
+      // Почтой уже входит другой человек (родственник, плательщик группы) —
+      // вторую карточку на тот же вход не вешаем: портал такой вход не пускает
+      const { data: holders } = await supabaseAdmin
+        .from('vaishnavas')
+        .select('id')
+        .eq('user_id', authUserId)
+        .eq('is_deleted', false)
+        .neq('id', vaishnavId)
+        .limit(1);
+      if (holders && holders.length) {
+        return new Response(
+          JSON.stringify({ error: 'Этой почтой уже входит другой человек. Укажите гостю его собственную почту.' }),
+          { status: 409, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+    }
+
     if (authUserId) {
       const { error: linkError } = await supabaseAdmin
         .from('vaishnavas')

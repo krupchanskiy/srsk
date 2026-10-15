@@ -49,6 +49,11 @@ async function checkGuestAuth() {
                 is_profile_public
             `)
             .eq('user_id', session.user.id)
+            .eq('is_deleted', false)
+            // на одном входе бывает семья: показываем самую раннюю карточку,
+            // как и финансы (portal_fin_get_my_finances), а не падаем
+            .order('created_at')
+            .limit(1)
             .maybeSingle();
 
         if (userError) {
@@ -252,6 +257,9 @@ async function login(email, password) {
             .from('vaishnavas')
             .select('user_type, is_active')
             .eq('user_id', data.user.id)
+            .eq('is_deleted', false)
+            .order('created_at')
+            .limit(1)
             .maybeSingle();
 
         if (userError || !vaishnava) {

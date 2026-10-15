@@ -197,7 +197,7 @@
 
     <!-- Scripts -->
     <script src="../js/portal-config.js?v=5"></script>
-    <script src="../js/portal-auth.js?v=2"></script>
+    <script src="../js/portal-auth.js?v=3"></script>
     <script>
         const db = window.portalSupabase;
         let currentLang = localStorage.getItem('srsk_lang') || 'ru';
@@ -550,6 +550,9 @@
                     .from('vaishnavas')
                     .select('user_type, is_active, is_superuser, approval_status')
                     .eq('user_id', data.user.id)
+                    .eq('is_deleted', false)
+                    .order('created_at')
+                    .limit(1)
                     .maybeSingle();
 
                 if (userError) {
@@ -629,7 +632,10 @@
                         .from('vaishnavas')
                         .select('user_type, is_active, is_superuser, approval_status')
                         .eq('user_id', session.user.id)
-                        .single();
+                        .eq('is_deleted', false)
+                        .order('created_at')
+                        .limit(1)
+                        .maybeSingle();
 
                     if (vaishnava && vaishnava.is_active !== false && vaishnava.approval_status === 'approved') {
                         const destination = await resolveAuthenticatedDestination(session.user.id, vaishnava.is_superuser);
