@@ -1,0 +1,15 @@
+-- Модуль «Магазин», этап 2: права и RLS. Применена на проде 16.10.2026.
+--
+-- Модуль shop, права: shop_sell, shop_receive, shop_manage, shop_settle, shop_analytics.
+-- Роль shop_keeper со всеми пятью — продавец, заведующий и казначей пока один человек;
+-- разделение останется в правах и включится, когда людей станет больше.
+--
+-- RLS на всех 18 таблицах модуля. Анонимный ключ публичен, поэтому:
+--   revoke all ... from public, anon; grant ... to authenticated;
+--   select — по shop_can_view() (любое право модуля),
+--   insert/update/delete — по конкретному праву (продажи — shop_sell,
+--   приём и цены — shop_receive, расчёты — shop_settle, остальное — shop_manage).
+--
+-- Проверено: под анонимным ключом REST отдаёт 401 permission denied по всем shop_*.
+--
+-- Полный текст — в supabase_migrations.schema_migrations (name = '159_shop_permissions_rls').

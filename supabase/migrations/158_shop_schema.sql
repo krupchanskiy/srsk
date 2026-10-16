@@ -1,0 +1,21 @@
+-- Модуль «Магазин», этап 1: схема данных. Применена на проде 16.10.2026.
+-- Товар берём на реализацию (долг владельцу именной, возникает при продаже) либо
+-- выпускаем сами (мурти Мастерской, себестоимость единицы не ведётся).
+-- Решения и причины — docs/shop/tz_shop_v1.md
+--
+-- Таблицы: shop_categories, shop_goals, shop_owners, shop_items, shop_receipts,
+-- shop_receipt_items, shop_batches, shop_shifts, shop_sales, shop_sale_items,
+-- shop_returns, shop_owner_returns, shop_writeoffs, shop_inventories,
+-- shop_inventory_items, shop_settlements, shop_cash_counts, shop_rates.
+--
+-- Ключевые решения, заложенные в схему:
+--   * остаток хранится ПАРТИЯМИ (shop_batches) — при консигнации долг именной,
+--     поэтому важно, чей именно экземпляр продан; списание по FIFO;
+--   * цена продажи живёт только в shop_items, одна на все партии;
+--   * цена расчёта с владельцем фиксируется в партии и копируется в строку чека,
+--     чтобы долг не плыл задним числом;
+--   * shop_sales.client_uid — ключ идемпотентности для офлайн-очереди кассы;
+--   * пожертвование лежит в самом чеке (donation_amount + цель) — это выручка.
+--
+-- Полный текст применённой миграции хранится в supabase_migrations.schema_migrations
+-- (name = '158_shop_schema'); здесь оставлено описание, чтобы история читалась.
