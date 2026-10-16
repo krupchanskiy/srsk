@@ -217,6 +217,9 @@ const modules = {
             ]},
             { id: 'shop_goods', items: [
                 { id: 'shop_receive', href: 'shop/receive.html' }
+            ]},
+            { id: 'shop_money', items: [
+                { id: 'shop_owners', href: 'shop/owners.html' }
             ]}
         ]
     }

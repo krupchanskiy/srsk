@@ -15,6 +15,9 @@ const ShopTill = (() => {
     const КЛЮЧ_ОЧЕРЕДИ = 'srsk_shop_queue';
     const КЛЮЧ_КЭША = 'srsk_shop_catalog';
     const ШАГ = { INR: 10, RUB: 10, USD: 1, EUR: 1 };
+    // причины скидок берём из словаря: продавец может работать на английском или хинди
+    const ПРИЧИНЫ = () => ['shop_reason_devotee', 'shop_reason_retreat',
+                           'shop_reason_markdown', 'shop_reason_wholesale'].map(k => t(k));
     const ЗНАК = { INR: '₹', RUB: '₽', USD: '$', EUR: '€' };
     const НОМИНАЛЫ = { INR: [100, 500, 2000], RUB: [500, 1000, 5000], USD: [20, 50, 100], EUR: [20, 50, 100] };
 
