@@ -28,7 +28,7 @@ const ShopTill = (() => {
 
     let товары = [], категории = [], цели = [], курсы = {}, сменаId = null;
     let состояние = {
-        кат: 'Ходовое', поиск: '', корзина: [], валюта: 'INR', получено: '',
+        кат: null, поиск: '', корзина: [], валюта: 'INR', получено: '',
         скидка: 0, причина: null, дар: 0, цель: null, раскрыт: false,
         панельСкидки: false, видСкидки: '%', вводСкидки: '10', панельДара: false, вводДара: '',
     };
@@ -36,8 +36,9 @@ const ShopTill = (() => {
 
     const $ = s => document.querySelector(s);
     const товар = id => товары.find(x => x.id === id);
-    // Layout.pluralize в проекте падает, поэтому склоняем сами
+    // Layout.pluralize в проекте падает, поэтому склоняем сами — и только для русского
     const склонение = n => {
+        if (Layout.currentLang !== 'ru') return n === 1 ? t('shop_item_word') : t('shop_items_word');
         const д = n % 10, дд = n % 100;
         if (д === 1 && дд !== 11) return 'позиция';
         if (д >= 2 && д <= 4 && (дд < 12 || дд > 14)) return 'позиции';
@@ -101,7 +102,7 @@ const ShopTill = (() => {
         const chip = $('#offlineChip');
         if (!вОчереди()) { chip.hidden = true; return; }
         chip.hidden = false;
-        chip.textContent = `Не отправлено чеков: ${вОчереди()}`;
+        chip.textContent = `${t('shop_offline_queue')}: ${вОчереди()}`;
     }
 
     async function отправить(payload) {
@@ -131,7 +132,8 @@ const ShopTill = (() => {
     }
 
     // ---------- сетка ----------
-    const первая = () => ['Ходовое', ...категории.map(k => Layout.getName(k))];
+    const ВСЕ = () => t('shop_popular');
+    const первая = () => [ВСЕ(), ...категории.map(k => Layout.getName(k))];
 
     function ходовые() {
         const порядок = читать('srsk_shop_top', []);
@@ -149,15 +151,15 @@ const ShopTill = (() => {
                 (i.name_hi || '').toLowerCase().includes(q) ||
                 (i.translit || '').toLowerCase().includes(q));
         }
-        if (состояние.кат === 'Ходовое') return ходовые();
+        if (!состояние.кат || состояние.кат === ВСЕ()) return ходовые();
         return товары.filter(i => i.кат === состояние.кат);
     }
 
     function рисоватьЧипы() {
         $('#chips').innerHTML = первая().map(к => `
-            <button type="button" class="btn btn-sm ${к === состояние.кат && !состояние.поиск ? '' : 'btn-outline'} shrink-0"
+            <button type="button" class="btn btn-sm ${(к === состояние.кат || (!состояние.кат && к === ВСЕ())) && !состояние.поиск ? '' : 'btn-outline'} shrink-0"
                     data-cat="${e(к)}"
-                    ${к === состояние.кат && !состояние.поиск ? 'style="background: var(--current-color); color:#fff; border-color: var(--current-color);"' : ''}>
+                    ${(к === состояние.кат || (!состояние.кат && к === ВСЕ())) && !состояние.поиск ? 'style="background: var(--current-color); color:#fff; border-color: var(--current-color);"' : ''}>
                 ${e(к)}</button>`).join('');
     }
 
@@ -173,14 +175,14 @@ const ShopTill = (() => {
                     ? `<img src="${e(i.photo_url)}" alt="" loading="lazy">`
                     : `<svg viewBox="0 0 48 48" fill="none" stroke="currentColor" stroke-width="2.2"
                             stroke-linejoin="round" stroke-linecap="round">${РИСУНКИ[i.кат] || РИСУНКИ['Книги']}</svg>`}</span>
-                ${i.source === 'own' ? '<span class="own-mark bg-base-100 opacity-80 border border-base-300">наше</span>' : ''}
+                ${i.source === 'own' ? `<span class="own-mark bg-base-100 opacity-80 border border-base-300">${t('shop_ours')}</span>` : ''}
                 ${n ? `<span class="badge-n nums">${n}</span>` : ''}
                 <span class="nm">${e(i.имя)}</span>
                 <span class="left nums ${мало || нет ? 'text-warning font-semibold' : 'opacity-60'}">
-                    ${нет ? 'в учёте 0' : 'на полке ' + i.остаток}</span>
+                    ${нет ? t('shop_not_in_stock') : t('shop_on_shelf') + ' ' + i.остаток}</span>
                 <span class="pr nums">${деньги(i.price)}</span>
             </button>`;
-        }).join('') || '<div class="col-span-full text-center opacity-60 py-10">Ничего не нашлось</div>';
+        }).join('') || `<div class="col-span-full text-center opacity-60 py-10">${t('shop_nothing_found')}</div>`;
         $('#clearQ').hidden = !состояние.поиск;
     }
 
@@ -208,8 +210,8 @@ const ShopTill = (() => {
 
         $('#cartPin').textContent = штук;
         $('#cartPin').style.visibility = штук ? 'visible' : 'hidden';
-        $('#cartTitle').textContent = штук ? деньги(итогРупии()) : 'Чек пуст';
-        $('#cartCap').textContent = штук ? `${штук} ${склонение(штук)} · показать` : 'нажимайте товары';
+        $('#cartTitle').textContent = штук ? деньги(итогРупии()) : t('shop_cart_empty');
+        $('#cartCap').textContent = штук ? `${штук} ${склонение(штук)} · ${t('shop_show_cart')}` : t('shop_tap_items');
         $('#toPay').hidden = !штук;
         $('#giftOnly').hidden = !!штук;
         $('#backSum').textContent = штук ? деньги(итогРупии()) : '';
@@ -233,7 +235,7 @@ const ShopTill = (() => {
                 <div class="font-bold nums whitespace-nowrap">${деньги(i.price * p.кол)}</div>
             </div>`;
         }).join('') : `<div class="text-center opacity-60 py-6 text-sm">${состояние.дар
-            ? 'Пожертвование без покупки' : 'Нажмите товар, чтобы добавить'}</div>`;
+            ? t('shop_donation_only') : t('shop_tap_to_add')}</div>`;
 
         const получено = parseFloat(состояние.получено || '0');
         const сдача = получено ? получено - всего : null;
@@ -249,79 +251,79 @@ const ShopTill = (() => {
 
         $('#tfoot').innerHTML = (!к.length && !состояние.дар && !состояние.панельДара) ? '' : `
             ${к.length ? `<div class="flex items-center justify-between">
-                <span class="text-sm opacity-60">${состояние.скидка ? 'Товары со скидкой' : 'Товары'}</span>
+                <span class="text-sm opacity-60">${состояние.скидка ? t('shop_goods_discounted') : t('shop_goods_line')}</span>
                 <span class="text-2xl font-bold nums">${деньги(итогРупии())}</span></div>` : ''}
             ${состояние.скидка ? `<div class="flex items-center justify-between text-sm opacity-60">
                 <span>Скидка · ${e(состояние.причина)}</span><span class="nums">−${деньги(состояние.скидка)}</span></div>` : ''}
             ${состояние.дар ? `<div class="flex items-center justify-between text-sm font-semibold text-secondary">
-                <span>Пожертвование</span><span class="nums">+${деньги(состояние.дар, вал)}</span></div>` : ''}
+                <span>${t('shop_donation')}</span><span class="nums">+${деньги(состояние.дар, вал)}</span></div>` : ''}
 
             <div class="flex gap-2 flex-wrap">
                 ${к.length ? `<button class="btn btn-sm btn-outline flex-1" id="discBtn">${состояние.скидка
-                    ? 'Скидка ' + деньги(состояние.скидка) : 'Скидка'}</button>` : ''}
+                    ? t('shop_discount') + ' ' + деньги(состояние.скидка) : t('shop_discount')}</button>` : ''}
                 <button class="btn btn-sm btn-outline flex-1" id="giftBtn">${состояние.дар
-                    ? 'Дар ' + деньги(состояние.дар, вал) : 'Пожертвование'}</button>
+                    ? t('shop_donation') + ' ' + деньги(состояние.дар, вал) : t('shop_donation')}</button>
             </div>
 
             ${состояние.панельСкидки ? `
             <div class="bg-base-200 rounded-lg p-3 flex flex-col gap-2">
                 <div class="join w-full">
-                    <button class="btn btn-sm join-item flex-1 ${состояние.видСкидки === '%' ? 'btn-active' : ''}" data-dtype="%">Процент</button>
-                    <button class="btn btn-sm join-item flex-1 ${состояние.видСкидки === '₹' ? 'btn-active' : ''}" data-dtype="₹">Сумма ₹</button>
+                    <button class="btn btn-sm join-item flex-1 ${состояние.видСкидки === '%' ? 'btn-active' : ''}" data-dtype="%">${t('shop_percent')}</button>
+                    <button class="btn btn-sm join-item flex-1 ${состояние.видСкидки === '₹' ? 'btn-active' : ''}" data-dtype="₹">${t('shop_amount_inr')}</button>
                 </div>
                 <input id="discVal" class="input input-sm input-bordered w-full nums" inputmode="decimal"
-                       value="${e(состояние.вводСкидки)}" placeholder="${состояние.видСкидки === '%' ? 'процент' : 'рупии'}">
-                <div class="flex flex-wrap gap-1">${['Преданному','Участнику ретрита','Уценка','Оптом'].map(пр => `
+                       value="${e(состояние.вводСкидки)}" placeholder="${состояние.видСкидки === '%' ? t('shop_percent') : t('shop_amount_inr')}">
+                <div class="flex flex-wrap gap-1">${ПРИЧИНЫ().map(пр => `
                     <button type="button" class="btn btn-xs ${пр === состояние.причина ? 'btn-active' : 'btn-outline'}"
                             data-reason="${e(пр)}">${e(пр)}</button>`).join('')}</div>
                 <div class="flex items-center justify-between text-sm">
-                    <span class="opacity-60">Скидка составит</span>
+                    <span class="opacity-60">${t('shop_discount_will_be')}</span>
                     <span class="font-bold nums">−${деньги(считатьСкидку())}</span></div>
                 <div class="flex gap-2">
                     <button class="btn btn-sm flex-1" id="discApply" ${состояние.причина ? '' : 'disabled'}
-                            style="background: var(--current-color); color:#fff;">Применить</button>
-                    ${состояние.скидка ? '<button class="btn btn-sm btn-ghost" id="discClear">Убрать</button>' : ''}
+                            style="background: var(--current-color); color:#fff;">${t('shop_apply')}</button>
+                    ${состояние.скидка ? `<button class="btn btn-sm btn-ghost" id="discClear">${t('shop_remove')}</button>` : ''}
                 </div>
-                ${состояние.причина ? '' : '<span class="text-xs opacity-60">Выберите причину — она попадёт в отчёт</span>'}
+                ${состояние.причина ? '' : `<span class="text-xs opacity-60">${t('shop_pick_reason')}</span>`}
             </div>` : ''}
 
             ${состояние.панельДара ? `
             <div class="bg-base-200 rounded-lg p-3 flex flex-col gap-2">
                 <input id="giftVal" class="input input-sm input-bordered w-full nums" inputmode="decimal"
-                       value="${e(состояние.вводДара)}" placeholder="Сумма пожертвования, ${ЗНАК[вал]}">
+                       value="${e(состояние.вводДара)}" placeholder="${t('shop_donation_amount')}, ${ЗНАК[вал]}">
                 <div class="flex flex-wrap gap-1">${целиКнопки}</div>
                 <div class="flex gap-2">
                     <button class="btn btn-sm flex-1" id="giftApply"
-                            style="background: var(--current-color); color:#fff;">Добавить</button>
-                    ${состояние.дар ? '<button class="btn btn-sm btn-ghost" id="giftClear">Убрать</button>' : ''}
+                            style="background: var(--current-color); color:#fff;">${t('shop_add')}</button>
+                    ${состояние.дар ? `<button class="btn btn-sm btn-ghost" id="giftClear">${t('shop_remove')}</button>` : ''}
                 </div>
             </div>` : ''}
 
             <div class="flex gap-1">${валюты}</div>
             ${вал !== 'INR' && к.length ? `<div class="flex items-center justify-between text-sm">
-                <span class="opacity-60">Товары в ${ЗНАК[вал]} · курс ${курсы[вал]}</span>
+                <span class="opacity-60">${t('shop_goods_line')} ${ЗНАК[вал]} · ${t('shop_rate')} ${курсы[вал]}</span>
                 <span class="font-bold nums">${деньги(заТовары(), вал)}</span></div>` : ''}
 
             <div class="flex items-center justify-between">
-                <span class="text-sm opacity-60">Итого к оплате</span>
+                <span class="text-sm opacity-60">${t('shop_total_due')}</span>
                 <span class="text-2xl font-bold nums">${деньги(всего, вал)}</span></div>
             <div class="flex gap-2">
                 <input id="got" class="input input-bordered flex-1 nums font-bold" inputmode="decimal"
-                       placeholder="Получено, ${ЗНАК[вал]}" value="${e(состояние.получено)}">
-                <button class="btn btn-outline" id="exact">Без сдачи</button>
+                       placeholder="${t('shop_received')}, ${ЗНАК[вал]}" value="${e(состояние.получено)}">
+                <button class="btn btn-outline" id="exact">${t('shop_no_change')}</button>
             </div>
             <div class="flex gap-1">${(НОМИНАЛЫ[вал] || []).map(н =>
                 `<button class="btn btn-sm btn-outline flex-1" data-note="${н}">${н}</button>`).join('')}</div>
             ${сдача !== null ? `<div class="flex items-center justify-between">
-                <span class="text-sm opacity-60">Сдача</span>
+                <span class="text-sm opacity-60">${t('shop_change')}</span>
                 <span class="font-bold nums ${сдача < 0 ? 'text-error' : ''}">${сдача < 0
-                    ? 'не хватает ' + деньги(-сдача, вал) : деньги(сдача, вал)}</span></div>` : ''}
+                    ? t('shop_not_enough') + ' ' + деньги(-сдача, вал) : деньги(сдача, вал)}</span></div>` : ''}
             ${сдача > 0 ? `<button class="btn btn-sm btn-outline btn-secondary w-full" id="tipRest">
-                Сдачу ${деньги(сдача, вал)} — в пожертвование</button>` : ''}
+                ${t('shop_change')} ${деньги(сдача, вал)} — ${t('shop_change_to_donation')}</button>` : ''}
 
             <button class="btn btn-block" id="sell" ${сдача !== null && сдача < 0 ? 'disabled' : ''}
                     style="background: var(--current-color); color: #fff;">
-                ${!к.length ? 'Принять пожертвование · ' : 'Продать · '}${деньги(всего, вал)}</button>`;
+                ${!к.length ? t('shop_accept_donation') + ' · ' : t('shop_sell_btn') + ' · '}${деньги(всего, вал)}</button>`;
     }
 
     // ---------- корзина ----------
@@ -331,7 +333,7 @@ const ShopTill = (() => {
         if (p) p.кол++; else состояние.корзина.push({ id, кол: 1 });
         const взято = состояние.корзина.find(x => x.id === id).кол;
         if (взято > Math.max(i.остаток, 0)) {
-            тост(`«${i.имя}» в учёте нет — продать можно, расхождение уйдёт в инвентаризацию`);
+            тост(`«${i.имя}» ${t('shop_not_in_records_warn')}`);
         }
         рисоватьСетку(); рисоватьЧек();
     }
@@ -374,15 +376,15 @@ const ShopTill = (() => {
         try {
             const id = await отправить(payload);
             последняя = { id, payload };
-            тост(сдача > 0 ? `Продано. Сдача ${деньги(сдача, вал)}`
-                : естьТовары ? `Продано · ${деньги(всего, вал)}`
-                : `Пожертвование принято · ${деньги(всего, вал)}`, true);
+            тост(сдача > 0 ? `${t('shop_sold')}. ${t('shop_change')} ${деньги(сдача, вал)}`
+                : естьТовары ? `${t('shop_sold')} · ${деньги(всего, вал)}`
+                : `${t('shop_donation_accepted')} · ${деньги(всего, вал)}`, true);
         } catch (err) {
             очередь.push(payload);
             писать(КЛЮЧ_ОЧЕРЕДИ, очередь);
             показатьОчередь();
             последняя = null;
-            тост(`Чек записан, но не отправлен — уйдёт, когда появится связь`);
+            тост(t('shop_saved_offline'));
         }
     }
 
@@ -407,7 +409,7 @@ const ShopTill = (() => {
                                     flex items-center gap-3 py-2 pl-4 pr-2">
             <span class="text-sm">${e(текст)}</span>
             ${сОтменой && последняя
-                ? '<button class="btn btn-sm btn-ghost shrink-0" id="undoBtn">Отменить</button>' : ''}
+                ? `<button class="btn btn-sm btn-ghost shrink-0" id="undoBtn">${t('shop_undo')}</button>` : ''}
         </div>`;
         document.body.appendChild(el);
         таймерТоста = setTimeout(() => { el.remove(); последняя = null; }, 6000);
@@ -423,7 +425,7 @@ const ShopTill = (() => {
         document.getElementById('shopToast')?.remove();
         await загрузить();
         рисоватьСетку(); рисоватьЧек();
-        Layout.showNotification('Чек отменён, товар вернулся на полку', 'success');
+        Layout.showNotification(t('shop_sale_cancelled'), 'success');
     }
 
     // ---------- события ----------
@@ -508,7 +510,7 @@ const ShopTill = (() => {
             await загрузить();
         } catch (err) {
             if (!изКэша()) { Layout.handleError(err, 'Загрузка товаров'); return; }
-            Layout.showNotification('Нет связи — работаем по сохранённому справочнику', 'warning');
+            Layout.showNotification(t('shop_offline_catalog'), 'warning');
         }
 
         if (window.hasPermission?.('shop_sell')) {

@@ -38,8 +38,8 @@
     <main class="container mx-auto px-4 py-6 flex-1">
 
         <div class="mb-5">
-            <h1 class="text-2xl font-bold">Приём товара</h1>
-            <p class="text-sm opacity-60">Чужой товар берём на реализацию — долг появится по мере продажи.
+            <h1 class="text-2xl font-bold" data-i18n="shop_receive_title">Приём товара</h1>
+            <p class="text-sm opacity-60" data-i18n="shop_receive_hint">Чужой товар берём на реализацию — долг появится по мере продажи.
                 Свой выпуск себестоимости не имеет.</p>
         </div>
 
@@ -50,10 +50,10 @@
         <div class="card bg-base-100 shadow mb-5">
             <div class="card-body gap-4 p-4 md:p-6">
                 <div class="flex flex-wrap items-center gap-3">
-                    <h2 class="card-title text-base">Новое поступление</h2>
+                    <h2 class="card-title text-base" data-i18n="shop_new_receipt">Новое поступление</h2>
                     <div class="join ml-auto">
-                        <button class="btn btn-sm join-item" data-kind="consignment" id="kindConsign">От владельца</button>
-                        <button class="btn btn-sm join-item btn-outline" data-kind="own" id="kindOwn">Выпуск Мастерской</button>
+                        <button class="btn btn-sm join-item" data-kind="consignment" id="kindConsign" data-i18n="shop_from_owner">От владельца</button>
+                        <button class="btn btn-sm join-item btn-outline" data-kind="own" id="kindOwn" data-i18n="shop_own_production">Выпуск Мастерской</button>
                     </div>
                 </div>
 
@@ -63,11 +63,11 @@
                         <select class="select select-bordered select-sm" id="ownerSel"></select>
                     </label>
                     <label class="form-control">
-                        <div class="label py-1"><span class="label-text text-sm">Дата</span></div>
+                        <div class="label py-1"><span class="label-text text-sm" data-i18n="shop_date">Дата</span></div>
                         <input type="date" class="input input-bordered input-sm" id="recDate">
                     </label>
                     <label class="form-control">
-                        <div class="label py-1"><span class="label-text text-sm">Комментарий</span></div>
+                        <div class="label py-1"><span class="label-text text-sm" data-i18n="shop_comment">Комментарий</span></div>
                         <input type="text" class="input input-bordered input-sm" id="recNote" placeholder="необязательно">
                     </label>
                 </div>
@@ -77,10 +77,10 @@
                     <table class="table table-sm stack" id="rowsTbl">
                         <thead>
                             <tr>
-                                <th class="w-2/5">Товар</th>
-                                <th class="text-right">Количество</th>
-                                <th class="text-right cost-col">Цена расчёта, ₹</th>
-                                <th class="text-right cost-col">Было в прошлый раз</th>
+                                <th class="w-2/5" data-i18n="shop_item">Товар</th>
+                                <th class="text-right" data-i18n="shop_qty">Количество</th>
+                                <th class="text-right cost-col" data-i18n="shop_cost_price">Цена расчёта, ₹</th>
+                                <th class="text-right cost-col" data-i18n="shop_last_time">Было в прошлый раз</th>
                                 <th></th>
                             </tr>
                         </thead>
@@ -89,9 +89,9 @@
                 </div>
 
                 <div class="flex flex-wrap items-center gap-3">
-                    <button class="btn btn-sm btn-outline" id="addRow">Добавить строку</button>
+                    <button class="btn btn-sm btn-outline" id="addRow" data-i18n="shop_add_row">Добавить строку</button>
                     <button class="btn btn-sm" id="saveRec" data-permission="shop_receive"
-                            style="background: var(--current-color); color: #fff;">Принять</button>
+                            style="background: var(--current-color); color: #fff;" data-i18n="shop_accept_goods">Принять</button>
                     <span class="text-sm opacity-60" id="recTotal"></span>
                 </div>
             </div>
@@ -100,7 +100,7 @@
         <div class="card bg-base-100 shadow">
             <div class="card-body p-0">
                 <div class="px-4 md:px-6 pt-4 pb-2 flex items-center gap-3">
-                    <h2 class="card-title text-base">Последние поступления</h2>
+                    <h2 class="card-title text-base" data-i18n="shop_recent_receipts">Последние поступления</h2>
                     <span class="text-sm opacity-60" id="historyCount"></span>
                 </div>
                 <div class="overflow-x-auto">
@@ -121,7 +121,7 @@
     <script src="../js/config.js"></script>
     <script src="../js/cache.js"></script>
     <script src="../js/utils.js"></script>
-    <script src="../js/layout.js?v=87"></script>
+    <script src="../js/layout.js?v=88"></script>
     <script src="../js/date-utils.js"></script>
     <script src="../js/auth-check.js?v=12"></script>
     <script src="../js/pages/shop-receive.js?v=1"></script>

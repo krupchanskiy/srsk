@@ -40,8 +40,8 @@
     <main class="container mx-auto px-4 py-6 flex-1">
 
         <div class="mb-5">
-            <h1 class="text-2xl font-bold">Смена</h1>
-            <p class="text-sm opacity-60">Пока деньги в ящике, они в магазине. В журнал они попадут,
+            <h1 class="text-2xl font-bold" data-i18n="shop_shift_title">Смена</h1>
+            <p class="text-sm opacity-60" data-i18n="shop_shift_hint">Пока деньги в ящике, они в магазине. В журнал они попадут,
                 когда вы отдадите их казначею.</p>
         </div>
 
@@ -50,7 +50,7 @@
                 <h2 class="card-title text-base" id="shiftTitle">Смена</h2>
                 <span class="text-sm opacity-60" id="shiftMeta"></span>
                 <label class="ml-auto flex items-center gap-2 text-sm">
-                    <span class="opacity-60">Размен, ₹</span>
+                    <span class="opacity-60" data-i18n="shop_float">Размен, ₹</span>
                     <input type="number" class="input input-bordered input-sm w-28 nums" id="floatAmount"
                            data-permission="shop_sell">
                 </label>
@@ -60,14 +60,14 @@
 
         <div class="card bg-base-100 shadow mb-4" id="countCard">
             <div class="px-4 md:px-6 pt-4 pb-2 flex flex-wrap items-center gap-3">
-                <h2 class="card-title text-base">Пересчёт ящика</h2>
+                <h2 class="card-title text-base" data-i18n="shop_count_drawer">Пересчёт ящика</h2>
                 <span class="text-sm opacity-60">Сколько реально лежит. Размен и пожертвования уже учтены.</span>
             </div>
             <div class="card-body pt-2 gap-4">
                 <div class="grid gap-3 md:grid-cols-3" id="countBoxes"></div>
                 <div class="flex flex-wrap items-center gap-3">
                     <button class="btn btn-sm" id="closeShift" data-permission="shop_sell"
-                            style="background: var(--current-color); color: #fff;">Закрыть смену</button>
+                            style="background: var(--current-color); color: #fff;" data-i18n="shop_close_shift">Закрыть смену</button>
                     <span class="text-sm opacity-60" id="closeNote"></span>
                 </div>
             </div>
@@ -75,7 +75,7 @@
 
         <div class="card bg-base-100 shadow mb-4">
             <div class="px-4 md:px-6 pt-4 pb-2 flex flex-wrap items-center gap-3">
-                <h2 class="card-title text-base">Сдача выручки</h2>
+                <h2 class="card-title text-base" data-i18n="shop_handover">Сдача выручки</h2>
                 <span class="text-sm opacity-60" id="handoverNote"></span>
             </div>
             <div class="card-body pt-2 gap-3" id="handoverBody"></div>
@@ -83,7 +83,7 @@
 
         <div class="card bg-base-100 shadow">
             <div class="px-4 md:px-6 pt-4 pb-2 flex flex-wrap items-center gap-3">
-                <h2 class="card-title text-base">Операции смены</h2>
+                <h2 class="card-title text-base" data-i18n="shop_shift_ops">Операции смены</h2>
                 <span class="text-sm opacity-60" id="opsCount"></span>
             </div>
             <div class="overflow-x-auto">
@@ -103,7 +103,7 @@
     <script src="../js/config.js"></script>
     <script src="../js/cache.js"></script>
     <script src="../js/utils.js"></script>
-    <script src="../js/layout.js?v=87"></script>
+    <script src="../js/layout.js?v=88"></script>
     <script src="../js/date-utils.js"></script>
     <script src="../js/auth-check.js?v=12"></script>
     <script src="../js/pages/shop-shift.js?v=1"></script>
