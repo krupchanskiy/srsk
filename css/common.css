@@ -425,3 +425,19 @@ body.user-type-guest .edit-action {
     .modal:not([open]):not(.modal-open) { display: none !important; }
     ::placeholder { color: #000 !important; }
 }
+
+
+/* Таблицы в узком экране разворачиваются карточками: заголовок столбца
+   подставляется из data-label. Пустой data-label — строка-заголовок карточки. */
+@media (max-width: 860px) {
+    table.stack, table.stack tbody, table.stack tr, table.stack td { display: block; width: 100%; }
+    table.stack thead { display: none; }
+    table.stack tr { padding: 12px 0; border-bottom: 1px solid hsl(var(--b3)); }
+    table.stack tr:last-child { border-bottom: 0; }
+    table.stack td { border: 0; padding: 4px 0; display: flex; justify-content: space-between;
+                     align-items: center; gap: 12px; text-align: left !important; }
+    table.stack td::before { content: attr(data-label); font-size: 12.5px; font-weight: 600;
+                             opacity: .6; flex: none; }
+    table.stack td[data-label=""]::before { content: none; }
+    table.stack td.head { font-size: 15px; font-weight: 700; padding-bottom: 6px; }
+}

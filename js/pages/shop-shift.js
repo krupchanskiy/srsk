@@ -72,9 +72,15 @@ const ShopShift = (() => {
 
     // ---------- шапка ----------
     function рисоватьШапку() {
+        // смена открывается и сама, с первым чеком, но тогда размен в ней нулевой:
+        // утром его кладут в ящик заранее и хотят записать до первой продажи
+        const нужноОткрыть = !смена || смена.status !== 'open';
+        $('#openShift').hidden = !нужноОткрыть;
+        $('#floatAmount').disabled = нужноОткрыть ? false : смена.status !== 'open';
+
         if (!смена) {
             $('#shiftTitle').textContent = 'Смены ещё не было';
-            $('#shiftMeta').textContent = 'Она откроется сама, когда пробьёте первый чек';
+            $('#shiftMeta').textContent = 'Откройте её сами или просто пробейте первый чек';
             $('#shiftStats').innerHTML = '';
             $('#floatAmount').value = '';
             return;
@@ -84,8 +90,7 @@ const ShopShift = (() => {
         $('#shiftMeta').textContent = смена.status === 'open'
             ? `открыта в ${DateUtils.formatTime(открыта)}`
             : `закрыта в ${DateUtils.formatTime(new Date(смена.closed_at))}`;
-        $('#floatAmount').value = Number(смена.float_amount) || 0;
-        $('#floatAmount').disabled = смена.status !== 'open';
+        $('#floatAmount').value = смена.status === 'open' ? Number(смена.float_amount) || 0 : '';
 
         const проведённые = операции.filter(о => о.status === 'posted');
         const товары = проведённые.reduce((s, о) => s + Number(о.items_total), 0);
@@ -283,6 +288,16 @@ const ShopShift = (() => {
             const b = ev.target.closest('button');
             if (!b) return;
 
+            if (b.id === 'openShift') {
+                return разово(b, async () => {
+                    const { error } = await Layout.db.rpc('shop_open_shift',
+                        { p_float: Number($('#floatAmount').value) || 0 });
+                    if (error) return Layout.handleError(error, 'Открытие смены');
+                    Layout.showNotification('Смена открыта', 'success');
+                    await перерисовать();
+                });
+            }
+
             if (b.id === 'closeShift') {
                 const counts = ожидаем.map(ж => ({
                     currency_code: ж.currency_code,
@@ -383,7 +398,7 @@ const ShopShift = (() => {
 
         // прямая запись в смену закрыта — размен меняется функцией, она же проверяет права
         $('#floatAmount').addEventListener('change', async ev => {
-            if (!смена || смена.status !== 'open') return;
+            if (!смена || смена.status !== 'open') return;   // до открытия поле просто запоминает сумму
             const { error } = await Layout.db.rpc('shop_set_float', {
                 p_shift: смена.id, p_amount: Number(ev.target.value) || 0,
             });

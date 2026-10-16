@@ -1,0 +1,118 @@
+<!DOCTYPE html>
+<html lang="ru" data-theme="light">
+<head>
+    <meta charset="UTF-8">
+    <script src="../js/color-init.js?v=3"></script>
+
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Возврат покупателю — ШРСК</title>
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg">
+    <link href="https://cdn.jsdelivr.net/npm/daisyui@4.12.14/dist/full.min.css" rel="stylesheet" />
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script>tailwind.config = { theme: { extend: { screens: { 'desktop': '1200px' } } } }</script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans:wght@400;500;600;700&family=Noto+Sans+Devanagari:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="../css/common.css?v=8">
+    <style>
+        .nums { font-variant-numeric: tabular-nums; }
+    </style>
+</head>
+<body class="bg-base-200 min-h-screen flex flex-col">
+
+    <div id="header-placeholder"></div>
+
+    <main class="container mx-auto px-4 py-6 flex-1">
+
+        <div class="mb-5">
+            <h1 class="text-2xl font-bold">Возврат покупателю</h1>
+            <p class="text-sm opacity-60">Деньги отдаются из кассы открытой смены, товар возвращается
+                в ту партию, из которой ушёл. Закрытую смену возврат не трогает.</p>
+        </div>
+
+        <div class="alert alert-warning mb-5" data-no-permission="shop_manage" style="display: none;">
+            <span>Возврат оформляет заведующий. Страница доступна для просмотра.</span>
+        </div>
+
+        <div class="card bg-base-100 shadow mb-5">
+            <div class="card-body py-4">
+                <div class="flex flex-wrap items-end gap-3">
+                    <label class="form-control">
+                        <div class="label py-1"><span class="label-text text-sm">Номер чека</span></div>
+                        <input type="number" class="input input-bordered input-sm w-36 nums" id="findNum"
+                               placeholder="например 42">
+                    </label>
+                    <button class="btn btn-sm" id="findGo"
+                            style="background: var(--current-color); color: #fff;">Найти</button>
+                    <span class="text-sm opacity-60">Номер есть у покупателя на руках, либо возьмите чек из списка ниже</span>
+                </div>
+            </div>
+        </div>
+
+        <div class="card bg-base-100 shadow mb-5" id="saleCard" hidden>
+            <div class="px-4 md:px-6 pt-4 pb-2 flex flex-wrap items-center gap-3">
+                <h2 class="card-title text-base" id="saleTitle">Чек</h2>
+                <span class="text-sm opacity-60" id="saleMeta"></span>
+            </div>
+            <div class="overflow-x-auto">
+                <table class="table table-sm stack" id="saleTbl">
+                    <thead>
+                        <tr><th>Товар</th><th class="text-right">Продано</th>
+                            <th class="text-right">Уже вернули</th><th class="text-right">Цена</th>
+                            <th class="text-right">Возвращают</th></tr>
+                    </thead>
+                    <tbody></tbody>
+                </table>
+            </div>
+            <div class="card-body pt-3 gap-3">
+                <label class="form-control">
+                    <div class="label py-1"><span class="label-text text-sm">Причина возврата</span></div>
+                    <input type="text" class="input input-bordered" id="retReason"
+                           placeholder="брак, передумал, ошибка продавца" data-permission="shop_manage">
+                </label>
+                <div class="flex flex-wrap items-center gap-3">
+                    <span class="text-sm font-semibold" id="retSum">Укажите, что возвращает покупатель</span>
+                    <button class="btn btn-sm ml-auto" id="retGo" disabled
+                            style="background: var(--current-color); color: #fff;">Оформить возврат</button>
+                </div>
+                <p class="text-xs opacity-60">Сумма приблизительная: точную посчитает сервер по доле
+                    позиции в уплаченном — со скидкой и округлением чека.</p>
+            </div>
+        </div>
+
+        <div class="card bg-base-100 shadow">
+            <div class="px-4 md:px-6 pt-4 pb-2 flex flex-wrap items-center gap-3">
+                <h2 class="card-title text-base">Последние чеки</h2>
+                <span class="text-sm opacity-60">двадцать проведённых</span>
+            </div>
+            <div class="overflow-x-auto">
+                <table class="table table-sm stack" id="lastTbl">
+                    <thead>
+                        <tr><th>Чек</th><th>Когда</th><th class="text-right">Сумма</th><th></th></tr>
+                    </thead>
+                    <tbody></tbody>
+                </table>
+            </div>
+        </div>
+    </main>
+
+    <div id="footer-placeholder"></div>
+
+    <script src="../js/config.js"></script>
+    <script src="../js/cache.js"></script>
+    <script src="../js/utils.js"></script>
+    <script src="../js/layout.js?v=91"></script>
+    <script src="../js/date-utils.js"></script>
+    <script src="../js/auth-check.js?v=12"></script>
+    <script src="../js/shop-utils.js?v=1"></script>
+    <script src="../js/pages/shop-returns.js?v=1"></script>
+    <script>
+        async function init() {
+            await Layout.init({ module: 'shop', menuId: 'shop_sales', itemId: 'shop_returns' });
+            await ShopReturns.init();
+        }
+        init();
+    </script>
+</body>
+</html>
