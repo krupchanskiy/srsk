@@ -213,6 +213,9 @@ const modules = {
         menuConfig: [
             { id: 'shop_sales', items: [
                 { id: 'shop_till', href: 'shop/till.html' }
+            ]},
+            { id: 'shop_goods', items: [
+                { id: 'shop_receive', href: 'shop/receive.html' }
             ]}
         ]
     }

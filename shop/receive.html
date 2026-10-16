@@ -1,0 +1,136 @@
+<!DOCTYPE html>
+<html lang="ru" data-theme="light">
+<head>
+    <meta charset="UTF-8">
+    <script src="../js/color-init.js?v=3"></script>
+
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Приём товара — ШРСК</title>
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg">
+    <link href="https://cdn.jsdelivr.net/npm/daisyui@4.12.14/dist/full.min.css" rel="stylesheet" />
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script>tailwind.config = { theme: { extend: { screens: { 'desktop': '1200px' } } } }</script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans:wght@400;500;600;700&family=Noto+Sans+Devanagari:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="../css/common.css?v=7">
+    <style>
+        .nums { font-variant-numeric: tabular-nums; }
+        @media (max-width: 760px) {
+            table.stack, table.stack tbody, table.stack tr, table.stack td { display: block; width: 100%; }
+            table.stack thead { display: none; }
+            table.stack tr { padding: 12px 0; border-bottom: 1px solid hsl(var(--b3)); }
+            table.stack tr:last-child { border-bottom: 0; }
+            table.stack td { border: 0; padding: 4px 0; display: flex; justify-content: space-between;
+                             align-items: center; gap: 12px; text-align: left !important; }
+            table.stack td::before { content: attr(data-label); font-size: 12.5px; font-weight: 600;
+                                     opacity: .6; flex: none; }
+            table.stack td[data-label=""]::before { content: none; }
+            table.stack td input, table.stack td select { width: 100%; max-width: 60%; }
+        }
+    </style>
+</head>
+<body class="bg-base-200 min-h-screen flex flex-col">
+
+    <div id="header-placeholder"></div>
+
+    <main class="container mx-auto px-4 py-6 flex-1">
+
+        <div class="mb-5">
+            <h1 class="text-2xl font-bold">Приём товара</h1>
+            <p class="text-sm opacity-60">Чужой товар берём на реализацию — долг появится по мере продажи.
+                Свой выпуск себестоимости не имеет.</p>
+        </div>
+
+        <div class="alert alert-warning mb-5" data-no-permission="shop_receive" style="display: none;">
+            <span>У вас нет права принимать товар. Страница доступна только для просмотра.</span>
+        </div>
+
+        <div class="card bg-base-100 shadow mb-5">
+            <div class="card-body gap-4 p-4 md:p-6">
+                <div class="flex flex-wrap items-center gap-3">
+                    <h2 class="card-title text-base">Новое поступление</h2>
+                    <div class="join ml-auto">
+                        <button class="btn btn-sm join-item" data-kind="consignment" id="kindConsign">От владельца</button>
+                        <button class="btn btn-sm join-item btn-outline" data-kind="own" id="kindOwn">Выпуск Мастерской</button>
+                    </div>
+                </div>
+
+                <div class="grid gap-3 md:grid-cols-3">
+                    <label class="form-control">
+                        <div class="label py-1"><span class="label-text text-sm" id="ownerLabel">Владелец</span></div>
+                        <select class="select select-bordered select-sm" id="ownerSel"></select>
+                    </label>
+                    <label class="form-control">
+                        <div class="label py-1"><span class="label-text text-sm">Дата</span></div>
+                        <input type="date" class="input input-bordered input-sm" id="recDate">
+                    </label>
+                    <label class="form-control">
+                        <div class="label py-1"><span class="label-text text-sm">Комментарий</span></div>
+                        <input type="text" class="input input-bordered input-sm" id="recNote" placeholder="необязательно">
+                    </label>
+                </div>
+
+                <datalist id="itemsList"></datalist>
+                <div class="overflow-x-auto">
+                    <table class="table table-sm stack" id="rowsTbl">
+                        <thead>
+                            <tr>
+                                <th class="w-2/5">Товар</th>
+                                <th class="text-right">Количество</th>
+                                <th class="text-right cost-col">Цена расчёта, ₹</th>
+                                <th class="text-right cost-col">Было в прошлый раз</th>
+                                <th></th>
+                            </tr>
+                        </thead>
+                        <tbody></tbody>
+                    </table>
+                </div>
+
+                <div class="flex flex-wrap items-center gap-3">
+                    <button class="btn btn-sm btn-outline" id="addRow">Добавить строку</button>
+                    <button class="btn btn-sm" id="saveRec" data-permission="shop_receive"
+                            style="background: var(--current-color); color: #fff;">Принять</button>
+                    <span class="text-sm opacity-60" id="recTotal"></span>
+                </div>
+            </div>
+        </div>
+
+        <div class="card bg-base-100 shadow">
+            <div class="card-body p-0">
+                <div class="px-4 md:px-6 pt-4 pb-2 flex items-center gap-3">
+                    <h2 class="card-title text-base">Последние поступления</h2>
+                    <span class="text-sm opacity-60" id="historyCount"></span>
+                </div>
+                <div class="overflow-x-auto">
+                    <table class="table table-sm stack" id="historyTbl">
+                        <thead>
+                            <tr><th>№</th><th>Дата</th><th>Откуда</th><th class="text-right">Позиций</th>
+                                <th class="text-right">Обязательство</th></tr>
+                        </thead>
+                        <tbody></tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <div id="footer-placeholder"></div>
+
+    <script src="../js/config.js"></script>
+    <script src="../js/cache.js"></script>
+    <script src="../js/utils.js"></script>
+    <script src="../js/layout.js?v=85"></script>
+    <script src="../js/date-utils.js"></script>
+    <script src="../js/auth-check.js?v=12"></script>
+    <script src="../js/pages/shop-receive.js?v=1"></script>
+    <script>
+        async function init() {
+            await Layout.init({ module: 'shop', menuId: 'shop_goods', itemId: 'shop_receive' });
+            await ShopReceive.init();
+        }
+        init();
+    </script>
+</body>
+</html>
