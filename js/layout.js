@@ -640,7 +640,7 @@ function getHeaderHTML() {
                         <a href="${adjustHref(homeHref)}" class="text-xl font-semibold whitespace-nowrap hover:opacity-80 transition-opacity"><span data-i18n="app_name">Шри Рупа Сева Кунджа</span></a>
                         <div class="relative location-selector" id="locationDesktop">
                             <button class="flex items-center justify-between gap-2 w-full text-xl opacity-70 hover:opacity-100 transition-opacity" data-toggle="location">
-                                <span class="location-name">${currentModule === 'housing' ? t('module_housing') : currentModule === 'crm' ? t('module_crm') : currentModule === 'finance' ? t('module_finance') : currentModule === 'portal' ? t('module_portal') : currentModule === 'photos' ? t('module_photos') : currentModule === 'admin' ? t('module_admin') : ''}</span>
+                                <span class="location-name">${currentModule === 'housing' ? t('module_housing') : currentModule === 'crm' ? t('module_crm') : currentModule === 'finance' ? t('module_finance') : currentModule === 'portal' ? t('module_portal') : currentModule === 'photos' ? t('module_photos') : currentModule === 'admin' ? t('module_admin') : currentModule === 'shop' ? t('module_shop') : ''}</span>
                                 <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 transition-transform location-arrow" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
                                     <path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7" />
                                 </svg>
@@ -655,7 +655,7 @@ function getHeaderHTML() {
                         <span class="text-xl opacity-50">·</span>
                         <div class="relative location-selector" id="locationMobile">
                             <button class="flex items-center gap-1 text-xl opacity-70" data-toggle="location">
-                                <span class="location-name">${currentModule === 'housing' ? t('module_housing') : currentModule === 'crm' ? t('module_crm') : currentModule === 'finance' ? t('module_finance') : currentModule === 'portal' ? t('module_portal') : currentModule === 'photos' ? t('module_photos') : currentModule === 'admin' ? t('module_admin') : ''}</span>
+                                <span class="location-name">${currentModule === 'housing' ? t('module_housing') : currentModule === 'crm' ? t('module_crm') : currentModule === 'finance' ? t('module_finance') : currentModule === 'portal' ? t('module_portal') : currentModule === 'photos' ? t('module_photos') : currentModule === 'admin' ? t('module_admin') : currentModule === 'shop' ? t('module_shop') : ''}</span>
                                 <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 transition-transform location-arrow" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
                                     <path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7" />
                                 </svg>
@@ -1043,6 +1043,8 @@ function updateHeaderLanguage() {
         $$('.location-name').forEach(el => el.textContent = t('module_photos'));
     } else if (currentModule === 'admin') {
         $$('.location-name').forEach(el => el.textContent = t('module_admin'));
+    } else if (currentModule === 'shop') {
+        $$('.location-name').forEach(el => el.textContent = t('module_shop'));
     } else {
         const loc = locations.find(l => l.slug === currentLocation);
         if (loc) {
@@ -1165,6 +1167,8 @@ function selectLocation(slug, isInitial = false) {
         $$('.location-name').forEach(el => el.textContent = t('module_photos'));
     } else if (currentModule === 'admin') {
         $$('.location-name').forEach(el => el.textContent = t('module_admin'));
+    } else if (currentModule === 'shop') {
+        $$('.location-name').forEach(el => el.textContent = t('module_shop'));
     } else {
         $$('.location-name').forEach(el => el.textContent = getName(loc));
         setColor(loc.color);
@@ -1474,6 +1478,9 @@ async function initLayout(page = { module: null, menuId: 'kitchen', itemId: null
     } else if (currentModule === 'admin') {
         setColor('#374151');
         $$('.location-name').forEach(el => el.textContent = t('module_admin'));
+    } else if (currentModule === 'shop') {
+        setColor('#0284c7');
+        $$('.location-name').forEach(el => el.textContent = t('module_shop'));
     }
 
     buildMobileMenu();

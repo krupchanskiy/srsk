@@ -36,6 +36,13 @@ const ShopTill = (() => {
 
     const $ = s => document.querySelector(s);
     const товар = id => товары.find(x => x.id === id);
+    // Layout.pluralize в проекте падает, поэтому склоняем сами
+    const склонение = n => {
+        const д = n % 10, дд = n % 100;
+        if (д === 1 && дд !== 11) return 'позиция';
+        if (д >= 2 && д <= 4 && (дд < 12 || дд > 14)) return 'позиции';
+        return 'позиций';
+    };
     const деньги = (n, вал = 'INR') =>
         new Intl.NumberFormat('ru-RU', { maximumFractionDigits: вал === 'USD' || вал === 'EUR' ? 2 : 0 })
             .format(n || 0) + ' ' + (ЗНАК[вал] || вал);
@@ -162,7 +169,7 @@ const ShopTill = (() => {
                     ? `<img src="${e(i.photo_url)}" alt="" loading="lazy">`
                     : `<svg viewBox="0 0 48 48" fill="none" stroke="currentColor" stroke-width="2.2"
                             stroke-linejoin="round" stroke-linecap="round">${РИСУНКИ[i.кат] || РИСУНКИ['Книги']}</svg>`}</span>
-                ${i.source === 'own' ? '<span class="own-mark bg-base-100 text-secondary">наше</span>' : ''}
+                ${i.source === 'own' ? '<span class="own-mark bg-base-100 opacity-80 border border-base-300">наше</span>' : ''}
                 ${n ? `<span class="badge-n nums">${n}</span>` : ''}
                 <span class="nm">${e(i.name_ru)}</span>
                 <span class="left nums ${мало || нет ? 'text-warning font-semibold' : 'opacity-60'}">
@@ -198,7 +205,7 @@ const ShopTill = (() => {
         $('#cartPin').textContent = штук;
         $('#cartPin').style.visibility = штук ? 'visible' : 'hidden';
         $('#cartTitle').textContent = штук ? деньги(итогРупии()) : 'Чек пуст';
-        $('#cartCap').textContent = штук ? `${штук} ${Layout.pluralize ? Layout.pluralize(штук, ['позиция','позиции','позиций']) : 'шт'} · показать` : 'нажимайте товары';
+        $('#cartCap').textContent = штук ? `${штук} ${склонение(штук)} · показать` : 'нажимайте товары';
         $('#toPay').hidden = !штук;
         $('#giftOnly').hidden = !!штук;
         $('#backSum').textContent = штук ? деньги(итогРупии()) : '';
@@ -390,11 +397,14 @@ const ShopTill = (() => {
 
         const el = document.createElement('div');
         el.id = 'shopToast';
-        el.className = 'toast toast-center z-50';
+        el.className = 'fixed left-1/2 z-50 max-w-[92vw]';
+        el.style.transform = 'translateX(-50%)';
         el.style.bottom = 'calc(86px + env(safe-area-inset-bottom, 0px))';
-        el.innerHTML = `<div class="alert shadow-lg">
-            <span>${e(текст)}</span>
-            ${сОтменой && последняя ? '<button class="btn btn-sm btn-ghost" id="undoBtn">Отменить</button>' : ''}
+        el.innerHTML = `<div class="bg-neutral text-neutral-content shadow-xl rounded-xl
+                                    flex items-center gap-3 py-2 pl-4 pr-2">
+            <span class="text-sm">${e(текст)}</span>
+            ${сОтменой && последняя
+                ? '<button class="btn btn-sm btn-ghost shrink-0" id="undoBtn">Отменить</button>' : ''}
         </div>`;
         document.body.appendChild(el);
         таймерТоста = setTimeout(() => { el.remove(); последняя = null; }, 6000);
