@@ -64,9 +64,9 @@ const ShopTill = (() => {
             Layout.db.from('shop_v_stock').select('item_id, qty'),
             Layout.db.from('shop_categories').select('id, name_ru, name_en, name_hi, sort_order').eq('is_active', true).order('sort_order'),
             Layout.db.from('shop_goals').select('id, name_ru, name_en, name_hi').eq('is_active', true).order('sort_order'),
-            Layout.db.from('shop_rates').select('currency_code, rate, valid_from')
-                .lte('valid_from', new Date().toISOString().slice(0, 10))
-                .order('valid_from', { ascending: false }),
+            // курс один на всю систему — тот, что ведёт казначей; продавцу финмодуль
+            // закрыт, поэтому действующие курсы отдаёт функция магазина
+            Layout.db.rpc('shop_rates_today'),
         ]);
 
         if (ош) throw ош;
@@ -81,7 +81,7 @@ const ShopTill = (() => {
             кат: имяКат[i.category_id] || '—' }));
 
         курсы = { INR: 1 };
-        (кур || []).forEach(r => { if (!(r.currency_code in курсы)) курсы[r.currency_code] = Number(r.rate); });
+        (кур || []).forEach(r => { курсы[r.currency_code] = Number(r.rate); });
 
         писать(КЛЮЧ_КЭША, { товары, категории, цели, курсы, сохранено: Date.now() });
     }
