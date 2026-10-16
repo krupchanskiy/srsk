@@ -216,6 +216,7 @@ const modules = {
                 { id: 'shop_shift', href: 'shop/shift.html' }
             ]},
             { id: 'shop_goods', items: [
+                { id: 'shop_items', href: 'shop/items.html' },
                 { id: 'shop_receive', href: 'shop/receive.html' }
             ]},
             { id: 'shop_money', items: [
@@ -546,7 +547,7 @@ function getPersonName(person, lang = currentLang) {
 
 // ==================== TRANSLATIONS ====================
 async function loadTranslations(retried = false) {
-    const data = await Cache.getOrLoad('translations_v59', async () => {
+    const data = await Cache.getOrLoad('translations_v60', async () => {
         // Supabase ограничивает 1000 записей на запрос, используем пагинацию
         const allData = [];
         let from = 0;
@@ -581,7 +582,7 @@ async function loadTranslations(retried = false) {
 
     if (!hasAllKeys && !retried) {
         // Кэш устарел, инвалидируем и перезагружаем (только 1 раз)
-        Cache.invalidate('translations_v59');
+        Cache.invalidate('translations_v60');
         return loadTranslations(true);
     }
 

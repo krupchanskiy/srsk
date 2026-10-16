@@ -1,0 +1,146 @@
+<!DOCTYPE html>
+<html lang="ru" data-theme="light">
+<head>
+    <meta charset="UTF-8">
+    <script src="../js/color-init.js?v=3"></script>
+
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Товары магазина — ШРСК</title>
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg">
+    <link href="https://cdn.jsdelivr.net/npm/daisyui@4.12.14/dist/full.min.css" rel="stylesheet" />
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script>tailwind.config = { theme: { extend: { screens: { 'desktop': '1200px' } } } }</script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans:wght@400;500;600;700&family=Noto+Sans+Devanagari:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="../css/common.css?v=7">
+    <style>
+        .nums { font-variant-numeric: tabular-nums; }
+        .thumb { width: 48px; height: 36px; object-fit: cover; border-radius: 6px; flex: none; }
+        .thumb-empty { width: 48px; height: 36px; border-radius: 6px; flex: none;
+                       display: grid; place-items: center; }
+        @media (max-width: 860px) {
+            table.stack, table.stack tbody, table.stack tr, table.stack td { display: block; width: 100%; }
+            table.stack thead { display: none; }
+            table.stack tr { padding: 12px 0; border-bottom: 1px solid hsl(var(--b3)); }
+            table.stack tr:last-child { border-bottom: 0; }
+            table.stack td { border: 0; padding: 4px 0; display: flex; justify-content: space-between;
+                             align-items: center; gap: 12px; text-align: left !important; }
+            table.stack td::before { content: attr(data-label); font-size: 12.5px; font-weight: 600;
+                                     opacity: .6; flex: none; }
+            table.stack td[data-label=""]::before { content: none; }
+            table.stack td.head { font-size: 15px; font-weight: 700; padding-bottom: 6px; }
+        }
+    </style>
+</head>
+<body class="bg-base-200 min-h-screen flex flex-col">
+
+    <div id="header-placeholder"></div>
+
+    <main class="container mx-auto px-4 py-6 flex-1">
+
+        <div class="mb-5 flex flex-wrap items-end gap-3">
+            <div>
+                <h1 class="text-2xl font-bold">Товары магазина</h1>
+                <p class="text-sm opacity-60">Цена одна на все партии: меняете здесь — меняется на кассе.</p>
+            </div>
+            <button class="btn btn-sm ml-auto" id="newItem" data-permission="shop_receive"
+                    style="background: var(--current-color); color: #fff;">Новый товар</button>
+        </div>
+
+        <div class="flex flex-wrap gap-3 mb-4">
+            <label class="input input-bordered input-sm flex items-center gap-2 flex-1 min-w-48">
+                <input id="q" type="search" class="grow" placeholder="Поиск по названию">
+            </label>
+            <select class="select select-bordered select-sm" id="catFilter"></select>
+            <label class="label cursor-pointer gap-2">
+                <input type="checkbox" class="checkbox checkbox-sm" id="onlyLow">
+                <span class="label-text text-sm">Только заканчивающиеся</span>
+            </label>
+        </div>
+
+        <div class="card bg-base-100 shadow">
+            <div class="overflow-x-auto">
+                <table class="table table-sm stack" id="itemsTbl">
+                    <thead>
+                        <tr>
+                            <th>Товар</th><th>Категория</th>
+                            <th class="text-right">Цена, ₹</th>
+                            <th class="text-right">На полке</th>
+                            <th class="text-right">Сигнал при</th>
+                            <th>Источник</th><th></th>
+                        </tr>
+                    </thead>
+                    <tbody></tbody>
+                </table>
+            </div>
+        </div>
+    </main>
+
+    <dialog id="itemModal" class="modal">
+        <div class="modal-box">
+            <h3 class="font-bold text-lg mb-4" id="modalTitle">Товар</h3>
+            <div class="flex flex-col gap-3">
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-3">
+                    <label class="form-control md:col-span-2">
+                        <div class="label py-1"><span class="label-text text-sm">Название</span></div>
+                        <input type="text" class="input input-bordered" id="fName">
+                    </label>
+                    <label class="form-control">
+                        <div class="label py-1"><span class="label-text text-sm">Категория</span></div>
+                        <select class="select select-bordered" id="fCat"></select>
+                    </label>
+                </div>
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-3">
+                    <label class="form-control">
+                        <div class="label py-1"><span class="label-text text-sm">Цена продажи, ₹</span></div>
+                        <input type="number" class="input input-bordered nums" id="fPrice">
+                    </label>
+                    <label class="form-control">
+                        <div class="label py-1"><span class="label-text text-sm">Сигнал при остатке</span></div>
+                        <input type="number" class="input input-bordered nums" id="fMin">
+                    </label>
+                    <label class="form-control">
+                        <div class="label py-1"><span class="label-text text-sm">Источник</span></div>
+                        <select class="select select-bordered" id="fSource">
+                            <option value="consignment">Реализация</option>
+                            <option value="own">Свой выпуск</option>
+                        </select>
+                    </label>
+                </div>
+                <label class="form-control">
+                    <div class="label py-1"><span class="label-text text-sm">Фото</span></div>
+                    <input type="file" class="file-input file-input-bordered file-input-sm" id="fPhoto" accept="image/*">
+                    <span class="text-xs opacity-60 mt-1">Товар на кассе выбирают глазами — фото помогает больше названия</span>
+                </label>
+                <label class="label cursor-pointer justify-start gap-2">
+                    <input type="checkbox" class="checkbox checkbox-sm" id="fActive" checked>
+                    <span class="label-text text-sm">В продаже</span>
+                </label>
+            </div>
+            <div class="modal-action">
+                <button class="btn btn-ghost" onclick="itemModal.close()">Отмена</button>
+                <button class="btn" id="saveItem" style="background: var(--current-color); color: #fff;">Сохранить</button>
+            </div>
+        </div>
+        <form method="dialog" class="modal-backdrop"><button>закрыть</button></form>
+    </dialog>
+
+    <div id="footer-placeholder"></div>
+
+    <script src="../js/config.js"></script>
+    <script src="../js/cache.js"></script>
+    <script src="../js/utils.js"></script>
+    <script src="../js/layout.js?v=89"></script>
+    <script src="../js/auth-check.js?v=12"></script>
+    <script src="../js/pages/shop-items.js?v=1"></script>
+    <script>
+        async function init() {
+            await Layout.init({ module: 'shop', menuId: 'shop_goods', itemId: 'shop_items' });
+            await ShopItems.init();
+        }
+        init();
+    </script>
+</body>
+</html>
