@@ -41,7 +41,7 @@ const ShopShift = (() => {
         }
 
         const { data: пакеты } = await Layout.db.from('shop_handovers')
-            .select('id, created_at, status, accepted_at, shop_handover_lines(currency_code, goods_amount, murti_amount, donation_amount)')
+            .select('id, created_at, status, accepted_at, shop_handover_lines(currency_code, goods_amount, murti_amount, donation_amount, discrepancy)')
             .eq('status', 'pending').order('created_at', { ascending: false }).limit(1);
         пакет = пакеты?.[0] || null;
         строкиПакета = пакет?.shop_handover_lines || [];
@@ -54,7 +54,7 @@ const ShopShift = (() => {
             // напрямую fin_accounts закрыта даже для казначея — финмодуль отдаёт счета своим представлением
             const { data: сч } = await Layout.db.from('fin_v_account_balances')
                 .select('account_id, name, currency_code, kind, is_active')
-                .eq('is_active', true).eq('kind', 'real').order('name');
+                .eq('is_active', true).eq('kind', 'real').eq('group_name', 'Касса').order('name');
             счета = (сч || []).map(с => ({ id: с.account_id, name: с.name, currency_code: с.currency_code }));
         }
     }
@@ -151,12 +151,17 @@ const ShopShift = (() => {
         const тело = $('#handoverBody');
 
         if (пакет) {
-            const итог = строкиПакета.map(л => `
+            const итог = строкиПакета.map(л => {
+                const р = Number(л.discrepancy) || 0;
+                return `
                 <tr><td data-label="Валюта">${ЗНАК[л.currency_code]}</td>
                     <td data-label="Товары" class="text-right nums">${деньги(л.goods_amount, л.currency_code)}</td>
                     <td data-label="Свой выпуск" class="text-right nums">${деньги(л.murti_amount, л.currency_code)}</td>
                     <td data-label="Пожертвования" class="text-right nums">${деньги(л.donation_amount, л.currency_code)}</td>
-                </tr>`).join('');
+                    <td data-label="Расхождение кассы" class="text-right nums ${р < 0 ? 'text-error' : р > 0 ? 'text-success' : 'opacity-50'}">
+                        ${р === 0 ? '—' : (р > 0 ? '+' : '') + деньги(р, л.currency_code)}</td>
+                </tr>`;
+            }).join('');
 
             const выборСчетов = админФинансов() ? строкиПакета.map(л => `
                 <label class="form-control">
@@ -173,7 +178,8 @@ const ShopShift = (() => {
                 <div class="overflow-x-auto">
                     <table class="table table-sm stack">
                         <thead><tr><th>Валюта</th><th class="text-right">Товары</th>
-                            <th class="text-right">Свой выпуск</th><th class="text-right">Пожертвования</th></tr></thead>
+                            <th class="text-right">Свой выпуск</th><th class="text-right">Пожертвования</th>
+                            <th class="text-right">Расхождение кассы</th></tr></thead>
                         <tbody>${итог}</tbody>
                     </table>
                 </div>
