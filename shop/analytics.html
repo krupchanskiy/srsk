@@ -35,14 +35,14 @@
         <div class="mb-5 flex flex-wrap items-end gap-3">
             <div>
                 <h1 class="text-2xl font-bold">Аналитика магазина</h1>
-                <p class="text-sm opacity-60">Прибыль считается только по чужому товару: у своего
-                    выпуска себестоимости нет, его экономика живёт в финмодуле на проекте.</p>
+                <p class="text-sm opacity-60">Чужой товар считается по цене расчёта с владельцем,
+                    мурти — по средней себестоимости мастерской.</p>
             </div>
             <div class="ml-auto flex flex-wrap items-center gap-2">
                 <div class="join" id="periods">
+                    <button class="btn btn-sm join-item" data-days="0">Сегодня</button>
                     <button class="btn btn-sm join-item" data-days="7">Неделя</button>
                     <button class="btn btn-sm join-item" data-days="30">Месяц</button>
-                    <button class="btn btn-sm join-item" data-days="90">Квартал</button>
                     <button class="btn btn-sm join-item" data-days="365">Год</button>
                 </div>
                 <input type="date" class="input input-bordered input-sm" id="from">
@@ -51,6 +51,21 @@
         </div>
 
         <div class="tiles mb-5" id="tiles"></div>
+
+        <div class="card bg-base-100 shadow mb-5">
+            <div class="px-4 md:px-6 pt-4 pb-2">
+                <h2 class="card-title text-base">Мастерская: мурти Госвами</h2>
+                <p class="text-sm opacity-60" id="murtiNote"></p>
+            </div>
+            <div class="card-body pt-2">
+                <div class="tiles" id="murtiTiles"></div>
+                <p class="text-xs opacity-60">Цены отдельной фигуры не существует: смолу и краску
+                    покупают впрок, роспись оплачивают людям. Поэтому всё, что потрачено на проекте,
+                    делится на всё, что с него выпущено, — и эта средняя применяется к проданному.
+                    Чтобы цифра была живой, расходы мастерской нужно заводить в финмодуле
+                    на объект «Мурти Госвами»; роспись — расходом, а не зарплатной ведомостью.</p>
+            </div>
+        </div>
 
         <div class="grid gap-5 desktop:grid-cols-2">
             <div class="card bg-base-100 shadow">
@@ -106,7 +121,7 @@
     <script src="../js/date-utils.js"></script>
     <script src="../js/auth-check.js?v=12"></script>
     <script src="../js/shop-utils.js?v=1"></script>
-    <script src="../js/pages/shop-analytics.js?v=2"></script>
+    <script src="../js/pages/shop-analytics.js?v=3"></script>
     <script>
         async function init() {
             await Layout.init({ module: 'shop', menuId: 'shop_money', itemId: 'shop_analytics' });
