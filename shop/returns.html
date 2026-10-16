@@ -26,70 +26,72 @@
     <main class="container mx-auto px-4 py-6 flex-1">
 
         <div class="mb-5">
-            <h1 class="text-2xl font-bold">Возврат покупателю</h1>
-            <p class="text-sm opacity-60">Деньги отдаются из кассы открытой смены, товар возвращается
+            <h1 class="text-2xl font-bold" data-i18n="shop_returns_title">Возврат покупателю</h1>
+            <p class="text-sm opacity-60" data-i18n="shop_returns_hint">Деньги отдаются из кассы открытой смены, товар возвращается
                 в ту партию, из которой ушёл. Закрытую смену возврат не трогает.</p>
         </div>
 
         <div class="alert alert-warning mb-5" data-no-permission="shop_manage" style="display: none;">
-            <span>Возврат оформляет заведующий. Страница доступна для просмотра.</span>
+            <span data-i18n="shop_returns_readonly">Возврат оформляет заведующий. Страница доступна для просмотра.</span>
         </div>
 
         <div class="card bg-base-100 shadow mb-5">
             <div class="card-body py-4">
                 <div class="flex flex-wrap items-end gap-3">
                     <label class="form-control">
-                        <div class="label py-1"><span class="label-text text-sm">Номер чека</span></div>
+                        <div class="label py-1"><span class="label-text text-sm" data-i18n="shop_receipt_number">Номер чека</span></div>
                         <input type="number" class="input input-bordered input-sm w-36 nums" id="findNum"
                                placeholder="например 42">
                     </label>
                     <button class="btn btn-sm" id="findGo"
-                            style="background: var(--current-color); color: #fff;">Найти</button>
-                    <span class="text-sm opacity-60">Номер есть у покупателя на руках, либо возьмите чек из списка ниже</span>
+                            style="background: var(--current-color); color: #fff;" data-i18n="shop_find">Найти</button>
+                    <span class="text-sm opacity-60" data-i18n="shop_find_hint">Номер есть у покупателя на руках, либо возьмите чек из списка ниже</span>
                 </div>
             </div>
         </div>
 
         <div class="card bg-base-100 shadow mb-5" id="saleCard" hidden>
             <div class="px-4 md:px-6 pt-4 pb-2 flex flex-wrap items-center gap-3">
-                <h2 class="card-title text-base" id="saleTitle">Чек</h2>
+                <h2 class="card-title text-base" id="saleTitle" data-i18n="shop_receipt">Чек</h2>
                 <span class="text-sm opacity-60" id="saleMeta"></span>
             </div>
             <div class="overflow-x-auto">
                 <table class="table table-sm stack" id="saleTbl">
                     <thead>
-                        <tr><th>Товар</th><th class="text-right">Продано</th>
-                            <th class="text-right">Уже вернули</th><th class="text-right">Цена</th>
-                            <th class="text-right">Возвращают</th></tr>
+                        <tr><th data-i18n="shop_item_col">Товар</th><th class="text-right" data-i18n="shop_sold">Продано</th>
+                            <th class="text-right" data-i18n="shop_already_returned">Уже вернули</th>
+                            <th class="text-right" data-i18n="price">Цена</th>
+                            <th class="text-right" data-i18n="shop_returning">Возвращают</th></tr>
                     </thead>
                     <tbody></tbody>
                 </table>
             </div>
             <div class="card-body pt-3 gap-3">
                 <label class="form-control">
-                    <div class="label py-1"><span class="label-text text-sm">Причина возврата</span></div>
+                    <div class="label py-1"><span class="label-text text-sm" data-i18n="shop_refund_reason">Причина возврата</span></div>
                     <input type="text" class="input input-bordered" id="retReason"
                            placeholder="брак, передумал, ошибка продавца" data-permission="shop_manage">
                 </label>
                 <div class="flex flex-wrap items-center gap-3">
-                    <span class="text-sm font-semibold" id="retSum">Укажите, что возвращает покупатель</span>
+                    <span class="text-sm font-semibold" id="retSum" data-i18n="shop_say_what_returns">Укажите, что возвращает покупатель</span>
                     <button class="btn btn-sm ml-auto" id="retGo" disabled
-                            style="background: var(--current-color); color: #fff;">Оформить возврат</button>
+                            style="background: var(--current-color); color: #fff;" data-i18n="shop_do_refund">Оформить возврат</button>
                 </div>
-                <p class="text-xs opacity-60">Сумма приблизительная: точную посчитает сервер по доле
+                <p class="text-xs opacity-60" data-i18n="shop_refund_approx">Сумма приблизительная: точную посчитает сервер по доле
                     позиции в уплаченном — со скидкой и округлением чека.</p>
             </div>
         </div>
 
         <div class="card bg-base-100 shadow">
             <div class="px-4 md:px-6 pt-4 pb-2 flex flex-wrap items-center gap-3">
-                <h2 class="card-title text-base">Последние чеки</h2>
-                <span class="text-sm opacity-60">двадцать проведённых</span>
+                <h2 class="card-title text-base" data-i18n="shop_recent_receipts_title">Последние чеки</h2>
+                <span class="text-sm opacity-60" data-i18n="shop_twenty_posted">двадцать проведённых</span>
             </div>
             <div class="overflow-x-auto">
                 <table class="table table-sm stack" id="lastTbl">
                     <thead>
-                        <tr><th>Чек</th><th>Когда</th><th class="text-right">Сумма</th><th></th></tr>
+                        <tr><th data-i18n="shop_receipt">Чек</th><th data-i18n="shop_when_col">Когда</th>
+                            <th class="text-right" data-i18n="shop_amount_word">Сумма</th><th></th></tr>
                     </thead>
                     <tbody></tbody>
                 </table>
@@ -102,11 +104,11 @@
     <script src="../js/config.js"></script>
     <script src="../js/cache.js"></script>
     <script src="../js/utils.js"></script>
-    <script src="../js/layout.js?v=92"></script>
+    <script src="../js/layout.js?v=94"></script>
     <script src="../js/date-utils.js"></script>
     <script src="../js/auth-check.js?v=12"></script>
-    <script src="../js/shop-utils.js?v=1"></script>
-    <script src="../js/pages/shop-returns.js?v=1"></script>
+    <script src="../js/shop-utils.js?v=2"></script>
+    <script src="../js/pages/shop-returns.js?v=2"></script>
     <script>
         async function init() {
             await Layout.init({ module: 'shop', menuId: 'shop_sales', itemId: 'shop_returns' });

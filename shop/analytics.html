@@ -34,16 +34,16 @@
 
         <div class="mb-5 flex flex-wrap items-end gap-3">
             <div>
-                <h1 class="text-2xl font-bold">Аналитика магазина</h1>
-                <p class="text-sm opacity-60">Чужой товар считается по цене расчёта с владельцем,
+                <h1 class="text-2xl font-bold" data-i18n="shop_analytics_title">Аналитика магазина</h1>
+                <p class="text-sm opacity-60" data-i18n="shop_analytics_hint">Чужой товар считается по цене расчёта с владельцем,
                     мурти — по средней себестоимости мастерской.</p>
             </div>
             <div class="ml-auto flex flex-wrap items-center gap-2">
                 <div class="join" id="periods">
-                    <button class="btn btn-sm join-item" data-days="0">Сегодня</button>
-                    <button class="btn btn-sm join-item" data-days="7">Неделя</button>
-                    <button class="btn btn-sm join-item" data-days="30">Месяц</button>
-                    <button class="btn btn-sm join-item" data-days="365">Год</button>
+                    <button class="btn btn-sm join-item" data-days="0" data-i18n="shop_today">Сегодня</button>
+                    <button class="btn btn-sm join-item" data-days="7" data-i18n="shop_week">Неделя</button>
+                    <button class="btn btn-sm join-item" data-days="30" data-i18n="shop_month">Месяц</button>
+                    <button class="btn btn-sm join-item" data-days="365" data-i18n="shop_year">Год</button>
                 </div>
                 <input type="date" class="input input-bordered input-sm" id="from">
                 <input type="date" class="input input-bordered input-sm" id="to">
@@ -54,12 +54,12 @@
 
         <div class="card bg-base-100 shadow mb-5">
             <div class="px-4 md:px-6 pt-4 pb-2">
-                <h2 class="card-title text-base">Мастерская: мурти Госвами</h2>
+                <h2 class="card-title text-base" data-i18n="shop_workshop_block">Мастерская: мурти Госвами</h2>
                 <p class="text-sm opacity-60" id="murtiNote"></p>
             </div>
             <div class="card-body pt-2">
                 <div class="tiles" id="murtiTiles"></div>
-                <p class="text-xs opacity-60">Цены отдельной фигуры не существует: смолу и краску
+                <p class="text-xs opacity-60" data-i18n="shop_price_note">Цены отдельной фигуры не существует: смолу и краску
                     покупают впрок, роспись оплачивают людям. Поэтому всё, что потрачено на проекте,
                     делится на всё, что с него выпущено, — и эта средняя применяется к проданному.
                     Чтобы цифра была живой, расходы мастерской нужно заводить в финмодуле
@@ -70,13 +70,14 @@
         <div class="grid gap-5 desktop:grid-cols-2">
             <div class="card bg-base-100 shadow">
                 <div class="px-4 md:px-6 pt-4 pb-2">
-                    <h2 class="card-title text-base">Что продаётся</h2>
-                    <p class="text-sm opacity-60">Десять позиций по выручке за период</p>
+                    <h2 class="card-title text-base" data-i18n="shop_what_sells">Что продаётся</h2>
+                    <p class="text-sm opacity-60" data-i18n="shop_top_ten">Десять позиций по выручке за период</p>
                 </div>
                 <div class="overflow-x-auto">
                     <table class="table table-sm stack" id="topTbl">
-                        <thead><tr><th>Товар</th><th class="text-right">Штук</th>
-                            <th class="text-right">Выручка</th><th class="text-right">Прибыль</th></tr></thead>
+                        <thead><tr><th data-i18n="shop_item_col">Товар</th><th class="text-right" data-i18n="shop_pcs_col">Штук</th>
+                            <th class="text-right" data-i18n="shop_revenue">Выручка</th>
+                            <th class="text-right" data-i18n="shop_profit_col">Прибыль</th></tr></thead>
                         <tbody></tbody>
                     </table>
                 </div>
@@ -84,12 +85,12 @@
 
             <div class="card bg-base-100 shadow" id="goalsCard" hidden>
                 <div class="px-4 md:px-6 pt-4 pb-2">
-                    <h2 class="card-title text-base">Пожертвования по целям</h2>
-                    <p class="text-sm opacity-60">Сдача, которую гости оставили на служение</p>
+                    <h2 class="card-title text-base" data-i18n="shop_donations_by_goal">Пожертвования по целям</h2>
+                    <p class="text-sm opacity-60" data-i18n="shop_donations_by_goal_hint">Сдача, которую гости оставили на служение</p>
                 </div>
                 <div class="overflow-x-auto">
                     <table class="table table-sm stack" id="goalsTbl">
-                        <thead><tr><th>Цель</th><th class="text-right">Собрано</th></tr></thead>
+                        <thead><tr><th data-i18n="shop_goal_col">Цель</th><th class="text-right" data-i18n="shop_collected">Собрано</th></tr></thead>
                         <tbody></tbody>
                     </table>
                 </div>
@@ -97,14 +98,14 @@
 
             <div class="card bg-base-100 shadow">
                 <div class="px-4 md:px-6 pt-4 pb-2">
-                    <h2 class="card-title text-base">Залежалось</h2>
-                    <p class="text-sm opacity-60">Лежит дольше трёх месяцев и не продавалось.
+                    <h2 class="card-title text-base" data-i18n="shop_stale">Залежалось</h2>
+                    <p class="text-sm opacity-60" data-i18n="shop_stale_hint">Лежит дольше трёх месяцев и не продавалось.
                         Чужое стоит вернуть владельцу, своё — уценить.</p>
                 </div>
                 <div class="overflow-x-auto">
                     <table class="table table-sm stack" id="deadTbl">
-                        <thead><tr><th>Товар</th><th class="text-right">На полке</th>
-                            <th class="text-right">Лежит</th></tr></thead>
+                        <thead><tr><th data-i18n="shop_item_col">Товар</th><th class="text-right" data-i18n="shop_stock_col">На полке</th>
+                            <th class="text-right" data-i18n="shop_lying">Лежит</th></tr></thead>
                         <tbody></tbody>
                     </table>
                 </div>
@@ -117,11 +118,11 @@
     <script src="../js/config.js"></script>
     <script src="../js/cache.js"></script>
     <script src="../js/utils.js"></script>
-    <script src="../js/layout.js?v=92"></script>
+    <script src="../js/layout.js?v=94"></script>
     <script src="../js/date-utils.js"></script>
     <script src="../js/auth-check.js?v=12"></script>
-    <script src="../js/shop-utils.js?v=1"></script>
-    <script src="../js/pages/shop-analytics.js?v=3"></script>
+    <script src="../js/shop-utils.js?v=2"></script>
+    <script src="../js/pages/shop-analytics.js?v=4"></script>
     <script>
         async function init() {
             await Layout.init({ module: 'shop', menuId: 'shop_money', itemId: 'shop_analytics' });

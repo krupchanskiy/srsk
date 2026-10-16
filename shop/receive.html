@@ -32,7 +32,7 @@
         </div>
 
         <div class="alert alert-warning mb-5" data-no-permission="shop_receive" style="display: none;">
-            <span>У вас нет права принимать товар. Страница доступна только для просмотра.</span>
+            <span data-i18n="shop_no_receive_right">У вас нет права принимать товар. Страница доступна только для просмотра.</span>
         </div>
 
         <div class="card bg-base-100 shadow mb-5">
@@ -47,7 +47,7 @@
 
                 <div class="grid gap-3 md:grid-cols-3">
                     <label class="form-control">
-                        <div class="label py-1"><span class="label-text text-sm" id="ownerLabel">Владелец</span></div>
+                        <div class="label py-1"><span class="label-text text-sm" id="ownerLabel" data-i18n="shop_owner">Владелец</span></div>
                         <select class="select select-bordered select-sm" id="ownerSel"></select>
                     </label>
                     <label class="form-control">
@@ -94,8 +94,8 @@
                 <div class="overflow-x-auto">
                     <table class="table table-sm stack" id="historyTbl">
                         <thead>
-                            <tr><th>№</th><th>Дата</th><th>Откуда</th><th class="text-right">Позиций</th>
-                                <th class="text-right">Обязательство</th></tr>
+                            <tr><th>№</th><th data-i18n="shop_date">Дата</th><th data-i18n="shop_from_col">Откуда</th><th class="text-right" data-i18n="shop_lines_col">Позиций</th>
+                                <th class="text-right" data-i18n="shop_liability_col">Обязательство</th></tr>
                         </thead>
                         <tbody></tbody>
                     </table>
@@ -109,12 +109,12 @@
     <script src="../js/config.js"></script>
     <script src="../js/cache.js"></script>
     <script src="../js/utils.js"></script>
-    <script src="../js/layout.js?v=92"></script>
+    <script src="../js/layout.js?v=94"></script>
     <script src="../js/date-utils.js"></script>
     <script src="../js/auth-check.js?v=12"></script>
     <script src="../js/translit.js"></script>
-    <script src="../js/shop-utils.js?v=1"></script>
-    <script src="../js/pages/shop-receive.js?v=2"></script>
+    <script src="../js/shop-utils.js?v=2"></script>
+    <script src="../js/pages/shop-receive.js?v=3"></script>
     <script>
         async function init() {
             await Layout.init({ module: 'shop', menuId: 'shop_goods', itemId: 'shop_receive' });

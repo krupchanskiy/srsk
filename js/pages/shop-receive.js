@@ -8,6 +8,7 @@
  */
 const ShopReceive = (() => {
     const e = str => Layout.escapeHtml(str ?? '');
+    const t = key => Layout.t(key);
     const { деньги } = ShopUtils;
 
     let владельцы = [], товары = [], категории = [], прошлыеЦены = {};
@@ -26,10 +27,10 @@ const ShopReceive = (() => {
             Layout.db.from('shop_batches').select('item_id, cost_price, received_on')
                 .not('cost_price', 'is', null).order('received_on', { ascending: false }),
         ]);
-        if (ShopUtils.ошибка(ответы, 'Загрузка приёмки')) return false;
+        if (ShopUtils.ошибка(ответы, t('shop_err_load_receive'))) return false;
 
         const [{ data: вл }, { data: тов }, { data: кат }, { data: партии }] = ответы;
-        владельцы = (вл || []).map(в => ({ ...в, имя: в.name || 'Без названия' }));
+        владельцы = (вл || []).map(в => ({ ...в, имя: в.name || t('shop_unnamed') }));
         товары = тов || [];
         категории = кат || [];
         прошлыеЦены = {};
@@ -43,13 +44,13 @@ const ShopReceive = (() => {
         $('#kindConsign').style.cssText = вид === 'consignment' ? 'background: var(--current-color); color:#fff; border-color: var(--current-color);' : '';
         $('#kindOwn').style.cssText = вид === 'own' ? 'background: var(--current-color); color:#fff; border-color: var(--current-color);' : '';
 
-        $('#ownerLabel').textContent = вид === 'own' ? 'Источник' : 'Владелец';
+        $('#ownerLabel').textContent = вид === 'own' ? t('shop_source') : t('shop_owner');
         $('#ownerSel').disabled = вид === 'own';
         $('#ownerSel').innerHTML = вид === 'own'
-            ? '<option>Мастерская — свой выпуск</option>'
-            : владельцы.map(в => `<option value="${в.id}">${e(в.имя)} · потери ${
-                в.loss_policy === 'compensate' ? 'компенсируем' : 'за его счёт'}</option>`).join('')
-              || '<option value="">Владельцев пока нет</option>';
+            ? `<option>${t('shop_workshop_own')}</option>`
+            : владельцы.map(в => `<option value="${в.id}">${e(в.имя)} · ${t('shop_losses_word')} ${
+                в.loss_policy === 'compensate' ? t('shop_loss_compensate') : t('shop_loss_owner')}</option>`).join('')
+              || `<option value="">${t('shop_no_owners')}</option>`;
 
         document.querySelectorAll('.cost-col').forEach(el => { el.hidden = вид === 'own'; });
     }
@@ -64,32 +65,32 @@ const ShopReceive = (() => {
             const прошлая = найден ? прошлыеЦены[с.item_id] : null;
             return `
             <tr>
-                <td data-label="Товар">
+                <td data-label="${t('shop_item_col')}">
                     <div class="w-full">
                         <input class="input input-bordered input-sm w-full" list="itemsList" data-name="${i}"
-                               value="${e(с.название)}" placeholder="Начните вводить название">
+                               value="${e(с.название)}" placeholder="${t('shop_type_name')}">
                         ${новый ? `
                         <div class="mt-2 flex flex-wrap gap-2 items-center">
-                            <span class="badge badge-sm badge-warning">новый товар</span>
+                            <span class="badge badge-sm badge-warning">${t('shop_new_item_badge')}</span>
                             <select class="select select-bordered select-xs" data-cat="${i}">
-                                <option value="">категория…</option>
+                                <option value="">${t('shop_category_dots')}</option>
                                 ${категории.map(к => `<option value="${к.id}" ${к.id === с.категория ? 'selected' : ''}>${e(к.name_ru)}</option>`).join('')}
                             </select>
                             <input class="input input-bordered input-xs w-28 nums" inputmode="numeric"
-                                   data-price="${i}" value="${e(с.цена)}" placeholder="цена, ₹">
+                                   data-price="${i}" value="${e(с.цена)}" placeholder="${t('shop_price_small')}">
                         </div>` : ''}
                     </div>
                 </td>
-                <td data-label="Количество" class="text-right">
+                <td data-label="${t('shop_qty')}" class="text-right">
                     <input class="input input-bordered input-sm w-24 text-right nums" inputmode="numeric"
                            data-qty="${i}" value="${e(с.qty)}"></td>
-                <td data-label="Цена расчёта" class="text-right cost-col" ${вид === 'own' ? 'hidden' : ''}>
+                <td data-label="${t('shop_cost_col')}" class="text-right cost-col" ${вид === 'own' ? 'hidden' : ''}>
                     <input class="input input-bordered input-sm w-28 text-right nums" inputmode="numeric"
                            data-cost="${i}" value="${e(с.cost)}"></td>
-                <td data-label="Было в прошлый раз" class="text-right cost-col opacity-60 nums" ${вид === 'own' ? 'hidden' : ''}>
+                <td data-label="${t('shop_last_time')}" class="text-right cost-col opacity-60 nums" ${вид === 'own' ? 'hidden' : ''}>
                     ${прошлая ? деньги(прошлая) : '—'}</td>
                 <td data-label="">
-                    <button class="btn btn-ghost btn-sm" data-del="${i}" aria-label="Убрать строку">✕</button></td>
+                    <button class="btn btn-ghost btn-sm" data-del="${i}" aria-label="${t('shop_remove_row')}">✕</button></td>
             </tr>`;
         }).join('');
 
@@ -101,37 +102,38 @@ const ShopReceive = (() => {
             .from('shop_receipts')
             .select('id, number, received_on, kind, owner_id, shop_receipt_items(qty, cost_price)')
             .order('received_on', { ascending: false }).order('number', { ascending: false }).limit(12);
-        if (ShopUtils.ошибка({ error }, 'История поступлений')) return;
+        if (ShopUtils.ошибка({ error }, t('shop_err_history'))) return;
         const имена = Object.fromEntries(владельцы.map(в => [в.id, в.имя]));
 
         const строкиИстории = (data || []).map(п => {
             const позиции = п.shop_receipt_items || [];
             const сумма = позиции.reduce((s, x) => s + Number(x.qty) * Number(x.cost_price || 0), 0);
-            const откуда = п.kind === 'own' ? 'Мастерская, свой выпуск'
-                : (имена[п.owner_id] || 'Владелец не указан');
+            const откуда = п.kind === 'own' ? t('shop_workshop_own_short')
+                : (имена[п.owner_id] || t('shop_owner_unknown'));
             return `<tr>
                 <td data-label="№" class="nums">${п.number}</td>
-                <td data-label="Дата" class="nums">${DateUtils.formatShort(DateUtils.parseDate(п.received_on))}</td>
-                <td data-label="Откуда">${e(откуда)}${п.kind === 'own'
-                    ? ' <span class="badge badge-sm">наше</span>' : ''}</td>
-                <td data-label="Позиций" class="text-right nums">${позиции.length}</td>
-                <td data-label="Обязательство" class="text-right nums">${сумма ? деньги(сумма) : '—'}</td>
+                <td data-label="${t('shop_date')}" class="nums">${DateUtils.formatShort(DateUtils.parseDate(п.received_on))}</td>
+                <td data-label="${t('shop_from_col')}">${e(откуда)}${п.kind === 'own'
+                    ? ` <span class="badge badge-sm">${t('shop_ours')}</span>` : ''}</td>
+                <td data-label="${t('shop_lines_col')}" class="text-right nums">${позиции.length}</td>
+                <td data-label="${t('shop_liability_col')}" class="text-right nums">${сумма ? деньги(сумма) : '—'}</td>
             </tr>`;
         });
 
         $('#historyTbl').tBodies[0].innerHTML = строкиИстории.join('')
-            || '<tr><td colspan="5" class="text-center opacity-60 py-6">Поступлений пока не было</td></tr>';
-        $('#historyCount').textContent = строкиИстории.length ? `последние ${строкиИстории.length}` : '';
+            || `<tr><td colspan="5" class="text-center opacity-60 py-6">${t('shop_no_receipts')}</td></tr>`;
+        $('#historyCount').textContent = строкиИстории.length
+            ? t('shop_last_n').replace('%s', строкиИстории.length) : '';
     }
 
     async function принять() {
         const годные = строки.filter(с => с.название.trim() && parseFloat(с.qty) > 0);
         if (!годные.length) {
-            Layout.showNotification('Добавьте хотя бы одну строку с количеством', 'warning');
+            Layout.showNotification(t('shop_add_one_row'), 'warning');
             return;
         }
         if (вид !== 'own' && !$('#ownerSel').value) {
-            Layout.showNotification('Выберите владельца товара', 'warning');
+            Layout.showNotification(t('shop_pick_owner'), 'warning');
             return;
         }
         if (занято) return;
@@ -146,7 +148,7 @@ const ShopReceive = (() => {
         // новые товары заводим здесь же, иначе приёмку пришлось бы бросать на полпути
         for (const с of годные.filter(x => !x.item_id)) {
             if (!с.категория || !(parseFloat(с.цена) > 0)) {
-                Layout.showNotification(`Для «${с.название}» укажите категорию и цену продажи`, 'warning');
+                Layout.showNotification(t('shop_new_item_needs').replace('%s', с.название), 'warning');
                 return;
             }
             const { data, error } = await Layout.db.from('shop_items').insert({
@@ -156,7 +158,7 @@ const ShopReceive = (() => {
                 source: вид === 'own' ? 'own' : 'consignment',
                 translit: window.Translit ? Translit.ru(с.название.trim()).toLowerCase() : null,
             }).select('id').single();
-            if (error) { Layout.handleError(error, 'Создание товара'); return; }
+            if (error) { Layout.handleError(error, t('shop_err_create_item')); return; }
             с.item_id = data.id;
         }
 
@@ -173,9 +175,10 @@ const ShopReceive = (() => {
         if (вид !== 'own') payload.owner_id = $('#ownerSel').value;
 
         const { error } = await Layout.db.rpc('shop_receive_goods', { payload });
-        if (error) { Layout.handleError(error, 'Приём товара'); return; }
+        if (error) { Layout.handleError(error, t('shop_err_receive')); return; }
 
-        Layout.showNotification(вид === 'own' ? 'Выпуск принят на склад' : 'Товар принят на реализацию', 'success');
+        Layout.showNotification(вид === 'own'
+            ? t('shop_own_received') : t('shop_consign_received'), 'success');
         строки = [пустаяСтрока()];
         $('#recNote').value = '';
         if (!await загрузить()) return;
@@ -241,8 +244,8 @@ const ShopReceive = (() => {
         const штук = строки.reduce((s, с) => s + (parseFloat(с.qty) || 0), 0);
         const сумма = строки.reduce((s, с) => s + (parseFloat(с.qty) || 0) * (parseFloat(с.cost) || 0), 0);
         $('#recTotal').textContent = !штук ? ''
-            : вид === 'own' ? `${штук} шт — себестоимость не ведём, экономика в проекте`
-            : `${штук} шт · обязательство возникнет по мере продажи, максимум ${деньги(сумма)}`;
+            : вид === 'own' ? t('shop_own_total_hint').replace('%s', штук)
+            : t('shop_consign_total_hint').replace('%s', штук).replace('%s', деньги(сумма));
     }
 
     async function init() {

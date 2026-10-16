@@ -44,7 +44,7 @@
                            data-permission="shop_sell">
                 </label>
                 <button class="btn btn-sm" id="openShift" hidden data-permission="shop_sell"
-                        style="background: var(--current-color); color: #fff;">Открыть смену</button>
+                        style="background: var(--current-color); color: #fff;" data-i18n="shop_open_shift">Открыть смену</button>
             </div>
             <div class="stat-grid" id="shiftStats"></div>
         </div>
@@ -52,7 +52,7 @@
         <div class="card bg-base-100 shadow mb-4" id="countCard">
             <div class="px-4 md:px-6 pt-4 pb-2 flex flex-wrap items-center gap-3">
                 <h2 class="card-title text-base" data-i18n="shop_count_drawer">Пересчёт ящика</h2>
-                <span class="text-sm opacity-60">Сколько реально лежит. Размен и пожертвования уже учтены.</span>
+                <span class="text-sm opacity-60" data-i18n="shop_count_drawer_hint">Сколько реально лежит. Размен и пожертвования уже учтены.</span>
             </div>
             <div class="card-body pt-2 gap-4">
                 <div class="grid gap-3 md:grid-cols-3" id="countBoxes"></div>
@@ -80,8 +80,9 @@
             <div class="overflow-x-auto">
                 <table class="table table-sm stack" id="opsTbl">
                     <thead>
-                        <tr><th>Время</th><th>Что</th><th class="text-right">Сумма</th>
-                            <th>Оплата</th><th></th></tr>
+                        <tr><th data-i18n="shop_time">Время</th><th data-i18n="shop_what">Что</th>
+                            <th class="text-right" data-i18n="shop_amount_word">Сумма</th>
+                            <th data-i18n="shop_payment">Оплата</th><th></th></tr>
                     </thead>
                     <tbody></tbody>
                 </table>
@@ -90,13 +91,15 @@
 
         <div class="card bg-base-100 shadow">
             <div class="px-4 md:px-6 pt-4 pb-2 flex flex-wrap items-center gap-3">
-                <h2 class="card-title text-base">Прошлые смены</h2>
-                <span class="text-sm opacity-60">последние десять — видно, что сдано, а что нет</span>
+                <h2 class="card-title text-base" data-i18n="shop_past_shifts">Прошлые смены</h2>
+                <span class="text-sm opacity-60" data-i18n="shop_past_shifts_hint">последние десять — видно, что сдано, а что нет</span>
             </div>
             <div class="overflow-x-auto">
                 <table class="table table-sm stack" id="histTbl">
                     <thead>
-                        <tr><th>Смена</th><th>Закрыта</th><th class="text-right">Размен</th><th>Сдача</th></tr>
+                        <tr><th data-i18n="shop_shift">Смена</th><th data-i18n="shop_closed_col">Закрыта</th>
+                            <th class="text-right" data-i18n="shop_float_word">Размен</th>
+                            <th data-i18n="shop_handover_col">Сдача</th></tr>
                     </thead>
                     <tbody></tbody>
                 </table>
@@ -109,11 +112,11 @@
     <script src="../js/config.js"></script>
     <script src="../js/cache.js"></script>
     <script src="../js/utils.js"></script>
-    <script src="../js/layout.js?v=92"></script>
+    <script src="../js/layout.js?v=94"></script>
     <script src="../js/date-utils.js"></script>
     <script src="../js/auth-check.js?v=12"></script>
-    <script src="../js/shop-utils.js?v=1"></script>
-    <script src="../js/pages/shop-shift.js?v=3"></script>
+    <script src="../js/shop-utils.js?v=2"></script>
+    <script src="../js/pages/shop-shift.js?v=4"></script>
     <script>
         async function init() {
             await Layout.init({ module: 'shop', menuId: 'shop_sales', itemId: 'shop_shift' });

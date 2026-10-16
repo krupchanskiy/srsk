@@ -24,7 +24,7 @@ const ShopOwners = (() => {
                     .eq('is_active', true).eq('kind', 'real').eq('currency_code', 'INR').order('name')
                 : Promise.resolve({ data: [] }),
         ]);
-        if (ShopUtils.ошибка(ответы, 'Загрузка владельцев')) return false;
+        if (ShopUtils.ошибка(ответы, t('shop_err_load_owners'))) return false;
 
         const [{ data: вл }, { data: сч }] = ответы;
         владельцы = вл || [];
@@ -36,24 +36,24 @@ const ShopOwners = (() => {
         $('#ownersTbl').tBodies[0].innerHTML = владельцы.map(в => `
             <tr>
                 <td class="head" data-label="">${e(в.name)}</td>
-                <td data-label="На полке" class="text-right nums">${штук(в.on_shelf)}</td>
-                <td data-label="Продано" class="text-right nums">${штук(в.sold_qty)}</td>
-                <td data-label="Возвращено" class="text-right nums">${в.returned_qty > 0 ? штук(в.returned_qty) : '—'}</td>
-                <td data-label="Списано за наш счёт" class="text-right nums">${в.written_off_us > 0 ? штук(в.written_off_us) : '—'}</td>
-                <td data-label="За его счёт" class="text-right nums">${в.written_off_owner > 0 ? штук(в.written_off_owner) : '—'}</td>
-                <td data-label="Выплачено" class="text-right nums opacity-70">${в.settled > 0 ? деньги(в.settled) : '—'}</td>
-                <td data-label="К оплате" class="text-right nums font-bold ${в.debt < 0 ? 'text-success' : ''}">
-                    ${деньги(в.debt)}${в.debt < 0 ? ' <span class="text-xs font-normal">переплата</span>' : ''}</td>
-                <td data-label="Потери">
+                <td data-label="${t('shop_stock_col')}" class="text-right nums">${штук(в.on_shelf)}</td>
+                <td data-label="${t('shop_sold')}" class="text-right nums">${штук(в.sold_qty)}</td>
+                <td data-label="${t('shop_returned')}" class="text-right nums">${в.returned_qty > 0 ? штук(в.returned_qty) : '—'}</td>
+                <td data-label="${t('shop_written_off_us')}" class="text-right nums">${в.written_off_us > 0 ? штук(в.written_off_us) : '—'}</td>
+                <td data-label="${t('shop_written_off_owner')}" class="text-right nums">${в.written_off_owner > 0 ? штук(в.written_off_owner) : '—'}</td>
+                <td data-label="${t('shop_paid_out')}" class="text-right nums opacity-70">${в.settled > 0 ? деньги(в.settled) : '—'}</td>
+                <td data-label="${t('shop_to_pay')}" class="text-right nums font-bold ${в.debt < 0 ? 'text-success' : ''}">
+                    ${деньги(в.debt)}${в.debt < 0 ? ` <span class="text-xs font-normal">${t('shop_overpaid')}</span>` : ''}</td>
+                <td data-label="${t('shop_losses_policy')}">
                     <span class="badge badge-sm ${в.loss_policy === 'compensate' ? 'badge-warning' : 'badge-ghost'}">
-                        ${в.loss_policy === 'compensate' ? 'компенсируем' : 'за его счёт'}</span></td>
+                        ${в.loss_policy === 'compensate' ? t('shop_loss_compensate') : t('shop_loss_owner')}</span></td>
                 <td data-label="" class="text-right whitespace-nowrap">
-                    ${заведующий() ? `<button class="btn btn-ghost btn-xs" data-card="${в.owner_id}">Карточка</button>` : ''}
-                    ${в.on_shelf > 0 ? `<button class="btn btn-ghost btn-xs" data-return="${в.owner_id}">Вернуть непроданное</button>` : ''}
+                    ${заведующий() ? `<button class="btn btn-ghost btn-xs" data-card="${в.owner_id}">${t('shop_card_btn')}</button>` : ''}
+                    ${в.on_shelf > 0 ? `<button class="btn btn-ghost btn-xs" data-return="${в.owner_id}">${t('shop_return_unsold')}</button>` : ''}
                     ${казначей() && в.debt > 0
-                        ? `<button class="btn btn-outline btn-xs" data-settle="${в.owner_id}">Рассчитаться</button>` : ''}
+                        ? `<button class="btn btn-outline btn-xs" data-settle="${в.owner_id}">${t('shop_settle_btn')}</button>` : ''}
                 </td>
-            </tr>`).join('') || '<tr><td colspan="10" class="text-center opacity-60 py-6">Владельцев пока нет</td></tr>';
+            </tr>`).join('') || `<tr><td colspan="10" class="text-center opacity-60 py-6">${t('shop_no_owners')}</td></tr>`;
     }
 
     async function рисоватьПроект() {
@@ -81,10 +81,10 @@ const ShopOwners = (() => {
             </div>`;
 
         $('#murtiStats').innerHTML =
-            ячейка('Выпущено', штук(выпущено) + ' шт') +
-            ячейка('Продано', штук(продано) + ' шт') +
-            ячейка('На полке', штук(наполке) + ' шт') +
-            ячейка('Экономика', 'в финмодуле', 'text-base opacity-60');
+            ячейка(t('shop_released'), штук(выпущено) + ' ' + t('shop_pcs_short')) +
+            ячейка(t('shop_sold'), штук(продано) + ' ' + t('shop_pcs_short')) +
+            ячейка(t('shop_stock_col'), штук(наполке) + ' ' + t('shop_pcs_short')) +
+            ячейка(t('shop_economics'), t('shop_in_fin_module'), 'text-base opacity-60');
     }
 
     // ---------- расчёт ----------
@@ -94,20 +94,20 @@ const ShopOwners = (() => {
         // ключ живёт на всю открытую модалку: повторная отправка той же выплаты
         // возвращает ту же запись, а не платит владельцу дважды
         ключРасчёта = crypto.randomUUID ? crypto.randomUUID() : String(Date.now() + Math.random());
-        $('#settleOwner').textContent = `Расчёт с «${текущий.name}»`;
-        $('#settleDebt').textContent = `К оплате ${деньги(текущий.debt)}`;
+        $('#settleOwner').textContent = `${t('shop_settle_with')}: ${текущий.name}`;
+        $('#settleDebt').textContent = `${t('shop_to_pay')} ${деньги(текущий.debt)}`;
         $('#settleAmount').value = Math.max(0, Math.round(Number(текущий.debt)));
         $('#settleNote').value = '';
         $('#settleAccount').innerHTML = счета.map(с => `<option value="${с.id}">${e(с.name)}</option>`).join('')
-            || '<option value="">Нет рупиевых счетов</option>';
+            || `<option value="">${t('shop_no_inr_accounts')}</option>`;
         settleModal.showModal();
     }
 
     async function заплатить() {
         const сумма = Number($('#settleAmount').value);
-        if (!(сумма > 0)) return Layout.showNotification('Укажите сумму выплаты', 'warning');
-        if (!$('#settleAccount').value) return Layout.showNotification('Выберите счёт', 'warning');
-        if (!confirm(`Выплатить «${текущий.name}» ${деньги(сумма)}? Операция уйдёт в финмодуль.`)) return;
+        if (!(сумма > 0)) return Layout.showNotification(t('shop_enter_payout'), 'warning');
+        if (!$('#settleAccount').value) return Layout.showNotification(t('shop_pick_account'), 'warning');
+        if (!confirm(t('shop_confirm_payout').replace('%s', текущий.name).replace('%s', деньги(сумма)))) return;
         if (занято) return;
         занято = true;
         $('#settleGo').setAttribute('disabled', 'disabled');
@@ -121,11 +121,10 @@ const ShopOwners = (() => {
                     client_uid: ключРасчёта,
                 },
             });
-            if (error) return Layout.handleError(error, 'Расчёт с владельцем');
+            if (error) return Layout.handleError(error, t('shop_err_settle'));
             settleModal.close();
-            Layout.showNotification(data?.повтор
-                ? `Эта выплата уже прошла. Осталось ${деньги(data?.осталось)}`
-                : `Выплачено. Осталось ${деньги(data?.осталось)}`, 'success');
+            Layout.showNotification((data?.повтор ? t('shop_already_paid') : t('shop_paid_left'))
+                .replace('%s', деньги(data?.осталось)), 'success');
             if (await загрузить()) рисовать();
         } finally {
             занято = false;
@@ -136,7 +135,7 @@ const ShopOwners = (() => {
     // ---------- карточка владельца ----------
     function открытьКарточку(ownerId) {
         текущий = ownerId ? владельцы.find(в => в.owner_id === ownerId) : null;
-        $('#cardTitle').textContent = текущий ? 'Владелец товара' : 'Новый владелец';
+        $('#cardTitle').textContent = текущий ? t('shop_owner_card') : t('shop_new_owner');
         $('#cardName').value = текущий?.name || '';
         $('#cardPolicy').value = текущий?.loss_policy || 'compensate';
         $('#cardContact').value = '';
@@ -147,7 +146,7 @@ const ShopOwners = (() => {
 
     async function сохранитьКарточку() {
         const имя = $('#cardName').value.trim();
-        if (!имя) return Layout.showNotification('Укажите имя владельца', 'warning');
+        if (!имя) return Layout.showNotification(t('shop_enter_owner_name'), 'warning');
         if (занято) return;
         занято = true;
         $('#cardGo').setAttribute('disabled', 'disabled');
@@ -162,9 +161,10 @@ const ShopOwners = (() => {
                     is_active: $('#cardActive').checked,
                 },
             });
-            if (error) return Layout.handleError(error, 'Карточка владельца');
+            if (error) return Layout.handleError(error, t('shop_err_owner_card'));
             cardModal.close();
-            Layout.showNotification(data?.сообщение || (data?.создан ? 'Владелец добавлен' : 'Сохранено'), 'success');
+            Layout.showNotification(data?.сообщение
+                || (data?.создан ? t('shop_owner_added') : t('shop_saved')), 'success');
             if (await загрузить()) рисовать();
         } finally {
             занято = false;
@@ -178,10 +178,10 @@ const ShopOwners = (() => {
         if (!текущий) return;
         const ответ = await Layout.db.from('shop_v_owner_stock')
             .select('item_id, name_ru, name_en, name_hi, qty').eq('owner_id', ownerId);
-        if (ShopUtils.ошибка(ответ, 'Остаток владельца')) return;
+        if (ShopUtils.ошибка(ответ, t('shop_err_owner_stock'))) return;
         остаток = ответ.data || [];
 
-        $('#returnOwner').textContent = `Вернуть непроданное — «${текущий.name}»`;
+        $('#returnOwner').textContent = `${t('shop_return_unsold')}: ${текущий.name}`;
         $('#returnTbl').tBodies[0].innerHTML = остаток.map(п => `
             <tr>
                 <td>${e(Layout.getName(п))}</td>
@@ -190,7 +190,7 @@ const ShopOwners = (() => {
                     <input type="number" class="input input-bordered input-sm w-24 text-right nums"
                            data-ret="${п.item_id}" min="0" max="${п.qty}" placeholder="0">
                 </td>
-            </tr>`).join('') || '<tr><td colspan="3" class="text-center opacity-60 py-4">На полке ничего нет</td></tr>';
+            </tr>`).join('') || `<tr><td colspan="3" class="text-center opacity-60 py-4">${t('shop_nothing_on_shelf')}</td></tr>`;
         returnModal.showModal();
     }
 
@@ -199,10 +199,10 @@ const ShopOwners = (() => {
             .map(el => ({ item_id: el.dataset.ret, qty: Number(el.value) || 0 }))
             .filter(п => п.qty > 0);
         if (!items.length) {
-            return Layout.showNotification('Не указано, что забирает владелец', 'warning');
+            return Layout.showNotification(t('shop_nothing_to_return'), 'warning');
         }
         const штукВсего = items.reduce((s, п) => s + п.qty, 0);
-        if (!confirm(`Владелец забирает ${штук(штукВсего)} — снять с полки?`)) return;
+        if (!confirm(t('shop_confirm_owner_return').replace('%s', штук(штукВсего)))) return;
         if (занято) return;
         занято = true;
         $('#returnGo').setAttribute('disabled', 'disabled');
@@ -210,9 +210,9 @@ const ShopOwners = (() => {
             const { error } = await Layout.db.rpc('shop_return_to_owner', {
                 payload: { owner_id: текущий.owner_id, items },
             });
-            if (error) return Layout.handleError(error, 'Возврат владельцу');
+            if (error) return Layout.handleError(error, t('shop_err_owner_return'));
             returnModal.close();
-            Layout.showNotification('Возврат оформлен, товар снят с полки', 'success');
+            Layout.showNotification(t('shop_owner_return_done'), 'success');
             if (await загрузить()) рисовать();
         } finally {
             занято = false;

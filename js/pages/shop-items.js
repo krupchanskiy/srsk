@@ -7,6 +7,7 @@
  */
 const ShopItems = (() => {
     const e = str => Layout.escapeHtml(str ?? '');
+    const t = key => Layout.t(key);
     const { деньги, штук } = ShopUtils;
 
     let товары = [], категории = [], правка = null, фильтр = { поиск: '', кат: '', мало: false };
@@ -23,7 +24,7 @@ const ShopItems = (() => {
                 .eq('is_active', true).order('sort_order'),
             Layout.db.from('shop_v_stock').select('item_id, qty'),
         ]);
-        if (ShopUtils.ошибка(ответы, 'Загрузка товаров')) return false;
+        if (ShopUtils.ошибка(ответы, t('shop_err_load_items'))) return false;
 
         const [{ data: ит }, { data: кат }, { data: ост }] = ответы;
         категории = кат || [];
@@ -43,7 +44,7 @@ const ShopItems = (() => {
     }
 
     function рисовать() {
-        $('#catFilter').innerHTML = '<option value="">Все категории</option>' +
+        $('#catFilter').innerHTML = `<option value="">${t('shop_all_categories')}</option>` +
             категории.map(к => `<option value="${к.id}" ${к.id === фильтр.кат ? 'selected' : ''}>
                 ${e(Layout.getName(к))}</option>`).join('');
 
@@ -59,27 +60,27 @@ const ShopItems = (() => {
                             ? `<img class="thumb" src="${e(и.photo_url)}" alt="" loading="lazy">`
                             : '<span class="thumb-empty bg-base-200 text-xs opacity-40">—</span>'}
                         <span>${e(Layout.getName(и))}
-                            ${и.is_active ? '' : '<span class="badge badge-sm ml-1">снят</span>'}</span>
+                            ${и.is_active ? '' : `<span class="badge badge-sm ml-1">${t('shop_withdrawn')}</span>`}</span>
                     </div>
                 </td>
-                <td data-label="Категория" class="opacity-70">${e(имяКат[и.category_id] || '—')}</td>
-                <td data-label="Цена" class="text-right nums font-semibold">${деньги(и.price)}</td>
-                <td data-label="На полке" class="text-right nums ${мало ? 'text-warning font-semibold' : ''}">
+                <td data-label="${t('shop_category')}" class="opacity-70">${e(имяКат[и.category_id] || '—')}</td>
+                <td data-label="${t('price')}" class="text-right nums font-semibold">${деньги(и.price)}</td>
+                <td data-label="${t('shop_stock_col')}" class="text-right nums ${мало ? 'text-warning font-semibold' : ''}">
                     ${штук(и.остаток)}${мало ? ' ⚠' : ''}</td>
-                <td data-label="Сигнал при" class="text-right nums opacity-60">${штук(и.min_qty)}</td>
-                <td data-label="Источник">
+                <td data-label="${t('shop_min_qty_col')}" class="text-right nums opacity-60">${штук(и.min_qty)}</td>
+                <td data-label="${t('shop_source')}">
                     <span class="badge badge-sm ${и.source === 'own' ? 'badge-secondary' : 'badge-ghost'}">
-                        ${и.source === 'own' ? 'наше' : 'реализация'}</span></td>
+                        ${и.source === 'own' ? t('shop_ours') : t('shop_consignment')}</span></td>
                 <td data-label="" class="text-right">
-                    ${можноМенять() ? `<button class="btn btn-ghost btn-xs" data-edit="${и.id}">Изменить</button>` : ''}
+                    ${можноМенять() ? `<button class="btn btn-ghost btn-xs" data-edit="${и.id}">${t('shop_edit')}</button>` : ''}
                 </td>
             </tr>`;
-        }).join('') || '<tr><td colspan="7" class="text-center opacity-60 py-6">Ничего не нашлось</td></tr>';
+        }).join('') || `<tr><td colspan="7" class="text-center opacity-60 py-6">${t('shop_nothing_found')}</td></tr>`;
     }
 
     function открыть(id) {
         правка = id ? товары.find(и => и.id === id) : null;
-        $('#modalTitle').textContent = правка ? 'Товар' : 'Новый товар';
+        $('#modalTitle').textContent = правка ? t('shop_item') : t('shop_new_item');
         $('#fName').value = правка?.name_ru || '';
         $('#fPrice').value = правка?.price ?? '';
         $('#fMin').value = правка?.min_qty ?? 0;
@@ -95,9 +96,9 @@ const ShopItems = (() => {
     async function сохранить() {
         if (занято) return;
         const имя = $('#fName').value.trim();
-        if (!имя) return Layout.showNotification('Укажите название товара', 'warning');
+        if (!имя) return Layout.showNotification(t('shop_enter_name'), 'warning');
         const цена = Number($('#fPrice').value);
-        if (!(цена >= 0)) return Layout.showNotification('Укажите цену продажи', 'warning');
+        if (!(цена >= 0)) return Layout.showNotification(t('shop_enter_price'), 'warning');
 
         const поля = {
             name_ru: имя,
@@ -124,10 +125,10 @@ const ShopItems = (() => {
         let id = правка?.id;
         if (id) {
             const { error } = await Layout.db.from('shop_items').update(поля).eq('id', id);
-            if (error) return Layout.handleError(error, 'Сохранение товара');
+            if (error) return Layout.handleError(error, t('shop_err_save_item'));
         } else {
             const { data, error } = await Layout.db.from('shop_items').insert(поля).select('id').single();
-            if (error) return Layout.handleError(error, 'Создание товара');
+            if (error) return Layout.handleError(error, t('shop_err_create_item'));
             id = data.id;
         }
 
@@ -138,7 +139,7 @@ const ShopItems = (() => {
                 .upload(имяФайла, файл, { contentType: файл.type, cacheControl: '3600' });
             if (ош) {
                 // фото не критично для торговли, но молчать нельзя — на рецептах это стоило полугода
-                Layout.showNotification('Товар сохранён, а фото не загрузилось: ' + ош.message, 'warning');
+                Layout.showNotification(t('shop_photo_failed') + ' ' + ош.message, 'warning');
             } else {
                 const { data: { publicUrl } } = Layout.db.storage.from('shop-photos').getPublicUrl(имяФайла);
                 await Layout.db.from('shop_items').update({ photo_url: publicUrl }).eq('id', id);
@@ -146,7 +147,7 @@ const ShopItems = (() => {
         }
 
         itemModal.close();
-        Layout.showNotification('Сохранено', 'success');
+        Layout.showNotification(t('shop_saved'), 'success');
         if (await загрузить()) рисовать();
     }
 

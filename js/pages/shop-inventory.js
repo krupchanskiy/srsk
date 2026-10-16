@@ -8,7 +8,9 @@
  */
 const ShopInventory = (() => {
     const e = str => Layout.escapeHtml(str ?? '');
-    const { штук, деньги, ПРИЧИНЫ_СПИСАНИЯ: ПРИЧИНЫ } = ShopUtils;
+    const t = key => Layout.t(key);
+    const { штук, деньги } = ShopUtils;
+    const ПРИЧИНА = код => t('shop_reason_' + код) || код;
 
     let ведомость = null, строки = [], товары = [], списания = [], общийСчёт = 'us';
     let занято = false;   // проведение и списание необратимы — второй клик недопустим
@@ -24,7 +26,7 @@ const ShopInventory = (() => {
                 .select('id, created_at, qty, reason, at_whose_cost, compensation, note, shop_items(name_ru, name_en, name_hi)')
                 .is('cancelled_at', null).order('created_at', { ascending: false }).limit(15),
         ]);
-        if (ShopUtils.ошибка(ответы, 'Загрузка инвентаризации')) return false;
+        if (ShopUtils.ошибка(ответы, t('shop_err_load_inventory'))) return false;
 
         const [{ data: вед }, { data: тов }, { data: сп }] = ответы;
         товары = тов || [];
@@ -35,7 +37,7 @@ const ShopInventory = (() => {
         if (ведомость) {
             const ответ = await Layout.db.from('shop_v_inventory_items')
                 .select('*').eq('inventory_id', ведомость.id);
-            if (ShopUtils.ошибка(ответ, 'Загрузка ведомости')) return false;
+            if (ShopUtils.ошибка(ответ, t('shop_err_load_sheet'))) return false;
             строки = (ответ.data || []).sort((a, b) =>
                 (Layout.getName(a) || '').localeCompare(Layout.getName(b) || '', 'ru'));
         }
@@ -46,38 +48,37 @@ const ShopInventory = (() => {
         const действия = $('#invActions');
 
         if (!ведомость) {
-            $('#invTitle').textContent = 'Ведомость';
-            $('#invMeta').textContent = 'незавершённых нет';
+            $('#invTitle').textContent = t('shop_sheet');
+            $('#invMeta').textContent = t('shop_no_draft');
             действия.innerHTML = можно()
-                ? `<button class="btn btn-sm" id="startInv" style="background: var(--current-color); color:#fff;">
-                     Начать инвентаризацию</button>` : '';
-            $('#invBody').innerHTML = `<div class="text-sm opacity-60">
-                Начните ведомость — в неё попадёт весь товар, включая тот, что числится по нулям:
-                нулевой остаток тоже нужно подтвердить глазами, иначе недостача не найдётся.</div>`;
+                ? `<button class="btn btn-sm" id="startInv" style="background: var(--current-color); color:#fff;">${
+                     t('shop_start_inventory')}</button>` : '';
+            $('#invBody').innerHTML = `<div class="text-sm opacity-60">${t('shop_inventory_hint')}</div>`;
             return;
         }
 
-        $('#invTitle').textContent = `Ведомость №${ведомость.number}`;
-        $('#invMeta').textContent = `от ${DateUtils.formatShort(DateUtils.parseDate(ведомость.inventory_date))}`;
+        $('#invTitle').textContent = `${t('shop_sheet')} №${ведомость.number}`;
+        $('#invMeta').textContent = DateUtils.formatShort(DateUtils.parseDate(ведомость.inventory_date));
         действия.innerHTML = можно() ? `
-            <select class="select select-bordered select-sm" id="bulkCost" title="За чей счёт расхождения по чужому товару">
-                <option value="us" ${общийСчёт === 'us' ? 'selected' : ''}>недостачу компенсируем владельцам</option>
-                <option value="owner" ${общийСчёт === 'owner' ? 'selected' : ''}>недостача за счёт владельцев</option>
+            <select class="select select-bordered select-sm" id="bulkCost" title="${t('shop_bulk_title')}">
+                <option value="us" ${общийСчёт === 'us' ? 'selected' : ''}>${t('shop_bulk_us')}</option>
+                <option value="owner" ${общийСчёт === 'owner' ? 'selected' : ''}>${t('shop_bulk_owner')}</option>
             </select>
-            <button class="btn btn-sm btn-outline" id="saveInv">Сохранить</button>
-            <button class="btn btn-sm" id="applyInv" style="background: var(--current-color); color:#fff;">Провести</button>
-            <button class="btn btn-sm btn-ghost" id="dropInv">Удалить</button>` : '';
+            <button class="btn btn-sm btn-outline" id="saveInv">${t('save')}</button>
+            <button class="btn btn-sm" id="applyInv" style="background: var(--current-color); color:#fff;">${
+                t('shop_apply_sheet')}</button>
+            <button class="btn btn-sm btn-ghost" id="dropInv">${t('delete')}</button>` : '';
 
         const посчитано = строки.filter(с => с.actual_qty !== null).length;
         $('#invBody').innerHTML = `
-            <div class="text-sm opacity-60 mb-3">
-                Посчитано ${посчитано} из ${строки.length}. Пустое поле — товар ещё не считали.
-            </div>
+            <div class="text-sm opacity-60 mb-3">${
+                t('shop_counted_of').replace('%s', посчитано).replace('%s', строки.length)}</div>
             <div class="overflow-x-auto">
                 <table class="table table-sm stack" id="invTbl">
                     <thead><tr>
-                        <th>Товар</th><th class="text-right">В учёте</th><th class="text-right">Факт</th>
-                        <th class="text-right">Разница</th><th>Причина</th><th>За чей счёт</th>
+                        <th>${t('shop_item_col')}</th><th class="text-right">${t('shop_in_records')}</th>
+                        <th class="text-right">${t('shop_actual')}</th><th class="text-right">${t('shop_difference')}</th>
+                        <th>${t('reason')}</th><th>${t('shop_at_whose_cost')}</th>
                     </tr></thead>
                     <tbody>${строки.map(рисоватьСтроку).join('')}</tbody>
                 </table>
@@ -91,25 +92,25 @@ const ShopInventory = (() => {
         return `
         <tr>
             <td class="head" data-label="">${e(Layout.getName(с))}
-                ${с.has_owner ? '<span class="badge badge-sm badge-ghost">чужой</span>' : ''}</td>
-            <td data-label="В учёте" class="text-right nums opacity-70">${штук(с.current_qty)}</td>
-            <td data-label="Факт" class="text-right">
+                ${с.has_owner ? `<span class="badge badge-sm badge-ghost">${t('shop_foreign')}</span>` : ''}</td>
+            <td data-label="${t('shop_in_records')}" class="text-right nums opacity-70">${штук(с.current_qty)}</td>
+            <td data-label="${t('shop_actual')}" class="text-right">
                 <input type="number" class="input input-bordered input-sm w-24 text-right nums"
                        data-fact="${с.item_id}" value="${факт ?? ''}" step="0.001"
                        ${можно() ? '' : 'disabled'}></td>
-            <td data-label="Разница" class="text-right nums ${класс}">
+            <td data-label="${t('shop_difference')}" class="text-right nums ${класс}">
                 ${разница === null ? '—' : (разница > 0 ? '+' : '') + штук(разница)}</td>
-            <td data-label="Причина">
+            <td data-label="${t('reason')}">
                 <input type="text" class="input input-bordered input-sm w-full"
                        data-reason="${с.item_id}" value="${e(с.reason || '')}"
-                       placeholder="${разница && разница !== 0 ? 'обязательно' : ''}"
+                       placeholder="${разница && разница !== 0 ? t('shop_required') : ''}"
                        ${можно() ? '' : 'disabled'}></td>
-            <td data-label="За чей счёт">
+            <td data-label="${t('shop_at_whose_cost')}">
                 ${с.has_owner ? `
                 <select class="select select-bordered select-sm" data-cost="${с.item_id}" ${можно() ? '' : 'disabled'}>
-                    <option value="">как у всех</option>
-                    <option value="us" ${с.at_whose_cost === 'us' ? 'selected' : ''}>компенсируем</option>
-                    <option value="owner" ${с.at_whose_cost === 'owner' ? 'selected' : ''}>за счёт владельца</option>
+                    <option value="">${t('shop_as_all')}</option>
+                    <option value="us" ${с.at_whose_cost === 'us' ? 'selected' : ''}>${t('shop_compensate')}</option>
+                    <option value="owner" ${с.at_whose_cost === 'owner' ? 'selected' : ''}>${t('shop_at_owner_cost')}</option>
                 </select>` : '<span class="opacity-40">—</span>'}</td>
         </tr>`;
     }
@@ -117,15 +118,16 @@ const ShopInventory = (() => {
     function рисоватьСписания() {
         $('#woTbl').tBodies[0].innerHTML = списания.map(с => `
             <tr>
-                <td data-label="Дата" class="nums">${DateUtils.formatShort(new Date(с.created_at))}</td>
-                <td data-label="Товар" class="head">${e(Layout.getName(с.shop_items || {}))}</td>
-                <td data-label="Количество" class="text-right nums">${штук(с.qty)}</td>
-                <td data-label="Причина">${e(ПРИЧИНЫ[с.reason] || с.reason)}
+                <td data-label="${t('shop_date')}" class="nums">${DateUtils.formatShort(new Date(с.created_at))}</td>
+                <td data-label="${t('shop_item_col')}" class="head">${e(Layout.getName(с.shop_items || {}))}</td>
+                <td data-label="${t('shop_qty')}" class="text-right nums">${штук(с.qty)}</td>
+                <td data-label="${t('reason')}">${e(ПРИЧИНА(с.reason))}
                     ${с.note ? `<span class="opacity-60">· ${e(с.note)}</span>` : ''}</td>
-                <td data-label="За чей счёт">${с.at_whose_cost === 'us' ? 'наш' : 'владельца'}</td>
-                <td data-label="Компенсация" class="text-right nums">${
+                <td data-label="${t('shop_at_whose_cost')}">${
+                    с.at_whose_cost === 'us' ? t('shop_our_cost') : t('shop_owner_cost')}</td>
+                <td data-label="${t('shop_compensation')}" class="text-right nums">${
                     Number(с.compensation) > 0 ? деньги(с.compensation) : '—'}</td>
-            </tr>`).join('') || '<tr><td colspan="6" class="text-center opacity-60 py-6">Списаний пока не было</td></tr>';
+            </tr>`).join('') || `<tr><td colspan="6" class="text-center opacity-60 py-6">${t('shop_no_writeoffs')}</td></tr>`;
     }
 
     function собратьСтроки() {
@@ -141,8 +143,8 @@ const ShopInventory = (() => {
         const { error } = await Layout.db.rpc('shop_save_inventory', {
             payload: { inventory_id: ведомость.id, items: собратьСтроки() },
         });
-        if (error) { Layout.handleError(error, 'Сохранение ведомости'); return false; }
-        if (!тихо) Layout.showNotification('Ведомость сохранена', 'success');
+        if (error) { Layout.handleError(error, t('shop_err_save_sheet')); return false; }
+        if (!тихо) Layout.showNotification(t('shop_sheet_saved'), 'success');
         return true;
     }
 
@@ -151,7 +153,7 @@ const ShopInventory = (() => {
         const пустые = данные.filter(с => с.actual_qty === '');
         if (пустые.length) {
             return Layout.showNotification(
-                `Не посчитано позиций: ${пустые.length}. Проставьте факт везде, даже нули`, 'warning');
+                t('shop_not_counted').replace('%s', пустые.length), 'warning');
         }
         const безПричины = данные.filter(с => {
             const стр = строки.find(x => x.item_id === с.item_id);
@@ -159,14 +161,13 @@ const ShopInventory = (() => {
         });
         if (безПричины.length) {
             return Layout.showNotification(
-                `Объясните расхождения: без причины ${безПричины.length} позиций`, 'warning');
+                t('shop_explain_rows').replace('%s', безПричины.length), 'warning');
         }
         const расхождений = данные.filter(с => {
             const стр = строки.find(x => x.item_id === с.item_id);
             return Number(с.actual_qty) !== Number(стр.current_qty);
         }).length;
-        if (!confirm(`Провести ведомость? Расхождений: ${расхождений}. ` +
-                     'Недостачи спишутся, излишки встанут на полку — отменить это нельзя.')) return;
+        if (!confirm(t('shop_confirm_apply').replace('%s', расхождений))) return;
 
         if (занято) return;
         занято = true;
@@ -175,9 +176,9 @@ const ShopInventory = (() => {
             if (!await сохранить(true)) return;
 
             const { data, error } = await Layout.db.rpc('shop_apply_inventory', { p_inventory: ведомость.id });
-            if (error) return Layout.handleError(error, 'Проведение инвентаризации');
-            Layout.showNotification(
-                `Проведено: недостач ${data?.недостач ?? 0}, излишков ${data?.излишков ?? 0}`, 'success');
+            if (error) return Layout.handleError(error, t('shop_err_apply_inv'));
+            Layout.showNotification(t('shop_applied')
+                .replace('%s', data?.недостач ?? 0).replace('%s', data?.излишков ?? 0), 'success');
             await перерисовать();
         } finally { занято = false; }
     }
@@ -192,7 +193,7 @@ const ShopInventory = (() => {
 
     async function списать() {
         const кол = Number($('#woQty').value);
-        if (!(кол > 0)) return Layout.showNotification('Укажите количество', 'warning');
+        if (!(кол > 0)) return Layout.showNotification(t('shop_enter_qty'), 'warning');
         if (занято) return;
         занято = true;
         $('#woGo')?.setAttribute('disabled', 'disabled');
@@ -210,9 +211,9 @@ const ShopInventory = (() => {
                 note: $('#woNote').value || null,
             },
         });
-        if (error) return Layout.handleError(error, 'Списание');
+        if (error) return Layout.handleError(error, t('shop_err_writeoff'));
         woModal.close();
-        Layout.showNotification('Списано', 'success');
+        Layout.showNotification(t('shop_written_off'), 'success');
         await перерисовать();
     }
 
@@ -229,7 +230,7 @@ const ShopInventory = (() => {
             if (!b) return;
             if (b.id === 'startInv') {
                 const { error } = await Layout.db.rpc('shop_create_inventory', { p_note: null });
-                if (error) return Layout.handleError(error, 'Начало инвентаризации');
+                if (error) return Layout.handleError(error, t('shop_err_start_inv'));
                 return перерисовать();
             }
             if (b.id === 'saveInv') return сохранить();
@@ -237,11 +238,11 @@ const ShopInventory = (() => {
             if (b.id === 'dropInv') {
                 const посчитано = строки.filter(с => с.actual_qty !== null).length;
                 if (!confirm(посчитано
-                        ? `Удалить ведомость? Посчитанное пропадёт: позиций ${посчитано}.`
-                        : 'Удалить ведомость?')) return;
+                        ? t('shop_confirm_drop').replace('%s', посчитано)
+                        : t('shop_confirm_drop_plain'))) return;
                 const { error } = await Layout.db.rpc('shop_drop_inventory', { p_inventory: ведомость.id });
-                if (error) return Layout.handleError(error, 'Удаление ведомости');
-                Layout.showNotification('Ведомость удалена', 'success');
+                if (error) return Layout.handleError(error, t('shop_err_drop_inv'));
+                Layout.showNotification(t('shop_sheet_deleted'), 'success');
                 return перерисовать();
             }
             if (b.id === 'newWriteoff') return открытьСписание();

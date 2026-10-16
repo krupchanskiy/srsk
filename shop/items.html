@@ -30,21 +30,21 @@
 
         <div class="mb-5 flex flex-wrap items-end gap-3">
             <div>
-                <h1 class="text-2xl font-bold">Товары магазина</h1>
-                <p class="text-sm opacity-60">Цена одна на все партии: меняете здесь — меняется на кассе.</p>
+                <h1 class="text-2xl font-bold" data-i18n="shop_items_title">Товары магазина</h1>
+                <p class="text-sm opacity-60" data-i18n="shop_items_hint">Цена одна на все партии: меняете здесь — меняется на кассе.</p>
             </div>
             <button class="btn btn-sm ml-auto" id="newItem" data-permission="shop_receive"
-                    style="background: var(--current-color); color: #fff;">Новый товар</button>
+                    style="background: var(--current-color); color: #fff;" data-i18n="shop_new_item">Новый товар</button>
         </div>
 
         <div class="flex flex-wrap gap-3 mb-4">
             <label class="input input-bordered input-sm flex items-center gap-2 flex-1 min-w-48">
-                <input id="q" type="search" class="grow" placeholder="Поиск по названию">
+                <input id="q" type="search" class="grow" data-i18n-placeholder="shop_search_by_name" placeholder="Поиск по названию">
             </label>
             <select class="select select-bordered select-sm" id="catFilter"></select>
             <label class="label cursor-pointer gap-2">
                 <input type="checkbox" class="checkbox checkbox-sm" id="onlyLow">
-                <span class="label-text text-sm">Только заканчивающиеся</span>
+                <span class="label-text text-sm" data-i18n="shop_only_low">Только заканчивающиеся</span>
             </label>
         </div>
 
@@ -53,11 +53,12 @@
                 <table class="table table-sm stack" id="itemsTbl">
                     <thead>
                         <tr>
-                            <th>Товар</th><th>Категория</th>
-                            <th class="text-right">Цена, ₹</th>
-                            <th class="text-right">На полке</th>
-                            <th class="text-right">Сигнал при</th>
-                            <th>Источник</th><th></th>
+                            <th data-i18n="shop_item_col">Товар</th>
+                            <th data-i18n="shop_category">Категория</th>
+                            <th class="text-right" data-i18n="shop_price_inr">Цена, ₹</th>
+                            <th class="text-right" data-i18n="shop_stock_col">На полке</th>
+                            <th class="text-right" data-i18n="shop_min_qty_col">Сигнал при</th>
+                            <th data-i18n="shop_source">Источник</th><th></th>
                         </tr>
                     </thead>
                     <tbody></tbody>
@@ -68,51 +69,51 @@
 
     <dialog id="itemModal" class="modal">
         <div class="modal-box">
-            <h3 class="font-bold text-lg mb-4" id="modalTitle">Товар</h3>
+            <h3 class="font-bold text-lg mb-4" id="modalTitle" data-i18n="shop_item_col">Товар</h3>
             <div class="flex flex-col gap-3">
                 <div class="grid grid-cols-1 md:grid-cols-3 gap-3">
                     <label class="form-control md:col-span-2">
-                        <div class="label py-1"><span class="label-text text-sm">Название</span></div>
+                        <div class="label py-1"><span class="label-text text-sm" data-i18n="shop_name_label">Название</span></div>
                         <input type="text" class="input input-bordered" id="fName">
                     </label>
                     <label class="form-control">
-                        <div class="label py-1"><span class="label-text text-sm">Категория</span></div>
+                        <div class="label py-1"><span class="label-text text-sm" data-i18n="shop_category">Категория</span></div>
                         <select class="select select-bordered" id="fCat"></select>
                     </label>
                 </div>
                 <div class="grid grid-cols-1 md:grid-cols-3 gap-3">
                     <label class="form-control">
-                        <div class="label py-1"><span class="label-text text-sm">Цена продажи, ₹</span></div>
+                        <div class="label py-1"><span class="label-text text-sm" data-i18n="shop_sale_price">Цена продажи, ₹</span></div>
                         <input type="number" class="input input-bordered nums" id="fPrice">
                     </label>
                     <label class="form-control">
-                        <div class="label py-1"><span class="label-text text-sm">Сигнал при остатке</span></div>
+                        <div class="label py-1"><span class="label-text text-sm" data-i18n="shop_min_qty">Сигнал при остатке</span></div>
                         <input type="number" class="input input-bordered nums" id="fMin">
                     </label>
                     <label class="form-control">
-                        <div class="label py-1"><span class="label-text text-sm">Источник</span></div>
+                        <div class="label py-1"><span class="label-text text-sm" data-i18n="shop_source">Источник</span></div>
                         <select class="select select-bordered" id="fSource">
-                            <option value="consignment">Реализация</option>
-                            <option value="own">Свой выпуск</option>
+                            <option value="consignment" data-i18n="shop_consignment_opt">Реализация</option>
+                            <option value="own" data-i18n="shop_own_output">Свой выпуск</option>
                         </select>
                     </label>
                 </div>
                 <label class="form-control">
-                    <div class="label py-1"><span class="label-text text-sm">Фото</span></div>
+                    <div class="label py-1"><span class="label-text text-sm" data-i18n="shop_photo">Фото</span></div>
                     <input type="file" class="file-input file-input-bordered file-input-sm" id="fPhoto" accept="image/*">
-                    <span class="text-xs opacity-60 mt-1">Товар на кассе выбирают глазами — фото помогает больше названия</span>
+                    <span class="text-xs opacity-60 mt-1" data-i18n="shop_photo_hint">Товар на кассе выбирают глазами — фото помогает больше названия</span>
                 </label>
                 <label class="label cursor-pointer justify-start gap-2">
                     <input type="checkbox" class="checkbox checkbox-sm" id="fActive" checked>
-                    <span class="label-text text-sm">В продаже</span>
+                    <span class="label-text text-sm" data-i18n="shop_on_sale">В продаже</span>
                 </label>
             </div>
             <div class="modal-action">
-                <button class="btn btn-ghost" onclick="itemModal.close()">Отмена</button>
-                <button class="btn" id="saveItem" style="background: var(--current-color); color: #fff;">Сохранить</button>
+                <button class="btn btn-ghost" onclick="itemModal.close()" data-i18n="cancel">Отмена</button>
+                <button class="btn" id="saveItem" style="background: var(--current-color); color: #fff;" data-i18n="save">Сохранить</button>
             </div>
         </div>
-        <form method="dialog" class="modal-backdrop"><button>закрыть</button></form>
+        <form method="dialog" class="modal-backdrop"><button data-i18n="close">закрыть</button></form>
     </dialog>
 
     <div id="footer-placeholder"></div>
@@ -120,11 +121,11 @@
     <script src="../js/config.js"></script>
     <script src="../js/cache.js"></script>
     <script src="../js/utils.js"></script>
-    <script src="../js/layout.js?v=92"></script>
+    <script src="../js/layout.js?v=94"></script>
     <script src="../js/auth-check.js?v=12"></script>
     <script src="../js/translit.js"></script>
-    <script src="../js/shop-utils.js?v=1"></script>
-    <script src="../js/pages/shop-items.js?v=2"></script>
+    <script src="../js/shop-utils.js?v=2"></script>
+    <script src="../js/pages/shop-items.js?v=3"></script>
     <script>
         async function init() {
             await Layout.init({ module: 'shop', menuId: 'shop_goods', itemId: 'shop_items' });
