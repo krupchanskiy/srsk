@@ -1,0 +1,135 @@
+<!DOCTYPE html>
+<html lang="ru" data-theme="light">
+<head>
+    <meta charset="UTF-8">
+    <script src="../js/color-init.js?v=3"></script>
+
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Касса — ШРСК</title>
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg">
+    <link href="https://cdn.jsdelivr.net/npm/daisyui@4.12.14/dist/full.min.css" rel="stylesheet" />
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script>tailwind.config = { theme: { extend: { screens: { 'desktop': '1200px' } } } }</script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans:wght@400;500;600;700&family=Noto+Sans+Devanagari:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="../css/common.css?v=7">
+    <style>
+        .nums { font-variant-numeric: tabular-nums; }
+        input[type="number"]::-webkit-outer-spin-button,
+        input[type="number"]::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
+
+        .till-grid { display: grid; grid-template-columns: 1fr 352px; gap: 16px; align-items: start; }
+        @media (max-width: 900px) { .till-grid { grid-template-columns: 1fr; padding-bottom: 86px; } }
+
+        .goods { display: grid; grid-template-columns: repeat(auto-fill, minmax(152px, 1fr)); gap: 10px; }
+        @media (max-width: 430px) { .goods { grid-template-columns: repeat(2, 1fr); gap: 9px; } }
+
+        .tile { position: relative; text-align: left; overflow: hidden; display: flex; flex-direction: column;
+                padding: 0 0 10px; transition: transform .08s ease; }
+        .tile:active { transform: scale(.97); }
+        .tile.picked { border-color: var(--current-color); box-shadow: inset 0 0 0 1px var(--current-color); }
+        .tile .shot { aspect-ratio: 4 / 3; width: 100%; display: grid; place-items: center; overflow: hidden; }
+        .tile .shot img { width: 100%; height: 100%; object-fit: cover; }
+        .tile .shot svg { width: 54%; height: 54%; opacity: .55; }
+        .tile .nm { font-weight: 600; font-size: 13.5px; line-height: 1.25; padding: 8px 10px 0;
+                    display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+        .tile .pr { font-weight: 700; font-size: 17px; padding: 4px 10px 0; margin-top: auto; }
+        .tile .left { font-size: 11.5px; padding: 1px 10px 0; }
+        .tile .badge-n { position: absolute; top: 7px; right: 7px; background: var(--current-color); color: #fff;
+                         min-width: 25px; height: 25px; border-radius: 999px; font-size: 13px; font-weight: 700;
+                         display: grid; place-items: center; padding: 0 7px; }
+        .tile .own-mark { position: absolute; top: 7px; left: 7px; font-size: 10px; font-weight: 700;
+                          letter-spacing: .4px; text-transform: uppercase; padding: 2px 7px; border-radius: 999px; }
+
+        .ticket { position: sticky; top: 76px; }
+        .qty-box { display: inline-flex; align-items: center; gap: 4px; margin-top: 4px; }
+        .qty-box button { width: 36px; height: 36px; display: grid; place-items: center; }
+        .qty-box input { width: 48px; height: 36px; text-align: center; font-weight: 700; }
+
+        .cartbar { display: none; }
+        @media (max-width: 900px) {
+            .ticket { position: fixed; left: 0; right: 0; bottom: 0; top: auto; z-index: 25;
+                      border-radius: 16px 16px 0 0; box-shadow: 0 -6px 24px rgba(16,32,48,.16);
+                      padding-bottom: env(safe-area-inset-bottom, 0px); }
+            .cartbar { display: flex; align-items: center; gap: 10px; padding: 10px 12px; }
+            .ticket:not(.open) .ticket-body { display: none; }
+            .ticket.open .cartbar { display: none; }
+            .lines { max-height: 30vh; }
+        }
+        .lines { max-height: 40vh; overflow-y: auto; }
+        .offline-chip { position: fixed; z-index: 40; left: 50%; transform: translateX(-50%);
+                        top: calc(env(safe-area-inset-top, 0px) + 60px); }
+    </style>
+</head>
+<body class="bg-base-200 min-h-screen flex flex-col">
+
+    <div id="header-placeholder"></div>
+
+    <main class="container mx-auto px-4 py-4 flex-1">
+
+        <div class="alert alert-warning mb-4" data-no-permission="shop_sell" style="display: none;">
+            <span>У вас нет права продавать. Страница доступна только для просмотра.</span>
+        </div>
+
+        <div class="till-grid">
+            <div>
+                <div class="sticky z-20 bg-base-200 pt-1" style="top: 56px;">
+                    <label class="input input-bordered flex items-center gap-2 mb-2">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 opacity-50" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-4.35-4.35M17 11a6 6 0 11-12 0 6 6 0 0112 0z" />
+                        </svg>
+                        <input id="q" type="search" class="grow" placeholder="Поиск: гита, murti, тулси…" autocomplete="off">
+                        <button id="clearQ" class="btn btn-ghost btn-xs btn-circle" hidden aria-label="Очистить">✕</button>
+                    </label>
+                    <div id="chips" class="flex gap-2 overflow-x-auto pb-2"></div>
+                </div>
+                <div id="goods" class="goods"></div>
+            </div>
+
+            <div class="ticket card bg-base-100 shadow" id="ticket">
+                <div class="cartbar">
+                    <button class="btn btn-ghost flex-1 justify-start gap-3 px-2" id="openCart" type="button">
+                        <span class="badge badge-lg nums" id="cartPin" style="background: var(--current-color); color: #fff;">0</span>
+                        <span class="text-left">
+                            <span class="font-bold block nums" id="cartTitle">Чек пуст</span>
+                            <span class="text-xs opacity-60" id="cartCap">нажимайте товары</span>
+                        </span>
+                    </button>
+                    <button class="btn" id="toPay" type="button" hidden
+                            style="background: var(--current-color); color: #fff;">К оплате</button>
+                    <button class="btn btn-outline" id="giftOnly" type="button">Пожертвование</button>
+                </div>
+
+                <div class="ticket-body">
+                    <div class="flex items-center justify-between px-4 pt-3 desktop:hidden" id="backRow" hidden>
+                        <button class="btn btn-sm btn-ghost" id="backToGrid" type="button">← Добавить ещё</button>
+                        <span class="text-sm opacity-60 nums" id="backSum"></span>
+                    </div>
+                    <div class="px-4 pt-3 pb-1 text-xs uppercase tracking-wider opacity-60 hidden desktop:block">Чек</div>
+                    <div class="lines px-4" id="lines"></div>
+                    <div class="p-4 border-t border-base-300 flex flex-col gap-3" id="tfoot"></div>
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <div id="offlineChip" class="offline-chip badge badge-warning gap-2 py-3" hidden></div>
+    <div id="footer-placeholder"></div>
+
+    <script src="../js/config.js"></script>
+    <script src="../js/cache.js"></script>
+    <script src="../js/utils.js"></script>
+    <script src="../js/layout.js?v=85"></script>
+    <script src="../js/auth-check.js?v=12"></script>
+    <script src="../js/pages/shop-till.js?v=1"></script>
+    <script>
+        async function init() {
+            await Layout.init({ module: 'shop', menuId: 'shop_sales', itemId: 'shop_till' });
+            await ShopTill.init();
+        }
+        init();
+    </script>
+</body>
+</html>

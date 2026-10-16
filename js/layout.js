@@ -202,6 +202,19 @@ const modules = {
                 { id: 'translations', href: 'settings/translations.html' }
             ]}
         ]
+    },
+    shop: {
+        id: 'shop',
+        nameKey: 'module_shop',
+        icon: '🛍️',
+        hasLocations: false,
+        defaultPage: 'shop/till.html',
+        // Пункты добавляются по мере готовности страниц — битых ссылок в меню быть не должно
+        menuConfig: [
+            { id: 'shop_sales', items: [
+                { id: 'shop_till', href: 'shop/till.html' }
+            ]}
+        ]
     }
 };
 
@@ -307,6 +320,14 @@ const pagePermissions = {
     'finance/payroll.html': 'fin_admin',
     'finance/sales-fee.html': ['fin_admin', 'fin_observer'],
     'finance/retreat-report.html': ['fin_admin', 'fin_observer', 'view_retreat_guests'],
+    // Магазин
+    'shop/till.html': 'shop_sell',
+    'shop/shift.html': 'shop_sell',
+    'shop/items.html': ['shop_receive', 'shop_sell'],
+    'shop/receive.html': 'shop_receive',
+    'shop/inventory.html': 'shop_manage',
+    'shop/owners.html': ['shop_settle', 'shop_receive'],
+    'shop/analytics.html': 'shop_analytics',
 };
 
 // Проверка права страницы: строка или массив (достаточно любого)
@@ -518,7 +539,7 @@ function getPersonName(person, lang = currentLang) {
 
 // ==================== TRANSLATIONS ====================
 async function loadTranslations(retried = false) {
-    const data = await Cache.getOrLoad('translations_v55', async () => {
+    const data = await Cache.getOrLoad('translations_v56', async () => {
         // Supabase ограничивает 1000 записей на запрос, используем пагинацию
         const allData = [];
         let from = 0;
@@ -553,7 +574,7 @@ async function loadTranslations(retried = false) {
 
     if (!hasAllKeys && !retried) {
         // Кэш устарел, инвалидируем и перезагружаем (только 1 раз)
-        Cache.invalidate('translations_v55');
+        Cache.invalidate('translations_v56');
         return loadTranslations(true);
     }
 

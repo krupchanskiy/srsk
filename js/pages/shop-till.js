@@ -1,0 +1,513 @@
+/**
+ * Касса магазина.
+ *
+ * Два решения, из-за которых файл выглядит именно так:
+ *  1. Связь в ашраме пропадает, а торговля останавливаться не должна. Справочник
+ *     кэшируется, пробитые чеки складываются в очередь в localStorage и уходят на
+ *     сервер, когда связь вернётся. Повтор безопасен: сервер отличает чеки по client_uid.
+ *  2. Суммы считает сервер. Здесь они пересчитываются только для показа продавцу —
+ *     ни цена, ни итог с клиента не принимаются.
+ */
+const ShopTill = (() => {
+    const t = key => Layout.t(key);
+    const e = str => Layout.escapeHtml(str ?? '');
+
+    const КЛЮЧ_ОЧЕРЕДИ = 'srsk_shop_queue';
+    const КЛЮЧ_КЭША = 'srsk_shop_catalog';
+    const ШАГ = { INR: 10, RUB: 10, USD: 1, EUR: 1 };
+    const ЗНАК = { INR: '₹', RUB: '₽', USD: '$', EUR: '€' };
+    const НОМИНАЛЫ = { INR: [100, 500, 2000], RUB: [500, 1000, 5000], USD: [20, 50, 100], EUR: [20, 50, 100] };
+
+    const РИСУНКИ = {
+        'Книги': `<path d="M8 9h13a5 5 0 0 1 5 5v26a4 4 0 0 0-4-4H8z"/><path d="M40 9H27a5 5 0 0 0-5 5v26a4 4 0 0 1 4-4h14z"/>`,
+        'Мурти': `<circle cx="24" cy="12" r="5"/><path d="M24 17c-5 0-8 4-8 9v8h16v-8c0-5-3-9-8-9z"/><path d="M11 34h26l3 6H8z"/>`,
+        'Поклонение': `<circle cx="24" cy="26" r="13" stroke-dasharray="1.5 4.2" stroke-width="3.4"/><circle cx="24" cy="10" r="3.4"/>`,
+        'Ткани': `<path d="M9 14c5-4 9 4 15 0s10 4 15 0v20c-5 4-9-4-15 0s-10-4-15 0z"/>`,
+        'Аюрведа': `<path d="M15 18h18v20a3 3 0 0 1-3 3H18a3 3 0 0 1-3-3z"/><path d="M17 12h14v6H17z"/>`,
+    };
+
+    let товары = [], категории = [], цели = [], курсы = {}, сменаId = null;
+    let состояние = {
+        кат: 'Ходовое', поиск: '', корзина: [], валюта: 'INR', получено: '',
+        скидка: 0, причина: null, дар: 0, цель: null, раскрыт: false,
+        панельСкидки: false, видСкидки: '%', вводСкидки: '10', панельДара: false, вводДара: '',
+    };
+    let очередь = [], последняя = null, таймерТоста = null;
+
+    const $ = s => document.querySelector(s);
+    const товар = id => товары.find(x => x.id === id);
+    const деньги = (n, вал = 'INR') =>
+        new Intl.NumberFormat('ru-RU', { maximumFractionDigits: вал === 'USD' || вал === 'EUR' ? 2 : 0 })
+            .format(n || 0) + ' ' + (ЗНАК[вал] || вал);
+
+    // ---------- локальное хранилище ----------
+    const читать = (ключ, поумолчанию) => {
+        try { return JSON.parse(localStorage.getItem(ключ)) ?? поумолчанию; }
+        catch { return поумолчанию; }
+    };
+    const писать = (ключ, значение) => {
+        try { localStorage.setItem(ключ, JSON.stringify(значение)); } catch { /* приватный режим */ }
+    };
+
+    // ---------- загрузка ----------
+    async function загрузить() {
+        const [{ data: ит, error: ош }, { data: ост }, { data: кат }, { data: ц }, { data: кур }] = await Promise.all([
+            Layout.db.from('shop_items').select('id, name_ru, name_en, translit, price, source, photo_url, category_id, unit')
+                .eq('is_active', true).order('name_ru'),
+            Layout.db.from('shop_v_stock').select('item_id, qty'),
+            Layout.db.from('shop_categories').select('id, name_ru, sort_order').eq('is_active', true).order('sort_order'),
+            Layout.db.from('shop_goals').select('id, name_ru').eq('is_active', true).order('sort_order'),
+            Layout.db.from('shop_rates').select('currency_code, rate, valid_from').order('valid_from', { ascending: false }),
+        ]);
+
+        if (ош) throw ош;
+
+        категории = кат || [];
+        цели = ц || [];
+        состояние.цель = состояние.цель || цели[0]?.id || null;
+
+        const остатки = Object.fromEntries((ост || []).map(s => [s.item_id, Number(s.qty)]));
+        const имяКат = Object.fromEntries(категории.map(k => [k.id, k.name_ru]));
+        товары = (ит || []).map(i => ({ ...i, остаток: остатки[i.id] ?? 0, кат: имяКат[i.category_id] || '—' }));
+
+        курсы = { INR: 1 };
+        (кур || []).forEach(r => { if (!(r.currency_code in курсы)) курсы[r.currency_code] = Number(r.rate); });
+
+        писать(КЛЮЧ_КЭША, { товары, категории, цели, курсы, сохранено: Date.now() });
+    }
+
+    function изКэша() {
+        const c = читать(КЛЮЧ_КЭША, null);
+        if (!c) return false;
+        ({ товары, категории, цели, курсы } = c);
+        состояние.цель = состояние.цель || цели[0]?.id || null;
+        return true;
+    }
+
+    // ---------- очередь ----------
+    const вОчереди = () => очередь.length;
+
+    function показатьОчередь() {
+        const chip = $('#offlineChip');
+        if (!вОчереди()) { chip.hidden = true; return; }
+        chip.hidden = false;
+        chip.textContent = `Не отправлено чеков: ${вОчереди()}`;
+    }
+
+    async function отправить(payload) {
+        const { data, error } = await Layout.db.rpc('shop_post_sale', { payload });
+        if (error) throw error;
+        return data;
+    }
+
+    async function разобратьОчередь() {
+        if (!вОчереди() || !navigator.onLine) return;
+        const осталось = [];
+        for (const чек of очередь) {
+            try { await отправить(чек); }
+            catch (err) {
+                // сеть — пробуем позже; отказ сервера — чек уже не исправить, показываем
+                if (err?.message && !/fetch|network|Failed/i.test(err.message)) {
+                    Layout.showNotification('Чек не принят сервером: ' + err.message, 'error');
+                } else {
+                    осталось.push(чек);
+                }
+            }
+        }
+        очередь = осталось;
+        писать(КЛЮЧ_ОЧЕРЕДИ, очередь);
+        показатьОчередь();
+        if (!вОчереди()) { await загрузить().catch(() => {}); рисоватьСетку(); }
+    }
+
+    // ---------- сетка ----------
+    const первая = () => ['Ходовое', ...категории.map(k => k.name_ru)];
+
+    function ходовые() {
+        const порядок = читать('srsk_shop_top', []);
+        const частые = порядок.map(id => товар(id)).filter(Boolean);
+        return частые.length >= 4 ? частые.slice(0, 8)
+            : [...частые, ...товары.filter(i => !порядок.includes(i.id))].slice(0, 8);
+    }
+
+    function видимые() {
+        const q = состояние.поиск.trim().toLowerCase();
+        if (q) {
+            return товары.filter(i =>
+                (i.name_ru || '').toLowerCase().includes(q) ||
+                (i.name_en || '').toLowerCase().includes(q) ||
+                (i.translit || '').toLowerCase().includes(q));
+        }
+        if (состояние.кат === 'Ходовое') return ходовые();
+        return товары.filter(i => i.кат === состояние.кат);
+    }
+
+    function рисоватьЧипы() {
+        $('#chips').innerHTML = первая().map(к => `
+            <button type="button" class="btn btn-sm ${к === состояние.кат && !состояние.поиск ? '' : 'btn-outline'} shrink-0"
+                    data-cat="${e(к)}"
+                    ${к === состояние.кат && !состояние.поиск ? 'style="background: var(--current-color); color:#fff; border-color: var(--current-color);"' : ''}>
+                ${e(к)}</button>`).join('');
+    }
+
+    function рисоватьСетку() {
+        const вКорзине = id => (состояние.корзина.find(p => p.id === id) || {}).кол || 0;
+        $('#goods').innerHTML = видимые().map(i => {
+            const n = вКорзине(i.id);
+            const мало = i.остаток > 0 && i.остаток <= 5;
+            const нет = i.остаток <= 0;
+            return `
+            <button type="button" class="tile card bg-base-100 border border-base-300 ${n ? 'picked' : ''}" data-add="${i.id}">
+                <span class="shot bg-base-200">${i.photo_url
+                    ? `<img src="${e(i.photo_url)}" alt="" loading="lazy">`
+                    : `<svg viewBox="0 0 48 48" fill="none" stroke="currentColor" stroke-width="2.2"
+                            stroke-linejoin="round" stroke-linecap="round">${РИСУНКИ[i.кат] || РИСУНКИ['Книги']}</svg>`}</span>
+                ${i.source === 'own' ? '<span class="own-mark bg-base-100 text-secondary">наше</span>' : ''}
+                ${n ? `<span class="badge-n nums">${n}</span>` : ''}
+                <span class="nm">${e(i.name_ru)}</span>
+                <span class="left nums ${мало || нет ? 'text-warning font-semibold' : 'opacity-60'}">
+                    ${нет ? 'в учёте 0' : 'на полке ' + i.остаток}</span>
+                <span class="pr nums">${деньги(i.price)}</span>
+            </button>`;
+        }).join('') || '<div class="col-span-full text-center opacity-60 py-10">Ничего не нашлось</div>';
+        $('#clearQ').hidden = !состояние.поиск;
+    }
+
+    // ---------- счёт ----------
+    const базаЧека = () => состояние.корзина.reduce((s, p) => s + (товар(p.id)?.price || 0) * p.кол, 0);
+    function считатьСкидку() {
+        const v = parseFloat(состояние.вводСкидки) || 0;
+        const сумма = состояние.видСкидки === '%' ? Math.round(базаЧека() * v / 100 / 10) * 10 : v;
+        return Math.min(Math.max(сумма, 0), базаЧека());
+    }
+    const итогРупии = () => Math.max(0, базаЧека() - состояние.скидка);
+    function заТовары() {
+        const курс = курсы[состояние.валюта] || 1;
+        const шаг = ШАГ[состояние.валюта] || 1;
+        return Math.ceil(итогРупии() / курс / шаг) * шаг;
+    }
+    const кОплате = () => заТовары() + состояние.дар;
+
+    function рисоватьЧек() {
+        const к = состояние.корзина, вал = состояние.валюта;
+        const штук = к.reduce((s, p) => s + p.кол, 0);
+        const всего = кОплате();
+        $('#ticket').classList.toggle('open', состояние.раскрыт || innerWidth > 900);
+        $('#backRow').hidden = innerWidth > 900;
+
+        $('#cartPin').textContent = штук;
+        $('#cartPin').style.visibility = штук ? 'visible' : 'hidden';
+        $('#cartTitle').textContent = штук ? деньги(итогРупии()) : 'Чек пуст';
+        $('#cartCap').textContent = штук ? `${штук} ${Layout.pluralize ? Layout.pluralize(штук, ['позиция','позиции','позиций']) : 'шт'} · показать` : 'нажимайте товары';
+        $('#toPay').hidden = !штук;
+        $('#giftOnly').hidden = !!штук;
+        $('#backSum').textContent = штук ? деньги(итогРупии()) : '';
+
+        $('#lines').innerHTML = к.length ? к.map(p => {
+            const i = товар(p.id);
+            const сверх = p.кол > Math.max(i.остаток, 0);
+            return `
+            <div class="py-2 border-b border-base-200 last:border-0 flex items-start justify-between gap-3">
+                <div class="min-w-0">
+                    <div class="font-semibold text-sm">${e(i.name_ru)}</div>
+                    ${сверх ? '<div class="text-xs text-warning font-semibold">в учёте не числится</div>' : ''}
+                    <div class="qty-box">
+                        <button class="btn btn-sm btn-outline" data-dec="${i.id}" aria-label="минус">−</button>
+                        <input class="input input-sm input-bordered nums" inputmode="numeric"
+                               data-qtyin="${i.id}" value="${p.кол}" aria-label="количество">
+                        <button class="btn btn-sm btn-outline" data-inc="${i.id}" aria-label="плюс">+</button>
+                        <button class="btn btn-sm btn-ghost" data-del="${i.id}" aria-label="убрать">✕</button>
+                    </div>
+                </div>
+                <div class="font-bold nums whitespace-nowrap">${деньги(i.price * p.кол)}</div>
+            </div>`;
+        }).join('') : `<div class="text-center opacity-60 py-6 text-sm">${состояние.дар
+            ? 'Пожертвование без покупки' : 'Нажмите товар, чтобы добавить'}</div>`;
+
+        const получено = parseFloat(состояние.получено || '0');
+        const сдача = получено ? получено - всего : null;
+        const целиКнопки = цели.map(ц => `
+            <button type="button" class="btn btn-xs ${ц.id === состояние.цель ? '' : 'btn-outline'}" data-goal="${ц.id}"
+                ${ц.id === состояние.цель ? 'style="background: var(--current-color); color:#fff; border-color: var(--current-color);"' : ''}>
+                ${e(ц.name_ru)}</button>`).join('');
+
+        const валюты = Object.keys(ЗНАК).filter(v => v === 'INR' || курсы[v]).map(v => `
+            <button type="button" class="btn btn-sm flex-1 ${v === вал ? '' : 'btn-outline'}" data-cur="${v}"
+                ${v === вал ? 'style="background: var(--current-color); color:#fff; border-color: var(--current-color);"' : ''}>
+                ${ЗНАК[v]}</button>`).join('');
+
+        $('#tfoot').innerHTML = (!к.length && !состояние.дар && !состояние.панельДара) ? '' : `
+            ${к.length ? `<div class="flex items-center justify-between">
+                <span class="text-sm opacity-60">${состояние.скидка ? 'Товары со скидкой' : 'Товары'}</span>
+                <span class="text-2xl font-bold nums">${деньги(итогРупии())}</span></div>` : ''}
+            ${состояние.скидка ? `<div class="flex items-center justify-between text-sm opacity-60">
+                <span>Скидка · ${e(состояние.причина)}</span><span class="nums">−${деньги(состояние.скидка)}</span></div>` : ''}
+            ${состояние.дар ? `<div class="flex items-center justify-between text-sm font-semibold text-secondary">
+                <span>Пожертвование</span><span class="nums">+${деньги(состояние.дар, вал)}</span></div>` : ''}
+
+            <div class="flex gap-2 flex-wrap">
+                ${к.length ? `<button class="btn btn-sm btn-outline flex-1" id="discBtn">${состояние.скидка
+                    ? 'Скидка ' + деньги(состояние.скидка) : 'Скидка'}</button>` : ''}
+                <button class="btn btn-sm btn-outline flex-1" id="giftBtn">${состояние.дар
+                    ? 'Дар ' + деньги(состояние.дар, вал) : 'Пожертвование'}</button>
+            </div>
+
+            ${состояние.панельСкидки ? `
+            <div class="bg-base-200 rounded-lg p-3 flex flex-col gap-2">
+                <div class="join w-full">
+                    <button class="btn btn-sm join-item flex-1 ${состояние.видСкидки === '%' ? 'btn-active' : ''}" data-dtype="%">Процент</button>
+                    <button class="btn btn-sm join-item flex-1 ${состояние.видСкидки === '₹' ? 'btn-active' : ''}" data-dtype="₹">Сумма ₹</button>
+                </div>
+                <input id="discVal" class="input input-sm input-bordered w-full nums" inputmode="decimal"
+                       value="${e(состояние.вводСкидки)}" placeholder="${состояние.видСкидки === '%' ? 'процент' : 'рупии'}">
+                <div class="flex flex-wrap gap-1">${['Преданному','Участнику ретрита','Уценка','Оптом'].map(пр => `
+                    <button type="button" class="btn btn-xs ${пр === состояние.причина ? 'btn-active' : 'btn-outline'}"
+                            data-reason="${e(пр)}">${e(пр)}</button>`).join('')}</div>
+                <div class="flex items-center justify-between text-sm">
+                    <span class="opacity-60">Скидка составит</span>
+                    <span class="font-bold nums">−${деньги(считатьСкидку())}</span></div>
+                <div class="flex gap-2">
+                    <button class="btn btn-sm flex-1" id="discApply" ${состояние.причина ? '' : 'disabled'}
+                            style="background: var(--current-color); color:#fff;">Применить</button>
+                    ${состояние.скидка ? '<button class="btn btn-sm btn-ghost" id="discClear">Убрать</button>' : ''}
+                </div>
+                ${состояние.причина ? '' : '<span class="text-xs opacity-60">Выберите причину — она попадёт в отчёт</span>'}
+            </div>` : ''}
+
+            ${состояние.панельДара ? `
+            <div class="bg-base-200 rounded-lg p-3 flex flex-col gap-2">
+                <input id="giftVal" class="input input-sm input-bordered w-full nums" inputmode="decimal"
+                       value="${e(состояние.вводДара)}" placeholder="Сумма пожертвования, ${ЗНАК[вал]}">
+                <div class="flex flex-wrap gap-1">${целиКнопки}</div>
+                <div class="flex gap-2">
+                    <button class="btn btn-sm flex-1" id="giftApply"
+                            style="background: var(--current-color); color:#fff;">Добавить</button>
+                    ${состояние.дар ? '<button class="btn btn-sm btn-ghost" id="giftClear">Убрать</button>' : ''}
+                </div>
+            </div>` : ''}
+
+            <div class="flex gap-1">${валюты}</div>
+            ${вал !== 'INR' && к.length ? `<div class="flex items-center justify-between text-sm">
+                <span class="opacity-60">Товары в ${ЗНАК[вал]} · курс ${курсы[вал]}</span>
+                <span class="font-bold nums">${деньги(заТовары(), вал)}</span></div>` : ''}
+
+            <div class="flex items-center justify-between">
+                <span class="text-sm opacity-60">Итого к оплате</span>
+                <span class="text-2xl font-bold nums">${деньги(всего, вал)}</span></div>
+            <div class="flex gap-2">
+                <input id="got" class="input input-bordered flex-1 nums font-bold" inputmode="decimal"
+                       placeholder="Получено, ${ЗНАК[вал]}" value="${e(состояние.получено)}">
+                <button class="btn btn-outline" id="exact">Без сдачи</button>
+            </div>
+            <div class="flex gap-1">${(НОМИНАЛЫ[вал] || []).map(н =>
+                `<button class="btn btn-sm btn-outline flex-1" data-note="${н}">${н}</button>`).join('')}</div>
+            ${сдача !== null ? `<div class="flex items-center justify-between">
+                <span class="text-sm opacity-60">Сдача</span>
+                <span class="font-bold nums ${сдача < 0 ? 'text-error' : ''}">${сдача < 0
+                    ? 'не хватает ' + деньги(-сдача, вал) : деньги(сдача, вал)}</span></div>` : ''}
+            ${сдача > 0 ? `<button class="btn btn-sm btn-outline btn-secondary w-full" id="tipRest">
+                Сдачу ${деньги(сдача, вал)} — в пожертвование</button>` : ''}
+
+            <button class="btn btn-block" id="sell" ${сдача !== null && сдача < 0 ? 'disabled' : ''}
+                    style="background: var(--current-color); color: #fff;">
+                ${!к.length ? 'Принять пожертвование · ' : 'Продать · '}${деньги(всего, вал)}</button>`;
+    }
+
+    // ---------- корзина ----------
+    function добавить(id) {
+        const i = товар(id);
+        const p = состояние.корзина.find(x => x.id === id);
+        if (p) p.кол++; else состояние.корзина.push({ id, кол: 1 });
+        const взято = состояние.корзина.find(x => x.id === id).кол;
+        if (взято > Math.max(i.остаток, 0)) {
+            тост(`«${i.name_ru}» в учёте нет — продать можно, расхождение уйдёт в инвентаризацию`);
+        }
+        рисоватьСетку(); рисоватьЧек();
+    }
+    function задать(id, кол) {
+        кол = Math.max(0, Math.floor(+кол || 0));
+        if (!кол) состояние.корзина = состояние.корзина.filter(x => x.id !== id);
+        else { const p = состояние.корзина.find(x => x.id === id); if (p) p.кол = кол; }
+        if (!состояние.корзина.length && !состояние.дар) состояние.раскрыт = false;
+        рисоватьСетку(); рисоватьЧек();
+    }
+
+    function запомнитьЧастые() {
+        const было = читать('srsk_shop_top', []);
+        const новые = [...состояние.корзина.map(p => p.id), ...было];
+        писать('srsk_shop_top', [...new Set(новые)].slice(0, 12));
+    }
+
+    async function провести() {
+        const естьТовары = состояние.корзина.length > 0;
+        if (!естьТовары && !состояние.дар) return;
+
+        const payload = {
+            shift_id: сменаId,
+            client_uid: (crypto.randomUUID ? crypto.randomUUID() : String(Date.now() + Math.random())),
+            currency: состояние.валюта,
+            rate: курсы[состояние.валюта] || 1,
+            items: состояние.корзина.map(p => ({ item_id: p.id, qty: p.кол })),
+        };
+        if (состояние.скидка) payload.discount = { amount: состояние.скидка, reason: состояние.причина };
+        if (состояние.дар) payload.donation = { amount: состояние.дар, goal_id: состояние.цель };
+
+        const всего = кОплате(), вал = состояние.валюта;
+        const сдача = (parseFloat(состояние.получено) || 0) - всего;
+
+        запомнитьЧастые();
+        // остаток уменьшаем сразу: продавец должен видеть полку, а не ждать сервер
+        состояние.корзина.forEach(p => { const i = товар(p.id); if (i) i.остаток -= p.кол; });
+        очистить();
+        рисоватьСетку(); рисоватьЧек();
+
+        try {
+            const id = await отправить(payload);
+            последняя = { id, payload };
+            тост(сдача > 0 ? `Продано. Сдача ${деньги(сдача, вал)}`
+                : естьТовары ? `Продано · ${деньги(всего, вал)}`
+                : `Пожертвование принято · ${деньги(всего, вал)}`, true);
+        } catch (err) {
+            очередь.push(payload);
+            писать(КЛЮЧ_ОЧЕРЕДИ, очередь);
+            показатьОчередь();
+            последняя = null;
+            тост(`Чек записан, но не отправлен — уйдёт, когда появится связь`);
+        }
+    }
+
+    function очистить() {
+        Object.assign(состояние, {
+            корзина: [], скидка: 0, причина: null, получено: '', раскрыт: false,
+            панельСкидки: false, вводСкидки: '10', дар: 0, вводДара: '', панельДара: false,
+        });
+    }
+
+    function тост(текст, сОтменой = false) {
+        clearTimeout(таймерТоста);
+        const старый = document.getElementById('shopToast');
+        if (старый) старый.remove();
+
+        const el = document.createElement('div');
+        el.id = 'shopToast';
+        el.className = 'toast toast-center z-50';
+        el.style.bottom = 'calc(86px + env(safe-area-inset-bottom, 0px))';
+        el.innerHTML = `<div class="alert shadow-lg">
+            <span>${e(текст)}</span>
+            ${сОтменой && последняя ? '<button class="btn btn-sm btn-ghost" id="undoBtn">Отменить</button>' : ''}
+        </div>`;
+        document.body.appendChild(el);
+        таймерТоста = setTimeout(() => { el.remove(); последняя = null; }, 6000);
+    }
+
+    async function отменитьПоследнюю() {
+        if (!последняя) return;
+        const { error } = await Layout.db.rpc('shop_cancel_sale', {
+            p_sale_id: последняя.id, p_reason: 'Ошибка продавца, отменено сразу',
+        });
+        if (error) { Layout.handleError(error, 'Отмена чека'); return; }
+        последняя = null;
+        document.getElementById('shopToast')?.remove();
+        await загрузить();
+        рисоватьСетку(); рисоватьЧек();
+        Layout.showNotification('Чек отменён, товар вернулся на полку', 'success');
+    }
+
+    // ---------- события ----------
+    function слушать() {
+        document.addEventListener('click', async ev => {
+            const b = ev.target.closest('button');
+            if (!b) return;
+
+            if (b.dataset.cat) { состояние.кат = b.dataset.cat; состояние.поиск = ''; $('#q').value = '';
+                                 рисоватьЧипы(); рисоватьСетку(); return; }
+            if (b.id === 'clearQ') { состояние.поиск = ''; $('#q').value = ''; $('#q').focus();
+                                     рисоватьЧипы(); рисоватьСетку(); return; }
+            if (b.dataset.add) return добавить(b.dataset.add);
+            if (b.dataset.inc) { const p = состояние.корзина.find(x => x.id === b.dataset.inc);
+                                 return задать(b.dataset.inc, (p?.кол || 0) + 1); }
+            if (b.dataset.dec) { const p = состояние.корзина.find(x => x.id === b.dataset.dec);
+                                 return задать(b.dataset.dec, (p?.кол || 0) - 1); }
+            if (b.dataset.del) return задать(b.dataset.del, 0);
+            if (b.id === 'openCart' || b.id === 'toPay') { состояние.раскрыт = true; return рисоватьЧек(); }
+            if (b.id === 'backToGrid') { состояние.раскрыт = false; рисоватьЧек(); scrollTo({ top: 0, behavior: 'smooth' }); return; }
+            if (b.id === 'giftOnly') { состояние.раскрыт = true; состояние.панельДара = true; return рисоватьЧек(); }
+            if (b.dataset.cur) { состояние.валюта = b.dataset.cur; состояние.получено = '';
+                                 состояние.дар = 0; состояние.вводДара = ''; return рисоватьЧек(); }
+            if (b.dataset.note) { состояние.получено = String((parseFloat(состояние.получено) || 0) + (+b.dataset.note));
+                                  return рисоватьЧек(); }
+            if (b.dataset.dtype) { состояние.видСкидки = b.dataset.dtype;
+                                   состояние.вводСкидки = b.dataset.dtype === '%' ? '10' : ''; return рисоватьЧек(); }
+            if (b.dataset.reason) { состояние.причина = b.dataset.reason; return рисоватьЧек(); }
+            if (b.dataset.goal) { состояние.цель = b.dataset.goal; return рисоватьЧек(); }
+            if (b.id === 'discBtn') { состояние.панельСкидки = !состояние.панельСкидки;
+                                      состояние.панельДара = false; return рисоватьЧек(); }
+            if (b.id === 'discApply') { состояние.скидка = считатьСкидку(); состояние.панельСкидки = false; return рисоватьЧек(); }
+            if (b.id === 'discClear') { состояние.скидка = 0; состояние.причина = null;
+                                        состояние.панельСкидки = false; return рисоватьЧек(); }
+            if (b.id === 'giftBtn') { состояние.панельДара = !состояние.панельДара;
+                                      состояние.панельСкидки = false; return рисоватьЧек(); }
+            if (b.id === 'giftApply') { состояние.дар = Math.max(0, parseFloat(состояние.вводДара) || 0);
+                                        состояние.панельДара = false; return рисоватьЧек(); }
+            if (b.id === 'giftClear') { состояние.дар = 0; состояние.вводДара = '';
+                                        состояние.панельДара = false; return рисоватьЧек(); }
+            if (b.id === 'tipRest') {
+                const сдача = (parseFloat(состояние.получено) || 0) - кОплате();
+                if (сдача > 0) состояние.дар += сдача;
+                return рисоватьЧек();
+            }
+            if (b.id === 'exact') { состояние.получено = String(кОплате()); return рисоватьЧек(); }
+            if (b.id === 'sell') return провести();
+            if (b.id === 'undoBtn') return отменитьПоследнюю();
+        });
+
+        document.addEventListener('input', ev => {
+            const el = ev.target;
+            const вернуть = (сел, поз) => { const н = document.querySelector(сел);
+                if (н) { н.focus(); try { н.setSelectionRange(поз, поз); } catch { /* search */ } } };
+
+            if (el.id === 'q') { состояние.поиск = el.value; рисоватьЧипы(); рисоватьСетку(); return; }
+            if (el.id === 'got') { состояние.получено = el.value; const п = el.selectionStart;
+                                   рисоватьЧек(); вернуть('#got', п); return; }
+            if (el.id === 'discVal') { состояние.вводСкидки = el.value; const п = el.selectionStart;
+                                       рисоватьЧек(); вернуть('#discVal', п); return; }
+            if (el.id === 'giftVal') { состояние.вводДара = el.value; const п = el.selectionStart;
+                                       рисоватьЧек(); вернуть('#giftVal', п); return; }
+            if (el.dataset.qtyin) {
+                if (el.value === '') return;
+                const id = el.dataset.qtyin;
+                задать(id, el.value);
+                const н = document.querySelector(`[data-qtyin="${id}"]`);
+                if (н) { н.focus(); н.select(); }
+            }
+        });
+
+        addEventListener('online', разобратьОчередь);
+        addEventListener('resize', рисоватьЧек);
+        setInterval(разобратьОчередь, 60000);
+    }
+
+    async function init() {
+        очередь = читать(КЛЮЧ_ОЧЕРЕДИ, []);
+        показатьОчередь();
+
+        try {
+            await загрузить();
+        } catch (err) {
+            if (!изКэша()) { Layout.handleError(err, 'Загрузка товаров'); return; }
+            Layout.showNotification('Нет связи — работаем по сохранённому справочнику', 'warning');
+        }
+
+        if (window.hasPermission?.('shop_sell')) {
+            const { data, error } = await Layout.db.rpc('shop_open_shift', { p_float: 0 });
+            if (!error) { сменаId = data; писать('srsk_shop_shift', data); }
+            else сменаId = читать('srsk_shop_shift', null);
+        }
+
+        слушать();
+        рисоватьЧипы(); рисоватьСетку(); рисоватьЧек();
+        разобратьОчередь();
+    }
+
+    return { init };
+})();
