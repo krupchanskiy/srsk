@@ -212,7 +212,8 @@ const modules = {
         // Пункты добавляются по мере готовности страниц — битых ссылок в меню быть не должно
         menuConfig: [
             { id: 'shop_sales', items: [
-                { id: 'shop_till', href: 'shop/till.html' }
+                { id: 'shop_till', href: 'shop/till.html' },
+                { id: 'shop_shift', href: 'shop/shift.html' }
             ]},
             { id: 'shop_goods', items: [
                 { id: 'shop_receive', href: 'shop/receive.html' }
