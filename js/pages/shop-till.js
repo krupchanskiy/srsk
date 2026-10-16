@@ -59,11 +59,11 @@ const ShopTill = (() => {
     // ---------- загрузка ----------
     async function загрузить() {
         const [{ data: ит, error: ош }, { data: ост }, { data: кат }, { data: ц }, { data: кур }] = await Promise.all([
-            Layout.db.from('shop_items').select('id, name_ru, name_en, translit, price, source, photo_url, category_id, unit')
+            Layout.db.from('shop_items').select('id, name_ru, name_en, name_hi, translit, price, source, photo_url, category_id, unit')
                 .eq('is_active', true).order('name_ru'),
             Layout.db.from('shop_v_stock').select('item_id, qty'),
-            Layout.db.from('shop_categories').select('id, name_ru, sort_order').eq('is_active', true).order('sort_order'),
-            Layout.db.from('shop_goals').select('id, name_ru').eq('is_active', true).order('sort_order'),
+            Layout.db.from('shop_categories').select('id, name_ru, name_en, name_hi, sort_order').eq('is_active', true).order('sort_order'),
+            Layout.db.from('shop_goals').select('id, name_ru, name_en, name_hi').eq('is_active', true).order('sort_order'),
             Layout.db.from('shop_rates').select('currency_code, rate, valid_from').order('valid_from', { ascending: false }),
         ]);
 
@@ -74,8 +74,9 @@ const ShopTill = (() => {
         состояние.цель = состояние.цель || цели[0]?.id || null;
 
         const остатки = Object.fromEntries((ост || []).map(s => [s.item_id, Number(s.qty)]));
-        const имяКат = Object.fromEntries(категории.map(k => [k.id, k.name_ru]));
-        товары = (ит || []).map(i => ({ ...i, остаток: остатки[i.id] ?? 0, кат: имяКат[i.category_id] || '—' }));
+        const имяКат = Object.fromEntries(категории.map(k => [k.id, Layout.getName(k)]));
+        товары = (ит || []).map(i => ({ ...i, имя: Layout.getName(i), остаток: остатки[i.id] ?? 0,
+            кат: имяКат[i.category_id] || '—' }));
 
         курсы = { INR: 1 };
         (кур || []).forEach(r => { if (!(r.currency_code in курсы)) курсы[r.currency_code] = Number(r.rate); });
@@ -128,7 +129,7 @@ const ShopTill = (() => {
     }
 
     // ---------- сетка ----------
-    const первая = () => ['Ходовое', ...категории.map(k => k.name_ru)];
+    const первая = () => ['Ходовое', ...категории.map(k => Layout.getName(k))];
 
     function ходовые() {
         const порядок = читать('srsk_shop_top', []);
@@ -143,6 +144,7 @@ const ShopTill = (() => {
             return товары.filter(i =>
                 (i.name_ru || '').toLowerCase().includes(q) ||
                 (i.name_en || '').toLowerCase().includes(q) ||
+                (i.name_hi || '').toLowerCase().includes(q) ||
                 (i.translit || '').toLowerCase().includes(q));
         }
         if (состояние.кат === 'Ходовое') return ходовые();
@@ -171,7 +173,7 @@ const ShopTill = (() => {
                             stroke-linejoin="round" stroke-linecap="round">${РИСУНКИ[i.кат] || РИСУНКИ['Книги']}</svg>`}</span>
                 ${i.source === 'own' ? '<span class="own-mark bg-base-100 opacity-80 border border-base-300">наше</span>' : ''}
                 ${n ? `<span class="badge-n nums">${n}</span>` : ''}
-                <span class="nm">${e(i.name_ru)}</span>
+                <span class="nm">${e(i.имя)}</span>
                 <span class="left nums ${мало || нет ? 'text-warning font-semibold' : 'opacity-60'}">
                     ${нет ? 'в учёте 0' : 'на полке ' + i.остаток}</span>
                 <span class="pr nums">${деньги(i.price)}</span>
@@ -216,7 +218,7 @@ const ShopTill = (() => {
             return `
             <div class="py-2 border-b border-base-200 last:border-0 flex items-start justify-between gap-3">
                 <div class="min-w-0">
-                    <div class="font-semibold text-sm">${e(i.name_ru)}</div>
+                    <div class="font-semibold text-sm">${e(i.имя)}</div>
                     ${сверх ? '<div class="text-xs text-warning font-semibold">в учёте не числится</div>' : ''}
                     <div class="qty-box">
                         <button class="btn btn-sm btn-outline" data-dec="${i.id}" aria-label="минус">−</button>
@@ -327,7 +329,7 @@ const ShopTill = (() => {
         if (p) p.кол++; else состояние.корзина.push({ id, кол: 1 });
         const взято = состояние.корзина.find(x => x.id === id).кол;
         if (взято > Math.max(i.остаток, 0)) {
-            тост(`«${i.name_ru}» в учёте нет — продать можно, расхождение уйдёт в инвентаризацию`);
+            тост(`«${i.имя}» в учёте нет — продать можно, расхождение уйдёт в инвентаризацию`);
         }
         рисоватьСетку(); рисоватьЧек();
     }
