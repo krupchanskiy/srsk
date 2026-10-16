@@ -214,7 +214,8 @@ const modules = {
             { id: 'shop_sales', items: [
                 { id: 'shop_till', href: 'shop/till.html' },
                 { id: 'shop_shift', href: 'shop/shift.html' },
-                { id: 'shop_returns', href: 'shop/returns.html' }
+                { id: 'shop_returns', href: 'shop/returns.html' },
+                { id: 'shop_help', href: 'shop/help.html' }
             ]},
             { id: 'shop_goods', items: [
                 { id: 'shop_items', href: 'shop/items.html' },
@@ -335,6 +336,7 @@ const pagePermissions = {
     'shop/till.html': 'shop_sell',
     'shop/shift.html': 'shop_sell',
     'shop/returns.html': 'shop_manage',
+    'shop/help.html': 'shop_sell',
     'shop/items.html': ['shop_receive', 'shop_sell'],
     'shop/receive.html': 'shop_receive',
     'shop/inventory.html': 'shop_manage',
@@ -551,7 +553,7 @@ function getPersonName(person, lang = currentLang) {
 
 // ==================== TRANSLATIONS ====================
 async function loadTranslations(retried = false) {
-    const data = await Cache.getOrLoad('translations_v62', async () => {
+    const data = await Cache.getOrLoad('translations_v63', async () => {
         // Supabase ограничивает 1000 записей на запрос, используем пагинацию
         const allData = [];
         let from = 0;
@@ -586,7 +588,7 @@ async function loadTranslations(retried = false) {
 
     if (!hasAllKeys && !retried) {
         // Кэш устарел, инвалидируем и перезагружаем (только 1 раз)
-        Cache.invalidate('translations_v62');
+        Cache.invalidate('translations_v63');
         return loadTranslations(true);
     }
 

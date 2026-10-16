@@ -1,0 +1,310 @@
+<!DOCTYPE html>
+<html lang="ru" data-theme="light">
+<head>
+    <meta charset="UTF-8">
+    <script src="../js/color-init.js?v=3"></script>
+
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Как работать в магазине — ШРСК</title>
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg">
+    <link href="https://cdn.jsdelivr.net/npm/daisyui@4.12.14/dist/full.min.css" rel="stylesheet" />
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script>tailwind.config = { theme: { extend: { screens: { 'desktop': '1200px' } } } }</script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans:wght@400;500;600;700&family=Noto+Sans+Devanagari:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="../css/common.css?v=8">
+    <style>
+        .guide { max-width: 760px; }
+        .guide h2 { font-size: 18px; font-weight: 700; margin-top: 28px; margin-bottom: 8px; }
+        .guide h2:first-of-type { margin-top: 0; }
+        .guide p { margin-bottom: 10px; line-height: 1.6; }
+        .guide ol, .guide ul { margin: 0 0 12px 22px; line-height: 1.6; }
+        .guide ol { list-style: decimal; }
+        .guide ul { list-style: disc; }
+        .guide li { margin-bottom: 5px; }
+        .guide .note { background: hsl(var(--b2)); padding: 10px 14px; border-radius: 8px;
+                       margin-bottom: 14px; }
+        .guide strong { font-weight: 700; }
+        [data-guide-lang] { display: none; }
+        [data-guide-lang].on { display: block; }
+    </style>
+</head>
+<body class="bg-base-200 min-h-screen flex flex-col">
+
+    <div id="header-placeholder"></div>
+
+    <main class="container mx-auto px-4 py-6 flex-1">
+
+        <div class="card bg-base-100 shadow">
+            <div class="card-body guide">
+
+                <!-- ───────────────────────── русский ───────────────────────── -->
+                <div data-guide-lang="ru">
+                    <h1 class="text-2xl font-bold mb-1">Как работать в магазине</h1>
+                    <p class="text-sm opacity-60 mb-6">Короткая памятка: день от открытия смены
+                        до сдачи выручки.</p>
+
+                    <h2>Начало дня</h2>
+                    <p>Откройте <strong>Смену</strong> и впишите размен — те деньги, что вы кладёте
+                        в ящик утром на сдачу. Нажмите «Открыть смену».</p>
+                    <div class="note">Если забыли — смена откроется сама с первым чеком, но размен
+                        в ней будет нулевой, и вечером касса не сойдётся ровно на эту сумму.</div>
+
+                    <h2>Продажа</h2>
+                    <ol>
+                        <li>Нажимайте на плитки товаров — они складываются в чек.</li>
+                        <li>Количество меняется кнопками «−» и «+» или вводится прямо в поле.</li>
+                        <li>Если гость платит рублями или долларами — выберите валюту. Сумма
+                            пересчитается по курсу ашрама и округлится вверх.</li>
+                        <li>Введите, сколько денег дал гость, — касса посчитает сдачу.
+                            Кнопка «Без сдачи» ставит ровную сумму.</li>
+                        <li>Нажмите «Продать».</li>
+                    </ol>
+                    <p><strong>Скидка.</strong> Кнопка «Скидка» — процентом или суммой, обязательно
+                        с причиной: преданному, участнику ретрита, уценка, оптом.</p>
+                    <p><strong>Пожертвование.</strong> Если гость не берёт сдачу или просто жертвует —
+                        нажмите «Пожертвование», выберите цель. Сдачу можно отправить в
+                        пожертвование одной кнопкой.</p>
+
+                    <h2>Ошиблись в чеке</h2>
+                    <p>Сразу после продажи внизу появляется кнопка <strong>«Отменить»</strong> —
+                        она действует несколько секунд. Позже чек можно отменить на экране
+                        «Смена», но только последний и только пока смена открыта.</p>
+
+                    <h2>Нет интернета</h2>
+                    <p>Торгуйте как обычно. Чеки сохранятся в телефоне и уйдут сами, когда связь
+                        вернётся, — вверху будет значок «Не отправлено чеков: N». Не закрывайте
+                        страницу, пока значок не исчез.</p>
+                    <div class="note">Если чек не приняли по другой причине — он останется на экране
+                        с объяснением. Это не обрыв связи, товар отдавать не нужно.</div>
+
+                    <h2>Возврат</h2>
+                    <p>Гость вернул товар — откройте <strong>Возвраты</strong>, найдите чек по номеру
+                        или в списке последних, укажите, что возвращают, и напишите причину.
+                        Деньги отдаются из ящика текущей смены, товар возвращается на полку.</p>
+
+                    <h2>Конец дня</h2>
+                    <ol>
+                        <li>Откройте <strong>Смену</strong>, пересчитайте ящик и впишите, сколько
+                            денег реально лежит — по каждой валюте отдельно.</li>
+                        <li>Если сходится — нажмите «Закрыть смену».</li>
+                        <li>Если не сходится — напишите причину. Без причины смена не закроется.</li>
+                    </ol>
+                    <div class="note">После закрытия смены чеки отменять уже нельзя — только возврат.
+                        Поэтому сначала проверьте, потом закрывайте.</div>
+
+                    <h2>Сдача выручки</h2>
+                    <p>Когда смена закрыта, на том же экране нажмите <strong>«Собрать пакет
+                        к сдаче»</strong> и отнесите деньги казначею. Он примет их у себя, и выручка
+                        попадёт в финансы ашрама. Пока пакет не принят, новый не собрать.</p>
+
+                    <h2>Приём товара</h2>
+                    <p>Экран <strong>Приём</strong>. Выберите, чьё: «Реализация» — чужой товар,
+                        владельцу платим по мере продажи; «Свой выпуск» — то, что сделала Мастерская.
+                        Вводите название (новый товар заводится прямо в строке), количество и цену
+                        расчёта с владельцем.</p>
+
+                    <h2>Пересчёт товара и списания</h2>
+                    <p>Экран <strong>Инвентаризация</strong>. Начните ведомость, обойдите полки
+                        и впишите фактическое количество — <strong>по всем позициям, включая нули</strong>.
+                        Расхождения нужно объяснить, потом «Провести»: недостача спишется,
+                        излишек встанет на полку.</p>
+                    <p>Разбитое, подаренное или отданное на служение проводите кнопкой
+                        «Списать товар» — сразу, не дожидаясь инвентаризации.</p>
+
+                    <h2>Если что-то непонятно</h2>
+                    <p>Не подгоняйте цифры и не пытайтесь «исправить» задним числом. Запишите,
+                        что случилось, в причину расхождения и скажите заведующему: по записям
+                        всегда можно разобраться, по подогнанным — нет.</p>
+                </div>
+
+                <!-- ───────────────────────── English ───────────────────────── -->
+                <div data-guide-lang="en">
+                    <h1 class="text-2xl font-bold mb-1">How to work in the shop</h1>
+                    <p class="text-sm opacity-60 mb-6">A short guide: the day from opening a shift
+                        to handing over the money.</p>
+
+                    <h2>Start of the day</h2>
+                    <p>Open the <strong>Shift</strong> screen and enter the float — the money you put
+                        in the drawer in the morning for change. Press «Open shift».</p>
+                    <div class="note">If you forget, the shift opens by itself with the first sale,
+                        but with a zero float — and in the evening the drawer will be off by exactly
+                        that amount.</div>
+
+                    <h2>Selling</h2>
+                    <ol>
+                        <li>Tap the item tiles — they add up into a receipt.</li>
+                        <li>Change the quantity with «−» and «+», or type it into the field.</li>
+                        <li>If the guest pays in roubles or dollars, pick the currency. The amount is
+                            converted at the ashram rate and rounded up.</li>
+                        <li>Enter how much the guest gave — the till calculates the change.
+                            «No change» fills in the exact amount.</li>
+                        <li>Press «Sell».</li>
+                    </ol>
+                    <p><strong>Discount.</strong> The «Discount» button takes a percentage or an amount
+                        and always needs a reason: devotee, retreat guest, markdown, wholesale.</p>
+                    <p><strong>Donation.</strong> If the guest leaves the change or simply donates,
+                        press «Donation» and choose the purpose. The change can be turned into
+                        a donation with one button.</p>
+
+                    <h2>Made a mistake</h2>
+                    <p>Right after a sale an <strong>«Undo»</strong> button appears at the bottom
+                        for a few seconds. Later you can cancel a receipt on the «Shift» screen —
+                        but only the last one, and only while the shift is open.</p>
+
+                    <h2>No internet</h2>
+                    <p>Keep selling. Receipts are stored on the device and are sent as soon as the
+                        connection is back — a badge at the top says «Not sent: N». Don't close the
+                        page until the badge is gone.</p>
+                    <div class="note">If a receipt was refused for another reason, it stays on screen
+                        with an explanation. That is not a connection problem — don't hand over
+                        the goods.</div>
+
+                    <h2>Refunds</h2>
+                    <p>If a guest brings something back, open <strong>Returns</strong>, find the
+                        receipt by number or in the recent list, say what is being returned and write
+                        the reason. The money comes from the current shift's drawer and the goods go
+                        back on the shelf.</p>
+
+                    <h2>End of the day</h2>
+                    <ol>
+                        <li>Open <strong>Shift</strong>, count the drawer and enter how much money is
+                            actually there — each currency separately.</li>
+                        <li>If it matches, press «Close shift».</li>
+                        <li>If it doesn't, write the reason. Without a reason the shift won't close.</li>
+                    </ol>
+                    <div class="note">After the shift is closed receipts can no longer be cancelled —
+                        only refunded. So check first, then close.</div>
+
+                    <h2>Handing over the money</h2>
+                    <p>Once the shift is closed, press <strong>«Prepare handover»</strong> on the same
+                        screen and take the money to the treasurer. He accepts it on his side and the
+                        revenue enters the ashram's finances. Until a package is accepted, a new one
+                        cannot be prepared.</p>
+
+                    <h2>Receiving goods</h2>
+                    <p>The <strong>Receive</strong> screen. Choose whose goods they are: «Consignment»
+                        — someone else's, the owner is paid as items sell; «Own production» — what the
+                        Workshop made. Type the name (a new item is created right in the row), the
+                        quantity and the settlement price.</p>
+
+                    <h2>Stocktaking and write-offs</h2>
+                    <p>The <strong>Inventory</strong> screen. Start a sheet, walk the shelves and enter
+                        the actual quantity for <strong>every line, zeros included</strong>. Differences
+                        must be explained, then press «Apply»: shortages are written off, surpluses go
+                        on the shelf.</p>
+                    <p>Broken, gifted or given for service — use «Write off» straight away, don't wait
+                        for a stocktake.</p>
+
+                    <h2>When something is unclear</h2>
+                    <p>Don't adjust the numbers and don't «fix» things afterwards. Write down what
+                        happened in the reason field and tell the shop keeper: records can always be
+                        sorted out, adjusted numbers cannot.</p>
+                </div>
+
+                <!-- ───────────────────────── हिन्दी ───────────────────────── -->
+                <div data-guide-lang="hi">
+                    <h1 class="text-2xl font-bold mb-1">दुकान में काम कैसे करें</h1>
+                    <p class="text-sm opacity-60 mb-6">छोटी मार्गदर्शिका: शिफ्ट खोलने से लेकर
+                        पैसा जमा करने तक का दिन।</p>
+
+                    <h2>दिन की शुरुआत</h2>
+                    <p><strong>शिफ्ट</strong> खोलें और खुले पैसे की राशि लिखें — वह पैसा जो आप सुबह
+                        दराज में छुट्टा देने के लिए रखते हैं। «शिफ्ट खोलें» दबाएँ।</p>
+                    <div class="note">भूल जाने पर शिफ्ट पहली बिक्री के साथ अपने आप खुल जाएगी, पर उसमें
+                        खुले पैसे शून्य रहेंगे — और शाम को दराज ठीक उतनी ही राशि से कम निकलेगा।</div>
+
+                    <h2>बिक्री</h2>
+                    <ol>
+                        <li>वस्तुओं के चित्र दबाएँ — वे बिल में जुड़ती जाती हैं।</li>
+                        <li>मात्रा «−» और «+» से बदलें या सीधे लिख दें।</li>
+                        <li>यदि अतिथि रूबल या डॉलर में देता है, तो मुद्रा चुनें। राशि आश्रम की दर से
+                            बदलकर ऊपर की ओर पूर्णांकित होगी।</li>
+                        <li>अतिथि ने कितना दिया, वह लिखें — कैश काउंटर छुट्टा गिन देगा।
+                            «छुट्टा नहीं» पूरी राशि भर देता है।</li>
+                        <li>«बेचें» दबाएँ।</li>
+                    </ol>
+                    <p><strong>छूट।</strong> «छूट» बटन प्रतिशत या राशि लेता है और कारण अनिवार्य है:
+                        भक्त को, रिट्रीट अतिथि को, घटाया मूल्य, थोक।</p>
+                    <p><strong>दान।</strong> यदि अतिथि छुट्टा नहीं लेता या केवल दान देता है —
+                        «दान» दबाएँ और उद्देश्य चुनें। छुट्टा एक बटन से दान में बदला जा सकता है।</p>
+
+                    <h2>बिल में गलती</h2>
+                    <p>बिक्री के तुरंत बाद नीचे <strong>«रद्द करें»</strong> बटन कुछ सेकंड के लिए आता है।
+                        बाद में बिल «शिफ्ट» पर रद्द किया जा सकता है — पर केवल अंतिम, और केवल जब तक
+                        शिफ्ट खुली है।</p>
+
+                    <h2>इंटरनेट न हो तो</h2>
+                    <p>सामान्य रूप से बेचते रहें। बिल उपकरण में सुरक्षित रहते हैं और संपर्क लौटते ही
+                        स्वयं चले जाते हैं — ऊपर «भेजे नहीं गए: N» दिखता है। जब तक यह चिह्न है,
+                        पृष्ठ बंद न करें।</p>
+                    <div class="note">यदि बिल किसी और कारण से अस्वीकार हुआ, तो वह स्पष्टीकरण के साथ
+                        स्क्रीन पर रहेगा। यह संपर्क की समस्या नहीं है — सामान न दें।</div>
+
+                    <h2>वापसी</h2>
+                    <p>अतिथि सामान लौटाए तो <strong>वापसी</strong> खोलें, बिल संख्या से या अंतिम बिलों
+                        की सूची से ढूँढ़ें, बताएँ क्या लौट रहा है और कारण लिखें। पैसा चालू शिफ्ट के
+                        दराज से जाता है, सामान वापस अलमारी में आ जाता है।</p>
+
+                    <h2>दिन का अंत</h2>
+                    <ol>
+                        <li><strong>शिफ्ट</strong> खोलें, दराज गिनें और लिखें कि वास्तव में कितना पैसा
+                            है — हर मुद्रा अलग-अलग।</li>
+                        <li>मिलान हो जाए तो «शिफ्ट बंद करें» दबाएँ।</li>
+                        <li>मिलान न हो तो कारण लिखें। कारण के बिना शिफ्ट बंद नहीं होगी।</li>
+                    </ol>
+                    <div class="note">शिफ्ट बंद होने के बाद बिल रद्द नहीं होते — केवल वापसी होती है।
+                        इसलिए पहले जाँचें, फिर बंद करें।</div>
+
+                    <h2>पैसा जमा करना</h2>
+                    <p>शिफ्ट बंद होने पर उसी स्क्रीन पर <strong>«जमा पैकेट बनाएँ»</strong> दबाएँ और
+                        पैसा कोषाध्यक्ष को दें। वे अपनी ओर से स्वीकार करेंगे और आय आश्रम के वित्त में
+                        दर्ज हो जाएगी। जब तक पिछला पैकेट स्वीकार न हो, नया नहीं बनेगा।</p>
+
+                    <h2>सामान लेना</h2>
+                    <p><strong>प्राप्ति</strong> स्क्रीन। चुनें कि सामान किसका है: «बिक्री हेतु» —
+                        दूसरे का, बिकने पर मालिक को भुगतान; «अपना उत्पादन» — जो कार्यशाला ने बनाया।
+                        नाम लिखें (नई वस्तु उसी पंक्ति में बन जाती है), मात्रा और मालिक से हिसाब
+                        का मूल्य।</p>
+
+                    <h2>गिनती और बट्टे खाते</h2>
+                    <p><strong>सूची जाँच</strong> स्क्रीन। पर्चा शुरू करें, अलमारियाँ देखें और वास्तविक
+                        मात्रा लिखें — <strong>हर पंक्ति में, शून्य भी</strong>। अंतर का कारण बताना
+                        आवश्यक है, फिर «लागू करें»: कमी बट्टे खाते जाएगी, अधिक मिला सामान अलमारी में
+                        चढ़ जाएगा।</p>
+                    <p>टूटा, उपहार में दिया या सेवा में दिया हुआ — «बट्टे खाते डालें» से तुरंत दर्ज करें,
+                        गिनती की प्रतीक्षा न करें।</p>
+
+                    <h2>कुछ समझ न आए तो</h2>
+                    <p>अंक मिलाने की कोशिश न करें और बाद में «सुधारने» का प्रयास न करें। जो हुआ वह
+                        कारण में लिख दें और प्रभारी को बताएँ: लिखे हुए से हमेशा समझा जा सकता है,
+                        मिलाए हुए से नहीं।</p>
+                </div>
+
+            </div>
+        </div>
+    </main>
+
+    <div id="footer-placeholder"></div>
+
+    <script src="../js/config.js"></script>
+    <script src="../js/cache.js"></script>
+    <script src="../js/utils.js"></script>
+    <script src="../js/layout.js?v=92"></script>
+    <script src="../js/auth-check.js?v=12"></script>
+    <script>
+        async function init() {
+            await Layout.init({ module: 'shop', menuId: 'shop_sales', itemId: 'shop_help' });
+
+            // памятка — связный текст, поэтому держим три готовых перевода целиком,
+            // а не собираем абзацы из словарных ключей
+            const язык = ['ru', 'en', 'hi'].includes(Layout.currentLang) ? Layout.currentLang : 'ru';
+            document.querySelector(`[data-guide-lang="${язык}"]`).classList.add('on');
+            document.documentElement.lang = язык;
+        }
+        init();
+    </script>
+</body>
+</html>
