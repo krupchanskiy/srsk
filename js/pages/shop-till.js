@@ -35,7 +35,17 @@ const ShopTill = (() => {
         скидка: 0, причина: null, дар: 0, цель: null, раскрыт: false,
         панельСкидки: false, видСкидки: '%', вводСкидки: '10', панельДара: false, вводДара: '',
     };
-    let очередь = [], последняя = null, таймерТоста = null;
+    let очередь = [], последняя = null, таймерТоста = null, идётОтправка = false;
+
+    // База всегда отвечает с кодом ошибки, сетевой сбой приходит без него. Путать
+    // нельзя: отказ сервера, принятый за обрыв связи, уедет в офлайн-очередь и там
+    // будет выброшен — товар отдан, продажи нет. В неясном случае считаем отказом
+    // и показываем продавцу: потерять чек хуже, чем лишний раз его переспросить.
+    const этоСеть = err => {
+        if (err?.code) return false;
+        return !navigator.onLine ||
+            /fetch|network|timeout|abort|offline|соедин/i.test(String(err?.message || ''));
+    };
 
     const $ = s => document.querySelector(s);
     const товар = id => товары.find(x => x.id === id);
@@ -121,11 +131,8 @@ const ShopTill = (() => {
             try { await отправить(чек); }
             catch (err) {
                 // сеть — пробуем позже; отказ сервера — чек уже не исправить, показываем
-                if (err?.message && !/fetch|network|Failed/i.test(err.message)) {
-                    Layout.showNotification('Чек не принят сервером: ' + err.message, 'error');
-                } else {
-                    осталось.push(чек);
-                }
+                if (этоСеть(err)) осталось.push(чек);
+                else Layout.showNotification(t('shop_queued_rejected') + ' ' + err.message, 'error');
             }
         }
         очередь = осталось;
@@ -252,7 +259,15 @@ const ShopTill = (() => {
                 ${v === вал ? 'style="background: var(--current-color); color:#fff; border-color: var(--current-color);"' : ''}>
                 ${ЗНАК[v]}</button>`).join('');
 
-        $('#tfoot').innerHTML = (!к.length && !состояние.дар && !состояние.панельДара) ? '' : `
+        // на десктопе нижней панели нет, поэтому кнопка «Пожертвование» должна быть
+        // и в пустом чеке — иначе принять дар без покупки можно только с телефона
+        if (!к.length && !состояние.дар && !состояние.панельДара) {
+            $('#tfoot').innerHTML = `<button class="btn btn-sm btn-outline" id="giftBtn">${
+                t('shop_donation')}</button>`;
+            return;
+        }
+
+        $('#tfoot').innerHTML = `
             ${к.length ? `<div class="flex items-center justify-between">
                 <span class="text-sm opacity-60">${состояние.скидка ? t('shop_goods_discounted') : t('shop_goods_line')}</span>
                 <span class="text-2xl font-bold nums">${деньги(итогРупии())}</span></div>` : ''}
@@ -357,6 +372,9 @@ const ShopTill = (() => {
     async function провести() {
         const естьТовары = состояние.корзина.length > 0;
         if (!естьТовары && !состояние.дар) return;
+        if (идётОтправка) return;       // второй клик по «Продать» — это второй чек
+        идётОтправка = true;
+        $('#sell')?.setAttribute('disabled', 'disabled');
 
         const payload = {
             shift_id: сменаId,
@@ -371,6 +389,12 @@ const ShopTill = (() => {
         const сдача = (parseFloat(состояние.получено) || 0) - всего;
 
         запомнитьЧастые();
+        // снимок нужен, чтобы вернуть чек на экран, если сервер его не принял
+        const снимок = JSON.parse(JSON.stringify({
+            корзина: состояние.корзина, скидка: состояние.скидка, причина: состояние.причина,
+            дар: состояние.дар, цель: состояние.цель, получено: состояние.получено,
+            валюта: состояние.валюта,
+        }));
         // остаток уменьшаем сразу: продавец должен видеть полку, а не ждать сервер
         состояние.корзина.forEach(p => { const i = товар(p.id); if (i) i.остаток -= p.кол; });
         очистить();
@@ -383,11 +407,22 @@ const ShopTill = (() => {
                 : естьТовары ? `${t('shop_sold')} · ${деньги(всего, вал)}`
                 : `${t('shop_donation_accepted')} · ${деньги(всего, вал)}`, true);
         } catch (err) {
-            очередь.push(payload);
-            писать(КЛЮЧ_ОЧЕРЕДИ, очередь);
-            показатьОчередь();
             последняя = null;
-            тост(t('shop_saved_offline'));
+            if (этоСеть(err)) {
+                очередь.push(payload);
+                писать(КЛЮЧ_ОЧЕРЕДИ, очередь);
+                показатьОчередь();
+                тост(t('shop_saved_offline'));
+            } else {
+                // сервер отказал — чек возвращаем на экран вместе с остатками,
+                // иначе продавец уверен, что продал, а продажи нет
+                снимок.корзина.forEach(p => { const i = товар(p.id); if (i) i.остаток += p.кол; });
+                Object.assign(состояние, снимок, { раскрыт: true });
+                рисоватьСетку(); рисоватьЧек();
+                Layout.showNotification(t('shop_sale_rejected') + ' ' + err.message, 'error');
+            }
+        } finally {
+            идётОтправка = false;
         }
     }
 
@@ -494,9 +529,11 @@ const ShopTill = (() => {
             if (el.dataset.qtyin) {
                 if (el.value === '') return;
                 const id = el.dataset.qtyin;
+                const п = el.selectionStart;
                 задать(id, el.value);
-                const н = document.querySelector(`[data-qtyin="${id}"]`);
-                if (н) { н.focus(); н.select(); }
+                // курсор ставим туда, где он был: выделение всего поля не давало
+                // набрать второй разряд — «12» превращалось в «2»
+                вернуть(`[data-qtyin="${id}"]`, п);
             }
         });
 

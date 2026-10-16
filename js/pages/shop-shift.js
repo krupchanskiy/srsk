@@ -8,41 +8,43 @@
  */
 const ShopShift = (() => {
     const e = str => Layout.escapeHtml(str ?? '');
-    const ЗНАК = { INR: '₹', RUB: '₽', USD: '$', EUR: '€' };
-    const деньги = (n, вал = 'INR') =>
-        new Intl.NumberFormat('ru-RU', { maximumFractionDigits: вал === 'USD' || вал === 'EUR' ? 2 : 0 })
-            .format(n || 0) + ' ' + (ЗНАК[вал] || вал);
+    const { ЗНАК, деньги } = ShopUtils;
 
     let смена = null, операции = [], ожидаем = [], пересчёт = {}, причины = {};
     let пакет = null, строкиПакета = [], счета = [], естьЗакрытыеНесданные = false;
+    let история = [], занято = false;
 
     const $ = s => document.querySelector(s);
     const админФинансов = () => !!(window.currentUser?.is_superuser || window.hasPermission?.('fin_admin'));
 
     async function загрузить() {
-        const { data: смены } = await Layout.db.from('shop_shifts')
+        const ответСмены = await Layout.db.from('shop_shifts')
             .select('id, opened_at, closed_at, status, float_amount, opened_by, handover_id')
             .order('opened_at', { ascending: false }).limit(1);
-        смена = смены?.[0] || null;
+        if (ShopUtils.ошибка(ответСмены, 'Загрузка смены')) return false;
+        смена = ответСмены.data?.[0] || null;
 
         if (смена) {
-            const [{ data: продажи }, { data: ожид }] = await Promise.all([
+            const ответы = await Promise.all([
                 Layout.db.from('shop_sales')
                     .select('id, number, sold_at, currency_code, items_total, donation_amount, paid_amount, status, shop_sale_items(qty, shop_items(name_ru))')
                     .eq('shift_id', смена.id).order('sold_at', { ascending: false }),
                 Layout.db.rpc('shop_shift_expected', { p_shift: смена.id }),
             ]);
-            операции = продажи || [];
-            ожидаем = ожид || [];
+            if (ShopUtils.ошибка(ответы, 'Загрузка смены')) return false;
+            операции = ответы[0].data || [];
+            ожидаем = ответы[1].data || [];
 
-            const { data: счёты } = await Layout.db.from('shop_cash_counts')
+            const { data: счёты, error: ошСчётов } = await Layout.db.from('shop_cash_counts')
                 .select('currency_code, actual, reason').eq('shift_id', смена.id);
+            if (ShopUtils.ошибка({ error: ошСчётов }, 'Пересчёт ящика')) return false;
             (счёты || []).forEach(с => { пересчёт[с.currency_code] = с.actual; причины[с.currency_code] = с.reason || ''; });
         }
 
-        const { data: пакеты } = await Layout.db.from('shop_handovers')
+        const { data: пакеты, error: ошПакета } = await Layout.db.from('shop_handovers')
             .select('id, created_at, status, accepted_at, shop_handover_lines(currency_code, goods_amount, murti_amount, donation_amount, discrepancy)')
             .eq('status', 'pending').order('created_at', { ascending: false }).limit(1);
+        if (ShopUtils.ошибка({ error: ошПакета }, 'Пакет к сдаче')) return false;
         пакет = пакеты?.[0] || null;
         строкиПакета = пакет?.shop_handover_lines || [];
 
@@ -57,6 +59,15 @@ const ShopShift = (() => {
                 .eq('is_active', true).eq('kind', 'real').eq('group_name', 'Касса').order('name');
             счета = (сч || []).map(с => ({ id: с.account_id, name: с.name, currency_code: с.currency_code }));
         }
+
+        // история нужна, чтобы спорный день можно было поднять через неделю:
+        // экран «последней смены» показывает только сегодня
+        const { data: прошлые } = await Layout.db.from('shop_shifts')
+            .select('id, opened_at, closed_at, status, float_amount, handover_id, shop_handovers(status, accepted_at)')
+            .order('opened_at', { ascending: false }).limit(11);
+        история = (прошлые || []).filter(с => с.id !== смена?.id).slice(0, 10);
+
+        return true;
     }
 
     // ---------- шапка ----------
@@ -68,11 +79,11 @@ const ShopShift = (() => {
             $('#floatAmount').value = '';
             return;
         }
-        const открыта = DateUtils.parseTimestamp(смена.opened_at);
+        const открыта = new Date(смена.opened_at);
         $('#shiftTitle').textContent = `Смена ${DateUtils.formatShort(открыта)}`;
         $('#shiftMeta').textContent = смена.status === 'open'
             ? `открыта в ${DateUtils.formatTime(открыта)}`
-            : `закрыта в ${DateUtils.formatTime(DateUtils.parseTimestamp(смена.closed_at))}`;
+            : `закрыта в ${DateUtils.formatTime(new Date(смена.closed_at))}`;
         $('#floatAmount').value = Number(смена.float_amount) || 0;
         $('#floatAmount').disabled = смена.status !== 'open';
 
@@ -212,7 +223,7 @@ const ShopShift = (() => {
                 (о.currency_code === 'INR' ? 1 : курсИз(о));
             const можноОтменить = о.status === 'posted' && о === последняяПроведённая && смена?.status === 'open';
             return `<tr class="${о.status === 'cancelled' ? 'opacity-50' : ''}">
-                <td data-label="Время" class="nums">${DateUtils.formatTime(DateUtils.parseTimestamp(о.sold_at))}</td>
+                <td data-label="Время" class="nums">${DateUtils.formatTime(new Date(о.sold_at))}</td>
                 <td data-label="Что">${e(что)}
                     ${Number(о.donation_amount) > 0 && позиции ? '<span class="badge badge-sm badge-secondary">+ дар</span>' : ''}
                     ${!позиции ? '<span class="badge badge-sm badge-secondary">дар</span>' : ''}
@@ -230,12 +241,43 @@ const ShopShift = (() => {
             : '';
     }
 
+    function рисоватьИсторию() {
+        $('#histTbl').tBodies[0].innerHTML = история.map(с => {
+            const сдача = с.shop_handovers;
+            const статус = с.status === 'open' ? '<span class="badge badge-sm badge-warning">открыта</span>'
+                : !с.handover_id ? '<span class="badge badge-sm">не сдана</span>'
+                : сдача?.status === 'accepted'
+                    ? `<span class="badge badge-sm badge-success">принята ${
+                        DateUtils.formatShort(new Date(сдача.accepted_at))}</span>`
+                    : '<span class="badge badge-sm badge-info">пакет у казначея</span>';
+            const открыта = new Date(с.opened_at);
+            return `<tr>
+                <td data-label="Смена" class="nums">${DateUtils.formatShort(открыта)}
+                    <span class="opacity-60">${DateUtils.formatTime(открыта)}</span></td>
+                <td data-label="Закрыта" class="nums opacity-70">${с.closed_at
+                    ? DateUtils.formatTime(new Date(с.closed_at)) : '—'}</td>
+                <td data-label="Размен" class="text-right nums opacity-70">${деньги(с.float_amount)}</td>
+                <td data-label="Сдача">${статус}</td>
+            </tr>`;
+        }).join('') || '<tr><td colspan="4" class="text-center opacity-60 py-6">Прошлых смен ещё нет</td></tr>';
+    }
+
     async function перерисовать() {
-        await загрузить();
-        рисоватьШапку(); рисоватьПересчёт(); рисоватьСдачу(); рисоватьОперации();
+        if (!await загрузить()) return;
+        рисоватьШапку(); рисоватьПересчёт(); рисоватьСдачу(); рисоватьОперации(); рисоватьИсторию();
+        ShopUtils.права();
     }
 
     // ---------- действия ----------
+    // каждое действие на этом экране необратимо, поэтому кнопка гасится до ответа
+    async function разово(кнопка, действие) {
+        if (занято) return;
+        занято = true;
+        кнопка.setAttribute('disabled', 'disabled');
+        try { await действие(); }
+        finally { занято = false; кнопка.removeAttribute('disabled'); }
+    }
+
     function слушать() {
         document.addEventListener('click', async ev => {
             const b = ev.target.closest('button');
@@ -247,18 +289,31 @@ const ShopShift = (() => {
                     actual: Number(пересчёт[ж.currency_code]),
                     reason: причины[ж.currency_code] || null,
                 }));
-                const { error } = await Layout.db.rpc('shop_close_shift', { payload: { shift_id: смена.id, counts } });
-                if (error) return Layout.handleError(error, 'Закрытие смены');
-                Layout.showNotification('Смена закрыта', 'success');
-                пересчёт = {}; причины = {};
-                return перерисовать();
+                const расхождения = ожидаем
+                    .map(ж => ({ ж, р: Number(пересчёт[ж.currency_code]) - Number(ж.expected) }))
+                    .filter(x => x.р !== 0)
+                    .map(x => `${деньги(x.р, x.ж.currency_code)}`);
+                if (!confirm(расхождения.length
+                        ? `Закрыть смену с расхождением (${расхождения.join(', ')})? ` +
+                          'После закрытия чеки отменять нельзя — только возврат покупателю.'
+                        : 'Закрыть смену? После закрытия чеки отменять нельзя — только возврат покупателю.')) return;
+                return разово(b, async () => {
+                    const { error } = await Layout.db.rpc('shop_close_shift',
+                        { payload: { shift_id: смена.id, counts } });
+                    if (error) return Layout.handleError(error, 'Закрытие смены');
+                    Layout.showNotification('Смена закрыта', 'success');
+                    пересчёт = {}; причины = {};
+                    await перерисовать();
+                });
             }
 
             if (b.id === 'prepareHandover') {
-                const { error } = await Layout.db.rpc('shop_prepare_handover', { p_note: null });
-                if (error) return Layout.handleError(error, 'Сбор пакета');
-                Layout.showNotification('Пакет собран — передайте деньги казначею', 'success');
-                return перерисовать();
+                return разово(b, async () => {
+                    const { error } = await Layout.db.rpc('shop_prepare_handover', { p_note: null });
+                    if (error) return Layout.handleError(error, 'Сбор пакета');
+                    Layout.showNotification('Пакет собран — передайте деньги казначею', 'success');
+                    await перерисовать();
+                });
             }
 
             if (b.id === 'acceptHandover') {
@@ -266,24 +321,41 @@ const ShopShift = (() => {
                 document.querySelectorAll('[data-account]').forEach(s => {
                     if (s.value) accounts[s.dataset.account] = s.value;
                 });
-                const { data, error } = await Layout.db.rpc('shop_accept_handover', {
-                    payload: { handover_id: пакет.id, accounts },
-                });
-                if (error) return Layout.handleError(error, 'Приём выручки');
-                if (data && data.ok === false) {
-                    return Layout.showNotification(data.error?.message || 'Финмодуль отклонил проводку', 'error');
+                const безСчёта = строкиПакета.filter(л => !accounts[л.currency_code]);
+                if (безСчёта.length) {
+                    return Layout.showNotification(`Выберите счёт для ${
+                        безСчёта.map(л => ЗНАК[л.currency_code] || л.currency_code).join(', ')}`, 'warning');
                 }
-                Layout.showNotification('Выручка принята и проведена в финмодуле', 'success');
-                return перерисовать();
+                const суммы = строкиПакета.map(л => деньги(
+                    Number(л.goods_amount) + Number(л.murti_amount) + Number(л.donation_amount),
+                    л.currency_code)).join(', ');
+                if (!confirm(`Принять выручку (${суммы})? Операции уйдут в финмодуль, отменить оттуда.`)) return;
+                return разово(b, async () => {
+                    const { data, error } = await Layout.db.rpc('shop_accept_handover', {
+                        payload: { handover_id: пакет.id, accounts },
+                    });
+                    if (error) return Layout.handleError(error, 'Приём выручки');
+                    if (data && data.ok === false) {
+                        return Layout.showNotification(data.error?.message || 'Финмодуль отклонил проводку', 'error');
+                    }
+                    const итоги = (data?.итоги || []).map(и =>
+                        `${деньги(и.выручка, и.валюта)}${Number(и.расхождение)
+                            ? ` (расхождение ${деньги(и.расхождение, и.валюта)})` : ''}`).join(', ');
+                    Layout.showNotification(`Принято: ${итоги || 'выручка проведена'}`, 'success');
+                    await перерисовать();
+                });
             }
 
             if (b.dataset.cancel) {
-                const { error } = await Layout.db.rpc('shop_cancel_sale', {
-                    p_sale_id: b.dataset.cancel, p_reason: 'Отменено на экране смены',
+                if (!confirm('Отменить чек? Товар вернётся на полку, деньги нужно отдать покупателю.')) return;
+                return разово(b, async () => {
+                    const { error } = await Layout.db.rpc('shop_cancel_sale', {
+                        p_sale_id: b.dataset.cancel, p_reason: 'Отменено на экране смены',
+                    });
+                    if (error) return Layout.handleError(error, 'Отмена чека');
+                    Layout.showNotification('Чек отменён, товар вернулся на полку', 'success');
+                    await перерисовать();
                 });
-                if (error) return Layout.handleError(error, 'Отмена чека');
-                Layout.showNotification('Чек отменён, товар вернулся на полку', 'success');
-                return перерисовать();
             }
         });
 

@@ -10,8 +10,7 @@
  */
 const ShopAnalytics = (() => {
     const e = str => Layout.escapeHtml(str ?? '');
-    const деньги = n => new Intl.NumberFormat('ru-RU', { maximumFractionDigits: 0 }).format(Number(n) || 0) + ' ₹';
-    const штук = n => new Intl.NumberFormat('ru-RU', { maximumFractionDigits: 3 }).format(Number(n) || 0);
+    const { деньги, штук } = ShopUtils;
     const $ = s => document.querySelector(s);
 
     let отчёт = null, дней = 30;
@@ -20,8 +19,9 @@ const ShopAnalytics = (() => {
         const { data, error } = await Layout.db.rpc('shop_report', {
             p_from: $('#from').value, p_to: $('#to').value,
         });
-        if (error) { Layout.handleError(error, 'Отчёт магазина'); return; }
+        if (error) { Layout.handleError(error, 'Отчёт магазина'); return false; }
         отчёт = data;
+        return true;
     }
 
     function плитка(ключ, значение, подпись = '', цвет = '') {
@@ -49,7 +49,11 @@ const ShopAnalytics = (() => {
             плитка('Пожертвования', деньги(о.пожертвования), 'входят в выручку') +
             плитка('На полке своё', штук(о.остаток.своё_штук) + ' шт', 'себестоимость не ведём') +
             плитка('На полке чужое', штук(о.остаток.чужое_штук) + ' шт',
-                   `обязательств на ${деньги(о.остаток.чужое_обязательства)}`);
+                   `обязательств на ${деньги(о.остаток.чужое_обязательства)}`) +
+            (Number(о.остаток.недостача) ? плитка('Недостача',
+                   штук(о.остаток.недостача) + ' шт', 'продано больше, чем приняли', 'text-error') : '') +
+            (Number(о.возвращено) ? плитка('Возвращено покупателям',
+                   деньги(о.возвращено), 'за период') : '');
 
         const топ = о.топ || [];
         const максимум = топ.reduce((m, т) => Math.max(m, Number(т.amount)), 0) || 1;
@@ -66,6 +70,14 @@ const ShopAnalytics = (() => {
                     ${т.source === 'own' ? 'в проекте' : деньги(т.margin)}</td>
             </tr>`).join('') ||
             '<tr><td colspan="4" class="text-center opacity-60 py-6">За период ничего не продано</td></tr>';
+
+        const цели = о.цели || [];
+        $('#goalsCard').hidden = !цели.length;
+        $('#goalsTbl').tBodies[0].innerHTML = цели.map(ц => `
+            <tr>
+                <td data-label="">${e(Layout.getName(ц))}</td>
+                <td data-label="Собрано" class="text-right nums font-semibold">${деньги(ц.amount)}</td>
+            </tr>`).join('');
 
         const лежит = о.лежалое || [];
         $('#deadTbl').tBodies[0].innerHTML = лежит.map(т => `
@@ -95,18 +107,17 @@ const ShopAnalytics = (() => {
             const b = ev.target.closest('[data-days]');
             if (!b) return;
             период(Number(b.dataset.days));
-            await загрузить(); рисовать();
+            if (await загрузить()) рисовать();
         });
         ['#from', '#to'].forEach(сел => $(сел).addEventListener('change', async () => {
-            await загрузить(); рисовать();
+            if (await загрузить()) рисовать();
         }));
     }
 
     async function init() {
         слушать();
         период(30);
-        await загрузить();
-        рисовать();
+        if (await загрузить()) рисовать();
     }
 
     return { init };

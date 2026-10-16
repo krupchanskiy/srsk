@@ -7,15 +7,15 @@
  */
 const ShopItems = (() => {
     const e = str => Layout.escapeHtml(str ?? '');
-    const деньги = n => new Intl.NumberFormat('ru-RU', { maximumFractionDigits: 0 }).format(n || 0) + ' ₹';
-    const штук = n => new Intl.NumberFormat('ru-RU', { maximumFractionDigits: 3 }).format(n || 0);
+    const { деньги, штук } = ShopUtils;
 
     let товары = [], категории = [], правка = null, фильтр = { поиск: '', кат: '', мало: false };
+    let занято = false;
     const $ = s => document.querySelector(s);
     const можноМенять = () => !!window.hasPermission?.('shop_receive');
 
     async function загрузить() {
-        const [{ data: ит }, { data: кат }, { data: ост }] = await Promise.all([
+        const ответы = await Promise.all([
             Layout.db.from('shop_items')
                 .select('id, name_ru, name_en, name_hi, price, min_qty, source, photo_url, category_id, is_active')
                 .order('name_ru'),
@@ -23,9 +23,13 @@ const ShopItems = (() => {
                 .eq('is_active', true).order('sort_order'),
             Layout.db.from('shop_v_stock').select('item_id, qty'),
         ]);
+        if (ShopUtils.ошибка(ответы, 'Загрузка товаров')) return false;
+
+        const [{ data: ит }, { data: кат }, { data: ост }] = ответы;
         категории = кат || [];
         const остатки = Object.fromEntries((ост || []).map(с => [с.item_id, Number(с.qty)]));
         товары = (ит || []).map(и => ({ ...и, остаток: остатки[и.id] ?? 0 }));
+        return true;
     }
 
     function видимые() {
@@ -89,6 +93,7 @@ const ShopItems = (() => {
     }
 
     async function сохранить() {
+        if (занято) return;
         const имя = $('#fName').value.trim();
         if (!имя) return Layout.showNotification('Укажите название товара', 'warning');
         const цена = Number($('#fPrice').value);
@@ -101,10 +106,21 @@ const ShopItems = (() => {
             min_qty: Number($('#fMin').value) || 0,
             source: $('#fSource').value,
             is_active: $('#fActive').checked,
-            translit: Layout.translit ? Layout.translit(имя) : null,
+            translit: window.Translit ? Translit.ru(имя).toLowerCase() : (правка?.translit ?? null),
             updated_at: new Date().toISOString(),
         };
 
+        занято = true;                       // второй клик — второй товар в каталоге
+        $('#saveItem').setAttribute('disabled', 'disabled');
+        try {
+            await записать(поля);
+        } finally {
+            занято = false;
+            $('#saveItem').removeAttribute('disabled');
+        }
+    }
+
+    async function записать(поля) {
         let id = правка?.id;
         if (id) {
             const { error } = await Layout.db.from('shop_items').update(поля).eq('id', id);
@@ -131,7 +147,7 @@ const ShopItems = (() => {
 
         itemModal.close();
         Layout.showNotification('Сохранено', 'success');
-        await загрузить(); рисовать();
+        if (await загрузить()) рисовать();
     }
 
     function слушать() {
@@ -149,8 +165,7 @@ const ShopItems = (() => {
 
     async function init() {
         слушать();
-        await загрузить();
-        рисовать();
+        if (await загрузить()) рисовать();
     }
 
     return { init };

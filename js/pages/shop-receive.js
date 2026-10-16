@@ -8,9 +8,10 @@
  */
 const ShopReceive = (() => {
     const e = str => Layout.escapeHtml(str ?? '');
-    const деньги = n => new Intl.NumberFormat('ru-RU', { maximumFractionDigits: 0 }).format(n || 0) + ' ₹';
+    const { деньги } = ShopUtils;
 
     let владельцы = [], товары = [], категории = [], прошлыеЦены = {};
+    let занято = false;
     let вид = 'consignment';
     let строки = [пустаяСтрока()];
 
@@ -18,19 +19,22 @@ const ShopReceive = (() => {
     function пустаяСтрока() { return { название: '', item_id: null, qty: '', cost: '', категория: '', цена: '' }; }
 
     async function загрузить() {
-        const [{ data: вл }, { data: тов }, { data: кат }, { data: партии }] = await Promise.all([
+        const ответы = await Promise.all([
             Layout.db.from('shop_v_owners').select('id, name, loss_policy').eq('is_active', true).order('name'),
             Layout.db.from('shop_items').select('id, name_ru, source, price, category_id').eq('is_active', true).order('name_ru'),
             Layout.db.from('shop_categories').select('id, name_ru').eq('is_active', true).order('sort_order'),
             Layout.db.from('shop_batches').select('item_id, cost_price, received_on')
                 .not('cost_price', 'is', null).order('received_on', { ascending: false }),
         ]);
+        if (ShopUtils.ошибка(ответы, 'Загрузка приёмки')) return false;
 
+        const [{ data: вл }, { data: тов }, { data: кат }, { data: партии }] = ответы;
         владельцы = (вл || []).map(в => ({ ...в, имя: в.name || 'Без названия' }));
         товары = тов || [];
         категории = кат || [];
         прошлыеЦены = {};
         (партии || []).forEach(п => { if (!(п.item_id in прошлыеЦены)) прошлыеЦены[п.item_id] = Number(п.cost_price); });
+        return true;
     }
 
     function рисоватьШапку() {
@@ -89,18 +93,15 @@ const ShopReceive = (() => {
             </tr>`;
         }).join('');
 
-        const штук = строки.reduce((s, с) => s + (parseFloat(с.qty) || 0), 0);
-        const сумма = строки.reduce((s, с) => s + (parseFloat(с.qty) || 0) * (parseFloat(с.cost) || 0), 0);
-        $('#recTotal').textContent = !штук ? ''
-            : вид === 'own' ? `${штук} шт — себестоимость не ведём, экономика в проекте`
-            : `${штук} шт · обязательство возникнет по мере продажи, максимум ${деньги(сумма)}`;
+        обновитьИтог();
     }
 
     async function рисоватьИсторию() {
-        const { data } = await Layout.db
+        const { data, error } = await Layout.db
             .from('shop_receipts')
             .select('id, number, received_on, kind, owner_id, shop_receipt_items(qty, cost_price)')
             .order('received_on', { ascending: false }).order('number', { ascending: false }).limit(12);
+        if (ShopUtils.ошибка({ error }, 'История поступлений')) return;
         const имена = Object.fromEntries(владельцы.map(в => [в.id, в.имя]));
 
         const строкиИстории = (data || []).map(п => {
@@ -129,6 +130,18 @@ const ShopReceive = (() => {
             Layout.showNotification('Добавьте хотя бы одну строку с количеством', 'warning');
             return;
         }
+        if (вид !== 'own' && !$('#ownerSel').value) {
+            Layout.showNotification('Выберите владельца товара', 'warning');
+            return;
+        }
+        if (занято) return;
+        занято = true;
+        $('#saveRec').setAttribute('disabled', 'disabled');
+        try { await отправить(годные); }
+        finally { занято = false; $('#saveRec').removeAttribute('disabled'); }
+    }
+
+    async function отправить(годные) {
 
         // новые товары заводим здесь же, иначе приёмку пришлось бы бросать на полпути
         for (const с of годные.filter(x => !x.item_id)) {
@@ -141,7 +154,7 @@ const ShopReceive = (() => {
                 category_id: с.категория,
                 price: parseFloat(с.цена),
                 source: вид === 'own' ? 'own' : 'consignment',
-                translit: Layout.translit ? Layout.translit(с.название.trim()) : null,
+                translit: window.Translit ? Translit.ru(с.название.trim()).toLowerCase() : null,
             }).select('id').single();
             if (error) { Layout.handleError(error, 'Создание товара'); return; }
             с.item_id = data.id;
@@ -165,7 +178,8 @@ const ShopReceive = (() => {
         Layout.showNotification(вид === 'own' ? 'Выпуск принят на склад' : 'Товар принят на реализацию', 'success');
         строки = [пустаяСтрока()];
         $('#recNote').value = '';
-        await загрузить();
+        if (!await загрузить()) return;
+        рисоватьШапку();
         рисоватьСтроки();
         await рисоватьИсторию();
     }
@@ -233,7 +247,7 @@ const ShopReceive = (() => {
 
     async function init() {
         $('#recDate').value = DateUtils.toISO(new Date());
-        await загрузить();
+        if (!await загрузить()) return;
         слушать();
         рисоватьШапку();
         рисоватьСтроки();

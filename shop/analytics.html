@@ -78,6 +78,19 @@
                 </div>
             </div>
 
+            <div class="card bg-base-100 shadow" id="goalsCard" hidden>
+                <div class="px-4 md:px-6 pt-4 pb-2">
+                    <h2 class="card-title text-base">Пожертвования по целям</h2>
+                    <p class="text-sm opacity-60">Сдача, которую гости оставили на служение</p>
+                </div>
+                <div class="overflow-x-auto">
+                    <table class="table table-sm stack" id="goalsTbl">
+                        <thead><tr><th>Цель</th><th class="text-right">Собрано</th></tr></thead>
+                        <tbody></tbody>
+                    </table>
+                </div>
+            </div>
+
             <div class="card bg-base-100 shadow">
                 <div class="px-4 md:px-6 pt-4 pb-2">
                     <h2 class="card-title text-base">Залежалось</h2>
@@ -100,10 +113,11 @@
     <script src="../js/config.js"></script>
     <script src="../js/cache.js"></script>
     <script src="../js/utils.js"></script>
-    <script src="../js/layout.js?v=89"></script>
+    <script src="../js/layout.js?v=90"></script>
     <script src="../js/date-utils.js"></script>
     <script src="../js/auth-check.js?v=12"></script>
-    <script src="../js/pages/shop-analytics.js?v=1"></script>
+    <script src="../js/shop-utils.js?v=1"></script>
+    <script src="../js/pages/shop-analytics.js?v=2"></script>
     <script>
         async function init() {
             await Layout.init({ module: 'shop', menuId: 'shop_money', itemId: 'shop_analytics' });
