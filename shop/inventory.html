@@ -1,0 +1,143 @@
+<!DOCTYPE html>
+<html lang="ru" data-theme="light">
+<head>
+    <meta charset="UTF-8">
+    <script src="../js/color-init.js?v=3"></script>
+
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Инвентаризация — ШРСК</title>
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg">
+    <link href="https://cdn.jsdelivr.net/npm/daisyui@4.12.14/dist/full.min.css" rel="stylesheet" />
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script>tailwind.config = { theme: { extend: { screens: { 'desktop': '1200px' } } } }</script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans:wght@400;500;600;700&family=Noto+Sans+Devanagari:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="../css/common.css?v=7">
+    <style>
+        .nums { font-variant-numeric: tabular-nums; }
+        .diff-neg { color: hsl(var(--er)); font-weight: 600; }
+        .diff-pos { color: hsl(var(--su)); font-weight: 600; }
+        @media (max-width: 860px) {
+            table.stack, table.stack tbody, table.stack tr, table.stack td { display: block; width: 100%; }
+            table.stack thead { display: none; }
+            table.stack tr { padding: 12px 0; border-bottom: 1px solid hsl(var(--b3)); }
+            table.stack tr:last-child { border-bottom: 0; }
+            table.stack td { border: 0; padding: 4px 0; display: flex; justify-content: space-between;
+                             align-items: center; gap: 12px; text-align: left !important; }
+            table.stack td::before { content: attr(data-label); font-size: 12.5px; font-weight: 600;
+                                     opacity: .6; flex: none; }
+            table.stack td[data-label=""]::before { content: none; }
+            table.stack td.head { font-size: 15px; font-weight: 700; padding-bottom: 6px; }
+        }
+    </style>
+</head>
+<body class="bg-base-200 min-h-screen flex flex-col">
+
+    <div id="header-placeholder"></div>
+
+    <main class="container mx-auto px-4 py-6 flex-1">
+
+        <div class="mb-5">
+            <h1 class="text-2xl font-bold">Инвентаризация и списания</h1>
+            <p class="text-sm opacity-60">Недостача превращается в списание, излишек — в найденный товар.
+                За чужой товар решаем отдельно: компенсируем владельцу или списываем за его счёт.</p>
+        </div>
+
+        <div class="alert alert-warning mb-5" data-no-permission="shop_manage" style="display: none;">
+            <span>Инвентаризацию и списания оформляет заведующий. Страница доступна для просмотра.</span>
+        </div>
+
+        <!-- ведомость -->
+        <div class="card bg-base-100 shadow mb-5">
+            <div class="px-4 md:px-6 pt-4 pb-2 flex flex-wrap items-center gap-3">
+                <h2 class="card-title text-base" id="invTitle">Ведомость</h2>
+                <span class="text-sm opacity-60" id="invMeta"></span>
+                <div class="ml-auto flex flex-wrap gap-2" id="invActions"></div>
+            </div>
+            <div class="card-body pt-2" id="invBody">
+                <div class="text-sm opacity-60">Загрузка…</div>
+            </div>
+        </div>
+
+        <!-- списания -->
+        <div class="card bg-base-100 shadow">
+            <div class="px-4 md:px-6 pt-4 pb-2 flex flex-wrap items-center gap-3">
+                <h2 class="card-title text-base">Списания</h2>
+                <span class="text-sm opacity-60">Порча, утеря, подарок, передача на служение</span>
+                <button class="btn btn-sm btn-outline ml-auto" id="newWriteoff" data-permission="shop_manage">
+                    Списать товар</button>
+            </div>
+            <div class="overflow-x-auto">
+                <table class="table table-sm stack" id="woTbl">
+                    <thead><tr><th>Дата</th><th>Товар</th><th class="text-right">Количество</th>
+                        <th>Причина</th><th>За чей счёт</th><th class="text-right">Компенсация</th></tr></thead>
+                    <tbody></tbody>
+                </table>
+            </div>
+        </div>
+    </main>
+
+    <dialog id="woModal" class="modal">
+        <div class="modal-box">
+            <h3 class="font-bold text-lg mb-4">Списание товара</h3>
+            <div class="flex flex-col gap-3">
+                <label class="form-control">
+                    <div class="label py-1"><span class="label-text text-sm">Товар</span></div>
+                    <select class="select select-bordered" id="woItem"></select>
+                </label>
+                <div class="grid grid-cols-2 gap-3">
+                    <label class="form-control">
+                        <div class="label py-1"><span class="label-text text-sm">Количество</span></div>
+                        <input type="number" class="input input-bordered nums" id="woQty" min="0" step="0.001">
+                    </label>
+                    <label class="form-control">
+                        <div class="label py-1"><span class="label-text text-sm">Причина</span></div>
+                        <select class="select select-bordered" id="woReason">
+                            <option value="damage">Порча</option>
+                            <option value="loss">Утеря</option>
+                            <option value="gift">Подарок</option>
+                            <option value="service">На служение</option>
+                        </select>
+                    </label>
+                </div>
+                <label class="form-control" id="woCostWrap">
+                    <div class="label py-1"><span class="label-text text-sm">Чужой товар — за чей счёт</span></div>
+                    <select class="select select-bordered" id="woCost">
+                        <option value="">как договорились с владельцем</option>
+                        <option value="us">компенсируем владельцу</option>
+                        <option value="owner">за счёт владельца</option>
+                    </select>
+                </label>
+                <label class="form-control">
+                    <div class="label py-1"><span class="label-text text-sm">Комментарий</span></div>
+                    <input type="text" class="input input-bordered" id="woNote" placeholder="что случилось">
+                </label>
+            </div>
+            <div class="modal-action">
+                <button class="btn btn-ghost" onclick="woModal.close()">Отмена</button>
+                <button class="btn" id="woGo" style="background: var(--current-color); color: #fff;">Списать</button>
+            </div>
+        </div>
+        <form method="dialog" class="modal-backdrop"><button>закрыть</button></form>
+    </dialog>
+
+    <div id="footer-placeholder"></div>
+
+    <script src="../js/config.js"></script>
+    <script src="../js/cache.js"></script>
+    <script src="../js/utils.js"></script>
+    <script src="../js/layout.js?v=89"></script>
+    <script src="../js/date-utils.js"></script>
+    <script src="../js/auth-check.js?v=12"></script>
+    <script src="../js/pages/shop-inventory.js?v=1"></script>
+    <script>
+        async function init() {
+            await Layout.init({ module: 'shop', menuId: 'shop_goods', itemId: 'shop_inventory' });
+            await ShopInventory.init();
+        }
+        init();
+    </script>
+</body>
+</html>
