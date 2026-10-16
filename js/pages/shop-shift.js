@@ -303,10 +303,12 @@ const ShopShift = (() => {
             }
         });
 
+        // прямая запись в смену закрыта — размен меняется функцией, она же проверяет права
         $('#floatAmount').addEventListener('change', async ev => {
             if (!смена || смена.status !== 'open') return;
-            const { error } = await Layout.db.from('shop_shifts')
-                .update({ float_amount: Number(ev.target.value) || 0 }).eq('id', смена.id);
+            const { error } = await Layout.db.rpc('shop_set_float', {
+                p_shift: смена.id, p_amount: Number(ev.target.value) || 0,
+            });
             if (error) return Layout.handleError(error, 'Разменный фонд');
             await перерисовать();
         });

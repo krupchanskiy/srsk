@@ -64,7 +64,9 @@ const ShopTill = (() => {
             Layout.db.from('shop_v_stock').select('item_id, qty'),
             Layout.db.from('shop_categories').select('id, name_ru, name_en, name_hi, sort_order').eq('is_active', true).order('sort_order'),
             Layout.db.from('shop_goals').select('id, name_ru, name_en, name_hi').eq('is_active', true).order('sort_order'),
-            Layout.db.from('shop_rates').select('currency_code, rate, valid_from').order('valid_from', { ascending: false }),
+            Layout.db.from('shop_rates').select('currency_code, rate, valid_from')
+                .lte('valid_from', new Date().toISOString().slice(0, 10))
+                .order('valid_from', { ascending: false }),
         ]);
 
         if (ош) throw ош;
@@ -355,7 +357,6 @@ const ShopTill = (() => {
             shift_id: сменаId,
             client_uid: (crypto.randomUUID ? crypto.randomUUID() : String(Date.now() + Math.random())),
             currency: состояние.валюта,
-            rate: курсы[состояние.валюта] || 1,
             items: состояние.корзина.map(p => ({ item_id: p.id, qty: p.кол })),
         };
         if (состояние.скидка) payload.discount = { amount: состояние.скидка, reason: состояние.причина };
