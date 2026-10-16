@@ -221,7 +221,8 @@ const modules = {
                 { id: 'shop_inventory', href: 'shop/inventory.html' }
             ]},
             { id: 'shop_money', items: [
-                { id: 'shop_owners', href: 'shop/owners.html' }
+                { id: 'shop_owners', href: 'shop/owners.html' },
+                { id: 'shop_analytics', href: 'shop/analytics.html' }
             ]}
         ]
     }
