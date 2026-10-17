@@ -844,9 +844,11 @@
             });
             br.groups.forEach(g => {
                 tot.people += g.people_count || 0;
-                const d = detailByRef[g.id];
-                if (d?.breakfast) tot.breakfast += d.people;
-                if (d?.lunch) tot.lunch += d.people;
+                // У группы завтрак и обед могут прийти отдельными строками (разное число по дням)
+                detailRows.filter(d => d.ref_id === g.id).forEach(d => {
+                    if (d.breakfast) tot.breakfast += d.people;
+                    if (d.lunch) tot.lunch += d.people;
+                });
             });
             br.regs.forEach(d => {
                 tot.people++;
