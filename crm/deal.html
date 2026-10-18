@@ -2930,8 +2930,12 @@ async function loadManagerNotes() {
 
     container.innerHTML = notes.map(n => {
         const author = n.profiles?.spiritual_name || n.profiles?.first_name || t('crm_manager');
-        const date = DateUtils.formatDate(n.created_at.slice(0, 10));
-        const time = n.created_at.slice(11, 16);
+        // created_at — настоящая метка времени: показываем в поясе устройства.
+        // Раньше вызывалась несуществующая DateUtils.formatDate — карточка
+        // с заметкой менеджера падала, а срез строки давал время по UTC
+        const когда = new Date(n.created_at);
+        const date = DateUtils.formatShort(когда);
+        const time = DateUtils.formatTime(когда);
         return `<div class="bg-blue-50 border border-blue-200 rounded-lg p-3 text-sm">
             <div class="flex justify-between items-center mb-1">
                 <span class="text-xs text-blue-400">${Layout.escapeHtml(author)} · ${date} ${time}</span>
