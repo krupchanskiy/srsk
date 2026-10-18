@@ -37,11 +37,16 @@ const WorshipDoc = (() => {
      * и «data:» в href — это выполнение кода у читателя.
      */
     function адрес(href) {
-        const s = String(href || '').trim();
+        // пробелы и невидимые символы убираем до проверки: «\tjavascript:» браузер
+        // понимает как схему, а белый список без очистки — нет
+        const s = String(href || '').replace(/[\u0000-\u0020\u00a0\u2000-\u200f\u2028-\u202f]/g, '');
         if (!s) return null;
+        // «//чужой-сайт/страница» — это внешний адрес без схемы: с виду внутренняя
+        // ссылка, по делу уводит из ашрама
+        if (s.startsWith('//')) return null;
         if (/^(https?:\/\/|mailto:|tel:)/i.test(s)) return s;
         // внутренняя ссылка на статью модуля
-        if (/^[\w./?=&-]+$/.test(s) && !s.includes(':')) return s;
+        if (/^[\w./?=&%-]+$/.test(s) && !s.includes(':')) return s;
         return null;
     }
 
