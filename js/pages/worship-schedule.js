@@ -689,11 +689,17 @@ const WorshipSchedule = (() => {
                 const i = службы.findIndex(с => с.id === дв.dataset.id);
                 const j = i + Number(дв.getAttribute('data-служба-двигать'));
                 if (i < 0 || j < 0 || j >= службы.length) return;
-                const ок = await записать(Layout.db.from('worship_services')
-                    .update({ sort_order: службы[j].sort_order }).eq('id', службы[i].id), 'Порядок служб');
-                if (!ок) return;
-                await записать(Layout.db.from('worship_services')
-                    .update({ sort_order: службы[i].sort_order }).eq('id', службы[j].id), 'Порядок служб');
+                // меняем местами позиции в списке и записываем номера заново:
+                // обмен значениями бессилен, когда у двух служб номер совпал
+                const порядок = службы.map(с => с.id);
+                [порядок[i], порядок[j]] = [порядок[j], порядок[i]];
+                for (const [номер, id] of порядок.entries()) {
+                    const было = службы.find(с => с.id === id)?.sort_order;
+                    if (было === номер) continue;
+                    const ок = await записать(Layout.db.from('worship_services')
+                        .update({ sort_order: номер }).eq('id', id), 'Порядок служб');
+                    if (!ок) return;
+                }
                 await перечитать();
                 return рисоватьСлужбы();
             }
@@ -781,7 +787,7 @@ const WorshipSchedule = (() => {
         const { error } = await Layout.db.from('worship_services').insert({
             name_ru: имя,
             time_of_day: время,
-            sort_order: (службы.at(-1)?.sort_order ?? 0) + 1,
+            sort_order: Math.max(0, ...службы.map(с => с.sort_order ?? 0)) + 1,
             created_by: window.currentUser?.id || null,
         });
         if (error) return Layout.handleError(error, 'Служба');
