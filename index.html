@@ -2,7 +2,7 @@
 <html lang="ru" data-theme="light">
 <head>
     <meta charset="UTF-8">
-    <script src="js/color-init.js?v=3"></script>
+    <script src="js/color-init.js?v=5"></script>
     <script>document.documentElement.style.setProperty('--current-color', '#f59e0b');</script>
 
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -192,6 +192,30 @@
                     </div>
                 </a>
 
+                <!-- Worship Module (по праву worship_view) -->
+                <a href="worship/index.html" onclick="selectModule('worship')" id="worshipModule" data-color="#6b4226"
+                   class="module-card group rounded-2xl shadow-md hover:shadow-lg transition-all hover:scale-[1.02] hidden"
+                   style="background: linear-gradient(135deg, #7a4a2b 0%, #4a2c18 100%);">
+                    <div class="p-6">
+                        <div class="flex items-center gap-4 mb-3">
+                            <div class="w-12 h-12 rounded-xl bg-white/20 flex items-center justify-center">
+                                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-7 h-7 text-white">
+                                    <path stroke-linecap="round" stroke-linejoin="round" d="M15.362 5.214A8.252 8.252 0 0 1 12 21 8.25 8.25 0 0 1 6.038 7.047 8.287 8.287 0 0 0 9 9.601a8.983 8.983 0 0 1 3.361-6.867 8.21 8.21 0 0 0 3 2.48Z" />
+                                    <path stroke-linecap="round" stroke-linejoin="round" d="M12 18a3.75 3.75 0 0 0 .495-7.468 5.99 5.99 0 0 0-1.925 3.547 5.975 5.975 0 0 1-2.133-1.001A3.75 3.75 0 0 0 12 18Z" />
+                                </svg>
+                            </div>
+                            <h2 class="text-2xl font-bold text-white" data-i18n="module_worship">Поклонение</h2>
+                        </div>
+                        <div class="flex flex-wrap gap-2 text-sm text-white/80">
+                            <span data-i18n="nav_worship_standards">Стандарты</span>
+                            <span>•</span>
+                            <span data-i18n="nav_worship_schedule">Расписание</span>
+                            <span>•</span>
+                            <span data-i18n="worship_library_title">Библиотека</span>
+                        </div>
+                    </div>
+                </a>
+
                 <!-- Admin Module (только для суперпользователей) -->
                 <a href="ashram/retreats.html" onclick="selectModule('admin')" id="adminModule" data-color="#374151"
                    class="module-card group rounded-2xl shadow-md hover:shadow-lg transition-all hover:scale-[1.02] hidden"
@@ -226,7 +250,7 @@
     <script src="js/utils.js?v=13"></script>
     <script src="js/translit.js"></script>
     <script src="js/auto-translate.js"></script>
-    <script src="js/layout.js?v=106"></script>
+    <script src="js/layout.js?v=107"></script>
     <script>
         window.onLanguageChange = function(lang) {
             Layout.updateAllTranslations();
@@ -290,6 +314,11 @@
             // Показать модуль "Финансы" пользователям с фин-ролями (суперпользователь проходит через hasPermission)
             if (window.hasPermission && (window.hasPermission('fin_admin') || window.hasPermission('fin_observer') || window.hasPermission('fin_account_user'))) {
                 document.getElementById('financeModule')?.classList.remove('hidden');
+            }
+
+            // Показать модуль "Поклонение" тем, у кого есть доступ к нему
+            if (window.hasPermission && window.hasPermission('worship_view')) {
+                document.getElementById('worshipModule')?.classList.remove('hidden');
             }
 
             // Показать модуль "Управление" только суперпользователям

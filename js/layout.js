@@ -1541,7 +1541,7 @@ async function initLayout(page = { module: null, menuId: 'kitchen', itemId: null
         setColor('#0284c7');
         $$('.location-name').forEach(el => el.textContent = t('module_shop'));
     } else if (currentModule === 'worship') {
-        setColor('#9b2226');
+        setColor('#6b4226');
         $$('.location-name').forEach(el => el.textContent = t('module_worship'));
     }
 
