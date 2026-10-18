@@ -109,8 +109,8 @@ const WorshipPeople = (() => {
                                 ? `<span class="badge badge-sm ml-1">уезжает ${
                                     DateUtils.formatShort(DateUtils.parseDate(отъездВпереди(ч.id).date_from))}</span>`
                                 : ''}
-                        ${ч.безВхода ? '<span class="badge badge-sm badge-ghost ml-1">нет входа</span>' : ''}
-                        ${ч.безБота ? '<span class="badge badge-sm badge-ghost ml-1">бот не подключён</span>' : ''}
+                        ${ч.безВхода
+                            ? '<span class="badge badge-sm badge-ghost ml-1">нет входа</span>' : ''}
                         ${ч.active_to
                             ? `<span class="block text-sm opacity-60">участвует по ${
                                 DateUtils.formatShort(DateUtils.parseDate(ч.active_to))}</span>` : ''}

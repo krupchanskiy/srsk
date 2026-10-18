@@ -1538,6 +1538,20 @@ async function initLayout(page = { module: null, menuId: 'kitchen', itemId: null
         headerPlaceholder.outerHTML = getHeaderHTML();
     }
 
+    // Высота шапки — в CSS-переменную. Липкие панели страниц (панель
+    // оформления в редакторе, шапки таблиц) опирались на цифру «64px»,
+    // написанную руками, а шапка с подменю занимает 116: панель уезжала
+    // под неё и пропадала насовсем, как только текст был длиннее экрана.
+    const запомнитьВысотуШапки = () => {
+        const шапка = document.querySelector('header');
+        if (!шапка) return;
+        document.documentElement.style.setProperty('--высота-шапки', шапка.offsetHeight + 'px');
+    };
+    запомнитьВысотуШапки();
+    addEventListener('resize', Utils.debounce(запомнитьВысотуШапки, 150));
+    // подменю досчитывается после отрисовки — меряем ещё раз
+    setTimeout(запомнитьВысотуШапки, 300);
+
     // Вставляем футер
     const footerPlaceholder = $('#footer-placeholder');
     if (footerPlaceholder) {

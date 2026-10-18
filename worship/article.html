@@ -46,9 +46,14 @@
 
         <div class="text-sm mb-3" id="crumb"></div>
 
+        <!-- На телефоне заголовок занимает всю ширину, а кнопки переносятся
+             под него: без этого «Утреннее одевание Шри Шри Радха-Раса-бихари»
+             схлопывалось в столбик по слову, и текст стандарта начинался
+             только на третьем экране прокрутки. -->
         <div class="flex flex-wrap items-start gap-3 mb-5">
-            <div class="flex-1 min-w-0">
-                <h1 class="text-3xl font-bold tracking-tight" id="title">&nbsp;</h1>
+            <div class="flex-1 min-w-full desktop:min-w-0">
+                <h1 class="text-3xl font-bold tracking-tight" id="title"
+                    style="text-wrap: balance;">&nbsp;</h1>
                 <p class="text-sm mt-1" id="state"></p>
             </div>
             <div class="flex flex-wrap gap-2" id="actions"></div>
@@ -91,7 +96,8 @@
                 <div class="card bg-base-100 shadow mt-5" id="remarksCard">
                     <div class="card-body p-6">
                         <div class="flex flex-wrap items-center gap-3 mb-1">
-                            <h2 class="card-title text-lg flex-1 min-w-0" data-i18n="worship_remarks_title">Замечания</h2>
+                            <h2 class="card-title text-lg flex-1 min-w-full desktop:min-w-0"
+                                data-i18n="worship_remarks_title">Замечания</h2>
                             <button class="btn btn-sm btn-outline" id="addRemark" data-i18n="worship_add_remark">Сообщить о неточности</button>
                         </div>
                         <p class="text-sm opacity-60 mb-2" data-i18n="worship_remarks_article_hint">Короткая заметка
@@ -178,7 +184,7 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jsdiff/5.2.0/diff.min.js"></script>
     <script src="../js/worship-doc.js?v=5"></script>
     <script src="../js/worship-tags.js?v=4"></script>
-    <script src="../js/pages/worship-article.js?v=14"></script>
+    <script src="../js/pages/worship-article.js?v=15"></script>
     <script>
         async function init() {
             await Layout.init({ module: 'worship', menuId: 'worship_main', itemId: 'worship_standards' });

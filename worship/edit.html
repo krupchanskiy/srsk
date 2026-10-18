@@ -48,6 +48,8 @@
         #текст figure { margin: 1em 0; }
         #текст figcaption { outline: none; }
         #текст a { text-decoration: underline; }
+        /* липнет ровно под шапку сайта, какой бы высоты та ни была */
+        .панельОформления { top: var(--высота-шапки, 116px); }
     </style>
 </head>
 <body class="bg-base-200 min-h-screen flex flex-col">
@@ -64,10 +66,10 @@
                 <div class="text-xs uppercase tracking-widest opacity-50 mt-1" id="режим">Новая статья</div>
             </div>
             <span class="text-sm ml-auto" id="сохранение"></span>
-            <div class="flex items-center gap-2">
+            <div class="flex flex-wrap items-center gap-2 min-w-0">
                 <button class="btn btn-sm btn-ghost" id="отмена" data-i18n="worship_leave_edit">Выйти</button>
                 <button class="btn btn-sm btn-outline" id="сохранить" data-i18n="save">Сохранить</button>
-                <button class="btn btn-sm" id="отправить"
+                <button class="btn btn-sm whitespace-nowrap" id="отправить"
                         style="background: var(--current-color); color:#fff;" data-i18n="worship_send_senior">Отправить старшему</button>
             </div>
         </div>
@@ -118,7 +120,7 @@
 
         <!-- Панель: один ряд, сгруппированный по смыслу. Десять одинаковых
              кнопок в две строки читались как приборная доска самолёта. -->
-        <div class="sticky top-16 z-20 mb-4 -mx-2 px-2 py-2 bg-base-200/95 backdrop-blur
+        <div class="панельОформления sticky z-20 mb-4 -mx-2 px-2 py-2 bg-base-200/95 backdrop-blur
                     flex items-center gap-2 overflow-x-auto">
             <div class="join">
                 <button class="btn btn-sm btn-ghost join-item px-2" id="откатить"
@@ -132,9 +134,9 @@
             <button class="btn btn-sm btn-ghost font-bold w-9 px-0" id="жирный"
                     title="Жирный (Ctrl+B)">Ж</button>
             <button class="btn btn-sm btn-ghost w-9 px-0 font-bold" data-стиль="h2"
-                    title="Заголовок">H1</button>
+                    title="Заголовок">H2</button>
             <button class="btn btn-sm btn-ghost w-9 px-0 font-semibold text-sm" data-стиль="h3"
-                    title="Подзаголовок">H2</button>
+                    title="Подзаголовок">H3</button>
             <button class="btn btn-sm btn-ghost w-9 px-0" id="список" title="Список" aria-label="Список">
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor"
                      stroke-width="2" stroke-linecap="round" aria-hidden="true">
