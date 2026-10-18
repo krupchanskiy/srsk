@@ -118,7 +118,7 @@ async function exportCsv() {
         header = ['Дата', 'Тип', 'Счёт', 'Статья', 'Центр затрат', 'Объект', 'Участник', 'Комментарий', 'Сумма', 'Валюта'];
         rows = (data || []).map(p => [p.occurred_on, FinUtils.typeLabel(p.type), p.account_name, categoryLabel(p), p.cost_center_name, p.object_name, p.participant_name, commentOf(p), p.signed_amount, p.currency_code]);
     } else {
-        let q = Layout.db.from('fin_v_operations').select('*').order('created_at', { ascending: false }).limit(5000);
+        let q = Layout.db.from('fin_v_operations').select('*').order('created_at', { ascending: false }).order('type').limit(5000);
         if (f.type) q = q.eq('type', f.type);
         if (f.approval) q = q.eq('approval', f.approval);
         if (f.from) q = q.gte('occurred_on', f.from);
@@ -383,8 +383,11 @@ async function loadTable(append = false) {
             <th>${t('fin_comment')}</th>
             <th>${t('fin_status')}</th></tr>`;
 
+        // Сторно и новая операция, проведённые вместе, имеют одно время — сторно ставим
+        // ниже (в перечне типов оно после прихода/расхода): читается «сторно, потом приход» (ВГ, 18.10)
         let q = Layout.db.from('fin_v_operations').select('*')
             .order('created_at', { ascending: false })
+            .order('type')
             .range(listOffset, listOffset + PAGE - 1);
         if (f.type) q = q.eq('type', f.type);
         if (f.approval) q = q.eq('approval', f.approval);
