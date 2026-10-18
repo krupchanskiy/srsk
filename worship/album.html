@@ -28,7 +28,9 @@
         /* пустая подпись не занимает строку, пока на снимок не навели */
         .подписьПустая { opacity: 0; transition: opacity .15s; }
         .группа:hover .подписьПустая, .группа:focus-within .подписьПустая { opacity: 1; }
-        @media (hover: none) { .подписьПустая { opacity: .6; } }
+        /* на телефоне наведения нет: приглашение подписать видно сразу и читаемо —
+           при .6 поверх бледной подсказки «Подписать» почти не различалось */
+        @media (hover: none) { .подписьПустая { opacity: 1; } }
     </style>
 </head>
 <body class="bg-base-200 min-h-screen flex flex-col">
@@ -116,7 +118,7 @@
     <script src="../js/auth-check.js?v=13"></script>
     <script src="../js/media.js?v=2"></script>
     <script src="../js/worship-tags.js?v=7"></script>
-    <script src="../js/pages/worship-album.js?v=12"></script>
+    <script src="../js/pages/worship-album.js?v=13"></script>
     <script>
         async function init() {
             await Layout.init({ module: 'worship', menuId: 'worship_main', itemId: 'worship_gallery' });

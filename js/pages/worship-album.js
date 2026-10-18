@@ -101,16 +101,17 @@ const WorshipAlbum = (() => {
     function рисоватьСнимки() {
         $('#снимки').innerHTML = снимки.map((с, i) => `
             <figure class="группа relative rounded-xl overflow-hidden bg-base-200">
-                <div class="aspect-square cursor-zoom-in" data-смотреть="${i}">
+                <div class="relative aspect-square cursor-zoom-in" data-смотреть="${i}">
                     ${ссылки[с.storage_path]
                         ? `<img src="${ссылки[с.storage_path]}" alt="${e(с.caption)}" loading="lazy"
                                 class="w-full h-full object-cover">`
                         : '<span class="text-xs opacity-50 p-2 block">снимок не загрузился</span>'}
+                    <!-- внизу снимка, а не вверху: на телефоне ручки видны всегда,
+                         и метка «обложка» ложилась прямо на стрелки -->
+                    ${набор.cover_image_id === с.id
+                        ? `<span class="absolute bottom-2 left-2 badge badge-sm bg-base-100/90 border-0">обложка</span>`
+                        : ''}
                 </div>
-
-                ${набор.cover_image_id === с.id
-                    ? `<span class="absolute top-2 left-2 badge badge-sm bg-base-100/90 border-0">обложка</span>`
-                    : ''}
 
                 <!-- Ручки появляются при наведении: на экран приходят смотреть,
                      как наряжали, а не переставлять кадры. Раньше под каждым
