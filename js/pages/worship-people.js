@@ -100,29 +100,32 @@ const WorshipPeople = (() => {
                            flex flex-wrap items-baseline gap-x-3 gap-y-1
                            ${ч.is_active ? '' : 'opacity-70'}"
                     data-человек="${ч.id}">
-                <span class="flex-1 min-w-0">
+                <!-- основа 12rem: на телефоне счётчик служб уходит под имя,
+                     а не сжимает его до наложения букв -->
+                <span class="flex-1 basis-48 min-w-0">
                     <span class="font-semibold">${e(ч.имя)}</span>
                     ${ч.kind === 'volunteer'
-                        ? '<span class="badge badge-sm badge-outline ml-1">волонтёр</span>' : ''}
-                    ${ч.мой ? '<span class="badge badge-sm ml-1">это вы</span>' : ''}
-                    ${ч.is_active ? '' : '<span class="badge badge-sm ml-1">не в отделе</span>'}
+                        ? '<span class="badge badge-sm whitespace-nowrap badge-outline ml-1">волонтёр</span>' : ''}
+                    ${ч.мой ? '<span class="badge badge-sm whitespace-nowrap ml-1">это вы</span>' : ''}
+                    ${ч.is_active ? '' : '<span class="badge badge-sm whitespace-nowrap ml-1">не в отделе</span>'}
                     ${вОтъездеСейчас(ч.id)
-                        ? '<span class="badge badge-sm badge-warning ml-1">в отъезде</span>'
+                        ? '<span class="badge badge-sm whitespace-nowrap badge-warning ml-1">в отъезде</span>'
                         : отъезд
-                            ? `<span class="badge badge-sm ml-1">уезжает ${
+                            ? `<span class="badge badge-sm whitespace-nowrap ml-1">уезжает ${
                                 DateUtils.formatShort(DateUtils.parseDate(отъезд.date_from))}</span>`
                             : ''}
                     ${ч.безВхода
-                        ? '<span class="badge badge-sm badge-ghost ml-1">нет входа</span>' : ''}
+                        ? '<span class="badge badge-sm whitespace-nowrap badge-ghost ml-1">нет входа</span>' : ''}
                     ${ч.active_to
                         ? `<span class="block text-sm opacity-70">участвует по ${
                             DateUtils.formatShort(DateUtils.parseDate(ч.active_to))}</span>` : ''}
                 </span>
+                ${служб(ч.id) || ч.is_active !== false ? `
                 <span class="text-sm opacity-70 whitespace-nowrap tabular-nums">
                     ${Layout.pluralize(служб(ч.id), {
                         ru: ['служба впереди', 'службы впереди', 'служб впереди'],
                         en: ['duty ahead', 'duties ahead'], hi: 'सेवा' })}
-                </span>
+                </span>` : ''}
             </button>
         </li>`;
     }
@@ -213,7 +216,7 @@ const WorshipPeople = (() => {
                 ${с?.article_id
                     ? `<a class="link" href="article.html?id=${с.article_id}">${e(Layout.getName(с))}</a>`
                     : `<span>${e(с ? Layout.getName(с) : 'разовая служба')}</span>`}
-                ${н.role !== 'pujari' ? `<span class="badge badge-sm">${e(РОЛИ[н.role] || н.role)}</span>` : ''}
+                ${н.role !== 'pujari' ? `<span class="badge badge-sm whitespace-nowrap">${e(РОЛИ[н.role] || н.role)}</span>` : ''}
             </li>`;
         }).join('') || '<li class="text-sm opacity-60">Впереди служб нет</li>';
     }
@@ -443,9 +446,9 @@ const WorshipPeople = (() => {
                 <span class="flex-1 min-w-0">
                     <span class="font-semibold">${e(имя2)}</span>
                     ${!в.user_id
-                        ? '<span class="badge badge-sm badge-ghost ml-1">нет входа</span>'
+                        ? '<span class="badge badge-sm whitespace-nowrap badge-ghost ml-1">нет входа</span>'
                         : !в.telegram_chat_id
-                            ? '<span class="badge badge-sm badge-ghost ml-1">бот не подключён</span>' : ''}
+                            ? '<span class="badge badge-sm whitespace-nowrap badge-ghost ml-1">бот не подключён</span>' : ''}
                 </span>
                 ${уже.has(в.id)
                     ? '<span class="text-sm opacity-60">уже в отделе</span>'
