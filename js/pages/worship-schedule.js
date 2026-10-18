@@ -75,7 +75,8 @@ const WorshipSchedule = (() => {
         const ids = люди.map(ч => ч.vaishnava_id);
         if (ids.length) {
             const { data } = await Layout.db.from('vaishnavas')
-                .select('id, spiritual_name, first_name, last_name, user_id').in('id', ids);
+                .select('id, spiritual_name, first_name, last_name, user_id, telegram_chat_id')
+                .in('id', ids);
             const карточки = Object.fromEntries((data || []).map(в => [в.id, в]));
             люди = люди.map(ч => {
                 const в = карточки[ч.vaishnava_id] || {};
@@ -84,6 +85,7 @@ const WorshipSchedule = (() => {
                     имя: в.spiritual_name ||
                         `${в.first_name || ''} ${в.last_name || ''}`.trim() || 'без имени',
                     безВхода: !в.user_id,
+                    безБота: !!в.user_id && !в.telegram_chat_id,
                 };
             }).sort((a, b) => a.имя.localeCompare(b.имя, 'ru'));
             яЧеловек = люди.find(ч => карточки[ч.vaishnava_id]?.user_id === window.currentUser?.id) || null;
@@ -375,6 +377,7 @@ const WorshipSchedule = (() => {
                         && !уже.has(ч.id))) пометки.push(['уже занят в этот день', 'badge-ghost']);
                 if (ч.active_to && ч.active_to < день) пометки.push(['срок участия истёк', 'badge-warning']);
                 if (ч.безВхода) пометки.push(['нет входа — скажите голосом', 'badge-ghost']);
+                else if (ч.безБота) пометки.push(['бот не подключён', 'badge-ghost']);
                 return { ч, пометки, стоит: уже.has(ч.id) };
             });
 

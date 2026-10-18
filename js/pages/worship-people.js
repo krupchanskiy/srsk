@@ -46,7 +46,8 @@ const WorshipPeople = (() => {
         const ids = люди.map(ч => ч.vaishnava_id);
         if (ids.length) {
             const { data } = await Layout.db.from('vaishnavas')
-                .select('id, spiritual_name, first_name, last_name, user_id, phone').in('id', ids);
+                .select('id, spiritual_name, first_name, last_name, user_id, phone, telegram_chat_id')
+                .in('id', ids);
             const карточки = Object.fromEntries((data || []).map(в => [в.id, в]));
             люди = люди.map(ч => {
                 const в = карточки[ч.vaishnava_id] || {};
@@ -56,6 +57,7 @@ const WorshipPeople = (() => {
                         `${в.first_name || ''} ${в.last_name || ''}`.trim() || 'без имени',
                     телефон: в.phone || null,
                     безВхода: !в.user_id,
+                    безБота: !!в.user_id && !в.telegram_chat_id,
                     мой: в.user_id && в.user_id === window.currentUser?.id,
                 };
             }).sort((a, b) => Number(b.is_active) - Number(a.is_active)
@@ -96,6 +98,7 @@ const WorshipPeople = (() => {
                         ${ч.is_active ? '' : '<span class="badge badge-sm ml-1">не в отделе</span>'}
                         ${вОтъездеСейчас(ч.id) ? '<span class="badge badge-sm badge-warning ml-1">в отъезде</span>' : ''}
                         ${ч.безВхода ? '<span class="badge badge-sm badge-ghost ml-1">нет входа</span>' : ''}
+                        ${ч.безБота ? '<span class="badge badge-sm badge-ghost ml-1">бот не подключён</span>' : ''}
                         ${ч.active_to
                             ? `<span class="block text-sm opacity-60">участвует по ${
                                 DateUtils.formatShort(DateUtils.parseDate(ч.active_to))}</span>` : ''}
@@ -133,6 +136,7 @@ const WorshipPeople = (() => {
             открытый.active_from ? `с ${DateUtils.formatShort(DateUtils.parseDate(открытый.active_from))}` : null,
             открытый.active_to ? `по ${DateUtils.formatShort(DateUtils.parseDate(открытый.active_to))}` : null,
             открытый.безВхода ? 'входа в систему нет — о переменах скажите голосом' : null,
+            открытый.безБота ? 'бот не подключён — напоминание не дойдёт' : null,
             открытый.телефон || null,
         ].filter(Boolean).join(' · ');
 
