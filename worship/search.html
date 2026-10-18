@@ -59,6 +59,29 @@
         <form method="dialog" class="modal-backdrop"><button>закрыть</button></form>
     </dialog>
 
+    <!-- переименование и слияние: прежде это были prompt, где тег надо было
+         вписать руками — промах уносил чужие связи -->
+    <dialog id="тегМодал" class="modal">
+        <div class="modal-box max-w-md">
+            <h3 class="font-bold text-lg mb-3" id="тгЗаголовок"></h3>
+            <label class="form-control mb-2" id="тгИмяБлок">
+                <span class="label-text mb-1">Название</span>
+                <input id="тгИмя" type="text" class="input input-bordered" maxlength="60">
+            </label>
+            <label class="form-control mb-2" id="тгКудаБлок" hidden>
+                <span class="label-text mb-1">С каким тегом слить</span>
+                <select id="тгКуда" class="select select-bordered"></select>
+                <span class="label-text-alt opacity-60 mt-1" id="тгПоследствия"></span>
+            </label>
+            <div class="modal-action">
+                <form method="dialog"><button class="btn btn-sm">Отмена</button></form>
+                <button class="btn btn-sm" id="тгСохранить"
+                        style="background: var(--current-color); color:#fff;">Готово</button>
+            </div>
+        </div>
+        <form method="dialog" class="modal-backdrop"><button>закрыть</button></form>
+    </dialog>
+
     <div id="footer-placeholder"></div>
 
     <script src="../js/config.js"></script>

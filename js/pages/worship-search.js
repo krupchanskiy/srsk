@@ -178,6 +178,7 @@ const WorshipSearch = (() => {
         });
 
         $('#словарь').addEventListener('click', вестиТеги);
+        $('#тгСохранить').addEventListener('click', сохранитьТег);
         document.addEventListener('click', async ev => {
             if (!ev.target.closest('#вестиТеги')) return;
             await рисоватьСловарь();
@@ -209,37 +210,57 @@ const WorshipSearch = (() => {
 
     async function вестиТеги(ev) {
         const переименовать = ev.target.closest('[data-переименовать]');
-        if (переименовать) {
-            const т = теги.find(x => x.id === переименовать.dataset.переименовать);
-            const имя = prompt('Новое название тега', т?.name || '');
-            if (имя === null || !имя.trim()) return;
-            const { error } = await Layout.db.rpc('worship_tag_rename',
-                { p_tag: т.id, p_name: имя });
-            if (error) return Layout.handleError(error, 'Переименование тега');
-            await загрузитьТеги();
-            await рисоватьСловарь();
-            рисоватьТеги();
-            return;
-        }
+        if (переименовать) return открытьТег('имя', переименовать.dataset.переименовать);
 
         const слить = ev.target.closest('[data-слить]');
-        if (слить) {
-            const откуда = теги.find(x => x.id === слить.dataset.слить);
-            const имя = prompt(`Слить «${откуда.name}» с каким тегом? Впишите название.`);
-            if (имя === null || !имя.trim()) return;
-            const куда = теги.find(т => (т.name || '').trim().toLowerCase() === имя.trim().toLowerCase());
-            if (!куда) return Layout.showNotification('Такого тега нет в словаре', 'warning');
-            if (куда.id === откуда.id) return Layout.showNotification('Это тот же тег', 'warning');
-            if (!confirm(`«${откуда.name}» исчезнет, его объекты получат «${куда.name}». Слить?`)) return;
+        if (слить) return открытьТег('слияние', слить.dataset.слить);
+    }
 
+    /**
+     * Слияние необратимо и переносит чужие связи, поэтому тег выбирается
+     * из списка, а не вписывается по памяти, и сколько связей переедет —
+     * видно до нажатия.
+     */
+    let правимТег = null, какТег = 'имя';
+    function открытьТег(что, id) {
+        правимТег = теги.find(т => т.id === id);
+        какТег = что;
+        if (!правимТег) return;
+
+        $('#тгЗаголовок').textContent = что === 'имя'
+            ? `Переименовать «${правимТег.name}»`
+            : `Слить «${правимТег.name}» с другим тегом`;
+        $('#тгИмяБлок').hidden = что !== 'имя';
+        $('#тгКудаБлок').hidden = что === 'имя';
+        $('#тгИмя').value = правимТег.name || '';
+        $('#тгКуда').innerHTML = теги.filter(т => т.id !== правимТег.id)
+            .map(т => `<option value="${т.id}">${e(т.name)}</option>`).join('');
+        $('#тгПоследствия').textContent = `«${правимТег.name}» исчезнет, его объекты получат выбранный тег.`;
+        $('#тегМодал').showModal();
+    }
+
+    async function сохранитьТег() {
+        if (!правимТег) return;
+
+        if (какТег === 'имя') {
+            const имя = $('#тгИмя').value.trim();
+            if (!имя) return Layout.showNotification('Без названия тег не найти', 'warning');
+            const { error } = await Layout.db.rpc('worship_tag_rename',
+                { p_tag: правимТег.id, p_name: имя });
+            if (error) return Layout.handleError(error, 'Переименование тега');
+        } else {
+            const куда = $('#тгКуда').value;
+            if (!куда) return Layout.showNotification('Выберите тег, с которым сливаем', 'warning');
             const { data, error } = await Layout.db.rpc('worship_tag_merge',
-                { p_from: откуда.id, p_into: куда.id });
+                { p_from: правимТег.id, p_into: куда });
             if (error) return Layout.handleError(error, 'Слияние тегов');
-            Layout.showNotification(`Перенесено связей: ${data?.перенесено ?? 0}`, 'success');
-            await загрузитьТеги();
-            await рисоватьСловарь();
-            await обновить();
+            Layout.showNotification(`Перенесено связей: ${data?.['перенесено'] ?? 0}`, 'success');
         }
+
+        $('#тегМодал').close();
+        await загрузитьТеги();
+        await рисоватьСловарь();
+        await обновить();
     }
 
     async function init() {
