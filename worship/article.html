@@ -136,6 +136,20 @@
                             уйдёт автору и старшему. Это не спор и не ветка обсуждения — поправит тот,
                             кто правит статью.</p>
                         <ul class="list-none m-0 p-0" id="remarks"></ul>
+
+                        <!-- разобранные не мешаются с тем, что ещё ждёт решения -->
+                        <details id="remarksDone" hidden class="group/done mt-2">
+                            <summary class="flex items-center gap-2 cursor-pointer list-none py-1
+                                            text-sm opacity-70">
+                                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                                     stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"
+                                     class="transition-transform group-open/done:rotate-90" aria-hidden="true">
+                                    <path d="M9 6l6 6-6 6"></path>
+                                </svg>
+                                <span id="remarksDoneCount"></span>
+                            </summary>
+                            <ul class="list-none m-0 p-0" id="remarksDoneList"></ul>
+                        </details>
                     </details>
 
                     <details id="historyCard" class="group">
@@ -221,8 +235,8 @@
     <script src="../js/auth-check.js?v=13"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jsdiff/5.2.0/diff.min.js"></script>
     <script src="../js/worship-doc.js?v=5"></script>
-    <script src="../js/worship-tags.js?v=5"></script>
-    <script src="../js/pages/worship-article.js?v=20"></script>
+    <script src="../js/worship-tags.js?v=6"></script>
+    <script src="../js/pages/worship-article.js?v=22"></script>
     <script>
         async function init() {
             await Layout.init({ module: 'worship', menuId: 'worship_main', itemId: 'worship_standards' });

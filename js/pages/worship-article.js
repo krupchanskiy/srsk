@@ -312,30 +312,48 @@ const WorshipArticle = (() => {
             ? `${открытые.length} открыто` : (замечания.length ? `${замечания.length} разобрано` : 'нет');
 
         const имяАвтора = id => имена[id] || '';
-        $('#remarks').innerHTML = [...открытые, ...закрытые].map(з => {
-            const пометка = з.state === 'accepted'
-                ? '<span class="badge badge-sm badge-success">учтено</span>'
-                : з.state === 'declined'
-                ? '<span class="badge badge-sm">не согласен</span>'
-                : '<span class="badge badge-sm badge-warning">открыто</span>';
-            const закрыть = з.state === 'open' && можноПисать()
-                ? `<div class="flex gap-3 mt-1">
-                       <button class="link text-sm" data-remark-ok="${з.id}">Учтено</button>
-                       <button class="link text-sm" data-remark-no="${з.id}">Не согласен</button>
+
+        /**
+         * Суть замечания — первой строкой и крупно. Раньше сверху стоял
+         * цветной чип с автором и датой, а само замечание шло под ними
+         * обычным текстом: взгляд цеплялся за «кто и когда» вместо «что».
+         */
+        const строка = (з, приглушить) => {
+            const ответ = з.state === 'accepted' ? 'учтено'
+                : з.state === 'declined' ? 'не согласен' : '';
+            const действия = з.state === 'open' && можноПисать()
+                ? `<div class="flex flex-wrap gap-2 mt-2">
+                       <button class="btn btn-xs btn-outline" data-remark-ok="${з.id}">Учтено</button>
+                       <button class="btn btn-xs btn-ghost" data-remark-no="${з.id}">Не согласен</button>
                    </div>` : '';
             return `
-            <li class="border-b border-base-200 last:border-0 py-3">
-                <div class="flex flex-wrap items-baseline gap-2">
-                    ${пометка}
-                    <span class="text-sm opacity-60">${
-                        имяАвтора(з.created_by) ? e(имяАвтора(з.created_by)) + ' · ' : ''}${
-                        дата(з.created_at)}</span>
+            <li class="${приглушить ? 'opacity-70 ' : ''}border-b border-base-200 last:border-0 py-3">
+                <div class="font-medium">${e(з.body)}</div>
+                <div class="text-sm opacity-70 mt-0.5">
+                    ${имяАвтора(з.created_by) ? e(имяАвтора(з.created_by)) + ' · ' : ''}${дата(з.created_at)}
+                    ${ответ ? ` · <span class="${з.state === 'accepted'
+                        ? 'text-success' : ''} font-semibold">${ответ}</span>` : ''}
                 </div>
-                <div class="mt-1">${e(з.body)}</div>
-                ${з.close_reason ? `<div class="text-sm opacity-70 mt-1">Ответ: ${e(з.close_reason)}</div>` : ''}
-                ${закрыть}
+                ${з.close_reason
+                    ? `<div class="text-sm opacity-70 mt-1">«${e(з.close_reason)}»</div>` : ''}
+                ${действия}
             </li>`;
-        }).join('') || '<li class="py-2 text-sm opacity-60">Пока никто ничего не заметил</li>';
+        };
+
+        // разобранные не мешаются с тем, что ещё ждёт решения
+        $('#remarks').innerHTML = открытые.map(з => строка(з, false)).join('')
+            || (замечания.length
+                ? '<li class="py-2 text-sm opacity-70">Всё разобрано</li>'
+                : '<li class="py-2 text-sm opacity-70">Пока никто ничего не заметил</li>');
+
+        const блокЗакрытых = $('#remarksDone');
+        if (блокЗакрытых) {
+            блокЗакрытых.hidden = !закрытые.length;
+            $('#remarksDoneCount').textContent = Layout.pluralize(закрытые.length, {
+                ru: ['разобранное', 'разобранных', 'разобранных'],
+                en: ['resolved', 'resolved'], hi: 'हल' });
+            $('#remarksDoneList').innerHTML = закрытые.map(з => строка(з, true)).join('');
+        }
     }
 
     function рисоватьИсторию() {
@@ -350,23 +368,33 @@ const WorshipArticle = (() => {
                     en: ['version', 'versions'], hi: 'संस्करण' })
                 : '';
         }
-        $('#history').innerHTML = готовые.map(в => `
-            <li class="border-b border-base-200 last:border-0 py-3">
-                <div class="flex flex-wrap items-baseline gap-2">
-                    <span class="font-semibold">Версия ${в.version_no}</span>
-                    ${в.status === 'published' ? '<span class="badge badge-sm badge-success">сейчас</span>' : ''}
-                    <span class="text-sm opacity-60">${дата(в.approved_at)}</span>
-                </div>
-                <div class="text-sm opacity-60">${
-                    имена[в.created_by] ? 'написал ' + e(имена[в.created_by]) : ''}${
-                    имена[в.approved_by] ? ' · утвердил ' + e(имена[в.approved_by]) : ''}</div>
-                ${в.change_note ? `<div class="text-sm mt-1">«${e(в.change_note)}»</div>` : ''}
-                <div class="flex gap-3 mt-1">
-                    <button class="link text-sm" data-show="${в.id}">Открыть</button>
+        $('#history').innerHTML = готовые.map(в => {
+            // «написал Пётр · утвердил Пётр» — две одинаковые фамилии подряд,
+            // хотя это один и тот же человек
+            const автор = имена[в.created_by], утвердил = имена[в.approved_by];
+            const кто = автор && утвердил && автор === утвердил
+                ? `написал и утвердил ${e(автор)}`
+                : [автор ? 'написал ' + e(автор) : '', утвердил ? 'утвердил ' + e(утвердил) : '']
+                    .filter(Boolean).join(' · ');
+            return `
+            <li class="border-b border-base-200 last:border-0 py-3
+                       flex flex-wrap items-baseline gap-x-3 gap-y-1">
+                <span class="font-semibold whitespace-nowrap">Версия ${в.version_no}</span>
+                ${в.status === 'published'
+                    ? '<span class="badge badge-sm badge-success">сейчас</span>' : ''}
+                <span class="text-sm opacity-70 whitespace-nowrap">${дата(в.approved_at)}</span>
+                <span class="flex-1"></span>
+                <span class="flex gap-2 shrink-0">
+                    <button class="btn btn-xs btn-outline" data-show="${в.id}">Открыть</button>
                     ${в.status !== 'published' && можноПисать() && статья.status !== 'archived'
-                        ? `<button class="link text-sm" data-restore="${в.id}">Вернуть эту версию</button>` : ''}
-                </div>
-            </li>`).join('') || '<li class="py-3 text-sm opacity-60">Утверждённых версий ещё нет</li>';
+                        ? `<button class="btn btn-xs btn-ghost" data-restore="${в.id}">Вернуть</button>` : ''}
+                </span>
+                <!-- кто и что поменял — строкой под шапкой версии: иначе длинное
+                     примечание выталкивало кнопки на третью строку -->
+                <span class="w-full text-sm opacity-70">${кто}${
+                    в.change_note ? ` · «${e(в.change_note)}»` : ''}</span>
+            </li>`;
+        }).join('') || '<li class="py-3 text-sm opacity-70">Утверждённых версий ещё нет</li>';
     }
 
     /** Теги и соседи по ним: словарь общий, поэтому «есть ещё» честное. */
