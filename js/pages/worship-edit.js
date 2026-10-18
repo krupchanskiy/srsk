@@ -158,11 +158,12 @@ const WorshipEdit = (() => {
                 img.className = 'rounded-lg max-w-full max-h-80';
                 рамка.appendChild(img);
             } else {
-                const пусто = document.createElement('button');
-                пусто.className = 'btn btn-outline btn-sm';
-                пусто.dataset.действие = 'снимок';
-                пусто.textContent = 'Выбрать фото';
-                рамка.appendChild(пусто);
+                const выбор = document.createElement('div');
+                выбор.className = 'flex flex-wrap gap-2';
+                выбор.innerHTML = `
+                    <button class="btn btn-outline btn-sm" data-действие="снимок">Загрузить файл</button>
+                    <button class="btn btn-outline btn-sm" data-действие="галерея">Взять из галереи</button>`;
+                рамка.appendChild(выбор);
             }
             const подпись = document.createElement('input');
             подпись.className = 'input input-bordered input-sm w-full mt-2';
@@ -518,6 +519,84 @@ const WorshipEdit = (() => {
         Layout.showNotification(`Вставлено блоков: ${новые.length}`, 'info');
     }
 
+    // ---------- снимок из галереи ----------
+    /**
+     * Кадр, уже лежащий в наборе, можно вставить в стандарт — но только
+     * из открытого набора. Снимок из закрытого в тексте, который читает весь
+     * ашрам, означал бы тихий обход закрытости, ради которой набор и закрывали.
+     */
+    async function открытьГалерею() {
+        const { data: наборы, error } = await Layout.db.from('worship_albums')
+            .select('id, title, event_date, is_private, is_archived')
+            .eq('is_archived', false).order('event_date', { ascending: false });
+        if (error) return Layout.handleError(error, 'Галерея');
+        if (!наборы?.length) return Layout.showNotification('Наборов снимков пока нет', 'info');
+
+        $('#выборНабора').innerHTML = наборы.map(н =>
+            `<option value="${н.id}">${e(н.title)} · ${
+                DateUtils.formatShort(DateUtils.parseDate(н.event_date))}${
+                н.is_private ? ' — закрытый' : ''}</option>`).join('');
+
+        const показать = async () => {
+            const н = наборы.find(x => x.id === $('#выборНабора').value);
+            const поле = $('#снимкиНабора');
+            if (!н) return;
+
+            const { data: снимки } = await Layout.db.from('worship_images')
+                .select('id, storage_path, caption').eq('album_id', н.id)
+                .order('sort_order').order('shot_at');
+            if (!снимки?.length) {
+                поле.innerHTML = '<div class="col-span-full text-sm opacity-60 py-4">В наборе пока нет снимков</div>';
+                return;
+            }
+
+            const { data: адреса } = await Layout.db.storage.from('worship')
+                .createSignedUrls(снимки.map(с => с.storage_path), 1800);
+            const карта = Object.fromEntries((адреса || [])
+                .filter(а => а.signedUrl).map(а => [а.path, а.signedUrl]));
+
+            поле.innerHTML = снимки.map(с => `
+                <button class="relative aspect-square rounded-lg overflow-hidden bg-base-200
+                               ${н.is_private ? 'opacity-60 cursor-not-allowed' : 'hover:ring-2'}"
+                        data-взятьСнимок="${с.storage_path}" ${н.is_private ? 'disabled' : ''}
+                        title="${e(с.caption || '')}">
+                    ${карта[с.storage_path]
+                        ? `<img src="${карта[с.storage_path]}" alt="${e(с.caption || '')}"
+                                class="w-full h-full object-cover">` : ''}
+                </button>`).join('') + (н.is_private ? `
+                <div class="col-span-full text-sm text-warning mt-2">
+                    Набор закрыт для отдела. Чтобы вставить снимок в стандарт, откройте набор
+                    на его странице — или положите этот кадр в открытый набор.
+                </div>` : '');
+        };
+
+        $('#выборНабора').onchange = показать;
+        await показать();
+        $('#галереяМодал').showModal();
+    }
+
+    async function взятьИзГалереи(путь) {
+        // проверяем ещё раз на сервере: набор могли закрыть, пока окно открыто
+        const { data: можно, error } = await Layout.db.rpc('worship_image_is_open', { p_path: путь });
+        if (error) return Layout.handleError(error, 'Снимок');
+        if (!можно) {
+            return Layout.showNotification(
+                'Этот набор закрыт: снимок нельзя вставить в стандарт, который читают все', 'warning');
+        }
+
+        const { data } = await Layout.db.storage.from('worship').createSignedUrl(путь, 3600);
+        ссылки[путь] = data?.signedUrl || '';
+
+        собрать();
+        const куда = блоки.findIndex(б => б.метка === блокДляСнимка);
+        if (куда < 0) return;
+        блоки[куда].path = путь;
+        рисоватьБлоки();
+        пометить();
+        запомнить();
+        $('#галереяМодал').close();
+    }
+
     // ---------- работа с блоками ----------
     /** Перекладывает содержимое блока в другой тип, ничего не теряя. */
     function сменитьТип(б, тип) {
@@ -690,6 +769,11 @@ const WorshipEdit = (() => {
                     блокДляСнимка = блоки[i]?.метка ?? null;
                     $('#файл').click();
                     break;
+                case 'галерея':
+                    собрать();
+                    блокДляСнимка = блоки[i]?.метка ?? null;
+                    открытьГалерею();
+                    break;
             }
         });
 
@@ -702,6 +786,11 @@ const WorshipEdit = (() => {
             рисоватьБлоки();
             пометить();
             document.querySelector(`.блок[data-i="${i}"] [data-текст]`)?.focus();
+        });
+
+        $('#снимкиНабора').addEventListener('click', ev => {
+            const кнопка = ev.target.closest('[data-взятьСнимок]');
+            if (кнопка) взятьИзГалереи(кнопка.getAttribute('data-взятьСнимок'));
         });
 
         $('#файл').addEventListener('change', async ev => {

@@ -129,6 +129,23 @@
 
     <input type="file" id="файл" accept="image/*" hidden>
 
+    <!-- снимок из галереи: ТЗ требует не дать молча вставить кадр из закрытого
+         набора в стандарт, который читает весь ашрам -->
+    <dialog id="галереяМодал" class="modal">
+        <div class="modal-box max-w-2xl">
+            <h3 class="font-bold text-lg mb-1">Снимок из галереи</h3>
+            <p class="text-sm opacity-60 mb-3">Закрытые наборы помечены: их снимок в стандарт
+                не вставить, пока набор не откроют — иначе выйдет тихий обход закрытости.</p>
+            <select id="выборНабора" class="select select-bordered select-sm w-full mb-3"></select>
+            <div class="grid grid-cols-3 desktop:grid-cols-4 gap-2 max-h-80 overflow-y-auto"
+                 id="снимкиНабора"></div>
+            <div class="modal-action">
+                <form method="dialog"><button class="btn btn-sm">Закрыть</button></form>
+            </div>
+        </div>
+        <form method="dialog" class="modal-backdrop"><button>закрыть</button></form>
+    </dialog>
+
     <div id="footer-placeholder"></div>
 
     <script src="../js/config.js"></script>
@@ -139,7 +156,7 @@
     <script src="../js/auth-check.js?v=12"></script>
     <script src="../js/media.js?v=1"></script>
     <script src="../js/worship-doc.js?v=5"></script>
-    <script src="../js/pages/worship-edit.js?v=9"></script>
+    <script src="../js/pages/worship-edit.js?v=10"></script>
     <script>
         async function init() {
             await Layout.init({ module: 'worship', menuId: 'worship_main', itemId: 'worship_standards' });
