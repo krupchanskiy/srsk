@@ -2413,11 +2413,18 @@ async function submitPayment(ev) {
         });
     }
 
-    const rows = [...document.querySelectorAll('#payRows .pay-row')].map(row => {
-        const pid = row.querySelector('.pay-person-id')?.value || payer;
+    const строкиПлатежа = [...document.querySelectorAll('#payRows .pay-row')];
+    const pidСтроки = row => row.querySelector('.pay-person-id')?.value || payer;
+    const rows = строкиПлатежа.map(row => {
+        const pid = pidСтроки(row);
         const b = балансУчастника(pid);
         const новая = новаяСистема(b);
         const cur = row.querySelector('.pay-currency').value;
+        // Валюты расчёта ещё нет («по умолчанию»): база назначит валюту первой строки
+        // этого человека — пересчитываем в неё, иначе $ при «₹ по умолчанию» отклоняется (ВГ, 18.10)
+        const расчёт = b?.currency_source === 'default'
+            ? строкиПлатежа.find(r => pidСтроки(r) === pid).querySelector('.pay-currency').value
+            : b.currency;
         return {
             id: FinUtils.newRequestId(),
             account_id: row.querySelector('.pay-account').value,
@@ -2430,7 +2437,7 @@ async function submitPayment(ev) {
             // Курс строки: цена CRM для «своей» валюты блока или курс ретрита для остатка (п.1/6)
             rate_mode: новая ? null : (row.dataset.rateMode || null),
             // Новая система, другая валюта: сколько засчитать в валюте расчёта
-            settle_amount: новая && cur !== b.currency ? засчитатьПоСтроке(row, b.currency) : undefined
+            settle_amount: новая && cur !== расчёт ? засчитатьПоСтроке(row, расчёт) : undefined
         };
     });
     if (rows.some(r => !r.participant_id)) {
