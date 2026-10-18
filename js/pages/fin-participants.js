@@ -103,6 +103,7 @@ async function selectRetreat(retreatId) {
     // группа — стороннее мероприятие: платит организатор за все места (js/pages/fin-group.js)
     document.getElementById('groupChargeBtn')?.classList.toggle('hidden',
         noEventMode || !retreats.find(r => r.id === retreatId)?.is_external);
+    document.getElementById('anyPersonPayWrap')?.classList.toggle('hidden', noEventMode || !retreatId);
     if (!retreatId) {
         // пустое состояние ведёт к действию, а не просто констатирует
         document.getElementById('participantsBody').innerHTML =
@@ -3449,6 +3450,15 @@ async function init() {
     document.getElementById('refundForm').addEventListener('submit', FinUtils.lockedSubmit(submitRefund));
     document.getElementById('cancelChargeForm').addEventListener('submit', FinUtils.lockedSubmit(submitCancelCharge));
     document.getElementById('withdrawForm').addEventListener('submit', FinUtils.lockedSubmit(submitWithdraw));
+    const anyInput = document.getElementById('anyPersonPaySearch');
+    const anyId = document.getElementById('anyPersonPayId');
+    FinUtils.attachPersonSearch(anyInput, anyId);
+    anyId.addEventListener('change', () => {
+        if (!anyId.value) return;
+        const pid = anyId.value, name = anyInput.value;
+        anyInput.value = ''; anyId.value = '';
+        payAnyPerson(pid, name);
+    });
     // Плательщик задаётся открытой карточкой участника — отдельного поиска больше нет.
     // Esc в карточке не должен молча терять заполняемые формы
     document.getElementById('cardModal').addEventListener('cancel', ev => {
@@ -3572,6 +3582,20 @@ async function copySummary() {
 async function openCardById(pid) {
     if (!participants.some(p => p.participant_id === pid)) await loadParticipants();
     openCard(pid);
+}
+
+// Предоплата от человека, которого ещё нет в списке ретрита (нет регистрации
+// и сделки): деньги принимаем сразу, регистрацию оформляют позже. После
+// платежа он сам попадает в список — по проводке (ВГ, 18.10)
+async function payAnyPerson(pid, name) {
+    if (!participants.some(p => p.participant_id === pid)) {
+        const { data: balance, error } = await Layout.db.rpc('fin_get_participant_balance',
+            { p_participant: pid, p_retreat: currentRetreat });
+        if (error || !balance) { Layout.handleError(error, 'Участник'); return; }
+        participants.push({ participant_id: pid, name, balance, crm_cancelled: false });
+    }
+    await openCard(pid);
+    openPayment();
 }
 
 window.FinParticipants = { currentRetreat: () => currentRetreat, ensureObjectId, reloadRates: loadRetreatRates, rateIsOwn: c => !!retreatRateOwn[c], noEventRetreatId, reload: loadParticipants, openCardById, rates: () => retreatRates, openCharge, closeCharge, openPayment, closePayment, addChargeRow, addPayRow, addOtherParticipantRow, syncFromCrm, copySummary, openRecalc, onBaseCurrencyChange, removeChange, removeDonation, addChangeRow, keepAsDonation, openWithdraw, openOtherCurrencyPicker, acceptInOtherCurrency };
