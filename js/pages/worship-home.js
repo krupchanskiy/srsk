@@ -198,10 +198,15 @@ const WorshipHome = (() => {
 
         // имена: они нужны только тем, кто видит модуль, гостю этот экран недоступен
         let имена = {};
+        let придёт = () => true;
         const persons = [...new Set(назначения.map(д => д.person_id))];
         if (persons.length) {
-            const { data: люди } = await Layout.db.from('worship_people')
-                .select('id, vaishnava_id').in('id', persons);
+            const [{ data: люди }, { data: отметки }] = await Promise.all([
+                Layout.db.from('worship_people')
+                    .select('id, vaishnava_id, is_active, active_from, active_to').in('id', persons),
+                Layout.db.from('worship_absences')
+                    .select('person_id, date_from, date_to').in('person_id', persons).lte('date_from', сегодня),
+            ]);
             const карточки = (люди || []).map(ч => ч.vaishnava_id);
             const { data: в } = карточки.length
                 ? await Layout.db.from('vaishnavas')
@@ -210,6 +215,18 @@ const WorshipHome = (() => {
             const по = Object.fromEntries((в || []).map(x => [x.id,
                 x.spiritual_name || `${x.first_name || ''} ${x.last_name || ''}`.trim() || 'без имени']));
             имена = Object.fromEntries((люди || []).map(ч => [ч.id, по[ч.vaishnava_id]]));
+            // те же правила, что в шахматке: заболевший, выбывший или волонтёр
+            // с истёкшим сроком службу не закрывает — и здесь не должен
+            // выглядеть тем, кто к ней встанет
+            const карта = Object.fromEntries((люди || []).map(ч => [ч.id, ч]));
+            придёт = д => {
+                const ч = карта[д.person_id];
+                if (!ч || ч.is_active === false) return false;
+                if (ч.active_to && ч.active_to < сегодня) return false;
+                if (ч.active_from && ч.active_from > сегодня) return false;
+                return !(отметки || []).some(а => а.person_id === ч.id
+                    && а.date_from <= сегодня && (!а.date_to || а.date_to >= сегодня));
+            };
         }
 
         const отменена = id => отклонения.some(о2 => о2.service_id === id);
@@ -255,9 +272,14 @@ const WorshipHome = (() => {
                         : ''}
                     ${с2.кто.length
                         ? `<span class="block text-sm opacity-70">${
-                            с2.кто.map(д => e(имена[д.person_id] || 'кто-то')).join(', ')}</span>`
-                        : прошла ? ''
-                        : '<span class="block text-sm text-error">никто не поставлен</span>'}
+                            с2.кто.map(д => придёт(д)
+                                ? e(имена[д.person_id] || 'кто-то')
+                                : `<s>${e(имена[д.person_id] || 'кто-то')}</s>`).join(', ')}</span>`
+                        : ''}
+                    ${!прошла && !с2.кто.some(придёт)
+                        ? `<span class="block text-sm text-error">${с2.кто.length
+                            ? 'поставленный не придёт — нужна замена' : 'никто не поставлен'}</span>`
+                        : ''}
                 </span>
             </li>`;
         }).join('');
@@ -279,14 +301,16 @@ const WorshipHome = (() => {
         if (!свои?.length) return;
 
         const [{ data: службы2 }, { data: откл }] = await Promise.all([
-            Layout.db.from('worship_services').select('id, name_ru, name_en, name_hi, time_of_day, article_id'),
+            Layout.db.from('worship_services').select('id, name_ru, name_en, name_hi, time_of_day, article_id, is_active'),
             Layout.db.from('worship_day_overrides')
                 .select('id, duty_date, service_id, title, time_of_day')
                 .in('duty_date', [...new Set(свои.map(н => н.duty_date))]),
         ]);
 
-        const отменена = н => н.service_id && (откл || []).some(о =>
-            о.service_id === н.service_id && о.duty_date === н.duty_date);
+        const отключена = н => н.service_id
+            && (службы2 || []).find(x => x.id === н.service_id)?.is_active === false;
+        const отменена = н => отключена(н) || (н.service_id && (откл || []).some(о =>
+            о.service_id === н.service_id && о.duty_date === н.duty_date));
 
         $('#mineCard').hidden = false;
         $('#mine').innerHTML = свои.map(н => {
@@ -302,7 +326,8 @@ const WorshipHome = (() => {
                 ${с?.article_id && !снята
                     ? `<a class="link" href="article.html?id=${с.article_id}">${e(имя)}</a>`
                     : `<span class="${снята ? 'line-through' : ''}">${e(имя)}</span>`}
-                ${снята ? '<span class="badge badge-sm badge-warning ml-1">не проводится</span>' : ''}
+                ${снята ? `<span class="badge badge-sm badge-warning ml-1">${отключена(н)
+                    ? 'снята с расписания' : 'не проводится'}</span>` : ''}
             </li>`;
         }).join('');
     }
@@ -314,9 +339,9 @@ const WorshipHome = (() => {
         const [с, о, н, л, от] = await Promise.all([
             Layout.db.from('worship_services')
                 .select('id, name_ru, name_en, name_hi, time_of_day').eq('is_active', true).order('time_of_day'),
-            Layout.db.from('worship_day_overrides').select('service_id, title').eq('duty_date', завтра),
+            Layout.db.from('worship_day_overrides').select('id, service_id, title, time_of_day').eq('duty_date', завтра),
             Layout.db.from('worship_duties').select('service_id, override_id, person_id').eq('duty_date', завтра),
-            Layout.db.from('worship_people').select('id, is_active'),
+            Layout.db.from('worship_people').select('id, is_active, active_from, active_to'),
             Layout.db.from('worship_absences').select('person_id, date_from, date_to').lte('date_from', завтра),
         ]);
         if (с.error || о.error || н.error) return;
@@ -325,20 +350,33 @@ const WorshipHome = (() => {
         // иначе «пустых: 2» вместо четырёх ровно в то утро, когда это важно
         const вОтъезде = id => (от.data || []).some(а => а.person_id === id
             && а.date_from <= завтра && (!а.date_to || а.date_to >= завтра));
-        const вСоставе = id => (л.data || []).find(ч => ч.id === id)?.is_active !== false;
+        const вСоставе = id => {
+            const ч = (л.data || []).find(x => x.id === id);
+            return !!ч && ч.is_active !== false
+                && (!ч.active_to || ч.active_to >= завтра)
+                && (!ч.active_from || ч.active_from <= завтра);
+        };
         const придёт = д => вСоставе(д.person_id) && !вОтъезде(д.person_id);
 
         const отменена = id => (о.data || []).some(x => x.service_id === id);
         const занята = id => (н.data || []).some(x => x.service_id === id && придёт(x));
-        const пустые = (с.data || []).filter(x => !отменена(x.id) && !занята(x.id));
+        // разовая служба на завтра — такая же клетка: её тоже надо закрыть
+        const разовыеПустые = (о.data || []).filter(x => x.title
+            && !(н.data || []).some(д => д.override_id === x.id && придёт(д)))
+            .map(x => ({ время: x.time_of_day, имя: x.title, разовая: true }));
+        const пустые = [
+            ...(с.data || []).filter(x => !отменена(x.id) && !занята(x.id))
+                .map(x => ({ время: x.time_of_day, имя: Layout.getName(x), разовая: false })),
+            ...разовыеПустые,
+        ].sort((a, b) => (a.время || '').localeCompare(b.время || ''));
         if (!пустые.length) return;
 
         $('#emptyCard').hidden = false;
         $('#emptyCount').textContent = пустые.length;
         $('#empty').innerHTML = пустые.map(x => `
             <li class="py-1 text-sm">
-                <span class="inline-block w-14 opacity-60">${e(x.time_of_day.slice(0, 5))}</span>
-                ${e(Layout.getName(x))}
+                <span class="inline-block w-14 opacity-60">${e((x.время || '').slice(0, 5))}</span>
+                ${e(x.имя)}${x.разовая ? ' <span class="badge badge-sm">разовая</span>' : ''}
             </li>`).join('');
     }
 
