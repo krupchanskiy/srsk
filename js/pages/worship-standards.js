@@ -442,11 +442,24 @@ const WorshipStandards = (() => {
         if (await загрузить() && await дополнитьВерсиями()) { рисовать(); рисоватьРазделыВОкне(); }
     }
 
+    /** В очереди видно, что утверждать сейчас некому: старший в отъезде. */
+    async function старшийВОтъезде() {
+        const узел = document.querySelector('#старшийОтъезд');
+        if (!узел) return;
+        const { data, error } = await Layout.db.rpc('worship_approvers_away');
+        if (error || !data?.length) return;
+        const кто = data.map(x => x['имя'] +
+            (x['по'] ? ` до ${DateUtils.formatShort(DateUtils.parseDate(x['по']))}` : '')).join(', ');
+        узел.hidden = false;
+        узел.textContent = `В отъезде: ${кто}. Правки в очереди подождут его возвращения.`;
+    }
+
     async function init() {
         слушать();
         if (!await загрузить()) return;
         if (!await дополнитьВерсиями()) return;
         рисовать();
+        await старшийВОтъезде();
     }
 
     return { init };
