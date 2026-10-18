@@ -133,6 +133,13 @@ dialog.modal[open] {
     }
 }
 main input, main select, main textarea { font-size: 1rem !important; }
+/* Поле, которому размер задан явно: без этого название статьи, набранное
+   в поле без рамки, выглядело подписью, а не заголовком документа. */
+main input.text-lg, main textarea.text-lg { font-size: 1.125rem !important; }
+main input.text-xl, main textarea.text-xl { font-size: 1.25rem !important; }
+main input.text-2xl, main textarea.text-2xl { font-size: 1.5rem !important; }
+main input.text-3xl, main textarea.text-3xl { font-size: 1.875rem !important; }
+main textarea.text-\[17px\] { font-size: 17px !important; }
 
 main p, main span, main div { font-size: inherit; }
 

@@ -18,7 +18,7 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Noto+Sans:wght@400;500;600;700&family=Noto+Sans+Devanagari:wght@400;500;600;700&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="../css/common.css?v=10">
+    <link rel="stylesheet" href="../css/common.css?v=14">
     <style>
         /* Поле правки выглядит ровно как готовая статья: человек пишет текст,
            а не подгоняет вёрстку. */
@@ -60,16 +60,21 @@
 
         <!-- Шапка страницы: слева где я и что делаю, справа — что делать дальше.
              Раньше заголовок в три строки налезал на слово «сохранено». -->
-        <div class="flex flex-wrap items-center gap-x-4 gap-y-2 mb-5">
+        <div class="flex flex-wrap items-start justify-between gap-x-4 gap-y-3 mb-5">
             <div class="min-w-0">
-                <a href="standards.html" class="text-sm link link-hover opacity-60">← Стандарты</a>
-                <div class="text-xs uppercase tracking-widest opacity-50 mt-1" id="режим">Новая статья</div>
+                <a href="standards.html" class="text-sm link link-hover opacity-70">← Стандарты</a>
+                <div class="text-xs uppercase tracking-widest opacity-60 mt-1" id="режим">Новая статья</div>
             </div>
-            <span class="text-sm ml-auto" id="сохранение"></span>
-            <div class="flex flex-wrap items-center gap-2 min-w-0">
+            <!-- на узком экране кнопки уходят на свою строку целиком, а не
+                 повисают сбоку от двухстрочной крошки -->
+            <div class="flex flex-wrap items-center gap-2 ml-auto">
+                <span class="text-sm" id="сохранение"></span>
                 <button class="btn btn-sm btn-ghost" id="отмена" data-i18n="worship_leave_edit">Выйти</button>
-                <button class="btn btn-sm btn-outline" id="сохранить" data-i18n="save">Сохранить</button>
-                <button class="btn btn-sm whitespace-nowrap" id="отправить"
+                <!-- на телефоне те же две кнопки стоят в нижней полосе,
+                     которая видна всегда: наверху они только занимали два ряда -->
+                <button class="btn btn-sm btn-outline hidden desktop:inline-flex" id="сохранить"
+                        data-i18n="save">Сохранить</button>
+                <button class="btn btn-sm whitespace-nowrap hidden desktop:inline-flex" id="отправить"
                         style="background: var(--current-color); color:#fff;" data-i18n="worship_send_senior">Отправить старшему</button>
             </div>
         </div>
@@ -98,21 +103,24 @@
                           focus:outline-none placeholder:opacity-30"
                    placeholder="Название стандарта" maxlength="200">
 
-            <div class="flex flex-wrap items-center gap-x-5 gap-y-2 mt-3 text-sm">
+            <!-- подписи живут внутри самих полей: отдельными словами слева
+                 они съедали половину строки, и на узком экране поле
+                 «что изменилось» ужималось до нечитаемого огрызка -->
+            <div class="flex flex-wrap items-center gap-2 mt-3 text-sm">
                 <label class="flex items-center gap-2">
-                    <span class="opacity-50" data-i18n="worship_field_section">Раздел</span>
+                    <span class="opacity-70" data-i18n="worship_field_section">Раздел</span>
                     <select id="раздел" class="select select-sm select-bordered min-w-40"></select>
                 </label>
 
-                <label class="flex items-center gap-2 flex-1 min-w-64" id="картаИзменений">
-                    <span class="opacity-50 whitespace-nowrap" data-i18n="worship_field_change">Что изменилось</span>
-                    <input id="примечание" type="text" class="input input-sm input-bordered flex-1"
+                <label class="flex items-center flex-1 min-w-56" id="картаИзменений">
+                    <input id="примечание" type="text" class="input input-sm input-bordered w-full"
                            data-i18n-placeholder="worship_change_placeholder"
-                           placeholder="Одной строкой: что поменяли и почему" maxlength="200">
+                           placeholder="Что изменилось: одной строкой" maxlength="200"
+                           aria-label="Что изменилось">
                 </label>
 
-                <div class="flex items-center gap-2" id="тегиБлок" hidden>
-                    <span class="opacity-50" data-i18n="worship_tags">Теги</span>
+                <div class="flex flex-wrap items-center gap-2 w-full desktop:w-auto" id="тегиБлок" hidden>
+                    <span class="opacity-70" data-i18n="worship_tags">Теги</span>
                     <div class="flex flex-wrap items-center gap-2" id="теги"></div>
                 </div>
             </div>
@@ -204,6 +212,18 @@
         </div>
     </main>
 
+    <!-- длинную статью дописывают внизу страницы и сохраняют оттуда же:
+         возвращаться к верхним кнопкам через два экрана текста — лишняя работа -->
+    <div class="sticky bottom-0 z-30 bg-base-200/95 backdrop-blur border-t border-base-300
+                py-2 px-4 flex flex-wrap items-center gap-2 no-print">
+        <span class="text-sm" id="сохранениеНизу"></span>
+        <span class="flex-1"></span>
+        <button class="btn btn-sm btn-outline" id="сохранитьНизу" data-i18n="save">Сохранить</button>
+        <button class="btn btn-sm whitespace-nowrap" id="отправитьНизу"
+                style="background: var(--current-color); color:#fff;"
+                data-i18n="worship_send_senior">Отправить старшему</button>
+    </div>
+
     <input type="file" id="файл" accept="image/*" hidden>
 
     <!-- снимок из галереи: ТЗ требует не дать молча вставить кадр из закрытого
@@ -228,14 +248,14 @@
     <script src="../js/config.js?v=5"></script>
     <script src="../js/cache.js?v=2"></script>
     <script src="../js/utils.js?v=17"></script>
-    <script src="../js/layout.js?v=111"></script>
+    <script src="../js/layout.js?v=112"></script>
     <script src="../js/date-utils.js?v=4"></script>
     <script src="../js/auth-check.js?v=13"></script>
     <script src="../js/media.js?v=2"></script>
     <script src="../js/worship-tags.js?v=4"></script>
     <script src="../js/worship-doc.js?v=5"></script>
     <script src="../js/worship-editor-doc.js?v=1"></script>
-    <script src="../js/pages/worship-edit.js?v=15"></script>
+    <script src="../js/pages/worship-edit.js?v=16"></script>
     <script>
         async function init() {
             await Layout.init({ module: 'worship', menuId: 'worship_main', itemId: 'worship_standards' });
