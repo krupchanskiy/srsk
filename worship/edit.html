@@ -16,25 +16,34 @@
     <link href="https://fonts.googleapis.com/css2?family=Noto+Sans:wght@400;500;600;700&family=Noto+Sans+Devanagari:wght@400;500;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="../css/common.css?v=8">
     <style>
-        /* Текст в правке выглядит так же, как в чтении: иначе пуджари
-           подгоняет вёрстку, а не пишет. */
-        .кусок {
+        /* Поле правки выглядит ровно как готовая статья: человек пишет текст,
+           а не подгоняет вёрстку. */
+        #текст {
             outline: none;
-            min-height: 1.6em;
-            line-height: 1.7;
+            font-size: 17px;
+            line-height: 1.75;
+            min-height: 50vh;
         }
-        .кусок:empty::before {
-            content: attr(data-подсказка);
+        #текст:empty::before {
+            content: 'Начните писать. Выделите кусок и нажмите «Заголовок» или «Список».';
             opacity: .35;
         }
-        .кусок-p { font-size: 17px; }
-        .кусок-h2 { font-size: 20px; font-weight: 700; }
-        .кусок-h3 { font-size: 18px; font-weight: 600; }
-        .кусок-note { font-size: 15px; }
-        .блок { position: relative; }
-        .блок:hover .ручки, .блок:focus-within .ручки { opacity: 1; }
-        .ручки { opacity: 0; transition: opacity .15s; }
-        @media (max-width: 1199px) { .ручки { opacity: 1; } }
+        #текст p { margin: 0 0 .75em; }
+        #текст h2 { font-size: 22px; font-weight: 700; margin: 1.2em 0 .5em; }
+        #текст h3 { font-size: 18px; font-weight: 600; margin: 1em 0 .4em; }
+        #текст ul { list-style: disc; padding-left: 1.6em; margin: 0 0 .75em; }
+        #текст ol { list-style: decimal; padding-left: 1.6em; margin: 0 0 .75em; }
+        #текст li { margin-bottom: .25em; }
+        #текст blockquote {
+            background: oklch(var(--b2));
+            border-radius: .75rem;
+            padding: .75rem 1rem;
+            margin: 0 0 .75em;
+            font-size: 15px;
+        }
+        #текст figure { margin: 1em 0; }
+        #текст figcaption { outline: none; }
+        #текст a { text-decoration: underline; }
     </style>
 </head>
 <body class="bg-base-200 min-h-screen flex flex-col">
@@ -105,44 +114,41 @@
             </div>
         </div>
 
-        <!-- Панель: сначала то, чем пользуются каждую минуту (откат и жирный),
-             и только потом добавление блоков — одним меню, а не восемью кнопками. -->
-        <div class="sticky top-16 z-20 mb-3 flex flex-wrap items-center gap-2 bg-base-200/95 py-2">
-            <div class="join">
-                <button class="btn btn-xs btn-outline join-item px-2" id="откатить"
-                        title="Отменить (Ctrl+Z)" disabled aria-label="Отменить">↶</button>
-                <button class="btn btn-xs btn-outline join-item px-2" id="повторить"
-                        title="Вернуть (Ctrl+Shift+Z)" disabled aria-label="Вернуть">↷</button>
+        <!-- Панель: выделил кусок — нажал. Ничего, кроме того, что бывает
+             в документе: заголовок, список, заметка, фото. -->
+        <div class="sticky top-16 z-20 mb-3 flex flex-wrap items-center gap-1 bg-base-200/95 py-2">
+            <div class="join mr-1">
+                <button class="btn btn-sm btn-outline join-item px-2" id="откатить"
+                        title="Отменить (Ctrl+Z)" aria-label="Отменить">↶</button>
+                <button class="btn btn-sm btn-outline join-item px-2" id="повторить"
+                        title="Вернуть (Ctrl+Shift+Z)" aria-label="Вернуть">↷</button>
             </div>
-            <span class="opacity-30">|</span>
-            <button class="btn btn-xs btn-outline font-bold" id="жирный" title="Жирный (Ctrl+B)">Ж</button>
-            <button class="btn btn-xs btn-outline" id="ссылка" title="Сделать выделенное ссылкой">Ссылка</button>
-            <span class="opacity-30">|</span>
+            <button class="btn btn-sm btn-outline font-bold px-3" id="жирный" title="Жирный (Ctrl+B)">Ж</button>
+            <button class="btn btn-sm btn-outline" data-стиль="h2" title="Сделать выделенное заголовком">Заголовок</button>
+            <button class="btn btn-sm btn-outline" data-стиль="h3" title="Подзаголовок">Подзаголовок</button>
+            <button class="btn btn-sm btn-outline px-3" id="список" title="Маркированный список">• Список</button>
+            <button class="btn btn-sm btn-outline px-3" id="поШагам" title="Нумерованный список">1. По шагам</button>
+            <button class="btn btn-sm btn-outline" data-стиль="note" title="Выделить как заметку">Заметка</button>
+            <button class="btn btn-sm btn-outline" id="ссылка" title="Сделать выделенное ссылкой">Ссылка</button>
             <div class="dropdown">
-                <button tabindex="0" class="btn btn-xs" style="background: var(--current-color); color:#fff;">
-                    + Добавить
-                </button>
-                <ul tabindex="0" class="dropdown-content z-30 menu menu-sm p-2 shadow bg-base-100 rounded-box w-52">
-                    <li><button data-добавить="p">Абзац</button></li>
-                    <li><button data-добавить="h2">Заголовок</button></li>
-                    <li><button data-добавить="h3">Подзаголовок</button></li>
-                    <li><button data-добавить="ul">Список</button></li>
-                    <li><button data-добавить="ol">По шагам</button></li>
-                    <li><button data-добавить="note">Заметка</button></li>
-                    <li><button data-добавить="img">Фото</button></li>
+                <button tabindex="0" class="btn btn-sm btn-outline">Фото</button>
+                <ul tabindex="0" class="dropdown-content z-30 menu menu-sm p-2 shadow bg-base-100 rounded-box w-56">
+                    <li><button id="фотоФайл">Загрузить с устройства</button></li>
+                    <li><button id="фотоГалерея">Взять из галереи</button></li>
                 </ul>
             </div>
-            <button class="btn btn-xs btn-ghost ml-auto" id="вернутьБлок" hidden>Вернуть убранное</button>
+            <button class="btn btn-sm btn-ghost ml-auto" id="убратьОформление"
+                    title="Снять оформление с выделенного">Очистить</button>
         </div>
 
         <div class="card bg-base-100 shadow">
             <div class="card-body p-5 desktop:p-8">
-                <div id="блоки"></div>
-                <p class="text-sm opacity-50 mt-4" data-i18n="worship_editor_hint">
-                    Ctrl+Z отменяет последнее действие, Ctrl+Shift+Z возвращает.
-                    Enter — новый абзац, Backspace в пустом — убрать блок.
-                    Ручки блока (тип, ↑ ↓ ✕) появляются, когда наводите на него мышь.
-                    Вставка приходит обычным текстом: оформление из Word не переносится.
+                <div id="текст" contenteditable="true" spellcheck="true"></div>
+                <p class="text-sm opacity-50 mt-6 pt-4 border-t border-base-200" data-i18n="worship_editor_hint">
+                    Пишите как в обычном документе: Enter — новый абзац, Ctrl+Z отменяет.
+                    Чтобы сделать заголовок, список или заметку, выделите текст и нажмите кнопку.
+                    Вставка из Word приходит обычным текстом: абзацы, заголовки и пункты
+                    распознаются, лишнее оформление не переносится.
                 </p>
             </div>
         </div>
@@ -182,7 +188,8 @@
     <script src="../js/media.js?v=2"></script>
     <script src="../js/worship-tags.js?v=2"></script>
     <script src="../js/worship-doc.js?v=5"></script>
-    <script src="../js/pages/worship-edit.js?v=12"></script>
+    <script src="../js/worship-editor-doc.js?v=1"></script>
+    <script src="../js/pages/worship-edit.js?v=13"></script>
     <script>
         async function init() {
             await Layout.init({ module: 'worship', menuId: 'worship_main', itemId: 'worship_standards' });

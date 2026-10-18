@@ -1,10 +1,15 @@
 /**
- * Правка статьи.
+ * Правка стандарта.
  *
- * Редактор блочный, а не «одно большое поле»: текст хранится структурой
- * (см. worship-doc.js), и собирать её из общего contenteditable пришлось бы
- * разбором HTML — ровно того, чего формат и избегает. Здесь каждый блок
- * редактируется отдельно и сериализуется в свой тип напрямую.
+ * Текст правится как обычный текст: одно поле, в котором выделяешь кусок
+ * и делаешь его заголовком, списком или жирным. Никаких «блоков с ручками» —
+ * отдел пишет документы, а не собирает конструктор. Отсюда и отмена работает
+ * сама: поле не перерисовывается на каждое действие, поэтому Ctrl+Z обычный,
+ * браузерный, тот же, что в любом текстовом поле.
+ *
+ * Хранится статья по-прежнему структурой (worship-doc.js), а не разметкой:
+ * по ней читают статью, сравнивают версии и ищут. Перевод туда и обратно —
+ * в worship-editor-doc.js.
  *
  * Автосохранение пишет в память браузера, а не в базу: иначе автосейв каждые
  * полминуты начнёт воевать с проверкой параллельной правки, и конфликт станет
@@ -16,23 +21,13 @@ const WorshipEdit = (() => {
 
     const id = new URLSearchParams(location.search).get('id');
     let статья = null, версия = null, разделы = [];
-    let блоки = [];                 // рабочая копия документа
     let базоваяОтметка = null;      // updated_at черновика на момент открытия
     let знаюСостояние = true;       // false — сознательная перезапись чужой правки
     let свои = [];                  // снимки, загруженные в эту правку
     let грязно = false, сохраняется = false;
     const ссылки = {};              // путь → адрес снимка ограниченного срока
 
-    const ПОДСКАЗКИ = {
-        p: 'Текст абзаца',
-        h2: 'Заголовок',
-        h3: 'Подзаголовок',
-        note: 'Короткая заметка: что делать, если пошло не так',
-    };
-    const НАЗВАНИЯ = {
-        p: 'Абзац', h2: 'Заголовок', h3: 'Подзаголовок',
-        ul: 'Список', ol: 'По шагам', note: 'Заметка', img: 'Фото',
-    };
+    const поле = () => $('#текст');
 
     // ---------- загрузка ----------
     async function загрузить() {
@@ -71,11 +66,8 @@ const WorshipEdit = (() => {
             }
         }
 
-        const документ = WorshipDoc.разобрать(версия?.doc);
-        блоки = (документ.blocks.length ? документ.blocks : WorshipDoc.пустой().blocks)
-            .map(б => ({ ...б, метка: ++счётчикМеток }));
         базоваяОтметка = версия?.status === 'draft' ? версия.updated_at : null;
-        Object.assign(ссылки, await WorshipDoc.ссылкиНаСнимки(Layout.db, { blocks: блоки }));
+        Object.assign(ссылки, await WorshipDoc.ссылкиНаСнимки(Layout.db, версия?.doc || { blocks: [] }));
         return true;
     }
 
@@ -108,164 +100,14 @@ const WorshipEdit = (() => {
         $('#удалить').hidden = !(id && статья.status === 'draft');
     }
 
-    /** Разметка одного блока. Текст вставляется узлами, а не строкой. */
-    function нарисоватьБлок(б, i) {
-        const обёртка = document.createElement('div');
-        обёртка.className = 'блок group border-l-2 border-transparent hover:border-base-300 pl-3 -ml-3 py-1';
-        обёртка.dataset.i = i;
-
-        const ручки = document.createElement('div');
-        ручки.className = 'ручки flex flex-wrap items-center gap-1 mb-1 transition-opacity ' +
-            'opacity-0 group-hover:opacity-100 group-focus-within:opacity-100';
-        // тип блока меняется на месте: иначе перенос готового документа
-        // превращается в перепечатывание каждого заголовка и пункта
-        const выбор = б.type === 'img' ? '' : `
-            <select class="select select-xs select-bordered" data-тип>
-                ${Object.entries(НАЗВАНИЯ).filter(([т]) => т !== 'img').map(([т, имя]) =>
-                    `<option value="${т}" ${т === б.type ? 'selected' : ''}>${имя}</option>`).join('')}
-            </select>`;
-        ручки.innerHTML = `
-            ${выбор || `<span class="text-[11px] uppercase tracking-widest opacity-40 mr-1">${
-                НАЗВАНИЯ[б.type]}</span>`}
-            <button class="btn btn-ghost btn-sm px-2" data-действие="вверх" title="Выше">↑</button>
-            <button class="btn btn-ghost btn-sm px-2" data-действие="вниз" title="Ниже">↓</button>
-            <button class="btn btn-ghost btn-sm px-2 text-error" data-действие="убрать" title="Убрать">✕</button>`;
-        обёртка.appendChild(ручки);
-
-        if (б.type === 'ul' || б.type === 'ol') {
-            const список = document.createElement(б.type);
-            список.className = 'mb-2 pl-6 space-y-1 ' + (б.type === 'ul' ? 'list-disc' : 'list-decimal');
-            (б.items.length ? б.items : [[]]).forEach((пункт, j) => {
-                const li = document.createElement('li');
-                const поле = полеТекста(пункт, 'кусок кусок-p', 'Пункт списка');
-                поле.dataset.пункт = j;
-                li.appendChild(поле);
-                список.appendChild(li);
-            });
-            обёртка.appendChild(список);
-
-            const добавить = document.createElement('button');
-            добавить.className = 'btn btn-ghost btn-xs opacity-60';
-            добавить.dataset.действие = 'пункт';
-            добавить.textContent = '+ пункт';
-            обёртка.appendChild(добавить);
-
-        } else if (б.type === 'img') {
-            const рамка = document.createElement('div');
-            рамка.className = 'my-2';
-            if (б.path && ссылки[б.path]) {
-                const img = document.createElement('img');
-                img.src = ссылки[б.path];
-                img.className = 'rounded-lg max-w-full max-h-80';
-                рамка.appendChild(img);
-            } else {
-                const выбор = document.createElement('div');
-                выбор.className = 'flex flex-wrap gap-2';
-                выбор.innerHTML = `
-                    <button class="btn btn-outline btn-sm" data-действие="снимок">Загрузить файл</button>
-                    <button class="btn btn-outline btn-sm" data-действие="галерея">Взять из галереи</button>`;
-                рамка.appendChild(выбор);
-            }
-            const подпись = document.createElement('input');
-            подпись.className = 'input input-bordered input-sm w-full mt-2';
-            подпись.placeholder = 'Подпись к фото';
-            подпись.value = б.caption || '';
-            подпись.dataset.подпись = '1';
-            рамка.appendChild(подпись);
-            обёртка.appendChild(рамка);
-
-        } else {
-            обёртка.appendChild(полеТекста(б.spans, `кусок кусок-${б.type}` +
-                (б.type === 'note' ? ' bg-base-200 rounded-lg px-4 py-3' : ''), ПОДСКАЗКИ[б.type]));
-        }
-
-        return обёртка;
+    function наполнитьПоле(документ) {
+        const т = поле();
+        т.replaceChildren();
+        т.appendChild(WorshipEditorDoc.вДом(документ || версия?.doc || { blocks: [] }, ссылки));
     }
 
-    /** Редактируемый кусок текста: отрезки превращаются в узлы, а не в HTML. */
-    function полеТекста(значение, классы, подсказка) {
-        const поле = document.createElement('div');
-        поле.className = классы;
-        поле.contentEditable = 'true';
-        поле.dataset.подсказка = подсказка || '';
-        поле.dataset.текст = '1';
-        вставитьОтрезки(поле, значение);
-        return поле;
-    }
-
-    /** Та же сборка, что и при чтении, но без классов оформления. */
-    function вставитьОтрезки(узел, значение) {
-        const времянка = document.createElement('div');
-        времянка.appendChild(WorshipDoc.нарисовать({ blocks: [{ type: 'p', spans: значение }] }));
-        const абзац = времянка.firstElementChild;
-        while (абзац && абзац.firstChild) узел.appendChild(абзац.firstChild);
-    }
-
-    function рисоватьБлоки() {
-        const тело = $('#блоки');
-        тело.innerHTML = '';
-        блоки.forEach((б, i) => тело.appendChild(нарисоватьБлок(б, i)));
-    }
-
-    // ---------- чтение формы ----------
-    /** Узлы редактируемого куска → отрезки. Всё непонятное становится текстом. */
-    function собратьОтрезки(поле) {
-        const отрезки = [];
-        const обойти = (узел, жирный, адрес) => {
-            узел.childNodes.forEach(у => {
-                if (у.nodeType === Node.TEXT_NODE) {
-                    if (у.nodeValue) отрезки.push({ t: у.nodeValue, b: жирный, href: адрес });
-                    return;
-                }
-                if (у.nodeType !== Node.ELEMENT_NODE) return;
-                const имя = у.tagName.toLowerCase();
-                if (имя === 'br') { отрезки.push({ t: ' ' }); return; }
-                обойти(у,
-                    жирный || имя === 'strong' || имя === 'b',
-                    адрес || (имя === 'a' ? WorshipDoc.адрес(у.getAttribute('href')) : null));
-            });
-        };
-        обойти(поле, false, null);
-
-        // склеиваем соседние отрезки с одинаковым оформлением
-        const готовые = [];
-        отрезки.forEach(о => {
-            const чистый = { t: о.t };
-            if (о.b) чистый.b = true;
-            if (о.href) чистый.href = о.href;
-            const пред = готовые[готовые.length - 1];
-            if (пред && !!пред.b === !!чистый.b && пред.href === чистый.href) пред.t += чистый.t;
-            else готовые.push(чистый);
-        });
-        return готовые.filter(о => о.t !== '');
-    }
-
-    function собрать() {
-        const собранные = [];
-        document.querySelectorAll('#блоки .блок').forEach(узел => {
-            const б = блоки[Number(узел.dataset.i)];
-            if (!б) return;
-            const метка = б.метка;
-            if (б.type === 'ul' || б.type === 'ol') {
-                // пустые пункты НЕ выбрасываем: пока человек пишет, пустой пункт —
-                // это живая строка под курсором, и если убрать её здесь, номер
-                // пункта в разметке перестанет совпадать с номером в блоке —
-                // Backspace сотрёт соседу текст, а Enter вставит пункт не туда.
-                // Отбрасываются они позже, в WorshipDoc.разобрать, при записи
-                const items = [...узел.querySelectorAll('[data-пункт]')].map(собратьОтрезки);
-                собранные.push({ type: б.type, items, метка });
-            } else if (б.type === 'img') {
-                собранные.push({ type: 'img', path: б.path || '', метка,
-                                 caption: узел.querySelector('[data-подпись]')?.value || '' });
-            } else {
-                собранные.push({ type: б.type, метка,
-                                 spans: собратьОтрезки(узел.querySelector('[data-текст]')) });
-            }
-        });
-        блоки = собранные;
-        // метки служебные: в базу уходит разобранный документ, где их нет
-        return WorshipDoc.разобрать({ blocks: собранные });
-    }
+    /** Документ из поля — то, что уйдёт в базу. */
+    const документИзПоля = () => WorshipDoc.разобрать(WorshipEditorDoc.изДома(поле()));
 
     // ---------- память браузера ----------
     const ключЧерновика = () => `srsk_worship_draft_${id || 'new'}`;
@@ -277,10 +119,12 @@ const WorshipEdit = (() => {
                 title: $('#заголовок').value,
                 section_id: $('#раздел').value,
                 change_note: $('#примечание').value,
-                doc: { blocks: блоки },
+                doc: документИзПоля(),
             }));
         } catch { /* приватный режим */ }
     }
+
+    const запомнитьПотом = Layout.debounce(запомнить, 800);
 
     function забыть() {
         try { sessionStorage.removeItem(ключЧерновика()); } catch { /* приватный режим */ }
@@ -304,26 +148,23 @@ const WorshipEdit = (() => {
             забыть();
             return;
         }
-        блоки = WorshipDoc.разобрать(запись.doc).blocks;
+        наполнитьПоле(запись.doc);
         $('#заголовок').value = запись.title || '';
         $('#раздел').value = запись.section_id || '';     // «без раздела» тоже выбор
         $('#примечание').value = запись.change_note || '';
-        рисоватьБлоки();
         пометить();
     }
 
+    // ---------- сохранение ----------
     function пометить() {
         грязно = true;
         $('#сохранение').textContent = 'не сохранено';
         $('#сохранение').className = 'text-sm text-warning';
     }
 
-    const запомнитьПотом = Layout.debounce(() => { собрать(); запомнить(); }, 800);
-
-    // ---------- сохранение ----------
     async function сохранить({ затем } = {}) {
         if (сохраняется) return null;
-        const документ = собрать();
+        const документ = документИзПоля();
         const заголовок = $('#заголовок').value.trim();
         if (!заголовок) {
             Layout.showNotification('Без названия статью не найти — впишите его', 'warning');
@@ -334,7 +175,7 @@ const WorshipEdit = (() => {
         // иначе в списке остаётся заведённая впустую статья
         if (затем === 'отправить' && !WorshipDoc.текст(документ).trim()) {
             Layout.showNotification('Сначала напишите текст стандарта', 'warning');
-            document.querySelector('#блоки [data-текст]')?.focus();
+            поле().focus();
             return null;
         }
 
@@ -416,47 +257,88 @@ const WorshipEdit = (() => {
             либо сохраните поверх — тогда чужая работа пропадёт.</span>`;
     }
 
-    // ---------- снимки ----------
-    let блокДляСнимка = null;        // метка блока, а не его номер в списке: пока
-                                     // открыт выбор файла, блоки могли переставить
-    let счётчикМеток = 0;
+    // ---------- оформление выделенного ----------
+    /**
+     * Всё оформление идёт через execCommand. Он давно объявлен устаревшим,
+     * но это единственный способ менять текст так, чтобы правка попала
+     * в историю браузера — то есть чтобы работал Ctrl+Z. Своя история
+     * означала бы свою перерисовку, а это ровно то, от чего мы ушли.
+     */
+    function команда(имя, значение = null) {
+        поле().focus();
+        document.execCommand(имя, false, значение);
+        пометить();
+        запомнитьПотом();
+    }
 
-    async function загрузитьСнимок(файл) {
-        if (!блокДляСнимка) return;
-        // подготовка общая на весь проект: поворот из файла, уменьшение, время съёмки
-        let готовый;
-        try { готовый = await Media.подготовить(файл); }
-        catch (ош) { Layout.showNotification(ош.message, 'error'); return; }
-
-        const uid = window.currentUser?.id;
-        const путь = `${uid}/${crypto.randomUUID()}.jpg`;
-        const { error } = await Layout.db.storage.from('worship')
-            .upload(путь, готовый.тело, { contentType: 'image/jpeg' });
-        if (error) { Layout.handleError(error, 'Загрузка фото'); return; }
-
-        const { data } = await Layout.db.storage.from('worship').createSignedUrl(путь, 3600);
-        if (!data?.signedUrl) {
-            Layout.showNotification('Фото загрузилось, но не показывается — обновите страницу', 'warning');
+    /** Блок под курсором — чтобы кнопка показывала, что уже применено. */
+    function текущийТег() {
+        let узел = getSelection()?.anchorNode;
+        while (узел && узел !== поле()) {
+            if (узел.nodeType === Node.ELEMENT_NODE) {
+                const имя = узел.tagName.toLowerCase();
+                if (['h1', 'h2', 'h3', 'h4', 'blockquote', 'li', 'p', 'figure'].includes(имя)) return имя;
+            }
+            узел = узел.parentNode;
         }
-        ссылки[путь] = data?.signedUrl || '';
-        свои.push(путь);
+        return 'p';
+    }
 
-        собрать();
-        const куда = блоки.findIndex(б => б.метка === блокДляСнимка);
-        if (куда < 0) {                       // блок убрали, пока выбирали файл
-            Layout.db.storage.from('worship').remove([путь])
-                .then(({ error }) => { if (error) console.debug('не убрали снимок:', error.message); });
+    function обновитьПанель() {
+        const внутри = поле().contains(getSelection()?.anchorNode);
+        const тег = текущийТег();
+        const нажата = (кнопка, условие) => кнопка?.classList.toggle('btn-active', !!(внутри && условие));
+
+        document.querySelectorAll('[data-стиль]').forEach(б => {
+            const свой = б.dataset.стиль;
+            нажата(б,
+                (свой === 'h2' && (тег === 'h2' || тег === 'h1')) ||
+                (свой === 'h3' && (тег === 'h3' || тег === 'h4')) ||
+                (свой === 'note' && тег === 'blockquote'));
+        });
+        try {
+            нажата($('#жирный'), document.queryCommandState('bold'));
+            нажата($('#список'), document.queryCommandState('insertUnorderedList'));
+            нажата($('#поШагам'), document.queryCommandState('insertOrderedList'));
+        } catch { /* старый браузер */ }
+    }
+
+    /** Заголовок, подзаголовок, заметка, обычный абзац — один и тот же приём. */
+    function стиль(какой) {
+        const теги = { p: 'P', h2: 'H2', h3: 'H3', note: 'BLOCKQUOTE' };
+        const сейчас = текущийТег();
+        // повторное нажатие снимает оформление: иначе из заголовка не выбраться,
+        // не догадавшись, что надо нажать «Абзац»
+        const снять = (какой === 'h2' && (сейчас === 'h2' || сейчас === 'h1'))
+            || (какой === 'h3' && (сейчас === 'h3' || сейчас === 'h4'))
+            || (какой === 'note' && сейчас === 'blockquote');
+        команда('formatBlock', `<${снять ? 'P' : теги[какой]}>`);
+
+        // заметке нужен свой вид: класс execCommand не ставит
+        if (!снять && какой === 'note') {
+            const узел = getSelection()?.anchorNode;
+            const цитата = (узел?.nodeType === 1 ? узел : узел?.parentElement)?.closest('blockquote');
+            цитата?.classList.add('worship-заметка');
+        }
+        обновитьПанель();
+    }
+
+    function поставитьСсылку() {
+        const выделение = getSelection();
+        if (!выделение.rangeCount || выделение.isCollapsed) {
+            Layout.showNotification('Выделите слова, которые станут ссылкой', 'info');
             return;
         }
-        блоки[куда].path = путь;
-        рисоватьБлоки();
-        пометить();
-        запомнить();
+        const куда = prompt('Адрес ссылки (https://… или имя страницы модуля)');
+        if (!куда) return;
+        const чистый = WorshipDoc.адрес(куда);
+        if (!чистый) { Layout.showNotification('Такой адрес не годится', 'warning'); return; }
+        команда('createLink', чистый);
     }
 
     // ---------- вставка готового текста ----------
     /**
-     * Делит вставленный текст на блоки по пустым строкам и по виду строки.
+     * Делит вставленный текст на абзацы, заголовки и пункты списка.
      * Это не разметка на все случаи, а то, что встречается в документах отдела:
      * короткая строка без точки на конце — заголовок, «1.» или «—» — пункт.
      */
@@ -493,39 +375,58 @@ const WorshipEdit = (() => {
         return куски.filter(Boolean);
     }
 
-    function вставитьБлоками(поле, куски) {
-        собрать();
-        const узел = поле.closest('.блок');
-        const i = Number(узел.dataset.i);
-        // «пусто» — только про блок целиком: пустая строка внутри списка пустым
-        // блоком не делает, и заменять им весь список нельзя
-        const вСписке = поле.dataset.пункт !== undefined;
-        const пусто = !вСписке && !поле.textContent.trim();
+    /** Вставка приходит текстом: чужая вёрстка из Word в документ не едет. */
+    function вставить(текст) {
+        const куски = разобратьВставку(текст);
+        if (!куски.length) return;
 
-        const новые = куски.map(к => ({
-            метка: ++счётчикМеток,
-            ...(к.items
-                ? { type: к.type, items: к.items.map(т => [{ t: т }]) }
-                : { type: к.type, spans: [{ t: к.text }] }),
-        }));
+        if (куски.length === 1 && куски[0].type === 'p') {
+            команда('insertText', куски[0].text);
+            return;
+        }
 
-        // в пустой блок вставляем вместо него, иначе — следом
-        блоки.splice(пусто ? i : i + 1, пусто ? 1 : 0, ...новые);
-        рисоватьБлоки();
-        пометить();
-        запомнить();
-
-        const последний = (пусто ? i : i + 1) + новые.length - 1;
-        document.querySelector(`.блок[data-i="${последний}"] [data-текст]`)?.focus();
-        Layout.showNotification(`Вставлено блоков: ${новые.length}`, 'info');
+        const разметка = куски.map(к => {
+            if (к.items) {
+                return `<${к.type}>${к.items.map(т => `<li>${e(т)}</li>`).join('')}</${к.type}>`;
+            }
+            const тег = к.type === 'h2' ? 'h2' : 'p';
+            return `<${тег}>${e(к.text)}</${тег}>`;
+        }).join('');
+        команда('insertHTML', разметка);
     }
 
-    // ---------- снимок из галереи ----------
-    /**
-     * Кадр, уже лежащий в наборе, можно вставить в стандарт — но только
-     * из открытого набора. Снимок из закрытого в тексте, который читает весь
-     * ашрам, означал бы тихий обход закрытости, ради которой набор и закрывали.
-     */
+    // ---------- снимки ----------
+    async function загрузитьСнимок(файл) {
+        // подготовка общая на весь проект: поворот из файла, уменьшение, время съёмки
+        let готовый;
+        try { готовый = await Media.подготовить(файл); }
+        catch (ош) { Layout.showNotification(ош.message, 'error'); return; }
+
+        const uid = window.currentUser?.id;
+        const путь = `${uid}/${crypto.randomUUID()}.jpg`;
+        const { error } = await Layout.db.storage.from('worship')
+            .upload(путь, готовый.тело, { contentType: 'image/jpeg' });
+        if (error) { Layout.handleError(error, 'Загрузка фото'); return; }
+
+        const { data } = await Layout.db.storage.from('worship').createSignedUrl(путь, 3600);
+        if (!data?.signedUrl) {
+            Layout.showNotification('Фото загрузилось, но не показывается — обновите страницу', 'warning');
+        }
+        ссылки[путь] = data?.signedUrl || '';
+        свои.push(путь);
+        вставитьФото(путь);
+    }
+
+    /** Фото встаёт туда, где стоит курсор, и попадает в историю отмены. */
+    function вставитьФото(путь) {
+        const адрес = ссылки[путь] || '';
+        команда('insertHTML',
+            `<figure class="worship-фото my-3" data-path="${e(путь)}">` +
+            `<img src="${e(адрес)}" class="rounded-lg max-w-full max-h-96" contenteditable="false">` +
+            '<figcaption class="text-sm opacity-70 mt-1" data-подпись="1">Подпись к фото</figcaption>' +
+            '</figure><p><br></p>');
+    }
+
     async function открытьГалерею() {
         const { data: наборы, error } = await Layout.db.from('worship_albums')
             .select('id, title, event_date, is_private, is_archived')
@@ -540,14 +441,14 @@ const WorshipEdit = (() => {
 
         const показать = async () => {
             const н = наборы.find(x => x.id === $('#выборНабора').value);
-            const поле = $('#снимкиНабора');
+            const окно = $('#снимкиНабора');
             if (!н) return;
 
             const { data: снимки } = await Layout.db.from('worship_images')
                 .select('id, storage_path, caption').eq('album_id', н.id)
                 .order('sort_order').order('shot_at');
             if (!снимки?.length) {
-                поле.innerHTML = '<div class="col-span-full text-sm opacity-60 py-4">В наборе пока нет снимков</div>';
+                окно.innerHTML = '<div class="col-span-full text-sm opacity-60 py-4">В наборе пока нет снимков</div>';
                 return;
             }
 
@@ -556,7 +457,7 @@ const WorshipEdit = (() => {
             const карта = Object.fromEntries((адреса || [])
                 .filter(а => а.signedUrl).map(а => [а.path, а.signedUrl]));
 
-            поле.innerHTML = снимки.map(с => `
+            окно.innerHTML = снимки.map(с => `
                 <button class="relative aspect-square rounded-lg overflow-hidden bg-base-200
                                ${н.is_private ? 'opacity-60 cursor-not-allowed' : 'hover:ring-2'}"
                         data-взятьСнимок="${с.storage_path}" ${н.is_private ? 'disabled' : ''}
@@ -587,347 +488,61 @@ const WorshipEdit = (() => {
 
         const { data } = await Layout.db.storage.from('worship').createSignedUrl(путь, 3600);
         ссылки[путь] = data?.signedUrl || '';
-
-        собрать();
-        const куда = блоки.findIndex(б => б.метка === блокДляСнимка);
-        if (куда < 0) return;
-        блоки[куда].path = путь;
-        рисоватьБлоки();
-        пометить();
-        запомнить();
         $('#галереяМодал').close();
-    }
-
-    // ---------- работа с блоками ----------
-    /** Перекладывает содержимое блока в другой тип, ничего не теряя. */
-    function сменитьТип(б, тип) {
-        if (!б || б.type === тип) return б;
-        const списки = ['ul', 'ol'];
-
-        if (списки.includes(тип)) {
-            const items = списки.includes(б.type)
-                ? б.items
-                : [(б.spans || []).slice()];
-            return { type: тип, метка: б.метка,
-                     items: items.filter(п => п.length).length ? items : [[]] };
-        }
-        const spans = списки.includes(б.type)
-            ? б.items.flatMap((п, i) => i ? [{ t: ' ' }, ...п] : п)
-            : (б.spans || []);
-        return { type: тип, spans, метка: б.метка };
-    }
-
-    function новыйБлок(тип) {
-        const метка = ++счётчикМеток;
-        if (тип === 'ul' || тип === 'ol') return { type: тип, items: [[]], метка };
-        if (тип === 'img') return { type: 'img', path: '', caption: '', метка };
-        return { type: тип, spans: [], метка };
-    }
-
-    function добавитьБлок(тип, куда = блоки.length) {
-        запомнитьШаг();
-        собрать();
-        блоки.splice(куда, 0, новыйБлок(тип));
-        рисоватьБлоки();
-        пометить();
-        const узел = document.querySelector(`.блок[data-i="${куда}"] [data-текст]`);
-        узел?.focus();
-    }
-
-    // ───────── история правок ─────────
-    //
-    // Нативная история браузера здесь бесполезна: почти каждое действие
-    // перерисовывает блоки, и Ctrl+Z после этого откатывал в пустоту либо
-    // не делал ничего. Поэтому история живёт своим стеком снимков документа,
-    // а браузерную мы перехватываем на beforeinput — это тот самый приём,
-    // которым пользуются редакторы, перерисовывающие своё поле сами.
-    const ПРЕДЕЛ_ИСТОРИИ = 60;
-    let история = [], шагИстории = -1, откатываем = false;
-
-    /** Где сейчас курсор — чтобы после отката он вернулся туда же. */
-    function местоКурсора() {
-        const поле = document.activeElement?.closest?.('[data-текст]');
-        if (!поле) return null;
-        const блок = поле.closest('.блок');
-        const выделение = getSelection();
-        let смещение = 0;
-        if (выделение?.rangeCount) {
-            const кусок = выделение.getRangeAt(0).cloneRange();
-            кусок.selectNodeContents(поле);
-            кусок.setEnd(выделение.getRangeAt(0).endContainer, выделение.getRangeAt(0).endOffset);
-            смещение = кусок.toString().length;
-        }
-        return { блок: Number(блок?.dataset.i ?? 0), пункт: поле.dataset.пункт, смещение };
-    }
-
-    function вернутьКурсор(место) {
-        if (!место) return;
-        const блок = document.querySelector(`.блок[data-i="${место.блок}"]`);
-        const поле = место.пункт != null
-            ? блок?.querySelector(`[data-пункт="${место.пункт}"]`)
-            : блок?.querySelector('[data-текст]');
-        if (!поле) return;
-        поле.focus();
-
-        // ставим курсор на то же число символов от начала куска
-        const обход = document.createTreeWalker(поле, NodeFilter.SHOW_TEXT);
-        let пройдено = 0, узел = обход.nextNode();
-        while (узел) {
-            if (пройдено + узел.nodeValue.length >= место.смещение) {
-                const диапазон = document.createRange();
-                диапазон.setStart(узел, Math.max(0, место.смещение - пройдено));
-                диапазон.collapse(true);
-                const выделение = getSelection();
-                выделение.removeAllRanges();
-                выделение.addRange(диапазон);
-                return;
-            }
-            пройдено += узел.nodeValue.length;
-            узел = обход.nextNode();
-        }
-    }
-
-    /** Снимок состояния. Делается ДО изменения, иначе откатывать нечего. */
-    function запомнитьШаг() {
-        if (откатываем) return;
-        собрать();
-        const снимок = {
-            документ: JSON.stringify(блоки),
-            заголовок: $('#заголовок').value,
-            место: местоКурсора(),
-        };
-        // подряд идущие одинаковые снимки не копим: Ctrl+Z не должен
-        // нажиматься пять раз, чтобы убрать одно слово
-        if (история[шагИстории]?.документ === снимок.документ
-            && история[шагИстории]?.заголовок === снимок.заголовок) {
-            история[шагИстории].место = снимок.место;
-            return;
-        }
-        история = история.slice(0, шагИстории + 1);
-        история.push(снимок);
-        if (история.length > ПРЕДЕЛ_ИСТОРИИ) история.shift();
-        шагИстории = история.length - 1;
-        обновитьКнопкиИстории();
-    }
-
-    /** Набор текста запоминается не на каждую букву, а паузами. */
-    const запомнитьШагПотом = Layout.debounce(запомнитьШаг, 700);
-
-    function применитьСнимок(снимок) {
-        откатываем = true;
-        блоки = JSON.parse(снимок.документ);
-        $('#заголовок').value = снимок.заголовок;
-        рисоватьБлоки();
-        вернутьКурсор(снимок.место);
-        откатываем = false;
-        пометить();
-        запомнитьПотом();
-        обновитьКнопкиИстории();
-    }
-
-    function откатить() {
-        if (шагИстории <= 0) {
-            // последний шаг ещё не записан: запишем текущее состояние,
-            // чтобы человеку было куда вернуться вперёд
-            if (шагИстории === 0) запомнитьШаг();
-            if (шагИстории <= 0) return;
-        }
-        запомнитьШаг();                      // текущее состояние — тоже шаг
-        шагИстории = Math.max(0, шагИстории - 1);
-        применитьСнимок(история[шагИстории]);
-    }
-
-    function повторить() {
-        if (шагИстории >= история.length - 1) return;
-        шагИстории += 1;
-        применитьСнимок(история[шагИстории]);
-    }
-
-    function обновитьКнопкиИстории() {
-        const назад = $('#откатить'), вперёд = $('#повторить');
-        if (назад) назад.disabled = шагИстории <= 0;
-        if (вперёд) вперёд.disabled = шагИстории >= история.length - 1;
-    }
-
-    let убранный = null;            // последний удалённый блок, чтобы вернуть
-
-    function убратьБлок(i) {
-        запомнитьШаг();
-        собрать();
-        const б = блоки[i];
-        убранный = { блок: б, место: i };
-        $('#вернутьБлок').hidden = false;
-        // снимок, загруженный в эту же правку и никуда не попавший, уносим с собой:
-        // иначе хранилище копит кадры, которых нет ни в одной версии
-        if (б?.type === 'img' && б.path && свои.includes(б.path)) {
-            Layout.db.storage.from('worship').remove([б.path])
-                .then(({ error }) => { if (error) console.debug('не убрали снимок:', error.message); });
-            свои = свои.filter(п => п !== б.path);
-        }
-        блоки.splice(i, 1);
-        if (!блоки.length) блоки = WorshipDoc.пустой().blocks;
-        рисоватьБлоки();
-        пометить();
-    }
-
-    /** Промах пальцем по ✕ в 4:20 не должен стоить абзаца. */
-    function вернутьБлок() {
-        if (!убранный) return;
-        запомнитьШаг();
-        собрать();
-        блоки.splice(Math.min(убранный.место, блоки.length), 0, убранный.блок);
-        убранный = null;
-        $('#вернутьБлок').hidden = true;
-        рисоватьБлоки();
-        пометить();
-    }
-
-    function переставить(i, шаг) {
-        запомнитьШаг();
-        собрать();
-        const j = i + шаг;
-        if (j < 0 || j >= блоки.length) return;
-        [блоки[i], блоки[j]] = [блоки[j], блоки[i]];
-        рисоватьБлоки();
-        пометить();
+        вставитьФото(путь);
     }
 
     // ---------- события ----------
     function слушать() {
-        const тело = $('#блоки');
+        const т = поле();
 
-        тело.addEventListener('input', () => { пометить(); запомнитьПотом(); запомнитьШагПотом(); });
-
-        // браузер попробует откатить своё — перехватываем и откатываем своё,
-        // иначе Ctrl+Z работал бы поверх перерисованных блоков и рвал текст
-        тело.addEventListener('beforeinput', ev => {
-            if (ev.inputType === 'historyUndo') { ev.preventDefault(); откатить(); }
-            if (ev.inputType === 'historyRedo') { ev.preventDefault(); повторить(); }
+        т.addEventListener('input', () => { пометить(); запомнитьПотом(); });
+        т.addEventListener('keyup', обновитьПанель);
+        т.addEventListener('mouseup', обновитьПанель);
+        document.addEventListener('selectionchange', () => {
+            if (поле().contains(getSelection()?.anchorNode)) обновитьПанель();
         });
 
-        // Вставка приходит обычным текстом: из Word иначе приезжает чужая вёрстка.
-        // Но переносы строк сохраняем смыслом: отдел будет переносить полсотни
-        // готовых документов, и схлопывать их в один абзац — значит заставить
-        // перепечатывать всё руками.
-        тело.addEventListener('paste', ev => {
-            const поле = ev.target.closest('[data-текст]');
-            if (!поле) return;
+        т.addEventListener('paste', ev => {
             ev.preventDefault();
             const текст = (ev.clipboardData || window.clipboardData).getData('text/plain');
-            const куски = разобратьВставку(текст);
-
-            if (куски.length <= 1) {
-                document.execCommand('insertText', false, текст.replace(/\s+/g, ' ').trim());
-                return;
-            }
-            вставитьБлоками(поле, куски);
+            вставить(текст);
         });
 
-        тело.addEventListener('keydown', ev => {
-            const поле = ev.target.closest('[data-текст]');
-            if (!поле) return;
-            const блок = поле.closest('.блок');
-            const i = Number(блок.dataset.i);
+        // Enter в конце заголовка или заметки возвращает к обычному абзацу:
+        // иначе вся статья оказывается заголовком, и непонятно почему
+        т.addEventListener('keydown', ev => {
+            if (ev.key !== 'Enter' || ev.shiftKey) return;
+            const тег = текущийТег();
+            if (!['h1', 'h2', 'h3', 'h4', 'blockquote'].includes(тег)) return;
 
-            if (ev.key === 'Enter' && !ev.shiftKey) {
-                ev.preventDefault();
-                const б = блоки[i];
-                if (б.type === 'ul' || б.type === 'ol') {
-                    запомнитьШаг();
-                    собрать();
-                    блоки[i].items.splice(Number(поле.dataset.пункт) + 1, 0, []);
-                    рисоватьБлоки();
-                    document.querySelector(
-                        `.блок[data-i="${i}"] [data-пункт="${Number(поле.dataset.пункт) + 1}"]`)?.focus();
-                } else {
-                    добавитьБлок('p', i + 1);
-                }
-                пометить();
-                return;
-            }
+            const выделение = getSelection();
+            const узел = выделение?.anchorNode;
+            const блок = (узел?.nodeType === 1 ? узел : узел?.parentElement)
+                ?.closest('h1,h2,h3,h4,blockquote');
+            // только в конце строки: посреди заголовка Enter должен делить его,
+            // как в любом редакторе
+            if (!блок || !выделение.isCollapsed) return;
+            const всего = (блок.textContent || '').length;
+            if (выделение.anchorOffset < всего) return;
 
-            if (ev.key === 'Backspace' && !поле.textContent) {
-                const б = блоки[i];
-                if (б.type === 'ul' || б.type === 'ol') {
-                    const п = Number(поле.dataset.пункт);
-                    if (блоки[i].items.length > 1) {
-                        ev.preventDefault();
-                        запомнитьШаг();
-                        собрать();
-                        блоки[i].items.splice(п, 1);
-                        рисоватьБлоки();
-                        пометить();
-                        return;
-                    }
-                }
-                if (блоки.length > 1) {
-                    ev.preventDefault();
-                    убратьБлок(i);
-                    const пред = document.querySelector(`.блок[data-i="${Math.max(0, i - 1)}"] [data-текст]`);
-                    пред?.focus();
-                }
-                return;
-            }
-
-            if ((ev.ctrlKey || ev.metaKey) && ev.key.toLowerCase() === 'b') {
-                ev.preventDefault();
-                запомнитьШаг();
-                document.execCommand('bold');
-                пометить();
-            }
+            ev.preventDefault();
+            команда('insertHTML', '<p><br></p>');
         });
 
-        // Ctrl+Z и Ctrl+Shift+Z ловим на всей странице: курсор может стоять
-        // и в заголовке, и в подписи к фото
-        document.addEventListener('keydown', ev => {
-            if (!(ev.ctrlKey || ev.metaKey)) return;
-            const кнопка = ev.key.toLowerCase();
-            if (кнопка === 'z' && !ev.shiftKey) { ev.preventDefault(); откатить(); }
-            else if ((кнопка === 'z' && ev.shiftKey) || кнопка === 'y') { ev.preventDefault(); повторить(); }
-        });
+        document.querySelectorAll('[data-стиль]').forEach(б =>
+            б.addEventListener('click', () => стиль(б.dataset.стиль)));
 
-        тело.addEventListener('click', ev => {
-            const кнопка = ev.target.closest('[data-действие]');
-            if (!кнопка) return;
-            const блок = кнопка.closest('.блок');
-            const i = Number(блок.dataset.i);
-            switch (кнопка.dataset.действие) {
-                case 'вверх': переставить(i, -1); break;
-                case 'вниз': переставить(i, 1); break;
-                case 'убрать': убратьБлок(i); break;
-                case 'пункт':
-                    запомнитьШаг();
-                    собрать();
-                    блоки[i].items.push([]);
-                    рисоватьБлоки();
-                    document.querySelector(
-                        `.блок[data-i="${i}"] [data-пункт="${блоки[i].items.length - 1}"]`)?.focus();
-                    пометить();
-                    break;
-                case 'снимок':
-                    собрать();
-                    блокДляСнимка = блоки[i]?.метка ?? null;
-                    $('#файл').click();
-                    break;
-                case 'галерея':
-                    собрать();
-                    блокДляСнимка = блоки[i]?.метка ?? null;
-                    открытьГалерею();
-                    break;
-            }
-        });
+        $('#жирный').addEventListener('click', () => { команда('bold'); обновитьПанель(); });
+        $('#список').addEventListener('click', () => { команда('insertUnorderedList'); обновитьПанель(); });
+        $('#поШагам').addEventListener('click', () => { команда('insertOrderedList'); обновитьПанель(); });
+        $('#ссылка').addEventListener('click', поставитьСсылку);
+        $('#убратьОформление').addEventListener('click', () => { команда('removeFormat'); обновитьПанель(); });
+        $('#откатить').addEventListener('click', () => команда('undo'));
+        $('#повторить').addEventListener('click', () => команда('redo'));
 
-        тело.addEventListener('change', ev => {
-            const выбор = ev.target.closest('[data-тип]');
-            if (!выбор) return;
-            запомнитьШаг();
-            собрать();
-            const i = Number(выбор.closest('.блок').dataset.i);
-            блоки[i] = сменитьТип(блоки[i], выбор.value);
-            рисоватьБлоки();
-            пометить();
-            document.querySelector(`.блок[data-i="${i}"] [data-текст]`)?.focus();
-        });
+        $('#фотоФайл').addEventListener('click', () => $('#файл').click());
+        $('#фотоГалерея').addEventListener('click', открытьГалерею);
 
         $('#снимкиНабора').addEventListener('click', ev => {
             const кнопка = ev.target.closest('[data-взятьСнимок]');
@@ -940,27 +555,11 @@ const WorshipEdit = (() => {
             if (файл) await загрузитьСнимок(файл);
         });
 
-        document.querySelectorAll('[data-добавить]').forEach(б =>
-            б.addEventListener('click', () => {
-                добавитьБлок(б.dataset.добавить);
-                б.closest('.dropdown')?.querySelector('[tabindex]')?.blur();
-                document.activeElement?.blur?.();
-                const узел = document.querySelector(`.блок[data-i="${блоки.length - 1}"] [data-текст]`);
-                узел?.focus();
-            }));
-
         // без этого Chrome снимает жирный не тегом, а <span style>, которого
-        // сериализация не понимает, и оформление «не снимается»
+        // перевод в документ не понимает, и оформление «не снимается»
         try { document.execCommand('styleWithCSS', false, false); } catch { /* старый браузер */ }
-        $('#жирный').addEventListener('click', () => {
-            запомнитьШаг();
-            document.execCommand('bold');
-            пометить();
-        });
-        $('#откатить').addEventListener('click', откатить);
-        $('#повторить').addEventListener('click', повторить);
-        $('#вернутьБлок').addEventListener('click', вернутьБлок);
-        $('#ссылка').addEventListener('click', поставитьСсылку);
+        // абзацы обычными <p>, а не <div>: так разметка ближе к документу
+        try { document.execCommand('defaultParagraphSeparator', false, 'p'); } catch { /* */ }
 
         ['#заголовок', '#раздел', '#примечание'].forEach(s =>
             $(s).addEventListener('input', () => { пометить(); запомнитьПотом(); }));
@@ -988,22 +587,6 @@ const WorshipEdit = (() => {
             ev.preventDefault();
             ev.returnValue = '';
         });
-    }
-
-    function поставитьСсылку() {
-        const выделение = getSelection();
-        if (!выделение.rangeCount || выделение.isCollapsed) {
-            Layout.showNotification('Выделите слова, которые станут ссылкой', 'info');
-            return;
-        }
-        const куда = prompt('Адрес ссылки (https://… или имя страницы модуля)');
-        if (!куда) return;
-        const чистый = WorshipDoc.адрес(куда);
-        if (!чистый) { Layout.showNotification('Такой адрес не годится', 'warning'); return; }
-        запомнитьШаг();
-        document.execCommand('createLink', false, чистый);
-        пометить();
-        запомнитьПотом();
     }
 
     async function отправить() {
@@ -1046,9 +629,9 @@ const WorshipEdit = (() => {
             return;
         }
         рисоватьШапку();
-        рисоватьБлоки();
+        наполнитьПоле();
         слушать();
-        запомнитьШаг();                 // точка, к которой можно вернуться
+        обновитьПанель();
         // теги ставятся прямо при написании: у новой статьи — после первого
         // сохранения, когда страница перезагрузится уже с номером
         if (id) {

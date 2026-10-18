@@ -17,10 +17,13 @@
     <script src="https://cdn.tailwindcss.com"></script>
     <style>
         :root { --current-color: #6b4226; }
-        .кусок { outline: none; min-height: 1.5em; }
-        .кусок:empty::before { content: attr(data-подсказка); opacity: .4; }
-        .кусок-h2 { font-size: 1.4rem; font-weight: 700; }
-        .кусок-h3 { font-size: 1.15rem; font-weight: 600; }
+        #текст { outline: none; font-size: 17px; line-height: 1.75; min-height: 40vh; }
+        #текст p { margin: 0 0 .75em; }
+        #текст h2 { font-size: 22px; font-weight: 700; margin: 1.2em 0 .5em; }
+        #текст h3 { font-size: 18px; font-weight: 600; margin: 1em 0 .4em; }
+        #текст ul { list-style: disc; padding-left: 1.6em; }
+        #текст ol { list-style: decimal; padding-left: 1.6em; }
+        #текст blockquote { background: #eee; border-radius: .75rem; padding: .7rem 1rem; }
     </style>
 </head>
 <body class="bg-base-200 p-6">
@@ -44,29 +47,31 @@
         <input id="примечание" type="text" class="input input-bordered input-sm" placeholder="Что изменилось">
     </label>
 
-    <div class="sticky top-0 z-20 mb-3 flex flex-wrap items-center gap-2 bg-base-200/95 py-2">
-        <div class="join">
-            <button class="btn btn-xs btn-outline join-item px-2" id="откатить" title="Ctrl+Z" disabled>↶</button>
-            <button class="btn btn-xs btn-outline join-item px-2" id="повторить" title="Ctrl+Shift+Z" disabled>↷</button>
+    <div class="sticky top-0 z-20 mb-3 flex flex-wrap items-center gap-1 bg-base-200/95 py-2">
+        <div class="join mr-1">
+            <button class="btn btn-sm btn-outline join-item px-2" id="откатить" title="Ctrl+Z">↶</button>
+            <button class="btn btn-sm btn-outline join-item px-2" id="повторить" title="Ctrl+Shift+Z">↷</button>
         </div>
-        <button class="btn btn-xs btn-outline font-bold" id="жирный">Ж</button>
-        <button class="btn btn-xs btn-outline" id="ссылка">Ссылка</button>
+        <button class="btn btn-sm btn-outline font-bold px-3" id="жирный">Ж</button>
+        <button class="btn btn-sm btn-outline" data-стиль="h2">Заголовок</button>
+        <button class="btn btn-sm btn-outline" data-стиль="h3">Подзаголовок</button>
+        <button class="btn btn-sm btn-outline px-3" id="список">• Список</button>
+        <button class="btn btn-sm btn-outline px-3" id="поШагам">1. По шагам</button>
+        <button class="btn btn-sm btn-outline" data-стиль="note">Заметка</button>
+        <button class="btn btn-sm btn-outline" id="ссылка">Ссылка</button>
         <div class="dropdown">
-            <button tabindex="0" class="btn btn-xs" style="background: var(--current-color); color:#fff;">+ Добавить</button>
-            <ul tabindex="0" class="dropdown-content z-30 menu menu-sm p-2 shadow bg-base-100 rounded-box w-52">
-                <li><button data-добавить="p">Абзац</button></li>
-                <li><button data-добавить="h2">Заголовок</button></li>
-                <li><button data-добавить="h3">Подзаголовок</button></li>
-                <li><button data-добавить="ul">Список</button></li>
-                <li><button data-добавить="ol">По шагам</button></li>
-                <li><button data-добавить="note">Заметка</button></li>
-                <li><button data-добавить="img">Фото</button></li>
+            <button tabindex="0" class="btn btn-sm btn-outline">Фото</button>
+            <ul tabindex="0" class="dropdown-content z-30 menu menu-sm p-2 shadow bg-base-100 rounded-box w-56">
+                <li><button id="фотоФайл">Загрузить с устройства</button></li>
+                <li><button id="фотоГалерея">Взять из галереи</button></li>
             </ul>
         </div>
-        <button class="btn btn-xs btn-ghost ml-auto" id="вернутьБлок" hidden>Вернуть убранное</button>
+        <button class="btn btn-sm btn-ghost ml-auto" id="убратьОформление">Очистить</button>
     </div>
 
-    <div class="card bg-base-100 shadow"><div class="card-body p-6"><div id="блоки"></div></div></div>
+    <div class="card bg-base-100 shadow"><div class="card-body p-6">
+        <div id="текст" contenteditable="true" spellcheck="true"></div>
+    </div></div>
 
     <div class="flex gap-2 mt-4">
         <button class="btn btn-sm" id="сохранить">Сохранить</button>
@@ -85,6 +90,7 @@
 
 <script src="../js/utils.js"></script>
 <script src="../js/worship-doc.js"></script>
+<script src="../js/worship-editor-doc.js"></script>
 <script>
 // ───────── заглушки внешнего мира ─────────
 const пусто = { data: null, error: null };
@@ -123,83 +129,104 @@ window.WorshipTags = { нарисовать: () => {} };
 const итоги = [];
 const скажи = (имя, ок, что = '') => итоги.push(`${ок ? '✓' : '✗'} ${имя}${что ? ' — ' + что : ''}`);
 const пауза = мс => new Promise(r => setTimeout(r, мс));
-const поля = () => [...document.querySelectorAll('#блоки [data-текст]')];
-const текстБлоков = () => поля().map(п => п.textContent).join(' | ');
+const поле = () => document.querySelector('#текст');
+const документ = () => WorshipDoc.разобрать(WorshipEditorDoc.изДома(поле()));
+const типы = () => документ().blocks.map(б => б.type).join(',');
 
-function напечатать(поле, текст) {
-    поле.focus();
-    поле.textContent = текст;
-    поле.dispatchEvent(new InputEvent('input', { bubbles: true }));
+function выделить(узел) {
+    const д = document.createRange();
+    д.selectNodeContents(узел);
+    const в = getSelection();
+    в.removeAllRanges();
+    в.addRange(д);
+    поле().focus();
+}
+
+function вставитьТекст(строка) {
+    поле().focus();
+    document.execCommand('insertText', false, строка);
+    поле().dispatchEvent(new InputEvent('input', { bubbles: true }));
 }
 
 async function прогон() {
     итоги.length = 0;
+    поле().innerHTML = '<p>Мангала-арати начинается в 4:30</p>';
 
-    // 1. пишем текст в первый абзац
-    напечатать(поля()[0], 'Мангала-арати начинается в 4:30');
-    await пауза(900);
-    скажи('текст набирается', поля()[0].textContent.includes('4:30'));
+    // 1. текст читается как документ
+    скажи('абзац читается как абзац', типы() === 'p', типы());
 
-    // 2. добавляем блоки
-    document.querySelector('[data-добавить="h2"]').click();
-    await пауза(100);
-    напечатать(поля().at(-1), 'Что приготовить');
-    await пауза(900);
-    document.querySelector('[data-добавить="ul"]').click();
-    await пауза(100);
-    скажи('блоки добавляются', document.querySelectorAll('#блоки .блок').length === 3,
-        `блоков: ${document.querySelectorAll('#блоки .блок').length}`);
+    // 2. выделили абзац → заголовок
+    выделить(поле().querySelector('p'));
+    document.querySelector('[data-стиль="h2"]').click();
+    await пауза(150);
+    скажи('выделенное становится заголовком', типы() === 'h2', типы());
 
-    // 3. откат: последнее действие — добавленный список
-    const былоДоОтката = document.querySelectorAll('#блоки .блок').length;
+    // 3. повторное нажатие снимает заголовок
+    document.querySelector('[data-стиль="h2"]').click();
+    await пауза(150);
+    скажи('повторное нажатие возвращает абзац', типы() === 'p', типы());
+
+    // 4. список
+    выделить(поле().firstElementChild);
+    document.querySelector('#список').click();
+    await пауза(150);
+    скажи('выделенное становится списком', типы() === 'ul', типы());
+    document.querySelector('#список').click();
+    await пауза(150);
+
+    // 5. заметка
+    выделить(поле().firstElementChild);
+    document.querySelector('[data-стиль="note"]').click();
+    await пауза(150);
+    скажи('выделенное становится заметкой', типы() === 'note', типы());
+    document.querySelector('[data-стиль="note"]').click();
+    await пауза(150);
+
+    // 6. жирный сохраняется в документе
+    выделить(поле().firstElementChild);
+    document.querySelector('#жирный').click();
+    await пауза(150);
+    const жирное = документ().blocks[0]?.spans?.some(о => о.b);
+    скажи('жирный доезжает до документа', !!жирное);
+
+    // 7. отмена — браузерная, без своей истории
+    const доОтмены = поле().innerHTML;
     document.querySelector('#откатить').click();
-    await пауза(200);
-    скажи('Ctrl+Z убирает добавленный блок',
-        document.querySelectorAll('#блоки .блок').length === былоДоОтката - 1,
-        `стало: ${document.querySelectorAll('#блоки .блок').length}`);
+    await пауза(250);
+    скажи('Ctrl+Z отменяет последнее действие', поле().innerHTML !== доОтмены,
+        `было «${доОтмены.slice(0, 40)}», стало «${поле().innerHTML.slice(0, 40)}»`);
 
-    // 4. повтор возвращает
+    // 8. повтор возвращает
     document.querySelector('#повторить').click();
-    await пауза(200);
-    скажи('Ctrl+Shift+Z возвращает',
-        document.querySelectorAll('#блоки .блок').length === былоДоОтката,
-        `стало: ${document.querySelectorAll('#блоки .блок').length}`);
+    await пауза(250);
+    скажи('Ctrl+Shift+Z возвращает', поле().innerHTML === доОтмены,
+        поле().innerHTML.slice(0, 50));
 
-    // 5. удаление блока и откат удаления
-    const доУдаления = текстБлоков();
-    document.querySelector('#блоки .блок [data-действие="убрать"]').click();
-    await пауза(200);
-    const послеУдаления = текстБлоков();
-    document.querySelector('#откатить').click();
-    await пауза(200);
-    скажи('откат возвращает удалённый блок',
-        текстБлоков() === доУдаления && послеУдаления !== доУдаления,
-        `было «${доУдаления}», после удаления «${послеУдаления}», после отката «${текстБлоков()}»`);
+    // 9. вставка готового текста разбирается на части
+    поле().innerHTML = '<p><br></p>';
+    выделить(поле().firstElementChild);
+    const кусок = ['Утреннее одевание', '', 'Одевают в такой последовательности.', '',
+                   '1. Нижняя одежда', '2. Верхняя одежда', '', '— Проверить гирлянду'].join('\n');
+    поле().dispatchEvent(Object.assign(new Event('paste', { bubbles: true, cancelable: true }), {
+        clipboardData: { getData: () => кусок },
+    }));
+    await пауза(250);
+    const после = типы();
+    скажи('вставка делится на заголовок, абзац и списки',
+        после.includes('h2') && после.includes('ol') && после.includes('ul'), после);
 
-    // 6. откат текста
-    const доПравки = поля()[0].textContent;
-    напечатать(поля()[0], 'совсем другой текст');
-    await пауза(900);
-    document.querySelector('#откатить').click();
-    await пауза(200);
-    скажи('откат возвращает прежний текст', поля()[0].textContent === доПравки,
-        `ждали «${доПравки}», получили «${поля()[0].textContent}»`);
+    // 10. документ переживает круг «в разметку и обратно»
+    const был = JSON.stringify(документ());
+    поле().replaceChildren(WorshipEditorDoc.вДом(JSON.parse(был)));
+    скажи('документ не портится при переводе туда и обратно',
+        JSON.stringify(документ()) === был);
 
-    // 7. глубина истории: несколько откатов подряд
-    let откатов = 0;
-    while (!document.querySelector('#откатить').disabled && откатов < 10) {
-        document.querySelector('#откатить').click();
-        await пауза(120);
-        откатов += 1;
-    }
-    скажи('история помнит несколько шагов', откатов >= 3, `откатов подряд: ${откатов}`);
-
-    // 8. кнопка отката гаснет в начале истории
-    скажи('в начале истории кнопка отката выключена', document.querySelector('#откатить').disabled);
-
-    // 9. ручки блока скрыты, пока на блок не навели
-    const ручки = document.querySelector('#блоки .ручки');
-    скажи('ручки блока не мозолят глаза', ручки.className.includes('opacity-0'));
+    // 11. чужая вёрстка не доезжает до документа
+    поле().innerHTML = '<p>Текст <span style="color:red" class="чужое">с цветом</span></p>' +
+        '<table><tr><td>таблица</td></tr></table>';
+    const чистый = JSON.stringify(документ());
+    скажи('чужая вёрстка превращается в обычный текст',
+        !чистый.includes('color') && !чистый.includes('table'), чистый.slice(0, 80));
 
     document.querySelector('#итоги').textContent = итоги.join('\n');
     console.log(итоги.join('\n'));
