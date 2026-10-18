@@ -36,6 +36,15 @@ const WorshipStandards = (() => {
     // запрос с главной приходит в адресе: два разных поиска в модуле ни к чему
     let фильтр = { поиск: new URLSearchParams(location.search).get('q') || '', архив: false };
 
+    let версииСтатей = [];
+
+    /**
+     * Всё для страницы — одним кругом до базы: разделы, статьи, их версии,
+     * очередь на утверждение и открытые замечания. Раньше это были четыре
+     * круга подряд (версии ждали список статей ради фильтра по id).
+     * Версии берём только живые — действующую и открытую правку: в старых
+     * редакциях полный текст, и тянуть их ради значков незачем.
+     */
     async function загрузить() {
         const ответы = await Promise.all([
             Layout.db.from('worship_sections')
@@ -44,33 +53,35 @@ const WorshipStandards = (() => {
             Layout.db.from('worship_articles')
                 .select('id, section_id, title, status, sort_order, updated_at, current_version_id')
                 .eq('kind', 'standard').order('sort_order'),
+            // порциями: выдача обрезается на тысяче строк, а версий у статьи
+            // несколько — иначе значки и номера начнут молча врать
+            Utils.fetchAll((от, до) => Layout.db.from('worship_versions')
+                .select('article_id, status, version_no, approved_at, plain_text')
+                .in('status', ['published', 'draft', 'submitted'])
+                .order('id').range(от, до)),
+            // очередь — это версии, а не статьи: правка действующего стандарта ждёт
+            // решения, пока сама статья продолжает действовать
+            можноУтверждать()
+                ? Layout.db.from('worship_versions')
+                    .select('id, article_id, title, change_note, updated_at, created_by')
+                    .eq('status', 'submitted').order('updated_at')
+                : Promise.resolve({ data: [] }),
+            // замечания — вторая стопка работы отдела, и смотрит её любой пуджари,
+            // а не только тот, кто утверждает
+            можноПисать()
+                ? Layout.db.from('worship_remarks')
+                    .select('id, article_id, body, created_at')
+                    .eq('state', 'open').order('created_at')
+                : Promise.resolve({ data: [] }),
         ]);
-        if (ответы.some(о => о.error)) {
-            Layout.handleError(ответы.find(о => о.error).error, 'Загрузка стандартов');
-            return false;
-        }
+        const сбой = ответы.find(о => о.error);
+        if (сбой) { Layout.handleError(сбой.error, 'Загрузка стандартов'); return false; }
+
         разделы = ответы[0].data || [];
         статьи = ответы[1].data || [];
-
-        // очередь — это версии, а не статьи: правка действующего стандарта ждёт
-        // решения, пока сама статья продолжает действовать
-        if (можноУтверждать()) {
-            const { data, error } = await Layout.db.from('worship_versions')
-                .select('id, article_id, title, change_note, updated_at, created_by')
-                .eq('status', 'submitted').order('updated_at');
-            if (error) { Layout.handleError(error, 'Очередь на утверждение'); return false; }
-            очередь = data || [];
-        }
-
-        // замечания — вторая стопка работы отдела, и смотрит её любой пуджари,
-        // а не только тот, кто утверждает
-        if (можноПисать()) {
-            const зам = await Layout.db.from('worship_remarks')
-                .select('id, article_id, body, created_at')
-                .eq('state', 'open').order('created_at');
-            if (зам.error) { Layout.handleError(зам.error, 'Замечания'); return false; }
-            замечания = зам.data || [];
-        }
+        версииСтатей = ответы[2].data || [];
+        очередь = ответы[3].data || [];
+        замечания = ответы[4].data || [];
         return true;
     }
 
@@ -361,19 +372,9 @@ const WorshipStandards = (() => {
 
     // ---------- данные для показа ----------
     async function дополнитьВерсиями() {
-        const ids = статьи.map(с => с.id);
-        if (!ids.length) return true;
-
-        // по сотне статей за раз: выдача обрезается на тысяче строк, а версий
-        // у статьи несколько — иначе значки и номера начнут молча врать
-        const строки = [];
-        for (let i = 0; i < ids.length; i += 100) {
-            const { data, error } = await Layout.db.from('worship_versions')
-                .select('article_id, status, version_no, approved_at, plain_text')
-                .in('article_id', ids.slice(i, i + 100));
-            if (error) { Layout.handleError(error, 'Версии статей'); return false; }
-            строки.push(...(data || []));
-        }
+        // версии уже пришли в загрузить(); здесь только раскладываем по статьям
+        // (среди них есть версии материалов библиотеки — они просто не найдут статью)
+        const строки = версииСтатей;
 
         const поСтатье = {};
         (строки).forEach(в => {
