@@ -191,7 +191,6 @@ worship_duties          назначение: день, служба ЛИБО р
 | `worship_unarchive(uuid)` | возвращает из архива |
 | `worship_restore_version(uuid)` | копирует прежнюю версию в черновик |
 | `worship_delete_draft(uuid)` | удаляет черновик статьи, которая никогда не действовала |
-| `worship_reorder(uuid, int)` | двигает статью в разделе на одну позицию (архивные уходят в конец) |
 | `worship_section_reorder/delete` | порядок разделов одной операцией; удаление только пустого |
 | `worship_remark_add/close` | замечания |
 | `worship_touch_recent(uuid)` | отмечает «открыл», подрезает список до семи |

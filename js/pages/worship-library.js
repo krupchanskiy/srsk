@@ -12,7 +12,6 @@ const WorshipLibrary = (() => {
     const дата = v => v ? DateUtils.formatShort(new Date(v)) : '';
 
     const можноПисать = () => !!window.hasPermission?.('worship_write');
-    const можноУтверждать = () => !!window.hasPermission?.('worship_approve');
 
     let разделы = [], материалы = [], вложения = {};
     let фильтр = { поиск: new URLSearchParams(location.search).get('q') || '', вид: '', архив: false };

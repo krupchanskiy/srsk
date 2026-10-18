@@ -129,12 +129,6 @@ const WorshipLoad = (() => {
     const времяСлужбы = н => службы.find(с => с.id === н.service_id)?.time_of_day
         || отклонения.find(о => о.id === н.override_id)?.time_of_day || '';
 
-    const имяСлужбы = н => {
-        const с = службы.find(x => x.id === н.service_id);
-        if (с) return Layout.getName(с);
-        return отклонения.find(о => о.id === н.override_id)?.title || 'разовая служба';
-    };
-
     /** Все дни периода — по ним считаем и дыры, и серии без перерыва. */
     function дниПериода() {
         const { от, до } = границы();
