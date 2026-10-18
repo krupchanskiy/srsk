@@ -157,10 +157,18 @@ const WorshipEdit = (() => {
     }
 
     // ---------- сохранение ----------
+    /** Отметка о состоянии есть и сверху, и у нижней кнопки: длинную статью
+        дописывают внизу страницы и сохраняют оттуда же. */
+    function отметка(текст, класс) {
+        ['#сохранение', '#сохранениеНизу'].forEach(s2 => {
+            const у = $(s2);
+            if (у) { у.textContent = текст; у.className = класс; }
+        });
+    }
+
     function пометить() {
         грязно = true;
-        $('#сохранение').textContent = 'не сохранено';
-        $('#сохранение').className = 'text-sm text-warning';
+        отметка('не сохранено', 'text-sm text-warning');
     }
 
     async function сохранить({ затем } = {}) {
@@ -190,8 +198,7 @@ const WorshipEdit = (() => {
 
         сохраняется = true;
         кнопкиЗаняты(true);
-        $('#сохранение').textContent = 'сохраняю…';
-        $('#сохранение').className = 'text-sm opacity-60';
+        отметка('сохраняю…', 'text-sm opacity-70');
 
         const полезное = {
             article_id: id || null,
@@ -213,14 +220,12 @@ const WorshipEdit = (() => {
         знаюСостояние = true;
 
         if (error) {
-            $('#сохранение').textContent = 'не сохранено';
-            $('#сохранение').className = 'text-sm text-error';
+            отметка('не сохранено', 'text-sm text-error');
             Layout.handleError(error, 'Сохранение');
             return null;
         }
         if (data?.конфликт) {
-            $('#сохранение').textContent = 'не сохранено';
-            $('#сохранение').className = 'text-sm text-error';
+            отметка('не сохранено', 'text-sm text-error');
             показатьКонфликт(data['чужая_версия'], data['сообщение']);
             return null;
         }
@@ -230,13 +235,13 @@ const WorshipEdit = (() => {
         грязно = false;
         свои = [];
         забыть();
-        $('#сохранение').textContent = 'сохранено';
-        $('#сохранение').className = 'text-sm text-success';
+        отметка('сохранено', 'text-sm text-success');
         return data;
     }
 
     function кнопкиЗаняты(занято) {
-        ['#сохранить', '#отправить', '#перезаписать'].forEach(s => {
+        ['#сохранить', '#отправить', '#перезаписать',
+         '#сохранитьНизу', '#отправитьНизу'].forEach(s => {
             const б = $(s);
             if (б) б.disabled = занято;
         });
@@ -567,12 +572,15 @@ const WorshipEdit = (() => {
         ['#заголовок', '#раздел', '#примечание'].forEach(s =>
             $(s).addEventListener('input', () => { пометить(); запомнитьПотом(); }));
 
-        $('#сохранить').addEventListener('click', async () => {
+        const сохранитьИПерейти = async () => {
             const ответ = await сохранить({});
             if (ответ && !id) location.replace(`edit.html?id=${ответ.article_id}`);
-        });
+        };
+        $('#сохранить').addEventListener('click', сохранитьИПерейти);
+        $('#сохранитьНизу').addEventListener('click', сохранитьИПерейти);
 
         $('#отправить').addEventListener('click', отправить);
+        $('#отправитьНизу').addEventListener('click', отправить);
         $('#отмена').addEventListener('click', отменить);
         $('#удалить').addEventListener('click', удалить);
 
@@ -644,7 +652,7 @@ const WorshipEdit = (() => {
             $('#тегиБлок').hidden = false;
             WorshipTags.нарисовать($('#теги'), { article_id: id }, { можноПравить: true });
         }
-        $('#сохранение').textContent = '';
+        отметка('', 'text-sm');
         // после проверки — не чистим: если несохранённое вернули, человек
         // должен видеть «не сохранено», иначе решит, что всё уже в базе
         проверитьНесохранённое();

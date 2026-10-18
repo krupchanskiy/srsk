@@ -18,17 +18,13 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Noto+Sans:wght@400;500;600;700&family=Noto+Sans+Devanagari:wght@400;500;600;700&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="../css/common.css?v=11">
+    <link rel="stylesheet" href="../css/common.css?v=14">
     <style>
-        /* Разделитель рисуется между видимыми секциями сводки: часть из них
-           скрыта (нет закладок, нет подборок), и фиксированная граница
-           оставляла бы пустую полосу сверху. */
-        #сводка > section:not([hidden]) ~ section:not([hidden]) {
-            border-top: 1px solid oklch(var(--b2));
-            padding-top: 1rem; margin-top: 1rem;
-        }
-        details[open] > summary .details-chevron { transform: rotate(0deg); }
-        details:not([open]) > summary .details-chevron { transform: rotate(-90deg); }
+        /* Группы сводки разделяет расстояние, а не линии: части секций
+           скрыты (нет закладок, нет подборок), и четыре линейки на четыре
+           однострочных списка резали узкую колонку на пустые ящики. */
+        #сводка > section:not([hidden]) ~ section:not([hidden]) { margin-top: 1.1rem; }
+        #сводка a { text-decoration: none; }
     </style>
 </head>
 <body class="bg-base-200 min-h-screen flex flex-col">
@@ -127,28 +123,28 @@
                     <div class="card-body p-5 gap-0" id="сводка">
 
                         <section id="kitsCard" hidden>
-                            <h2 class="надзаголовок mb-1"
+                            <h2 class="надзаголовок mb-1.5"
                                 data-i18n="worship_kits_title">Подборки</h2>
                             <ul class="list-none m-0 p-0" id="kits"></ul>
                         </section>
 
                         <section id="marksCard" hidden>
-                            <h2 class="надзаголовок mb-1"
+                            <h2 class="надзаголовок mb-1.5"
                                 data-i18n="worship_marks_title">Закладки</h2>
                             <ul class="list-none m-0 p-0" id="marks"></ul>
                         </section>
 
                         <section id="recentCard" hidden>
-                            <h2 class="надзаголовок mb-1"
+                            <h2 class="надзаголовок mb-1.5"
                                 data-i18n="worship_recent_title">Недавно открытое</h2>
                             <ul class="list-none m-0 p-0" id="recent"></ul>
                         </section>
 
                         <section id="sectionsCard">
-                            <h2 class="надзаголовок mb-1"
+                            <h2 class="надзаголовок mb-1.5"
                                 data-i18n="worship_sections_title">Разделы</h2>
                             <ul class="list-none m-0 p-0" id="sections"></ul>
-                            <a href="standards.html" class="btn btn-sm btn-outline mt-3 w-full"
+                            <a href="standards.html" class="btn btn-sm btn-outline mt-4 w-full"
                                data-i18n="worship_all_standards">Все стандарты</a>
                         </section>
                     </div>
@@ -162,10 +158,10 @@
     <script src="../js/config.js?v=5"></script>
     <script src="../js/cache.js?v=2"></script>
     <script src="../js/utils.js?v=17"></script>
-    <script src="../js/layout.js?v=111"></script>
+    <script src="../js/layout.js?v=112"></script>
     <script src="../js/date-utils.js?v=4"></script>
     <script src="../js/auth-check.js?v=13"></script>
-    <script src="../js/pages/worship-home.js?v=11"></script>
+    <script src="../js/pages/worship-home.js?v=12"></script>
     <script>
         async function init() {
             await Layout.init({ module: 'worship', menuId: 'worship_main', itemId: 'worship_home' });

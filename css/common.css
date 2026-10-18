@@ -34,6 +34,17 @@ main h1 { font-size: 1.75rem !important; }
 main h2 { font-size: 1.5rem !important; }
 main h3 { font-size: 1.25rem !important; }
 
+/* Стрелка свёрнутого блока <details>: смотрит вниз, когда открыт. */
+details > summary .details-chevron { transition: transform .15s; }
+details[open] > summary .details-chevron { transform: rotate(0deg); }
+details:not([open]) > summary .details-chevron { transform: rotate(-90deg); }
+summary::-webkit-details-marker { display: none; }
+summary { list-style: none; }
+/* Содержимое закрытого details браузер скрывает сам, но ребёнок с явным
+   display (flex, grid) остаётся видимым — блок «закрыт», а список внутри
+   по-прежнему на экране. */
+details:not([open]) > *:not(summary) { display: none !important; }
+
 /* Тихий надзаголовок для справочных блоков сбоку. Размер заголовка задан
    выше через !important и перебивает классы Tailwind, поэтому боковая
    «Подборки» с одной ссылкой выглядела так же крупно, как главный блок
@@ -122,6 +133,13 @@ dialog.modal[open] {
     }
 }
 main input, main select, main textarea { font-size: 1rem !important; }
+/* Поле, которому размер задан явно: без этого название статьи, набранное
+   в поле без рамки, выглядело подписью, а не заголовком документа. */
+main input.text-lg, main textarea.text-lg { font-size: 1.125rem !important; }
+main input.text-xl, main textarea.text-xl { font-size: 1.25rem !important; }
+main input.text-2xl, main textarea.text-2xl { font-size: 1.5rem !important; }
+main input.text-3xl, main textarea.text-3xl { font-size: 1.875rem !important; }
+main textarea.text-\[17px\] { font-size: 17px !important; }
 
 main p, main span, main div { font-size: inherit; }
 

@@ -56,10 +56,27 @@ const WorshipLibrary = (() => {
         return 'text';
     }
 
+    // Вид материала узнаётся значком: в списке из сорока записей подпись
+    // «файл» у каждой второй строки не помогает, а рисунок читается сразу.
+    const СТРЕЛКА = 'stroke="currentColor" fill="none" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"';
     const ЗНАЧКИ = {
-        file: { имя: 'файл', цвет: 'badge-ghost' },
-        link: { имя: 'ссылка', цвет: 'badge-ghost' },
-        text: { имя: 'заметка', цвет: 'badge-ghost' },
+        file: {
+            имя: 'файл или скан', цвет: 'badge-ghost',
+            рисунок: `<svg width="18" height="18" viewBox="0 0 24 24" ${СТРЕЛКА} class="opacity-70">
+                <path d="M4 5.5A1.5 1.5 0 0 1 5.5 4H11l1.5 2.5H19A1.5 1.5 0 0 1 20.5 8v10.5A1.5 1.5 0 0 1 19 20H5.5A1.5 1.5 0 0 1 4 18.5Z"></path>
+                <path d="M8 12h8M8 15.5h5"></path></svg>`,
+        },
+        link: {
+            имя: 'ссылка наружу', цвет: 'badge-ghost',
+            рисунок: `<svg width="18" height="18" viewBox="0 0 24 24" ${СТРЕЛКА} class="opacity-70">
+                <path d="M10 13a5 5 0 0 0 7.5.5l3-3a5 5 0 0 0-7-7L12 5"></path>
+                <path d="M14 11a5 5 0 0 0-7.5-.5l-3 3a5 5 0 0 0 7 7L12 19"></path></svg>`,
+        },
+        text: {
+            имя: 'заметка', цвет: 'badge-ghost',
+            рисунок: `<svg width="18" height="18" viewBox="0 0 24 24" ${СТРЕЛКА} class="opacity-70">
+                <path d="M5 4h14v16l-7-3-7 3Z"></path><path d="M9 9h6M9 12.5h4"></path></svg>`,
+        },
     };
 
     function подходит(м) {
@@ -74,24 +91,36 @@ const WorshipLibrary = (() => {
 
     function строка(м) {
         const в = вид(м);
-        const файлов = (вложения[м.id] || []).length;
+        const свои = вложения[м.id] || [];
+        // «4 файла» раньше включало ссылки на ютуб: человек ждал четыре скана,
+        // а находил один файл и три адреса
+        const файлов = свои.filter(п => п.kind !== 'link').length;
+        const ссылок = свои.length - файлов;
+
+        const чем = [];
+        if (файлов) чем.push(Layout.pluralize(файлов, {
+            ru: ['файл', 'файла', 'файлов'], en: ['file', 'files'], hi: 'फ़ाइल' }));
+        if (ссылок) чем.push(Layout.pluralize(ссылок, {
+            ru: ['ссылка', 'ссылки', 'ссылок'], en: ['link', 'links'], hi: 'लिंक' }));
+
         return `
         <li class="border-b border-base-200 last:border-0">
             <a href="material.html?id=${м.id}"
-               class="flex flex-col desktop:flex-row desktop:items-center gap-1 desktop:gap-3
-                      px-5 py-3 hover:bg-base-200/60 transition-colors">
+               class="flex items-start gap-3 px-4 py-3 hover:bg-base-200/60 transition-colors">
+                <!-- значок вида: книгу от записи и заметки отличают взглядом,
+                     а не чтением подписи -->
+                <span class="shrink-0 w-9 h-9 rounded-lg bg-base-200 flex items-center justify-center"
+                      title="${e(ЗНАЧКИ[в].имя)}">${ЗНАЧКИ[в].рисунок || ''}</span>
+
                 <span class="flex-1 min-w-0">
                     <span class="font-semibold">${e(м.title)}</span>
-                    <span class="badge badge-sm ${ЗНАЧКИ[в].цвет} ml-2 align-middle">${ЗНАЧКИ[в].имя}</span>
                     ${м.status === 'archived'
-                        ? '<span class="badge badge-sm ml-1 align-middle">в архиве</span>' : ''}
+                        ? '<span class="badge badge-sm ml-2 align-middle">в архиве</span>' : ''}
                     ${м.summary ? `<span class="block text-sm opacity-70 mt-0.5">${e(м.summary)}</span>` : ''}
+                    <span class="block text-sm opacity-70 mt-0.5">${
+                        [м.author_name && e(м.author_name), чем.join(' · '), дата(м.updated_at)]
+                            .filter(Boolean).join(' · ')}</span>
                 </span>
-                <span class="text-sm opacity-60 whitespace-nowrap">${
-                    м.author_name ? e(м.author_name) + ' · ' : ''}${
-                    файлов > 1 ? Layout.pluralize(файлов, {
-                        ru: ['файл', 'файла', 'файлов'],
-                        en: ['file', 'files'], hi: 'फ़ाइल' }) + ' · ' : ''}${дата(м.updated_at)}</span>
             </a>
         </li>`;
     }
@@ -119,28 +148,43 @@ const WorshipLibrary = (() => {
             const свои = видимые.filter(м => м.section_id === р.id);
             if (!свои.length && (фильтр.поиск || фильтр.вид)) return '';
             return `
-            <div class="card bg-base-100 shadow mb-4">
-                <div class="px-5 pt-4 pb-2 flex flex-wrap items-center gap-3">
-                    <h2 class="card-title text-lg flex-1 min-w-0">${e(Layout.getName(р))}</h2>
-                    <span class="text-sm opacity-50">${свои.length}</span>
+            <section class="разделСписка mb-6">
+                <div class="flex flex-wrap items-baseline gap-3 px-1 mb-1">
+                    <h2 class="text-base font-bold uppercase tracking-wide">${e(Layout.getName(р))}</h2>
+                    <span class="text-sm opacity-70">${свои.length}</span>
                     ${р.is_active ? '' : '<span class="badge badge-sm">скрыт</span>'}
+                    <span class="flex-1"></span>
                     ${можноПисать()
-                        ? `<a href="material.html?section=${р.id}" class="btn btn-ghost btn-xs">+ материал</a>` : ''}
+                        ? `<a href="material.html?section=${р.id}" class="btn btn-ghost btn-xs ручкиСтроки">+ материал</a>` : ''}
                 </div>
-                <ul class="list-none m-0 p-0">
+                <ul class="list-none m-0 p-0 bg-base-100 rounded-xl shadow-sm overflow-hidden">
                     ${свои.map(строка).join('') ||
-                      '<li class="px-5 pb-4 text-sm opacity-60">Пока пусто</li>'}
+                      '<li class="px-4 py-4 text-sm opacity-70">Пока пусто</li>'}
                 </ul>
-            </div>`;
+            </section>`;
         }).join('') + (безРаздела.length ? `
-            <div class="card bg-base-100 shadow mb-4">
-                <div class="px-5 pt-4 pb-2"><h2 class="card-title text-lg opacity-70">Без раздела</h2></div>
-                <ul class="list-none m-0 p-0">${безРаздела.map(строка).join('')}</ul>
-            </div>` : '');
+            <section class="разделСписка mb-6">
+                <div class="px-1 mb-1"><h2 class="text-base font-bold uppercase tracking-wide opacity-70">Без раздела</h2></div>
+                <ul class="list-none m-0 p-0 bg-base-100 rounded-xl shadow-sm overflow-hidden">${
+                    безРаздела.map(строка).join('')}</ul>
+            </section>` : '');
 
         if (!видимые.length) {
-            тело.innerHTML = `<div class="card bg-base-100 shadow"><div class="card-body text-center opacity-60">${
-                фильтр.поиск || фильтр.вид ? 'Ничего не нашлось' : 'Материалов пока нет'}</div></div>`;
+            тело.innerHTML = фильтр.поиск || фильтр.вид
+                ? `<div class="bg-base-100 rounded-xl shadow-sm p-8 text-center">
+                       <div class="font-semibold mb-1">Ничего не нашлось</div>
+                       <div class="text-sm opacity-70">Поиск идёт по названию, описанию и автору.
+                           Попробуйте короче — «виласа» вместо «Хари-бхакти-виласа».</div>
+                   </div>`
+                : `<div class="bg-base-100 rounded-xl shadow-sm p-8 text-center">
+                       <div class="font-semibold mb-1">Библиотека пока пуста</div>
+                       <div class="text-sm opacity-70 max-w-md mx-auto">Сюда кладут книги, сканы, записи
+                           лекций и заметки — всё, что помогает разобраться, но ничего не предписывает.
+                           В отличие от стандарта, материал не проходит утверждение.</div>
+                       ${можноПисать()
+                           ? '<a href="material.html" class="btn btn-sm mt-3" style="background: var(--current-color); color:#fff;">Добавить первый материал</a>'
+                           : ''}
+                   </div>`;
         }
         window.applyPermissions?.();
     }
