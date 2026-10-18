@@ -26,9 +26,10 @@ function categoryLabel(p) {
 // У сторно своего комментария нет — там причина, которую написал казначей
 // (поле reason). Раньше колонка показывала только comment, и причина
 // сторнирования пропадала из журнала (замечание ВГ 05.08.2026).
+// У строки операции может быть свой комментарий (fin_postings.note, мигр. 701) — он первым
 function commentOf(row) {
-    if (row.comment) return row.comment;
-    return row.reason ? `${t('fin_reason')}: ${row.reason}` : '';
+    const общий = row.comment || (row.reason ? `${t('fin_reason')}: ${row.reason}` : '');
+    return [row.note, общий].filter(Boolean).join(' · ');
 }
 
 // ==================== ФИЛЬТРЫ ====================
@@ -111,8 +112,8 @@ async function exportCsv() {
         if (f.approval) q = q.eq('approval', f.approval);
         if (f.from) q = q.gte('occurred_on', f.from);
         if (f.to) q = q.lte('occurred_on', f.to);
-        if (amt !== null) q = q.or(`comment.ilike.%${f.q}%,reason.ilike.%${f.q}%,signed_amount.eq.${amt},signed_amount.eq.${-amt}`);
-        else if (f.q) q = q.or(`comment.ilike.%${f.q}%,reason.ilike.%${f.q}%`);
+        if (amt !== null) q = q.or(`comment.ilike.%${f.q}%,reason.ilike.%${f.q}%,note.ilike.%${f.q}%,signed_amount.eq.${amt},signed_amount.eq.${-amt}`);
+        else if (f.q) q = q.or(`comment.ilike.%${f.q}%,reason.ilike.%${f.q}%,note.ilike.%${f.q}%`);
         const { data } = await q;
         header = ['Дата', 'Тип', 'Счёт', 'Статья', 'Центр затрат', 'Объект', 'Участник', 'Комментарий', 'Сумма', 'Валюта'];
         rows = (data || []).map(p => [p.occurred_on, FinUtils.typeLabel(p.type), p.account_name, categoryLabel(p), p.cost_center_name, p.object_name, p.participant_name, commentOf(p), p.signed_amount, p.currency_code]);
@@ -312,8 +313,8 @@ async function loadTable(append = false) {
         if (f.approval) q = q.eq('approval', f.approval);
         if (f.from) q = q.gte('occurred_on', f.from);
         if (f.to) q = q.lte('occurred_on', f.to);
-        if (amt !== null) q = q.or(`comment.ilike.%${f.q}%,reason.ilike.%${f.q}%,signed_amount.eq.${amt},signed_amount.eq.${-amt}`);
-        else if (f.q) q = q.or(`comment.ilike.%${f.q}%,reason.ilike.%${f.q}%`);
+        if (amt !== null) q = q.or(`comment.ilike.%${f.q}%,reason.ilike.%${f.q}%,note.ilike.%${f.q}%,signed_amount.eq.${amt},signed_amount.eq.${-amt}`);
+        else if (f.q) q = q.or(`comment.ilike.%${f.q}%,reason.ilike.%${f.q}%,note.ilike.%${f.q}%`);
         const { data: raw, error } = await q;
         if (error) { Layout.handleError(error, 'ДДС'); return; }
         if (!raw.length && !append) {
@@ -462,6 +463,7 @@ async function toggleDetails(opId, ключ = opId) {
             <span class="fin-tags">
                 ${p.category_name ? тег(p.category_name) : ''}
                 ${p.cafe_point ? тег(CAFE_POINTS[p.cafe_point]) : ''}
+                ${p.note ? тег(p.note) : ''}
                 ${p.cost_center_name ? тег(p.cost_center_name) : ''}
                 ${p.object_name ? тег(p.object_name) : ''}
                 ${p.participant_name ? тег(p.participant_name) : ''}
@@ -564,7 +566,11 @@ async function repeatOperation(opId) {
         } else {
             // Приход, внесённый частями в разные кассы, повторяется со всеми частями
             ins.slice(1).forEach(x => addIncomeRow({ account_id: x.account_id, amount: Math.abs(Number(x.signed_amount)) }));
-            if (murtiRow) document.getElementById('incShopMurti').value = Math.abs(Number(murtiRow.signed_amount));
+            if (murtiRow) {
+                document.getElementById('incShopMurti').value = Math.abs(Number(murtiRow.signed_amount));
+                document.getElementById('incShopMurtiNote').value = murtiRow.note || '';
+            }
+            if (isShopIncome()) document.getElementById('incShopNote').value = p?.note || '';
             syncShopBlock();
         }
         updateIncomeRecap();
@@ -954,6 +960,8 @@ function openIncome() {
     document.getElementById('incCafeHall').value = '';
     document.getElementById('incCafeFloat').value = '';
     document.getElementById('incShopMurti').value = '';
+    document.getElementById('incShopMurtiNote').value = '';
+    document.getElementById('incShopNote').value = '';
     cafeFloatLoaded = false;
     updateIncomeCategoryList();
     document.getElementById('incAmount').value = '';
@@ -1283,9 +1291,15 @@ async function submitIncome(ev) {
         if (murti > Number(parts[0].amount)) {
             Layout.showNotification('На мурти больше, чем поступило на первый счёт', 'error'); return;
         }
-        parts.unshift({ ...parts[0], amount: murti, category_id: categoryByCode('murti').id });
+        parts.unshift({ ...parts[0], amount: murti, category_id: categoryByCode('murti').id,
+            note: document.getElementById('incShopMurtiNote').value.trim() });
         parts[1].amount = Math.round((Number(parts[1].amount) - murti) * 100) / 100;
         if (!parts[1].amount) parts.splice(1, 1);   // всё за мурти
+    }
+    // Комментарий к магазину — на строки «Касса Магазин», к мурти — на строку «Мурти» (701)
+    if (isShopIncome()) {
+        const shopNote = document.getElementById('incShopNote').value.trim();
+        parts.forEach(p => { if (!p.category_id) p.note = shopNote; });
     }
     const payload = {
         request_id: requestIds.income,
@@ -1298,7 +1312,8 @@ async function submitIncome(ev) {
             category_id: p.category_id || document.getElementById('incCategory').value,
             object_id: document.getElementById('incObject').value || null,
             payment_channel: p.channel.value || null,
-            ...(p.cafe_point ? { cafe_point: p.cafe_point } : {})
+            ...(p.cafe_point ? { cafe_point: p.cafe_point } : {}),
+            ...(p.note ? { note: p.note } : {})
         }))
     };
     if (isDonation && document.getElementById('incDonorId').value) {
