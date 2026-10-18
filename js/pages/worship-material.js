@@ -354,12 +354,16 @@ const WorshipMaterial = (() => {
 
     async function добавитьСсылку() {
         if (!id && !await сохранить()) return;
-        const адрес = prompt('Адрес: ссылка на лекцию, видео или страницу');
+        const адрес = await спроситьСтроку({
+            заголовок: 'Ссылка на источник',
+            подсказка: 'Лекция, видео или страница в сети' });
         if (!адрес || !адрес.trim()) return;
         if (!/^https?:\/\//i.test(адрес.trim())) {
             return Layout.showNotification('Ссылка должна начинаться с http:// или https://', 'warning');
         }
-        const имя = prompt('Как подписать ссылку?', адрес.trim().slice(0, 80));
+        const имя = await спроситьСтроку({
+            заголовок: 'Как подписать ссылку?',
+            значение: адрес.trim().slice(0, 80) });
         if (имя === null) return;
 
         const { error } = await Layout.db.from('worship_attachments').insert({
@@ -385,7 +389,7 @@ const WorshipMaterial = (() => {
 
     async function убратьВложение(вид) {
         const в = вложения.find(x => x.id === вид);
-        if (!в || !confirm(`Убрать «${в.name}»?`)) return;
+        if (!в || !await спросить(`Убрать «${в.name}»?`)) return;
 
         const { error } = await Layout.db.from('worship_attachments').delete().eq('id', вид);
         if (error) return Layout.handleError(error, 'Удаление вложения');
@@ -450,12 +454,12 @@ const WorshipMaterial = (() => {
 
         try { document.execCommand('styleWithCSS', false, false); } catch { /* старый браузер */ }
         $('#жирный').addEventListener('click', () => { document.execCommand('bold'); пометить(); });
-        $('#ссылка').addEventListener('click', () => {
+        $('#ссылка').addEventListener('click', async () => {
             const выделение = getSelection();
             if (!выделение.rangeCount || выделение.isCollapsed) {
                 return Layout.showNotification('Выделите слова, которые станут ссылкой', 'info');
             }
-            const куда = prompt('Адрес ссылки');
+            const куда = await спроситьСтроку({ заголовок: 'Адрес ссылки' });
             const чистый = куда && WorshipDoc.адрес(куда);
             if (!чистый) return куда && Layout.showNotification('Такой адрес не годится', 'warning');
             document.execCommand('createLink', false, чистый);
@@ -484,7 +488,10 @@ const WorshipMaterial = (() => {
             if (b.id === 'добавитьСсылку') return добавитьСсылку();
 
             if (b.id === 'вАрхив') {
-                const причина = prompt('Почему убираем материал в архив?');
+                const причина = await спроситьСтроку({
+                    заголовок: 'Почему убираем в архив?',
+                    подсказка: 'Одной строкой — это останется в истории материала',
+                    многострочно: true });
                 if (!причина || !причина.trim()) return;
                 const { error } = await Layout.db.rpc('worship_archive',
                     { p_article: id, p_reason: причина, p_replaced_by: null });
@@ -497,7 +504,8 @@ const WorshipMaterial = (() => {
                 return перечитать();
             }
             if (b.id === 'удалить') {
-                if (!confirm('Удалить материал насовсем вместе с файлами? Это не отменить.')) return;
+                if (!await спросить('Удалить материал насовсем?',
+                    'Вместе с приложенными файлами. Это не отменить.')) return;
                 const { data, error } = await Layout.db.rpc('worship_material_delete', { p_article: id });
                 if (error) return Layout.handleError(error, 'Удаление материала');
                 if (data?.файлы?.length) await Layout.db.storage.from('worship').remove(data.файлы);

@@ -131,7 +131,7 @@ const WorshipEdit = (() => {
     }
 
     /** Несохранённое с прошлого раза: предлагаем вернуть, а не подсовываем молча. */
-    function проверитьНесохранённое() {
+    async function проверитьНесохранённое() {
         let запись = null;
         try { запись = JSON.parse(sessionStorage.getItem(ключЧерновика()) || 'null'); } catch { /* */ }
         if (!запись?.doc) return;
@@ -144,7 +144,8 @@ const WorshipEdit = (() => {
             забыть();
             return;
         }
-        if (!confirm('В этом браузере осталась несохранённая правка. Вернуть её?')) {
+        if (!await спросить('Вернуть несохранённую правку?',
+            'В этом браузере осталась работа с прошлого раза.')) {
             забыть();
             return;
         }
@@ -323,13 +324,15 @@ const WorshipEdit = (() => {
         обновитьПанель();
     }
 
-    function поставитьСсылку() {
+    async function поставитьСсылку() {
         const выделение = getSelection();
         if (!выделение.rangeCount || выделение.isCollapsed) {
             Layout.showNotification('Выделите слова, которые станут ссылкой', 'info');
             return;
         }
-        const куда = prompt('Адрес ссылки (https://… или имя страницы модуля)');
+        const куда = await спроситьСтроку({
+            заголовок: 'Ссылка',
+            подсказка: 'https://… или имя страницы модуля, например article.html?id=…' });
         if (!куда) return;
         const чистый = WorshipDoc.адрес(куда);
         if (!чистый) { Layout.showNotification('Такой адрес не годится', 'warning'); return; }
@@ -574,7 +577,8 @@ const WorshipEdit = (() => {
         $('#удалить').addEventListener('click', удалить);
 
         $('#перезаписать').addEventListener('click', async () => {
-            if (!confirm('Чужая правка пропадёт без возможности вернуть. Сохранить моё поверх?')) return;
+            if (!await спросить('Сохранить своё поверх?',
+                'Чужая правка пропадёт без возможности вернуть.')) return;
             знаюСостояние = false;              // сознательная перезапись
             $('#конфликт').hidden = true;
             await сохранить({});
@@ -600,15 +604,17 @@ const WorshipEdit = (() => {
         location.href = `article.html?id=${статьяId}`;
     }
 
-    function отменить() {
-        if (грязно && !confirm('Выйти без сохранения? Написанное после последнего сохранения пропадёт.')) return;
+    async function отменить() {
+        if (грязно && !await спросить('Выйти без сохранения?',
+            'Написанное после последнего сохранения пропадёт.')) return;
         грязно = false;
         забыть();
         location.href = id ? `article.html?id=${id}` : 'standards.html';
     }
 
     async function удалить() {
-        if (!confirm('Удалить черновик? Эта статья никогда не действовала, восстановить будет нечем.')) return;
+        if (!await спросить('Удалить черновик?',
+            'Эта статья никогда не действовала, восстановить будет нечем.')) return;
         const { error } = await Layout.db.rpc('worship_delete_draft', { p_article: id });
         if (error) return Layout.handleError(error, 'Удаление черновика');
         грязно = false;

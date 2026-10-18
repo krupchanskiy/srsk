@@ -81,8 +81,10 @@ const WorshipKits = (() => {
     }
 
     async function создать() {
-        const название = prompt('Название подборки, например «Для нового волонтёра»');
-        if (!название || !название.trim()) return;
+        const название = await спроситьСтроку({
+            заголовок: 'Новая подборка',
+            подсказка: 'Для кого она: «Для нового волонтёра», «Перед Гаура-пурнимой»' });
+        if (!название) return;
         const { data, error } = await Layout.db.from('worship_kits').insert({
             title: название.trim(),
             created_by: window.currentUser?.id || null,

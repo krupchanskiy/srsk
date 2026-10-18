@@ -100,8 +100,9 @@ const WorshipKit = (() => {
     function строкаПункта(п, номер) {
         if (п.note) {
             return `
-            <li class="py-3 border-b border-base-200 last:border-0">
-                <div class="text-[15px] leading-relaxed bg-base-200 rounded-lg px-4 py-3">${e(п.note)}</div>
+            <li class="пунктДорожки flex items-start gap-3 py-3 border-b border-base-200 last:border-0">
+                <div class="flex-1 min-w-0 text-[15px] leading-relaxed bg-base-200 rounded-lg px-4 py-3">${
+                    e(п.note)}</div>
                 ${ручки(п)}
             </li>`;
         }
@@ -111,15 +112,18 @@ const WorshipKit = (() => {
             if (!а) return недоступен(номер, 'статья');
             const куда = а.kind === 'material' ? 'material' : 'article';
             return `
-            <li class="py-3 border-b border-base-200 last:border-0">
-                <div class="flex flex-wrap items-baseline gap-2">
-                    <span class="opacity-40">${номер}.</span>
-                    <a class="link font-semibold" href="${куда}.html?id=${а.id}">${e(а.title)}</a>
-                    <span class="badge badge-sm">${а.kind === 'material' ? 'материал' : 'стандарт'}</span>
-                    ${а.status === 'archived'
-                        ? '<span class="badge badge-sm badge-warning">больше не действует</span>' : ''}
+            <li class="пунктДорожки flex items-start gap-3 py-3 border-b border-base-200 last:border-0">
+                <span class="номерПункта shrink-0 w-7 h-7 rounded-full bg-base-200 flex items-center
+                             justify-center text-sm font-semibold">${номер}</span>
+                <div class="flex-1 min-w-0">
+                    <div class="flex flex-wrap items-baseline gap-2">
+                        <a class="link link-hover font-semibold" href="${куда}.html?id=${а.id}">${e(а.title)}</a>
+                        <span class="text-sm opacity-70">${а.kind === 'material' ? 'материал' : 'стандарт'}</span>
+                        ${а.status === 'archived'
+                            ? '<span class="badge badge-sm badge-warning">больше не действует</span>' : ''}
+                    </div>
+                    ${а.summary ? `<div class="text-sm opacity-70 mt-0.5">${e(а.summary)}</div>` : ''}
                 </div>
-                ${а.summary ? `<div class="text-sm opacity-70 mt-0.5">${e(а.summary)}</div>` : ''}
                 ${ручки(п)}
             </li>`;
         }
@@ -127,15 +131,18 @@ const WorshipKit = (() => {
         const н = имена.наборы[п.album_id];
         if (!н) return недоступен(номер, 'набор фотографий');
         return `
-        <li class="py-3 border-b border-base-200 last:border-0">
-            <div class="flex flex-wrap items-baseline gap-2">
-                <span class="opacity-40">${номер}.</span>
-                <a class="link font-semibold" href="album.html?id=${н.id}">${e(н.title)}</a>
-                <span class="badge badge-sm">фото</span>
-                ${н.is_private
-                    ? '<span class="badge badge-sm badge-error">закрытый набор — выдать нельзя</span>' : ''}
-                <span class="text-sm opacity-60">${
-                    DateUtils.formatShort(DateUtils.parseDate(н.event_date))}</span>
+        <li class="пунктДорожки flex items-start gap-3 py-3 border-b border-base-200 last:border-0">
+            <span class="номерПункта shrink-0 w-7 h-7 rounded-full bg-base-200 flex items-center
+                         justify-center text-sm font-semibold">${номер}</span>
+            <div class="flex-1 min-w-0">
+                <div class="flex flex-wrap items-baseline gap-2">
+                    <a class="link link-hover font-semibold" href="album.html?id=${н.id}">${e(н.title)}</a>
+                    <span class="text-sm opacity-70">фото</span>
+                    ${н.is_private
+                        ? '<span class="badge badge-sm badge-error">закрытый набор — выдать нельзя</span>' : ''}
+                </div>
+                <div class="text-sm opacity-70 mt-0.5">${
+                    DateUtils.formatShort(DateUtils.parseDate(н.event_date))}</div>
             </div>
             ${ручки(п)}
         </li>`;
@@ -154,14 +161,24 @@ const WorshipKit = (() => {
         </li>`;
     }
 
+    /**
+     * Ручки пункта. Раньше они стояли отдельной строкой под каждым пунктом,
+     * и дорожка 1 → 2 → 3, ради которой подборка и существует, разрывалась
+     * рядами кнопок. Теперь они прижаты вправо и проявляются при наведении:
+     * подборку читают чаще, чем пересобирают.
+     */
     function ручки(п) {
         if (!можноПисать()) return '';
         return `
-        <div class="flex flex-wrap gap-1 mt-1 no-print">
-            <button class="btn btn-ghost btn-xs" data-двигать="-1" data-id="${п.id}">↑</button>
-            <button class="btn btn-ghost btn-xs" data-двигать="1" data-id="${п.id}">↓</button>
-            ${п.note ? `<button class="btn btn-ghost btn-xs" data-правитьТекст="${п.id}">Поправить</button>` : ''}
-            <button class="btn btn-ghost btn-xs text-error" data-убрать="${п.id}">✕</button>
+        <div class="ручкиПункта flex items-center gap-0.5 no-print shrink-0">
+            <button class="btn btn-ghost btn-xs px-1" data-двигать="-1" data-id="${п.id}"
+                    title="Выше">↑</button>
+            <button class="btn btn-ghost btn-xs px-1" data-двигать="1" data-id="${п.id}"
+                    title="Ниже">↓</button>
+            ${п.note ? `<button class="btn btn-ghost btn-xs px-1" data-правитьТекст="${п.id}"
+                    title="Поправить текст">✎</button>` : ''}
+            <button class="btn btn-ghost btn-xs px-1 text-error" data-убрать="${п.id}"
+                    title="Убрать из дорожки">✕</button>
         </div>`;
     }
 

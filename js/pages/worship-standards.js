@@ -180,7 +180,10 @@ const WorshipStandards = (() => {
     async function утвердитьОтмеченные() {
         const список = отмеченные();
         if (!список.length) return;
-        if (!confirm(`Утвердить ${список.length} шт.? По ним сразу начнут служить, отделу уйдёт одно сообщение.`)) return;
+        if (!await спросить(
+            `Утвердить ${Layout.pluralize(список.length, {
+                ru: ['правку', 'правки', 'правок'], en: ['edit', 'edits'], hi: 'संपादन' })}?`,
+            'По ним сразу начнут служить. Отделу уйдёт одно сообщение.')) return;
 
         const { data, error } = await Layout.db.rpc('worship_approve_many', { p_articles: список });
         if (error) return Layout.handleError(error, 'Утверждение');
@@ -390,15 +393,17 @@ const WorshipStandards = (() => {
         let правка = null;
 
         if (действие === 'имя') {
-            const имя = prompt('Название раздела', Layout.getName(р));
-            if (имя === null || !имя.trim()) return;
+            const имя = await спроситьСтроку({
+                заголовок: 'Название раздела', значение: Layout.getName(р) });
+            if (имя === null) return;
             if (повтор(имя, р.id)) return;
             правка = { name_ru: имя.trim() };
         } else if (действие === 'видимость') {
             // раздел с содержимым не удаляется: его статьи остались бы без дома
             правка = { is_active: !р.is_active };
         } else if (действие === 'убрать') {
-            if (!confirm(`Удалить пустой раздел «${Layout.getName(р)}»?`)) return;
+            if (!await спросить(`Удалить раздел «${Layout.getName(р)}»?`,
+                'В нём нет статей, восстанавливать будет нечего.')) return;
             const { error } = await Layout.db.rpc('worship_section_delete', { p_section: id });
             if (error) return Layout.handleError(error, 'Удаление раздела');
             if (await загрузить() && await дополнитьВерсиями()) { рисовать(); рисоватьРазделыВОкне(); }
@@ -435,7 +440,9 @@ const WorshipStandards = (() => {
     }
 
     async function создатьРаздел(имя) {
-        const название = (имя ?? prompt('Название раздела, например «Арати»') ?? '').trim();
+        const название = (имя ?? await спроситьСтроку({
+            заголовок: 'Новый раздел',
+            подсказка: 'Например: Арати, Одевание, Бхога' }) ?? '').trim();
         if (!название) return;
         if (повтор(название, null)) return;
         const { error } = await Layout.db.from('worship_sections').insert({

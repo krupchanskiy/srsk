@@ -288,7 +288,7 @@ const WorshipAlbum = (() => {
 
             const убрать = ev.target.closest('[data-убрать]');
             if (убрать) {
-                if (!confirm('Убрать снимок? Файл тоже удалится.')) return;
+                if (!await спросить('Убрать снимок?', 'Файл удалится вместе с ним.')) return;
                 const { data, error } = await Layout.db.rpc('worship_image_delete',
                     { p_image: убрать.dataset.убрать });
                 if (error) return Layout.handleError(error, 'Удаление снимка');
@@ -310,8 +310,10 @@ const WorshipAlbum = (() => {
             }
             if (b.id === 'видимость') {
                 const станет = !набор.is_private;
-                if (станет && !confirm('Закрыть набор? Его снимки перестанут видеть все, кроме отдела.')) return;
-                if (!станет && !confirm('Открыть набор всему ашраму?')) return;
+                if (станет && !await спросить('Закрыть набор для отдела?',
+                    'Его снимки перестанут видеть все, кроме пуджари.')) return;
+                if (!станет && !await спросить('Открыть набор всему ашраму?',
+                    'Снимки увидит каждый сотрудник, у кого есть доступ к модулю.')) return;
                 const { error } = await Layout.db.rpc('worship_album_visibility',
                     { p_album: id, p_private: станет });
                 if (error) return Layout.handleError(error, 'Видимость набора');

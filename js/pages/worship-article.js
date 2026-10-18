@@ -455,7 +455,8 @@ const WorshipArticle = (() => {
             const вернуть = ev.target.closest('[data-restore]');
             if (вернуть) {
                 const в = версии.find(x => x.id === вернуть.dataset.restore);
-                if (!confirm(`Вернуть версию ${в.version_no}? Она станет черновиком и пройдёт утверждение заново.`)) return;
+                if (!await спросить(`Вернуть версию ${в.version_no}?`,
+                    'Она станет черновиком и пройдёт утверждение заново.')) return;
                 const { error } = await Layout.db.rpc('worship_restore_version', { p_version: в.id });
                 if (error) return Layout.handleError(error, 'Возврат версии');
                 Layout.showNotification('Версия скопирована в черновик', 'success');
@@ -500,7 +501,8 @@ const WorshipArticle = (() => {
             if (b.id === 'diff') return показатьСравнение();
 
             if (b.id === 'approve') {
-                if (!confirm('Утвердить? С этого момента по этому тексту служат в храме.')) return;
+                if (!await спросить('Утвердить правку?',
+                    'С этого момента по этому тексту служат в храме.')) return;
                 const { data, error } = await Layout.db.rpc('worship_approve', { p_article: статья.id });
                 if (error) return Layout.handleError(error, 'Утверждение');
                 if (data?.отозвана) {
@@ -549,9 +551,9 @@ const WorshipArticle = (() => {
                 return перечитать();
             }
             if (b.id === 'unarchive') {
-                if (!confirm(заменено
-                        ? `Вернуть в действие? Сейчас вместо него действует «${заменено.title}», и два стандарта станут противоречить друг другу.`
-                        : 'Вернуть стандарт в действие?')) return;
+                if (!await спросить('Вернуть стандарт в действие?', заменено
+                        ? `Сейчас вместо него действует «${заменено.title}». Два стандарта станут противоречить друг другу.`
+                        : '')) return;
                 const { error } = await Layout.db.rpc('worship_unarchive', { p_article: статья.id });
                 if (error) return Layout.handleError(error, 'Возврат из архива');
                 Layout.showNotification('Стандарт снова действует', 'success');

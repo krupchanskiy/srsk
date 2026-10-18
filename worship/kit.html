@@ -30,6 +30,14 @@
             body { background: #fff !important; }
             li { break-inside: avoid; }
         }
+        /* Ручки пункта появляются при наведении: подборку читают чаще,
+           чем пересобирают, и ряды кнопок рвали дорожку 1 → 2 → 3.
+           На телефоне наведения нет — там они видны всегда, но приглушённо. */
+        .ручкиПункта { opacity: 0; transition: opacity .15s; }
+        .пунктДорожки:hover .ручкиПункта,
+        .пунктДорожки:focus-within .ручкиПункта { opacity: 1; }
+        @media (hover: none) { .ручкиПункта { opacity: .45; } }
+        @media print { .ручкиПункта { display: none !important; } }
     </style>
 </head>
 <body class="bg-base-200 min-h-screen flex flex-col">
@@ -181,11 +189,11 @@
 
     <script src="../js/config.js?v=5"></script>
     <script src="../js/cache.js?v=2"></script>
-    <script src="../js/utils.js?v=15"></script>
-    <script src="../js/layout.js?v=110"></script>
+    <script src="../js/utils.js?v=16"></script>
+    <script src="../js/layout.js?v=111"></script>
     <script src="../js/date-utils.js?v=4"></script>
     <script src="../js/auth-check.js?v=13"></script>
-    <script src="../js/pages/worship-kit.js?v=5"></script>
+    <script src="../js/pages/worship-kit.js?v=6"></script>
     <script>
         async function init() {
             await Layout.init({ module: 'worship', menuId: 'worship_main', itemId: 'worship_kits' });

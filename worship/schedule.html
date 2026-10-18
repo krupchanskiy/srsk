@@ -35,6 +35,11 @@
         /* клетка расписания: имена переносятся, пустая кликается целиком */
         .клетка { vertical-align: top; min-width: 110px; }
         .клетка.своя { background: color-mix(in srgb, var(--current-color) 12%, transparent); }
+        /* «поставить второго» нужен редко: в занятой клетке он появляется
+           при наведении, а не висит в каждой из двадцати одной */
+        .ещёВКлетку { opacity: 0; transition: opacity .15s; }
+        .клетка:hover .ещёВКлетку, .клетка:focus-within .ещёВКлетку { opacity: .6; }
+        @media (hover: none) { .ещёВКлетку { opacity: .4; } }
     </style>
 </head>
 <body class="bg-base-200 min-h-screen flex flex-col">
@@ -244,11 +249,11 @@
 
     <script src="../js/config.js?v=5"></script>
     <script src="../js/cache.js?v=2"></script>
-    <script src="../js/utils.js?v=15"></script>
-    <script src="../js/layout.js?v=110"></script>
+    <script src="../js/utils.js?v=16"></script>
+    <script src="../js/layout.js?v=111"></script>
     <script src="../js/date-utils.js?v=4"></script>
     <script src="../js/auth-check.js?v=13"></script>
-    <script src="../js/pages/worship-schedule.js?v=12"></script>
+    <script src="../js/pages/worship-schedule.js?v=13"></script>
     <script>
         async function init() {
             await Layout.init({ module: 'worship', menuId: 'worship_main', itemId: 'worship_schedule' });

@@ -17,7 +17,16 @@ const WorshipSchedule = (() => {
     const РОЛИ = { pujari: 'пуджари', kirtan: 'киртания', helper: 'помощник' };
     const ДНИ = ['Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб', 'Вс'];
 
-    let понедельник = ближайшийПонедельник(new Date());
+    // Расписание ведут вперёд. Если от недели остались день-два, открывать
+    // её бессмысленно: старший в субботу вечером садится планировать
+    // следующую, а попадал на уже прошедшую и первым делом жал «›».
+    let понедельник = (() => {
+        const сегодня = new Date();
+        const свой = ближайшийПонедельник(сегодня);
+        const осталосьДней = 7 - ((сегодня.getDay() + 6) % 7);   // включая сегодня
+        if (осталосьДней <= 2) свой.setDate(свой.getDate() + 7);
+        return свой;
+    })();
     let выбранныйДень = DateUtils.toISO(new Date());
     let вид = window.matchMedia('(max-width: 900px)').matches ? 'день' : 'неделя';
 
@@ -156,15 +165,32 @@ const WorshipSchedule = (() => {
 
     // ---------- отрисовка недели ----------
     function рисоватьШапку() {
-        const кнопки = ['<button class="btn btn-sm btn-outline" id="печать">Печать</button>'];
-        // отмечаются в четыре утра с телефона: кнопка должна быть там,
-        // где человек смотрит свою службу, а не в справочнике людей
-        if (яЧеловек) кнопки.unshift('<button class="btn btn-sm btn-outline" id="яНеСмогу">Меня не будет</button>');
-        if (можноВести()) {
-            кнопки.unshift('<button class="btn btn-sm btn-outline" id="копияНедели">Как на прошлой неделе</button>');
-            кнопки.unshift('<button class="btn btn-sm btn-outline" id="вестиСлужбы">Службы</button>');
-        }
-        $('#actions').innerHTML = кнопки.join('');
+        // Главное действие у каждого своё: старший пришёл расписать неделю,
+        // пуджари — посмотреть свои службы и, если заболел, отметиться.
+        // Остальное — обслуживание, ему место под «ещё».
+        const редкие = [];
+        if (можноВести()) редкие.push('<li><button id="вестиСлужбы">Службы и время</button></li>');
+        редкие.push('<li><button id="печать">Распечатать неделю</button></li>');
+        if (яЧеловек && можноВести()) редкие.push('<li><button id="яНеСмогу">Меня не будет</button></li>');
+
+        $('#actions').innerHTML = `
+            ${можноВести()
+                ? `<button class="btn btn-sm" id="копияНедели"
+                        style="background: var(--current-color); color:#fff;">Как на прошлой неделе</button>`
+                : яЧеловек
+                    ? '<button class="btn btn-sm btn-outline" id="яНеСмогу">Меня не будет</button>'
+                    : ''}
+            <div class="dropdown dropdown-end">
+                <button tabindex="0" class="btn btn-sm btn-ghost px-2" aria-label="Ещё действия">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+                        <circle cx="12" cy="5" r="1.7"></circle><circle cx="12" cy="12" r="1.7"></circle>
+                        <circle cx="12" cy="19" r="1.7"></circle>
+                    </svg>
+                </button>
+                <ul tabindex="0" class="dropdown-content z-30 menu menu-sm p-2 shadow bg-base-100 rounded-box w-56">
+                    ${редкие.join('')}
+                </ul>
+            </div>`;
 
         // клетку закрывает только тот, кто придёт: отметившийся об отъезде
         // и выведенный из отдела её не держат, а прошедшие дни не считаем
@@ -175,12 +201,29 @@ const WorshipSchedule = (() => {
         // неделя, которую не вели, и неделя, которую не закрыли, — разные вещи:
         // пустая шахматка в прошлом не должна читаться как обвинение
         const прошлая = дни()[6] < DateUtils.toISO(new Date());
-        $('#подзаголовок').textContent = !службы.length
-            ? (можноВести() ? 'Служб пока нет — заведите их кнопкой «Службы»'
-                            : 'Служб пока нет: их заводит старший пуджари')
-            : прошлая
-                ? (назначения.length ? 'Прошедшая неделя' : 'Эту неделю в системе не вели')
-                : пустых ? `На этой неделе не закрыто клеток: ${пустых}` : 'Все клетки недели закрыты';
+        // Незакрытые клетки — единственное число, ради которого старший сюда
+        // заходит. Раньше оно было мелким серым подзаголовком наравне
+        // с «Прошедшая неделя».
+        const поле = $('#подзаголовок');
+        if (!службы.length) {
+            поле.className = 'text-sm opacity-70 mt-1';
+            поле.textContent = можноВести()
+                ? 'Служб пока нет — заведите их кнопкой «Службы»'
+                : 'Служб пока нет: их заводит старший пуджари';
+        } else if (прошлая) {
+            поле.className = 'text-sm opacity-70 mt-1';
+            поле.textContent = назначения.length ? 'Прошедшая неделя' : 'Эту неделю в системе не вели';
+        } else if (пустых) {
+            поле.className = 'mt-2 inline-flex items-center gap-2 rounded-lg px-3 py-1.5 ' +
+                'bg-warning/15 border border-warning/40 font-semibold';
+            поле.textContent = `${Layout.pluralize(пустых, {
+                ru: ['клетка не закрыта', 'клетки не закрыты', 'клеток не закрыто'],
+                en: ['slot open', 'slots open'], hi: 'खाली' })}`;
+        } else {
+            поле.className = 'mt-2 inline-flex items-center gap-2 rounded-lg px-3 py-1.5 ' +
+                'bg-success/15 border border-success/40 font-semibold';
+            поле.textContent = 'Вся неделя закрыта';
+        }
 
         const начало = деньНедели(0), конец = деньНедели(6);
         $('#периодНадпись').textContent = вид === 'день'
@@ -334,8 +377,9 @@ const WorshipSchedule = (() => {
                     `<span class="badge badge-xs ${к} ml-0.5">${e(т)}</span>`).join('')}`;
             }).join('')}
             ${можноВести()
-                ? `<button class="btn btn-ghost btn-xs no-print opacity-50" data-клетка="${день}"
-                           data-служба="${служба?.id || ''}" data-разовая="${разовая?.id || ''}">+ ещё</button>`
+                ? `<button class="btn btn-ghost btn-xs no-print ещёВКлетку" data-клетка="${день}"
+                           data-служба="${служба?.id || ''}" data-разовая="${разовая?.id || ''}"
+                           title="Поставить второго">+</button>`
                 : ''}
         </td>`;
     }

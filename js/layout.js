@@ -1569,6 +1569,43 @@ async function initLayout(page = { module: null, menuId: 'kitchen', itemId: null
         headerPlaceholder.outerHTML = getHeaderHTML();
     }
 
+    // Общие окна вопроса и ввода — на каждой странице, без копирования
+    // разметки. Системные confirm() и prompt() во встроенных браузерах
+    // (телеграм, почтовые клиенты) не показываются вовсе: confirm молча
+    // отвечает «нет», prompt — пусто. Человек жмёт «Утвердить» и не видит
+    // ничего. Поэтому вопрос задаётся разметкой страницы.
+    if (!document.querySelector('#подтверждение')) {
+        const окна = document.createElement('div');
+        окна.innerHTML = `
+            <dialog id="подтверждение" class="modal">
+                <div class="modal-box max-w-md">
+                    <h3 class="font-bold text-lg mb-2" id="пдЗаголовок"></h3>
+                    <p class="text-sm whitespace-pre-line" id="пдТекст"></p>
+                    <div class="modal-action">
+                        <form method="dialog"><button class="btn btn-sm">Отмена</button></form>
+                        <button class="btn btn-sm" id="пдДа"
+                                style="background: var(--current-color); color:#fff;">Да</button>
+                    </div>
+                </div>
+                <form method="dialog" class="modal-backdrop"><button>закрыть</button></form>
+            </dialog>
+            <dialog id="вводМодал" class="modal">
+                <div class="modal-box max-w-md">
+                    <h3 class="font-bold text-lg mb-1" id="ввЗаголовок"></h3>
+                    <p class="text-sm opacity-70 mb-3" id="ввПодсказка"></p>
+                    <input id="ввПоле" type="text" class="input input-bordered w-full" maxlength="300">
+                    <textarea id="ввПолеДлинное" class="textarea textarea-bordered w-full" rows="3" hidden></textarea>
+                    <div class="modal-action">
+                        <form method="dialog"><button class="btn btn-sm">Отмена</button></form>
+                        <button class="btn btn-sm" id="ввГотово"
+                                style="background: var(--current-color); color:#fff;">Готово</button>
+                    </div>
+                </div>
+                <form method="dialog" class="modal-backdrop"><button>закрыть</button></form>
+            </dialog>`;
+        document.body.append(...окна.children);
+    }
+
     // Высота шапки — в CSS-переменную. Липкие панели страниц (панель
     // оформления в редакторе, шапки таблиц) опирались на цифру «64px»,
     // написанную руками, а шапка с подменю занимает 116: панель уезжала

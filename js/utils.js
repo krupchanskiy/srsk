@@ -314,6 +314,65 @@ function спросить(заголовок, текст) {
 
 window.спросить = спросить;
 
+/**
+ * Спросить строку. Замена prompt(), который во встроенных браузерах
+ * возвращает пусто и молча отменяет действие.
+ *
+ * `многострочно: true` — для связок между пунктами и причин, где нужен
+ * перенос строки; в системном окне его набрать нельзя было вовсе.
+ */
+function спроситьСтроку({ заголовок, подсказка = '', значение = '',
+                          кнопка = 'Готово', многострочно = false, обязательно = true }) {
+    const окно = document.querySelector('#вводМодал');
+    if (!окно) return Promise.resolve(null);
+
+    const задать = () => new Promise(готово => {
+        const поле = окно.querySelector(многострочно ? '#ввПолеДлинное' : '#ввПоле');
+        const другое = окно.querySelector(многострочно ? '#ввПоле' : '#ввПолеДлинное');
+        const кнопкаГотово = окно.querySelector('#ввГотово');
+
+        окно.querySelector('#ввЗаголовок').textContent = заголовок;
+        окно.querySelector('#ввПодсказка').textContent = подсказка;
+        окно.querySelector('#ввПодсказка').hidden = !подсказка;
+        кнопкаГотово.textContent = кнопка;
+        поле.hidden = false;
+        другое.hidden = true;
+        поле.value = значение || '';
+
+        let ответил = false;
+        const ответить = значение2 => {
+            if (ответил) return;
+            ответил = true;
+            кнопкаГотово.removeEventListener('click', наГотово);
+            поле.removeEventListener('keydown', наEnter);
+            окно.removeEventListener('close', наЗакрытие);
+            готово(значение2);
+        };
+        const наГотово = () => {
+            const текст = поле.value.trim();
+            if (обязательно && !текст) { поле.focus(); return; }
+            окно.close();
+            ответить(текст);
+        };
+        const наEnter = ev => {
+            if (ev.key === 'Enter' && !многострочно) { ev.preventDefault(); наГотово(); }
+        };
+        const наЗакрытие = () => ответить(null);
+
+        кнопкаГотово.addEventListener('click', наГотово);
+        поле.addEventListener('keydown', наEnter);
+        окно.addEventListener('close', наЗакрытие);
+        окно.showModal();
+        if (!окно.open) return ответить(null);
+        setTimeout(() => поле.focus(), 50);
+    });
+
+    вопросВРаботе = (вопросВРаботе || Promise.resolve()).then(задать, задать);
+    return вопросВРаботе;
+}
+
+window.спроситьСтроку = спроситьСтроку;
+
 // Глобальный debug-логгер доступен без префикса — используется часто, как console.log.
 window.debug = debug;
 window.Utils = { pluralize, debounce, debug, escapeHtml, isValidColor, safeColor, checkAndMoveDatesAcrossRetreats, fetchAll, getVaishnavName, getVaishnavFullName, pickResident };

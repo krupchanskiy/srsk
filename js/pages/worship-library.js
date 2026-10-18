@@ -180,13 +180,15 @@ const WorshipLibrary = (() => {
         if (!р) return;
 
         if (действие === 'имя') {
-            const имя = prompt('Название раздела', Layout.getName(р));
-            if (имя === null || !имя.trim() || повтор(имя, id)) return;
+            const имя = await спроситьСтроку({
+                заголовок: 'Название раздела', значение: Layout.getName(р) });
+            if (имя === null || повтор(имя, id)) return;
             await применить({ name_ru: имя.trim() }, id);
         } else if (действие === 'видимость') {
             await применить({ is_active: !р.is_active }, id);
         } else if (действие === 'убрать') {
-            if (!confirm(`Удалить пустой раздел «${Layout.getName(р)}»?`)) return;
+            if (!await спросить(`Удалить раздел «${Layout.getName(р)}»?`,
+                'В нём нет материалов, восстанавливать будет нечего.')) return;
             const { error } = await Layout.db.rpc('worship_section_delete', { p_section: id });
             if (error) return Layout.handleError(error, 'Удаление раздела');
             await перечитать();
