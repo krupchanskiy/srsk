@@ -12,6 +12,20 @@ const WorshipStandards = (() => {
 
     const ПОРОГ_СВОРАЧИВАНИЯ = 20;       // столько статей список держит развёрнутым
     const КЛЮЧ_РАЗДЕЛОВ = 'worship_sections_collapsed';
+    const КЛЮЧ_СОРТИРОВКИ = 'worship_standards_sort';
+
+    // Порядок статей раньше переставляли стрелками вручную. На десятке
+    // статей это работало, на полутора сотнях — работа, которую никто
+    // не станет делать, и список молча зарастает случайным порядком
+    let сортировка = (() => {
+        try { return localStorage.getItem(КЛЮЧ_СОРТИРОВКИ) || 'имя'; } catch { return 'имя'; }
+    })();
+
+    const когдаМенялась = с => new Date(с.утверждена || с.updated_at).getTime() || 0;
+
+    const поПорядку = список => [...список].sort((a, b) => сортировка === 'дата'
+        ? когдаМенялась(b) - когдаМенялась(a)
+        : (a.title || '').localeCompare(b.title || '', 'ru'));
 
     const можноПисать = () => !!window.hasPermission?.('worship_write');
     const можноУтверждать = () => !!window.hasPermission?.('worship_approve');
@@ -109,15 +123,6 @@ const WorshipStandards = (() => {
     }
 
     function строкаСтатьи(статья) {
-        // порядок внутри раздела задаётся руками: иначе сверху оказывается
-        // «Если пуджари опоздал», а основная статья тонет ниже
-        const ручки = можноПисать() && вид === 'sections' && !фильтр.поиск
-            ? `<span class="ручкиСтроки flex gap-0.5 shrink-0">
-                   <button class="btn btn-ghost btn-xs px-1" data-двигать="-1" data-id="${статья.id}"
-                           title="Выше">↑</button>
-                   <button class="btn btn-ghost btn-xs px-1" data-двигать="1" data-id="${статья.id}"
-                           title="Ниже">↓</button>
-               </span>` : '';
         return `
         <li class="строкаСписка border-b border-base-200 last:border-0 flex items-center gap-1 pr-3">
             <a href="article.html?id=${статья.id}"
@@ -129,7 +134,6 @@ const WorshipStandards = (() => {
                         ? `версия ${статья.версия} · ${DateUtils.formatShort(new Date(статья.утверждена))}`
                         : DateUtils.formatShort(new Date(статья.updated_at))}</span>
             </a>
-            ${ручки}
         </li>`;
     }
 
@@ -235,12 +239,10 @@ const WorshipStandards = (() => {
         }
 
         if (вид === 'flat') {
-            // от самых давних к свежим и только действующее: этот список нужен,
-            // чтобы увидеть, что давно не пересматривали, а не «что нового»
-            const порядок = видимые
+            // сплошной список: разделы не мешают, порядок общий для страницы
+            const порядок = поПорядку(видимые
                 .filter(с => с.status === 'published' && с.утверждена
-                          || (фильтр.архив && с.status === 'archived'))
-                .sort((a, b) => new Date(a.утверждена || a.updated_at) - new Date(b.утверждена || b.updated_at));
+                          || (фильтр.архив && с.status === 'archived')));
             тело.innerHTML = `
                 <div class="card bg-base-100 shadow"><ul class="list-none m-0 p-0">
                     ${порядок.map(строкаСтатьи).join('') ||
@@ -261,9 +263,9 @@ const WorshipStandards = (() => {
             const свои = видимые.filter(с => с.section_id === р.id);
             // при поиске и в архиве пустые разделы только мешают считать
             if (!свои.length && фильтр.поиск) return '';
-            return разделHTML(р.id, Layout.getName(р), свои, сворачивать, р);
+            return разделHTML(р.id, Layout.getName(р), поПорядку(свои), сворачивать, р);
         }).join('') + (безРаздела.length
-            ? разделHTML('без-раздела', 'Без раздела', безРаздела, сворачивать, null) : '');
+            ? разделHTML('без-раздела', 'Без раздела', поПорядку(безРаздела), сворачивать, null) : '');
 
         расставитьСостояния();
     }
@@ -399,6 +401,13 @@ const WorshipStandards = (() => {
             if (ev.target.closest('summary a, summary button')) ev.stopPropagation();
         });
 
+        $('#сортировка').value = сортировка;
+        $('#сортировка').addEventListener('change', ev => {
+            сортировка = ev.target.value;
+            try { localStorage.setItem(КЛЮЧ_СОРТИРОВКИ, сортировка); } catch { /* приватный режим */ }
+            рисоватьСписок();
+        });
+
         $('#свернутьВсё').addEventListener('click', () => {
             const развернуть = $('#свернутьВсё').dataset.действие === 'развернуть';
             document.querySelectorAll('[data-раздел-ключ]').forEach(б => {
@@ -430,14 +439,6 @@ const WorshipStandards = (() => {
                     б.classList.toggle('btn-active', свой);
                 });
                 рисоватьСписок();
-                return;
-            }
-            const двигать = ev.target.closest('[data-двигать]');
-            if (двигать) {
-                const { error } = await Layout.db.rpc('worship_reorder', {
-                    p_article: двигать.dataset.id, p_direction: Number(двигать.dataset.двигать) });
-                if (error) return Layout.handleError(error, 'Порядок статей');
-                if (await загрузить() && await дополнитьВерсиями()) рисовать();
                 return;
             }
             if (ev.target.closest('[data-очередь]')) return обновитьОтмеченные();
