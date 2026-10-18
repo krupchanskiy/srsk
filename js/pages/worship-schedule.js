@@ -218,8 +218,20 @@ const WorshipSchedule = (() => {
     function клеткаHTML(день, служба, разовая) {
         if (служба && отменена(служба.id, день)) {
             const о = отклонения.find(x => x.service_id === служба.id && x.duty_date === день);
+            // отмена не снимает уже стоящих: иначе отмена «на пробу» молча
+            // стирала бы расстановку. Но и прятать их нельзя — люди придут
+            const повисшие = вКлетке(день, служба.id);
             return `<td class="клетка bg-base-200/60 text-xs opacity-70">
-                не проводится${о?.reason ? `<span class="block">${e(о.reason)}</span>` : ''}</td>`;
+                не проводится${о?.reason ? `<span class="block">${e(о.reason)}</span>` : ''}
+                ${повисшие.map(н => `
+                    <div class="flex items-center gap-1 mt-1">
+                        <span class="line-through">${e(человек(н.person_id)?.имя || 'кто-то')}</span>
+                        ${можноВести()
+                            ? `<button class="btn btn-ghost btn-xs no-print px-1" data-снять="${н.id}"
+                                       title="Снять">✕</button>` : ''}
+                    </div>`).join('')}
+                ${повисшие.length
+                    ? '<span class="block text-warning">их надо снять или предупредить</span>' : ''}</td>`;
         }
 
         const свои = вКлетке(день, служба?.id, разовая?.id);
@@ -489,6 +501,18 @@ const WorshipSchedule = (() => {
         } else {
             if (!$('#оСлужба').value) return Layout.showNotification('Выберите службу', 'warning');
             строка.service_id = $('#оСлужба').value;
+        }
+
+        // предупреждаем до вставки: иначе отмена тихо оставляет людей на службе
+        if (какое !== 'разовая') {
+            const стоят = назначения.filter(н => н.duty_date === дата && н.service_id === строка.service_id);
+            if (стоят.length && !await спросить('На эту службу уже кто-то поставлен',
+                `${Layout.pluralize(стоят.length, {
+                    ru: ['человек останется', 'человека останутся', 'человек останутся'],
+                    en: ['person stays', 'people stay'], hi: 'व्यक्ति' })} в клетке после отмены. ` +
+                'Их придётся снять вручную — так отмена «на пробу» не стирает расстановку. Продолжить?')) {
+                return;
+            }
         }
 
         const { error } = await Layout.db.from('worship_day_overrides').insert(строка);

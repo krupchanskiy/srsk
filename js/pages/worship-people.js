@@ -278,6 +278,11 @@ const WorshipPeople = (() => {
     async function исключить() {
         const { data, error } = await Layout.db.rpc('worship_person_impact', { p_person: открытый.id });
         if (error) return Layout.handleError(error, 'Человек');
+        // функция отвечает отказом, а не цифрами, если прав не хватает:
+        // «последствий нет» тут было бы опасной неправдой
+        if (data?.ok === false) {
+            return Layout.showNotification('Выводить людей из отдела может старший пуджари', 'warning');
+        }
 
         const впереди = data?.['назначений_впереди'] || 0;
         const строки = [
