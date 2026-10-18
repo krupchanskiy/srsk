@@ -19,6 +19,7 @@ const WorshipHome = (() => {
     const можноУтверждать = () => !!window.hasPermission?.('worship_approve');
 
     let разделы = [], статьи = [];
+    let основа = Promise.resolve();    // разделы и статьи: ждут их лента и закладки
 
     /** `подпись` — уже готовая разметка: собирают её вызывающие, экранируя текст. */
     /**
@@ -95,6 +96,7 @@ const WorshipHome = (() => {
 
         // отменённые в ленту не попадают: «утверждён» рядом с «не действует»
         // читается как противоречие, а не как история
+        await основа;
         const действующие = new Set(статьи.filter(с => с.status === 'published').map(с => с.id));
         $('#feed').innerHTML = (data || []).filter(в => действующие.has(в.article_id)).map(в => строка(в.article_id, в.title,
             `${дата(в.approved_at)}${в.version_no > 1 && в.change_note
@@ -390,6 +392,7 @@ const WorshipHome = (() => {
             .select('kind, article_id, created_at').order('created_at', { ascending: false });
         if (error) return;                       // личный список не повод ломать страницу
 
+        await основа;
         const заголовок = id => статьи.find(с => с.id === id)?.title || 'Статья';
 
         const закладки = (data || []).filter(з => з.kind === 'bookmark' && з.article_id);
@@ -442,18 +445,22 @@ const WorshipHome = (() => {
             location.href = q ? `search.html?q=${encodeURIComponent(q)}` : 'search.html';
         });
 
-        const [р, с] = await Promise.all([
-            Layout.db.from('worship_sections').select('id, name_ru, name_en, name_hi')
-                .eq('kind', 'standard').eq('is_active', true).order('sort_order'),
-            Layout.db.from('worship_articles').select('id, title, section_id, status').eq('kind', 'standard'),
-        ]);
-        // без этого сбой запроса выглядит как «модуль пуст», а не как ошибка
-        if (р.error || с.error) { Layout.handleError(р.error || с.error, 'Загрузка модуля'); return; }
-        разделы = р.data || [];
-        статьи = с.data || [];
-
-        рисоватьРазделы();
-        await Promise.all([лента(), черновики(), очередь(), личное(), подборки(),
+        // Все блоки главной запрашиваются разом. Раньше они ждали, пока придут
+        // разделы и статьи, — лишний круг до базы перед всем остальным.
+        // Список статей нужен только ленте и закладкам, и они ждут его сами.
+        основа = (async () => {
+            const [р, с] = await Promise.all([
+                Layout.db.from('worship_sections').select('id, name_ru, name_en, name_hi')
+                    .eq('kind', 'standard').eq('is_active', true).order('sort_order'),
+                Layout.db.from('worship_articles').select('id, title, section_id, status').eq('kind', 'standard'),
+            ]);
+            // без этого сбой запроса выглядит как «модуль пуст», а не как ошибка
+            if (р.error || с.error) { Layout.handleError(р.error || с.error, 'Загрузка модуля'); return; }
+            разделы = р.data || [];
+            статьи = с.data || [];
+            рисоватьРазделы();
+        })();
+        await Promise.all([основа, лента(), черновики(), очередь(), личное(), подборки(),
                            моиСлужбы(), деньСегодня(), пустыеЗавтра()]);
     }
 
