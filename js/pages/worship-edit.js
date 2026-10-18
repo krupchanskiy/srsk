@@ -419,40 +419,17 @@ const WorshipEdit = (() => {
                                      // открыт выбор файла, блоки могли переставить
     let счётчикМеток = 0;
 
-    /** Уменьшаем до загрузки: у алтаря телефон, а не студия. */
-    function уменьшить(файл) {
-        return new Promise((готово, плохо) => {
-            const чтение = new FileReader();
-            чтение.onerror = () => плохо(new Error('Файл не прочитался'));
-            чтение.onload = () => {
-                const img = new Image();
-                img.onerror = () => плохо(new Error('Это не похоже на изображение'));
-                img.onload = () => {
-                    const предел = 1600;
-                    const к = Math.min(1, предел / Math.max(img.width, img.height));
-                    const холст = document.createElement('canvas');
-                    холст.width = Math.round(img.width * к);
-                    холст.height = Math.round(img.height * к);
-                    холст.getContext('2d').drawImage(img, 0, 0, холст.width, холст.height);
-                    холст.toBlob(b => b ? готово(b) : плохо(new Error('Не удалось пережать')),
-                                 'image/jpeg', 0.85);
-                };
-                img.src = чтение.result;
-            };
-            чтение.readAsDataURL(файл);
-        });
-    }
-
     async function загрузитьСнимок(файл) {
         if (!блокДляСнимка) return;
-        let тело;
-        try { тело = await уменьшить(файл); }
+        // подготовка общая на весь проект: поворот из файла, уменьшение, время съёмки
+        let готовый;
+        try { готовый = await Media.подготовить(файл); }
         catch (ош) { Layout.showNotification(ош.message, 'error'); return; }
 
         const uid = window.currentUser?.id;
         const путь = `${uid}/${crypto.randomUUID()}.jpg`;
         const { error } = await Layout.db.storage.from('worship')
-            .upload(путь, тело, { contentType: 'image/jpeg' });
+            .upload(путь, готовый.тело, { contentType: 'image/jpeg' });
         if (error) { Layout.handleError(error, 'Загрузка фото'); return; }
 
         const { data } = await Layout.db.storage.from('worship').createSignedUrl(путь, 3600);
