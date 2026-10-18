@@ -192,37 +192,21 @@ const WorshipSchedule = (() => {
                 </ul>
             </div>`;
 
-        // клетку закрывает только тот, кто придёт: отметившийся об отъезде
-        // и выведенный из отдела её не держат, а прошедшие дни не считаем
-        const сегодняISO = DateUtils.toISO(new Date());
-        const пустых = службы.filter(с => с.is_active).reduce((сумма, с) =>
-            сумма + дни().filter(д => д >= сегодняISO && !отменена(с.id, д)
-                && !вКлетке(д, с.id).some(н => кто_придёт(н, д))).length, 0);
         // неделя, которую не вели, и неделя, которую не закрыли, — разные вещи:
         // пустая шахматка в прошлом не должна читаться как обвинение
         const прошлая = дни()[6] < DateUtils.toISO(new Date());
-        // Незакрытые клетки — единственное число, ради которого старший сюда
-        // заходит. Раньше оно было мелким серым подзаголовком наравне
-        // с «Прошедшая неделя».
+        // Счётчик незакрытых клеток отсюда убран: это же самое видно по самой
+        // шахматке — жёлтые клетки и строка «закрыто за день» внизу
         const поле = $('#подзаголовок');
+        поле.className = 'text-sm opacity-70 mt-1';
         if (!службы.length) {
-            поле.className = 'text-sm opacity-70 mt-1';
             поле.textContent = можноВести()
                 ? 'Служб пока нет — заведите их кнопкой «Службы»'
                 : 'Служб пока нет: их заводит старший пуджари';
         } else if (прошлая) {
-            поле.className = 'text-sm opacity-70 mt-1';
             поле.textContent = назначения.length ? 'Прошедшая неделя' : 'Эту неделю в системе не вели';
-        } else if (пустых) {
-            поле.className = 'mt-2 inline-flex items-center gap-2 rounded-lg px-3 py-1.5 ' +
-                'bg-warning/15 border border-warning/40 font-semibold';
-            поле.textContent = `${Layout.pluralize(пустых, {
-                ru: ['клетка не закрыта', 'клетки не закрыты', 'клеток не закрыто'],
-                en: ['slot open', 'slots open'], hi: 'खाली' })}`;
         } else {
-            поле.className = 'mt-2 inline-flex items-center gap-2 rounded-lg px-3 py-1.5 ' +
-                'bg-success/15 border border-success/40 font-semibold';
-            поле.textContent = 'Вся неделя закрыта';
+            поле.textContent = '';
         }
 
         const начало = деньНедели(0), конец = деньНедели(6);
@@ -381,13 +365,13 @@ const WorshipSchedule = (() => {
         }
 
         // кто-то стоит, но прийти не может — это такая же дыра, только с именем
-        return `<td class="клетка${закрыта ? '' : ' дыра'}${моя ? ' своя' : ''}${сегодня}">
+        return `<td class="клетка ${закрыта ? 'закрыта' : 'дыра'}${моя ? ' своя' : ''}${сегодня}">
             ${свои.map(н => {
                 const ч = человек(н.person_id);
                 const пометки = состоянияКлетки(н, ч, день, служба);
                 return `
-                <div class="плашкаИмени mb-1">
-                    <span class="flex-1 min-w-0">
+                <div class="плашкаИмени">
+                    <span class="flex-1 min-w-0 leading-snug">
                         <a class="link link-hover text-sm ${пометки.зачеркнуть ? 'line-through opacity-60' : ''}"
                            href="people.html?id=${н.person_id}">${e(ч?.имя || 'кто-то')}</a>
                         ${н.role !== 'pujari'
@@ -491,8 +475,15 @@ const WorshipSchedule = (() => {
         $('#деньСписок').innerHTML = всё.map(({ служба, разовая, время, имя }) => {
             const отмена = служба && отменена(служба.id, д);
             const свои = отмена ? [] : вКлетке(д, служба?.id, разовая?.id);
+            // день читается теми же цветами, что и неделя: закрыто — зелёным,
+            // некому служить — жёлтым, иначе на телефоне состояние пришлось бы
+            // вычитывать из слов «никто не поставлен»
+            const прошло = д < DateUtils.toISO(new Date());
+            const закрыта = свои.some(н => кто_придёт(н, д));
+            const краска = отмена || прошло ? ''
+                : закрыта ? ' закрыта' : ' дыра';
             return `
-            <li class="border-b border-base-200 last:border-0 py-3">
+            <li class="клеткаДня${краска} border-b border-base-200 last:border-0 py-3 px-3 -mx-3">
                 <div class="flex flex-wrap items-baseline gap-2">
                     <span class="font-semibold">${e((время || '').slice(0, 5))}</span>
                     ${служба?.article_id
