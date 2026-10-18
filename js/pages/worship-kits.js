@@ -1,0 +1,101 @@
+/**
+ * Список подборок.
+ *
+ * Подборки видны и внутри модуля, не только снаружи: приехавший волонтёр
+ * открывает «Поклонение» и с главной попадает в ту же дорожку, которую читал
+ * дома. Это же ответ на вопрос «с чего начать», который иначе остаётся
+ * без экрана.
+ */
+const WorshipKits = (() => {
+    const $ = s => document.querySelector(s);
+    const e = str => Layout.escapeHtml(str ?? '');
+    const можноПисать = () => !!window.hasPermission?.('worship_write');
+
+    let подборки = [], пунктов = {}, выдач = {};
+
+    async function загрузить() {
+        const { data, error } = await Layout.db.from('worship_kits')
+            .select('id, title, description, lang, is_active, updated_at')
+            .order('title');
+        if (error) { Layout.handleError(error, 'Загрузка подборок'); return false; }
+        подборки = data || [];
+
+        if (подборки.length) {
+            const ids = подборки.map(п => п.id);
+            const [и, в] = await Promise.all([
+                Layout.db.from('worship_kit_items').select('kit_id').in('kit_id', ids),
+                можноПисать()
+                    ? Layout.db.from('worship_kit_grants')
+                        .select('kit_id, revoked_at').in('kit_id', ids).is('revoked_at', null)
+                    : Promise.resolve({ data: [] }),
+            ]);
+            пунктов = {};
+            (и.data || []).forEach(п => { пунктов[п.kit_id] = (пунктов[п.kit_id] || 0) + 1; });
+            выдач = {};
+            (в.data || []).forEach(г => { выдач[г.kit_id] = (выдач[г.kit_id] || 0) + 1; });
+        }
+        return true;
+    }
+
+    function рисовать() {
+        const тело = $('#list');
+        if (!подборки.length) {
+            тело.innerHTML = `
+                <div class="card bg-base-100 shadow"><div class="card-body items-start">
+                    <h2 class="card-title text-lg">Подборок пока нет</h2>
+                    <p class="text-sm opacity-70 max-w-xl">Подборка — это дорожка:
+                        два-три стандарта, материал и набор фотографий в нужном порядке,
+                        со своими пояснениями между пунктами. Её выдают человеку,
+                        и он читает её ещё до приезда.</p>
+                    ${можноПисать()
+                        ? '<button class="btn btn-sm mt-2" id="newKitEmpty" style="background: var(--current-color); color:#fff;">Собрать первую</button>'
+                        : ''}
+                </div></div>`;
+            return;
+        }
+
+        тело.innerHTML = `
+            <div class="card bg-base-100 shadow"><ul class="list-none m-0 p-0">
+                ${подборки.map(п => `
+                <li class="border-b border-base-200 last:border-0">
+                    <a href="kit.html?id=${п.id}"
+                       class="flex flex-col desktop:flex-row desktop:items-center gap-1 desktop:gap-3
+                              px-5 py-3 hover:bg-base-200/60 transition-colors">
+                        <span class="flex-1 min-w-0">
+                            <span class="font-semibold">${e(п.title)}</span>
+                            ${п.lang !== 'ru' ? `<span class="badge badge-sm ml-2">${e(п.lang)}</span>` : ''}
+                            ${п.is_active ? '' : '<span class="badge badge-sm ml-1">отключена</span>'}
+                            ${п.description ? `<span class="block text-sm opacity-70 mt-0.5">${e(п.description)}</span>` : ''}
+                        </span>
+                        <span class="text-sm opacity-60 whitespace-nowrap">
+                            ${пунктов[п.id] || 0} ${Layout.pluralize(пунктов[п.id] || 0, {
+                                ru: ['пункт', 'пункта', 'пунктов'], en: ['item', 'items'], hi: 'मद' }).split(' ').slice(1).join(' ')}
+                            ${выдач[п.id] ? ` · выдана ${выдач[п.id]}` : ''}
+                        </span>
+                    </a>
+                </li>`).join('')}
+            </ul></div>`;
+    }
+
+    async function создать() {
+        const название = prompt('Название подборки, например «Для нового волонтёра»');
+        if (!название || !название.trim()) return;
+        const { data, error } = await Layout.db.from('worship_kits').insert({
+            title: название.trim(),
+            created_by: window.currentUser?.id || null,
+        }).select('id').maybeSingle();
+        if (error) return Layout.handleError(error, 'Создание подборки');
+        location.href = `kit.html?id=${data.id}`;
+    }
+
+    async function init() {
+        document.addEventListener('click', ev => {
+            if (ev.target.closest('#newKit') || ev.target.closest('#newKitEmpty')) создать();
+        });
+        if (!await загрузить()) return;
+        рисовать();
+        window.applyPermissions?.();
+    }
+
+    return { init };
+})();
