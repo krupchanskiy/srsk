@@ -56,18 +56,20 @@
 
     <main class="container mx-auto px-4 py-6 flex-1" style="max-width: 860px;">
 
-        <div class="text-sm mb-3">
-            <a href="standards.html" class="link link-hover opacity-70">Стандарты</a>
-        </div>
-
-        <!-- что происходит с текстом: состояние важнее кнопок -->
-        <div class="flex flex-wrap items-center gap-3 mb-4">
-            <h1 class="text-2xl font-bold tracking-tight flex-1 min-w-full desktop:min-w-0" id="режим">Новая статья</h1>
-            <span class="text-sm opacity-60" id="сохранение"></span>
-            <button class="btn btn-sm btn-ghost" id="отмена" data-i18n="worship_leave_edit">Выйти без сохранения</button>
-            <button class="btn btn-sm btn-outline" id="сохранить" data-i18n="save">Сохранить</button>
-            <button class="btn btn-sm" id="отправить"
-                    style="background: var(--current-color); color:#fff;" data-i18n="worship_send_senior">Отправить старшему</button>
+        <!-- Шапка страницы: слева где я и что делаю, справа — что делать дальше.
+             Раньше заголовок в три строки налезал на слово «сохранено». -->
+        <div class="flex flex-wrap items-center gap-x-4 gap-y-2 mb-5">
+            <div class="min-w-0">
+                <a href="standards.html" class="text-sm link link-hover opacity-60">← Стандарты</a>
+                <div class="text-xs uppercase tracking-widest opacity-50 mt-1" id="режим">Новая статья</div>
+            </div>
+            <span class="text-sm ml-auto" id="сохранение"></span>
+            <div class="flex items-center gap-2">
+                <button class="btn btn-sm btn-ghost" id="отмена" data-i18n="worship_leave_edit">Выйти</button>
+                <button class="btn btn-sm btn-outline" id="сохранить" data-i18n="save">Сохранить</button>
+                <button class="btn btn-sm" id="отправить"
+                        style="background: var(--current-color); color:#fff;" data-i18n="worship_send_senior">Отправить старшему</button>
+            </div>
         </div>
 
         <div id="конфликт" hidden class="rounded-xl border border-warning/40 bg-warning/10 p-4 mb-5">
@@ -86,68 +88,106 @@
             <div class="text-sm" id="возвратПричина"></div>
         </div>
 
-        <div class="card bg-base-100 shadow mb-4">
-            <div class="card-body p-5 desktop:p-6 gap-4">
-                <label class="form-control">
-                    <div class="label py-1"><span class="label-text text-xs uppercase tracking-widest opacity-60" data-i18n="worship_field_title">Название</span></div>
-                    <input id="заголовок" type="text" class="input input-bordered text-lg font-semibold"
-                           placeholder="Например: Мангала-арати" maxlength="200">
+        <!-- Название — это заголовок документа, а не поле анкеты: человек пишет
+             стандарт, а раздел и пометка о правке остаются служебной строкой. -->
+        <div class="mb-4">
+            <input id="заголовок" type="text"
+                   class="w-full bg-transparent border-0 px-0 text-3xl font-bold tracking-tight
+                          focus:outline-none placeholder:opacity-30"
+                   placeholder="Название стандарта" maxlength="200">
+
+            <div class="flex flex-wrap items-center gap-x-5 gap-y-2 mt-3 text-sm">
+                <label class="flex items-center gap-2">
+                    <span class="opacity-50" data-i18n="worship_field_section">Раздел</span>
+                    <select id="раздел" class="select select-sm select-bordered min-w-40"></select>
                 </label>
-                <label class="form-control">
-                    <div class="label py-1"><span class="label-text text-xs uppercase tracking-widest opacity-60" data-i18n="worship_field_section">Раздел</span></div>
-                    <select id="раздел" class="select select-bordered"></select>
+
+                <label class="flex items-center gap-2 flex-1 min-w-64" id="картаИзменений">
+                    <span class="opacity-50 whitespace-nowrap" data-i18n="worship_field_change">Что изменилось</span>
+                    <input id="примечание" type="text" class="input input-sm input-bordered flex-1"
+                           data-i18n-placeholder="worship_change_placeholder"
+                           placeholder="Одной строкой: что поменяли и почему" maxlength="200">
                 </label>
-                <!-- поле обязательно при отправке, поэтому стоит рядом с названием,
-                     а не в самом низу страницы после всего текста -->
-                <label class="form-control" id="картаИзменений">
-                    <div class="label py-1">
-                        <span class="label-text text-xs uppercase tracking-widest opacity-60" data-i18n="worship_field_change">Что изменилось</span>
-                    </div>
-                    <input id="примечание" type="text" class="input input-bordered"
-                           data-i18n-placeholder="worship_change_placeholder" placeholder="Одной строкой: что поменяли и почему" maxlength="200">
-                    <div class="label py-1"><span class="label-text-alt opacity-60" data-i18n="worship_change_hint">Старший увидит это в очереди, а отдел — в истории.</span></div>
-                </label>
-                <!-- теги ставятся здесь же: отдельный заход на страницу статьи
-                     ради одного слова никто не делает -->
-                <div class="form-control" id="тегиБлок" hidden>
-                    <div class="label py-1">
-                        <span class="label-text text-xs uppercase tracking-widest opacity-60" data-i18n="worship_tags">Теги</span>
-                    </div>
+
+                <div class="flex items-center gap-2" id="тегиБлок" hidden>
+                    <span class="opacity-50" data-i18n="worship_tags">Теги</span>
                     <div class="flex flex-wrap items-center gap-2" id="теги"></div>
                 </div>
             </div>
         </div>
 
-        <!-- Панель: выделил кусок — нажал. Ничего, кроме того, что бывает
-             в документе: заголовок, список, заметка, фото. -->
-        <div class="sticky top-16 z-20 mb-3 flex flex-wrap items-center gap-1 bg-base-200/95 py-2">
-            <div class="join mr-1">
-                <button class="btn btn-sm btn-outline join-item px-2" id="откатить"
+        <!-- Панель: один ряд, сгруппированный по смыслу. Десять одинаковых
+             кнопок в две строки читались как приборная доска самолёта. -->
+        <div class="sticky top-16 z-20 mb-4 -mx-2 px-2 py-2 bg-base-200/95 backdrop-blur
+                    flex items-center gap-2 overflow-x-auto">
+            <div class="join">
+                <button class="btn btn-sm btn-ghost join-item px-2" id="откатить"
                         title="Отменить (Ctrl+Z)" aria-label="Отменить">↶</button>
-                <button class="btn btn-sm btn-outline join-item px-2" id="повторить"
+                <button class="btn btn-sm btn-ghost join-item px-2" id="повторить"
                         title="Вернуть (Ctrl+Shift+Z)" aria-label="Вернуть">↷</button>
             </div>
-            <button class="btn btn-sm btn-outline font-bold px-3" id="жирный" title="Жирный (Ctrl+B)">Ж</button>
-            <button class="btn btn-sm btn-outline" data-стиль="h2" title="Сделать выделенное заголовком">Заголовок</button>
-            <button class="btn btn-sm btn-outline" data-стиль="h3" title="Подзаголовок">Подзаголовок</button>
-            <button class="btn btn-sm btn-outline px-3" id="список" title="Маркированный список">• Список</button>
-            <button class="btn btn-sm btn-outline px-3" id="поШагам" title="Нумерованный список">1. По шагам</button>
-            <button class="btn btn-sm btn-outline" data-стиль="note" title="Выделить как заметку">Заметка</button>
-            <button class="btn btn-sm btn-outline" id="ссылка" title="Сделать выделенное ссылкой">Ссылка</button>
+
+            <span class="w-px h-5 bg-base-300"></span>
+
+            <button class="btn btn-sm btn-ghost font-bold w-9 px-0" id="жирный"
+                    title="Жирный (Ctrl+B)">Ж</button>
+            <button class="btn btn-sm btn-ghost w-9 px-0 font-bold" data-стиль="h2"
+                    title="Заголовок">H1</button>
+            <button class="btn btn-sm btn-ghost w-9 px-0 font-semibold text-sm" data-стиль="h3"
+                    title="Подзаголовок">H2</button>
+            <button class="btn btn-sm btn-ghost w-9 px-0" id="список" title="Список" aria-label="Список">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                     stroke-width="2" stroke-linecap="round" aria-hidden="true">
+                    <circle cx="4" cy="6" r="1.4" fill="currentColor" stroke="none"></circle>
+                    <circle cx="4" cy="12" r="1.4" fill="currentColor" stroke="none"></circle>
+                    <circle cx="4" cy="18" r="1.4" fill="currentColor" stroke="none"></circle>
+                    <path d="M9 6h11M9 12h11M9 18h11"></path>
+                </svg>
+            </button>
+            <button class="btn btn-sm btn-ghost w-9 px-0" id="поШагам"
+                    title="По шагам" aria-label="Нумерованный список">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                     stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                    <path d="M4 5h1v4M3.5 9h2.5" stroke-width="1.6"></path>
+                    <path d="M3.5 15.5c0-.8.7-1.5 1.5-1.5s1.5.6 1.5 1.4c0 1.3-3 2-3 3.6h3" stroke-width="1.6"></path>
+                    <path d="M10 6h10M10 12h10M10 18h10"></path>
+                </svg>
+            </button>
+            <button class="btn btn-sm btn-ghost w-9 px-0" data-стиль="note"
+                    title="Заметка-врезка" aria-label="Заметка">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                     stroke-width="2" stroke-linecap="round" aria-hidden="true">
+                    <path d="M4 5h16M4 12h10M4 19h7"></path>
+                    <path d="M18 14v6M15 17h6"></path>
+                </svg>
+            </button>
+            <button class="btn btn-sm btn-ghost w-9 px-0" id="ссылка" title="Ссылка" aria-label="Ссылка">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                     stroke-width="2" stroke-linecap="round" aria-hidden="true">
+                    <path d="M10 13a5 5 0 0 0 7.5.5l3-3a5 5 0 0 0-7-7l-1.5 1.5"></path>
+                    <path d="M14 11a5 5 0 0 0-7.5-.5l-3 3a5 5 0 0 0 7 7l1.5-1.5"></path>
+                </svg>
+            </button>
+
+            <span class="w-px h-5 bg-base-300"></span>
+
             <div class="dropdown">
-                <button tabindex="0" class="btn btn-sm btn-outline">Фото</button>
+                <button tabindex="0" class="btn btn-sm btn-ghost" title="Вставить фото">Фото</button>
                 <ul tabindex="0" class="dropdown-content z-30 menu menu-sm p-2 shadow bg-base-100 rounded-box w-56">
                     <li><button id="фотоФайл">Загрузить с устройства</button></li>
                     <li><button id="фотоГалерея">Взять из галереи</button></li>
                 </ul>
             </div>
-            <button class="btn btn-sm btn-ghost ml-auto" id="убратьОформление"
+
+            <button class="btn btn-sm btn-ghost ml-auto opacity-60" id="убратьОформление"
                     title="Снять оформление с выделенного">Очистить</button>
         </div>
 
         <div class="card bg-base-100 shadow">
-            <div class="card-body p-5 desktop:p-8">
-                <div id="текст" contenteditable="true" spellcheck="true"></div>
+            <div class="card-body p-6 desktop:p-10">
+                <!-- колонка шириной в комфортное чтение: строка в 110 символов
+                     через весь экран читается тяжело -->
+                <div id="текст" contenteditable="true" spellcheck="true" style="max-width: 68ch;"></div>
                 <p class="text-sm opacity-50 mt-6 pt-4 border-t border-base-200" data-i18n="worship_editor_hint">
                     Пишите как в обычном документе: Enter — новый абзац, Ctrl+Z отменяет.
                     Чтобы сделать заголовок, список или заметку, выделите текст и нажмите кнопку.
