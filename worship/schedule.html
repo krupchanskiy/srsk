@@ -32,14 +32,61 @@
             #шахматка { display: block !important; }
             #день { display: none !important; }
         }
-        /* клетка расписания: имена переносятся, пустая кликается целиком */
-        .клетка { vertical-align: top; min-width: 110px; }
-        .клетка.своя { background: color-mix(in srgb, var(--current-color) 12%, transparent); }
-        /* «поставить второго» нужен редко: в занятой клетке он появляется
-           при наведении, а не висит в каждой из двадцати одной */
-        .ещёВКлетку { opacity: 0; transition: opacity .15s; }
-        .клетка:hover .ещёВКлетку, .клетка:focus-within .ещёВКлетку { opacity: .6; }
-        @media (hover: none) { .ещёВКлетку { opacity: .4; } }
+        /* Шахматку читают взглядом по диагонали: «где дыры». Поэтому
+           состояние клетки несёт фон, а не текст внутри неё. */
+        .клетка { vertical-align: top; min-width: 118px; padding: .35rem .4rem !important; }
+
+        /* дыра — единственное, ради чего старший сюда заходит */
+        .клетка.дыра { background: oklch(var(--wa) / .13); }
+        .клетка.дыра:hover { background: oklch(var(--wa) / .22); }
+        .дыраКнопка {
+            display: flex; align-items: center; justify-content: center; gap: .25rem;
+            width: 100%; min-height: 2.4rem; border-radius: .5rem;
+            border: 1.5px dashed oklch(var(--wa) / .55);
+            font-size: .78rem; color: oklch(var(--wac, var(--bc)) / .85);
+        }
+        .клетка.дыра:hover .дыраКнопка { border-style: solid; }
+
+        /* прошедшая пустая клетка — не упрёк, просто ничего не было */
+        .клетка.прошлаяПустая { opacity: .45; }
+        /* день, в который этой службы нет вовсе */
+        .клетка.неПрименимо { background: oklch(var(--b2)); }
+        /* отменённая служба: видно, что это решение, а не забывчивость */
+        .клетка.отменена {
+            background: repeating-linear-gradient(135deg,
+                oklch(var(--b2)) 0 7px, oklch(var(--b3)) 7px 14px);
+        }
+
+        /* сегодняшний столбец — вертикальная полоса через всю таблицу */
+        .клетка.сегодня, th.сегодня { background: color-mix(in srgb, var(--current-color) 7%, transparent); }
+        .клетка.сегодня.дыра { background: oklch(var(--wa) / .18); }
+
+        /* занятая клетка: имя на плашке, чтобы отличаться от пустоты даже боковым зрением */
+        .плашкаИмени {
+            display: flex; align-items: flex-start; gap: .25rem;
+            background: oklch(var(--b1)); border: 1px solid oklch(var(--b3));
+            border-radius: .5rem; padding: .3rem .4rem;
+        }
+        .клетка.своя .плашкаИмени {
+            background: color-mix(in srgb, var(--current-color) 14%, oklch(var(--b1)));
+            border-color: color-mix(in srgb, var(--current-color) 45%, transparent);
+        }
+        /* «снять» и «поставить второго» нужны редко: в занятой клетке они
+           появляются при наведении, а не висят в каждой из двадцати одной */
+        .ещёВКлетку, .снятьВКлетке { opacity: 0; transition: opacity .15s; }
+        .клетка:hover .ещёВКлетку, .клетка:focus-within .ещёВКлетку,
+        .клетка:hover .снятьВКлетке, .клетка:focus-within .снятьВКлетке { opacity: .65; }
+        @media (hover: none) { .ещёВКлетку, .снятьВКлетке { opacity: .4; } }
+
+        /* итоговая строка: по какому дню неделя проседает */
+        #итогДней td { border-top: 2px solid oklch(var(--b3)); font-size: .78rem; }
+        #итогДней td.итогДыра { background: oklch(var(--wa) / .13); }
+
+        @media print {
+            .клетка.дыра { background: #f5f5f5 !important; }
+            .дыраКнопка { border-color: #999 !important; }
+            .клетка.отменена { background: #eee !important; }
+        }
     </style>
 </head>
 <body class="bg-base-200 min-h-screen flex flex-col">
@@ -91,8 +138,28 @@
                 <table class="table table-sm">
                     <thead><tr id="шапкаДней"></tr></thead>
                     <tbody id="строкиСлужб"></tbody>
+                    <!-- итог по дню: видно, какой день проседает, без пересчёта глазами -->
+                    <tfoot id="итогДней"></tfoot>
                 </table>
             </div>
+        </div>
+
+        <!-- что значит цвет: подсказка нужна один раз, поэтому мелко и под таблицей -->
+        <div class="flex flex-wrap items-center gap-4 text-xs opacity-70 mb-4 no-print" id="легенда">
+            <span class="flex items-center gap-1.5">
+                <span class="inline-block w-3.5 h-3.5 rounded"
+                      style="background: oklch(var(--wa) / .3); border: 1.5px dashed oklch(var(--wa));"></span>
+                некому служить
+            </span>
+            <span class="flex items-center gap-1.5">
+                <span class="inline-block w-3.5 h-3.5 rounded bg-base-100 border border-base-300"></span>
+                закрыто
+            </span>
+            <span class="flex items-center gap-1.5">
+                <span class="inline-block w-3.5 h-3.5 rounded"
+                      style="background: repeating-linear-gradient(135deg, oklch(var(--b2)) 0 4px, oklch(var(--b3)) 4px 8px);"></span>
+                не проводится
+            </span>
         </div>
 
         <!-- день: на телефоне семь столбцов не помещаются -->
@@ -253,7 +320,7 @@
     <script src="../js/layout.js?v=111"></script>
     <script src="../js/date-utils.js?v=4"></script>
     <script src="../js/auth-check.js?v=13"></script>
-    <script src="../js/pages/worship-schedule.js?v=14"></script>
+    <script src="../js/pages/worship-schedule.js?v=16"></script>
     <script>
         async function init() {
             await Layout.init({ module: 'worship', menuId: 'worship_main', itemId: 'worship_schedule' });

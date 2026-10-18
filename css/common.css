@@ -34,6 +34,18 @@ main h1 { font-size: 1.75rem !important; }
 main h2 { font-size: 1.5rem !important; }
 main h3 { font-size: 1.25rem !important; }
 
+/* Тихий надзаголовок для справочных блоков сбоку. Размер заголовка задан
+   выше через !important и перебивает классы Tailwind, поэтому боковая
+   «Подборки» с одной ссылкой выглядела так же крупно, как главный блок
+   страницы, и иерархия пропадала: всё кричало одинаково. */
+main .надзаголовок {
+    font-size: 0.9rem !important;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    opacity: 0.74;
+}
+
 main .text-xs { font-size: 0.9rem !important; }
 main .text-sm { font-size: 1rem !important; }
 main .text-base { font-size: 1.1rem !important; }

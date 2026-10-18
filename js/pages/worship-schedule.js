@@ -282,9 +282,9 @@ const WorshipSchedule = (() => {
         const список = дни();
         const сегодня = DateUtils.toISO(new Date());
         $('#шапкаДней').innerHTML = '<th class="w-44">Служба</th>' + список.map((д, i) => `
-            <th class="${д === сегодня ? 'text-[color:var(--current-color)]' : ''}">
+            <th class="${д === сегодня ? 'сегодня text-[color:var(--current-color)]' : ''}">
                 ${ДНИ[i]}<span class="block text-xs font-normal opacity-60">${
-                    DateUtils.formatShort(DateUtils.parseDate(д))}</span>
+                    д === сегодня ? 'сегодня' : DateUtils.formatShort(DateUtils.parseDate(д))}</span>
             </th>`).join('');
 
         // строки идут по времени: разовая в 06:30 стоит выше бхоги в 08:00,
@@ -298,24 +298,29 @@ const WorshipSchedule = (() => {
             ? `
             <tr>
                 <td class="align-top">
+                    <!-- время первым: по шахматке ведут взглядом сверху вниз
+                         по часам, а «стандарта нет» повторялось в каждой строке
+                         и ни к какому действию не вело -->
+                    <span class="block text-xs font-semibold opacity-70 tabular-nums">${
+                        e(с.time_of_day.slice(0, 5))}</span>
                     <span class="font-semibold">${e(Layout.getName(с))}</span>
-                    <span class="block text-xs opacity-60">${e(с.time_of_day.slice(0, 5))}</span>
                     ${с.article_id
-                        ? `<a class="link text-xs no-print" href="article.html?id=${с.article_id}">как делается</a>`
-                        : `<span class="text-xs opacity-40 no-print">стандарта нет</span>`}
+                        ? `<a class="link link-hover block text-xs opacity-70 no-print"
+                              href="article.html?id=${с.article_id}">как делается</a>` : ''}
                 </td>
                 ${список.map(д => клеткаHTML(д, с)).join('')}
             </tr>`
             : `
             <tr>
                 <td class="align-top">
+                    <span class="block text-xs font-semibold opacity-70 tabular-nums">${
+                        e((о.time_of_day || '').slice(0, 5))}</span>
                     <span class="font-semibold">${e(о.title)}</span>
                     <span class="badge badge-sm ml-1">разовая</span>
-                    <span class="block text-xs opacity-60">${e((о.time_of_day || '').slice(0, 5))}</span>
                 </td>
                 ${список.map(д => д === о.duty_date
                     ? клеткаHTML(д, null, о)
-                    : '<td class="клетка opacity-30"></td>').join('')}
+                    : `<td class="клетка неПрименимо ${д === сегодня ? 'сегодня' : ''}"></td>`).join('')}
             </tr>`);
 
         $('#строкиСлужб').innerHTML = строки.join('') ||
@@ -325,13 +330,15 @@ const WorshipSchedule = (() => {
     }
 
     function клеткаHTML(день, служба, разовая) {
+        const сегодня = день === DateUtils.toISO(new Date()) ? ' сегодня' : '';
+
         if (служба && отменена(служба.id, день)) {
             const о = отклонения.find(x => x.service_id === служба.id && x.duty_date === день);
             // отмена не снимает уже стоящих: иначе отмена «на пробу» молча
             // стирала бы расстановку. Но и прятать их нельзя — люди придут
             const повисшие = вКлетке(день, служба.id);
-            return `<td class="клетка bg-base-200/60 text-xs opacity-70">
-                не проводится${о?.reason ? `<span class="block">${e(о.reason)}</span>` : ''}
+            return `<td class="клетка отменена${сегодня} text-xs opacity-80">
+                не проводится${о?.reason ? `<span class="block opacity-70">${e(о.reason)}</span>` : ''}
                 ${повисшие.map(н => `
                     <div class="flex items-center gap-1 mt-1">
                         <span class="line-through">${e(человек(н.person_id)?.имя || 'кто-то')}</span>
@@ -340,46 +347,96 @@ const WorshipSchedule = (() => {
                                        title="Снять">✕</button>` : ''}
                     </div>`).join('')}
                 ${повисшие.length
-                    ? '<span class="block text-warning">их надо снять или предупредить</span>' : ''}</td>`;
+                    ? '<span class="block text-error font-semibold">их надо снять или предупредить</span>' : ''}</td>`;
         }
 
         const свои = вКлетке(день, служба?.id, разовая?.id);
         const моя = яЧеловек && свои.some(н => н.person_id === яЧеловек.id);
+        // клетку закрывает только тот, кто придёт: стоящий в отъезде оставляет
+        // её открытой, и выглядеть она должна так же, как пустая
+        const закрыта = свои.some(н => кто_придёт(н, день));
 
         if (!свои.length) {
-            // в прошедшем дне «+ поставить» выглядит упрёком, а не делом:
-            // клетка остаётся кликабельной, но молчит
+            // в прошедшем дне дыра — не дело, а история: подсвечивать нечего
             const прошло = день < DateUtils.toISO(new Date());
-            return `<td class="клетка ${можноВести() ? 'cursor-pointer hover:bg-base-200' : ''}"
-                        ${можноВести() ? `data-клетка="${день}" data-служба="${служба?.id || ''}"
-                        data-разовая="${разовая?.id || ''}"` : ''}>
-                <span class="text-xs opacity-${прошло ? '20' : '40'}">${
-                    прошло ? '—' : (можноВести() ? '+ поставить' : '—')}</span></td>`;
+            if (прошло) {
+                return `<td class="клетка прошлаяПустая${сегодня}
+                            ${можноВести() ? 'cursor-pointer' : ''}"
+                            ${можноВести() ? `data-клетка="${день}" data-служба="${служба?.id || ''}"
+                            data-разовая="${разовая?.id || ''}"` : ''}>
+                    <span class="text-xs opacity-60">—</span></td>`;
+            }
+            if (!можноВести()) {
+                return `<td class="клетка дыра${сегодня}">
+                    <span class="дыраКнопка">не назначено</span></td>`;
+            }
+            return `<td class="клетка дыра${сегодня} cursor-pointer"
+                        data-клетка="${день}" data-служба="${служба?.id || ''}"
+                        data-разовая="${разовая?.id || ''}">
+                <span class="дыраКнопка">
+                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                         stroke-width="2.4" stroke-linecap="round" aria-hidden="true">
+                        <path d="M12 5v14M5 12h14"></path>
+                    </svg>поставить</span></td>`;
         }
 
-        return `<td class="клетка ${моя ? 'своя' : ''}">
+        // кто-то стоит, но прийти не может — это такая же дыра, только с именем
+        return `<td class="клетка${закрыта ? '' : ' дыра'}${моя ? ' своя' : ''}${сегодня}">
             ${свои.map(н => {
                 const ч = человек(н.person_id);
                 const пометки = состоянияКлетки(н, ч, день, служба);
                 return `
-                <div class="flex items-start gap-1 mb-0.5">
-                    <a class="link link-hover text-sm flex-1 ${пометки.зачеркнуть ? 'line-through opacity-60' : ''}"
-                       href="people.html?id=${н.person_id}">${e(ч?.имя || 'кто-то')}</a>
+                <div class="плашкаИмени mb-1">
+                    <span class="flex-1 min-w-0">
+                        <a class="link link-hover text-sm ${пометки.зачеркнуть ? 'line-through opacity-60' : ''}"
+                           href="people.html?id=${н.person_id}">${e(ч?.имя || 'кто-то')}</a>
+                        ${н.role !== 'pujari'
+                            ? `<span class="badge badge-xs ml-0.5">${e(РОЛИ[н.role] || н.role)}</span>` : ''}
+                        ${пометки.список.map(([т, к]) =>
+                            `<span class="badge badge-xs ${к} mt-0.5">${e(т)}</span>`).join('')}
+                    </span>
                     ${можноВести()
-                        ? `<button class="btn btn-ghost btn-xs no-print px-1" data-снять="${н.id}"
-                                   title="Снять">✕</button>` : ''}
-                </div>
-                ${н.role !== 'pujari'
-                    ? `<span class="badge badge-xs">${e(РОЛИ[н.role] || н.role)}</span>` : ''}
-                ${пометки.список.map(([т, к]) =>
-                    `<span class="badge badge-xs ${к} ml-0.5">${e(т)}</span>`).join('')}`;
+                        ? `<button class="btn btn-ghost btn-xs no-print px-1 снятьВКлетке shrink-0"
+                                   data-снять="${н.id}" title="Снять" aria-label="Снять">✕</button>` : ''}
+                </div>`;
             }).join('')}
             ${можноВести()
                 ? `<button class="btn btn-ghost btn-xs no-print ещёВКлетку" data-клетка="${день}"
                            data-служба="${служба?.id || ''}" data-разовая="${разовая?.id || ''}"
-                           title="Поставить второго">+</button>`
+                           title="Поставить второго">+ ещё</button>`
                 : ''}
         </td>`;
+    }
+
+    /**
+     * Итог по дню. Неделю закрывают не ровным слоем: обычно проседают
+     * один-два дня, и без этой строки их ищут глазами по всему столбцу.
+     */
+    function рисоватьИтогДней() {
+        const список = дни();
+        const сегодня = DateUtils.toISO(new Date());
+        const активные = службы.filter(с => с.is_active);
+        if (!активные.length && !отклонения.some(о => о.title)) {
+            $('#итогДней').innerHTML = '';
+            return;
+        }
+
+        $('#итогДней').innerHTML = `<tr>
+            <td class="text-xs opacity-70 font-semibold">Закрыто за день</td>
+            ${список.map(д => {
+                const надо = активные.filter(с => !отменена(с.id, д)).length
+                    + разовыеДня(д).length;
+                const есть = активные.filter(с => !отменена(с.id, д)
+                        && вКлетке(д, с.id).some(н => кто_придёт(н, д))).length
+                    + разовыеДня(д).filter(о =>
+                        вКлетке(д, null, о.id).some(н => кто_придёт(н, д))).length;
+                const всё = надо && есть === надо;
+                // худший день должен находиться взглядом, а не вычитанием
+                return `<td class="${д === сегодня ? 'сегодня' : ''} tabular-nums font-semibold ${
+                    !надо ? 'opacity-40' : всё ? 'text-success' : 'итогДыра'}">
+                    ${надо ? `${есть} из ${надо}` : '—'}</td>`;
+            }).join('')}
+        </tr>`;
     }
 
     /**
@@ -489,6 +546,7 @@ const WorshipSchedule = (() => {
         // рисуем оба вида, показываем один: при печати со страницы «день»
         // на бумагу идёт неделя, и пустая таблица была бы сюрпризом
         рисоватьНеделю();
+        рисоватьИтогДней();
         рисоватьДень();
         рисоватьОтклонения();
         window.applyPermissions?.();

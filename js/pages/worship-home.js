@@ -127,8 +127,8 @@ const WorshipHome = (() => {
      * Службы на сегодня: главный вопрос к отделу — «что сейчас», а не
      * «покажи оглавление». Следующая по времени выделена.
      */
-    async function деньСегодня() {
-        const сегодня = DateUtils.toISO(new Date());
+    async function деньСегодня(дата, завтрашний) {
+        const сегодня = дата || DateUtils.toISO(new Date());
         const [с, о, н] = await Promise.all([
             Layout.db.from('worship_services')
                 .select('id, name_ru, name_en, name_hi, time_of_day, article_id')
@@ -168,24 +168,45 @@ const WorshipHome = (() => {
                 кто: назначения.filter(д => д.override_id === о2.id), разовая: true })),
         ].sort((a, b) => (a.время || '').localeCompare(b.время || ''));
 
-        const сейчас = new Date().toTimeString().slice(0, 8);
+        const сейчас = завтрашний ? '00:00:00' : new Date().toTimeString().slice(0, 8);
         const следующая = строки.find(с2 => (с2.время || '') >= сейчас);
-        $('#todayHint').textContent = следующая ? '' : 'На сегодня службы кончились.';
+
+        // день кончился — показывать прошедшие службы с «никто не поставлен»
+        // значит упрекать задним числом за то, чего уже не исправить.
+        // Человеку в этот час нужен завтрашний день
+        if (!следующая && !завтрашний) {
+            const завтра = new Date();
+            завтра.setDate(завтра.getDate() + 1);
+            return деньСегодня(DateUtils.toISO(завтра), true);
+        }
+
+        $('#todayЗаголовок').textContent = завтрашний ? 'Службы завтра' : 'Службы сегодня';
+        $('#todayHint').textContent = завтрашний ? 'На сегодня службы кончились. ' : '';
 
         $('#todayCard').hidden = false;
-        $('#today').innerHTML = строки.map(с2 => `
-            <li class="border-b border-base-200 last:border-0 py-2 ${с2 === следующая ? 'font-semibold' : ''}">
-                <span class="inline-block w-14 opacity-${с2 === следующая ? '100' : '60'}">${
-                    e((с2.время || '').slice(0, 5))}</span>
-                ${с2.article_id
-                    ? `<a class="link link-hover" href="article.html?id=${с2.article_id}">${e(с2.имя)}</a>`
-                    : e(с2.имя)}
-                ${с2.разовая ? '<span class="badge badge-sm ml-1">разовая</span>' : ''}
-                ${с2 === следующая ? '<span class="badge badge-sm ml-1">следующая</span>' : ''}
-                <span class="block text-sm opacity-60 pl-14">${
-                    с2.кто.length ? с2.кто.map(д => e(имена[д.person_id] || 'кто-то')).join(', ')
-                                  : 'никто не поставлен'}</span>
-            </li>`).join('');
+        $('#today').innerHTML = строки.map(с2 => {
+            const прошла = !завтрашний && (с2.время || '') < сейчас;
+            return `
+            <li class="flex items-baseline gap-3 border-b border-base-200 last:border-0 py-2 ${
+                прошла ? 'opacity-50' : ''} ${с2 === следующая ? 'font-semibold' : ''}">
+                <span class="w-12 shrink-0 tabular-nums ${
+                    с2 === следующая ? '' : 'opacity-70'}">${e((с2.время || '').slice(0, 5))}</span>
+                <span class="flex-1 min-w-0">
+                    ${с2.article_id
+                        ? `<a class="link link-hover" href="article.html?id=${с2.article_id}">${e(с2.имя)}</a>`
+                        : e(с2.имя)}
+                    ${с2.разовая ? '<span class="badge badge-sm ml-1">разовая</span>' : ''}
+                    ${с2 === следующая
+                        ? '<span class="badge badge-sm ml-1" style="background: var(--current-color); color:#fff; border:0;">следующая</span>'
+                        : ''}
+                    ${с2.кто.length
+                        ? `<span class="block text-sm opacity-70">${
+                            с2.кто.map(д => e(имена[д.person_id] || 'кто-то')).join(', ')}</span>`
+                        : прошла ? ''
+                        : '<span class="block text-sm text-error">никто не поставлен</span>'}
+                </span>
+            </li>`;
+        }).join('');
     }
 
     /**
@@ -289,8 +310,10 @@ const WorshipHome = (() => {
     }
 
     function рисоватьРазделы() {
+        // пустой раздел в боковой сводке — строка, по которой некуда идти
         $('#sections').innerHTML = разделы.map(р => {
             const сколько = статьи.filter(с => с.section_id === р.id && с.status === 'published').length;
+            if (!сколько) return '';
             return `
             <li class="border-b border-base-200 last:border-0">
                 <a href="standards.html" class="flex items-baseline gap-2 py-2 hover:opacity-70 transition-opacity">
@@ -298,7 +321,7 @@ const WorshipHome = (() => {
                     <span class="text-sm opacity-50">${сколько}</span>
                 </a>
             </li>`;
-        }).join('') || '<li class="py-2 text-sm opacity-60">Разделов пока нет</li>';
+        }).join('') || '<li class="py-2 text-sm opacity-70">Пока ни одного утверждённого стандарта</li>';
     }
 
     async function init() {
