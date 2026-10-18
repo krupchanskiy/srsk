@@ -1,0 +1,88 @@
+<!DOCTYPE html>
+<html lang="ru" data-theme="light">
+<head>
+    <meta charset="UTF-8">
+    <script src="../js/color-init.js?v=4"></script>
+
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Стандарты — ШРСК</title>
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg">
+    <link href="https://cdn.jsdelivr.net/npm/daisyui@4.12.14/dist/full.min.css" rel="stylesheet" />
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script>tailwind.config = { theme: { extend: { screens: { 'desktop': '1200px' } } } }</script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans:wght@400;500;600;700&family=Noto+Sans+Devanagari:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="../css/common.css?v=8">
+</head>
+<body class="bg-base-200 min-h-screen flex flex-col">
+
+    <div id="header-placeholder"></div>
+
+    <main class="container mx-auto px-4 py-6 flex-1" style="max-width: 1060px;">
+
+        <div class="mb-5 flex flex-wrap items-end gap-3">
+            <div class="flex-1 min-w-full desktop:min-w-0">
+                <h1 class="text-3xl font-bold tracking-tight">Стандарты</h1>
+                <p class="text-sm opacity-60 mt-1">Как делается служение. Здесь только утверждённое —
+                    обсуждения живут в чате.</p>
+            </div>
+            <button class="btn btn-sm" id="newArticle" data-permission="worship_write"
+                    style="background: var(--current-color); color: #fff;">Новая статья</button>
+        </div>
+
+        <!-- поиск: отдел заходит сюда за конкретной статьёй -->
+        <div class="flex flex-wrap gap-3 items-center mb-4">
+            <label class="input input-bordered flex items-center gap-2 flex-1 min-w-64">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                     stroke-width="2" stroke-linecap="round" class="opacity-50" aria-hidden="true">
+                    <circle cx="11" cy="11" r="7"></circle><path d="M20 20l-3.5-3.5"></path>
+                </svg>
+                <input id="q" type="search" class="grow" placeholder="Искать: одевание, туласи, экадаши…">
+            </label>
+            <div class="join">
+                <button class="btn btn-sm join-item btn-active" data-view="sections">По разделам</button>
+                <button class="btn btn-sm join-item" data-view="flat">Списком</button>
+            </div>
+        </div>
+
+        <!-- очередь: единственное место, где работа ждёт конкретного человека -->
+        <section id="queue" hidden class="mb-5 rounded-xl border border-warning/40 bg-warning/10 p-4">
+            <h2 class="font-bold flex items-center gap-2 mb-1">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                     stroke-width="2" stroke-linecap="round" aria-hidden="true">
+                    <circle cx="12" cy="12" r="9"></circle><path d="M12 7v5l3 2"></path>
+                </svg>
+                Ждут решения · <span id="queueCount">0</span>
+            </h2>
+            <p class="text-sm opacity-70 mb-3">Пока не утвердите, в храме действует прежняя редакция.</p>
+            <div class="flex flex-col gap-2" id="queueList"></div>
+        </section>
+
+        <label class="label cursor-pointer justify-start gap-2 mb-3 w-fit">
+            <input type="checkbox" class="checkbox checkbox-sm" id="showArchive">
+            <span class="label-text text-sm">Показать архив</span>
+        </label>
+
+        <div id="list"></div>
+    </main>
+
+    <div id="footer-placeholder"></div>
+
+    <script src="../js/config.js"></script>
+    <script src="../js/cache.js"></script>
+    <script src="../js/utils.js"></script>
+    <script src="../js/layout.js?v=97"></script>
+    <script src="../js/date-utils.js"></script>
+    <script src="../js/auth-check.js?v=12"></script>
+    <script src="../js/pages/worship-standards.js?v=1"></script>
+    <script>
+        async function init() {
+            await Layout.init({ module: 'worship', menuId: 'worship_main', itemId: 'worship_standards' });
+            await WorshipStandards.init();
+        }
+        init();
+    </script>
+</body>
+</html>

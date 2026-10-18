@@ -1,0 +1,114 @@
+<!DOCTYPE html>
+<html lang="ru" data-theme="light">
+<head>
+    <meta charset="UTF-8">
+    <script src="../js/color-init.js?v=4"></script>
+
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Стандарт — ШРСК</title>
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg">
+    <link href="https://cdn.jsdelivr.net/npm/daisyui@4.12.14/dist/full.min.css" rel="stylesheet" />
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script>tailwind.config = { theme: { extend: { screens: { 'desktop': '1200px' } } } }</script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans:wght@400;500;600;700&family=Noto+Sans+Devanagari:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="../css/common.css?v=8">
+    <style>
+        /* Печать: лист уходит на стену алтарной, поэтому на бумаге остаётся
+           только текст стандарта и строка, по какой версии служат. */
+        @media print {
+            #header-placeholder, #footer-placeholder, #actions,
+            #toc, #historyCard, #returned, .no-print { display: none !important; }
+            main { max-width: none !important; padding: 0 !important; }
+            .card { box-shadow: none !important; border: 0 !important; }
+            body { background: #fff !important; }
+            h2, h3 { break-after: avoid; }
+            li, figure { break-inside: avoid; }
+        }
+    </style>
+</head>
+<body class="bg-base-200 min-h-screen flex flex-col">
+
+    <div id="header-placeholder"></div>
+
+    <main class="container mx-auto px-4 py-6 flex-1" style="max-width: 1060px;">
+
+        <div class="text-sm mb-3" id="crumb"></div>
+
+        <div class="flex flex-wrap items-start gap-3 mb-5">
+            <div class="flex-1 min-w-0">
+                <h1 class="text-3xl font-bold tracking-tight" id="title">&nbsp;</h1>
+                <p class="text-sm mt-1" id="state"></p>
+            </div>
+            <div class="flex flex-wrap gap-2" id="actions"></div>
+        </div>
+
+        <!-- причина возврата: автору нужно видеть её над текстом, а не искать в истории -->
+        <div id="returned" hidden class="rounded-xl border border-warning/40 bg-warning/10 p-4 mb-5">
+            <div class="font-bold mb-1">Старший вернул на доработку</div>
+            <div class="text-sm" id="returnReason"></div>
+        </div>
+
+        <div class="flex flex-col desktop:flex-row gap-5 items-start">
+
+            <!-- оглавление: пуджари у алтаря ищет конкретный шаг, а не читает подряд -->
+            <aside id="toc" hidden class="w-full desktop:w-56 desktop:sticky desktop:top-32 shrink-0">
+                <div class="card bg-base-100 shadow">
+                    <div class="card-body p-4">
+                        <div class="text-xs font-bold uppercase tracking-widest opacity-50 mb-2">Шаги</div>
+                        <ul class="list-none m-0 p-0 space-y-1" id="tocList"></ul>
+                    </div>
+                </div>
+            </aside>
+
+            <div class="flex-1 min-w-0 w-full">
+                <article class="card bg-base-100 shadow">
+                    <div class="card-body p-6 desktop:p-8 text-[17px] leading-relaxed" id="body"></div>
+                </article>
+
+                <div class="card bg-base-100 shadow mt-5" id="historyCard">
+                    <div class="card-body p-6">
+                        <h2 class="card-title text-lg mb-1">Как менялось</h2>
+                        <p class="text-sm opacity-60 mb-2">Прежние редакции сохраняются — видно, что и когда поменяли.</p>
+                        <ul class="list-none m-0 p-0" id="history"></ul>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <!-- сравнение: старший утверждает правку, видя, что именно в ней поменяли -->
+    <dialog id="diffModal" class="modal">
+        <div class="modal-box max-w-3xl">
+            <h3 class="font-bold text-lg mb-1">Что изменилось</h3>
+            <p class="text-sm opacity-60 mb-4" id="diffSub"></p>
+            <div class="text-[15px] leading-relaxed whitespace-pre-wrap" id="diffBody"></div>
+            <div class="modal-action">
+                <form method="dialog"><button class="btn btn-sm">Закрыть</button></form>
+            </div>
+        </div>
+        <form method="dialog" class="modal-backdrop"><button>закрыть</button></form>
+    </dialog>
+
+    <div id="footer-placeholder"></div>
+
+    <script src="../js/config.js"></script>
+    <script src="../js/cache.js"></script>
+    <script src="../js/utils.js"></script>
+    <script src="../js/layout.js?v=97"></script>
+    <script src="../js/date-utils.js"></script>
+    <script src="../js/auth-check.js?v=12"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jsdiff/5.2.0/diff.min.js"></script>
+    <script src="../js/worship-doc.js?v=1"></script>
+    <script src="../js/pages/worship-article.js?v=1"></script>
+    <script>
+        async function init() {
+            await Layout.init({ module: 'worship', menuId: 'worship_main', itemId: 'worship_standards' });
+            await WorshipArticle.init();
+        }
+        init();
+    </script>
+</body>
+</html>
