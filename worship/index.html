@@ -23,7 +23,15 @@
         /* Группы сводки разделяет расстояние, а не линии: части секций
            скрыты (нет закладок, нет подборок), и четыре линейки на четыре
            однострочных списка резали узкую колонку на пустые ящики. */
-        #сводка > section:not([hidden]) ~ section:not([hidden]) { margin-top: 1.1rem; }
+        #сводка > details:not([hidden]) ~ details:not([hidden]) { margin-top: 1.1rem; }
+        /* заголовок группы — цветом модуля: иначе четыре серые метки
+           подряд читались как один сплошной список */
+        .надзаголовокЦветной {
+            font-size: .9rem; font-weight: 700; text-transform: uppercase;
+            letter-spacing: .1em; color: var(--current-color);
+        }
+        .счётчикСводки { font-size: .85rem; opacity: .7; }
+        .группаСводки > summary .details-chevron { color: var(--current-color); opacity: .7; }
         #сводка a { text-decoration: none; }
     </style>
 </head>
@@ -122,34 +130,63 @@
                 <div class="card bg-base-100 shadow">
                     <div class="card-body p-5 gap-0" id="сводка">
 
-                        <section id="kitsCard" hidden>
-                            <h2 class="надзаголовок mb-1.5"
-                                data-i18n="worship_kits_title">Подборки</h2>
+                        <details id="kitsCard" class="группаСводки" hidden>
+                            <summary class="flex items-center gap-1.5 cursor-pointer list-none mb-1.5">
+                                <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                                     stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"
+                                     class="details-chevron transition-transform shrink-0" aria-hidden="true">
+                                    <path d="M9 6l6 6-6 6"></path>
+                                </svg>
+                                <span class="надзаголовокЦветной"><span data-i18n="worship_kits_title">Подборки</span></span>
+                                <span class="счётчикСводки"></span>
+                            </summary>
                             <ul class="list-none m-0 p-0" id="kits"></ul>
-                        </section>
+                        </details>
 
-                        <section id="marksCard" hidden>
-                            <!-- заголовок ведёт на полный список: в сводке лежат
-                                 только первые, и прежде из неё некуда было пойти -->
-                            <h2 class="надзаголовок mb-1.5">
-                                <a href="bookmarks.html" class="hover:text-[color:var(--current-color)]
-                                   transition-colors" data-i18n="worship_marks_title">Закладки</a></h2>
+                        <details id="marksCard" class="группаСводки" hidden>
+                            <summary class="flex items-center gap-1.5 cursor-pointer list-none mb-1.5">
+                                <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                                     stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"
+                                     class="details-chevron transition-transform shrink-0" aria-hidden="true">
+                                    <path d="M9 6l6 6-6 6"></path>
+                                </svg>
+                                <span class="надзаголовокЦветной"><a href="bookmarks.html" class="hover:underline" data-i18n="worship_marks_title">Закладки</a></span>
+                                <span class="счётчикСводки"></span>
+                            </summary>
                             <ul class="list-none m-0 p-0" id="marks"></ul>
-                        </section>
+                        </details>
 
-                        <section id="recentCard" hidden>
-                            <h2 class="надзаголовок mb-1.5"
-                                data-i18n="worship_recent_title">Недавно открытое</h2>
+                        <details id="recentCard" class="группаСводки" hidden>
+                            <summary class="flex items-center gap-1.5 cursor-pointer list-none mb-1.5">
+                                <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                                     stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"
+                                     class="details-chevron transition-transform shrink-0" aria-hidden="true">
+                                    <path d="M9 6l6 6-6 6"></path>
+                                </svg>
+                                <span class="надзаголовокЦветной"><span data-i18n="worship_recent_title">Недавно открытое</span></span>
+                                <span class="счётчикСводки"></span>
+                            </summary>
                             <ul class="list-none m-0 p-0" id="recent"></ul>
-                        </section>
+                        </details>
 
-                        <section id="sectionsCard">
-                            <h2 class="надзаголовок mb-1.5"
-                                data-i18n="worship_sections_title">Разделы</h2>
+                        <details id="sectionsCard" class="группаСводки">
+                            <summary class="flex items-center gap-1.5 cursor-pointer list-none mb-1.5">
+                                <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                                     stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"
+                                     class="details-chevron transition-transform shrink-0" aria-hidden="true">
+                                    <path d="M9 6l6 6-6 6"></path>
+                                </svg>
+                                <span class="надзаголовокЦветной"><span data-i18n="worship_sections_title">Разделы</span></span>
+                                <span class="счётчикСводки"></span>
+                            </summary>
                             <ul class="list-none m-0 p-0" id="sections"></ul>
-                            <a href="standards.html" class="btn btn-sm btn-outline mt-4 w-full"
-                               data-i18n="worship_all_standards">Все стандарты</a>
-                        </section>
+                        </details>
+
+                        <!-- кнопка живёт вне свёрнутого блока: переход к полному
+                             списку нужен и тогда, когда разделы свёрнуты -->
+                        <a href="standards.html" class="btn btn-sm btn-outline mt-4 w-full"
+                           data-i18n="worship_all_standards">Все стандарты</a>
+
                     </div>
                 </div>
             </aside>
@@ -164,7 +201,7 @@
     <script src="../js/layout.js?v=116"></script>
     <script src="../js/date-utils.js?v=4"></script>
     <script src="../js/auth-check.js?v=13"></script>
-    <script src="../js/pages/worship-home.js?v=12"></script>
+    <script src="../js/pages/worship-home.js?v=13"></script>
     <script>
         async function init() {
             await Layout.init({ module: 'worship', menuId: 'worship_main', itemId: 'worship_home' });

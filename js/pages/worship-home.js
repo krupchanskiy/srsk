@@ -35,6 +35,45 @@ const WorshipHome = (() => {
         </li>`;
     }
 
+
+    /**
+     * Группа боковой сводки: счётчик в заголовке и сворачивание. Длинный
+     * список подборок или разделов вытеснял всё остальное вниз, поэтому
+     * группа, где больше пяти строк, по умолчанию свёрнута — видно, что
+     * там есть и сколько, но экран она не занимает.
+     */
+    const ПОРОГ_СВОРАЧИВАНИЯ = 5;
+    const КЛЮЧ_СВОДКИ = 'worship_home_summary';
+
+    const сохранённоеСводки = () => {
+        try { return JSON.parse(localStorage.getItem(КЛЮЧ_СВОДКИ) || '{}'); }
+        catch { return {}; }
+    };
+
+    function настроитьГруппу(ид, сколько) {
+        const блок = $('#' + ид);
+        if (!блок) return;
+        блок.hidden = !сколько;
+        if (!сколько) return;
+
+        блок.querySelector('.счётчикСводки').textContent = сколько;
+        const свой = сохранённоеСводки()[ид];
+        блок.open = свой !== undefined ? свой : сколько <= ПОРОГ_СВОРАЧИВАНИЯ;
+    }
+
+    function помнитьГруппы() {
+        // toggle не всплывает — слушаем на погружении
+        document.addEventListener('toggle', ev => {
+            const блок = ev.target.closest?.('.группаСводки');
+            if (!блок?.id) return;
+            try {
+                const всё = сохранённоеСводки();
+                всё[блок.id] = блок.open;
+                localStorage.setItem(КЛЮЧ_СВОДКИ, JSON.stringify(всё));
+            } catch { /* приватный режим — просто не запомним */ }
+        }, true);
+    }
+
     async function лента() {
         const { data, error } = await Layout.db.from('worship_versions')
             .select('id, article_id, title, version_no, change_note, approved_at')
@@ -125,6 +164,7 @@ const WorshipHome = (() => {
                 <a href="kit.html?id=${п.id}" class="block text-sm py-1 leading-snug
                           hover:text-[color:var(--current-color)] transition-colors">${e(п.title)}</a>
             </li>`).join('');
+        настроитьГруппу('kitsCard', data.length);
     }
 
     /**
@@ -300,17 +340,13 @@ const WorshipHome = (() => {
         const заголовок = id => статьи.find(с => с.id === id)?.title || 'Статья';
 
         const закладки = (data || []).filter(з => з.kind === 'bookmark' && з.article_id);
-        if (закладки.length) {
-            $('#marksCard').hidden = false;
-            $('#marks').innerHTML = закладки.map(з => строка(з.article_id, заголовок(з.article_id), '')).join('');
-        }
+        $('#marks').innerHTML = закладки.map(з => строка(з.article_id, заголовок(з.article_id), '')).join('');
+        настроитьГруппу('marksCard', закладки.length);
 
         const недавние = (data || []).filter(з => з.kind === 'recent' && з.article_id)
             .filter(з => !закладки.some(з2 => з2.article_id === з.article_id)).slice(0, 5);
-        if (недавние.length) {
-            $('#recentCard').hidden = false;
-            $('#recent').innerHTML = недавние.map(з => строка(з.article_id, заголовок(з.article_id), '')).join('');
-        }
+        $('#recent').innerHTML = недавние.map(з => строка(з.article_id, заголовок(з.article_id), '')).join('');
+        настроитьГруппу('recentCard', недавние.length);
     }
 
     function рисоватьРазделы() {
@@ -327,9 +363,17 @@ const WorshipHome = (() => {
                 </a>
             </li>`;
         }).join('') || '<li class="py-1 text-sm opacity-70">Пока ни одного утверждённого стандарта</li>';
+
+        const сколько = разделы.filter(р =>
+            статьи.some(с => с.section_id === р.id && с.status === 'published')).length;
+        настроитьГруппу('sectionsCard', сколько);
+        // раздел с кнопкой «Все стандарты» нужен даже пустым: иначе из сводки
+        // некуда перейти к полному списку
+        $('#sectionsCard').hidden = false;
     }
 
     async function init() {
+        помнитьГруппы();
         // поиск идёт сразу по стандартам, библиотеке и наборам фото: человек
         // не знает, в каком хранилище ответ. Слушатель вешаем первым — иначе
         // Enter, нажатый до конца загрузки, перезагрузит страницу
