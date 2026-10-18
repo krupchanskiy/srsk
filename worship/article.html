@@ -63,6 +63,9 @@
                 <h1 class="text-3xl font-bold tracking-tight" id="title"
                     style="text-wrap: balance;">&nbsp;</h1>
                 <p class="text-sm mt-1" id="state"></p>
+                <!-- что сделать, чтобы правка стала действующей: без этого
+                     человек видел «пока не утвердят» и не знал, чего ждать -->
+                <p class="text-sm mt-1 opacity-70" id="какПринять" hidden></p>
             </div>
             <div class="flex flex-wrap gap-2" id="actions"></div>
         </div>
@@ -118,7 +121,7 @@
                 <div class="mt-3 text-sm" id="соседи"></div>
 
                 <!-- обслуживание: раскрывается по желанию, а не занимает экран -->
-                <div class="mt-6 border-t border-base-300 pt-4 space-y-2">
+                <div class="mt-6 border-t border-base-300 pt-4 space-y-3">
                     <details id="remarksCard" class="group">
                         <summary class="flex flex-wrap items-center gap-2 cursor-pointer list-none py-1">
                             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor"
@@ -152,7 +155,8 @@
                         </details>
                     </details>
 
-                    <details id="historyCard" class="group">
+                    <!-- разделитель: два свёрнутых блока подряд слипались в один список -->
+                    <details id="historyCard" class="group border-t border-base-200 pt-3">
                         <summary class="flex items-center gap-2 cursor-pointer list-none py-1">
                             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor"
                                  stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"
@@ -230,13 +234,13 @@
     <script src="../js/config.js?v=5"></script>
     <script src="../js/cache.js?v=2"></script>
     <script src="../js/utils.js?v=17"></script>
-    <script src="../js/layout.js?v=114"></script>
+    <script src="../js/layout.js?v=115"></script>
     <script src="../js/date-utils.js?v=4"></script>
     <script src="../js/auth-check.js?v=13"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jsdiff/5.2.0/diff.min.js"></script>
     <script src="../js/worship-doc.js?v=5"></script>
     <script src="../js/worship-tags.js?v=6"></script>
-    <script src="../js/pages/worship-article.js?v=22"></script>
+    <script src="../js/pages/worship-article.js?v=23"></script>
     <script>
         async function init() {
             await Layout.init({ module: 'worship', menuId: 'worship_main', itemId: 'worship_standards' });

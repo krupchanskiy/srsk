@@ -1,0 +1,71 @@
+<!DOCTYPE html>
+<html lang="ru" data-theme="light">
+<head>
+    <meta charset="UTF-8">
+    <script src="../js/color-init.js?v=6"></script>
+
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Закладки — ШРСК</title>
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg">
+    <link href="https://cdn.jsdelivr.net/npm/daisyui@4.12.14/dist/full.min.css" rel="stylesheet" />
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script>tailwind.config = { theme: { extend: { screens: { 'desktop': '1200px' } } } }</script>
+    <!-- соединение с базой открывается заранее: иначе первое обращение
+         к ней ждёт DNS и рукопожатие TLS уже после загрузки скриптов -->
+    <link rel="preconnect" href="https://mymrijdfqeevoaocbzfy.supabase.co" crossorigin>
+    <link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans:wght@400;500;600;700&family=Noto+Sans+Devanagari:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="../css/common.css?v=15">
+    <style>
+        /* крестик «убрать» нужен редко, список читают постоянно */
+        .ручкиСтроки { opacity: 0; transition: opacity .15s; }
+        li:hover .ручкиСтроки, li:focus-within .ручкиСтроки { opacity: 1; }
+        @media (hover: none) { .ручкиСтроки { opacity: .5; } }
+    </style>
+</head>
+<body class="bg-base-200 min-h-screen flex flex-col">
+
+    <div id="header-placeholder"></div>
+
+    <main class="container mx-auto px-4 py-6 flex-1" style="max-width: 820px;">
+
+        <div class="mb-4">
+            <h1 class="text-3xl font-bold tracking-tight" data-i18n="worship_bookmarks_title">Закладки</h1>
+            <p class="text-sm opacity-70 mt-1" data-i18n="worship_bookmarks_hint">То, что вы отметили
+                звёздочкой. Список личный — у каждого в отделе свой.</p>
+        </div>
+
+        <div class="card bg-base-100 shadow">
+            <ul class="list-none m-0 p-0" id="список"></ul>
+        </div>
+
+        <!-- недавнее система ведёт сама: сюда приходят и за тем, что читали вчера -->
+        <section id="недавнееБлок" hidden class="mt-6">
+            <h2 class="надзаголовок mb-1.5" data-i18n="worship_recent_title">Недавно открытое</h2>
+            <div class="card bg-base-100 shadow">
+                <ul class="list-none m-0 p-0" id="недавнее"></ul>
+            </div>
+        </section>
+    </main>
+
+    <div id="footer-placeholder"></div>
+
+    <script src="../js/config.js?v=5"></script>
+    <script src="../js/cache.js?v=2"></script>
+    <script src="../js/utils.js?v=17"></script>
+    <script src="../js/layout.js?v=115"></script>
+    <script src="../js/date-utils.js?v=4"></script>
+    <script src="../js/auth-check.js?v=13"></script>
+    <script src="../js/pages/worship-bookmarks.js?v=1"></script>
+    <script>
+        async function init() {
+            await Layout.init({ module: 'worship', menuId: 'worship_main', itemId: 'worship_bookmarks' });
+            await WorshipBookmarks.init();
+        }
+        init();
+    </script>
+</body>
+</html>

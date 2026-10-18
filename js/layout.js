@@ -241,7 +241,8 @@ const modules = {
                 { id: 'worship_schedule', href: 'worship/schedule.html' },
                 { id: 'worship_library', href: 'worship/library.html' },
                 { id: 'worship_gallery', href: 'worship/gallery.html' },
-                { id: 'worship_kits', href: 'worship/kits.html' }
+                { id: 'worship_kits', href: 'worship/kits.html' },
+                { id: 'worship_bookmarks', href: 'worship/bookmarks.html' }
             ]}
         ]
     },
@@ -387,6 +388,7 @@ const pagePermissions = {
     'worship/search.html': 'worship_view',
     'worship/kits.html': 'worship_view',
     'worship/kit.html': 'worship_view',
+    'worship/bookmarks.html': 'worship_view',
 };
 
 // Проверка права страницы: строка или массив (достаточно любого)
@@ -610,7 +612,7 @@ async function loadTranslations(retried = false) {
     // бампается номер в имени ключа ниже — и кэш сбрасывается сам
     const СУТКИ = 24 * 60 * 60 * 1000;
 
-    const data = await Cache.getOrLoad('translations_v80', async () => {
+    const data = await Cache.getOrLoad('translations_v81', async () => {
         // Одним запросом, а не страницами по тысяче: PostgREST больше тысячи
         // строк за раз не отдаёт, и клиент ходил пять раз подряд, каждый раз
         // ожидая предыдущий ответ — это секунды до первой отрисовки
@@ -646,7 +648,7 @@ async function loadTranslations(retried = false) {
 
     if (!hasAllKeys && !retried) {
         // Кэш устарел, инвалидируем и перезагружаем (только 1 раз)
-        Cache.invalidate('translations_v80');
+        Cache.invalidate('translations_v81');
         return loadTranslations(true);
     }
 
