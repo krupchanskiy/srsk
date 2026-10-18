@@ -532,7 +532,16 @@ async function repeatOperation(opId) {
         updateExpenseRecap();
     } else {
         // приход / пожертвование — одна нога прихода
-        const ins = (data || []).filter(x => Number(x.signed_amount) > 0);
+        let ins = (data || []).filter(x => Number(x.signed_amount) > 0);
+        // «Касса Магазин» с частью «Мурти»: мурти — в своё поле, сумма — к строке магазина того же счёта
+        const shopId = categoryByCode('shop_cash')?.id, murtiId = categoryByCode('murti')?.id;
+        const murtiRow = ins.some(x => x.category_id === shopId) && ins.find(x => x.category_id === murtiId);
+        if (murtiRow) {
+            ins = ins.filter(x => x !== murtiRow).map(x => ({ ...x }));
+            const same = ins.find(x => x.account_id === murtiRow.account_id) || ins[0];
+            same.signed_amount = Number(same.signed_amount) + Number(murtiRow.signed_amount);
+            ins = [same, ...ins.filter(x => x !== same)];
+        }
         const p = ins[0] || data?.[0];
         openIncome();
         document.getElementById('incIsDonation').checked = op.type === 'donation';
@@ -555,6 +564,8 @@ async function repeatOperation(opId) {
         } else {
             // Приход, внесённый частями в разные кассы, повторяется со всеми частями
             ins.slice(1).forEach(x => addIncomeRow({ account_id: x.account_id, amount: Math.abs(Number(x.signed_amount)) }));
+            if (murtiRow) document.getElementById('incShopMurti').value = Math.abs(Number(murtiRow.signed_amount));
+            syncShopBlock();
         }
         updateIncomeRecap();
     }
@@ -942,6 +953,7 @@ function openIncome() {
     document.getElementById('incCafeSelf').value = '';
     document.getElementById('incCafeHall').value = '';
     document.getElementById('incCafeFloat').value = '';
+    document.getElementById('incShopMurti').value = '';
     cafeFloatLoaded = false;
     updateIncomeCategoryList();
     document.getElementById('incAmount').value = '';
@@ -1044,6 +1056,7 @@ function syncParticipantBlock() {
         .find(c => c.id === document.getElementById('incCategory').value)?.code === 'prepayment_advance';
     document.getElementById('incPrepayHint').classList.toggle('hidden', !prepay);
     syncCafeBlock();
+    syncShopBlock();
 }
 
 // ---- «Касса кафе» по точкам (ВГ, 13.10.2026) ----
@@ -1099,6 +1112,30 @@ function cafeParts() {
     return [['self', 'incCafeSelf'], ['cafe', 'incCafeHall']]
         .map(([point, id]) => ({ ...row, cafe_point: point, amount: Number(document.getElementById(id).value) || 0 }))
         .filter(p => p.amount > 0);
+}
+
+// ---- «Касса Магазин» и «Мурти» одним приходом (ВГ, 18.10.2026) ----
+// В отличие от кафе (одна статья, точка — пометка) здесь две настоящие статьи:
+// мурти считаются отдельно в отчётах. Деньги магазина приносят одной суммой,
+// казначей указывает часть за мурти — она уходит на статью «Мурти» со счёта
+// первой строки «Поступило», остальное — на «Касса Магазин».
+const categoryByCode = code => FinUtils.refs.categories.find(c => c.code === code);
+const isShopIncome = () => !document.getElementById('incIsDonation').checked
+    && categoryByCode('shop_cash')?.id === document.getElementById('incCategory').value;
+const shopMurti = () => Number(document.getElementById('incShopMurti').value) || 0;
+
+function syncShopBlock() {
+    const on = isShopIncome();
+    document.getElementById('incShopWrap').classList.toggle('hidden', !on);
+    if (!on) return;
+    const first = incomeParts()[0];
+    const acc = FinUtils.refs.accounts.find(a => a.account_id === first.account.value);
+    document.getElementById('incShopCur').textContent = acc ? `(${acc.name})` : '';
+    const murti = shopMurti();
+    const total = Number(first.amount.value) || 0;
+    document.getElementById('incShopNet').textContent = !murti ? ''
+        : murti > total ? 'Больше, чем поступило на этот счёт'
+        : `Мурти ${FinUtils.fmtMoney(murti, acc?.currency_code)}, магазин ${FinUtils.fmtMoney(Math.round((total - murti) * 100) / 100, acc?.currency_code)}`;
 }
 
 // ---- Один платёж за нескольких (правило ВГ, 29.07.2026) ----
@@ -1240,6 +1277,16 @@ async function submitIncome(ev) {
         }
         hallPart.amount = Math.round((hallPart.amount - float) * 100) / 100;
     }
+    // «Касса Магазин»: часть первой строки — на «Мурти»
+    const murti = isShopIncome() ? shopMurti() : 0;
+    if (murti > 0) {
+        if (murti > Number(parts[0].amount)) {
+            Layout.showNotification('На мурти больше, чем поступило на первый счёт', 'error'); return;
+        }
+        parts.unshift({ ...parts[0], amount: murti, category_id: categoryByCode('murti').id });
+        parts[1].amount = Math.round((Number(parts[1].amount) - murti) * 100) / 100;
+        if (!parts[1].amount) parts.splice(1, 1);   // всё за мурти
+    }
     const payload = {
         request_id: requestIds.income,
         occurred_on: document.getElementById('incDate').value,
@@ -1248,7 +1295,7 @@ async function submitIncome(ev) {
             id: FinUtils.newRequestId(),
             account_id: p.account.value,
             amount: p.amount,
-            category_id: document.getElementById('incCategory').value,
+            category_id: p.category_id || document.getElementById('incCategory').value,
             object_id: document.getElementById('incObject').value || null,
             payment_channel: p.channel.value || null,
             ...(p.cafe_point ? { cafe_point: p.cafe_point } : {})
@@ -1498,6 +1545,8 @@ async function init() {
     FinUtils.attachPersonSearch(document.getElementById('incParticipantSearch'), document.getElementById('incParticipantId'));
     document.getElementById('incCategory').addEventListener('change', syncParticipantBlock);
     document.getElementById('incCafeWrap').addEventListener('input', syncCafeTotal);
+    document.getElementById('incomeModal').addEventListener('input', syncShopBlock);
+    document.getElementById('incomeModal').addEventListener('change', syncShopBlock);
     document.getElementById('incCategory').addEventListener('change', maybeSuggestIncomeObject);
     document.getElementById('incDate').addEventListener('change', maybeSuggestIncomeObject);
     document.getElementById('incObject').addEventListener('change', () => { incObjectAuto = false; });
